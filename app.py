@@ -12,16 +12,12 @@ import plotly.graph_objects as go
 st.set_page_config(page_title="AI Trading Dashboard", layout="wide")
 
 
-# =========================
-# LOGIN PROTECTION
-# =========================
 APP_USERNAME = os.getenv("APP_USERNAME", "admin")
 APP_PASSWORD = os.getenv("APP_PASSWORD", "password")
 
 
 def login():
     st.title("AI Trading Dashboard Login")
-
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
 
@@ -41,9 +37,6 @@ if not st.session_state["logged_in"]:
     st.stop()
 
 
-# =========================
-# SETTINGS
-# =========================
 EMAIL_SENDER = os.getenv("EMAIL_SENDER")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 EMAIL_RECEIVERS = os.getenv("EMAIL_RECEIVERS", "")
@@ -61,19 +54,12 @@ PORTFOLIO = {
 }
 
 
-# =========================
-# DATA FUNCTIONS
-# =========================
 @st.cache_data(ttl=300)
 def get_stock_data(ticker, period="6mo"):
     try:
         stock = yf.Ticker(ticker)
         hist = stock.history(period=period)
-
-        if hist.empty:
-            return None
-
-        return hist
+        return hist if not hist.empty else None
     except Exception:
         return None
 
@@ -82,14 +68,10 @@ def calculate_rsi(data, window=14):
     delta = data["Close"].diff()
     gain = delta.clip(lower=0)
     loss = -delta.clip(upper=0)
-
     avg_gain = gain.rolling(window).mean()
     avg_loss = loss.rolling(window).mean()
-
     rs = avg_gain / avg_loss
-    rsi = 100 - (100 / (1 + rs))
-
-    return rsi
+    return 100 - (100 / (1 + rs))
 
 
 def calculate_dip_status(data):
@@ -102,7 +84,6 @@ def calculate_dip_status(data):
 
     drop_from_20 = ((latest_close - high_20) / high_20) * 100
     drop_from_50 = ((latest_close - high_50) / high_50) * 100
-
     rsi = calculate_rsi(data).iloc[-1]
 
     if drop_from_50 <= -20 and rsi < 35:
@@ -139,15 +120,12 @@ def calculate_trade_plan(data):
         return None, None, None, None, None, None
 
     latest_price = data["Close"].iloc[-1]
-
     ma20 = data["Close"].rolling(20).mean().iloc[-1]
     ma50 = data["Close"].rolling(50).mean().iloc[-1]
-
     rsi = calculate_rsi(data).iloc[-1]
 
     recent_support = data["Low"].tail(20).min()
     strong_support = data["Low"].tail(50).min()
-
     resistance_20 = data["High"].tail(20).max()
     resistance_50 = data["High"].tail(50).max()
 
@@ -167,36 +145,30 @@ def calculate_trade_plan(data):
         entry_price = max(ma20, recent_support)
         target_price = resistance_50
         stop_loss = entry_price * 0.94
-
     elif deep_dip:
-        trade_setup = "Deep Dip Rebound"
+        trade_setup = "Deep Dip"
         entry_price = max(strong_support, recent_support)
         target_price = max(ma50, resistance_20)
         stop_loss = strong_support * 0.95
-
     elif normal_dip:
         trade_setup = "Dip Buy"
         entry_price = recent_support
         target_price = resistance_20
         stop_loss = recent_support * 0.95
-
     elif weak_or_choppy:
-        trade_setup = "Range Trade"
+        trade_setup = "Range"
         entry_price = recent_support
         target_price = resistance_20
         stop_loss = recent_support * 0.96
-
     else:
-        trade_setup = "Wait / Watch"
+        trade_setup = "Watch"
         entry_price = min(ma20, recent_support)
         target_price = resistance_20
         stop_loss = entry_price * 0.95
 
     upside_percent = ((target_price - latest_price) / latest_price) * 100
-
     risk = max(entry_price - stop_loss, 0)
     reward = max(target_price - entry_price, 0)
-
     risk_reward = reward / risk if risk > 0 else 0
 
     return (
@@ -228,8 +200,6 @@ def calculate_confidence_score(data, dip_status, risk_reward, upside_percent, tr
         score += 16
     elif dip_status == "No Dip":
         score += 8
-    elif dip_status == "Overbought":
-        score += 0
 
     if 30 <= rsi <= 45:
         score += 20
@@ -275,11 +245,11 @@ def calculate_confidence_score(data, dip_status, risk_reward, upside_percent, tr
 
     if trade_setup == "Pullback Buy":
         score += 5
-    elif trade_setup == "Deep Dip Rebound":
+    elif trade_setup == "Deep Dip":
         score += 3
-    elif trade_setup == "Range Trade":
+    elif trade_setup == "Range":
         score -= 2
-    elif trade_setup == "Wait / Watch":
+    elif trade_setup == "Watch":
         score -= 5
 
     confidence_score = max(0, min(100, round(score, 0)))
@@ -299,7 +269,6 @@ def send_email_alert(subject, body):
         return False
 
     receivers = [email.strip() for email in EMAIL_RECEIVERS.split(",") if email.strip()]
-
     msg = MIMEText(body)
     msg["Subject"] = subject
     msg["From"] = EMAIL_SENDER
@@ -342,11 +311,7 @@ def build_scanner(tickers):
         entry_price, target_price, stop_loss, upside_percent, risk_reward, trade_setup = calculate_trade_plan(data)
 
         confidence_score, confidence_label = calculate_confidence_score(
-            data,
-            dip_status,
-            risk_reward,
-            upside_percent,
-            trade_setup
+            data, dip_status, risk_reward, upside_percent, trade_setup
         )
 
         if dip_status == "Deep Dip":
@@ -357,8 +322,6 @@ def build_scanner(tickers):
             dip_score = 65
         elif dip_status == "No Dip":
             dip_score = max(0, min(60, abs(drop_from_20) * 5))
-        elif dip_status == "Overbought":
-            dip_score = 0
         else:
             dip_score = 0
 
@@ -403,9 +366,6 @@ def build_scanner(tickers):
     return df.head(15)
 
 
-# =========================
-# UI
-# =========================
 st.title("AI Trading Dashboard")
 
 with st.sidebar:
@@ -437,15 +397,9 @@ with st.sidebar:
         st.rerun()
 
 
-# =========================
-# SCANNER BUILD
-# =========================
 scanner_df = build_scanner(watchlist)
 
 
-# =========================
-# TOP TRADE SETUPS
-# =========================
 st.subheader("🔥 Top 5 High-Confidence Trade Setups")
 
 if scanner_df.empty:
@@ -454,20 +408,25 @@ else:
     top_setups = scanner_df.head(5)
 
     for _, row in top_setups.iterrows():
-        col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
+        col1, col2, col3, col4, col5, col6, col7 = st.columns([1, 1, 1.4, 1, 1, 1, 1])
 
         col1.metric("Ticker", row["Ticker"])
-        col2.metric("Confidence", f"{int(row['Confidence'])}/100")
-        col3.metric("Setup", row["Trade Setup"])
+        col2.metric("Conf", f"{int(row['Confidence'])}/100")
+        col3.markdown(
+            f"""
+            <div style="font-size:13px; line-height:1.1;">
+                <b>Setup</b><br>
+                {row['Trade Setup']}
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
         col4.metric("Entry", f"${row['Suggested Entry']}")
         col5.metric("Target", f"${row['Target Price']}")
         col6.metric("Upside", f"{row['Upside %']}%")
         col7.metric("R/R", row["Risk/Reward"])
 
 
-# =========================
-# CURRENT OPPORTUNITIES PANEL
-# =========================
 st.subheader("📌 Current Opportunities")
 
 if scanner_df.empty:
@@ -478,7 +437,7 @@ else:
             scanner_df["DIP STATUS"].isin(["Deep Dip", "Dip", "Small Dip"])
         )
         | (
-            scanner_df["Trade Setup"].isin(["Pullback Buy", "Dip Buy", "Deep Dip Rebound", "Range Trade"])
+            scanner_df["Trade Setup"].isin(["Pullback Buy", "Dip Buy", "Deep Dip", "Range"])
         )
         | (
             scanner_df["Confidence"] >= 50
@@ -517,9 +476,6 @@ else:
 st.divider()
 
 
-# =========================
-# TOP 15 SCANNER
-# =========================
 st.subheader("Top 15 Scanner")
 
 if scanner_df.empty:
@@ -545,9 +501,6 @@ else:
     )
 
 
-# =========================
-# CHARTS
-# =========================
 st.subheader(f"{selected_ticker} Chart")
 
 chart_data = get_stock_data(selected_ticker, chart_period)
@@ -627,8 +580,8 @@ if chart_data is not None and not chart_data.empty:
 
     col1.metric("Current Price", f"${chart_data['Close'].iloc[-1]:.2f}")
     col2.metric("Confidence", f"{confidence_score}/100")
-    col3.metric("Level", confidence_label)
-    col4.metric("Setup", trade_setup)
+    col3.markdown(f"**Level**  \n{confidence_label}")
+    col4.markdown(f"**Setup**  \n{trade_setup}")
     col5.metric("Entry", f"${entry_price}")
     col6.metric("Target", f"${target_price}")
     col7.metric("R/R", risk_reward)
@@ -636,9 +589,6 @@ else:
     st.warning("No chart data available.")
 
 
-# =========================
-# PORTFOLIO
-# =========================
 st.subheader("Portfolio")
 
 portfolio_rows = []
@@ -682,16 +632,12 @@ portfolio_df = pd.DataFrame(portfolio_rows)
 
 if not portfolio_df.empty:
     total_value = portfolio_df["Value"].sum()
-
     st.metric("Total Portfolio Value", f"${total_value:,.2f}")
     st.dataframe(portfolio_df, use_container_width=True, hide_index=True)
 else:
     st.warning("No portfolio data available.")
 
 
-# =========================
-# SMART ALERTS
-# =========================
 st.subheader("🚨 Smart Alerts - New High-Confidence Dip Opportunities")
 
 st.caption(
