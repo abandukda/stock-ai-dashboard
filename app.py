@@ -179,6 +179,19 @@ def build_scanner(tickers):
         drop_from_20 = ((latest_price - high_20) / high_20) * 100
         drop_from_50 = ((latest_price - high_50) / high_50) * 100
 
+        if dip_status == "Deep Dip":
+            dip_score = 100
+        elif dip_status == "Dip":
+            dip_score = 85
+        elif dip_status == "Small Dip":
+            dip_score = 65
+        elif dip_status == "No Dip":
+            dip_score = max(0, min(60, abs(drop_from_20) * 5))
+        elif dip_status == "Overbought":
+            dip_score = 0
+        else:
+            dip_score = 0
+
         rows.append({
             "Ticker": ticker,
             "Price": round(latest_price, 2),
@@ -187,6 +200,7 @@ def build_scanner(tickers):
             "Signal": signal,
             "DIP STATUS": dip_status,
             "Dip Note": dip_note,
+            "Dip Score": round(dip_score, 0),
             "Drop From 20D High %": round(drop_from_20, 2),
             "Drop From 50D High %": round(drop_from_50, 2),
         })
@@ -196,30 +210,10 @@ def build_scanner(tickers):
     if df.empty:
         return df
 
-    signal_rank = {
-        "Buy": 1,
-        "Hold": 2,
-        "Sell": 3,
-    }
-
-    dip_rank = {
-        "Deep Dip": 1,
-        "Dip": 2,
-        "Small Dip": 3,
-        "No Dip": 4,
-        "Overbought": 5,
-        "Not enough data": 6,
-    }
-
-    df["Signal Rank"] = df["Signal"].map(signal_rank).fillna(9)
-    df["Dip Rank"] = df["DIP STATUS"].map(dip_rank).fillna(9)
-
     df = df.sort_values(
-        by=["Dip Rank", "Signal Rank", "Drop From 20D High %"],
-        ascending=[True, True, True]
+        by=["Dip Score", "Drop From 20D High %"],
+        ascending=[False, True]
     )
-
-    df = df.drop(columns=["Signal Rank", "Dip Rank"])
 
     return df.head(15)
 
@@ -259,31 +253,27 @@ with st.sidebar:
 
 
 # =========================
-# TOP DIP OPPORTUNITIES + SCANNER
+# TOP DIP WATCH + SCANNER
 # =========================
-st.subheader("🔥 Top Dip Opportunities")
+st.subheader("🔥 Top 5 Dip Watch")
 
 scanner_df = build_scanner(watchlist)
 
 if scanner_df.empty:
     st.warning("No scanner data available.")
 else:
-    best_dips = scanner_df[
-        scanner_df["DIP STATUS"].isin(["Deep Dip", "Dip"])
-    ].head(5)
+    top_dip_watch = scanner_df.head(5)
 
-    if not best_dips.empty:
-        for _, row in best_dips.iterrows():
-            col1, col2, col3, col4 = st.columns(4)
+    for _, row in top_dip_watch.iterrows():
+        col1, col2, col3, col4, col5 = st.columns(5)
 
-            col1.metric("Ticker", row["Ticker"])
-            col2.metric("Price", f"${row['Price']}")
-            col3.metric("DIP STATUS", row["DIP STATUS"])
-            col4.metric("Signal", row["Signal"])
+        col1.metric("Ticker", row["Ticker"])
+        col2.metric("Price", f"${row['Price']}")
+        col3.metric("DIP STATUS", row["DIP STATUS"])
+        col4.metric("Dip Score", f"{int(row['Dip Score'])}/100")
+        col5.metric("Signal", row["Signal"])
 
-        st.divider()
-    else:
-        st.info("No strong dip opportunities right now.")
+    st.divider()
 
     st.subheader("Top 15 Scanner")
 
