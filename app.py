@@ -400,9 +400,12 @@ else:
 
 
 # =========================
-# ALERTS
+# SMART ALERTS
 # =========================
-st.subheader("Alerts")
+st.subheader("Smart Alerts - New Dip Opportunities Only")
+
+if "last_dip_states" not in st.session_state:
+    st.session_state["last_dip_states"] = {}
 
 alert_rows = []
 
@@ -415,7 +418,14 @@ for ticker in watchlist:
     signal = get_signal(data)
     dip_status, dip_note = calculate_dip_status(data)
 
-    if signal == "Buy" or dip_status in ["Deep Dip", "Dip"]:
+    previous_status = st.session_state["last_dip_states"].get(ticker)
+
+    is_new_dip = (
+        dip_status in ["Deep Dip", "Dip"]
+        and previous_status not in ["Deep Dip", "Dip"]
+    )
+
+    if is_new_dip:
         alert_rows.append({
             "Ticker": ticker,
             "Signal": signal,
@@ -424,18 +434,21 @@ for ticker in watchlist:
             "Time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         })
 
+    st.session_state["last_dip_states"][ticker] = dip_status
+
 alert_df = pd.DataFrame(alert_rows)
 
 if not alert_df.empty:
+    st.success("🚨 New dip opportunities detected")
     st.dataframe(alert_df, use_container_width=True, hide_index=True)
 
     if st.button("Send Email Alerts"):
         body = alert_df.to_string(index=False)
-        sent = send_email_alert("AI Trading Dashboard Alerts", body)
+        sent = send_email_alert("New Dip Opportunities", body)
 
         if sent:
             st.success("Alert email sent.")
         else:
-            st.warning("Email alert not sent. Check EMAIL_SENDER, EMAIL_PASSWORD, and EMAIL_RECEIVERS.")
+            st.warning("Email not sent. Check EMAIL_SENDER, EMAIL_PASSWORD, and EMAIL_RECEIVERS.")
 else:
-    st.info("No active alerts right now.")
+    st.info("No new dip alerts right now.")
