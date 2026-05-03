@@ -1,15 +1,61 @@
 import os
-from flask import Flask, request
+from flask import Flask, request, redirect, session
 from scanner import scan_market
 from portfolio import add_position, review_portfolio
 from watchlist import add_watchlist_stock, review_watchlist
 from alerts import send_alerts
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "dev_secret_key")
+
+USERNAME = os.environ.get("APP_USERNAME", "admin")
+PASSWORD = os.environ.get("APP_PASSWORD", "password123")
+
+
+def is_logged_in():
+    return session.get("logged_in")
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    error = ""
+
+    if request.method == "POST":
+        username = request.form.get("username")
+        password = request.form.get("password")
+
+        if username == USERNAME and password == PASSWORD:
+            session["logged_in"] = True
+            return redirect("/")
+        else:
+            error = "Invalid credentials"
+
+    return f"""
+    <html>
+    <body style="font-family: Arial; padding:50px;">
+        <h2>🔐 Login</h2>
+        <form method="POST">
+            <input name="username" placeholder="Username"><br><br>
+            <input name="password" type="password" placeholder="Password"><br><br>
+            <button type="submit">Login</button>
+        </form>
+        <p style="color:red;">{error}</p>
+    </body>
+    </html>
+    """
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect("/login")
 
 
 @app.route("/", methods=["GET", "POST"])
 def home():
+    if not is_logged_in():
+        return redirect("/login")
+
     results = scan_market(limit=15)
     alert_message = ""
 
@@ -80,101 +126,41 @@ def home():
 
     html = f"""
     <html>
-    <head>
-        <title>AI Trading Dashboard</title>
-    </head>
-
     <body style="font-family: Arial; padding: 25px; background:#f4f6f8;">
 
-        <h1>📊 AI Trading Dashboard</h1>
-
-        <div style="background:#fff; padding:15px; border-radius:10px; margin-bottom:20px;">
-            <h2>🧠 Quick Decision Cheat Sheet</h2>
-            <ul>
-                <li><b>Score ≥ 80 & Confidence ≥ 70</b> → ✅ Strong Buy Setup</li>
-                <li><b>Score High + Confidence Low</b> → ⚠️ Risky / Possible Fakeout</li>
-                <li><b>Score 60–70 + Confidence High</b> → 👀 Watch / Early Setup</li>
-                <li><b>Low Score + Low Confidence</b> → ❌ Avoid</li>
-            </ul>
-
-            <hr>
-
-            <h3>📊 What Score Means</h3>
-            <p>
-                Score represents how strong the stock setup is right now based on trend, momentum, and volume.
-                Higher score = stronger opportunity.
-            </p>
-
-            <h3>🎯 What Confidence Means</h3>
-            <p>
-                Confidence represents how reliable the signal is.
-                Higher confidence = signals are aligned and more likely to work.
-            </p>
+        <div style="display:flex; justify-content:space-between;">
+            <h1>📊 AI Trading Dashboard</h1>
+            <a href="/logout">Logout</a>
         </div>
 
-        <h2>🔥 Top 3 Daily Picks</h2>
+        <h2>🔥 Top 3 Picks</h2>
         {top3_html}
 
-        <h2>Scanner — Top 15</h2>
-        <table border="1" cellpadding="8" style="background:white; border-collapse:collapse; width:100%;">
+        <h2>Scanner</h2>
+        <table border="1" cellpadding="8" style="background:white; width:100%;">
             <tr>
-                <th>Ticker</th>
-                <th>Price</th>
-                <th>Score</th>
-                <th>Confidence</th>
-                <th>Signal</th>
+                <th>Ticker</th><th>Price</th><th>Score</th><th>Confidence</th><th>Signal</th>
             </tr>
             {scanner_rows}
         </table>
 
-        <h2>Add Position</h2>
+        <h2>Watchlist</h2>
         <form method="POST">
-            <input name="ticker" placeholder="Ticker or Company">
-            <input name="entry_price" placeholder="Entry Price">
-            <input type="hidden" name="action" value="add_portfolio">
-            <button type="submit">Add to Portfolio</button>
-        </form>
-
-        <h2>Add to Watchlist</h2>
-        <form method="POST">
-            <input name="ticker" placeholder="Ticker or Company">
+            <input name="ticker" placeholder="Add stock">
             <input type="hidden" name="action" value="add_watchlist">
-            <button type="submit">Add to Watchlist</button>
+            <button>Add</button>
         </form>
 
-        <h2>Portfolio Tracker</h2>
-        <table border="1" cellpadding="8" style="background:white; border-collapse:collapse; width:100%;">
+        <form method="POST">
+            <input type="hidden" name="action" value="send_alerts">
+            <button>Send Alerts</button>
+        </form>
+
+        <p>{alert_message}</p>
+
+        <table border="1" cellpadding="8" style="background:white; width:100%;">
             <tr>
-                <th>Ticker</th>
-                <th>Entry</th>
-                <th>Current</th>
-                <th>P&L%</th>
-                <th>Score</th>
-                <th>Signal</th>
-                <th>Action</th>
-            </tr>
-            {portfolio_rows}
-        </table>
-
-        <h2>Watchlist Tracker</h2>
-
-        <div style="background:#fff; padding:15px; border-radius:10px; margin-bottom:15px;">
-            <h3>📧 Watchlist Alerts</h3>
-            <form method="POST">
-                <input type="hidden" name="action" value="send_alerts">
-                <button type="submit">Send Watchlist Alerts Now</button>
-            </form>
-            <p><b>{alert_message}</b></p>
-        </div>
-
-        <table border="1" cellpadding="8" style="background:white; border-collapse:collapse; width:100%;">
-            <tr>
-                <th>Ticker</th>
-                <th>Price</th>
-                <th>Score</th>
-                <th>Confidence</th>
-                <th>Signal</th>
-                <th>Alert</th>
+                <th>Ticker</th><th>Price</th><th>Score</th><th>Confidence</th><th>Signal</th><th>Alert</th>
             </tr>
             {watch_rows}
         </table>
