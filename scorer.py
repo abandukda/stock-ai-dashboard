@@ -24,7 +24,6 @@ def calculate_score(data):
     confidence = 50
     reasons = []
 
-    # Trend
     if short_ma > long_ma:
         score += 20
         confidence += 10
@@ -34,19 +33,17 @@ def calculate_score(data):
         confidence -= 10
         reasons.append("short-term trend weaker than 20-day trend")
 
-    # RSI
     if rsi < 30:
         score += 20
         confidence += 5
-        reasons.append("RSI oversold (potential bounce)")
+        reasons.append("RSI oversold")
     elif rsi > 70:
         score -= 15
         confidence -= 5
-        reasons.append("RSI overbought (risk of pullback)")
+        reasons.append("RSI overbought")
     else:
         reasons.append("RSI normal")
 
-    # Momentum
     if close.iloc[-1] > close.iloc[-5]:
         score += 10
         confidence += 5
@@ -55,17 +52,13 @@ def calculate_score(data):
         confidence -= 5
         reasons.append("price not rising")
 
-    # Volume confirmation
     avg_vol = volume.tail(20).mean()
     if volume.iloc[-1] > 1.3 * avg_vol:
         score += 10
         confidence += 10
-        reasons.append("volume spike confirms move")
+        reasons.append("volume confirms move")
 
-    score = round(max(0, min(100, score)), 1)
-    confidence = round(max(0, min(100, confidence)), 1)
-
-    return score, reasons, confidence
+    return round(max(0, min(100, score)), 1), reasons, round(max(0, min(100, confidence)), 1)
 
 
 def long_term_outlook(data):
@@ -92,12 +85,25 @@ def dip_buy_status(data, score, long_term):
 
     price_now = close.iloc[-1]
     price_5_days_ago = close.iloc[-5]
+    ma20 = close.tail(20).mean()
     ma50 = close.tail(50).mean()
+    rsi = get_rsi(close).iloc[-1]
 
-    if score < 50 and price_now >= ma50 * 0.95 and price_now < price_5_days_ago:
-        return "🟢 Potential dip-buy candidate"
+    recent_pullback = price_now < price_5_days_ago
+    long_term_intact = price_now >= ma50 * 0.95
+    near_ma20 = price_now <= ma20 * 1.03
+    not_overbought = rsi < 70
 
-    if score >= 75:
-        return "⚡ Momentum setup"
+    if recent_pullback and long_term_intact and near_ma20 and not_overbought:
+        return "🟢 Dip-Buy Candidate — pullback inside healthy trend"
+
+    if recent_pullback and long_term_intact:
+        return "🟡 Possible Dip Setup — wait for stabilization"
+
+    if score >= 80 and not recent_pullback:
+        return "⚡ Momentum Setup — strong but not a dip"
+
+    if price_now < ma50 * 0.95:
+        return "🔴 Avoid Dip — trend may be breaking"
 
     return "⚖️ No clear dip setup"
