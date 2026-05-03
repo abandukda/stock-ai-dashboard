@@ -181,6 +181,26 @@ def calculate_trade_plan(data):
     )
 
 
+def calculate_entry_proximity(current_price, entry_price):
+    if current_price is None or entry_price is None or entry_price <= 0:
+        return None, "Unknown"
+
+    distance_pct = ((current_price - entry_price) / entry_price) * 100
+
+    if distance_pct <= 0:
+        status = "At / Below Entry"
+    elif distance_pct <= 2:
+        status = "Near Entry"
+    elif distance_pct <= 5:
+        status = "Close to Entry"
+    elif distance_pct <= 10:
+        status = "Wait for Pullback"
+    else:
+        status = "Too Extended"
+
+    return round(distance_pct, 2), status
+
+
 def calculate_position_size(entry_price, stop_loss, risk_budget):
     if entry_price is None or stop_loss is None or risk_budget <= 0:
         return 0, 0, 0, 0
@@ -331,6 +351,8 @@ def build_scanner(tickers, risk_budget):
 
         entry_price, target_price, stop_loss, upside_percent, risk_reward, trade_setup = calculate_trade_plan(data)
 
+        entry_distance_pct, entry_status = calculate_entry_proximity(latest_price, entry_price)
+
         risk_per_share, suggested_shares, capital_needed, max_loss = calculate_position_size(
             entry_price,
             stop_loss,
@@ -340,6 +362,18 @@ def build_scanner(tickers, risk_budget):
         confidence_score, confidence_label = calculate_confidence_score(
             data, dip_status, risk_reward, upside_percent, trade_setup
         )
+
+        if entry_status in ["At / Below Entry", "Near Entry"]:
+            confidence_score = min(100, confidence_score + 5)
+        elif entry_status == "Too Extended":
+            confidence_score = max(0, confidence_score - 10)
+
+        if confidence_score >= 80:
+            confidence_label = "High"
+        elif confidence_score >= 60:
+            confidence_label = "Medium"
+        else:
+            confidence_label = "Low"
 
         if dip_status == "Deep Dip":
             dip_score = 100
@@ -357,6 +391,11 @@ def build_scanner(tickers, risk_budget):
         elif risk_reward is not None and risk_reward < 1:
             dip_score -= 10
 
+        if entry_status in ["At / Below Entry", "Near Entry"]:
+            dip_score += 5
+        elif entry_status == "Too Extended":
+            dip_score -= 10
+
         dip_score = max(0, min(100, dip_score))
 
         rows.append({
@@ -367,6 +406,8 @@ def build_scanner(tickers, risk_budget):
             "Signal": signal,
             "DIP STATUS": dip_status,
             "Trade Setup": trade_setup,
+            "Entry Status": entry_status,
+            "Entry Distance %": entry_distance_pct,
             "Confidence": confidence_score,
             "Confidence Level": confidence_label,
             "Dip Note": dip_note,
@@ -447,7 +488,7 @@ else:
     top_setups = scanner_df.head(5)
 
     for _, row in top_setups.iterrows():
-        col1, col2, col3, col4, col5, col6, col7, col8 = st.columns([1, 1, 1.4, 1, 1, 1, 1, 1])
+        col1, col2, col3, col4, col5, col6, col7, col8 = st.columns([1, 1, 1.3, 1.3, 1, 1, 1, 1])
 
         col1.metric("Ticker", row["Ticker"])
         col2.metric("Conf", f"{int(row['Confidence'])}/100")
@@ -460,8 +501,16 @@ else:
             """,
             unsafe_allow_html=True
         )
-        col4.metric("Entry", f"${row['Suggested Entry']}")
-        col5.metric("Target", f"${row['Target Price']}")
+        col4.markdown(
+            f"""
+            <div style="font-size:13px; line-height:1.1;">
+                <b>Timing</b><br>
+                {row['Entry Status']}
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        col5.metric("Entry", f"${row['Suggested Entry']}")
         col6.metric("R/R", row["Risk/Reward"])
         col7.metric("Shares", int(row["Suggested Shares"]))
         col8.metric("Max Loss", f"${row['Max Loss']}")
@@ -499,6 +548,8 @@ else:
                     "Price",
                     "DIP STATUS",
                     "Trade Setup",
+                    "Entry Status",
+                    "Entry Distance %",
                     "Confidence",
                     "Suggested Entry",
                     "Target Price",
@@ -525,13 +576,16 @@ if scanner_df.empty:
 else:
     def highlight_rows(row):
         confidence = row["Confidence"]
+        entry_status = row["Entry Status"]
         dip_status = row["DIP STATUS"]
 
-        if confidence >= 80:
+        if confidence >= 80 and entry_status in ["At / Below Entry", "Near Entry"]:
             return ["background-color: #14532d; color: white"] * len(row)
+        elif confidence >= 70:
+            return ["background-color: #166534; color: white"] * len(row)
         elif confidence >= 60:
             return ["background-color: #facc15; color: black"] * len(row)
-        elif dip_status == "Overbought":
+        elif dip_status == "Overbought" or entry_status == "Too Extended":
             return ["background-color: #7f1d1d; color: white"] * len(row)
         else:
             return [""] * len(row)
@@ -551,8 +605,11 @@ if chart_data is not None and not chart_data.empty:
     chart_data["MA20"] = chart_data["Close"].rolling(20).mean()
     chart_data["MA50"] = chart_data["Close"].rolling(50).mean()
 
+    current_price = chart_data["Close"].iloc[-1]
     dip_status, dip_note = calculate_dip_status(chart_data)
     entry_price, target_price, stop_loss, upside_percent, risk_reward, trade_setup = calculate_trade_plan(chart_data)
+
+    entry_distance_pct, entry_status = calculate_entry_proximity(current_price, entry_price)
 
     risk_per_share, suggested_shares, capital_needed, max_loss = calculate_position_size(
         entry_price,
@@ -567,6 +624,18 @@ if chart_data is not None and not chart_data.empty:
         upside_percent,
         trade_setup
     )
+
+    if entry_status in ["At / Below Entry", "Near Entry"]:
+        confidence_score = min(100, confidence_score + 5)
+    elif entry_status == "Too Extended":
+        confidence_score = max(0, confidence_score - 10)
+
+    if confidence_score >= 80:
+        confidence_label = "High"
+    elif confidence_score >= 60:
+        confidence_label = "Medium"
+    else:
+        confidence_label = "Low"
 
     fig = go.Figure()
 
@@ -626,14 +695,14 @@ if chart_data is not None and not chart_data.empty:
 
     col1, col2, col3, col4, col5, col6, col7, col8 = st.columns(8)
 
-    col1.metric("Price", f"${chart_data['Close'].iloc[-1]:.2f}")
+    col1.metric("Price", f"${current_price:.2f}")
     col2.metric("Confidence", f"{confidence_score}/100")
-    col3.markdown(f"**Setup**  \n{trade_setup}")
-    col4.metric("Entry", f"${entry_price}")
-    col5.metric("Stop", f"${stop_loss}")
-    col6.metric("R/R", risk_reward)
-    col7.metric("Shares", suggested_shares)
-    col8.metric("Max Loss", f"${max_loss}")
+    col3.markdown(f"**Timing**  \n{entry_status}")
+    col4.metric("Entry Dist", f"{entry_distance_pct}%")
+    col5.metric("Entry", f"${entry_price}")
+    col6.metric("Stop", f"${stop_loss}")
+    col7.metric("R/R", risk_reward)
+    col8.metric("Shares", suggested_shares)
 else:
     st.warning("No chart data available.")
 
@@ -653,6 +722,8 @@ for ticker, shares in PORTFOLIO.items():
     dip_status, dip_note = calculate_dip_status(data)
     entry_price, target_price, stop_loss, upside_percent, risk_reward, trade_setup = calculate_trade_plan(data)
 
+    entry_distance_pct, entry_status = calculate_entry_proximity(price, entry_price)
+
     risk_per_share, suggested_shares, capital_needed, max_loss = calculate_position_size(
         entry_price,
         stop_loss,
@@ -667,6 +738,11 @@ for ticker, shares in PORTFOLIO.items():
         trade_setup
     )
 
+    if entry_status in ["At / Below Entry", "Near Entry"]:
+        confidence_score = min(100, confidence_score + 5)
+    elif entry_status == "Too Extended":
+        confidence_score = max(0, confidence_score - 10)
+
     portfolio_rows.append({
         "Ticker": ticker,
         "Shares Held": shares,
@@ -674,6 +750,8 @@ for ticker, shares in PORTFOLIO.items():
         "Value": round(value, 2),
         "DIP STATUS": dip_status,
         "Trade Setup": trade_setup,
+        "Entry Status": entry_status,
+        "Entry Distance %": entry_distance_pct,
         "Confidence": confidence_score,
         "Suggested Entry": entry_price,
         "Target Price": target_price,
@@ -694,15 +772,15 @@ else:
     st.warning("No portfolio data available.")
 
 
-st.subheader("🚨 Smart Alerts - New High-Confidence Dip Opportunities")
+st.subheader("🚨 Smart Alerts - Entry Timing Alerts")
 
 st.caption(
-    "Alerts only appear when a ticker newly enters Deep Dip or Dip with confidence 60+. "
+    "Alerts appear when a ticker is Dip/Deep Dip, confidence 60+, and price is near or below suggested entry. "
     "Use Current Opportunities above for all active watch setups."
 )
 
-if "last_dip_states" not in st.session_state:
-    st.session_state["last_dip_states"] = {}
+if "last_entry_alert_states" not in st.session_state:
+    st.session_state["last_entry_alert_states"] = {}
 
 alert_rows = []
 
@@ -714,7 +792,10 @@ for ticker in watchlist:
 
     signal = get_signal(data)
     dip_status, dip_note = calculate_dip_status(data)
+    current_price = data["Close"].iloc[-1]
     entry_price, target_price, stop_loss, upside_percent, risk_reward, trade_setup = calculate_trade_plan(data)
+
+    entry_distance_pct, entry_status = calculate_entry_proximity(current_price, entry_price)
 
     risk_per_share, suggested_shares, capital_needed, max_loss = calculate_position_size(
         entry_price,
@@ -730,47 +811,54 @@ for ticker in watchlist:
         trade_setup
     )
 
-    previous_status = st.session_state["last_dip_states"].get(ticker)
+    if entry_status in ["At / Below Entry", "Near Entry"]:
+        confidence_score = min(100, confidence_score + 5)
+    elif entry_status == "Too Extended":
+        confidence_score = max(0, confidence_score - 10)
 
-    is_new_dip = (
-        dip_status in ["Deep Dip", "Dip"]
-        and previous_status not in ["Deep Dip", "Dip"]
+    previous_entry_status = st.session_state["last_entry_alert_states"].get(ticker)
+
+    is_entry_alert = (
+        dip_status in ["Deep Dip", "Dip", "Small Dip"]
         and confidence_score >= 60
+        and entry_status in ["At / Below Entry", "Near Entry"]
+        and previous_entry_status not in ["At / Below Entry", "Near Entry"]
     )
 
-    if is_new_dip:
+    if is_entry_alert:
         alert_rows.append({
             "Ticker": ticker,
             "Signal": signal,
             "DIP STATUS": dip_status,
             "Trade Setup": trade_setup,
+            "Entry Status": entry_status,
+            "Entry Distance %": entry_distance_pct,
             "Confidence": confidence_score,
             "Suggested Entry": entry_price,
             "Target Price": target_price,
             "Stop Loss": stop_loss,
             "Risk/Reward": risk_reward,
-            "Risk/Share": risk_per_share,
             "Suggested Shares": suggested_shares,
             "Capital Needed": capital_needed,
             "Max Loss": max_loss,
             "Time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         })
 
-    st.session_state["last_dip_states"][ticker] = dip_status
+    st.session_state["last_entry_alert_states"][ticker] = entry_status
 
 alert_df = pd.DataFrame(alert_rows)
 
 if not alert_df.empty:
-    st.success("New high-confidence dip opportunities detected")
+    st.success("New entry timing opportunities detected")
     st.dataframe(alert_df, use_container_width=True, hide_index=True)
 
     if st.button("Send Email Alerts"):
         body = alert_df.to_string(index=False)
-        sent = send_email_alert("New High-Confidence Dip Opportunities", body)
+        sent = send_email_alert("New Entry Timing Opportunities", body)
 
         if sent:
             st.success("Alert email sent.")
         else:
             st.warning("Email not sent. Check EMAIL_SENDER, EMAIL_PASSWORD, and EMAIL_RECEIVERS.")
 else:
-    st.info("No new high-confidence dip alerts right now.")
+    st.info("No new entry timing alerts right now.")
