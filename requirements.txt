@@ -1,6 +1,8 @@
-flask
+streamlit
+plotly
 yfinance
-yahooquery
 pandas
 numpy
+yahooquery
 matplotlib
+flask
