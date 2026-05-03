@@ -14,6 +14,7 @@ st.set_page_config(page_title="AI Trading Dashboard", layout="wide")
 
 APP_USERNAME = os.getenv("APP_USERNAME", "admin")
 APP_PASSWORD = os.getenv("APP_PASSWORD", "password")
+TRADE_JOURNAL_FILE = "trade_journal.csv"
 
 
 def login():
@@ -322,6 +323,58 @@ def send_email_alert(subject, body):
         return True
     except Exception:
         return False
+
+
+def load_trade_journal():
+    columns = [
+        "Date",
+        "Ticker",
+        "Status",
+        "Setup",
+        "Entry",
+        "Current Price",
+        "Stop",
+        "Target",
+        "Shares",
+        "Capital",
+        "Max Loss",
+        "Exit Price",
+        "P/L $",
+        "P/L %",
+        "Notes",
+    ]
+
+    if not os.path.exists(TRADE_JOURNAL_FILE):
+        return pd.DataFrame(columns=columns)
+
+    try:
+        df = pd.read_csv(TRADE_JOURNAL_FILE)
+
+        for col in columns:
+            if col not in df.columns:
+                df[col] = ""
+
+        return df[columns]
+    except Exception:
+        return pd.DataFrame(columns=columns)
+
+
+def save_trade_journal(df):
+    df.to_csv(TRADE_JOURNAL_FILE, index=False)
+
+
+def calculate_trade_pl(entry, exit_price, shares):
+    try:
+        entry = float(entry)
+        exit_price = float(exit_price)
+        shares = int(shares)
+
+        pl_dollars = (exit_price - entry) * shares
+        pl_percent = ((exit_price - entry) / entry) * 100 if entry > 0 else 0
+
+        return round(pl_dollars, 2), round(pl_percent, 2)
+    except Exception:
+        return 0, 0
 
 
 def build_scanner(tickers, risk_budget):
@@ -705,6 +758,169 @@ if chart_data is not None and not chart_data.empty:
     col8.metric("Shares", suggested_shares)
 else:
     st.warning("No chart data available.")
+
+
+st.subheader("📓 Trade Journal")
+
+journal_df = load_trade_journal()
+
+with st.expander("Add Trade to Journal", expanded=False):
+    if scanner_df.empty:
+        st.info("Scanner needs data before auto-filling a trade.")
+    else:
+        journal_ticker = st.selectbox(
+            "Select Setup",
+            scanner_df["Ticker"].tolist(),
+            key="journal_ticker_select"
+        )
+
+        selected_row = scanner_df[scanner_df["Ticker"] == journal_ticker].iloc[0]
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            trade_entry = st.number_input(
+                "Entry",
+                value=float(selected_row["Suggested Entry"]),
+                step=0.01
+            )
+            trade_stop = st.number_input(
+                "Stop",
+                value=float(selected_row["Stop Loss"]),
+                step=0.01
+            )
+
+        with col2:
+            trade_target = st.number_input(
+                "Target",
+                value=float(selected_row["Target Price"]),
+                step=0.01
+            )
+            trade_shares = st.number_input(
+                "Shares",
+                min_value=0,
+                value=int(selected_row["Suggested Shares"]),
+                step=1
+            )
+
+        with col3:
+            trade_status = st.selectbox(
+                "Status",
+                ["Planned", "Open", "Closed - Win", "Closed - Loss", "Closed - Manual"],
+            )
+            trade_notes = st.text_area("Notes", value=f"{selected_row['Trade Setup']} | {selected_row['Entry Status']}")
+
+        if st.button("Add Trade"):
+            capital = round(trade_entry * trade_shares, 2)
+            max_loss = round((trade_entry - trade_stop) * trade_shares, 2) if trade_entry > trade_stop else 0
+
+            new_trade = {
+                "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "Ticker": journal_ticker,
+                "Status": trade_status,
+                "Setup": selected_row["Trade Setup"],
+                "Entry": round(trade_entry, 2),
+                "Current Price": round(selected_row["Price"], 2),
+                "Stop": round(trade_stop, 2),
+                "Target": round(trade_target, 2),
+                "Shares": int(trade_shares),
+                "Capital": capital,
+                "Max Loss": max_loss,
+                "Exit Price": "",
+                "P/L $": "",
+                "P/L %": "",
+                "Notes": trade_notes,
+            }
+
+            journal_df = pd.concat([journal_df, pd.DataFrame([new_trade])], ignore_index=True)
+            save_trade_journal(journal_df)
+            st.success("Trade added to journal.")
+            st.rerun()
+
+if journal_df.empty:
+    st.info("No trades in journal yet.")
+else:
+    st.dataframe(journal_df, use_container_width=True, hide_index=True)
+
+    st.subheader("Update / Close Trade")
+
+    trade_options = [
+        f"{idx} | {row['Ticker']} | {row['Status']} | Entry {row['Entry']}"
+        for idx, row in journal_df.iterrows()
+    ]
+
+    selected_trade = st.selectbox("Select Trade", trade_options)
+    selected_index = int(selected_trade.split(" | ")[0])
+    selected_trade_row = journal_df.loc[selected_index]
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        new_status = st.selectbox(
+            "New Status",
+            ["Planned", "Open", "Closed - Win", "Closed - Loss", "Closed - Manual"],
+            index=["Planned", "Open", "Closed - Win", "Closed - Loss", "Closed - Manual"].index(
+                selected_trade_row["Status"]
+            ) if selected_trade_row["Status"] in ["Planned", "Open", "Closed - Win", "Closed - Loss", "Closed - Manual"] else 0
+        )
+
+    with col2:
+        exit_price = st.number_input(
+            "Exit Price",
+            min_value=0.0,
+            value=float(selected_trade_row["Exit Price"]) if str(selected_trade_row["Exit Price"]).strip() not in ["", "nan"] else 0.0,
+            step=0.01
+        )
+
+    with col3:
+        update_notes = st.text_area(
+            "Updated Notes",
+            value=str(selected_trade_row["Notes"]) if str(selected_trade_row["Notes"]) != "nan" else ""
+        )
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button("Update Trade"):
+            journal_df.at[selected_index, "Status"] = new_status
+            journal_df.at[selected_index, "Notes"] = update_notes
+
+            if exit_price > 0:
+                journal_df.at[selected_index, "Exit Price"] = round(exit_price, 2)
+                pl_dollars, pl_percent = calculate_trade_pl(
+                    journal_df.at[selected_index, "Entry"],
+                    exit_price,
+                    journal_df.at[selected_index, "Shares"]
+                )
+                journal_df.at[selected_index, "P/L $"] = pl_dollars
+                journal_df.at[selected_index, "P/L %"] = pl_percent
+
+            save_trade_journal(journal_df)
+            st.success("Trade updated.")
+            st.rerun()
+
+    with col2:
+        if st.button("Delete Trade"):
+            journal_df = journal_df.drop(index=selected_index).reset_index(drop=True)
+            save_trade_journal(journal_df)
+            st.warning("Trade deleted.")
+            st.rerun()
+
+    closed_trades = journal_df[journal_df["Status"].astype(str).str.contains("Closed", na=False)].copy()
+
+    if not closed_trades.empty:
+        closed_trades["P/L $"] = pd.to_numeric(closed_trades["P/L $"], errors="coerce").fillna(0)
+        wins = closed_trades[closed_trades["P/L $"] > 0]
+        losses = closed_trades[closed_trades["P/L $"] < 0]
+
+        total_pl = closed_trades["P/L $"].sum()
+        win_rate = (len(wins) / len(closed_trades)) * 100 if len(closed_trades) > 0 else 0
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Closed Trades", len(closed_trades))
+        c2.metric("Wins", len(wins))
+        c3.metric("Win Rate", f"{win_rate:.1f}%")
+        c4.metric("Total P/L", f"${total_pl:,.2f}")
 
 
 st.subheader("Portfolio")
