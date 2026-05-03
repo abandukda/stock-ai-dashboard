@@ -51,7 +51,7 @@ EMAIL_RECEIVERS = os.getenv("EMAIL_RECEIVERS", "")
 DEFAULT_WATCHLIST = [
     "NVDA", "AAPL", "MSFT", "AMZN", "META",
     "GOOGL", "TSLA", "AMD", "PLTR", "SNOW",
-    "ELF", "COST", "TSM", "AVGO", "QQQ"
+    "ELF", "COST", "TSM", "AVGO", "QQQ", "COIN"
 ]
 
 PORTFOLIO = {
@@ -197,17 +197,7 @@ def calculate_trade_plan(data):
     risk = max(entry_price - stop_loss, 0)
     reward = max(target_price - entry_price, 0)
 
-    if risk > 0:
-        risk_reward = reward / risk
-    else:
-        risk_reward = 0
-
-    if latest_price <= entry_price * 1.01:
-        entry_status = "Near Entry"
-    elif latest_price <= entry_price * 1.05:
-        entry_status = "Close to Entry"
-    else:
-        entry_status = "Wait for Pullback"
+    risk_reward = reward / risk if risk > 0 else 0
 
     return (
         round(entry_price, 2),
@@ -217,6 +207,91 @@ def calculate_trade_plan(data):
         round(risk_reward, 2),
         trade_setup,
     )
+
+
+def calculate_confidence_score(data, dip_status, risk_reward, upside_percent, trade_setup):
+    if data is None or data.empty or len(data) < 50:
+        return 0, "Low"
+
+    latest_price = data["Close"].iloc[-1]
+    ma20 = data["Close"].rolling(20).mean().iloc[-1]
+    ma50 = data["Close"].rolling(50).mean().iloc[-1]
+    rsi = calculate_rsi(data).iloc[-1]
+
+    score = 0
+
+    if dip_status == "Deep Dip":
+        score += 30
+    elif dip_status == "Dip":
+        score += 24
+    elif dip_status == "Small Dip":
+        score += 16
+    elif dip_status == "No Dip":
+        score += 8
+    elif dip_status == "Overbought":
+        score += 0
+
+    if 30 <= rsi <= 45:
+        score += 20
+    elif 45 < rsi <= 55:
+        score += 14
+    elif 25 <= rsi < 30:
+        score += 12
+    elif 55 < rsi <= 65:
+        score += 8
+    elif rsi > 70:
+        score -= 10
+
+    if latest_price > ma20 > ma50:
+        score += 20
+    elif latest_price > ma50:
+        score += 14
+    elif latest_price > ma20:
+        score += 10
+    elif latest_price < ma20 < ma50:
+        score += 4
+
+    if risk_reward >= 3:
+        score += 20
+    elif risk_reward >= 2:
+        score += 16
+    elif risk_reward >= 1.5:
+        score += 12
+    elif risk_reward >= 1:
+        score += 6
+    else:
+        score -= 8
+
+    if upside_percent >= 20:
+        score += 10
+    elif upside_percent >= 12:
+        score += 8
+    elif upside_percent >= 7:
+        score += 5
+    elif upside_percent >= 3:
+        score += 2
+    else:
+        score -= 5
+
+    if trade_setup == "Pullback Buy":
+        score += 5
+    elif trade_setup == "Deep Dip Rebound":
+        score += 3
+    elif trade_setup == "Range Trade":
+        score -= 2
+    elif trade_setup == "Wait / Watch":
+        score -= 5
+
+    confidence_score = max(0, min(100, round(score, 0)))
+
+    if confidence_score >= 80:
+        confidence_label = "High"
+    elif confidence_score >= 60:
+        confidence_label = "Medium"
+    else:
+        confidence_label = "Low"
+
+    return confidence_score, confidence_label
 
 
 def send_email_alert(subject, body):
@@ -266,6 +341,14 @@ def build_scanner(tickers):
 
         entry_price, target_price, stop_loss, upside_percent, risk_reward, trade_setup = calculate_trade_plan(data)
 
+        confidence_score, confidence_label = calculate_confidence_score(
+            data,
+            dip_status,
+            risk_reward,
+            upside_percent,
+            trade_setup
+        )
+
         if dip_status == "Deep Dip":
             dip_score = 100
         elif dip_status == "Dip":
@@ -294,6 +377,8 @@ def build_scanner(tickers):
             "Signal": signal,
             "DIP STATUS": dip_status,
             "Trade Setup": trade_setup,
+            "Confidence": confidence_score,
+            "Confidence Level": confidence_label,
             "Dip Note": dip_note,
             "Dip Score": round(dip_score, 0),
             "Suggested Entry": entry_price,
@@ -311,8 +396,8 @@ def build_scanner(tickers):
         return df
 
     df = df.sort_values(
-        by=["Dip Score", "Risk/Reward", "Upside %"],
-        ascending=[False, False, False]
+        by=["Confidence", "Dip Score", "Risk/Reward", "Upside %"],
+        ascending=[False, False, False, False]
     )
 
     return df.head(15)
@@ -353,48 +438,108 @@ with st.sidebar:
 
 
 # =========================
-# TOP DIP WATCH + SCANNER
+# SCANNER BUILD
 # =========================
-st.subheader("🔥 Top 5 Trade Setups")
-
 scanner_df = build_scanner(watchlist)
+
+
+# =========================
+# TOP TRADE SETUPS
+# =========================
+st.subheader("🔥 Top 5 High-Confidence Trade Setups")
 
 if scanner_df.empty:
     st.warning("No scanner data available.")
 else:
-    top_dip_watch = scanner_df.head(5)
+    top_setups = scanner_df.head(5)
 
-    for _, row in top_dip_watch.iterrows():
+    for _, row in top_setups.iterrows():
         col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
 
         col1.metric("Ticker", row["Ticker"])
-        col2.metric("Setup", row["Trade Setup"])
-        col3.metric("Price", f"${row['Price']}")
+        col2.metric("Confidence", f"{int(row['Confidence'])}/100")
+        col3.metric("Setup", row["Trade Setup"])
         col4.metric("Entry", f"${row['Suggested Entry']}")
         col5.metric("Target", f"${row['Target Price']}")
-        col6.metric("Stop", f"${row['Stop Loss']}")
+        col6.metric("Upside", f"{row['Upside %']}%")
         col7.metric("R/R", row["Risk/Reward"])
 
-    st.divider()
 
-    st.subheader("Top 15 Scanner")
+# =========================
+# CURRENT OPPORTUNITIES PANEL
+# =========================
+st.subheader("📌 Current Opportunities")
 
-    def highlight_dip(row):
-        status = row["DIP STATUS"]
+if scanner_df.empty:
+    st.warning("No opportunities available.")
+else:
+    current_opportunities = scanner_df[
+        (
+            scanner_df["DIP STATUS"].isin(["Deep Dip", "Dip", "Small Dip"])
+        )
+        | (
+            scanner_df["Trade Setup"].isin(["Pullback Buy", "Dip Buy", "Deep Dip Rebound", "Range Trade"])
+        )
+        | (
+            scanner_df["Confidence"] >= 50
+        )
+    ].copy()
 
-        if status == "Deep Dip":
+    current_opportunities = current_opportunities.sort_values(
+        by=["Confidence", "Risk/Reward", "Upside %"],
+        ascending=[False, False, False]
+    )
+
+    if current_opportunities.empty:
+        st.info("No current dip/watch opportunities found.")
+    else:
+        st.dataframe(
+            current_opportunities[
+                [
+                    "Ticker",
+                    "Price",
+                    "DIP STATUS",
+                    "Trade Setup",
+                    "Confidence",
+                    "Confidence Level",
+                    "Suggested Entry",
+                    "Target Price",
+                    "Stop Loss",
+                    "Upside %",
+                    "Risk/Reward",
+                    "RSI",
+                ]
+            ],
+            use_container_width=True,
+            hide_index=True
+        )
+
+st.divider()
+
+
+# =========================
+# TOP 15 SCANNER
+# =========================
+st.subheader("Top 15 Scanner")
+
+if scanner_df.empty:
+    st.warning("No scanner data available.")
+else:
+    def highlight_rows(row):
+        confidence = row["Confidence"]
+        dip_status = row["DIP STATUS"]
+
+        if confidence >= 80:
             return ["background-color: #14532d; color: white"] * len(row)
-        elif status == "Dip":
-            return ["background-color: #166534; color: white"] * len(row)
-        elif status == "Small Dip":
+        elif confidence >= 60:
             return ["background-color: #facc15; color: black"] * len(row)
-        elif status == "Overbought":
+        elif dip_status == "Overbought":
             return ["background-color: #7f1d1d; color: white"] * len(row)
         else:
             return [""] * len(row)
 
     st.dataframe(
-        scanner_df.style.apply(highlight_dip, axis=1),
+        scanner_df.style.apply(highlight_rows, axis=1),
         use_container_width=True,
         hide_index=True
     )
@@ -411,7 +556,16 @@ if chart_data is not None and not chart_data.empty:
     chart_data["MA20"] = chart_data["Close"].rolling(20).mean()
     chart_data["MA50"] = chart_data["Close"].rolling(50).mean()
 
+    dip_status, dip_note = calculate_dip_status(chart_data)
     entry_price, target_price, stop_loss, upside_percent, risk_reward, trade_setup = calculate_trade_plan(chart_data)
+
+    confidence_score, confidence_label = calculate_confidence_score(
+        chart_data,
+        dip_status,
+        risk_reward,
+        upside_percent,
+        trade_setup
+    )
 
     fig = go.Figure()
 
@@ -469,16 +623,15 @@ if chart_data is not None and not chart_data.empty:
 
     st.plotly_chart(fig, use_container_width=True)
 
-    dip_status, dip_note = calculate_dip_status(chart_data)
-
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
 
     col1.metric("Current Price", f"${chart_data['Close'].iloc[-1]:.2f}")
-    col2.metric("Setup", trade_setup)
-    col3.metric("DIP STATUS", dip_status)
-    col4.metric("Entry", f"${entry_price}")
-    col5.metric("Target", f"${target_price}")
-    col6.metric("R/R", risk_reward)
+    col2.metric("Confidence", f"{confidence_score}/100")
+    col3.metric("Level", confidence_label)
+    col4.metric("Setup", trade_setup)
+    col5.metric("Entry", f"${entry_price}")
+    col6.metric("Target", f"${target_price}")
+    col7.metric("R/R", risk_reward)
 else:
     st.warning("No chart data available.")
 
@@ -501,6 +654,14 @@ for ticker, shares in PORTFOLIO.items():
     dip_status, dip_note = calculate_dip_status(data)
     entry_price, target_price, stop_loss, upside_percent, risk_reward, trade_setup = calculate_trade_plan(data)
 
+    confidence_score, confidence_label = calculate_confidence_score(
+        data,
+        dip_status,
+        risk_reward,
+        upside_percent,
+        trade_setup
+    )
+
     portfolio_rows.append({
         "Ticker": ticker,
         "Shares": shares,
@@ -508,7 +669,8 @@ for ticker, shares in PORTFOLIO.items():
         "Value": round(value, 2),
         "DIP STATUS": dip_status,
         "Trade Setup": trade_setup,
-        "Dip Note": dip_note,
+        "Confidence": confidence_score,
+        "Confidence Level": confidence_label,
         "Suggested Entry": entry_price,
         "Target Price": target_price,
         "Stop Loss": stop_loss,
@@ -530,7 +692,12 @@ else:
 # =========================
 # SMART ALERTS
 # =========================
-st.subheader("Smart Alerts - New Dip Opportunities Only")
+st.subheader("🚨 Smart Alerts - New High-Confidence Dip Opportunities")
+
+st.caption(
+    "Alerts only appear when a ticker newly enters Deep Dip or Dip with confidence 60+. "
+    "Use Current Opportunities above for all active watch setups."
+)
 
 if "last_dip_states" not in st.session_state:
     st.session_state["last_dip_states"] = {}
@@ -547,11 +714,20 @@ for ticker in watchlist:
     dip_status, dip_note = calculate_dip_status(data)
     entry_price, target_price, stop_loss, upside_percent, risk_reward, trade_setup = calculate_trade_plan(data)
 
+    confidence_score, confidence_label = calculate_confidence_score(
+        data,
+        dip_status,
+        risk_reward,
+        upside_percent,
+        trade_setup
+    )
+
     previous_status = st.session_state["last_dip_states"].get(ticker)
 
     is_new_dip = (
         dip_status in ["Deep Dip", "Dip"]
         and previous_status not in ["Deep Dip", "Dip"]
+        and confidence_score >= 60
     )
 
     if is_new_dip:
@@ -560,6 +736,8 @@ for ticker in watchlist:
             "Signal": signal,
             "DIP STATUS": dip_status,
             "Trade Setup": trade_setup,
+            "Confidence": confidence_score,
+            "Confidence Level": confidence_label,
             "Note": dip_note,
             "Suggested Entry": entry_price,
             "Target Price": target_price,
@@ -574,16 +752,16 @@ for ticker in watchlist:
 alert_df = pd.DataFrame(alert_rows)
 
 if not alert_df.empty:
-    st.success("🚨 New dip opportunities detected")
+    st.success("New high-confidence dip opportunities detected")
     st.dataframe(alert_df, use_container_width=True, hide_index=True)
 
     if st.button("Send Email Alerts"):
         body = alert_df.to_string(index=False)
-        sent = send_email_alert("New Dip Opportunities", body)
+        sent = send_email_alert("New High-Confidence Dip Opportunities", body)
 
         if sent:
             st.success("Alert email sent.")
         else:
             st.warning("Email not sent. Check EMAIL_SENDER, EMAIL_PASSWORD, and EMAIL_RECEIVERS.")
 else:
-    st.info("No new dip alerts right now.")
+    st.info("No new high-confidence dip alerts right now.")
