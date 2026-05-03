@@ -117,6 +117,29 @@ def calculate_dip_status(data):
         return "No Dip", "Neutral"
 
 
+def calculate_entry_and_upside(data):
+    if data is None or data.empty or len(data) < 50:
+        return None, None, None
+
+    latest_price = data["Close"].iloc[-1]
+
+    ma20 = data["Close"].rolling(20).mean().iloc[-1]
+    ma50 = data["Close"].rolling(50).mean().iloc[-1]
+
+    recent_support = data["Low"].tail(20).min()
+    recent_resistance = data["High"].tail(20).max()
+
+    entry_price = min(latest_price, ma20, ma50)
+    entry_price = max(entry_price, recent_support)
+
+    target_price = recent_resistance
+
+    upside_percent = ((target_price - latest_price) / latest_price) * 100
+    entry_gap_percent = ((latest_price - entry_price) / latest_price) * 100
+
+    return round(entry_price, 2), round(target_price, 2), round(upside_percent, 2)
+
+
 def get_signal(data):
     if data is None or data.empty or len(data) < 50:
         return "Hold"
@@ -179,6 +202,8 @@ def build_scanner(tickers):
         drop_from_20 = ((latest_price - high_20) / high_20) * 100
         drop_from_50 = ((latest_price - high_50) / high_50) * 100
 
+        entry_price, target_price, upside_percent = calculate_entry_and_upside(data)
+
         if dip_status == "Deep Dip":
             dip_score = 100
         elif dip_status == "Dip":
@@ -201,6 +226,9 @@ def build_scanner(tickers):
             "DIP STATUS": dip_status,
             "Dip Note": dip_note,
             "Dip Score": round(dip_score, 0),
+            "Suggested Entry": entry_price,
+            "Target Price": target_price,
+            "Upside %": upside_percent,
             "Drop From 20D High %": round(drop_from_20, 2),
             "Drop From 50D High %": round(drop_from_50, 2),
         })
@@ -211,8 +239,8 @@ def build_scanner(tickers):
         return df
 
     df = df.sort_values(
-        by=["Dip Score", "Drop From 20D High %"],
-        ascending=[False, True]
+        by=["Dip Score", "Upside %", "Drop From 20D High %"],
+        ascending=[False, False, True]
     )
 
     return df.head(15)
@@ -265,13 +293,14 @@ else:
     top_dip_watch = scanner_df.head(5)
 
     for _, row in top_dip_watch.iterrows():
-        col1, col2, col3, col4, col5 = st.columns(5)
+        col1, col2, col3, col4, col5, col6 = st.columns(6)
 
         col1.metric("Ticker", row["Ticker"])
         col2.metric("Price", f"${row['Price']}")
         col3.metric("DIP STATUS", row["DIP STATUS"])
         col4.metric("Dip Score", f"{int(row['Dip Score'])}/100")
-        col5.metric("Signal", row["Signal"])
+        col5.metric("Suggested Entry", f"${row['Suggested Entry']}")
+        col6.metric("Upside", f"{row['Upside %']}%")
 
     st.divider()
 
@@ -309,6 +338,8 @@ if chart_data is not None and not chart_data.empty:
     chart_data["MA20"] = chart_data["Close"].rolling(20).mean()
     chart_data["MA50"] = chart_data["Close"].rolling(50).mean()
 
+    entry_price, target_price, upside_percent = calculate_entry_and_upside(chart_data)
+
     fig = go.Figure()
 
     fig.add_trace(go.Candlestick(
@@ -334,6 +365,22 @@ if chart_data is not None and not chart_data.empty:
         name="50D MA"
     ))
 
+    if entry_price is not None:
+        fig.add_hline(
+            y=entry_price,
+            line_dash="dash",
+            annotation_text="Suggested Entry",
+            annotation_position="bottom right"
+        )
+
+    if target_price is not None:
+        fig.add_hline(
+            y=target_price,
+            line_dash="dot",
+            annotation_text="Target",
+            annotation_position="top right"
+        )
+
     fig.update_layout(
         height=550,
         xaxis_rangeslider_visible=False
@@ -343,11 +390,13 @@ if chart_data is not None and not chart_data.empty:
 
     dip_status, dip_note = calculate_dip_status(chart_data)
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4, col5 = st.columns(5)
 
     col1.metric("Current Price", f"${chart_data['Close'].iloc[-1]:.2f}")
     col2.metric("DIP STATUS", dip_status)
-    col3.metric("Dip Note", dip_note)
+    col3.metric("Suggested Entry", f"${entry_price}")
+    col4.metric("Target Price", f"${target_price}")
+    col5.metric("Upside", f"{upside_percent}%")
 else:
     st.warning("No chart data available.")
 
@@ -368,6 +417,7 @@ for ticker, shares in PORTFOLIO.items():
     price = data["Close"].iloc[-1]
     value = price * shares
     dip_status, dip_note = calculate_dip_status(data)
+    entry_price, target_price, upside_percent = calculate_entry_and_upside(data)
 
     portfolio_rows.append({
         "Ticker": ticker,
@@ -376,6 +426,9 @@ for ticker, shares in PORTFOLIO.items():
         "Value": round(value, 2),
         "DIP STATUS": dip_status,
         "Dip Note": dip_note,
+        "Suggested Entry": entry_price,
+        "Target Price": target_price,
+        "Upside %": upside_percent,
     })
 
 portfolio_df = pd.DataFrame(portfolio_rows)
@@ -407,6 +460,7 @@ for ticker in watchlist:
 
     signal = get_signal(data)
     dip_status, dip_note = calculate_dip_status(data)
+    entry_price, target_price, upside_percent = calculate_entry_and_upside(data)
 
     previous_status = st.session_state["last_dip_states"].get(ticker)
 
@@ -421,6 +475,9 @@ for ticker in watchlist:
             "Signal": signal,
             "DIP STATUS": dip_status,
             "Note": dip_note,
+            "Suggested Entry": entry_price,
+            "Target Price": target_price,
+            "Upside %": upside_percent,
             "Time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         })
 
