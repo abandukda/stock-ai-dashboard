@@ -14,9 +14,6 @@ APP_PASSWORD = os.getenv("APP_PASSWORD", "password")
 TRADE_JOURNAL_FILE = "trade_journal.csv"
 
 
-# -------------------------
-# LOGIN
-# -------------------------
 def login():
     st.title("AI Trading Dashboard Login")
     username = st.text_input("Username")
@@ -38,9 +35,6 @@ if not st.session_state["logged_in"]:
     st.stop()
 
 
-# -------------------------
-# DEFAULTS
-# -------------------------
 DEFAULT_WATCHLIST = [
     "NVDA", "AAPL", "MSFT", "AMZN", "META",
     "GOOGL", "TSLA", "AMD", "PLTR", "SNOW",
@@ -48,9 +42,6 @@ DEFAULT_WATCHLIST = [
 ]
 
 
-# -------------------------
-# DATA FUNCTIONS
-# -------------------------
 @st.cache_data(ttl=300)
 def get_stock_data(ticker, period="6mo"):
     try:
@@ -272,9 +263,6 @@ def build_scanner(tickers, risk_budget):
     ).head(15)
 
 
-# -------------------------
-# TRADE JOURNAL
-# -------------------------
 def load_trade_journal():
     columns = [
         "Date", "Ticker", "Status", "Setup", "Entry", "Current Price",
@@ -313,9 +301,6 @@ def calculate_trade_pl(entry, exit_price, shares):
         return 0, 0
 
 
-# -------------------------
-# UI
-# -------------------------
 st.title("📊 AI Trading Dashboard")
 
 with st.sidebar:
@@ -356,9 +341,17 @@ with st.sidebar:
 scanner_df = build_scanner(watchlist, risk_budget)
 
 
-# -------------------------
-# TOP 5
-# -------------------------
+st.markdown("### 🎯 Top Setups Cheat Sheet")
+st.markdown("""
+- **Confidence ≥ 80** → Strongest setup.
+- **Confidence 60–79** → Good/watchable setup.
+- **R/R ≥ 1.5** → Reward may be worth the risk.
+- **Entry Status = At / Below Entry or Near Entry** → Most actionable.
+- **Too Extended** → Avoid chasing.
+- **Shares** = suggested position size based on your risk budget.
+""")
+
+
 st.subheader("🔥 Top 5 High-Confidence Trade Setups")
 
 if scanner_df.empty:
@@ -377,9 +370,16 @@ else:
         c8.metric("Max Loss", f"${row['Max Loss']}")
 
 
-# -------------------------
-# CURRENT OPPORTUNITIES
-# -------------------------
+st.markdown("### 📌 Current Opportunities Cheat Sheet")
+st.markdown("""
+- **DIP STATUS** tells you whether the stock is pulled back or extended.
+- **Trade Setup** explains the type of opportunity.
+- **Entry Distance %** shows how far price is from suggested entry.
+- **Capital Needed** is the estimated money required for the suggested shares.
+- **Max Loss** is the approximate loss if stop loss is hit.
+""")
+
+
 st.subheader("📌 Current Opportunities")
 
 if scanner_df.empty:
@@ -399,9 +399,15 @@ else:
     )
 
 
-# -------------------------
-# SCANNER
-# -------------------------
+st.markdown("### 🧠 Scanner Cheat Sheet")
+st.markdown("""
+- **Green rows** → Higher confidence setups.
+- **Yellow rows** → Watchlist setups, but not perfect.
+- **Red rows** → Too extended or avoid chasing.
+- Best setups usually have **Confidence ≥ 60**, **R/R ≥ 1.5**, and **Near Entry**.
+""")
+
+
 st.subheader("Top 15 Scanner")
 
 if scanner_df.empty:
@@ -429,9 +435,15 @@ else:
     )
 
 
-# -------------------------
-# CHART
-# -------------------------
+st.markdown("### 📈 Chart Cheat Sheet")
+st.markdown("""
+- **Entry line** = suggested buy zone.
+- **Target line** = first profit target.
+- **Stop line** = risk control level.
+- Do not chase if price is far above entry.
+""")
+
+
 st.subheader(f"{selected_ticker} Chart")
 
 chart_data = get_stock_data(selected_ticker, chart_period)
@@ -491,9 +503,17 @@ else:
     st.warning("No chart data available.")
 
 
-# -------------------------
-# TRADE JOURNAL
-# -------------------------
+st.markdown("### 📓 Trade Journal Cheat Sheet")
+st.markdown("""
+- **Planned** → setup identified, but not entered yet.
+- **Open** → trade is active.
+- **Closed - Win** → exited with profit.
+- **Closed - Loss** → exited at a loss or stop.
+- **Closed - Manual** → exited early by choice.
+- Always enter an **Exit Price** when closing a trade so performance updates correctly.
+""")
+
+
 st.subheader("📓 Trade Journal")
 
 journal_df = load_trade_journal()
@@ -617,9 +637,16 @@ else:
             st.rerun()
 
 
-# -------------------------
-# PERFORMANCE DASHBOARD
-# -------------------------
+st.markdown("### 📊 Performance Dashboard Cheat Sheet")
+st.markdown("""
+- **Total P/L** = total profit/loss from closed trades.
+- **Win Rate** = percentage of closed trades that made money.
+- **Avg Win vs Avg Loss** = shows whether winners are bigger than losers.
+- **Profit Factor > 1.5** = healthy trading edge.
+- **Equity Curve** should trend upward over time.
+""")
+
+
 st.subheader("📊 Performance Dashboard")
 
 journal_df = load_trade_journal()
