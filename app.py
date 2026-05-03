@@ -181,6 +181,27 @@ def calculate_trade_plan(data):
     )
 
 
+def calculate_position_size(entry_price, stop_loss, risk_budget):
+    if entry_price is None or stop_loss is None or risk_budget <= 0:
+        return 0, 0, 0, 0
+
+    risk_per_share = entry_price - stop_loss
+
+    if risk_per_share <= 0:
+        return 0, 0, 0, 0
+
+    suggested_shares = int(risk_budget // risk_per_share)
+    capital_needed = suggested_shares * entry_price
+    max_loss = suggested_shares * risk_per_share
+
+    return (
+        round(risk_per_share, 2),
+        suggested_shares,
+        round(capital_needed, 2),
+        round(max_loss, 2),
+    )
+
+
 def calculate_confidence_score(data, dip_status, risk_reward, upside_percent, trade_setup):
     if data is None or data.empty or len(data) < 50:
         return 0, "Low"
@@ -283,7 +304,7 @@ def send_email_alert(subject, body):
         return False
 
 
-def build_scanner(tickers):
+def build_scanner(tickers, risk_budget):
     rows = []
 
     for ticker in tickers:
@@ -309,6 +330,12 @@ def build_scanner(tickers):
         drop_from_50 = ((latest_price - high_50) / high_50) * 100
 
         entry_price, target_price, stop_loss, upside_percent, risk_reward, trade_setup = calculate_trade_plan(data)
+
+        risk_per_share, suggested_shares, capital_needed, max_loss = calculate_position_size(
+            entry_price,
+            stop_loss,
+            risk_budget
+        )
 
         confidence_score, confidence_label = calculate_confidence_score(
             data, dip_status, risk_reward, upside_percent, trade_setup
@@ -349,6 +376,10 @@ def build_scanner(tickers):
             "Stop Loss": stop_loss,
             "Upside %": upside_percent,
             "Risk/Reward": risk_reward,
+            "Risk/Share": risk_per_share,
+            "Suggested Shares": suggested_shares,
+            "Capital Needed": capital_needed,
+            "Max Loss": max_loss,
             "Drop From 20D High %": round(drop_from_20, 2),
             "Drop From 50D High %": round(drop_from_50, 2),
         })
@@ -370,6 +401,14 @@ st.title("AI Trading Dashboard")
 
 with st.sidebar:
     st.header("Controls")
+
+    risk_budget = st.number_input(
+        "Risk Budget Per Trade ($)",
+        min_value=25,
+        max_value=10000,
+        value=500,
+        step=25
+    )
 
     tickers_input = st.text_area(
         "Watchlist",
@@ -397,7 +436,7 @@ with st.sidebar:
         st.rerun()
 
 
-scanner_df = build_scanner(watchlist)
+scanner_df = build_scanner(watchlist, risk_budget)
 
 
 st.subheader("🔥 Top 5 High-Confidence Trade Setups")
@@ -408,7 +447,7 @@ else:
     top_setups = scanner_df.head(5)
 
     for _, row in top_setups.iterrows():
-        col1, col2, col3, col4, col5, col6, col7 = st.columns([1, 1, 1.4, 1, 1, 1, 1])
+        col1, col2, col3, col4, col5, col6, col7, col8 = st.columns([1, 1, 1.4, 1, 1, 1, 1, 1])
 
         col1.metric("Ticker", row["Ticker"])
         col2.metric("Conf", f"{int(row['Confidence'])}/100")
@@ -423,8 +462,9 @@ else:
         )
         col4.metric("Entry", f"${row['Suggested Entry']}")
         col5.metric("Target", f"${row['Target Price']}")
-        col6.metric("Upside", f"{row['Upside %']}%")
-        col7.metric("R/R", row["Risk/Reward"])
+        col6.metric("R/R", row["Risk/Reward"])
+        col7.metric("Shares", int(row["Suggested Shares"]))
+        col8.metric("Max Loss", f"${row['Max Loss']}")
 
 
 st.subheader("📌 Current Opportunities")
@@ -460,12 +500,14 @@ else:
                     "DIP STATUS",
                     "Trade Setup",
                     "Confidence",
-                    "Confidence Level",
                     "Suggested Entry",
                     "Target Price",
                     "Stop Loss",
-                    "Upside %",
                     "Risk/Reward",
+                    "Risk/Share",
+                    "Suggested Shares",
+                    "Capital Needed",
+                    "Max Loss",
                     "RSI",
                 ]
             ],
@@ -511,6 +553,12 @@ if chart_data is not None and not chart_data.empty:
 
     dip_status, dip_note = calculate_dip_status(chart_data)
     entry_price, target_price, stop_loss, upside_percent, risk_reward, trade_setup = calculate_trade_plan(chart_data)
+
+    risk_per_share, suggested_shares, capital_needed, max_loss = calculate_position_size(
+        entry_price,
+        stop_loss,
+        risk_budget
+    )
 
     confidence_score, confidence_label = calculate_confidence_score(
         chart_data,
@@ -576,15 +624,16 @@ if chart_data is not None and not chart_data.empty:
 
     st.plotly_chart(fig, use_container_width=True)
 
-    col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
+    col1, col2, col3, col4, col5, col6, col7, col8 = st.columns(8)
 
-    col1.metric("Current Price", f"${chart_data['Close'].iloc[-1]:.2f}")
+    col1.metric("Price", f"${chart_data['Close'].iloc[-1]:.2f}")
     col2.metric("Confidence", f"{confidence_score}/100")
-    col3.markdown(f"**Level**  \n{confidence_label}")
-    col4.markdown(f"**Setup**  \n{trade_setup}")
-    col5.metric("Entry", f"${entry_price}")
-    col6.metric("Target", f"${target_price}")
-    col7.metric("R/R", risk_reward)
+    col3.markdown(f"**Setup**  \n{trade_setup}")
+    col4.metric("Entry", f"${entry_price}")
+    col5.metric("Stop", f"${stop_loss}")
+    col6.metric("R/R", risk_reward)
+    col7.metric("Shares", suggested_shares)
+    col8.metric("Max Loss", f"${max_loss}")
 else:
     st.warning("No chart data available.")
 
@@ -604,6 +653,12 @@ for ticker, shares in PORTFOLIO.items():
     dip_status, dip_note = calculate_dip_status(data)
     entry_price, target_price, stop_loss, upside_percent, risk_reward, trade_setup = calculate_trade_plan(data)
 
+    risk_per_share, suggested_shares, capital_needed, max_loss = calculate_position_size(
+        entry_price,
+        stop_loss,
+        risk_budget
+    )
+
     confidence_score, confidence_label = calculate_confidence_score(
         data,
         dip_status,
@@ -614,18 +669,19 @@ for ticker, shares in PORTFOLIO.items():
 
     portfolio_rows.append({
         "Ticker": ticker,
-        "Shares": shares,
+        "Shares Held": shares,
         "Price": round(price, 2),
         "Value": round(value, 2),
         "DIP STATUS": dip_status,
         "Trade Setup": trade_setup,
         "Confidence": confidence_score,
-        "Confidence Level": confidence_label,
         "Suggested Entry": entry_price,
         "Target Price": target_price,
         "Stop Loss": stop_loss,
-        "Upside %": upside_percent,
         "Risk/Reward": risk_reward,
+        "Suggested Shares": suggested_shares,
+        "Capital Needed": capital_needed,
+        "Max Loss": max_loss,
     })
 
 portfolio_df = pd.DataFrame(portfolio_rows)
@@ -660,6 +716,12 @@ for ticker in watchlist:
     dip_status, dip_note = calculate_dip_status(data)
     entry_price, target_price, stop_loss, upside_percent, risk_reward, trade_setup = calculate_trade_plan(data)
 
+    risk_per_share, suggested_shares, capital_needed, max_loss = calculate_position_size(
+        entry_price,
+        stop_loss,
+        risk_budget
+    )
+
     confidence_score, confidence_label = calculate_confidence_score(
         data,
         dip_status,
@@ -683,13 +745,14 @@ for ticker in watchlist:
             "DIP STATUS": dip_status,
             "Trade Setup": trade_setup,
             "Confidence": confidence_score,
-            "Confidence Level": confidence_label,
-            "Note": dip_note,
             "Suggested Entry": entry_price,
             "Target Price": target_price,
             "Stop Loss": stop_loss,
-            "Upside %": upside_percent,
             "Risk/Reward": risk_reward,
+            "Risk/Share": risk_per_share,
+            "Suggested Shares": suggested_shares,
+            "Capital Needed": capital_needed,
+            "Max Loss": max_loss,
             "Time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         })
 
