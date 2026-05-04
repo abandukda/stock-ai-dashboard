@@ -58,8 +58,10 @@ def calculate_rsi(data, window=14):
     delta = data["Close"].diff()
     gain = delta.clip(lower=0)
     loss = -delta.clip(upper=0)
+
     avg_gain = gain.rolling(window).mean()
     avg_loss = loss.rolling(window).mean()
+
     rs = avg_gain / avg_loss
     return 100 - (100 / (1 + rs))
 
@@ -150,54 +152,78 @@ def calculate_trade_metrics(data, risk_budget):
     max_loss = shares * risk_per_share
 
     confidence = 0
+    reasons = []
 
     if dip_status == "Deep Dip":
         confidence += 30
+        reasons.append("deep pullback")
     elif dip_status == "Dip":
         confidence += 24
+        reasons.append("meaningful dip")
     elif dip_status == "Small Dip":
         confidence += 16
+        reasons.append("small dip")
     elif dip_status == "No Dip":
         confidence += 8
+        reasons.append("not much dip yet")
+    elif dip_status == "Overbought":
+        reasons.append("overbought risk")
 
     if 30 <= rsi <= 45:
         confidence += 20
+        reasons.append("RSI in attractive range")
     elif 45 < rsi <= 55:
         confidence += 14
+        reasons.append("RSI neutral/healthy")
     elif rsi > 70:
         confidence -= 10
+        reasons.append("RSI overbought")
 
     if current > ma20 > ma50:
         confidence += 20
+        reasons.append("strong trend")
     elif current > ma50:
         confidence += 14
+        reasons.append("above 50-day trend")
     elif current > ma20:
         confidence += 10
+        reasons.append("above 20-day trend")
 
     if rr >= 3:
         confidence += 20
+        reasons.append("excellent R/R")
     elif rr >= 2:
         confidence += 16
+        reasons.append("strong R/R")
     elif rr >= 1.5:
         confidence += 12
+        reasons.append("acceptable R/R")
     elif rr >= 1:
         confidence += 6
+        reasons.append("modest R/R")
     else:
         confidence -= 8
+        reasons.append("weak R/R")
 
     if upside >= 20:
         confidence += 10
+        reasons.append("large upside")
     elif upside >= 12:
         confidence += 8
+        reasons.append("good upside")
     elif upside >= 7:
         confidence += 5
+        reasons.append("decent upside")
     elif upside < 3:
         confidence -= 5
+        reasons.append("limited upside")
 
     if entry_status in ["At / Below Entry", "Near Entry"]:
         confidence += 5
+        reasons.append("near entry")
     elif entry_status == "Too Extended":
         confidence -= 10
+        reasons.append("too extended")
 
     confidence = max(0, min(100, round(confidence)))
 
@@ -226,6 +252,7 @@ def calculate_trade_metrics(data, risk_budget):
         "Entry Distance %": round(entry_distance, 2),
         "Confidence": confidence,
         "Confidence Level": confidence_level,
+        "Reason": ", ".join(reasons[:4]),
         "Suggested Entry": round(entry, 2),
         "Target Price": round(target, 2),
         "Stop Loss": round(stop, 2),
@@ -311,7 +338,8 @@ def simple_ai_response(question, df):
         return (
             f"{best['Ticker']} is the strongest setup right now. "
             f"Confidence is {best['Confidence']}/100, setup is {best['Trade Setup']}, "
-            f"entry status is {best['Entry Status']}, and R/R is {best['Risk/Reward']}."
+            f"entry status is {best['Entry Status']}, R/R is {best['Risk/Reward']}. "
+            f"Why: {best['Reason']}."
         )
 
     if "top 3" in q or "top three" in q:
@@ -319,7 +347,8 @@ def simple_ai_response(question, df):
         for _, row in df.head(3).iterrows():
             response += (
                 f"- {row['Ticker']}: Confidence {row['Confidence']}/100, "
-                f"{row['Trade Setup']}, {row['Entry Status']}, R/R {row['Risk/Reward']}\n"
+                f"{row['Trade Setup']}, {row['Entry Status']}, R/R {row['Risk/Reward']}. "
+                f"Why: {row['Reason']}\n"
             )
         return response
 
@@ -338,7 +367,7 @@ def simple_ai_response(question, df):
             response += (
                 f"- {row['Ticker']}: {row['Trade Setup']}, "
                 f"Entry {row['Suggested Entry']}, R/R {row['Risk/Reward']}, "
-                f"Shares {row['Suggested Shares']}\n"
+                f"Shares {row['Suggested Shares']}. Why: {row['Reason']}\n"
             )
         return response
 
@@ -363,7 +392,8 @@ def simple_ai_response(question, df):
                 f"Entry status is {row['Entry Status']} ({row['Entry Distance %']}% from entry). "
                 f"Suggested entry is ${row['Suggested Entry']}, target is ${row['Target Price']}, "
                 f"stop is ${row['Stop Loss']}, and R/R is {row['Risk/Reward']}. "
-                f"Suggested shares based on your risk budget: {row['Suggested Shares']}."
+                f"Suggested shares based on your risk budget: {row['Suggested Shares']}. "
+                f"Why: {row['Reason']}."
             )
 
     if "what is confidence" in q or "confidence" in q:
@@ -389,6 +419,11 @@ with st.sidebar:
         max_value=10000,
         value=500,
         step=25
+    )
+
+    show_actionable_only = st.checkbox(
+        "Show Actionable Only",
+        value=False
     )
 
     if st.button("🔄 Update Data"):
@@ -420,6 +455,35 @@ with st.sidebar:
 
 
 scanner_df = build_scanner(watchlist, risk_budget)
+
+if show_actionable_only and not scanner_df.empty:
+    scanner_df = scanner_df[
+        (scanner_df["Confidence"] >= 60)
+        & (scanner_df["Risk/Reward"] >= 1.5)
+        & (scanner_df["Entry Status"].isin(["At / Below Entry", "Near Entry"]))
+    ]
+
+
+journal_df = load_trade_journal()
+
+closed_trades = pd.DataFrame()
+if not journal_df.empty:
+    closed_trades = journal_df[
+        journal_df["Status"].astype(str).str.contains("Closed", na=False)
+    ].copy()
+
+
+if not closed_trades.empty:
+    closed_trades["P/L $"] = pd.to_numeric(closed_trades["P/L $"], errors="coerce").fillna(0)
+    total_pl = closed_trades["P/L $"].sum()
+    wins = closed_trades[closed_trades["P/L $"] > 0]
+    win_rate = (len(wins) / len(closed_trades)) * 100 if len(closed_trades) > 0 else 0
+
+    st.subheader("📈 Quick Performance Snapshot")
+    p1, p2, p3 = st.columns(3)
+    p1.metric("Total P/L", f"${total_pl:,.2f}")
+    p2.metric("Closed Trades", len(closed_trades))
+    p3.metric("Win Rate", f"{win_rate:.1f}%")
 
 
 st.subheader("🤖 Ask AI")
@@ -481,7 +545,7 @@ else:
         scanner_df[
             [
                 "Ticker", "Price", "DIP STATUS", "Trade Setup", "Entry Status",
-                "Entry Distance %", "Confidence", "Confidence Level",
+                "Entry Distance %", "Confidence", "Confidence Level", "Reason",
                 "Suggested Entry", "Target Price", "Stop Loss",
                 "Risk/Reward", "Suggested Shares", "Capital Needed", "Max Loss", "RSI"
             ]
@@ -489,6 +553,34 @@ else:
         use_container_width=True,
         hide_index=True
     )
+
+
+st.subheader("🚨 Entry Timing Alerts")
+
+if scanner_df.empty:
+    st.info("No alert candidates right now.")
+else:
+    alert_df = scanner_df[
+        (scanner_df["Confidence"] >= 60)
+        & (scanner_df["Risk/Reward"] >= 1.5)
+        & (scanner_df["Entry Status"].isin(["At / Below Entry", "Near Entry"]))
+    ]
+
+    if alert_df.empty:
+        st.info("No stocks are currently near entry with strong confidence.")
+    else:
+        st.success("Actionable entry setups detected.")
+        st.dataframe(
+            alert_df[
+                [
+                    "Ticker", "Price", "Trade Setup", "Entry Status",
+                    "Confidence", "Suggested Entry", "Stop Loss",
+                    "Target Price", "Risk/Reward", "Suggested Shares", "Reason"
+                ]
+            ],
+            use_container_width=True,
+            hide_index=True
+        )
 
 
 st.markdown("### 🧠 Scanner Cheat Sheet")
@@ -634,7 +726,7 @@ with st.expander("Add Trade to Journal", expanded=False):
             )
             trade_notes = st.text_area(
                 "Notes",
-                value=f"{selected_row['Trade Setup']} | {selected_row['Entry Status']}"
+                value=f"{selected_row['Trade Setup']} | {selected_row['Entry Status']} | {selected_row['Reason']}"
             )
 
         if st.button("Add Trade"):
