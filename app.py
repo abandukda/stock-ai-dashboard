@@ -64,7 +64,7 @@ if not st.session_state.logged_in:
 # =====================
 # VERSION / SETTINGS
 # =====================
-APP_VERSION = "V15 PRO - CHARTS + PERSONAL ALERTS + AI SUMMARY"
+APP_VERSION = "V15.1 PRO - WATCHLIST FIX + CHARTS"
 
 EMAIL_SENDER = os.getenv("EMAIL_SENDER")
 EMAIL_PASSWORD = os.getenv("APP_PASSWORD")
@@ -81,21 +81,31 @@ AI_TOP_15 = [
 
 
 # =====================
-# WATCHLIST COOKIE
+# WATCHLIST COOKIE + SESSION FIX
 # =====================
 def load_personal_watchlist():
+    if "personal_watchlist" in st.session_state:
+        return st.session_state.personal_watchlist
+
     raw = cookie_manager.get(cookie="personal_watchlist_v15")
-    if not raw:
-        return []
-    try:
-        items = json.loads(raw)
-        return sorted(list(set([x.strip().upper() for x in items if x.strip()])))
-    except Exception:
-        return []
+
+    if raw:
+        try:
+            items = json.loads(raw)
+            clean = sorted(list(set([x.strip().upper() for x in items if x.strip()])))
+            st.session_state.personal_watchlist = clean
+            return clean
+        except Exception:
+            pass
+
+    st.session_state.personal_watchlist = []
+    return []
 
 
 def save_personal_watchlist(symbols):
     clean = sorted(list(set([s.strip().upper() for s in symbols if s.strip()])))
+    st.session_state.personal_watchlist = clean
+
     cookie_manager.set(
         cookie="personal_watchlist_v15",
         val=json.dumps(clean),
@@ -165,15 +175,15 @@ def calculate_rsi(close, period=14):
     return 100 - (100 / (1 + rs))
 
 
-def make_ai_summary(confidence, rr, rsi, dip_pct, volume_ratio, near_entry):
+def make_ai_summary(confidence, rr, rsi, volume_ratio, near_entry):
     if confidence >= 70 and rr >= 1.8 and near_entry:
         return "Strong setup: trend, pullback, risk/reward, and entry timing are aligned."
     if confidence >= 60 and rr >= 1.5:
-        return "Good watchlist setup: worth monitoring closely, but wait for clean entry confirmation."
+        return "Good setup: worth monitoring closely, but wait for clean entry confirmation."
     if confidence >= 45:
         return "Mixed setup: some positives, but not enough confirmation yet."
     if rsi > 70:
-        return "Avoid for now: RSI appears extended and entry risk may be high."
+        return "Avoid for now: RSI appears extended."
     if volume_ratio < 0.8:
         return "Avoid for now: weak volume confirmation."
     return "Weak setup: better opportunities may exist."
@@ -286,7 +296,7 @@ def analyze_stock(symbol):
     else:
         action = "AVOID"
 
-    ai_summary = make_ai_summary(confidence, rr, rsi, dip_pct, volume_ratio, near_entry)
+    ai_summary = make_ai_summary(confidence, rr, rsi, volume_ratio, near_entry)
 
     return {
         "Symbol": symbol,
@@ -461,9 +471,8 @@ if st.sidebar.button("➕ Add Ticker"):
     symbol_to_add = new_symbol.strip().upper()
 
     if symbol_to_add:
-        personal_watchlist.append(symbol_to_add)
-        personal_watchlist = sorted(list(set(personal_watchlist)))
-        save_personal_watchlist(personal_watchlist)
+        updated_watchlist = personal_watchlist + [symbol_to_add]
+        save_personal_watchlist(updated_watchlist)
         st.sidebar.success(f"Added {symbol_to_add}")
         st.rerun()
 
@@ -475,8 +484,8 @@ if personal_watchlist:
 
     if st.sidebar.button("🗑️ Remove Ticker"):
         if remove_symbol:
-            personal_watchlist = [s for s in personal_watchlist if s != remove_symbol]
-            save_personal_watchlist(personal_watchlist)
+            updated_watchlist = [s for s in personal_watchlist if s != remove_symbol]
+            save_personal_watchlist(updated_watchlist)
             st.sidebar.warning(f"Removed {remove_symbol}")
             st.rerun()
 
@@ -784,7 +793,7 @@ Usually means:
 - Setup is not clean
 
 ### 📬 Alerts
-V15 alerts are designed to focus on your Personal Watchlist by default.
+V15.1 alerts focus on your Personal Watchlist by default.
 Duplicate alerts are blocked for 1 hour per stock.
 
 ### ⭐ Personal Watchlist
