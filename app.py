@@ -1,886 +1,676 @@
-import os
-import re
-from datetime import datetime
-
-import pandas as pd
 import streamlit as st
 import yfinance as yf
-import plotly.graph_objects as go
+import pandas as pd
+import os
+import json
+import smtplib
+import extra_streamlit_components as stx
+from email.mime.text import MIMEText
+from datetime import datetime, timedelta
+
+try:
+    from streamlit_autorefresh import st_autorefresh
+except Exception:
+    st_autorefresh = None
 
 
-st.set_page_config(page_title="AI Trading Dashboard", layout="wide")
+st.set_page_config(page_title="AI Trading Dashboard", page_icon="📈", layout="wide")
 
+if st_autorefresh:
+    st_autorefresh(interval=60 * 1000, key="refresh")
+
+
+# =====================
+# COOKIE MANAGER
+# =====================
+cookie_manager = stx.CookieManager()
+
+
+# =====================
+# LOGIN
+# =====================
 APP_USERNAME = os.getenv("APP_USERNAME", "admin")
-APP_PASSWORD = os.getenv("APP_PASSWORD", "password")
-TRADE_JOURNAL_FILE = "trade_journal.csv"
+APP_PASSWORD_LOGIN = os.getenv("APP_PASSWORD_LOGIN", "password")
 
+auth_cookie = cookie_manager.get(cookie="ai_dashboard_auth")
 
-def login():
-    st.title("AI Trading Dashboard Login")
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = auth_cookie == "true"
+
+if not st.session_state.logged_in:
+    st.title("🔐 AI Trading Dashboard Login")
+
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
+    remember_me = st.checkbox("Keep me logged in", value=True)
 
     if st.button("Login"):
-        if username == APP_USERNAME and password == APP_PASSWORD:
-            st.session_state["logged_in"] = True
+        if username == APP_USERNAME and password == APP_PASSWORD_LOGIN:
+            st.session_state.logged_in = True
+
+            if remember_me:
+                cookie_manager.set(
+                    cookie="ai_dashboard_auth",
+                    val="true",
+                    expires_at=datetime.now() + timedelta(days=30),
+                    key="set_auth_cookie"
+                )
+
             st.rerun()
         else:
             st.error("Invalid login")
 
-
-if "logged_in" not in st.session_state:
-    st.session_state["logged_in"] = False
-
-if not st.session_state["logged_in"]:
-    login()
     st.stop()
 
 
-DEFAULT_WATCHLIST = [
-    "NVDA", "AAPL", "MSFT", "AMZN", "META",
-    "GOOGL", "TSLA", "AMD", "PLTR", "SNOW",
-    "ELF", "COST", "TSM", "AVGO", "QQQ", "COIN"
+# =====================
+# VERSION CHECK
+# =====================
+APP_VERSION = "V11 PERSONAL WATCHLIST FIX - MAY 2026"
+
+
+# =====================
+# SETTINGS
+# =====================
+EMAIL_SENDER = os.getenv("EMAIL_SENDER")
+EMAIL_PASSWORD = os.getenv("APP_PASSWORD")
+EMAIL_RECEIVER = os.getenv("EMAIL_RECEIVER")
+
+JOURNAL_FILE = "trade_journal.csv"
+ALERT_FILE = "alert_history.csv"
+
+AI_TOP_15 = [
+    "AAPL", "MSFT", "NVDA", "AMZN", "META",
+    "GOOGL", "TSLA", "AMD", "NFLX", "AVGO",
+    "COST", "LLY", "JPM", "V", "UNH"
 ]
 
 
-@st.cache_data(ttl=300)
-def get_stock_data(ticker, period="6mo"):
+# =====================
+# COOKIE WATCHLIST
+# =====================
+def load_personal_watchlist():
+    raw = cookie_manager.get(cookie="personal_watchlist_v11")
+
+    if not raw:
+        return []
+
     try:
-        data = yf.Ticker(ticker).history(period=period)
+        items = json.loads(raw)
+        return sorted(list(set([x.strip().upper() for x in items if x.strip()])))
+    except Exception:
+        return []
+
+
+def save_personal_watchlist(symbols):
+    clean = sorted(list(set([s.strip().upper() for s in symbols if s.strip()])))
+
+    cookie_manager.set(
+        cookie="personal_watchlist_v11",
+        val=json.dumps(clean),
+        expires_at=datetime.now() + timedelta(days=365),
+        key="save_personal_watchlist_v11"
+    )
+
+
+# =====================
+# HELPERS
+# =====================
+def load_csv(file, columns):
+    if os.path.exists(file):
+        return pd.read_csv(file)
+    return pd.DataFrame(columns=columns)
+
+
+def save_csv(df, file):
+    df.to_csv(file, index=False)
+
+
+def send_email_alert(subject, body):
+    if not EMAIL_SENDER or not EMAIL_PASSWORD or not EMAIL_RECEIVER:
+        return False, "Missing EMAIL_SENDER, APP_PASSWORD, or EMAIL_RECEIVER."
+
+    try:
+        msg = MIMEText(body)
+        msg["Subject"] = subject
+        msg["From"] = EMAIL_SENDER
+        msg["To"] = EMAIL_RECEIVER
+
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+            server.send_message(msg)
+
+        return True, "Email sent."
+    except Exception as e:
+        return False, str(e)
+
+
+def get_stock_data(symbol):
+    try:
+        data = yf.download(
+            symbol,
+            period="6mo",
+            interval="1d",
+            progress=False,
+            auto_adjust=True
+        )
+
         if data.empty:
             return None
-        return data
+
+        if isinstance(data.columns, pd.MultiIndex):
+            data.columns = data.columns.get_level_values(0)
+
+        return data.dropna()
     except Exception:
         return None
 
 
-def calculate_rsi(data, window=14):
-    delta = data["Close"].diff()
-    gain = delta.clip(lower=0)
-    loss = -delta.clip(upper=0)
-
-    avg_gain = gain.rolling(window).mean()
-    avg_loss = loss.rolling(window).mean()
-
-    rs = avg_gain / avg_loss
+def calculate_rsi(close, period=14):
+    delta = close.diff()
+    gain = delta.where(delta > 0, 0).rolling(period).mean()
+    loss = -delta.where(delta < 0, 0).rolling(period).mean()
+    rs = gain / loss
     return 100 - (100 / (1 + rs))
 
 
-def calculate_trade_metrics(data, risk_budget):
-    if data is None or data.empty or len(data) < 50:
+def analyze_stock(symbol):
+    data = get_stock_data(symbol)
+
+    if data is None or len(data) < 60:
         return None
 
-    current = data["Close"].iloc[-1]
-    previous = data["Close"].iloc[-2]
-    daily_change = ((current - previous) / previous) * 100
+    close = data["Close"]
+    high = data["High"]
+    low = data["Low"]
+    volume = data["Volume"]
 
-    rsi = calculate_rsi(data).iloc[-1]
+    price = float(close.iloc[-1])
+    prev_price = float(close.iloc[-2])
 
-    ma20 = data["Close"].rolling(20).mean().iloc[-1]
-    ma50 = data["Close"].rolling(50).mean().iloc[-1]
+    sma20 = float(close.rolling(20).mean().iloc[-1])
+    sma50 = float(close.rolling(50).mean().iloc[-1])
+    rsi = float(calculate_rsi(close).iloc[-1])
 
-    high_20 = data["Close"].tail(20).max()
-    high_50 = data["Close"].tail(50).max()
-    low_20 = data["Low"].tail(20).min()
-    low_50 = data["Low"].tail(50).min()
+    recent_high = float(high.tail(30).max())
+    recent_low = float(low.tail(30).min())
 
-    drop_20 = ((current - high_20) / high_20) * 100
-    drop_50 = ((current - high_50) / high_50) * 100
+    avg_volume = float(volume.tail(20).mean())
+    current_volume = float(volume.iloc[-1])
+    volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1
 
-    if drop_50 <= -20 and rsi < 35:
-        dip_status = "Deep Dip"
-    elif drop_20 <= -10 and rsi < 40:
-        dip_status = "Dip"
-    elif drop_20 <= -5:
-        dip_status = "Small Dip"
-    elif rsi > 70:
-        dip_status = "Overbought"
-    else:
-        dip_status = "No Dip"
+    dip_pct = ((recent_high - price) / recent_high) * 100
+    recovery_pct = ((price - recent_low) / recent_low) * 100
 
-    strong_uptrend = current > ma20 > ma50
-    deep_dip = drop_50 <= -20 or rsi < 35
-    normal_dip = drop_20 <= -7 or rsi < 45
-    choppy = abs(ma20 - ma50) / current < 0.03
-
-    if strong_uptrend and not deep_dip:
-        setup = "Pullback Buy"
-        entry = max(ma20, low_20)
-        target = high_50
-        stop = entry * 0.94
-    elif deep_dip:
-        setup = "Deep Dip"
-        entry = max(low_20, low_50)
-        target = max(ma50, high_20)
-        stop = low_50 * 0.95
-    elif normal_dip:
-        setup = "Dip Buy"
-        entry = low_20
-        target = high_20
-        stop = low_20 * 0.95
-    elif choppy:
-        setup = "Range"
-        entry = low_20
-        target = high_20
-        stop = low_20 * 0.96
-    else:
-        setup = "Watch"
-        entry = min(ma20, low_20)
-        target = high_20
-        stop = entry * 0.95
-
-    upside = ((target - current) / current) * 100
-    risk_per_share = entry - stop
-    reward = target - entry
-    rr = reward / risk_per_share if risk_per_share > 0 else 0
-
-    if current <= entry:
-        entry_status = "At / Below Entry"
-    elif current <= entry * 1.02:
-        entry_status = "Near Entry"
-    elif current <= entry * 1.05:
-        entry_status = "Close to Entry"
-    elif current <= entry * 1.10:
-        entry_status = "Wait for Pullback"
-    else:
-        entry_status = "Too Extended"
-
-    entry_distance = ((current - entry) / entry) * 100 if entry > 0 else 0
-
-    shares = int(risk_budget // risk_per_share) if risk_per_share > 0 else 0
-    capital_needed = shares * entry
-    max_loss = shares * risk_per_share
-
-    confidence = 0
+    score = 0
     reasons = []
 
-    if dip_status == "Deep Dip":
-        confidence += 30
-        reasons.append("deep pullback")
-    elif dip_status == "Dip":
-        confidence += 24
-        reasons.append("meaningful dip")
-    elif dip_status == "Small Dip":
-        confidence += 16
-        reasons.append("small dip")
-    elif dip_status == "No Dip":
-        confidence += 8
-        reasons.append("not much dip yet")
-    elif dip_status == "Overbought":
-        reasons.append("overbought risk")
-
-    if 30 <= rsi <= 45:
-        confidence += 20
-        reasons.append("RSI in attractive range")
-    elif 45 < rsi <= 55:
-        confidence += 14
-        reasons.append("RSI neutral/healthy")
-    elif rsi > 70:
-        confidence -= 10
-        reasons.append("RSI overbought")
-
-    if current > ma20 > ma50:
-        confidence += 20
-        reasons.append("strong trend")
-    elif current > ma50:
-        confidence += 14
-        reasons.append("above 50-day trend")
-    elif current > ma20:
-        confidence += 10
-        reasons.append("above 20-day trend")
-
-    if rr >= 3:
-        confidence += 20
-        reasons.append("excellent R/R")
-    elif rr >= 2:
-        confidence += 16
-        reasons.append("strong R/R")
-    elif rr >= 1.5:
-        confidence += 12
-        reasons.append("acceptable R/R")
-    elif rr >= 1:
-        confidence += 6
-        reasons.append("modest R/R")
+    if price > sma20:
+        score += 15
+        reasons.append("Price is above 20-day moving average")
     else:
-        confidence -= 8
-        reasons.append("weak R/R")
+        reasons.append("Price is below 20-day moving average")
 
-    if upside >= 20:
-        confidence += 10
-        reasons.append("large upside")
-    elif upside >= 12:
-        confidence += 8
-        reasons.append("good upside")
-    elif upside >= 7:
-        confidence += 5
-        reasons.append("decent upside")
-    elif upside < 3:
-        confidence -= 5
-        reasons.append("limited upside")
-
-    if entry_status in ["At / Below Entry", "Near Entry"]:
-        confidence += 5
-        reasons.append("near entry")
-    elif entry_status == "Too Extended":
-        confidence -= 10
-        reasons.append("too extended")
-
-    confidence = max(0, min(100, round(confidence)))
-
-    if confidence >= 80:
-        confidence_level = "High"
-    elif confidence >= 60:
-        confidence_level = "Medium"
+    if price > sma50:
+        score += 15
+        reasons.append("Price is above 50-day moving average")
     else:
-        confidence_level = "Low"
+        reasons.append("Price is below 50-day moving average")
 
-    if current > ma20 > ma50 and rsi < 70:
-        signal = "Buy"
-    elif current < ma20 and rsi > 60:
-        signal = "Sell"
+    if sma20 > sma50:
+        score += 10
+        reasons.append("20-day average is above 50-day average")
+
+    if 3 <= dip_pct <= 12:
+        score += 20
+        reasons.append("Healthy pullback from recent high")
+    elif 12 < dip_pct <= 25:
+        score += 10
+        reasons.append("Large dip, possible rebound setup")
     else:
-        signal = "Hold"
+        reasons.append("Dip is either too small or too deep")
+
+    if 35 <= rsi <= 55:
+        score += 20
+        reasons.append("RSI is in attractive entry range")
+    elif 55 < rsi <= 65:
+        score += 10
+        reasons.append("RSI is acceptable but getting stronger")
+    elif rsi < 35:
+        score += 15
+        reasons.append("RSI is oversold")
+    else:
+        reasons.append("RSI may be extended")
+
+    if volume_ratio >= 1.2:
+        score += 15
+        reasons.append("Volume confirmation is strong")
+    elif volume_ratio >= 0.9:
+        score += 8
+        reasons.append("Volume is normal")
+    else:
+        reasons.append("Volume confirmation is weak")
+
+    if price > prev_price:
+        score += 10
+        reasons.append("Positive price momentum")
+    else:
+        reasons.append("Price momentum is weak")
+
+    confidence = min(score, 100)
+
+    entry = round(price * 0.995, 2)
+    stop = round(price * 0.94, 2)
+    target = round(price * 1.10, 2)
+
+    risk = entry - stop
+    reward = target - entry
+    rr = round(reward / risk, 2) if risk > 0 else 0
+
+    near_entry = abs(price - entry) / entry <= 0.015
+    actionable = confidence >= 60 and rr >= 1.5 and near_entry
+
+    if confidence >= 70 and rr >= 1.8 and near_entry:
+        action = "BUY / STRONG SETUP"
+    elif confidence >= 60 and rr >= 1.5:
+        action = "WATCH / POSSIBLE ENTRY"
+    elif confidence >= 45:
+        action = "WAIT"
+    else:
+        action = "AVOID"
 
     return {
-        "Price": round(current, 2),
-        "Daily Change %": round(daily_change, 2),
-        "RSI": round(rsi, 2),
-        "Signal": signal,
-        "DIP STATUS": dip_status,
-        "Trade Setup": setup,
-        "Entry Status": entry_status,
-        "Entry Distance %": round(entry_distance, 2),
+        "Symbol": symbol,
+        "Price": round(price, 2),
+        "Entry": entry,
+        "Target": target,
+        "Stop": stop,
+        "R/R": rr,
         "Confidence": confidence,
-        "Confidence Level": confidence_level,
-        "Reason": ", ".join(reasons[:4]),
-        "Suggested Entry": round(entry, 2),
-        "Target Price": round(target, 2),
-        "Stop Loss": round(stop, 2),
-        "Upside %": round(upside, 2),
-        "Risk/Reward": round(rr, 2),
-        "Risk/Share": round(risk_per_share, 2),
-        "Suggested Shares": shares,
-        "Capital Needed": round(capital_needed, 2),
-        "Max Loss": round(max_loss, 2),
-        "Drop From 20D High %": round(drop_20, 2),
-        "Drop From 50D High %": round(drop_50, 2),
+        "RSI": round(rsi, 1),
+        "Dip %": round(dip_pct, 2),
+        "Recovery %": round(recovery_pct, 2),
+        "Volume Ratio": round(volume_ratio, 2),
+        "Near Entry": near_entry,
+        "Actionable": actionable,
+        "AI Action": action,
+        "Score Reasons": " | ".join(reasons),
+        "Last Updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
 
 
-def build_scanner(tickers, risk_budget):
-    rows = []
+def position_size(capital, max_loss, entry, stop):
+    risk_per_share = entry - stop
 
-    for ticker in tickers:
-        data = get_stock_data(ticker)
-        metrics = calculate_trade_metrics(data, risk_budget)
+    if risk_per_share <= 0:
+        return 0, 0, 0
 
-        if metrics:
-            metrics["Ticker"] = ticker
-            rows.append(metrics)
+    shares = int(max_loss / risk_per_share)
+    capital_needed = shares * entry
 
-    df = pd.DataFrame(rows)
+    if capital_needed > capital:
+        shares = int(capital / entry)
+        capital_needed = shares * entry
 
-    if df.empty:
-        return df
-
-    return df.sort_values(
-        by=["Confidence", "Risk/Reward", "Upside %"],
-        ascending=[False, False, False]
-    ).head(15)
+    actual_loss = shares * risk_per_share
+    return shares, round(capital_needed, 2), round(actual_loss, 2)
 
 
-def load_trade_journal():
-    columns = [
-        "Date", "Ticker", "Status", "Setup", "Entry", "Current Price",
-        "Stop", "Target", "Shares", "Capital", "Max Loss",
-        "Exit Price", "P/L $", "P/L %", "Notes"
+def check_alert(row):
+    alert_df = load_csv(
+        ALERT_FILE,
+        ["Time", "Symbol", "Price", "Entry", "Target", "Stop", "Confidence", "R/R", "AI Action"]
+    )
+
+    symbol = row["Symbol"]
+    now = datetime.now()
+
+    if not alert_df.empty and symbol in alert_df["Symbol"].values:
+        last_time = alert_df[alert_df["Symbol"] == symbol]["Time"].iloc[-1]
+        last_time = datetime.strptime(last_time, "%Y-%m-%d %H:%M:%S")
+
+        if now - last_time < timedelta(hours=1):
+            return
+
+    subject = f"🚨 Trade Alert: {symbol}"
+
+    body = f"""
+AI Trading Dashboard Alert
+
+Symbol: {symbol}
+Price: {row['Price']}
+Entry: {row['Entry']}
+Target: {row['Target']}
+Stop: {row['Stop']}
+Confidence: {row['Confidence']}
+Risk/Reward: {row['R/R']}
+AI Action: {row['AI Action']}
+
+Score Reasons:
+{row['Score Reasons']}
+
+Time: {now.strftime('%Y-%m-%d %H:%M:%S')}
+"""
+
+    send_email_alert(subject, body)
+
+    new_alert = pd.DataFrame([{
+        "Time": now.strftime("%Y-%m-%d %H:%M:%S"),
+        "Symbol": symbol,
+        "Price": row["Price"],
+        "Entry": row["Entry"],
+        "Target": row["Target"],
+        "Stop": row["Stop"],
+        "Confidence": row["Confidence"],
+        "R/R": row["R/R"],
+        "AI Action": row["AI Action"]
+    }])
+
+    alert_df = pd.concat([alert_df, new_alert], ignore_index=True)
+    save_csv(alert_df, ALERT_FILE)
+
+
+# =====================
+# SIDEBAR
+# =====================
+st.sidebar.title("⚙️ Dashboard Settings")
+
+if st.sidebar.button("Logout"):
+    st.session_state.logged_in = False
+    cookie_manager.delete(cookie="ai_dashboard_auth", key="delete_auth_cookie")
+    st.rerun()
+
+capital = st.sidebar.number_input("Trading Capital ($)", value=5000, step=500)
+max_loss = st.sidebar.number_input("Risk Budget Per Trade ($)", value=500, step=50)
+
+scan_mode = st.sidebar.radio(
+    "Scan Mode",
+    [
+        "Personal Watchlist Only",
+        "AI Top 15 Only",
+        "Personal Watchlist + AI Top 15"
     ]
-
-    if not os.path.exists(TRADE_JOURNAL_FILE):
-        return pd.DataFrame(columns=columns)
-
-    try:
-        df = pd.read_csv(TRADE_JOURNAL_FILE)
-        for col in columns:
-            if col not in df.columns:
-                df[col] = ""
-        return df[columns]
-    except Exception:
-        return pd.DataFrame(columns=columns)
-
-
-def save_trade_journal(df):
-    df.to_csv(TRADE_JOURNAL_FILE, index=False)
-
-
-def calculate_trade_pl(entry, exit_price, shares):
-    try:
-        entry = float(entry)
-        exit_price = float(exit_price)
-        shares = int(shares)
-
-        pl_dollars = (exit_price - entry) * shares
-        pl_percent = ((exit_price - entry) / entry) * 100 if entry > 0 else 0
-
-        return round(pl_dollars, 2), round(pl_percent, 2)
-    except Exception:
-        return 0, 0
-
-
-def simple_ai_response(question, df):
-    if df is None or df.empty:
-        return "No scanner data is available yet. Click Update Data or check your watchlist."
-
-    q = question.lower().strip()
-
-    if "best" in q or "top pick" in q:
-        best = df.iloc[0]
-        return (
-            f"{best['Ticker']} is the strongest setup right now. "
-            f"Confidence is {best['Confidence']}/100, setup is {best['Trade Setup']}, "
-            f"entry status is {best['Entry Status']}, R/R is {best['Risk/Reward']}. "
-            f"Why: {best['Reason']}."
-        )
-
-    if "top 3" in q or "top three" in q:
-        response = "Top 3 setups right now:\n"
-        for _, row in df.head(3).iterrows():
-            response += (
-                f"- {row['Ticker']}: Confidence {row['Confidence']}/100, "
-                f"{row['Trade Setup']}, {row['Entry Status']}, R/R {row['Risk/Reward']}. "
-                f"Why: {row['Reason']}\n"
-            )
-        return response
-
-    if "actionable" in q or "buy now" in q or "near entry" in q:
-        actionable = df[
-            (df["Confidence"] >= 60)
-            & (df["Risk/Reward"] >= 1.5)
-            & (df["Entry Status"].isin(["At / Below Entry", "Near Entry"]))
-        ]
-
-        if actionable.empty:
-            return "No high-quality actionable trades right now. Best move is to wait for prices to get closer to entry."
-
-        response = "Actionable setups:\n"
-        for _, row in actionable.iterrows():
-            response += (
-                f"- {row['Ticker']}: {row['Trade Setup']}, "
-                f"Entry {row['Suggested Entry']}, R/R {row['Risk/Reward']}, "
-                f"Shares {row['Suggested Shares']}. Why: {row['Reason']}\n"
-            )
-        return response
-
-    if "risky" in q or "avoid" in q or "bad" in q:
-        risky = df[
-            (df["Confidence"] < 50)
-            | (df["Entry Status"] == "Too Extended")
-            | (df["DIP STATUS"] == "Overbought")
-        ]
-
-        if risky.empty:
-            return "No clearly risky or overextended names based on the current scanner."
-        return "Risky / avoid for now: " + ", ".join(risky["Ticker"].tolist())
-
-    tickers = df["Ticker"].tolist()
-    for ticker in tickers:
-        pattern = r"\b" + re.escape(ticker.lower()) + r"\b"
-        if re.search(pattern, q):
-            row = df[df["Ticker"] == ticker].iloc[0]
-            return (
-                f"{ticker}: {row['Trade Setup']} with {row['Confidence']}/100 confidence. "
-                f"Entry status is {row['Entry Status']} ({row['Entry Distance %']}% from entry). "
-                f"Suggested entry is ${row['Suggested Entry']}, target is ${row['Target Price']}, "
-                f"stop is ${row['Stop Loss']}, and R/R is {row['Risk/Reward']}. "
-                f"Suggested shares based on your risk budget: {row['Suggested Shares']}. "
-                f"Why: {row['Reason']}."
-            )
-
-    if "what is confidence" in q or "confidence" in q:
-        return "Confidence measures how aligned the setup is across dip status, RSI, trend, R/R, upside, and entry timing. Higher is better."
-
-    if "what is r/r" in q or "risk reward" in q:
-        return "R/R means risk/reward. It compares possible reward to possible loss. A value above 1.5 is decent; above 2 is stronger."
-
-    return (
-        "Try asking: 'best stock', 'top 3', 'actionable trades', "
-        "'should I buy NVDA?', 'risky stocks', or 'what is R/R?'"
-    )
-
-
-st.title("📊 AI Trading Dashboard")
-
-with st.sidebar:
-    st.header("Controls")
-
-    risk_budget = st.number_input(
-        "Risk Budget Per Trade ($)",
-        min_value=25,
-        max_value=10000,
-        value=500,
-        step=25
-    )
-
-    show_actionable_only = st.checkbox(
-        "Show Actionable Only",
-        value=False
-    )
-
-    if st.button("🔄 Update Data"):
-        st.cache_data.clear()
-        st.rerun()
-
-    tickers_input = st.text_area(
-        "Watchlist",
-        value=", ".join(DEFAULT_WATCHLIST)
-    )
-
-    watchlist = [
-        ticker.strip().upper()
-        for ticker in tickers_input.split(",")
-        if ticker.strip()
-    ]
-
-    selected_ticker = st.selectbox("Chart Ticker", watchlist)
-
-    chart_period = st.selectbox(
-        "Chart Period",
-        ["1mo", "3mo", "6mo", "1y", "2y"],
-        index=2
-    )
-
-    if st.button("Logout"):
-        st.session_state["logged_in"] = False
-        st.rerun()
-
-
-scanner_df = build_scanner(watchlist, risk_budget)
-
-if show_actionable_only and not scanner_df.empty:
-    scanner_df = scanner_df[
-        (scanner_df["Confidence"] >= 60)
-        & (scanner_df["Risk/Reward"] >= 1.5)
-        & (scanner_df["Entry Status"].isin(["At / Below Entry", "Near Entry"]))
-    ]
-
-
-journal_df = load_trade_journal()
-
-closed_trades = pd.DataFrame()
-if not journal_df.empty:
-    closed_trades = journal_df[
-        journal_df["Status"].astype(str).str.contains("Closed", na=False)
-    ].copy()
-
-
-if not closed_trades.empty:
-    closed_trades["P/L $"] = pd.to_numeric(closed_trades["P/L $"], errors="coerce").fillna(0)
-    total_pl = closed_trades["P/L $"].sum()
-    wins = closed_trades[closed_trades["P/L $"] > 0]
-    win_rate = (len(wins) / len(closed_trades)) * 100 if len(closed_trades) > 0 else 0
-
-    st.subheader("📈 Quick Performance Snapshot")
-    p1, p2, p3 = st.columns(3)
-    p1.metric("Total P/L", f"${total_pl:,.2f}")
-    p2.metric("Closed Trades", len(closed_trades))
-    p3.metric("Win Rate", f"{win_rate:.1f}%")
-
-
-st.subheader("🤖 Ask AI")
-
-ai_question = st.text_input(
-    "Ask about your dashboard",
-    placeholder="Examples: best stock, top 3, actionable trades, should I buy NVDA?"
 )
 
-if ai_question:
-    st.info(simple_ai_response(ai_question, scanner_df))
+enable_email_alerts = st.sidebar.checkbox("Enable Email Alerts", value=True)
+
+if st.sidebar.button("🔄 Manual Refresh"):
+    st.rerun()
 
 
-st.markdown("### 🎯 Top Setups Cheat Sheet")
-st.markdown("""
-- **Confidence ≥ 80** → Strongest setup.
-- **Confidence 60–79** → Good/watchable setup.
-- **R/R ≥ 1.5** → Reward may be worth the risk.
-- **Entry Status = At / Below Entry or Near Entry** → Most actionable.
-- **Too Extended** → Avoid chasing.
-- **Shares** = suggested position size based on your risk budget.
-""")
+# =====================
+# PERSONAL WATCHLIST SIDEBAR
+# =====================
+st.sidebar.divider()
+st.sidebar.header("⭐ PERSONAL WATCHLIST")
+st.sidebar.caption("This is separate from AI Top 15. Add only stocks YOU want to track.")
 
+personal_watchlist = load_personal_watchlist()
 
-st.subheader("🔥 Top 5 High-Confidence Trade Setups")
+new_symbol = st.sidebar.text_input("Add ticker to personal watchlist", placeholder="Example: NFLX")
 
-if scanner_df.empty:
-    st.warning("No scanner data available.")
+if st.sidebar.button("➕ Add Ticker"):
+    symbol_to_add = new_symbol.strip().upper()
+
+    if symbol_to_add:
+        personal_watchlist.append(symbol_to_add)
+        personal_watchlist = sorted(list(set(personal_watchlist)))
+        save_personal_watchlist(personal_watchlist)
+        st.sidebar.success(f"Added {symbol_to_add}")
+        st.rerun()
+
+if personal_watchlist:
+    st.sidebar.write("Saved Personal Watchlist:")
+    st.sidebar.success(", ".join(personal_watchlist))
+
+    remove_symbol = st.sidebar.selectbox("Remove ticker", [""] + personal_watchlist)
+
+    if st.sidebar.button("🗑️ Remove Ticker"):
+        if remove_symbol:
+            personal_watchlist = [s for s in personal_watchlist if s != remove_symbol]
+            save_personal_watchlist(personal_watchlist)
+            st.sidebar.warning(f"Removed {remove_symbol}")
+            st.rerun()
+
+    if st.sidebar.button("🧹 Clear Personal Watchlist"):
+        save_personal_watchlist([])
+        st.sidebar.warning("Personal watchlist cleared.")
+        st.rerun()
 else:
-    for _, row in scanner_df.head(5).iterrows():
-        c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([1, 1, 1.3, 1.3, 1, 1, 1, 1])
-
-        c1.metric("Ticker", row["Ticker"])
-        c2.metric("Conf", f"{int(row['Confidence'])}/100")
-        c3.markdown(f"**Setup**  \n{row['Trade Setup']}")
-        c4.markdown(f"**Timing**  \n{row['Entry Status']}")
-        c5.metric("Entry", f"${row['Suggested Entry']}")
-        c6.metric("R/R", row["Risk/Reward"])
-        c7.metric("Shares", int(row["Suggested Shares"]))
-        c8.metric("Max Loss", f"${row['Max Loss']}")
+    st.sidebar.info("No personal tickers yet. Add one above.")
 
 
-st.markdown("### 📌 Current Opportunities Cheat Sheet")
-st.markdown("""
-- **DIP STATUS** tells you whether the stock is pulled back or extended.
-- **Trade Setup** explains the type of opportunity.
-- **Entry Distance %** shows how far price is from suggested entry.
-- **Capital Needed** is the estimated money required for the suggested shares.
-- **Max Loss** is the approximate loss if stop loss is hit.
-""")
+# =====================
+# HEADER
+# =====================
+st.title("📈 AI Trading Dashboard")
+st.success(APP_VERSION)
+st.caption(f"Last refresh: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
 
-st.subheader("📌 Current Opportunities")
-
-if scanner_df.empty:
-    st.warning("No current opportunities.")
+# =====================
+# SYMBOL LIST
+# =====================
+if scan_mode == "Personal Watchlist Only":
+    symbols = personal_watchlist
+elif scan_mode == "AI Top 15 Only":
+    symbols = AI_TOP_15
 else:
-    st.dataframe(
-        scanner_df[
-            [
-                "Ticker", "Price", "DIP STATUS", "Trade Setup", "Entry Status",
-                "Entry Distance %", "Confidence", "Confidence Level", "Reason",
-                "Suggested Entry", "Target Price", "Stop Loss",
-                "Risk/Reward", "Suggested Shares", "Capital Needed", "Max Loss", "RSI"
-            ]
-        ],
-        use_container_width=True,
-        hide_index=True
-    )
+    symbols = sorted(list(set(personal_watchlist + AI_TOP_15)))
+
+if not symbols:
+    st.info("Your Personal Watchlist is empty. Add a ticker from the sidebar.")
+    st.stop()
 
 
-st.subheader("🚨 Entry Timing Alerts")
+# =====================
+# SCAN
+# =====================
+results = []
 
-if scanner_df.empty:
-    st.info("No alert candidates right now.")
-else:
-    alert_df = scanner_df[
-        (scanner_df["Confidence"] >= 60)
-        & (scanner_df["Risk/Reward"] >= 1.5)
-        & (scanner_df["Entry Status"].isin(["At / Below Entry", "Near Entry"]))
-    ]
+with st.spinner("Scanning stocks..."):
+    for symbol in symbols:
+        result = analyze_stock(symbol)
 
-    if alert_df.empty:
-        st.info("No stocks are currently near entry with strong confidence.")
-    else:
-        st.success("Actionable entry setups detected.")
-        st.dataframe(
-            alert_df[
-                [
-                    "Ticker", "Price", "Trade Setup", "Entry Status",
-                    "Confidence", "Suggested Entry", "Stop Loss",
-                    "Target Price", "Risk/Reward", "Suggested Shares", "Reason"
-                ]
-            ],
-            use_container_width=True,
-            hide_index=True
-        )
-
-
-st.markdown("### 🧠 Scanner Cheat Sheet")
-st.markdown("""
-- **Green rows** → Higher confidence setups.
-- **Yellow rows** → Watchlist setups, but not perfect.
-- **Red rows** → Too extended or avoid chasing.
-- Best setups usually have **Confidence ≥ 60**, **R/R ≥ 1.5**, and **Near Entry**.
-""")
-
-
-st.subheader("Top 15 Scanner")
-
-if scanner_df.empty:
-    st.warning("No scanner data available.")
-else:
-    def highlight_rows(row):
-        confidence = row["Confidence"]
-        entry_status = row["Entry Status"]
-
-        if confidence >= 80 and entry_status in ["At / Below Entry", "Near Entry"]:
-            return ["background-color: #14532d; color: white"] * len(row)
-        elif confidence >= 70:
-            return ["background-color: #166534; color: white"] * len(row)
-        elif confidence >= 60:
-            return ["background-color: #facc15; color: black"] * len(row)
-        elif entry_status == "Too Extended":
-            return ["background-color: #7f1d1d; color: white"] * len(row)
-        else:
-            return [""] * len(row)
-
-    st.dataframe(
-        scanner_df.style.apply(highlight_rows, axis=1),
-        use_container_width=True,
-        hide_index=True
-    )
-
-
-st.markdown("### 📈 Chart Cheat Sheet")
-st.markdown("""
-- **Entry line** = suggested buy zone.
-- **Target line** = first profit target.
-- **Stop line** = risk control level.
-- Do not chase if price is far above entry.
-""")
-
-
-st.subheader(f"{selected_ticker} Chart")
-
-chart_data = get_stock_data(selected_ticker, chart_period)
-
-if chart_data is not None and not chart_data.empty:
-    chart_data["MA20"] = chart_data["Close"].rolling(20).mean()
-    chart_data["MA50"] = chart_data["Close"].rolling(50).mean()
-
-    metrics = calculate_trade_metrics(chart_data, risk_budget)
-
-    fig = go.Figure()
-
-    fig.add_trace(go.Candlestick(
-        x=chart_data.index,
-        open=chart_data["Open"],
-        high=chart_data["High"],
-        low=chart_data["Low"],
-        close=chart_data["Close"],
-        name="Price"
-    ))
-
-    fig.add_trace(go.Scatter(
-        x=chart_data.index,
-        y=chart_data["MA20"],
-        mode="lines",
-        name="20D MA"
-    ))
-
-    fig.add_trace(go.Scatter(
-        x=chart_data.index,
-        y=chart_data["MA50"],
-        mode="lines",
-        name="50D MA"
-    ))
-
-    if metrics:
-        fig.add_hline(y=metrics["Suggested Entry"], line_dash="dash", annotation_text="Entry")
-        fig.add_hline(y=metrics["Target Price"], line_dash="dot", annotation_text="Target")
-        fig.add_hline(y=metrics["Stop Loss"], line_dash="dashdot", annotation_text="Stop")
-
-    fig.update_layout(height=550, xaxis_rangeslider_visible=False)
-
-    st.plotly_chart(fig, use_container_width=True)
-
-    if metrics:
-        c1, c2, c3, c4, c5, c6, c7, c8 = st.columns(8)
-
-        c1.metric("Price", f"${metrics['Price']}")
-        c2.metric("Confidence", f"{metrics['Confidence']}/100")
-        c3.markdown(f"**Timing**  \n{metrics['Entry Status']}")
-        c4.metric("Entry Dist", f"{metrics['Entry Distance %']}%")
-        c5.metric("Entry", f"${metrics['Suggested Entry']}")
-        c6.metric("Stop", f"${metrics['Stop Loss']}")
-        c7.metric("R/R", metrics["Risk/Reward"])
-        c8.metric("Shares", metrics["Suggested Shares"])
-else:
-    st.warning("No chart data available.")
-
-
-st.markdown("### 📓 Trade Journal Cheat Sheet")
-st.markdown("""
-- **Planned** → setup identified, but not entered yet.
-- **Open** → trade is active.
-- **Closed - Win** → exited with profit.
-- **Closed - Loss** → exited at a loss or stop.
-- **Closed - Manual** → exited early by choice.
-- Always enter an **Exit Price** when closing a trade so performance updates correctly.
-""")
-
-
-st.subheader("📓 Trade Journal")
-
-journal_df = load_trade_journal()
-
-with st.expander("Add Trade to Journal", expanded=False):
-    if scanner_df.empty:
-        st.info("Scanner needs data before adding a trade.")
-    else:
-        selected_setup = st.selectbox("Select Setup", scanner_df["Ticker"].tolist())
-        selected_row = scanner_df[scanner_df["Ticker"] == selected_setup].iloc[0]
-
-        c1, c2, c3 = st.columns(3)
-
-        with c1:
-            trade_entry = st.number_input("Entry", value=float(selected_row["Suggested Entry"]), step=0.01)
-            trade_stop = st.number_input("Stop", value=float(selected_row["Stop Loss"]), step=0.01)
-
-        with c2:
-            trade_target = st.number_input("Target", value=float(selected_row["Target Price"]), step=0.01)
-            trade_shares = st.number_input("Shares", min_value=0, value=int(selected_row["Suggested Shares"]), step=1)
-
-        with c3:
-            trade_status = st.selectbox(
-                "Status",
-                ["Planned", "Open", "Closed - Win", "Closed - Loss", "Closed - Manual"],
-            )
-            trade_notes = st.text_area(
-                "Notes",
-                value=f"{selected_row['Trade Setup']} | {selected_row['Entry Status']} | {selected_row['Reason']}"
+        if result:
+            shares, capital_needed, actual_loss = position_size(
+                capital,
+                max_loss,
+                result["Entry"],
+                result["Stop"]
             )
 
-        if st.button("Add Trade"):
-            capital = round(trade_entry * trade_shares, 2)
-            max_loss = round((trade_entry - trade_stop) * trade_shares, 2) if trade_entry > trade_stop else 0
+            result["Shares"] = shares
+            result["Capital Needed"] = capital_needed
+            result["Max Loss"] = actual_loss
+            result["List Type"] = "Personal Watchlist" if symbol in personal_watchlist else "AI Top 15"
 
-            new_trade = {
-                "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "Ticker": selected_setup,
-                "Status": trade_status,
-                "Setup": selected_row["Trade Setup"],
-                "Entry": round(trade_entry, 2),
-                "Current Price": round(selected_row["Price"], 2),
-                "Stop": round(trade_stop, 2),
-                "Target": round(trade_target, 2),
-                "Shares": int(trade_shares),
-                "Capital": capital,
-                "Max Loss": max_loss,
-                "Exit Price": "",
-                "P/L $": "",
-                "P/L %": "",
-                "Notes": trade_notes,
-            }
+            results.append(result)
 
-            journal_df = pd.concat([journal_df, pd.DataFrame([new_trade])], ignore_index=True)
-            save_trade_journal(journal_df)
-            st.success("Trade added to journal.")
-            st.rerun()
+df = pd.DataFrame(results)
+
+if df.empty:
+    st.warning("No stock data found. Check ticker symbols.")
+    st.stop()
 
 
-if journal_df.empty:
-    st.info("No trades in journal yet.")
-else:
-    st.dataframe(journal_df, use_container_width=True, hide_index=True)
+# =====================
+# ALERT ENGINE
+# =====================
+if enable_email_alerts:
+    actionable_df = df[df["Actionable"] == True]
 
-    st.subheader("Update / Close Trade")
-
-    trade_options = [
-        f"{idx} | {row['Ticker']} | {row['Status']} | Entry {row['Entry']}"
-        for idx, row in journal_df.iterrows()
-    ]
-
-    selected_trade = st.selectbox("Select Trade", trade_options)
-    selected_index = int(selected_trade.split(" | ")[0])
-    selected_trade_row = journal_df.loc[selected_index]
-
-    c1, c2, c3 = st.columns(3)
-
-    with c1:
-        status_options = ["Planned", "Open", "Closed - Win", "Closed - Loss", "Closed - Manual"]
-        current_status = selected_trade_row["Status"]
-        current_index = status_options.index(current_status) if current_status in status_options else 0
-        new_status = st.selectbox("New Status", status_options, index=current_index)
-
-    with c2:
-        exit_raw = str(selected_trade_row["Exit Price"]).strip()
-        exit_default = float(exit_raw) if exit_raw not in ["", "nan"] else 0.0
-        exit_price = st.number_input("Exit Price", min_value=0.0, value=exit_default, step=0.01)
-
-    with c3:
-        update_notes = st.text_area(
-            "Updated Notes",
-            value=str(selected_trade_row["Notes"]) if str(selected_trade_row["Notes"]) != "nan" else ""
-        )
-
-    c1, c2 = st.columns(2)
-
-    with c1:
-        if st.button("Update Trade"):
-            journal_df.at[selected_index, "Status"] = new_status
-            journal_df.at[selected_index, "Notes"] = update_notes
-
-            if exit_price > 0:
-                journal_df.at[selected_index, "Exit Price"] = round(exit_price, 2)
-                pl_dollars, pl_percent = calculate_trade_pl(
-                    journal_df.at[selected_index, "Entry"],
-                    exit_price,
-                    journal_df.at[selected_index, "Shares"]
-                )
-                journal_df.at[selected_index, "P/L $"] = pl_dollars
-                journal_df.at[selected_index, "P/L %"] = pl_percent
-
-            save_trade_journal(journal_df)
-            st.success("Trade updated.")
-            st.rerun()
-
-    with c2:
-        if st.button("Delete Trade"):
-            journal_df = journal_df.drop(index=selected_index).reset_index(drop=True)
-            save_trade_journal(journal_df)
-            st.warning("Trade deleted.")
-            st.rerun()
+    for _, row in actionable_df.iterrows():
+        check_alert(row)
 
 
-st.markdown("### 📊 Performance Dashboard Cheat Sheet")
-st.markdown("""
-- **Total P/L** = total profit/loss from closed trades.
-- **Win Rate** = percentage of closed trades that made money.
-- **Avg Win vs Avg Loss** = shows whether winners are bigger than losers.
-- **Profit Factor > 1.5** = healthy trading edge.
-- **Equity Curve** should trend upward over time.
-""")
+# =====================
+# TABS
+# =====================
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    "⭐ Personal Watchlist",
+    "🤖 AI Top 15",
+    "🔥 Best Setups",
+    "📊 Full Scanner",
+    "📬 Alerts",
+    "📓 Trade Journal"
+])
 
 
-st.subheader("📊 Performance Dashboard")
+with tab1:
+    st.subheader("⭐ Personal Watchlist AI Evaluation")
 
-journal_df = load_trade_journal()
+    personal_df = df[df["Symbol"].isin(personal_watchlist)].sort_values(
+        ["Confidence", "R/R"],
+        ascending=False
+    )
 
-if journal_df.empty:
-    st.info("No trades to analyze yet.")
-else:
-    closed_trades = journal_df[
-        journal_df["Status"].astype(str).str.contains("Closed", na=False)
-    ].copy()
-
-    if closed_trades.empty:
-        st.info("No closed trades yet.")
+    if personal_df.empty:
+        st.info("Your personal watchlist is empty. Add a ticker from the sidebar.")
     else:
-        closed_trades["P/L $"] = pd.to_numeric(closed_trades["P/L $"], errors="coerce").fillna(0)
+        st.dataframe(personal_df, use_container_width=True)
 
-        total_pl = closed_trades["P/L $"].sum()
-        wins = closed_trades[closed_trades["P/L $"] > 0]
-        losses = closed_trades[closed_trades["P/L $"] < 0]
+        selected = st.selectbox("Choose a personal stock to evaluate", personal_df["Symbol"].tolist())
+        selected_row = personal_df[personal_df["Symbol"] == selected].iloc[0]
 
-        win_rate = (len(wins) / len(closed_trades)) * 100 if len(closed_trades) > 0 else 0
-        avg_win = wins["P/L $"].mean() if not wins.empty else 0
-        avg_loss = losses["P/L $"].mean() if not losses.empty else 0
-        gross_profit = wins["P/L $"].sum()
-        gross_loss = abs(losses["P/L $"].sum())
-        profit_factor = gross_profit / gross_loss if gross_loss > 0 else 0
-        best_trade = closed_trades["P/L $"].max()
-        worst_trade = closed_trades["P/L $"].min()
+        st.markdown(f"## {selected} — {selected_row['AI Action']}")
 
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Total P/L", f"${total_pl:,.2f}")
-        c2.metric("Win Rate", f"{win_rate:.1f}%")
-        c3.metric("Avg Win", f"${avg_win:,.2f}")
-        c4.metric("Avg Loss", f"${avg_loss:,.2f}")
+        c1.metric("Price", selected_row["Price"])
+        c2.metric("Entry", selected_row["Entry"])
+        c3.metric("Target", selected_row["Target"])
+        c4.metric("Stop", selected_row["Stop"])
 
         c5, c6, c7, c8 = st.columns(4)
-        c5.metric("Closed Trades", len(closed_trades))
-        c6.metric("Profit Factor", f"{profit_factor:.2f}")
-        c7.metric("Best Trade", f"${best_trade:,.2f}")
-        c8.metric("Worst Trade", f"${worst_trade:,.2f}")
+        c5.metric("Confidence", selected_row["Confidence"])
+        c6.metric("Risk/Reward", selected_row["R/R"])
+        c7.metric("RSI", selected_row["RSI"])
+        c8.metric("Dip %", selected_row["Dip %"])
 
-        closed_trades = closed_trades.sort_values("Date")
-        closed_trades["Equity"] = closed_trades["P/L $"].cumsum()
+        st.markdown("### Why AI scored it this way")
+        for reason in selected_row["Score Reasons"].split(" | "):
+            st.write(f"- {reason}")
 
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=closed_trades["Date"],
-            y=closed_trades["Equity"],
-            mode="lines+markers",
-            name="Equity Curve"
-        ))
-        fig.update_layout(title="Equity Curve", height=400)
-        st.plotly_chart(fig, use_container_width=True)
+
+with tab2:
+    st.subheader("🤖 AI Top 15 Recommendations Scanner")
+
+    ai_df = df[df["Symbol"].isin(AI_TOP_15)].sort_values(
+        ["Confidence", "R/R"],
+        ascending=False
+    )
+
+    st.dataframe(ai_df, use_container_width=True)
+
+
+with tab3:
+    st.subheader("🔥 Best Setups Today")
+
+    actionable = df[df["Actionable"] == True].sort_values("Confidence", ascending=False)
+    watch = df[(df["Actionable"] == False) & (df["Confidence"] >= 55)].sort_values("Confidence", ascending=False)
+    avoid = df[df["Confidence"] < 45].sort_values("Confidence", ascending=True)
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Actionable", len(actionable))
+    c2.metric("Watch / Wait", len(watch))
+    c3.metric("Avoid", len(avoid))
+
+    st.markdown("### ✅ Actionable Now")
+    if actionable.empty:
+        st.info("No actionable setups right now.")
+    else:
+        st.dataframe(actionable, use_container_width=True)
+
+    st.markdown("### 👀 Watch / Wait")
+    st.dataframe(watch, use_container_width=True)
+
+    st.markdown("### ⚠️ Avoid")
+    st.dataframe(avoid, use_container_width=True)
+
+
+with tab4:
+    st.subheader("📊 Full Scanner")
+
+    min_confidence = st.slider("Minimum Confidence", 0, 100, 50)
+    min_rr = st.slider("Minimum R/R", 0.0, 5.0, 1.0, 0.1)
+
+    filtered = df[
+        (df["Confidence"] >= min_confidence) &
+        (df["R/R"] >= min_rr)
+    ]
+
+    st.dataframe(filtered, use_container_width=True)
+
+
+with tab5:
+    st.subheader("📬 Alerts")
+
+    st.markdown("### Email Setup Check")
+    st.write("EMAIL_SENDER:", "✅ Set" if EMAIL_SENDER else "❌ Missing")
+    st.write("APP_PASSWORD:", "✅ Set" if EMAIL_PASSWORD else "❌ Missing")
+    st.write("EMAIL_RECEIVER:", "✅ Set" if EMAIL_RECEIVER else "❌ Missing")
+
+    if st.button("📨 Send Test Email Alert"):
+        sent, msg = send_email_alert(
+            "Test Alert from AI Trading Dashboard",
+            "This is a test email. Your AI Trading Dashboard alert system is working."
+        )
+
+        if sent:
+            st.success("Test email sent successfully.")
+        else:
+            st.error(f"Email failed: {msg}")
+
+    st.markdown("### Alert History")
+
+    alert_df = load_csv(
+        ALERT_FILE,
+        ["Time", "Symbol", "Price", "Entry", "Target", "Stop", "Confidence", "R/R", "AI Action"]
+    )
+
+    if alert_df.empty:
+        st.info("No alerts yet.")
+    else:
+        st.dataframe(alert_df.sort_values("Time", ascending=False), use_container_width=True)
+
+
+with tab6:
+    st.subheader("📓 Trade Journal")
+
+    journal_df = load_csv(
+        JOURNAL_FILE,
+        ["Date", "Symbol", "Entry", "Exit", "Shares", "Result", "P/L", "Notes"]
+    )
+
+    with st.form("trade_form"):
+        col1, col2, col3 = st.columns(3)
+
+        symbol = col1.text_input("Symbol").upper()
+        entry_price = col2.number_input("Entry Price", value=0.0)
+        exit_price = col3.number_input("Exit Price", value=0.0)
+        shares = col1.number_input("Shares", value=0, step=1)
+        result = col2.selectbox("Result", ["Open", "Win", "Loss", "Breakeven"])
+        notes = col3.text_input("Notes")
+
+        submit = st.form_submit_button("Add Trade")
+
+        if submit and symbol:
+            pnl = round((exit_price - entry_price) * shares, 2) if exit_price > 0 else 0
+
+            new_trade = pd.DataFrame([{
+                "Date": datetime.now().strftime("%Y-%m-%d"),
+                "Symbol": symbol,
+                "Entry": entry_price,
+                "Exit": exit_price,
+                "Shares": shares,
+                "Result": result,
+                "P/L": pnl,
+                "Notes": notes
+            }])
+
+            journal_df = pd.concat([journal_df, new_trade], ignore_index=True)
+            save_csv(journal_df, JOURNAL_FILE)
+            st.success("Trade added.")
+            st.rerun()
+
+    st.dataframe(journal_df, use_container_width=True)

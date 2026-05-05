@@ -1,8 +1,8 @@
 streamlit
-plotly
+streamlit-autorefresh
+extra-streamlit-components
 yfinance
 pandas
 numpy
-yahooquery
+plotly
 matplotlib
-flask
