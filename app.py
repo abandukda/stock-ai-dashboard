@@ -30,7 +30,7 @@ cookie_manager = stx.CookieManager()
 APP_USERNAME = os.getenv("APP_USERNAME", "admin").strip()
 APP_PASSWORD_LOGIN = os.getenv("APP_PASSWORD_LOGIN", "admin123").strip()
 
-auth_cookie = cookie_manager.get(cookie="ai_dashboard_auth_v18")
+auth_cookie = cookie_manager.get(cookie="ai_dashboard_auth_v19")
 
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = auth_cookie == "true"
@@ -48,10 +48,10 @@ if not st.session_state.logged_in:
 
             if remember_me:
                 cookie_manager.set(
-                    cookie="ai_dashboard_auth_v18",
+                    cookie="ai_dashboard_auth_v19",
                     val="true",
                     expires_at=datetime.now() + timedelta(days=30),
-                    key="set_auth_cookie_v18"
+                    key="set_auth_cookie_v19"
                 )
 
             st.rerun()
@@ -64,7 +64,7 @@ if not st.session_state.logged_in:
 # =====================
 # VERSION / ENV
 # =====================
-APP_VERSION = "V18 SINGLE-PAGE PRO - EXCLUSIONS + WATCHLIST + ALERTS"
+APP_VERSION = "V19 PRO - TIMING SIGNALS + TRADE ANALYTICS"
 
 EMAIL_SENDER = os.getenv("EMAIL_SENDER")
 EMAIL_PASSWORD = os.getenv("APP_PASSWORD")
@@ -75,15 +75,10 @@ EMAIL_RECEIVER = os.getenv("EMAIL_RECEIVER")
 # EXCLUSION RULES
 # =====================
 EXCLUDED_TICKERS = {
-    # Financials / banks / brokers / insurance / payments
     "JPM", "BAC", "GS", "MS", "C", "WFC", "AIG", "MET", "PRU",
     "AXP", "V", "MA", "COF", "SCHW", "BLK", "BX", "SPGI", "ICE",
     "PYPL", "SQ", "HOOD", "COIN",
-
-    # Alcohol
     "BUD", "STZ", "TAP", "DEO", "SAM", "BF-B", "BF-A",
-
-    # Gambling / casinos / betting
     "DKNG", "LVS", "WYNN", "MGM", "PENN", "CZR", "FLUT"
 }
 
@@ -140,7 +135,7 @@ def clean_symbols(symbols):
 
 
 def load_watchlist():
-    raw = load_cookie_list("watchlist_v18", "watchlist_v18")
+    raw = load_cookie_list("watchlist_v19", "watchlist_v19")
     cleaned = clean_symbols(raw)
     if cleaned != raw:
         save_watchlist(cleaned)
@@ -148,27 +143,37 @@ def load_watchlist():
 
 
 def save_watchlist(symbols):
-    save_cookie_list("watchlist_v18", "watchlist_v18", clean_symbols(symbols))
+    save_cookie_list("watchlist_v19", "watchlist_v19", clean_symbols(symbols))
 
 
 def load_portfolio():
-    raw = load_cookie_list("portfolio_v18", "portfolio_v18")
+    raw = load_cookie_list("portfolio_v19", "portfolio_v19")
     return [p for p in raw if not is_excluded_symbol(p.get("Symbol", ""))]
 
 
 def save_portfolio(portfolio):
     filtered = [p for p in portfolio if not is_excluded_symbol(p.get("Symbol", ""))]
-    save_cookie_list("portfolio_v18", "portfolio_v18", filtered)
+    save_cookie_list("portfolio_v19", "portfolio_v19", filtered)
 
 
 def load_price_alerts():
-    raw = load_cookie_list("price_alerts_v18", "price_alerts_v18")
+    raw = load_cookie_list("price_alerts_v19", "price_alerts_v19")
     return [a for a in raw if not is_excluded_symbol(a.get("Symbol", ""))]
 
 
 def save_price_alerts(alerts):
     filtered = [a for a in alerts if not is_excluded_symbol(a.get("Symbol", ""))]
-    save_cookie_list("price_alerts_v18", "price_alerts_v18", filtered)
+    save_cookie_list("price_alerts_v19", "price_alerts_v19", filtered)
+
+
+def load_journal():
+    raw = load_cookie_list("journal_v19", "journal_v19")
+    return [j for j in raw if not is_excluded_symbol(j.get("Symbol", ""))]
+
+
+def save_journal(journal):
+    filtered = [j for j in journal if not is_excluded_symbol(j.get("Symbol", ""))]
+    save_cookie_list("journal_v19", "journal_v19", filtered)
 
 
 # =====================
@@ -248,25 +253,68 @@ def get_market_regime():
 
 
 # =====================
+# INTRADAY MOMENTUM + TIMING
+# =====================
+def get_intraday_momentum(symbol):
+    data = get_stock_data(symbol, period="1d", interval="5m")
+
+    if data is None or len(data) < 10:
+        return "Unknown", 0, "Not enough intraday data."
+
+    close = data["Close"]
+    price = float(close.iloc[-1])
+    open_price = float(close.iloc[0])
+    recent = float(close.iloc[-6]) if len(close) >= 6 else open_price
+
+    day_change = ((price - open_price) / open_price) * 100 if open_price > 0 else 0
+    recent_change = ((price - recent) / recent) * 100 if recent > 0 else 0
+
+    if day_change > 1 and recent_change > 0:
+        return "Positive", round(day_change, 2), "Intraday trend is positive."
+    if day_change < -1 and recent_change < 0:
+        return "Negative", round(day_change, 2), "Intraday trend is weak."
+    return "Neutral", round(day_change, 2), "Intraday momentum is mixed."
+
+
+def make_timing_signal(confidence, rr, near_entry, intraday_status, regime):
+    if regime == "Bearish / Risk-Off":
+        return "WAIT / SMALL SIZE", "Market is risk-off, so avoid aggressive entries."
+
+    if confidence >= 75 and rr >= 1.8 and near_entry and intraday_status == "Positive":
+        return "BUY NOW", "Setup is strong and intraday momentum confirms timing."
+
+    if confidence >= 60 and rr >= 1.5 and near_entry:
+        return "READY / WATCH CLOSELY", "Setup is near entry, but wait for stronger momentum confirmation."
+
+    if confidence >= 60 and rr >= 1.5 and not near_entry:
+        return "WAIT FOR ENTRY", "Setup is good, but price is not close enough to entry."
+
+    if confidence >= 45:
+        return "WAIT", "Setup is mixed and needs more confirmation."
+
+    return "AVOID", "Setup is currently weak."
+
+
+# =====================
 # STOCK ANALYSIS
 # =====================
-def make_ai_summary(confidence, rr, rsi, volume_ratio, near_entry, regime):
+def make_ai_summary(confidence, rr, rsi, volume_ratio, near_entry, regime, timing_signal):
+    if timing_signal == "BUY NOW":
+        return "Strong setup with supportive timing. Consider position sizing carefully."
     if regime == "Bearish / Risk-Off":
         if confidence >= 70:
-            return "Good individual setup, but market regime is risk-off. Use smaller size or wait for confirmation."
-        return "Market regime is weak. Be selective and avoid forcing trades."
-
+            return "Good individual setup, but market is risk-off. Use smaller size or wait."
+        return "Market is weak. Be selective and avoid forcing trades."
     if confidence >= 75 and rr >= 1.8 and near_entry:
-        return "Strong setup: trend, pullback, risk/reward, and entry timing are aligned."
+        return "Strong setup: trend, pullback, risk/reward, and entry timing are close."
     if confidence >= 60 and rr >= 1.5:
-        return "Good setup: worth monitoring closely, but wait for clean entry confirmation."
+        return "Good setup: worth monitoring closely for clean entry confirmation."
     if confidence >= 45:
         return "Mixed setup: some positives, but not enough confirmation yet."
     if rsi > 70:
         return "Avoid for now: RSI appears extended."
     if volume_ratio < 0.8:
         return "Avoid for now: weak volume confirmation."
-
     return "Weak setup: better opportunities may exist."
 
 
@@ -365,6 +413,15 @@ def analyze_stock(symbol, regime="Neutral"):
         score -= 10
         reasons.append("Market regime is risk-off")
 
+    intraday_status, intraday_change, intraday_reason = get_intraday_momentum(symbol)
+
+    if intraday_status == "Positive":
+        score += 5
+        reasons.append("Intraday momentum is positive")
+    elif intraday_status == "Negative":
+        score -= 5
+        reasons.append("Intraday momentum is weak")
+
     confidence = max(0, min(score, 100))
 
     entry = round(price * 0.995, 2)
@@ -378,7 +435,15 @@ def analyze_stock(symbol, regime="Neutral"):
     near_entry = abs(price - entry) / entry <= 0.015
     actionable = confidence >= 60 and rr >= 1.5 and near_entry
 
-    if confidence >= 75 and rr >= 1.8 and near_entry:
+    timing_signal, timing_reason = make_timing_signal(
+        confidence,
+        rr,
+        near_entry,
+        intraday_status,
+        regime
+    )
+
+    if timing_signal == "BUY NOW":
         action = "BUY / STRONG SETUP"
     elif confidence >= 60 and rr >= 1.5:
         action = "WATCH / POSSIBLE ENTRY"
@@ -387,7 +452,15 @@ def analyze_stock(symbol, regime="Neutral"):
     else:
         action = "AVOID"
 
-    ai_summary = make_ai_summary(confidence, rr, rsi, volume_ratio, near_entry, regime)
+    ai_summary = make_ai_summary(
+        confidence,
+        rr,
+        rsi,
+        volume_ratio,
+        near_entry,
+        regime,
+        timing_signal
+    )
 
     return {
         "Symbol": symbol,
@@ -401,6 +474,10 @@ def analyze_stock(symbol, regime="Neutral"):
         "Dip %": round(dip_pct, 2),
         "Recovery %": round(recovery_pct, 2),
         "Volume Ratio": round(volume_ratio, 2),
+        "Intraday": intraday_status,
+        "Intraday %": intraday_change,
+        "Timing Signal": timing_signal,
+        "Timing Reason": timing_reason,
         "Near Entry": near_entry,
         "Actionable": actionable,
         "AI Action": action,
@@ -466,7 +543,7 @@ st.sidebar.title("⚙️ Dashboard Settings")
 
 if st.sidebar.button("Logout"):
     st.session_state.logged_in = False
-    cookie_manager.delete(cookie="ai_dashboard_auth_v18", key="delete_auth_cookie_v18")
+    cookie_manager.delete(cookie="ai_dashboard_auth_v19", key="delete_auth_cookie_v19")
     st.rerun()
 
 capital = st.sidebar.number_input("Trading Capital ($)", value=5000, step=500)
@@ -587,10 +664,10 @@ if df.empty:
 
 
 # =====================
-# ALERT FUNCTIONS
+# ALERTS
 # =====================
 def check_ai_alert(row):
-    sent_log = load_cookie_list("sent_ai_alerts_v18", "sent_ai_alerts_v18")
+    sent_log = load_cookie_list("sent_ai_alerts_v19", "sent_ai_alerts_v19")
     now = datetime.now()
     symbol = row["Symbol"]
 
@@ -611,6 +688,7 @@ Target: {row['Target']}
 Stop: {row['Stop']}
 Confidence: {row['Confidence']}
 Risk/Reward: {row['R/R']}
+Timing Signal: {row['Timing Signal']}
 AI Action: {row['AI Action']}
 
 AI Summary:
@@ -627,10 +705,11 @@ Time:
         "Symbol": symbol,
         "Price": row["Price"],
         "Confidence": row["Confidence"],
+        "Timing Signal": row["Timing Signal"],
         "AI Action": row["AI Action"]
     })
 
-    save_cookie_list("sent_ai_alerts_v18", "sent_ai_alerts_v18", sent_log)
+    save_cookie_list("sent_ai_alerts_v19", "sent_ai_alerts_v19", sent_log)
 
 
 def check_price_alerts(current_df):
@@ -692,7 +771,7 @@ if enable_email_alerts:
 
 
 # =====================
-# PORTFOLIO SUMMARY FUNCTION
+# PORTFOLIO SUMMARY
 # =====================
 def portfolio_summary():
     portfolio = load_portfolio()
@@ -739,20 +818,40 @@ def portfolio_summary():
     return rows, total_value, total_cost, total_pnl
 
 
+def trade_analytics():
+    journal = load_journal()
+    if not journal:
+        return 0, 0, 0, 0, pd.DataFrame()
+
+    jdf = pd.DataFrame(journal)
+    closed = jdf[jdf["Result"] != "Open"] if "Result" in jdf.columns else pd.DataFrame()
+    total_pnl = jdf["P/L"].sum() if "P/L" in jdf.columns else 0
+
+    wins = len(closed[closed["Result"] == "Win"]) if not closed.empty else 0
+    losses = len(closed[closed["Result"] == "Loss"]) if not closed.empty else 0
+    total_closed = len(closed)
+    win_rate = round((wins / total_closed) * 100, 2) if total_closed > 0 else 0
+
+    return total_pnl, wins, losses, win_rate, jdf
+
+
 portfolio_rows, total_value, total_cost, total_pnl = portfolio_summary()
+journal_pnl, journal_wins, journal_losses, journal_win_rate, journal_df = trade_analytics()
 
 
 # =====================
 # TOP STRIP
 # =====================
 actionable_count = len(df[df["Actionable"] == True])
+buy_now_count = len(df[df["Timing Signal"] == "BUY NOW"])
 top_pick = df.sort_values(["Confidence", "R/R"], ascending=False).iloc[0]
 
-m1, m2, m3, m4 = st.columns(4)
+m1, m2, m3, m4, m5 = st.columns(5)
 m1.metric("Market Regime", regime)
 m2.metric("Top Pick", top_pick["Symbol"])
-m3.metric("Actionable Setups", actionable_count)
-m4.metric("Portfolio P/L", f"${total_pnl:,.2f}")
+m3.metric("Buy Now Signals", buy_now_count)
+m4.metric("Actionable", actionable_count)
+m5.metric("Portfolio P/L", f"${total_pnl:,.2f}")
 
 st.info(regime_reason)
 
@@ -760,7 +859,7 @@ st.divider()
 
 
 # =====================
-# SECTION 1 — TOP PICKS
+# TOP PICKS
 # =====================
 st.subheader("🏆 Top 3 AI Picks Today")
 
@@ -768,18 +867,21 @@ top3 = df.sort_values(["Confidence", "R/R"], ascending=False).head(3)
 st.dataframe(top3, use_container_width=True)
 
 best = top3.iloc[0]
-st.markdown(f"### Best Setup: {best['Symbol']} — {best['AI Action']}")
+st.markdown(f"### Best Setup: {best['Symbol']} — {best['Timing Signal']}")
 st.info(best["AI Summary"])
 
 st.divider()
 
 
 # =====================
-# SECTION 2 — PERSONAL WATCHLIST
+# PERSONAL WATCHLIST
 # =====================
 st.subheader("⭐ Personal Watchlist Decision Center")
 
-watch_df = df[df["Symbol"].isin(watchlist)].sort_values(["Confidence", "R/R"], ascending=False)
+watch_df = df[df["Symbol"].isin(watchlist)].sort_values(
+    ["Timing Signal", "Confidence", "R/R"],
+    ascending=[True, False, False]
+)
 
 if watch_df.empty:
     st.info("Add non-excluded stocks to your personal watchlist from the sidebar.")
@@ -789,19 +891,28 @@ else:
     selected = st.selectbox("Select stock to analyze", watch_df["Symbol"].tolist())
     row = watch_df[watch_df["Symbol"] == selected].iloc[0]
 
-    st.markdown(f"## {selected} — {row['AI Action']}")
-    st.info(row["AI Summary"])
+    st.markdown(f"## {selected} — {row['Timing Signal']}")
+    st.info(row["Timing Reason"])
+    st.write(row["AI Summary"])
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Price", row["Price"])
     c2.metric("Confidence", row["Confidence"])
     c3.metric("R/R", row["R/R"])
-    c4.metric("RSI", row["RSI"])
+    c4.metric("Intraday", row["Intraday"], f"{row['Intraday %']}%")
 
-    c5, c6, c7 = st.columns(3)
+    c5, c6, c7, c8 = st.columns(4)
     c5.metric("Entry", row["Entry"])
     c6.metric("Target", row["Target"])
     c7.metric("Stop", row["Stop"])
+    c8.metric("Max Loss", f"${row['Max Loss']:,.2f}")
+
+    st.markdown("### Auto Position Sizing")
+    st.write(
+        f"Suggested shares: **{row['Shares']}** | "
+        f"Capital needed: **${row['Capital Needed']:,.2f}** | "
+        f"Max loss: **${row['Max Loss']:,.2f}**"
+    )
 
     st.markdown("### 📈 Chart")
     make_chart(selected, row, chart_period)
@@ -814,18 +925,22 @@ st.divider()
 
 
 # =====================
-# SECTION 3 — BEST SETUPS
+# SCANNER OUTPUT
 # =====================
 st.subheader("🔥 Scanner Output")
 
 actionable = df[df["Actionable"] == True].sort_values("Confidence", ascending=False)
-watch = df[(df["Actionable"] == False) & (df["Confidence"] >= 55)].sort_values("Confidence", ascending=False)
-avoid = df[df["Confidence"] < 45].sort_values("Confidence", ascending=True)
+buy_now = df[df["Timing Signal"] == "BUY NOW"].sort_values("Confidence", ascending=False)
+watch = df[(df["Timing Signal"].str.contains("WAIT|READY", regex=True))].sort_values("Confidence", ascending=False)
+avoid = df[df["Timing Signal"] == "AVOID"].sort_values("Confidence", ascending=True)
 
-with st.expander("✅ Actionable Now", expanded=True):
+with st.expander("🚀 Buy Now", expanded=True):
+    st.dataframe(buy_now, use_container_width=True)
+
+with st.expander("✅ Actionable", expanded=True):
     st.dataframe(actionable, use_container_width=True)
 
-with st.expander("👀 Watch / Wait", expanded=True):
+with st.expander("👀 Ready / Wait", expanded=True):
     st.dataframe(watch, use_container_width=True)
 
 with st.expander("⚠️ Avoid", expanded=False):
@@ -835,7 +950,7 @@ st.divider()
 
 
 # =====================
-# SECTION 4 — PRICE ALERTS
+# PRICE ALERTS
 # =====================
 st.subheader("🎯 Price Alerts")
 
@@ -868,8 +983,7 @@ with st.form("price_alert_form"):
             st.rerun()
 
 if alerts:
-    alert_df = pd.DataFrame(alerts)
-    st.dataframe(alert_df, use_container_width=True)
+    st.dataframe(pd.DataFrame(alerts), use_container_width=True)
 
     if st.button("Clear All Price Alerts"):
         save_price_alerts([])
@@ -881,7 +995,7 @@ st.divider()
 
 
 # =====================
-# SECTION 5 — PORTFOLIO
+# PORTFOLIO
 # =====================
 st.subheader("💼 Portfolio Tracker")
 
@@ -918,8 +1032,7 @@ if portfolio_rows:
     p2.metric("Total Cost", f"${total_cost:,.2f}")
     p3.metric("Total P/L", f"${total_pnl:,.2f}")
 
-    port_df = pd.DataFrame(portfolio_rows)
-    st.dataframe(port_df, use_container_width=True)
+    st.dataframe(pd.DataFrame(portfolio_rows), use_container_width=True)
 
     if st.button("Clear Portfolio"):
         save_portfolio([])
@@ -931,22 +1044,17 @@ st.divider()
 
 
 # =====================
-# SECTION 6 — AI TOP 15 / FULL SCANNER / JOURNAL
+# TRADE ANALYTICS + JOURNAL
 # =====================
-with st.expander("🤖 AI Top 15 Scanner", expanded=False):
-    ai_df = df[df["Symbol"].isin(AI_TOP_15)].sort_values(["Confidence", "R/R"], ascending=False)
-    st.dataframe(ai_df, use_container_width=True)
-
-with st.expander("📊 Full Scanner Filters", expanded=False):
-    min_confidence = st.slider("Minimum Confidence", 0, 100, 50)
-    min_rr = st.slider("Minimum R/R", 0.0, 5.0, 1.0, 0.1)
-
-    filtered = df[(df["Confidence"] >= min_confidence) & (df["R/R"] >= min_rr)]
-    st.dataframe(filtered, use_container_width=True)
+with st.expander("📈 Trade Performance Analytics", expanded=True):
+    a1, a2, a3, a4 = st.columns(4)
+    a1.metric("Journal P/L", f"${journal_pnl:,.2f}")
+    a2.metric("Wins", journal_wins)
+    a3.metric("Losses", journal_losses)
+    a4.metric("Win Rate", f"{journal_win_rate}%")
 
 with st.expander("📓 Trade Journal", expanded=False):
-    if "journal_v18" not in st.session_state:
-        st.session_state.journal_v18 = []
+    journal = load_journal()
 
     with st.form("journal_form"):
         j1, j2, j3 = st.columns(3)
@@ -965,7 +1073,7 @@ with st.expander("📓 Trade Journal", expanded=False):
                 st.error(f"{j_symbol} is blocked by your exclusion rules.")
             else:
                 pnl = round((j_exit - j_entry) * j_shares, 2) if j_exit > 0 else 0
-                st.session_state.journal_v18.append({
+                journal.append({
                     "Date": datetime.now().strftime("%Y-%m-%d"),
                     "Symbol": j_symbol,
                     "Entry": j_entry,
@@ -975,30 +1083,45 @@ with st.expander("📓 Trade Journal", expanded=False):
                     "P/L": pnl,
                     "Notes": j_notes
                 })
+                save_journal(journal)
                 st.rerun()
 
-    if st.session_state.journal_v18:
-        journal_df = pd.DataFrame(st.session_state.journal_v18)
-        st.dataframe(journal_df, use_container_width=True)
+    if journal:
+        st.dataframe(pd.DataFrame(journal), use_container_width=True)
+
+        if st.button("Clear Trade Journal"):
+            save_journal([])
+            st.rerun()
     else:
         st.info("No trades logged yet.")
 
+
+# =====================
+# AI TOP 15 / FULL SCANNER / CHEAT SHEET
+# =====================
+with st.expander("🤖 AI Top 15 Scanner", expanded=False):
+    ai_df = df[df["Symbol"].isin(AI_TOP_15)].sort_values(["Confidence", "R/R"], ascending=False)
+    st.dataframe(ai_df, use_container_width=True)
+
+with st.expander("📊 Full Scanner Filters", expanded=False):
+    min_confidence = st.slider("Minimum Confidence", 0, 100, 50)
+    min_rr = st.slider("Minimum R/R", 0.0, 5.0, 1.0, 0.1)
+
+    filtered = df[(df["Confidence"] >= min_confidence) & (df["R/R"] >= min_rr)]
+    st.dataframe(filtered, use_container_width=True)
+
 with st.expander("📚 Cheat Sheet", expanded=False):
     st.markdown("""
-### ✅ Actionable Setup
-A stock becomes actionable when:
-- Confidence is 60 or higher
-- Risk/Reward is 1.5 or higher
-- Price is near entry
+### V19 Timing Signal
+- **BUY NOW**: setup + risk/reward + entry + intraday momentum align
+- **READY / WATCH CLOSELY**: setup is near entry but needs confirmation
+- **WAIT FOR ENTRY**: setup is good but price is not near ideal entry
+- **WAIT**: mixed setup
+- **AVOID**: weak setup
 
-### 🎯 Price Alerts
-Use alerts when you want to be notified if a stock breaks above a level or falls below an entry zone.
+### Exclusions
+Financial, alcohol, and gambling tickers are blocked everywhere.
 
-### 🚫 Exclusions
-Financial companies, alcohol companies, and gambling companies are blocked everywhere:
-- AI scanner
-- Personal watchlist
-- Price alerts
-- Portfolio
-- Trade journal
+### Position Sizing
+The dashboard estimates shares, capital needed, and max loss using your sidebar risk budget.
 """)
