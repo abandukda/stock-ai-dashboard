@@ -30,7 +30,7 @@ cookie_manager = stx.CookieManager()
 APP_USERNAME = os.getenv("APP_USERNAME", "admin").strip()
 APP_PASSWORD_LOGIN = os.getenv("APP_PASSWORD_LOGIN", "admin123").strip()
 
-auth_cookie = cookie_manager.get(cookie="ai_dashboard_auth_v17")
+auth_cookie = cookie_manager.get(cookie="ai_dashboard_auth_v18")
 
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = auth_cookie == "true"
@@ -48,10 +48,10 @@ if not st.session_state.logged_in:
 
             if remember_me:
                 cookie_manager.set(
-                    cookie="ai_dashboard_auth_v17",
+                    cookie="ai_dashboard_auth_v18",
                     val="true",
                     expires_at=datetime.now() + timedelta(days=30),
-                    key="set_auth_cookie_v17"
+                    key="set_auth_cookie_v18"
                 )
 
             st.rerun()
@@ -64,17 +64,43 @@ if not st.session_state.logged_in:
 # =====================
 # VERSION / ENV
 # =====================
-APP_VERSION = "V17 PRO - MARKET REGIME + PORTFOLIO + PRICE ALERTS"
+APP_VERSION = "V18 SINGLE-PAGE PRO - EXCLUSIONS + WATCHLIST + ALERTS"
 
 EMAIL_SENDER = os.getenv("EMAIL_SENDER")
 EMAIL_PASSWORD = os.getenv("APP_PASSWORD")
 EMAIL_RECEIVER = os.getenv("EMAIL_RECEIVER")
 
-AI_TOP_15 = [
+
+# =====================
+# EXCLUSION RULES
+# =====================
+EXCLUDED_TICKERS = {
+    # Financials / banks / brokers / insurance / payments
+    "JPM", "BAC", "GS", "MS", "C", "WFC", "AIG", "MET", "PRU",
+    "AXP", "V", "MA", "COF", "SCHW", "BLK", "BX", "SPGI", "ICE",
+    "PYPL", "SQ", "HOOD", "COIN",
+
+    # Alcohol
+    "BUD", "STZ", "TAP", "DEO", "SAM", "BF-B", "BF-A",
+
+    # Gambling / casinos / betting
+    "DKNG", "LVS", "WYNN", "MGM", "PENN", "CZR", "FLUT"
+}
+
+
+def is_excluded_symbol(symbol):
+    return str(symbol).strip().upper() in EXCLUDED_TICKERS
+
+
+def filter_excluded_symbols(symbols):
+    return [s for s in symbols if not is_excluded_symbol(s)]
+
+
+AI_TOP_15 = filter_excluded_symbols([
     "AAPL", "MSFT", "NVDA", "AMZN", "META",
     "GOOGL", "TSLA", "AMD", "NFLX", "AVGO",
-    "COST", "LLY", "JPM", "V", "UNH"
-]
+    "COST", "LLY", "UNH", "CRM", "NOW"
+])
 
 
 # =====================
@@ -109,34 +135,40 @@ def save_cookie_list(cookie_name, session_key, data):
 
 
 def clean_symbols(symbols):
-    return sorted(list(set([str(s).strip().upper() for s in symbols if str(s).strip()])))
+    cleaned = sorted(list(set([str(s).strip().upper() for s in symbols if str(s).strip()])))
+    return filter_excluded_symbols(cleaned)
 
 
-# =====================
-# WATCHLIST / PORTFOLIO / PRICE ALERTS
-# =====================
 def load_watchlist():
-    return clean_symbols(load_cookie_list("watchlist_v17", "watchlist_v17"))
+    raw = load_cookie_list("watchlist_v18", "watchlist_v18")
+    cleaned = clean_symbols(raw)
+    if cleaned != raw:
+        save_watchlist(cleaned)
+    return cleaned
 
 
 def save_watchlist(symbols):
-    save_cookie_list("watchlist_v17", "watchlist_v17", clean_symbols(symbols))
+    save_cookie_list("watchlist_v18", "watchlist_v18", clean_symbols(symbols))
 
 
 def load_portfolio():
-    return load_cookie_list("portfolio_v17", "portfolio_v17")
+    raw = load_cookie_list("portfolio_v18", "portfolio_v18")
+    return [p for p in raw if not is_excluded_symbol(p.get("Symbol", ""))]
 
 
 def save_portfolio(portfolio):
-    save_cookie_list("portfolio_v17", "portfolio_v17", portfolio)
+    filtered = [p for p in portfolio if not is_excluded_symbol(p.get("Symbol", ""))]
+    save_cookie_list("portfolio_v18", "portfolio_v18", filtered)
 
 
 def load_price_alerts():
-    return load_cookie_list("price_alerts_v17", "price_alerts_v17")
+    raw = load_cookie_list("price_alerts_v18", "price_alerts_v18")
+    return [a for a in raw if not is_excluded_symbol(a.get("Symbol", ""))]
 
 
 def save_price_alerts(alerts):
-    save_cookie_list("price_alerts_v17", "price_alerts_v17", alerts)
+    filtered = [a for a in alerts if not is_excluded_symbol(a.get("Symbol", ""))]
+    save_cookie_list("price_alerts_v18", "price_alerts_v18", filtered)
 
 
 # =====================
@@ -211,6 +243,7 @@ def get_market_regime():
         return "Neutral / Pullback", "SPY is above the 200-day average but below the 50-day average."
     if price < sma200:
         return "Bearish / Risk-Off", "SPY is below the 200-day moving average."
+
     return "Neutral", "Market trend is mixed."
 
 
@@ -226,17 +259,21 @@ def make_ai_summary(confidence, rr, rsi, volume_ratio, near_entry, regime):
     if confidence >= 75 and rr >= 1.8 and near_entry:
         return "Strong setup: trend, pullback, risk/reward, and entry timing are aligned."
     if confidence >= 60 and rr >= 1.5:
-        return "Good watchlist setup: worth monitoring closely, but wait for clean entry confirmation."
+        return "Good setup: worth monitoring closely, but wait for clean entry confirmation."
     if confidence >= 45:
         return "Mixed setup: some positives, but not enough confirmation yet."
     if rsi > 70:
         return "Avoid for now: RSI appears extended."
     if volume_ratio < 0.8:
         return "Avoid for now: weak volume confirmation."
+
     return "Weak setup: better opportunities may exist."
 
 
 def analyze_stock(symbol, regime="Neutral"):
+    if is_excluded_symbol(symbol):
+        return None
+
     data = get_stock_data(symbol, period="6mo", interval="1d")
 
     if data is None or len(data) < 60:
@@ -429,7 +466,7 @@ st.sidebar.title("⚙️ Dashboard Settings")
 
 if st.sidebar.button("Logout"):
     st.session_state.logged_in = False
-    cookie_manager.delete(cookie="ai_dashboard_auth_v17", key="delete_auth_cookie_v17")
+    cookie_manager.delete(cookie="ai_dashboard_auth_v18", key="delete_auth_cookie_v18")
     st.rerun()
 
 capital = st.sidebar.number_input("Trading Capital ($)", value=5000, step=500)
@@ -455,13 +492,19 @@ if st.sidebar.button("🔄 Manual Refresh"):
 # =====================
 st.sidebar.divider()
 st.sidebar.header("⭐ PERSONAL WATCHLIST")
+st.sidebar.caption("Financial, alcohol, and gambling tickers are blocked.")
 
 watchlist = load_watchlist()
 new_symbol = st.sidebar.text_input("Add ticker", placeholder="Example: NVDA")
 
 if st.sidebar.button("➕ Add Ticker"):
     symbol_to_add = new_symbol.strip().upper()
-    if symbol_to_add:
+
+    if not symbol_to_add:
+        st.sidebar.warning("Enter a ticker.")
+    elif is_excluded_symbol(symbol_to_add):
+        st.sidebar.error(f"{symbol_to_add} is blocked by your exclusion rules.")
+    else:
         watchlist = clean_symbols(watchlist + [symbol_to_add])
         save_watchlist(watchlist)
         st.sidebar.success(f"Added {symbol_to_add}")
@@ -492,12 +535,7 @@ st.title("📈 AI Trading Dashboard")
 st.success(APP_VERSION)
 st.caption(f"Last refresh: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-
 regime, regime_reason = get_market_regime()
-
-c1, c2 = st.columns([1, 3])
-c1.metric("Market Regime", regime)
-c2.info(regime_reason)
 
 
 # =====================
@@ -510,8 +548,10 @@ elif scan_mode == "AI Top 15 Only":
 else:
     symbols = clean_symbols(watchlist + AI_TOP_15)
 
+symbols = filter_excluded_symbols(symbols)
+
 if not symbols:
-    st.info("Your Personal Watchlist is empty. Add a ticker from the sidebar.")
+    st.info("Your Personal Watchlist is empty. Add a non-excluded ticker from the sidebar.")
     st.stop()
 
 
@@ -547,18 +587,14 @@ if df.empty:
 
 
 # =====================
-# ALERTS
+# ALERT FUNCTIONS
 # =====================
 def check_ai_alert(row):
-    sent_log = load_cookie_list("sent_ai_alerts_v17", "sent_ai_alerts_v17")
+    sent_log = load_cookie_list("sent_ai_alerts_v18", "sent_ai_alerts_v18")
     now = datetime.now()
-
     symbol = row["Symbol"]
 
-    latest_for_symbol = [
-        x for x in sent_log
-        if x.get("Symbol") == symbol
-    ]
+    latest_for_symbol = [x for x in sent_log if x.get("Symbol") == symbol]
 
     if latest_for_symbol:
         last_time = datetime.strptime(latest_for_symbol[-1]["Time"], "%Y-%m-%d %H:%M:%S")
@@ -594,7 +630,7 @@ Time:
         "AI Action": row["AI Action"]
     })
 
-    save_cookie_list("sent_ai_alerts_v17", "sent_ai_alerts_v17", sent_log)
+    save_cookie_list("sent_ai_alerts_v18", "sent_ai_alerts_v18", sent_log)
 
 
 def check_price_alerts(current_df):
@@ -603,6 +639,10 @@ def check_price_alerts(current_df):
 
     for alert in alerts:
         symbol = alert.get("Symbol")
+
+        if is_excluded_symbol(symbol):
+            continue
+
         target_price = float(alert.get("Target Price", 0))
         direction = alert.get("Direction", "Above")
         triggered = alert.get("Triggered", False)
@@ -652,158 +692,10 @@ if enable_email_alerts:
 
 
 # =====================
-# TABS
+# PORTFOLIO SUMMARY FUNCTION
 # =====================
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
-    "🏆 Top Picks",
-    "⭐ Watchlist",
-    "🤖 AI Top 15",
-    "🔥 Best Setups",
-    "📊 Full Scanner",
-    "🎯 Price Alerts",
-    "💼 Portfolio",
-    "📓 Journal"
-])
-
-
-with tab1:
-    st.subheader("🏆 Top 3 AI Picks Today")
-
-    top3 = df.sort_values(["Confidence", "R/R"], ascending=False).head(3)
-
-    st.dataframe(top3, use_container_width=True)
-
-    if not top3.empty:
-        best = top3.iloc[0]
-        st.markdown(f"### Best Setup: {best['Symbol']} — {best['AI Action']}")
-        st.info(best["AI Summary"])
-
-
-with tab2:
-    st.subheader("⭐ Personal Watchlist Ranking")
-
-    watch_df = df[df["Symbol"].isin(watchlist)].sort_values(["Confidence", "R/R"], ascending=False)
-
-    if watch_df.empty:
-        st.info("Add stocks to your personal watchlist from the sidebar.")
-    else:
-        st.dataframe(watch_df, use_container_width=True)
-
-        selected = st.selectbox("Select stock", watch_df["Symbol"].tolist())
-        row = watch_df[watch_df["Symbol"] == selected].iloc[0]
-
-        st.markdown(f"## {selected} — {row['AI Action']}")
-        st.info(row["AI Summary"])
-
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Price", row["Price"])
-        m2.metric("Confidence", row["Confidence"])
-        m3.metric("R/R", row["R/R"])
-        m4.metric("RSI", row["RSI"])
-
-        st.markdown("### 📈 Chart")
-        make_chart(selected, row, chart_period)
-
-        st.markdown("### Why AI scored it this way")
-        for reason in row["Score Reasons"].split(" | "):
-            st.write(f"- {reason}")
-
-
-with tab3:
-    st.subheader("🤖 AI Top 15 Scanner")
-
-    ai_df = df[df["Symbol"].isin(AI_TOP_15)].sort_values(["Confidence", "R/R"], ascending=False)
-    st.dataframe(ai_df, use_container_width=True)
-
-
-with tab4:
-    st.subheader("🔥 Best Setups")
-
-    actionable = df[df["Actionable"] == True].sort_values("Confidence", ascending=False)
-    watch = df[(df["Actionable"] == False) & (df["Confidence"] >= 55)].sort_values("Confidence", ascending=False)
-    avoid = df[df["Confidence"] < 45].sort_values("Confidence", ascending=True)
-
-    a, b, c = st.columns(3)
-    a.metric("Actionable", len(actionable))
-    b.metric("Watch / Wait", len(watch))
-    c.metric("Avoid", len(avoid))
-
-    st.markdown("### ✅ Actionable")
-    st.dataframe(actionable, use_container_width=True)
-
-    st.markdown("### 👀 Watch / Wait")
-    st.dataframe(watch, use_container_width=True)
-
-    st.markdown("### ⚠️ Avoid")
-    st.dataframe(avoid, use_container_width=True)
-
-
-with tab5:
-    st.subheader("📊 Full Scanner")
-
-    min_confidence = st.slider("Minimum Confidence", 0, 100, 50)
-    min_rr = st.slider("Minimum R/R", 0.0, 5.0, 1.0, 0.1)
-
-    filtered = df[(df["Confidence"] >= min_confidence) & (df["R/R"] >= min_rr)]
-    st.dataframe(filtered, use_container_width=True)
-
-
-with tab6:
-    st.subheader("🎯 Persistent Price Alerts")
-
-    alerts = load_price_alerts()
-
-    with st.form("price_alert_form"):
-        alert_symbol = st.text_input("Ticker").upper()
-        alert_price = st.number_input("Target Price", value=0.0)
-        direction = st.selectbox("Direction", ["Above", "Below"])
-        submit_alert = st.form_submit_button("Add Price Alert")
-
-        if submit_alert and alert_symbol and alert_price > 0:
-            alerts.append({
-                "Symbol": alert_symbol,
-                "Target Price": alert_price,
-                "Direction": direction,
-                "Triggered": False,
-                "Created": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            })
-            save_price_alerts(alerts)
-            st.success("Price alert added.")
-            st.rerun()
-
-    if alerts:
-        alert_df = pd.DataFrame(alerts)
-        st.dataframe(alert_df, use_container_width=True)
-
-        if st.button("Clear All Price Alerts"):
-            save_price_alerts([])
-            st.rerun()
-    else:
-        st.info("No price alerts yet.")
-
-
-with tab7:
-    st.subheader("💼 Portfolio Tracker")
-
+def portfolio_summary():
     portfolio = load_portfolio()
-
-    with st.form("portfolio_form"):
-        p_symbol = st.text_input("Symbol").upper()
-        p_buy = st.number_input("Buy Price", value=0.0)
-        p_qty = st.number_input("Shares", value=0.0)
-        p_submit = st.form_submit_button("Add Position")
-
-        if p_submit and p_symbol and p_buy > 0 and p_qty > 0:
-            portfolio.append({
-                "Symbol": p_symbol,
-                "Buy Price": p_buy,
-                "Shares": p_qty,
-                "Created": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            })
-            save_portfolio(portfolio)
-            st.success("Position added.")
-            st.rerun()
-
     rows = []
     total_value = 0
     total_cost = 0
@@ -811,6 +703,10 @@ with tab7:
 
     for pos in portfolio:
         symbol = pos["Symbol"]
+
+        if is_excluded_symbol(symbol):
+            continue
+
         buy_price = float(pos["Buy Price"])
         shares = float(pos["Shares"])
 
@@ -840,54 +736,269 @@ with tab7:
             "P/L %": round(pnl_pct, 2)
         })
 
-    if rows:
-        port_df = pd.DataFrame(rows)
+    return rows, total_value, total_cost, total_pnl
 
-        p1, p2, p3 = st.columns(3)
-        p1.metric("Portfolio Value", f"${total_value:,.2f}")
-        p2.metric("Total Cost", f"${total_cost:,.2f}")
-        p3.metric("Total P/L", f"${total_pnl:,.2f}")
 
-        st.dataframe(port_df, use_container_width=True)
+portfolio_rows, total_value, total_cost, total_pnl = portfolio_summary()
 
-        if st.button("Clear Portfolio"):
-            save_portfolio([])
+
+# =====================
+# TOP STRIP
+# =====================
+actionable_count = len(df[df["Actionable"] == True])
+top_pick = df.sort_values(["Confidence", "R/R"], ascending=False).iloc[0]
+
+m1, m2, m3, m4 = st.columns(4)
+m1.metric("Market Regime", regime)
+m2.metric("Top Pick", top_pick["Symbol"])
+m3.metric("Actionable Setups", actionable_count)
+m4.metric("Portfolio P/L", f"${total_pnl:,.2f}")
+
+st.info(regime_reason)
+
+st.divider()
+
+
+# =====================
+# SECTION 1 — TOP PICKS
+# =====================
+st.subheader("🏆 Top 3 AI Picks Today")
+
+top3 = df.sort_values(["Confidence", "R/R"], ascending=False).head(3)
+st.dataframe(top3, use_container_width=True)
+
+best = top3.iloc[0]
+st.markdown(f"### Best Setup: {best['Symbol']} — {best['AI Action']}")
+st.info(best["AI Summary"])
+
+st.divider()
+
+
+# =====================
+# SECTION 2 — PERSONAL WATCHLIST
+# =====================
+st.subheader("⭐ Personal Watchlist Decision Center")
+
+watch_df = df[df["Symbol"].isin(watchlist)].sort_values(["Confidence", "R/R"], ascending=False)
+
+if watch_df.empty:
+    st.info("Add non-excluded stocks to your personal watchlist from the sidebar.")
+else:
+    st.dataframe(watch_df, use_container_width=True)
+
+    selected = st.selectbox("Select stock to analyze", watch_df["Symbol"].tolist())
+    row = watch_df[watch_df["Symbol"] == selected].iloc[0]
+
+    st.markdown(f"## {selected} — {row['AI Action']}")
+    st.info(row["AI Summary"])
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Price", row["Price"])
+    c2.metric("Confidence", row["Confidence"])
+    c3.metric("R/R", row["R/R"])
+    c4.metric("RSI", row["RSI"])
+
+    c5, c6, c7 = st.columns(3)
+    c5.metric("Entry", row["Entry"])
+    c6.metric("Target", row["Target"])
+    c7.metric("Stop", row["Stop"])
+
+    st.markdown("### 📈 Chart")
+    make_chart(selected, row, chart_period)
+
+    with st.expander("Why AI scored it this way"):
+        for reason in row["Score Reasons"].split(" | "):
+            st.write(f"- {reason}")
+
+st.divider()
+
+
+# =====================
+# SECTION 3 — BEST SETUPS
+# =====================
+st.subheader("🔥 Scanner Output")
+
+actionable = df[df["Actionable"] == True].sort_values("Confidence", ascending=False)
+watch = df[(df["Actionable"] == False) & (df["Confidence"] >= 55)].sort_values("Confidence", ascending=False)
+avoid = df[df["Confidence"] < 45].sort_values("Confidence", ascending=True)
+
+with st.expander("✅ Actionable Now", expanded=True):
+    st.dataframe(actionable, use_container_width=True)
+
+with st.expander("👀 Watch / Wait", expanded=True):
+    st.dataframe(watch, use_container_width=True)
+
+with st.expander("⚠️ Avoid", expanded=False):
+    st.dataframe(avoid, use_container_width=True)
+
+st.divider()
+
+
+# =====================
+# SECTION 4 — PRICE ALERTS
+# =====================
+st.subheader("🎯 Price Alerts")
+
+alerts = load_price_alerts()
+
+with st.form("price_alert_form"):
+    a1, a2, a3 = st.columns(3)
+    alert_symbol = a1.text_input("Ticker").upper()
+    alert_price = a2.number_input("Target Price", value=0.0)
+    direction = a3.selectbox("Direction", ["Above", "Below"])
+    submit_alert = st.form_submit_button("Add Price Alert")
+
+    if submit_alert:
+        if not alert_symbol:
+            st.warning("Enter a ticker.")
+        elif is_excluded_symbol(alert_symbol):
+            st.error(f"{alert_symbol} is blocked by your exclusion rules.")
+        elif alert_price <= 0:
+            st.warning("Enter a valid target price.")
+        else:
+            alerts.append({
+                "Symbol": alert_symbol,
+                "Target Price": alert_price,
+                "Direction": direction,
+                "Triggered": False,
+                "Created": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            })
+            save_price_alerts(alerts)
+            st.success("Price alert added.")
             st.rerun()
-    else:
-        st.info("No portfolio positions yet.")
+
+if alerts:
+    alert_df = pd.DataFrame(alerts)
+    st.dataframe(alert_df, use_container_width=True)
+
+    if st.button("Clear All Price Alerts"):
+        save_price_alerts([])
+        st.rerun()
+else:
+    st.info("No price alerts yet.")
+
+st.divider()
 
 
-with tab8:
-    st.subheader("📓 Trade Journal")
+# =====================
+# SECTION 5 — PORTFOLIO
+# =====================
+st.subheader("💼 Portfolio Tracker")
 
-    if "journal_v17" not in st.session_state:
-        st.session_state.journal_v17 = []
+portfolio = load_portfolio()
+
+with st.form("portfolio_form"):
+    p1, p2, p3 = st.columns(3)
+    p_symbol = p1.text_input("Symbol").upper()
+    p_buy = p2.number_input("Buy Price", value=0.0)
+    p_qty = p3.number_input("Shares", value=0.0)
+    p_submit = st.form_submit_button("Add Position")
+
+    if p_submit:
+        if not p_symbol:
+            st.warning("Enter a ticker.")
+        elif is_excluded_symbol(p_symbol):
+            st.error(f"{p_symbol} is blocked by your exclusion rules.")
+        elif p_buy <= 0 or p_qty <= 0:
+            st.warning("Enter valid buy price and shares.")
+        else:
+            portfolio.append({
+                "Symbol": p_symbol,
+                "Buy Price": p_buy,
+                "Shares": p_qty,
+                "Created": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            })
+            save_portfolio(portfolio)
+            st.success("Position added.")
+            st.rerun()
+
+if portfolio_rows:
+    p1, p2, p3 = st.columns(3)
+    p1.metric("Portfolio Value", f"${total_value:,.2f}")
+    p2.metric("Total Cost", f"${total_cost:,.2f}")
+    p3.metric("Total P/L", f"${total_pnl:,.2f}")
+
+    port_df = pd.DataFrame(portfolio_rows)
+    st.dataframe(port_df, use_container_width=True)
+
+    if st.button("Clear Portfolio"):
+        save_portfolio([])
+        st.rerun()
+else:
+    st.info("No portfolio positions yet.")
+
+st.divider()
+
+
+# =====================
+# SECTION 6 — AI TOP 15 / FULL SCANNER / JOURNAL
+# =====================
+with st.expander("🤖 AI Top 15 Scanner", expanded=False):
+    ai_df = df[df["Symbol"].isin(AI_TOP_15)].sort_values(["Confidence", "R/R"], ascending=False)
+    st.dataframe(ai_df, use_container_width=True)
+
+with st.expander("📊 Full Scanner Filters", expanded=False):
+    min_confidence = st.slider("Minimum Confidence", 0, 100, 50)
+    min_rr = st.slider("Minimum R/R", 0.0, 5.0, 1.0, 0.1)
+
+    filtered = df[(df["Confidence"] >= min_confidence) & (df["R/R"] >= min_rr)]
+    st.dataframe(filtered, use_container_width=True)
+
+with st.expander("📓 Trade Journal", expanded=False):
+    if "journal_v18" not in st.session_state:
+        st.session_state.journal_v18 = []
 
     with st.form("journal_form"):
-        j_symbol = st.text_input("Trade Symbol").upper()
-        j_entry = st.number_input("Entry", value=0.0)
-        j_exit = st.number_input("Exit", value=0.0)
-        j_shares = st.number_input("Shares", value=0.0)
-        j_result = st.selectbox("Result", ["Open", "Win", "Loss", "Breakeven"])
-        j_notes = st.text_input("Notes")
+        j1, j2, j3 = st.columns(3)
+        j_symbol = j1.text_input("Trade Symbol").upper()
+        j_entry = j2.number_input("Entry", value=0.0)
+        j_exit = j3.number_input("Exit", value=0.0)
+        j_shares = j1.number_input("Trade Shares", value=0.0)
+        j_result = j2.selectbox("Result", ["Open", "Win", "Loss", "Breakeven"])
+        j_notes = j3.text_input("Notes")
         j_submit = st.form_submit_button("Add Trade")
 
-        if j_submit and j_symbol:
-            pnl = round((j_exit - j_entry) * j_shares, 2) if j_exit > 0 else 0
-            st.session_state.journal_v17.append({
-                "Date": datetime.now().strftime("%Y-%m-%d"),
-                "Symbol": j_symbol,
-                "Entry": j_entry,
-                "Exit": j_exit,
-                "Shares": j_shares,
-                "Result": j_result,
-                "P/L": pnl,
-                "Notes": j_notes
-            })
-            st.rerun()
+        if j_submit:
+            if not j_symbol:
+                st.warning("Enter a ticker.")
+            elif is_excluded_symbol(j_symbol):
+                st.error(f"{j_symbol} is blocked by your exclusion rules.")
+            else:
+                pnl = round((j_exit - j_entry) * j_shares, 2) if j_exit > 0 else 0
+                st.session_state.journal_v18.append({
+                    "Date": datetime.now().strftime("%Y-%m-%d"),
+                    "Symbol": j_symbol,
+                    "Entry": j_entry,
+                    "Exit": j_exit,
+                    "Shares": j_shares,
+                    "Result": j_result,
+                    "P/L": pnl,
+                    "Notes": j_notes
+                })
+                st.rerun()
 
-    if st.session_state.journal_v17:
-        journal_df = pd.DataFrame(st.session_state.journal_v17)
+    if st.session_state.journal_v18:
+        journal_df = pd.DataFrame(st.session_state.journal_v18)
         st.dataframe(journal_df, use_container_width=True)
     else:
         st.info("No trades logged yet.")
+
+with st.expander("📚 Cheat Sheet", expanded=False):
+    st.markdown("""
+### ✅ Actionable Setup
+A stock becomes actionable when:
+- Confidence is 60 or higher
+- Risk/Reward is 1.5 or higher
+- Price is near entry
+
+### 🎯 Price Alerts
+Use alerts when you want to be notified if a stock breaks above a level or falls below an entry zone.
+
+### 🚫 Exclusions
+Financial companies, alcohol companies, and gambling companies are blocked everywhere:
+- AI scanner
+- Personal watchlist
+- Price alerts
+- Portfolio
+- Trade journal
+""")
