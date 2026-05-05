@@ -30,7 +30,7 @@ cookie_manager = stx.CookieManager()
 APP_USERNAME = os.getenv("APP_USERNAME", "admin").strip()
 APP_PASSWORD_LOGIN = os.getenv("APP_PASSWORD_LOGIN", "admin123").strip()
 
-auth_cookie = cookie_manager.get(cookie="ai_dashboard_auth_v19")
+auth_cookie = cookie_manager.get(cookie="ai_dashboard_auth_v20")
 
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = auth_cookie == "true"
@@ -48,10 +48,10 @@ if not st.session_state.logged_in:
 
             if remember_me:
                 cookie_manager.set(
-                    cookie="ai_dashboard_auth_v19",
+                    cookie="ai_dashboard_auth_v20",
                     val="true",
                     expires_at=datetime.now() + timedelta(days=30),
-                    key="set_auth_cookie_v19"
+                    key="set_auth_cookie_v20"
                 )
 
             st.rerun()
@@ -64,7 +64,7 @@ if not st.session_state.logged_in:
 # =====================
 # VERSION / ENV
 # =====================
-APP_VERSION = "V19 PRO - TIMING SIGNALS + TRADE ANALYTICS"
+APP_VERSION = "V20 PRO - MARKET PULSE + NEWS + TIMING SIGNALS"
 
 EMAIL_SENDER = os.getenv("EMAIL_SENDER")
 EMAIL_PASSWORD = os.getenv("APP_PASSWORD")
@@ -135,7 +135,7 @@ def clean_symbols(symbols):
 
 
 def load_watchlist():
-    raw = load_cookie_list("watchlist_v19", "watchlist_v19")
+    raw = load_cookie_list("watchlist_v20", "watchlist_v20")
     cleaned = clean_symbols(raw)
     if cleaned != raw:
         save_watchlist(cleaned)
@@ -143,37 +143,37 @@ def load_watchlist():
 
 
 def save_watchlist(symbols):
-    save_cookie_list("watchlist_v19", "watchlist_v19", clean_symbols(symbols))
+    save_cookie_list("watchlist_v20", "watchlist_v20", clean_symbols(symbols))
 
 
 def load_portfolio():
-    raw = load_cookie_list("portfolio_v19", "portfolio_v19")
+    raw = load_cookie_list("portfolio_v20", "portfolio_v20")
     return [p for p in raw if not is_excluded_symbol(p.get("Symbol", ""))]
 
 
 def save_portfolio(portfolio):
     filtered = [p for p in portfolio if not is_excluded_symbol(p.get("Symbol", ""))]
-    save_cookie_list("portfolio_v19", "portfolio_v19", filtered)
+    save_cookie_list("portfolio_v20", "portfolio_v20", filtered)
 
 
 def load_price_alerts():
-    raw = load_cookie_list("price_alerts_v19", "price_alerts_v19")
+    raw = load_cookie_list("price_alerts_v20", "price_alerts_v20")
     return [a for a in raw if not is_excluded_symbol(a.get("Symbol", ""))]
 
 
 def save_price_alerts(alerts):
     filtered = [a for a in alerts if not is_excluded_symbol(a.get("Symbol", ""))]
-    save_cookie_list("price_alerts_v19", "price_alerts_v19", filtered)
+    save_cookie_list("price_alerts_v20", "price_alerts_v20", filtered)
 
 
 def load_journal():
-    raw = load_cookie_list("journal_v19", "journal_v19")
+    raw = load_cookie_list("journal_v20", "journal_v20")
     return [j for j in raw if not is_excluded_symbol(j.get("Symbol", ""))]
 
 
 def save_journal(journal):
     filtered = [j for j in journal if not is_excluded_symbol(j.get("Symbol", ""))]
-    save_cookie_list("journal_v19", "journal_v19", filtered)
+    save_cookie_list("journal_v20", "journal_v20", filtered)
 
 
 # =====================
@@ -226,6 +226,118 @@ def send_email_alert(subject, body):
         return True, "Email sent."
     except Exception as e:
         return False, str(e)
+
+
+# =====================
+# MARKET PULSE + NEWS
+# =====================
+MARKET_TICKERS = {
+    "Nasdaq / QQQ": "QQQ",
+    "S&P 500 / SPY": "SPY",
+    "Dow / DIA": "DIA",
+    "Russell / IWM": "IWM",
+    "VIX": "^VIX"
+}
+
+
+def get_market_pulse():
+    rows = []
+
+    for name, ticker in MARKET_TICKERS.items():
+        data = get_stock_data(ticker, period="5d", interval="1d")
+
+        if data is None or len(data) < 2:
+            continue
+
+        last = float(data["Close"].iloc[-1])
+        prev = float(data["Close"].iloc[-2])
+        change_pct = ((last - prev) / prev) * 100 if prev > 0 else 0
+
+        rows.append({
+            "Market": name,
+            "Ticker": ticker,
+            "Price": round(last, 2),
+            "Daily %": round(change_pct, 2)
+        })
+
+    return pd.DataFrame(rows)
+
+
+def get_market_news():
+    news_items = []
+    tickers = ["SPY", "QQQ", "NVDA", "AAPL", "MSFT", "TSLA"]
+
+    for ticker in tickers:
+        try:
+            stock = yf.Ticker(ticker)
+            news = getattr(stock, "news", [])
+
+            for item in news[:3]:
+                content = item.get("content", item) if isinstance(item, dict) else {}
+                title = (
+                    content.get("title")
+                    or item.get("title", "")
+                )
+                publisher = (
+                    content.get("provider", {}).get("displayName")
+                    if isinstance(content.get("provider", {}), dict)
+                    else item.get("publisher", "")
+                )
+                link = (
+                    content.get("canonicalUrl", {}).get("url")
+                    if isinstance(content.get("canonicalUrl", {}), dict)
+                    else item.get("link", "")
+                )
+
+                if title:
+                    news_items.append({
+                        "Source": publisher or "Market News",
+                        "Ticker": ticker,
+                        "Headline": title,
+                        "Link": link or ""
+                    })
+        except Exception:
+            pass
+
+    seen = set()
+    clean_news = []
+
+    for item in news_items:
+        if item["Headline"] not in seen:
+            clean_news.append(item)
+            seen.add(item["Headline"])
+
+    return clean_news[:10]
+
+
+def get_macro_events():
+    return pd.DataFrame([
+        {
+            "Event": "Federal Reserve / Interest Rate Decision",
+            "Why It Matters": "Can move the entire market, especially growth and tech stocks.",
+            "What To Watch": "Rate cuts, rate hikes, Fed tone, inflation language"
+        },
+        {
+            "Event": "CPI Inflation Report",
+            "Why It Matters": "Higher inflation can hurt growth stocks and delay rate cuts.",
+            "What To Watch": "Headline CPI, core CPI, month-over-month trend"
+        },
+        {
+            "Event": "Jobs Report / Unemployment",
+            "Why It Matters": "Strong jobs can delay rate cuts; weak jobs can increase recession fears.",
+            "What To Watch": "Payrolls, unemployment rate, wage growth"
+        },
+        {
+            "Event": "PCE Inflation",
+            "Why It Matters": "The Fed watches PCE closely for inflation decisions.",
+            "What To Watch": "Core PCE trend"
+        },
+        {
+            "Event": "Major Tech Earnings",
+            "Why It Matters": "NVDA, MSFT, AAPL, AMZN, META can move Nasdaq heavily.",
+            "What To Watch": "Guidance, margins, AI demand, cloud growth"
+        }
+    ])
 
 
 # =====================
@@ -543,7 +655,7 @@ st.sidebar.title("⚙️ Dashboard Settings")
 
 if st.sidebar.button("Logout"):
     st.session_state.logged_in = False
-    cookie_manager.delete(cookie="ai_dashboard_auth_v19", key="delete_auth_cookie_v19")
+    cookie_manager.delete(cookie="ai_dashboard_auth_v20", key="delete_auth_cookie_v20")
     st.rerun()
 
 capital = st.sidebar.number_input("Trading Capital ($)", value=5000, step=500)
@@ -616,6 +728,58 @@ regime, regime_reason = get_market_regime()
 
 
 # =====================
+# MARKET PULSE SECTION
+# =====================
+st.subheader("📊 Market Pulse")
+
+market_df = get_market_pulse()
+
+if not market_df.empty:
+    cols = st.columns(len(market_df))
+
+    for i, row in market_df.iterrows():
+        cols[i].metric(
+            row["Market"],
+            row["Price"],
+            f"{row['Daily %']}%"
+        )
+
+    with st.expander("View Market Pulse Table", expanded=False):
+        st.dataframe(market_df, use_container_width=True)
+else:
+    st.warning("Market pulse data unavailable.")
+
+st.divider()
+
+
+# =====================
+# MARKET NEWS / MACRO EVENTS
+# =====================
+st.subheader("📰 Market News & Macro Risk")
+
+news_items = get_market_news()
+
+if news_items:
+    for item in news_items[:6]:
+        headline = item["Headline"]
+        source = item["Source"]
+        ticker = item["Ticker"]
+        link = item["Link"]
+
+        if link:
+            st.markdown(f"**[{headline}]({link})**  \n{source} | Related: `{ticker}`")
+        else:
+            st.markdown(f"**{headline}**  \n{source} | Related: `{ticker}`")
+else:
+    st.info("No market news available right now.")
+
+with st.expander("Upcoming Market-Moving Events to Watch", expanded=False):
+    st.dataframe(get_macro_events(), use_container_width=True)
+
+st.divider()
+
+
+# =====================
 # SYMBOL LIST
 # =====================
 if scan_mode == "Personal Watchlist Only":
@@ -667,7 +831,7 @@ if df.empty:
 # ALERTS
 # =====================
 def check_ai_alert(row):
-    sent_log = load_cookie_list("sent_ai_alerts_v19", "sent_ai_alerts_v19")
+    sent_log = load_cookie_list("sent_ai_alerts_v20", "sent_ai_alerts_v20")
     now = datetime.now()
     symbol = row["Symbol"]
 
@@ -709,7 +873,7 @@ Time:
         "AI Action": row["AI Action"]
     })
 
-    save_cookie_list("sent_ai_alerts_v19", "sent_ai_alerts_v19", sent_log)
+    save_cookie_list("sent_ai_alerts_v20", "sent_ai_alerts_v20", sent_log)
 
 
 def check_price_alerts(current_df):
@@ -771,7 +935,7 @@ if enable_email_alerts:
 
 
 # =====================
-# PORTFOLIO SUMMARY
+# PORTFOLIO / JOURNAL SUMMARY
 # =====================
 def portfolio_summary():
     portfolio = load_portfolio()
@@ -1112,7 +1276,14 @@ with st.expander("📊 Full Scanner Filters", expanded=False):
 
 with st.expander("📚 Cheat Sheet", expanded=False):
     st.markdown("""
-### V19 Timing Signal
+### V20 Market Pulse
+- QQQ = Nasdaq-style tech performance
+- SPY = S&P 500 broad market
+- DIA = Dow
+- IWM = small caps
+- VIX = volatility / fear gauge
+
+### V19/V20 Timing Signal
 - **BUY NOW**: setup + risk/reward + entry + intraday momentum align
 - **READY / WATCH CLOSELY**: setup is near entry but needs confirmation
 - **WAIT FOR ENTRY**: setup is good but price is not near ideal entry
