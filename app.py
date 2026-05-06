@@ -1,3 +1,4 @@
+
 import streamlit as st
 import yfinance as yf
 import pandas as pd
@@ -101,7 +102,7 @@ if not st.session_state.logged_in:
 # =====================
 # ENV / VERSION
 # =====================
-APP_VERSION = "V21 PERSISTENCE FIX + PAPER TRADING"
+APP_VERSION = "V22 DAILY SWING TRADE PLAN + PERSISTENCE FIX"
 
 EMAIL_SENDER = os.getenv("EMAIL_SENDER")
 EMAIL_PASSWORD = os.getenv("APP_PASSWORD")
@@ -112,10 +113,15 @@ EMAIL_RECEIVER = os.getenv("EMAIL_RECEIVER")
 # EXCLUSIONS
 # =====================
 EXCLUDED_TICKERS = {
+    # Financials / banks / brokers / insurance / payments
     "JPM", "BAC", "GS", "MS", "C", "WFC", "AIG", "MET", "PRU",
     "AXP", "V", "MA", "COF", "SCHW", "BLK", "BX", "SPGI", "ICE",
     "PYPL", "SQ", "HOOD", "COIN",
+
+    # Alcohol
     "BUD", "STZ", "TAP", "DEO", "SAM", "BF-B", "BF-A",
+
+    # Gambling / casinos / betting
     "DKNG", "LVS", "WYNN", "MGM", "PENN", "CZR", "FLUT"
 }
 
@@ -358,14 +364,14 @@ def make_timing_signal(confidence, rr, near_entry, intraday_status, regime):
     if confidence >= 75 and rr >= 1.8 and near_entry and intraday_status == "Positive":
         return "BUY NOW", "Setup is strong and intraday momentum confirms timing."
 
-    if confidence >= 60 and rr >= 1.5 and near_entry:
-        return "READY / WATCH CLOSELY", "Setup is near entry, but wait for stronger momentum confirmation."
+    if confidence >= 65 and rr >= 1.5 and near_entry:
+        return "BEST SWING CANDIDATE", "Best candidate, but wait for cleaner intraday confirmation before forcing entry."
 
     if confidence >= 60 and rr >= 1.5 and not near_entry:
-        return "WAIT FOR ENTRY", "Setup is good, but price is not close enough to entry."
+        return "WAIT FOR ENTRY", "Setup is good, but price is not close enough to ideal entry."
 
     if confidence >= 45:
-        return "WAIT", "Setup is mixed and needs more confirmation."
+        return "WATCHLIST ONLY", "Setup is mixed and needs more confirmation."
 
     return "AVOID", "Setup is currently weak."
 
@@ -497,6 +503,8 @@ def analyze_stock(symbol, regime="Neutral"):
 
     if timing_signal == "BUY NOW":
         action = "BUY / STRONG SETUP"
+    elif timing_signal == "BEST SWING CANDIDATE":
+        action = "BEST CANDIDATE / WATCH ENTRY"
     elif confidence >= 60 and rr >= 1.5:
         action = "WATCH / POSSIBLE ENTRY"
     elif confidence >= 45:
@@ -506,12 +514,22 @@ def analyze_stock(symbol, regime="Neutral"):
 
     if timing_signal == "BUY NOW":
         ai_summary = "Strong setup with supportive timing. Use position sizing carefully."
+    elif timing_signal == "BEST SWING CANDIDATE":
+        ai_summary = "Best swing trade candidate today. Context is supportive, but do not chase if price moves away from entry."
     elif confidence >= 60:
         ai_summary = "Good setup. Monitor for clean confirmation."
     elif confidence >= 45:
         ai_summary = "Mixed setup. Wait for better confirmation."
     else:
         ai_summary = "Weak setup. Better opportunities may exist."
+
+    setup_score = confidence + (rr * 5)
+    if timing_signal == "BUY NOW":
+        setup_score += 20
+    elif timing_signal == "BEST SWING CANDIDATE":
+        setup_score += 10
+    if regime == "Bearish / Risk-Off":
+        setup_score -= 15
 
     return {
         "Symbol": symbol,
@@ -521,6 +539,7 @@ def analyze_stock(symbol, regime="Neutral"):
         "Stop": stop,
         "R/R": rr,
         "Confidence": confidence,
+        "Setup Score": round(setup_score, 2),
         "RSI": round(rsi, 1),
         "Dip %": round(dip_pct, 2),
         "Recovery %": round(recovery_pct, 2),
@@ -585,6 +604,39 @@ def make_chart(symbol, row, period):
     )
 
     st.plotly_chart(fig, use_container_width=True)
+
+
+def build_daily_trade_plan(df, regime):
+    ranked = df.sort_values(["Setup Score", "Confidence", "R/R"], ascending=False)
+
+    if ranked.empty:
+        return None
+
+    best = ranked.iloc[0]
+
+    if regime == "Bearish / Risk-Off":
+        decision = "NO CLEAN BUY / RISK-OFF"
+        context = "Market regime is risk-off. The best candidate may still be worth watching, but avoid aggressive entries."
+    elif best["Timing Signal"] == "BUY NOW":
+        decision = "BUY NOW CANDIDATE"
+        context = "This is the cleanest immediate setup because timing, risk/reward, trend, and momentum are aligned."
+    elif best["Timing Signal"] == "BEST SWING CANDIDATE":
+        decision = "BEST SWING CANDIDATE"
+        context = "This is the best candidate today, but entry discipline still matters. Consider using a price alert near entry."
+    elif best["Confidence"] >= 60:
+        decision = "WAIT FOR ENTRY"
+        context = "Good setup, but not an ideal buy-now situation. Use alerts and wait for price to come into the entry zone."
+    else:
+        decision = "NO CLEAN TRADE TODAY"
+        context = "No stock has enough confirmation. This is a day to watch, not force trades."
+
+    return {
+        "symbol": best["Symbol"],
+        "decision": decision,
+        "context": context,
+        "row": best,
+        "ranked": ranked
+    }
 
 
 # =====================
@@ -852,9 +904,10 @@ portfolio_rows, total_value, total_cost, total_pnl = portfolio_summary()
 # =====================
 # TOP STRIP
 # =====================
+daily_plan = build_daily_trade_plan(df, regime)
 actionable_count = len(df[df["Actionable"] == True])
 buy_now_count = len(df[df["Timing Signal"] == "BUY NOW"])
-top_pick = df.sort_values(["Confidence", "R/R"], ascending=False).iloc[0]
+top_pick = df.sort_values(["Setup Score", "Confidence", "R/R"], ascending=False).iloc[0]
 
 m1, m2, m3, m4, m5 = st.columns(5)
 m1.metric("Market Regime", regime)
@@ -869,16 +922,63 @@ st.divider()
 
 
 # =====================
+# DAILY AI SWING TRADE PLAN
+# =====================
+st.subheader("🎯 Daily AI Swing Trade Plan")
+
+if daily_plan:
+    best = daily_plan["row"]
+
+    p1, p2, p3, p4 = st.columns(4)
+    p1.metric("Best Candidate", daily_plan["symbol"])
+    p2.metric("Decision", daily_plan["decision"])
+    p3.metric("Confidence", best["Confidence"])
+    p4.metric("R/R", best["R/R"])
+
+    st.info(daily_plan["context"])
+    st.write(best["AI Summary"])
+
+    e1, e2, e3, e4 = st.columns(4)
+    e1.metric("Entry Zone", best["Entry"])
+    e2.metric("Target", best["Target"])
+    e3.metric("Stop", best["Stop"])
+    e4.metric("Suggested Shares", best["Shares"])
+
+    st.markdown("### Context backing the decision")
+    context_points = [
+        f"Market regime: **{regime}** — {regime_reason}",
+        f"Timing signal: **{best['Timing Signal']}** — {best['Timing Reason']}",
+        f"Intraday momentum: **{best['Intraday']}** ({best['Intraday %']}%)",
+        f"Confidence score: **{best['Confidence']}**",
+        f"Risk/reward: **{best['R/R']}**",
+        f"Near entry: **{best['Near Entry']}**",
+        f"RSI: **{best['RSI']}**",
+        f"Volume ratio: **{best['Volume Ratio']}**"
+    ]
+
+    for point in context_points:
+        st.write(f"- {point}")
+
+    with st.expander("Full AI scoring reasons", expanded=False):
+        for reason in best["Score Reasons"].split(" | "):
+            st.write(f"- {reason}")
+
+    st.markdown("### Candidate chart")
+    make_chart(best["Symbol"], best, chart_period)
+
+    if daily_plan["decision"] != "BUY NOW CANDIDATE":
+        st.warning("This is not a forced buy signal. Use price alerts and paper trading first if the entry is not clean.")
+
+st.divider()
+
+
+# =====================
 # TOP PICKS
 # =====================
-st.subheader("🏆 Top 3 AI Picks Today")
+st.subheader("🏆 Ranked Swing Trade Candidates")
 
-top3 = df.sort_values(["Confidence", "R/R"], ascending=False).head(3)
-st.dataframe(top3, use_container_width=True)
-
-best = top3.iloc[0]
-st.markdown(f"### Best Setup: {best['Symbol']} — {best['Timing Signal']}")
-st.info(best["AI Summary"])
+ranked = df.sort_values(["Setup Score", "Confidence", "R/R"], ascending=False)
+st.dataframe(ranked.head(10), use_container_width=True)
 
 st.divider()
 
@@ -889,8 +989,8 @@ st.divider()
 st.subheader("⭐ Personal Watchlist Decision Center")
 
 watch_df = df[df["Symbol"].isin(watchlist)].sort_values(
-    ["Timing Signal", "Confidence", "R/R"],
-    ascending=[True, False, False]
+    ["Setup Score", "Confidence", "R/R"],
+    ascending=[False, False, False]
 )
 
 if watch_df.empty:
@@ -1010,19 +1110,23 @@ st.divider()
 # =====================
 st.subheader("🔥 Scanner Output")
 
-actionable = df[df["Actionable"] == True].sort_values("Confidence", ascending=False)
-buy_now = df[df["Timing Signal"] == "BUY NOW"].sort_values("Confidence", ascending=False)
-watch = df[(df["Timing Signal"].str.contains("WAIT|READY", regex=True))].sort_values("Confidence", ascending=False)
-avoid = df[df["Timing Signal"] == "AVOID"].sort_values("Confidence", ascending=True)
+buy_now = df[df["Timing Signal"] == "BUY NOW"].sort_values("Setup Score", ascending=False)
+best_candidate = df[df["Timing Signal"] == "BEST SWING CANDIDATE"].sort_values("Setup Score", ascending=False)
+wait_entry = df[df["Timing Signal"] == "WAIT FOR ENTRY"].sort_values("Setup Score", ascending=False)
+watch_only = df[df["Timing Signal"] == "WATCHLIST ONLY"].sort_values("Setup Score", ascending=False)
+avoid = df[df["Timing Signal"] == "AVOID"].sort_values("Setup Score", ascending=True)
 
 with st.expander("🚀 Buy Now", expanded=True):
     st.dataframe(buy_now, use_container_width=True)
 
-with st.expander("✅ Actionable", expanded=True):
-    st.dataframe(actionable, use_container_width=True)
+with st.expander("🎯 Best Swing Candidates", expanded=True):
+    st.dataframe(best_candidate, use_container_width=True)
 
-with st.expander("👀 Ready / Wait", expanded=True):
-    st.dataframe(watch, use_container_width=True)
+with st.expander("⏳ Wait For Entry", expanded=True):
+    st.dataframe(wait_entry, use_container_width=True)
+
+with st.expander("👀 Watchlist Only", expanded=False):
+    st.dataframe(watch_only, use_container_width=True)
 
 with st.expander("⚠️ Avoid", expanded=False):
     st.dataframe(avoid, use_container_width=True)
@@ -1147,6 +1251,12 @@ Enter:
 - Status: Open or Closed
 - Exit price only when closing the paper trade
 - Notes
+
+### How to read Daily AI Swing Trade Plan
+- **BUY NOW CANDIDATE** = strongest immediate setup
+- **BEST SWING CANDIDATE** = best overall candidate, but entry timing may need confirmation
+- **WAIT FOR ENTRY** = good stock, but price is not ideal
+- **NO CLEAN TRADE TODAY** = do not force a trade
 
 ### Difference between Portfolio and Paper Trading
 - **Portfolio Tracker** = real or actual holdings you want to monitor
