@@ -3,9 +3,9 @@ import yfinance as yf
 import pandas as pd
 import os
 import json
+import hashlib
 import smtplib
 import plotly.graph_objects as go
-import extra_streamlit_components as stx
 from email.mime.text import MIMEText
 from datetime import datetime, timedelta
 
@@ -15,44 +15,81 @@ except Exception:
     st_autorefresh = None
 
 
+# =====================
+# PAGE CONFIG
+# =====================
 st.set_page_config(page_title="AI Trading Dashboard", page_icon="📈", layout="wide")
 
 if st_autorefresh:
     st_autorefresh(interval=60 * 1000, key="refresh")
 
 
-cookie_manager = stx.CookieManager()
+# =====================
+# FILE STORAGE
+# =====================
+STORE_FILE = "dashboard_store.json"
+
+
+def load_store():
+    if os.path.exists(STORE_FILE):
+        try:
+            with open(STORE_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+
+    return {
+        "watchlist": [],
+        "price_alerts": [],
+        "portfolio": [],
+        "paper_trades": [],
+        "journal": [],
+        "sent_alerts": []
+    }
+
+
+def save_store(store):
+    with open(STORE_FILE, "w") as f:
+        json.dump(store, f, indent=2)
+
+
+store = load_store()
 
 
 # =====================
-# LOGIN
+# LOGIN — REFRESH SAFE
 # =====================
 APP_USERNAME = os.getenv("APP_USERNAME", "admin").strip()
 APP_PASSWORD_LOGIN = os.getenv("APP_PASSWORD_LOGIN", "admin123").strip()
+SECRET_KEY = os.getenv("SECRET_KEY", "default_secret_key").strip()
 
-auth_cookie = cookie_manager.get(cookie="ai_dashboard_auth_v20")
+
+def make_auth_token():
+    raw = f"{APP_USERNAME}:{APP_PASSWORD_LOGIN}:{SECRET_KEY}"
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+AUTH_TOKEN = make_auth_token()
+
+query_params = st.query_params
+url_token = query_params.get("auth", "")
 
 if "logged_in" not in st.session_state:
-    st.session_state.logged_in = auth_cookie == "true"
+    st.session_state.logged_in = url_token == AUTH_TOKEN
 
 if not st.session_state.logged_in:
     st.title("🔐 AI Trading Dashboard Login")
 
     username = st.text_input("Username").strip()
     password = st.text_input("Password", type="password").strip()
-    remember_me = st.checkbox("Keep me logged in", value=True)
+    remember_me = st.checkbox("Keep me logged in on refresh", value=True)
 
     if st.button("Login"):
         if username == APP_USERNAME and password == APP_PASSWORD_LOGIN:
             st.session_state.logged_in = True
 
             if remember_me:
-                cookie_manager.set(
-                    cookie="ai_dashboard_auth_v20",
-                    val="true",
-                    expires_at=datetime.now() + timedelta(days=30),
-                    key="set_auth_cookie_v20"
-                )
+                st.query_params["auth"] = AUTH_TOKEN
 
             st.rerun()
         else:
@@ -62,9 +99,9 @@ if not st.session_state.logged_in:
 
 
 # =====================
-# VERSION / ENV
+# ENV / VERSION
 # =====================
-APP_VERSION = "V20 PRO - MARKET PULSE + NEWS + TIMING SIGNALS"
+APP_VERSION = "V21 PERSISTENCE FIX + PAPER TRADING"
 
 EMAIL_SENDER = os.getenv("EMAIL_SENDER")
 EMAIL_PASSWORD = os.getenv("APP_PASSWORD")
@@ -72,7 +109,7 @@ EMAIL_RECEIVER = os.getenv("EMAIL_RECEIVER")
 
 
 # =====================
-# EXCLUSION RULES
+# EXCLUSIONS
 # =====================
 EXCLUDED_TICKERS = {
     "JPM", "BAC", "GS", "MS", "C", "WFC", "AIG", "MET", "PRU",
@@ -87,11 +124,12 @@ def is_excluded_symbol(symbol):
     return str(symbol).strip().upper() in EXCLUDED_TICKERS
 
 
-def filter_excluded_symbols(symbols):
-    return [s for s in symbols if not is_excluded_symbol(s)]
+def clean_symbols(symbols):
+    cleaned = sorted(list(set([str(s).strip().upper() for s in symbols if str(s).strip()])))
+    return [s for s in cleaned if not is_excluded_symbol(s)]
 
 
-AI_TOP_15 = filter_excluded_symbols([
+AI_TOP_15 = clean_symbols([
     "AAPL", "MSFT", "NVDA", "AMZN", "META",
     "GOOGL", "TSLA", "AMD", "NFLX", "AVGO",
     "COST", "LLY", "UNH", "CRM", "NOW"
@@ -99,85 +137,7 @@ AI_TOP_15 = filter_excluded_symbols([
 
 
 # =====================
-# COOKIE HELPERS
-# =====================
-def load_cookie_list(cookie_name, session_key):
-    if session_key in st.session_state:
-        return st.session_state[session_key]
-
-    raw = cookie_manager.get(cookie=cookie_name)
-
-    if raw:
-        try:
-            data = json.loads(raw)
-            st.session_state[session_key] = data
-            return data
-        except Exception:
-            pass
-
-    st.session_state[session_key] = []
-    return []
-
-
-def save_cookie_list(cookie_name, session_key, data):
-    st.session_state[session_key] = data
-    cookie_manager.set(
-        cookie=cookie_name,
-        val=json.dumps(data),
-        expires_at=datetime.now() + timedelta(days=365),
-        key=f"save_{cookie_name}"
-    )
-
-
-def clean_symbols(symbols):
-    cleaned = sorted(list(set([str(s).strip().upper() for s in symbols if str(s).strip()])))
-    return filter_excluded_symbols(cleaned)
-
-
-def load_watchlist():
-    raw = load_cookie_list("watchlist_v20", "watchlist_v20")
-    cleaned = clean_symbols(raw)
-    if cleaned != raw:
-        save_watchlist(cleaned)
-    return cleaned
-
-
-def save_watchlist(symbols):
-    save_cookie_list("watchlist_v20", "watchlist_v20", clean_symbols(symbols))
-
-
-def load_portfolio():
-    raw = load_cookie_list("portfolio_v20", "portfolio_v20")
-    return [p for p in raw if not is_excluded_symbol(p.get("Symbol", ""))]
-
-
-def save_portfolio(portfolio):
-    filtered = [p for p in portfolio if not is_excluded_symbol(p.get("Symbol", ""))]
-    save_cookie_list("portfolio_v20", "portfolio_v20", filtered)
-
-
-def load_price_alerts():
-    raw = load_cookie_list("price_alerts_v20", "price_alerts_v20")
-    return [a for a in raw if not is_excluded_symbol(a.get("Symbol", ""))]
-
-
-def save_price_alerts(alerts):
-    filtered = [a for a in alerts if not is_excluded_symbol(a.get("Symbol", ""))]
-    save_cookie_list("price_alerts_v20", "price_alerts_v20", filtered)
-
-
-def load_journal():
-    raw = load_cookie_list("journal_v20", "journal_v20")
-    return [j for j in raw if not is_excluded_symbol(j.get("Symbol", ""))]
-
-
-def save_journal(journal):
-    filtered = [j for j in journal if not is_excluded_symbol(j.get("Symbol", ""))]
-    save_cookie_list("journal_v20", "journal_v20", filtered)
-
-
-# =====================
-# DATA
+# DATA HELPERS
 # =====================
 @st.cache_data(ttl=60)
 def get_stock_data(symbol, period="6mo", interval="1d"):
@@ -229,7 +189,7 @@ def send_email_alert(subject, body):
 
 
 # =====================
-# MARKET PULSE + NEWS
+# MARKET PULSE
 # =====================
 MARKET_TICKERS = {
     "Nasdaq / QQQ": "QQQ",
@@ -274,40 +234,42 @@ def get_market_news():
 
             for item in news[:3]:
                 content = item.get("content", item) if isinstance(item, dict) else {}
-                title = (
-                    content.get("title")
-                    or item.get("title", "")
-                )
-                publisher = (
-                    content.get("provider", {}).get("displayName")
-                    if isinstance(content.get("provider", {}), dict)
-                    else item.get("publisher", "")
-                )
-                link = (
-                    content.get("canonicalUrl", {}).get("url")
-                    if isinstance(content.get("canonicalUrl", {}), dict)
-                    else item.get("link", "")
-                )
+
+                title = content.get("title") or item.get("title", "")
+                publisher = "Market News"
+                link = ""
+
+                provider = content.get("provider", {})
+                if isinstance(provider, dict):
+                    publisher = provider.get("displayName", "Market News")
+                else:
+                    publisher = item.get("publisher", "Market News")
+
+                canonical = content.get("canonicalUrl", {})
+                if isinstance(canonical, dict):
+                    link = canonical.get("url", "")
+                else:
+                    link = item.get("link", "")
 
                 if title:
                     news_items.append({
-                        "Source": publisher or "Market News",
+                        "Source": publisher,
                         "Ticker": ticker,
                         "Headline": title,
-                        "Link": link or ""
+                        "Link": link
                     })
         except Exception:
             pass
 
     seen = set()
-    clean_news = []
+    clean = []
 
     for item in news_items:
         if item["Headline"] not in seen:
-            clean_news.append(item)
+            clean.append(item)
             seen.add(item["Headline"])
 
-    return clean_news[:10]
+    return clean[:8]
 
 
 def get_macro_events():
@@ -323,9 +285,9 @@ def get_macro_events():
             "What To Watch": "Headline CPI, core CPI, month-over-month trend"
         },
         {
-            "Event": "Jobs Report / Unemployment",
-            "Why It Matters": "Strong jobs can delay rate cuts; weak jobs can increase recession fears.",
-            "What To Watch": "Payrolls, unemployment rate, wage growth"
+            "Event": "Jobs Report",
+            "Why It Matters": "Strong jobs can delay rate cuts; weak jobs can raise recession fears.",
+            "What To Watch": "Payrolls, unemployment, wage growth"
         },
         {
             "Event": "PCE Inflation",
@@ -335,7 +297,7 @@ def get_macro_events():
         {
             "Event": "Major Tech Earnings",
             "Why It Matters": "NVDA, MSFT, AAPL, AMZN, META can move Nasdaq heavily.",
-            "What To Watch": "Guidance, margins, AI demand, cloud growth"
+            "What To Watch": "Guidance, AI demand, margins, cloud growth"
         }
     ])
 
@@ -365,7 +327,7 @@ def get_market_regime():
 
 
 # =====================
-# INTRADAY MOMENTUM + TIMING
+# ANALYSIS
 # =====================
 def get_intraday_momentum(symbol):
     data = get_stock_data(symbol, period="1d", interval="5m")
@@ -385,6 +347,7 @@ def get_intraday_momentum(symbol):
         return "Positive", round(day_change, 2), "Intraday trend is positive."
     if day_change < -1 and recent_change < 0:
         return "Negative", round(day_change, 2), "Intraday trend is weak."
+
     return "Neutral", round(day_change, 2), "Intraday momentum is mixed."
 
 
@@ -405,29 +368,6 @@ def make_timing_signal(confidence, rr, near_entry, intraday_status, regime):
         return "WAIT", "Setup is mixed and needs more confirmation."
 
     return "AVOID", "Setup is currently weak."
-
-
-# =====================
-# STOCK ANALYSIS
-# =====================
-def make_ai_summary(confidence, rr, rsi, volume_ratio, near_entry, regime, timing_signal):
-    if timing_signal == "BUY NOW":
-        return "Strong setup with supportive timing. Consider position sizing carefully."
-    if regime == "Bearish / Risk-Off":
-        if confidence >= 70:
-            return "Good individual setup, but market is risk-off. Use smaller size or wait."
-        return "Market is weak. Be selective and avoid forcing trades."
-    if confidence >= 75 and rr >= 1.8 and near_entry:
-        return "Strong setup: trend, pullback, risk/reward, and entry timing are close."
-    if confidence >= 60 and rr >= 1.5:
-        return "Good setup: worth monitoring closely for clean entry confirmation."
-    if confidence >= 45:
-        return "Mixed setup: some positives, but not enough confirmation yet."
-    if rsi > 70:
-        return "Avoid for now: RSI appears extended."
-    if volume_ratio < 0.8:
-        return "Avoid for now: weak volume confirmation."
-    return "Weak setup: better opportunities may exist."
 
 
 def analyze_stock(symbol, regime="Neutral"):
@@ -525,7 +465,7 @@ def analyze_stock(symbol, regime="Neutral"):
         score -= 10
         reasons.append("Market regime is risk-off")
 
-    intraday_status, intraday_change, intraday_reason = get_intraday_momentum(symbol)
+    intraday_status, intraday_change, _ = get_intraday_momentum(symbol)
 
     if intraday_status == "Positive":
         score += 5
@@ -564,15 +504,14 @@ def analyze_stock(symbol, regime="Neutral"):
     else:
         action = "AVOID"
 
-    ai_summary = make_ai_summary(
-        confidence,
-        rr,
-        rsi,
-        volume_ratio,
-        near_entry,
-        regime,
-        timing_signal
-    )
+    if timing_signal == "BUY NOW":
+        ai_summary = "Strong setup with supportive timing. Use position sizing carefully."
+    elif confidence >= 60:
+        ai_summary = "Good setup. Monitor for clean confirmation."
+    elif confidence >= 45:
+        ai_summary = "Mixed setup. Wait for better confirmation."
+    else:
+        ai_summary = "Weak setup. Better opportunities may exist."
 
     return {
         "Symbol": symbol,
@@ -655,7 +594,7 @@ st.sidebar.title("⚙️ Dashboard Settings")
 
 if st.sidebar.button("Logout"):
     st.session_state.logged_in = False
-    cookie_manager.delete(cookie="ai_dashboard_auth_v20", key="delete_auth_cookie_v20")
+    st.query_params.clear()
     st.rerun()
 
 capital = st.sidebar.number_input("Trading Capital ($)", value=5000, step=500)
@@ -683,7 +622,7 @@ st.sidebar.divider()
 st.sidebar.header("⭐ PERSONAL WATCHLIST")
 st.sidebar.caption("Financial, alcohol, and gambling tickers are blocked.")
 
-watchlist = load_watchlist()
+watchlist = clean_symbols(store.get("watchlist", []))
 new_symbol = st.sidebar.text_input("Add ticker", placeholder="Example: NVDA")
 
 if st.sidebar.button("➕ Add Ticker"):
@@ -694,8 +633,8 @@ if st.sidebar.button("➕ Add Ticker"):
     elif is_excluded_symbol(symbol_to_add):
         st.sidebar.error(f"{symbol_to_add} is blocked by your exclusion rules.")
     else:
-        watchlist = clean_symbols(watchlist + [symbol_to_add])
-        save_watchlist(watchlist)
+        store["watchlist"] = clean_symbols(watchlist + [symbol_to_add])
+        save_store(store)
         st.sidebar.success(f"Added {symbol_to_add}")
         st.rerun()
 
@@ -706,12 +645,13 @@ if watchlist:
 
     if st.sidebar.button("🗑️ Remove Ticker"):
         if remove_symbol:
-            watchlist = [s for s in watchlist if s != remove_symbol]
-            save_watchlist(watchlist)
+            store["watchlist"] = [s for s in watchlist if s != remove_symbol]
+            save_store(store)
             st.rerun()
 
     if st.sidebar.button("🧹 Clear Watchlist"):
-        save_watchlist([])
+        store["watchlist"] = []
+        save_store(store)
         st.rerun()
 else:
     st.sidebar.info("No personal tickers yet.")
@@ -728,7 +668,7 @@ regime, regime_reason = get_market_regime()
 
 
 # =====================
-# MARKET PULSE SECTION
+# MARKET PULSE
 # =====================
 st.subheader("📊 Market Pulse")
 
@@ -738,11 +678,7 @@ if not market_df.empty:
     cols = st.columns(len(market_df))
 
     for i, row in market_df.iterrows():
-        cols[i].metric(
-            row["Market"],
-            row["Price"],
-            f"{row['Daily %']}%"
-        )
+        cols[i].metric(row["Market"], row["Price"], f"{row['Daily %']}%")
 
     with st.expander("View Market Pulse Table", expanded=False):
         st.dataframe(market_df, use_container_width=True)
@@ -753,7 +689,7 @@ st.divider()
 
 
 # =====================
-# MARKET NEWS / MACRO EVENTS
+# MARKET NEWS
 # =====================
 st.subheader("📰 Market News & Macro Risk")
 
@@ -761,15 +697,10 @@ news_items = get_market_news()
 
 if news_items:
     for item in news_items[:6]:
-        headline = item["Headline"]
-        source = item["Source"]
-        ticker = item["Ticker"]
-        link = item["Link"]
-
-        if link:
-            st.markdown(f"**[{headline}]({link})**  \n{source} | Related: `{ticker}`")
+        if item["Link"]:
+            st.markdown(f"**[{item['Headline']}]({item['Link']})**  \n{item['Source']} | Related: `{item['Ticker']}`")
         else:
-            st.markdown(f"**{headline}**  \n{source} | Related: `{ticker}`")
+            st.markdown(f"**{item['Headline']}**  \n{item['Source']} | Related: `{item['Ticker']}`")
 else:
     st.info("No market news available right now.")
 
@@ -788,8 +719,6 @@ elif scan_mode == "AI Top 15 Only":
     symbols = AI_TOP_15
 else:
     symbols = clean_symbols(watchlist + AI_TOP_15)
-
-symbols = filter_excluded_symbols(symbols)
 
 if not symbols:
     st.info("Your Personal Watchlist is empty. Add a non-excluded ticker from the sidebar.")
@@ -830,55 +759,9 @@ if df.empty:
 # =====================
 # ALERTS
 # =====================
-def check_ai_alert(row):
-    sent_log = load_cookie_list("sent_ai_alerts_v20", "sent_ai_alerts_v20")
-    now = datetime.now()
-    symbol = row["Symbol"]
-
-    latest_for_symbol = [x for x in sent_log if x.get("Symbol") == symbol]
-
-    if latest_for_symbol:
-        last_time = datetime.strptime(latest_for_symbol[-1]["Time"], "%Y-%m-%d %H:%M:%S")
-        if now - last_time < timedelta(hours=1):
-            return
-
-    subject = f"🚨 AI Trading Alert: {symbol}"
-
-    body = f"""
-Symbol: {symbol}
-Price: {row['Price']}
-Entry: {row['Entry']}
-Target: {row['Target']}
-Stop: {row['Stop']}
-Confidence: {row['Confidence']}
-Risk/Reward: {row['R/R']}
-Timing Signal: {row['Timing Signal']}
-AI Action: {row['AI Action']}
-
-AI Summary:
-{row['AI Summary']}
-
-Time:
-{now.strftime('%Y-%m-%d %H:%M:%S')}
-"""
-
-    send_email_alert(subject, body)
-
-    sent_log.append({
-        "Time": now.strftime("%Y-%m-%d %H:%M:%S"),
-        "Symbol": symbol,
-        "Price": row["Price"],
-        "Confidence": row["Confidence"],
-        "Timing Signal": row["Timing Signal"],
-        "AI Action": row["AI Action"]
-    })
-
-    save_cookie_list("sent_ai_alerts_v20", "sent_ai_alerts_v20", sent_log)
-
-
 def check_price_alerts(current_df):
-    alerts = load_price_alerts()
-    updated_alerts = []
+    alerts = store.get("price_alerts", [])
+    updated = []
 
     for alert in alerts:
         symbol = alert.get("Symbol")
@@ -886,65 +769,46 @@ def check_price_alerts(current_df):
         if is_excluded_symbol(symbol):
             continue
 
+        row_df = current_df[current_df["Symbol"] == symbol]
+
+        if row_df.empty:
+            updated.append(alert)
+            continue
+
+        current_price = float(row_df.iloc[0]["Price"])
         target_price = float(alert.get("Target Price", 0))
         direction = alert.get("Direction", "Above")
         triggered = alert.get("Triggered", False)
 
-        row_df = current_df[current_df["Symbol"] == symbol]
+        hit = current_price >= target_price if direction == "Above" else current_price <= target_price
 
-        if row_df.empty:
-            updated_alerts.append(alert)
-            continue
-
-        current_price = float(row_df.iloc[0]["Price"])
-
-        is_triggered = (
-            current_price >= target_price if direction == "Above"
-            else current_price <= target_price
-        )
-
-        if is_triggered and not triggered and enable_email_alerts:
-            subject = f"🎯 Price Alert Triggered: {symbol}"
-            body = f"""
-Price alert triggered.
-
-Symbol: {symbol}
-Current Price: {current_price}
-Target Price: {target_price}
-Direction: {direction}
-Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-"""
-            send_email_alert(subject, body)
+        if hit and not triggered and enable_email_alerts:
+            send_email_alert(
+                f"🎯 Price Alert Triggered: {symbol}",
+                f"{symbol} hit {current_price}. Target was {target_price} {direction}."
+            )
             alert["Triggered"] = True
 
-        updated_alerts.append(alert)
+        updated.append(alert)
 
-    save_price_alerts(updated_alerts)
+    store["price_alerts"] = updated
+    save_store(store)
 
 
 if enable_email_alerts:
-    actionable_df = df[df["Actionable"] == True]
-
-    if personal_alerts_only:
-        actionable_df = actionable_df[actionable_df["Symbol"].isin(watchlist)]
-
-    for _, row in actionable_df.iterrows():
-        check_ai_alert(row)
-
     check_price_alerts(df)
 
 
 # =====================
-# PORTFOLIO / JOURNAL SUMMARY
+# PORTFOLIO SUMMARY
 # =====================
 def portfolio_summary():
-    portfolio = load_portfolio()
     rows = []
     total_value = 0
     total_cost = 0
     total_pnl = 0
 
-    for pos in portfolio:
+    for pos in store.get("portfolio", []):
         symbol = pos["Symbol"]
 
         if is_excluded_symbol(symbol):
@@ -982,25 +846,7 @@ def portfolio_summary():
     return rows, total_value, total_cost, total_pnl
 
 
-def trade_analytics():
-    journal = load_journal()
-    if not journal:
-        return 0, 0, 0, 0, pd.DataFrame()
-
-    jdf = pd.DataFrame(journal)
-    closed = jdf[jdf["Result"] != "Open"] if "Result" in jdf.columns else pd.DataFrame()
-    total_pnl = jdf["P/L"].sum() if "P/L" in jdf.columns else 0
-
-    wins = len(closed[closed["Result"] == "Win"]) if not closed.empty else 0
-    losses = len(closed[closed["Result"] == "Loss"]) if not closed.empty else 0
-    total_closed = len(closed)
-    win_rate = round((wins / total_closed) * 100, 2) if total_closed > 0 else 0
-
-    return total_pnl, wins, losses, win_rate, jdf
-
-
 portfolio_rows, total_value, total_cost, total_pnl = portfolio_summary()
-journal_pnl, journal_wins, journal_losses, journal_win_rate, journal_df = trade_analytics()
 
 
 # =====================
@@ -1089,6 +935,77 @@ st.divider()
 
 
 # =====================
+# PAPER TRADING SIMULATOR
+# =====================
+st.subheader("🧪 Paper Trading Simulator")
+
+st.info("Use this section to simulate trades without using real money.")
+
+paper_trades = store.get("paper_trades", [])
+
+with st.form("paper_trade_form"):
+    p1, p2, p3, p4 = st.columns(4)
+
+    paper_symbol = p1.text_input("Paper Symbol").upper()
+    paper_entry = p2.number_input("Paper Entry Price", value=0.0)
+    paper_shares = p3.number_input("Paper Shares", value=0.0)
+    paper_status = p4.selectbox("Status", ["Open", "Closed"])
+
+    p5, p6 = st.columns(2)
+    paper_exit = p5.number_input("Paper Exit Price", value=0.0)
+    paper_notes = p6.text_input("Notes")
+
+    submit_paper = st.form_submit_button("Add Paper Trade")
+
+    if submit_paper:
+        if not paper_symbol:
+            st.warning("Enter a ticker.")
+        elif is_excluded_symbol(paper_symbol):
+            st.error(f"{paper_symbol} is blocked by your exclusion rules.")
+        elif paper_entry <= 0 or paper_shares <= 0:
+            st.warning("Enter valid entry price and shares.")
+        else:
+            pnl = round((paper_exit - paper_entry) * paper_shares, 2) if paper_exit > 0 else 0
+
+            paper_trades.append({
+                "Date": datetime.now().strftime("%Y-%m-%d"),
+                "Symbol": paper_symbol,
+                "Entry": paper_entry,
+                "Exit": paper_exit,
+                "Shares": paper_shares,
+                "Status": paper_status,
+                "P/L": pnl,
+                "Notes": paper_notes
+            })
+
+            store["paper_trades"] = paper_trades
+            save_store(store)
+            st.success("Paper trade added.")
+            st.rerun()
+
+if paper_trades:
+    paper_df = pd.DataFrame(paper_trades)
+    st.dataframe(paper_df, use_container_width=True)
+
+    open_paper = paper_df[paper_df["Status"] == "Open"]
+    closed_paper = paper_df[paper_df["Status"] == "Closed"]
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Open Paper Trades", len(open_paper))
+    c2.metric("Closed Paper Trades", len(closed_paper))
+    c3.metric("Paper P/L", f"${paper_df['P/L'].sum():,.2f}")
+
+    if st.button("Clear Paper Trades"):
+        store["paper_trades"] = []
+        save_store(store)
+        st.rerun()
+else:
+    st.info("No paper trades yet. Add simulated trades here.")
+
+st.divider()
+
+
+# =====================
 # SCANNER OUTPUT
 # =====================
 st.subheader("🔥 Scanner Output")
@@ -1118,13 +1035,15 @@ st.divider()
 # =====================
 st.subheader("🎯 Price Alerts")
 
-alerts = load_price_alerts()
+alerts = store.get("price_alerts", [])
 
 with st.form("price_alert_form"):
     a1, a2, a3 = st.columns(3)
+
     alert_symbol = a1.text_input("Ticker").upper()
     alert_price = a2.number_input("Target Price", value=0.0)
     direction = a3.selectbox("Direction", ["Above", "Below"])
+
     submit_alert = st.form_submit_button("Add Price Alert")
 
     if submit_alert:
@@ -1142,7 +1061,9 @@ with st.form("price_alert_form"):
                 "Triggered": False,
                 "Created": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             })
-            save_price_alerts(alerts)
+
+            store["price_alerts"] = alerts
+            save_store(store)
             st.success("Price alert added.")
             st.rerun()
 
@@ -1150,7 +1071,8 @@ if alerts:
     st.dataframe(pd.DataFrame(alerts), use_container_width=True)
 
     if st.button("Clear All Price Alerts"):
-        save_price_alerts([])
+        store["price_alerts"] = []
+        save_store(store)
         st.rerun()
 else:
     st.info("No price alerts yet.")
@@ -1163,30 +1085,34 @@ st.divider()
 # =====================
 st.subheader("💼 Portfolio Tracker")
 
-portfolio = load_portfolio()
+portfolio = store.get("portfolio", [])
 
 with st.form("portfolio_form"):
     p1, p2, p3 = st.columns(3)
-    p_symbol = p1.text_input("Symbol").upper()
-    p_buy = p2.number_input("Buy Price", value=0.0)
-    p_qty = p3.number_input("Shares", value=0.0)
-    p_submit = st.form_submit_button("Add Position")
 
-    if p_submit:
-        if not p_symbol:
+    pf_symbol = p1.text_input("Symbol").upper()
+    pf_buy = p2.number_input("Buy Price", value=0.0)
+    pf_qty = p3.number_input("Shares", value=0.0)
+
+    pf_submit = st.form_submit_button("Add Position")
+
+    if pf_submit:
+        if not pf_symbol:
             st.warning("Enter a ticker.")
-        elif is_excluded_symbol(p_symbol):
-            st.error(f"{p_symbol} is blocked by your exclusion rules.")
-        elif p_buy <= 0 or p_qty <= 0:
+        elif is_excluded_symbol(pf_symbol):
+            st.error(f"{pf_symbol} is blocked by your exclusion rules.")
+        elif pf_buy <= 0 or pf_qty <= 0:
             st.warning("Enter valid buy price and shares.")
         else:
             portfolio.append({
-                "Symbol": p_symbol,
-                "Buy Price": p_buy,
-                "Shares": p_qty,
+                "Symbol": pf_symbol,
+                "Buy Price": pf_buy,
+                "Shares": pf_qty,
                 "Created": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             })
-            save_portfolio(portfolio)
+
+            store["portfolio"] = portfolio
+            save_store(store)
             st.success("Position added.")
             st.rerun()
 
@@ -1199,100 +1125,36 @@ if portfolio_rows:
     st.dataframe(pd.DataFrame(portfolio_rows), use_container_width=True)
 
     if st.button("Clear Portfolio"):
-        save_portfolio([])
+        store["portfolio"] = []
+        save_store(store)
         st.rerun()
 else:
     st.info("No portfolio positions yet.")
 
-st.divider()
-
 
 # =====================
-# TRADE ANALYTICS + JOURNAL
+# CHEAT SHEET
 # =====================
-with st.expander("📈 Trade Performance Analytics", expanded=True):
-    a1, a2, a3, a4 = st.columns(4)
-    a1.metric("Journal P/L", f"${journal_pnl:,.2f}")
-    a2.metric("Wins", journal_wins)
-    a3.metric("Losses", journal_losses)
-    a4.metric("Win Rate", f"{journal_win_rate}%")
-
-with st.expander("📓 Trade Journal", expanded=False):
-    journal = load_journal()
-
-    with st.form("journal_form"):
-        j1, j2, j3 = st.columns(3)
-        j_symbol = j1.text_input("Trade Symbol").upper()
-        j_entry = j2.number_input("Entry", value=0.0)
-        j_exit = j3.number_input("Exit", value=0.0)
-        j_shares = j1.number_input("Trade Shares", value=0.0)
-        j_result = j2.selectbox("Result", ["Open", "Win", "Loss", "Breakeven"])
-        j_notes = j3.text_input("Notes")
-        j_submit = st.form_submit_button("Add Trade")
-
-        if j_submit:
-            if not j_symbol:
-                st.warning("Enter a ticker.")
-            elif is_excluded_symbol(j_symbol):
-                st.error(f"{j_symbol} is blocked by your exclusion rules.")
-            else:
-                pnl = round((j_exit - j_entry) * j_shares, 2) if j_exit > 0 else 0
-                journal.append({
-                    "Date": datetime.now().strftime("%Y-%m-%d"),
-                    "Symbol": j_symbol,
-                    "Entry": j_entry,
-                    "Exit": j_exit,
-                    "Shares": j_shares,
-                    "Result": j_result,
-                    "P/L": pnl,
-                    "Notes": j_notes
-                })
-                save_journal(journal)
-                st.rerun()
-
-    if journal:
-        st.dataframe(pd.DataFrame(journal), use_container_width=True)
-
-        if st.button("Clear Trade Journal"):
-            save_journal([])
-            st.rerun()
-    else:
-        st.info("No trades logged yet.")
-
-
-# =====================
-# AI TOP 15 / FULL SCANNER / CHEAT SHEET
-# =====================
-with st.expander("🤖 AI Top 15 Scanner", expanded=False):
-    ai_df = df[df["Symbol"].isin(AI_TOP_15)].sort_values(["Confidence", "R/R"], ascending=False)
-    st.dataframe(ai_df, use_container_width=True)
-
-with st.expander("📊 Full Scanner Filters", expanded=False):
-    min_confidence = st.slider("Minimum Confidence", 0, 100, 50)
-    min_rr = st.slider("Minimum R/R", 0.0, 5.0, 1.0, 0.1)
-
-    filtered = df[(df["Confidence"] >= min_confidence) & (df["R/R"] >= min_rr)]
-    st.dataframe(filtered, use_container_width=True)
-
-with st.expander("📚 Cheat Sheet", expanded=False):
+with st.expander("📚 Notes / Where to Enter Paper Trades", expanded=True):
     st.markdown("""
-### V20 Market Pulse
-- QQQ = Nasdaq-style tech performance
-- SPY = S&P 500 broad market
-- DIA = Dow
-- IWM = small caps
-- VIX = volatility / fear gauge
+### Where to input paper transactions
+Use the **🧪 Paper Trading Simulator** section.
 
-### V19/V20 Timing Signal
-- **BUY NOW**: setup + risk/reward + entry + intraday momentum align
-- **READY / WATCH CLOSELY**: setup is near entry but needs confirmation
-- **WAIT FOR ENTRY**: setup is good but price is not near ideal entry
-- **WAIT**: mixed setup
-- **AVOID**: weak setup
+Enter:
+- Symbol
+- Entry price
+- Shares
+- Status: Open or Closed
+- Exit price only when closing the paper trade
+- Notes
 
-### Exclusions
-Financial, alcohol, and gambling tickers are blocked everywhere.
+### Difference between Portfolio and Paper Trading
+- **Portfolio Tracker** = real or actual holdings you want to monitor
+- **Paper Trading Simulator** = fake practice trades to test the AI system
 
-### Position Sizing
-The dashboard estimates shares, capital needed, and max loss using your sidebar risk budget.
+### Persistence Fix
+This version saves watchlist, paper trades, alerts, portfolio, and journal to:
+`dashboard_store.json`
+
+It also keeps login active through the URL auth token after refresh.
 """)
