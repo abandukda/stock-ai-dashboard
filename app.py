@@ -102,7 +102,7 @@ if not st.session_state.logged_in:
 # =====================
 # ENV / VERSION
 # =====================
-APP_VERSION = "V22 DAILY SWING TRADE PLAN + PERSISTENCE FIX"
+APP_VERSION = "V22.1 DAILY SWING PLAN + BUY NOW EMAIL ALERTS"
 
 EMAIL_SENDER = os.getenv("EMAIL_SENDER")
 EMAIL_PASSWORD = os.getenv("APP_PASSWORD")
@@ -847,8 +847,90 @@ def check_price_alerts(current_df):
     save_store(store)
 
 
+def check_ai_buy_now_alerts(current_df, watchlist):
+    """
+    Sends an email when a Personal Watchlist stock gets a BUY NOW signal.
+    Prevents repeat emails for the same ticker for 6 hours.
+    """
+    sent_alerts = store.get("sent_alerts", [])
+    now = datetime.now()
+
+    if current_df.empty or not watchlist:
+        return
+
+    buy_now_df = current_df[
+        (current_df["Timing Signal"] == "BUY NOW") &
+        (current_df["Symbol"].isin(watchlist))
+    ]
+
+    for _, row in buy_now_df.iterrows():
+        symbol = row["Symbol"]
+
+        recent_alerts = [
+            a for a in sent_alerts
+            if a.get("Symbol") == symbol and a.get("Type") == "BUY_NOW"
+        ]
+
+        if recent_alerts:
+            try:
+                last_time = datetime.strptime(
+                    recent_alerts[-1]["Time"],
+                    "%Y-%m-%d %H:%M:%S"
+                )
+                if now - last_time < timedelta(hours=6):
+                    continue
+            except Exception:
+                pass
+
+        subject = f"🚨 BUY NOW Signal: {symbol}"
+
+        body = f"""
+AI Trading Dashboard BUY NOW Alert
+
+Symbol: {symbol}
+Price: {row['Price']}
+Entry: {row['Entry']}
+Target: {row['Target']}
+Stop: {row['Stop']}
+Confidence: {row['Confidence']}
+Risk/Reward: {row['R/R']}
+Suggested Shares: {row['Shares']}
+Capital Needed: ${row['Capital Needed']}
+Max Loss: ${row['Max Loss']}
+
+Timing Signal:
+{row['Timing Signal']} — {row['Timing Reason']}
+
+AI Summary:
+{row['AI Summary']}
+
+Score Reasons:
+{row['Score Reasons']}
+
+Time:
+{now.strftime('%Y-%m-%d %H:%M:%S')}
+"""
+
+        sent, msg = send_email_alert(subject, body)
+
+        if sent:
+            sent_alerts.append({
+                "Type": "BUY_NOW",
+                "Symbol": symbol,
+                "Time": now.strftime("%Y-%m-%d %H:%M:%S"),
+                "Price": row["Price"],
+                "Confidence": row["Confidence"],
+                "R/R": row["R/R"],
+                "Timing Signal": row["Timing Signal"]
+            })
+
+    store["sent_alerts"] = sent_alerts
+    save_store(store)
+
+
 if enable_email_alerts:
     check_price_alerts(df)
+    check_ai_buy_now_alerts(df, watchlist)
 
 
 # =====================
