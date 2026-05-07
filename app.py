@@ -603,7 +603,11 @@ def make_chart(symbol, row, period):
         title=f"{symbol} Chart"
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(
+        fig,
+        use_container_width=True,
+        key=f"chart_{symbol}_{period}_{datetime.now().timestamp()}"
+    )
 
 
 def build_daily_trade_plan(df, regime):
