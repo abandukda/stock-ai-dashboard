@@ -102,7 +102,7 @@ if not st.session_state.logged_in:
 # =====================
 # ENV / VERSION
 # =====================
-APP_VERSION = "V22.1 DAILY SWING PLAN + BUY NOW EMAIL ALERTS"
+APP_VERSION = "V22.3 AMPM TIME FORMAT + BUY NOW EMAIL ALERTS"
 
 EMAIL_SENDER = os.getenv("EMAIL_SENDER")
 EMAIL_PASSWORD = os.getenv("APP_PASSWORD")
@@ -553,7 +553,7 @@ def analyze_stock(symbol, regime="Neutral"):
         "AI Action": action,
         "AI Summary": ai_summary,
         "Score Reasons": " | ".join(reasons),
-        "Last Updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        "Last Updated": datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
     }
 
 
@@ -921,7 +921,7 @@ Time:
             sent_alerts.append({
                 "Type": "BUY_NOW",
                 "Symbol": symbol,
-                "Time": now.strftime("%Y-%m-%d %H:%M:%S"),
+                "Time": now.strftime("%Y-%m-%d %I:%M:%S %p"),
                 "Price": row["Price"],
                 "Confidence": row["Confidence"],
                 "R/R": row["R/R"],
@@ -1249,7 +1249,7 @@ with st.form("price_alert_form"):
                 "Target Price": alert_price,
                 "Direction": direction,
                 "Triggered": False,
-                "Created": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                "Created": datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
             })
 
             store["price_alerts"] = alerts
@@ -1298,7 +1298,7 @@ with st.form("portfolio_form"):
                 "Symbol": pf_symbol,
                 "Buy Price": pf_buy,
                 "Shares": pf_qty,
-                "Created": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                "Created": datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
             })
 
             store["portfolio"] = portfolio
