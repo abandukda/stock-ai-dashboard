@@ -103,7 +103,7 @@ if not st.session_state.logged_in:
 # =====================
 # ENV / VERSION
 # =====================
-APP_VERSION = "V24 ETF ENTRY TIMING + RISK ENGINE"
+APP_VERSION = "V25 DEEP DETAIL VIEW + CLICKABLE STOCK/ETF LINKS"
 
 EMAIL_SENDER = os.getenv("EMAIL_SENDER")
 EMAIL_PASSWORD = os.getenv("APP_PASSWORD")
@@ -1044,6 +1044,239 @@ def make_chart(symbol, row, period):
     )
 
 
+# =====================
+# V25 DEEP DETAIL VIEW HELPERS
+# =====================
+def make_detail_link(symbol, label=None):
+    symbol = str(symbol).strip().upper()
+    label = label or symbol
+    return f'<a href="?detail={symbol}" target="_blank">{label}</a>'
+
+
+def make_etf_detail_link(symbol, label=None):
+    symbol = str(symbol).strip().upper()
+    label = label or symbol
+    return f'<a href="?etf_detail={symbol}" target="_blank">{label}</a>'
+
+
+def render_clickable_table(df, symbol_col="Symbol", etf=False, max_rows=None):
+    if df is None or df.empty:
+        st.info("No data available.")
+        return
+
+    display_df = df.copy()
+
+    if max_rows:
+        display_df = display_df.head(max_rows)
+
+    if symbol_col in display_df.columns:
+        if etf:
+            display_df[symbol_col] = display_df[symbol_col].apply(make_etf_detail_link)
+        else:
+            display_df[symbol_col] = display_df[symbol_col].apply(make_detail_link)
+
+    st.markdown(
+        display_df.to_html(escape=False, index=False),
+        unsafe_allow_html=True
+    )
+
+
+def render_stock_detail_page(symbol, regime, capital, max_loss, chart_period):
+    symbol = str(symbol).strip().upper()
+
+    if is_excluded_symbol(symbol):
+        st.error(f"{symbol} is blocked by your exclusion rules.")
+        st.stop()
+
+    result = analyze_stock(symbol, regime=regime)
+
+    if not result:
+        st.error(f"No data available for {symbol}.")
+        st.stop()
+
+    shares, capital_needed, actual_loss = position_size(
+        capital,
+        max_loss,
+        result["Entry"],
+        result["Stop"]
+    )
+
+    result["Shares"] = shares
+    result["Capital Needed"] = capital_needed
+    result["Max Loss"] = actual_loss
+    result["Trade Grade"] = trade_grade(result)
+
+    st.title(f"🔎 Deep AI Detail View: {symbol}")
+    st.success(APP_VERSION)
+
+    eastern_now = datetime.now(ZoneInfo("America/New_York"))
+    st.caption(
+        f"Opened: {eastern_now.strftime('%Y-%m-%d %I:%M:%S %p ET')}"
+    )
+
+    st.markdown(f"## Decision: {result['Timing Signal']}")
+    st.info(result["Timing Reason"])
+    st.write(result["AI Summary"])
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("Price", result["Price"])
+    c2.metric("Trade Grade", result["Trade Grade"])
+    c3.metric("Confidence", result["Confidence"])
+    c4.metric("R/R", result["R/R"])
+    c5.metric("Setup Score", result["Setup Score"])
+
+    c6, c7, c8, c9 = st.columns(4)
+    c6.metric("Entry", result["Entry"])
+    c7.metric("Target", result["Target"])
+    c8.metric("Stop", result["Stop"])
+    c9.metric("Max Loss", f"${result['Max Loss']:,.2f}")
+
+    c10, c11, c12, c13 = st.columns(4)
+    c10.metric("RSI", result["RSI"])
+    c11.metric("Volume Ratio", result["Volume Ratio"])
+    c12.metric("Relative Strength", f"{result['Relative Strength %']}%")
+    c13.metric("Earnings Risk", result["Earnings Risk"])
+
+    st.markdown("### 📈 Chart")
+    make_chart(symbol, result, chart_period)
+
+    st.markdown("### 🧠 Full AI Context")
+    context_points = [
+        f"Market regime: **{regime}**",
+        f"Timing signal: **{result['Timing Signal']}** — {result['Timing Reason']}",
+        f"Intraday momentum: **{result['Intraday']}** ({result['Intraday %']}%)",
+        f"Trade grade: **{result['Trade Grade']}**",
+        f"Confidence score: **{result['Confidence']}**",
+        f"Risk/reward: **{result['R/R']}**",
+        f"Near entry: **{result['Near Entry']}**",
+        f"RSI: **{result['RSI']}**",
+        f"Volume ratio: **{result['Volume Ratio']}**",
+        f"Relative strength vs QQQ: **{result['Relative Strength %']}%** ({result['Relative Strength']})",
+        f"Earnings risk: **{result['Earnings Risk']}** — {result['Earnings Note']}",
+    ]
+
+    for point in context_points:
+        st.write(f"- {point}")
+
+    st.markdown("### ⚠️ Why NOT to buy / Risk factors")
+    for risk in build_risk_factors(result):
+        st.write(f"- {risk}")
+
+    st.markdown("### ✅ Why AI likes it")
+    for reason in result["Score Reasons"].split(" | "):
+        st.write(f"- {reason}")
+
+    st.markdown("### 🧭 Suggested Exit Strategy")
+    st.write(exit_strategy(result))
+
+    st.markdown("### 🧪 Paper Trade Guidance")
+    st.write(
+        f"Suggested paper trade: {shares} shares near ${result['Entry']} "
+        f"with stop near ${result['Stop']} and target near ${result['Target']}."
+    )
+
+    if st.button("🧪 Add This to Paper Trades"):
+        paper_trades = store.get("paper_trades", [])
+        paper_trades.append({
+            "Date": datetime.now().strftime("%Y-%m-%d"),
+            "Symbol": symbol,
+            "Entry": float(result["Entry"]),
+            "Exit": 0.0,
+            "Shares": float(shares),
+            "Status": "Open",
+            "P/L": 0.0,
+            "Notes": f"Auto-added from V25 Deep Detail View. Signal: {result['Timing Signal']}"
+        })
+        store["paper_trades"] = paper_trades
+        save_store(store)
+        st.success(f"Added {symbol} to Paper Trading Simulator.")
+
+    st.stop()
+
+
+def render_etf_detail_page(symbol, regime, chart_period):
+    symbol = str(symbol).strip().upper()
+
+    if is_blocked_etf(symbol):
+        st.error(f"{symbol} is blocked by your ETF exclusion rules.")
+        st.stop()
+
+    label = ETF_UNIVERSE.get(symbol, "ETF")
+    result = analyze_etf_entry(symbol, label, regime)
+
+    if not result:
+        st.error(f"No ETF data available for {symbol}.")
+        st.stop()
+
+    st.title(f"🔎 ETF Deep Detail View: {symbol}")
+    st.success(APP_VERSION)
+
+    eastern_now = datetime.now(ZoneInfo("America/New_York"))
+    st.caption(
+        f"Opened: {eastern_now.strftime('%Y-%m-%d %I:%M:%S %p ET')}"
+    )
+
+    st.markdown(f"## Decision: {result['Decision']}")
+    st.info(
+        f"{symbol} ({result['Category']}) is rated {result['Grade']} "
+        f"with score {result['Score']}."
+    )
+
+    e1, e2, e3, e4 = st.columns(4)
+    e1.metric("Price", result["Price"])
+    e2.metric("Grade", result["Grade"])
+    e3.metric("Score", result["Score"])
+    e4.metric("Risk Level", result["Risk Level"])
+
+    e5, e6, e7, e8 = st.columns(4)
+    e5.metric("Entry Zone", result["Entry Zone"])
+    e6.metric("Add-on Pullback", result["Add-on Pullback Zone"])
+    e7.metric("RSI", result["RSI"])
+    e8.metric("Volume Ratio", result["Volume Ratio"])
+
+    data = get_stock_data(symbol, period=chart_period, interval="5m" if chart_period in ["1d", "5d"] else "1d")
+
+    if data is not None and not data.empty:
+        fig = go.Figure()
+        fig.add_trace(go.Candlestick(
+            x=data.index,
+            open=data["Open"],
+            high=data["High"],
+            low=data["Low"],
+            close=data["Close"],
+            name=symbol
+        ))
+        fig.add_hline(y=result["Entry Zone"], line_dash="dot", annotation_text="Entry Zone")
+        fig.add_hline(y=result["Add-on Pullback Zone"], line_dash="dot", annotation_text="Add-on Pullback")
+        fig.update_layout(
+            height=520,
+            xaxis_rangeslider_visible=False,
+            title=f"{symbol} ETF Chart"
+        )
+        st.plotly_chart(
+            fig,
+            use_container_width=True,
+            key=f"etf_chart_{symbol}_{chart_period}_{datetime.now().timestamp()}"
+        )
+
+    st.markdown("### Why AI likes this ETF")
+    for reason in str(result["Reasons"]).split(" | "):
+        st.write(f"- {reason}")
+
+    st.markdown("### ETF Risk Factors")
+    for risk in str(result["Risk Factors"]).split(" | "):
+        st.write(f"- {risk}")
+
+    st.markdown("### Suggested ETF Entry Plan")
+    st.write(
+        f"Consider staged ETF entry near ${result['Entry Zone']}. "
+        f"If the ETF pulls back further, the add-on zone is near ${result['Add-on Pullback Zone']}. "
+        f"This is designed for scaling, not an all-in trade."
+    )
+
+    st.stop()
+
+
 def build_daily_trade_plan(df, regime):
     ranked = df.sort_values(["Setup Score", "Confidence", "R/R"], ascending=False)
 
@@ -1178,6 +1411,18 @@ st.caption(
 )
 
 regime, regime_reason = get_market_regime()
+
+# =====================
+# V25 DETAIL VIEW ROUTING
+# =====================
+detail_symbol = st.query_params.get("detail", "")
+etf_detail_symbol = st.query_params.get("etf_detail", "")
+
+if detail_symbol:
+    render_stock_detail_page(detail_symbol, regime, capital, max_loss, chart_period)
+
+if etf_detail_symbol:
+    render_etf_detail_page(etf_detail_symbol, regime, chart_period)
 
 
 # =====================
@@ -1569,7 +1814,7 @@ st.divider()
 st.subheader("🏆 Ranked Swing Trade Candidates")
 
 ranked = df.sort_values(["Setup Score", "Confidence", "R/R"], ascending=False)
-st.dataframe(ranked.head(10), use_container_width=True)
+render_clickable_table(ranked.head(10), symbol_col="Symbol")
 
 st.divider()
 
@@ -1628,7 +1873,7 @@ else:
         st.write(f"- {risk}")
 
     st.markdown("### Approved ETF Ranking")
-    st.dataframe(etf_df, use_container_width=True)
+    render_clickable_table(etf_df, symbol_col="ETF", etf=True)
 
     with st.expander("ETF Universe Used", expanded=False):
         st.write("Approved ETFs scanned:")
@@ -1652,7 +1897,7 @@ watch_df = df[df["Symbol"].isin(watchlist)].sort_values(
 if watch_df.empty:
     st.info("Add non-excluded stocks to your personal watchlist from the sidebar.")
 else:
-    st.dataframe(watch_df, use_container_width=True)
+    render_clickable_table(watch_df, symbol_col="Symbol")
 
     selected = st.selectbox("Select stock to analyze", watch_df["Symbol"].tolist())
     row = watch_df[watch_df["Symbol"] == selected].iloc[0]
@@ -1780,19 +2025,19 @@ watch_only = df[df["Timing Signal"] == "WATCHLIST ONLY"].sort_values("Setup Scor
 avoid = df[df["Timing Signal"] == "AVOID"].sort_values("Setup Score", ascending=True)
 
 with st.expander("🚀 Buy Now", expanded=True):
-    st.dataframe(buy_now, use_container_width=True)
+    render_clickable_table(buy_now, symbol_col="Symbol")
 
 with st.expander("🎯 Best Swing Candidates", expanded=True):
-    st.dataframe(best_candidate, use_container_width=True)
+    render_clickable_table(best_candidate, symbol_col="Symbol")
 
 with st.expander("⏳ Wait For Entry", expanded=True):
-    st.dataframe(wait_entry, use_container_width=True)
+    render_clickable_table(wait_entry, symbol_col="Symbol")
 
 with st.expander("👀 Watchlist Only", expanded=False):
-    st.dataframe(watch_only, use_container_width=True)
+    render_clickable_table(watch_only, symbol_col="Symbol")
 
 with st.expander("⚠️ Avoid", expanded=False):
-    st.dataframe(avoid, use_container_width=True)
+    render_clickable_table(avoid, symbol_col="Symbol")
 
 st.divider()
 
@@ -1932,6 +2177,11 @@ Enter:
 - Blocks financial-sector, gambling, alcohol, and entertainment/media-focused ETF examples.
 - Gives ETF entry decisions such as GOOD ETF ENTRY ZONE, WATCH / SCALE IN SLOWLY, WAIT, or AVOID.
 - ETF signals are for staged entries, not all-in trades.
+
+### V25 Deep Detail View
+- Click a stock ticker to open a full AI detail page in a new tab.
+- Click an ETF ticker to open a full ETF entry timing page in a new tab.
+- Deep views include chart, risk factors, context, entry/target/stop, and paper trade guidance.
 
 ### Difference between Portfolio and Paper Trading
 - **Portfolio Tracker** = real or actual holdings you want to monitor
