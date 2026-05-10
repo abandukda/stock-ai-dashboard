@@ -103,7 +103,7 @@ if not st.session_state.logged_in:
 # =====================
 # ENV / VERSION
 # =====================
-APP_VERSION = "V22.4 EASTERN TIME REFRESH + BUY NOW EMAIL ALERTS"
+APP_VERSION = "V23 PRO RISK ENGINE + EXIT STRATEGY + SECTOR STRENGTH"
 
 EMAIL_SENDER = os.getenv("EMAIL_SENDER")
 EMAIL_PASSWORD = os.getenv("APP_PASSWORD")
@@ -310,6 +310,203 @@ def get_macro_events():
 
 
 # =====================
+# V23 RISK / SECTOR / EXIT HELPERS
+# =====================
+SECTOR_ETFS = {
+    "Technology": "XLK",
+    "Semiconductors": "SMH",
+    "Software": "IGV",
+    "AI / Robotics": "BOTZ",
+    "Healthcare": "XLV",
+    "Consumer Discretionary": "XLY",
+    "Industrials": "XLI",
+    "Energy": "XLE",
+    "Utilities": "XLU"
+}
+
+
+def get_sector_strength():
+    rows = []
+
+    for sector, ticker in SECTOR_ETFS.items():
+        data = get_stock_data(ticker, period="3mo", interval="1d")
+
+        if data is None or len(data) < 22:
+            continue
+
+        close = data["Close"]
+        price = float(close.iloc[-1])
+        five_day = ((price - float(close.iloc[-6])) / float(close.iloc[-6])) * 100 if len(close) >= 6 else 0
+        one_month = ((price - float(close.iloc[-22])) / float(close.iloc[-22])) * 100 if len(close) >= 22 else 0
+
+        rows.append({
+            "Sector": sector,
+            "ETF": ticker,
+            "5D %": round(five_day, 2),
+            "1M %": round(one_month, 2),
+            "Strength Score": round((five_day * 0.4) + (one_month * 0.6), 2)
+        })
+
+    if not rows:
+        return pd.DataFrame()
+
+    return pd.DataFrame(rows).sort_values("Strength Score", ascending=False)
+
+
+def get_relative_strength(symbol):
+    stock = get_stock_data(symbol, period="3mo", interval="1d")
+    qqq = get_stock_data("QQQ", period="3mo", interval="1d")
+
+    if stock is None or qqq is None or len(stock) < 22 or len(qqq) < 22:
+        return 0.0, "Unknown"
+
+    stock_ret = ((float(stock["Close"].iloc[-1]) - float(stock["Close"].iloc[-22])) / float(stock["Close"].iloc[-22])) * 100
+    qqq_ret = ((float(qqq["Close"].iloc[-1]) - float(qqq["Close"].iloc[-22])) / float(qqq["Close"].iloc[-22])) * 100
+    rs = round(stock_ret - qqq_ret, 2)
+
+    if rs >= 5:
+        label = "Strong Outperformance"
+    elif rs >= 1:
+        label = "Outperforming"
+    elif rs > -1:
+        label = "In Line"
+    elif rs > -5:
+        label = "Underperforming"
+    else:
+        label = "Weak Relative Strength"
+
+    return rs, label
+
+
+def get_earnings_warning(symbol):
+    """
+    Best-effort earnings risk check using yfinance calendar.
+    If data is unavailable, it returns no hard penalty.
+    """
+    try:
+        ticker = yf.Ticker(symbol)
+        cal = ticker.calendar
+
+        if cal is None:
+            return "Unknown", 0, "Earnings date unavailable."
+
+        earnings_date = None
+
+        if isinstance(cal, dict):
+            possible = cal.get("Earnings Date") or cal.get("EarningsDate")
+            if isinstance(possible, list) and possible:
+                earnings_date = possible[0]
+            elif possible is not None:
+                earnings_date = possible
+
+        elif isinstance(cal, pd.DataFrame) and not cal.empty:
+            if "Earnings Date" in cal.index:
+                possible = cal.loc["Earnings Date"].dropna().tolist()
+                if possible:
+                    earnings_date = possible[0]
+
+        if earnings_date is None:
+            return "Unknown", 0, "Earnings date unavailable."
+
+        earnings_ts = pd.to_datetime(earnings_date, errors="coerce")
+
+        if pd.isna(earnings_ts):
+            return "Unknown", 0, "Earnings date unavailable."
+
+        today = pd.Timestamp(datetime.now().date())
+        days = (earnings_ts.normalize() - today).days
+
+        if 0 <= days <= 3:
+            return "High Earnings Risk", -20, f"Earnings appear to be within {days} day(s). Avoid forcing swing entries."
+        if 4 <= days <= 7:
+            return "Moderate Earnings Risk", -10, f"Earnings appear to be within {days} days. Size smaller or wait."
+        if days < 0:
+            return "No Near-Term Earnings Risk", 0, "Earnings appear to have passed."
+        return "No Near-Term Earnings Risk", 0, f"Earnings appear more than 7 days away."
+
+    except Exception:
+        return "Unknown", 0, "Earnings date unavailable."
+
+
+def build_risk_factors(row):
+    risks = []
+
+    if row.get("Volume Ratio", 1) < 1.0:
+        risks.append("Volume is below average, so confirmation is weaker.")
+
+    if row.get("RSI", 50) >= 68:
+        risks.append("RSI is elevated, which increases chase risk.")
+
+    if row.get("Dip %", 0) < 1:
+        risks.append("Very small dip from recent highs; entry may be less favorable.")
+
+    if row.get("Intraday %", 0) > 4:
+        risks.append("Intraday move is already large; avoid chasing a spike.")
+
+    if row.get("Earnings Risk", "") in ["High Earnings Risk", "Moderate Earnings Risk"]:
+        risks.append(row.get("Earnings Note", "Upcoming earnings may increase gap risk."))
+
+    if row.get("Relative Strength %", 0) < 0:
+        risks.append("Stock is underperforming QQQ over the last month.")
+
+    if not risks:
+        risks.append("No major risk flags from the current rule set.")
+
+    return risks
+
+
+def trade_grade(row):
+    score = float(row.get("Setup Score", 0))
+
+    if row.get("Earnings Risk") == "High Earnings Risk":
+        score -= 20
+    elif row.get("Earnings Risk") == "Moderate Earnings Risk":
+        score -= 10
+
+    if row.get("Volume Ratio", 1) < 1:
+        score -= 5
+
+    if row.get("Relative Strength %", 0) < 0:
+        score -= 5
+
+    if score >= 130:
+        return "A+"
+    if score >= 115:
+        return "A"
+    if score >= 100:
+        return "B+"
+    if score >= 85:
+        return "B"
+    if score >= 70:
+        return "C"
+    return "D"
+
+
+def exit_strategy(row):
+    entry = float(row["Entry"])
+    target = float(row["Target"])
+    stop = float(row["Stop"])
+
+    first_trim = round(entry + ((target - entry) * 0.5), 2)
+
+    if row.get("Timing Signal") == "BUY NOW":
+        return (
+            f"Consider scaling: take partial profit near ${first_trim}, "
+            f"target near ${target}, and use stop near ${stop}. "
+            f"If price moves halfway to target, consider moving stop toward breakeven."
+        )
+
+    if row.get("Timing Signal") in ["BEST SWING CANDIDATE", "WAIT FOR ENTRY"]:
+        return (
+            f"Do not chase. Consider entry near ${entry}; stop near ${stop}; "
+            f"first trim near ${first_trim}; full target near ${target}."
+        )
+
+    return "No active exit plan because setup is not strong enough yet."
+
+
+
+# =====================
 # MARKET REGIME
 # =====================
 def get_market_regime():
@@ -481,6 +678,27 @@ def analyze_stock(symbol, regime="Neutral"):
         score -= 5
         reasons.append("Intraday momentum is weak")
 
+    relative_strength_pct, relative_strength_label = get_relative_strength(symbol)
+
+    if relative_strength_pct >= 5:
+        score += 8
+        reasons.append("Strong relative strength versus QQQ")
+    elif relative_strength_pct >= 1:
+        score += 4
+        reasons.append("Positive relative strength versus QQQ")
+    elif relative_strength_pct < -5:
+        score -= 8
+        reasons.append("Weak relative strength versus QQQ")
+    elif relative_strength_pct < 0:
+        score -= 4
+        reasons.append("Slight underperformance versus QQQ")
+
+    earnings_risk, earnings_penalty, earnings_note = get_earnings_warning(symbol)
+    score += earnings_penalty
+
+    if earnings_penalty < 0:
+        reasons.append(earnings_note)
+
     confidence = max(0, min(score, 100))
 
     entry = round(price * 0.995, 2)
@@ -501,6 +719,13 @@ def analyze_stock(symbol, regime="Neutral"):
         intraday_status,
         regime
     )
+
+    if earnings_risk == "High Earnings Risk" and timing_signal == "BUY NOW":
+        timing_signal = "WAIT / EARNINGS RISK"
+        timing_reason = earnings_note
+    elif earnings_risk == "Moderate Earnings Risk" and timing_signal == "BUY NOW":
+        timing_signal = "BEST SWING CANDIDATE"
+        timing_reason = f"{timing_reason} However, earnings risk is moderate."
 
     if timing_signal == "BUY NOW":
         action = "BUY / STRONG SETUP"
@@ -541,6 +766,11 @@ def analyze_stock(symbol, regime="Neutral"):
         "R/R": rr,
         "Confidence": confidence,
         "Setup Score": round(setup_score, 2),
+        "Trade Grade": None,
+        "Relative Strength %": relative_strength_pct,
+        "Relative Strength": relative_strength_label,
+        "Earnings Risk": earnings_risk,
+        "Earnings Note": earnings_note,
         "RSI": round(rsi, 1),
         "Dip %": round(dip_pct, 2),
         "Recovery %": round(recovery_pct, 2),
@@ -835,6 +1065,8 @@ if df.empty:
     st.warning("No stock data found. Check ticker symbols.")
     st.stop()
 
+df["Trade Grade"] = df.apply(trade_grade, axis=1)
+
 
 # =====================
 # ALERTS
@@ -1028,6 +1260,28 @@ m5.metric("Portfolio P/L", f"${total_pnl:,.2f}")
 
 st.info(regime_reason)
 
+sector_df_for_summary = get_sector_strength()
+best_sector_label = "Unavailable"
+if not sector_df_for_summary.empty:
+    best_sector_label = f"{sector_df_for_summary.iloc[0]['Sector']} ({sector_df_for_summary.iloc[0]['ETF']})"
+
+daily_risk_level = (
+    "High" if regime == "Bearish / Risk-Off"
+    else "Moderate" if buy_now_count == 0
+    else "Moderate / Opportunity"
+)
+
+st.markdown("### 🧠 Daily AI Market Summary")
+s1, s2, s3 = st.columns(3)
+s1.metric("Best Sector", best_sector_label)
+s2.metric("Risk Level", daily_risk_level)
+s3.metric("Primary Focus", top_pick["Symbol"])
+
+st.write(
+    f"Market trend is **{regime}**. Best current candidate is **{top_pick['Symbol']}** "
+    f"with a **{top_pick['Timing Signal']}** signal and trade grade **{top_pick['Trade Grade']}**."
+)
+
 st.divider()
 
 
@@ -1069,6 +1323,13 @@ if daily_plan:
     for point in context_points:
         st.write(f"- {point}")
 
+    st.markdown("### ⚠️ Why NOT to buy / Risk factors")
+    for risk in build_risk_factors(best):
+        st.write(f"- {risk}")
+
+    st.markdown("### 🧭 Suggested exit strategy")
+    st.write(exit_strategy(best))
+
     with st.expander("Full AI scoring reasons", expanded=False):
         for reason in best["Score Reasons"].split(" | "):
             st.write(f"- {reason}")
@@ -1078,6 +1339,23 @@ if daily_plan:
 
     if daily_plan["decision"] != "BUY NOW CANDIDATE":
         st.warning("This is not a forced buy signal. Use price alerts and paper trading first if the entry is not clean.")
+
+    if st.button("🧪 Paper Trade This Candidate"):
+        paper_trades = store.get("paper_trades", [])
+        paper_trades.append({
+            "Date": datetime.now().strftime("%Y-%m-%d"),
+            "Symbol": best["Symbol"],
+            "Entry": float(best["Entry"]),
+            "Exit": 0.0,
+            "Shares": float(best["Shares"]),
+            "Status": "Open",
+            "P/L": 0.0,
+            "Notes": f"Auto-added from Daily AI Swing Trade Plan. Decision: {daily_plan['decision']}"
+        })
+        store["paper_trades"] = paper_trades
+        save_store(store)
+        st.success(f"Added {best['Symbol']} to Paper Trading Simulator.")
+        st.rerun()
 
 st.divider()
 
@@ -1089,6 +1367,24 @@ st.subheader("🏆 Ranked Swing Trade Candidates")
 
 ranked = df.sort_values(["Setup Score", "Confidence", "R/R"], ascending=False)
 st.dataframe(ranked.head(10), use_container_width=True)
+
+st.divider()
+
+# =====================
+# SECTOR ROTATION
+# =====================
+st.subheader("🧭 Sector Rotation Heatmap")
+
+sector_df = get_sector_strength()
+if not sector_df.empty:
+    st.dataframe(sector_df, use_container_width=True)
+    strongest = sector_df.iloc[0]
+    weakest = sector_df.iloc[-1]
+    c1, c2 = st.columns(2)
+    c1.metric("Strongest Sector", f"{strongest['Sector']} ({strongest['ETF']})", f"{strongest['Strength Score']} score")
+    c2.metric("Weakest Sector", f"{weakest['Sector']} ({weakest['ETF']})", f"{weakest['Strength Score']} score")
+else:
+    st.info("Sector strength data unavailable right now.")
 
 st.divider()
 
@@ -1140,6 +1436,13 @@ else:
     with st.expander("Why AI scored it this way"):
         for reason in row["Score Reasons"].split(" | "):
             st.write(f"- {reason}")
+
+    with st.expander("⚠️ Why NOT to buy / Risk factors", expanded=True):
+        for risk in build_risk_factors(row):
+            st.write(f"- {risk}")
+
+    with st.expander("🧭 Suggested Exit Strategy", expanded=False):
+        st.write(exit_strategy(row))
 
 st.divider()
 
@@ -1367,6 +1670,12 @@ Enter:
 - **BEST SWING CANDIDATE** = best overall candidate, but entry timing may need confirmation
 - **WAIT FOR ENTRY** = good stock, but price is not ideal
 - **NO CLEAN TRADE TODAY** = do not force a trade
+
+### V23 Risk Engine
+- Earnings within 3 days downgrades risky BUY NOW setups.
+- Weak volume, high RSI, overextended intraday moves, and weak relative strength are shown as risk factors.
+- Trade Grade gives a simplified A+ to D quality rating.
+- Sector Rotation shows where market strength is concentrated.
 
 ### Difference between Portfolio and Paper Trading
 - **Portfolio Tracker** = real or actual holdings you want to monitor
