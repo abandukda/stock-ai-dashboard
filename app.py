@@ -9,6 +9,7 @@ import smtplib
 import plotly.graph_objects as go
 from email.mime.text import MIMEText
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 try:
     from streamlit_autorefresh import st_autorefresh
@@ -102,7 +103,7 @@ if not st.session_state.logged_in:
 # =====================
 # ENV / VERSION
 # =====================
-APP_VERSION = "V22.3 AMPM TIME FORMAT + BUY NOW EMAIL ALERTS"
+APP_VERSION = "V22.4 EASTERN TIME REFRESH + BUY NOW EMAIL ALERTS"
 
 EMAIL_SENDER = os.getenv("EMAIL_SENDER")
 EMAIL_PASSWORD = os.getenv("APP_PASSWORD")
@@ -718,7 +719,30 @@ else:
 # =====================
 st.title("📈 AI Trading Dashboard")
 st.success(APP_VERSION)
-st.caption(f"Last refresh: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+eastern_now = datetime.now(ZoneInfo("America/New_York"))
+
+market_status = (
+    "🟢 Market Open"
+    if (
+        eastern_now.weekday() < 5
+        and (
+            eastern_now.hour > 9
+            or (
+                eastern_now.hour == 9
+                and eastern_now.minute >= 30
+            )
+        )
+        and eastern_now.hour < 16
+    )
+    else "🔴 Market Closed"
+)
+
+st.caption(
+    f"Last refresh: "
+    f"{eastern_now.strftime('%Y-%m-%d %I:%M:%S %p ET')} | "
+    f"{market_status} | "
+    f"Auto-refresh every 60 seconds"
+)
 
 regime, regime_reason = get_market_regime()
 
