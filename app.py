@@ -103,7 +103,7 @@ if not st.session_state.logged_in:
 # =====================
 # ENV / VERSION
 # =====================
-APP_VERSION = "V23 PRO RISK ENGINE + EXIT STRATEGY + SECTOR STRENGTH"
+APP_VERSION = "V24 ETF ENTRY TIMING + RISK ENGINE"
 
 EMAIL_SENDER = os.getenv("EMAIL_SENDER")
 EMAIL_PASSWORD = os.getenv("APP_PASSWORD")
@@ -503,6 +503,209 @@ def exit_strategy(row):
         )
 
     return "No active exit plan because setup is not strong enough yet."
+
+
+# =====================
+# V24 ETF ENTRY TIMING
+# =====================
+ETF_UNIVERSE = {
+    "QQQ": "Nasdaq 100 / Growth",
+    "SPY": "S&P 500 Broad Market",
+    "VOO": "S&P 500 Broad Market",
+    "VTI": "Total US Market",
+    "IWM": "Russell 2000 Small Caps",
+    "XLK": "Technology",
+    "SMH": "Semiconductors",
+    "SOXX": "Semiconductors",
+    "IGV": "Software",
+    "BOTZ": "AI / Robotics",
+    "ARKQ": "Autonomous Tech / Robotics",
+    "XLV": "Healthcare",
+    "IBB": "Biotech",
+    "XBI": "Biotech",
+    "XLY": "Consumer Discretionary",
+    "XLI": "Industrials",
+    "XLE": "Energy",
+    "ICLN": "Clean Energy",
+    "TAN": "Solar",
+    "XLU": "Utilities",
+    "VNQ": "Real Estate"
+}
+
+# Broadly avoid financial-sector ETFs, alcohol/gambling/media-entertainment-focused ETFs.
+BLOCKED_ETFS = {
+    "XLF", "VFH", "KBE", "KRE", "IYF", "IAI", "KIE",
+    "PEJ", "PBS", "XLC", "VOX", "IYZ", "BJK", "BETZ"
+}
+
+
+def is_blocked_etf(symbol):
+    return str(symbol).strip().upper() in BLOCKED_ETFS
+
+
+def analyze_etf_entry(symbol, label, regime):
+    if is_blocked_etf(symbol):
+        return None
+
+    data = get_stock_data(symbol, period="6mo", interval="1d")
+
+    if data is None or len(data) < 60:
+        return None
+
+    close = data["Close"]
+    high = data["High"]
+    volume = data["Volume"]
+
+    price = float(close.iloc[-1])
+    prev = float(close.iloc[-2])
+
+    sma20 = float(close.rolling(20).mean().iloc[-1])
+    sma50 = float(close.rolling(50).mean().iloc[-1])
+    sma200 = float(close.rolling(200).mean().iloc[-1]) if len(close) >= 200 else sma50
+    rsi = float(calculate_rsi(close).iloc[-1])
+
+    recent_high = float(high.tail(30).max())
+    dip_pct = ((recent_high - price) / recent_high) * 100 if recent_high > 0 else 0
+
+    avg_volume = float(volume.tail(20).mean())
+    current_volume = float(volume.iloc[-1])
+    volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1
+
+    one_month_return = ((price - float(close.iloc[-22])) / float(close.iloc[-22])) * 100 if len(close) >= 22 else 0
+    five_day_return = ((price - float(close.iloc[-6])) / float(close.iloc[-6])) * 100 if len(close) >= 6 else 0
+
+    score = 0
+    reasons = []
+    risks = []
+
+    if price > sma20:
+        score += 15
+        reasons.append("ETF is above the 20-day moving average.")
+    else:
+        reasons.append("ETF is below the 20-day moving average.")
+
+    if price > sma50:
+        score += 15
+        reasons.append("ETF is above the 50-day moving average.")
+    else:
+        risks.append("ETF is below the 50-day moving average.")
+
+    if sma20 > sma50:
+        score += 15
+        reasons.append("Short-term trend is stronger than medium-term trend.")
+    else:
+        risks.append("20-day average is not above 50-day average.")
+
+    if price > sma200:
+        score += 10
+        reasons.append("ETF is above the long-term trend line.")
+    else:
+        risks.append("ETF is below the long-term trend line.")
+
+    if 2 <= dip_pct <= 8:
+        score += 20
+        reasons.append("Healthy pullback range for ETF entry.")
+    elif 8 < dip_pct <= 15:
+        score += 10
+        reasons.append("Deeper pullback; possible entry but needs confirmation.")
+    elif dip_pct < 2:
+        risks.append("Very small pullback; avoid chasing if extended.")
+    else:
+        risks.append("Pullback is deep; trend may be weakening.")
+
+    if 40 <= rsi <= 58:
+        score += 20
+        reasons.append("RSI is in a reasonable ETF entry zone.")
+    elif 58 < rsi <= 68:
+        score += 8
+        reasons.append("RSI is strong but getting extended.")
+    elif rsi < 40:
+        score += 8
+        risks.append("RSI is weak; may need more confirmation.")
+    else:
+        risks.append("RSI is elevated; entry may be late.")
+
+    if volume_ratio >= 1.1:
+        score += 10
+        reasons.append("Volume is above average.")
+    elif volume_ratio < 0.8:
+        risks.append("Volume is below average.")
+
+    if price > prev:
+        score += 8
+        reasons.append("Price momentum is positive today.")
+    else:
+        risks.append("Short-term price momentum is weak today.")
+
+    if regime == "Bullish":
+        score += 7
+        reasons.append("Broad market regime is supportive.")
+    elif regime == "Bearish / Risk-Off":
+        score -= 15
+        risks.append("Market regime is risk-off.")
+
+    score = max(0, min(score, 100))
+
+    if score >= 80 and 40 <= rsi <= 65 and regime != "Bearish / Risk-Off":
+        decision = "GOOD ETF ENTRY ZONE"
+    elif score >= 65:
+        decision = "WATCH / SCALE IN SLOWLY"
+    elif score >= 50:
+        decision = "WAIT FOR BETTER ENTRY"
+    else:
+        decision = "AVOID FOR NOW"
+
+    if score >= 85:
+        grade = "A"
+    elif score >= 75:
+        grade = "B+"
+    elif score >= 65:
+        grade = "B"
+    elif score >= 50:
+        grade = "C"
+    else:
+        grade = "D"
+
+    entry_zone = round(price * 0.995, 2)
+    add_zone = round(price * 0.97, 2)
+    risk_level = "Low / Moderate" if score >= 75 else "Moderate" if score >= 60 else "Elevated"
+
+    if not risks:
+        risks.append("No major ETF-specific risk flags from the current rule set.")
+
+    return {
+        "ETF": symbol,
+        "Category": label,
+        "Price": round(price, 2),
+        "Decision": decision,
+        "Grade": grade,
+        "Score": score,
+        "Entry Zone": entry_zone,
+        "Add-on Pullback Zone": add_zone,
+        "RSI": round(rsi, 1),
+        "Dip %": round(dip_pct, 2),
+        "5D %": round(five_day_return, 2),
+        "1M %": round(one_month_return, 2),
+        "Volume Ratio": round(volume_ratio, 2),
+        "Risk Level": risk_level,
+        "Reasons": " | ".join(reasons),
+        "Risk Factors": " | ".join(risks)
+    }
+
+
+def build_etf_entry_table(regime):
+    rows = []
+
+    for symbol, label in ETF_UNIVERSE.items():
+        result = analyze_etf_entry(symbol, label, regime)
+        if result:
+            rows.append(result)
+
+    if not rows:
+        return pd.DataFrame()
+
+    return pd.DataFrame(rows).sort_values(["Score", "1M %"], ascending=False)
+
 
 
 
@@ -1388,6 +1591,53 @@ else:
 
 st.divider()
 
+# =====================
+# ETF ENTRY TIMING
+# =====================
+st.subheader("📦 ETF Fund Entry Timing")
+
+st.caption(
+    "This section scans approved ETFs only. It avoids financial-sector, gambling, alcohol, "
+    "and entertainment/media-focused ETFs based on your rules."
+)
+
+etf_df = build_etf_entry_table(regime)
+
+if etf_df.empty:
+    st.info("ETF entry data is unavailable right now.")
+else:
+    best_etf = etf_df.iloc[0]
+
+    e1, e2, e3, e4 = st.columns(4)
+    e1.metric("Best ETF Candidate", best_etf["ETF"])
+    e2.metric("Decision", best_etf["Decision"])
+    e3.metric("Grade", best_etf["Grade"])
+    e4.metric("Score", best_etf["Score"])
+
+    st.info(
+        f"{best_etf['ETF']} ({best_etf['Category']}) is currently ranked highest. "
+        f"Entry zone: ${best_etf['Entry Zone']}. Add-on pullback zone: ${best_etf['Add-on Pullback Zone']}."
+    )
+
+    st.markdown("### Why this ETF is ranked highest")
+    for reason in str(best_etf["Reasons"]).split(" | "):
+        st.write(f"- {reason}")
+
+    st.markdown("### ETF risk factors")
+    for risk in str(best_etf["Risk Factors"]).split(" | "):
+        st.write(f"- {risk}")
+
+    st.markdown("### Approved ETF Ranking")
+    st.dataframe(etf_df, use_container_width=True)
+
+    with st.expander("ETF Universe Used", expanded=False):
+        st.write("Approved ETFs scanned:")
+        st.write(", ".join([f"{k} ({v})" for k, v in ETF_UNIVERSE.items()]))
+        st.write("Blocked ETF examples:")
+        st.write(", ".join(sorted(BLOCKED_ETFS)))
+
+st.divider()
+
 
 # =====================
 # PERSONAL WATCHLIST
@@ -1676,6 +1926,12 @@ Enter:
 - Weak volume, high RSI, overextended intraday moves, and weak relative strength are shown as risk factors.
 - Trade Grade gives a simplified A+ to D quality rating.
 - Sector Rotation shows where market strength is concentrated.
+
+### V24 ETF Entry Timing
+- Scans approved ETFs only.
+- Blocks financial-sector, gambling, alcohol, and entertainment/media-focused ETF examples.
+- Gives ETF entry decisions such as GOOD ETF ENTRY ZONE, WATCH / SCALE IN SLOWLY, WAIT, or AVOID.
+- ETF signals are for staged entries, not all-in trades.
 
 ### Difference between Portfolio and Paper Trading
 - **Portfolio Tracker** = real or actual holdings you want to monitor
