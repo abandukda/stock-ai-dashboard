@@ -37,6 +37,38 @@ st.markdown(
         padding: 10px;
         border-radius: 12px;
     }
+    .mobile-table-wrapper {
+        overflow-x: auto;
+        width: 100%;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 4px;
+        margin-bottom: 1rem;
+    }
+    .mobile-table-wrapper table {
+        border-collapse: collapse;
+        width: 100%;
+        min-width: 900px;
+        font-size: 0.86rem;
+    }
+    .mobile-table-wrapper th {
+        position: sticky;
+        top: 0;
+        background: #f8fafc;
+        z-index: 1;
+        white-space: nowrap;
+        padding: 7px;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    .mobile-table-wrapper td {
+        white-space: nowrap;
+        padding: 7px;
+        border-bottom: 1px solid #f1f5f9;
+    }
+    .mobile-table-wrapper a {
+        font-weight: 700;
+        text-decoration: none;
+    }
     @media (max-width: 768px) {
         .block-container {
             padding-left: 0.5rem;
@@ -50,6 +82,14 @@ st.markdown(
         }
         h2, h3 {
             font-size: 1.15rem !important;
+        }
+        .mobile-table-wrapper table {
+            font-size: 0.78rem;
+            min-width: 780px;
+        }
+        .mobile-table-wrapper th,
+        .mobile-table-wrapper td {
+            padding: 5px;
         }
     }
     </style>
@@ -138,7 +178,7 @@ if not st.session_state.logged_in:
 # =====================
 # ENV / VERSION
 # =====================
-APP_VERSION = "V25.1 MOBILE-FRIENDLY TABLES + DEEP DETAIL VIEW"
+APP_VERSION = "V25.2 MOBILE-FRIENDLY DETAIL VIEW - INDENT FIXED"
 
 EMAIL_SENDER = os.getenv("EMAIL_SENDER")
 EMAIL_PASSWORD = os.getenv("APP_PASSWORD")
@@ -1095,10 +1135,6 @@ def make_etf_detail_link(symbol, label=None):
 
 
 def compact_stock_table(df, max_rows=None):
-    """
-    Main dashboard stock table: short, mobile-friendly.
-    Full explanations stay in Deep Detail View.
-    """
     if df is None or df.empty:
         return pd.DataFrame()
 
@@ -1107,7 +1143,6 @@ def compact_stock_table(df, max_rows=None):
         "Confidence", "Setup Score", "R/R", "RSI", "Volume Ratio",
         "Relative Strength %", "Earnings Risk", "List Type"
     ]
-
     available = [c for c in keep_cols if c in df.columns]
     out = df[available].copy()
 
@@ -1118,10 +1153,6 @@ def compact_stock_table(df, max_rows=None):
 
 
 def compact_etf_table(df, max_rows=None):
-    """
-    Main dashboard ETF table: short, mobile-friendly.
-    Full reasons stay in ETF Deep Detail View.
-    """
     if df is None or df.empty:
         return pd.DataFrame()
 
@@ -1130,7 +1161,6 @@ def compact_etf_table(df, max_rows=None):
         "Entry Zone", "Add-on Pullback Zone", "RSI", "Dip %",
         "5D %", "1M %", "Volume Ratio", "Risk Level"
     ]
-
     available = [c for c in keep_cols if c in df.columns]
     out = df[available].copy()
 
@@ -1146,10 +1176,7 @@ def render_clickable_table(df, symbol_col="Symbol", etf=False, max_rows=None, co
         return
 
     if compact:
-        if etf:
-            display_df = compact_etf_table(df, max_rows=max_rows)
-        else:
-            display_df = compact_stock_table(df, max_rows=max_rows)
+        display_df = compact_etf_table(df, max_rows=max_rows) if etf else compact_stock_table(df, max_rows=max_rows)
     else:
         display_df = df.copy()
         if max_rows:
@@ -1164,60 +1191,9 @@ def render_clickable_table(df, symbol_col="Symbol", etf=False, max_rows=None, co
     html = display_df.to_html(escape=False, index=False)
 
     st.markdown(
-        """
-        <style>
-        .mobile-table-wrapper {
-            overflow-x: auto;
-            width: 100%;
-            border: 1px solid #e5e7eb;
-            border-radius: 10px;
-            padding: 4px;
-            margin-bottom: 1rem;
-        }
-        .mobile-table-wrapper table {
-            border-collapse: collapse;
-            width: 100%;
-            min-width: 900px;
-            font-size: 0.86rem;
-        }
-        .mobile-table-wrapper th {
-            position: sticky;
-            top: 0;
-            background: #f8fafc;
-            z-index: 1;
-            white-space: nowrap;
-            padding: 7px;
-            border-bottom: 1px solid #e5e7eb;
-        }
-        .mobile-table-wrapper td {
-            white-space: nowrap;
-            padding: 7px;
-            border-bottom: 1px solid #f1f5f9;
-        }
-        .mobile-table-wrapper a {
-            font-weight: 700;
-            text-decoration: none;
-        }
-        @media (max-width: 768px) {
-            .mobile-table-wrapper table {
-                font-size: 0.78rem;
-                min-width: 780px;
-            }
-            .mobile-table-wrapper th,
-            .mobile-table-wrapper td {
-                padding: 5px;
-            }
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
-    st.markdown(
         f'<div class="mobile-table-wrapper">{html}</div>',
         unsafe_allow_html=True
     )
-
 
 def render_stock_detail_page(symbol, regime, capital, max_loss, chart_period):
     symbol = str(symbol).strip().upper()
@@ -1950,7 +1926,7 @@ st.divider()
 # TOP PICKS
 # =====================
 st.subheader("🏆 Ranked Swing Trade Candidates")
-st.caption("Compact view: click any ticker to open the full AI Detail View in a new tab. Long explanations are hidden from this table for easier navigation.")
+st.caption("Compact view: click any ticker to open the full AI Detail View in a new tab. Full explanations are hidden from this table for easier navigation.")
 
 ranked = df.sort_values(["Setup Score", "Confidence", "R/R"], ascending=False)
 render_clickable_table(ranked.head(10), symbol_col="Symbol")
@@ -2012,7 +1988,7 @@ else:
         st.write(f"- {risk}")
 
     st.markdown("### Approved ETF Ranking")
-st.caption("Compact view: click any ETF ticker to open the full ETF Detail View in a new tab.")
+    st.caption("Compact view: click any ETF ticker to open the full ETF Detail View in a new tab.")
     render_clickable_table(etf_df, symbol_col="ETF", etf=True)
 
     with st.expander("ETF Universe Used", expanded=False):
