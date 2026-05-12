@@ -13,11 +13,11 @@ import yfinance as yf
 
 # ============================================================
 # AI TRADING DASHBOARD
-# V26.1 — TOOLTIP HELP MODE + MULTI-USER VIEWER MODE + PERSISTENT WATCHLIST + RECOVERY RADAR
+# V26.2 — MODERN HEADER TOOLTIP MODE + MULTI-USER VIEWER MODE + PERSISTENT WATCHLIST + RECOVERY RADAR
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Trading Dashboard V26.1",
+    page_title="AI Trading Dashboard V26.2",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -426,8 +426,9 @@ def send_email_alert(subject, body):
 
 
 
+
 # ============================================================
-# TOOLTIP / HELP MODE
+# MODERN HEADER TOOLTIP MODE
 # ============================================================
 
 COLUMN_HELP = {
@@ -461,34 +462,33 @@ COLUMN_HELP = {
 }
 
 
-def help_label(column_name: str) -> str:
-    if column_name in COLUMN_HELP:
-        return f"{column_name} ⓘ"
-    return column_name
+def build_column_config(df: pd.DataFrame, symbol_col=None):
+    config = {}
 
-
-def rename_columns_with_help(df: pd.DataFrame) -> pd.DataFrame:
     if df is None or df.empty:
-        return df
-    display_df = df.copy()
-    display_df.columns = [help_label(str(c)) for c in display_df.columns]
-    return display_df
+        return config
 
+    for col in df.columns:
+        help_text = COLUMN_HELP.get(str(col), "")
 
-def column_help_markdown(columns):
-    items = []
-    for col in columns:
-        base = str(col).replace(" ⓘ", "")
-        if base in COLUMN_HELP:
-            items.append(f"**{base}:** {COLUMN_HELP[base]}")
-    return "\n\n".join(items)
+        if symbol_col and col == symbol_col:
+            config[col] = st.column_config.LinkColumn(
+                label=col,
+                help=help_text,
+                display_text=r"https://finance\.yahoo\.com/quote/(.*)"
+            )
+        elif pd.api.types.is_numeric_dtype(df[col]):
+            config[col] = st.column_config.NumberColumn(
+                label=col,
+                help=help_text
+            )
+        else:
+            config[col] = st.column_config.TextColumn(
+                label=col,
+                help=help_text
+            )
 
-
-def show_table_help(df: pd.DataFrame, title="What do these columns mean?"):
-    if df is None or df.empty:
-        return
-    with st.expander(f"ℹ️ {title}"):
-        st.markdown(column_help_markdown(df.columns))
+    return config
 
 
 
@@ -501,34 +501,20 @@ def render_clickable_table(df, symbol_col="Ticker"):
         st.info("No data to show.")
         return
 
-    show_table_help(df)
-
     display_df = df.copy()
-    original_symbol_col = symbol_col
 
-    if original_symbol_col in display_df.columns:
-        display_df[original_symbol_col] = display_df[original_symbol_col].apply(
+    if symbol_col in display_df.columns:
+        display_df[symbol_col] = display_df[symbol_col].apply(
             lambda x: f"https://finance.yahoo.com/quote/{x}"
         )
 
-    display_df = rename_columns_with_help(display_df)
-    symbol_col_help = help_label(original_symbol_col)
-
-    if symbol_col_help in display_df.columns:
-        st.data_editor(
-            display_df,
-            column_config={
-                symbol_col_help: st.column_config.LinkColumn(
-                    symbol_col_help,
-                    display_text=r"https://finance\.yahoo\.com/quote/(.*)"
-                )
-            },
-            hide_index=True,
-            use_container_width=True,
-            disabled=True,
-        )
-    else:
-        st.dataframe(display_df, use_container_width=True)
+    st.data_editor(
+        display_df,
+        column_config=build_column_config(display_df, symbol_col=symbol_col if symbol_col in display_df.columns else None),
+        hide_index=True,
+        use_container_width=True,
+        disabled=True,
+    )
 
 
 def show_last_refresh():
@@ -580,7 +566,7 @@ def detail_page(ticker):
 # ============================================================
 
 st.sidebar.title("📈 AI Trading Dashboard")
-st.sidebar.caption("V26.1 Tooltip Help Mode")
+st.sidebar.caption("V26.2 Header Tooltips")
 
 role_label = "Admin" if is_admin() else "View Only"
 st.sidebar.success(f"Logged in as: {role_label}")
@@ -637,7 +623,7 @@ else:
 # ============================================================
 
 st.title("📈 AI Trading Dashboard")
-st.caption("V26.1 — Tooltip Help Mode + Multi-User Viewer Mode + Persistent Watchlist + Recovery Radar")
+st.caption("V26.2 — Modern Header Tooltips + Multi-User Viewer Mode + Persistent Watchlist + Recovery Radar")
 
 if page == "Dashboard":
     st.markdown("## Home Dashboard")
@@ -645,20 +631,6 @@ if page == "Dashboard":
         st.success("Admin mode: edit controls and email alerts are enabled.")
     else:
         st.info("View-only mode: friends can view scans and detail pages, but cannot edit or send alerts.")
-
-    with st.expander("ℹ️ Dashboard Help Mode"):
-        st.markdown("""
-Hover-style help is now built into the table column names using the **ⓘ** marker.
-
-Important columns:
-- **AI Score**: Overall bullish setup strength from 0 to 100.
-- **Risk Score**: Higher means more caution.
-- **RSI**: Below 30 may be oversold; above 70 may be overheated.
-- **Recovery Score**: Finds beaten-down names with rebound potential.
-- **Upside to 52W High %**: Potential move back to prior yearly high.
-
-Use the expandable guide above each table for more detail.
-""")
 
     watch_df = build_scan(st.session_state.watchlist)
     scan_df = build_scan(CORE_SCAN_TICKERS)
@@ -886,8 +858,12 @@ elif page == "Paper Trading":
             })
 
         trade_df = pd.DataFrame(rows)
-        show_table_help(trade_df)
-        st.dataframe(rename_columns_with_help(trade_df), use_container_width=True, hide_index=True)
+        st.dataframe(
+            trade_df,
+            column_config=build_column_config(trade_df),
+            use_container_width=True,
+            hide_index=True
+        )
 
         if is_admin():
             remove_id = st.number_input("Remove trade ID", min_value=0, max_value=max(0, len(trades)-1), step=1)
