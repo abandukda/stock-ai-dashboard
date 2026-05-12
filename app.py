@@ -178,7 +178,7 @@ if not st.session_state.logged_in:
 # =====================
 # ENV / VERSION
 # =====================
-APP_VERSION = "V25.2 MOBILE-FRIENDLY DETAIL VIEW - INDENT FIXED"
+APP_VERSION = "V25.3 EMAIL ALERT TEST + MOBILE DETAIL VIEW"
 
 EMAIL_SENDER = os.getenv("EMAIL_SENDER")
 EMAIL_PASSWORD = os.getenv("APP_PASSWORD")
@@ -1453,6 +1453,31 @@ if st.sidebar.button("🔄 Manual Refresh"):
 
 
 # =====================
+# EMAIL ALERT TEST / DIAGNOSTICS
+# =====================
+with st.sidebar.expander("📧 Email Alert Test", expanded=False):
+    st.write("EMAIL_SENDER:", "✅ Set" if EMAIL_SENDER else "❌ Missing")
+    st.write("APP_PASSWORD:", "✅ Set" if EMAIL_PASSWORD else "❌ Missing")
+    st.write("EMAIL_RECEIVER:", "✅ Set" if EMAIL_RECEIVER else "❌ Missing")
+
+    st.caption(
+        "If test email fails, check Render environment variables and Gmail App Password. "
+        "If test works but alerts do not, the issue is likely alert conditions or throttling."
+    )
+
+    if st.button("Send Test Email", key="send_test_email_button"):
+        sent, msg = send_email_alert(
+            "Test Alert from AI Trading Dashboard",
+            "This is a test email from your AI Trading Dashboard. If you received this, email alerts are configured correctly."
+        )
+
+        if sent:
+            st.success("Test email sent successfully.")
+        else:
+            st.error(f"Email failed: {msg}")
+
+
+# =====================
 # WATCHLIST
 # =====================
 st.sidebar.divider()
@@ -1580,6 +1605,30 @@ with st.expander("Upcoming Market-Moving Events to Watch", expanded=False):
     st.dataframe(get_macro_events(), use_container_width=True)
 
 st.divider()
+
+# =====================
+# EMAIL ALERT STATUS
+# =====================
+with st.expander("📧 Email Alert Status / Troubleshooting", expanded=False):
+    c1, c2, c3 = st.columns(3)
+    c1.metric("EMAIL_SENDER", "Set" if EMAIL_SENDER else "Missing")
+    c2.metric("APP_PASSWORD", "Set" if EMAIL_PASSWORD else "Missing")
+    c3.metric("EMAIL_RECEIVER", "Set" if EMAIL_RECEIVER else "Missing")
+
+    st.write("Alerts enabled:", "✅ Yes" if enable_email_alerts else "❌ No")
+    st.write("Personal watchlist only:", "✅ Yes" if personal_alerts_only else "❌ No")
+    st.write("Personal watchlist:", ", ".join(watchlist) if watchlist else "Empty")
+
+    sent_alerts = store.get("sent_alerts", [])
+    if sent_alerts:
+        st.write("Recent BUY NOW alerts already sent/throttled:")
+        st.dataframe(pd.DataFrame(sent_alerts).tail(10), use_container_width=True)
+    else:
+        st.info("No BUY NOW email alerts have been recorded yet.")
+
+    st.caption(
+        "BUY NOW emails are currently designed for Personal Watchlist symbols and are throttled to avoid repeat emails."
+    )
 
 
 # =====================
