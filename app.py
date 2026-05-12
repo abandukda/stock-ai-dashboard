@@ -13,11 +13,11 @@ import yfinance as yf
 
 # ============================================================
 # AI TRADING DASHBOARD
-# V26 — MULTI-USER VIEWER MODE + PERSISTENT WATCHLIST + RECOVERY RADAR
+# V26.1 — TOOLTIP HELP MODE + MULTI-USER VIEWER MODE + PERSISTENT WATCHLIST + RECOVERY RADAR
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Trading Dashboard V26",
+    page_title="AI Trading Dashboard V26.1",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -425,6 +425,73 @@ def send_email_alert(subject, body):
         return False, str(e)
 
 
+
+# ============================================================
+# TOOLTIP / HELP MODE
+# ============================================================
+
+COLUMN_HELP = {
+    "Ticker": "Stock symbol. Click to open Yahoo Finance.",
+    "ETF": "ETF ticker symbol. Click to open Yahoo Finance.",
+    "Price": "Latest available stock price from Yahoo Finance.",
+    "Daily %": "How much the stock moved today compared with the prior close.",
+    "AI Score": "Overall bullish setup score from 0 to 100. Higher means the trend, RSI, moving averages, and volume look stronger.",
+    "Signal": "Simple dashboard label based on the AI Score and risk engine.",
+    "Risk Score": "Risk estimate from 0 to 100. Higher means more caution due to weak trend, overbought RSI, or other warning signs.",
+    "RSI": "Relative Strength Index. Below 30 can mean oversold. Above 70 can mean overbought.",
+    "From 52W Low %": "How far the current price is above its 52-week low.",
+    "From 52W High %": "How far the current price is below its 52-week high. Negative means it is under the high.",
+    "Upside to 52W High %": "Potential percentage move if the stock returned to its 52-week high.",
+    "Volume Ratio": "Current volume compared with average volume. Above 1.0 means higher than normal trading activity.",
+    "SMA20": "20-day simple moving average. Short-term trend line.",
+    "SMA50": "50-day simple moving average. Medium-term trend line.",
+    "SMA200": "200-day simple moving average. Long-term trend line.",
+    "Recovery Score": "Score from 0 to 100 for beaten-down stocks that may have rebound potential.",
+    "Rating": "Recovery Radar label. Helps separate strong recovery candidates from riskier value traps.",
+    "30D Change %": "Stock performance over roughly the last 30 trading days.",
+    "90D Change %": "Stock performance over roughly the last 90 trading days.",
+    "Analyst Upside %": "Estimated upside based on analyst target price data when available.",
+    "Forward PE": "Forward price-to-earnings ratio. Lower can mean cheaper, but it depends on growth and business quality.",
+    "Entry Price": "Your paper-trade entry price.",
+    "Current Price": "Latest available price for the paper-trade ticker.",
+    "Shares": "Number of paper-trade shares entered.",
+    "P/L $": "Estimated dollar profit or loss for the paper trade.",
+    "P/L %": "Estimated percentage profit or loss for the paper trade.",
+    "Date": "Date and time the paper trade was added.",
+}
+
+
+def help_label(column_name: str) -> str:
+    if column_name in COLUMN_HELP:
+        return f"{column_name} ⓘ"
+    return column_name
+
+
+def rename_columns_with_help(df: pd.DataFrame) -> pd.DataFrame:
+    if df is None or df.empty:
+        return df
+    display_df = df.copy()
+    display_df.columns = [help_label(str(c)) for c in display_df.columns]
+    return display_df
+
+
+def column_help_markdown(columns):
+    items = []
+    for col in columns:
+        base = str(col).replace(" ⓘ", "")
+        if base in COLUMN_HELP:
+            items.append(f"**{base}:** {COLUMN_HELP[base]}")
+    return "\n\n".join(items)
+
+
+def show_table_help(df: pd.DataFrame, title="What do these columns mean?"):
+    if df is None or df.empty:
+        return
+    with st.expander(f"ℹ️ {title}"):
+        st.markdown(column_help_markdown(df.columns))
+
+
+
 # ============================================================
 # UI HELPERS
 # ============================================================
@@ -434,18 +501,25 @@ def render_clickable_table(df, symbol_col="Ticker"):
         st.info("No data to show.")
         return
 
-    display_df = df.copy()
+    show_table_help(df)
 
-    if symbol_col in display_df.columns:
-        display_df[symbol_col] = display_df[symbol_col].apply(
+    display_df = df.copy()
+    original_symbol_col = symbol_col
+
+    if original_symbol_col in display_df.columns:
+        display_df[original_symbol_col] = display_df[original_symbol_col].apply(
             lambda x: f"https://finance.yahoo.com/quote/{x}"
         )
 
+    display_df = rename_columns_with_help(display_df)
+    symbol_col_help = help_label(original_symbol_col)
+
+    if symbol_col_help in display_df.columns:
         st.data_editor(
             display_df,
             column_config={
-                symbol_col: st.column_config.LinkColumn(
-                    symbol_col,
+                symbol_col_help: st.column_config.LinkColumn(
+                    symbol_col_help,
                     display_text=r"https://finance\.yahoo\.com/quote/(.*)"
                 )
             },
@@ -506,7 +580,7 @@ def detail_page(ticker):
 # ============================================================
 
 st.sidebar.title("📈 AI Trading Dashboard")
-st.sidebar.caption("V26 Multi-User Viewer Mode")
+st.sidebar.caption("V26.1 Tooltip Help Mode")
 
 role_label = "Admin" if is_admin() else "View Only"
 st.sidebar.success(f"Logged in as: {role_label}")
@@ -563,7 +637,7 @@ else:
 # ============================================================
 
 st.title("📈 AI Trading Dashboard")
-st.caption("V26 — Multi-User Viewer Mode + Persistent Watchlist + Recovery Radar")
+st.caption("V26.1 — Tooltip Help Mode + Multi-User Viewer Mode + Persistent Watchlist + Recovery Radar")
 
 if page == "Dashboard":
     st.markdown("## Home Dashboard")
@@ -571,6 +645,20 @@ if page == "Dashboard":
         st.success("Admin mode: edit controls and email alerts are enabled.")
     else:
         st.info("View-only mode: friends can view scans and detail pages, but cannot edit or send alerts.")
+
+    with st.expander("ℹ️ Dashboard Help Mode"):
+        st.markdown("""
+Hover-style help is now built into the table column names using the **ⓘ** marker.
+
+Important columns:
+- **AI Score**: Overall bullish setup strength from 0 to 100.
+- **Risk Score**: Higher means more caution.
+- **RSI**: Below 30 may be oversold; above 70 may be overheated.
+- **Recovery Score**: Finds beaten-down names with rebound potential.
+- **Upside to 52W High %**: Potential move back to prior yearly high.
+
+Use the expandable guide above each table for more detail.
+""")
 
     watch_df = build_scan(st.session_state.watchlist)
     scan_df = build_scan(CORE_SCAN_TICKERS)
@@ -798,7 +886,8 @@ elif page == "Paper Trading":
             })
 
         trade_df = pd.DataFrame(rows)
-        st.dataframe(trade_df, use_container_width=True, hide_index=True)
+        show_table_help(trade_df)
+        st.dataframe(rename_columns_with_help(trade_df), use_container_width=True, hide_index=True)
 
         if is_admin():
             remove_id = st.number_input("Remove trade ID", min_value=0, max_value=max(0, len(trades)-1), step=1)
