@@ -13,11 +13,11 @@ import yfinance as yf
 
 # ============================================================
 # AI TRADING DASHBOARD
-# V25.5 — PERSISTENT WATCHLIST + RECOVERY RADAR
+# V26 — MULTI-USER VIEWER MODE + PERSISTENT WATCHLIST + RECOVERY RADAR
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Trading Dashboard V25.5",
+    page_title="AI Trading Dashboard V26",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -46,6 +46,61 @@ RECOVERY_TICKERS = [
 ]
 
 ETF_TICKERS = ["SPY", "QQQ", "IWM", "DIA", "XLK", "XLF", "XLV", "XLE", "XLY", "XLP", "SMH", "ARKK"]
+
+
+
+# ============================================================
+# LOGIN / ROLE HELPERS
+# ============================================================
+
+ADMIN_USER = os.getenv("ADMIN_USER", "admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
+VIEW_USER = os.getenv("VIEW_USER", "viewer")
+VIEW_PASSWORD = os.getenv("VIEW_PASSWORD", "viewer123")
+
+
+def require_login():
+    if "logged_in" not in st.session_state:
+        st.session_state.logged_in = False
+    if "user_role" not in st.session_state:
+        st.session_state.user_role = None
+    if "login_user" not in st.session_state:
+        st.session_state.login_user = ""
+
+    if st.session_state.logged_in:
+        return
+
+    st.title("🔐 AI Trading Dashboard Login")
+    st.caption("Admin can edit watchlists, paper trades, and send email alerts. Viewer has read-only access.")
+
+    with st.form("login_form"):
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+        submitted = st.form_submit_button("Login")
+
+    if submitted:
+        if username == ADMIN_USER and password == ADMIN_PASSWORD:
+            st.session_state.logged_in = True
+            st.session_state.user_role = "admin"
+            st.session_state.login_user = username
+            st.rerun()
+        elif username == VIEW_USER and password == VIEW_PASSWORD:
+            st.session_state.logged_in = True
+            st.session_state.user_role = "viewer"
+            st.session_state.login_user = username
+            st.rerun()
+        else:
+            st.error("Invalid username or password.")
+
+    st.info("Set ADMIN_USER, ADMIN_PASSWORD, VIEW_USER, and VIEW_PASSWORD in Render environment variables.")
+    st.stop()
+
+
+def is_admin():
+    return st.session_state.get("user_role") == "admin"
+
+
+require_login()
 
 
 # ============================================================
@@ -451,7 +506,16 @@ def detail_page(ticker):
 # ============================================================
 
 st.sidebar.title("📈 AI Trading Dashboard")
-st.sidebar.caption("V25.5 Persistent Watchlist")
+st.sidebar.caption("V26 Multi-User Viewer Mode")
+
+role_label = "Admin" if is_admin() else "View Only"
+st.sidebar.success(f"Logged in as: {role_label}")
+
+if st.sidebar.button("Logout"):
+    st.session_state.logged_in = False
+    st.session_state.user_role = None
+    st.session_state.login_user = ""
+    st.rerun()
 
 show_last_refresh()
 
@@ -477,18 +541,21 @@ if st.sidebar.button("🔄 Refresh Data"):
     st.rerun()
 
 st.sidebar.markdown("### Watchlist Quick Add")
-quick_ticker = st.sidebar.text_input("Ticker", placeholder="Example: NVDA", key="sidebar_add_ticker")
-if st.sidebar.button("Add to Watchlist"):
-    t = normalize_ticker(quick_ticker)
-    if not t:
-        st.sidebar.warning("Enter a ticker.")
-    elif t in st.session_state.watchlist:
-        st.sidebar.info(f"{t} is already in your watchlist.")
-    else:
-        st.session_state.watchlist.append(t)
-        save_watchlist()
-        st.sidebar.success(f"Added {t}")
-        st.rerun()
+if is_admin():
+    quick_ticker = st.sidebar.text_input("Ticker", placeholder="Example: NVDA", key="sidebar_add_ticker")
+    if st.sidebar.button("Add to Watchlist"):
+        t = normalize_ticker(quick_ticker)
+        if not t:
+            st.sidebar.warning("Enter a ticker.")
+        elif t in st.session_state.watchlist:
+            st.sidebar.info(f"{t} is already in your watchlist.")
+        else:
+            st.session_state.watchlist.append(t)
+            save_watchlist()
+            st.sidebar.success(f"Added {t}")
+            st.rerun()
+else:
+    st.sidebar.info("View-only users cannot edit the watchlist.")
 
 
 # ============================================================
@@ -496,10 +563,14 @@ if st.sidebar.button("Add to Watchlist"):
 # ============================================================
 
 st.title("📈 AI Trading Dashboard")
-st.caption("V25.5 — Persistent Watchlist + Recovery Radar + Mobile Detail View")
+st.caption("V26 — Multi-User Viewer Mode + Persistent Watchlist + Recovery Radar")
 
 if page == "Dashboard":
     st.markdown("## Home Dashboard")
+    if is_admin():
+        st.success("Admin mode: edit controls and email alerts are enabled.")
+    else:
+        st.info("View-only mode: friends can view scans and detail pages, but cannot edit or send alerts.")
 
     watch_df = build_scan(st.session_state.watchlist)
     scan_df = build_scan(CORE_SCAN_TICKERS)
@@ -536,31 +607,35 @@ if page == "Dashboard":
 
 elif page == "Watchlist":
     st.markdown("## ⭐ Persistent Watchlist")
-    st.success("Your watchlist is now saved to watchlist.json and reloads automatically after refresh.")
 
-    add_col, reset_col = st.columns([3, 1])
+    if is_admin():
+        st.success("Admin mode: your watchlist is saved to watchlist.json and reloads automatically after refresh.")
 
-    with add_col:
-        new_ticker = st.text_input("Add ticker", placeholder="Example: AAPL, NVDA, ELF", key="watchlist_add")
-    with reset_col:
-        st.write("")
-        st.write("")
-        if st.button("Reset Default"):
-            st.session_state.watchlist = DEFAULT_WATCHLIST.copy()
-            save_watchlist()
-            st.rerun()
+        add_col, reset_col = st.columns([3, 1])
 
-    if st.button("➕ Add Ticker"):
-        t = normalize_ticker(new_ticker)
-        if not t:
-            st.warning("Enter a ticker.")
-        elif t in st.session_state.watchlist:
-            st.info(f"{t} is already in your watchlist.")
-        else:
-            st.session_state.watchlist.append(t)
-            save_watchlist()
-            st.success(f"Added {t}")
-            st.rerun()
+        with add_col:
+            new_ticker = st.text_input("Add ticker", placeholder="Example: AAPL, NVDA, ELF", key="watchlist_add")
+        with reset_col:
+            st.write("")
+            st.write("")
+            if st.button("Reset Default"):
+                st.session_state.watchlist = DEFAULT_WATCHLIST.copy()
+                save_watchlist()
+                st.rerun()
+
+        if st.button("➕ Add Ticker"):
+            t = normalize_ticker(new_ticker)
+            if not t:
+                st.warning("Enter a ticker.")
+            elif t in st.session_state.watchlist:
+                st.info(f"{t} is already in your watchlist.")
+            else:
+                st.session_state.watchlist.append(t)
+                save_watchlist()
+                st.success(f"Added {t}")
+                st.rerun()
+    else:
+        st.info("View-only mode: watchlist editing is disabled.")
 
     st.markdown("### Current Watchlist")
 
@@ -568,13 +643,18 @@ elif page == "Watchlist":
         st.info("Your watchlist is empty.")
     else:
         for ticker in list(st.session_state.watchlist):
-            c1, c2, c3 = st.columns([2, 2, 1])
-            c1.write(f"**{ticker}**")
-            c2.link_button("Open Yahoo", f"https://finance.yahoo.com/quote/{ticker}")
-            if c3.button("Remove", key=f"remove_{ticker}"):
-                st.session_state.watchlist.remove(ticker)
-                save_watchlist()
-                st.rerun()
+            if is_admin():
+                c1, c2, c3 = st.columns([2, 2, 1])
+                c1.write(f"**{ticker}**")
+                c2.link_button("Open Yahoo", f"https://finance.yahoo.com/quote/{ticker}")
+                if c3.button("Remove", key=f"remove_{ticker}"):
+                    st.session_state.watchlist.remove(ticker)
+                    save_watchlist()
+                    st.rerun()
+            else:
+                c1, c2 = st.columns([2, 2])
+                c1.write(f"**{ticker}**")
+                c2.link_button("Open Yahoo", f"https://finance.yahoo.com/quote/{ticker}")
 
         st.markdown("### Watchlist Analysis")
         df = build_scan(st.session_state.watchlist)
@@ -605,12 +685,15 @@ elif page == "BUY NOW":
                     body += f"{row['Ticker']} | Price: {row['Price']} | AI Score: {row['AI Score']} | RSI: {row['RSI']}\n"
                 st.text(body)
 
-                if st.button("Send BUY NOW Email Alert"):
-                    ok, msg = send_email_alert("AI Dashboard BUY NOW Alert", body)
-                    if ok:
-                        st.success(msg)
-                    else:
-                        st.error(msg)
+                if is_admin():
+                    if st.button("Send BUY NOW Email Alert"):
+                        ok, msg = send_email_alert("AI Dashboard BUY NOW Alert", body)
+                        if ok:
+                            st.success(msg)
+                        else:
+                            st.error(msg)
+                else:
+                    st.info("View-only users cannot send email alerts.")
 
 
 elif page == "Recovery Radar":
@@ -639,12 +722,15 @@ elif page == "Recovery Radar":
                     )
                 st.text(alert_text)
 
-                if st.button("Send Recovery Radar Email Alert"):
-                    ok, msg = send_email_alert("AI Recovery Radar Alert", alert_text)
-                    if ok:
-                        st.success(msg)
-                    else:
-                        st.error(msg)
+                if is_admin():
+                    if st.button("Send Recovery Radar Email Alert"):
+                        ok, msg = send_email_alert("AI Recovery Radar Alert", alert_text)
+                        if ok:
+                            st.success(msg)
+                        else:
+                            st.error(msg)
+                else:
+                    st.info("View-only users cannot send email alerts.")
         else:
             st.info("No strong recovery candidates today, but watchlist candidates may still be useful.")
 
@@ -662,25 +748,28 @@ elif page == "ETF Timing":
 elif page == "Paper Trading":
     st.markdown("## 🧾 Paper Trading")
 
-    c1, c2, c3 = st.columns(3)
-    pt_ticker = c1.text_input("Ticker", placeholder="NVDA")
-    pt_price = c2.number_input("Entry Price", min_value=0.0, step=0.01)
-    pt_qty = c3.number_input("Shares", min_value=0.0, step=1.0)
+    if is_admin():
+        c1, c2, c3 = st.columns(3)
+        pt_ticker = c1.text_input("Ticker", placeholder="NVDA")
+        pt_price = c2.number_input("Entry Price", min_value=0.0, step=0.01)
+        pt_qty = c3.number_input("Shares", min_value=0.0, step=1.0)
 
-    if st.button("Add Paper Trade"):
-        t = normalize_ticker(pt_ticker)
-        if not t or pt_price <= 0 or pt_qty <= 0:
-            st.warning("Enter ticker, entry price, and shares.")
-        else:
-            st.session_state.paper_trades.append({
-                "Ticker": t,
-                "Entry Price": pt_price,
-                "Shares": pt_qty,
-                "Date": datetime.now(EASTERN).strftime("%Y-%m-%d %I:%M %p ET"),
-            })
-            save_paper_trades()
-            st.success(f"Added paper trade for {t}")
-            st.rerun()
+        if st.button("Add Paper Trade"):
+            t = normalize_ticker(pt_ticker)
+            if not t or pt_price <= 0 or pt_qty <= 0:
+                st.warning("Enter ticker, entry price, and shares.")
+            else:
+                st.session_state.paper_trades.append({
+                    "Ticker": t,
+                    "Entry Price": pt_price,
+                    "Shares": pt_qty,
+                    "Date": datetime.now(EASTERN).strftime("%Y-%m-%d %I:%M %p ET"),
+                })
+                save_paper_trades()
+                st.success(f"Added paper trade for {t}")
+                st.rerun()
+    else:
+        st.info("View-only mode: paper trade editing is disabled.")
 
     trades = st.session_state.paper_trades
 
@@ -711,18 +800,23 @@ elif page == "Paper Trading":
         trade_df = pd.DataFrame(rows)
         st.dataframe(trade_df, use_container_width=True, hide_index=True)
 
-        remove_id = st.number_input("Remove trade ID", min_value=0, max_value=max(0, len(trades)-1), step=1)
-        if st.button("Remove Paper Trade"):
-            try:
-                st.session_state.paper_trades.pop(int(remove_id))
-                save_paper_trades()
-                st.rerun()
-            except Exception:
-                st.error("Could not remove trade.")
+        if is_admin():
+            remove_id = st.number_input("Remove trade ID", min_value=0, max_value=max(0, len(trades)-1), step=1)
+            if st.button("Remove Paper Trade"):
+                try:
+                    st.session_state.paper_trades.pop(int(remove_id))
+                    save_paper_trades()
+                    st.rerun()
+                except Exception:
+                    st.error("Could not remove trade.")
 
 
 elif page == "Email Test":
     st.markdown("## 📧 Gmail / Email Diagnostics")
+
+    if not is_admin():
+        st.warning("View-only users cannot access email diagnostics.")
+        st.stop()
 
     st.write("This checks whether your Render environment variables are set.")
 
