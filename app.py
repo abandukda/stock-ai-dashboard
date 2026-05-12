@@ -13,15 +13,206 @@ import yfinance as yf
 
 # ============================================================
 # AI TRADING DASHBOARD
-# V26.2 — MODERN HEADER TOOLTIP MODE + MULTI-USER VIEWER MODE + PERSISTENT WATCHLIST + RECOVERY RADAR
+# V26.3 — MODERN FRIENDLY UI + HEADER TOOLTIPS + MULTI-USER VIEWER MODE
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Trading Dashboard V26.2",
+    page_title="AI Trading Dashboard V26.3",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+
+# ============================================================
+# MODERN UI THEME
+# ============================================================
+
+st.markdown("""
+<style>
+/* App background */
+.stApp {
+    background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 45%, #f8fafc 100%);
+}
+
+/* Main content width and spacing */
+.block-container {
+    padding-top: 1.5rem;
+    padding-bottom: 2rem;
+}
+
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #0f172a 0%, #111827 100%);
+}
+
+section[data-testid="stSidebar"] * {
+    color: #f8fafc !important;
+}
+
+section[data-testid="stSidebar"] .stButton button {
+    background: rgba(255,255,255,0.10);
+    border: 1px solid rgba(255,255,255,0.18);
+    color: white !important;
+    border-radius: 12px;
+}
+
+/* Headings */
+h1, h2, h3 {
+    letter-spacing: -0.03em;
+}
+
+h1 {
+    font-size: 2.3rem !important;
+    font-weight: 800 !important;
+}
+
+h2 {
+    font-size: 1.55rem !important;
+    font-weight: 750 !important;
+}
+
+/* Cards and containers */
+.modern-hero {
+    padding: 24px;
+    border-radius: 24px;
+    background: linear-gradient(135deg, #111827 0%, #1e3a8a 55%, #312e81 100%);
+    color: white;
+    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.22);
+    margin-bottom: 20px;
+}
+
+.modern-hero h1 {
+    color: white !important;
+    margin-bottom: 4px;
+}
+
+.modern-hero p {
+    color: #dbeafe !important;
+    font-size: 1.02rem;
+    margin-bottom: 0;
+}
+
+.modern-card {
+    padding: 18px 20px;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.86);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+    margin-bottom: 16px;
+}
+
+.modern-section-title {
+    padding: 12px 0 6px 0;
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+/* Metrics */
+[data-testid="stMetric"] {
+    background: rgba(255,255,255,0.92);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 18px;
+    padding: 14px 16px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+[data-testid="stMetricLabel"] {
+    color: #475569 !important;
+}
+
+[data-testid="stMetricValue"] {
+    font-weight: 800 !important;
+    color: #0f172a !important;
+}
+
+/* Buttons */
+.stButton button, .stDownloadButton button, .stLinkButton a {
+    border-radius: 14px !important;
+    border: 1px solid rgba(59, 130, 246, 0.25) !important;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+    font-weight: 700 !important;
+}
+
+/* Inputs */
+.stTextInput input, .stNumberInput input, textarea {
+    border-radius: 12px !important;
+}
+
+/* Data tables */
+[data-testid="stDataFrame"], [data-testid="stDataEditor"] {
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+    border: 1px solid rgba(148, 163, 184, 0.24);
+}
+
+/* Alerts */
+.stAlert {
+    border-radius: 16px;
+}
+
+/* Expander */
+.streamlit-expanderHeader {
+    border-radius: 14px !important;
+    font-weight: 700 !important;
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+    .block-container {
+        padding-left: 0.8rem;
+        padding-right: 0.8rem;
+    }
+
+    .modern-hero {
+        padding: 18px;
+        border-radius: 18px;
+    }
+
+    h1 {
+        font-size: 1.75rem !important;
+    }
+
+    h2 {
+        font-size: 1.25rem !important;
+    }
+}
+</style>
+""", unsafe_allow_html=True)
+
+
+def modern_hero(title, subtitle):
+    st.markdown(
+        f"""
+        <div class="modern-hero">
+            <h1>{title}</h1>
+            <p>{subtitle}</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+def modern_card(title, body):
+    st.markdown(
+        f"""
+        <div class="modern-card">
+            <div style="font-weight:800;font-size:1.05rem;color:#0f172a;margin-bottom:4px;">{title}</div>
+            <div style="color:#475569;font-size:0.95rem;">{body}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+def modern_section(title, subtitle=None):
+    st.markdown(f'<div class="modern-section-title">{title}</div>', unsafe_allow_html=True)
+    if subtitle:
+        st.caption(subtitle)
+
+
 
 EASTERN = ZoneInfo("America/New_York")
 WATCHLIST_FILE = "watchlist.json"
@@ -541,10 +732,10 @@ def detail_page(ticker):
 
     st.line_chart(hist["Close"], use_container_width=True)
 
-    st.markdown("### Technical Snapshot")
+    modern_section("Technical Snapshot")
     st.dataframe(pd.DataFrame([data]), use_container_width=True, hide_index=True)
 
-    st.markdown("### AI Notes")
+    modern_section("AI Notes")
     notes = []
     if data["Signal"] == "🟢 BUY NOW":
         notes.append("Strong setup with supportive trend conditions. Use position sizing carefully.")
@@ -566,7 +757,7 @@ def detail_page(ticker):
 # ============================================================
 
 st.sidebar.title("📈 AI Trading Dashboard")
-st.sidebar.caption("V26.2 Header Tooltips")
+st.sidebar.caption("V26.3 Modern UI")
 
 role_label = "Admin" if is_admin() else "View Only"
 st.sidebar.success(f"Logged in as: {role_label}")
@@ -622,11 +813,13 @@ else:
 # MAIN APP
 # ============================================================
 
-st.title("📈 AI Trading Dashboard")
-st.caption("V26.2 — Modern Header Tooltips + Multi-User Viewer Mode + Persistent Watchlist + Recovery Radar")
+modern_hero(
+    "📈 AI Trading Dashboard",
+    "AI-powered swing signals, recovery radar, ETF timing, watchlists, paper trading, and friend-safe viewer mode."
+)
 
 if page == "Dashboard":
-    st.markdown("## Home Dashboard")
+    modern_section("🏠 Home Dashboard", "Quick overview of signals, watchlist strength, recovery candidates, and paper trades.")
     if is_admin():
         st.success("Admin mode: edit controls and email alerts are enabled.")
     else:
@@ -642,7 +835,7 @@ if page == "Dashboard":
     c3.metric("Strong Recovery", int((recovery_df["Recovery Score"] >= 75).sum()) if not recovery_df.empty else 0)
     c4.metric("Paper Trades", len(st.session_state.paper_trades))
 
-    st.markdown("### 🟢 Top BUY NOW Signals")
+    modern_section("🟢 Top BUY NOW Signals")
     if scan_df.empty:
         st.info("No scan data available.")
     else:
@@ -652,13 +845,13 @@ if page == "Dashboard":
         else:
             render_clickable_table(buy_now, "Ticker")
 
-    st.markdown("### 🔥 Top Recovery Radar")
+    modern_section("🔥 Top Recovery Radar")
     if recovery_df.empty:
         st.info("No recovery candidates right now.")
     else:
         render_clickable_table(recovery_df.head(10), "Ticker")
 
-    st.markdown("### ⭐ Your Watchlist Snapshot")
+    modern_section("⭐ Your Watchlist Snapshot")
     if watch_df.empty:
         st.info("No watchlist data available.")
     else:
@@ -666,7 +859,7 @@ if page == "Dashboard":
 
 
 elif page == "Watchlist":
-    st.markdown("## ⭐ Persistent Watchlist")
+    modern_section("⭐ Persistent Watchlist", "Saved watchlist with refresh-safe storage and viewer-safe access.")
 
     if is_admin():
         st.success("Admin mode: your watchlist is saved to watchlist.json and reloads automatically after refresh.")
@@ -697,7 +890,7 @@ elif page == "Watchlist":
     else:
         st.info("View-only mode: watchlist editing is disabled.")
 
-    st.markdown("### Current Watchlist")
+    modern_section("Current Watchlist")
 
     if not st.session_state.watchlist:
         st.info("Your watchlist is empty.")
@@ -716,19 +909,19 @@ elif page == "Watchlist":
                 c1.write(f"**{ticker}**")
                 c2.link_button("Open Yahoo", f"https://finance.yahoo.com/quote/{ticker}")
 
-        st.markdown("### Watchlist Analysis")
+        modern_section("Watchlist Analysis")
         df = build_scan(st.session_state.watchlist)
         render_clickable_table(df, "Ticker")
 
 
 elif page == "AI Scanner":
-    st.markdown("## 🤖 AI Swing Trade Scanner")
+    modern_section("🤖 AI Swing Trade Scanner", "Ranks stocks based on trend, momentum, RSI, moving averages, volume, and risk.")
     df = build_scan(CORE_SCAN_TICKERS)
     render_clickable_table(df, "Ticker")
 
 
 elif page == "BUY NOW":
-    st.markdown("## 🟢 BUY NOW Signals")
+    modern_section("🟢 BUY NOW Signals", "Highest-conviction setups from the current scan.")
     df = build_scan(CORE_SCAN_TICKERS + st.session_state.watchlist)
     if df.empty:
         st.info("No scan data available.")
@@ -757,7 +950,7 @@ elif page == "BUY NOW":
 
 
 elif page == "Recovery Radar":
-    st.markdown("## 🔥 AI Recovery Radar")
+    modern_section("🔥 AI Recovery Radar", "Finds beaten-down quality names with potential rebound upside.")
     st.caption("Finds well-known stocks near lows, beaten down after weakness, but still showing rebound potential.")
 
     recovery_df = build_recovery_radar(RECOVERY_TICKERS)
@@ -796,7 +989,7 @@ elif page == "Recovery Radar":
 
 
 elif page == "ETF Timing":
-    st.markdown("## 📊 ETF Entry Timing")
+    modern_section("📊 ETF Entry Timing", "Tracks ETF strength, risk, and entry timing across major sectors.")
     etf_df = build_scan(ETF_TICKERS)
     if etf_df.empty:
         st.info("No ETF data available.")
@@ -806,7 +999,7 @@ elif page == "ETF Timing":
 
 
 elif page == "Paper Trading":
-    st.markdown("## 🧾 Paper Trading")
+    modern_section("🧾 Paper Trading", "Track practice trades before risking real capital.")
 
     if is_admin():
         c1, c2, c3 = st.columns(3)
@@ -877,7 +1070,7 @@ elif page == "Paper Trading":
 
 
 elif page == "Email Test":
-    st.markdown("## 📧 Gmail / Email Diagnostics")
+    modern_section("📧 Gmail / Email Diagnostics", "Admin-only email alert setup and test area.")
 
     if not is_admin():
         st.warning("View-only users cannot access email diagnostics.")
@@ -904,7 +1097,7 @@ elif page == "Email Test":
 
 
 elif page == "Detail View":
-    st.markdown("## 🔎 Mobile Detail View")
+    modern_section("🔎 Mobile Detail View", "Single-stock deep view optimized for quick mobile checks.")
     selected = st.text_input("Enter ticker for detail view", value=st.session_state.watchlist[0] if st.session_state.watchlist else "NVDA")
     if selected:
         detail_page(selected)
