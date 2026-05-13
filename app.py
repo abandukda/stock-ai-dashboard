@@ -13,11 +13,11 @@ import yfinance as yf
 
 # ============================================================
 # AI TRADING DASHBOARD
-# V26.3 — MODERN FRIENDLY UI + HEADER TOOLTIPS + MULTI-USER VIEWER MODE
+# V26.4 — MODERN FRIENDLY UI + HEADER TOOLTIPS + MULTI-USER VIEWER MODE
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Trading Dashboard V26.3",
+    page_title="AI Trading Dashboard V26.4",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -391,6 +391,89 @@ def get_info(ticker):
         return {}
 
 
+
+def build_ai_trade_plan(ticker, price, sma20, sma50, sma200, rsi, ai_score, risk_score, high_52, low_52, upside_to_high, volume_ratio):
+    """
+    Creates plain-English AI trade guidance.
+    This is rules-based research guidance only, not financial advice.
+    """
+    delta_to_high_dollars = high_52 - price if high_52 and price else None
+    delta_to_high_pct = ((high_52 - price) / price * 100) if high_52 and price else None
+
+    if ai_score >= 75 and risk_score < 35:
+        entry_range = f"${price * 0.97:.2f} - ${price * 1.01:.2f}"
+    elif rsi < 35:
+        entry_range = f"${price * 0.95:.2f} - ${price * 0.99:.2f}"
+    elif price > sma50:
+        entry_range = f"${max(sma20 * 0.98, price * 0.96):.2f} - ${price:.2f}"
+    else:
+        entry_range = f"Wait for strength or pullback near ${price * 0.90:.2f} - ${min(price * 0.97, sma50):.2f}"
+
+    if upside_to_high and upside_to_high > 30:
+        target_zone = f"${price * 1.12:.2f} - ${min(high_52, price * 1.30):.2f}"
+    elif upside_to_high and upside_to_high > 12:
+        target_zone = f"${price * 1.07:.2f} - ${min(high_52, price * 1.16):.2f}"
+    else:
+        target_zone = f"${price * 1.04:.2f} - ${price * 1.08:.2f}"
+
+    if ai_score >= 75 and risk_score < 35 and price > sma50:
+        hold_style = "Short swing / momentum hold"
+    elif rsi < 40 and upside_to_high > 25:
+        hold_style = "Recovery swing / staged long-term hold"
+    elif price > sma200 and ai_score >= 60:
+        hold_style = "Longer swing / possible long-term hold"
+    elif risk_score >= 55:
+        hold_style = "Watch only / avoid oversized position"
+    else:
+        hold_style = "Watchlist candidate"
+
+    reasons = []
+
+    if ai_score >= 75:
+        reasons.append("the AI setup score is strong")
+    elif ai_score >= 60:
+        reasons.append("the AI setup score is decent")
+    else:
+        reasons.append("the setup is not fully confirmed yet")
+
+    if risk_score < 35:
+        reasons.append("risk is manageable")
+    elif risk_score >= 55:
+        reasons.append("risk is elevated")
+
+    if rsi < 30:
+        reasons.append("RSI is oversold, which can support a rebound but may also show weakness")
+    elif rsi <= 70:
+        reasons.append("RSI is in a healthier range")
+    else:
+        reasons.append("RSI is overbought, so chasing may be risky")
+
+    if price > sma20 and price > sma50:
+        reasons.append("price is above short and medium trend lines")
+    elif price < sma50:
+        reasons.append("price is still below the 50-day trend line")
+
+    if upside_to_high and upside_to_high > 20:
+        reasons.append(f"there is about {upside_to_high:.1f}% upside back to the 52-week high")
+    else:
+        reasons.append("upside to the 52-week high is more limited")
+
+    if volume_ratio and volume_ratio > 1.1:
+        reasons.append("volume is stronger than normal")
+
+    plan = "This is a research candidate because " + ", ".join(reasons) + "."
+
+    return {
+        "52W High": round(high_52, 2) if high_52 else None,
+        "Delta to 52W High $": round(delta_to_high_dollars, 2) if delta_to_high_dollars is not None else None,
+        "Delta to 52W High %": round(delta_to_high_pct, 1) if delta_to_high_pct is not None else None,
+        "AI Trade Plan": plan,
+        "Entry Range": entry_range,
+        "Target / Sell Zone": target_zone,
+        "Hold Style": hold_style,
+    }
+
+
 def analyze_ticker(ticker):
     ticker = normalize_ticker(ticker)
     hist = get_history(ticker, period="1y")
@@ -455,6 +538,21 @@ def analyze_ticker(ticker):
     else:
         signal = "🔴 Avoid"
 
+    trade_plan = build_ai_trade_plan(
+        ticker=ticker,
+        price=price,
+        sma20=sma20,
+        sma50=sma50,
+        sma200=sma200,
+        rsi=rsi,
+        ai_score=ai_score,
+        risk_score=risk_score,
+        high_52=high_52,
+        low_52=low_52,
+        upside_to_high=upside_to_high,
+        volume_ratio=volume_ratio,
+    )
+
     return {
         "Ticker": ticker,
         "Price": safe_round(price),
@@ -463,10 +561,17 @@ def analyze_ticker(ticker):
         "Signal": signal,
         "Risk Score": safe_round(risk_score, 0),
         "RSI": safe_round(rsi, 1),
+        "52W High": trade_plan["52W High"],
+        "Delta to 52W High $": trade_plan["Delta to 52W High $"],
+        "Delta to 52W High %": trade_plan["Delta to 52W High %"],
         "From 52W Low %": safe_round(from_low, 1),
         "From 52W High %": safe_round(from_high, 1),
         "Upside to 52W High %": safe_round(upside_to_high, 1),
         "Volume Ratio": safe_round(volume_ratio, 2),
+        "Entry Range": trade_plan["Entry Range"],
+        "Target / Sell Zone": trade_plan["Target / Sell Zone"],
+        "Hold Style": trade_plan["Hold Style"],
+        "AI Trade Plan": trade_plan["AI Trade Plan"],
         "SMA20": safe_round(sma20),
         "SMA50": safe_round(sma50),
         "SMA200": safe_round(sma200),
@@ -565,14 +670,43 @@ def build_recovery_radar(tickers):
             else:
                 rating = "🔴 Risky / Possible Value Trap"
 
+            delta_to_high_dollars = high_52 - price
+            delta_to_high_pct = ((high_52 - price) / price) * 100 if price else None
+
+            if score >= 75:
+                recovery_plan = (
+                    f"{ticker} is showing a strong recovery setup because it remains below its prior high, "
+                    f"has about {upside_to_high:.1f}% upside back to the 52-week high, and the recovery score is elevated. "
+                    f"Consider staged entries instead of buying all at once."
+                )
+                recovery_hold_style = "Recovery swing / staged long-term hold"
+            elif score >= 55:
+                recovery_plan = (
+                    f"{ticker} is a watchlist recovery candidate. Wait for stabilization, stronger volume, "
+                    f"and improvement above key moving averages."
+                )
+                recovery_hold_style = "Watchlist bounce candidate"
+            else:
+                recovery_plan = (
+                    f"{ticker} may still carry value-trap risk. Wait for better trend confirmation."
+                )
+                recovery_hold_style = "Watch only"
+
             rows.append({
                 "Ticker": ticker,
                 "Price": safe_round(price),
                 "Recovery Score": safe_round(score, 0),
                 "Rating": rating,
                 "RSI": safe_round(rsi, 1),
+                "52W High": safe_round(high_52),
+                "Delta to 52W High $": safe_round(delta_to_high_dollars),
+                "Delta to 52W High %": safe_round(delta_to_high_pct, 1),
                 "From 52W Low %": safe_round(distance_from_low, 1),
                 "Upside to 52W High %": safe_round(upside_to_high, 1),
+                "Entry Range": f"${price * 0.95:.2f} - ${price:.2f}",
+                "Target / Sell Zone": f"${price * 1.10:.2f} - ${min(high_52, price * 1.25):.2f}",
+                "Hold Style": recovery_hold_style,
+                "AI Trade Plan": recovery_plan,
                 "30D Change %": safe_round(change_30d, 1),
                 "90D Change %": safe_round(change_90d, 1),
                 "Analyst Upside %": safe_round(analyst_upside, 1),
@@ -650,6 +784,13 @@ COLUMN_HELP = {
     "P/L $": "Estimated dollar profit or loss for the paper trade.",
     "P/L %": "Estimated percentage profit or loss for the paper trade.",
     "Date": "Date and time the paper trade was added.",
+    "52W High": "The highest price reached over the last 52 weeks.",
+    "Delta to 52W High $": "Dollar amount between the current price and the 52-week high.",
+    "Delta to 52W High %": "Percentage gain needed to return to the 52-week high.",
+    "AI Trade Plan": "Plain-English explanation of why the setup may or may not be attractive.",
+    "Entry Range": "Suggested research entry zone based on current price, trend, RSI, and moving averages.",
+    "Target / Sell Zone": "Potential profit-taking area based on 52-week high, moving averages, and risk.",
+    "Hold Style": "Suggested style: short swing, longer swing, long-term hold, or avoid/watch.",
 }
 
 
@@ -735,6 +876,14 @@ def detail_page(ticker):
     modern_section("Technical Snapshot")
     st.dataframe(pd.DataFrame([data]), use_container_width=True, hide_index=True)
 
+    modern_section("AI Trade Plan")
+    st.markdown(f"**Suggested Hold Style:** {data.get('Hold Style', 'N/A')}")
+    st.markdown(f"**Good Entry Range:** {data.get('Entry Range', 'N/A')}")
+    st.markdown(f"**Target / Sell Zone:** {data.get('Target / Sell Zone', 'N/A')}")
+    st.markdown(f"**52-Week High:** ${data.get('52W High', 'N/A')}")
+    st.markdown(f"**Gap to 52-Week High:** ${data.get('Delta to 52W High $', 'N/A')} / {data.get('Delta to 52W High %', 'N/A')}%")
+    st.info(data.get("AI Trade Plan", "No AI trade plan available."))
+
     modern_section("AI Notes")
     notes = []
     if data["Signal"] == "🟢 BUY NOW":
@@ -757,7 +906,7 @@ def detail_page(ticker):
 # ============================================================
 
 st.sidebar.title("📈 AI Trading Dashboard")
-st.sidebar.caption("V26.3 Modern UI")
+st.sidebar.caption("V26.4 Modern UI")
 
 role_label = "Admin" if is_admin() else "View Only"
 st.sidebar.success(f"Logged in as: {role_label}")
@@ -815,8 +964,10 @@ else:
 
 modern_hero(
     "📈 AI Trading Dashboard",
-    "AI-powered swing signals, recovery radar, ETF timing, watchlists, paper trading, and friend-safe viewer mode."
+    "AI-powered trade plans with entry ranges, target zones, hold style, 52-week high gap, recovery radar, and viewer-safe access."
 )
+
+st.caption("AI Trade Plans are rules-based research guidance, not financial advice. Verify fundamentals, earnings, news, and your own risk tolerance.")
 
 if page == "Dashboard":
     modern_section("🏠 Home Dashboard", "Quick overview of signals, watchlist strength, recovery candidates, and paper trades.")
