@@ -13,11 +13,11 @@ import yfinance as yf
 
 # ============================================================
 # AI TRADING DASHBOARD
-# V26.4 — MODERN FRIENDLY UI + HEADER TOOLTIPS + MULTI-USER VIEWER MODE
+# V26.5 — MODERN FRIENDLY UI + HEADER TOOLTIPS + MULTI-USER VIEWER MODE
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Trading Dashboard V26.4",
+    page_title="AI Trading Dashboard V26.5",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -394,74 +394,111 @@ def get_info(ticker):
 
 def build_ai_trade_plan(ticker, price, sma20, sma50, sma200, rsi, ai_score, risk_score, high_52, low_52, upside_to_high, volume_ratio):
     """
-    Creates plain-English AI trade guidance.
-    This is rules-based research guidance only, not financial advice.
+    Creates detailed rules-based AI trade guidance.
+    This is research guidance only, not financial advice.
     """
     delta_to_high_dollars = high_52 - price if high_52 and price else None
     delta_to_high_pct = ((high_52 - price) / price * 100) if high_52 and price else None
 
-    if ai_score >= 75 and risk_score < 35:
-        entry_range = f"${price * 0.97:.2f} - ${price * 1.01:.2f}"
-    elif rsi < 35:
-        entry_range = f"${price * 0.95:.2f} - ${price * 0.99:.2f}"
-    elif price > sma50:
-        entry_range = f"${max(sma20 * 0.98, price * 0.96):.2f} - ${price:.2f}"
-    else:
-        entry_range = f"Wait for strength or pullback near ${price * 0.90:.2f} - ${min(price * 0.97, sma50):.2f}"
+    above_20 = price > sma20
+    above_50 = price > sma50
+    above_200 = price > sma200
+    near_52_low = ((price - low_52) / low_52 * 100) <= 20 if low_52 else False
+    far_from_high = delta_to_high_pct and delta_to_high_pct >= 20
 
-    if upside_to_high and upside_to_high > 30:
+    # Entry range logic
+    if ai_score >= 75 and risk_score < 35 and above_20 and above_50:
+        entry_range = f"${price * 0.97:.2f} - ${price * 1.01:.2f}"
+        entry_reason = "entry can be considered near current levels or on a small pullback because trend confirmation is already strong."
+    elif rsi < 35 and far_from_high:
+        entry_range = f"${price * 0.94:.2f} - ${price * 0.99:.2f}"
+        entry_reason = "better entry is on weakness because the stock is oversold and still trying to stabilize."
+    elif above_50:
+        entry_range = f"${max(sma20 * 0.98, price * 0.96):.2f} - ${price:.2f}"
+        entry_reason = "entry is best near short-term support rather than chasing a green day."
+    else:
+        entry_range = f"Wait for reclaim above ${sma50:.2f} or pullback near ${price * 0.90:.2f} - ${price * 0.95:.2f}"
+        entry_reason = "trend is not fully confirmed yet, so waiting for strength or a better pullback is safer."
+
+    # Target/sell zone logic
+    if delta_to_high_pct and delta_to_high_pct > 35:
         target_zone = f"${price * 1.12:.2f} - ${min(high_52, price * 1.30):.2f}"
-    elif upside_to_high and upside_to_high > 12:
+        sell_reason = "first target uses a partial recovery move, not the full 52-week high, because large rebounds often pause before fully recovering."
+    elif delta_to_high_pct and delta_to_high_pct > 15:
         target_zone = f"${price * 1.07:.2f} - ${min(high_52, price * 1.16):.2f}"
+        sell_reason = "target zone is moderate because upside to the prior high exists but is not extreme."
     else:
         target_zone = f"${price * 1.04:.2f} - ${price * 1.08:.2f}"
+        sell_reason = "upside to the prior high is limited, so profit-taking should be tighter."
 
-    if ai_score >= 75 and risk_score < 35 and price > sma50:
+    # Hold style logic
+    if ai_score >= 80 and risk_score < 30 and above_50:
         hold_style = "Short swing / momentum hold"
-    elif rsi < 40 and upside_to_high > 25:
+    elif near_52_low and far_from_high and rsi < 45:
         hold_style = "Recovery swing / staged long-term hold"
-    elif price > sma200 and ai_score >= 60:
+    elif above_200 and ai_score >= 60:
         hold_style = "Longer swing / possible long-term hold"
     elif risk_score >= 55:
         hold_style = "Watch only / avoid oversized position"
     else:
         hold_style = "Watchlist candidate"
 
-    reasons = []
-
-    if ai_score >= 75:
-        reasons.append("the AI setup score is strong")
-    elif ai_score >= 60:
-        reasons.append("the AI setup score is decent")
+    # Detailed buy guidance
+    if ai_score >= 75 and risk_score < 35:
+        opening = f"{ticker} is showing a BUY NOW style setup because the AI Score is strong at {ai_score:.0f} while risk remains controlled at {risk_score:.0f}."
+    elif ai_score >= 60 and risk_score < 50:
+        opening = f"{ticker} is a constructive watch/buy candidate, but not as clean as a top-tier BUY NOW setup. AI Score is {ai_score:.0f} and risk is {risk_score:.0f}."
+    elif rsi < 35 and far_from_high:
+        opening = f"{ticker} looks more like an oversold recovery candidate than a clean momentum buy. The setup may work, but it needs patience and staged entries."
     else:
-        reasons.append("the setup is not fully confirmed yet")
+        opening = f"{ticker} is not a clean buy yet. The current setup needs better confirmation before treating it as a high-conviction entry."
 
-    if risk_score < 35:
-        reasons.append("risk is manageable")
-    elif risk_score >= 55:
-        reasons.append("risk is elevated")
+    trend_detail = []
+    if above_20:
+        trend_detail.append("above the 20-day trend")
+    else:
+        trend_detail.append("below the 20-day trend")
+    if above_50:
+        trend_detail.append("above the 50-day trend")
+    else:
+        trend_detail.append("below the 50-day trend")
+    if above_200:
+        trend_detail.append("above the 200-day long-term trend")
+    else:
+        trend_detail.append("below the 200-day long-term trend")
 
     if rsi < 30:
-        reasons.append("RSI is oversold, which can support a rebound but may also show weakness")
+        rsi_detail = f"RSI is {rsi:.1f}, which is oversold. That can create rebound potential, but it can also mean the stock is still weak."
+    elif rsi <= 45:
+        rsi_detail = f"RSI is {rsi:.1f}, which suggests the stock is still beaten down but not necessarily broken."
     elif rsi <= 70:
-        reasons.append("RSI is in a healthier range")
+        rsi_detail = f"RSI is {rsi:.1f}, which is a healthier momentum zone for swing entries."
     else:
-        reasons.append("RSI is overbought, so chasing may be risky")
+        rsi_detail = f"RSI is {rsi:.1f}, which is overbought. I would avoid chasing unless there is a strong catalyst."
 
-    if price > sma20 and price > sma50:
-        reasons.append("price is above short and medium trend lines")
-    elif price < sma50:
-        reasons.append("price is still below the 50-day trend line")
-
-    if upside_to_high and upside_to_high > 20:
-        reasons.append(f"there is about {upside_to_high:.1f}% upside back to the 52-week high")
+    if delta_to_high_pct and delta_to_high_pct >= 30:
+        high_detail = f"The 52-week high is ${high_52:.2f}, which is ${delta_to_high_dollars:.2f} above the current price, or about {delta_to_high_pct:.1f}% away. That gives meaningful recovery room."
+    elif delta_to_high_pct and delta_to_high_pct >= 10:
+        high_detail = f"The 52-week high is ${high_52:.2f}, which is ${delta_to_high_dollars:.2f} above the current price, or about {delta_to_high_pct:.1f}% away. Upside exists, but it is more moderate."
     else:
-        reasons.append("upside to the 52-week high is more limited")
+        high_detail = f"The 52-week high is ${high_52:.2f}. The stock is already close to that level, so the setup is more about momentum than recovery upside."
 
-    if volume_ratio and volume_ratio > 1.1:
-        reasons.append("volume is stronger than normal")
+    if volume_ratio >= 1.3:
+        volume_detail = f"Volume is {volume_ratio:.2f}x normal, which supports stronger market interest."
+    elif volume_ratio >= 0.9:
+        volume_detail = f"Volume is {volume_ratio:.2f}x normal, so participation looks normal."
+    else:
+        volume_detail = f"Volume is only {volume_ratio:.2f}x normal, so I would want stronger confirmation before sizing up."
 
-    plan = "This is a research candidate because " + ", ".join(reasons) + "."
+    plan = (
+        f"{opening} "
+        f"Technically, price is {', '.join(trend_detail)}. "
+        f"{rsi_detail} "
+        f"{high_detail} "
+        f"{volume_detail} "
+        f"Suggested entry: {entry_range}; {entry_reason} "
+        f"Target/sell zone: {target_zone}; {sell_reason}"
+    )
 
     return {
         "52W High": round(high_52, 2) if high_52 else None,
@@ -566,7 +603,6 @@ def analyze_ticker(ticker):
         "Delta to 52W High %": trade_plan["Delta to 52W High %"],
         "From 52W Low %": safe_round(from_low, 1),
         "From 52W High %": safe_round(from_high, 1),
-        "Upside to 52W High %": safe_round(upside_to_high, 1),
         "Volume Ratio": safe_round(volume_ratio, 2),
         "Entry Range": trade_plan["Entry Range"],
         "Target / Sell Zone": trade_plan["Target / Sell Zone"],
@@ -702,8 +738,7 @@ def build_recovery_radar(tickers):
                 "Delta to 52W High $": safe_round(delta_to_high_dollars),
                 "Delta to 52W High %": safe_round(delta_to_high_pct, 1),
                 "From 52W Low %": safe_round(distance_from_low, 1),
-                "Upside to 52W High %": safe_round(upside_to_high, 1),
-                "Entry Range": f"${price * 0.95:.2f} - ${price:.2f}",
+                        "Entry Range": f"${price * 0.95:.2f} - ${price:.2f}",
                 "Target / Sell Zone": f"${price * 1.10:.2f} - ${min(high_52, price * 1.25):.2f}",
                 "Hold Style": recovery_hold_style,
                 "AI Trade Plan": recovery_plan,
@@ -767,11 +802,10 @@ COLUMN_HELP = {
     "RSI": "Relative Strength Index. Below 30 can mean oversold. Above 70 can mean overbought.",
     "From 52W Low %": "How far the current price is above its 52-week low.",
     "From 52W High %": "How far the current price is below its 52-week high. Negative means it is under the high.",
-    "Upside to 52W High %": "Potential percentage move if the stock returned to its 52-week high.",
     "Volume Ratio": "Current volume compared with average volume. Above 1.0 means higher than normal trading activity.",
-    "SMA20": "20-day simple moving average. Short-term trend line.",
-    "SMA50": "50-day simple moving average. Medium-term trend line.",
-    "SMA200": "200-day simple moving average. Long-term trend line.",
+    "SMA20": "20-day moving average used internally for trend analysis. Hidden from main table but shown in detail view.",
+    "SMA50": "50-day moving average used internally for trend confirmation. Hidden from main table but shown in detail view.",
+    "SMA200": "200-day moving average used internally for long-term trend health. Hidden from main table but shown in detail view.",
     "Recovery Score": "Score from 0 to 100 for beaten-down stocks that may have rebound potential.",
     "Rating": "Recovery Radar label. Helps separate strong recovery candidates from riskier value traps.",
     "30D Change %": "Stock performance over roughly the last 30 trading days.",
@@ -828,12 +862,24 @@ def build_column_config(df: pd.DataFrame, symbol_col=None):
 # UI HELPERS
 # ============================================================
 
+
+def prepare_display_table(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Hides internal technical columns from main tables to keep the dashboard clean.
+    SMA values are still used by the AI engine and shown in detail view.
+    """
+    if df is None or df.empty:
+        return df
+    hidden_cols = ["SMA20", "SMA50", "SMA200"]
+    return df.drop(columns=[c for c in hidden_cols if c in df.columns], errors="ignore")
+
+
 def render_clickable_table(df, symbol_col="Ticker"):
     if df.empty:
         st.info("No data to show.")
         return
 
-    display_df = df.copy()
+    display_df = prepare_display_table(df).copy()
 
     if symbol_col in display_df.columns:
         display_df[symbol_col] = display_df[symbol_col].apply(
@@ -906,7 +952,7 @@ def detail_page(ticker):
 # ============================================================
 
 st.sidebar.title("📈 AI Trading Dashboard")
-st.sidebar.caption("V26.4 Modern UI")
+st.sidebar.caption("V26.5 Modern UI")
 
 role_label = "Admin" if is_admin() else "View Only"
 st.sidebar.success(f"Logged in as: {role_label}")
@@ -964,10 +1010,10 @@ else:
 
 modern_hero(
     "📈 AI Trading Dashboard",
-    "AI-powered trade plans with entry ranges, target zones, hold style, 52-week high gap, recovery radar, and viewer-safe access."
+    "Cleaner AI trade guidance with specific buy rationale, entry zones, sell targets, 52-week high gap, and viewer-safe access."
 )
 
-st.caption("AI Trade Plans are rules-based research guidance, not financial advice. Verify fundamentals, earnings, news, and your own risk tolerance.")
+st.caption("AI Trade Plans are rules-based research guidance, not financial advice. SMA20/SMA50/SMA200 are used internally for trend analysis, but hidden from the main tables to keep the dashboard cleaner.")
 
 if page == "Dashboard":
     modern_section("🏠 Home Dashboard", "Quick overview of signals, watchlist strength, recovery candidates, and paper trades.")
