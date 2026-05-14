@@ -13,109 +13,154 @@ import yfinance as yf
 
 # ============================================================
 # AI TRADING DASHBOARD
-# V26.5 — MODERN FRIENDLY UI + HEADER TOOLTIPS + MULTI-USER VIEWER MODE
+# V26.6 — MODERN FRIENDLY UI + HEADER TOOLTIPS + MULTI-USER VIEWER MODE
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Trading Dashboard V26.5",
+    page_title="AI Trading Dashboard V26.6",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 
+
 # ============================================================
-# MODERN UI THEME
+# READABLE PREMIUM UI THEME
 # ============================================================
 
 st.markdown("""
 <style>
-/* App background */
-.stApp {
-    background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 45%, #f8fafc 100%);
+:root {
+    --bg-main: #f3f6fb;
+    --bg-card: #ffffff;
+    --text-main: #111827;
+    --text-muted: #475569;
+    --border-soft: #d8e0ec;
+    --blue-main: #2563eb;
 }
 
-/* Main content width and spacing */
+.stApp {
+    background: #f3f6fb !important;
+    color: #111827 !important;
+}
+
+html, body, p, div, span, label {
+    color: #111827;
+}
+
 .block-container {
     padding-top: 1.5rem;
     padding-bottom: 2rem;
+    max-width: 1500px;
 }
 
 /* Sidebar */
 section[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #0f172a 0%, #111827 100%);
+    background: #0f172a !important;
+    border-right: 1px solid rgba(255,255,255,0.08);
 }
 
-section[data-testid="stSidebar"] * {
+section[data-testid="stSidebar"] h1,
+section[data-testid="stSidebar"] h2,
+section[data-testid="stSidebar"] h3,
+section[data-testid="stSidebar"] p,
+section[data-testid="stSidebar"] span,
+section[data-testid="stSidebar"] label,
+section[data-testid="stSidebar"] div {
     color: #f8fafc !important;
 }
 
+section[data-testid="stSidebar"] input {
+    color: #111827 !important;
+    background: #ffffff !important;
+}
+
 section[data-testid="stSidebar"] .stButton button {
-    background: rgba(255,255,255,0.10);
-    border: 1px solid rgba(255,255,255,0.18);
-    color: white !important;
-    border-radius: 12px;
+    background: #1e293b !important;
+    border: 1px solid #334155 !important;
+    color: #ffffff !important;
+    border-radius: 12px !important;
 }
 
 /* Headings */
 h1, h2, h3 {
+    color: #111827 !important;
     letter-spacing: -0.03em;
 }
 
 h1 {
-    font-size: 2.3rem !important;
-    font-weight: 800 !important;
+    font-size: 2.25rem !important;
+    font-weight: 850 !important;
 }
 
 h2 {
     font-size: 1.55rem !important;
-    font-weight: 750 !important;
+    font-weight: 800 !important;
 }
 
-/* Cards and containers */
+/* Hero */
 .modern-hero {
-    padding: 24px;
+    padding: 26px;
     border-radius: 24px;
-    background: linear-gradient(135deg, #111827 0%, #1e3a8a 55%, #312e81 100%);
-    color: white;
-    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.22);
+    background: linear-gradient(135deg, #0f172a 0%, #1e40af 58%, #0f766e 100%);
+    color: #ffffff !important;
+    box-shadow: 0 18px 42px rgba(15, 23, 42, 0.22);
     margin-bottom: 20px;
+    border: 1px solid rgba(255,255,255,0.12);
 }
 
-.modern-hero h1 {
-    color: white !important;
-    margin-bottom: 4px;
+.modern-hero h1,
+.modern-hero p,
+.modern-hero span,
+.modern-hero div {
+    color: #ffffff !important;
 }
 
 .modern-hero p {
-    color: #dbeafe !important;
-    font-size: 1.02rem;
+    color: #e0f2fe !important;
+    font-size: 1.03rem;
     margin-bottom: 0;
 }
 
+/* Cards */
 .modern-card {
     padding: 18px 20px;
     border-radius: 20px;
-    background: rgba(255,255,255,0.86);
-    border: 1px solid rgba(148, 163, 184, 0.22);
-    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+    background: #ffffff !important;
+    color: #111827 !important;
+    border: 1px solid #d8e0ec;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
     margin-bottom: 16px;
 }
 
+.modern-card * {
+    color: #111827 !important;
+}
+
 .modern-section-title {
-    padding: 12px 0 6px 0;
+    padding: 14px 0 8px 0;
     font-size: 1.25rem;
-    font-weight: 800;
-    color: #0f172a;
+    font-weight: 850;
+    color: #111827 !important;
+}
+
+[data-testid="stCaptionContainer"],
+[data-testid="stCaptionContainer"] p {
+    color: #475569 !important;
 }
 
 /* Metrics */
 [data-testid="stMetric"] {
-    background: rgba(255,255,255,0.92);
-    border: 1px solid rgba(148, 163, 184, 0.25);
+    background: #ffffff !important;
+    border: 1px solid #d8e0ec;
     border-radius: 18px;
-    padding: 14px 16px;
-    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+    padding: 15px 16px;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.07);
+}
+
+[data-testid="stMetric"] * {
+    color: #111827 !important;
 }
 
 [data-testid="stMetricLabel"] {
@@ -123,40 +168,80 @@ h2 {
 }
 
 [data-testid="stMetricValue"] {
-    font-weight: 800 !important;
-    color: #0f172a !important;
+    color: #111827 !important;
+    font-weight: 850 !important;
 }
 
 /* Buttons */
 .stButton button, .stDownloadButton button, .stLinkButton a {
-    border-radius: 14px !important;
-    border: 1px solid rgba(59, 130, 246, 0.25) !important;
-    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
-    font-weight: 700 !important;
+    border-radius: 13px !important;
+    border: 1px solid #bfdbfe !important;
+    background: #ffffff !important;
+    color: #1d4ed8 !important;
+    box-shadow: 0 5px 14px rgba(15, 23, 42, 0.08);
+    font-weight: 750 !important;
+}
+
+.stButton button:hover, .stDownloadButton button:hover, .stLinkButton a:hover {
+    background: #eff6ff !important;
+    color: #1e40af !important;
+    border-color: #93c5fd !important;
 }
 
 /* Inputs */
 .stTextInput input, .stNumberInput input, textarea {
     border-radius: 12px !important;
-}
-
-/* Data tables */
-[data-testid="stDataFrame"], [data-testid="stDataEditor"] {
-    border-radius: 18px;
-    overflow: hidden;
-    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
-    border: 1px solid rgba(148, 163, 184, 0.24);
+    background: #ffffff !important;
+    color: #111827 !important;
+    border: 1px solid #cbd5e1 !important;
 }
 
 /* Alerts */
 .stAlert {
-    border-radius: 16px;
+    border-radius: 16px !important;
+    color: #111827 !important;
 }
 
-/* Expander */
+.stAlert * {
+    color: #111827 !important;
+}
+
+/* Expanders */
 .streamlit-expanderHeader {
     border-radius: 14px !important;
-    font-weight: 700 !important;
+    font-weight: 750 !important;
+    color: #111827 !important;
+    background: #ffffff !important;
+}
+
+/* Tables */
+[data-testid="stDataFrame"], [data-testid="stDataEditor"] {
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+    border: 1px solid #d8e0ec;
+    background: #ffffff !important;
+}
+
+[data-testid="stDataFrame"] div,
+[data-testid="stDataEditor"] div,
+[data-testid="stDataFrame"] span,
+[data-testid="stDataEditor"] span,
+[data-testid="stDataFrame"] p,
+[data-testid="stDataEditor"] p {
+    color: #111827 !important;
+}
+
+[data-testid="stDataEditor"] [role="columnheader"],
+[data-testid="stDataFrame"] [role="columnheader"] {
+    background: #e8eef8 !important;
+    color: #111827 !important;
+    font-weight: 800 !important;
+}
+
+a {
+    color: #1d4ed8 !important;
+    font-weight: 650;
 }
 
 /* Mobile */
@@ -177,6 +262,10 @@ h2 {
 
     h2 {
         font-size: 1.25rem !important;
+    }
+
+    [data-testid="stMetric"] {
+        padding: 12px;
     }
 }
 </style>
@@ -199,7 +288,7 @@ def modern_card(title, body):
     st.markdown(
         f"""
         <div class="modern-card">
-            <div style="font-weight:800;font-size:1.05rem;color:#0f172a;margin-bottom:4px;">{title}</div>
+            <div style="font-weight:800;font-size:1.05rem;color:#111827;margin-bottom:4px;">{title}</div>
             <div style="color:#475569;font-size:0.95rem;">{body}</div>
         </div>
         """,
@@ -952,7 +1041,7 @@ def detail_page(ticker):
 # ============================================================
 
 st.sidebar.title("📈 AI Trading Dashboard")
-st.sidebar.caption("V26.5 Modern UI")
+st.sidebar.caption("V26.6 Modern UI")
 
 role_label = "Admin" if is_admin() else "View Only"
 st.sidebar.success(f"Logged in as: {role_label}")
@@ -1010,7 +1099,7 @@ else:
 
 modern_hero(
     "📈 AI Trading Dashboard",
-    "Cleaner AI trade guidance with specific buy rationale, entry zones, sell targets, 52-week high gap, and viewer-safe access."
+    "High-contrast premium UI with clear AI trade guidance, entry zones, sell targets, 52-week high gap, and viewer-safe access."
 )
 
 st.caption("AI Trade Plans are rules-based research guidance, not financial advice. SMA20/SMA50/SMA200 are used internally for trend analysis, but hidden from the main tables to keep the dashboard cleaner.")
