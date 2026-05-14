@@ -14,11 +14,11 @@ import yfinance as yf
 
 # ============================================================
 # AI TRADING DASHBOARD
-# V26.7 — MODERN FRIENDLY UI + HEADER TOOLTIPS + MULTI-USER VIEWER MODE
+# V27 — MODERN FRIENDLY UI + HEADER TOOLTIPS + MULTI-USER VIEWER MODE
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Trading Dashboard V26.7",
+    page_title="AI Trading Dashboard V27",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -373,7 +373,7 @@ def require_login():
         else:
             st.error("Invalid username or password.")
 
-    st.info("Set ADMIN_USER, ADMIN_PASSWORD, VIEW_USER, and VIEW_PASSWORD in Render environment variables. No default passwords are active in V26.7.")
+    st.info("Set ADMIN_USER, ADMIN_PASSWORD, VIEW_USER, and VIEW_PASSWORD in Render environment variables. No default passwords are active in V27.")
     st.stop()
 
 
@@ -479,6 +479,258 @@ def get_info(ticker):
         return yf.Ticker(ticker).info or {}
     except Exception:
         return {}
+
+
+
+
+# ============================================================
+# V27 FREE RULES-BASED MULTI-AGENT ENGINE
+# ============================================================
+
+def technical_agent(price, sma20, sma50, sma200, rsi, volume_ratio):
+    score = 0
+    reasons = []
+
+    if price > sma20:
+        score += 18
+        reasons.append("above 20-day trend")
+    else:
+        reasons.append("below 20-day trend")
+
+    if price > sma50:
+        score += 22
+        reasons.append("above 50-day trend")
+    else:
+        reasons.append("below 50-day trend")
+
+    if price > sma200:
+        score += 25
+        reasons.append("above 200-day trend")
+    else:
+        reasons.append("below 200-day trend")
+
+    if 45 <= rsi <= 70:
+        score += 20
+        reasons.append("RSI in healthy swing zone")
+    elif 30 <= rsi < 45:
+        score += 12
+        reasons.append("RSI beaten down but stabilizing")
+    elif rsi < 30:
+        score += 8
+        reasons.append("RSI oversold")
+    else:
+        score -= 10
+        reasons.append("RSI overbought")
+
+    if volume_ratio >= 1.3:
+        score += 15
+        reasons.append("volume confirms stronger interest")
+    elif volume_ratio >= 0.9:
+        score += 8
+        reasons.append("volume is normal")
+    else:
+        score -= 5
+        reasons.append("volume confirmation is weak")
+
+    return max(0, min(100, score)), "; ".join(reasons)
+
+
+def risk_agent(price, stop_loss, target_low, risk_score, hist):
+    try:
+        close = hist["Close"]
+        daily_returns = close.pct_change().dropna()
+        volatility = daily_returns.tail(30).std() * 100
+        drawdown = ((price - close.tail(90).max()) / close.tail(90).max()) * 100
+    except Exception:
+        volatility = 3
+        drawdown = -10
+
+    risk_per_share = max(price - stop_loss, 0.01)
+    reward_per_share = max(target_low - price, 0.01)
+    rr = reward_per_share / risk_per_share
+
+    score = 100
+    reasons = []
+
+    if rr >= 2:
+        reasons.append("risk/reward is attractive")
+    elif rr >= 1.2:
+        score -= 15
+        reasons.append("risk/reward is acceptable but not ideal")
+    else:
+        score -= 30
+        reasons.append("risk/reward is weak")
+
+    if risk_score >= 55:
+        score -= 25
+        reasons.append("dashboard risk score is elevated")
+    elif risk_score < 35:
+        reasons.append("dashboard risk score is controlled")
+
+    if volatility > 4:
+        score -= 15
+        reasons.append("short-term volatility is high")
+    elif volatility < 2.5:
+        reasons.append("volatility is manageable")
+
+    if drawdown < -25:
+        score -= 10
+        reasons.append("recent drawdown is deep")
+    else:
+        reasons.append("recent drawdown is not extreme")
+
+    return max(0, min(100, score)), "; ".join(reasons)
+
+
+def fundamental_agent(info):
+    score = 50
+    reasons = []
+
+    forward_pe = info.get("forwardPE", None)
+    trailing_pe = info.get("trailingPE", None)
+    profit_margin = info.get("profitMargins", None)
+    revenue_growth = info.get("revenueGrowth", None)
+    debt_to_equity = info.get("debtToEquity", None)
+    market_cap = info.get("marketCap", None)
+
+    pe = forward_pe or trailing_pe
+
+    if market_cap and market_cap > 10_000_000_000:
+        score += 10
+        reasons.append("large-cap quality/liquidity")
+    elif market_cap:
+        reasons.append("smaller/mid-cap profile")
+
+    if pe and 0 < pe < 25:
+        score += 15
+        reasons.append("valuation is reasonable")
+    elif pe and 25 <= pe < 50:
+        score += 5
+        reasons.append("valuation is elevated but not extreme")
+    elif pe and pe >= 50:
+        score -= 10
+        reasons.append("valuation is expensive")
+
+    if profit_margin and profit_margin > 0.15:
+        score += 15
+        reasons.append("strong profit margins")
+    elif profit_margin and profit_margin > 0:
+        score += 5
+        reasons.append("positive margins")
+    elif profit_margin is not None:
+        score -= 10
+        reasons.append("weak or negative margins")
+
+    if revenue_growth and revenue_growth > 0.10:
+        score += 15
+        reasons.append("healthy revenue growth")
+    elif revenue_growth and revenue_growth > 0:
+        score += 5
+        reasons.append("modest revenue growth")
+    elif revenue_growth is not None:
+        score -= 10
+        reasons.append("revenue growth is negative")
+
+    if debt_to_equity and debt_to_equity > 200:
+        score -= 10
+        reasons.append("debt load appears elevated")
+    elif debt_to_equity is not None:
+        score += 5
+        reasons.append("debt level appears manageable")
+
+    if not reasons:
+        reasons.append("limited fundamental data available")
+
+    return max(0, min(100, score)), "; ".join(reasons)
+
+
+def recovery_agent(price, high_52, low_52, rsi, delta_to_high_pct):
+    score = 0
+    reasons = []
+
+    from_low_pct = ((price - low_52) / low_52 * 100) if low_52 else 0
+
+    if delta_to_high_pct and delta_to_high_pct >= 40:
+        score += 30
+        reasons.append("large upside gap to 52-week high")
+    elif delta_to_high_pct and delta_to_high_pct >= 20:
+        score += 20
+        reasons.append("moderate upside gap to 52-week high")
+    else:
+        score += 8
+        reasons.append("limited recovery gap to 52-week high")
+
+    if from_low_pct <= 15:
+        score += 25
+        reasons.append("near 52-week low")
+    elif from_low_pct <= 30:
+        score += 15
+        reasons.append("still close to lower yearly range")
+
+    if rsi < 35:
+        score += 25
+        reasons.append("oversold rebound setup")
+    elif rsi < 50:
+        score += 15
+        reasons.append("beaten-down but stabilizing")
+
+    if price > low_52 * 1.05:
+        score += 10
+        reasons.append("price has bounced off lows")
+
+    return max(0, min(100, score)), "; ".join(reasons)
+
+
+@st.cache_data(ttl=300)
+def macro_agent():
+    spy = get_history("SPY", period="6mo")
+    qqq = get_history("QQQ", period="6mo")
+
+    score = 50
+    reasons = []
+
+    for symbol, hist in [("SPY", spy), ("QQQ", qqq)]:
+        try:
+            close = hist["Close"]
+            price = close.iloc[-1]
+            sma20 = close.rolling(20).mean().iloc[-1]
+            sma50 = close.rolling(50).mean().iloc[-1]
+
+            if price > sma20 and price > sma50:
+                score += 12
+                reasons.append(f"{symbol} trend is supportive")
+            elif price < sma50:
+                score -= 10
+                reasons.append(f"{symbol} is below 50-day trend")
+            else:
+                reasons.append(f"{symbol} trend is mixed")
+        except Exception:
+            reasons.append(f"{symbol} data unavailable")
+
+    return max(0, min(100, score)), "; ".join(reasons)
+
+
+def synthesis_agent(technical_score, risk_score_agent, fundamental_score, recovery_score, macro_score):
+    final = (
+        technical_score * 0.30
+        + risk_score_agent * 0.25
+        + fundamental_score * 0.20
+        + recovery_score * 0.15
+        + macro_score * 0.10
+    )
+
+    if final >= 80:
+        verdict = "🟢 High Conviction"
+    elif final >= 68:
+        verdict = "🟢 Strong Candidate"
+    elif final >= 55:
+        verdict = "🟡 Watch / Starter Size"
+    elif final >= 45:
+        verdict = "⚪ Mixed Setup"
+    else:
+        verdict = "🔴 Avoid / Wait"
+
+    return round(final, 0), verdict
 
 
 
@@ -658,6 +910,8 @@ def analyze_ticker(ticker):
     avg_vol = hist["Volume"].rolling(20).mean().iloc[-1]
     volume_ratio = vol / avg_vol if avg_vol else 1
 
+    info = get_info(ticker)
+
     trend_score = 0
     if price > sma20:
         trend_score += 20
@@ -711,6 +965,34 @@ def analyze_ticker(ticker):
         volume_ratio=volume_ratio,
     )
 
+    # Multi-agent scoring layer
+    target_text = trade_plan["Target / Sell Zone"]
+    try:
+        target_low = float(target_text.replace("$", "").split(" - ")[0])
+    except Exception:
+        target_low = price * 1.08
+
+    tech_agent_score, tech_reason = technical_agent(price, sma20, sma50, sma200, rsi, volume_ratio)
+    risk_agent_score, risk_reason = risk_agent(price, trade_plan["Stop Loss"], target_low, risk_score, hist)
+    fundamental_score, fundamental_reason = fundamental_agent(info)
+    recovery_agent_score, recovery_reason = recovery_agent(price, high_52, low_52, rsi, trade_plan["Delta to 52W High %"])
+    macro_score, macro_reason = macro_agent()
+    final_conviction, agent_verdict = synthesis_agent(
+        tech_agent_score,
+        risk_agent_score,
+        fundamental_score,
+        recovery_agent_score,
+        macro_score,
+    )
+
+    agent_summary = (
+        f"Technical: {tech_reason}. "
+        f"Risk: {risk_reason}. "
+        f"Fundamental: {fundamental_reason}. "
+        f"Recovery: {recovery_reason}. "
+        f"Macro: {macro_reason}."
+    )
+
     return {
         "Ticker": ticker,
         "Price": safe_round(price),
@@ -718,6 +1000,13 @@ def analyze_ticker(ticker):
         "AI Score": safe_round(ai_score, 0),
         "Signal": signal,
         "Risk Score": safe_round(risk_score, 0),
+        "Technical Agent": safe_round(tech_agent_score, 0),
+        "Risk Agent": safe_round(risk_agent_score, 0),
+        "Fundamental Agent": safe_round(fundamental_score, 0),
+        "Recovery Agent": safe_round(recovery_agent_score, 0),
+        "Macro Agent": safe_round(macro_score, 0),
+        "Final Conviction": safe_round(final_conviction, 0),
+        "Agent Verdict": agent_verdict,
         "RSI": safe_round(rsi, 1),
         "52W High": trade_plan["52W High"],
         "Delta to 52W High $": trade_plan["Delta to 52W High $"],
@@ -731,6 +1020,7 @@ def analyze_ticker(ticker):
         "Risk / Reward": trade_plan["Risk / Reward"],
         "Hold Style": trade_plan["Hold Style"],
         "Position Size Note": trade_plan["Position Size Note"],
+        "Agent Summary": agent_summary,
         "AI Trade Plan": trade_plan["AI Trade Plan"],
         "SMA20": safe_round(sma20),
         "SMA50": safe_round(sma50),
@@ -747,7 +1037,8 @@ def build_scan(tickers):
             rows.append(result)
     df = pd.DataFrame(rows)
     if not df.empty:
-        df = df.sort_values(["AI Score", "Risk Score"], ascending=[False, True])
+        sort_col = "Final Conviction" if "Final Conviction" in df.columns else "AI Score"
+        df = df.sort_values([sort_col, "Risk Score"], ascending=[False, True])
     return df
 
 
@@ -955,6 +1246,14 @@ COLUMN_HELP = {
     "Stop Loss": "Suggested risk-control level where the setup may be invalidated.",
     "Risk / Reward": "Estimated reward versus risk based on target and stop-loss levels.",
     "Position Size Note": "Simple guidance on whether to use normal, smaller, or watch-only sizing.",
+    "Technical Agent": "Technical score from trend, RSI, moving averages, and volume.",
+    "Risk Agent": "Risk-control score based on stop distance, volatility, drawdown, and risk/reward.",
+    "Fundamental Agent": "Fundamental quality score based on valuation, profitability, debt, and growth data where available.",
+    "Recovery Agent": "Recovery score based on distance from highs/lows and oversold rebound setup.",
+    "Macro Agent": "Market backdrop score using broad ETF trend and risk-on/risk-off conditions.",
+    "Final Conviction": "Combined multi-agent investment opportunity score.",
+    "Agent Verdict": "Final label from the multi-agent engine.",
+    "Agent Summary": "Plain-English summary of what the agents agree or disagree on.",
 }
 
 
@@ -1063,6 +1362,16 @@ def detail_page(ticker):
     st.markdown(f"**Gap to 52-Week High:** ${data.get('Delta to 52W High $', 'N/A')} / {data.get('Delta to 52W High %', 'N/A')}%")
     st.info(data.get("AI Trade Plan", "No AI trade plan available."))
 
+    modern_section("Multi-Agent Breakdown")
+    agent_cols = [
+        "Technical Agent", "Risk Agent", "Fundamental Agent",
+        "Recovery Agent", "Macro Agent", "Final Conviction", "Agent Verdict"
+    ]
+    agent_data = {k: data.get(k, "N/A") for k in agent_cols}
+    st.dataframe(pd.DataFrame([agent_data]), use_container_width=True, hide_index=True)
+    st.markdown("**Agent Summary:**")
+    st.write(data.get("Agent Summary", "No multi-agent summary available."))
+
     modern_section("AI Notes")
     notes = []
     if data["Signal"] == "🟢 BUY NOW":
@@ -1085,7 +1394,7 @@ def detail_page(ticker):
 # ============================================================
 
 st.sidebar.title("📈 AI Trading Dashboard")
-st.sidebar.caption("V26.7 Modern UI")
+st.sidebar.caption("V27 Modern UI")
 
 role_label = "Admin" if is_admin() else "View Only"
 st.sidebar.success(f"Logged in as: {role_label}")
@@ -1150,10 +1459,10 @@ else:
 
 modern_hero(
     "📈 AI Trading Dashboard",
-    "High-contrast premium UI with clear AI trade guidance, entry zones, sell targets, 52-week high gap, and viewer-safe access."
+    "Free rules-based multi-agent engine with technical, risk, fundamental, recovery, macro, and final conviction scoring."
 )
 
-st.caption("AI Trade Plans are rules-based research guidance, not financial advice. V26.7 adds stop-loss, risk/reward, cleaner scoring, and auto-refresh. SMA20/SMA50/SMA200 are used internally but hidden from main tables.")
+st.caption("AI Trade Plans are rules-based research guidance, not financial advice. V27 adds a free multi-agent engine: technical, risk, fundamental, recovery, macro, and final synthesis scoring.")
 
 if page == "Dashboard":
     modern_section("🏠 Home Dashboard", "Quick overview of signals, watchlist strength, recovery candidates, and paper trades.")
@@ -1169,7 +1478,7 @@ if page == "Dashboard":
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Watchlist Stocks", len(st.session_state.watchlist))
     c2.metric("BUY NOW Signals", int((scan_df["Signal"] == "🟢 BUY NOW").sum()) if not scan_df.empty else 0)
-    c3.metric("Strong Recovery", int((recovery_df["Recovery Score"] >= 75).sum()) if not recovery_df.empty else 0)
+    c3.metric("High Conviction", int((scan_df["Final Conviction"] >= 80).sum()) if not scan_df.empty and "Final Conviction" in scan_df.columns else 0)
     c4.metric("Paper Trades", len(st.session_state.paper_trades))
 
     modern_section("🟢 Top BUY NOW Signals")
