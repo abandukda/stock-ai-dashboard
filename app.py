@@ -19,11 +19,11 @@ from plotly.subplots import make_subplots
 
 # ============================================================
 # AI TRADING DASHBOARD
-# V28 — MODERN FRIENDLY UI + HEADER TOOLTIPS + MULTI-USER VIEWER MODE
+# V28.1 — MODERN FRIENDLY UI + HEADER TOOLTIPS + MULTI-USER VIEWER MODE
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Trading Dashboard V28",
+    page_title="AI Trading Dashboard V28.1",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -385,7 +385,7 @@ def require_login():
         else:
             st.error("Invalid username or password.")
 
-    st.info("Set ADMIN_USER, ADMIN_PASSWORD, VIEW_USER, and VIEW_PASSWORD in Render environment variables. No default passwords are active in V28.")
+    st.info("Set ADMIN_USER, ADMIN_PASSWORD, VIEW_USER, and VIEW_PASSWORD in Render environment variables. No default passwords are active in V28.1.")
     st.stop()
 
 
@@ -499,7 +499,7 @@ def get_info(ticker):
 
 
 # ============================================================
-# V28 FREE RULES-BASED MULTI-AGENT ENGINE
+# V28.1 FREE RULES-BASED MULTI-AGENT ENGINE
 # ============================================================
 
 def technical_agent(price, sma20, sma50, sma200, rsi, volume_ratio):
@@ -1423,7 +1423,11 @@ def render_clickable_table(df, symbol_col="Ticker", default_compact=True):
         st.info("No data to show.")
         return
 
-    compact_key = f"compact_{symbol_col}_{len(df.columns)}_{len(df)}"
+    if "table_render_count" not in st.session_state:
+        st.session_state.table_render_count = 0
+    st.session_state.table_render_count += 1
+
+    compact_key = f"compact_{st.session_state.table_render_count}"
     use_compact = st.toggle("Compact table view", value=default_compact, key=compact_key)
 
     base_df = compact_table(df) if use_compact else df
@@ -1600,7 +1604,7 @@ def detail_page(ticker):
 # ============================================================
 
 st.sidebar.title("📈 AI Trading Dashboard")
-st.sidebar.caption("V28 Modern UI")
+st.sidebar.caption("V28.1 Modern UI")
 
 role_label = "Admin" if is_admin() else "View Only"
 st.sidebar.success(f"Logged in as: {role_label}")
@@ -1675,10 +1679,10 @@ else:
 
 modern_hero(
     "📈 AI Trading Dashboard",
-    "Stable auto-refresh, working market banner, alert history logging, safer intraday charts, faster scans, and compact tables."
+    "Final stability patch with wired alert logging, safe table keys, action-page market banners, and cleaner paper trade stops."
 )
 
-st.caption("AI Trade Plans are rules-based research guidance, not financial advice. V28 merges the free multi-agent engine with persistent DATA_DIR storage, non-blocking auto-refresh, Recovery Radar bug fixes, and updated email diagnostics.")
+st.caption("AI Trade Plans are rules-based research guidance, not financial advice. V28.1 merges the free multi-agent engine with persistent DATA_DIR storage, non-blocking auto-refresh, Recovery Radar bug fixes, and updated email diagnostics.")
 
 if page == "Dashboard":
     show_market_status_banner()
@@ -1778,12 +1782,14 @@ elif page == "Watchlist":
 
 
 elif page == "AI Scanner":
+    show_market_status_banner()
     modern_section("🤖 AI Swing Trade Scanner", "Ranks stocks based on trend, momentum, RSI, moving averages, volume, and risk.")
     df = build_scan(CORE_SCAN_TICKERS)
     render_clickable_table(df, "Ticker")
 
 
 elif page == "BUY NOW":
+    show_market_status_banner()
     modern_section("🟢 BUY NOW Signals", "Highest-conviction setups from the current scan.")
     df = build_scan(CORE_SCAN_TICKERS + st.session_state.watchlist)
     if df.empty:
@@ -1808,6 +1814,7 @@ elif page == "BUY NOW":
                     if st.button("Send BUY NOW Email Alert"):
                         ok, msg = send_email_alert("AI Dashboard BUY NOW Alert", body)
                         if ok:
+                            log_alert("BUY NOW", list(buy_df["Ticker"]) if "Ticker" in buy_df.columns else [])
                             st.success(msg)
                         else:
                             st.error(msg)
@@ -1845,6 +1852,7 @@ elif page == "Recovery Radar":
                     if st.button("Send Recovery Radar Email Alert"):
                         ok, msg = send_email_alert("AI Recovery Radar Alert", alert_text)
                         if ok:
+                            log_alert("Recovery Radar", list(strong_recovery["Ticker"]) if "Ticker" in strong_recovery.columns else [])
                             st.success(msg)
                         else:
                             st.error(msg)
@@ -1883,7 +1891,7 @@ elif page == "Paper Trading":
                     "Ticker": t,
                     "Entry Price": pt_price,
                     "Shares": pt_qty,
-                    "Stop Loss": pt_stop,
+                    "Stop Loss": pt_stop if pt_stop > 0 else None,
                     "Date": datetime.now(EASTERN).strftime("%Y-%m-%d %I:%M %p ET"),
                 })
                 save_paper_trades()
@@ -1961,7 +1969,7 @@ elif page == "Email Test":
     st.write(f"EMAIL_PASSWORD set: {'✅ Yes' if password else '❌ No'}")
     st.write(f"EMAIL_RECIPIENTS set: {'✅ Yes' if recipients else '❌ No'}")
 
-    test_body = f"Test email from AI Trading Dashboard V28 at {datetime.now(EASTERN).strftime('%Y-%m-%d %I:%M:%S %p ET')}"
+    test_body = f"Test email from AI Trading Dashboard V28.1 at {datetime.now(EASTERN).strftime('%Y-%m-%d %I:%M:%S %p ET')}"
 
     if st.button("Send Test Email"):
         ok, msg = send_email_alert("AI Trading Dashboard Test Email", test_body)
@@ -1974,10 +1982,6 @@ elif page == "Email Test":
 
 elif page == "Alert History":
     modern_section("📜 Alert History", "Recent email alerts sent by the dashboard.")
-
-    if not is_admin():
-        st.warning("View-only users cannot access alert history.")
-        st.stop()
 
     history = load_alert_history()
     if not history:
