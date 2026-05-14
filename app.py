@@ -19,11 +19,11 @@ from plotly.subplots import make_subplots
 
 # ============================================================
 # AI TRADING DASHBOARD
-# V28.2 — MODERN FRIENDLY UI + HEADER TOOLTIPS + MULTI-USER VIEWER MODE
+# V28.3 — MODERN FRIENDLY UI + HEADER TOOLTIPS + MULTI-USER VIEWER MODE
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Trading Dashboard V28.2",
+    page_title="AI Trading Dashboard V28.3",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -346,10 +346,14 @@ ETF_TICKERS = ["SPY", "QQQ", "IWM", "DIA", "XLK", "XLF", "XLV", "XLE", "XLY", "X
 # LOGIN / ROLE HELPERS
 # ============================================================
 
-ADMIN_USER = os.getenv("ADMIN_USER", "")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
-VIEW_USER = os.getenv("VIEW_USER", "")
-VIEW_PASSWORD = os.getenv("VIEW_PASSWORD", "")
+def clean_secret(value):
+    return str(value or "").strip()
+
+
+ADMIN_USER = clean_secret(os.getenv("ADMIN_USER", ""))
+ADMIN_PASSWORD = clean_secret(os.getenv("ADMIN_PASSWORD", ""))
+VIEW_USER = clean_secret(os.getenv("VIEW_USER", ""))
+VIEW_PASSWORD = clean_secret(os.getenv("VIEW_PASSWORD", ""))
 
 
 def require_login():
@@ -372,20 +376,35 @@ def require_login():
         submitted = st.form_submit_button("Login")
 
     if submitted:
-        if ADMIN_USER and ADMIN_PASSWORD and username == ADMIN_USER and password == ADMIN_PASSWORD:
+        entered_user = clean_secret(username).lower()
+        entered_password = clean_secret(password)
+
+        admin_user_match = ADMIN_USER and entered_user == ADMIN_USER.lower()
+        view_user_match = VIEW_USER and entered_user == VIEW_USER.lower()
+
+        if admin_user_match and ADMIN_PASSWORD and entered_password == ADMIN_PASSWORD:
             st.session_state.logged_in = True
             st.session_state.user_role = "admin"
-            st.session_state.login_user = username
+            st.session_state.login_user = ADMIN_USER
             st.rerun()
-        elif VIEW_USER and VIEW_PASSWORD and username == VIEW_USER and password == VIEW_PASSWORD:
+        elif view_user_match and VIEW_PASSWORD and entered_password == VIEW_PASSWORD:
             st.session_state.logged_in = True
             st.session_state.user_role = "viewer"
-            st.session_state.login_user = username
+            st.session_state.login_user = VIEW_USER
             st.rerun()
         else:
             st.error("Invalid username or password.")
+            st.warning("Check that Render environment variable names and values are saved exactly, then redeploy.")
 
-    st.info("Set ADMIN_USER, ADMIN_PASSWORD, VIEW_USER, and VIEW_PASSWORD in Render environment variables. No default passwords are active in V28.2.")
+    with st.expander("🔧 Login Diagnostics"):
+        st.write("This does not show your passwords. It only confirms whether Render can read the variables.")
+        st.write(f"ADMIN_USER set: {'✅ Yes' if ADMIN_USER else '❌ No'}")
+        st.write(f"ADMIN_PASSWORD set: {'✅ Yes' if ADMIN_PASSWORD else '❌ No'}")
+        st.write(f"VIEW_USER set: {'✅ Yes' if VIEW_USER else '❌ No'}")
+        st.write(f"VIEW_PASSWORD set: {'✅ Yes' if VIEW_PASSWORD else '❌ No'}")
+        st.caption("Expected variable names: ADMIN_USER, ADMIN_PASSWORD, VIEW_USER, VIEW_PASSWORD")
+
+    st.info("Set ADMIN_USER, ADMIN_PASSWORD, VIEW_USER, and VIEW_PASSWORD in Render environment variables, then use Manual Deploy → Clear build cache & deploy.")
     st.stop()
 
 
@@ -499,7 +518,7 @@ def get_info(ticker):
 
 
 # ============================================================
-# V28.2 FREE RULES-BASED MULTI-AGENT ENGINE
+# V28.3 FREE RULES-BASED MULTI-AGENT ENGINE
 # ============================================================
 
 def technical_agent(price, sma20, sma50, sma200, rsi, volume_ratio):
@@ -1605,7 +1624,7 @@ def detail_page(ticker):
 # ============================================================
 
 st.sidebar.title("📈 AI Trading Dashboard")
-st.sidebar.caption("V28.2 Modern UI")
+st.sidebar.caption("V28.3 Modern UI")
 
 role_label = "Admin" if is_admin() else "View Only"
 st.sidebar.success(f"Logged in as: {role_label}")
@@ -1680,10 +1699,10 @@ else:
 
 modern_hero(
     "📈 AI Trading Dashboard",
-    "Final production cleanup with stable compact table IDs, cleaner alert history display, and production-ready dashboard behavior."
+    "Login diagnostics fix with whitespace-safe environment variables and clearer Render variable checks."
 )
 
-st.caption("AI Trade Plans are rules-based research guidance, not financial advice. V28.2 merges the free multi-agent engine with persistent DATA_DIR storage, non-blocking auto-refresh, Recovery Radar bug fixes, and updated email diagnostics.")
+st.caption("AI Trade Plans are rules-based research guidance, not financial advice. V28.3 merges the free multi-agent engine with persistent DATA_DIR storage, non-blocking auto-refresh, Recovery Radar bug fixes, and updated email diagnostics.")
 
 if page == "Dashboard":
     show_market_status_banner()
@@ -1970,7 +1989,7 @@ elif page == "Email Test":
     st.write(f"EMAIL_PASSWORD set: {'✅ Yes' if password else '❌ No'}")
     st.write(f"EMAIL_RECIPIENTS set: {'✅ Yes' if recipients else '❌ No'}")
 
-    test_body = f"Test email from AI Trading Dashboard V28.2 at {datetime.now(EASTERN).strftime('%Y-%m-%d %I:%M:%S %p ET')}"
+    test_body = f"Test email from AI Trading Dashboard V28.3 at {datetime.now(EASTERN).strftime('%Y-%m-%d %I:%M:%S %p ET')}"
 
     if st.button("Send Test Email"):
         ok, msg = send_email_alert("AI Trading Dashboard Test Email", test_body)
