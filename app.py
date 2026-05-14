@@ -5,6 +5,7 @@ import smtplib
 from email.mime.text import MIMEText
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 import pandas as pd
@@ -15,15 +16,17 @@ try:
 except Exception:
     st_autorefresh = None
 import yfinance as yf
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 
 # ============================================================
 # AI TRADING DASHBOARD
-# V27.8 — MODERN FRIENDLY UI + HEADER TOOLTIPS + MULTI-USER VIEWER MODE
+# V27.9 — MODERN FRIENDLY UI + HEADER TOOLTIPS + MULTI-USER VIEWER MODE
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Trading Dashboard V27.8",
+    page_title="AI Trading Dashboard V27.9",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -318,6 +321,7 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 WATCHLIST_FILE = DATA_DIR / "watchlist.json"
 PAPER_TRADES_FILE = DATA_DIR / "paper_trades.json"
+ALERT_HISTORY_FILE = DATA_DIR / "alert_history.json"
 
 DEFAULT_WATCHLIST = [
     "AAPL", "MSFT", "NVDA", "AMD", "TSLA", "AMZN", "GOOGL", "META",
@@ -384,7 +388,7 @@ def require_login():
         else:
             st.error("Invalid username or password.")
 
-    st.info("Set ADMIN_USER, ADMIN_PASSWORD, VIEW_USER, and VIEW_PASSWORD in Render environment variables. No default passwords are active in V27.8.")
+    st.info("Set ADMIN_USER, ADMIN_PASSWORD, VIEW_USER, and VIEW_PASSWORD in Render environment variables. No default passwords are active in V27.9.")
     st.stop()
 
 
@@ -498,7 +502,7 @@ def get_info(ticker):
 
 
 # ============================================================
-# V27.8 FREE RULES-BASED MULTI-AGENT ENGINE
+# V27.9 FREE RULES-BASED MULTI-AGENT ENGINE
 # ============================================================
 
 def technical_agent(price, sma20, sma50, sma200, rsi, volume_ratio):
@@ -1047,11 +1051,30 @@ def analyze_ticker(ticker):
 
 @st.cache_data(ttl=300)
 def build_scan(tickers):
-    rows = []
+    unique_tickers = []
     for ticker in tickers:
-        result = analyze_ticker(ticker)
-        if result:
-            rows.append(result)
+        t = normalize_ticker(str(ticker))
+        if t and t not in unique_tickers:
+            unique_tickers.append(t)
+
+    rows = []
+    if not unique_tickers:
+        return pd.DataFrame()
+
+    max_workers = min(8, max(1, len(unique_tickers)))
+
+    try:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            results = list(executor.map(analyze_ticker, unique_tickers))
+        rows = [r for r in results if r]
+    except Exception:
+        # Safe fallback if threading fails on Render
+        rows = []
+        for ticker in unique_tickers:
+            result = analyze_ticker(ticker)
+            if result:
+                rows.append(result)
+
     df = pd.DataFrame(rows)
     if not df.empty:
         sort_col = "Final Conviction" if "Final Conviction" in df.columns else "AI Score"
@@ -1196,6 +1219,26 @@ def build_recovery_radar(tickers):
     return df
 
 
+
+def load_alert_history():
+    return load_json_file(ALERT_HISTORY_FILE, [])
+
+
+def save_alert_history(history):
+    return save_json_file(ALERT_HISTORY_FILE, history)
+
+
+def log_alert(alert_type, tickers):
+    history = load_alert_history()
+    history.append({
+        "timestamp": datetime.now(EASTERN).strftime("%Y-%m-%d %I:%M:%S %p ET"),
+        "alert_type": alert_type,
+        "tickers": tickers,
+    })
+    save_alert_history(history[-100:])
+
+
+
 # ============================================================
 # EMAIL ALERTS
 # ============================================================
@@ -1306,9 +1349,66 @@ def build_column_config(df: pd.DataFrame, symbol_col=None):
 
 
 
+
+# ============================================================
+# MARKET STATUS + DISPLAY HELPERS
+# ============================================================
+
+def get_market_status():
+    now = datetime.now(EASTERN)
+    is_weekday = now.weekday() < 5
+
+    open_time = now.replace(hour=9, minute=30, second=0, microsecond=0)
+    close_time = now.replace(hour=16, minute=0, second=0, microsecond=0)
+    premarket_time = now.replace(hour=4, minute=0, second=0, microsecond=0)
+    afterhours_time = now.replace(hour=20, minute=0, second=0, microsecond=0)
+
+    if not is_weekday:
+        return "🔴 Market Closed", "Weekend. Daily prices may be stale until the next trading session."
+
+    if premarket_time <= now < open_time:
+        return "🟡 Pre-Market", "Market opens at 9:30 AM ET. Some prices may be delayed."
+    elif open_time <= now <= close_time:
+        return "🟢 Market Open", "Market is open. Intraday detail view is useful for timing entries."
+    elif close_time < now <= afterhours_time:
+        return "🟡 After Hours", "Regular market is closed. Some after-hours pricing may be limited."
+    else:
+        return "🔴 Market Closed", "Market is closed. Signals are based on latest available data."
+
+
+def show_market_status_banner():
+    status, note = get_market_status()
+    if "Open" in status:
+        st.success(f"{status} — {note}")
+    elif "Pre" in status or "After" in status:
+        st.info(f"{status} — {note}")
+    else:
+        st.warning(f"{status} — {note}")
+
+
+
 # ============================================================
 # UI HELPERS
 # ============================================================
+
+
+
+COMPACT_COLUMNS = [
+    "Ticker", "ETF", "Price", "Final Conviction", "Agent Verdict", "Signal",
+    "RSI", "Entry Range", "Stop Loss", "Target / Sell Zone", "Risk / Reward",
+    "Hold Style", "52W High", "Delta to 52W High %"
+]
+
+
+def compact_table(df: pd.DataFrame) -> pd.DataFrame:
+    if df is None or df.empty:
+        return df
+
+    compact_cols = [c for c in COMPACT_COLUMNS if c in df.columns]
+    if compact_cols:
+        return df[compact_cols]
+    return df
+
 
 
 def prepare_display_table(df: pd.DataFrame) -> pd.DataFrame:
@@ -1322,12 +1422,16 @@ def prepare_display_table(df: pd.DataFrame) -> pd.DataFrame:
     return df.drop(columns=[c for c in hidden_cols if c in df.columns], errors="ignore")
 
 
-def render_clickable_table(df, symbol_col="Ticker"):
+def render_clickable_table(df, symbol_col="Ticker", default_compact=True):
     if df.empty:
         st.info("No data to show.")
         return
 
-    display_df = prepare_display_table(df).copy()
+    compact_key = f"compact_{symbol_col}_{len(df.columns)}_{len(df)}"
+    use_compact = st.toggle("Compact table view", value=default_compact, key=compact_key)
+
+    base_df = compact_table(df) if use_compact else df
+    display_df = prepare_display_table(base_df).copy()
 
     if symbol_col in display_df.columns:
         display_df[symbol_col] = display_df[symbol_col].apply(
@@ -1343,9 +1447,67 @@ def render_clickable_table(df, symbol_col="Ticker"):
     )
 
 
+
 def show_last_refresh():
     now = datetime.now(EASTERN)
     st.caption(f"Last refreshed: {now.strftime('%Y-%m-%d %I:%M:%S %p ET')}")
+
+
+
+def plot_candlestick_chart(ticker, hist):
+    if hist is None or hist.empty:
+        st.info("No chart data available.")
+        return
+
+    chart_df = hist.copy()
+    chart_df["SMA20"] = chart_df["Close"].rolling(20).mean()
+    chart_df["SMA50"] = chart_df["Close"].rolling(50).mean()
+    chart_df["SMA200"] = chart_df["Close"].rolling(200).mean()
+
+    fig = make_subplots(
+        rows=2,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.06,
+        row_heights=[0.72, 0.28],
+        subplot_titles=(f"{ticker} Price Action", "Volume"),
+    )
+
+    fig.add_trace(
+        go.Candlestick(
+            x=chart_df.index,
+            open=chart_df["Open"],
+            high=chart_df["High"],
+            low=chart_df["Low"],
+            close=chart_df["Close"],
+            name="Candles",
+        ),
+        row=1,
+        col=1,
+    )
+
+    fig.add_trace(go.Scatter(x=chart_df.index, y=chart_df["SMA20"], mode="lines", name="SMA20"), row=1, col=1)
+    fig.add_trace(go.Scatter(x=chart_df.index, y=chart_df["SMA50"], mode="lines", name="SMA50"), row=1, col=1)
+
+    if chart_df["SMA200"].notna().sum() > 0:
+        fig.add_trace(go.Scatter(x=chart_df.index, y=chart_df["SMA200"], mode="lines", name="SMA200"), row=1, col=1)
+
+    fig.add_trace(
+        go.Bar(x=chart_df.index, y=chart_df["Volume"], name="Volume"),
+        row=2,
+        col=1,
+    )
+
+    fig.update_layout(
+        height=720,
+        margin=dict(l=10, r=10, t=55, b=10),
+        xaxis_rangeslider_visible=False,
+        template="plotly_white",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
 
 
 def detail_page(ticker):
@@ -1353,7 +1515,20 @@ def detail_page(ticker):
     st.markdown(f"## 🔎 Deep Detail: {ticker}")
 
     data = analyze_ticker(ticker)
-    hist = get_history(ticker, period="1y")
+
+    chart_mode = st.radio(
+        "Chart timeframe",
+        ["1Y Daily", "5D 15-Min", "1D 5-Min"],
+        horizontal=True,
+        key=f"chart_mode_{ticker}"
+    )
+
+    if chart_mode == "1D 5-Min":
+        hist = get_history(ticker, period="1d", interval="5m")
+    elif chart_mode == "5D 15-Min":
+        hist = get_history(ticker, period="5d", interval="15m")
+    else:
+        hist = get_history(ticker, period="1y", interval="1d")
 
     if not data or hist.empty:
         st.warning("No data found for this ticker.")
@@ -1365,7 +1540,7 @@ def detail_page(ticker):
     c3.metric("RSI", data["RSI"])
     c4.metric("Signal", data["Signal"])
 
-    st.line_chart(hist["Close"], use_container_width=True)
+    plot_candlestick_chart(ticker, hist)
 
     modern_section("Technical Snapshot")
     st.dataframe(pd.DataFrame([data]), use_container_width=True, hide_index=True)
@@ -1413,7 +1588,7 @@ def detail_page(ticker):
 # ============================================================
 
 st.sidebar.title("📈 AI Trading Dashboard")
-st.sidebar.caption("V27.8 Modern UI")
+st.sidebar.caption("V27.9 Modern UI")
 
 role_label = "Admin" if is_admin() else "View Only"
 st.sidebar.success(f"Logged in as: {role_label}")
@@ -1438,6 +1613,7 @@ page = st.sidebar.radio(
         "ETF Timing",
         "Paper Trading",
         "Email Test",
+        "Alert History",
         "Detail View",
     ],
 )
@@ -1479,10 +1655,10 @@ else:
 
 modern_hero(
     "📈 AI Trading Dashboard",
-    "Merged multi-agent engine with persistent storage, non-blocking auto-refresh, recovery fixes, and cleaner risk guidance."
+    "Faster multi-agent scanning, Plotly candlestick charts, intraday detail view, market status, compact tables, and stronger BUY NOW filtering."
 )
 
-st.caption("AI Trade Plans are rules-based research guidance, not financial advice. V27.8 merges the free multi-agent engine with persistent DATA_DIR storage, non-blocking auto-refresh, Recovery Radar bug fixes, and updated email diagnostics.")
+st.caption("AI Trade Plans are rules-based research guidance, not financial advice. V27.9 merges the free multi-agent engine with persistent DATA_DIR storage, non-blocking auto-refresh, Recovery Radar bug fixes, and updated email diagnostics.")
 
 if page == "Dashboard":
     modern_section("🏠 Home Dashboard", "Quick overview of signals, watchlist strength, recovery candidates, and paper trades.")
@@ -1507,7 +1683,7 @@ if page == "Dashboard":
     else:
         buy_now = scan_df[scan_df["Signal"] == "🟢 BUY NOW"].head(10)
         if buy_now.empty:
-            st.info("No BUY NOW signals right now.")
+            st.info("No BUY NOW or high-conviction signals right now.")
         else:
             render_clickable_table(buy_now, "Ticker")
 
@@ -1592,9 +1768,12 @@ elif page == "BUY NOW":
     if df.empty:
         st.info("No scan data available.")
     else:
-        buy_df = df[df["Signal"] == "🟢 BUY NOW"]
+        if "Final Conviction" in df.columns:
+            buy_df = df[(df["Signal"] == "🟢 BUY NOW") | (df["Final Conviction"] >= 68)]
+        else:
+            buy_df = df[df["Signal"] == "🟢 BUY NOW"]
         if buy_df.empty:
-            st.info("No BUY NOW signals right now.")
+            st.info("No BUY NOW or high-conviction signals right now.")
         else:
             render_clickable_table(buy_df, "Ticker")
 
@@ -1668,10 +1847,11 @@ elif page == "Paper Trading":
     modern_section("🧾 Paper Trading", "Track practice trades before risking real capital.")
 
     if is_admin():
-        c1, c2, c3 = st.columns(3)
+        c1, c2, c3, c4 = st.columns(4)
         pt_ticker = c1.text_input("Ticker", placeholder="NVDA")
         pt_price = c2.number_input("Entry Price", min_value=0.0, step=0.01)
         pt_qty = c3.number_input("Shares", min_value=0.0, step=1.0)
+        pt_stop = c4.number_input("Stop Loss", min_value=0.0, step=0.01)
 
         if st.button("Add Paper Trade"):
             t = normalize_ticker(pt_ticker)
@@ -1682,6 +1862,7 @@ elif page == "Paper Trading":
                     "Ticker": t,
                     "Entry Price": pt_price,
                     "Shares": pt_qty,
+                    "Stop Loss": pt_stop,
                     "Date": datetime.now(EASTERN).strftime("%Y-%m-%d %I:%M %p ET"),
                 })
                 save_paper_trades()
@@ -1705,12 +1886,19 @@ elif page == "Paper Trading":
             pnl = ((current - entry) * shares) if current else None
             pnl_pct = ((current - entry) / entry * 100) if current and entry else None
 
+            stop = trade.get("Stop Loss", None)
+            stop_status = "⚪ No stop set"
+            if stop and current:
+                stop_status = "🔴 Stop breached" if current < stop else "🟢 Above stop"
+
             rows.append({
                 "ID": i,
                 "Ticker": ticker,
                 "Entry Price": entry,
                 "Current Price": current,
                 "Shares": shares,
+                "Stop Loss": stop,
+                "Stop Status": stop_status,
                 "P/L $": safe_round(pnl),
                 "P/L %": safe_round(pnl_pct),
                 "Date": trade["Date"],
@@ -1752,7 +1940,7 @@ elif page == "Email Test":
     st.write(f"EMAIL_PASSWORD set: {'✅ Yes' if password else '❌ No'}")
     st.write(f"EMAIL_RECIPIENTS set: {'✅ Yes' if recipients else '❌ No'}")
 
-    test_body = f"Test email from AI Trading Dashboard V27.8 at {datetime.now(EASTERN).strftime('%Y-%m-%d %I:%M:%S %p ET')}"
+    test_body = f"Test email from AI Trading Dashboard V27.9 at {datetime.now(EASTERN).strftime('%Y-%m-%d %I:%M:%S %p ET')}"
 
     if st.button("Send Test Email"):
         ok, msg = send_email_alert("AI Trading Dashboard Test Email", test_body)
@@ -1760,6 +1948,22 @@ elif page == "Email Test":
             st.success(msg)
         else:
             st.error(msg)
+
+
+
+elif page == "Alert History":
+    modern_section("📜 Alert History", "Recent email alerts sent by the dashboard.")
+
+    if not is_admin():
+        st.warning("View-only users cannot access alert history.")
+        st.stop()
+
+    history = load_alert_history()
+    if not history:
+        st.info("No alerts logged yet.")
+    else:
+        hist_df = pd.DataFrame(history)
+        st.dataframe(hist_df.sort_index(ascending=False), use_container_width=True, hide_index=True)
 
 
 elif page == "Detail View":
