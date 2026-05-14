@@ -19,11 +19,11 @@ from plotly.subplots import make_subplots
 
 # ============================================================
 # AI TRADING DASHBOARD
-# V28.3 — MODERN FRIENDLY UI + HEADER TOOLTIPS + MULTI-USER VIEWER MODE
+# V28.4 — MODERN FRIENDLY UI + HEADER TOOLTIPS + MULTI-USER VIEWER MODE
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Trading Dashboard V28.3",
+    page_title="AI Trading Dashboard V28.4",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -350,10 +350,13 @@ def clean_secret(value):
     return str(value or "").strip()
 
 
-ADMIN_USER = clean_secret(os.getenv("ADMIN_USER", ""))
-ADMIN_PASSWORD = clean_secret(os.getenv("ADMIN_PASSWORD", ""))
-VIEW_USER = clean_secret(os.getenv("VIEW_USER", ""))
-VIEW_PASSWORD = clean_secret(os.getenv("VIEW_PASSWORD", ""))
+# V28.4 SIMPLE LOGIN FIX
+# Built-in fallback credentials so login works even if Render environment variables fail.
+# Render environment variables can still override these later if needed.
+ADMIN_USER = clean_secret(os.getenv("ADMIN_USER", "asif"))
+ADMIN_PASSWORD = clean_secret(os.getenv("ADMIN_PASSWORD", "adminstocks"))
+VIEW_USER = clean_secret(os.getenv("VIEW_USER", "family"))
+VIEW_PASSWORD = clean_secret(os.getenv("VIEW_PASSWORD", "stocks"))
 
 
 def require_login():
@@ -397,14 +400,14 @@ def require_login():
             st.warning("Check that Render environment variable names and values are saved exactly, then redeploy.")
 
     with st.expander("🔧 Login Diagnostics"):
-        st.write("This does not show your passwords. It only confirms whether Render can read the variables.")
+        st.write("This confirms whether login credentials are loaded. V28.4 has built-in fallback credentials.")
         st.write(f"ADMIN_USER set: {'✅ Yes' if ADMIN_USER else '❌ No'}")
         st.write(f"ADMIN_PASSWORD set: {'✅ Yes' if ADMIN_PASSWORD else '❌ No'}")
         st.write(f"VIEW_USER set: {'✅ Yes' if VIEW_USER else '❌ No'}")
         st.write(f"VIEW_PASSWORD set: {'✅ Yes' if VIEW_PASSWORD else '❌ No'}")
-        st.caption("Expected variable names: ADMIN_USER, ADMIN_PASSWORD, VIEW_USER, VIEW_PASSWORD")
+        st.caption("Admin login: asif / adminstocks. Viewer login: family / stocks. Render env vars can override these if set.")
 
-    st.info("Set ADMIN_USER, ADMIN_PASSWORD, VIEW_USER, and VIEW_PASSWORD in Render environment variables, then use Manual Deploy → Clear build cache & deploy.")
+    st.info("V28.4 includes built-in fallback login credentials. Render environment variables are optional now.")
     st.stop()
 
 
@@ -518,7 +521,7 @@ def get_info(ticker):
 
 
 # ============================================================
-# V28.3 FREE RULES-BASED MULTI-AGENT ENGINE
+# V28.4 FREE RULES-BASED MULTI-AGENT ENGINE
 # ============================================================
 
 def technical_agent(price, sma20, sma50, sma200, rsi, volume_ratio):
@@ -1624,7 +1627,7 @@ def detail_page(ticker):
 # ============================================================
 
 st.sidebar.title("📈 AI Trading Dashboard")
-st.sidebar.caption("V28.3 Modern UI")
+st.sidebar.caption("V28.4 Modern UI")
 
 role_label = "Admin" if is_admin() else "View Only"
 st.sidebar.success(f"Logged in as: {role_label}")
@@ -1702,7 +1705,7 @@ modern_hero(
     "Login diagnostics fix with whitespace-safe environment variables and clearer Render variable checks."
 )
 
-st.caption("AI Trade Plans are rules-based research guidance, not financial advice. V28.3 merges the free multi-agent engine with persistent DATA_DIR storage, non-blocking auto-refresh, Recovery Radar bug fixes, and updated email diagnostics.")
+st.caption("AI Trade Plans are rules-based research guidance, not financial advice. V28.4 merges the free multi-agent engine with persistent DATA_DIR storage, non-blocking auto-refresh, Recovery Radar bug fixes, and updated email diagnostics.")
 
 if page == "Dashboard":
     show_market_status_banner()
@@ -1989,7 +1992,7 @@ elif page == "Email Test":
     st.write(f"EMAIL_PASSWORD set: {'✅ Yes' if password else '❌ No'}")
     st.write(f"EMAIL_RECIPIENTS set: {'✅ Yes' if recipients else '❌ No'}")
 
-    test_body = f"Test email from AI Trading Dashboard V28.3 at {datetime.now(EASTERN).strftime('%Y-%m-%d %I:%M:%S %p ET')}"
+    test_body = f"Test email from AI Trading Dashboard V28.4 at {datetime.now(EASTERN).strftime('%Y-%m-%d %I:%M:%S %p ET')}"
 
     if st.button("Send Test Email"):
         ok, msg = send_email_alert("AI Trading Dashboard Test Email", test_body)
