@@ -1,6 +1,7 @@
 import os
 import json
 import smtplib
+import time
 from email.mime.text import MIMEText
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -13,11 +14,11 @@ import yfinance as yf
 
 # ============================================================
 # AI TRADING DASHBOARD
-# V26.6 — MODERN FRIENDLY UI + HEADER TOOLTIPS + MULTI-USER VIEWER MODE
+# V26.7 — MODERN FRIENDLY UI + HEADER TOOLTIPS + MULTI-USER VIEWER MODE
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Trading Dashboard V26.6",
+    page_title="AI Trading Dashboard V26.7",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -333,10 +334,10 @@ ETF_TICKERS = ["SPY", "QQQ", "IWM", "DIA", "XLK", "XLF", "XLV", "XLE", "XLY", "X
 # LOGIN / ROLE HELPERS
 # ============================================================
 
-ADMIN_USER = os.getenv("ADMIN_USER", "admin")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
-VIEW_USER = os.getenv("VIEW_USER", "viewer")
-VIEW_PASSWORD = os.getenv("VIEW_PASSWORD", "viewer123")
+ADMIN_USER = os.getenv("ADMIN_USER", "")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
+VIEW_USER = os.getenv("VIEW_USER", "")
+VIEW_PASSWORD = os.getenv("VIEW_PASSWORD", "")
 
 
 def require_login():
@@ -359,12 +360,12 @@ def require_login():
         submitted = st.form_submit_button("Login")
 
     if submitted:
-        if username == ADMIN_USER and password == ADMIN_PASSWORD:
+        if ADMIN_USER and ADMIN_PASSWORD and username == ADMIN_USER and password == ADMIN_PASSWORD:
             st.session_state.logged_in = True
             st.session_state.user_role = "admin"
             st.session_state.login_user = username
             st.rerun()
-        elif username == VIEW_USER and password == VIEW_PASSWORD:
+        elif VIEW_USER and VIEW_PASSWORD and username == VIEW_USER and password == VIEW_PASSWORD:
             st.session_state.logged_in = True
             st.session_state.user_role = "viewer"
             st.session_state.login_user = username
@@ -372,7 +373,7 @@ def require_login():
         else:
             st.error("Invalid username or password.")
 
-    st.info("Set ADMIN_USER, ADMIN_PASSWORD, VIEW_USER, and VIEW_PASSWORD in Render environment variables.")
+    st.info("Set ADMIN_USER, ADMIN_PASSWORD, VIEW_USER, and VIEW_PASSWORD in Render environment variables. No default passwords are active in V26.7.")
     st.stop()
 
 
@@ -492,38 +493,73 @@ def build_ai_trade_plan(ticker, price, sma20, sma50, sma200, rsi, ai_score, risk
     above_20 = price > sma20
     above_50 = price > sma50
     above_200 = price > sma200
-    near_52_low = ((price - low_52) / low_52 * 100) <= 20 if low_52 else False
     far_from_high = delta_to_high_pct and delta_to_high_pct >= 20
 
-    # Entry range logic
+    # Entry range
     if ai_score >= 75 and risk_score < 35 and above_20 and above_50:
-        entry_range = f"${price * 0.97:.2f} - ${price * 1.01:.2f}"
-        entry_reason = "entry can be considered near current levels or on a small pullback because trend confirmation is already strong."
+        entry_low = price * 0.97
+        entry_high = price * 1.01
+        entry_range = f"${entry_low:.2f} - ${entry_high:.2f}"
+        entry_reason = "trend confirmation is already strong, so a small pullback or near-current entry is reasonable for research."
     elif rsi < 35 and far_from_high:
-        entry_range = f"${price * 0.94:.2f} - ${price * 0.99:.2f}"
-        entry_reason = "better entry is on weakness because the stock is oversold and still trying to stabilize."
+        entry_low = price * 0.94
+        entry_high = price * 0.99
+        entry_range = f"${entry_low:.2f} - ${entry_high:.2f}"
+        entry_reason = "the setup is more of an oversold rebound, so staged entries on weakness are safer."
     elif above_50:
-        entry_range = f"${max(sma20 * 0.98, price * 0.96):.2f} - ${price:.2f}"
-        entry_reason = "entry is best near short-term support rather than chasing a green day."
+        entry_low = max(sma20 * 0.98, price * 0.96)
+        entry_high = price
+        entry_range = f"${entry_low:.2f} - ${entry_high:.2f}"
+        entry_reason = "price is holding the medium trend, but the better entry is near short-term support."
     else:
-        entry_range = f"Wait for reclaim above ${sma50:.2f} or pullback near ${price * 0.90:.2f} - ${price * 0.95:.2f}"
-        entry_reason = "trend is not fully confirmed yet, so waiting for strength or a better pullback is safer."
+        entry_low = price * 0.90
+        entry_high = price * 0.95
+        entry_range = f"Wait for reclaim above ${sma50:.2f} or pullback near ${entry_low:.2f} - ${entry_high:.2f}"
+        entry_reason = "the trend is not fully confirmed, so patience is better than chasing."
 
-    # Target/sell zone logic
+    # Stop loss
+    if above_50 and risk_score < 40:
+        stop_loss = min(sma50 * 0.98, price * 0.92)
+        stop_reason = "stop is placed below the 50-day trend area to control downside if the setup breaks."
+    elif rsi < 35:
+        stop_loss = price * 0.90
+        stop_reason = "oversold rebounds can be volatile, so the stop gives the trade room but protects from a failed bounce."
+    else:
+        stop_loss = price * 0.88
+        stop_reason = "because confirmation is weaker, risk should be controlled with a wider but smaller-sized stop."
+
+    # Target / sell zone
     if delta_to_high_pct and delta_to_high_pct > 35:
-        target_zone = f"${price * 1.12:.2f} - ${min(high_52, price * 1.30):.2f}"
-        sell_reason = "first target uses a partial recovery move, not the full 52-week high, because large rebounds often pause before fully recovering."
+        target_low = price * 1.12
+        target_high = min(high_52, price * 1.30)
+        sell_reason = "target uses a partial recovery move first because big rebounds often pause before reaching the full 52-week high."
     elif delta_to_high_pct and delta_to_high_pct > 15:
-        target_zone = f"${price * 1.07:.2f} - ${min(high_52, price * 1.16):.2f}"
-        sell_reason = "target zone is moderate because upside to the prior high exists but is not extreme."
+        target_low = price * 1.07
+        target_high = min(high_52, price * 1.16)
+        sell_reason = "target is moderate because upside exists but is not extreme."
     else:
-        target_zone = f"${price * 1.04:.2f} - ${price * 1.08:.2f}"
-        sell_reason = "upside to the prior high is limited, so profit-taking should be tighter."
+        target_low = price * 1.04
+        target_high = price * 1.08
+        sell_reason = "target is tighter because upside to the prior high is limited."
 
-    # Hold style logic
+    target_zone = f"${target_low:.2f} - ${target_high:.2f}"
+
+    risk_per_share = max(price - stop_loss, 0.01)
+    reward_per_share = max(target_low - price, 0.01)
+    rr = reward_per_share / risk_per_share
+    risk_reward = f"{rr:.2f}:1"
+
+    if rr >= 2 and risk_score < 45:
+        position_note = "Normal starter position may be reasonable if it fits your plan."
+    elif rr >= 1.2:
+        position_note = "Use smaller starter size and add only if confirmation improves."
+    else:
+        position_note = "Watch-only or very small size because risk/reward is not attractive yet."
+
+    # Hold style
     if ai_score >= 80 and risk_score < 30 and above_50:
         hold_style = "Short swing / momentum hold"
-    elif near_52_low and far_from_high and rsi < 45:
+    elif rsi < 40 and far_from_high:
         hold_style = "Recovery swing / staged long-term hold"
     elif above_200 and ai_score >= 60:
         hold_style = "Longer swing / possible long-term hold"
@@ -532,61 +568,53 @@ def build_ai_trade_plan(ticker, price, sma20, sma50, sma200, rsi, ai_score, risk
     else:
         hold_style = "Watchlist candidate"
 
-    # Detailed buy guidance
+    # Specific narrative
     if ai_score >= 75 and risk_score < 35:
-        opening = f"{ticker} is showing a BUY NOW style setup because the AI Score is strong at {ai_score:.0f} while risk remains controlled at {risk_score:.0f}."
+        opening = f"{ticker} is a stronger BUY NOW style candidate because the AI Score is {ai_score:.0f} and the Risk Score is controlled at {risk_score:.0f}."
     elif ai_score >= 60 and risk_score < 50:
-        opening = f"{ticker} is a constructive watch/buy candidate, but not as clean as a top-tier BUY NOW setup. AI Score is {ai_score:.0f} and risk is {risk_score:.0f}."
+        opening = f"{ticker} is a constructive watch/buy candidate, but not the cleanest setup yet. AI Score is {ai_score:.0f} and Risk Score is {risk_score:.0f}."
     elif rsi < 35 and far_from_high:
-        opening = f"{ticker} looks more like an oversold recovery candidate than a clean momentum buy. The setup may work, but it needs patience and staged entries."
+        opening = f"{ticker} is more of an oversold recovery candidate than a clean momentum buy."
     else:
-        opening = f"{ticker} is not a clean buy yet. The current setup needs better confirmation before treating it as a high-conviction entry."
+        opening = f"{ticker} is not a clean buy yet and needs more confirmation."
 
-    trend_detail = []
-    if above_20:
-        trend_detail.append("above the 20-day trend")
-    else:
-        trend_detail.append("below the 20-day trend")
-    if above_50:
-        trend_detail.append("above the 50-day trend")
-    else:
-        trend_detail.append("below the 50-day trend")
-    if above_200:
-        trend_detail.append("above the 200-day long-term trend")
-    else:
-        trend_detail.append("below the 200-day long-term trend")
+    trend_parts = []
+    trend_parts.append("above 20-day trend" if above_20 else "below 20-day trend")
+    trend_parts.append("above 50-day trend" if above_50 else "below 50-day trend")
+    trend_parts.append("above 200-day trend" if above_200 else "below 200-day trend")
 
     if rsi < 30:
-        rsi_detail = f"RSI is {rsi:.1f}, which is oversold. That can create rebound potential, but it can also mean the stock is still weak."
+        rsi_detail = f"RSI is {rsi:.1f}, oversold. That may create rebound potential, but it can also mean sellers are still in control."
     elif rsi <= 45:
-        rsi_detail = f"RSI is {rsi:.1f}, which suggests the stock is still beaten down but not necessarily broken."
+        rsi_detail = f"RSI is {rsi:.1f}, which suggests the stock is still beaten down but starting to become more interesting."
     elif rsi <= 70:
-        rsi_detail = f"RSI is {rsi:.1f}, which is a healthier momentum zone for swing entries."
+        rsi_detail = f"RSI is {rsi:.1f}, a healthier range for swing entries."
     else:
-        rsi_detail = f"RSI is {rsi:.1f}, which is overbought. I would avoid chasing unless there is a strong catalyst."
+        rsi_detail = f"RSI is {rsi:.1f}, overbought. I would avoid chasing strength here."
 
     if delta_to_high_pct and delta_to_high_pct >= 30:
-        high_detail = f"The 52-week high is ${high_52:.2f}, which is ${delta_to_high_dollars:.2f} above the current price, or about {delta_to_high_pct:.1f}% away. That gives meaningful recovery room."
+        high_detail = f"The 52-week high is ${high_52:.2f}, which is ${delta_to_high_dollars:.2f} above current price, or about {delta_to_high_pct:.1f}% away."
     elif delta_to_high_pct and delta_to_high_pct >= 10:
-        high_detail = f"The 52-week high is ${high_52:.2f}, which is ${delta_to_high_dollars:.2f} above the current price, or about {delta_to_high_pct:.1f}% away. Upside exists, but it is more moderate."
+        high_detail = f"The 52-week high is ${high_52:.2f}, leaving about {delta_to_high_pct:.1f}% potential back to that level."
     else:
-        high_detail = f"The 52-week high is ${high_52:.2f}. The stock is already close to that level, so the setup is more about momentum than recovery upside."
+        high_detail = f"The stock is already close to its 52-week high of ${high_52:.2f}, so this is more of a momentum setup than a recovery setup."
 
-    if volume_ratio >= 1.3:
-        volume_detail = f"Volume is {volume_ratio:.2f}x normal, which supports stronger market interest."
-    elif volume_ratio >= 0.9:
-        volume_detail = f"Volume is {volume_ratio:.2f}x normal, so participation looks normal."
-    else:
-        volume_detail = f"Volume is only {volume_ratio:.2f}x normal, so I would want stronger confirmation before sizing up."
+    volume_detail = (
+        f"Volume is {volume_ratio:.2f}x normal, showing stronger participation."
+        if volume_ratio >= 1.3 else
+        f"Volume is {volume_ratio:.2f}x normal, which is acceptable but not a major confirmation."
+        if volume_ratio >= 0.9 else
+        f"Volume is only {volume_ratio:.2f}x normal, so confirmation is weaker."
+    )
 
     plan = (
         f"{opening} "
-        f"Technically, price is {', '.join(trend_detail)}. "
-        f"{rsi_detail} "
-        f"{high_detail} "
-        f"{volume_detail} "
+        f"Technically, price is {', '.join(trend_parts)}. "
+        f"{rsi_detail} {high_detail} {volume_detail} "
         f"Suggested entry: {entry_range}; {entry_reason} "
-        f"Target/sell zone: {target_zone}; {sell_reason}"
+        f"Stop loss: ${stop_loss:.2f}; {stop_reason} "
+        f"Target/sell zone: {target_zone}; {sell_reason} "
+        f"Risk/reward is about {risk_reward}. {position_note}"
     )
 
     return {
@@ -595,7 +623,10 @@ def build_ai_trade_plan(ticker, price, sma20, sma50, sma200, rsi, ai_score, risk
         "Delta to 52W High %": round(delta_to_high_pct, 1) if delta_to_high_pct is not None else None,
         "AI Trade Plan": plan,
         "Entry Range": entry_range,
+        "Stop Loss": round(stop_loss, 2),
         "Target / Sell Zone": target_zone,
+        "Risk / Reward": risk_reward,
+        "Position Size Note": position_note,
         "Hold Style": hold_style,
     }
 
@@ -653,7 +684,8 @@ def analyze_ticker(ticker):
     if volume_ratio < 0.6:
         risk_score += 10
 
-    ai_score = max(0, min(100, trend_score - risk_score + 35))
+    raw_score = trend_score - (risk_score * 0.65)
+    ai_score = max(0, min(100, raw_score))
 
     if ai_score >= 75 and risk_score < 35:
         signal = "🟢 BUY NOW"
@@ -694,8 +726,11 @@ def analyze_ticker(ticker):
         "From 52W High %": safe_round(from_high, 1),
         "Volume Ratio": safe_round(volume_ratio, 2),
         "Entry Range": trade_plan["Entry Range"],
+        "Stop Loss": trade_plan["Stop Loss"],
         "Target / Sell Zone": trade_plan["Target / Sell Zone"],
+        "Risk / Reward": trade_plan["Risk / Reward"],
         "Hold Style": trade_plan["Hold Style"],
+        "Position Size Note": trade_plan["Position Size Note"],
         "AI Trade Plan": trade_plan["AI Trade Plan"],
         "SMA20": safe_round(sma20),
         "SMA50": safe_round(sma50),
@@ -828,8 +863,11 @@ def build_recovery_radar(tickers):
                 "Delta to 52W High %": safe_round(delta_to_high_pct, 1),
                 "From 52W Low %": safe_round(distance_from_low, 1),
                         "Entry Range": f"${price * 0.95:.2f} - ${price:.2f}",
+                "Stop Loss": safe_round(price * 0.90),
                 "Target / Sell Zone": f"${price * 1.10:.2f} - ${min(high_52, price * 1.25):.2f}",
+                "Risk / Reward": "1.00:1+",
                 "Hold Style": recovery_hold_style,
+                "Position Size Note": "Use staged entries; add only after trend confirmation.",
                 "AI Trade Plan": recovery_plan,
                 "30D Change %": safe_round(change_30d, 1),
                 "90D Change %": safe_round(change_90d, 1),
@@ -914,6 +952,9 @@ COLUMN_HELP = {
     "Entry Range": "Suggested research entry zone based on current price, trend, RSI, and moving averages.",
     "Target / Sell Zone": "Potential profit-taking area based on 52-week high, moving averages, and risk.",
     "Hold Style": "Suggested style: short swing, longer swing, long-term hold, or avoid/watch.",
+    "Stop Loss": "Suggested risk-control level where the setup may be invalidated.",
+    "Risk / Reward": "Estimated reward versus risk based on target and stop-loss levels.",
+    "Position Size Note": "Simple guidance on whether to use normal, smaller, or watch-only sizing.",
 }
 
 
@@ -1014,7 +1055,10 @@ def detail_page(ticker):
     modern_section("AI Trade Plan")
     st.markdown(f"**Suggested Hold Style:** {data.get('Hold Style', 'N/A')}")
     st.markdown(f"**Good Entry Range:** {data.get('Entry Range', 'N/A')}")
+    st.markdown(f"**Stop Loss:** ${data.get('Stop Loss', 'N/A')}")
     st.markdown(f"**Target / Sell Zone:** {data.get('Target / Sell Zone', 'N/A')}")
+    st.markdown(f"**Risk / Reward:** {data.get('Risk / Reward', 'N/A')}")
+    st.markdown(f"**Position Size Note:** {data.get('Position Size Note', 'N/A')}")
     st.markdown(f"**52-Week High:** ${data.get('52W High', 'N/A')}")
     st.markdown(f"**Gap to 52-Week High:** ${data.get('Delta to 52W High $', 'N/A')} / {data.get('Delta to 52W High %', 'N/A')}%")
     st.info(data.get("AI Trade Plan", "No AI trade plan available."))
@@ -1041,7 +1085,7 @@ def detail_page(ticker):
 # ============================================================
 
 st.sidebar.title("📈 AI Trading Dashboard")
-st.sidebar.caption("V26.6 Modern UI")
+st.sidebar.caption("V26.7 Modern UI")
 
 role_label = "Admin" if is_admin() else "View Only"
 st.sidebar.success(f"Logged in as: {role_label}")
@@ -1075,6 +1119,13 @@ if st.sidebar.button("🔄 Refresh Data"):
     st.cache_data.clear()
     st.rerun()
 
+auto_refresh = st.sidebar.toggle("Auto-refresh every 60 seconds", value=False)
+if auto_refresh:
+    st.sidebar.info("Auto-refresh is on. Page updates every 60 seconds.")
+    time.sleep(60)
+    st.cache_data.clear()
+    st.rerun()
+
 st.sidebar.markdown("### Watchlist Quick Add")
 if is_admin():
     quick_ticker = st.sidebar.text_input("Ticker", placeholder="Example: NVDA", key="sidebar_add_ticker")
@@ -1102,7 +1153,7 @@ modern_hero(
     "High-contrast premium UI with clear AI trade guidance, entry zones, sell targets, 52-week high gap, and viewer-safe access."
 )
 
-st.caption("AI Trade Plans are rules-based research guidance, not financial advice. SMA20/SMA50/SMA200 are used internally for trend analysis, but hidden from the main tables to keep the dashboard cleaner.")
+st.caption("AI Trade Plans are rules-based research guidance, not financial advice. V26.7 adds stop-loss, risk/reward, cleaner scoring, and auto-refresh. SMA20/SMA50/SMA200 are used internally but hidden from main tables.")
 
 if page == "Dashboard":
     modern_section("🏠 Home Dashboard", "Quick overview of signals, watchlist strength, recovery candidates, and paper trades.")
@@ -1257,7 +1308,7 @@ elif page == "Recovery Radar":
                     alert_text += (
                         f"{row['Ticker']} | Score: {row['Recovery Score']} | "
                         f"RSI: {row['RSI']} | "
-                        f"Upside to 52W High: {row['Upside to 52W High %']}%\n"
+                        f"Delta to 52W High: {row['Delta to 52W High %']}%\n"
                     )
                 st.text(alert_text)
 
