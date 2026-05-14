@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 import json
 import smtplib
+import time
 from email.mime.text import MIMEText
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -11,10 +12,6 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-try:
-    from streamlit_autorefresh import st_autorefresh
-except Exception:
-    st_autorefresh = None
 import yfinance as yf
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -22,11 +19,11 @@ from plotly.subplots import make_subplots
 
 # ============================================================
 # AI TRADING DASHBOARD
-# V27.9 — MODERN FRIENDLY UI + HEADER TOOLTIPS + MULTI-USER VIEWER MODE
+# V28 — MODERN FRIENDLY UI + HEADER TOOLTIPS + MULTI-USER VIEWER MODE
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Trading Dashboard V27.9",
+    page_title="AI Trading Dashboard V28",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -388,7 +385,7 @@ def require_login():
         else:
             st.error("Invalid username or password.")
 
-    st.info("Set ADMIN_USER, ADMIN_PASSWORD, VIEW_USER, and VIEW_PASSWORD in Render environment variables. No default passwords are active in V27.9.")
+    st.info("Set ADMIN_USER, ADMIN_PASSWORD, VIEW_USER, and VIEW_PASSWORD in Render environment variables. No default passwords are active in V28.")
     st.stop()
 
 
@@ -502,7 +499,7 @@ def get_info(ticker):
 
 
 # ============================================================
-# V27.9 FREE RULES-BASED MULTI-AGENT ENGINE
+# V28 FREE RULES-BASED MULTI-AGENT ENGINE
 # ============================================================
 
 def technical_agent(price, sma20, sma50, sma200, rsi, volume_ratio):
@@ -1211,10 +1208,9 @@ def build_recovery_radar(tickers):
     df = pd.DataFrame(rows)
 
     if not df.empty:
-        if "Final Conviction" in df.columns:
-            df = df.sort_values(by=["Final Conviction", "Recovery Score"], ascending=[False, False])
-        else:
-            df = df.sort_values(by="Recovery Score", ascending=False)
+        sort_cols = [c for c in ["Final Conviction", "Recovery Score"] if c in df.columns]
+        if sort_cols:
+            df = df.sort_values(by=sort_cols, ascending=[False] * len(sort_cols))
 
     return df
 
@@ -1460,9 +1456,23 @@ def plot_candlestick_chart(ticker, hist):
         return
 
     chart_df = hist.copy()
-    chart_df["SMA20"] = chart_df["Close"].rolling(20).mean()
-    chart_df["SMA50"] = chart_df["Close"].rolling(50).mean()
-    chart_df["SMA200"] = chart_df["Close"].rolling(200).mean()
+    candle_count = len(chart_df)
+
+    # Daily charts use classic SMA20/50/200.
+    # Intraday charts use shorter moving averages so overlays are not empty.
+    if candle_count >= 180:
+        ma_periods = [20, 50, 200]
+        ma_labels = ["SMA20", "SMA50", "SMA200"]
+    elif candle_count >= 60:
+        ma_periods = [5, 10, 20]
+        ma_labels = ["MA5", "MA10", "MA20"]
+    else:
+        ma_periods = [3, 5, 10]
+        ma_labels = ["MA3", "MA5", "MA10"]
+
+    for period, label in zip(ma_periods, ma_labels):
+        if candle_count >= period:
+            chart_df[label] = chart_df["Close"].rolling(period).mean()
 
     fig = make_subplots(
         rows=2,
@@ -1486,11 +1496,13 @@ def plot_candlestick_chart(ticker, hist):
         col=1,
     )
 
-    fig.add_trace(go.Scatter(x=chart_df.index, y=chart_df["SMA20"], mode="lines", name="SMA20"), row=1, col=1)
-    fig.add_trace(go.Scatter(x=chart_df.index, y=chart_df["SMA50"], mode="lines", name="SMA50"), row=1, col=1)
-
-    if chart_df["SMA200"].notna().sum() > 0:
-        fig.add_trace(go.Scatter(x=chart_df.index, y=chart_df["SMA200"], mode="lines", name="SMA200"), row=1, col=1)
+    for label in ma_labels:
+        if label in chart_df.columns and chart_df[label].notna().sum() > 0:
+            fig.add_trace(
+                go.Scatter(x=chart_df.index, y=chart_df[label], mode="lines", name=label),
+                row=1,
+                col=1,
+            )
 
     fig.add_trace(
         go.Bar(x=chart_df.index, y=chart_df["Volume"], name="Volume"),
@@ -1588,7 +1600,7 @@ def detail_page(ticker):
 # ============================================================
 
 st.sidebar.title("📈 AI Trading Dashboard")
-st.sidebar.caption("V27.9 Modern UI")
+st.sidebar.caption("V28 Modern UI")
 
 role_label = "Admin" if is_admin() else "View Only"
 st.sidebar.success(f"Logged in as: {role_label}")
@@ -1625,11 +1637,19 @@ if st.sidebar.button("🔄 Refresh Data"):
 
 auto_refresh = st.sidebar.toggle("Auto-refresh every 60 seconds", value=False)
 if auto_refresh:
-    st.sidebar.info("Auto-refresh is on. Page updates every 60 seconds.")
-    if st_autorefresh:
-        st_autorefresh(interval=60_000, key="dashboard_autorefresh")
+    if "last_auto_refresh" not in st.session_state:
+        st.session_state.last_auto_refresh = time.time()
+
+    elapsed = time.time() - st.session_state.last_auto_refresh
+
+    if elapsed >= 60:
+        st.session_state.last_auto_refresh = time.time()
+        st.cache_data.clear()
+        st.rerun()
     else:
-        st.sidebar.warning("Install streamlit-autorefresh for non-blocking auto-refresh. Manual refresh still works.")
+        st.sidebar.caption(f"⏱ Next refresh in {max(0, 60 - int(elapsed))}s")
+        time.sleep(1)
+        st.rerun()
 
 st.sidebar.markdown("### Watchlist Quick Add")
 if is_admin():
@@ -1655,12 +1675,13 @@ else:
 
 modern_hero(
     "📈 AI Trading Dashboard",
-    "Faster multi-agent scanning, Plotly candlestick charts, intraday detail view, market status, compact tables, and stronger BUY NOW filtering."
+    "Stable auto-refresh, working market banner, alert history logging, safer intraday charts, faster scans, and compact tables."
 )
 
-st.caption("AI Trade Plans are rules-based research guidance, not financial advice. V27.9 merges the free multi-agent engine with persistent DATA_DIR storage, non-blocking auto-refresh, Recovery Radar bug fixes, and updated email diagnostics.")
+st.caption("AI Trade Plans are rules-based research guidance, not financial advice. V28 merges the free multi-agent engine with persistent DATA_DIR storage, non-blocking auto-refresh, Recovery Radar bug fixes, and updated email diagnostics.")
 
 if page == "Dashboard":
+    show_market_status_banner()
     modern_section("🏠 Home Dashboard", "Quick overview of signals, watchlist strength, recovery candidates, and paper trades.")
     if is_admin():
         st.success("Admin mode: edit controls and email alerts are enabled.")
@@ -1940,7 +1961,7 @@ elif page == "Email Test":
     st.write(f"EMAIL_PASSWORD set: {'✅ Yes' if password else '❌ No'}")
     st.write(f"EMAIL_RECIPIENTS set: {'✅ Yes' if recipients else '❌ No'}")
 
-    test_body = f"Test email from AI Trading Dashboard V27.9 at {datetime.now(EASTERN).strftime('%Y-%m-%d %I:%M:%S %p ET')}"
+    test_body = f"Test email from AI Trading Dashboard V28 at {datetime.now(EASTERN).strftime('%Y-%m-%d %I:%M:%S %p ET')}"
 
     if st.button("Send Test Email"):
         ok, msg = send_email_alert("AI Trading Dashboard Test Email", test_body)
