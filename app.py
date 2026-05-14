@@ -370,7 +370,7 @@ def require_login():
     if st.session_state.logged_in:
         return
 
-    st.title("🔐 AI Trading Dashboard Login")
+    st.title("🔐 AI Trading Dashboard Login — V28.4 SIMPLE LOGIN")
     st.caption("Admin can edit watchlists, paper trades, and send email alerts. Viewer has read-only access.")
 
     with st.form("login_form"):
