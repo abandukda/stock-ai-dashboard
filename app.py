@@ -1,7 +1,7 @@
 import os
+from pathlib import Path
 import json
 import smtplib
-import time
 from email.mime.text import MIMEText
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -9,16 +9,21 @@ from zoneinfo import ZoneInfo
 import numpy as np
 import pandas as pd
 import streamlit as st
+
+try:
+    from streamlit_autorefresh import st_autorefresh
+except Exception:
+    st_autorefresh = None
 import yfinance as yf
 
 
 # ============================================================
 # AI TRADING DASHBOARD
-# V27 — MODERN FRIENDLY UI + HEADER TOOLTIPS + MULTI-USER VIEWER MODE
+# V27.8 — MODERN FRIENDLY UI + HEADER TOOLTIPS + MULTI-USER VIEWER MODE
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Trading Dashboard V27",
+    page_title="AI Trading Dashboard V27.8",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -305,8 +310,14 @@ def modern_section(title, subtitle=None):
 
 
 EASTERN = ZoneInfo("America/New_York")
-WATCHLIST_FILE = "watchlist.json"
-PAPER_TRADES_FILE = "paper_trades.json"
+
+# Render local filesystem can reset on deploy. If you attach a persistent disk,
+# set DATA_DIR=/var/data in Render environment variables.
+DATA_DIR = Path(os.getenv("DATA_DIR", "."))
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+WATCHLIST_FILE = DATA_DIR / "watchlist.json"
+PAPER_TRADES_FILE = DATA_DIR / "paper_trades.json"
 
 DEFAULT_WATCHLIST = [
     "AAPL", "MSFT", "NVDA", "AMD", "TSLA", "AMZN", "GOOGL", "META",
@@ -373,7 +384,7 @@ def require_login():
         else:
             st.error("Invalid username or password.")
 
-    st.info("Set ADMIN_USER, ADMIN_PASSWORD, VIEW_USER, and VIEW_PASSWORD in Render environment variables. No default passwords are active in V27.")
+    st.info("Set ADMIN_USER, ADMIN_PASSWORD, VIEW_USER, and VIEW_PASSWORD in Render environment variables. No default passwords are active in V27.8.")
     st.stop()
 
 
@@ -392,19 +403,22 @@ def normalize_ticker(ticker: str) -> str:
     return ticker.strip().upper().replace("$", "")
 
 
-def load_json_file(path: str, default):
+def load_json_file(path, default):
     try:
-        if os.path.exists(path):
-            with open(path, "r") as f:
+        path = Path(path)
+        if path.exists():
+            with path.open("r") as f:
                 return json.load(f)
     except Exception:
         pass
     return default
 
 
-def save_json_file(path: str, data):
+def save_json_file(path, data):
     try:
-        with open(path, "w") as f:
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("w") as f:
             json.dump(data, f, indent=2)
         return True
     except Exception as e:
@@ -484,7 +498,7 @@ def get_info(ticker):
 
 
 # ============================================================
-# V27 FREE RULES-BASED MULTI-AGENT ENGINE
+# V27.8 FREE RULES-BASED MULTI-AGENT ENGINE
 # ============================================================
 
 def technical_agent(price, sma20, sma50, sma200, rsi, volume_ratio):
@@ -697,10 +711,13 @@ def macro_agent():
             sma50 = close.rolling(50).mean().iloc[-1]
 
             if price > sma20 and price > sma50:
-                score += 12
+                score += 20
                 reasons.append(f"{symbol} trend is supportive")
+            elif price > sma50:
+                score += 8
+                reasons.append(f"{symbol} is above 50-day trend but short-term trend is mixed")
             elif price < sma50:
-                score -= 10
+                score -= 15
                 reasons.append(f"{symbol} is below 50-day trend")
             else:
                 reasons.append(f"{symbol} trend is mixed")
@@ -1049,8 +1066,7 @@ def build_recovery_radar(tickers):
     for ticker in tickers:
         try:
             ticker = normalize_ticker(ticker)
-            stock = yf.Ticker(ticker)
-            hist = stock.history(period="1y")
+            hist = get_history(ticker, period="1y")
 
             if hist.empty or len(hist) < 60:
                 continue
@@ -1172,7 +1188,10 @@ def build_recovery_radar(tickers):
     df = pd.DataFrame(rows)
 
     if not df.empty:
-        df = df.sort_values(by="Recovery Score", ascending=False)
+        if "Final Conviction" in df.columns:
+            df = df.sort_values(by=["Final Conviction", "Recovery Score"], ascending=[False, False])
+        else:
+            df = df.sort_values(by="Recovery Score", ascending=False)
 
     return df
 
@@ -1394,7 +1413,7 @@ def detail_page(ticker):
 # ============================================================
 
 st.sidebar.title("📈 AI Trading Dashboard")
-st.sidebar.caption("V27 Modern UI")
+st.sidebar.caption("V27.8 Modern UI")
 
 role_label = "Admin" if is_admin() else "View Only"
 st.sidebar.success(f"Logged in as: {role_label}")
@@ -1431,9 +1450,10 @@ if st.sidebar.button("🔄 Refresh Data"):
 auto_refresh = st.sidebar.toggle("Auto-refresh every 60 seconds", value=False)
 if auto_refresh:
     st.sidebar.info("Auto-refresh is on. Page updates every 60 seconds.")
-    time.sleep(60)
-    st.cache_data.clear()
-    st.rerun()
+    if st_autorefresh:
+        st_autorefresh(interval=60_000, key="dashboard_autorefresh")
+    else:
+        st.sidebar.warning("Install streamlit-autorefresh for non-blocking auto-refresh. Manual refresh still works.")
 
 st.sidebar.markdown("### Watchlist Quick Add")
 if is_admin():
@@ -1459,10 +1479,10 @@ else:
 
 modern_hero(
     "📈 AI Trading Dashboard",
-    "Free rules-based multi-agent engine with technical, risk, fundamental, recovery, macro, and final conviction scoring."
+    "Merged multi-agent engine with persistent storage, non-blocking auto-refresh, recovery fixes, and cleaner risk guidance."
 )
 
-st.caption("AI Trade Plans are rules-based research guidance, not financial advice. V27 adds a free multi-agent engine: technical, risk, fundamental, recovery, macro, and final synthesis scoring.")
+st.caption("AI Trade Plans are rules-based research guidance, not financial advice. V27.8 merges the free multi-agent engine with persistent DATA_DIR storage, non-blocking auto-refresh, Recovery Radar bug fixes, and updated email diagnostics.")
 
 if page == "Dashboard":
     modern_section("🏠 Home Dashboard", "Quick overview of signals, watchlist strength, recovery candidates, and paper trades.")
@@ -1732,7 +1752,7 @@ elif page == "Email Test":
     st.write(f"EMAIL_PASSWORD set: {'✅ Yes' if password else '❌ No'}")
     st.write(f"EMAIL_RECIPIENTS set: {'✅ Yes' if recipients else '❌ No'}")
 
-    test_body = f"Test email from AI Trading Dashboard V25.5 at {datetime.now(EASTERN).strftime('%Y-%m-%d %I:%M:%S %p ET')}"
+    test_body = f"Test email from AI Trading Dashboard V27.8 at {datetime.now(EASTERN).strftime('%Y-%m-%d %I:%M:%S %p ET')}"
 
     if st.button("Send Test Email"):
         ok, msg = send_email_alert("AI Trading Dashboard Test Email", test_body)
