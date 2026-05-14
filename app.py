@@ -19,11 +19,11 @@ from plotly.subplots import make_subplots
 
 # ============================================================
 # AI TRADING DASHBOARD
-# V28.1 — MODERN FRIENDLY UI + HEADER TOOLTIPS + MULTI-USER VIEWER MODE
+# V28.2 — MODERN FRIENDLY UI + HEADER TOOLTIPS + MULTI-USER VIEWER MODE
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Trading Dashboard V28.1",
+    page_title="AI Trading Dashboard V28.2",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -385,7 +385,7 @@ def require_login():
         else:
             st.error("Invalid username or password.")
 
-    st.info("Set ADMIN_USER, ADMIN_PASSWORD, VIEW_USER, and VIEW_PASSWORD in Render environment variables. No default passwords are active in V28.1.")
+    st.info("Set ADMIN_USER, ADMIN_PASSWORD, VIEW_USER, and VIEW_PASSWORD in Render environment variables. No default passwords are active in V28.2.")
     st.stop()
 
 
@@ -499,7 +499,7 @@ def get_info(ticker):
 
 
 # ============================================================
-# V28.1 FREE RULES-BASED MULTI-AGENT ENGINE
+# V28.2 FREE RULES-BASED MULTI-AGENT ENGINE
 # ============================================================
 
 def technical_agent(price, sma20, sma50, sma200, rsi, volume_ratio):
@@ -1226,10 +1226,15 @@ def save_alert_history(history):
 
 def log_alert(alert_type, tickers):
     history = load_alert_history()
+    if isinstance(tickers, list):
+        ticker_text = ", ".join([str(t) for t in tickers])
+    else:
+        ticker_text = str(tickers)
+
     history.append({
         "timestamp": datetime.now(EASTERN).strftime("%Y-%m-%d %I:%M:%S %p ET"),
         "alert_type": alert_type,
-        "tickers": tickers,
+        "tickers": ticker_text,
     })
     save_alert_history(history[-100:])
 
@@ -1418,16 +1423,12 @@ def prepare_display_table(df: pd.DataFrame) -> pd.DataFrame:
     return df.drop(columns=[c for c in hidden_cols if c in df.columns], errors="ignore")
 
 
-def render_clickable_table(df, symbol_col="Ticker", default_compact=True):
+def render_clickable_table(df, symbol_col="Ticker", default_compact=True, table_id="default"):
     if df.empty:
         st.info("No data to show.")
         return
 
-    if "table_render_count" not in st.session_state:
-        st.session_state.table_render_count = 0
-    st.session_state.table_render_count += 1
-
-    compact_key = f"compact_{st.session_state.table_render_count}"
+    compact_key = f"compact_view_{table_id}"
     use_compact = st.toggle("Compact table view", value=default_compact, key=compact_key)
 
     base_df = compact_table(df) if use_compact else df
@@ -1604,7 +1605,7 @@ def detail_page(ticker):
 # ============================================================
 
 st.sidebar.title("📈 AI Trading Dashboard")
-st.sidebar.caption("V28.1 Modern UI")
+st.sidebar.caption("V28.2 Modern UI")
 
 role_label = "Admin" if is_admin() else "View Only"
 st.sidebar.success(f"Logged in as: {role_label}")
@@ -1679,10 +1680,10 @@ else:
 
 modern_hero(
     "📈 AI Trading Dashboard",
-    "Final stability patch with wired alert logging, safe table keys, action-page market banners, and cleaner paper trade stops."
+    "Final production cleanup with stable compact table IDs, cleaner alert history display, and production-ready dashboard behavior."
 )
 
-st.caption("AI Trade Plans are rules-based research guidance, not financial advice. V28.1 merges the free multi-agent engine with persistent DATA_DIR storage, non-blocking auto-refresh, Recovery Radar bug fixes, and updated email diagnostics.")
+st.caption("AI Trade Plans are rules-based research guidance, not financial advice. V28.2 merges the free multi-agent engine with persistent DATA_DIR storage, non-blocking auto-refresh, Recovery Radar bug fixes, and updated email diagnostics.")
 
 if page == "Dashboard":
     show_market_status_banner()
@@ -1710,19 +1711,19 @@ if page == "Dashboard":
         if buy_now.empty:
             st.info("No BUY NOW or high-conviction signals right now.")
         else:
-            render_clickable_table(buy_now, "Ticker")
+            render_clickable_table(buy_now, "Ticker", table_id="dash_buynow")
 
     modern_section("🔥 Top Recovery Radar")
     if recovery_df.empty:
         st.info("No recovery candidates right now.")
     else:
-        render_clickable_table(recovery_df.head(10), "Ticker")
+        render_clickable_table(recovery_df.head(10), "Ticker", table_id="dash_recovery")
 
     modern_section("⭐ Your Watchlist Snapshot")
     if watch_df.empty:
         st.info("No watchlist data available.")
     else:
-        render_clickable_table(watch_df, "Ticker")
+        render_clickable_table(watch_df, "Ticker", table_id="dash_watchlist")
 
 
 elif page == "Watchlist":
@@ -1778,14 +1779,14 @@ elif page == "Watchlist":
 
         modern_section("Watchlist Analysis")
         df = build_scan(st.session_state.watchlist)
-        render_clickable_table(df, "Ticker")
+        render_clickable_table(df, "Ticker", table_id="watchlist_analysis")
 
 
 elif page == "AI Scanner":
     show_market_status_banner()
     modern_section("🤖 AI Swing Trade Scanner", "Ranks stocks based on trend, momentum, RSI, moving averages, volume, and risk.")
     df = build_scan(CORE_SCAN_TICKERS)
-    render_clickable_table(df, "Ticker")
+    render_clickable_table(df, "Ticker", table_id="scanner")
 
 
 elif page == "BUY NOW":
@@ -1802,7 +1803,7 @@ elif page == "BUY NOW":
         if buy_df.empty:
             st.info("No BUY NOW or high-conviction signals right now.")
         else:
-            render_clickable_table(buy_df, "Ticker")
+            render_clickable_table(buy_df, "Ticker", table_id="buynow_page")
 
             with st.expander("📧 BUY NOW Email Alert Preview"):
                 body = "AI Trading Dashboard BUY NOW signals:\n\n"
@@ -1831,7 +1832,7 @@ elif page == "Recovery Radar":
     if recovery_df.empty:
         st.warning("No recovery candidates found right now. Try refreshing later.")
     else:
-        render_clickable_table(recovery_df.head(20), "Ticker")
+        render_clickable_table(recovery_df.head(20), "Ticker", table_id="recovery_page")
 
         strong_recovery = recovery_df[recovery_df["Recovery Score"] >= 75]
 
@@ -1869,7 +1870,7 @@ elif page == "ETF Timing":
         st.info("No ETF data available.")
     else:
         etf_df = etf_df.rename(columns={"Ticker": "ETF"})
-        render_clickable_table(etf_df, "ETF")
+        render_clickable_table(etf_df, "ETF", table_id="etf_page")
 
 
 elif page == "Paper Trading":
@@ -1969,7 +1970,7 @@ elif page == "Email Test":
     st.write(f"EMAIL_PASSWORD set: {'✅ Yes' if password else '❌ No'}")
     st.write(f"EMAIL_RECIPIENTS set: {'✅ Yes' if recipients else '❌ No'}")
 
-    test_body = f"Test email from AI Trading Dashboard V28.1 at {datetime.now(EASTERN).strftime('%Y-%m-%d %I:%M:%S %p ET')}"
+    test_body = f"Test email from AI Trading Dashboard V28.2 at {datetime.now(EASTERN).strftime('%Y-%m-%d %I:%M:%S %p ET')}"
 
     if st.button("Send Test Email"):
         ok, msg = send_email_alert("AI Trading Dashboard Test Email", test_body)
