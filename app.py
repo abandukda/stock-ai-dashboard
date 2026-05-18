@@ -1395,19 +1395,19 @@ if st.sidebar.button("🔄 Refresh Data"):
     st.cache_data.clear()
     st.rerun()
 
-auto_refresh = st.sidebar.toggle("Auto-refresh every 60 seconds", value=False)
+auto_refresh = st.sidebar.toggle("🔄 Auto Refresh (60s)", value=False)
 if auto_refresh:
     if "last_auto_refresh" not in st.session_state:
         st.session_state.last_auto_refresh = time.time()
+
     elapsed = time.time() - st.session_state.last_auto_refresh
+
     if elapsed >= 60:
         st.session_state.last_auto_refresh = time.time()
         st.cache_data.clear()
         st.rerun()
-    else:
-        st.sidebar.caption(f"⏱ Next refresh in {max(0, 60 - int(elapsed))}s")
-        time.sleep(1)
-        st.rerun()
+
+    st.sidebar.caption("🔄 Auto-refresh enabled (60s)")
 
 st.sidebar.markdown("### Watchlist Quick Add")
 if is_admin():
