@@ -34,11 +34,11 @@ except ImportError:
 
 # ============================================================
 # AI TRADING DASHBOARD
-# V32.4 — CLEAN DIVERSIFICATION ENGINE
+# V32.5 — CLEAN DIVERSIFICATION ENGINE
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Trading Dashboard V32.4.4.1",
+    page_title="AI Trading Dashboard V32.5",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -331,13 +331,13 @@ def clean_secret(value):
     return str(value or "").strip()
 
 
-# V32.4 SAFE LOGIN
+# V32.5 SAFE LOGIN
 # Built-in fallback credentials so Render env issues do not block access.
 # Render environment variables can still override these later if needed.
-ADMIN_USER     = clean_secret(os.getenv("ADMIN_USER", ""))
-ADMIN_PASSWORD = clean_secret(os.getenv("ADMIN_PASSWORD", ""))
-VIEW_USER      = clean_secret(os.getenv("VIEW_USER", ""))
-VIEW_PASSWORD  = clean_secret(os.getenv("VIEW_PASSWORD", ""))
+ADMIN_USER     = clean_secret(os.getenv("ADMIN_USER", "asif"))
+ADMIN_PASSWORD = clean_secret(os.getenv("ADMIN_PASSWORD", "adminstocks"))
+VIEW_USER      = clean_secret(os.getenv("VIEW_USER", "family"))
+VIEW_PASSWORD  = clean_secret(os.getenv("VIEW_PASSWORD", "stocks"))
 
 
 def require_login():
@@ -348,7 +348,7 @@ def require_login():
     if st.session_state.logged_in:
         return
 
-    st.title("🔐 AI Trading Dashboard Login — V32.4 SECURE LOGIN")
+    st.title("🔐 AI Trading Dashboard Login — V32.5 LOGIN RECOVERY")
     st.caption("Admin can edit watchlists, paper trades, and send email alerts. Viewer has read-only access.")
 
     with st.form("login_form"):
@@ -372,6 +372,7 @@ def require_login():
             st.rerun()
         else:
             st.error("Invalid username or password.")
+            st.caption("Tip: username is not case-sensitive, but password is case-sensitive. Hidden spaces are trimmed.")
     with st.expander("🔧 Login Diagnostics"):
         st.write("This only confirms whether Render can read the variables. Password values are not shown.")
         st.write(f"ADMIN_USER set: {'✅ Yes' if ADMIN_USER else '❌ No'}")
@@ -1830,7 +1831,7 @@ def detail_page(ticker):
 # ============================================================
 
 st.sidebar.title("📈 AI Trading Dashboard")
-st.sidebar.caption("V32.4 — Signal Cards UI Router Fix + Safe Login")
+st.sidebar.caption("V32.5 — Signal Cards UI Router Fix + Safe Login")
 
 role_label = "Admin" if is_admin() else "View Only"
 st.sidebar.success(f"Logged in as: {role_label}")
@@ -1858,7 +1859,7 @@ nav_page = st.sidebar.radio("Go to", [
     "Detail View",
 ])
 
-# V32.4 simplified navigation mapping.
+# V32.5 simplified navigation mapping.
 page = nav_page
 if nav_page == "Home":
     page = "Dashboard"
@@ -1905,11 +1906,11 @@ else:
 # ============================================================
 
 modern_hero(
-    "📈 AI Trading Dashboard V32.4.4",
+    "📈 AI Trading Dashboard V32.5",
     "Alpaca live data · Signal cards · Simplified navigation · ATR stops · Relative strength vs SPY"
 )
 st.caption(
-    "V32.4 — Prices sourced from Alpaca during market hours when configured; falls back to Yahoo Finance. "
+    "V32.5 — Prices sourced from Alpaca during market hours when configured; falls back to Yahoo Finance. "
     "BUY NOW signals auto-logged for accuracy tracking. Earnings within 7 days auto-downgrades signals. "
     "Not financial advice — use for research only."
 )
@@ -1922,7 +1923,7 @@ if page == "Dashboard":
     show_market_status_banner()
     show_market_regime_banner()
     modern_section("🏠 Home Dashboard")
-    st.caption("V32.4 balances results across price buckets while applying a minimum conviction floor. Financial, entertainment/media, and highly speculative value-trap names are excluded.")
+    st.caption("V32.5 balances results across price buckets while applying a minimum conviction floor. Financial, entertainment/media, and highly speculative value-trap names are excluded.")
     if is_admin(): st.success("Admin mode active.")
     else: st.info("View-only mode.")
 
@@ -2160,8 +2161,8 @@ elif page == "Settings & Logs":
 
             if st.button("Send Test Email"):
                 ok, msg = send_email_alert(
-                    "AI Dashboard V32.4 Test",
-                    f"Test email from AI Trading Dashboard V32.4.4 at {datetime.now(EASTERN)}"
+                    "AI Dashboard V32.5 Test",
+                    f"Test email from AI Trading Dashboard V32.5 at {datetime.now(EASTERN)}"
                 )
                 if ok:
                     st.success(msg)
@@ -2180,4 +2181,4 @@ elif page == "Detail View":
 
 
 st.markdown("---")
-st.caption("Not financial advice. Use for research and paper-trading only. | AI Trading Dashboard V32.4.4")
+st.caption("Not financial advice. Use for research and paper-trading only. | AI Trading Dashboard V32.5")
