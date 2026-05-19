@@ -11,6 +11,11 @@ from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 import pandas as pd
 import streamlit as st
+
+try:
+    from streamlit_autorefresh import st_autorefresh
+except Exception:
+    st_autorefresh = None
 import yfinance as yf
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -29,11 +34,11 @@ except ImportError:
 
 # ============================================================
 # AI TRADING DASHBOARD
-# V29 — ALPACA LIVE DATA + SIGNAL ACCURACY ENGINE + EARNINGS AWARENESS
+# V32.4 — CLEAN DIVERSIFICATION ENGINE
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Trading Dashboard V29",
+    page_title="AI Trading Dashboard V32.4.4.1",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -138,6 +143,133 @@ def modern_section(title, subtitle=None):
         st.caption(subtitle)
 
 
+def conviction_bar_html(score):
+    try:
+        score = float(score or 0)
+    except Exception:
+        score = 0
+
+    pct = max(0, min(100, int(score)))
+    if pct >= 75:
+        color = "#16a34a"
+    elif pct >= 60:
+        color = "#f59e0b"
+    else:
+        color = "#ef4444"
+
+    return f"""
+    <div style="background:#e5e7eb;border-radius:999px;height:9px;width:100%;overflow:hidden;">
+        <div style="background:{color};width:{pct}%;height:9px;border-radius:999px;"></div>
+    </div>
+    <div style="font-size:0.78rem;color:#475569;margin-top:3px;">{pct}/100 conviction</div>
+    """
+
+
+def render_signal_card(row, card_key=None):
+    ticker = row.get("Ticker", "N/A")
+    price = row.get("Price", "N/A")
+    verdict = row.get("Agent Verdict", row.get("Signal", ""))
+    signal = row.get("Signal", "")
+    conviction = row.get("Final Conviction", row.get("AI Score", 0))
+    entry = row.get("Entry Range", "N/A")
+    stop = row.get("Stop Loss", "N/A")
+    target = row.get("Target / Sell Zone", "N/A")
+    rr = row.get("Risk / Reward", "N/A")
+    rs = row.get("Relative Strength vs SPY %", "N/A")
+    earnings = row.get("Earnings", "")
+    plan = str(row.get("AI Trade Plan", ""))
+    plan_short = plan[:260] + ("..." if len(plan) > 260 else "")
+
+    if "High" in str(verdict) or "BUY" in str(signal):
+        border_color = "#16a34a"
+        pill_bg = "#dcfce7"
+        pill_color = "#166534"
+    elif "Watch" in str(verdict) or "Watch" in str(signal):
+        border_color = "#f59e0b"
+        pill_bg = "#fef3c7"
+        pill_color = "#92400e"
+    else:
+        border_color = "#64748b"
+        pill_bg = "#f1f5f9"
+        pill_color = "#334155"
+
+    st.markdown(
+        f"""
+        <div style="
+            background:#ffffff;
+            border:1px solid #d8e0ec;
+            border-left:6px solid {border_color};
+            border-radius:18px;
+            padding:18px 18px;
+            margin-bottom:14px;
+            box-shadow:0 8px 22px rgba(15,23,42,0.08);
+        ">
+            <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">
+                <div>
+                    <div style="font-size:1.35rem;font-weight:850;color:#111827;">{ticker}
+                        <span style="font-size:1rem;color:#475569;margin-left:8px;">${price}</span>
+                    </div>
+                    <div style="margin-top:4px;color:#64748b;font-size:0.9rem;">{signal}</div>
+                </div>
+                <div style="background:{pill_bg};color:{pill_color};padding:6px 12px;border-radius:999px;font-weight:800;font-size:0.85rem;white-space:nowrap;">
+                    {verdict}
+                </div>
+            </div>
+
+            <div style="margin-top:12px;">
+                {conviction_bar_html(conviction)}
+            </div>
+
+            <div style="
+                display:grid;
+                grid-template-columns:repeat(4,minmax(0,1fr));
+                gap:10px;
+                margin-top:14px;
+            ">
+                <div><div style="font-size:0.75rem;color:#64748b;">Entry</div><div style="font-weight:800;color:#111827;">{entry}</div></div>
+                <div><div style="font-size:0.75rem;color:#64748b;">Stop</div><div style="font-weight:800;color:#111827;">${stop}</div></div>
+                <div><div style="font-size:0.75rem;color:#64748b;">Target</div><div style="font-weight:800;color:#111827;">{target}</div></div>
+                <div><div style="font-size:0.75rem;color:#64748b;">R/R</div><div style="font-weight:800;color:#111827;">{rr}</div></div>
+            </div>
+
+            <div style="margin-top:12px;color:#475569;font-size:0.88rem;">
+                <b>RS vs SPY:</b> {rs}% &nbsp; | &nbsp; <b>Earnings:</b> {earnings}
+            </div>
+
+            <div style="margin-top:10px;color:#334155;font-size:0.9rem;line-height:1.45;">
+                {plan_short}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    c1, c2 = st.columns([1, 4])
+    with c1:
+        st.link_button("Open chart", f"https://finance.yahoo.com/quote/{ticker}", use_container_width=True)
+    with c2:
+        st.caption("Use Detail View for full chart, agent breakdown, and position sizing.")
+
+
+def render_signal_cards(df, limit=12):
+    if df is None or df.empty:
+        st.info("No signals to show.")
+        return
+
+    for i, (_, row) in enumerate(df.head(limit).iterrows()):
+        render_signal_card(row, card_key=f"signal_card_{i}")
+
+
+def render_mobile_signal_summary(df):
+    if df is None or df.empty:
+        st.info("No mobile summary available.")
+        return
+
+    cols = ["Ticker", "Price", "Entry Range", "Stop Loss", "Target / Sell Zone", "Risk / Reward"]
+    cols = [c for c in cols if c in df.columns]
+    st.dataframe(df[cols].head(15), use_container_width=True, hide_index=True)
+
+
 # ============================================================
 # CONSTANTS
 # ============================================================
@@ -157,15 +289,36 @@ DEFAULT_WATCHLIST = [
     "SNOW","ELF","PLTR","SHOP"
 ]
 CORE_SCAN_TICKERS = [
+    # Premium / mega-cap quality
     "AAPL","MSFT","NVDA","AMD","TSLA","AMZN","GOOGL","META",
-    "NFLX","AVGO","SMCI","PLTR","SNOW","SHOP","ELF","COST",
-    "LLY","UNH","JPM","V","MA","CRM","ADBE","NOW","PANW",
-    "CRWD","QQQ","SPY","DIA","IWM"
+    "AVGO","COST","LLY","UNH","CRM","ADBE","NOW","PANW","CRWD",
+
+    # $75-$150 quality growth / recovery
+    "SHOP","SNOW","NET","DDOG","TEAM","MDB","ZS","CELH","DECK",
+    "NKE","SBUX","TGT","UBER","ABNB","TTD",
+
+    # $30-$75 growth / recovery / swing names
+    "PYPL","SQ","PLTR","HIMS","ONON","CHWY","TOST",
+    "U","PATH","GTLB","AFRM","CAVA","WOLF","ENPH","SEDG",
+
+    # $10-$30 affordable but more liquid / investable growth
+    "SOFI","IONQ","RKLB","JOBY","ACHR","F","GM","RIVN",
+    "NIO","BROS","NU","RIOT","MARA",
+
+    # Under $10 limited, higher-risk but still monitored
+    "SOUN","BBAI","AI"
 ]
 RECOVERY_TICKERS = [
-    "PYPL","NKE","DIS","ADBE","SNOW","SBUX","TGT","INTC",
-    "AMD","BA","UPS","CVS","WBA","ELF","ENPH","SEDG",
-    "TSLA","SHOP","SQ","ROKU","F","GM","PFE","MRNA"
+    # Affordable recovery / rebound candidates
+    "SOFI","PLTR","HIMS","CHWY","TOST","U","PATH",
+    "IONQ","RKLB","JOBY","ACHR","RIVN","F","GM",
+
+    # Mid-price recovery names
+    "PYPL","NKE","SBUX","TGT","SHOP","SNOW","NET","CELH","ENPH","SEDG",
+    "SQ","BROS","ONON","AFRM","CAVA",
+
+    # Premium quality recovery names
+    "ADBE","AMD","TSLA","CRM","PANW","CRWD","DECK"
 ]
 ETF_TICKERS = ["SPY","QQQ","IWM","DIA","XLK","XLF","XLV","XLE","XLY","XLP","SMH","ARKK"]
 
@@ -178,13 +331,13 @@ def clean_secret(value):
     return str(value or "").strip()
 
 
-# V29 SAFE LOGIN
+# V32.4 SAFE LOGIN
 # Built-in fallback credentials so Render env issues do not block access.
 # Render environment variables can still override these later if needed.
-ADMIN_USER     = clean_secret(os.getenv("ADMIN_USER", "asif"))
-ADMIN_PASSWORD = clean_secret(os.getenv("ADMIN_PASSWORD", "adminstocks"))
-VIEW_USER      = clean_secret(os.getenv("VIEW_USER", "family"))
-VIEW_PASSWORD  = clean_secret(os.getenv("VIEW_PASSWORD", "stocks"))
+ADMIN_USER     = clean_secret(os.getenv("ADMIN_USER", ""))
+ADMIN_PASSWORD = clean_secret(os.getenv("ADMIN_PASSWORD", ""))
+VIEW_USER      = clean_secret(os.getenv("VIEW_USER", ""))
+VIEW_PASSWORD  = clean_secret(os.getenv("VIEW_PASSWORD", ""))
 
 
 def require_login():
@@ -195,7 +348,7 @@ def require_login():
     if st.session_state.logged_in:
         return
 
-    st.title("🔐 AI Trading Dashboard Login — V29 ALPACA SAFE")
+    st.title("🔐 AI Trading Dashboard Login — V32.4 SECURE LOGIN")
     st.caption("Admin can edit watchlists, paper trades, and send email alerts. Viewer has read-only access.")
 
     with st.form("login_form"):
@@ -219,11 +372,13 @@ def require_login():
             st.rerun()
         else:
             st.error("Invalid username or password.")
-
-    with st.expander("🔧 Login Help"):
-        st.write("Built-in fallback logins are active unless overridden in Render.")
-        st.write("Admin: asif / adminstocks")
-        st.write("Viewer: family / stocks")
+    with st.expander("🔧 Login Diagnostics"):
+        st.write("This only confirms whether Render can read the variables. Password values are not shown.")
+        st.write(f"ADMIN_USER set: {'✅ Yes' if ADMIN_USER else '❌ No'}")
+        st.write(f"ADMIN_PASSWORD set: {'✅ Yes' if ADMIN_PASSWORD else '❌ No'}")
+        st.write(f"VIEW_USER set: {'✅ Yes' if VIEW_USER else '❌ No'}")
+        st.write(f"VIEW_PASSWORD set: {'✅ Yes' if VIEW_PASSWORD else '❌ No'}")
+        st.caption("Required Render variables: ADMIN_USER, ADMIN_PASSWORD, VIEW_USER, VIEW_PASSWORD")
 
     st.stop()
 
@@ -555,6 +710,40 @@ def check_signal_outcomes():
     return log
 
 
+def get_weak_signal_patterns(log):
+    weak = []
+    if not log:
+        return weak
+
+    low_conviction = [
+        e for e in log
+        if e.get("conviction") is not None
+        and float(e.get("conviction") or 0) < 70
+        and e.get("outcome_5d")
+    ]
+
+    if len(low_conviction) >= 5:
+        wins = sum(1 for e in low_conviction if "Win" in str(e.get("outcome_5d")))
+        win_rate = wins / len(low_conviction)
+        if win_rate < 0.45:
+            weak.append(f"Low conviction signals under 70 have only {win_rate*100:.0f}% 5D win rate. Consider raising BUY NOW threshold.")
+
+    high_conviction = [
+        e for e in log
+        if e.get("conviction") is not None
+        and float(e.get("conviction") or 0) >= 75
+        and e.get("outcome_5d")
+    ]
+
+    if len(high_conviction) >= 5:
+        wins = sum(1 for e in high_conviction if "Win" in str(e.get("outcome_5d")))
+        win_rate = wins / len(high_conviction)
+        if win_rate >= 0.60:
+            weak.append(f"High conviction signals 75+ are performing well with {win_rate*100:.0f}% 5D win rate.")
+
+    return weak
+
+
 def get_accuracy_stats(log):
     """Compute win rate and average return at 1D, 5D, 10D."""
     stats = {}
@@ -626,8 +815,163 @@ def render_position_calculator(entry_price=None, stop_price=None):
 
 
 # ============================================================
+# OPPORTUNITY DIVERSIFICATION ENGINE
+# ============================================================
+
+EXCLUDED_SECTOR_KEYWORDS = [
+    "financial", "bank", "banks", "insurance", "capital markets",
+    "asset management", "mortgage", "reit", "real estate",
+    "entertainment", "media", "broadcast", "streaming", "gaming",
+    "casino", "resort"
+]
+
+EXCLUDED_TICKERS = {
+    "JPM","BAC","WFC","C","GS","MS","SCHW","COF","AXP","USB","PNC",
+    "TFC","BK","BLK","BX","KKR","AIG","MET","PRU","ALL","TRV",
+    "DIS","NFLX","WBD","PARA","CMCSA","ROKU","LYV","DKNG","PENN","MGM","WYNN","LVS",
+    # Highly speculative / value-trap prone names removed from default scans
+    "SPCE","GOEV","QS","FCEL","PLUG","BLNK","WKHS","MVST","LCID","OPEN","LAZR","CHPT","DNA"
+}
+
+
+def get_price_bucket(price):
+    try:
+        price = float(price)
+    except Exception:
+        return "Unknown"
+    if price < 10:
+        return "Under $10"
+    if price < 30:
+        return "$10-$30"
+    if price < 75:
+        return "$30-$75"
+    if price < 150:
+        return "$75-$150"
+    return "$150+"
+
+
+def is_excluded_company(ticker, info=None):
+    ticker = normalize_ticker(str(ticker))
+    if ticker in EXCLUDED_TICKERS:
+        return True
+
+    info = info or get_info(ticker)
+    combined = " ".join([
+        str(info.get("sector", "")),
+        str(info.get("industry", "")),
+        str(info.get("longName", "")),
+    ]).lower()
+
+    return any(keyword in combined for keyword in EXCLUDED_SECTOR_KEYWORDS)
+
+
+def filter_excluded_companies(tickers):
+    clean = []
+    for ticker in tickers:
+        t = normalize_ticker(str(ticker))
+        if not t:
+            continue
+        try:
+            if not is_excluded_company(t):
+                clean.append(t)
+        except Exception:
+            clean.append(t)
+    return clean
+
+
+def diversify_by_price_bucket(df, per_bucket=6, min_conviction=55):
+    if df is None or df.empty or "Price" not in df.columns:
+        return df
+
+    work = df.copy()
+    work["Price Bucket"] = work["Price"].apply(get_price_bucket)
+
+    if "Final Conviction" in work.columns:
+        sort_col = "Final Conviction"
+    elif "AI Score" in work.columns:
+        sort_col = "AI Score"
+    elif "Recovery Score" in work.columns:
+        sort_col = "Recovery Score"
+    else:
+        sort_col = None
+
+    pieces = []
+    for bucket in ["Under $10", "$10-$30", "$30-$75", "$75-$150", "$150+"]:
+        sub = work[work["Price Bucket"] == bucket]
+        if sort_col:
+            sub = sub[sub[sort_col].fillna(0) >= min_conviction]
+            sub = sub.sort_values(sort_col, ascending=False)
+        pieces.append(sub.head(per_bucket))
+
+    out = pd.concat(pieces, ignore_index=True) if pieces else work
+    if not out.empty and sort_col:
+        out = out.sort_values([sort_col, "Price"], ascending=[False, True])
+    return out
+
+
+# ============================================================
 # INDICATORS
 # ============================================================
+
+
+def calc_atr(hist, period=14):
+    """
+    Average True Range. Used for volatility-adjusted stops.
+    """
+    try:
+        high = hist["High"]
+        low = hist["Low"]
+        close = hist["Close"]
+        tr = pd.concat([
+            high - low,
+            (high - close.shift()).abs(),
+            (low - close.shift()).abs()
+        ], axis=1).max(axis=1)
+        atr = tr.rolling(period).mean().iloc[-1]
+        return float(atr) if not pd.isna(atr) else None
+    except Exception:
+        return None
+
+
+def get_relative_strength_from_hist(ticker_hist, spy_hist, lookback=63):
+    """
+    Relative strength vs SPY over roughly 3 months.
+    Positive means the stock outperformed SPY.
+    """
+    try:
+        if ticker_hist is None or spy_hist is None or ticker_hist.empty or spy_hist.empty:
+            return None
+        if len(ticker_hist) < lookback + 1 or len(spy_hist) < lookback + 1:
+            return None
+
+        t_ret = (ticker_hist["Close"].iloc[-1] / ticker_hist["Close"].iloc[-lookback]) - 1
+        s_ret = (spy_hist["Close"].iloc[-1] / spy_hist["Close"].iloc[-lookback]) - 1
+        rs = (t_ret - s_ret) * 100
+        return round(float(rs), 1)
+    except Exception:
+        return None
+
+
+@st.cache_data(ttl=300)
+def get_market_regime():
+    """
+    Market regime gate using SPY vs 200-day moving average.
+    """
+    spy = get_history("SPY", period="1y")
+    if spy.empty or len(spy) < 200:
+        return "unknown", "⚪ Market Regime Unknown", "SPY data unavailable."
+
+    close = spy["Close"]
+    price = close.iloc[-1]
+    sma200 = close.rolling(200).mean().iloc[-1]
+
+    if price > sma200 * 1.02:
+        return "bull", "🟢 Bull Market", "Momentum signals are more reliable. Standard thresholds are allowed."
+    elif price < sma200 * 0.98:
+        return "bear", "🔴 Bear Market", "Momentum signals are less reliable. BUY NOW threshold is raised and position sizes should be reduced."
+    else:
+        return "neutral", "🟡 Neutral Market", "Market is near long-term trend. Use starter size and require stronger confirmation."
+
 
 def calc_rsi(series, period=14):
     delta = series.diff()
@@ -650,7 +994,7 @@ def safe_round(value, digits=2):
 # MULTI-AGENT ENGINE
 # ============================================================
 
-def technical_agent(price, sma20, sma50, sma200, rsi, volume_ratio):
+def technical_agent(price, sma20, sma50, sma200, rsi, volume_ratio, relative_strength=None):
     score, reasons = 0, []
     if price > sma20: score += 18; reasons.append("above 20-day trend")
     else: reasons.append("below 20-day trend")
@@ -665,6 +1009,20 @@ def technical_agent(price, sma20, sma50, sma200, rsi, volume_ratio):
     if volume_ratio >= 1.3: score += 15; reasons.append("volume confirms stronger interest")
     elif volume_ratio >= 0.9: score += 8; reasons.append("volume is normal")
     else: score -= 5; reasons.append("volume confirmation is weak")
+    if relative_strength is not None:
+        if relative_strength > 10:
+            score += 15
+            reasons.append(f"strong relative strength vs SPY (+{relative_strength:.1f}%)")
+        elif relative_strength > 0:
+            score += 8
+            reasons.append(f"outperforming SPY (+{relative_strength:.1f}%)")
+        elif relative_strength < -10:
+            score -= 15
+            reasons.append(f"lagging SPY badly ({relative_strength:.1f}%)")
+        else:
+            score -= 5
+            reasons.append(f"slightly lagging SPY ({relative_strength:.1f}%)")
+
     return max(0, min(100, score)), "; ".join(reasons)
 
 
@@ -768,7 +1126,7 @@ def synthesis_agent(tech, risk, fund, rec, macro):
 # TRADE PLAN
 # ============================================================
 
-def build_ai_trade_plan(ticker, price, sma20, sma50, sma200, rsi, ai_score, risk_score, high_52, low_52, upside_to_high, volume_ratio):
+def build_ai_trade_plan(ticker, price, sma20, sma50, sma200, rsi, ai_score, risk_score, high_52, low_52, upside_to_high, volume_ratio, atr=None, relative_strength=None, market_regime='neutral'):
     delta_to_high_dollars = high_52 - price if high_52 and price else None
     delta_to_high_pct = ((high_52 - price) / price * 100) if high_52 and price else None
     above_20 = price > sma20
@@ -789,15 +1147,29 @@ def build_ai_trade_plan(ticker, price, sma20, sma50, sma200, rsi, ai_score, risk
         entry_range = f"Wait for reclaim above ${sma50:.2f} or pullback near ${price*0.90:.2f} - ${price*0.95:.2f}"
         entry_reason = "trend not confirmed — patience is better than chasing."
 
-    if above_50 and risk_score < 40:
+    # ATR-based stop-loss. This adapts to each stock's actual volatility.
+    if atr and atr > 0:
+        atr_mult = 2.0
+        if market_regime == "bear":
+            atr_mult = 1.6  # tighter risk in weak markets
+        elif rsi < 35:
+            atr_mult = 2.2  # give oversold rebounds slightly more room
+
+        atr_stop = price - (atr * atr_mult)
+        technical_stop = sma50 * 0.98 if above_50 else price * 0.90
+        stop_loss = max(atr_stop, price * 0.82)  # avoid extreme stops
+        if above_50:
+            stop_loss = min(stop_loss, technical_stop) if technical_stop < price else stop_loss
+        stop_reason = f"ATR-based stop using about {atr_mult:.1f}x ATR; adapts to this stock's volatility."
+    elif above_50 and risk_score < 40:
         stop_loss = min(sma50 * 0.98, price * 0.92)
-        stop_reason = "below the 50-day trend area."
+        stop_reason = "fallback stop below the 50-day trend area."
     elif rsi < 35:
         stop_loss = price * 0.90
-        stop_reason = "oversold bounces can be volatile — stop protects from failed bounce."
+        stop_reason = "fallback oversold rebound stop."
     else:
         stop_loss = price * 0.88
-        stop_reason = "confirmation is weaker — wider stop with smaller size."
+        stop_reason = "fallback wider stop because confirmation is weaker."
 
     if delta_to_high_pct and delta_to_high_pct > 35:
         target_low = price * 1.12
@@ -837,9 +1209,23 @@ def build_ai_trade_plan(ticker, price, sma20, sma50, sma200, rsi, ai_score, risk
     elif rsi <= 70: rsi_d = f"RSI {rsi:.1f} — healthy swing zone."
     else: rsi_d = f"RSI {rsi:.1f} — overbought, avoid chasing."
 
+    rs_text = ""
+    if relative_strength is not None:
+        if relative_strength > 0:
+            rs_text = f" Relative strength vs SPY is positive at +{relative_strength:.1f}%, which supports the setup."
+        else:
+            rs_text = f" Relative strength vs SPY is {relative_strength:.1f}%, so this stock is lagging the market."
+
+    regime_text = ""
+    if market_regime == "bear":
+        regime_text = " Market regime is bearish, so require smaller size and stronger confirmation."
+    elif market_regime == "bull":
+        regime_text = " Market regime is bullish, so momentum signals have better backdrop."
+
     plan = (
         f"Price is {', '.join(trend_parts)}. {rsi_d} "
-        f"52W high ${high_52:.2f} ({delta_to_high_pct:.1f}% away). "
+        f"52W high ${high_52:.2f} ({delta_to_high_pct:.1f}% away)."
+        f"{rs_text}{regime_text} "
         f"Entry: {entry_range} — {entry_reason} "
         f"Stop: ${stop_loss:.2f} — {stop_reason} "
         f"Target: {target_zone} — {sell_reason} "
@@ -855,6 +1241,8 @@ def build_ai_trade_plan(ticker, price, sma20, sma50, sma200, rsi, ai_score, risk
         "Stop Loss": round(stop_loss, 2),
         "Target / Sell Zone": target_zone,
         "Risk / Reward": risk_reward,
+        "ATR": round(atr, 2) if atr else None,
+        "Relative Strength vs SPY %": relative_strength,
         "Position Size Note": position_note,
         "Hold Style": hold_style,
     }
@@ -899,6 +1287,11 @@ def analyze_ticker(ticker):
     avg_vol = hist["Volume"].rolling(20).mean().iloc[-1]
     volume_ratio = vol / avg_vol if avg_vol else 1
 
+    atr = calc_atr(hist)
+    spy_hist = get_history("SPY", period="1y")
+    relative_strength = get_relative_strength_from_hist(hist, spy_hist)
+    market_regime, market_regime_label, market_regime_note = get_market_regime()
+
     info = get_info(ticker)
 
     trend_score = 0
@@ -928,6 +1321,9 @@ def analyze_ticker(ticker):
         rsi=rsi, ai_score=ai_score, risk_score=risk_score,
         high_52=high_52, low_52=low_52, upside_to_high=upside_to_high,
         volume_ratio=volume_ratio,
+        atr=atr,
+        relative_strength=relative_strength,
+        market_regime=market_regime,
     )
 
     try:
@@ -935,12 +1331,19 @@ def analyze_ticker(ticker):
     except Exception:
         target_low = price * 1.08
 
-    tech_score, tech_reason   = technical_agent(price, sma20, sma50, sma200, rsi, volume_ratio)
+    tech_score, tech_reason   = technical_agent(price, sma20, sma50, sma200, rsi, volume_ratio, relative_strength)
     risk_a_score, risk_reason = risk_agent(price, trade_plan["Stop Loss"], target_low, risk_score, hist)
     fund_score, fund_reason   = fundamental_agent(info)
     rec_score, rec_reason     = recovery_agent(price, high_52, low_52, rsi, trade_plan["Delta to 52W High %"])
     mac_score, mac_reason     = macro_agent()
     final_conviction, agent_verdict = synthesis_agent(tech_score, risk_a_score, fund_score, rec_score, mac_score)
+
+    # Market regime gate: in bear markets, require stronger conviction and downgrade weaker buy signals.
+    if market_regime == "bear" and final_conviction < 75:
+        if signal == "🟢 BUY NOW":
+            signal = "🟡 Watch (Bear Market)"
+        if agent_verdict in ("🟢 High Conviction", "🟢 Strong Candidate"):
+            agent_verdict = "🟡 Bear Market Caution"
 
     # Earnings suppression: downgrade High Conviction to Watch if earnings within 7 days
     earnings_label, days_to_earnings = get_earnings_flag(ticker)
@@ -958,11 +1361,15 @@ def analyze_ticker(ticker):
     return {
         "Ticker": ticker,
         "Price": safe_round(price),
+        "Price Bucket": get_price_bucket(price),
         "Price Source": price_source,
         "Daily %": safe_round(change_pct),
         "AI Score": safe_round(ai_score, 0),
         "Signal": signal,
         "Earnings": earnings_label,
+        "Market Regime": market_regime_label,
+        "Relative Strength vs SPY %": relative_strength,
+        "ATR": safe_round(atr),
         "Risk Score": safe_round(risk_score, 0),
         "Technical Agent": safe_round(tech_score, 0),
         "Risk Agent": safe_round(risk_a_score, 0),
@@ -993,12 +1400,15 @@ def analyze_ticker(ticker):
 
 
 @st.cache_data(ttl=300)
-def build_scan(tickers):
+def build_scan(tickers, diversified=True, per_bucket=6):
     unique = []
     for t in tickers:
         n = normalize_ticker(str(t))
         if n and n not in unique:
             unique.append(n)
+
+    unique = filter_excluded_companies(unique)
+
     if not unique:
         return pd.DataFrame()
 
@@ -1011,8 +1421,12 @@ def build_scan(tickers):
 
     df = pd.DataFrame(rows)
     if not df.empty:
+        if "Ticker" in df.columns:
+            df = df[~df["Ticker"].apply(lambda t: is_excluded_company(t))]
         sort_col = "Final Conviction" if "Final Conviction" in df.columns else "AI Score"
         df = df.sort_values([sort_col, "Risk Score"], ascending=[False, True])
+        if diversified:
+            df = diversify_by_price_bucket(df, per_bucket=per_bucket, min_conviction=55)
     return df
 
 
@@ -1022,6 +1436,8 @@ def build_recovery_radar(tickers):
     for ticker in tickers:
         try:
             ticker = normalize_ticker(ticker)
+            if is_excluded_company(ticker):
+                continue
             hist = get_history(ticker, period="1y")
             if hist.empty or len(hist) < 60:
                 continue
@@ -1030,6 +1446,9 @@ def build_recovery_radar(tickers):
             low_52 = hist["Low"].min()
             high_52 = hist["High"].max()
             rsi = float(calc_rsi(hist["Close"]).iloc[-1])
+            atr = calc_atr(hist)
+            spy_hist = get_history("SPY", period="1y")
+            relative_strength = get_relative_strength_from_hist(hist, spy_hist)
             distance_from_low = ((price - low_52) / low_52) * 100
             upside_to_high = ((high_52 - price) / price) * 100
             change_30d = ((price - hist["Close"].iloc[-22]) / hist["Close"].iloc[-22]) * 100
@@ -1066,9 +1485,9 @@ def build_recovery_radar(tickers):
             )
 
             rows.append({
-                "Ticker": ticker, "Price": safe_round(price),
+                "Ticker": ticker, "Price": safe_round(price), "Price Bucket": get_price_bucket(price),
                 "Recovery Score": safe_round(score, 0), "Rating": rating,
-                "RSI": safe_round(rsi, 1), "52W High": safe_round(high_52),
+                "RSI": safe_round(rsi, 1), "ATR": safe_round(atr), "Relative Strength vs SPY %": relative_strength, "52W High": safe_round(high_52),
                 "Delta to 52W High $": safe_round(high_52 - price),
                 "Delta to 52W High %": safe_round(((high_52 - price) / price * 100), 1),
                 "From 52W Low %": safe_round(distance_from_low, 1),
@@ -1087,7 +1506,34 @@ def build_recovery_radar(tickers):
     df = pd.DataFrame(rows)
     if not df.empty:
         df = df.sort_values(by="Recovery Score", ascending=False)
+        df = diversify_by_price_bucket(df, per_bucket=5, min_conviction=55)
     return df
+
+
+def check_sector_concentration(df):
+    if df is None or df.empty or "Ticker" not in df.columns:
+        return {}
+
+    sectors = {}
+    for ticker in df["Ticker"].dropna().tolist():
+        try:
+            info = get_info(ticker)
+            sector = info.get("sector", "Unknown") or "Unknown"
+            sectors[sector] = sectors.get(sector, 0) + 1
+        except Exception:
+            sectors["Unknown"] = sectors.get("Unknown", 0) + 1
+    return sectors
+
+
+def show_sector_concentration_warning(df):
+    sectors = check_sector_concentration(df)
+    total = sum(sectors.values())
+    if not sectors or total == 0:
+        return
+
+    top_sector, top_count = max(sectors.items(), key=lambda x: x[1])
+    if total >= 3 and (top_count / total) > 0.50:
+        st.warning(f"⚠️ Sector concentration: {top_count} of {total} signals are in {top_sector}. Consider diversifying before committing capital.")
 
 
 # ============================================================
@@ -1133,6 +1579,10 @@ COLUMN_HELP = {
     "Ticker": "Stock symbol. Click to open Yahoo Finance.",
     "ETF": "ETF ticker. Click to open Yahoo Finance.",
     "Price": "Latest price. Live from Alpaca during market hours if configured; otherwise Yahoo daily close.",
+    "Price Bucket": "Price range category used to improve opportunity variety.",
+    "Relative Strength vs SPY %": "3-month performance versus SPY. Positive means the stock is outperforming the market.",
+    "ATR": "Average True Range. Used to create volatility-adjusted stop losses.",
+    "Market Regime": "Broad market condition using SPY versus its 200-day moving average.",
     "Price Source": "Where the current price came from — Alpaca live or Yahoo delayed.",
     "Daily %": "Price change vs prior close.",
     "AI Score": "Rules-based technical score 0-100.",
@@ -1192,8 +1642,8 @@ def build_column_config(df, symbol_col=None):
 
 
 COMPACT_COLUMNS = [
-    "Ticker", "ETF", "Price", "Final Conviction", "Agent Verdict", "Signal",
-    "Earnings", "RSI", "Entry Range", "Stop Loss", "Target / Sell Zone",
+    "Ticker", "ETF", "Price", "Price Bucket", "Final Conviction", "Agent Verdict", "Signal",
+    "Earnings", "Market Regime", "RSI", "Relative Strength vs SPY %", "ATR", "Entry Range", "Stop Loss", "Target / Sell Zone",
     "Risk / Reward", "Hold Style", "52W High", "Delta to 52W High %"
 ]
 
@@ -1249,6 +1699,19 @@ def get_market_status():
     elif close_t < now <= after_t:
         return "🟡 After Hours", "Regular session closed."
     return "🔴 Market Closed", "Market is closed — signals based on latest available data."
+
+
+def show_market_regime_banner():
+    regime, label, note = get_market_regime()
+    if regime == "bull":
+        st.success(f"{label} — {note}")
+    elif regime == "bear":
+        st.error(f"{label} — {note}")
+    elif regime == "neutral":
+        st.warning(f"{label} — {note}")
+    else:
+        st.info(f"{label} — {note}")
+
 
 def show_market_status_banner():
     status, note = get_market_status()
@@ -1343,6 +1806,8 @@ def detail_page(ticker):
         st.markdown(f"**Target / Sell Zone:** {data.get('Target / Sell Zone','N/A')}")
         st.markdown(f"**Risk / Reward:** {data.get('Risk / Reward','N/A')}")
         st.markdown(f"**Gap to 52W High:** {data.get('Delta to 52W High %','N/A')}%")
+        st.markdown(f"**Relative Strength vs SPY:** {data.get('Relative Strength vs SPY %','N/A')}%")
+        st.markdown(f"**ATR:** ${data.get('ATR','N/A')}")
     st.info(data.get("AI Trade Plan", ""))
 
     modern_section("Multi-Agent Breakdown")
@@ -1365,7 +1830,7 @@ def detail_page(ticker):
 # ============================================================
 
 st.sidebar.title("📈 AI Trading Dashboard")
-st.sidebar.caption("V29 — Alpaca Data + Signal Accuracy + Safe Login")
+st.sidebar.caption("V32.4 — Signal Cards UI Router Fix + Safe Login")
 
 role_label = "Admin" if is_admin() else "View Only"
 st.sidebar.success(f"Logged in as: {role_label}")
@@ -1384,11 +1849,25 @@ if st.sidebar.button("Logout"):
 show_last_refresh()
 
 st.sidebar.markdown("### Navigation")
-page = st.sidebar.radio("Go to", [
-    "Dashboard", "Watchlist", "AI Scanner", "BUY NOW",
-    "Recovery Radar", "ETF Timing", "Paper Trading",
-    "Signal Accuracy", "Email Test", "Alert History", "Detail View",
+nav_page = st.sidebar.radio("Go to", [
+    "Home",
+    "Scanner",
+    "Watchlist",
+    "Paper Trades",
+    "Settings & Logs",
+    "Detail View",
 ])
+
+# V32.4 simplified navigation mapping.
+page = nav_page
+if nav_page == "Home":
+    page = "Dashboard"
+elif nav_page == "Scanner":
+    page = "Scanner Hub"
+elif nav_page == "Paper Trades":
+    page = "Paper Trading"
+elif nav_page == "Settings & Logs":
+    page = "Settings & Logs"
 
 st.sidebar.markdown("### Refresh")
 if st.sidebar.button("🔄 Refresh Data"):
@@ -1397,17 +1876,11 @@ if st.sidebar.button("🔄 Refresh Data"):
 
 auto_refresh = st.sidebar.toggle("🔄 Auto Refresh (60s)", value=False)
 if auto_refresh:
-    if "last_auto_refresh" not in st.session_state:
-        st.session_state.last_auto_refresh = time.time()
-
-    elapsed = time.time() - st.session_state.last_auto_refresh
-
-    if elapsed >= 60:
-        st.session_state.last_auto_refresh = time.time()
-        st.cache_data.clear()
-        st.rerun()
-
-    st.sidebar.caption("🔄 Auto-refresh enabled (60s)")
+    st.sidebar.caption("🔄 Auto-refresh enabled. Refreshes every 60 seconds.")
+    if st_autorefresh:
+        st_autorefresh(interval=60_000, key="v301_autorefresh")
+    else:
+        st.sidebar.warning("streamlit-autorefresh is missing. Add it to requirements.txt for auto-refresh.")
 
 st.sidebar.markdown("### Watchlist Quick Add")
 if is_admin():
@@ -1432,11 +1905,11 @@ else:
 # ============================================================
 
 modern_hero(
-    "📈 AI Trading Dashboard V29",
-    "Alpaca live data · Signal accuracy engine · Earnings risk filter · Position size calculator · Intraday charts"
+    "📈 AI Trading Dashboard V32.4.4",
+    "Alpaca live data · Signal cards · Simplified navigation · ATR stops · Relative strength vs SPY"
 )
 st.caption(
-    "V29 — Prices sourced from Alpaca during market hours when configured; falls back to Yahoo Finance. "
+    "V32.4 — Prices sourced from Alpaca during market hours when configured; falls back to Yahoo Finance. "
     "BUY NOW signals auto-logged for accuracy tracking. Earnings within 7 days auto-downgrades signals. "
     "Not financial advice — use for research only."
 )
@@ -1447,7 +1920,9 @@ st.caption(
 
 if page == "Dashboard":
     show_market_status_banner()
+    show_market_regime_banner()
     modern_section("🏠 Home Dashboard")
+    st.caption("V32.4 balances results across price buckets while applying a minimum conviction floor. Financial, entertainment/media, and highly speculative value-trap names are excluded.")
     if is_admin(): st.success("Admin mode active.")
     else: st.info("View-only mode.")
 
@@ -1475,6 +1950,58 @@ if page == "Dashboard":
     modern_section("⭐ Watchlist Snapshot")
     if not watch_df.empty: render_clickable_table(watch_df, "Ticker", table_id="dash_watchlist")
     else: st.info("No watchlist data.")
+
+
+elif page == "Scanner Hub":
+    show_market_status_banner()
+    show_market_regime_banner()
+    modern_section("🔎 Scanner Hub", "Use tabs to review all opportunities, BUY NOW signal cards, recovery rebounds, and ETF timing.")
+
+    scan_df = build_scan(CORE_SCAN_TICKERS)
+    recovery_df = build_recovery_radar(RECOVERY_TICKERS)
+    etf_df = build_scan(ETF_TICKERS, diversified=False) if "build_scan" in globals() else pd.DataFrame()
+
+    tab1, tab2, tab3, tab4 = st.tabs(["Signal Cards", "All Scanner", "Recovery Radar", "ETF Timing"])
+
+    with tab1:
+        modern_section("🟢 BUY NOW / High Conviction Cards")
+        if not scan_df.empty:
+            if "Final Conviction" in scan_df.columns:
+                buy_df = scan_df[(scan_df["Signal"].astype(str).str.contains("BUY NOW", na=False)) | (scan_df["Final Conviction"].fillna(0) >= 68)]
+            else:
+                buy_df = scan_df[scan_df["Signal"].astype(str).str.contains("BUY NOW", na=False)]
+
+            mobile_summary = st.toggle("📱 Mobile Summary View", value=False, key="scanner_cards_mobile")
+            if buy_df.empty:
+                st.info("No BUY NOW or high-conviction signals right now.")
+            elif mobile_summary:
+                render_mobile_signal_summary(buy_df)
+            else:
+                show_sector_concentration_warning(buy_df)
+                render_signal_cards(buy_df, limit=12)
+        else:
+            st.info("No scanner data.")
+
+    with tab2:
+        modern_section("🤖 All Scanner Results")
+        if not scan_df.empty:
+            render_clickable_table(scan_df, "Ticker", table_id="scanner_hub_all")
+        else:
+            st.info("No scanner data.")
+
+    with tab3:
+        modern_section("🔥 Recovery Radar")
+        if not recovery_df.empty:
+            render_clickable_table(recovery_df, "Ticker", table_id="scanner_hub_recovery")
+        else:
+            st.info("No recovery candidates.")
+
+    with tab4:
+        modern_section("📊 ETF Timing")
+        if not etf_df.empty:
+            render_clickable_table(etf_df, "Ticker", table_id="scanner_hub_etf")
+        else:
+            st.info("No ETF data.")
 
 
 elif page == "Watchlist":
@@ -1517,103 +2044,6 @@ elif page == "Watchlist":
 
         modern_section("Watchlist Analysis")
         render_clickable_table(build_scan(st.session_state.watchlist), "Ticker", table_id="watchlist_analysis")
-
-
-elif page == "AI Scanner":
-    show_market_status_banner()
-    modern_section("🤖 AI Swing Trade Scanner", "Ranked by Final Conviction score.")
-    render_clickable_table(build_scan(CORE_SCAN_TICKERS), "Ticker", table_id="scanner")
-
-
-elif page == "BUY NOW":
-    show_market_status_banner()
-    modern_section("🟢 BUY NOW Signals", "Highest-conviction setups. Signals auto-logged for accuracy tracking.")
-
-    combined = list(dict.fromkeys(CORE_SCAN_TICKERS + st.session_state.watchlist))
-    df = build_scan(combined)
-
-    if df.empty:
-        st.info("No scan data available.")
-    else:
-        buy_df = df[
-            df["Signal"].str.contains("BUY NOW", na=False) |
-            (df.get("Final Conviction", pd.Series(dtype=float)).fillna(0) >= 68)
-        ] if "Signal" in df.columns else pd.DataFrame()
-
-        # Auto-log signals silently
-        if not buy_df.empty:
-            added = auto_log_signals(buy_df)
-            if added and added > 0:
-                st.caption(f"📝 {added} new signal(s) logged for accuracy tracking.")
-
-        if buy_df.empty:
-            st.info("No BUY NOW or high-conviction signals right now.")
-        else:
-            # Earnings warning summary
-            earnings_risk = buy_df[buy_df.get("Earnings", pd.Series(dtype=str)).str.startswith("🔴", na=False)]
-            if not earnings_risk.empty:
-                st.warning(f"⚠️ {len(earnings_risk)} signal(s) have earnings within 7 days and have been flagged. Review before acting.")
-
-            render_clickable_table(buy_df, "Ticker", table_id="buynow_page")
-
-            # Position size calculator
-            render_position_calculator()
-
-            with st.expander("📧 Email Alert Preview"):
-                body = "AI Trading Dashboard BUY NOW signals:\n\n"
-                for _, row in buy_df.iterrows():
-                    body += (
-                        f"{row['Ticker']} | Price: {row['Price']} | "
-                        f"Conviction: {row.get('Final Conviction','N/A')} | "
-                        f"RSI: {row['RSI']} | {row.get('Earnings','')}\n"
-                    )
-                st.text(body)
-                if is_admin():
-                    if st.button("Send BUY NOW Email Alert"):
-                        ok, msg = send_email_alert("AI Dashboard BUY NOW Alert", body)
-                        if ok:
-                            log_alert("BUY NOW", list(buy_df["Ticker"]))
-                            st.success(msg)
-                        else:
-                            st.error(msg)
-                else:
-                    st.info("View-only users cannot send email alerts.")
-
-
-elif page == "Recovery Radar":
-    modern_section("🔥 AI Recovery Radar", "Beaten-down stocks with rebound potential.")
-    recovery_df = build_recovery_radar(RECOVERY_TICKERS)
-    if recovery_df.empty:
-        st.warning("No recovery candidates. Try refreshing later.")
-    else:
-        render_clickable_table(recovery_df.head(20), "Ticker", table_id="recovery_page")
-        strong = recovery_df[recovery_df["Recovery Score"] >= 75]
-        if not strong.empty:
-            st.success(f"🟢 {len(strong)} strong recovery candidates found.")
-            with st.expander("📧 Recovery Radar Email Alert"):
-                alert_text = "AI Recovery Radar — strong rebound candidates:\n\n"
-                for _, row in strong.iterrows():
-                    alert_text += f"{row['Ticker']} | Score: {row['Recovery Score']} | RSI: {row['RSI']} | Gap to high: {row['Delta to 52W High %']}%\n"
-                st.text(alert_text)
-                if is_admin():
-                    if st.button("Send Recovery Radar Alert"):
-                        ok, msg = send_email_alert("AI Recovery Radar Alert", alert_text)
-                        if ok:
-                            log_alert("Recovery Radar", list(strong["Ticker"]))
-                            st.success(msg)
-                        else:
-                            st.error(msg)
-                else:
-                    st.info("View-only users cannot send alerts.")
-        else:
-            st.info("No strong recovery candidates today.")
-
-
-elif page == "ETF Timing":
-    modern_section("📊 ETF Entry Timing", "Sector ETF strength and risk.")
-    etf_df = build_scan(ETF_TICKERS)
-    if etf_df.empty: st.info("No ETF data.")
-    else: render_clickable_table(etf_df.rename(columns={"Ticker": "ETF"}), "ETF", table_id="etf_page")
 
 
 elif page == "Paper Trading":
@@ -1676,91 +2106,67 @@ elif page == "Paper Trading":
                     st.error("Could not remove trade.")
 
 
-elif page == "Signal Accuracy":
-    modern_section("📊 Signal Accuracy Engine", "Tracks BUY NOW signal outcomes at 1, 5, and 10 trading days.")
-    st.caption(
-        "Signals are auto-logged when the BUY NOW page is visited. "
-        "Click 'Check Outcomes' to update results using historical price data."
-    )
+elif page == "Settings & Logs":
+    modern_section("⚙️ Settings & Logs", "Signal accuracy, alert history, and email diagnostics in one place.")
 
-    col_a, col_b = st.columns([1, 3])
-    with col_a:
-        if st.button("🔄 Check Outcomes"):
-            with st.spinner("Fetching historical prices and updating outcomes..."):
-                log = check_signal_outcomes()
-            st.success("Outcomes updated.")
-        if is_admin():
-            if st.button("🗑 Clear Signal Log"):
-                save_signal_log([])
-                st.success("Signal log cleared.")
-                st.rerun()
+    tab1, tab2, tab3 = st.tabs(["Signal Accuracy", "Alert History", "Email Test"])
 
-    log = load_signal_log()
-    stats = get_accuracy_stats(log)
+    with tab1:
+        modern_section("📈 Signal Accuracy")
+        if st.button("Update Signal Outcomes", key="settings_update_signal_outcomes"):
+            log = check_signal_outcomes()
+            st.success("Signal outcomes updated.")
+        else:
+            log = load_signal_log()
 
-    if stats:
-        modern_section("Win Rate Summary")
-        cols = st.columns(len(stats))
-        for i, (period, s) in enumerate(stats.items()):
-            with cols[i]:
-                color = "🟢" if s["win_rate"] >= 55 else "🟡" if s["win_rate"] >= 45 else "🔴"
-                st.metric(
-                    f"{color} {period} Win Rate",
-                    f"{s['win_rate']}%",
-                    f"{s['wins']}/{s['total']} signals | avg {s['avg_return']:+.2f}%"
+        stats = get_accuracy_stats(log)
+
+        patterns = get_weak_signal_patterns(log)
+        if patterns:
+            modern_section("📋 Pattern Insights")
+            for p in patterns:
+                st.info(p)
+
+        if stats:
+            cols = st.columns(len(stats))
+            for i, (period, s) in enumerate(stats.items()):
+                cols[i].metric(f"{period} Win Rate", f"{s['win_rate']}%", f"Avg {s['avg_return']}%")
+        else:
+            st.info("No completed signal outcomes yet. This will populate after enough trading days pass.")
+
+        if log:
+            st.dataframe(pd.DataFrame(log), use_container_width=True, hide_index=True)
+
+    with tab2:
+        modern_section("📜 Alert History")
+        history = load_alert_history()
+        if not history:
+            st.info("No alerts logged yet.")
+        else:
+            st.dataframe(pd.DataFrame(history).sort_index(ascending=False), use_container_width=True, hide_index=True)
+
+    with tab3:
+        modern_section("📧 Email Diagnostics")
+        if not is_admin():
+            st.warning("View-only users cannot access email diagnostics.")
+        else:
+            st.write("This checks whether your email alert environment variables are set.")
+            env_df = pd.DataFrame([
+                {"Variable": "EMAIL_SENDER", "Set": bool(os.getenv("EMAIL_SENDER", ""))},
+                {"Variable": "EMAIL_PASSWORD", "Set": bool(os.getenv("EMAIL_PASSWORD", ""))},
+                {"Variable": "EMAIL_RECIPIENTS", "Set": bool(os.getenv("EMAIL_RECIPIENTS", ""))},
+            ])
+            st.dataframe(env_df, use_container_width=True, hide_index=True)
+
+            if st.button("Send Test Email"):
+                ok, msg = send_email_alert(
+                    "AI Dashboard V32.4 Test",
+                    f"Test email from AI Trading Dashboard V32.4.4 at {datetime.now(EASTERN)}"
                 )
-        st.caption("Win rate above 55% with positive average return suggests the signals have edge. Below 50% means the scoring logic needs revision.")
-    else:
-        st.info("No resolved signals yet. Visit the BUY NOW page to log signals, then check outcomes after 1-10 trading days.")
-
-    if log:
-        modern_section("Signal Log")
-        log_df = pd.DataFrame(log)
-        # Reorder for clarity
-        show_cols = [c for c in [
-            "ticker", "date", "signal", "conviction", "entry_price",
-            "stop_loss", "risk_reward", "outcome_1d", "pct_1d",
-            "outcome_5d", "pct_5d", "outcome_10d", "pct_10d"
-        ] if c in log_df.columns]
-        st.dataframe(
-            log_df[show_cols].sort_values("date", ascending=False),
-            use_container_width=True, hide_index=True
-        )
-    else:
-        st.info("No signals logged yet.")
-
-
-elif page == "Email Test":
-    modern_section("📧 Email Diagnostics", "Admin-only.")
-    if not is_admin():
-        st.warning("View-only users cannot access email diagnostics.")
-        st.stop()
-
-    sender = os.getenv("EMAIL_SENDER", "")
-    password = os.getenv("EMAIL_PASSWORD", "")
-    recipients = os.getenv("EMAIL_RECIPIENTS", "")
-
-    st.write(f"EMAIL_SENDER set: {'✅' if sender else '❌'}")
-    st.write(f"EMAIL_PASSWORD set: {'✅' if password else '❌'}")
-    st.write(f"EMAIL_RECIPIENTS set: {'✅' if recipients else '❌'}")
-    st.write(f"Alpaca API Key set: {'✅' if ALPACA_KEY else '❌'}")
-    st.write(f"Alpaca Secret set: {'✅' if ALPACA_SECRET else '❌'}")
-    st.write(f"Alpaca Status: {ALPACA_STATUS}")
-
-    if st.button("Send Test Email"):
-        body = f"Test from AI Trading Dashboard V29 at {datetime.now(EASTERN).strftime('%Y-%m-%d %I:%M:%S %p ET')}"
-        ok, msg = send_email_alert("AI Dashboard V29 Test", body)
-        st.success(msg) if ok else st.error(msg)
-
-
-elif page == "Alert History":
-    modern_section("📜 Alert History", "Recent email alerts sent by the dashboard.")
-    history = load_alert_history()
-    if not history:
-        st.info("No alerts logged yet.")
-    else:
-        hist_df = pd.DataFrame(history)
-        st.dataframe(hist_df.sort_index(ascending=False), use_container_width=True, hide_index=True)
+                if ok:
+                    st.success(msg)
+                else:
+                    st.error(msg)
 
 
 elif page == "Detail View":
@@ -1774,4 +2180,4 @@ elif page == "Detail View":
 
 
 st.markdown("---")
-st.caption("Not financial advice. Use for research and paper-trading only. | AI Trading Dashboard V29")
+st.caption("Not financial advice. Use for research and paper-trading only. | AI Trading Dashboard V32.4.4")
