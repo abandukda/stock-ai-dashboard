@@ -29,7 +29,7 @@ except ImportError:
     ALPACA_AVAILABLE = False
 
 # ============================================================
-# AI TRADING DASHBOARD  V33 FINAL
+# AI TRADING DASHBOARD  V34.1 FINAL
 # Merged: Fundamental Research Engine + Adaptive Intelligence
 # 9-Agent scoring · MACD timing · Adaptive threshold
 # Morning briefing · Trade checklist · Volatility sizing
@@ -37,7 +37,7 @@ except ImportError:
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Trading Dashboard V33 Final",
+    page_title="AI Trading Dashboard V34.1",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -334,7 +334,7 @@ def require_login():
     for k,d in [("logged_in",False),("user_role",None),("login_user","")]:
         if k not in st.session_state: st.session_state[k] = d
     if st.session_state.logged_in: return
-    st.title("🔐 AI Trading Dashboard V33 Final")
+    st.title("🔐 AI Trading Dashboard V34.1")
     st.caption("Admin: full access. Viewer: read-only.")
     with st.form("login_form"):
         username = st.text_input("Username")
@@ -1338,7 +1338,7 @@ def build_recovery_radar(tickers):
             relative_strength = get_relative_strength_from_hist(hist, spy_hist)
             distance_from_low = ((price - low_52) / low_52) * 100
             upside_to_high = ((high_52 - price) / price) * 100
-            change_30d = ((price - hist["Close"].iloc[-22]) / hist["Close"].iloc[-22]) * 100
+            change_21d_1m = ((price - hist["Close"].iloc[-22]) / hist["Close"].iloc[-22]) * 100
             change_90d = ((price - hist["Close"].iloc[-63]) / hist["Close"].iloc[-63]) * 100
             market_cap = info.get("marketCap",0)
             target_price = info.get("targetMeanPrice")
@@ -1354,9 +1354,9 @@ def build_recovery_radar(tickers):
             if upside_to_high > 50: score += 20
             elif upside_to_high > 30: score += 15
             elif upside_to_high > 15: score += 8
-            if change_30d < -15: score += 15
-            elif change_30d < -8: score += 10
-            elif change_30d < 0: score += 5
+            if change_21d_1m < -15: score += 15
+            elif change_21d_1m < -8: score += 10
+            elif change_21d_1m < 0: score += 5
             if analyst_upside and analyst_upside > 25: score += 15
             elif analyst_upside and analyst_upside > 10: score += 8
             if market_cap and market_cap > 10_000_000_000: score += 10
@@ -1378,7 +1378,7 @@ def build_recovery_radar(tickers):
                 "Risk / Reward":"~1.5:1 est.","Hold Style":hold,
                 "Position Size Note":"Use staged entries; add only after trend confirmation.",
                 "AI Trade Plan":f"{ticker} has {upside_to_high:.1f}% upside to 52W high. {'Strong recovery setup.' if score >= 75 else 'Watchlist candidate.' if score >= 55 else 'Value-trap risk — wait for confirmation.'}",
-                "30D Change %":safe_round(change_30d,1),"90D Change %":safe_round(change_90d,1),
+                "21D / 1M Change %":safe_round(change_21d_1m,1),"90D Change %":safe_round(change_90d,1),
                 "Analyst Upside %":safe_round(analyst_upside,1),"Forward PE":safe_round(info.get("forwardPE"),1),
             })
         except Exception: continue
@@ -1623,6 +1623,13 @@ def detail_page(ticker):
     with st.expander("⚠️ Risk Factors — what could go wrong", expanded=False):
         st.write(data.get("Risk Factors Detail",""))
 
+    modern_section("🚪 Exit Strategy — When to Sell")
+    stop   = data.get("Stop Loss", 0)
+    target = data.get("Target / Sell Zone","")
+    price  = data.get("Price", 0)
+    rsi_v  = data.get("RSI", 50)
+    st.markdown(get_exit_strategy(price, stop, target, rsi_v))
+
     modern_section("📋 Trade Checklist")
     render_trade_checklist(data)
 
@@ -1652,11 +1659,394 @@ def detail_page(ticker):
 
 
 # ============================================================
+# V34.1 FEATURE 1: TRADE HEALTH MONITOR
+# ============================================================
+
+def get_exit_strategy(entry_price, stop_loss, target_zone, rsi=None):
+    """Returns plain-English exit guidance for an open position."""
+    try:
+        target_low = float(str(target_zone).replace("$","").split(" - ")[0])
+        target_high = float(str(target_zone).replace("$","").split(" - ")[1])
+    except Exception:
+        target_low = entry_price * 1.07
+        target_high = entry_price * 1.15
+
+    rsi_take_profit = 75
+    hold_condition  = entry_price * 0.97  # 3% pullback is normal noise
+
+    lines = [
+        f"🎯 **Take profits when:** Price reaches ${target_low:.2f} – ${target_high:.2f}. "
+        f"Also consider trimming if RSI exceeds {rsi_take_profit}.",
+        f"🛑 **Cut losses when:** Price closes below ${stop_loss:.2f} — do not average down below the stop.",
+        f"⏸ **Hold through normal noise:** Pullbacks above ${hold_condition:.2f} (3% from entry) are normal. "
+        f"Only re-evaluate if price closes below the 20-day moving average on heavy volume.",
+        "📋 **Rule:** Sell in stages — take 50% off at the first target, let the rest run to the higher target with a trailing stop.",
+    ]
+    return "\n\n".join(lines)
+
+
+def render_trade_health_monitor(trade, data):
+    """
+    Evaluates an open paper trade and shows plain-English health status.
+    """
+    if not data:
+        st.caption("Could not fetch current data for health check.")
+        return
+
+    entry      = float(trade.get("Entry Price") or 0)
+    stop       = float(trade.get("Stop Loss") or 0)
+    current    = float(data.get("Price") or 0)
+    target_str = str(data.get("Target / Sell Zone",""))
+    rsi        = float(data.get("RSI") or 50)
+    macd_bull  = data.get("MACD Bullish", False)
+    sma20      = float(data.get("SMA20") or 0)
+
+    if entry <= 0 or current <= 0:
+        st.caption("Insufficient data for health check.")
+        return
+
+    pct_from_entry = ((current - entry) / entry) * 100
+    pct_from_stop  = ((current - stop) / stop * 100) if stop > 0 else None
+
+    # Target parsing
+    try:
+        target_low  = float(target_str.replace("$","").split(" - ")[0])
+        target_high = float(target_str.replace("$","").split(" - ")[1])
+    except Exception:
+        target_low  = entry * 1.07
+        target_high = entry * 1.15
+
+    # Determine health status
+    if stop > 0 and current <= stop:
+        status = "🛑 STOP BREACHED"
+        color  = "#ef4444"
+        msg    = f"Price ${current:.2f} is at or below stop ${stop:.2f}. Exit this position — the setup has been invalidated. Do not hold hoping for a recovery."
+    elif current >= target_low:
+        status = "🎯 TARGET ZONE REACHED"
+        color  = "#2563eb"
+        msg    = f"Price ${current:.2f} has entered the target zone (${target_low:.2f} – ${target_high:.2f}). Consider taking 50% off here and raising your stop to breakeven on the rest."
+    elif rsi > 75 and not macd_bull:
+        status = "⚠️ EXIT SIGNAL FORMING"
+        color  = "#f59e0b"
+        msg    = f"RSI is elevated at {rsi:.1f} and MACD momentum is fading. Price is {pct_from_entry:+.1f}% from entry. Consider tightening your stop or taking partial profits."
+    elif sma20 > 0 and current < sma20 and pct_from_entry < 0:
+        status = "⚠️ WEAKENING"
+        color  = "#f59e0b"
+        msg    = f"Price ${current:.2f} has dropped below the 20-day moving average and is {pct_from_entry:.1f}% from your entry. Watch closely — if it doesn't reclaim the 20-day within 1-2 sessions, consider exiting."
+    elif pct_from_entry > 0 and (rsi < 70 or macd_bull):
+        status = "🟢 ON TRACK"
+        color  = "#16a34a"
+        msg    = f"Price is {pct_from_entry:+.1f}% from your entry of ${entry:.2f}. RSI is {rsi:.1f} — momentum is healthy. {'MACD is bullish, supporting continuation.' if macd_bull else 'Hold your position and respect the stop.'}"
+    elif pct_from_entry >= -3:
+        status = "🟡 NORMAL PULLBACK"
+        color  = "#f59e0b"
+        msg    = f"Price is {pct_from_entry:.1f}% from entry — within normal noise range. Stop at ${stop:.2f} is still intact. Hold and monitor."
+    else:
+        status = "🟡 MONITOR CLOSELY"
+        color  = "#f59e0b"
+        msg    = f"Position is {pct_from_entry:.1f}% from entry. Not at stop yet, but requires attention. Check if the original thesis still holds."
+
+    st.markdown(f"""
+    <div style="background:#ffffff;border-left:5px solid {color};border-radius:12px;padding:14px 18px;margin-bottom:10px;box-shadow:0 4px 12px rgba(15,23,42,0.07);">
+        <div style="font-size:1rem;font-weight:800;color:#111827;">{status}</div>
+        <div style="margin-top:6px;color:#334155;font-size:0.9rem;line-height:1.5;">{msg}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Exit strategy
+    with st.expander("📋 Exit Strategy for this position"):
+        st.markdown(get_exit_strategy(entry, stop, target_str, rsi))
+
+
+# ============================================================
+# V34.1 FEATURE 2: ENTRY RANGE EMAIL ALERTS
+# ============================================================
+
+def check_entry_range_alerts(watchlist_tickers, threshold=68):
+    """
+    Checks each watchlist ticker to see if current price has entered the entry range.
+    Returns list of alert-worthy signals.
+    """
+    alerts = []
+    alert_history = load_alert_history()
+    today = datetime.now(EASTERN).strftime("%Y-%m-%d")
+
+    # Avoid re-alerting the same ticker today
+    already_alerted_today = {
+        h["tickers"] for h in alert_history
+        if h.get("alert_type") == "Entry Range Alert" and h.get("timestamp","")[:10] == today
+    }
+
+    for ticker in watchlist_tickers:
+        try:
+            ticker = normalize_ticker(ticker)
+            if ticker in already_alerted_today:
+                continue
+
+            data = analyze_ticker(ticker)
+            if not data:
+                continue
+
+            conviction = float(data.get("Final Conviction") or 0)
+            if conviction < threshold:
+                continue
+
+            price = float(data.get("Price") or 0)
+            entry_str = str(data.get("Entry Range",""))
+
+            # Parse entry range
+            try:
+                parts = entry_str.replace("$","").replace("Wait for reclaim above","").split(" - ")
+                nums = [float(p.strip().split(" ")[0]) for p in parts if p.strip()]
+                if len(nums) >= 2:
+                    entry_low, entry_high = nums[0], nums[1]
+                else:
+                    continue
+            except Exception:
+                continue
+
+            if entry_low <= price <= entry_high:
+                alerts.append({
+                    "ticker": ticker,
+                    "price": price,
+                    "entry_range": entry_str,
+                    "conviction": conviction,
+                    "signal": data.get("Signal",""),
+                    "macd_note": data.get("MACD Note",""),
+                    "stop": data.get("Stop Loss",""),
+                    "target": data.get("Target / Sell Zone",""),
+                    "rr": data.get("Risk / Reward",""),
+                })
+        except Exception:
+            continue
+
+    return alerts
+
+
+def send_entry_range_email(alerts):
+    """Sends email alert when watchlist stocks enter their entry zones."""
+    if not alerts:
+        return False, "No alerts to send."
+
+    subject = f"📈 Entry Zone Alert — {len(alerts)} watchlist stock(s) in buy zone"
+    body = "AI Trading Dashboard — Entry Range Alerts\n"
+    body += f"Generated: {datetime.now(EASTERN).strftime('%Y-%m-%d %I:%M %p ET')}\n"
+    body += "=" * 50 + "\n\n"
+
+    for a in alerts:
+        body += f"🟢 {a['ticker']} — ${a['price']:.2f}\n"
+        body += f"   Signal: {a['signal']}\n"
+        body += f"   Conviction: {a['conviction']:.0f}/100\n"
+        body += f"   Entry Range: {a['entry_range']}\n"
+        body += f"   Stop Loss: ${a['stop']}\n"
+        body += f"   Target: {a['target']}\n"
+        body += f"   R/R: {a['rr']}\n"
+        body += f"   Timing: {a['macd_note']}\n\n"
+
+    body += "This is an automated alert. Always verify with the full checklist before acting.\n"
+    body += "Not financial advice.\n"
+
+    ok, msg = send_email_alert(subject, body)
+    if ok:
+        for a in alerts:
+            log_alert("Entry Range Alert", [a["ticker"]])
+    return ok, msg
+
+
+# ============================================================
+# V34.1 FEATURE 3: BACKTESTING ENGINE
+# ============================================================
+
+def compute_historical_signal(close_series, high_series, low_series, volume_series, lookback_end_idx):
+    """
+    Computes what signal the dashboard would have given on a specific historical date.
+    Uses the same scoring logic as analyze_ticker but on historical slices.
+    Returns (signal_score, signal_label)
+    """
+    try:
+        close = close_series.iloc[:lookback_end_idx]
+        high  = high_series.iloc[:lookback_end_idx]
+        low   = low_series.iloc[:lookback_end_idx]
+        vol   = volume_series.iloc[:lookback_end_idx]
+
+        if len(close) < 60:
+            return None, None
+
+        price   = float(close.iloc[-1])
+        sma20   = close.rolling(20).mean().iloc[-1]
+        sma50   = close.rolling(50).mean().iloc[-1]
+        sma200  = close.rolling(200).mean().iloc[-1] if len(close) >= 200 else close.rolling(min(100, len(close))).mean().iloc[-1]
+        rsi_val = float(calc_rsi(close).iloc[-1])
+        avg_vol = vol.rolling(20).mean().iloc[-1]
+        vol_ratio = float(vol.iloc[-1]) / avg_vol if avg_vol else 1
+
+        from_high = ((price - high.max()) / high.max()) * 100
+
+        trend_score = 0
+        if price > sma20:   trend_score += 20
+        if price > sma50:   trend_score += 20
+        if price > sma200:  trend_score += 20
+        if sma20 > sma50:   trend_score += 15
+        if 45 <= rsi_val <= 70: trend_score += 15
+        if vol_ratio > 1.1: trend_score += 10
+
+        risk_score = 0
+        if rsi_val > 75:    risk_score += 25
+        if price < sma50:   risk_score += 20
+        if price < sma200:  risk_score += 25
+        if from_high < -25: risk_score += 15
+        if vol_ratio < 0.6: risk_score += 10
+
+        ai_score = max(0, min(100, trend_score - (risk_score * 0.65)))
+        return ai_score, price
+    except Exception:
+        return None, None
+
+
+@st.cache_data(ttl=86400)
+def run_simple_backtest(tickers, lookback_days=504):
+    """
+    Simulates dashboard signals over the past ~2 years of daily data.
+    For each ticker, scans for BUY NOW signals (ai_score >= 75, risk_score < 35)
+    and checks actual returns at 5D, 10D, 21D / 1M.
+    Returns a DataFrame of all historical signals and outcomes.
+    """
+    results = []
+    spy_hist = get_history("SPY", period="2y")
+
+    for ticker in tickers:
+        try:
+            ticker = normalize_ticker(ticker)
+            hist = get_history(ticker, period="2y")
+            if hist.empty or len(hist) < 120:
+                continue
+
+            close  = hist["Close"].reset_index(drop=True)
+            high   = hist["High"].reset_index(drop=True)
+            low    = hist["Low"].reset_index(drop=True)
+            volume = hist["Volume"].reset_index(drop=True)
+            dates  = hist.index
+
+            # Scan every 5 trading days (avoid overcrowding)
+            scan_indices = list(range(60, len(close) - 30, 5))
+
+            for idx in scan_indices:
+                ai_score, price = compute_historical_signal(close, high, low, volume, idx)
+                if ai_score is None or price is None:
+                    continue
+
+                # Only log BUY NOW equivalent signals
+                if ai_score < 70:
+                    continue
+
+                signal_date = dates[idx]
+
+                # Actual future returns
+                ret_5d  = ((float(close.iloc[min(idx+5,  len(close)-1)]) - price) / price * 100) if idx+5  < len(close) else None
+                ret_10d = ((float(close.iloc[min(idx+10, len(close)-1)]) - price) / price * 100) if idx+10 < len(close) else None
+                ret_21d_1m = ((float(close.iloc[min(idx+21, len(close)-1)]) - price) / price * 100) if idx+21 < len(close) else None
+
+                # SPY return over same window (benchmark)
+                try:
+                    spy_close = spy_hist["Close"]
+                    spy_idx = spy_close.index.searchsorted(signal_date)
+                    spy_price = float(spy_close.iloc[spy_idx])
+                    spy_5d = ((float(spy_close.iloc[min(spy_idx+5, len(spy_close)-1)]) - spy_price) / spy_price * 100) if spy_idx+5 < len(spy_close) else None
+                except Exception:
+                    spy_5d = None
+
+                results.append({
+                    "Ticker":       ticker,
+                    "Signal Date":  str(signal_date)[:10],
+                    "Price at Signal": round(price, 2),
+                    "AI Score":     round(ai_score, 0),
+                    "Signal":       "🟢 BUY NOW" if ai_score >= 75 else "🟡 Watch",
+                    "5D Return %":  round(ret_5d,  2) if ret_5d  is not None else None,
+                    "10D Return %": round(ret_10d, 2) if ret_10d is not None else None,
+                    "21D / 1M Return %": round(ret_21d_1m, 2) if ret_21d_1m is not None else None,
+                    "5D vs SPY %":  round(ret_5d - spy_5d, 2) if ret_5d is not None and spy_5d is not None else None,
+                    "5D Win":       "✅ Win" if ret_5d  is not None and ret_5d  > 0 else ("❌ Loss" if ret_5d  is not None else None),
+                    "10D Win":      "✅ Win" if ret_10d is not None and ret_10d > 0 else ("❌ Loss" if ret_10d is not None else None),
+                    "21D / 1M Win":      "✅ Win" if ret_21d_1m is not None and ret_21d_1m > 0 else ("❌ Loss" if ret_21d_1m is not None else None),
+                })
+        except Exception:
+            continue
+
+    return pd.DataFrame(results) if results else pd.DataFrame()
+
+
+def render_simple_backtest_summary(df):
+    """Renders simple_backtest results with win rates, avg returns, and best/worst signals."""
+    if df is None or df.empty:
+        st.info("No simple_backtest results. Run the simple_backtest above.")
+        return
+
+    total_signals = len(df)
+    st.markdown(f"**{total_signals} historical signals scanned across selected tickers**")
+
+    # Win rates
+    for period, col_win, col_ret in [("5D","5D Win","5D Return %"),("10D","10D Win","10D Return %"),("21D / 1M","21D / 1M Win","21D / 1M Return %")]:
+        resolved = df[df[col_win].notna()]
+        if resolved.empty:
+            continue
+        wins     = (resolved[col_win] == "✅ Win").sum()
+        total    = len(resolved)
+        win_rate = wins / total * 100
+        avg_ret  = resolved[col_ret].mean()
+        color    = "🟢" if win_rate >= 55 else "🟡" if win_rate >= 45 else "🔴"
+        st.metric(
+            f"{color} {period} Win Rate",
+            f"{win_rate:.1f}%",
+            f"{wins}/{total} signals | avg {avg_ret:+.2f}%"
+        )
+
+    st.markdown("---")
+
+    # Best performers
+    modern_section("🏆 Best Performing Signals (5D)")
+    best = df.nlargest(10, "5D Return %")[["Ticker","Signal Date","Price at Signal","AI Score","5D Return %","10D Return %","21D / 1M Return %","5D vs SPY %"]]
+    st.dataframe(best, use_container_width=True, hide_index=True)
+
+    # Worst performers
+    modern_section("⚠️ Worst Performing Signals (5D)")
+    worst = df.nsmallest(10, "5D Return %")[["Ticker","Signal Date","Price at Signal","AI Score","5D Return %","10D Return %","21D / 1M Return %","5D vs SPY %"]]
+    st.dataframe(worst, use_container_width=True, hide_index=True)
+
+    # Per-ticker breakdown
+    modern_section("📊 Per-Ticker Win Rate Breakdown")
+    ticker_stats = []
+    for ticker, group in df.groupby("Ticker"):
+        resolved = group[group["5D Win"].notna()]
+        if len(resolved) < 2:
+            continue
+        wins = (resolved["5D Win"] == "✅ Win").sum()
+        ticker_stats.append({
+            "Ticker": ticker,
+            "Signals": len(resolved),
+            "5D Win Rate": f"{wins/len(resolved)*100:.0f}%",
+            "Avg 5D Return": f"{resolved['5D Return %'].mean():+.2f}%",
+            "Avg 21D / 1M Return": f"{resolved['21D / 1M Return %'].mean():+.2f}%" if resolved["21D / 1M Return %"].notna().any() else "N/A",
+            "Best Trade": f"{resolved['5D Return %'].max():+.2f}%",
+            "Worst Trade": f"{resolved['5D Return %'].min():+.2f}%",
+        })
+    if ticker_stats:
+        stats_df = pd.DataFrame(ticker_stats).sort_values("5D Win Rate", ascending=False)
+        st.dataframe(stats_df, use_container_width=True, hide_index=True)
+
+    # Full log
+    with st.expander("📋 Full Signal Log"):
+        st.dataframe(df.sort_values("Signal Date", ascending=False), use_container_width=True, hide_index=True)
+
+        if st.download_button("⬇️ Download Simple Backtest CSV", df.to_csv(index=False).encode(), "simple_backtest_results.csv", "text/csv"):
+            pass
+
+
+# ============================================================
 # SIDEBAR
 # ============================================================
 
 st.sidebar.title("📈 AI Trading Dashboard")
-st.sidebar.caption("V33 Final — 9 Agents · Fundamentals · Adaptive · MACD · Morning Briefing")
+st.sidebar.caption("V34.1 — Exit Signals · Simple Backtesting · Entry Alerts · Trade Health")
 role_label = "Admin" if is_admin() else "View Only"
 st.sidebar.success(f"Logged in as: {role_label}")
 if alpaca_client: st.sidebar.success("🟢 Alpaca: Connected")
@@ -1666,11 +2056,12 @@ if st.sidebar.button("Logout"):
 show_last_refresh()
 
 st.sidebar.markdown("### Navigation")
-nav_page = st.sidebar.radio("Go to", ["Home","Scanner","Watchlist","Paper Trades","Settings & Logs","Detail View"])
+nav_page = st.sidebar.radio("Go to", ["Home","Scanner","Watchlist","Paper Trades","Simple Backtest","Settings & Logs","Detail View"])
 page = nav_page
 if nav_page == "Home":           page = "Dashboard"
 elif nav_page == "Scanner":      page = "Scanner Hub"
 elif nav_page == "Paper Trades": page = "Paper Trading"
+elif nav_page == "Simple Backtest":     page = "Simple Backtest"
 
 st.sidebar.markdown("### Refresh")
 if st.sidebar.button("🔄 Refresh Data"):
@@ -1697,11 +2088,61 @@ else:
 # MAIN APP + ADAPTIVE THRESHOLD INIT
 # ============================================================
 
+
+# ============================================================
+# MORNING BRIEFING
+# ============================================================
+
+def build_morning_briefing(scan_df, recovery_df=None, etf_df=None):
+    """Beginner-friendly daily briefing summarizing market, best setups, and risks."""
+    regime_key, regime_label, regime_note = get_market_regime()
+    vol_mult, vol_label, vol_note = get_market_volatility_regime()
+    sectors = get_sector_performance()
+
+    lines = []
+    lines.append(f"**Market Regime:** {regime_label} — {regime_note}")
+    lines.append(f"**Volatility:** {vol_label} — {vol_note}")
+
+    if sectors:
+        top = list(sectors.items())[:3]
+        bottom = list(sectors.items())[-3:]
+        lines.append("**Leading sectors:** " + ", ".join([f"{s} ({p:+.1f}%)" for s, p in top]))
+        lines.append("**Weak sectors:** " + ", ".join([f"{s} ({p:+.1f}%)" for s, p in bottom]))
+
+    if scan_df is not None and not scan_df.empty:
+        threshold = st.session_state.get("adaptive_threshold", 68)
+        candidates = scan_df[scan_df["Final Conviction"].fillna(0) >= threshold] if "Final Conviction" in scan_df.columns else scan_df.head(0)
+        if not candidates.empty:
+            names = candidates.head(5)["Ticker"].tolist()
+            lines.append(f"**Top watchlist today:** {', '.join(names)}")
+            lines.append("These are not automatic buys. Use the trade checklist, valuation section, cash-flow section, and position-size calculator before acting.")
+        else:
+            lines.append("**Top watchlist today:** No names currently clear the adaptive threshold. Patience may be better than forcing a trade.")
+
+    if recovery_df is not None and not recovery_df.empty:
+        rec_names = recovery_df.head(5)["Ticker"].tolist()
+        lines.append(f"**Recovery setups to monitor:** {', '.join(rec_names)}")
+
+    if regime_key == "bear":
+        lines.append("**Risk note:** Bear market conditions mean smaller position sizes, tighter selectivity, and fewer trades.")
+    elif regime_key == "neutral":
+        lines.append("**Risk note:** Neutral conditions favor starter positions instead of full-sized entries.")
+    else:
+        lines.append("**Risk note:** Bullish backdrop supports momentum, but still avoid chasing overextended entries.")
+
+    return "\n\n".join(lines)
+
+
+def render_morning_briefing(scan_df, recovery_df=None, etf_df=None):
+    modern_section("🌅 Morning Briefing", "A plain-English summary of today’s market backdrop, top setups, and risk controls.")
+    st.markdown(build_morning_briefing(scan_df, recovery_df, etf_df))
+
+
 modern_hero(
-    "📈 AI Trading Dashboard V33 Final",
-    "9 Agents · Fundamental research · Valuation · Cash flow · MACD timing · Adaptive threshold · Morning briefing"
+    "📈 AI Trading Dashboard V34.1",
+    "9 Agents · Fundamentals · Exit signals · Simple Backtesting · Entry alerts · Trade health monitor"
 )
-st.caption("V33 Final — Merged best of both builds. Not financial advice. Use for research and paper-trading validation only.")
+st.caption("V34.1 — Exit signals, simple_backtesting, entry range email alerts, and trade health monitoring added. Not financial advice.")
 
 _log_for_threshold = load_signal_log()
 _threshold, _threshold_note = get_adaptive_conviction_threshold(_log_for_threshold)
@@ -1845,7 +2286,38 @@ elif page == "Watchlist":
 
 elif page == "Paper Trading":
     modern_section("🧾 Paper Trading", "Track practice trades. Validate signals before real capital.")
+
+    # ── Entry Range Alert Check ──────────────────────────────
+    modern_section("🔔 Entry Range Alerts", "Check if any watchlist stocks have entered their buy zone.")
+    col_al1, col_al2 = st.columns([2,3])
+    with col_al1:
+        if st.button("🔍 Check Watchlist Entry Zones"):
+            with st.spinner("Checking entry zones..."):
+                log = load_signal_log()
+                threshold, _ = get_adaptive_conviction_threshold(log)
+                alerts = check_entry_range_alerts(st.session_state.watchlist, threshold=threshold)
+            if alerts:
+                st.success(f"🟢 {len(alerts)} watchlist stock(s) are in their entry zone right now!")
+                for a in alerts:
+                    st.markdown(f"""
+                    **{a['ticker']}** @ ${a['price']:.2f} — {a['signal']}
+                    Entry: {a['entry_range']} | Stop: ${a['stop']} | Target: {a['target']} | R/R: {a['rr']}
+                    {a['macd_note']}
+                    """)
+                if is_admin():
+                    if st.button("📧 Send Entry Alert Email"):
+                        ok, msg = send_entry_range_email(alerts)
+                        st.success(msg) if ok else st.error(msg)
+            else:
+                st.info("No watchlist stocks are currently in their entry zone.")
+    with col_al2:
+        st.caption("This checks each ticker on your watchlist against its current entry range. Only stocks with high conviction are flagged. An email alert is sent once per stock per day if configured.")
+
+    st.markdown("---")
+
+    # ── Add New Trade ────────────────────────────────────────
     if is_admin():
+        modern_section("➕ Log a Paper Trade")
         c1,c2,c3,c4 = st.columns(4)
         pt_ticker = c1.text_input("Ticker", placeholder="NVDA")
         pt_price  = c2.number_input("Entry Price", min_value=0.0, step=0.01)
@@ -1853,42 +2325,147 @@ elif page == "Paper Trading":
         pt_stop   = c4.number_input("Stop Loss", min_value=0.0, step=0.01)
         if st.button("Add Paper Trade"):
             t = normalize_ticker(pt_ticker)
-            if not t or pt_price <= 0 or pt_qty <= 0: st.warning("Enter ticker, price, and shares.")
+            if not t or pt_price <= 0 or pt_qty <= 0:
+                st.warning("Enter ticker, price, and shares.")
             else:
-                st.session_state.paper_trades.append({"Ticker":t,"Entry Price":pt_price,"Shares":pt_qty,"Stop Loss":pt_stop if pt_stop > 0 else None,"Date":datetime.now(EASTERN).strftime("%Y-%m-%d %I:%M %p ET")})
+                st.session_state.paper_trades.append({
+                    "Ticker":t,"Entry Price":pt_price,"Shares":pt_qty,
+                    "Stop Loss":pt_stop if pt_stop > 0 else None,
+                    "Date":datetime.now(EASTERN).strftime("%Y-%m-%d %I:%M %p ET")
+                })
                 save_paper_trades(); st.success(f"Added {t}"); st.rerun()
-    else: st.info("View-only: editing disabled.")
+    else:
+        st.info("View-only: editing disabled.")
 
+    # ── Open Trades with Health Monitor ─────────────────────
     trades = st.session_state.paper_trades
     if not trades:
-        st.info("No paper trades yet. Log signals from the Scanner, paper trade seriously, then check accuracy after 5-10 trading days.")
+        st.info("No paper trades yet. Log signals from the Scanner, paper trade them seriously, then check accuracy after 5-10 trading days.")
     else:
+        modern_section("📊 Open Positions — Portfolio Overview")
         rows = []; total_at_risk = 0
-        for i,trade in enumerate(trades):
-            ticker = trade["Ticker"]; data = analyze_ticker(ticker)
-            current = data["Price"] if data else None; entry = trade["Entry Price"]; shares = trade["Shares"]
-            pnl = ((current - entry) * shares) if current else None
+        trade_data_cache = {}
+        for i, trade in enumerate(trades):
+            ticker  = trade["Ticker"]
+            data    = analyze_ticker(ticker)
+            trade_data_cache[i] = data
+            current = data["Price"] if data else None
+            entry   = trade["Entry Price"]; shares = trade["Shares"]
+            pnl     = ((current - entry) * shares) if current else None
             pnl_pct = ((current - entry) / entry * 100) if current and entry else None
-            stop = trade.get("Stop Loss")
+            stop    = trade.get("Stop Loss")
             stop_status = "⚪ No stop" if not stop or not current else ("🔴 Stop breached" if current < stop else "🟢 Above stop")
             risk_on_trade = (entry - stop) * shares if stop and stop > 0 else 0
             total_at_risk += max(0, risk_on_trade)
-            rows.append({"ID":i,"Ticker":ticker,"Entry Price":entry,"Current Price":current,"Shares":shares,"Stop Loss":stop,"Stop Status":stop_status,"P/L $":safe_round(pnl),"P/L %":safe_round(pnl_pct),"Date":trade["Date"]})
+            rows.append({
+                "ID":i,"Ticker":ticker,"Entry Price":entry,"Current Price":current,"Shares":shares,
+                "Stop Loss":stop,"Stop Status":stop_status,
+                "P/L $":safe_round(pnl),"P/L %":safe_round(pnl_pct),"Date":trade["Date"],
+            })
+
         trade_df = pd.DataFrame(rows)
         st.dataframe(trade_df, column_config=build_column_config(trade_df), use_container_width=True, hide_index=True)
+
         total_pnl = sum(r["P/L $"] for r in rows if r["P/L $"] is not None)
         breached  = sum(1 for r in rows if r["Stop Status"] == "🔴 Stop breached")
-        m1,m2,m3 = st.columns(3)
-        m1.metric("Total Portfolio P/L", f"${total_pnl:,.2f}")
+        m1,m2,m3,m4 = st.columns(4)
+        m1.metric("Total P/L", f"${total_pnl:,.2f}", delta_color="normal" if total_pnl >= 0 else "inverse")
         m2.metric("Capital at Risk", f"${total_at_risk:,.2f}")
-        m3.metric("Stop Breaches", breached, delta_color="inverse" if breached > 0 else "normal")
-        if breached > 0: st.error(f"⚠️ {breached} position(s) have breached their stop loss. Exit or reassess immediately.")
+        m3.metric("Open Positions", len(trades))
+        m4.metric("Stop Breaches", breached, delta_color="inverse" if breached > 0 else "normal")
+
+        if breached > 0:
+            st.error(f"⚠️ {breached} position(s) have breached their stop loss. Exit or reassess immediately.")
+
+        # ── Per-trade health monitors ────────────────────────
+        modern_section("🩺 Trade Health Monitor", "Real-time status and exit guidance for each open position.")
+        st.caption("Updated each time you load this page. Gives you a plain-English read on whether to hold, tighten, or exit each trade.")
+
+        for i, trade in enumerate(trades):
+            ticker = trade["Ticker"]
+            data   = trade_data_cache.get(i)
+            entry  = trade["Entry Price"]
+            stop   = trade.get("Stop Loss", 0) or 0
+            target = str(data.get("Target / Sell Zone","")) if data else ""
+            current= data["Price"] if data else None
+            pnl_pct= ((current - entry) / entry * 100) if current and entry else None
+
+            with st.expander(f"**{ticker}** — Entry ${entry:.2f} | Current ${current:.2f if current else 0:.2f} ({pnl_pct:+.1f}%)" if current and pnl_pct is not None else f"**{ticker}** — Entry ${entry:.2f}"):
+                render_trade_health_monitor(trade, data)
+
+        # ── Remove trade ─────────────────────────────────────
         if is_admin():
+            st.markdown("---")
             remove_id = st.number_input("Remove trade ID", min_value=0, max_value=max(0,len(trades)-1), step=1)
             if st.button("Remove Paper Trade"):
-                try: st.session_state.paper_trades.pop(int(remove_id)); save_paper_trades(); st.rerun()
-                except Exception: st.error("Could not remove trade.")
+                try:
+                    st.session_state.paper_trades.pop(int(remove_id))
+                    save_paper_trades(); st.rerun()
+                except Exception:
+                    st.error("Could not remove trade.")
+
     render_position_calculator()
+
+
+elif page == "Simple Backtest":
+    modern_section("📈 Simple Backtesting Engine", "Simulate how the dashboard's signals would have performed over the past 2 years.")
+    st.caption(
+        "This runs the same scoring rules against historical price data to show hypothetical signal performance. "
+        "It does not guarantee future results, but reveals whether the scoring logic has historically had edge."
+    )
+
+    with st.expander("ℹ️ How this works", expanded=False):
+        st.markdown("""
+**What the simple_backtest does:**
+- Scans each selected ticker every 5 trading days over the past ~2 years
+- Applies the same AI Score formula used in the live scanner
+- Records every signal where AI Score ≥ 70 (equivalent to a BUY NOW / high-conviction signal)
+- Checks actual price returns at 5, 10, and 30 trading days after the signal
+- Compares 5D return vs SPY (to measure alpha, not just market beta)
+
+**What a good result looks like:**
+- 5D win rate above 55% — signals are directionally correct more often than not
+- Positive average 5D return — profitable on average even accounting for losses
+- Positive vs SPY — the signals beat just holding the index
+
+**Limitations:**
+- No slippage, fees, or taxes are modeled
+- Signals are computed end-of-day — intraday entries may be different
+- Past performance doesn't guarantee future results
+- The adaptive threshold and MACD confirmation layers were not applied (they require live market data)
+        """)
+
+    # Ticker selection
+    bt_options = st.radio("Scan which tickers?", ["Watchlist Only", "Core Scanner (Top 30)", "Full Core Scanner"], horizontal=True, key="bt_scope")
+
+    if bt_options == "Watchlist Only":
+        bt_tickers = st.session_state.watchlist
+    elif bt_options == "Core Scanner (Top 30)":
+        bt_tickers = CORE_SCAN_TICKERS[:30]
+    else:
+        bt_tickers = CORE_SCAN_TICKERS
+
+    st.caption(f"Will scan {len(bt_tickers)} tickers. More tickers = longer runtime (cached for 24 hours after first run).")
+
+    if st.button("🚀 Run Simple Backtest", type="primary"):
+        with st.spinner(f"Running simple_backtest across {len(bt_tickers)} tickers over ~2 years of data. This may take 60-90 seconds on first run..."):
+            bt_df = run_simple_backtest(tuple(bt_tickers))
+        if bt_df.empty:
+            st.warning("No signals found. Try expanding the ticker scope.")
+        else:
+            st.success(f"✅ Simple Backtest complete — {len(bt_df)} historical signals found.")
+            render_simple_backtest_summary(bt_df)
+    else:
+        st.info("Click 'Run Simple Backtest' to simulate historical signal performance. Results are cached for 24 hours.")
+
+        # Show any previously cached results
+        try:
+            cached = run_simple_backtest(tuple(bt_tickers))
+            if not cached.empty:
+                st.caption("Showing cached results from previous run:")
+                render_simple_backtest_summary(cached)
+        except Exception:
+            pass
 
 
 elif page == "Settings & Logs":
@@ -1937,7 +2514,7 @@ elif page == "Settings & Logs":
             st.write(f"EMAIL_RECIPIENTS: {'✅' if os.getenv('EMAIL_RECIPIENTS','') else '❌'}")
             st.write(f"Alpaca: {ALPACA_STATUS}")
             if st.button("Send Test Email"):
-                ok,msg = send_email_alert("AI Dashboard V33 Final Test", f"Test from V33 Final at {datetime.now(EASTERN)}")
+                ok,msg = send_email_alert("AI Dashboard V34.1 Test", f"Test from V34.1 at {datetime.now(EASTERN)}")
                 st.success(msg) if ok else st.error(msg)
 
 
@@ -1948,4 +2525,4 @@ elif page == "Detail View":
 
 
 st.markdown("---")
-st.caption("Not financial advice. Use for research and paper-trading validation only. | AI Trading Dashboard V33 Final")
+st.caption("Not financial advice. Use for research and paper-trading validation only. | AI Trading Dashboard V34.1")
