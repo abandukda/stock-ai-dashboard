@@ -1,4 +1,4 @@
-import os
+=import os
 from pathlib import Path
 import json
 import smtplib
@@ -29,7 +29,7 @@ except ImportError:
     ALPACA_AVAILABLE = False
 
 # ============================================================
-# AI TRADING DASHBOARD  V34.1 FINAL
+# AI TRADING DASHBOARD  V35 MARKET INTELLIGENCE
 # Merged: Fundamental Research Engine + Adaptive Intelligence
 # 9-Agent scoring · MACD timing · Adaptive threshold
 # Morning briefing · Trade checklist · Volatility sizing
@@ -37,7 +37,7 @@ except ImportError:
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Trading Dashboard V34.1",
+    page_title="AI Trading Dashboard V35",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -216,7 +216,7 @@ def render_mobile_signal_summary(df):
         return
     cols = ["Ticker","Price","Signal Confidence","Entry Range","Stop Loss","Target / Sell Zone","Risk / Reward"]
     cols = [c for c in cols if c in df.columns]
-    st.dataframe(df[cols].head(20), use_container_width=True, hide_index=True)
+    st.dataframe(df[cols].head(25), use_container_width=True, hide_index=True)
 
 
 def render_trade_checklist(row):
@@ -309,6 +309,50 @@ RECOVERY_TICKERS = [
 ]
 ETF_TICKERS = ["SPY","QQQ","IWM","DIA","XLK","XLF","XLV","XLE","XLY","XLP","SMH","ARKK"]
 
+
+# ============================================================
+# V35 EXPANDED OPPORTUNITY UNIVERSE
+# ============================================================
+
+ELITE_COMPOUNDERS = [
+    "MSFT","AVGO","COST","LIN","MA","V","SPGI","ADBE","INTU","ORLY","MCD","WM","PG","PEP","TJX","SHW",
+    "AAPL","GOOGL","META","AMZN","UNH","LLY","ISRG","ADP","CDNS","SNPS","KLAC","LRCX"
+]
+
+GROWTH_LEADERS = [
+    "NVDA","CRWD","PANW","DDOG","MDB","CELH","SNOW","NET","AMD","SHOP","PLTR","TSLA","NOW","TEAM",
+    "ZS","FTNT","ANET","TTD","UBER","ABNB","DECK","ONON","ELF"
+]
+
+MIDCAP_GROWTH = [
+    "APP","DUOL","RKLB","IOT","CAVA","SYM","HIMS","SOFI","UPST","AFRM","TOST","GTLB","PATH","U",
+    "BROS","CHWY","WOLF","IONQ","JOBY","ACHR","RIVN","NIO","SOUN","BBAI","AI"
+]
+
+RECOVERY_VALUE = [
+    "PYPL","NKE","SBUX","ENPH","SEDG","SQ","DOCU","TGT","ADBE","CRM","AMD","TSLA","SHOP","SNOW",
+    "NET","CELH","CHWY","TOST","F","GM"
+]
+
+DEFENSIVE_QUALITY = [
+    "KO","PEP","PG","JNJ","ABBV","MCD","WM","DUK","SO","NEE","CME","CL","KMB","MDLZ","TMO","DHR"
+]
+
+ETF_ROTATION = [
+    "QQQ","SPY","IWM","DIA","SMH","SOXX","XLK","XLI","XLE","XLY","XLP","XLV","XLU","ARKK","VUG","VTV"
+]
+
+CORE_SCAN_TICKERS = sorted(set(
+    ELITE_COMPOUNDERS
+    + GROWTH_LEADERS
+    + MIDCAP_GROWTH
+    + RECOVERY_VALUE
+    + DEFENSIVE_QUALITY
+))
+
+RECOVERY_TICKERS = sorted(set(RECOVERY_TICKERS + RECOVERY_VALUE + MIDCAP_GROWTH))
+ETF_TICKERS = ETF_ROTATION
+
 EXCLUDED_SECTOR_KEYWORDS = [
     "financial","bank","banks","insurance","capital markets","asset management","mortgage",
     "reit","real estate","entertainment","media","broadcast","streaming","gaming","casino","resort"
@@ -323,38 +367,75 @@ EXCLUDED_TICKERS = {
 # LOGIN
 # ============================================================
 
-def clean_secret(v): return str(v or "").strip()
+def clean_secret(v):
+    # Secure but tolerant: trims hidden spaces and accidental surrounding quotes.
+    return str(v or "").strip().strip('"').strip("'")
 
-ADMIN_USER     = clean_secret(os.getenv("ADMIN_USER",""))
-ADMIN_PASSWORD = clean_secret(os.getenv("ADMIN_PASSWORD",""))
-VIEW_USER      = clean_secret(os.getenv("VIEW_USER",""))
-VIEW_PASSWORD  = clean_secret(os.getenv("VIEW_PASSWORD",""))
+
+ADMIN_USER     = clean_secret(os.getenv("ADMIN_USER", ""))
+ADMIN_PASSWORD = clean_secret(os.getenv("ADMIN_PASSWORD", ""))
+VIEW_USER      = clean_secret(os.getenv("VIEW_USER", ""))
+VIEW_PASSWORD  = clean_secret(os.getenv("VIEW_PASSWORD", ""))
+
 
 def require_login():
-    for k,d in [("logged_in",False),("user_role",None),("login_user","")]:
-        if k not in st.session_state: st.session_state[k] = d
-    if st.session_state.logged_in: return
-    st.title("🔐 AI Trading Dashboard V34.1")
-    st.caption("Admin: full access. Viewer: read-only.")
+    for k, d in [("logged_in", False), ("user_role", None), ("login_user", "")]:
+        if k not in st.session_state:
+            st.session_state[k] = d
+
+    if st.session_state.logged_in:
+        return
+
+    st.title("🔐 AI Trading Dashboard V35")
+    st.caption("Secure login uses Render environment variables only. No passwords are stored in source code.")
+
     with st.form("login_form"):
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         submitted = st.form_submit_button("Login")
+
     if submitted:
-        eu = clean_secret(username).lower(); ep = clean_secret(password)
+        eu = clean_secret(username).lower()
+        ep = clean_secret(password)
+
         if ADMIN_USER and ADMIN_PASSWORD and eu == ADMIN_USER.lower() and ep == ADMIN_PASSWORD:
-            st.session_state.logged_in = True; st.session_state.user_role = "admin"; st.rerun()
+            st.session_state.logged_in = True
+            st.session_state.user_role = "admin"
+            st.session_state.login_user = ADMIN_USER
+            st.rerun()
         elif VIEW_USER and VIEW_PASSWORD and eu == VIEW_USER.lower() and ep == VIEW_PASSWORD:
-            st.session_state.logged_in = True; st.session_state.user_role = "viewer"; st.rerun()
-        else: st.error("Invalid credentials.")
+            st.session_state.logged_in = True
+            st.session_state.user_role = "viewer"
+            st.session_state.login_user = VIEW_USER
+            st.rerun()
+        else:
+            st.error("Invalid credentials.")
+            st.caption("Username is not case-sensitive. Password is case-sensitive. Hidden spaces and surrounding quotes are trimmed.")
+
     with st.expander("🔧 Login Diagnostics"):
         st.write(f"ADMIN_USER set: {'✅' if ADMIN_USER else '❌'}")
         st.write(f"ADMIN_PASSWORD set: {'✅' if ADMIN_PASSWORD else '❌'}")
         st.write(f"VIEW_USER set: {'✅' if VIEW_USER else '❌'}")
         st.write(f"VIEW_PASSWORD set: {'✅' if VIEW_PASSWORD else '❌'}")
+        st.caption("Values are hidden for security. Lengths help detect wrong env vars or accidental spaces.")
+        st.write(f"ADMIN_USER length: {len(ADMIN_USER)}")
+        st.write(f"ADMIN_PASSWORD length: {len(ADMIN_PASSWORD)}")
+        st.write(f"VIEW_USER length: {len(VIEW_USER)}")
+        st.write(f"VIEW_PASSWORD length: {len(VIEW_PASSWORD)}")
+        st.caption("If these do not match what you expect, update Render Environment and redeploy with Clear build cache.")
+
+    if st.button("Reset login session"):
+        st.session_state.logged_in = False
+        st.session_state.user_role = None
+        st.session_state.login_user = ""
+        st.rerun()
+
     st.stop()
 
-def is_admin(): return st.session_state.get("user_role") == "admin"
+
+def is_admin():
+    return st.session_state.get("user_role") == "admin"
+
 
 require_login()
 
@@ -1299,26 +1380,191 @@ def analyze_ticker(ticker):
 
 
 @st.cache_data(ttl=300)
+
+# ============================================================
+# V35 OPPORTUNITY CATEGORIZATION + DIVERSITY
+# ============================================================
+
+def parse_percent_value(value):
+    try:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            v = value.replace("%", "").replace("+", "").strip()
+            if v in ["", "N/A", "None"]:
+                return None
+            return float(v)
+        return float(value)
+    except Exception:
+        return None
+
+
+def market_cap_bucket(market_cap):
+    try:
+        mc = float(market_cap or 0)
+        if mc >= 200_000_000_000:
+            return "Mega Cap"
+        if mc >= 10_000_000_000:
+            return "Large Cap"
+        if mc >= 2_000_000_000:
+            return "Mid Cap"
+        if mc > 0:
+            return "Small Cap"
+        return "Unknown"
+    except Exception:
+        return "Unknown"
+
+
+def starter_position_label(row):
+    conviction = float(row.get("Final Conviction") or 0)
+    risk = float(row.get("Risk Score") or 50)
+    earnings = str(row.get("Earnings", ""))
+
+    if "🔴" in earnings:
+        return "⚪ Watchlist Candidate — earnings risk"
+    if conviction >= 80 and risk < 35:
+        return "🟢 Full Position Candidate"
+    if conviction >= 65:
+        return "🟡 Starter Position Candidate"
+    if conviction >= 50:
+        return "⚪ Watchlist Candidate"
+    return "🔴 Avoid / Wait"
+
+
+def categorize_opportunity(row):
+    style = str(row.get("Investment Style", ""))
+    conviction = float(row.get("Final Conviction") or 0)
+    rsi = float(row.get("RSI") or 50)
+    rs = row.get("Relative Strength vs SPY %")
+    revenue = parse_percent_value(row.get("Revenue Growth"))
+    fcf = str(row.get("Free Cash Flow", ""))
+
+    try:
+        rs = float(rs) if rs is not None else 0
+    except Exception:
+        rs = 0
+
+    if "Compounder" in style:
+        return "💎 Long-Term Compounders"
+    if rs > 5 and conviction >= 70:
+        return "📈 Institutional Momentum"
+    if rsi < 40 and conviction >= 55:
+        return "🔥 Recovery Opportunities"
+    if revenue is not None and revenue > 20 and conviction >= 60:
+        return "💰 Undervalued Growth"
+    if "Quality" in style:
+        return "🛡 Defensive Quality"
+    if conviction >= 55:
+        return "🟡 General Opportunities"
+    return "⚠ Speculative / Watch Only"
+
+
+def add_v35_opportunity_columns(df):
+    if df is None or df.empty or "Ticker" not in df.columns:
+        return df
+
+    work = df.copy()
+    sectors = []
+    industries = []
+    market_caps = []
+    market_cap_buckets = []
+
+    for ticker in work["Ticker"].tolist():
+        info = get_info(ticker)
+        sectors.append(info.get("sector", "Unknown"))
+        industries.append(info.get("industry", "Unknown"))
+        market_caps.append(fmt_money(info.get("marketCap")))
+        market_cap_buckets.append(market_cap_bucket(info.get("marketCap")))
+
+    work["Sector"] = sectors
+    work["Industry"] = industries
+    work["Market Cap"] = market_caps
+    work["Market Cap Bucket"] = market_cap_buckets
+    work["Opportunity Category"] = work.apply(categorize_opportunity, axis=1)
+    work["Position Recommendation"] = work.apply(starter_position_label, axis=1)
+
+    return work
+
+
+def enforce_sector_diversity(df, max_per_sector=3):
+    if df is None or df.empty or "Sector" not in df.columns:
+        return df
+
+    output = []
+    sector_counts = {}
+    sort_col = "Final Conviction" if "Final Conviction" in df.columns else None
+    work = df.sort_values(sort_col, ascending=False) if sort_col else df.copy()
+
+    for _, row in work.iterrows():
+        sector = row.get("Sector", "Unknown") or "Unknown"
+        if sector_counts.get(sector, 0) < max_per_sector:
+            output.append(row)
+            sector_counts[sector] = sector_counts.get(sector, 0) + 1
+
+    return pd.DataFrame(output) if output else work.head(0)
+
+
+def show_opportunity_category_tabs(df):
+    if df is None or df.empty or "Opportunity Category" not in df.columns:
+        st.info("No categorized opportunities available.")
+        return
+
+    categories = [
+        "💎 Long-Term Compounders",
+        "📈 Institutional Momentum",
+        "💰 Undervalued Growth",
+        "🔥 Recovery Opportunities",
+        "🛡 Defensive Quality",
+        "🟡 General Opportunities",
+        "⚠ Speculative / Watch Only",
+    ]
+
+    tabs = st.tabs(["Compounders", "Momentum", "Undervalued", "Recovery", "Defensive", "General", "Speculative"])
+    for tab, category in zip(tabs, categories):
+        with tab:
+            sub = df[df["Opportunity Category"] == category]
+            if sub.empty:
+                st.info(f"No current names in {category}.")
+            else:
+                st.caption(f"{category} — ranked by conviction with trade checklist available.")
+                render_signal_cards(sub, limit=10, show_checklist=True)
+
+
+
 def build_scan(tickers, diversified=True, per_bucket=6):
     unique = []
     for t in tickers:
         n = normalize_ticker(str(t))
-        if n and n not in unique: unique.append(n)
+        if n and n not in unique:
+            unique.append(n)
+
     unique = filter_excluded_companies(unique)
-    if not unique: return pd.DataFrame()
+
+    if not unique:
+        return pd.DataFrame()
+
     try:
         with ThreadPoolExecutor(max_workers=min(8, len(unique))) as ex:
             results = list(ex.map(analyze_ticker, unique))
         rows = [r for r in results if r]
     except Exception:
         rows = [r for r in (analyze_ticker(t) for t in unique) if r]
+
     df = pd.DataFrame(rows)
+
     if not df.empty:
         if "Ticker" in df.columns:
             df = df[~df["Ticker"].apply(lambda t: is_excluded_company(t))]
+
+        df = add_v35_opportunity_columns(df)
+
         sort_col = "Final Conviction" if "Final Conviction" in df.columns else "AI Score"
-        df = df.sort_values([sort_col,"Risk Score"], ascending=[False,True])
-        if diversified: df = diversify_by_price_bucket(df, per_bucket=per_bucket, min_conviction=55)
+        df = df.sort_values([sort_col, "Risk Score"], ascending=[False, True])
+
+        if diversified:
+            df = diversify_by_price_bucket(df, per_bucket=per_bucket, min_conviction=55)
+            df = enforce_sector_diversity(df, max_per_sector=3)
+
     return df
 
 @st.cache_data(ttl=3600)
@@ -1659,7 +1905,7 @@ def detail_page(ticker):
 
 
 # ============================================================
-# V34.1 FEATURE 1: TRADE HEALTH MONITOR
+# V35 FEATURE 1: TRADE HEALTH MONITOR
 # ============================================================
 
 def get_exit_strategy(entry_price, stop_loss, target_zone, rsi=None):
@@ -1759,7 +2005,7 @@ def render_trade_health_monitor(trade, data):
 
 
 # ============================================================
-# V34.1 FEATURE 2: ENTRY RANGE EMAIL ALERTS
+# V35 FEATURE 2: ENTRY RANGE EMAIL ALERTS
 # ============================================================
 
 def check_entry_range_alerts(watchlist_tickers, threshold=68):
@@ -1854,7 +2100,7 @@ def send_entry_range_email(alerts):
 
 
 # ============================================================
-# V34.1 FEATURE 3: BACKTESTING ENGINE
+# V35 FEATURE 3: BACKTESTING ENGINE
 # ============================================================
 
 def compute_historical_signal(close_series, high_series, low_series, volume_series, lookback_end_idx):
@@ -2046,7 +2292,7 @@ def render_simple_backtest_summary(df):
 # ============================================================
 
 st.sidebar.title("📈 AI Trading Dashboard")
-st.sidebar.caption("V34.1 — Exit Signals · Simple Backtesting · Entry Alerts · Trade Health")
+st.sidebar.caption("V35 — Exit Signals · Simple Backtesting · Entry Alerts · Trade Health")
 role_label = "Admin" if is_admin() else "View Only"
 st.sidebar.success(f"Logged in as: {role_label}")
 if alpaca_client: st.sidebar.success("🟢 Alpaca: Connected")
@@ -2139,10 +2385,10 @@ def render_morning_briefing(scan_df, recovery_df=None, etf_df=None):
 
 
 modern_hero(
-    "📈 AI Trading Dashboard V34.1",
+    "📈 AI Trading Dashboard V35",
     "9 Agents · Fundamentals · Exit signals · Simple Backtesting · Entry alerts · Trade health monitor"
 )
-st.caption("V34.1 — Exit signals, simple_backtesting, entry range email alerts, and trade health monitoring added. Not financial advice.")
+st.caption("V35 — Exit signals, simple_backtesting, entry range email alerts, and trade health monitoring added. Not financial advice.")
 
 _log_for_threshold = load_signal_log()
 _threshold, _threshold_note = get_adaptive_conviction_threshold(_log_for_threshold)
@@ -2216,7 +2462,11 @@ elif page == "Scanner Hub":
     recovery_df = build_recovery_radar(RECOVERY_TICKERS)
     etf_df = build_scan(ETF_TICKERS, diversified=False)
 
-    tab1,tab2,tab3,tab4 = st.tabs(["🟢 Signal Cards","📋 All Scanner","🔥 Recovery Radar","📊 ETF Timing"])
+    tab0,tab1,tab2,tab3,tab4 = st.tabs(["🧭 Categories","🟢 Signal Cards","📋 All Scanner","🔥 Recovery Radar","📊 ETF Timing"])
+
+    with tab0:
+        modern_section("🧭 Opportunity Categories", "Broader choices grouped by investment style so you are not limited to the same expensive names.")
+        show_opportunity_category_tabs(scan_df)
 
     with tab1:
         modern_section("BUY NOW / High Conviction — with Checklists")
@@ -2231,7 +2481,7 @@ elif page == "Scanner Hub":
                 mobile_view = st.toggle("📱 Mobile Summary", value=False, key="scanner_mobile")
                 show_cl = st.toggle("✅ Show Trade Checklists", value=True, key="scanner_show_checklist")
                 if mobile_view: render_mobile_signal_summary(buy_df)
-                else: render_signal_cards(buy_df, limit=15, show_checklist=show_cl)
+                else: render_signal_cards(buy_df, limit=25, show_checklist=show_cl)
         else: st.info("No scanner data.")
 
     with tab2:
@@ -2514,7 +2764,7 @@ elif page == "Settings & Logs":
             st.write(f"EMAIL_RECIPIENTS: {'✅' if os.getenv('EMAIL_RECIPIENTS','') else '❌'}")
             st.write(f"Alpaca: {ALPACA_STATUS}")
             if st.button("Send Test Email"):
-                ok,msg = send_email_alert("AI Dashboard V34.1 Test", f"Test from V34.1 at {datetime.now(EASTERN)}")
+                ok,msg = send_email_alert("AI Dashboard V35 Test", f"Test from V35 at {datetime.now(EASTERN)}")
                 st.success(msg) if ok else st.error(msg)
 
 
@@ -2525,4 +2775,4 @@ elif page == "Detail View":
 
 
 st.markdown("---")
-st.caption("Not financial advice. Use for research and paper-trading validation only. | AI Trading Dashboard V34.1")
+st.caption("Not financial advice. Use for research and paper-trading validation only. | AI Trading Dashboard V35")
