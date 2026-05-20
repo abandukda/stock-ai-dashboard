@@ -29,7 +29,7 @@ except ImportError:
     ALPACA_AVAILABLE = False
 
 # ============================================================
-# AI TRADING DASHBOARD  V35.5 MARKET INTELLIGENCE
+# AI TRADING DASHBOARD  V35.6 MARKET INTELLIGENCE
 # Merged: Fundamental Research Engine + Adaptive Intelligence
 # 9-Agent scoring · MACD timing · Adaptive threshold
 # Morning briefing · Trade checklist · Volatility sizing
@@ -37,7 +37,7 @@ except ImportError:
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Trading Dashboard V35.5",
+    page_title="AI Trading Dashboard V35.6",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -146,6 +146,20 @@ def conviction_bar_html(score):
 
 # ── Signal Cards ────────────────────────────────────────────
 
+
+def add_ticker_to_watchlist(ticker):
+    ticker = normalize_ticker(str(ticker))
+    if not ticker:
+        return False, "Invalid ticker."
+    if "watchlist" not in st.session_state:
+        st.session_state.watchlist = load_watchlist()
+    if ticker in st.session_state.watchlist:
+        return False, f"{ticker} is already in your watchlist."
+    st.session_state.watchlist.append(ticker)
+    st.session_state.watchlist = sorted(set(st.session_state.watchlist))
+    save_watchlist()
+    return True, f"{ticker} added to watchlist."
+
 def render_signal_card(row, show_checklist=False):
     ticker    = row.get("Ticker","N/A")
     price     = row.get("Price","N/A")
@@ -206,7 +220,7 @@ def render_signal_card(row, show_checklist=False):
     </div>
     """, unsafe_allow_html=True)
 
-    c1, c2, c3 = st.columns([1,1,3])
+    c1, c2, c3, c4 = st.columns([1,1,1,3])
     with c1:
         st.link_button("Open chart", f"https://finance.yahoo.com/quote/{ticker}", use_container_width=True)
     with c2:
@@ -215,6 +229,16 @@ def render_signal_card(row, show_checklist=False):
             st.session_state.selected_detail_ticker = ticker
             st.rerun()
     with c3:
+        already_saved = ticker in st.session_state.get("watchlist", [])
+        add_label = "Saved" if already_saved else "Add Watch"
+        if st.button(add_label, key=f"add_watch_{ticker}_{abs(hash('watch_'+str(ticker))) % 100000}", use_container_width=True, disabled=already_saved):
+            ok, msg = add_ticker_to_watchlist(ticker)
+            if ok:
+                st.success(msg)
+            else:
+                st.info(msg)
+            st.rerun()
+    with c4:
         if show_checklist:
             with st.expander(f"✅ Trade Checklist — {ticker}"):
                 render_trade_checklist(row)
@@ -331,7 +355,7 @@ ETF_TICKERS = ["SPY","QQQ","IWM","DIA","XLK","XLF","XLV","XLE","XLY","XLP","SMH"
 
 
 # ============================================================
-# V35.5 EXPANDED OPPORTUNITY UNIVERSE
+# V35.6 EXPANDED OPPORTUNITY UNIVERSE
 # ============================================================
 
 ELITE_COMPOUNDERS = [
@@ -424,7 +448,7 @@ def require_login():
     if st.session_state.logged_in:
         return
 
-    st.title("🔐 AI Trading Dashboard V35.5 Login Fix")
+    st.title("🔐 AI Trading Dashboard V35.6 Login Fix")
     st.caption("Secure login uses Render environment variables only. No passwords are stored in source code.")
 
     with st.form("login_form"):
@@ -1435,7 +1459,7 @@ def analyze_ticker(ticker):
 @st.cache_data(ttl=300)
 
 # ============================================================
-# V35.5 OPPORTUNITY CATEGORIZATION + DIVERSITY
+# V35.6 OPPORTUNITY CATEGORIZATION + DIVERSITY
 # ============================================================
 
 def parse_percent_value(value):
@@ -1959,7 +1983,7 @@ def detail_page(ticker):
 
 
 # ============================================================
-# V35.5 FEATURE 1: TRADE HEALTH MONITOR
+# V35.6 FEATURE 1: TRADE HEALTH MONITOR
 # ============================================================
 
 def get_exit_strategy(entry_price, stop_loss, target_zone, rsi=None):
@@ -2059,7 +2083,7 @@ def render_trade_health_monitor(trade, data):
 
 
 # ============================================================
-# V35.5 FEATURE 2: ENTRY RANGE EMAIL ALERTS
+# V35.6 FEATURE 2: ENTRY RANGE EMAIL ALERTS
 # ============================================================
 
 def check_entry_range_alerts(watchlist_tickers, threshold=68):
@@ -2154,7 +2178,7 @@ def send_entry_range_email(alerts):
 
 
 # ============================================================
-# V35.5 FEATURE 3: BACKTESTING ENGINE
+# V35.6 FEATURE 3: BACKTESTING ENGINE
 # ============================================================
 
 def compute_historical_signal(close_series, high_series, low_series, volume_series, lookback_end_idx):
@@ -2346,7 +2370,7 @@ def render_simple_backtest_summary(df):
 # ============================================================
 
 st.sidebar.title("📈 AI Trading Dashboard")
-st.sidebar.caption("V35.5 — Exit Signals · Simple Backtesting · Entry Alerts · Trade Health")
+st.sidebar.caption("V35.6 — Exit Signals · Simple Backtesting · Entry Alerts · Trade Health")
 role_label = "Admin" if is_admin() else "View Only"
 st.sidebar.success(f"Logged in as: {role_label}")
 if alpaca_client: st.sidebar.success("🟢 Alpaca: Connected")
@@ -2442,10 +2466,10 @@ def render_morning_briefing(scan_df, recovery_df=None, etf_df=None):
 
 
 modern_hero(
-    "📈 AI Trading Dashboard V35.5",
+    "📈 AI Trading Dashboard V35.6",
     "9 Agents · Fundamentals · Exit signals · Simple Backtesting · Entry alerts · Trade health monitor"
 )
-st.caption("V35.5 — Exit signals, simple_backtesting, entry range email alerts, and trade health monitoring added. Not financial advice.")
+st.caption("V35.6 — Exit signals, simple_backtesting, entry range email alerts, and trade health monitoring added. Not financial advice.")
 
 _log_for_threshold = load_signal_log()
 _threshold, _threshold_note = get_adaptive_conviction_threshold(_log_for_threshold)
@@ -2529,7 +2553,7 @@ elif page == "Scanner Hub":
 
     with tab1:
         modern_section("BUY NOW / High Conviction — with Checklists")
-        st.caption("Top Signals now uses the broad scan so you see more choices. Category tabs still group/diversify names separately.")
+        st.caption("Top Signals now uses the broad scan so you see more choices. Use Add Watch to save promising names to your watchlist. Category tabs still group/diversify names separately.")
         if not scan_df.empty:
             buy_df = top_source_df[(scan_df["Signal"].astype(str).str.contains("BUY NOW",na=False)) | (scan_df["Final Conviction"].fillna(0) >= max(55, threshold - 10))] if "Final Conviction" in scan_df.columns else scan_df[scan_df["Signal"].astype(str).str.contains("BUY NOW",na=False)]
             if buy_df.empty:
@@ -2824,7 +2848,7 @@ elif page == "Settings & Logs":
             st.write(f"EMAIL_RECIPIENTS: {'✅' if os.getenv('EMAIL_RECIPIENTS','') else '❌'}")
             st.write(f"Alpaca: {ALPACA_STATUS}")
             if st.button("Send Test Email"):
-                ok,msg = send_email_alert("AI Dashboard V35.5 Test", f"Test from V35.5 at {datetime.now(EASTERN)}")
+                ok,msg = send_email_alert("AI Dashboard V35.6 Test", f"Test from V35.6 at {datetime.now(EASTERN)}")
                 st.success(msg) if ok else st.error(msg)
 
 
@@ -2847,4 +2871,4 @@ elif page == "Detail View":
 
 
 st.markdown("---")
-st.caption("Not financial advice. Use for research and paper-trading validation only. | AI Trading Dashboard V35.5")
+st.caption("Not financial advice. Use for research and paper-trading validation only. | AI Trading Dashboard V35.6")
