@@ -29,7 +29,7 @@ except ImportError:
     ALPACA_AVAILABLE = False
 
 # ============================================================
-# AI TRADING DASHBOARD  V35.2 MARKET INTELLIGENCE
+# AI TRADING DASHBOARD  V35.3 MARKET INTELLIGENCE
 # Merged: Fundamental Research Engine + Adaptive Intelligence
 # 9-Agent scoring · MACD timing · Adaptive threshold
 # Morning briefing · Trade checklist · Volatility sizing
@@ -37,7 +37,7 @@ except ImportError:
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Trading Dashboard V35.2",
+    page_title="AI Trading Dashboard V35.3",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -210,7 +210,10 @@ def render_signal_card(row, show_checklist=False):
     with c1:
         st.link_button("Open chart", f"https://finance.yahoo.com/quote/{ticker}", use_container_width=True)
     with c2:
-        st.link_button("View Details", f"?page=Detail%20View&ticker={ticker}", use_container_width=True)
+        if st.button("View Details", key=f"details_{ticker}_{abs(hash(str(ticker))) % 100000}", use_container_width=True):
+            st.session_state.nav_override = "Detail View"
+            st.session_state.detail_ticker_override = ticker
+            st.rerun()
     with c3:
         if show_checklist:
             with st.expander(f"✅ Trade Checklist — {ticker}"):
@@ -328,7 +331,7 @@ ETF_TICKERS = ["SPY","QQQ","IWM","DIA","XLK","XLF","XLV","XLE","XLY","XLP","SMH"
 
 
 # ============================================================
-# V35.2 EXPANDED OPPORTUNITY UNIVERSE
+# V35.3 EXPANDED OPPORTUNITY UNIVERSE
 # ============================================================
 
 ELITE_COMPOUNDERS = [
@@ -421,7 +424,7 @@ def require_login():
     if st.session_state.logged_in:
         return
 
-    st.title("🔐 AI Trading Dashboard V35.2 Login Fix")
+    st.title("🔐 AI Trading Dashboard V35.3 Login Fix")
     st.caption("Secure login uses Render environment variables only. No passwords are stored in source code.")
 
     with st.form("login_form"):
@@ -1432,7 +1435,7 @@ def analyze_ticker(ticker):
 @st.cache_data(ttl=300)
 
 # ============================================================
-# V35.2 OPPORTUNITY CATEGORIZATION + DIVERSITY
+# V35.3 OPPORTUNITY CATEGORIZATION + DIVERSITY
 # ============================================================
 
 def parse_percent_value(value):
@@ -1955,7 +1958,7 @@ def detail_page(ticker):
 
 
 # ============================================================
-# V35.2 FEATURE 1: TRADE HEALTH MONITOR
+# V35.3 FEATURE 1: TRADE HEALTH MONITOR
 # ============================================================
 
 def get_exit_strategy(entry_price, stop_loss, target_zone, rsi=None):
@@ -2055,7 +2058,7 @@ def render_trade_health_monitor(trade, data):
 
 
 # ============================================================
-# V35.2 FEATURE 2: ENTRY RANGE EMAIL ALERTS
+# V35.3 FEATURE 2: ENTRY RANGE EMAIL ALERTS
 # ============================================================
 
 def check_entry_range_alerts(watchlist_tickers, threshold=68):
@@ -2150,7 +2153,7 @@ def send_entry_range_email(alerts):
 
 
 # ============================================================
-# V35.2 FEATURE 3: BACKTESTING ENGINE
+# V35.3 FEATURE 3: BACKTESTING ENGINE
 # ============================================================
 
 def compute_historical_signal(close_series, high_series, low_series, volume_series, lookback_end_idx):
@@ -2342,7 +2345,7 @@ def render_simple_backtest_summary(df):
 # ============================================================
 
 st.sidebar.title("📈 AI Trading Dashboard")
-st.sidebar.caption("V35.2 — Exit Signals · Simple Backtesting · Entry Alerts · Trade Health")
+st.sidebar.caption("V35.3 — Exit Signals · Simple Backtesting · Entry Alerts · Trade Health")
 role_label = "Admin" if is_admin() else "View Only"
 st.sidebar.success(f"Logged in as: {role_label}")
 if alpaca_client: st.sidebar.success("🟢 Alpaca: Connected")
@@ -2353,7 +2356,7 @@ show_last_refresh()
 
 st.sidebar.markdown("### Navigation")
 pages = ["Home","Scanner","Watchlist","Paper Trades","Simple Backtest","Settings & Logs","Detail View"]
-requested_page = get_query_param_value("page", None)
+requested_page = st.session_state.pop("nav_override", None) or get_query_param_value("page", None)
 default_page_index = pages.index(requested_page) if requested_page in pages else 0
 nav_page = st.sidebar.radio("Go to", pages, index=default_page_index)
 page = nav_page
@@ -2438,10 +2441,10 @@ def render_morning_briefing(scan_df, recovery_df=None, etf_df=None):
 
 
 modern_hero(
-    "📈 AI Trading Dashboard V35.2",
+    "📈 AI Trading Dashboard V35.3",
     "9 Agents · Fundamentals · Exit signals · Simple Backtesting · Entry alerts · Trade health monitor"
 )
-st.caption("V35.2 — Exit signals, simple_backtesting, entry range email alerts, and trade health monitoring added. Not financial advice.")
+st.caption("V35.3 — Exit signals, simple_backtesting, entry range email alerts, and trade health monitoring added. Not financial advice.")
 
 _log_for_threshold = load_signal_log()
 _threshold, _threshold_note = get_adaptive_conviction_threshold(_log_for_threshold)
@@ -2817,12 +2820,12 @@ elif page == "Settings & Logs":
             st.write(f"EMAIL_RECIPIENTS: {'✅' if os.getenv('EMAIL_RECIPIENTS','') else '❌'}")
             st.write(f"Alpaca: {ALPACA_STATUS}")
             if st.button("Send Test Email"):
-                ok,msg = send_email_alert("AI Dashboard V35.2 Test", f"Test from V35.2 at {datetime.now(EASTERN)}")
+                ok,msg = send_email_alert("AI Dashboard V35.3 Test", f"Test from V35.3 at {datetime.now(EASTERN)}")
                 st.success(msg) if ok else st.error(msg)
 
 
 elif page == "Detail View":
-    query_ticker = normalize_ticker(str(get_query_param_value("ticker", "")))
+    query_ticker = normalize_ticker(str(st.session_state.pop("detail_ticker_override", "") or get_query_param_value("ticker", "")))
     detail_options = list(st.session_state.watchlist)
     if query_ticker and query_ticker not in detail_options:
         detail_options.insert(0, query_ticker)
@@ -2833,4 +2836,4 @@ elif page == "Detail View":
 
 
 st.markdown("---")
-st.caption("Not financial advice. Use for research and paper-trading validation only. | AI Trading Dashboard V35.2")
+st.caption("Not financial advice. Use for research and paper-trading validation only. | AI Trading Dashboard V35.3")
