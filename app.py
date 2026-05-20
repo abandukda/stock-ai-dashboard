@@ -37,7 +37,7 @@ except ImportError:
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Trading Dashboard V35",
+    page_title="AI Trading Dashboard V35.1",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -368,14 +368,32 @@ EXCLUDED_TICKERS = {
 # ============================================================
 
 def clean_secret(v):
-    # Secure but tolerant: trims hidden spaces and accidental surrounding quotes.
-    return str(v or "").strip().strip('"').strip("'")
+    """
+    Secure but tolerant:
+    - trims hidden spaces
+    - removes accidental surrounding quotes
+    - removes non-breaking spaces
+    """
+    return str(v or "").replace("\u00a0", " ").strip().strip('"').strip("'")
 
 
-ADMIN_USER     = clean_secret(os.getenv("ADMIN_USER", ""))
-ADMIN_PASSWORD = clean_secret(os.getenv("ADMIN_PASSWORD", ""))
-VIEW_USER      = clean_secret(os.getenv("VIEW_USER", ""))
-VIEW_PASSWORD  = clean_secret(os.getenv("VIEW_PASSWORD", ""))
+def first_env(*names):
+    """
+    Reads the first non-empty Render env var from a list of accepted aliases.
+    This prevents login failures from naming ADMIN_USERNAME instead of ADMIN_USER, etc.
+    """
+    for name in names:
+        value = clean_secret(os.getenv(name, ""))
+        if value:
+            return value
+    return ""
+
+
+ADMIN_USER = first_env("ADMIN_USER", "ADMIN_USERNAME", "ADMIN_LOGIN", "APP_ADMIN_USER")
+ADMIN_PASSWORD = first_env("ADMIN_PASSWORD", "ADMIN_PASS", "APP_ADMIN_PASSWORD", "APP_PASSWORD")
+
+VIEW_USER = first_env("VIEW_USER", "VIEW_USERNAME", "VIEWER_USER", "VIEWER_USERNAME", "APP_VIEW_USER")
+VIEW_PASSWORD = first_env("VIEW_PASSWORD", "VIEW_PASS", "VIEWER_PASSWORD", "APP_VIEW_PASSWORD")
 
 
 def require_login():
@@ -386,7 +404,7 @@ def require_login():
     if st.session_state.logged_in:
         return
 
-    st.title("🔐 AI Trading Dashboard V35")
+    st.title("🔐 AI Trading Dashboard V35.1 Login Fix")
     st.caption("Secure login uses Render environment variables only. No passwords are stored in source code.")
 
     with st.form("login_form"):
@@ -398,31 +416,46 @@ def require_login():
         eu = clean_secret(username).lower()
         ep = clean_secret(password)
 
-        if ADMIN_USER and ADMIN_PASSWORD and eu == ADMIN_USER.lower() and ep == ADMIN_PASSWORD:
+        admin_match = (
+            bool(ADMIN_USER)
+            and bool(ADMIN_PASSWORD)
+            and eu == ADMIN_USER.lower()
+            and ep == ADMIN_PASSWORD
+        )
+
+        viewer_match = (
+            bool(VIEW_USER)
+            and bool(VIEW_PASSWORD)
+            and eu == VIEW_USER.lower()
+            and ep == VIEW_PASSWORD
+        )
+
+        if admin_match:
             st.session_state.logged_in = True
             st.session_state.user_role = "admin"
             st.session_state.login_user = ADMIN_USER
             st.rerun()
-        elif VIEW_USER and VIEW_PASSWORD and eu == VIEW_USER.lower() and ep == VIEW_PASSWORD:
+        elif viewer_match:
             st.session_state.logged_in = True
             st.session_state.user_role = "viewer"
             st.session_state.login_user = VIEW_USER
             st.rerun()
         else:
             st.error("Invalid credentials.")
-            st.caption("Username is not case-sensitive. Password is case-sensitive. Hidden spaces and surrounding quotes are trimmed.")
+            st.caption("Username is not case-sensitive. Password is case-sensitive. Hidden spaces, non-breaking spaces, and surrounding quotes are trimmed.")
 
     with st.expander("🔧 Login Diagnostics"):
-        st.write(f"ADMIN_USER set: {'✅' if ADMIN_USER else '❌'}")
-        st.write(f"ADMIN_PASSWORD set: {'✅' if ADMIN_PASSWORD else '❌'}")
-        st.write(f"VIEW_USER set: {'✅' if VIEW_USER else '❌'}")
-        st.write(f"VIEW_PASSWORD set: {'✅' if VIEW_PASSWORD else '❌'}")
-        st.caption("Values are hidden for security. Lengths help detect wrong env vars or accidental spaces.")
-        st.write(f"ADMIN_USER length: {len(ADMIN_USER)}")
-        st.write(f"ADMIN_PASSWORD length: {len(ADMIN_PASSWORD)}")
-        st.write(f"VIEW_USER length: {len(VIEW_USER)}")
-        st.write(f"VIEW_PASSWORD length: {len(VIEW_PASSWORD)}")
-        st.caption("If these do not match what you expect, update Render Environment and redeploy with Clear build cache.")
+        st.write(f"ADMIN_USER / alias set: {'✅' if ADMIN_USER else '❌'}")
+        st.write(f"ADMIN_PASSWORD / alias set: {'✅' if ADMIN_PASSWORD else '❌'}")
+        st.write(f"VIEW_USER / alias set: {'✅' if VIEW_USER else '❌'}")
+        st.write(f"VIEW_PASSWORD / alias set: {'✅' if VIEW_PASSWORD else '❌'}")
+        st.caption("Values are hidden for security. Lengths help confirm Render is passing what you expect.")
+        st.write(f"Admin username length: {len(ADMIN_USER)}")
+        st.write(f"Admin password length: {len(ADMIN_PASSWORD)}")
+        st.write(f"Viewer username length: {len(VIEW_USER)}")
+        st.write(f"Viewer password length: {len(VIEW_PASSWORD)}")
+        st.caption("Accepted admin env names: ADMIN_USER, ADMIN_USERNAME, ADMIN_LOGIN, APP_ADMIN_USER.")
+        st.caption("Accepted admin password env names: ADMIN_PASSWORD, ADMIN_PASS, APP_ADMIN_PASSWORD, APP_PASSWORD.")
 
     if st.button("Reset login session"):
         st.session_state.logged_in = False
@@ -2385,7 +2418,7 @@ def render_morning_briefing(scan_df, recovery_df=None, etf_df=None):
 
 
 modern_hero(
-    "📈 AI Trading Dashboard V35",
+    "📈 AI Trading Dashboard V35.1",
     "9 Agents · Fundamentals · Exit signals · Simple Backtesting · Entry alerts · Trade health monitor"
 )
 st.caption("V35 — Exit signals, simple_backtesting, entry range email alerts, and trade health monitoring added. Not financial advice.")
@@ -2775,4 +2808,4 @@ elif page == "Detail View":
 
 
 st.markdown("---")
-st.caption("Not financial advice. Use for research and paper-trading validation only. | AI Trading Dashboard V35")
+st.caption("Not financial advice. Use for research and paper-trading validation only. | AI Trading Dashboard V35.1")
