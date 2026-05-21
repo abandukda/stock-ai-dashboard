@@ -29,7 +29,7 @@ except ImportError:
     ALPACA_AVAILABLE = False
 
 # ============================================================
-# AI TRADING DASHBOARD  V36.0 MARKET INTELLIGENCE
+# AI TRADING DASHBOARD  V36.2 MARKET INTELLIGENCE
 # Merged: Fundamental Research Engine + Adaptive Intelligence
 # 9-Agent scoring · MACD timing · Adaptive threshold
 # Morning briefing · Trade checklist · Volatility sizing
@@ -37,7 +37,7 @@ except ImportError:
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Trading Dashboard V36.0",
+    page_title="AI Trading Dashboard V36.2",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -195,7 +195,7 @@ def render_signal_card(row, show_checklist=False):
         bc,pb,pc = "#f59e0b","#fef3c7","#92400e"
     else:
         bc,pb,pc = "#64748b","#f1f5f9","#334155"
-    # V36.0 defensive financial card defaults
+    # V36.2 defensive financial card defaults
     financial_safety = row.get("Financial Safety", locals().get("financial_safety", "⚪ Not scored"))
     agent_greenlight = row.get("Agent Greenlight", locals().get("agent_greenlight", "⚪ Not scored"))
     execution_quality = row.get("Execution Quality", locals().get("execution_quality", "⚪ Research Only"))
@@ -365,7 +365,7 @@ ETF_TICKERS = ["SPY","QQQ","IWM","DIA","XLK","XLF","XLV","XLE","XLY","XLP","SMH"
 
 
 # ============================================================
-# V36.0 EXPANDED OPPORTUNITY UNIVERSE
+# V36.2 EXPANDED OPPORTUNITY UNIVERSE
 # ============================================================
 
 ELITE_COMPOUNDERS = [
@@ -458,7 +458,7 @@ def require_login():
     if st.session_state.logged_in:
         return
 
-    st.title("🔐 AI Trading Dashboard V36.0 Login Fix")
+    st.title("🔐 AI Trading Dashboard V36.2 Login Fix")
     st.caption("Secure login uses Render environment variables only. No passwords are stored in source code.")
 
     with st.form("login_form"):
@@ -1121,7 +1121,7 @@ def classify_investment_style(info, data):
 
 
 # ============================================================
-# V36.0 FACTOR RANKING ENGINE
+# V36.2 FACTOR RANKING ENGINE
 # ============================================================
 
 def build_factor_breakdown(row):
@@ -1455,7 +1455,7 @@ def build_ai_trade_plan(ticker, price, sma20, sma50, sma200, rsi, ai_score, risk
 
 
 # ============================================================
-# V36.0 FINANCIAL SAFETY GATE
+# V36.2 FINANCIAL SAFETY GATE
 # ============================================================
 
 def financial_safety_gate(info):
@@ -1824,7 +1824,7 @@ def analyze_ticker(ticker):
 
 
 # ============================================================
-# V36.0 OPPORTUNITY CATEGORIZATION + DIVERSITY
+# V36.2 OPPORTUNITY CATEGORIZATION + DIVERSITY
 # ============================================================
 
 def parse_percent_value(value):
@@ -1973,7 +1973,7 @@ def show_opportunity_category_tabs(df):
 
 
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=120)
 def build_scan(tickers, diversified=True, per_bucket=6, sector_diverse=True, min_conviction=55):
     unique = []
     for t in tickers:
@@ -2349,7 +2349,7 @@ def detail_page(ticker):
 
 
 # ============================================================
-# V36.0 FEATURE 1: TRADE HEALTH MONITOR
+# V36.2 FEATURE 1: TRADE HEALTH MONITOR
 # ============================================================
 
 def get_exit_strategy(entry_price, stop_loss, target_zone, rsi=None):
@@ -2449,7 +2449,7 @@ def render_trade_health_monitor(trade, data):
 
 
 # ============================================================
-# V36.0 FEATURE 2: ENTRY RANGE EMAIL ALERTS
+# V36.2 FEATURE 2: ENTRY RANGE EMAIL ALERTS
 # ============================================================
 
 def check_entry_range_alerts(watchlist_tickers, threshold=68):
@@ -2544,7 +2544,7 @@ def send_entry_range_email(alerts):
 
 
 # ============================================================
-# V36.0 FEATURE 3: BACKTESTING ENGINE
+# V36.2 FEATURE 3: BACKTESTING ENGINE
 # ============================================================
 
 def compute_historical_signal(close_series, high_series, low_series, volume_series, lookback_end_idx):
@@ -2736,7 +2736,7 @@ def render_simple_backtest_summary(df):
 # ============================================================
 
 st.sidebar.title("📈 AI Trading Dashboard")
-st.sidebar.caption("V36.0 — Exit Signals · Simple Backtesting · Entry Alerts · Trade Health")
+st.sidebar.caption("V36.2 — Exit Signals · Simple Backtesting · Entry Alerts · Trade Health")
 role_label = "Admin" if is_admin() else "View Only"
 st.sidebar.success(f"Logged in as: {role_label}")
 if alpaca_client: st.sidebar.success("🟢 Alpaca: Connected")
@@ -2832,10 +2832,10 @@ def render_morning_briefing(scan_df, recovery_df=None, etf_df=None):
 
 
 modern_hero(
-    "📈 AI Trading Dashboard V36.0",
+    "📈 AI Trading Dashboard V36.2",
     "9 Agents · Fundamentals · Exit signals · Simple Backtesting · Entry alerts · Trade health monitor"
 )
-st.caption("V36.0 — Exit signals, simple_backtesting, entry range email alerts, and trade health monitoring added. Not financial advice.")
+st.caption("V36.2 — Exit signals, simple_backtesting, entry range email alerts, and trade health monitoring added. Not financial advice.")
 
 _log_for_threshold = load_signal_log()
 _threshold, _threshold_note = get_adaptive_conviction_threshold(_log_for_threshold)
@@ -2845,7 +2845,373 @@ st.session_state["adaptive_threshold"] = _threshold
 # PAGES — clean 6-branch router
 # ============================================================
 
+
+# ============================================================
+# V36.2 AI QUALITY RECOVERY ENGINE
+# ============================================================
+
+def parse_money_value(value):
+    try:
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            return float(value)
+        s = str(value).replace("$", "").replace(",", "").strip()
+        if s in ["", "N/A", "None"]:
+            return None
+        multiplier = 1
+        if s.endswith("T"):
+            multiplier = 1_000_000_000_000
+            s = s[:-1]
+        elif s.endswith("B"):
+            multiplier = 1_000_000_000
+            s = s[:-1]
+        elif s.endswith("M"):
+            multiplier = 1_000_000
+            s = s[:-1]
+        return float(s) * multiplier
+    except Exception:
+        return None
+
+
+def detect_value_trap_risk(row):
+    """
+    Flags stocks that look cheap/recovering but have deteriorating fundamentals.
+    """
+    red_flags = []
+    caution_flags = []
+
+    fcf = parse_money_value(row.get("Free Cash Flow"))
+    ocf = parse_money_value(row.get("Operating Cash Flow"))
+    revenue_growth = parse_percent_value(row.get("Revenue Growth"))
+    earnings_growth = parse_percent_value(row.get("Earnings Growth"))
+    profit_margin = parse_percent_value(row.get("Profit Margin"))
+    operating_margin = parse_percent_value(row.get("Operating Margin"))
+
+    debt_equity = row.get("Debt/Equity")
+    try:
+        debt_equity = float(debt_equity) if debt_equity not in [None, "N/A"] else None
+    except Exception:
+        debt_equity = None
+
+    if fcf is not None and fcf < 0:
+        red_flags.append("negative free cash flow")
+    if ocf is not None and ocf < 0:
+        red_flags.append("negative operating cash flow")
+    if revenue_growth is not None and revenue_growth < -5:
+        red_flags.append("declining revenue")
+    if profit_margin is not None and profit_margin < -5:
+        red_flags.append("negative profit margin")
+    if operating_margin is not None and operating_margin < -5:
+        red_flags.append("negative operating margin")
+    if debt_equity is not None and debt_equity > 250:
+        red_flags.append("very high debt-to-equity")
+
+    if revenue_growth is not None and 0 <= revenue_growth < 3:
+        caution_flags.append("low revenue growth")
+    if earnings_growth is not None and earnings_growth < 0:
+        caution_flags.append("negative earnings growth")
+    if debt_equity is not None and 150 < debt_equity <= 250:
+        caution_flags.append("elevated debt")
+
+    if len(red_flags) >= 2:
+        return "🔴 Value Trap Risk", "Major deterioration: " + ", ".join(red_flags)
+    if len(red_flags) == 1:
+        return "🟠 Recovery Caution", "One major risk: " + ", ".join(red_flags)
+    if len(caution_flags) >= 2:
+        return "🟡 Watch Carefully", "Caution flags: " + ", ".join(caution_flags)
+
+    return "🟢 No Major Value-Trap Flag", "Financial deterioration flags are limited."
+
+
+def quality_recovery_score(row):
+    """
+    Scores beaten-down names that still have good financial quality.
+    This is intentionally different from pure BUY NOW momentum.
+    """
+    score = 0
+    reasons = []
+
+    from_high = row.get("From 52W High %")
+    rsi = row.get("RSI")
+    rs = row.get("Relative Strength vs SPY %")
+    recovery_agent = row.get("Recovery Agent")
+    cashflow_agent = row.get("Cash Flow Agent")
+    earnings_agent = row.get("Earnings Quality Agent")
+    valuation_agent_score = row.get("Valuation Agent")
+    financial_safety = str(row.get("Financial Safety", ""))
+    execution_quality = str(row.get("Execution Quality", ""))
+    value_trap, value_trap_reason = detect_value_trap_risk(row)
+
+    try:
+        from_high = float(from_high)
+    except Exception:
+        from_high = 0
+
+    try:
+        rsi = float(rsi)
+    except Exception:
+        rsi = 50
+
+    try:
+        rs = float(rs)
+    except Exception:
+        rs = 0
+
+    try:
+        recovery_agent = float(recovery_agent or 0)
+        cashflow_agent = float(cashflow_agent or 0)
+        earnings_agent = float(earnings_agent or 0)
+        valuation_agent_score = float(valuation_agent_score or 0)
+    except Exception:
+        pass
+
+    # Overreaction / drawdown
+    if from_high <= -35:
+        score += 18
+        reasons.append("deep pullback from highs")
+    elif from_high <= -20:
+        score += 15
+        reasons.append("meaningful pullback from highs")
+    elif from_high <= -12:
+        score += 8
+        reasons.append("moderate pullback")
+
+    # Oversold but not broken
+    if 30 <= rsi <= 45:
+        score += 15
+        reasons.append("RSI shows potential recovery zone")
+    elif rsi < 30:
+        score += 10
+        reasons.append("very oversold, but may need confirmation")
+
+    # Recovery agent
+    if recovery_agent >= 65:
+        score += 18
+        reasons.append("recovery agent is supportive")
+    elif recovery_agent >= 55:
+        score += 10
+        reasons.append("recovery agent is moderately supportive")
+
+    # Business quality
+    if cashflow_agent >= 65:
+        score += 18
+        reasons.append("cash flow quality remains strong")
+    elif cashflow_agent >= 55:
+        score += 10
+        reasons.append("cash flow quality is acceptable")
+
+    if earnings_agent >= 60:
+        score += 12
+        reasons.append("earnings/revenue quality remains intact")
+
+    if valuation_agent_score >= 60:
+        score += 10
+        reasons.append("valuation support is improving after the pullback")
+
+    # Financial safety gate
+    if "🟢" in financial_safety:
+        score += 15
+        reasons.append("financial safety gate passes")
+    elif "🟡" in financial_safety:
+        score += 5
+        reasons.append("financial safety is acceptable but not perfect")
+    elif "🔴" in financial_safety:
+        score -= 25
+        reasons.append("financial safety gate failed")
+
+    if "🔴" in execution_quality:
+        score -= 20
+        reasons.append("execution quality is not approved")
+
+    # Stabilization
+    if rs > -5:
+        score += 7
+        reasons.append("relative strength is stabilizing")
+    if rs > 0:
+        score += 8
+        reasons.append("relative strength has turned positive")
+
+    # Value-trap penalty
+    if "🔴" in value_trap:
+        score -= 30
+        reasons.append("value trap risk is high")
+    elif "🟠" in value_trap:
+        score -= 15
+        reasons.append("recovery has fundamental caution")
+    elif "🟢" in value_trap:
+        score += 8
+        reasons.append("no major value-trap flags")
+
+    score = max(0, min(100, round(score, 0)))
+
+    if score >= 75:
+        label = "🟣 AI Recovery Opportunity"
+    elif score >= 62:
+        label = "🔥 Quality Pullback Candidate"
+    elif score >= 50:
+        label = "🟡 Recovery Watchlist"
+    elif "🔴" in value_trap:
+        label = "❌ Value Trap Risk"
+    else:
+        label = "⚪ Not a Quality Recovery"
+
+    if not reasons:
+        reasons.append("insufficient recovery evidence")
+
+    return score, label, "; ".join(reasons), value_trap, value_trap_reason
+
+
+def add_recovery_quality_columns(df):
+    if df is None or df.empty:
+        return df
+
+    work = df.copy()
+    scores = []
+    labels = []
+    reasons = []
+    trap_labels = []
+    trap_reasons = []
+
+    for _, row in work.iterrows():
+        score, label, reason, trap_label, trap_reason = quality_recovery_score(row)
+        scores.append(score)
+        labels.append(label)
+        reasons.append(reason)
+        trap_labels.append(trap_label)
+        trap_reasons.append(trap_reason)
+
+    work["AI Recovery Score"] = scores
+    work["AI Recovery Label"] = labels
+    work["Recovery Reason"] = reasons
+    work["Value Trap Check"] = trap_labels
+    work["Value Trap Detail"] = trap_reasons
+
+    return work
+
+
+def get_quality_recovery_candidates(df, min_score=50):
+    if df is None or df.empty:
+        return pd.DataFrame()
+
+    work = add_recovery_quality_columns(df)
+
+    if "AI Recovery Score" not in work.columns:
+        return pd.DataFrame()
+
+    # Keep real recovery candidates but avoid obvious value traps at the top.
+    safe = work[
+        (work["AI Recovery Score"].fillna(0) >= min_score) &
+        (~work["Value Trap Check"].astype(str).str.contains("🔴", na=False))
+    ].copy()
+
+    if safe.empty:
+        return safe
+
+    return safe.sort_values(["AI Recovery Score", "Final Conviction"], ascending=[False, False])
+
+
+def render_recovery_opportunity_cards(df, limit=12):
+    if df is None or df.empty:
+        st.info("No quality recovery opportunities currently meet the AI recovery criteria.")
+        return
+
+    shown = df.head(limit)
+
+    for _, row in shown.iterrows():
+        ticker = row.get("Ticker", "N/A")
+        company = row.get("Company Name", ticker)
+        price = row.get("Price", "N/A")
+        rec_score = row.get("AI Recovery Score", "N/A")
+        rec_label = row.get("AI Recovery Label", "")
+        reason = row.get("Recovery Reason", "")
+        trap = row.get("Value Trap Check", "")
+        trap_detail = row.get("Value Trap Detail", "")
+
+        st.markdown(
+            f"""
+            <div style="background:#ffffff;border:1px solid #e5e7eb;border-left:7px solid #7c3aed;border-radius:18px;padding:16px;margin:12px 0;box-shadow:0 2px 10px rgba(15,23,42,.06);">
+                <div style="font-size:1.25rem;font-weight:850;color:#111827;">{ticker}
+                    <span style="font-size:1rem;color:#475569;margin-left:8px;">${price}</span>
+                </div>
+                <div style="margin-top:2px;color:#334155;font-size:0.95rem;font-weight:700;">{company}</div>
+                <div style="margin-top:8px;color:#4c1d95;font-weight:800;">{rec_label} — Recovery Score: {rec_score}</div>
+                <div style="margin-top:8px;color:#334155;font-size:0.9rem;line-height:1.45;"><b>Why recovery may be attractive:</b> {reason}</div>
+                <div style="margin-top:8px;color:#334155;font-size:0.9rem;line-height:1.45;"><b>Value trap check:</b> {trap}. {trap_detail}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        c1, c2, c3 = st.columns([1, 1, 3])
+        with c1:
+            st.link_button("Open chart", f"https://finance.yahoo.com/quote/{ticker}", use_container_width=True)
+        with c2:
+            if st.button("View Details", key=f"recovery_details_{ticker}_{abs(hash(str(ticker))) % 100000}", use_container_width=True):
+                st.session_state.nav_override = "Detail View"
+                st.session_state.selected_detail_ticker = ticker
+                st.rerun()
+        with c3:
+            already_saved = ticker in st.session_state.get("watchlist", [])
+            add_label = "Saved" if already_saved else "Add Watch"
+            if st.button(add_label, key=f"recovery_add_watch_{ticker}_{abs(hash('recovery_watch_'+str(ticker))) % 100000}", use_container_width=True, disabled=already_saved):
+                ok, msg = add_ticker_to_watchlist(ticker)
+                if ok:
+                    st.success(msg)
+                else:
+                    st.info(msg)
+                st.rerun()
+
+
+
+
+# ============================================================
+# V36.2 LIVE PRICE REFRESH HELPERS
+# ============================================================
+
+def clear_market_data_caches():
+    """
+    Clears cached market data so auto-refresh actually pulls fresh prices.
+    Streamlit rerun alone is not enough if get_history/build_scan are cached.
+    """
+    try:
+        get_history.clear()
+    except Exception:
+        pass
+
+    try:
+        get_live_quote.clear()
+    except Exception:
+        pass
+
+    try:
+        get_info.clear()
+    except Exception:
+        pass
+
+    try:
+        build_scan.clear()
+    except Exception:
+        pass
+
+    try:
+        macro_agent.clear()
+    except Exception:
+        pass
+
+
+def mark_last_price_refresh():
+    st.session_state.last_price_refresh = datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
+
+
+def show_price_refresh_status():
+    last = st.session_state.get("last_price_refresh", "Not refreshed yet")
+    st.caption(f"🕒 Last price refresh: {last}")
+
+
+
 if page == "Dashboard":
+    show_price_refresh_status()
     market_status, market_note = get_market_status()
     market_regime, regime_label, regime_note = get_market_regime()
     vol_mult, vol_label, vol_note = get_market_volatility_regime()
@@ -2903,6 +3269,7 @@ if page == "Dashboard":
 
 
 elif page == "Scanner Hub":
+    show_price_refresh_status()
     show_market_status_banner(); show_market_regime_banner()
     modern_section("🔎 Scanner Hub", "Signal cards · All scanner · Recovery · ETF timing")
     log = load_signal_log(); threshold, threshold_note = get_adaptive_conviction_threshold(log)
@@ -2912,7 +3279,7 @@ elif page == "Scanner Hub":
     recovery_df = build_recovery_radar(RECOVERY_TICKERS)
     etf_df = build_scan(ETF_TICKERS, diversified=False)
 
-    tab0,tab1,tab2,tab3,tab4 = st.tabs(["🧭 Categories","🟢 Signal Cards","📋 All Scanner","🔥 Recovery Radar","📊 ETF Timing"])
+    tab0,tab1,tab2,tab3,tab4,tab5 = st.tabs(["🧭 Categories","🟢 Signal Cards","🟣 AI Recovery","📋 All Scanner","🔥 Recovery Radar","📊 ETF Timing"])
 
     with tab0:
         modern_section("🧭 Opportunity Categories", "Broader choices grouped by investment style so you are not limited to the same expensive names.")
@@ -3215,7 +3582,7 @@ elif page == "Settings & Logs":
             st.write(f"EMAIL_RECIPIENTS: {'✅' if os.getenv('EMAIL_RECIPIENTS','') else '❌'}")
             st.write(f"Alpaca: {ALPACA_STATUS}")
             if st.button("Send Test Email"):
-                ok,msg = send_email_alert("AI Dashboard V36.0 Test", f"Test from V36.0 at {datetime.now(EASTERN)}")
+                ok,msg = send_email_alert("AI Dashboard V36.2 Test", f"Test from V36.2 at {datetime.now(EASTERN)}")
                 st.success(msg) if ok else st.error(msg)
 
 
@@ -3241,4 +3608,4 @@ elif page == "Detail View":
 
 
 st.markdown("---")
-st.caption("Not financial advice. Use for research and paper-trading validation only. | AI Trading Dashboard V36.0")
+st.caption("Not financial advice. Use for research and paper-trading validation only. | AI Trading Dashboard V36.2")
