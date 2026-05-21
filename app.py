@@ -29,7 +29,7 @@ except ImportError:
     ALPACA_AVAILABLE = False
 
 # ============================================================
-# AI TRADING DASHBOARD  V35.9.1 MARKET INTELLIGENCE
+# AI TRADING DASHBOARD  V36.0 MARKET INTELLIGENCE
 # Merged: Fundamental Research Engine + Adaptive Intelligence
 # 9-Agent scoring · MACD timing · Adaptive threshold
 # Morning briefing · Trade checklist · Volatility sizing
@@ -37,7 +37,7 @@ except ImportError:
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Trading Dashboard V35.9.1",
+    page_title="AI Trading Dashboard V36.0",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -195,7 +195,7 @@ def render_signal_card(row, show_checklist=False):
         bc,pb,pc = "#f59e0b","#fef3c7","#92400e"
     else:
         bc,pb,pc = "#64748b","#f1f5f9","#334155"
-    # V35.9.1 defensive financial card defaults
+    # V36.0 defensive financial card defaults
     financial_safety = row.get("Financial Safety", locals().get("financial_safety", "⚪ Not scored"))
     agent_greenlight = row.get("Agent Greenlight", locals().get("agent_greenlight", "⚪ Not scored"))
     execution_quality = row.get("Execution Quality", locals().get("execution_quality", "⚪ Research Only"))
@@ -221,7 +221,7 @@ def render_signal_card(row, show_checklist=False):
             <div><div style="font-size:0.75rem;color:#64748b;">Target</div><div style="font-weight:800;color:#111827;">{target}</div></div>
             <div><div style="font-size:0.75rem;color:#64748b;">R/R</div><div style="font-weight:800;color:#111827;">{rr}</div></div>
         </div>
-        <div style="margin-top:10px;color:#475569;font-size:0.88rem;"><b>RS vs SPY:</b> {rs}% &nbsp;|&nbsp; <b>Earnings:</b> {earnings}</div>\n        <div style="margin-top:6px;color:#334155;font-size:0.86rem;"><b>Financial Safety:</b> {financial_safety} &nbsp;|&nbsp; <b>Agents:</b> {agent_greenlight}</div>\n        <div style="margin-top:6px;color:#334155;font-size:0.86rem;"><b>Execution Quality:</b> {execution_quality}</div>
+        <div style="margin-top:10px;color:#475569;font-size:0.88rem;"><b>RS vs SPY:</b> {rs}% &nbsp;|&nbsp; <b>Earnings:</b> {earnings}</div>\n        <div style="margin-top:6px;color:#334155;font-size:0.86rem;"><b>Financial Safety:</b> {financial_safety} &nbsp;|&nbsp; <b>Agents:</b> {agent_greenlight}</div>\n        <div style="margin-top:6px;color:#334155;font-size:0.86rem;"><b>Execution Quality:</b> {execution_quality}</div>\n        <div style="margin-top:8px;color:#0f172a;font-size:0.87rem;line-height:1.45;"><b>Why It Ranked Highly:</b> {row.get("Why Ranked Highly", "")}</div>
         <div style="margin-top:6px;color:#475569;font-size:0.85rem;">{macd_note}</div>
         <div style="margin-top:10px;color:#334155;font-size:0.9rem;line-height:1.45;"><b>Why consider it:</b> {research_short}</div>
         <div style="margin-top:8px;color:#334155;font-size:0.88rem;line-height:1.45;"><b>Valuation:</b> {valuation_short}</div>
@@ -365,7 +365,7 @@ ETF_TICKERS = ["SPY","QQQ","IWM","DIA","XLK","XLF","XLV","XLE","XLY","XLP","SMH"
 
 
 # ============================================================
-# V35.9.1 EXPANDED OPPORTUNITY UNIVERSE
+# V36.0 EXPANDED OPPORTUNITY UNIVERSE
 # ============================================================
 
 ELITE_COMPOUNDERS = [
@@ -458,7 +458,7 @@ def require_login():
     if st.session_state.logged_in:
         return
 
-    st.title("🔐 AI Trading Dashboard V35.9.1 Login Fix")
+    st.title("🔐 AI Trading Dashboard V36.0 Login Fix")
     st.caption("Secure login uses Render environment variables only. No passwords are stored in source code.")
 
     with st.form("login_form"):
@@ -1119,6 +1119,155 @@ def classify_investment_style(info, data):
     if fcf > 0 and margin > 0.12:       return "🛡 Quality Compounder"
     return "🟡 Swing / Watchlist Candidate"
 
+
+# ============================================================
+# V36.0 FACTOR RANKING ENGINE
+# ============================================================
+
+def build_factor_breakdown(row):
+    """
+    Explains WHY the stock ranks highly versus other candidates.
+    Creates institutional-style factor commentary.
+    """
+
+    positives = []
+    negatives = []
+    style_tags = []
+
+    conviction = float(row.get("Final Conviction") or 0)
+    rs = float(row.get("Relative Strength vs SPY %") or 0)
+    risk = float(row.get("Risk Score") or 50)
+
+    revenue_growth = parse_percent_value(row.get("Revenue Growth"))
+    earnings_growth = parse_percent_value(row.get("Earnings Growth"))
+    gross_margin = parse_percent_value(row.get("Gross Margin"))
+    operating_margin = parse_percent_value(row.get("Operating Margin"))
+    debt_equity = row.get("Debt/Equity")
+    pe = row.get("Forward PE")
+    peg = row.get("PEG Ratio")
+
+    financial_safety = str(row.get("Financial Safety", ""))
+    execution_quality = str(row.get("Execution Quality", ""))
+
+    # --------------------------------------------------------
+    # Strengths
+    # --------------------------------------------------------
+    if conviction >= 75:
+        positives.append("High overall conviction score across technical, fundamental, and macro analysis.")
+    elif conviction >= 65:
+        positives.append("Strong overall conviction score relative to the broader opportunity set.")
+
+    if rs > 10:
+        positives.append("Outperforming the broader market, showing relative strength versus SPY.")
+        style_tags.append("Momentum")
+    elif rs > 3:
+        positives.append("Holding up better than the market during recent trading periods.")
+
+    if revenue_growth is not None:
+        if revenue_growth > 15:
+            positives.append(f"Revenue growth is strong at approximately {revenue_growth:.1f}%.")
+            style_tags.append("Growth")
+        elif revenue_growth > 5:
+            positives.append(f"Revenue growth remains healthy at approximately {revenue_growth:.1f}%.")
+
+    if earnings_growth is not None and earnings_growth > 10:
+        positives.append(f"Earnings growth is solid at approximately {earnings_growth:.1f}%.")
+        style_tags.append("Earnings Compounder")
+
+    if gross_margin is not None and gross_margin > 45:
+        positives.append("Gross margins are strong, supporting business quality and pricing power.")
+        style_tags.append("Quality")
+
+    if operating_margin is not None and operating_margin > 15:
+        positives.append("Operating margins are healthy, indicating operational efficiency.")
+
+    if "🟢" in financial_safety:
+        positives.append("Financial safety checks passed with healthy cash flow and manageable balance sheet characteristics.")
+        style_tags.append("Financially Stable")
+
+    if risk < 35:
+        positives.append("Risk profile is lower than many comparable growth names.")
+        style_tags.append("Lower Volatility")
+
+    if pe not in [None, "N/A"]:
+        try:
+            pe_val = float(pe)
+            if pe_val < 22 and revenue_growth and revenue_growth > 10:
+                positives.append("Valuation appears reasonable relative to growth expectations.")
+                style_tags.append("Reasonable Valuation")
+        except Exception:
+            pass
+
+    # --------------------------------------------------------
+    # Risks / weaknesses
+    # --------------------------------------------------------
+    if debt_equity not in [None, "N/A"]:
+        try:
+            dte = float(debt_equity)
+            if dte > 150:
+                negatives.append(f"Debt-to-equity is elevated at {dte:.1f}, increasing balance sheet risk.")
+        except Exception:
+            pass
+
+    if revenue_growth is not None and revenue_growth < 3:
+        negatives.append("Revenue growth is relatively slow.")
+
+    if earnings_growth is not None and earnings_growth < 0:
+        negatives.append("Earnings growth is negative, which weakens forward expectations.")
+
+    if operating_margin is not None and operating_margin < 8:
+        negatives.append("Operating margins are thinner than ideal.")
+
+    if pe not in [None, "N/A"]:
+        try:
+            pe_val = float(pe)
+            if pe_val > 45:
+                negatives.append(f"Forward PE is elevated at {pe_val:.1f}, limiting valuation margin of safety.")
+        except Exception:
+            pass
+
+    if peg not in [None, "N/A"]:
+        try:
+            peg_val = float(peg)
+            if peg_val > 3:
+                negatives.append(f"PEG ratio is elevated at {peg_val:.2f}, meaning growth may already be priced in.")
+        except Exception:
+            pass
+
+    if "🔴" in execution_quality:
+        negatives.append("Execution quality screen flagged the setup as higher risk.")
+
+    if "🟠" in financial_safety:
+        negatives.append("Financial safety gate suggests smaller sizing or watchlist-only positioning.")
+
+    # --------------------------------------------------------
+    # Style summary
+    # --------------------------------------------------------
+    if not style_tags:
+        style_tags.append("Balanced")
+
+    style_summary = " • ".join(sorted(set(style_tags)))
+
+    # --------------------------------------------------------
+    # Final explanation
+    # --------------------------------------------------------
+    positive_text = " ".join(positives) if positives else "No major strengths identified."
+    negative_text = " ".join(negatives) if negatives else "No major financial or valuation concerns identified."
+
+    summary = (
+        f"This stock ranks highly because: {positive_text} "
+        f"Key risks or weaker areas: {negative_text}"
+    )
+
+    return {
+        "Factor Strengths": positive_text,
+        "Factor Risks": negative_text,
+        "Factor Style": style_summary,
+        "Why Ranked Highly": summary
+    }
+
+
+
 def build_research_summary(ticker, info, data):
     price = data.get("Price")
     forward_pe = info.get("forwardPE"); trailing_pe = info.get("trailingPE"); peg = info.get("pegRatio")
@@ -1306,7 +1455,7 @@ def build_ai_trade_plan(ticker, price, sma20, sma50, sma200, rsi, ai_score, risk
 
 
 # ============================================================
-# V35.9.1 FINANCIAL SAFETY GATE
+# V36.0 FINANCIAL SAFETY GATE
 # ============================================================
 
 def financial_safety_gate(info):
@@ -1664,12 +1813,18 @@ def analyze_ticker(ticker):
     row_data["Agent Greenlight"] = gl_status
     row_data["Agent Greenlight Detail"] = gl_detail
     row_data["Execution Quality"] = execution_quality_label(row_data)
+    factor_breakdown = build_factor_breakdown(row_data)
+    row_data["Factor Strengths"] = factor_breakdown["Factor Strengths"]
+    row_data["Factor Risks"] = factor_breakdown["Factor Risks"]
+    row_data["Factor Style"] = factor_breakdown["Factor Style"]
+    row_data["Why Ranked Highly"] = factor_breakdown["Why Ranked Highly"]
+
     row_data["Signal Confidence"] = get_signal_confidence_rating(row_data, market_regime)
     return row_data
 
 
 # ============================================================
-# V35.9.1 OPPORTUNITY CATEGORIZATION + DIVERSITY
+# V36.0 OPPORTUNITY CATEGORIZATION + DIVERSITY
 # ============================================================
 
 def parse_percent_value(value):
@@ -2194,7 +2349,7 @@ def detail_page(ticker):
 
 
 # ============================================================
-# V35.9.1 FEATURE 1: TRADE HEALTH MONITOR
+# V36.0 FEATURE 1: TRADE HEALTH MONITOR
 # ============================================================
 
 def get_exit_strategy(entry_price, stop_loss, target_zone, rsi=None):
@@ -2294,7 +2449,7 @@ def render_trade_health_monitor(trade, data):
 
 
 # ============================================================
-# V35.9.1 FEATURE 2: ENTRY RANGE EMAIL ALERTS
+# V36.0 FEATURE 2: ENTRY RANGE EMAIL ALERTS
 # ============================================================
 
 def check_entry_range_alerts(watchlist_tickers, threshold=68):
@@ -2389,7 +2544,7 @@ def send_entry_range_email(alerts):
 
 
 # ============================================================
-# V35.9.1 FEATURE 3: BACKTESTING ENGINE
+# V36.0 FEATURE 3: BACKTESTING ENGINE
 # ============================================================
 
 def compute_historical_signal(close_series, high_series, low_series, volume_series, lookback_end_idx):
@@ -2581,7 +2736,7 @@ def render_simple_backtest_summary(df):
 # ============================================================
 
 st.sidebar.title("📈 AI Trading Dashboard")
-st.sidebar.caption("V35.9.1 — Exit Signals · Simple Backtesting · Entry Alerts · Trade Health")
+st.sidebar.caption("V36.0 — Exit Signals · Simple Backtesting · Entry Alerts · Trade Health")
 role_label = "Admin" if is_admin() else "View Only"
 st.sidebar.success(f"Logged in as: {role_label}")
 if alpaca_client: st.sidebar.success("🟢 Alpaca: Connected")
@@ -2677,10 +2832,10 @@ def render_morning_briefing(scan_df, recovery_df=None, etf_df=None):
 
 
 modern_hero(
-    "📈 AI Trading Dashboard V35.9.1",
+    "📈 AI Trading Dashboard V36.0",
     "9 Agents · Fundamentals · Exit signals · Simple Backtesting · Entry alerts · Trade health monitor"
 )
-st.caption("V35.9.1 — Exit signals, simple_backtesting, entry range email alerts, and trade health monitoring added. Not financial advice.")
+st.caption("V36.0 — Exit signals, simple_backtesting, entry range email alerts, and trade health monitoring added. Not financial advice.")
 
 _log_for_threshold = load_signal_log()
 _threshold, _threshold_note = get_adaptive_conviction_threshold(_log_for_threshold)
@@ -2731,7 +2886,7 @@ if page == "Dashboard":
     if not scan_df.empty:
         top = scan_df[scan_df["Signal"].str.contains("BUY NOW", na=False)].head(6)
         if top.empty: st.info("No BUY NOW signals right now. Check Scanner for Watch candidates.")
-        else: render_signal_cards(top, limit=15, show_checklist=False)
+        else: render_signal_cards(top, limit=25, show_checklist=False)
     else: st.info("Loading scanner data...")
 
     if sector_perf:
@@ -3060,7 +3215,7 @@ elif page == "Settings & Logs":
             st.write(f"EMAIL_RECIPIENTS: {'✅' if os.getenv('EMAIL_RECIPIENTS','') else '❌'}")
             st.write(f"Alpaca: {ALPACA_STATUS}")
             if st.button("Send Test Email"):
-                ok,msg = send_email_alert("AI Dashboard V35.9.1 Test", f"Test from V35.9.1 at {datetime.now(EASTERN)}")
+                ok,msg = send_email_alert("AI Dashboard V36.0 Test", f"Test from V36.0 at {datetime.now(EASTERN)}")
                 st.success(msg) if ok else st.error(msg)
 
 
@@ -3086,4 +3241,4 @@ elif page == "Detail View":
 
 
 st.markdown("---")
-st.caption("Not financial advice. Use for research and paper-trading validation only. | AI Trading Dashboard V35.9.1")
+st.caption("Not financial advice. Use for research and paper-trading validation only. | AI Trading Dashboard V36.0")
