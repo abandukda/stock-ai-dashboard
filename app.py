@@ -29,7 +29,7 @@ except ImportError:
     ALPACA_AVAILABLE = False
 
 # ============================================================
-# AI TRADING DASHBOARD  V35.7 MARKET INTELLIGENCE
+# AI TRADING DASHBOARD  V35.9 MARKET INTELLIGENCE
 # Merged: Fundamental Research Engine + Adaptive Intelligence
 # 9-Agent scoring · MACD timing · Adaptive threshold
 # Morning briefing · Trade checklist · Volatility sizing
@@ -37,7 +37,7 @@ except ImportError:
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Trading Dashboard V35.7",
+    page_title="AI Trading Dashboard V35.9",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -162,6 +162,7 @@ def add_ticker_to_watchlist(ticker):
 
 def render_signal_card(row, show_checklist=False):
     ticker    = row.get("Ticker","N/A")
+    company_name = row.get("Company Name", ticker)
     price     = row.get("Price","N/A")
     verdict   = row.get("Agent Verdict", row.get("Signal",""))
     signal    = row.get("Signal","")
@@ -199,6 +200,7 @@ def render_signal_card(row, show_checklist=False):
                 <div style="font-size:1.35rem;font-weight:850;color:#111827;">{ticker}
                     <span style="font-size:1rem;color:#475569;margin-left:8px;">${price}</span>
                 </div>
+                <div style="margin-top:2px;color:#334155;font-size:0.95rem;font-weight:700;">{company_name}</div>
                 <div style="margin-top:4px;color:#64748b;font-size:0.88rem;">{signal} &nbsp;·&nbsp; {style}</div>
             </div>
             <div style="background:{pb};color:{pc};padding:6px 12px;border-radius:999px;font-weight:800;font-size:0.85rem;white-space:nowrap;">{verdict}</div>
@@ -211,7 +213,7 @@ def render_signal_card(row, show_checklist=False):
             <div><div style="font-size:0.75rem;color:#64748b;">Target</div><div style="font-weight:800;color:#111827;">{target}</div></div>
             <div><div style="font-size:0.75rem;color:#64748b;">R/R</div><div style="font-weight:800;color:#111827;">{rr}</div></div>
         </div>
-        <div style="margin-top:10px;color:#475569;font-size:0.88rem;"><b>RS vs SPY:</b> {rs}% &nbsp;|&nbsp; <b>Earnings:</b> {earnings}</div>
+        <div style="margin-top:10px;color:#475569;font-size:0.88rem;"><b>RS vs SPY:</b> {rs}% &nbsp;|&nbsp; <b>Earnings:</b> {earnings}</div>\n        <div style="margin-top:6px;color:#334155;font-size:0.86rem;"><b>Financial Safety:</b> {financial_safety} &nbsp;|&nbsp; <b>Agents:</b> {agent_greenlight}</div>\n        <div style="margin-top:6px;color:#334155;font-size:0.86rem;"><b>Execution Quality:</b> {execution_quality}</div>
         <div style="margin-top:6px;color:#475569;font-size:0.85rem;">{macd_note}</div>
         <div style="margin-top:10px;color:#334155;font-size:0.9rem;line-height:1.45;"><b>Why consider it:</b> {research_short}</div>
         <div style="margin-top:8px;color:#334155;font-size:0.88rem;line-height:1.45;"><b>Valuation:</b> {valuation_short}</div>
@@ -246,7 +248,7 @@ def render_signal_card(row, show_checklist=False):
             st.caption("Use Detail View for full chart, agents, fundamental deep-dive, and position sizing.")
 
 
-def render_signal_cards(df, limit=12, show_checklist=False):
+def render_signal_cards(df, limit=50, show_checklist=False):
     if df is None or df.empty:
         st.info("No signals to show.")
         return
@@ -258,9 +260,9 @@ def render_mobile_signal_summary(df):
     if df is None or df.empty:
         st.info("No mobile summary available.")
         return
-    cols = ["Ticker","Price","Signal Confidence","Entry Range","Stop Loss","Target / Sell Zone","Risk / Reward"]
+    cols = ["Ticker","Company Name","Price","Signal Confidence","Financial Safety","Execution Quality","Entry Range","Stop Loss","Target / Sell Zone","Risk / Reward"]
     cols = [c for c in cols if c in df.columns]
-    st.dataframe(df[cols].head(40), use_container_width=True, hide_index=True)
+    st.dataframe(df[cols].head(75), use_container_width=True, hide_index=True)
 
 
 def render_trade_checklist(row):
@@ -355,7 +357,7 @@ ETF_TICKERS = ["SPY","QQQ","IWM","DIA","XLK","XLF","XLV","XLE","XLY","XLP","SMH"
 
 
 # ============================================================
-# V35.7 EXPANDED OPPORTUNITY UNIVERSE
+# V35.9 EXPANDED OPPORTUNITY UNIVERSE
 # ============================================================
 
 ELITE_COMPOUNDERS = [
@@ -448,7 +450,7 @@ def require_login():
     if st.session_state.logged_in:
         return
 
-    st.title("🔐 AI Trading Dashboard V35.7 Login Fix")
+    st.title("🔐 AI Trading Dashboard V35.9 Login Fix")
     st.caption("Secure login uses Render environment variables only. No passwords are stored in source code.")
 
     with st.form("login_form"):
@@ -1294,6 +1296,200 @@ def build_ai_trade_plan(ticker, price, sma20, sma50, sma200, rsi, ai_score, risk
 # ANALYZE TICKER — Full 9-Agent + Regime-Adjusted Conviction
 # ============================================================
 
+
+# ============================================================
+# V35.9 FINANCIAL SAFETY GATE
+# ============================================================
+
+def financial_safety_gate(info):
+    reasons = []
+    red_flags = 0
+    yellow_flags = 0
+
+    debt_to_equity = info.get("debtToEquity")
+    current_ratio = info.get("currentRatio")
+    free_cashflow = info.get("freeCashflow")
+    operating_cashflow = info.get("operatingCashflow")
+    total_cash = info.get("totalCash")
+    total_debt = info.get("totalDebt")
+    revenue_growth = info.get("revenueGrowth")
+    profit_margin = info.get("profitMargins")
+    operating_margin = info.get("operatingMargins")
+    pe = info.get("forwardPE") or info.get("trailingPE")
+    peg = info.get("pegRatio")
+
+    try:
+        if debt_to_equity is not None:
+            dte = float(debt_to_equity)
+            if dte > 250:
+                red_flags += 1
+                reasons.append(f"Debt-to-equity is very high at {dte:.1f}.")
+            elif dte > 150:
+                yellow_flags += 1
+                reasons.append(f"Debt-to-equity is elevated at {dte:.1f}.")
+            else:
+                reasons.append(f"Debt-to-equity is manageable at {dte:.1f}.")
+    except Exception:
+        pass
+
+    try:
+        if total_cash is not None and total_debt is not None and float(total_debt) > 0:
+            cash_debt = float(total_cash) / float(total_debt)
+            if cash_debt < 0.25:
+                yellow_flags += 1
+                reasons.append("Cash is low relative to debt.")
+            elif cash_debt >= 0.75:
+                reasons.append("Cash position is healthy relative to debt.")
+    except Exception:
+        pass
+
+    try:
+        if current_ratio is not None:
+            cr = float(current_ratio)
+            if cr < 0.8:
+                red_flags += 1
+                reasons.append(f"Current ratio is weak at {cr:.2f}.")
+            elif cr < 1.1:
+                yellow_flags += 1
+                reasons.append(f"Current ratio is low at {cr:.2f}.")
+            elif cr >= 1.5:
+                reasons.append(f"Current ratio is healthy at {cr:.2f}.")
+    except Exception:
+        pass
+
+    try:
+        if free_cashflow is not None:
+            fcf = float(free_cashflow)
+            if fcf < 0:
+                red_flags += 1
+                reasons.append("Free cash flow is negative.")
+            elif fcf > 0:
+                reasons.append("Free cash flow is positive.")
+    except Exception:
+        pass
+
+    try:
+        if operating_cashflow is not None:
+            ocf = float(operating_cashflow)
+            if ocf < 0:
+                red_flags += 1
+                reasons.append("Operating cash flow is negative.")
+            elif ocf > 0:
+                reasons.append("Operating cash flow is positive.")
+    except Exception:
+        pass
+
+    try:
+        if revenue_growth is not None:
+            rg = float(revenue_growth)
+            if rg < -0.05:
+                red_flags += 1
+                reasons.append(f"Revenue is declining by {rg*100:.1f}%.")
+            elif rg < 0.03:
+                yellow_flags += 1
+                reasons.append(f"Revenue growth is low at {rg*100:.1f}%.")
+            elif rg > 0.10:
+                reasons.append(f"Revenue growth is healthy at {rg*100:.1f}%.")
+    except Exception:
+        pass
+
+    try:
+        if profit_margin is not None:
+            pm = float(profit_margin)
+            if pm < -0.05:
+                red_flags += 1
+                reasons.append(f"Profit margin is negative at {pm*100:.1f}%.")
+            elif pm < 0.03:
+                yellow_flags += 1
+                reasons.append(f"Profit margin is thin at {pm*100:.1f}%.")
+            elif pm > 0.10:
+                reasons.append(f"Profit margin is healthy at {pm*100:.1f}%.")
+    except Exception:
+        pass
+
+    try:
+        if operating_margin is not None:
+            om = float(operating_margin)
+            if om < -0.05:
+                red_flags += 1
+                reasons.append(f"Operating margin is negative at {om*100:.1f}%.")
+            elif om > 0.10:
+                reasons.append(f"Operating margin is healthy at {om*100:.1f}%.")
+    except Exception:
+        pass
+
+    try:
+        if pe is not None and float(pe) > 80:
+            yellow_flags += 1
+            reasons.append(f"PE ratio is very high at {float(pe):.1f}.")
+    except Exception:
+        pass
+
+    try:
+        if peg is not None and float(peg) > 3:
+            yellow_flags += 1
+            reasons.append(f"PEG ratio is elevated at {float(peg):.2f}.")
+    except Exception:
+        pass
+
+    if red_flags >= 2:
+        return "🔴 Financial Risk — Not Execution Safe", -25, " ".join(reasons)
+    if red_flags == 1:
+        return "🟠 Financial Caution — Starter/Watch Only", -15, " ".join(reasons)
+    if yellow_flags >= 2:
+        return "🟡 Financial Watch — Use Smaller Size", -8, " ".join(reasons)
+
+    if not reasons:
+        reasons.append("Financial data is limited; verify before acting.")
+
+    return "🟢 Financially Safer", 5, " ".join(reasons)
+
+
+def agents_greenlight_status(row):
+    agent_cols = [
+        "Technical Agent", "Risk Agent", "Fundamental Agent",
+        "Valuation Agent", "Earnings Quality Agent", "Cash Flow Agent",
+        "Moat Agent", "Analyst Agent", "Macro Agent"
+    ]
+    weak = []
+    caution = []
+    available = 0
+    for col in agent_cols:
+        if col in row and row.get(col) is not None:
+            try:
+                score = float(row.get(col))
+                available += 1
+                if score < 45:
+                    weak.append(col.replace(" Agent", ""))
+                elif score < 55:
+                    caution.append(col.replace(" Agent", ""))
+            except Exception:
+                pass
+    if weak:
+        return "🔴 Not Green-Lighted", "Weak agents: " + ", ".join(weak)
+    if caution:
+        return "🟡 Partial Green Light", "Caution agents: " + ", ".join(caution)
+    if available >= 5:
+        return "🟢 All-Agent Green Light", "Core agents are aligned above minimum thresholds."
+    return "🟡 Partial Green Light", "Not enough agent data for a full green light."
+
+
+def execution_quality_label(row):
+    financial = str(row.get("Financial Safety", ""))
+    greenlight = str(row.get("Agent Greenlight", ""))
+    conviction = float(row.get("Final Conviction") or 0)
+    risk_score = float(row.get("Risk Score") or 50)
+    if "🔴" in financial or "🔴" in greenlight:
+        return "🔴 Avoid Execution"
+    if "🟠" in financial:
+        return "🟠 Watch Only / Very Small"
+    if "🟢" in financial and "🟢" in greenlight and conviction >= 72 and risk_score < 45:
+        return "🟢 Execution Candidate"
+    if "🟢" in financial and conviction >= 60:
+        return "🟡 Starter Candidate"
+    return "⚪ Research Only"
+
+
 def analyze_ticker(ticker):
     ticker = normalize_ticker(ticker)
     hist = get_history(ticker, period="1y")
@@ -1367,6 +1563,7 @@ def analyze_ticker(ticker):
     cf_score,     cf_reason     = cashflow_agent(info)
     moat_score,   moat_reason   = moat_agent(info)
     analyst_score,analyst_reason= analyst_agent(info, price)
+    financial_status, financial_adjustment, financial_reasons = financial_safety_gate(info)
     rec_score,    rec_reason    = recovery_agent(price, high_52, low_52, rsi, trade_plan["Delta to 52W High %"])
     mac_score,    mac_reason    = macro_agent()
 
@@ -1377,6 +1574,8 @@ def analyze_ticker(ticker):
         final_conviction = round(tech_score*0.15 + risk_a_score*0.18 + mac_score*0.07 + fund_score*0.10 + val_score*0.14 + earn_score*0.13 + cf_score*0.14 + moat_score*0.05 + analyst_score*0.04, 0)
     else:
         final_conviction = round(tech_score*0.20 + risk_a_score*0.12 + mac_score*0.08 + fund_score*0.10 + val_score*0.14 + earn_score*0.14 + cf_score*0.12 + moat_score*0.05 + analyst_score*0.05, 0)
+
+    final_conviction = max(0, min(100, final_conviction + financial_adjustment))
 
     if final_conviction >= 80:   agent_verdict = "🟢 High Conviction"
     elif final_conviction >= 68: agent_verdict = "🟢 Strong Candidate"
@@ -1409,7 +1608,7 @@ def analyze_ticker(ticker):
     investment_style = classify_investment_style(info, prelim_data)
 
     row_data = {
-        "Ticker": ticker, "Price": safe_round(price), "Price Bucket": get_price_bucket(price),
+        "Ticker": ticker, "Company Name": info.get("shortName") or info.get("longName") or ticker, "Price": safe_round(price), "Price Bucket": get_price_bucket(price),
         "Price Source": price_source, "Daily %": safe_round(change_pct),
         "AI Score": safe_round(ai_score,0), "Signal": signal, "Earnings": earnings_label,
         "Market Regime": market_regime_label, "Relative Strength vs SPY %": relative_strength,
@@ -1419,6 +1618,7 @@ def analyze_ticker(ticker):
         "Fundamental Agent": safe_round(fund_score,0), "Valuation Agent": safe_round(val_score,0),
         "Earnings Quality Agent": safe_round(earn_score,0), "Cash Flow Agent": safe_round(cf_score,0),
         "Moat Agent": safe_round(moat_score,0), "Analyst Agent": safe_round(analyst_score,0),
+        "Financial Safety": financial_status, "Financial Safety Detail": financial_reasons,
         "Recovery Agent": safe_round(rec_score,0), "Macro Agent": safe_round(mac_score,0),
         "Final Conviction": safe_round(final_conviction,0), "Agent Verdict": agent_verdict,
         "RSI": safe_round(rsi,1), "52W High": trade_plan["52W High"],
@@ -1431,7 +1631,7 @@ def analyze_ticker(ticker):
         "Investment Style": investment_style, "Position Size Note": trade_plan["Position Size Note"],
         "Agent Summary": (f"Technical: {tech_reason}. Risk: {risk_reason}. Fundamental: {fund_reason}. "
                          f"Valuation: {val_reason}. Earnings: {earn_reason}. Cash Flow: {cf_reason}. "
-                         f"Moat: {moat_reason}. Analyst: {analyst_reason}. Recovery: {rec_reason}. Macro: {mac_reason}."),
+                         f"Moat: {moat_reason}. Analyst: {analyst_reason}. Financial Safety: {financial_reasons}. Recovery: {rec_reason}. Macro: {mac_reason}."),
         "Research Summary": research["Research Summary"],
         "Valuation Detail": research["Valuation Detail"],
         "Financial Strength Detail": research["Financial Strength Detail"],
@@ -1452,14 +1652,16 @@ def analyze_ticker(ticker):
         "Analyst Target": safe_round(info.get("targetMeanPrice")), "Analyst Rating": info.get("recommendationKey"),
         "SMA20": safe_round(sma20), "SMA50": safe_round(sma50), "SMA200": safe_round(sma200),
     }
+    gl_status, gl_detail = agents_greenlight_status(row_data)
+    row_data["Agent Greenlight"] = gl_status
+    row_data["Agent Greenlight Detail"] = gl_detail
+    row_data["Execution Quality"] = execution_quality_label(row_data)
     row_data["Signal Confidence"] = get_signal_confidence_rating(row_data, market_regime)
     return row_data
 
 
-@st.cache_data(ttl=300)
-
 # ============================================================
-# V35.7 OPPORTUNITY CATEGORIZATION + DIVERSITY
+# V35.9 OPPORTUNITY CATEGORIZATION + DIVERSITY
 # ============================================================
 
 def parse_percent_value(value):
@@ -1604,10 +1806,11 @@ def show_opportunity_category_tabs(df):
                 st.info(f"No current names in {category}.")
             else:
                 st.caption(f"{category} — ranked by conviction with trade checklist available.")
-                render_signal_cards(sub, limit=15, show_checklist=True)
+                render_signal_cards(sub, limit=25, show_checklist=True)
 
 
 
+@st.cache_data(ttl=300)
 def build_scan(tickers, diversified=True, per_bucket=6, sector_diverse=True, min_conviction=55):
     unique = []
     for t in tickers:
@@ -1983,7 +2186,7 @@ def detail_page(ticker):
 
 
 # ============================================================
-# V35.7 FEATURE 1: TRADE HEALTH MONITOR
+# V35.9 FEATURE 1: TRADE HEALTH MONITOR
 # ============================================================
 
 def get_exit_strategy(entry_price, stop_loss, target_zone, rsi=None):
@@ -2083,7 +2286,7 @@ def render_trade_health_monitor(trade, data):
 
 
 # ============================================================
-# V35.7 FEATURE 2: ENTRY RANGE EMAIL ALERTS
+# V35.9 FEATURE 2: ENTRY RANGE EMAIL ALERTS
 # ============================================================
 
 def check_entry_range_alerts(watchlist_tickers, threshold=68):
@@ -2178,7 +2381,7 @@ def send_entry_range_email(alerts):
 
 
 # ============================================================
-# V35.7 FEATURE 3: BACKTESTING ENGINE
+# V35.9 FEATURE 3: BACKTESTING ENGINE
 # ============================================================
 
 def compute_historical_signal(close_series, high_series, low_series, volume_series, lookback_end_idx):
@@ -2370,7 +2573,7 @@ def render_simple_backtest_summary(df):
 # ============================================================
 
 st.sidebar.title("📈 AI Trading Dashboard")
-st.sidebar.caption("V35.7 — Exit Signals · Simple Backtesting · Entry Alerts · Trade Health")
+st.sidebar.caption("V35.9 — Exit Signals · Simple Backtesting · Entry Alerts · Trade Health")
 role_label = "Admin" if is_admin() else "View Only"
 st.sidebar.success(f"Logged in as: {role_label}")
 if alpaca_client: st.sidebar.success("🟢 Alpaca: Connected")
@@ -2466,10 +2669,10 @@ def render_morning_briefing(scan_df, recovery_df=None, etf_df=None):
 
 
 modern_hero(
-    "📈 AI Trading Dashboard V35.7",
+    "📈 AI Trading Dashboard V35.9",
     "9 Agents · Fundamentals · Exit signals · Simple Backtesting · Entry alerts · Trade health monitor"
 )
-st.caption("V35.7 — Exit signals, simple_backtesting, entry range email alerts, and trade health monitoring added. Not financial advice.")
+st.caption("V35.9 — Exit signals, simple_backtesting, entry range email alerts, and trade health monitoring added. Not financial advice.")
 
 _log_for_threshold = load_signal_log()
 _threshold, _threshold_note = get_adaptive_conviction_threshold(_log_for_threshold)
@@ -2541,6 +2744,7 @@ elif page == "Scanner Hub":
     modern_section("🔎 Scanner Hub", "Signal cards · All scanner · Recovery · ETF timing")
     log = load_signal_log(); threshold, threshold_note = get_adaptive_conviction_threshold(log)
     st.caption(f"📊 Adaptive conviction threshold: **{threshold}** — {threshold_note}")
+    top_source_df = build_scan(CORE_SCAN_TICKERS, diversified=False, sector_diverse=False, min_conviction=45)
     scan_df = build_scan(CORE_SCAN_TICKERS)
     recovery_df = build_recovery_radar(RECOVERY_TICKERS)
     etf_df = build_scan(ETF_TICKERS, diversified=False)
@@ -2553,7 +2757,7 @@ elif page == "Scanner Hub":
 
     with tab1:
         modern_section("BUY NOW / High Conviction — with Checklists")
-        st.caption("Top Signals now uses the broad scan so you see more choices. Use Add Watch to save promising names to your watchlist. Category tabs still group/diversify names separately.")
+        st.caption("Top Signals now uses the broad scan and shows more choices, including company names. Use Add Watch to save promising names to your watchlist. Category tabs still group/diversify names separately.")
         if not scan_df.empty:
             buy_df = top_source_df[(scan_df["Signal"].astype(str).str.contains("BUY NOW",na=False)) | (scan_df["Final Conviction"].fillna(0) >= max(55, threshold - 10))] if "Final Conviction" in scan_df.columns else scan_df[scan_df["Signal"].astype(str).str.contains("BUY NOW",na=False)]
             if buy_df.empty:
@@ -2565,7 +2769,7 @@ elif page == "Scanner Hub":
                 mobile_view = st.toggle("📱 Mobile Summary", value=False, key="scanner_mobile")
                 show_cl = st.toggle("✅ Show Trade Checklists", value=True, key="scanner_show_checklist")
                 if mobile_view: render_mobile_signal_summary(buy_df)
-                else: render_signal_cards(buy_df, limit=30, show_checklist=show_cl)
+                else: render_signal_cards(buy_df, limit=50, show_checklist=show_cl)
         else: st.info("No scanner data.")
 
     with tab2:
@@ -2848,7 +3052,7 @@ elif page == "Settings & Logs":
             st.write(f"EMAIL_RECIPIENTS: {'✅' if os.getenv('EMAIL_RECIPIENTS','') else '❌'}")
             st.write(f"Alpaca: {ALPACA_STATUS}")
             if st.button("Send Test Email"):
-                ok,msg = send_email_alert("AI Dashboard V35.7 Test", f"Test from V35.7 at {datetime.now(EASTERN)}")
+                ok,msg = send_email_alert("AI Dashboard V35.9 Test", f"Test from V35.9 at {datetime.now(EASTERN)}")
                 st.success(msg) if ok else st.error(msg)
 
 
@@ -2874,4 +3078,4 @@ elif page == "Detail View":
 
 
 st.markdown("---")
-st.caption("Not financial advice. Use for research and paper-trading validation only. | AI Trading Dashboard V35.7")
+st.caption("Not financial advice. Use for research and paper-trading validation only. | AI Trading Dashboard V35.9")
