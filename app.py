@@ -29,7 +29,7 @@ except ImportError:
     ALPACA_AVAILABLE = False
 
 # ============================================================
-# AI TRADING DASHBOARD  V35.9 MARKET INTELLIGENCE
+# AI TRADING DASHBOARD  V35.9.1 MARKET INTELLIGENCE
 # Merged: Fundamental Research Engine + Adaptive Intelligence
 # 9-Agent scoring · MACD timing · Adaptive threshold
 # Morning briefing · Trade checklist · Volatility sizing
@@ -37,7 +37,7 @@ except ImportError:
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Trading Dashboard V35.9",
+    page_title="AI Trading Dashboard V35.9.1",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -176,6 +176,9 @@ def render_signal_card(row, show_checklist=False):
     macd_note = row.get("MACD Note","")
     confidence= row.get("Signal Confidence","")
     style     = row.get("Investment Style","")
+    financial_safety = row.get("Financial Safety", "⚪ Not scored")
+    agent_greenlight = row.get("Agent Greenlight", "⚪ Not scored")
+    execution_quality = row.get("Execution Quality", "⚪ Research Only")
     plan      = str(row.get("AI Trade Plan",""))
     research  = str(row.get("Research Summary",""))
     valuation = str(row.get("Valuation Detail",""))
@@ -192,6 +195,11 @@ def render_signal_card(row, show_checklist=False):
         bc,pb,pc = "#f59e0b","#fef3c7","#92400e"
     else:
         bc,pb,pc = "#64748b","#f1f5f9","#334155"
+    # V35.9.1 defensive financial card defaults
+    financial_safety = row.get("Financial Safety", locals().get("financial_safety", "⚪ Not scored"))
+    agent_greenlight = row.get("Agent Greenlight", locals().get("agent_greenlight", "⚪ Not scored"))
+    execution_quality = row.get("Execution Quality", locals().get("execution_quality", "⚪ Research Only"))
+
 
     st.markdown(f"""
     <div style="background:#ffffff;border:1px solid #d8e0ec;border-left:6px solid {bc};border-radius:18px;padding:18px;margin-bottom:14px;box-shadow:0 8px 22px rgba(15,23,42,0.08);">
@@ -357,7 +365,7 @@ ETF_TICKERS = ["SPY","QQQ","IWM","DIA","XLK","XLF","XLV","XLE","XLY","XLP","SMH"
 
 
 # ============================================================
-# V35.9 EXPANDED OPPORTUNITY UNIVERSE
+# V35.9.1 EXPANDED OPPORTUNITY UNIVERSE
 # ============================================================
 
 ELITE_COMPOUNDERS = [
@@ -450,7 +458,7 @@ def require_login():
     if st.session_state.logged_in:
         return
 
-    st.title("🔐 AI Trading Dashboard V35.9 Login Fix")
+    st.title("🔐 AI Trading Dashboard V35.9.1 Login Fix")
     st.caption("Secure login uses Render environment variables only. No passwords are stored in source code.")
 
     with st.form("login_form"):
@@ -1298,7 +1306,7 @@ def build_ai_trade_plan(ticker, price, sma20, sma50, sma200, rsi, ai_score, risk
 
 
 # ============================================================
-# V35.9 FINANCIAL SAFETY GATE
+# V35.9.1 FINANCIAL SAFETY GATE
 # ============================================================
 
 def financial_safety_gate(info):
@@ -1661,7 +1669,7 @@ def analyze_ticker(ticker):
 
 
 # ============================================================
-# V35.9 OPPORTUNITY CATEGORIZATION + DIVERSITY
+# V35.9.1 OPPORTUNITY CATEGORIZATION + DIVERSITY
 # ============================================================
 
 def parse_percent_value(value):
@@ -2186,7 +2194,7 @@ def detail_page(ticker):
 
 
 # ============================================================
-# V35.9 FEATURE 1: TRADE HEALTH MONITOR
+# V35.9.1 FEATURE 1: TRADE HEALTH MONITOR
 # ============================================================
 
 def get_exit_strategy(entry_price, stop_loss, target_zone, rsi=None):
@@ -2286,7 +2294,7 @@ def render_trade_health_monitor(trade, data):
 
 
 # ============================================================
-# V35.9 FEATURE 2: ENTRY RANGE EMAIL ALERTS
+# V35.9.1 FEATURE 2: ENTRY RANGE EMAIL ALERTS
 # ============================================================
 
 def check_entry_range_alerts(watchlist_tickers, threshold=68):
@@ -2381,7 +2389,7 @@ def send_entry_range_email(alerts):
 
 
 # ============================================================
-# V35.9 FEATURE 3: BACKTESTING ENGINE
+# V35.9.1 FEATURE 3: BACKTESTING ENGINE
 # ============================================================
 
 def compute_historical_signal(close_series, high_series, low_series, volume_series, lookback_end_idx):
@@ -2573,7 +2581,7 @@ def render_simple_backtest_summary(df):
 # ============================================================
 
 st.sidebar.title("📈 AI Trading Dashboard")
-st.sidebar.caption("V35.9 — Exit Signals · Simple Backtesting · Entry Alerts · Trade Health")
+st.sidebar.caption("V35.9.1 — Exit Signals · Simple Backtesting · Entry Alerts · Trade Health")
 role_label = "Admin" if is_admin() else "View Only"
 st.sidebar.success(f"Logged in as: {role_label}")
 if alpaca_client: st.sidebar.success("🟢 Alpaca: Connected")
@@ -2669,10 +2677,10 @@ def render_morning_briefing(scan_df, recovery_df=None, etf_df=None):
 
 
 modern_hero(
-    "📈 AI Trading Dashboard V35.9",
+    "📈 AI Trading Dashboard V35.9.1",
     "9 Agents · Fundamentals · Exit signals · Simple Backtesting · Entry alerts · Trade health monitor"
 )
-st.caption("V35.9 — Exit signals, simple_backtesting, entry range email alerts, and trade health monitoring added. Not financial advice.")
+st.caption("V35.9.1 — Exit signals, simple_backtesting, entry range email alerts, and trade health monitoring added. Not financial advice.")
 
 _log_for_threshold = load_signal_log()
 _threshold, _threshold_note = get_adaptive_conviction_threshold(_log_for_threshold)
@@ -2723,7 +2731,7 @@ if page == "Dashboard":
     if not scan_df.empty:
         top = scan_df[scan_df["Signal"].str.contains("BUY NOW", na=False)].head(6)
         if top.empty: st.info("No BUY NOW signals right now. Check Scanner for Watch candidates.")
-        else: render_signal_cards(top, limit=6, show_checklist=False)
+        else: render_signal_cards(top, limit=15, show_checklist=False)
     else: st.info("Loading scanner data...")
 
     if sector_perf:
@@ -3052,7 +3060,7 @@ elif page == "Settings & Logs":
             st.write(f"EMAIL_RECIPIENTS: {'✅' if os.getenv('EMAIL_RECIPIENTS','') else '❌'}")
             st.write(f"Alpaca: {ALPACA_STATUS}")
             if st.button("Send Test Email"):
-                ok,msg = send_email_alert("AI Dashboard V35.9 Test", f"Test from V35.9 at {datetime.now(EASTERN)}")
+                ok,msg = send_email_alert("AI Dashboard V35.9.1 Test", f"Test from V35.9.1 at {datetime.now(EASTERN)}")
                 st.success(msg) if ok else st.error(msg)
 
 
@@ -3078,4 +3086,4 @@ elif page == "Detail View":
 
 
 st.markdown("---")
-st.caption("Not financial advice. Use for research and paper-trading validation only. | AI Trading Dashboard V35.9")
+st.caption("Not financial advice. Use for research and paper-trading validation only. | AI Trading Dashboard V35.9.1")
