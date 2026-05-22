@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 import json
 import smtplib
+import time
 from email.mime.text import MIMEText
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -17,6 +18,7 @@ except Exception:
     st_autorefresh = None
 
 import yfinance as yf
+import requests
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
@@ -29,7 +31,7 @@ except ImportError:
     ALPACA_AVAILABLE = False
 
 # ============================================================
-# AI TRADING DASHBOARD  V36.2 MARKET INTELLIGENCE
+# AI TRADING DASHBOARD  V38.1 TRUE MARKET SCAN SYSTEM
 # Merged: Fundamental Research Engine + Adaptive Intelligence
 # 9-Agent scoring · MACD timing · Adaptive threshold
 # Morning briefing · Trade checklist · Volatility sizing
@@ -37,7 +39,7 @@ except ImportError:
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Trading Dashboard V36.2",
+    page_title="AI Trading Dashboard V38.1",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -195,11 +197,11 @@ def render_signal_card(row, show_checklist=False):
         bc,pb,pc = "#f59e0b","#fef3c7","#92400e"
     else:
         bc,pb,pc = "#64748b","#f1f5f9","#334155"
-    # V36.2 defensive financial card defaults
-    financial_safety = row.get("Financial Safety", locals().get("financial_safety", "⚪ Not scored"))
-    agent_greenlight = row.get("Agent Greenlight", locals().get("agent_greenlight", "⚪ Not scored"))
-    execution_quality = row.get("Execution Quality", locals().get("execution_quality", "⚪ Research Only"))
 
+    # V38.1 defensive card defaults
+    financial_safety = row.get("Financial Safety", financial_safety if "financial_safety" in locals() else "⚪ Not scored")
+    agent_greenlight = row.get("Agent Greenlight", agent_greenlight if "agent_greenlight" in locals() else "⚪ Not scored")
+    execution_quality = row.get("Execution Quality", execution_quality if "execution_quality" in locals() else "⚪ Research Only")
 
     st.markdown(f"""
     <div style="background:#ffffff;border:1px solid #d8e0ec;border-left:6px solid {bc};border-radius:18px;padding:18px;margin-bottom:14px;box-shadow:0 8px 22px rgba(15,23,42,0.08);">
@@ -221,7 +223,7 @@ def render_signal_card(row, show_checklist=False):
             <div><div style="font-size:0.75rem;color:#64748b;">Target</div><div style="font-weight:800;color:#111827;">{target}</div></div>
             <div><div style="font-size:0.75rem;color:#64748b;">R/R</div><div style="font-weight:800;color:#111827;">{rr}</div></div>
         </div>
-        <div style="margin-top:10px;color:#475569;font-size:0.88rem;"><b>RS vs SPY:</b> {rs}% &nbsp;|&nbsp; <b>Earnings:</b> {earnings}</div>\n        <div style="margin-top:6px;color:#334155;font-size:0.86rem;"><b>Financial Safety:</b> {financial_safety} &nbsp;|&nbsp; <b>Agents:</b> {agent_greenlight}</div>\n        <div style="margin-top:6px;color:#334155;font-size:0.86rem;"><b>Execution Quality:</b> {execution_quality}</div>\n        <div style="margin-top:8px;color:#0f172a;font-size:0.87rem;line-height:1.45;"><b>Why It Ranked Highly:</b> {row.get("Why Ranked Highly", "")}</div>
+        <div style="margin-top:10px;color:#475569;font-size:0.88rem;"><b>RS vs SPY:</b> {rs}% &nbsp;|&nbsp; <b>Earnings:</b> {earnings}</div>\n        <div style="margin-top:6px;color:#334155;font-size:0.86rem;"><b>Financial Safety:</b> {financial_safety} &nbsp;|&nbsp; <b>Agents:</b> {agent_greenlight}</div>\n        <div style="margin-top:6px;color:#334155;font-size:0.86rem;"><b>Execution Quality:</b> {execution_quality}</div>
         <div style="margin-top:6px;color:#475569;font-size:0.85rem;">{macd_note}</div>
         <div style="margin-top:10px;color:#334155;font-size:0.9rem;line-height:1.45;"><b>Why consider it:</b> {research_short}</div>
         <div style="margin-top:8px;color:#334155;font-size:0.88rem;line-height:1.45;"><b>Valuation:</b> {valuation_short}</div>
@@ -350,72 +352,143 @@ SIGNAL_LOG_FILE    = DATA_DIR / "signal_log.json"
 
 DEFAULT_WATCHLIST = ["AAPL","MSFT","NVDA","AMD","TSLA","AMZN","GOOGL","META","SNOW","ELF","PLTR","SHOP"]
 
-CORE_SCAN_TICKERS = [
-    "AAPL","MSFT","NVDA","AMD","TSLA","AMZN","GOOGL","META","AVGO","COST","LLY","UNH","CRM","ADBE","NOW","PANW","CRWD",
-    "SHOP","SNOW","NET","DDOG","TEAM","MDB","ZS","CELH","DECK","NKE","SBUX","TGT","UBER","ABNB","TTD",
-    "PYPL","SQ","PLTR","HIMS","ONON","CHWY","TOST","U","PATH","GTLB","AFRM","CAVA","WOLF","ENPH","SEDG",
-    "SOFI","IONQ","RKLB","JOBY","ACHR","F","GM","RIVN","NIO","BROS","NU","RIOT","MARA","SOUN","BBAI","AI"
-]
-RECOVERY_TICKERS = [
-    "SOFI","PLTR","HIMS","CHWY","TOST","U","PATH","IONQ","RKLB","JOBY","ACHR","RIVN","F","GM",
-    "PYPL","NKE","SBUX","TGT","SHOP","SNOW","NET","CELH","ENPH","SEDG","SQ","BROS","ONON","AFRM","CAVA",
-    "ADBE","AMD","TSLA","CRM","PANW","CRWD","DECK"
-]
-ETF_TICKERS = ["SPY","QQQ","IWM","DIA","XLK","XLF","XLV","XLE","XLY","XLP","SMH","ARKK"]
-
+ETF_TICKERS = ["SPY","QQQ","IWM","DIA","SMH","SOXX","XLK","XLI","XLE","XLY","XLP","XLV","XLU","ARKK","VUG","VTV"]
 
 # ============================================================
-# V36.2 EXPANDED OPPORTUNITY UNIVERSE
+# V38.1 FULL MARKET UNIVERSE + COMPLETE EXCLUSIONS
 # ============================================================
-
-ELITE_COMPOUNDERS = [
-    "MSFT","AVGO","COST","LIN","MA","V","SPGI","ADBE","INTU","ORLY","MCD","WM","PG","PEP","TJX","SHW",
-    "AAPL","GOOGL","META","AMZN","UNH","LLY","ISRG","ADP","CDNS","SNPS","KLAC","LRCX"
-]
-
-GROWTH_LEADERS = [
-    "NVDA","CRWD","PANW","DDOG","MDB","CELH","SNOW","NET","AMD","SHOP","PLTR","TSLA","NOW","TEAM",
-    "ZS","FTNT","ANET","TTD","UBER","ABNB","DECK","ONON","ELF"
-]
-
-MIDCAP_GROWTH = [
-    "APP","DUOL","RKLB","IOT","CAVA","SYM","HIMS","SOFI","UPST","AFRM","TOST","GTLB","PATH","U",
-    "BROS","CHWY","WOLF","IONQ","JOBY","ACHR","RIVN","NIO","SOUN","BBAI","AI"
-]
-
-RECOVERY_VALUE = [
-    "PYPL","NKE","SBUX","ENPH","SEDG","SQ","DOCU","TGT","ADBE","CRM","AMD","TSLA","SHOP","SNOW",
-    "NET","CELH","CHWY","TOST","F","GM"
-]
-
-DEFENSIVE_QUALITY = [
-    "KO","PEP","PG","JNJ","ABBV","MCD","WM","DUK","SO","NEE","CME","CL","KMB","MDLZ","TMO","DHR"
-]
-
-ETF_ROTATION = [
-    "QQQ","SPY","IWM","DIA","SMH","SOXX","XLK","XLI","XLE","XLY","XLP","XLV","XLU","ARKK","VUG","VTV"
-]
-
-CORE_SCAN_TICKERS = sorted(set(
-    ELITE_COMPOUNDERS
-    + GROWTH_LEADERS
-    + MIDCAP_GROWTH
-    + RECOVERY_VALUE
-    + DEFENSIVE_QUALITY
-))
-
-RECOVERY_TICKERS = sorted(set(RECOVERY_TICKERS + RECOVERY_VALUE + MIDCAP_GROWTH))
-ETF_TICKERS = ETF_ROTATION
 
 EXCLUDED_SECTOR_KEYWORDS = [
-    "financial","bank","banks","insurance","capital markets","asset management","mortgage",
-    "reit","real estate","entertainment","media","broadcast","streaming","gaming","casino","resort"
+    # Financial
+    "bank","banks","banking","insurance","capital markets","asset management",
+    "mortgage","financial services","brokerage","credit services","investment banking",
+    "savings","thrift","diversified financials",
+    # Entertainment / Media
+    "entertainment","media","broadcast","streaming","music","film",
+    "television","publishing","advertising","content",
+    # Alcohol
+    "beverages—alcoholic","distillers","wineries","brewers","alcoholic beverages",
+    "alcohol","spirits","beer","wine","brewery","distillery","winery",
+    # Gaming / Casino / Vice
+    "gaming","casino","resort","gambling","lottery",
+    # Tobacco
+    "tobacco","cigarette",
+    # REIT / Real Estate
+    "reit","real estate investment","real estate services","real estate operating",
 ]
+
 EXCLUDED_TICKERS = {
-    "JPM","BAC","WFC","C","GS","MS","SCHW","COF","AXP","USB","PNC","TFC","BK","BLK","BX","KKR",
-    "AIG","MET","PRU","ALL","TRV","DIS","NFLX","WBD","PARA","CMCSA","ROKU","LYV","DKNG","PENN","MGM","WYNN","LVS",
-    "SPCE","GOEV","QS","FCEL","PLUG","BLNK","WKHS","MVST","LCID","OPEN","LAZR","CHPT","DNA"
+    # Banks / Insurance / Financial
+    "JPM","BAC","WFC","C","GS","MS","SCHW","COF","AXP","USB","PNC","TFC","BK",
+    "BLK","BX","KKR","APO","CG","ARES","OWL",
+    "AIG","MET","PRU","ALL","TRV","PFG","LNC","GL","AFL","CNO",
+    # Alcohol
+    "BUD","TAP","STZ","SAM","DEO","ABEV","HEINY","MGPI","CASK",
+    # Entertainment / Media / Streaming
+    "DIS","NFLX","WBD","PARA","CMCSA","LYV","SIRI","FOX","FOXA",
+    "RBLX","SNAP","MTCH","IAC",
+    # Casino / Gambling
+    "DKNG","PENN","MGM","WYNN","LVS","CZR","MLCO",
+    # Tobacco
+    "MO","PM","BTI","VGR",
+    # Speculative / delisting risk
+    "SPCE","GOEV","FCEL","BLNK","WKHS","MVST","LCID",
+    "LAZR","CHPT","DNA","RIDE","NKLA","HYLN",
 }
+
+UNIVERSE_FILE     = DATA_DIR / "universe.json"
+SCAN_CACHE_FILE   = DATA_DIR / "scan_cache.json"
+SECTOR_CACHE_FILE = DATA_DIR / "sector_cache.json"
+
+_UNIVERSE_SEED = sorted(set([
+    # ── Mega-cap tech ──────────────────────────────────────
+    "AAPL","MSFT","NVDA","GOOGL","META","AMZN","TSLA","AVGO","ORCL",
+    # ── Semiconductors ────────────────────────────────────
+    "AMD","QCOM","TXN","MU","AMAT","LRCX","KLAC","MCHP","MRVL","INTC",
+    "ON","SWKS","MPWR","ENTG","ONTO","ACMR","AEHR","AMBA","FORM","SLAB",
+    "ALGM","CRUS","DIOD","IOSP","KLIC","MTSI","NXPI","POWI","RPID","SITM",
+    # ── Cloud / SaaS ───────────────────────────────────────
+    "CRM","ADBE","NOW","SNOW","DDOG","MDB","TEAM","ZS","PANW","CRWD",
+    "NET","FTNT","OKTA","HUBS","BILL","PAYC","PCTY","FOUR","SMAR","GTLB",
+    "PATH","CFLT","ESTC","BRZE","SPSC","JAMF","CWAN","ALTR","ALKT","PRFT",
+    "NSIT","PDFS","EVTC","RAMP","NCNO","TASK","FIVN","AGYS","YEXT","PEGA",
+    "WEAVE","DCBO","LPSN","MNDY","FRSH","PAYO","KVYO","SEMR","CXAI",
+    "BOX","DOCN","SUMO","APPN","GLBE","TRMK","ESTC","RXMD","UPWK",
+    # ── Fintech / Payments ────────────────────────────────
+    "V","MA","PYPL","SQ","AFRM","SOFI","NU","UPST","TOST","FLYW","RPAY",
+    "FOUR","RELY","DAVE","SYF","DFS","WEX","EVOP","PLTK","GPN","FIS","FISV",
+    # ── Healthcare / Biotech / MedTech ────────────────────
+    "UNH","LLY","ABBV","TMO","DHR","ISRG","DXCM","PODD","INSP","TMDX",
+    "REGN","VRTX","BIIB","MRNA","BNTX","RARE","NBIX","EXEL","PCVX",
+    "AXSM","ACAD","SAGE","ARQT","PRCT","ALGN","IDXX","MASI","HOLX","NVCR",
+    "RMD","EW","SWAV","IRTC","NTRA","ALNY","IONS","RCKT","MDGL","KYMR",
+    "HCA","CNC","MOH","ELV","CI","CVS","MCK","CAH","ABC","TECH","BIO",
+    "INMD","ATEC","SILK","LMAT","CNMD","ICU","TELA","BLI","CLPT","LGND",
+    "HRMY","TARS","SNDX","IMVT","ROIV","RXRX","VERA","ARWR","FATE","BEAM",
+    "EDIT","NTLA","BLUE","CRSP","SGEN","PTGX","ALLO","DNLI","PRME",
+    # ── Consumer / Retail / Brands ────────────────────────
+    "COST","TGT","WMT","HD","LOW","ETSY","OLLI","FIVE","BJ","BIG",
+    "NKE","ONON","DECK","CROX","SKX","BOOT","LULU","PVH","RL","TPR",
+    "SBUX","MCD","CMG","SHAK","WING","CAVA","BROS","DNUT","JACK","EAT","DRI",
+    "ELF","ULTA","HIMS","CHWY","FRPT","PRPL","SKIN","COTY","REVG",
+    "GOOS","GH","BURL","TJX","ROST","DLTR","DG","PRGO","SPTN","WFRD",
+    "BJRI","FAT","RAVE","DENN","CAKE","NATH",
+    # ── Industrials / Infrastructure / Construction ───────
+    "CAT","DE","GE","ETN","EMR","HON","ROK","AME","PWR","HUBB","GNRC",
+    "FIX","BLDR","TREX","MLM","VMC","WSC","GMS","IBP","AAON","CARR",
+    "TT","JCI","ALLE","OTIS","XYL","UFPI","UFP","WCC","FLR","KBR",
+    "IESC","EME","ROAD","DY","MYR","MYRG","WLDN","PRIM","AWI","CSL",
+    "GRMN","POWR","ITGR","KFRC","TDY","KAMN","AIR","HEI","TDG","SPR",
+    "AXON","TASER","KTOS","CACI","SAIC","BAH","LDOS","L3H","GD","RTX",
+    "LMT","NOC","HII","BA","BWXT","BWA","RDW","SPIR",
+    # ── Energy / Oil & Gas / Renewables ───────────────────
+    "FANG","OXY","DVN","AR","NOG","VTLE","CIVI","KOS","CHRD","SM","CPE",
+    "MRO","COP","EOG","HES","XOM","CVX","SLB","HAL","BKR","CLR",
+    "ENPH","SEDG","FSLR","ARRY","RUN","NOVA","CWEN","ORA","BE",
+    "NEE","AES","BEP","BEPC","CLNE","VST","NRG","CLSK","CIFR",
+    "LBRT","PUMP","WTTR","NINE","KLXE","SOI","DNOW","DRIL",
+    # ── Aerospace / Defense / Space ───────────────────────
+    "RKLB","ASTS","LUNR","RDW","SPIR","MNTS","ORBC","SATL",
+    "JOBY","ACHR","LILM","BLDE","IONQ","RIVN","NIO","LI","XPEV","PSNY",
+    # ── Consumer Staples (non-alcohol) ────────────────────
+    "PG","CL","KMB","CHD","CLX","EL","SJM","MKC","HRL","GIS","K","CPB",
+    "MDLZ","KHC","CAG","POST","LANC","SMPL","LWAY","NOMD","VITL","HAIN",
+    "BRBR","CHEF","PFGC","USFD","FRSH","SG",
+    # ── Materials / Chemicals / Mining ────────────────────
+    "LIN","APD","ECL","PPG","SHW","RPM","EMN","HUN","FMC","ALB","LTHM",
+    "MP","LAC","PLL","SQM","FCX","NEM","AEM","GOLD","WPM","PAAS","HL",
+    # ── Data / Analytics / Ratings (non-bank) ─────────────
+    "VRSK","MCO","SPGI","ICE","MSCI","FDS","CBOE","NDAQ","IEX",
+    # ── International ADRs (non-excluded) ─────────────────
+    "MELI","GRAB","SE","GLOB","PAGS","TIMB","WDS","NU",
+    # ── Small/mid growth & recovery ───────────────────────
+    "CELH","PLTR","APP","DUOL","IOT","SYM","WOLF","SOUN","BBAI","AI",
+    "TOST","U","HIMS","UPST","CAVA","RIOT","MARA","HUT","BTBT",
+    "AFRM","BILL","SHOP","BIGC","TTD","APPS","IAS","DV","TBLA","YELP",
+    "OPEN","RDFN","Z","EXPI","MTCN","TREE","F","GM",
+    "PRGO","FLNC","STEM","GEVO","OPAD","SKLZ","WKHS",
+]))
+
+def _clean_universe(tickers):
+    out = []
+    for t in tickers:
+        t = str(t).strip().upper().replace("$","")
+        if t and 1 <= len(t) <= 5 and t.replace(".","").isalpha() and t not in EXCLUDED_TICKERS:
+            out.append(t)
+    return sorted(set(out))
+
+CORE_SCAN_TICKERS = _clean_universe(_UNIVERSE_SEED)
+
+RECOVERY_TICKERS = _clean_universe([
+    "PYPL","NKE","SBUX","ENPH","SEDG","SQ","DOCU","TGT","ADBE","CRM",
+    "AMD","TSLA","SHOP","SNOW","NET","CELH","CHWY","TOST","F","GM",
+    "SOFI","PLTR","HIMS","U","PATH","IONQ","RKLB","JOBY","ACHR","RIVN",
+    "BROS","ONON","AFRM","CAVA","WOLF","SOUN","BBAI","AI","UPST","BILL",
+    "LULU","MDB","DDOG","TEAM","ZS","GTLB","FTNT","OKTA","HUBS",
+    "ALGN","IDXX","DXCM","PODD","MRNA","BNTX","BIIB","REGN",
+    "FSLR","ARRY","RUN","NOVA","BE","CLSK","CIFR","RIOT","MARA",
+    "ASTS","RDFN","Z","GRAB","SE","MELI","GLOB","PAGS",
+])
 
 # ============================================================
 # LOGIN
@@ -458,7 +531,7 @@ def require_login():
     if st.session_state.logged_in:
         return
 
-    st.title("🔐 AI Trading Dashboard V36.2 Login Fix")
+    st.title("🔐 AI Trading Dashboard V38.1")
     st.caption("Secure login uses Render environment variables only. No passwords are stored in source code.")
 
     with st.form("login_form"):
@@ -789,19 +862,28 @@ def get_price_bucket(price):
 
 def is_excluded_company(ticker, info=None):
     ticker = normalize_ticker(str(ticker))
-    if ticker in EXCLUDED_TICKERS: return True
+    if ticker in EXCLUDED_TICKERS:
+        return True
     info = info or get_info(ticker)
-    combined = " ".join([str(info.get("sector","")),str(info.get("industry","")),str(info.get("longName",""))]).lower()
+    sector   = str(info.get("sector","")).lower()
+    industry = str(info.get("industry","")).lower()
+    longname = str(info.get("longName","")).lower()
+    combined = " ".join([sector, industry, longname])
     return any(kw in combined for kw in EXCLUDED_SECTOR_KEYWORDS)
 
 def filter_excluded_companies(tickers):
     clean = []
     for t in tickers:
         n = normalize_ticker(str(t))
-        if not n: continue
+        if not n:
+            continue
+        if n in EXCLUDED_TICKERS:
+            continue
         try:
-            if not is_excluded_company(n): clean.append(n)
-        except Exception: clean.append(n)
+            if not is_excluded_company(n):
+                clean.append(n)
+        except Exception:
+            clean.append(n)
     return clean
 
 def diversify_by_price_bucket(df, per_bucket=6, min_conviction=55):
@@ -1119,155 +1201,6 @@ def classify_investment_style(info, data):
     if fcf > 0 and margin > 0.12:       return "🛡 Quality Compounder"
     return "🟡 Swing / Watchlist Candidate"
 
-
-# ============================================================
-# V36.2 FACTOR RANKING ENGINE
-# ============================================================
-
-def build_factor_breakdown(row):
-    """
-    Explains WHY the stock ranks highly versus other candidates.
-    Creates institutional-style factor commentary.
-    """
-
-    positives = []
-    negatives = []
-    style_tags = []
-
-    conviction = float(row.get("Final Conviction") or 0)
-    rs = float(row.get("Relative Strength vs SPY %") or 0)
-    risk = float(row.get("Risk Score") or 50)
-
-    revenue_growth = parse_percent_value(row.get("Revenue Growth"))
-    earnings_growth = parse_percent_value(row.get("Earnings Growth"))
-    gross_margin = parse_percent_value(row.get("Gross Margin"))
-    operating_margin = parse_percent_value(row.get("Operating Margin"))
-    debt_equity = row.get("Debt/Equity")
-    pe = row.get("Forward PE")
-    peg = row.get("PEG Ratio")
-
-    financial_safety = str(row.get("Financial Safety", ""))
-    execution_quality = str(row.get("Execution Quality", ""))
-
-    # --------------------------------------------------------
-    # Strengths
-    # --------------------------------------------------------
-    if conviction >= 75:
-        positives.append("High overall conviction score across technical, fundamental, and macro analysis.")
-    elif conviction >= 65:
-        positives.append("Strong overall conviction score relative to the broader opportunity set.")
-
-    if rs > 10:
-        positives.append("Outperforming the broader market, showing relative strength versus SPY.")
-        style_tags.append("Momentum")
-    elif rs > 3:
-        positives.append("Holding up better than the market during recent trading periods.")
-
-    if revenue_growth is not None:
-        if revenue_growth > 15:
-            positives.append(f"Revenue growth is strong at approximately {revenue_growth:.1f}%.")
-            style_tags.append("Growth")
-        elif revenue_growth > 5:
-            positives.append(f"Revenue growth remains healthy at approximately {revenue_growth:.1f}%.")
-
-    if earnings_growth is not None and earnings_growth > 10:
-        positives.append(f"Earnings growth is solid at approximately {earnings_growth:.1f}%.")
-        style_tags.append("Earnings Compounder")
-
-    if gross_margin is not None and gross_margin > 45:
-        positives.append("Gross margins are strong, supporting business quality and pricing power.")
-        style_tags.append("Quality")
-
-    if operating_margin is not None and operating_margin > 15:
-        positives.append("Operating margins are healthy, indicating operational efficiency.")
-
-    if "🟢" in financial_safety:
-        positives.append("Financial safety checks passed with healthy cash flow and manageable balance sheet characteristics.")
-        style_tags.append("Financially Stable")
-
-    if risk < 35:
-        positives.append("Risk profile is lower than many comparable growth names.")
-        style_tags.append("Lower Volatility")
-
-    if pe not in [None, "N/A"]:
-        try:
-            pe_val = float(pe)
-            if pe_val < 22 and revenue_growth and revenue_growth > 10:
-                positives.append("Valuation appears reasonable relative to growth expectations.")
-                style_tags.append("Reasonable Valuation")
-        except Exception:
-            pass
-
-    # --------------------------------------------------------
-    # Risks / weaknesses
-    # --------------------------------------------------------
-    if debt_equity not in [None, "N/A"]:
-        try:
-            dte = float(debt_equity)
-            if dte > 150:
-                negatives.append(f"Debt-to-equity is elevated at {dte:.1f}, increasing balance sheet risk.")
-        except Exception:
-            pass
-
-    if revenue_growth is not None and revenue_growth < 3:
-        negatives.append("Revenue growth is relatively slow.")
-
-    if earnings_growth is not None and earnings_growth < 0:
-        negatives.append("Earnings growth is negative, which weakens forward expectations.")
-
-    if operating_margin is not None and operating_margin < 8:
-        negatives.append("Operating margins are thinner than ideal.")
-
-    if pe not in [None, "N/A"]:
-        try:
-            pe_val = float(pe)
-            if pe_val > 45:
-                negatives.append(f"Forward PE is elevated at {pe_val:.1f}, limiting valuation margin of safety.")
-        except Exception:
-            pass
-
-    if peg not in [None, "N/A"]:
-        try:
-            peg_val = float(peg)
-            if peg_val > 3:
-                negatives.append(f"PEG ratio is elevated at {peg_val:.2f}, meaning growth may already be priced in.")
-        except Exception:
-            pass
-
-    if "🔴" in execution_quality:
-        negatives.append("Execution quality screen flagged the setup as higher risk.")
-
-    if "🟠" in financial_safety:
-        negatives.append("Financial safety gate suggests smaller sizing or watchlist-only positioning.")
-
-    # --------------------------------------------------------
-    # Style summary
-    # --------------------------------------------------------
-    if not style_tags:
-        style_tags.append("Balanced")
-
-    style_summary = " • ".join(sorted(set(style_tags)))
-
-    # --------------------------------------------------------
-    # Final explanation
-    # --------------------------------------------------------
-    positive_text = " ".join(positives) if positives else "No major strengths identified."
-    negative_text = " ".join(negatives) if negatives else "No major financial or valuation concerns identified."
-
-    summary = (
-        f"This stock ranks highly because: {positive_text} "
-        f"Key risks or weaker areas: {negative_text}"
-    )
-
-    return {
-        "Factor Strengths": positive_text,
-        "Factor Risks": negative_text,
-        "Factor Style": style_summary,
-        "Why Ranked Highly": summary
-    }
-
-
-
 def build_research_summary(ticker, info, data):
     price = data.get("Price")
     forward_pe = info.get("forwardPE"); trailing_pe = info.get("trailingPE"); peg = info.get("pegRatio")
@@ -1455,7 +1388,7 @@ def build_ai_trade_plan(ticker, price, sma20, sma50, sma200, rsi, ai_score, risk
 
 
 # ============================================================
-# V36.2 FINANCIAL SAFETY GATE
+# V38.1 FINANCIAL SAFETY GATE
 # ============================================================
 
 def financial_safety_gate(info):
@@ -1813,18 +1746,12 @@ def analyze_ticker(ticker):
     row_data["Agent Greenlight"] = gl_status
     row_data["Agent Greenlight Detail"] = gl_detail
     row_data["Execution Quality"] = execution_quality_label(row_data)
-    factor_breakdown = build_factor_breakdown(row_data)
-    row_data["Factor Strengths"] = factor_breakdown["Factor Strengths"]
-    row_data["Factor Risks"] = factor_breakdown["Factor Risks"]
-    row_data["Factor Style"] = factor_breakdown["Factor Style"]
-    row_data["Why Ranked Highly"] = factor_breakdown["Why Ranked Highly"]
-
     row_data["Signal Confidence"] = get_signal_confidence_rating(row_data, market_regime)
     return row_data
 
 
 # ============================================================
-# V36.2 OPPORTUNITY CATEGORIZATION + DIVERSITY
+# V38.1 OPPORTUNITY CATEGORIZATION + DIVERSITY
 # ============================================================
 
 def parse_percent_value(value):
@@ -1973,7 +1900,198 @@ def show_opportunity_category_tabs(df):
 
 
 
-@st.cache_data(ttl=120)
+
+# ============================================================
+# V38.1 UNIVERSE MANAGEMENT + QUICK PRE-SCREEN + FUNNEL SCAN
+# ============================================================
+
+def load_sector_cache():
+    return load_json_file(SECTOR_CACHE_FILE, {})
+
+def save_sector_cache(cache):
+    return save_json_file(SECTOR_CACHE_FILE, cache)
+
+def load_scan_cache():
+    return load_json_file(SCAN_CACHE_FILE, {})
+
+def save_scan_cache(data):
+    return save_json_file(SCAN_CACHE_FILE, data)
+
+@st.cache_data(ttl=86400)
+def get_ticker_sector(ticker):
+    """Returns (sector, industry) for a ticker, using a disk cache to avoid repeated API calls."""
+    ticker = normalize_ticker(ticker)
+    cache  = load_sector_cache()
+    if ticker in cache:
+        return cache[ticker].get("sector",""), cache[ticker].get("industry","")
+    try:
+        info = yf.Ticker(ticker).info or {}
+        sector   = info.get("sector","") or ""
+        industry = info.get("industry","") or ""
+        cache[ticker] = {"sector": sector, "industry": industry}
+        save_sector_cache(cache)
+        return sector, industry
+    except Exception:
+        return "", ""
+
+def is_excluded_by_sector(ticker, sector=None, industry=None):
+    """Fast sector exclusion check — uses cached sector data."""
+    ticker = normalize_ticker(ticker)
+    if ticker in EXCLUDED_TICKERS:
+        return True
+    combined = " ".join([str(sector or ""), str(industry or "")]).lower()
+    return any(kw in combined for kw in EXCLUDED_SECTOR_KEYWORDS)
+
+def quick_technical_prescreen(tickers, min_price=2.0, max_rsi=84, min_rsi=12, min_vol_k=100):
+    """
+    Fast Stage-2 filter: single yfinance batch call, applies basic technical
+    gates to eliminate obvious non-starters.  Returns list of surviving tickers.
+    """
+    passing = []
+    # Process in chunks to avoid yfinance rate limits
+    chunk_size = 50
+    for i in range(0, len(tickers), chunk_size):
+        chunk = tickers[i:i+chunk_size]
+        try:
+            raw = yf.download(
+                chunk, period="3mo", interval="1d",
+                auto_adjust=False, progress=False, threads=True
+            )
+            if raw.empty:
+                continue
+            closes  = raw["Close"]  if "Close"  in raw.columns else raw.get("Close", pd.DataFrame())
+            volumes = raw["Volume"] if "Volume" in raw.columns else pd.DataFrame()
+            for t in chunk:
+                try:
+                    if t not in closes.columns:
+                        continue
+                    close_s = closes[t].dropna()
+                    if len(close_s) < 30:
+                        continue
+                    price = float(close_s.iloc[-1])
+                    if price < min_price:
+                        continue
+                    avg_vol = float(volumes[t].dropna().tail(20).mean()) if t in volumes.columns else 0
+                    if avg_vol < min_vol_k * 1000:
+                        continue
+                    rsi_val = float(calc_rsi(close_s).iloc[-1])
+                    if rsi_val > max_rsi or rsi_val < min_rsi:
+                        continue
+                    passing.append(t)
+                except Exception:
+                    continue
+        except Exception:
+            passing.extend(chunk)  # if batch fails, pass through for agent analysis
+    return passing
+
+@st.cache_data(ttl=300)
+def fetch_live_universe(
+    base_tickers: tuple = None,
+    min_price: float = 2.0,
+    min_avg_vol_k: float = 100,
+    apply_prescreen: bool = True,
+) -> list:
+    """
+    Returns a fully cleaned, pre-screened ticker list from the full universe.
+    Stage 1: Start from CORE_SCAN_TICKERS (our ~400-name seed universe).
+    Stage 2: Remove excluded tickers by name.
+    Stage 3 (optional): Quick technical pre-screen to cut obvious non-starters.
+    Returns the surviving list, ready for full 9-agent analysis.
+    """
+    tickers = list(base_tickers) if base_tickers else list(CORE_SCAN_TICKERS)
+
+    # Stage 1 — blocklist removal
+    tickers = [t for t in tickers if normalize_ticker(t) not in EXCLUDED_TICKERS]
+    tickers = list(dict.fromkeys(tickers))  # deduplicate preserving order
+
+    if not apply_prescreen:
+        return tickers
+
+    # Stage 2 — quick technical pre-screen
+    try:
+        survived = quick_technical_prescreen(
+            tickers,
+            min_price=min_price,
+            min_vol_k=min_avg_vol_k,
+        )
+        return survived if survived else tickers
+    except Exception:
+        return tickers
+
+
+@st.cache_data(ttl=3600)
+def run_full_universe_scan(progress_placeholder=None) -> pd.DataFrame:
+    """
+    Full 9-agent scan across the complete cleaned universe.
+    Designed to be run on-demand or nightly, cached for 1 hour.
+    Returns a DataFrame sorted by conviction — all sectors, all price tiers.
+    """
+    universe = fetch_live_universe(
+        base_tickers=tuple(CORE_SCAN_TICKERS),
+        apply_prescreen=True,
+    )
+
+    if not universe:
+        return pd.DataFrame()
+
+    results = []
+    total = len(universe)
+    chunk_size = max(8, total // 10)
+
+    def _analyze_safe(ticker):
+        try:
+            return analyze_ticker(ticker)
+        except Exception:
+            return None
+
+    try:
+        with ThreadPoolExecutor(max_workers=8) as ex:
+            all_results = list(ex.map(_analyze_safe, universe))
+        results = [r for r in all_results if r]
+    except Exception:
+        results = [r for r in (_analyze_safe(t) for t in universe) if r]
+
+    if not results:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(results)
+
+    # Remove excluded by sector (uses live sector data)
+    if "Ticker" in df.columns:
+        def _sector_ok(row):
+            info = get_info(row["Ticker"])
+            return not is_excluded_by_sector(
+                row["Ticker"],
+                info.get("sector",""),
+                info.get("industry",""),
+            )
+        df = df[df.apply(_sector_ok, axis=1)].copy()
+
+    if df.empty:
+        return df
+
+    sort_col = "Final Conviction" if "Final Conviction" in df.columns else "AI Score"
+    df = df.sort_values([sort_col, "Risk Score"], ascending=[False, True])
+
+    return df
+
+
+def get_universe_stats(df):
+    """Returns a summary dict of what the universe scan found."""
+    if df is None or df.empty:
+        return {}
+    stats = {"total": len(df)}
+    if "Price Bucket" in df.columns:
+        stats["by_price"] = df["Price Bucket"].value_counts().to_dict()
+    if "Signal" in df.columns:
+        stats["buy_now"] = int(df["Signal"].str.contains("BUY NOW", na=False).sum())
+        stats["watch"]   = int(df["Signal"].str.contains("Watch",   na=False).sum())
+    if "Sector" in df.columns:
+        stats["by_sector"] = df["Sector"].value_counts().head(8).to_dict()
+    return stats
+
+
+@st.cache_data(ttl=300)
 def build_scan(tickers, diversified=True, per_bucket=6, sector_diverse=True, min_conviction=55):
     unique = []
     for t in tickers:
@@ -2349,7 +2467,7 @@ def detail_page(ticker):
 
 
 # ============================================================
-# V36.2 FEATURE 1: TRADE HEALTH MONITOR
+# V38.1 FEATURE 1: TRADE HEALTH MONITOR
 # ============================================================
 
 def get_exit_strategy(entry_price, stop_loss, target_zone, rsi=None):
@@ -2449,7 +2567,7 @@ def render_trade_health_monitor(trade, data):
 
 
 # ============================================================
-# V36.2 FEATURE 2: ENTRY RANGE EMAIL ALERTS
+# V38.1 FEATURE 2: ENTRY RANGE EMAIL ALERTS
 # ============================================================
 
 def check_entry_range_alerts(watchlist_tickers, threshold=68):
@@ -2544,7 +2662,7 @@ def send_entry_range_email(alerts):
 
 
 # ============================================================
-# V36.2 FEATURE 3: BACKTESTING ENGINE
+# V38.1 FEATURE 3: BACKTESTING ENGINE
 # ============================================================
 
 def compute_historical_signal(close_series, high_series, low_series, volume_series, lookback_end_idx):
@@ -2736,7 +2854,7 @@ def render_simple_backtest_summary(df):
 # ============================================================
 
 st.sidebar.title("📈 AI Trading Dashboard")
-st.sidebar.caption("V36.2 — Exit Signals · Simple Backtesting · Entry Alerts · Trade Health")
+st.sidebar.caption("V38.1 — Exit Signals · Simple Backtesting · Entry Alerts · Trade Health")
 role_label = "Admin" if is_admin() else "View Only"
 st.sidebar.success(f"Logged in as: {role_label}")
 if alpaca_client: st.sidebar.success("🟢 Alpaca: Connected")
@@ -2832,10 +2950,10 @@ def render_morning_briefing(scan_df, recovery_df=None, etf_df=None):
 
 
 modern_hero(
-    "📈 AI Trading Dashboard V36.2",
+    "📈 AI Trading Dashboard V38.1",
     "9 Agents · Fundamentals · Exit signals · Simple Backtesting · Entry alerts · Trade health monitor"
 )
-st.caption("V36.2 — Exit signals, simple_backtesting, entry range email alerts, and trade health monitoring added. Not financial advice.")
+st.caption("V38.1 — Exit signals, simple_backtesting, entry range email alerts, and trade health monitoring added. Not financial advice.")
 
 _log_for_threshold = load_signal_log()
 _threshold, _threshold_note = get_adaptive_conviction_threshold(_log_for_threshold)
@@ -2847,7 +2965,238 @@ st.session_state["adaptive_threshold"] = _threshold
 
 
 # ============================================================
-# V36.2 AI QUALITY RECOVERY ENGINE
+# V38.1 DAILY SYSTEM HELPERS
+# ============================================================
+
+def load_watchlist_safe():
+    try:
+        wl = load_watchlist()
+        return sorted(set([normalize_ticker(str(x)) for x in wl if normalize_ticker(str(x))]))
+    except Exception:
+        return []
+
+
+def save_watchlist_safe(watchlist):
+    try:
+        st.session_state.watchlist = sorted(set([normalize_ticker(str(x)) for x in watchlist if normalize_ticker(str(x))]))
+        return save_watchlist()
+    except Exception:
+        return False
+
+
+def broaden_top_candidates(df, min_count=30):
+    if df is None or df.empty:
+        return pd.DataFrame()
+
+    work = df.copy()
+    if "Final Conviction" in work.columns:
+        work = work.sort_values("Final Conviction", ascending=False)
+
+    frames = []
+    if "Execution Quality" in work.columns:
+        safe = work[work["Execution Quality"].astype(str).str.contains("Execution Candidate|Starter Candidate", na=False)].copy()
+        if not safe.empty:
+            frames.append(safe)
+
+    if "Final Conviction" in work.columns:
+        expanded = work[work["Final Conviction"].fillna(0) >= 38].copy()
+    else:
+        expanded = work.copy()
+
+    if "Execution Quality" in expanded.columns:
+        expanded = expanded[~expanded["Execution Quality"].astype(str).str.contains("Avoid Execution", na=False)]
+
+    frames.append(expanded)
+    combined = pd.concat(frames, ignore_index=True).drop_duplicates(subset=["Ticker"]) if frames else work
+
+    if "Price Bucket" in combined.columns and "Final Conviction" in combined.columns:
+        pieces = []
+        for _, sub in combined.groupby("Price Bucket"):
+            pieces.append(sub.sort_values("Final Conviction", ascending=False).head(15))
+        if pieces:
+            combined = pd.concat(pieces, ignore_index=True).drop_duplicates(subset=["Ticker"])
+            combined = combined.sort_values("Final Conviction", ascending=False)
+
+    return combined.head(max(min_count, 75))
+
+
+def go_to_detail_button(ticker, key_prefix="detail"):
+    ticker = normalize_ticker(str(ticker))
+    if not ticker:
+        return
+    if st.button("View Details", key=f"{key_prefix}_{ticker}_{abs(hash(key_prefix + ticker)) % 100000}", use_container_width=True):
+        st.session_state.nav_override = "Detail View"
+        st.session_state.selected_detail_ticker = ticker
+        st.rerun()
+
+
+def add_watch_button(ticker, key_prefix="watch"):
+    ticker = normalize_ticker(str(ticker))
+    if not ticker:
+        return
+
+    if "watchlist" not in st.session_state:
+        st.session_state.watchlist = load_watchlist_safe()
+
+    already_saved = ticker in st.session_state.get("watchlist", [])
+    label = "Saved" if already_saved else "Add Watch"
+    if st.button(label, key=f"{key_prefix}_{ticker}_{abs(hash(key_prefix + ticker)) % 100000}", use_container_width=True, disabled=already_saved):
+        ok, msg = add_ticker_to_watchlist(ticker)
+        if ok:
+            st.success(msg)
+        else:
+            st.info(msg)
+        st.rerun()
+
+
+def render_actionable_table(df, table_id="action_table", max_rows=50):
+    if df is None or df.empty:
+        st.info("No stocks to display.")
+        return
+
+    show_cols = [
+        "Ticker","Company Name","Price","Price Bucket","Final Conviction","Execution Quality",
+        "Financial Safety","Agent Greenlight","Signal Confidence","Investment Style",
+        "Entry Range","Stop Loss","Target / Sell Zone"
+    ]
+    show_cols = [c for c in show_cols if c in df.columns]
+    display_df = df.head(max_rows).copy()
+
+    st.dataframe(display_df[show_cols], use_container_width=True, hide_index=True)
+
+    with st.expander("Quick actions for visible stocks", expanded=False):
+        for _, row in display_df.iterrows():
+            ticker = row.get("Ticker")
+            company = row.get("Company Name", ticker)
+            c1, c2, c3 = st.columns([2,1,1])
+            with c1:
+                st.write(f"**{ticker}** — {company}")
+            with c2:
+                go_to_detail_button(ticker, key_prefix=f"{table_id}_detail")
+            with c3:
+                add_watch_button(ticker, key_prefix=f"{table_id}_watch")
+
+
+def render_price_tier_tabs(df, title="💵 Opportunities by Price Tier"):
+    if df is None or df.empty:
+        st.info("No price-tier data available.")
+        return
+
+    modern_section(title, "Candidates grouped by price range so lower-priced opportunities are visible.")
+
+    buckets = ["Under $10","$10-$30","$30-$75","$75-$150","$150+"]
+    tabs = st.tabs(buckets)
+
+    for tab, bucket in zip(tabs, buckets):
+        with tab:
+            if "Price Bucket" not in df.columns:
+                st.info("Price bucket data unavailable.")
+                continue
+
+            sub = df[df["Price Bucket"].astype(str).eq(bucket)]
+            if sub.empty:
+                st.info(f"No current candidates in {bucket}.")
+            else:
+                sub = sub.sort_values("Final Conviction", ascending=False) if "Final Conviction" in sub.columns else sub
+                render_signal_cards(sub, limit=20, show_checklist=True)
+                render_actionable_table(sub, table_id=f"price_{bucket}", max_rows=20)
+
+
+def render_watchlist_analysis_section(location_key="dashboard"):
+    modern_section("⭐ My Watchlist Agent Analysis", "Your saved stocks analyzed through the same AI agents with detail access.")
+
+    try:
+        if "watchlist" not in st.session_state:
+            st.session_state.watchlist = load_watchlist_safe()
+
+        with st.expander("Add a stock to watchlist", expanded=False):
+            new_ticker = st.text_input("Ticker to add", key=f"{location_key}_manual_add").upper().strip()
+            if st.button("Add to Watchlist", key=f"{location_key}_manual_btn"):
+                ok, msg = add_ticker_to_watchlist(new_ticker)
+                if ok:
+                    st.success(msg)
+                else:
+                    st.info(msg)
+                st.rerun()
+
+        watchlist_tickers = st.session_state.get("watchlist", [])
+        if watchlist_tickers:
+            watch_df = build_scan(watchlist_tickers, diversified=False, sector_diverse=False, min_conviction=0)
+            if watch_df is not None and not watch_df.empty:
+                render_signal_cards(watch_df, limit=50, show_checklist=True)
+                render_actionable_table(watch_df, table_id=f"{location_key}_watchlist", max_rows=50)
+            else:
+                st.info("Watchlist is saved, but no analyzable data came back yet.")
+        else:
+            st.info("No watchlist stocks yet. Use Add Watch from cards or add manually.")
+    except Exception as e:
+        st.warning(f"Watchlist analysis unavailable: {e}")
+
+
+def get_expanded_market_universe():
+    try:
+        return filter_excluded_companies(CORE_SCAN_TICKERS)
+    except Exception:
+        return CORE_SCAN_TICKERS
+
+
+def clear_market_data_caches():
+    for fn_name in ["get_history", "get_live_quote", "build_scan", "macro_agent"]:
+        try:
+            globals()[fn_name].clear()
+        except Exception:
+            pass
+
+
+def mark_last_price_refresh():
+    st.session_state.last_price_refresh = datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
+
+
+def show_price_refresh_status():
+    last = st.session_state.get("last_price_refresh", "Not refreshed yet")
+    st.caption(f"🕒 Last price refresh: {last}")
+
+
+def send_buy_alert_if_needed(df, alert_type="Top Signals"):
+    try:
+        if df is None or df.empty:
+            return False, "No alert candidates."
+
+        candidates = df.copy()
+        if "Execution Quality" in candidates.columns:
+            filtered = candidates[candidates["Execution Quality"].astype(str).str.contains("Execution Candidate|Starter Candidate", na=False)]
+            if not filtered.empty:
+                candidates = filtered
+
+        tickers = candidates["Ticker"].dropna().astype(str).head(15).tolist()
+        if not tickers:
+            return False, "No tickers to alert."
+
+        rows = []
+        for _, r in candidates.head(15).iterrows():
+            rows.append(
+                f"{r.get('Ticker')} - {r.get('Company Name', '')}: "
+                f"Conviction {r.get('Final Conviction')}, "
+                f"{r.get('Execution Quality', '')}, "
+                f"{r.get('Financial Safety', '')}"
+            )
+
+        body = "AI Trading Dashboard Buy Alert\\n\\n" + "\\n".join(rows)
+        ok, msg = send_email_alert(f"AI Dashboard {alert_type} Alert", body)
+
+        if ok and "log_alert" in globals():
+            log_alert(alert_type, tickers)
+
+        return ok, msg
+    except Exception as e:
+        return False, f"Email alert failed: {e}"
+
+
+
+
+
+# ============================================================
+# V38.1 QUALITY RECOVERY ENGINE
 # ============================================================
 
 def parse_money_value(value):
@@ -2875,9 +3224,6 @@ def parse_money_value(value):
 
 
 def detect_value_trap_risk(row):
-    """
-    Flags stocks that look cheap/recovering but have deteriorating fundamentals.
-    """
     red_flags = []
     caution_flags = []
 
@@ -2925,10 +3271,6 @@ def detect_value_trap_risk(row):
 
 
 def quality_recovery_score(row):
-    """
-    Scores beaten-down names that still have good financial quality.
-    This is intentionally different from pure BUY NOW momentum.
-    """
     score = 0
     reasons = []
 
@@ -2960,13 +3302,21 @@ def quality_recovery_score(row):
 
     try:
         recovery_agent = float(recovery_agent or 0)
+    except Exception:
+        recovery_agent = 0
+    try:
         cashflow_agent = float(cashflow_agent or 0)
+    except Exception:
+        cashflow_agent = 0
+    try:
         earnings_agent = float(earnings_agent or 0)
+    except Exception:
+        earnings_agent = 0
+    try:
         valuation_agent_score = float(valuation_agent_score or 0)
     except Exception:
-        pass
+        valuation_agent_score = 0
 
-    # Overreaction / drawdown
     if from_high <= -35:
         score += 18
         reasons.append("deep pullback from highs")
@@ -2977,15 +3327,13 @@ def quality_recovery_score(row):
         score += 8
         reasons.append("moderate pullback")
 
-    # Oversold but not broken
     if 30 <= rsi <= 45:
         score += 15
         reasons.append("RSI shows potential recovery zone")
     elif rsi < 30:
         score += 10
-        reasons.append("very oversold, but may need confirmation")
+        reasons.append("very oversold, confirmation needed")
 
-    # Recovery agent
     if recovery_agent >= 65:
         score += 18
         reasons.append("recovery agent is supportive")
@@ -2993,7 +3341,6 @@ def quality_recovery_score(row):
         score += 10
         reasons.append("recovery agent is moderately supportive")
 
-    # Business quality
     if cashflow_agent >= 65:
         score += 18
         reasons.append("cash flow quality remains strong")
@@ -3009,7 +3356,6 @@ def quality_recovery_score(row):
         score += 10
         reasons.append("valuation support is improving after the pullback")
 
-    # Financial safety gate
     if "🟢" in financial_safety:
         score += 15
         reasons.append("financial safety gate passes")
@@ -3024,7 +3370,6 @@ def quality_recovery_score(row):
         score -= 20
         reasons.append("execution quality is not approved")
 
-    # Stabilization
     if rs > -5:
         score += 7
         reasons.append("relative strength is stabilizing")
@@ -3032,7 +3377,6 @@ def quality_recovery_score(row):
         score += 8
         reasons.append("relative strength has turned positive")
 
-    # Value-trap penalty
     if "🔴" in value_trap:
         score -= 30
         reasons.append("value trap risk is high")
@@ -3067,11 +3411,7 @@ def add_recovery_quality_columns(df):
         return df
 
     work = df.copy()
-    scores = []
-    labels = []
-    reasons = []
-    trap_labels = []
-    trap_reasons = []
+    scores, labels, reasons, trap_labels, trap_reasons = [], [], [], [], []
 
     for _, row in work.iterrows():
         score, label, reason, trap_label, trap_reason = quality_recovery_score(row)
@@ -3086,7 +3426,6 @@ def add_recovery_quality_columns(df):
     work["Recovery Reason"] = reasons
     work["Value Trap Check"] = trap_labels
     work["Value Trap Detail"] = trap_reasons
-
     return work
 
 
@@ -3095,11 +3434,9 @@ def get_quality_recovery_candidates(df, min_score=50):
         return pd.DataFrame()
 
     work = add_recovery_quality_columns(df)
-
     if "AI Recovery Score" not in work.columns:
         return pd.DataFrame()
 
-    # Keep real recovery candidates but avoid obvious value traps at the top.
     safe = work[
         (work["AI Recovery Score"].fillna(0) >= min_score) &
         (~work["Value Trap Check"].astype(str).str.contains("🔴", na=False))
@@ -3108,7 +3445,13 @@ def get_quality_recovery_candidates(df, min_score=50):
     if safe.empty:
         return safe
 
-    return safe.sort_values(["AI Recovery Score", "Final Conviction"], ascending=[False, False])
+    sort_cols = ["AI Recovery Score"]
+    asc = [False]
+    if "Final Conviction" in safe.columns:
+        sort_cols.append("Final Conviction")
+        asc.append(False)
+
+    return safe.sort_values(sort_cols, ascending=asc)
 
 
 def render_recovery_opportunity_cards(df, limit=12):
@@ -3147,209 +3490,561 @@ def render_recovery_opportunity_cards(df, limit=12):
         with c1:
             st.link_button("Open chart", f"https://finance.yahoo.com/quote/{ticker}", use_container_width=True)
         with c2:
-            if st.button("View Details", key=f"recovery_details_{ticker}_{abs(hash(str(ticker))) % 100000}", use_container_width=True):
-                st.session_state.nav_override = "Detail View"
-                st.session_state.selected_detail_ticker = ticker
-                st.rerun()
+            go_to_detail_button(ticker, key_prefix=f"recovery_details")
         with c3:
-            already_saved = ticker in st.session_state.get("watchlist", [])
-            add_label = "Saved" if already_saved else "Add Watch"
-            if st.button(add_label, key=f"recovery_add_watch_{ticker}_{abs(hash('recovery_watch_'+str(ticker))) % 100000}", use_container_width=True, disabled=already_saved):
-                ok, msg = add_ticker_to_watchlist(ticker)
-                if ok:
-                    st.success(msg)
-                else:
-                    st.info(msg)
-                st.rerun()
+            add_watch_button(ticker, key_prefix=f"recovery_watch")
 
+
+
+
+def render_watchlist_management_controls(location_key="watchlist_manage"):
+    modern_section("🛠️ Watchlist Management", "Remove saved tickers, reset defaults, or verify where your watchlist is stored.")
+
+    if "watchlist" not in st.session_state:
+        st.session_state.watchlist = load_watchlist_safe()
+
+    st.caption(f"Watchlist file: {WATCHLIST_FILE}")
+
+    if not st.session_state.watchlist:
+        st.info("Watchlist is empty.")
+    else:
+        for ticker in list(st.session_state.watchlist):
+            c1, c2 = st.columns([3, 1])
+            with c1:
+                st.write(f"**{ticker}**")
+            with c2:
+                if st.button("Remove", key=f"{location_key}_remove_{ticker}"):
+                    st.session_state.watchlist = [t for t in st.session_state.watchlist if t != ticker]
+                    save_watchlist_safe(st.session_state.watchlist)
+                    st.rerun()
+
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("Reset to Default Watchlist", key=f"{location_key}_reset"):
+            st.session_state.watchlist = sorted(set(DEFAULT_WATCHLIST))
+            save_watchlist_safe(st.session_state.watchlist)
+            st.rerun()
+    with c2:
+        if st.button("Save Watchlist Now", key=f"{location_key}_save"):
+            ok = save_watchlist_safe(st.session_state.watchlist)
+            if ok:
+                st.success("Watchlist saved.")
+            else:
+                st.error("Could not save watchlist.")
 
 
 
 # ============================================================
-# V36.2 LIVE PRICE REFRESH HELPERS
+# V38.1 TRUE MARKET SCAN ENGINE — SPLIT SCAN ARCHITECTURE
 # ============================================================
 
-def clear_market_data_caches():
+TOTAL_UNIVERSE_FILE = DATA_DIR / "total_market_universe.json"
+PRESCREEN_FILE      = DATA_DIR / "market_prescreen.json"
+FULL_SCAN_FILE      = DATA_DIR / "market_full_scan.json"
+SCAN_STATE_FILE     = DATA_DIR / "market_scan_state.json"
+
+MARKET_SCAN_MIN_PRICE = float(os.getenv("MARKET_SCAN_MIN_PRICE", "2"))
+MARKET_SCAN_MIN_AVG_VOLUME = int(os.getenv("MARKET_SCAN_MIN_AVG_VOLUME", "150000"))
+MARKET_SCAN_CHUNK_SIZE = int(os.getenv("MARKET_SCAN_CHUNK_SIZE", "175"))
+MARKET_SCAN_MAX_DEEP_PER_BATCH = int(os.getenv("MARKET_SCAN_MAX_DEEP_PER_BATCH", "80"))
+
+
+def _read_json_safe(path, default):
+    try:
+        p = Path(path)
+        if p.exists():
+            with p.open("r") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return default
+
+
+def _write_json_safe(path, data):
+    try:
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with p.open("w") as f:
+            json.dump(data, f, indent=2, default=str)
+        return True
+    except Exception as e:
+        st.warning(f"Could not save {path}: {e}")
+        return False
+
+
+def fetch_total_market_universe(force=False):
     """
-    Clears cached market data so auto-refresh actually pulls fresh prices.
-    Streamlit rerun alone is not enough if get_history/build_scan are cached.
+    Builds a broad US equity universe from NASDAQ Trader symbol directories.
+    This is much closer to full-market coverage than the curated CORE_SCAN_TICKERS list.
+
+    It excludes ETFs/test issues and your restricted categories/tickers where possible.
+    Sector/industry exclusions still happen later when get_info() is available.
     """
+    cached = _read_json_safe(TOTAL_UNIVERSE_FILE, {})
+    if cached and not force:
+        age_hours = (time.time() - cached.get("created_ts", 0)) / 3600
+        if age_hours < 24 and cached.get("tickers"):
+            return cached["tickers"]
+
+    tickers = set()
+
+    # NASDAQ-listed
     try:
-        get_history.clear()
+        nasdaq_url = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
+        nasdaq_df = pd.read_csv(nasdaq_url, sep="|")
+        if "Symbol" in nasdaq_df.columns:
+            if "Test Issue" in nasdaq_df.columns:
+                nasdaq_df = nasdaq_df[nasdaq_df["Test Issue"].astype(str).str.upper() != "Y"]
+            if "ETF" in nasdaq_df.columns:
+                nasdaq_df = nasdaq_df[nasdaq_df["ETF"].astype(str).str.upper() != "Y"]
+            tickers.update(nasdaq_df["Symbol"].dropna().astype(str).tolist())
     except Exception:
         pass
 
+    # NYSE/AMEX/other listed
     try:
-        get_live_quote.clear()
+        other_url = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
+        other_df = pd.read_csv(other_url, sep="|")
+        if "ACT Symbol" in other_df.columns:
+            if "Test Issue" in other_df.columns:
+                other_df = other_df[other_df["Test Issue"].astype(str).str.upper() != "Y"]
+            if "ETF" in other_df.columns:
+                other_df = other_df[other_df["ETF"].astype(str).str.upper() != "Y"]
+            tickers.update(other_df["ACT Symbol"].dropna().astype(str).tolist())
     except Exception:
         pass
 
-    try:
-        get_info.clear()
-    except Exception:
-        pass
+    # Fallback if web source fails
+    if not tickers:
+        tickers = set(CORE_SCAN_TICKERS)
+
+    cleaned = []
+    for t in tickers:
+        t = str(t).strip().upper().replace("$", "")
+        # Skip warrants, rights, units, preferreds, odd symbols, etc.
+        if not t or t in EXCLUDED_TICKERS:
+            continue
+        if any(x in t for x in ["^", "/", "$"]):
+            continue
+        if "." in t:
+            continue
+        if len(t) > 5:
+            continue
+        if not t.replace("-", "").isalpha():
+            continue
+        # common suffix filters
+        if t.endswith(("W", "WS", "WT", "U", "R")) and len(t) >= 4:
+            continue
+        cleaned.append(t)
+
+    cleaned = sorted(set(cleaned))
+    _write_json_safe(TOTAL_UNIVERSE_FILE, {
+        "created_at": datetime.now(EASTERN).isoformat(),
+        "created_ts": time.time(),
+        "count": len(cleaned),
+        "tickers": cleaned,
+    })
+    return cleaned
+
+
+def quick_prescreen_one(ticker):
+    """
+    Lightweight pre-screen to avoid running expensive 9-agent analysis on every stock.
+    Uses price, liquidity, basic trend/RSI, and avoids excluded companies after info is available.
+    """
+    ticker = normalize_ticker(ticker)
+    if not ticker or ticker in EXCLUDED_TICKERS:
+        return None
 
     try:
-        build_scan.clear()
-    except Exception:
-        pass
+        hist = get_history(ticker, period="6mo")
+        if hist is None or hist.empty or len(hist) < 45:
+            return None
 
+        price = float(hist["Close"].iloc[-1])
+        if price < MARKET_SCAN_MIN_PRICE:
+            return None
+
+        avg_vol = float(hist["Volume"].tail(20).mean())
+        if avg_vol < MARKET_SCAN_MIN_AVG_VOLUME:
+            return None
+
+        close = hist["Close"]
+        sma20 = close.rolling(20).mean().iloc[-1]
+        sma50 = close.rolling(50).mean().iloc[-1]
+        rsi = calc_rsi(close).iloc[-1]
+        high_52 = hist["High"].max()
+        from_high = ((price - high_52) / high_52) * 100 if high_52 else 0
+
+        # Do not fully block weak charts; keep recovery candidates too.
+        trend_ok = price > sma20 or price > sma50
+        recovery_ok = 25 <= float(rsi or 50) <= 55 and from_high <= -12
+        momentum_ok = 40 <= float(rsi or 50) <= 72 and avg_vol >= MARKET_SCAN_MIN_AVG_VOLUME
+
+        if not (trend_ok or recovery_ok or momentum_ok):
+            return None
+
+        # Sector exclusion is expensive; do it only after basic liquidity/price pass.
+        try:
+            info = get_info(ticker)
+            if is_excluded_company(ticker, info):
+                return None
+        except Exception:
+            pass
+
+        quick_score = 0
+        if price > sma20:
+            quick_score += 20
+        if price > sma50:
+            quick_score += 25
+        if 40 <= rsi <= 70:
+            quick_score += 20
+        if avg_vol >= 500_000:
+            quick_score += 15
+        if from_high <= -15:
+            quick_score += 10  # recovery potential
+        if price < 75:
+            quick_score += 10  # keep lower-priced ideas visible
+
+        return {
+            "Ticker": ticker,
+            "Price": round(price, 2),
+            "Avg Volume": int(avg_vol),
+            "RSI": round(float(rsi), 1) if not pd.isna(rsi) else None,
+            "From 52W High %": round(float(from_high), 1),
+            "Quick Score": round(float(quick_score), 0),
+            "Price Bucket": get_price_bucket(price),
+        }
+    except Exception:
+        return None
+
+
+def run_market_prescreen_batch(batch="A", chunk_size=None):
+    """
+    Split full-market scan into A/B halves to prevent crashes.
+    Run A then B. Both append to market_prescreen.json.
+    """
+    chunk_size = chunk_size or MARKET_SCAN_CHUNK_SIZE
+    universe = fetch_total_market_universe(force=False)
+    if not universe:
+        return pd.DataFrame(), "No universe available."
+
+    midpoint = len(universe) // 2
+    selected = universe[:midpoint] if str(batch).upper() == "A" else universe[midpoint:]
+
+    state = _read_json_safe(SCAN_STATE_FILE, {})
+    key = f"prescreen_index_{str(batch).upper()}"
+    start_idx = int(state.get(key, 0))
+    end_idx = min(start_idx + chunk_size, len(selected))
+    batch_tickers = selected[start_idx:end_idx]
+
+    results = []
+    if batch_tickers:
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            for item in executor.map(quick_prescreen_one, batch_tickers):
+                if item:
+                    results.append(item)
+
+    existing = _read_json_safe(PRESCREEN_FILE, [])
+    combined = {x["Ticker"]: x for x in existing if isinstance(x, dict) and x.get("Ticker")}
+    for item in results:
+        combined[item["Ticker"]] = item
+
+    prescreen_list = sorted(combined.values(), key=lambda x: x.get("Quick Score", 0), reverse=True)
+    _write_json_safe(PRESCREEN_FILE, prescreen_list)
+
+    # advance or wrap
+    state[key] = 0 if end_idx >= len(selected) else end_idx
+    state[f"last_prescreen_{str(batch).upper()}"] = datetime.now(EASTERN).isoformat()
+    state["universe_count"] = len(universe)
+    state["prescreen_count"] = len(prescreen_list)
+    _write_json_safe(SCAN_STATE_FILE, state)
+
+    msg = f"Batch {batch}: scanned {start_idx + 1}-{end_idx} of {len(selected)} tickers. Added {len(results)} candidates. Total prescreen candidates: {len(prescreen_list)}."
+    return pd.DataFrame(results), msg
+
+
+def run_full_agent_scan_from_prescreen(max_names=None):
+    """
+    Runs full 9-agent analysis only on prescreen survivors.
+    This avoids running expensive fundamentals on thousands of stocks.
+    """
+    max_names = max_names or MARKET_SCAN_MAX_DEEP_PER_BATCH
+    prescreen = _read_json_safe(PRESCREEN_FILE, [])
+    if not prescreen:
+        return pd.DataFrame(), "No prescreen candidates found. Run Batch A/B first."
+
+    # prioritize high quick score and price diversity
+    pre_df = pd.DataFrame(prescreen)
+    if pre_df.empty or "Ticker" not in pre_df.columns:
+        return pd.DataFrame(), "Prescreen file is empty or invalid."
+
+    pre_df = pre_df.sort_values("Quick Score", ascending=False)
+    selected = []
+
+    # Price bucket balance
+    if "Price Bucket" in pre_df.columns:
+        per_bucket = max(8, max_names // 5)
+        for _, sub in pre_df.groupby("Price Bucket"):
+            selected += sub.sort_values("Quick Score", ascending=False)["Ticker"].head(per_bucket).tolist()
+
+    selected += pre_df["Ticker"].head(max_names).tolist()
+    selected = list(dict.fromkeys(selected))[:max_names]
+
+    if not selected:
+        return pd.DataFrame(), "No selected candidates."
+
+    deep_df = build_scan(selected, diversified=False, sector_diverse=False, min_conviction=0)
+    if deep_df is None or deep_df.empty:
+        return pd.DataFrame(), "Full agent scan returned no rows."
+
+    existing = _read_json_safe(FULL_SCAN_FILE, [])
+    old_df = pd.DataFrame(existing) if existing else pd.DataFrame()
+    combined = pd.concat([old_df, deep_df], ignore_index=True) if not old_df.empty else deep_df
+    combined = combined.drop_duplicates(subset=["Ticker"], keep="last")
+
+    if "Final Conviction" in combined.columns:
+        combined = combined.sort_values("Final Conviction", ascending=False)
+
+    _write_json_safe(FULL_SCAN_FILE, combined.to_dict(orient="records"))
+
+    state = _read_json_safe(SCAN_STATE_FILE, {})
+    state["last_full_agent_scan"] = datetime.now(EASTERN).isoformat()
+    state["full_scan_count"] = len(combined)
+    _write_json_safe(SCAN_STATE_FILE, state)
+
+    return deep_df, f"Full agent scan completed on {len(selected)} prescreen candidates. Total stored full-scan rows: {len(combined)}."
+
+
+def load_full_market_scan_df():
+    data = _read_json_safe(FULL_SCAN_FILE, [])
+    if not data:
+        return pd.DataFrame()
     try:
-        macro_agent.clear()
+        return pd.DataFrame(data)
     except Exception:
-        pass
+        return pd.DataFrame()
 
 
-def mark_last_price_refresh():
-    st.session_state.last_price_refresh = datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
+def render_true_market_scan_controls():
+    modern_section("🌎 True Market Scan Controls", "Split full-market coverage into stable A/B batches so the dashboard does not crash.")
+
+    state = _read_json_safe(SCAN_STATE_FILE, {})
+    universe = fetch_total_market_universe(force=False)
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Universe", len(universe))
+    c2.metric("Prescreen Candidates", state.get("prescreen_count", 0))
+    c3.metric("Full Agent Rows", state.get("full_scan_count", 0))
+    c4.metric("Chunk Size", MARKET_SCAN_CHUNK_SIZE)
+
+    st.caption("Run Batch A and Batch B repeatedly. Each click scans the next chunk. Then run Full Agent Scan on the prescreen survivors.")
+
+    with st.expander("🌙 How to run this as an overnight scan", expanded=False):
+        st.markdown("""
+        **Manual overnight workflow using Render Cron Job:**
+
+        1. Create a Render **Cron Job**.
+        2. Use the same repo and environment variables as your dashboard.
+        3. Command:
+        ```bash
+        python overnight_market_scan.py
+        ```
+        4. Suggested schedule:
+        ```text
+        0 2 * * 1-5
+        ```
+        This means 2:00 AM UTC Monday-Friday. Adjust based on your Render timezone needs.
+
+        **What the overnight job should do:**
+        - refresh total market universe
+        - run Prescreen Batch A and Batch B repeatedly until complete
+        - run full agent scan on the best prescreen survivors
+        - save `market_full_scan.json`
+        - dashboard loads that file instantly in the morning
+
+        In this single-file Streamlit build, you can test the exact process manually using:
+        - Run Prescreen Batch A
+        - Run Prescreen Batch B
+        - Run Full Agent Scan
+        """)
 
 
-def show_price_refresh_status():
-    last = st.session_state.get("last_price_refresh", "Not refreshed yet")
-    st.caption(f"🕒 Last price refresh: {last}")
+    b1, b2, b3, b4 = st.columns(4)
+
+    with b1:
+        if st.button("Run Prescreen Batch A"):
+            df, msg = run_market_prescreen_batch("A")
+            st.success(msg)
+            if df is not None and not df.empty:
+                st.dataframe(df, use_container_width=True, hide_index=True)
+
+    with b2:
+        if st.button("Run Prescreen Batch B"):
+            df, msg = run_market_prescreen_batch("B")
+            st.success(msg)
+            if df is not None and not df.empty:
+                st.dataframe(df, use_container_width=True, hide_index=True)
+
+    with b3:
+        if st.button("Run Full Agent Scan"):
+            df, msg = run_full_agent_scan_from_prescreen()
+            st.success(msg)
+            if df is not None and not df.empty:
+                render_actionable_table(df, table_id="fresh_agent_scan", max_rows=50)
+
+    with b4:
+        if st.button("Refresh Universe"):
+            fresh = fetch_total_market_universe(force=True)
+            st.success(f"Universe refreshed: {len(fresh)} tickers.")
+
+    stored = load_full_market_scan_df()
+    if stored is not None and not stored.empty:
+        modern_section("📦 Stored Full-Market Agent Results", "Dashboard-ready results from prior split scans.")
+        top = broaden_top_candidates(stored, min_count=30)
+        render_signal_cards(top, limit=50, show_checklist=True)
+        render_actionable_table(top, table_id="stored_market_scan", max_rows=75)
 
 
 
 if page == "Dashboard":
-    show_price_refresh_status()
-    market_status, market_note = get_market_status()
-    market_regime, regime_label, regime_note = get_market_regime()
-    vol_mult, vol_label, vol_note = get_market_volatility_regime()
-    sector_perf = get_sector_performance()
-
     show_market_status_banner()
     show_market_regime_banner()
 
-    now_et = datetime.now(EASTERN)
-    if "Open" not in market_status and now_et.hour < 9:
-        modern_section("☀️ Pre-Market Setup", "Plan your day before the open.")
-        st.caption("Markets open at 9:30 AM ET. Use this time to identify top signals and set your plan. Avoid entering in the first 15 minutes after open.")
-    elif "Open" in market_status:
-        modern_section("⚡ Live Opportunities", "Market is open — confirm MACD and check your checklist before acting.")
-        st.caption("Focus on signals showing ✅ MACD confirmed and 🟢 Strong Setup rating. Avoid entering between 9:30–9:45 AM and 3:45–4:00 PM.")
+    try:
+        show_price_refresh_status()
+    except Exception:
+        pass
+
+    modern_section("🌅 Dashboard Overview", "Expanded daily investing dashboard: recovery ideas, top signals, price tiers, and watchlist analysis.")
+
+    with st.expander("🌎 True Market Scan / Split Scan Controls", expanded=False):
+        render_true_market_scan_controls()
+
+    universe = get_expanded_market_universe()
+    stored_market_df = load_full_market_scan_df()
+    top_source_df = stored_market_df if not stored_market_df.empty else build_scan(universe, diversified=False, sector_diverse=False, min_conviction=0)
+    scan_df = build_scan(universe, diversified=True, sector_diverse=False, min_conviction=38)
+
+    if top_source_df.empty and not scan_df.empty:
+        top_source_df = scan_df
+
+    if top_source_df.empty:
+        st.info("No scan data available yet. Try manual refresh or check data provider limits.")
     else:
-        modern_section("🌙 After Hours Review", "Plan for tomorrow's session.")
-        st.caption("Review today's signals, update paper trades, and prepare your watchlist for tomorrow.")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Scanned Names", len(top_source_df))
+        if "Execution Quality" in top_source_df.columns:
+            exec_count = len(top_source_df[top_source_df["Execution Quality"].astype(str).str.contains("Execution Candidate|Starter Candidate", na=False)])
+        else:
+            exec_count = 0
+        c2.metric("Execution/Starter", exec_count)
+        c3.metric("Watchlist", len(st.session_state.get("watchlist", load_watchlist_safe())))
+        c4.metric("Universe", len(universe))
 
-    if is_admin(): st.success("Admin mode active.")
-    else: st.info("View-only mode.")
+    modern_section("🟣 AI Recovery Opportunities", "Quality companies where the market may have overreacted despite solid financials.")
+    try:
+        recovery_candidates = get_quality_recovery_candidates(top_source_df, min_score=50)
+        render_recovery_opportunity_cards(recovery_candidates, limit=15)
+    except Exception as e:
+        st.warning(f"Recovery engine unavailable: {e}")
 
-    broad_scan_df = build_scan(CORE_SCAN_TICKERS, diversified=False, sector_diverse=False, min_conviction=45)
-    scan_df = build_scan(CORE_SCAN_TICKERS, diversified=True, sector_diverse=False, min_conviction=50)
-    top_source_df = broad_scan_df if not broad_scan_df.empty else scan_df
-    log = load_signal_log(); threshold, threshold_note = get_adaptive_conviction_threshold(log)
-    buy_count = int(scan_df["Signal"].str.contains("BUY NOW", na=False).sum()) if not scan_df.empty else 0
-    macd_confirmed = int(scan_df["MACD Bullish"].sum()) if not scan_df.empty and "MACD Bullish" in scan_df.columns else 0
+    modern_section("🟢 Today's Top Signals", "Expanded list with financial safety checks, company names, and price-tier variety.")
+    try:
+        top_candidates = broaden_top_candidates(top_source_df, min_count=30)
+        if top_candidates.empty:
+            st.info("No top candidates available right now.")
+        else:
+            render_signal_cards(top_candidates, limit=50, show_checklist=True)
+            render_actionable_table(top_candidates, table_id="dashboard_top", max_rows=50)
 
-    c1,c2,c3,c4,c5 = st.columns(5)
-    c1.metric("Market", regime_label.split(" ",1)[-1] if " " in regime_label else regime_label)
-    c2.metric("Volatility", vol_label.split(" ",1)[-1] if " " in vol_label else vol_label)
-    c3.metric("BUY NOW Signals", buy_count)
-    c4.metric("MACD Confirmed", macd_confirmed)
-    c5.metric("Adaptive Threshold", threshold)
+            if is_admin():
+                if st.button("📧 Send buy alert email now"):
+                    ok, msg = send_buy_alert_if_needed(top_candidates, alert_type="Top Signals")
+                    if ok:
+                        st.success(msg)
+                    else:
+                        st.info(msg)
+    except Exception as e:
+        st.warning(f"Top signal section unavailable: {e}")
 
-    modern_section("🟢 Today's Top Signals")
-    if not scan_df.empty:
-        top = scan_df[scan_df["Signal"].str.contains("BUY NOW", na=False)].head(6)
-        if top.empty: st.info("No BUY NOW signals right now. Check Scanner for Watch candidates.")
-        else: render_signal_cards(top, limit=25, show_checklist=False)
-    else: st.info("Loading scanner data...")
-
-    if sector_perf:
-        modern_section("📊 Sector Rotation — 30 Day Performance")
-        sec_cols = st.columns(min(len(sector_perf),4))
-        for i,(sector,ret) in enumerate(list(sector_perf.items())[:4]):
-            sec_cols[i].metric(sector, f"{ret:+.1f}%", delta_color="normal" if ret >= 0 else "inverse")
-        st.caption("Signals in the top-performing sectors tend to have stronger momentum backing.")
-
-    modern_section("🔥 Recovery Radar Snapshot")
-    recovery_df = build_recovery_radar(RECOVERY_TICKERS)
-    if not recovery_df.empty: render_clickable_table(recovery_df.head(5), "Ticker", table_id="dash_recovery")
-    else: st.info("No recovery candidates.")
+    render_price_tier_tabs(top_source_df, title="💵 Opportunities by Price Tier")
+    render_watchlist_analysis_section("dashboard")
 
 
 elif page == "Scanner Hub":
-    show_price_refresh_status()
-    show_market_status_banner(); show_market_regime_banner()
-    modern_section("🔎 Scanner Hub", "Signal cards · All scanner · Recovery · ETF timing")
-    log = load_signal_log(); threshold, threshold_note = get_adaptive_conviction_threshold(log)
-    st.caption(f"📊 Adaptive conviction threshold: **{threshold}** — {threshold_note}")
-    top_source_df = build_scan(CORE_SCAN_TICKERS, diversified=False, sector_diverse=False, min_conviction=45)
-    scan_df = build_scan(CORE_SCAN_TICKERS)
-    recovery_df = build_recovery_radar(RECOVERY_TICKERS)
-    etf_df = build_scan(ETF_TICKERS, diversified=False)
+    show_market_status_banner()
+    show_market_regime_banner()
 
-    tab0,tab1,tab2,tab3,tab4,tab5 = st.tabs(["🧭 Categories","🟢 Signal Cards","🟣 AI Recovery","📋 All Scanner","🔥 Recovery Radar","📊 ETF Timing"])
+    try:
+        show_price_refresh_status()
+    except Exception:
+        pass
+
+    modern_section("🔎 Scanner Hub", "Expanded opportunities by category, price tier, recovery, full scanner, and true market split scans.")
+
+    universe = get_expanded_market_universe()
+    stored_market_df = load_full_market_scan_df()
+    top_source_df = stored_market_df if not stored_market_df.empty else build_scan(universe, diversified=False, sector_diverse=False, min_conviction=0)
+    scan_df = build_scan(universe, diversified=True, sector_diverse=False, min_conviction=38)
+
+    if top_source_df.empty and not scan_df.empty:
+        top_source_df = scan_df
+
+    tab0, tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+        "🧭 Categories",
+        "🟢 Top Signals",
+        "💵 Price Tiers",
+        "🟣 AI Recovery",
+        "📋 Full Scanner",
+        "📊 ETF Timing",
+        "🌎 Market Scan"
+    ])
 
     with tab0:
-        modern_section("🧭 Opportunity Categories", "Broader choices grouped by investment style so you are not limited to the same expensive names.")
-        show_opportunity_category_tabs(scan_df)
+        modern_section("🧭 Opportunity Categories", "Broader choices grouped by investment style.")
+        show_opportunity_category_tabs(scan_df if not scan_df.empty else top_source_df)
 
     with tab1:
-        modern_section("BUY NOW / High Conviction — with Checklists")
-        st.caption("Top Signals now uses the broad scan and shows more choices, including company names. Use Add Watch to save promising names to your watchlist. Category tabs still group/diversify names separately.")
-        if not scan_df.empty:
-            buy_df = top_source_df[(scan_df["Signal"].astype(str).str.contains("BUY NOW",na=False)) | (scan_df["Final Conviction"].fillna(0) >= max(55, threshold - 10))] if "Final Conviction" in scan_df.columns else scan_df[scan_df["Signal"].astype(str).str.contains("BUY NOW",na=False)]
-            if buy_df.empty:
-                st.info("No signals above the adaptive threshold right now.")
-            else:
-                show_sector_concentration_warning(buy_df)
-                added = auto_log_signals(buy_df, threshold=threshold)
-                if added and added > 0: st.caption(f"📝 {added} new signal(s) logged for accuracy tracking.")
-                mobile_view = st.toggle("📱 Mobile Summary", value=False, key="scanner_mobile")
-                show_cl = st.toggle("✅ Show Trade Checklists", value=True, key="scanner_show_checklist")
-                if mobile_view: render_mobile_signal_summary(buy_df)
-                else: render_signal_cards(buy_df, limit=50, show_checklist=show_cl)
-        else: st.info("No scanner data.")
+        modern_section("🟢 Top Signals", "Expanded signal list so you are not limited to the same few names.")
+        top_candidates = broaden_top_candidates(top_source_df, min_count=30)
+        render_signal_cards(top_candidates, limit=50, show_checklist=True)
+        render_actionable_table(top_candidates, table_id="scanner_top", max_rows=50)
 
     with tab2:
-        modern_section("All Scanner Results")
-        if not scan_df.empty: render_clickable_table(scan_df, "Ticker", table_id="scanner_all")
-        else: st.info("No scanner data.")
+        render_price_tier_tabs(top_source_df, title="💵 Opportunities by Price Tier")
 
     with tab3:
-        modern_section("Recovery Radar")
-        if not recovery_df.empty: render_clickable_table(recovery_df, "Ticker", table_id="scanner_recovery")
-        else: st.info("No recovery candidates.")
+        modern_section("🟣 AI Recovery Opportunities", "Quality pullbacks where fundamentals still look supportive.")
+        try:
+            recovery_candidates = get_quality_recovery_candidates(top_source_df, min_score=50)
+            render_recovery_opportunity_cards(recovery_candidates, limit=20)
+            render_actionable_table(recovery_candidates, table_id="scanner_recovery", max_rows=30)
+        except Exception as e:
+            st.warning(f"Recovery engine unavailable: {e}")
 
     with tab4:
-        modern_section("ETF Timing")
-        if not etf_df.empty: render_clickable_table(etf_df, "Ticker", table_id="scanner_etf")
-        else: st.info("No ETF data.")
+        modern_section("📋 Full Scanner", "All scanned names with detail and watchlist actions.")
+        render_actionable_table(top_source_df, table_id="scanner_full", max_rows=75)
+
+    with tab5:
+        modern_section("📊 ETF Timing", "Macro/sector ETF timing candidates.")
+        try:
+            etf_df = build_scan(ETF_TICKERS, diversified=False, sector_diverse=False, min_conviction=0)
+            render_signal_cards(etf_df, limit=30, show_checklist=True)
+            render_actionable_table(etf_df, table_id="scanner_etf", max_rows=30)
+        except Exception as e:
+            st.warning(f"ETF scan unavailable: {e}")
+
+
+    with tab6:
+        render_true_market_scan_controls()
 
 
 elif page == "Watchlist":
-    modern_section("⭐ Persistent Watchlist")
-    if is_admin():
-        st.success(f"Saved to: {WATCHLIST_FILE}")
-        add_col,reset_col = st.columns([3,1])
-        with add_col: new_ticker = st.text_input("Add ticker", placeholder="AAPL, NVDA", key="watchlist_add")
-        with reset_col:
-            st.write(""); st.write("")
-            if st.button("Reset Default"):
-                st.session_state.watchlist = DEFAULT_WATCHLIST.copy(); save_watchlist(); st.rerun()
-        if st.button("➕ Add"):
-            t = normalize_ticker(new_ticker)
-            if not t: st.warning("Enter a ticker.")
-            elif t in st.session_state.watchlist: st.info(f"{t} already in watchlist.")
-            else:
-                st.session_state.watchlist.append(t); save_watchlist(); st.success(f"Added {t}"); st.rerun()
-    else: st.info("View-only: editing disabled.")
-
-    modern_section("Current Watchlist")
-    if not st.session_state.watchlist: st.info("Watchlist is empty.")
-    else:
-        for ticker in list(st.session_state.watchlist):
-            if is_admin():
-                c1,c2,c3 = st.columns([2,2,1])
-                c1.write(f"**{ticker}**"); c2.link_button("Open Yahoo", f"https://finance.yahoo.com/quote/{ticker}")
-                if c3.button("Remove", key=f"remove_{ticker}"):
-                    st.session_state.watchlist.remove(ticker); save_watchlist(); st.rerun()
-            else:
-                c1,c2 = st.columns([2,2]); c1.write(f"**{ticker}**")
-                c2.link_button("Open Yahoo", f"https://finance.yahoo.com/quote/{ticker}")
-        modern_section("Watchlist Analysis")
-        render_clickable_table(build_scan(st.session_state.watchlist), "Ticker", table_id="watchlist_analysis")
+    modern_section("⭐ Watchlist", "Saved stocks with full AI agent analysis and detail access.")
+    render_watchlist_analysis_section("watchlist_page")
+    render_watchlist_management_controls("watchlist_page")
 
 
 elif page == "Paper Trading":
@@ -3538,7 +4233,7 @@ elif page == "Simple Backtest":
 
 elif page == "Settings & Logs":
     modern_section("⚙️ Settings & Logs")
-    tab1,tab2,tab3 = st.tabs(["Signal Accuracy","Alert History","Email & Diagnostics"])
+    tab1,tab2,tab3,tab4 = st.tabs(["Signal Accuracy","🌍 Universe Scan","Alert History","Email & Diagnostics"])
 
     with tab1:
         modern_section("📈 Signal Accuracy Engine")
@@ -3568,12 +4263,107 @@ elif page == "Settings & Logs":
                 if st.button("🗑 Clear Signal Log"): save_signal_log([]); st.success("Cleared."); st.rerun()
 
     with tab2:
+        modern_section("🌍 Full Universe Scan", "Scan the complete market universe — all sectors except financial, entertainment, and alcohol.")
+        st.markdown(f"""
+**Universe:** {len(CORE_SCAN_TICKERS)} tickers across all qualifying US sectors.
+
+**Exclusions applied:** Financial companies (banks, insurance, asset management) · Entertainment & media ·
+Alcohol (brewers, distillers, wineries) · Tobacco · Gaming & casinos · REITs.
+
+**How it works:** Runs your full 9-agent scoring engine across the entire universe.
+Results are diversified by sector and price bucket. Cached 1 hour — first run takes 3–8 minutes.
+        """)
+        st.info("Tip: Run this once in the morning for your full daily opportunity set. Use the Scanner Hub for faster live refreshes on the top candidates.")
+
+        col_u1, col_u2 = st.columns(2)
+        with col_u1:
+            run_scan = st.button("🚀 Run Full Universe Scan", type="primary")
+        with col_u2:
+            if st.button("🔄 Clear Cache + Rescan"):
+                try:
+                    run_full_universe_scan.clear()
+                    fetch_live_universe.clear()
+                    st.success("Cache cleared.")
+                    run_scan = True
+                except Exception:
+                    pass
+
+        def _render_universe_results(universe_df):
+            stats = get_universe_stats(universe_df)
+            s1,s2,s3,s4 = st.columns(4)
+            s1.metric("Total Analyzed", stats.get("total",0))
+            s2.metric("BUY NOW Signals", stats.get("buy_now",0))
+            s3.metric("Watch Signals", stats.get("watch",0))
+            s4.metric("Universe Size", len(CORE_SCAN_TICKERS))
+
+            modern_section("🟢 Top Signals — Full Universe")
+            buy_df = universe_df[universe_df["Signal"].str.contains("BUY NOW", na=False)]
+            if not buy_df.empty:
+                render_signal_cards(buy_df.head(20), limit=20, show_checklist=True)
+            else:
+                st.info("No BUY NOW signals right now. See Watch candidates below.")
+
+            thresh = st.session_state.get("adaptive_threshold", 68)
+            watch_df = universe_df[
+                universe_df["Signal"].str.contains("Watch", na=False) &
+                (universe_df["Final Conviction"].fillna(0) >= thresh - 5)
+            ]
+            if not watch_df.empty:
+                modern_section("🟡 High-Conviction Watch Candidates")
+                render_clickable_table(watch_df.head(30), "Ticker", table_id="universe_watch")
+
+            modern_section("🗂 Browse by Price Tier")
+            tier_tabs = st.tabs(["Under $30","$30–$75","$75–$150","$150+","All Sorted"])
+            tier_map = {
+                "Under $30":   ["Under $10","$10-$30"],
+                "$30–$75":     ["$30-$75"],
+                "$75–$150":    ["$75-$150"],
+                "$150+":       ["$150+"],
+                "All Sorted":  ["Under $10","$10-$30","$30-$75","$75-$150","$150+"],
+            }
+            for ttab, (label, buckets) in zip(tier_tabs, tier_map.items()):
+                with ttab:
+                    if "Price Bucket" in universe_df.columns:
+                        sub = universe_df[universe_df["Price Bucket"].isin(buckets)]
+                    else:
+                        sub = universe_df
+                    if sub.empty:
+                        st.info(f"No results in {label} range right now.")
+                    else:
+                        st.caption(f"{len(sub)} stocks in the {label} price range, ranked by conviction.")
+                        render_signal_cards(sub[sub["Signal"].str.contains("BUY NOW|Watch", na=False)].head(12), limit=12, show_checklist=True)
+                        render_clickable_table(sub.head(40), "Ticker", table_id=f"tier_{label.replace(' ','_').replace('$','d').replace('–','_')}")
+
+            with st.expander("📋 Full Universe Table + Download"):
+                render_clickable_table(universe_df, "Ticker", default_compact=True, table_id="universe_full")
+                st.download_button("⬇️ Download Full Universe CSV", universe_df.to_csv(index=False).encode(), "universe_scan.csv", "text/csv")
+
+        if run_scan:
+            with st.spinner(f"Running full 9-agent scan across {len(CORE_SCAN_TICKERS)} tickers. First run: 3–8 min. Subsequent: instant from cache."):
+                universe_df = run_full_universe_scan()
+            if universe_df.empty:
+                st.warning("No results. Check data connection.")
+            else:
+                st.success(f"✅ Scan complete — {len(universe_df)} stocks analyzed across all qualifying sectors.")
+                _render_universe_results(universe_df)
+        else:
+            try:
+                cached = run_full_universe_scan()
+                if not cached.empty:
+                    st.caption(f"Showing cached scan — {len(cached)} stocks. Click 'Run Full Universe Scan' to refresh.")
+                    _render_universe_results(cached)
+                else:
+                    st.info("No cached results. Click 'Run Full Universe Scan' to start.")
+            except Exception:
+                st.info("Click 'Run Full Universe Scan' to start your first full market scan.")
+
+    with tab3:
         modern_section("📜 Alert History")
         history = load_alert_history()
         if not history: st.info("No alerts yet.")
         else: st.dataframe(pd.DataFrame(history).sort_index(ascending=False), use_container_width=True, hide_index=True)
 
-    with tab3:
+    with tab4:
         modern_section("📧 Email & Diagnostics")
         if not is_admin(): st.warning("Admin only.")
         else:
@@ -3581,10 +4371,11 @@ elif page == "Settings & Logs":
             st.write(f"EMAIL_PASSWORD: {'✅' if os.getenv('EMAIL_PASSWORD','') else '❌'}")
             st.write(f"EMAIL_RECIPIENTS: {'✅' if os.getenv('EMAIL_RECIPIENTS','') else '❌'}")
             st.write(f"Alpaca: {ALPACA_STATUS}")
+            st.write(f"Universe size: {len(CORE_SCAN_TICKERS)} tickers")
+            st.write(f"DATA_DIR: {DATA_DIR}")
             if st.button("Send Test Email"):
-                ok,msg = send_email_alert("AI Dashboard V36.2 Test", f"Test from V36.2 at {datetime.now(EASTERN)}")
+                ok,msg = send_email_alert("AI Dashboard V38.1 Test", f"Test from V38.1 at {datetime.now(EASTERN)}")
                 st.success(msg) if ok else st.error(msg)
-
 
 elif page == "Detail View":
     query_ticker = normalize_ticker(str(st.session_state.get("selected_detail_ticker", "") or get_query_param_value("ticker", "")))
@@ -3608,4 +4399,4 @@ elif page == "Detail View":
 
 
 st.markdown("---")
-st.caption("Not financial advice. Use for research and paper-trading validation only. | AI Trading Dashboard V36.2")
+st.caption("Not financial advice. Use for research and paper-trading validation only. | AI Trading Dashboard V38.1")
