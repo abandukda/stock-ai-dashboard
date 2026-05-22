@@ -31,7 +31,7 @@ except ImportError:
     ALPACA_AVAILABLE = False
 
 # ============================================================
-# AI TRADING DASHBOARD  V38.1 TRUE MARKET SCAN SYSTEM
+# AI TRADING DASHBOARD  V38.2 TRUE MARKET SCAN SYSTEM
 # Merged: Fundamental Research Engine + Adaptive Intelligence
 # 9-Agent scoring · MACD timing · Adaptive threshold
 # Morning briefing · Trade checklist · Volatility sizing
@@ -39,7 +39,7 @@ except ImportError:
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Trading Dashboard V38.1",
+    page_title="AI Trading Dashboard V38.2",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -198,7 +198,7 @@ def render_signal_card(row, show_checklist=False):
     else:
         bc,pb,pc = "#64748b","#f1f5f9","#334155"
 
-    # V38.1 defensive card defaults
+    # V38.2 defensive card defaults
     financial_safety = row.get("Financial Safety", financial_safety if "financial_safety" in locals() else "⚪ Not scored")
     agent_greenlight = row.get("Agent Greenlight", agent_greenlight if "agent_greenlight" in locals() else "⚪ Not scored")
     execution_quality = row.get("Execution Quality", execution_quality if "execution_quality" in locals() else "⚪ Research Only")
@@ -355,7 +355,7 @@ DEFAULT_WATCHLIST = ["AAPL","MSFT","NVDA","AMD","TSLA","AMZN","GOOGL","META","SN
 ETF_TICKERS = ["SPY","QQQ","IWM","DIA","SMH","SOXX","XLK","XLI","XLE","XLY","XLP","XLV","XLU","ARKK","VUG","VTV"]
 
 # ============================================================
-# V38.1 FULL MARKET UNIVERSE + COMPLETE EXCLUSIONS
+# V38.2 FULL MARKET UNIVERSE + COMPLETE EXCLUSIONS
 # ============================================================
 
 EXCLUDED_SECTOR_KEYWORDS = [
@@ -531,7 +531,7 @@ def require_login():
     if st.session_state.logged_in:
         return
 
-    st.title("🔐 AI Trading Dashboard V38.1")
+    st.title("🔐 AI Trading Dashboard V38.2")
     st.caption("Secure login uses Render environment variables only. No passwords are stored in source code.")
 
     with st.form("login_form"):
@@ -1388,7 +1388,7 @@ def build_ai_trade_plan(ticker, price, sma20, sma50, sma200, rsi, ai_score, risk
 
 
 # ============================================================
-# V38.1 FINANCIAL SAFETY GATE
+# V38.2 FINANCIAL SAFETY GATE
 # ============================================================
 
 def financial_safety_gate(info):
@@ -1751,7 +1751,7 @@ def analyze_ticker(ticker):
 
 
 # ============================================================
-# V38.1 OPPORTUNITY CATEGORIZATION + DIVERSITY
+# V38.2 OPPORTUNITY CATEGORIZATION + DIVERSITY
 # ============================================================
 
 def parse_percent_value(value):
@@ -1902,7 +1902,7 @@ def show_opportunity_category_tabs(df):
 
 
 # ============================================================
-# V38.1 UNIVERSE MANAGEMENT + QUICK PRE-SCREEN + FUNNEL SCAN
+# V38.2 UNIVERSE MANAGEMENT + QUICK PRE-SCREEN + FUNNEL SCAN
 # ============================================================
 
 def load_sector_cache():
@@ -2467,7 +2467,7 @@ def detail_page(ticker):
 
 
 # ============================================================
-# V38.1 FEATURE 1: TRADE HEALTH MONITOR
+# V38.2 FEATURE 1: TRADE HEALTH MONITOR
 # ============================================================
 
 def get_exit_strategy(entry_price, stop_loss, target_zone, rsi=None):
@@ -2567,7 +2567,7 @@ def render_trade_health_monitor(trade, data):
 
 
 # ============================================================
-# V38.1 FEATURE 2: ENTRY RANGE EMAIL ALERTS
+# V38.2 FEATURE 2: ENTRY RANGE EMAIL ALERTS
 # ============================================================
 
 def check_entry_range_alerts(watchlist_tickers, threshold=68):
@@ -2662,7 +2662,7 @@ def send_entry_range_email(alerts):
 
 
 # ============================================================
-# V38.1 FEATURE 3: BACKTESTING ENGINE
+# V38.2 FEATURE 3: BACKTESTING ENGINE
 # ============================================================
 
 def compute_historical_signal(close_series, high_series, low_series, volume_series, lookback_end_idx):
@@ -2854,7 +2854,7 @@ def render_simple_backtest_summary(df):
 # ============================================================
 
 st.sidebar.title("📈 AI Trading Dashboard")
-st.sidebar.caption("V38.1 — Exit Signals · Simple Backtesting · Entry Alerts · Trade Health")
+st.sidebar.caption("V38.2 — Exit Signals · Simple Backtesting · Entry Alerts · Trade Health")
 role_label = "Admin" if is_admin() else "View Only"
 st.sidebar.success(f"Logged in as: {role_label}")
 if alpaca_client: st.sidebar.success("🟢 Alpaca: Connected")
@@ -2950,10 +2950,10 @@ def render_morning_briefing(scan_df, recovery_df=None, etf_df=None):
 
 
 modern_hero(
-    "📈 AI Trading Dashboard V38.1",
+    "📈 AI Trading Dashboard V38.2",
     "9 Agents · Fundamentals · Exit signals · Simple Backtesting · Entry alerts · Trade health monitor"
 )
-st.caption("V38.1 — Exit signals, simple_backtesting, entry range email alerts, and trade health monitoring added. Not financial advice.")
+st.caption("V38.2 — Exit signals, simple_backtesting, entry range email alerts, and trade health monitoring added. Not financial advice.")
 
 _log_for_threshold = load_signal_log()
 _threshold, _threshold_note = get_adaptive_conviction_threshold(_log_for_threshold)
@@ -2965,7 +2965,7 @@ st.session_state["adaptive_threshold"] = _threshold
 
 
 # ============================================================
-# V38.1 DAILY SYSTEM HELPERS
+# V38.2 DAILY SYSTEM HELPERS
 # ============================================================
 
 def load_watchlist_safe():
@@ -3196,7 +3196,7 @@ def send_buy_alert_if_needed(df, alert_type="Top Signals"):
 
 
 # ============================================================
-# V38.1 QUALITY RECOVERY ENGINE
+# V38.2 QUALITY RECOVERY ENGINE
 # ============================================================
 
 def parse_money_value(value):
@@ -3535,7 +3535,7 @@ def render_watchlist_management_controls(location_key="watchlist_manage"):
 
 
 # ============================================================
-# V38.1 TRUE MARKET SCAN ENGINE — SPLIT SCAN ARCHITECTURE
+# V38.2 TRUE MARKET SCAN ENGINE — SPLIT SCAN ARCHITECTURE
 # ============================================================
 
 TOTAL_UNIVERSE_FILE = DATA_DIR / "total_market_universe.json"
@@ -3907,6 +3907,127 @@ def render_true_market_scan_controls():
 
 
 
+
+# ============================================================
+# V38.2 AUTOMATED SCAN STATUS + FALLBACK HELPERS
+# ============================================================
+
+def get_scan_file_status():
+    files = {
+        "Universe": DATA_DIR / "total_market_universe.json",
+        "Prescreen": DATA_DIR / "market_prescreen.json",
+        "Full Scan": DATA_DIR / "market_full_scan.json",
+        "Scan State": DATA_DIR / "market_scan_state.json",
+    }
+    rows = []
+    for name, path in files.items():
+        exists = Path(path).exists()
+        modified = ""
+        count = ""
+        if exists:
+            try:
+                modified = datetime.fromtimestamp(Path(path).stat().st_mtime).strftime("%Y-%m-%d %I:%M %p")
+                data = _read_json_safe(path, [])
+                if isinstance(data, list):
+                    count = len(data)
+                elif isinstance(data, dict):
+                    count = data.get("count") or data.get("full_scan_count") or data.get("prescreen_count") or ""
+            except Exception:
+                pass
+        rows.append({"File": name, "Exists": "✅" if exists else "❌", "Rows/Count": count, "Last Modified": modified, "Path": str(path)})
+    return pd.DataFrame(rows)
+
+
+def render_automated_scan_status():
+    modern_section("🌙 Automated Market Scan Status", "Files produced by the overnight Render Cron job.")
+    st.dataframe(get_scan_file_status(), use_container_width=True, hide_index=True)
+    with st.expander("Render Cron setup", expanded=False):
+        st.code("python overnight_market_scan.py", language="bash")
+        st.caption("Recommended schedule: daily before market open. Use the same repo and environment variables as your dashboard.")
+
+
+def build_live_fallback_scan():
+    fallback_universe = []
+    for name in ["CORE_SCAN_TICKERS", "RECOVERY_TICKERS", "DEFAULT_WATCHLIST"]:
+        try:
+            fallback_universe += list(globals().get(name, []))
+        except Exception:
+            pass
+    try:
+        fallback_universe += list(st.session_state.get("watchlist", []))
+    except Exception:
+        pass
+
+    fallback_universe = sorted(set([normalize_ticker(str(x)) for x in fallback_universe if normalize_ticker(str(x))]))
+    try:
+        fallback_universe = filter_excluded_companies(fallback_universe)
+    except Exception:
+        pass
+
+    if not fallback_universe:
+        return pd.DataFrame()
+
+    try:
+        return build_scan(fallback_universe, diversified=False, sector_diverse=False, min_conviction=0)
+    except Exception as e:
+        st.warning(f"Fallback scan unavailable: {e}")
+        return pd.DataFrame()
+
+
+def get_dashboard_source_df():
+    try:
+        stored = load_full_market_scan_df()
+    except Exception:
+        stored = pd.DataFrame()
+
+    if stored is not None and not stored.empty:
+        st.caption(f"📦 Using automated stored full-market scan results: {len(stored)} rows.")
+        return stored
+
+    st.warning("No automated full-market scan results found yet. Showing live fallback list until the overnight Cron job creates market_full_scan.json.")
+    fallback = build_live_fallback_scan()
+    if fallback is not None and not fallback.empty:
+        st.caption(f"⚡ Using live fallback scan: {len(fallback)} rows.")
+        return fallback
+
+    return pd.DataFrame()
+
+
+def broaden_top_candidates_v382(df, min_count=30):
+    if df is None or df.empty:
+        return pd.DataFrame()
+
+    work = df.copy()
+    if "Final Conviction" in work.columns:
+        work["Final Conviction"] = pd.to_numeric(work["Final Conviction"], errors="coerce").fillna(0)
+        work = work.sort_values("Final Conviction", ascending=False)
+
+    if "Execution Quality" in work.columns:
+        non_avoid = work[~work["Execution Quality"].astype(str).str.contains("Avoid Execution", na=False)].copy()
+        if not non_avoid.empty:
+            work = non_avoid
+
+    if "Final Conviction" in work.columns:
+        expanded = work[work["Final Conviction"].fillna(0) >= 20].copy()
+    else:
+        expanded = work.copy()
+
+    combined = expanded if not expanded.empty else work
+
+    if "Price Bucket" in combined.columns and "Final Conviction" in combined.columns:
+        pieces = []
+        for bucket in ["Under $10", "$10-$30", "$30-$75", "$75-$150", "$150+"]:
+            sub = combined[combined["Price Bucket"].astype(str).eq(bucket)]
+            if not sub.empty:
+                pieces.append(sub.sort_values("Final Conviction", ascending=False).head(25))
+        if pieces:
+            combined = pd.concat(pieces, ignore_index=True).drop_duplicates(subset=["Ticker"])
+            combined = combined.sort_values("Final Conviction", ascending=False)
+
+    return combined.head(max(min_count, 100))
+
+
+
 if page == "Dashboard":
     show_market_status_banner()
     show_market_regime_banner()
@@ -3916,15 +4037,16 @@ if page == "Dashboard":
     except Exception:
         pass
 
+    render_automated_scan_status()
+
     modern_section("🌅 Dashboard Overview", "Expanded daily investing dashboard: recovery ideas, top signals, price tiers, and watchlist analysis.")
 
     with st.expander("🌎 True Market Scan / Split Scan Controls", expanded=False):
         render_true_market_scan_controls()
 
     universe = get_expanded_market_universe()
-    stored_market_df = load_full_market_scan_df()
-    top_source_df = stored_market_df if not stored_market_df.empty else build_scan(universe, diversified=False, sector_diverse=False, min_conviction=0)
-    scan_df = build_scan(universe, diversified=True, sector_diverse=False, min_conviction=38)
+    top_source_df = get_dashboard_source_df()
+    scan_df = top_source_df
 
     if top_source_df.empty and not scan_df.empty:
         top_source_df = scan_df
@@ -3951,7 +4073,7 @@ if page == "Dashboard":
 
     modern_section("🟢 Today's Top Signals", "Expanded list with financial safety checks, company names, and price-tier variety.")
     try:
-        top_candidates = broaden_top_candidates(top_source_df, min_count=30)
+        top_candidates = broaden_top_candidates_v382(top_source_df, min_count=30)
         if top_candidates.empty:
             st.info("No top candidates available right now.")
         else:
@@ -3984,9 +4106,8 @@ elif page == "Scanner Hub":
     modern_section("🔎 Scanner Hub", "Expanded opportunities by category, price tier, recovery, full scanner, and true market split scans.")
 
     universe = get_expanded_market_universe()
-    stored_market_df = load_full_market_scan_df()
-    top_source_df = stored_market_df if not stored_market_df.empty else build_scan(universe, diversified=False, sector_diverse=False, min_conviction=0)
-    scan_df = build_scan(universe, diversified=True, sector_diverse=False, min_conviction=38)
+    top_source_df = get_dashboard_source_df()
+    scan_df = top_source_df
 
     if top_source_df.empty and not scan_df.empty:
         top_source_df = scan_df
@@ -4007,7 +4128,7 @@ elif page == "Scanner Hub":
 
     with tab1:
         modern_section("🟢 Top Signals", "Expanded signal list so you are not limited to the same few names.")
-        top_candidates = broaden_top_candidates(top_source_df, min_count=30)
+        top_candidates = broaden_top_candidates_v382(top_source_df, min_count=30)
         render_signal_cards(top_candidates, limit=50, show_checklist=True)
         render_actionable_table(top_candidates, table_id="scanner_top", max_rows=50)
 
@@ -4374,7 +4495,7 @@ Results are diversified by sector and price bucket. Cached 1 hour — first run 
             st.write(f"Universe size: {len(CORE_SCAN_TICKERS)} tickers")
             st.write(f"DATA_DIR: {DATA_DIR}")
             if st.button("Send Test Email"):
-                ok,msg = send_email_alert("AI Dashboard V38.1 Test", f"Test from V38.1 at {datetime.now(EASTERN)}")
+                ok,msg = send_email_alert("AI Dashboard V38.2 Test", f"Test from V38.2 at {datetime.now(EASTERN)}")
                 st.success(msg) if ok else st.error(msg)
 
 elif page == "Detail View":
@@ -4399,4 +4520,4 @@ elif page == "Detail View":
 
 
 st.markdown("---")
-st.caption("Not financial advice. Use for research and paper-trading validation only. | AI Trading Dashboard V38.1")
+st.caption("Not financial advice. Use for research and paper-trading validation only. | AI Trading Dashboard V38.2")
