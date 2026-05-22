@@ -123,6 +123,28 @@ def get_hist(ticker, period="6mo"):
     except Exception:
         return pd.DataFrame()
 
+
+def get_info_safe(ticker):
+    """
+    Yahoo fundamentals can fail/throttle during broad scans.
+    Missing fundamentals should not eliminate a valid prescreen candidate.
+    """
+    try:
+        info = yf.Ticker(ticker).info
+        return info if isinstance(info, dict) else {}
+    except Exception:
+        return {}
+
+
+def safe_float(v, default=None):
+    try:
+        if v is None or pd.isna(v):
+            return default
+        return float(v)
+    except Exception:
+        return default
+
+
 def quick_prescreen_one(ticker):
     ticker = normalize_ticker(ticker)
     if not ticker or ticker in EXCLUDED_TICKERS: return None
@@ -191,8 +213,9 @@ def deep_analyze_one(item):
     try:
         hist = get_hist(ticker, "1y")
         if hist.empty or len(hist) < 60: return None
-        info = yf.Ticker(ticker).info or {}
-        if ticker in EXCLUDED_TICKERS or is_excluded_by_info(info): return None
+        info = get_info_safe(ticker)
+        if ticker in EXCLUDED_TICKERS: return None
+        if info and is_excluded_by_info(info): return None
         price = float(hist["Close"].iloc[-1])
         close = hist["Close"]
         sma20 = float(close.rolling(20).mean().iloc[-1])
@@ -220,8 +243,10 @@ def deep_analyze_one(item):
             except Exception: pass
         cashflow = 50
         try:
-            if info.get("freeCashflow") and info.get("freeCashflow") > 0: cashflow += 20
-            if info.get("operatingCashflow") and info.get("operatingCashflow") > 0: cashflow += 15
+            fcf_val = safe_float(info.get("freeCashflow"), None)
+            ocf_val = safe_float(info.get("operatingCashflow"), None)
+            if fcf_val is not None and fcf_val > 0: cashflow += 20
+            if ocf_val is not None and ocf_val > 0: cashflow += 15
         except Exception: pass
         recovery = 50 + (25 if from_high <= -20 and 30 <= rsi <= 55 else 0)
         risk = 50 + (20 if rsi > 75 else 0) + (10 if vol_ratio > 2 else 0) + (20 if "🔴" in f_score else 0)
@@ -266,6 +291,82 @@ def run_prescreen(universe):
     write_json(PRESCREEN_FILE, results)
     return results
 
+
+def fallback_deep_row(item):
+    """
+    Keeps a usable dashboard row when full fundamentals fail.
+    This prevents a successful prescreen from producing an empty dashboard.
+    """
+    try:
+        ticker = item.get("Ticker")
+        price = item.get("Price")
+        quick = safe_float(item.get("Quick Score"), 0) or 0
+        rsi = item.get("RSI")
+        from_high = item.get("From 52W High %")
+        price_bucket = item.get("Price Bucket") or get_price_bucket(price)
+
+        final = max(20, min(70, round(quick * 0.85, 0)))
+        if final >= 58:
+            execution = "🟡 Starter Candidate"
+            signal = "🟡 WATCH"
+        else:
+            execution = "⚪ Research Only"
+            signal = "⚪ RESEARCH"
+
+        try:
+            p = float(price)
+            stop = round(p * 0.92, 2)
+            target = round(p * 1.15, 2)
+            entry = f"${round(p*0.98,2)} - ${round(p*1.02,2)}"
+            target_display = f"${target}"
+        except Exception:
+            stop = "N/A"
+            target_display = "N/A"
+            entry = "N/A"
+
+        return {
+            "Ticker": ticker,
+            "Company Name": ticker,
+            "Price": price,
+            "Price Bucket": price_bucket,
+            "Final Conviction": final,
+            "Signal": signal,
+            "Agent Verdict": execution,
+            "Execution Quality": execution,
+            "Financial Safety": "⚪ Fundamentals Limited — Verify Manually",
+            "Financial Safety Detail": "Fundamental data unavailable during overnight scan; candidate kept from prescreen for review.",
+            "Agent Greenlight": "🟡 Partial Green Light",
+            "Technical Agent": quick,
+            "Valuation Agent": 50,
+            "Earnings Quality Agent": 50,
+            "Cash Flow Agent": 50,
+            "Recovery Agent": 50,
+            "Risk Score": 50,
+            "RSI": rsi,
+            "Volume Ratio": "N/A",
+            "From 52W High %": from_high,
+            "Entry Range": entry,
+            "Stop Loss": stop,
+            "Target / Sell Zone": target_display,
+            "Risk / Reward": "Review",
+            "Revenue Growth": "N/A",
+            "Earnings Growth": "N/A",
+            "Free Cash Flow": "N/A",
+            "Operating Cash Flow": "N/A",
+            "Total Cash": "N/A",
+            "Total Debt": "N/A",
+            "Debt/Equity": "N/A",
+            "Forward PE": "N/A",
+            "Why Ranked Highly": f"Prescreen score {quick}/100 based on price, liquidity, trend, RSI, and recovery setup. Fundamentals need manual verification.",
+            "Research Summary": f"{ticker} passed automated prescreen but full fundamentals were limited.",
+            "AI Trade Plan": "Use Detail View before acting. This is a prescreen candidate, not a full execution signal.",
+            "Investment Style": "Prescreen Candidate",
+        }
+    except Exception:
+        return None
+
+
+
 def run_deep_scan(prescreen):
     pre_df = pd.DataFrame(prescreen)
     if pre_df.empty: return []
@@ -280,15 +381,21 @@ def run_deep_scan(prescreen):
     results = []
     with ThreadPoolExecutor(max_workers=FULL_SCAN_WORKERS) as executor:
         for i, item in enumerate(executor.map(deep_analyze_one, rows), start=1):
-            if item: results.append(item)
-            if i % 50 == 0: print(f"Deep scanned {i}/{len(rows)}; results={len(results)}")
+            if item:
+                results.append(item)
+            else:
+                fb = fallback_deep_row(rows[i-1])
+                if fb:
+                    results.append(fb)
+            if i % 50 == 0:
+                print(f"Deep scanned {i}/{len(rows)}; results={len(results)}")
     results = sorted(results, key=lambda x: x.get("Final Conviction", 0), reverse=True)
     write_json(FULL_SCAN_FILE, results)
     return results
 
 def main():
     started = datetime.now(EASTERN).isoformat()
-    print("Starting automated overnight market scan...")
+    print("Starting automated overnight market scan V38.3...")
     universe = fetch_universe()
     print(f"Universe count: {len(universe)}")
     prescreen = run_prescreen(universe)
@@ -296,7 +403,7 @@ def main():
     full = run_deep_scan(prescreen)
     print(f"Full scan rows: {len(full)}")
     state = {"started_at": started, "finished_at": datetime.now(EASTERN).isoformat(),
-             "universe_count": len(universe), "prescreen_count": len(prescreen), "full_scan_count": len(full),
+             "universe_count": len(universe), "prescreen_count": len(prescreen), "full_scan_count": len(full), "fallback_rows_allowed": True,
              "data_dir": str(DATA_DIR)}
     write_json(SCAN_STATE_FILE, state)
     print(json.dumps(state, indent=2))
