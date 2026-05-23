@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import subprocess
 from pathlib import Path
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -393,9 +394,65 @@ def run_deep_scan(prescreen):
     write_json(FULL_SCAN_FILE, results)
     return results
 
+
+# ============================================================
+# V38.4 GITHUB PERSISTENCE
+# ============================================================
+
+def persist_results_to_github():
+    """
+    Render Cron and Web Services do not share local filesystems.
+    This commits the generated scan JSON files back to GitHub so the dashboard
+    can read them from the repo after redeploy.
+    Requires GITHUB_TOKEN with repo contents read/write access.
+    """
+    token = os.getenv("GITHUB_TOKEN", "").strip()
+    repo = os.getenv("GITHUB_REPOSITORY", "abandukda/stock-ai-dashboard").strip()
+    branch = os.getenv("GITHUB_BRANCH", "main").strip()
+
+    if not token:
+        print("GITHUB_TOKEN not set. Scan files were created locally but will not persist to GitHub.")
+        return False
+
+    files = [
+        str(TOTAL_UNIVERSE_FILE),
+        str(PRESCREEN_FILE),
+        str(FULL_SCAN_FILE),
+        str(SCAN_STATE_FILE),
+    ]
+
+    try:
+        subprocess.run(["git", "config", "user.email", os.getenv("GIT_EMAIL", "render-cron@users.noreply.github.com")], check=False)
+        subprocess.run(["git", "config", "user.name", os.getenv("GIT_NAME", "Render Cron Scanner")], check=False)
+
+        subprocess.run(["git", "add"] + files, check=True)
+
+        diff = subprocess.run(["git", "diff", "--cached", "--quiet"])
+        if diff.returncode == 0:
+            print("No scan result changes to commit.")
+            return True
+
+        msg = f"Update automated market scan results {datetime.now(EASTERN).strftime('%Y-%m-%d %H:%M ET')}"
+        subprocess.run(["git", "commit", "-m", msg], check=True)
+
+        push_url = f"https://x-access-token:{token}@github.com/{repo}.git"
+        subprocess.run(["git", "push", push_url, f"HEAD:{branch}"], check=True)
+
+        print("Scan results pushed to GitHub successfully.")
+        return True
+
+    except subprocess.CalledProcessError as e:
+        print(f"GitHub persistence failed: {e}")
+        return False
+    except Exception as e:
+        print(f"GitHub persistence unexpected error: {e}")
+        return False
+
+
+
 def main():
     started = datetime.now(EASTERN).isoformat()
-    print("Starting automated overnight market scan V38.3...")
+    print("Starting automated overnight market scan V38.4 with GitHub persistence...")
     universe = fetch_universe()
     print(f"Universe count: {len(universe)}")
     prescreen = run_prescreen(universe)
@@ -405,6 +462,9 @@ def main():
     state = {"started_at": started, "finished_at": datetime.now(EASTERN).isoformat(),
              "universe_count": len(universe), "prescreen_count": len(prescreen), "full_scan_count": len(full), "fallback_rows_allowed": True,
              "data_dir": str(DATA_DIR)}
+    write_json(SCAN_STATE_FILE, state)
+    github_persisted = persist_results_to_github()
+    state["github_persisted"] = github_persisted
     write_json(SCAN_STATE_FILE, state)
     print(json.dumps(state, indent=2))
 
