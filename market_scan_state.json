@@ -1,0 +1,9 @@
+{
+  "started_at": "2026-05-22T22:46:20.847799-04:00",
+  "finished_at": "2026-05-22T22:48:48.977385-04:00",
+  "universe_count": 6183,
+  "prescreen_count": 632,
+  "full_scan_count": 150,
+  "fallback_rows_allowed": true,
+  "data_dir": "."
+}

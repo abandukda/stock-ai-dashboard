@@ -1,0 +1,5690 @@
+[
+  {
+    "Ticker": "ADNT",
+    "Price": 21.58,
+    "Avg Volume": 952112,
+    "RSI": 56.4,
+    "From 52W High %": -21.0,
+    "Quick Score": 102,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AOSL",
+    "Price": 41.72,
+    "Avg Volume": 1125776,
+    "RSI": 49.3,
+    "From 52W High %": -16.5,
+    "Quick Score": 102,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "APPS",
+    "Price": 4.55,
+    "Avg Volume": 2285408,
+    "RSI": 69.0,
+    "From 52W High %": -26.5,
+    "Quick Score": 102,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ASST",
+    "Price": 18.21,
+    "Avg Volume": 3746024,
+    "RSI": 58.5,
+    "From 52W High %": -23.5,
+    "Quick Score": 102,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ASTI",
+    "Price": 5.36,
+    "Avg Volume": 1082919,
+    "RSI": 61.2,
+    "From 52W High %": -45.7,
+    "Quick Score": 102,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ATAI",
+    "Price": 4.32,
+    "Avg Volume": 4286998,
+    "RSI": 53.6,
+    "From 52W High %": -21.6,
+    "Quick Score": 102,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ATOM",
+    "Price": 9.24,
+    "Avg Volume": 2904268,
+    "RSI": 43.6,
+    "From 52W High %": -19.5,
+    "Quick Score": 102,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AUR",
+    "Price": 7.07,
+    "Avg Volume": 32621575,
+    "RSI": 57.5,
+    "From 52W High %": -17.5,
+    "Quick Score": 102,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BBBY",
+    "Price": 5.6,
+    "Avg Volume": 5439122,
+    "RSI": 57.0,
+    "From 52W High %": -27.5,
+    "Quick Score": 102,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BKKT",
+    "Price": 11.88,
+    "Avg Volume": 2065728,
+    "RSI": 65.2,
+    "From 52W High %": -46.3,
+    "Quick Score": 102,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BOX",
+    "Price": 25.9,
+    "Avg Volume": 2087930,
+    "RSI": 54.6,
+    "From 52W High %": -20.9,
+    "Quick Score": 102,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BRUN",
+    "Price": 24.02,
+    "Avg Volume": 1331194,
+    "RSI": 59.5,
+    "From 52W High %": -23.7,
+    "Quick Score": 102,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BRZE",
+    "Price": 24.35,
+    "Avg Volume": 2736324,
+    "RSI": 50.8,
+    "From 52W High %": -34.8,
+    "Quick Score": 102,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BWEN",
+    "Price": 3.89,
+    "Avg Volume": 1893708,
+    "RSI": 60.2,
+    "From 52W High %": -20.6,
+    "Quick Score": 102,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "CLRB",
+    "Price": 3.2,
+    "Avg Volume": 3040035,
+    "RSI": 59.4,
+    "From 52W High %": -31.9,
+    "Quick Score": 102,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "CMC",
+    "Price": 71.9,
+    "Avg Volume": 879101,
+    "RSI": 63.0,
+    "From 52W High %": -15.3,
+    "Quick Score": 102,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "AAOI",
+    "Price": 181.49,
+    "Avg Volume": 11740509,
+    "RSI": 52.3,
+    "From 52W High %": -22.3,
+    "Quick Score": 94,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "AAP",
+    "Price": 57.95,
+    "Avg Volume": 2114277,
+    "RSI": 51.0,
+    "From 52W High %": -11.1,
+    "Quick Score": 94,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "ABCL",
+    "Price": 5.2,
+    "Avg Volume": 10016536,
+    "RSI": 58.5,
+    "From 52W High %": -7.6,
+    "Quick Score": 94,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ABVX",
+    "Price": 121.99,
+    "Avg Volume": 947410,
+    "RSI": 56.8,
+    "From 52W High %": -18.0,
+    "Quick Score": 94,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "ADAM",
+    "Price": 8.9,
+    "Avg Volume": 960720,
+    "RSI": 56.5,
+    "From 52W High %": -4.5,
+    "Quick Score": 94,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AEG",
+    "Price": 8.61,
+    "Avg Volume": 4100283,
+    "RSI": 68.6,
+    "From 52W High %": -0.8,
+    "Quick Score": 94,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AESI",
+    "Price": 19.07,
+    "Avg Volume": 4707089,
+    "RSI": 60.3,
+    "From 52W High %": -5.3,
+    "Quick Score": 94,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AIP",
+    "Price": 36.28,
+    "Avg Volume": 1167406,
+    "RSI": 68.3,
+    "From 52W High %": -5.7,
+    "Quick Score": 94,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "AKR",
+    "Price": 21.96,
+    "Avg Volume": 1017545,
+    "RSI": 54.4,
+    "From 52W High %": -1.8,
+    "Quick Score": 94,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ALKS",
+    "Price": 36.8,
+    "Avg Volume": 2145928,
+    "RSI": 63.8,
+    "From 52W High %": -7.0,
+    "Quick Score": 94,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "AM",
+    "Price": 22.17,
+    "Avg Volume": 2521797,
+    "RSI": 52.5,
+    "From 52W High %": -7.0,
+    "Quick Score": 94,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AMCX",
+    "Price": 9.24,
+    "Avg Volume": 557050,
+    "RSI": 66.3,
+    "From 52W High %": -10.1,
+    "Quick Score": 94,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AMH",
+    "Price": 32.27,
+    "Avg Volume": 3600889,
+    "RSI": 53.2,
+    "From 52W High %": -1.7,
+    "Quick Score": 94,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "AMN",
+    "Price": 27.66,
+    "Avg Volume": 1337509,
+    "RSI": 67.3,
+    "From 52W High %": -12.6,
+    "Quick Score": 94,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AMRC",
+    "Price": 31.77,
+    "Avg Volume": 601270,
+    "RSI": 50.8,
+    "From 52W High %": -12.7,
+    "Quick Score": 94,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "APLD",
+    "Price": 45.87,
+    "Avg Volume": 22873848,
+    "RSI": 62.2,
+    "From 52W High %": -5.6,
+    "Quick Score": 94,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "ARCO",
+    "Price": 8.75,
+    "Avg Volume": 1290618,
+    "RSI": 51.5,
+    "From 52W High %": -10.3,
+    "Quick Score": 94,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ASB",
+    "Price": 28.01,
+    "Avg Volume": 1777597,
+    "RSI": 51.2,
+    "From 52W High %": -5.1,
+    "Quick Score": 94,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ASC",
+    "Price": 18.83,
+    "Avg Volume": 759909,
+    "RSI": 52.8,
+    "From 52W High %": -6.0,
+    "Quick Score": 94,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ASX",
+    "Price": 34.81,
+    "Avg Volume": 8368271,
+    "RSI": 58.2,
+    "From 52W High %": -2.5,
+    "Quick Score": 94,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "AUB",
+    "Price": 37.56,
+    "Avg Volume": 952436,
+    "RSI": 52.9,
+    "From 52W High %": -11.0,
+    "Quick Score": 94,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "AVA",
+    "Price": 41.47,
+    "Avg Volume": 553123,
+    "RSI": 59.5,
+    "From 52W High %": -4.7,
+    "Quick Score": 94,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BCAT",
+    "Price": 15.52,
+    "Avg Volume": 708414,
+    "RSI": 58.0,
+    "From 52W High %": -2.3,
+    "Quick Score": 94,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BCE",
+    "Price": 24.6,
+    "Avg Volume": 2881210,
+    "RSI": 61.6,
+    "From 52W High %": -7.2,
+    "Quick Score": 94,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BEN",
+    "Price": 31.02,
+    "Avg Volume": 5296809,
+    "RSI": 59.9,
+    "From 52W High %": -4.4,
+    "Quick Score": 94,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BIRK",
+    "Price": 41.38,
+    "Avg Volume": 2959642,
+    "RSI": 59.3,
+    "From 52W High %": -14.1,
+    "Quick Score": 94,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BKSY",
+    "Price": 47.87,
+    "Avg Volume": 2371220,
+    "RSI": 64.2,
+    "From 52W High %": -1.5,
+    "Quick Score": 94,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BLFS",
+    "Price": 23.95,
+    "Avg Volume": 528869,
+    "RSI": 65.6,
+    "From 52W High %": -12.1,
+    "Quick Score": 94,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BLLN",
+    "Price": 85.92,
+    "Avg Volume": 733363,
+    "RSI": 60.1,
+    "From 52W High %": -38.1,
+    "Quick Score": 94,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "BMY",
+    "Price": 59.46,
+    "Avg Volume": 10432847,
+    "RSI": 67.9,
+    "From 52W High %": -5.5,
+    "Quick Score": 94,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BRX",
+    "Price": 30.84,
+    "Avg Volume": 2701534,
+    "RSI": 62.2,
+    "From 52W High %": -2.1,
+    "Quick Score": 94,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BTE",
+    "Price": 5.15,
+    "Avg Volume": 20644527,
+    "RSI": 51.1,
+    "From 52W High %": -3.9,
+    "Quick Score": 94,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BTSG",
+    "Price": 58.5,
+    "Avg Volume": 3147870,
+    "RSI": 66.8,
+    "From 52W High %": -1.9,
+    "Quick Score": 94,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BTX",
+    "Price": 8.91,
+    "Avg Volume": 692334,
+    "RSI": 69.5,
+    "From 52W High %": -0.8,
+    "Quick Score": 94,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BUSE",
+    "Price": 27.08,
+    "Avg Volume": 561554,
+    "RSI": 63.4,
+    "From 52W High %": -2.1,
+    "Quick Score": 94,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BW",
+    "Price": 19.04,
+    "Avg Volume": 4028567,
+    "RSI": 63.1,
+    "From 52W High %": -13.6,
+    "Quick Score": 94,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BWA",
+    "Price": 65.82,
+    "Avg Volume": 3316644,
+    "RSI": 69.4,
+    "From 52W High %": -6.4,
+    "Quick Score": 94,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CABA",
+    "Price": 3.65,
+    "Avg Volume": 5090855,
+    "RSI": 46.0,
+    "From 52W High %": -13.7,
+    "Quick Score": 94,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "CADL",
+    "Price": 7.99,
+    "Avg Volume": 2215526,
+    "RSI": 56.8,
+    "From 52W High %": -13.8,
+    "Quick Score": 94,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "CAKE",
+    "Price": 61.14,
+    "Avg Volume": 1291690,
+    "RSI": 55.9,
+    "From 52W High %": -8.1,
+    "Quick Score": 94,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CAL",
+    "Price": 13.5,
+    "Avg Volume": 638445,
+    "RSI": 56.1,
+    "From 52W High %": -7.4,
+    "Quick Score": 94,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CALY",
+    "Price": 15.38,
+    "Avg Volume": 3399141,
+    "RSI": 57.6,
+    "From 52W High %": -14.6,
+    "Quick Score": 94,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CART",
+    "Price": 41.22,
+    "Avg Volume": 4677907,
+    "RSI": 44.1,
+    "From 52W High %": -12.8,
+    "Quick Score": 94,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CBRL",
+    "Price": 32.39,
+    "Avg Volume": 1020041,
+    "RSI": 63.7,
+    "From 52W High %": -12.2,
+    "Quick Score": 94,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CBSH",
+    "Price": 52.37,
+    "Avg Volume": 1135949,
+    "RSI": 55.3,
+    "From 52W High %": -6.6,
+    "Quick Score": 94,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CCCC",
+    "Price": 3.56,
+    "Avg Volume": 2864932,
+    "RSI": 63.6,
+    "From 52W High %": -9.9,
+    "Quick Score": 94,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "CCO",
+    "Price": 2.4,
+    "Avg Volume": 5447065,
+    "RSI": 60.0,
+    "From 52W High %": -1.2,
+    "Quick Score": 94,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "CDNA",
+    "Price": 21.63,
+    "Avg Volume": 734340,
+    "RSI": 56.7,
+    "From 52W High %": -6.9,
+    "Quick Score": 94,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CENX",
+    "Price": 65.05,
+    "Avg Volume": 1536759,
+    "RSI": 58.3,
+    "From 52W High %": -5.3,
+    "Quick Score": 94,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CEPT",
+    "Price": 12.97,
+    "Avg Volume": 764203,
+    "RSI": 61.2,
+    "From 52W High %": -5.6,
+    "Quick Score": 94,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CERS",
+    "Price": 2.71,
+    "Avg Volume": 3384342,
+    "RSI": 49.5,
+    "From 52W High %": -14.0,
+    "Quick Score": 94,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "CFFN",
+    "Price": 7.75,
+    "Avg Volume": 884037,
+    "RSI": 53.7,
+    "From 52W High %": -2.8,
+    "Quick Score": 94,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "CGEN",
+    "Price": 2.8,
+    "Avg Volume": 594951,
+    "RSI": 55.9,
+    "From 52W High %": -13.6,
+    "Quick Score": 94,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "CGNT",
+    "Price": 10.1,
+    "Avg Volume": 625728,
+    "RSI": 49.9,
+    "From 52W High %": -12.2,
+    "Quick Score": 94,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CGNX",
+    "Price": 66.09,
+    "Avg Volume": 2829734,
+    "RSI": 67.2,
+    "From 52W High %": -8.1,
+    "Quick Score": 94,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CLMT",
+    "Price": 34.22,
+    "Avg Volume": 961614,
+    "RSI": 50.3,
+    "From 52W High %": -7.4,
+    "Quick Score": 94,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CLSK",
+    "Price": 15.97,
+    "Avg Volume": 22313055,
+    "RSI": 69.9,
+    "From 52W High %": -4.1,
+    "Quick Score": 94,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CLYM",
+    "Price": 11.0,
+    "Avg Volume": 954841,
+    "RSI": 59.3,
+    "From 52W High %": -11.9,
+    "Quick Score": 94,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CMPS",
+    "Price": 11.81,
+    "Avg Volume": 4011442,
+    "RSI": 67.2,
+    "From 52W High %": -3.5,
+    "Quick Score": 94,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AD",
+    "Price": 50.67,
+    "Avg Volume": 213129,
+    "RSI": 54.6,
+    "From 52W High %": -16.7,
+    "Quick Score": 92,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "ANTX",
+    "Price": 4.85,
+    "Avg Volume": 250262,
+    "RSI": 50.0,
+    "From 52W High %": -29.8,
+    "Quick Score": 92,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "APT",
+    "Price": 6.27,
+    "Avg Volume": 183422,
+    "RSI": 68.9,
+    "From 52W High %": -16.4,
+    "Quick Score": 92,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AXIL",
+    "Price": 7.03,
+    "Avg Volume": 377806,
+    "RSI": 59.2,
+    "From 52W High %": -28.7,
+    "Quick Score": 92,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BGDE",
+    "Price": 5.9,
+    "Avg Volume": 210229,
+    "RSI": 63.5,
+    "From 52W High %": -62.7,
+    "Quick Score": 92,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "CBIO",
+    "Price": 20.74,
+    "Avg Volume": 282378,
+    "RSI": 65.5,
+    "From 52W High %": -24.3,
+    "Quick Score": 92,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CCSI",
+    "Price": 28.17,
+    "Avg Volume": 170734,
+    "RSI": 51.6,
+    "From 52W High %": -24.5,
+    "Quick Score": 92,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CHRN",
+    "Price": 15.48,
+    "Avg Volume": 300887,
+    "RSI": 65.6,
+    "From 52W High %": -23.9,
+    "Quick Score": 92,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ACGL",
+    "Price": 96.3,
+    "Avg Volume": 2480889,
+    "RSI": 66.9,
+    "From 52W High %": -6.9,
+    "Quick Score": 86,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "ACLS",
+    "Price": 156.94,
+    "Avg Volume": 709443,
+    "RSI": 58.5,
+    "From 52W High %": -8.5,
+    "Quick Score": 86,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "AEE",
+    "Price": 111.29,
+    "Avg Volume": 1810943,
+    "RSI": 46.3,
+    "From 52W High %": -3.7,
+    "Quick Score": 86,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "AFL",
+    "Price": 117.86,
+    "Avg Volume": 2146667,
+    "RSI": 69.0,
+    "From 52W High %": -1.6,
+    "Quick Score": 86,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "ALV",
+    "Price": 122.73,
+    "Avg Volume": 728938,
+    "RSI": 65.2,
+    "From 52W High %": -5.7,
+    "Quick Score": 86,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "AMAT",
+    "Price": 432.16,
+    "Avg Volume": 7729228,
+    "RSI": 62.1,
+    "From 52W High %": -3.6,
+    "Quick Score": 86,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "AMT",
+    "Price": 183.85,
+    "Avg Volume": 2986068,
+    "RSI": 54.5,
+    "From 52W High %": -5.9,
+    "Quick Score": 86,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "ASML",
+    "Price": 1632.9,
+    "Avg Volume": 1654649,
+    "RSI": 67.7,
+    "From 52W High %": -1.2,
+    "Quick Score": 86,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "ASND",
+    "Price": 247.05,
+    "Avg Volume": 730283,
+    "RSI": 65.6,
+    "From 52W High %": -1.5,
+    "Quick Score": 86,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "ATI",
+    "Price": 162.29,
+    "Avg Volume": 1793367,
+    "RSI": 58.0,
+    "From 52W High %": -5.2,
+    "Quick Score": 86,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "ATRO",
+    "Price": 80.86,
+    "Avg Volume": 587841,
+    "RSI": 62.4,
+    "From 52W High %": -6.3,
+    "Quick Score": 86,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "AVB",
+    "Price": 185.65,
+    "Avg Volume": 1163277,
+    "RSI": 56.1,
+    "From 52W High %": -1.3,
+    "Quick Score": 86,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "AVT",
+    "Price": 85.91,
+    "Avg Volume": 1447612,
+    "RSI": 61.4,
+    "From 52W High %": -1.8,
+    "Quick Score": 86,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "AXSM",
+    "Price": 235.97,
+    "Avg Volume": 927778,
+    "RSI": 63.9,
+    "From 52W High %": -0.4,
+    "Quick Score": 86,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "AXTI",
+    "Price": 140.83,
+    "Avg Volume": 10677794,
+    "RSI": 65.2,
+    "From 52W High %": -0.4,
+    "Quick Score": 86,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "BC",
+    "Price": 80.96,
+    "Avg Volume": 638326,
+    "RSI": 61.6,
+    "From 52W High %": -10.3,
+    "Quick Score": 86,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "BE",
+    "Price": 302.49,
+    "Avg Volume": 10805647,
+    "RSI": 53.6,
+    "From 52W High %": -6.3,
+    "Quick Score": 86,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "BFH",
+    "Price": 86.6,
+    "Avg Volume": 561819,
+    "RSI": 56.8,
+    "From 52W High %": -12.6,
+    "Quick Score": 86,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "BHE",
+    "Price": 85.12,
+    "Avg Volume": 525321,
+    "RSI": 53.9,
+    "From 52W High %": -3.0,
+    "Quick Score": 86,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "BHP",
+    "Price": 84.6,
+    "Avg Volume": 2461597,
+    "RSI": 61.7,
+    "From 52W High %": -7.5,
+    "Quick Score": 86,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "BIIB",
+    "Price": 193.76,
+    "Avg Volume": 1210464,
+    "RSI": 57.6,
+    "From 52W High %": -5.9,
+    "Quick Score": 86,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "BNS",
+    "Price": 79.78,
+    "Avg Volume": 1822568,
+    "RSI": 69.5,
+    "From 52W High %": -0.3,
+    "Quick Score": 86,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "BURL",
+    "Price": 324.51,
+    "Avg Volume": 723548,
+    "RSI": 58.4,
+    "From 52W High %": -7.8,
+    "Quick Score": 86,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "CB",
+    "Price": 327.89,
+    "Avg Volume": 1493827,
+    "RSI": 54.0,
+    "From 52W High %": -5.1,
+    "Quick Score": 86,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "CBOE",
+    "Price": 357.35,
+    "Avg Volume": 953484,
+    "RSI": 61.8,
+    "From 52W High %": -3.7,
+    "Quick Score": 86,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "CCI",
+    "Price": 91.46,
+    "Avg Volume": 3356947,
+    "RSI": 53.9,
+    "From 52W High %": -2.5,
+    "Quick Score": 86,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "CDNS",
+    "Price": 373.59,
+    "Avg Volume": 2362291,
+    "RSI": 65.8,
+    "From 52W High %": -2.1,
+    "Quick Score": 86,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "CECO",
+    "Price": 81.71,
+    "Avg Volume": 891197,
+    "RSI": 55.0,
+    "From 52W High %": -9.5,
+    "Quick Score": 86,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "CELC",
+    "Price": 138.23,
+    "Avg Volume": 1234182,
+    "RSI": 44.1,
+    "From 52W High %": -8.5,
+    "Quick Score": 86,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "CFR",
+    "Price": 139.38,
+    "Avg Volume": 568810,
+    "RSI": 50.2,
+    "From 52W High %": -6.4,
+    "Quick Score": 86,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "CHD",
+    "Price": 96.25,
+    "Avg Volume": 2067213,
+    "RSI": 59.9,
+    "From 52W High %": -9.2,
+    "Quick Score": 86,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "CHRD",
+    "Price": 143.98,
+    "Avg Volume": 783001,
+    "RSI": 42.2,
+    "From 52W High %": -5.2,
+    "Quick Score": 86,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "CIEN",
+    "Price": 583.74,
+    "Avg Volume": 1986274,
+    "RSI": 58.3,
+    "From 52W High %": -2.6,
+    "Quick Score": 86,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "CM",
+    "Price": 115.49,
+    "Avg Volume": 1006669,
+    "RSI": 69.5,
+    "From 52W High %": -0.5,
+    "Quick Score": 86,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "CNI",
+    "Price": 114.24,
+    "Avg Volume": 1318485,
+    "RSI": 69.8,
+    "From 52W High %": -1.3,
+    "Quick Score": 86,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "AAL",
+    "Price": 13.85,
+    "Avg Volume": 57852609,
+    "RSI": 71.4,
+    "From 52W High %": -16.1,
+    "Quick Score": 84,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AAMI",
+    "Price": 71.58,
+    "Avg Volume": 399598,
+    "RSI": 59.5,
+    "From 52W High %": -3.9,
+    "Quick Score": 84,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "ABAT",
+    "Price": 3.23,
+    "Avg Volume": 5359216,
+    "RSI": 50.2,
+    "From 52W High %": -39.4,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ABSI",
+    "Price": 5.1,
+    "Avg Volume": 5186046,
+    "RSI": 41.1,
+    "From 52W High %": -24.1,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ACB",
+    "Price": 3.46,
+    "Avg Volume": 764232,
+    "RSI": 52.5,
+    "From 52W High %": -45.6,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ACHV",
+    "Price": 4.69,
+    "Avg Volume": 1250639,
+    "RSI": 54.4,
+    "From 52W High %": -23.7,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ACVA",
+    "Price": 5.95,
+    "Avg Volume": 4022432,
+    "RSI": 60.7,
+    "From 52W High %": -34.4,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ADPT",
+    "Price": 13.88,
+    "Avg Volume": 1686681,
+    "RSI": 44.1,
+    "From 52W High %": -33.1,
+    "Quick Score": 84,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ADX",
+    "Price": 25.02,
+    "Avg Volume": 253900,
+    "RSI": 69.4,
+    "From 52W High %": -1.1,
+    "Quick Score": 84,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AES",
+    "Price": 14.68,
+    "Avg Volume": 12417054,
+    "RSI": 80.3,
+    "From 52W High %": -16.8,
+    "Quick Score": 84,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AFCG",
+    "Price": 3.62,
+    "Avg Volume": 382718,
+    "RSI": 68.8,
+    "From 52W High %": -1.0,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AFRM",
+    "Price": 65.22,
+    "Avg Volume": 5184359,
+    "RSI": 46.1,
+    "From 52W High %": -23.0,
+    "Quick Score": 84,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "AI",
+    "Price": 9.29,
+    "Avg Volume": 4346613,
+    "RSI": 51.0,
+    "From 52W High %": -43.4,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AIIO",
+    "Price": 2.58,
+    "Avg Volume": 34050726,
+    "RSI": 58.7,
+    "From 52W High %": -86.1,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AIN",
+    "Price": 62.13,
+    "Avg Volume": 239817,
+    "RSI": 66.8,
+    "From 52W High %": -3.0,
+    "Quick Score": 84,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "AIOS",
+    "Price": 16.06,
+    "Avg Volume": 567680,
+    "RSI": 51.7,
+    "From 52W High %": -79.0,
+    "Quick Score": 84,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AIOT",
+    "Price": 3.41,
+    "Avg Volume": 1320974,
+    "RSI": 57.8,
+    "From 52W High %": -41.3,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AISP",
+    "Price": 2.56,
+    "Avg Volume": 507917,
+    "RSI": 52.5,
+    "From 52W High %": -40.7,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AKTX",
+    "Price": 18.27,
+    "Avg Volume": 1931667,
+    "RSI": 79.1,
+    "From 52W High %": -23.9,
+    "Quick Score": 84,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ALK",
+    "Price": 41.34,
+    "Avg Volume": 3289604,
+    "RSI": 65.1,
+    "From 52W High %": -31.8,
+    "Quick Score": 84,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "ALKT",
+    "Price": 16.8,
+    "Avg Volume": 1875193,
+    "RSI": 45.2,
+    "From 52W High %": -31.3,
+    "Quick Score": 84,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AMBO",
+    "Price": 2.46,
+    "Avg Volume": 531942,
+    "RSI": 55.1,
+    "From 52W High %": -53.1,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AMBP",
+    "Price": 4.04,
+    "Avg Volume": 1294553,
+    "RSI": 60.9,
+    "From 52W High %": -19.7,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AMST",
+    "Price": 2.1,
+    "Avg Volume": 9452773,
+    "RSI": 82.3,
+    "From 52W High %": -23.6,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ANGO",
+    "Price": 11.92,
+    "Avg Volume": 278109,
+    "RSI": 68.4,
+    "From 52W High %": -14.8,
+    "Quick Score": 84,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ANVS",
+    "Price": 2.23,
+    "Avg Volume": 1226425,
+    "RSI": 47.8,
+    "From 52W High %": -59.5,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AOD",
+    "Price": 10.41,
+    "Avg Volume": 361829,
+    "RSI": 59.6,
+    "From 52W High %": -3.3,
+    "Quick Score": 84,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "APAM",
+    "Price": 37.78,
+    "Avg Volume": 753590,
+    "RSI": 57.4,
+    "From 52W High %": -18.8,
+    "Quick Score": 84,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "APYX",
+    "Price": 4.13,
+    "Avg Volume": 245638,
+    "RSI": 68.7,
+    "From 52W High %": -8.2,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ARQQ",
+    "Price": 17.49,
+    "Avg Volume": 552935,
+    "RSI": 65.0,
+    "From 52W High %": -44.9,
+    "Quick Score": 84,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ARRY",
+    "Price": 8.48,
+    "Avg Volume": 5047124,
+    "RSI": 59.5,
+    "From 52W High %": -30.7,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AS",
+    "Price": 35.26,
+    "Avg Volume": 4865978,
+    "RSI": 55.9,
+    "From 52W High %": -17.5,
+    "Quick Score": 84,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "ASAN",
+    "Price": 6.62,
+    "Avg Volume": 6139204,
+    "RSI": 41.8,
+    "From 52W High %": -56.7,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ASBP",
+    "Price": 5.41,
+    "Avg Volume": 24095296,
+    "RSI": 77.5,
+    "From 52W High %": -23.3,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ASG",
+    "Price": 5.25,
+    "Avg Volume": 292891,
+    "RSI": 54.0,
+    "From 52W High %": -4.9,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ASPI",
+    "Price": 5.55,
+    "Avg Volume": 4068580,
+    "RSI": 54.3,
+    "From 52W High %": -35.5,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ASTH",
+    "Price": 37.85,
+    "Avg Volume": 479170,
+    "RSI": 61.6,
+    "From 52W High %": -5.2,
+    "Quick Score": 84,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "ASYS",
+    "Price": 22.08,
+    "Avg Volume": 301538,
+    "RSI": 68.5,
+    "From 52W High %": -7.6,
+    "Quick Score": 84,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ATPC",
+    "Price": 2.78,
+    "Avg Volume": 2463153,
+    "RSI": 51.3,
+    "From 52W High %": -96.2,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ATRA",
+    "Price": 9.8,
+    "Avg Volume": 4241620,
+    "RSI": 71.9,
+    "From 52W High %": -48.8,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AVAH",
+    "Price": 7.33,
+    "Avg Volume": 1666967,
+    "RSI": 63.0,
+    "From 52W High %": -25.5,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AVPT",
+    "Price": 10.29,
+    "Avg Volume": 2198777,
+    "RSI": 47.1,
+    "From 52W High %": -27.7,
+    "Quick Score": 84,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AVTX",
+    "Price": 16.35,
+    "Avg Volume": 2817819,
+    "RSI": 57.8,
+    "From 52W High %": -32.6,
+    "Quick Score": 84,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AXTA",
+    "Price": 29.22,
+    "Avg Volume": 1967077,
+    "RSI": 66.0,
+    "From 52W High %": -18.2,
+    "Quick Score": 84,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BBAI",
+    "Price": 4.18,
+    "Avg Volume": 43093745,
+    "RSI": 50.3,
+    "From 52W High %": -41.8,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BBNX",
+    "Price": 11.82,
+    "Avg Volume": 727065,
+    "RSI": 65.2,
+    "From 52W High %": -63.9,
+    "Quick Score": 84,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BBY",
+    "Price": 61.63,
+    "Avg Volume": 3482952,
+    "RSI": 64.7,
+    "From 52W High %": -26.3,
+    "Quick Score": 84,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BCAL",
+    "Price": 19.02,
+    "Avg Volume": 168406,
+    "RSI": 57.7,
+    "From 52W High %": -7.1,
+    "Quick Score": 84,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BEAM",
+    "Price": 28.64,
+    "Avg Volume": 2065753,
+    "RSI": 45.3,
+    "From 52W High %": -21.4,
+    "Quick Score": 84,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BETA",
+    "Price": 16.76,
+    "Avg Volume": 1849109,
+    "RSI": 49.8,
+    "From 52W High %": -48.7,
+    "Quick Score": 84,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BFLY",
+    "Price": 4.47,
+    "Avg Volume": 5104191,
+    "RSI": 41.0,
+    "From 52W High %": -21.9,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BFST",
+    "Price": 27.84,
+    "Avg Volume": 180701,
+    "RSI": 61.6,
+    "From 52W High %": -8.2,
+    "Quick Score": 84,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BHVN",
+    "Price": 9.45,
+    "Avg Volume": 1922617,
+    "RSI": 41.4,
+    "From 52W High %": -32.5,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BLBD",
+    "Price": 66.3,
+    "Avg Volume": 571272,
+    "RSI": 56.8,
+    "From 52W High %": -18.7,
+    "Quick Score": 84,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BLX",
+    "Price": 55.1,
+    "Avg Volume": 157661,
+    "RSI": 56.7,
+    "From 52W High %": -4.7,
+    "Quick Score": 84,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BOC",
+    "Price": 12.53,
+    "Avg Volume": 261087,
+    "RSI": 55.0,
+    "From 52W High %": -9.4,
+    "Quick Score": 84,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BSTZ",
+    "Price": 28.7,
+    "Avg Volume": 235619,
+    "RSI": 59.9,
+    "From 52W High %": -1.3,
+    "Quick Score": 84,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BTQ",
+    "Price": 3.78,
+    "Avg Volume": 2501425,
+    "RSI": 64.0,
+    "From 52W High %": -48.5,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BWLP",
+    "Price": 22.1,
+    "Avg Volume": 481467,
+    "RSI": 69.8,
+    "From 52W High %": -3.6,
+    "Quick Score": 84,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BXP",
+    "Price": 60.29,
+    "Avg Volume": 1642597,
+    "RSI": 60.4,
+    "From 52W High %": -17.6,
+    "Quick Score": 84,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BY",
+    "Price": 33.17,
+    "Avg Volume": 284056,
+    "RSI": 61.7,
+    "From 52W High %": -3.4,
+    "Quick Score": 84,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CANF",
+    "Price": 3.4,
+    "Avg Volume": 1479690,
+    "RSI": 52.4,
+    "From 52W High %": -67.3,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "CATY",
+    "Price": 57.27,
+    "Avg Volume": 417985,
+    "RSI": 56.1,
+    "From 52W High %": -1.3,
+    "Quick Score": 84,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CBL",
+    "Price": 47.23,
+    "Avg Volume": 225309,
+    "RSI": 69.4,
+    "From 52W High %": -2.9,
+    "Quick Score": 84,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CBU",
+    "Price": 63.41,
+    "Avg Volume": 230826,
+    "RSI": 53.3,
+    "From 52W High %": -6.1,
+    "Quick Score": 84,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CBZ",
+    "Price": 32.23,
+    "Avg Volume": 967884,
+    "RSI": 49.9,
+    "From 52W High %": -41.5,
+    "Quick Score": 84,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CDXS",
+    "Price": 2.49,
+    "Avg Volume": 1148491,
+    "RSI": 49.4,
+    "From 52W High %": -16.4,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "CHCT",
+    "Price": 17.38,
+    "Avg Volume": 200705,
+    "RSI": 53.2,
+    "From 52W High %": -4.6,
+    "Quick Score": 84,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CHI",
+    "Price": 12.45,
+    "Avg Volume": 173780,
+    "RSI": 54.7,
+    "From 52W High %": -2.0,
+    "Quick Score": 84,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CHW",
+    "Price": 8.65,
+    "Avg Volume": 197295,
+    "RSI": 58.5,
+    "From 52W High %": -3.1,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "CHY",
+    "Price": 12.92,
+    "Avg Volume": 234126,
+    "RSI": 57.0,
+    "From 52W High %": -1.4,
+    "Quick Score": 84,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CLF",
+    "Price": 11.23,
+    "Avg Volume": 16424939,
+    "RSI": 59.3,
+    "From 52W High %": -26.8,
+    "Quick Score": 84,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CLNN",
+    "Price": 6.7,
+    "Avg Volume": 1353793,
+    "RSI": 37.0,
+    "From 52W High %": -38.2,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "CMRC",
+    "Price": 2.98,
+    "Avg Volume": 914549,
+    "RSI": 48.8,
+    "From 52W High %": -37.8,
+    "Quick Score": 84,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "CATX",
+    "Price": 3.98,
+    "Avg Volume": 1428905,
+    "RSI": 50.0,
+    "From 52W High %": -35.4,
+    "Quick Score": 80,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "A",
+    "Price": 114.96,
+    "Avg Volume": 2141595,
+    "RSI": 55.9,
+    "From 52W High %": -28.3,
+    "Quick Score": 76,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "AA",
+    "Price": 71.38,
+    "Avg Volume": 4118270,
+    "RSI": 70.3,
+    "From 52W High %": -5.7,
+    "Quick Score": 76,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "ABX",
+    "Price": 9.04,
+    "Avg Volume": 548167,
+    "RSI": 46.5,
+    "From 52W High %": -14.2,
+    "Quick Score": 76,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ACCO",
+    "Price": 3.82,
+    "Avg Volume": 1070501,
+    "RSI": 37.1,
+    "From 52W High %": -11.2,
+    "Quick Score": 76,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ACDC",
+    "Price": 7.15,
+    "Avg Volume": 1362821,
+    "RSI": 44.7,
+    "From 52W High %": -13.0,
+    "Quick Score": 76,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ACRS",
+    "Price": 4.52,
+    "Avg Volume": 1271194,
+    "RSI": 49.7,
+    "From 52W High %": -12.2,
+    "Quick Score": 76,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ADP",
+    "Price": 225.31,
+    "Avg Volume": 3033780,
+    "RSI": 65.8,
+    "From 52W High %": -16.0,
+    "Quick Score": 76,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "ADSK",
+    "Price": 240.99,
+    "Avg Volume": 1826645,
+    "RSI": 43.9,
+    "From 52W High %": -24.7,
+    "Quick Score": 76,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "AEVA",
+    "Price": 25.32,
+    "Avg Volume": 2412237,
+    "RSI": 72.8,
+    "From 52W High %": -0.2,
+    "Quick Score": 76,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AHR",
+    "Price": 50.19,
+    "Avg Volume": 2496496,
+    "RSI": 50.2,
+    "From 52W High %": -8.2,
+    "Quick Score": 76,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "AHRT",
+    "Price": 6.92,
+    "Avg Volume": 901790,
+    "RSI": 82.6,
+    "From 52W High %": -5.6,
+    "Quick Score": 76,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AIRJ",
+    "Price": 4.37,
+    "Avg Volume": 717737,
+    "RSI": 77.7,
+    "From 52W High %": -9.7,
+    "Quick Score": 76,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AIRS",
+    "Price": 5.33,
+    "Avg Volume": 1484866,
+    "RSI": 86.8,
+    "From 52W High %": -2.6,
+    "Quick Score": 76,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AIT",
+    "Price": 307.1,
+    "Avg Volume": 265753,
+    "RSI": 53.2,
+    "From 52W High %": -3.2,
+    "Quick Score": 76,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "AIXI",
+    "Price": 15.47,
+    "Avg Volume": 11776230,
+    "RSI": 87.0,
+    "From 52W High %": -0.1,
+    "Quick Score": 76,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ALGM",
+    "Price": 45.95,
+    "Avg Volume": 2715026,
+    "RSI": 40.6,
+    "From 52W High %": -10.6,
+    "Quick Score": 76,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "ALH",
+    "Price": 24.77,
+    "Avg Volume": 721056,
+    "RSI": 41.5,
+    "From 52W High %": -6.6,
+    "Quick Score": 76,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ALLY",
+    "Price": 42.35,
+    "Avg Volume": 2756573,
+    "RSI": 46.5,
+    "From 52W High %": -10.4,
+    "Quick Score": 76,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "AMG",
+    "Price": 301.96,
+    "Avg Volume": 306479,
+    "RSI": 54.5,
+    "From 52W High %": -9.8,
+    "Quick Score": 76,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "AMPG",
+    "Price": 5.04,
+    "Avg Volume": 3936735,
+    "RSI": 84.8,
+    "From 52W High %": -10.7,
+    "Quick Score": 76,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AMSC",
+    "Price": 51.84,
+    "Avg Volume": 1271909,
+    "RSI": 52.2,
+    "From 52W High %": -13.9,
+    "Quick Score": 76,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "AMX",
+    "Price": 26.14,
+    "Avg Volume": 1379835,
+    "RSI": 45.1,
+    "From 52W High %": -6.0,
+    "Quick Score": 76,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ANIP",
+    "Price": 82.72,
+    "Avg Volume": 390601,
+    "RSI": 51.1,
+    "From 52W High %": -5.7,
+    "Quick Score": 76,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "APLE",
+    "Price": 14.47,
+    "Avg Volume": 3020586,
+    "RSI": 70.5,
+    "From 52W High %": -0.5,
+    "Quick Score": 76,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "APO",
+    "Price": 128.51,
+    "Avg Volume": 3418715,
+    "RSI": 48.7,
+    "From 52W High %": -16.2,
+    "Quick Score": 76,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "APP",
+    "Price": 481.68,
+    "Avg Volume": 4631680,
+    "RSI": 51.5,
+    "From 52W High %": -34.7,
+    "Quick Score": 76,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "ARCB",
+    "Price": 124.57,
+    "Avg Volume": 354292,
+    "RSI": 61.3,
+    "From 52W High %": -7.8,
+    "Quick Score": 76,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "ARES",
+    "Price": 124.41,
+    "Avg Volume": 2918048,
+    "RSI": 58.1,
+    "From 52W High %": -31.3,
+    "Quick Score": 76,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "ARGX",
+    "Price": 806.46,
+    "Avg Volume": 339314,
+    "RSI": 48.9,
+    "From 52W High %": -13.7,
+    "Quick Score": 76,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "ARI",
+    "Price": 10.94,
+    "Avg Volume": 1344556,
+    "RSI": 47.7,
+    "From 52W High %": -2.7,
+    "Quick Score": 76,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ARKO",
+    "Price": 7.63,
+    "Avg Volume": 916958,
+    "RSI": 80.2,
+    "From 52W High %": 0.0,
+    "Quick Score": 76,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ARMK",
+    "Price": 51.26,
+    "Avg Volume": 3360312,
+    "RSI": 75.3,
+    "From 52W High %": -4.3,
+    "Quick Score": 76,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "AROC",
+    "Price": 37.25,
+    "Avg Volume": 1758782,
+    "RSI": 40.9,
+    "From 52W High %": -7.2,
+    "Quick Score": 76,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "ARX",
+    "Price": 17.25,
+    "Avg Volume": 1349212,
+    "RSI": 78.1,
+    "From 52W High %": -2.5,
+    "Quick Score": 76,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ASH",
+    "Price": 57.21,
+    "Avg Volume": 1192741,
+    "RSI": 64.8,
+    "From 52W High %": -12.9,
+    "Quick Score": 76,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "ASPN",
+    "Price": 5.79,
+    "Avg Volume": 1976919,
+    "RSI": 75.5,
+    "From 52W High %": -4.4,
+    "Quick Score": 76,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ASTL",
+    "Price": 4.73,
+    "Avg Volume": 1253743,
+    "RSI": 50.3,
+    "From 52W High %": -13.1,
+    "Quick Score": 76,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ASTS",
+    "Price": 105.86,
+    "Avg Volume": 21018646,
+    "RSI": 74.5,
+    "From 52W High %": -18.5,
+    "Quick Score": 76,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "ATEN",
+    "Price": 29.16,
+    "Avg Volume": 961789,
+    "RSI": 70.6,
+    "From 52W High %": -2.9,
+    "Quick Score": 76,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AVNS",
+    "Price": 24.61,
+    "Avg Volume": 1272651,
+    "RSI": 44.2,
+    "From 52W High %": -1.2,
+    "Quick Score": 76,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AVR",
+    "Price": 9.62,
+    "Avg Volume": 1041608,
+    "RSI": 93.7,
+    "From 52W High %": -1.7,
+    "Quick Score": 76,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AXGN",
+    "Price": 40.9,
+    "Avg Volume": 982910,
+    "RSI": 40.4,
+    "From 52W High %": -10.8,
+    "Quick Score": 76,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BAH",
+    "Price": 78.68,
+    "Avg Volume": 1603555,
+    "RSI": 52.2,
+    "From 52W High %": -27.9,
+    "Quick Score": 76,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "BAK",
+    "Price": 4.83,
+    "Avg Volume": 2301717,
+    "RSI": 75.5,
+    "From 52W High %": -10.5,
+    "Quick Score": 76,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BANC",
+    "Price": 18.81,
+    "Avg Volume": 2596213,
+    "RSI": 53.3,
+    "From 52W High %": -13.0,
+    "Quick Score": 76,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BAND",
+    "Price": 61.39,
+    "Avg Volume": 1412039,
+    "RSI": 85.1,
+    "From 52W High %": -1.0,
+    "Quick Score": 76,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BAP",
+    "Price": 334.3,
+    "Avg Volume": 379217,
+    "RSI": 55.8,
+    "From 52W High %": -12.1,
+    "Quick Score": 76,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "BAX",
+    "Price": 19.18,
+    "Avg Volume": 8314429,
+    "RSI": 72.9,
+    "From 52W High %": -14.4,
+    "Quick Score": 76,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BB",
+    "Price": 7.91,
+    "Avg Volume": 26510948,
+    "RSI": 86.1,
+    "From 52W High %": -1.5,
+    "Quick Score": 76,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BBVA",
+    "Price": 22.37,
+    "Avg Volume": 1499567,
+    "RSI": 66.2,
+    "From 52W High %": -14.6,
+    "Quick Score": 76,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BCS",
+    "Price": 23.83,
+    "Avg Volume": 6075571,
+    "RSI": 57.8,
+    "From 52W High %": -14.0,
+    "Quick Score": 76,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BDN",
+    "Price": 3.0,
+    "Avg Volume": 1752470,
+    "RSI": 56.7,
+    "From 52W High %": -13.3,
+    "Quick Score": 76,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BEP",
+    "Price": 35.52,
+    "Avg Volume": 1100063,
+    "RSI": 75.5,
+    "From 52W High %": -1.3,
+    "Quick Score": 76,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BGC",
+    "Price": 11.19,
+    "Avg Volume": 3214081,
+    "RSI": 50.0,
+    "From 52W High %": -6.0,
+    "Quick Score": 76,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BHF",
+    "Price": 62.47,
+    "Avg Volume": 509101,
+    "RSI": 47.4,
+    "From 52W High %": -4.9,
+    "Quick Score": 76,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BIP",
+    "Price": 39.64,
+    "Avg Volume": 965638,
+    "RSI": 82.3,
+    "From 52W High %": -1.7,
+    "Quick Score": 76,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BKH",
+    "Price": 74.29,
+    "Avg Volume": 849344,
+    "RSI": 46.9,
+    "From 52W High %": -5.6,
+    "Quick Score": 76,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BLDP",
+    "Price": 5.54,
+    "Avg Volume": 11813438,
+    "RSI": 77.0,
+    "From 52W High %": -6.1,
+    "Quick Score": 76,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BLMN",
+    "Price": 7.82,
+    "Avg Volume": 2982028,
+    "RSI": 75.6,
+    "From 52W High %": -10.5,
+    "Quick Score": 76,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BLZE",
+    "Price": 7.67,
+    "Avg Volume": 3442726,
+    "RSI": 78.5,
+    "From 52W High %": -8.9,
+    "Quick Score": 76,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BN",
+    "Price": 45.37,
+    "Avg Volume": 5584832,
+    "RSI": 51.8,
+    "From 52W High %": -8.5,
+    "Quick Score": 76,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BNL",
+    "Price": 20.4,
+    "Avg Volume": 1912438,
+    "RSI": 80.7,
+    "From 52W High %": -0.4,
+    "Quick Score": 76,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BPOP",
+    "Price": 150.5,
+    "Avg Volume": 452991,
+    "RSI": 56.3,
+    "From 52W High %": -1.6,
+    "Quick Score": 76,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "BRC",
+    "Price": 87.52,
+    "Avg Volume": 361640,
+    "RSI": 62.3,
+    "From 52W High %": -11.9,
+    "Quick Score": 76,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "BV",
+    "Price": 12.59,
+    "Avg Volume": 690006,
+    "RSI": 61.0,
+    "From 52W High %": -11.5,
+    "Quick Score": 76,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BZFD",
+    "Price": 2.09,
+    "Avg Volume": 9349876,
+    "RSI": 80.6,
+    "From 52W High %": -5.4,
+    "Quick Score": 76,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BZH",
+    "Price": 24.36,
+    "Avg Volume": 943891,
+    "RSI": 71.8,
+    "From 52W High %": -14.0,
+    "Quick Score": 76,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CBC",
+    "Price": 28.45,
+    "Avg Volume": 617916,
+    "RSI": 71.1,
+    "From 52W High %": -0.9,
+    "Quick Score": 76,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CBT",
+    "Price": 83.41,
+    "Avg Volume": 407116,
+    "RSI": 64.2,
+    "From 52W High %": -3.5,
+    "Quick Score": 76,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "CCRN",
+    "Price": 13.05,
+    "Avg Volume": 1165289,
+    "RSI": 82.9,
+    "From 52W High %": -1.0,
+    "Quick Score": 76,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CDP",
+    "Price": 32.13,
+    "Avg Volume": 976593,
+    "RSI": 80.7,
+    "From 52W High %": -3.5,
+    "Quick Score": 76,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CEVA",
+    "Price": 39.43,
+    "Avg Volume": 1028268,
+    "RSI": 75.8,
+    "From 52W High %": -2.7,
+    "Quick Score": 76,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CFG",
+    "Price": 62.89,
+    "Avg Volume": 3669408,
+    "RSI": 46.8,
+    "From 52W High %": -8.6,
+    "Quick Score": 76,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CHE",
+    "Price": 439.36,
+    "Avg Volume": 242130,
+    "RSI": 67.1,
+    "From 52W High %": -8.7,
+    "Quick Score": 76,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "CLOV",
+    "Price": 3.55,
+    "Avg Volume": 7255072,
+    "RSI": 82.1,
+    "From 52W High %": -4.1,
+    "Quick Score": 76,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "CMBT",
+    "Price": 16.85,
+    "Avg Volume": 1880184,
+    "RSI": 77.2,
+    "From 52W High %": -4.9,
+    "Quick Score": 76,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CMP",
+    "Price": 30.59,
+    "Avg Volume": 804659,
+    "RSI": 76.4,
+    "From 52W High %": -5.6,
+    "Quick Score": 76,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CNC",
+    "Price": 59.14,
+    "Avg Volume": 7186371,
+    "RSI": 72.6,
+    "From 52W High %": -2.7,
+    "Quick Score": 76,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "ABM",
+    "Price": 40.19,
+    "Avg Volume": 390309,
+    "RSI": 50.2,
+    "From 52W High %": -19.8,
+    "Quick Score": 74,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "ADIL",
+    "Price": 2.08,
+    "Avg Volume": 207237,
+    "RSI": 65.6,
+    "From 52W High %": -74.8,
+    "Quick Score": 74,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AEBI",
+    "Price": 12.1,
+    "Avg Volume": 302017,
+    "RSI": 57.7,
+    "From 52W High %": -24.2,
+    "Quick Score": 74,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AERO",
+    "Price": 16.01,
+    "Avg Volume": 264906,
+    "RSI": 61.9,
+    "From 52W High %": -30.5,
+    "Quick Score": 74,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AKTS",
+    "Price": 20.34,
+    "Avg Volume": 170525,
+    "RSI": 59.0,
+    "From 52W High %": -30.2,
+    "Quick Score": 74,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ALLT",
+    "Price": 7.7,
+    "Avg Volume": 476940,
+    "RSI": 51.7,
+    "From 52W High %": -35.4,
+    "Quick Score": 74,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AP",
+    "Price": 10.16,
+    "Avg Volume": 165822,
+    "RSI": 48.4,
+    "From 52W High %": -17.4,
+    "Quick Score": 74,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "APOG",
+    "Price": 35.88,
+    "Avg Volume": 184473,
+    "RSI": 55.6,
+    "From 52W High %": -17.3,
+    "Quick Score": 74,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "AYA",
+    "Price": 17.5,
+    "Avg Volume": 407437,
+    "RSI": 47.4,
+    "From 52W High %": -20.5,
+    "Quick Score": 74,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BBSI",
+    "Price": 31.52,
+    "Avg Volume": 239982,
+    "RSI": 57.0,
+    "From 52W High %": -21.2,
+    "Quick Score": 74,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CARL",
+    "Price": 12.11,
+    "Avg Volume": 227046,
+    "RSI": 79.8,
+    "From 52W High %": -29.6,
+    "Quick Score": 74,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CLW",
+    "Price": 14.08,
+    "Avg Volume": 224089,
+    "RSI": 64.1,
+    "From 52W High %": -32.3,
+    "Quick Score": 74,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CMTL",
+    "Price": 4.79,
+    "Avg Volume": 218152,
+    "RSI": 73.6,
+    "From 52W High %": -22.9,
+    "Quick Score": 74,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "CAR",
+    "Price": 167.05,
+    "Avg Volume": 1789624,
+    "RSI": 49.0,
+    "From 52W High %": -80.3,
+    "Quick Score": 72,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "CMS",
+    "Price": 74.53,
+    "Avg Volume": 2755264,
+    "RSI": 44.2,
+    "From 52W High %": -7.3,
+    "Quick Score": 72,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "ABOS",
+    "Price": 2.51,
+    "Avg Volume": 311490,
+    "RSI": 51.4,
+    "From 52W High %": -30.3,
+    "Quick Score": 70,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AAON",
+    "Price": 134.6,
+    "Avg Volume": 1471645,
+    "RSI": 76.4,
+    "From 52W High %": -9.7,
+    "Quick Score": 68,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "AAPL",
+    "Price": 308.82,
+    "Avg Volume": 48396223,
+    "RSI": 90.5,
+    "From 52W High %": -0.8,
+    "Quick Score": 68,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "ABBV",
+    "Price": 215.7,
+    "Avg Volume": 6104240,
+    "RSI": 64.3,
+    "From 52W High %": -9.2,
+    "Quick Score": 68,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "ADI",
+    "Price": 397.07,
+    "Avg Volume": 4095014,
+    "RSI": 50.0,
+    "From 52W High %": -8.9,
+    "Quick Score": 68,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "ADM",
+    "Price": 77.52,
+    "Avg Volume": 4313508,
+    "RSI": 53.6,
+    "From 52W High %": -6.7,
+    "Quick Score": 68,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "AGL",
+    "Price": 86.39,
+    "Avg Volume": 606149,
+    "RSI": 83.8,
+    "From 52W High %": -4.5,
+    "Quick Score": 68,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "AIG",
+    "Price": 77.05,
+    "Avg Volume": 5088988,
+    "RSI": 47.6,
+    "From 52W High %": -11.7,
+    "Quick Score": 68,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "AKAM",
+    "Price": 147.23,
+    "Avg Volume": 7279880,
+    "RSI": 71.0,
+    "From 52W High %": -11.0,
+    "Quick Score": 68,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "ALAB",
+    "Price": 306.88,
+    "Avg Volume": 6195005,
+    "RSI": 78.4,
+    "From 52W High %": -2.8,
+    "Quick Score": 68,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "ALL",
+    "Price": 216.6,
+    "Avg Volume": 1755343,
+    "RSI": 44.6,
+    "From 52W High %": -4.8,
+    "Quick Score": 68,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "AMBA",
+    "Price": 87.55,
+    "Avg Volume": 862158,
+    "RSI": 75.2,
+    "From 52W High %": -4.0,
+    "Quick Score": 68,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "AMBQ",
+    "Price": 81.67,
+    "Avg Volume": 835259,
+    "RSI": 88.5,
+    "From 52W High %": -0.2,
+    "Quick Score": 68,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "AMD",
+    "Price": 467.51,
+    "Avg Volume": 42387916,
+    "RSI": 75.2,
+    "From 52W High %": -2.9,
+    "Quick Score": 68,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "AMZN",
+    "Price": 266.32,
+    "Avg Volume": 43806235,
+    "RSI": 43.3,
+    "From 52W High %": -4.4,
+    "Quick Score": 68,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "ANET",
+    "Price": 154.03,
+    "Avg Volume": 12569341,
+    "RSI": 37.1,
+    "From 52W High %": -14.3,
+    "Quick Score": 68,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "AON",
+    "Price": 324.78,
+    "Avg Volume": 1507579,
+    "RSI": 60.3,
+    "From 52W High %": -9.4,
+    "Quick Score": 68,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "ARM",
+    "Price": 306.51,
+    "Avg Volume": 12028822,
+    "RSI": 75.7,
+    "From 52W High %": -2.7,
+    "Quick Score": 68,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "ARW",
+    "Price": 217.33,
+    "Avg Volume": 824436,
+    "RSI": 77.8,
+    "From 52W High %": -0.8,
+    "Quick Score": 68,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "AVGO",
+    "Price": 414.14,
+    "Avg Volume": 18611296,
+    "RSI": 49.0,
+    "From 52W High %": -6.4,
+    "Quick Score": 68,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "BMO",
+    "Price": 160.93,
+    "Avg Volume": 968528,
+    "RSI": 74.1,
+    "From 52W High %": -0.4,
+    "Quick Score": 68,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "BNY",
+    "Price": 139.15,
+    "Avg Volume": 3506095,
+    "RSI": 72.7,
+    "From 52W High %": -1.2,
+    "Quick Score": 68,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "CAT",
+    "Price": 879.89,
+    "Avg Volume": 2580124,
+    "RSI": 51.0,
+    "From 52W High %": -5.5,
+    "Quick Score": 68,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "CHEF",
+    "Price": 76.46,
+    "Avg Volume": 543588,
+    "RSI": 44.3,
+    "From 52W High %": -7.7,
+    "Quick Score": 68,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "CHH",
+    "Price": 113.12,
+    "Avg Volume": 696551,
+    "RSI": 79.5,
+    "From 52W High %": -8.6,
+    "Quick Score": 68,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "CI",
+    "Price": 286.24,
+    "Avg Volume": 1703890,
+    "RSI": 55.4,
+    "From 52W High %": -5.6,
+    "Quick Score": 68,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "CINF",
+    "Price": 168.1,
+    "Avg Volume": 660199,
+    "RSI": 86.9,
+    "From 52W High %": -3.5,
+    "Quick Score": 68,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "CL",
+    "Price": 90.61,
+    "Avg Volume": 5285903,
+    "RSI": 76.5,
+    "From 52W High %": -8.8,
+    "Quick Score": 68,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "CMI",
+    "Price": 639.55,
+    "Avg Volume": 958167,
+    "RSI": 46.3,
+    "From 52W High %": -10.9,
+    "Quick Score": 68,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "AAT",
+    "Price": 22.78,
+    "Avg Volume": 320903,
+    "RSI": 82.4,
+    "From 52W High %": -0.1,
+    "Quick Score": 66,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ACT",
+    "Price": 42.73,
+    "Avg Volume": 312651,
+    "RSI": 52.3,
+    "From 52W High %": -4.6,
+    "Quick Score": 66,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "ADT",
+    "Price": 6.97,
+    "Avg Volume": 15222679,
+    "RSI": 44.9,
+    "From 52W High %": -16.6,
+    "Quick Score": 66,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ADTN",
+    "Price": 15.67,
+    "Avg Volume": 2694588,
+    "RSI": 36.3,
+    "From 52W High %": -16.2,
+    "Quick Score": 66,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AGYS",
+    "Price": 79.84,
+    "Avg Volume": 446719,
+    "RSI": 66.3,
+    "From 52W High %": -38.3,
+    "Quick Score": 66,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "AIV",
+    "Price": 4.24,
+    "Avg Volume": 1189659,
+    "RSI": 49.0,
+    "From 52W High %": -29.8,
+    "Quick Score": 66,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AKAN",
+    "Price": 27.12,
+    "Avg Volume": 3098653,
+    "RSI": 38.0,
+    "From 52W High %": -65.6,
+    "Quick Score": 66,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ALRS",
+    "Price": 28.05,
+    "Avg Volume": 174785,
+    "RSI": 70.2,
+    "From 52W High %": -1.2,
+    "Quick Score": 66,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ANAB",
+    "Price": 59.71,
+    "Avg Volume": 631306,
+    "RSI": 24.9,
+    "From 52W High %": -17.5,
+    "Quick Score": 66,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "ANDG",
+    "Price": 38.52,
+    "Avg Volume": 221639,
+    "RSI": 67.2,
+    "From 52W High %": -4.0,
+    "Quick Score": 66,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "APC",
+    "Price": 20.72,
+    "Avg Volume": 155229,
+    "RSI": 68.0,
+    "From 52W High %": -4.6,
+    "Quick Score": 66,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "APPF",
+    "Price": 164.92,
+    "Avg Volume": 329776,
+    "RSI": 40.6,
+    "From 52W High %": -31.5,
+    "Quick Score": 66,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "ARE",
+    "Price": 48.37,
+    "Avg Volume": 2360279,
+    "RSI": 74.9,
+    "From 52W High %": -19.1,
+    "Quick Score": 66,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "ASRT",
+    "Price": 23.44,
+    "Avg Volume": 493105,
+    "RSI": 90.7,
+    "From 52W High %": -0.1,
+    "Quick Score": 66,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ATEX",
+    "Price": 63.57,
+    "Avg Volume": 339973,
+    "RSI": 81.0,
+    "From 52W High %": -0.7,
+    "Quick Score": 66,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "ATII",
+    "Price": 11.38,
+    "Avg Volume": 311770,
+    "RSI": 83.6,
+    "From 52W High %": -0.2,
+    "Quick Score": 66,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AURA",
+    "Price": 7.6,
+    "Avg Volume": 832340,
+    "RSI": 37.3,
+    "From 52W High %": -20.3,
+    "Quick Score": 66,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AYI",
+    "Price": 287.59,
+    "Avg Volume": 290949,
+    "RSI": 51.6,
+    "From 52W High %": -24.4,
+    "Quick Score": 66,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "BATRK",
+    "Price": 49.5,
+    "Avg Volume": 357072,
+    "RSI": 50.3,
+    "From 52W High %": -4.9,
+    "Quick Score": 66,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BBUC",
+    "Price": 33.65,
+    "Avg Volume": 256525,
+    "RSI": 48.5,
+    "From 52W High %": -12.0,
+    "Quick Score": 66,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BCAX",
+    "Price": 21.68,
+    "Avg Volume": 493942,
+    "RSI": 44.0,
+    "From 52W High %": -10.6,
+    "Quick Score": 66,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BDJ",
+    "Price": 9.18,
+    "Avg Volume": 486095,
+    "RSI": 53.4,
+    "From 52W High %": -5.9,
+    "Quick Score": 66,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BHC",
+    "Price": 5.47,
+    "Avg Volume": 1918828,
+    "RSI": 47.7,
+    "From 52W High %": -31.6,
+    "Quick Score": 66,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BIPC",
+    "Price": 42.15,
+    "Avg Volume": 1509005,
+    "RSI": 81.6,
+    "From 52W High %": -18.5,
+    "Quick Score": 66,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BJRI",
+    "Price": 44.56,
+    "Avg Volume": 354586,
+    "RSI": 83.5,
+    "From 52W High %": -3.1,
+    "Quick Score": 66,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BMA",
+    "Price": 75.95,
+    "Avg Volume": 296216,
+    "RSI": 59.7,
+    "From 52W High %": -28.5,
+    "Quick Score": 66,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "BMEZ",
+    "Price": 14.18,
+    "Avg Volume": 191258,
+    "RSI": 54.1,
+    "From 52W High %": -10.3,
+    "Quick Score": 66,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BOW",
+    "Price": 28.3,
+    "Avg Volume": 250871,
+    "RSI": 82.1,
+    "From 52W High %": -3.2,
+    "Quick Score": 66,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CARE",
+    "Price": 27.44,
+    "Avg Volume": 337770,
+    "RSI": 71.0,
+    "From 52W High %": -0.1,
+    "Quick Score": 66,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CCIX",
+    "Price": 10.78,
+    "Avg Volume": 232979,
+    "RSI": 50.0,
+    "From 52W High %": -0.6,
+    "Quick Score": 66,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CENTA",
+    "Price": 34.57,
+    "Avg Volume": 322807,
+    "RSI": 71.1,
+    "From 52W High %": -8.3,
+    "Quick Score": 66,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CLBK",
+    "Price": 20.36,
+    "Avg Volume": 401088,
+    "RSI": 77.8,
+    "From 52W High %": -0.4,
+    "Quick Score": 66,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CLDT",
+    "Price": 10.7,
+    "Avg Volume": 477093,
+    "RSI": 90.5,
+    "From 52W High %": -1.3,
+    "Quick Score": 66,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CLFD",
+    "Price": 43.73,
+    "Avg Volume": 376163,
+    "RSI": 75.1,
+    "From 52W High %": -6.5,
+    "Quick Score": 66,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CLPT",
+    "Price": 11.44,
+    "Avg Volume": 546386,
+    "RSI": 52.1,
+    "From 52W High %": -31.0,
+    "Quick Score": 66,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AEO",
+    "Price": 16.53,
+    "Avg Volume": 4394899,
+    "RSI": 51.3,
+    "From 52W High %": -41.9,
+    "Quick Score": 62,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AGIO",
+    "Price": 28.14,
+    "Avg Volume": 951186,
+    "RSI": 55.6,
+    "From 52W High %": -22.6,
+    "Quick Score": 62,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ALM",
+    "Price": 18.66,
+    "Avg Volume": 4309099,
+    "RSI": 46.5,
+    "From 52W High %": -23.6,
+    "Quick Score": 62,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ALOY",
+    "Price": 9.79,
+    "Avg Volume": 1547724,
+    "RSI": 53.6,
+    "From 52W High %": -63.6,
+    "Quick Score": 62,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ANGX",
+    "Price": 2.84,
+    "Avg Volume": 1459932,
+    "RSI": 44.9,
+    "From 52W High %": -49.9,
+    "Quick Score": 62,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "APTV",
+    "Price": 57.36,
+    "Avg Volume": 3719857,
+    "RSI": 45.6,
+    "From 52W High %": -35.5,
+    "Quick Score": 62,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "ASO",
+    "Price": 52.52,
+    "Avg Volume": 1236527,
+    "RSI": 52.6,
+    "From 52W High %": -15.9,
+    "Quick Score": 62,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "ATRC",
+    "Price": 28.29,
+    "Avg Volume": 880363,
+    "RSI": 46.7,
+    "From 52W High %": -34.5,
+    "Quick Score": 62,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BBIO",
+    "Price": 69.12,
+    "Avg Volume": 3240266,
+    "RSI": 50.3,
+    "From 52W High %": -18.6,
+    "Quick Score": 62,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BEPC",
+    "Price": 37.5,
+    "Avg Volume": 1820604,
+    "RSI": 64.9,
+    "From 52W High %": -17.0,
+    "Quick Score": 62,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BMRN",
+    "Price": 54.09,
+    "Avg Volume": 2208701,
+    "RSI": 45.4,
+    "From 52W High %": -18.4,
+    "Quick Score": 62,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BSX",
+    "Price": 57.78,
+    "Avg Volume": 17553697,
+    "RSI": 53.5,
+    "From 52W High %": -43.3,
+    "Quick Score": 62,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BSY",
+    "Price": 33.16,
+    "Avg Volume": 2542507,
+    "RSI": 47.4,
+    "From 52W High %": -23.5,
+    "Quick Score": 62,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CBAN",
+    "Price": 19.8,
+    "Avg Volume": 212965,
+    "RSI": 59.6,
+    "From 52W High %": -8.4,
+    "Quick Score": 62,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CCL",
+    "Price": 25.98,
+    "Avg Volume": 31138041,
+    "RSI": 51.7,
+    "From 52W High %": -23.7,
+    "Quick Score": 62,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CLB",
+    "Price": 14.22,
+    "Avg Volume": 562568,
+    "RSI": 55.1,
+    "From 52W High %": -30.2,
+    "Quick Score": 62,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CLBT",
+    "Price": 13.18,
+    "Avg Volume": 2348139,
+    "RSI": 45.5,
+    "From 52W High %": -32.0,
+    "Quick Score": 62,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CMG",
+    "Price": 32.89,
+    "Avg Volume": 17830188,
+    "RSI": 56.8,
+    "From 52W High %": -20.6,
+    "Quick Score": 62,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CMPX",
+    "Price": 2.07,
+    "Avg Volume": 17204944,
+    "RSI": 58.7,
+    "From 52W High %": -69.9,
+    "Quick Score": 62,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ABCB",
+    "Price": 84.69,
+    "Avg Volume": 374585,
+    "RSI": 48.5,
+    "From 52W High %": -3.8,
+    "Quick Score": 58,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "ABEO",
+    "Price": 5.44,
+    "Avg Volume": 1174099,
+    "RSI": 37.2,
+    "From 52W High %": -10.4,
+    "Quick Score": 58,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ACA",
+    "Price": 120.75,
+    "Avg Volume": 305563,
+    "RSI": 46.7,
+    "From 52W High %": -10.9,
+    "Quick Score": 58,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "AFG",
+    "Price": 136.69,
+    "Avg Volume": 442187,
+    "RSI": 72.7,
+    "From 52W High %": -2.2,
+    "Quick Score": 58,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "AGX",
+    "Price": 656.35,
+    "Avg Volume": 278392,
+    "RSI": 42.7,
+    "From 52W High %": -12.3,
+    "Quick Score": 58,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "AIZ",
+    "Price": 254.82,
+    "Avg Volume": 487156,
+    "RSI": 80.5,
+    "From 52W High %": -2.4,
+    "Quick Score": 58,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "AWR",
+    "Price": 76.64,
+    "Avg Volume": 271475,
+    "RSI": 54.6,
+    "From 52W High %": -5.7,
+    "Quick Score": 58,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "AZZ",
+    "Price": 137.9,
+    "Avg Volume": 178519,
+    "RSI": 45.0,
+    "From 52W High %": -9.1,
+    "Quick Score": 58,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "BAM",
+    "Price": 47.93,
+    "Avg Volume": 3024389,
+    "RSI": 51.4,
+    "From 52W High %": -14.3,
+    "Quick Score": 58,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BELFB",
+    "Price": 270.01,
+    "Avg Volume": 326551,
+    "RSI": 42.9,
+    "From 52W High %": -12.4,
+    "Quick Score": 58,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "BKR",
+    "Price": 66.06,
+    "Avg Volume": 7868506,
+    "RSI": 39.5,
+    "From 52W High %": -6.2,
+    "Quick Score": 58,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BKU",
+    "Price": 46.22,
+    "Avg Volume": 594916,
+    "RSI": 50.4,
+    "From 52W High %": -11.3,
+    "Quick Score": 58,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BOH",
+    "Price": 77.79,
+    "Avg Volume": 408919,
+    "RSI": 45.1,
+    "From 52W High %": -6.0,
+    "Quick Score": 58,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "BOKF",
+    "Price": 130.74,
+    "Avg Volume": 262801,
+    "RSI": 44.1,
+    "From 52W High %": -6.4,
+    "Quick Score": 58,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "CASY",
+    "Price": 825.02,
+    "Avg Volume": 406100,
+    "RSI": 40.7,
+    "From 52W High %": -8.4,
+    "Quick Score": 58,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "CIM",
+    "Price": 13.26,
+    "Avg Volume": 576160,
+    "RSI": 35.4,
+    "From 52W High %": -6.5,
+    "Quick Score": 58,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CLM",
+    "Price": 7.55,
+    "Avg Volume": 1630928,
+    "RSI": 48.9,
+    "From 52W High %": -11.5,
+    "Quick Score": 58,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "CLS",
+    "Price": 367.37,
+    "Avg Volume": 2385382,
+    "RSI": 30.8,
+    "From 52W High %": -15.5,
+    "Quick Score": 58,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "ANL",
+    "Price": 11.92,
+    "Avg Volume": 305955,
+    "RSI": 29.5,
+    "From 52W High %": -30.9,
+    "Quick Score": 56,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ARQ",
+    "Price": 2.46,
+    "Avg Volume": 301771,
+    "RSI": 50.5,
+    "From 52W High %": -38.8,
+    "Quick Score": 56,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AVD",
+    "Price": 2.81,
+    "Avg Volume": 216772,
+    "RSI": 56.4,
+    "From 52W High %": -49.4,
+    "Quick Score": 56,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BESS",
+    "Price": 4.56,
+    "Avg Volume": 278410,
+    "RSI": 73.6,
+    "From 52W High %": -73.4,
+    "Quick Score": 56,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BHR",
+    "Price": 2.49,
+    "Avg Volume": 336150,
+    "RSI": 54.9,
+    "From 52W High %": -21.9,
+    "Quick Score": 56,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BOOM",
+    "Price": 6.9,
+    "Avg Volume": 322560,
+    "RSI": 30.6,
+    "From 52W High %": -25.0,
+    "Quick Score": 56,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "CDNL",
+    "Price": 48.85,
+    "Avg Volume": 486644,
+    "RSI": 49.2,
+    "From 52W High %": -22.7,
+    "Quick Score": 56,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CLMB",
+    "Price": 20.96,
+    "Avg Volume": 213367,
+    "RSI": 73.8,
+    "From 52W High %": -35.4,
+    "Quick Score": 56,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ABUS",
+    "Price": 4.35,
+    "Avg Volume": 1323208,
+    "RSI": 47.6,
+    "From 52W High %": -14.2,
+    "Quick Score": 54,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ACN",
+    "Price": 179.24,
+    "Avg Volume": 5730332,
+    "RSI": 49.2,
+    "From 52W High %": -38.4,
+    "Quick Score": 54,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "AJG",
+    "Price": 204.75,
+    "Avg Volume": 1911936,
+    "RSI": 47.7,
+    "From 52W High %": -23.3,
+    "Quick Score": 54,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "ALGT",
+    "Price": 80.31,
+    "Avg Volume": 679564,
+    "RSI": 58.8,
+    "From 52W High %": -31.9,
+    "Quick Score": 54,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "ALNY",
+    "Price": 297.45,
+    "Avg Volume": 1066554,
+    "RSI": 49.6,
+    "From 52W High %": -38.0,
+    "Quick Score": 54,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "AVAV",
+    "Price": 174.23,
+    "Avg Volume": 1055417,
+    "RSI": 45.8,
+    "From 52W High %": -57.3,
+    "Quick Score": 54,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "BDX",
+    "Price": 147.63,
+    "Avg Volume": 3332228,
+    "RSI": 51.7,
+    "From 52W High %": -21.2,
+    "Quick Score": 54,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "BMI",
+    "Price": 125.84,
+    "Avg Volume": 555183,
+    "RSI": 59.1,
+    "From 52W High %": -32.6,
+    "Quick Score": 54,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "CAMT",
+    "Price": 167.37,
+    "Avg Volume": 525971,
+    "RSI": 43.7,
+    "From 52W High %": -22.5,
+    "Quick Score": 54,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "CCEP",
+    "Price": 94.12,
+    "Avg Volume": 1684842,
+    "RSI": 55.5,
+    "From 52W High %": -15.1,
+    "Quick Score": 54,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "CGON",
+    "Price": 64.25,
+    "Avg Volume": 855283,
+    "RSI": 41.9,
+    "From 52W High %": -14.9,
+    "Quick Score": 54,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "AMSF",
+    "Price": 31.05,
+    "Avg Volume": 224916,
+    "RSI": 66.1,
+    "From 52W High %": -25.2,
+    "Quick Score": 52,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BBOT",
+    "Price": 8.55,
+    "Avg Volume": 420543,
+    "RSI": 51.5,
+    "From 52W High %": -42.5,
+    "Quick Score": 52,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BBW",
+    "Price": 36.97,
+    "Avg Volume": 349777,
+    "RSI": 53.2,
+    "From 52W High %": -48.8,
+    "Quick Score": 52,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BCH",
+    "Price": 37.55,
+    "Avg Volume": 331918,
+    "RSI": 56.8,
+    "From 52W High %": -19.7,
+    "Quick Score": 52,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BNED",
+    "Price": 9.53,
+    "Avg Volume": 245312,
+    "RSI": 41.8,
+    "From 52W High %": -15.8,
+    "Quick Score": 52,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BYRN",
+    "Price": 5.54,
+    "Avg Volume": 421846,
+    "RSI": 55.3,
+    "From 52W High %": -73.2,
+    "Quick Score": 52,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "CAAP",
+    "Price": 24.96,
+    "Avg Volume": 229253,
+    "RSI": 55.7,
+    "From 52W High %": -18.2,
+    "Quick Score": 52,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CDRE",
+    "Price": 30.31,
+    "Avg Volume": 449187,
+    "RSI": 53.4,
+    "From 52W High %": -37.8,
+    "Quick Score": 52,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CIB",
+    "Price": 65.88,
+    "Avg Volume": 328305,
+    "RSI": 52.9,
+    "From 52W High %": -23.7,
+    "Quick Score": 52,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BA",
+    "Price": 219.02,
+    "Avg Volume": 6634774,
+    "RSI": 48.0,
+    "From 52W High %": -13.9,
+    "Quick Score": 50,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "ACEL",
+    "Price": 11.65,
+    "Avg Volume": 337605,
+    "RSI": 38.9,
+    "From 52W High %": -12.5,
+    "Quick Score": 48,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BBCQ",
+    "Price": 10.71,
+    "Avg Volume": 436939,
+    "RSI": 77.4,
+    "From 52W High %": -1.5,
+    "Quick Score": 48,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BGY",
+    "Price": 5.71,
+    "Avg Volume": 309243,
+    "RSI": 52.1,
+    "From 52W High %": -8.3,
+    "Quick Score": 48,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BULL",
+    "Price": 6.18,
+    "Avg Volume": 12670465,
+    "RSI": 24.6,
+    "From 52W High %": -40.4,
+    "Quick Score": 48,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BWAY",
+    "Price": 15.1,
+    "Avg Volume": 155837,
+    "RSI": 32.3,
+    "From 52W High %": -13.0,
+    "Quick Score": 48,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AMGN",
+    "Price": 339.3,
+    "Avg Volume": 2785244,
+    "RSI": 66.2,
+    "From 52W High %": -13.3,
+    "Quick Score": 46,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "APGE",
+    "Price": 81.16,
+    "Avg Volume": 639834,
+    "RSI": 44.3,
+    "From 52W High %": -14.9,
+    "Quick Score": 46,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "AXS",
+    "Price": 99.94,
+    "Avg Volume": 594151,
+    "RSI": 55.6,
+    "From 52W High %": -9.4,
+    "Quick Score": 46,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "AZN",
+    "Price": 187.03,
+    "Avg Volume": 2021785,
+    "RSI": 55.5,
+    "From 52W High %": -12.1,
+    "Quick Score": 46,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "CAH",
+    "Price": 200.68,
+    "Avg Volume": 2542250,
+    "RSI": 55.2,
+    "From 52W High %": -14.1,
+    "Quick Score": 46,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "CF",
+    "Price": 121.7,
+    "Avg Volume": 3056096,
+    "RSI": 45.7,
+    "From 52W High %": -14.3,
+    "Quick Score": 46,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "CME",
+    "Price": 291.23,
+    "Avg Volume": 2228090,
+    "RSI": 50.9,
+    "From 52W High %": -11.5,
+    "Quick Score": 46,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "AAUC",
+    "Price": 27.32,
+    "Avg Volume": 743671,
+    "RSI": 43.7,
+    "From 52W High %": -15.2,
+    "Quick Score": 44,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ACAD",
+    "Price": 21.1,
+    "Avg Volume": 1770797,
+    "RSI": 41.2,
+    "From 52W High %": -25.6,
+    "Quick Score": 44,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ACH",
+    "Price": 2.83,
+    "Avg Volume": 950389,
+    "RSI": 29.4,
+    "From 52W High %": -39.7,
+    "Quick Score": 44,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ACHC",
+    "Price": 23.18,
+    "Avg Volume": 3208054,
+    "RSI": 28.7,
+    "From 52W High %": -23.2,
+    "Quick Score": 44,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ADEA",
+    "Price": 26.86,
+    "Avg Volume": 2331940,
+    "RSI": 33.4,
+    "From 52W High %": -21.8,
+    "Quick Score": 44,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AG",
+    "Price": 19.45,
+    "Avg Volume": 13593817,
+    "RSI": 50.3,
+    "From 52W High %": -39.3,
+    "Quick Score": 44,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AGBK",
+    "Price": 7.11,
+    "Avg Volume": 574706,
+    "RSI": 54.9,
+    "From 52W High %": -41.8,
+    "Quick Score": 44,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AGI",
+    "Price": 38.34,
+    "Avg Volume": 3283551,
+    "RSI": 47.4,
+    "From 52W High %": -30.8,
+    "Quick Score": 44,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "AGRO",
+    "Price": 12.81,
+    "Avg Volume": 1139741,
+    "RSI": 29.3,
+    "From 52W High %": -19.4,
+    "Quick Score": 44,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ALEC",
+    "Price": 2.21,
+    "Avg Volume": 579733,
+    "RSI": 36.8,
+    "From 52W High %": -19.3,
+    "Quick Score": 44,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ALLO",
+    "Price": 2.0,
+    "Avg Volume": 6232511,
+    "RSI": 35.2,
+    "From 52W High %": -55.2,
+    "Quick Score": 44,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ALMS",
+    "Price": 22.02,
+    "Avg Volume": 901660,
+    "RSI": 33.4,
+    "From 52W High %": -28.0,
+    "Quick Score": 44,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ALT",
+    "Price": 2.9,
+    "Avg Volume": 3624919,
+    "RSI": 44.4,
+    "From 52W High %": -55.0,
+    "Quick Score": 44,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ALTO",
+    "Price": 4.7,
+    "Avg Volume": 2058851,
+    "RSI": 38.1,
+    "From 52W High %": -21.7,
+    "Quick Score": 44,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AMPX",
+    "Price": 16.03,
+    "Avg Volume": 9062360,
+    "RSI": 36.4,
+    "From 52W High %": -29.7,
+    "Quick Score": 44,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AMRZ",
+    "Price": 49.95,
+    "Avg Volume": 2902015,
+    "RSI": 46.9,
+    "From 52W High %": -24.2,
+    "Quick Score": 44,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "AMTX",
+    "Price": 2.68,
+    "Avg Volume": 1755592,
+    "RSI": 30.6,
+    "From 52W High %": -29.5,
+    "Quick Score": 44,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ANNA",
+    "Price": 3.21,
+    "Avg Volume": 596655,
+    "RSI": 40.2,
+    "From 52W High %": -69.8,
+    "Quick Score": 44,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AOS",
+    "Price": 57.28,
+    "Avg Volume": 1859725,
+    "RSI": 43.4,
+    "From 52W High %": -30.0,
+    "Quick Score": 44,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "APA",
+    "Price": 38.8,
+    "Avg Volume": 6920679,
+    "RSI": 39.3,
+    "From 52W High %": -15.0,
+    "Quick Score": 44,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "APPN",
+    "Price": 21.37,
+    "Avg Volume": 1058175,
+    "RSI": 44.0,
+    "From 52W High %": -51.2,
+    "Quick Score": 44,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AQST",
+    "Price": 4.12,
+    "Avg Volume": 1718547,
+    "RSI": 47.4,
+    "From 52W High %": -38.8,
+    "Quick Score": 44,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AR",
+    "Price": 36.75,
+    "Avg Volume": 4451292,
+    "RSI": 35.2,
+    "From 52W High %": -19.7,
+    "Quick Score": 44,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "AREC",
+    "Price": 2.16,
+    "Avg Volume": 2978056,
+    "RSI": 45.5,
+    "From 52W High %": -55.0,
+    "Quick Score": 44,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ARIS",
+    "Price": 17.24,
+    "Avg Volume": 1195617,
+    "RSI": 48.1,
+    "From 52W High %": -26.0,
+    "Quick Score": 44,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ARTV",
+    "Price": 7.87,
+    "Avg Volume": 651904,
+    "RSI": 28.6,
+    "From 52W High %": -45.8,
+    "Quick Score": 44,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ASM",
+    "Price": 6.53,
+    "Avg Volume": 4678388,
+    "RSI": 52.4,
+    "From 52W High %": -45.5,
+    "Quick Score": 44,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AUGO",
+    "Price": 72.58,
+    "Avg Volume": 709679,
+    "RSI": 39.6,
+    "From 52W High %": -34.2,
+    "Quick Score": 44,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "AVNT",
+    "Price": 34.31,
+    "Avg Volume": 711090,
+    "RSI": 43.9,
+    "From 52W High %": -23.5,
+    "Quick Score": 44,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "AZ",
+    "Price": 6.33,
+    "Avg Volume": 626137,
+    "RSI": 41.9,
+    "From 52W High %": -27.4,
+    "Quick Score": 44,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BBWI",
+    "Price": 17.76,
+    "Avg Volume": 5582368,
+    "RSI": 44.1,
+    "From 52W High %": -28.8,
+    "Quick Score": 44,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BCRX",
+    "Price": 8.29,
+    "Avg Volume": 4838422,
+    "RSI": 35.3,
+    "From 52W High %": -19.7,
+    "Quick Score": 44,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BDRX",
+    "Price": 3.28,
+    "Avg Volume": 980530,
+    "RSI": 52.0,
+    "From 52W High %": -92.7,
+    "Quick Score": 44,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BDTX",
+    "Price": 2.28,
+    "Avg Volume": 1858933,
+    "RSI": 43.8,
+    "From 52W High %": -42.6,
+    "Quick Score": 44,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BEKE",
+    "Price": 16.4,
+    "Avg Volume": 5724602,
+    "RSI": 44.3,
+    "From 52W High %": -17.5,
+    "Quick Score": 44,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BKD",
+    "Price": 13.3,
+    "Avg Volume": 3501849,
+    "RSI": 37.2,
+    "From 52W High %": -22.2,
+    "Quick Score": 44,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BRO",
+    "Price": 57.82,
+    "Avg Volume": 3655024,
+    "RSI": 50.6,
+    "From 52W High %": -30.0,
+    "Quick Score": 44,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BSAC",
+    "Price": 30.98,
+    "Avg Volume": 509269,
+    "RSI": 52.4,
+    "From 52W High %": -17.9,
+    "Quick Score": 44,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BVS",
+    "Price": 9.28,
+    "Avg Volume": 543592,
+    "RSI": 39.0,
+    "From 52W High %": -17.5,
+    "Quick Score": 44,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BZ",
+    "Price": 13.75,
+    "Avg Volume": 3850700,
+    "RSI": 49.5,
+    "From 52W High %": -38.8,
+    "Quick Score": 44,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CACI",
+    "Price": 501.35,
+    "Avg Volume": 319966,
+    "RSI": 44.3,
+    "From 52W High %": -26.6,
+    "Quick Score": 44,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "CAG",
+    "Price": 13.56,
+    "Avg Volume": 14004744,
+    "RSI": 45.2,
+    "From 52W High %": -33.3,
+    "Quick Score": 44,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CC",
+    "Price": 21.37,
+    "Avg Volume": 3238290,
+    "RSI": 30.6,
+    "From 52W High %": -25.5,
+    "Quick Score": 44,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CDE",
+    "Price": 17.63,
+    "Avg Volume": 19892191,
+    "RSI": 50.4,
+    "From 52W High %": -36.5,
+    "Quick Score": 44,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CDZI",
+    "Price": 4.24,
+    "Avg Volume": 854358,
+    "RSI": 45.4,
+    "From 52W High %": -39.0,
+    "Quick Score": 44,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "CGEM",
+    "Price": 13.84,
+    "Avg Volume": 963834,
+    "RSI": 36.3,
+    "From 52W High %": -17.3,
+    "Quick Score": 44,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CNH",
+    "Price": 10.11,
+    "Avg Volume": 15333836,
+    "RSI": 47.6,
+    "From 52W High %": -24.0,
+    "Quick Score": 44,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ARCC",
+    "Price": 18.59,
+    "Avg Volume": 5514984,
+    "RSI": 34.4,
+    "From 52W High %": -12.1,
+    "Quick Score": 40,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BIO",
+    "Price": 287.74,
+    "Avg Volume": 472304,
+    "RSI": 71.4,
+    "From 52W High %": -14.0,
+    "Quick Score": 40,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "BLD",
+    "Price": 407.97,
+    "Avg Volume": 810981,
+    "RSI": 37.6,
+    "From 52W High %": -27.1,
+    "Quick Score": 40,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "CEG",
+    "Price": 294.07,
+    "Avg Volume": 3341947,
+    "RSI": 36.4,
+    "From 52W High %": -22.8,
+    "Quick Score": 40,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "ABT",
+    "Price": 87.41,
+    "Avg Volume": 12704878,
+    "RSI": 49.6,
+    "From 52W High %": -32.7,
+    "Quick Score": 36,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "ACI",
+    "Price": 16.21,
+    "Avg Volume": 5694157,
+    "RSI": 48.8,
+    "From 52W High %": -13.9,
+    "Quick Score": 36,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ADBE",
+    "Price": 244.76,
+    "Avg Volume": 4527407,
+    "RSI": 43.0,
+    "From 52W High %": -32.5,
+    "Quick Score": 36,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "AEIS",
+    "Price": 324.86,
+    "Avg Volume": 953995,
+    "RSI": 30.3,
+    "From 52W High %": -18.3,
+    "Quick Score": 36,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "AEM",
+    "Price": 175.91,
+    "Avg Volume": 2236940,
+    "RSI": 46.4,
+    "From 52W High %": -31.1,
+    "Quick Score": 36,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "AIR",
+    "Price": 108.41,
+    "Avg Volume": 390098,
+    "RSI": 48.4,
+    "From 52W High %": -14.8,
+    "Quick Score": 36,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "ALB",
+    "Price": 171.58,
+    "Avg Volume": 2096380,
+    "RSI": 35.9,
+    "From 52W High %": -22.4,
+    "Quick Score": 36,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "ALGN",
+    "Price": 163.61,
+    "Avg Volume": 1050742,
+    "RSI": 40.3,
+    "From 52W High %": -18.4,
+    "Quick Score": 36,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "ALLE",
+    "Price": 130.43,
+    "Avg Volume": 1200399,
+    "RSI": 46.2,
+    "From 52W High %": -28.8,
+    "Quick Score": 36,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "ANF",
+    "Price": 77.26,
+    "Avg Volume": 1145209,
+    "RSI": 45.5,
+    "From 52W High %": -42.0,
+    "Quick Score": 36,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "APH",
+    "Price": 132.06,
+    "Avg Volume": 11592447,
+    "RSI": 42.3,
+    "From 52W High %": -20.9,
+    "Quick Score": 36,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "AU",
+    "Price": 90.64,
+    "Avg Volume": 2327498,
+    "RSI": 49.9,
+    "From 52W High %": -29.8,
+    "Quick Score": 36,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "AVY",
+    "Price": 159.66,
+    "Avg Volume": 699624,
+    "RSI": 48.5,
+    "From 52W High %": -20.0,
+    "Quick Score": 36,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "AXON",
+    "Price": 386.0,
+    "Avg Volume": 1205958,
+    "RSI": 47.5,
+    "From 52W High %": -40.6,
+    "Quick Score": 36,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "BABA",
+    "Price": 130.0,
+    "Avg Volume": 12099222,
+    "RSI": 46.7,
+    "From 52W High %": -28.2,
+    "Quick Score": 36,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "BKNG",
+    "Price": 161.06,
+    "Avg Volume": 7880054,
+    "RSI": 43.8,
+    "From 52W High %": -27.1,
+    "Quick Score": 36,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "BR",
+    "Price": 150.49,
+    "Avg Volume": 1540915,
+    "RSI": 42.6,
+    "From 52W High %": -35.4,
+    "Quick Score": 36,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "BWXT",
+    "Price": 202.91,
+    "Avg Volume": 976803,
+    "RSI": 39.0,
+    "From 52W High %": -16.1,
+    "Quick Score": 36,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "CAVA",
+    "Price": 80.42,
+    "Avg Volume": 3461047,
+    "RSI": 37.0,
+    "From 52W High %": -18.6,
+    "Quick Score": 36,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "CCK",
+    "Price": 96.71,
+    "Avg Volume": 1241915,
+    "RSI": 42.0,
+    "From 52W High %": -17.1,
+    "Quick Score": 36,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "CHKP",
+    "Price": 133.63,
+    "Avg Volume": 2192894,
+    "RSI": 78.2,
+    "From 52W High %": -33.2,
+    "Quick Score": 36,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "CLDX",
+    "Price": 30.73,
+    "Avg Volume": 718335,
+    "RSI": 39.1,
+    "From 52W High %": -14.1,
+    "Quick Score": 36,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CLX",
+    "Price": 95.11,
+    "Avg Volume": 3733902,
+    "RSI": 72.0,
+    "From 52W High %": -26.2,
+    "Quick Score": 36,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "CNA",
+    "Price": 44.05,
+    "Avg Volume": 558610,
+    "RSI": 48.5,
+    "From 52W High %": -13.2,
+    "Quick Score": 36,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "AARD",
+    "Price": 4.54,
+    "Avg Volume": 169974,
+    "RSI": 42.8,
+    "From 52W High %": -72.7,
+    "Quick Score": 34,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AIRO",
+    "Price": 6.56,
+    "Avg Volume": 488798,
+    "RSI": 41.7,
+    "From 52W High %": -52.5,
+    "Quick Score": 34,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ALNT",
+    "Price": 63.37,
+    "Avg Volume": 231526,
+    "RSI": 27.0,
+    "From 52W High %": -21.2,
+    "Quick Score": 34,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "ALTI",
+    "Price": 3.3,
+    "Avg Volume": 173920,
+    "RSI": 44.7,
+    "From 52W High %": -39.4,
+    "Quick Score": 34,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ALVO",
+    "Price": 3.34,
+    "Avg Volume": 412704,
+    "RSI": 44.4,
+    "From 52W High %": -42.9,
+    "Quick Score": 34,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AMWD",
+    "Price": 38.9,
+    "Avg Volume": 295018,
+    "RSI": 45.9,
+    "From 52W High %": -43.9,
+    "Quick Score": 34,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "ANRO",
+    "Price": 21.22,
+    "Avg Volume": 315702,
+    "RSI": 28.6,
+    "From 52W High %": -25.4,
+    "Quick Score": 34,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "APEI",
+    "Price": 51.5,
+    "Avg Volume": 273120,
+    "RSI": 30.7,
+    "From 52W High %": -16.4,
+    "Quick Score": 34,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "API",
+    "Price": 3.64,
+    "Avg Volume": 297822,
+    "RSI": 43.4,
+    "From 52W High %": -29.3,
+    "Quick Score": 34,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ASIX",
+    "Price": 22.26,
+    "Avg Volume": 369588,
+    "RSI": 36.2,
+    "From 52W High %": -16.7,
+    "Quick Score": 34,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ASMB",
+    "Price": 28.34,
+    "Avg Volume": 172091,
+    "RSI": 51.8,
+    "From 52W High %": -28.5,
+    "Quick Score": 34,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AVAL",
+    "Price": 4.23,
+    "Avg Volume": 256166,
+    "RSI": 46.7,
+    "From 52W High %": -19.9,
+    "Quick Score": 34,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BAR",
+    "Price": 44.4,
+    "Avg Volume": 244843,
+    "RSI": 49.5,
+    "From 52W High %": -18.7,
+    "Quick Score": 34,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BIOA",
+    "Price": 16.61,
+    "Avg Volume": 368734,
+    "RSI": 49.9,
+    "From 52W High %": -30.8,
+    "Quick Score": 34,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BRBS",
+    "Price": 3.28,
+    "Avg Volume": 207204,
+    "RSI": 42.3,
+    "From 52W High %": -29.9,
+    "Quick Score": 34,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BXC",
+    "Price": 48.85,
+    "Avg Volume": 154542,
+    "RSI": 50.2,
+    "From 52W High %": -39.7,
+    "Quick Score": 34,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CBLL",
+    "Price": 18.77,
+    "Avg Volume": 365782,
+    "RSI": 42.0,
+    "From 52W High %": -22.9,
+    "Quick Score": 34,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CCS",
+    "Price": 51.95,
+    "Avg Volume": 342670,
+    "RSI": 50.9,
+    "From 52W High %": -31.6,
+    "Quick Score": 34,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CMCO",
+    "Price": 14.94,
+    "Avg Volume": 298103,
+    "RSI": 51.8,
+    "From 52W High %": -38.8,
+    "Quick Score": 34,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BCSF",
+    "Price": 13.21,
+    "Avg Volume": 327424,
+    "RSI": 22.7,
+    "From 52W High %": -10.1,
+    "Quick Score": 30,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BRW",
+    "Price": 6.75,
+    "Avg Volume": 199992,
+    "RSI": 30.3,
+    "From 52W High %": -7.4,
+    "Quick Score": 30,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ABG",
+    "Price": 187.72,
+    "Avg Volume": 336600,
+    "RSI": 43.7,
+    "From 52W High %": -27.5,
+    "Quick Score": 26,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "ADCT",
+    "Price": 3.39,
+    "Avg Volume": 1179111,
+    "RSI": 38.6,
+    "From 52W High %": -31.9,
+    "Quick Score": 26,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AGEN",
+    "Price": 3.11,
+    "Avg Volume": 841585,
+    "RSI": 28.6,
+    "From 52W High %": -38.8,
+    "Quick Score": 26,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AGNC",
+    "Price": 10.21,
+    "Avg Volume": 14919696,
+    "RSI": 32.5,
+    "From 52W High %": -16.2,
+    "Quick Score": 26,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AGNT",
+    "Price": 5.05,
+    "Avg Volume": 1264366,
+    "RSI": 29.0,
+    "From 52W High %": -58.7,
+    "Quick Score": 26,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ALC",
+    "Price": 67.78,
+    "Avg Volume": 2633431,
+    "RSI": 36.3,
+    "From 52W High %": -22.7,
+    "Quick Score": 26,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "ALHC",
+    "Price": 16.35,
+    "Avg Volume": 6855289,
+    "RSI": 30.4,
+    "From 52W High %": -31.5,
+    "Quick Score": 26,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AMLX",
+    "Price": 13.58,
+    "Avg Volume": 1157514,
+    "RSI": 25.3,
+    "From 52W High %": -27.0,
+    "Quick Score": 26,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AMPH",
+    "Price": 18.41,
+    "Avg Volume": 740190,
+    "RSI": 31.4,
+    "From 52W High %": -37.6,
+    "Quick Score": 26,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AMPL",
+    "Price": 6.7,
+    "Avg Volume": 2609715,
+    "RSI": 32.7,
+    "From 52W High %": -44.4,
+    "Quick Score": 26,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AMR",
+    "Price": 175.3,
+    "Avg Volume": 239128,
+    "RSI": 41.8,
+    "From 52W High %": -30.9,
+    "Quick Score": 26,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "AMRX",
+    "Price": 12.42,
+    "Avg Volume": 1499516,
+    "RSI": 39.0,
+    "From 52W High %": -19.5,
+    "Quick Score": 26,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AMTM",
+    "Price": 23.23,
+    "Avg Volume": 2185537,
+    "RSI": 31.1,
+    "From 52W High %": -39.0,
+    "Quick Score": 26,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ANDE",
+    "Price": 70.85,
+    "Avg Volume": 365256,
+    "RSI": 30.1,
+    "From 52W High %": -13.7,
+    "Quick Score": 26,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "ANGI",
+    "Price": 5.52,
+    "Avg Volume": 1725551,
+    "RSI": 35.1,
+    "From 52W High %": -62.1,
+    "Quick Score": 26,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ANNX",
+    "Price": 5.31,
+    "Avg Volume": 2159263,
+    "RSI": 39.8,
+    "From 52W High %": -26.0,
+    "Quick Score": 26,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "APG",
+    "Price": 41.63,
+    "Avg Volume": 2807841,
+    "RSI": 35.6,
+    "From 52W High %": -16.7,
+    "Quick Score": 26,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "AQN",
+    "Price": 5.97,
+    "Avg Volume": 3846606,
+    "RSI": 32.6,
+    "From 52W High %": -16.0,
+    "Quick Score": 26,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ARHS",
+    "Price": 6.32,
+    "Avg Volume": 1602830,
+    "RSI": 38.5,
+    "From 52W High %": -47.7,
+    "Quick Score": 26,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ARLO",
+    "Price": 13.16,
+    "Avg Volume": 1635866,
+    "RSI": 36.2,
+    "From 52W High %": -22.1,
+    "Quick Score": 26,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ARQT",
+    "Price": 20.86,
+    "Avg Volume": 2094544,
+    "RSI": 37.2,
+    "From 52W High %": -34.3,
+    "Quick Score": 26,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ARVN",
+    "Price": 9.09,
+    "Avg Volume": 981841,
+    "RSI": 25.1,
+    "From 52W High %": -37.4,
+    "Quick Score": 26,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ATAT",
+    "Price": 33.84,
+    "Avg Volume": 1109247,
+    "RSI": 34.5,
+    "From 52W High %": -21.6,
+    "Quick Score": 26,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "ATEC",
+    "Price": 8.27,
+    "Avg Volume": 4986613,
+    "RSI": 34.3,
+    "From 52W High %": -64.5,
+    "Quick Score": 26,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ATHM",
+    "Price": 16.59,
+    "Avg Volume": 541185,
+    "RSI": 32.4,
+    "From 52W High %": -31.9,
+    "Quick Score": 26,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ATLX",
+    "Price": 4.19,
+    "Avg Volume": 1104256,
+    "RSI": 36.0,
+    "From 52W High %": -37.6,
+    "Quick Score": 26,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AVO",
+    "Price": 11.92,
+    "Avg Volume": 989786,
+    "RSI": 26.1,
+    "From 52W High %": -23.2,
+    "Quick Score": 26,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AX",
+    "Price": 86.07,
+    "Avg Volume": 445375,
+    "RSI": 44.9,
+    "From 52W High %": -15.6,
+    "Quick Score": 26,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "AXIA",
+    "Price": 10.77,
+    "Avg Volume": 1939515,
+    "RSI": 26.7,
+    "From 52W High %": -20.5,
+    "Quick Score": 26,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AZTA",
+    "Price": 20.18,
+    "Avg Volume": 1539760,
+    "RSI": 35.9,
+    "From 52W High %": -51.6,
+    "Quick Score": 26,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BALL",
+    "Price": 56.51,
+    "Avg Volume": 2892894,
+    "RSI": 33.8,
+    "From 52W High %": -17.2,
+    "Quick Score": 26,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BBD",
+    "Price": 3.47,
+    "Avg Volume": 29016137,
+    "RSI": 36.0,
+    "From 52W High %": -19.3,
+    "Quick Score": 26,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BCO",
+    "Price": 104.75,
+    "Avg Volume": 468796,
+    "RSI": 50.7,
+    "From 52W High %": -23.2,
+    "Quick Score": 26,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "BCX",
+    "Price": 12.04,
+    "Avg Volume": 190333,
+    "RSI": 39.9,
+    "From 52W High %": -13.1,
+    "Quick Score": 26,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BFAM",
+    "Price": 67.75,
+    "Avg Volume": 1713085,
+    "RSI": 25.2,
+    "From 52W High %": -35.9,
+    "Quick Score": 26,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BILI",
+    "Price": 17.23,
+    "Avg Volume": 3825869,
+    "RSI": 27.7,
+    "From 52W High %": -52.7,
+    "Quick Score": 26,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BILL",
+    "Price": 36.14,
+    "Avg Volume": 2530282,
+    "RSI": 38.4,
+    "From 52W High %": -36.8,
+    "Quick Score": 26,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BL",
+    "Price": 28.9,
+    "Avg Volume": 1328510,
+    "RSI": 38.1,
+    "From 52W High %": -51.5,
+    "Quick Score": 26,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BLCO",
+    "Price": 15.92,
+    "Avg Volume": 516682,
+    "RSI": 38.3,
+    "From 52W High %": -15.8,
+    "Quick Score": 26,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BLSH",
+    "Price": 35.18,
+    "Avg Volume": 1413678,
+    "RSI": 38.1,
+    "From 52W High %": -28.1,
+    "Quick Score": 26,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BNZI",
+    "Price": 3.45,
+    "Avg Volume": 580390,
+    "RSI": 38.2,
+    "From 52W High %": -91.2,
+    "Quick Score": 26,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BPRE",
+    "Price": 14.95,
+    "Avg Volume": 547026,
+    "RSI": 31.4,
+    "From 52W High %": -18.1,
+    "Quick Score": 26,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BROS",
+    "Price": 52.12,
+    "Avg Volume": 4571539,
+    "RSI": 39.5,
+    "From 52W High %": -20.9,
+    "Quick Score": 26,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BRSL",
+    "Price": 11.2,
+    "Avg Volume": 1626933,
+    "RSI": 36.4,
+    "From 52W High %": -31.7,
+    "Quick Score": 26,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BTU",
+    "Price": 24.55,
+    "Avg Volume": 3045887,
+    "RSI": 36.4,
+    "From 52W High %": -40.3,
+    "Quick Score": 26,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BUR",
+    "Price": 4.53,
+    "Avg Volume": 3476638,
+    "RSI": 35.0,
+    "From 52W High %": -55.1,
+    "Quick Score": 26,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BWIN",
+    "Price": 19.66,
+    "Avg Volume": 1287968,
+    "RSI": 31.9,
+    "From 52W High %": -31.7,
+    "Quick Score": 26,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BXSL",
+    "Price": 23.33,
+    "Avg Volume": 2421057,
+    "RSI": 28.7,
+    "From 52W High %": -18.4,
+    "Quick Score": 26,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CAE",
+    "Price": 23.16,
+    "Avg Volume": 1005197,
+    "RSI": 34.1,
+    "From 52W High %": -32.4,
+    "Quick Score": 26,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CAI",
+    "Price": 15.55,
+    "Avg Volume": 3178875,
+    "RSI": 36.1,
+    "From 52W High %": -47.0,
+    "Quick Score": 26,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CALX",
+    "Price": 39.23,
+    "Avg Volume": 838199,
+    "RSI": 31.7,
+    "From 52W High %": -36.6,
+    "Quick Score": 26,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CARS",
+    "Price": 9.65,
+    "Avg Volume": 853419,
+    "RSI": 35.8,
+    "From 52W High %": -29.5,
+    "Quick Score": 26,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "CASH",
+    "Price": 82.74,
+    "Avg Volume": 193239,
+    "RSI": 40.2,
+    "From 52W High %": -18.3,
+    "Quick Score": 26,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "CCC",
+    "Price": 4.56,
+    "Avg Volume": 13353502,
+    "RSI": 28.1,
+    "From 52W High %": -47.4,
+    "Quick Score": 26,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "CCLD",
+    "Price": 2.28,
+    "Avg Volume": 781707,
+    "RSI": 26.3,
+    "From 52W High %": -40.2,
+    "Quick Score": 26,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "CELH",
+    "Price": 30.12,
+    "Avg Volume": 10303342,
+    "RSI": 37.6,
+    "From 52W High %": -49.2,
+    "Quick Score": 26,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CERT",
+    "Price": 5.24,
+    "Avg Volume": 3611405,
+    "RSI": 32.6,
+    "From 52W High %": -48.7,
+    "Quick Score": 26,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "CG",
+    "Price": 45.43,
+    "Avg Volume": 3496727,
+    "RSI": 33.7,
+    "From 52W High %": -32.5,
+    "Quick Score": 26,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CHWY",
+    "Price": 20.73,
+    "Avg Volume": 8906817,
+    "RSI": 26.3,
+    "From 52W High %": -44.5,
+    "Quick Score": 26,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CHYM",
+    "Price": 17.8,
+    "Avg Volume": 5601343,
+    "RSI": 27.6,
+    "From 52W High %": -37.7,
+    "Quick Score": 26,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CIG",
+    "Price": 2.21,
+    "Avg Volume": 5421911,
+    "RSI": 28.8,
+    "From 52W High %": -19.9,
+    "Quick Score": 26,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "CIGI",
+    "Price": 96.07,
+    "Avg Volume": 360060,
+    "RSI": 40.6,
+    "From 52W High %": -36.3,
+    "Quick Score": 26,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "CLVT",
+    "Price": 2.45,
+    "Avg Volume": 5053344,
+    "RSI": 28.0,
+    "From 52W High %": -36.7,
+    "Quick Score": 26,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "NOG",
+    "Price": 23.75,
+    "Avg Volume": 2713255,
+    "RSI": 29.3,
+    "From 52W High %": -23.8,
+    "Quick Score": 26,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "AGCO",
+    "Price": 112.84,
+    "Avg Volume": 735740,
+    "RSI": 37.4,
+    "From 52W High %": -21.5,
+    "Quick Score": 18,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "AMP",
+    "Price": 452.31,
+    "Avg Volume": 585290,
+    "RSI": 37.8,
+    "From 52W High %": -17.8,
+    "Quick Score": 18,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "ARR",
+    "Price": 16.57,
+    "Avg Volume": 3081276,
+    "RSI": 33.6,
+    "From 52W High %": -14.2,
+    "Quick Score": 18,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ATR",
+    "Price": 116.23,
+    "Avg Volume": 603045,
+    "RSI": 39.7,
+    "From 52W High %": -20.9,
+    "Quick Score": 18,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "AZO",
+    "Price": 3406.5,
+    "Avg Volume": 290179,
+    "RSI": 42.7,
+    "From 52W High %": -14.8,
+    "Quick Score": 18,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "BCPC",
+    "Price": 161.75,
+    "Avg Volume": 189306,
+    "RSI": 48.8,
+    "From 52W High %": -12.0,
+    "Quick Score": 18,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "BDC",
+    "Price": 106.03,
+    "Avg Volume": 605823,
+    "RSI": 37.2,
+    "From 52W High %": -33.7,
+    "Quick Score": 18,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "BJ",
+    "Price": 86.64,
+    "Avg Volume": 2047293,
+    "RSI": 33.9,
+    "From 52W High %": -18.1,
+    "Quick Score": 18,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "BKV",
+    "Price": 28.29,
+    "Avg Volume": 849313,
+    "RSI": 28.0,
+    "From 52W High %": -13.8,
+    "Quick Score": 18,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BNTX",
+    "Price": 92.14,
+    "Avg Volume": 870647,
+    "RSI": 30.8,
+    "From 52W High %": -25.7,
+    "Quick Score": 18,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "BOOT",
+    "Price": 154.65,
+    "Avg Volume": 794593,
+    "RSI": 38.2,
+    "From 52W High %": -26.4,
+    "Quick Score": 18,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "BXMT",
+    "Price": 17.95,
+    "Avg Volume": 1634194,
+    "RSI": 31.7,
+    "From 52W High %": -13.2,
+    "Quick Score": 18,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "CBRE",
+    "Price": 131.07,
+    "Avg Volume": 2112253,
+    "RSI": 34.7,
+    "From 52W High %": -24.8,
+    "Quick Score": 18,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "CCJ",
+    "Price": 104.75,
+    "Avg Volume": 3092041,
+    "RSI": 34.1,
+    "From 52W High %": -22.5,
+    "Quick Score": 18,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "CDW",
+    "Price": 110.82,
+    "Avg Volume": 2333373,
+    "RSI": 26.9,
+    "From 52W High %": -26.4,
+    "Quick Score": 18,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "CHDN",
+    "Price": 85.12,
+    "Avg Volume": 876093,
+    "RSI": 26.6,
+    "From 52W High %": -28.1,
+    "Quick Score": 18,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "CIK",
+    "Price": 2.53,
+    "Avg Volume": 816562,
+    "RSI": 37.2,
+    "From 52W High %": -12.3,
+    "Quick Score": 18,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ACIC",
+    "Price": 10.8,
+    "Avg Volume": 268162,
+    "RSI": 39.7,
+    "From 52W High %": -17.3,
+    "Quick Score": 16,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ACRE",
+    "Price": 4.78,
+    "Avg Volume": 411826,
+    "RSI": 31.5,
+    "From 52W High %": -18.8,
+    "Quick Score": 16,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ADVB",
+    "Price": 3.95,
+    "Avg Volume": 312673,
+    "RSI": 31.6,
+    "From 52W High %": -60.0,
+    "Quick Score": 16,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AIRE",
+    "Price": 2.44,
+    "Avg Volume": 223268,
+    "RSI": 31.1,
+    "From 52W High %": -83.8,
+    "Quick Score": 16,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ALRM",
+    "Price": 43.8,
+    "Avg Volume": 494130,
+    "RSI": 36.2,
+    "From 52W High %": -18.9,
+    "Quick Score": 16,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "ARCT",
+    "Price": 7.03,
+    "Avg Volume": 445975,
+    "RSI": 32.2,
+    "From 52W High %": -26.6,
+    "Quick Score": 16,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "ARLP",
+    "Price": 24.88,
+    "Avg Volume": 421827,
+    "RSI": 33.3,
+    "From 52W High %": -15.5,
+    "Quick Score": 16,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "ASLE",
+    "Price": 6.24,
+    "Avg Volume": 333393,
+    "RSI": 37.2,
+    "From 52W High %": -21.3,
+    "Quick Score": 16,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AUNA",
+    "Price": 4.31,
+    "Avg Volume": 316627,
+    "RSI": 27.5,
+    "From 52W High %": -31.5,
+    "Quick Score": 16,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BCC",
+    "Price": 67.16,
+    "Avg Volume": 485426,
+    "RSI": 34.5,
+    "From 52W High %": -27.0,
+    "Quick Score": 16,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BCTX",
+    "Price": 3.49,
+    "Avg Volume": 246681,
+    "RSI": 39.5,
+    "From 52W High %": -73.3,
+    "Quick Score": 16,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BCYC",
+    "Price": 4.55,
+    "Avg Volume": 374454,
+    "RSI": 35.8,
+    "From 52W High %": -41.9,
+    "Quick Score": 16,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BKE",
+    "Price": 49.33,
+    "Avg Volume": 366773,
+    "RSI": 32.7,
+    "From 52W High %": -15.7,
+    "Quick Score": 16,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "BNAI",
+    "Price": 18.5,
+    "Avg Volume": 324659,
+    "RSI": 30.1,
+    "From 52W High %": -78.6,
+    "Quick Score": 16,
+    "Price Bucket": "$10-$30"
+  },
+  {
+    "Ticker": "BNC",
+    "Price": 2.63,
+    "Avg Volume": 216756,
+    "RSI": 27.9,
+    "From 52W High %": -65.9,
+    "Quick Score": 16,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "BZUN",
+    "Price": 2.5,
+    "Avg Volume": 285539,
+    "RSI": 32.9,
+    "From 52W High %": -23.1,
+    "Quick Score": 16,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "CABO",
+    "Price": 52.28,
+    "Avg Volume": 227378,
+    "RSI": 34.3,
+    "From 52W High %": -62.1,
+    "Quick Score": 16,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CCB",
+    "Price": 69.66,
+    "Avg Volume": 182954,
+    "RSI": 37.2,
+    "From 52W High %": -42.0,
+    "Quick Score": 16,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "CING",
+    "Price": 4.47,
+    "Avg Volume": 446030,
+    "RSI": 36.5,
+    "From 52W High %": -62.4,
+    "Quick Score": 16,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "CMTG",
+    "Price": 2.15,
+    "Avg Volume": 476609,
+    "RSI": 32.4,
+    "From 52W High %": -40.6,
+    "Quick Score": 16,
+    "Price Bucket": "Under $10"
+  },
+  {
+    "Ticker": "AB",
+    "Price": 37.93,
+    "Avg Volume": 323785,
+    "RSI": 36.7,
+    "From 52W High %": -14.0,
+    "Quick Score": 8,
+    "Price Bucket": "$30-$75"
+  },
+  {
+    "Ticker": "ADUS",
+    "Price": 92.65,
+    "Avg Volume": 290418,
+    "RSI": 31.7,
+    "From 52W High %": -24.0,
+    "Quick Score": 8,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "AGO",
+    "Price": 76.89,
+    "Avg Volume": 481053,
+    "RSI": 39.8,
+    "From 52W High %": -16.8,
+    "Quick Score": 8,
+    "Price Bucket": "$75-$150"
+  },
+  {
+    "Ticker": "ALG",
+    "Price": 150.02,
+    "Avg Volume": 222512,
+    "RSI": 27.4,
+    "From 52W High %": -31.8,
+    "Quick Score": 8,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "AN",
+    "Price": 189.98,
+    "Avg Volume": 427375,
+    "RSI": 36.2,
+    "From 52W High %": -15.5,
+    "Quick Score": 8,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "AWI",
+    "Price": 157.42,
+    "Avg Volume": 455747,
+    "RSI": 40.0,
+    "From 52W High %": -23.6,
+    "Quick Score": 8,
+    "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "CHMI",
+    "Price": 2.44,
+    "Avg Volume": 189571,
+    "RSI": 28.6,
+    "From 52W High %": -12.9,
+    "Quick Score": 8,
+    "Price Bucket": "Under $10"
+  }
+]
