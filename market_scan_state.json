@@ -1,8 +1,8 @@
 {
-  "started_at": "2026-05-25T01:26:02.255385-04:00",
-  "finished_at": "2026-05-25T01:28:25.168725-04:00",
+  "started_at": "2026-05-25T02:30:16.160555-04:00",
+  "finished_at": "2026-05-25T02:32:32.688311-04:00",
   "universe_count": 6183,
-  "prescreen_count": 631,
+  "prescreen_count": 630,
   "full_scan_count": 150,
   "fallback_rows_allowed": true,
   "data_dir": "."

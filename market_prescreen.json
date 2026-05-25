@@ -675,6 +675,15 @@
     "Price Bucket": "$10-$30"
   },
   {
+    "Ticker": "IVZ",
+    "Price": 27.05,
+    "Avg Volume": 5243060,
+    "RSI": 57.9,
+    "From 52W High %": -8.6,
+    "Quick Score": 94,
+    "Price Bucket": "$10-$30"
+  },
+  {
     "Ticker": "AD",
     "Price": 50.67,
     "Avg Volume": 214155,
@@ -2421,24 +2430,6 @@
     "Price Bucket": "$30-$75"
   },
   {
-    "Ticker": "CNC",
-    "Price": 59.14,
-    "Avg Volume": 7228085,
-    "RSI": 72.6,
-    "From 52W High %": -2.7,
-    "Quick Score": 76,
-    "Price Bucket": "$30-$75"
-  },
-  {
-    "Ticker": "RS",
-    "Price": 367.0,
-    "Avg Volume": 305225,
-    "RSI": 53.5,
-    "From 52W High %": -3.7,
-    "Quick Score": 76,
-    "Price Bucket": "$150+"
-  },
-  {
     "Ticker": "ABM",
     "Price": 40.19,
     "Avg Volume": 398580,
@@ -3150,6 +3141,15 @@
     "Price Bucket": "$10-$30"
   },
   {
+    "Ticker": "FLNG",
+    "Price": 31.96,
+    "Avg Volume": 458715,
+    "RSI": 46.1,
+    "From 52W High %": -4.3,
+    "Quick Score": 66,
+    "Price Bucket": "$30-$75"
+  },
+  {
     "Ticker": "AEO",
     "Price": 16.53,
     "Avg Volume": 4427595,
@@ -3789,15 +3789,6 @@
     "Price Bucket": "$10-$30"
   },
   {
-    "Ticker": "SGRY",
-    "Price": 13.4,
-    "Avg Volume": 1750575,
-    "RSI": 38.5,
-    "From 52W High %": -23.3,
-    "Quick Score": 48,
-    "Price Bucket": "$10-$30"
-  },
-  {
     "Ticker": "AMGN",
     "Price": 339.3,
     "Avg Volume": 2790020,
@@ -3859,6 +3850,15 @@
     "From 52W High %": -11.5,
     "Quick Score": 46,
     "Price Bucket": "$150+"
+  },
+  {
+    "Ticker": "PEG",
+    "Price": 79.51,
+    "Avg Volume": 3036015,
+    "RSI": 45.8,
+    "From 52W High %": -9.3,
+    "Quick Score": 46,
+    "Price Bucket": "$75-$150"
   },
   {
     "Ticker": "AAUC",
@@ -4516,15 +4516,6 @@
     "From 52W High %": -26.2,
     "Quick Score": 36,
     "Price Bucket": "$75-$150"
-  },
-  {
-    "Ticker": "CNA",
-    "Price": 44.05,
-    "Avg Volume": 562925,
-    "RSI": 48.5,
-    "From 52W High %": -13.2,
-    "Quick Score": 36,
-    "Price Bucket": "$30-$75"
   },
   {
     "Ticker": "AARD",
