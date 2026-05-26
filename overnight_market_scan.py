@@ -842,7 +842,8 @@ def persist_to_github() -> bool:
     # Rebase first to avoid non-fast-forward errors.
     run_cmd(["git", "pull", "--rebase", "origin", "main"])
 
-    code, out = run_cmd(["git", "push", "origin", "main"])
+    repo_url = os.getenv("GITHUB_REPO_URL") or "origin"
+    code, out = run_cmd(["git", "push", repo_url, "HEAD:main"])
     if code != 0:
         print(f"git push failed: {out}")
         return False
