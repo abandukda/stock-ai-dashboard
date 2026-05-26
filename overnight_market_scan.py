@@ -1,472 +1,878 @@
-import os
-import json
-import time
-import subprocess
-from pathlib import Path
-from datetime import datetime
-from zoneinfo import ZoneInfo
-from concurrent.futures import ThreadPoolExecutor
+#!/usr/bin/env python3
+"""
+V39.1 Overnight Market Scanner
+- Render Cron compatible
+- DATA_DIR defaults to "."
+- Preserves dashboard output files:
+  - market_full_scan.json
+  - market_prescreen.json
+  - market_scan_state.json
+  - total_market_universe.json
+- Improves conviction scoring, metadata, guidance, and filtering.
+"""
 
-import numpy as np
+import json
+import math
+import os
+import subprocess
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
 import pandas as pd
 import yfinance as yf
 
-EASTERN = ZoneInfo("America/New_York")
+
+# =========================
+# CONFIG
+# =========================
+
 DATA_DIR = Path(os.getenv("DATA_DIR", "."))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-TOTAL_UNIVERSE_FILE = DATA_DIR / "total_market_universe.json"
-PRESCREEN_FILE = DATA_DIR / "market_prescreen.json"
 FULL_SCAN_FILE = DATA_DIR / "market_full_scan.json"
-SCAN_STATE_FILE = DATA_DIR / "market_scan_state.json"
+PRESCREEN_FILE = DATA_DIR / "market_prescreen.json"
+STATE_FILE = DATA_DIR / "market_scan_state.json"
+UNIVERSE_FILE = DATA_DIR / "total_market_universe.json"
 
-MIN_PRICE = float(os.getenv("MARKET_SCAN_MIN_PRICE", "2"))
-MIN_AVG_VOLUME = int(os.getenv("MARKET_SCAN_MIN_AVG_VOLUME", "150000"))
-PRESCREEN_WORKERS = int(os.getenv("PRESCREEN_WORKERS", "8"))
-FULL_SCAN_WORKERS = int(os.getenv("FULL_SCAN_WORKERS", "6"))
-FULL_AGENT_LIMIT = int(os.getenv("FULL_AGENT_LIMIT", "350"))
+MAX_UNIVERSE = int(os.getenv("MAX_UNIVERSE", "6500"))
+MAX_PRESCREEN = int(os.getenv("MAX_PRESCREEN", "650"))
+MAX_FULL_SCAN = int(os.getenv("MAX_FULL_SCAN", "150"))
+BATCH_SIZE = int(os.getenv("SCAN_BATCH_SIZE", "80"))
+SLEEP_BETWEEN_BATCHES = float(os.getenv("SCAN_SLEEP", "1.0"))
 
-EXCLUDED_TICKERS = {
-    "JPM","BAC","WFC","C","GS","MS","SCHW","COF","AXP","USB","PNC","TFC","BK","BLK","BX",
-    "BUD","TAP","STZ","SAM","DEO","ABEV","DIS","NFLX","WBD","PARA","CMCSA","LYV","SIRI",
-    "FOX","FOXA","RBLX","SNAP","MTCH","IAC","DKNG","PENN","MGM","WYNN","LVS","CZR","MLCO",
-    "MO","PM","BTI","VGR","SPCE","GOEV","FCEL","BLNK","WKHS","MVST","LCID","LAZR","CHPT",
-    "DNA","RIDE","NKLA","HYLN"
-}
+MIN_PRICE = float(os.getenv("MIN_PRICE", "2.00"))
+MAX_PRICE = float(os.getenv("MAX_PRICE", "1000.00"))
+MIN_DOLLAR_VOLUME = float(os.getenv("MIN_DOLLAR_VOLUME", "2500000"))
+MIN_MARKET_CAP = float(os.getenv("MIN_MARKET_CAP", "50000000"))
 
-EXCLUDED_KEYWORDS = [
-    "bank","insurance","capital markets","asset management","mortgage","financial services",
-    "brokerage","credit services","investment banking","entertainment","media","broadcast",
-    "streaming","music","film","television","publishing","advertising","alcohol","distillers",
-    "wineries","brewers","beer","wine","spirits","gaming","casino","gambling","tobacco",
-    "reit","real estate"
-]
+GITHUB_PERSIST = os.getenv("GITHUB_PERSIST", "true").lower() == "true"
+GIT_COMMIT_MESSAGE = os.getenv("GIT_COMMIT_MESSAGE", "Update overnight market scan data")
 
-def write_json(path, data):
-    p = Path(path)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    with p.open("w") as f:
-        json.dump(data, f, indent=2, default=str)
 
-def normalize_ticker(t):
-    return str(t or "").strip().upper().replace("$", "")
+# =========================
+# HELPERS
+# =========================
 
-def get_price_bucket(price):
+def now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def safe_float(value: Any, default: Optional[float] = None) -> Optional[float]:
     try:
-        price = float(price)
-        if price < 10: return "Under $10"
-        if price < 30: return "$10-$30"
-        if price < 75: return "$30-$75"
-        if price < 150: return "$75-$150"
-        return "$150+"
-    except Exception:
-        return "Unknown"
-
-def calc_rsi(series, period=14):
-    delta = series.diff()
-    gain = delta.where(delta > 0, 0).rolling(period).mean()
-    loss = -delta.where(delta < 0, 0).rolling(period).mean()
-    rs = gain / loss.replace(0, np.nan)
-    return 100 - (100 / (1 + rs))
-
-def fmt_money(value):
-    try:
-        if value is None or pd.isna(value): return "N/A"
-        v = float(value); a = abs(v)
-        if a >= 1e12: return f"${v/1e12:.2f}T"
-        if a >= 1e9: return f"${v/1e9:.2f}B"
-        if a >= 1e6: return f"${v/1e6:.2f}M"
-        return f"${v:,.0f}"
-    except Exception:
-        return "N/A"
-
-def fmt_pct(value):
-    try:
-        if value is None or pd.isna(value): return "N/A"
-        return f"{float(value)*100:.1f}%"
-    except Exception:
-        return "N/A"
-
-def fetch_universe():
-    tickers = set()
-    for url, col in [
-        ("https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt", "Symbol"),
-        ("https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt", "ACT Symbol"),
-    ]:
-        try:
-            df = pd.read_csv(url, sep="|")
-            if col not in df.columns: continue
-            if "Test Issue" in df.columns:
-                df = df[df["Test Issue"].astype(str).str.upper() != "Y"]
-            if "ETF" in df.columns:
-                df = df[df["ETF"].astype(str).str.upper() != "Y"]
-            tickers.update(df[col].dropna().astype(str).tolist())
-        except Exception as e:
-            print(f"Universe fetch failed: {e}")
-
-    cleaned = []
-    for t in tickers:
-        t = normalize_ticker(t)
-        if not t or t in EXCLUDED_TICKERS: continue
-        if any(x in t for x in ["^", "/", "$", "."]): continue
-        if len(t) > 5: continue
-        if not t.replace("-", "").isalpha(): continue
-        if t.endswith(("W","WS","WT","U","R")) and len(t) >= 4: continue
-        cleaned.append(t)
-
-    cleaned = sorted(set(cleaned))
-    write_json(TOTAL_UNIVERSE_FILE, {"created_at": datetime.now(EASTERN).isoformat(), "count": len(cleaned), "tickers": cleaned})
-    return cleaned
-
-def get_hist(ticker, period="6mo"):
-    try:
-        return yf.Ticker(ticker).history(period=period, interval="1d", auto_adjust=False).dropna()
-    except Exception:
-        return pd.DataFrame()
-
-
-def get_info_safe(ticker):
-    """
-    Yahoo fundamentals can fail/throttle during broad scans.
-    Missing fundamentals should not eliminate a valid prescreen candidate.
-    """
-    try:
-        info = yf.Ticker(ticker).info
-        return info if isinstance(info, dict) else {}
-    except Exception:
-        return {}
-
-
-def safe_float(v, default=None):
-    try:
-        if v is None or pd.isna(v):
+        if value is None:
             return default
-        return float(v)
+        value = float(value)
+        if math.isnan(value) or math.isinf(value):
+            return default
+        return value
     except Exception:
         return default
 
 
-def quick_prescreen_one(ticker):
-    ticker = normalize_ticker(ticker)
-    if not ticker or ticker in EXCLUDED_TICKERS: return None
+def safe_int(value: Any, default: Optional[int] = None) -> Optional[int]:
     try:
-        hist = get_hist(ticker, "6mo")
-        if hist.empty or len(hist) < 50: return None
-        price = float(hist["Close"].iloc[-1])
-        if price < MIN_PRICE: return None
-        avg_vol = float(hist["Volume"].tail(20).mean())
-        if avg_vol < MIN_AVG_VOLUME: return None
-        close = hist["Close"]
-        sma20 = float(close.rolling(20).mean().iloc[-1])
-        sma50 = float(close.rolling(50).mean().iloc[-1])
-        sma120 = float(close.rolling(120).mean().iloc[-1])
-        rsi = float(calc_rsi(close).iloc[-1])
-        high = float(hist["High"].max())
-        from_high = ((price-high)/high)*100 if high else 0
-        if not (price > sma20 or price > sma50 or (25 <= rsi <= 55 and from_high <= -12)):
-            return None
-        quick = 0
-        if price > sma20: quick += 18
-        if price > sma50: quick += 22
-        if price > sma120: quick += 18
-        if 40 <= rsi <= 70: quick += 18
-        if avg_vol >= 500000: quick += 10
-        if from_high <= -15: quick += 8
-        if price < 75: quick += 8
-        return {"Ticker": ticker, "Price": round(price,2), "Avg Volume": int(avg_vol), "RSI": round(rsi,1),
-                "From 52W High %": round(from_high,1), "Quick Score": round(quick,0), "Price Bucket": get_price_bucket(price)}
+        if value is None:
+            return default
+        value = int(float(value))
+        return value
     except Exception:
+        return default
+
+
+def pct_change(new: Optional[float], old: Optional[float]) -> Optional[float]:
+    if new is None or old is None or old == 0:
         return None
+    return (new - old) / old * 100.0
 
-def is_excluded_by_info(info):
-    combined = " ".join([str(info.get(k,"")) for k in ["sector","industry","longName","shortName"]]).lower()
-    return any(k in combined for k in EXCLUDED_KEYWORDS)
 
-def financial_safety(info):
-    red = 0; yellow = 0; reasons = []
+def write_json(path: Path, data: Any) -> None:
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with tmp.open("w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, default=str)
+    tmp.replace(path)
+
+
+def run_cmd(cmd: List[str]) -> Tuple[int, str]:
     try:
-        dte = info.get("debtToEquity")
-        if dte is not None:
-            dte = float(dte)
-            if dte > 250: red += 1; reasons.append(f"very high debt/equity {dte:.1f}")
-            elif dte > 150: yellow += 1; reasons.append(f"elevated debt/equity {dte:.1f}")
-    except Exception: pass
-    for key, label in [("freeCashflow","free cash flow"),("operatingCashflow","operating cash flow")]:
-        try:
-            v = info.get(key)
-            if v is not None:
-                if float(v) < 0: red += 1; reasons.append(f"negative {label}")
-                else: reasons.append(f"positive {label}")
-        except Exception: pass
-    try:
-        rg = info.get("revenueGrowth")
-        if rg is not None:
-            if float(rg) < -0.05: red += 1; reasons.append("revenue declining")
-            elif float(rg) < 0.03: yellow += 1; reasons.append("low revenue growth")
-    except Exception: pass
-    if red >= 2: return "🔴 Financial Risk — Not Execution Safe", -25, "; ".join(reasons)
-    if red == 1: return "🟠 Financial Caution — Starter/Watch Only", -15, "; ".join(reasons)
-    if yellow >= 2: return "🟡 Financial Watch — Use Smaller Size", -8, "; ".join(reasons)
-    return "🟢 Financially Safer", 5, "; ".join(reasons) or "no major financial red flags"
-
-def deep_analyze_one(item):
-    ticker = item["Ticker"]
-    try:
-        hist = get_hist(ticker, "1y")
-        if hist.empty or len(hist) < 60: return None
-        info = get_info_safe(ticker)
-        if ticker in EXCLUDED_TICKERS: return None
-        if info and is_excluded_by_info(info): return None
-        price = float(hist["Close"].iloc[-1])
-        close = hist["Close"]
-        sma20 = float(close.rolling(20).mean().iloc[-1])
-        sma50 = float(close.rolling(50).mean().iloc[-1])
-        sma200 = float(close.rolling(200).mean().iloc[-1]) if len(close) >= 200 else float(close.rolling(120).mean().iloc[-1])
-        rsi = float(calc_rsi(close).iloc[-1])
-        avg_vol = float(hist["Volume"].tail(20).mean())
-        vol_ratio = float(hist["Volume"].iloc[-1] / avg_vol) if avg_vol else 1
-        high52 = float(hist["High"].max())
-        from_high = ((price-high52)/high52)*100 if high52 else 0
-
-        tech = (18 if price>sma20 else 0)+(22 if price>sma50 else 0)+(25 if price>sma200 else 0)+(20 if 45<=rsi<=70 else 12 if 30<=rsi<45 else 0)+(10 if vol_ratio>=1.2 else 0)
-        f_score, f_adj, f_reason = financial_safety(info)
-        valuation = 50
-        pe = info.get("forwardPE") or info.get("trailingPE")
-        try:
-            if pe and 0 < float(pe) < 22: valuation += 15
-            elif pe and float(pe) > 60: valuation -= 12
-        except Exception: pass
-        growth = 50
-        for g in [info.get("revenueGrowth"), info.get("earningsGrowth")]:
-            try:
-                if g is not None and float(g) > 0.10: growth += 10
-                elif g is not None and float(g) < 0: growth -= 10
-            except Exception: pass
-        cashflow = 50
-        try:
-            fcf_val = safe_float(info.get("freeCashflow"), None)
-            ocf_val = safe_float(info.get("operatingCashflow"), None)
-            if fcf_val is not None and fcf_val > 0: cashflow += 20
-            if ocf_val is not None and ocf_val > 0: cashflow += 15
-        except Exception: pass
-        recovery = 50 + (25 if from_high <= -20 and 30 <= rsi <= 55 else 0)
-        risk = 50 + (20 if rsi > 75 else 0) + (10 if vol_ratio > 2 else 0) + (20 if "🔴" in f_score else 0)
-        final = round(max(0, min(100, (tech*.28 + valuation*.16 + growth*.16 + cashflow*.18 + recovery*.12 + (100-risk)*.10) + f_adj)), 0)
-        if "🔴" in f_score: execution = "🔴 Avoid Execution"
-        elif "🟠" in f_score: execution = "🟠 Watch Only / Very Small"
-        elif final >= 72: execution = "🟢 Execution Candidate"
-        elif final >= 58: execution = "🟡 Starter Candidate"
-        else: execution = "⚪ Research Only"
-        signal = "🟢 BUY NOW" if final >= 72 and "🔴" not in execution else "🟡 WATCH"
-        stop = round(price*.92, 2); target = round(price*1.15, 2)
-        return {
-            "Ticker": ticker, "Company Name": info.get("shortName") or info.get("longName") or ticker,
-            "Price": round(price,2), "Price Bucket": get_price_bucket(price), "Final Conviction": final,
-            "Signal": signal, "Agent Verdict": execution, "Execution Quality": execution,
-            "Financial Safety": f_score, "Financial Safety Detail": f_reason,
-            "Agent Greenlight": "🟢 All-Agent Green Light" if final >= 65 and "🔴" not in f_score else "🟡 Partial Green Light",
-            "Technical Agent": round(tech,0), "Valuation Agent": round(valuation,0), "Earnings Quality Agent": round(growth,0),
-            "Cash Flow Agent": round(cashflow,0), "Recovery Agent": round(recovery,0), "Risk Score": round(risk,0),
-            "RSI": round(rsi,1), "Volume Ratio": round(vol_ratio,2), "From 52W High %": round(from_high,1),
-            "Entry Range": f"${round(price*.98,2)} - ${round(price*1.02,2)}", "Stop Loss": stop,
-            "Target / Sell Zone": f"${target}", "Risk / Reward": "Approx 1.8+",
-            "Revenue Growth": fmt_pct(info.get("revenueGrowth")), "Earnings Growth": fmt_pct(info.get("earningsGrowth")),
-            "Free Cash Flow": fmt_money(info.get("freeCashflow")), "Operating Cash Flow": fmt_money(info.get("operatingCashflow")),
-            "Total Cash": fmt_money(info.get("totalCash")), "Total Debt": fmt_money(info.get("totalDebt")),
-            "Debt/Equity": info.get("debtToEquity", "N/A"), "Forward PE": info.get("forwardPE") or "N/A",
-            "Why Ranked Highly": f"Scored {final}/100 from trend, liquidity, financial safety, cash flow, valuation, and recovery potential.",
-            "Research Summary": f"{ticker} passed automated market scan with {execution}. Financial safety: {f_score}.",
-            "AI Trade Plan": f"Entry near {round(price,2)}, stop near {stop}, initial target near {target}.",
-            "Investment Style": "Recovery / Momentum" if recovery >= 65 else "Quality / Momentum",
-        }
-    except Exception:
-        return None
-
-def run_prescreen(universe):
-    results = []
-    with ThreadPoolExecutor(max_workers=PRESCREEN_WORKERS) as executor:
-        for i, item in enumerate(executor.map(quick_prescreen_one, universe), start=1):
-            if item: results.append(item)
-            if i % 250 == 0: print(f"Prescreened {i}/{len(universe)}; candidates={len(results)}")
-    results = sorted(results, key=lambda x: x.get("Quick Score", 0), reverse=True)
-    write_json(PRESCREEN_FILE, results)
-    return results
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=90,
+        )
+        return result.returncode, result.stdout.strip()
+    except Exception as exc:
+        return 1, str(exc)
 
 
-def fallback_deep_row(item):
+# =========================
+# UNIVERSE
+# =========================
+
+def get_yahoo_screeners() -> List[str]:
     """
-    Keeps a usable dashboard row when full fundamentals fail.
-    This prevents a successful prescreen from producing an empty dashboard.
+    Pull broad liquid lists from Yahoo predefined screeners.
+    This avoids relying only on stale hardcoded symbols.
     """
-    try:
-        ticker = item.get("Ticker")
-        price = item.get("Price")
-        quick = safe_float(item.get("Quick Score"), 0) or 0
-        rsi = item.get("RSI")
-        from_high = item.get("From 52W High %")
-        price_bucket = item.get("Price Bucket") or get_price_bucket(price)
-
-        final = max(20, min(70, round(quick * 0.85, 0)))
-        if final >= 58:
-            execution = "🟡 Starter Candidate"
-            signal = "🟡 WATCH"
-        else:
-            execution = "⚪ Research Only"
-            signal = "⚪ RESEARCH"
-
-        try:
-            p = float(price)
-            stop = round(p * 0.92, 2)
-            target = round(p * 1.15, 2)
-            entry = f"${round(p*0.98,2)} - ${round(p*1.02,2)}"
-            target_display = f"${target}"
-        except Exception:
-            stop = "N/A"
-            target_display = "N/A"
-            entry = "N/A"
-
-        return {
-            "Ticker": ticker,
-            "Company Name": ticker,
-            "Price": price,
-            "Price Bucket": price_bucket,
-            "Final Conviction": final,
-            "Signal": signal,
-            "Agent Verdict": execution,
-            "Execution Quality": execution,
-            "Financial Safety": "⚪ Fundamentals Limited — Verify Manually",
-            "Financial Safety Detail": "Fundamental data unavailable during overnight scan; candidate kept from prescreen for review.",
-            "Agent Greenlight": "🟡 Partial Green Light",
-            "Technical Agent": quick,
-            "Valuation Agent": 50,
-            "Earnings Quality Agent": 50,
-            "Cash Flow Agent": 50,
-            "Recovery Agent": 50,
-            "Risk Score": 50,
-            "RSI": rsi,
-            "Volume Ratio": "N/A",
-            "From 52W High %": from_high,
-            "Entry Range": entry,
-            "Stop Loss": stop,
-            "Target / Sell Zone": target_display,
-            "Risk / Reward": "Review",
-            "Revenue Growth": "N/A",
-            "Earnings Growth": "N/A",
-            "Free Cash Flow": "N/A",
-            "Operating Cash Flow": "N/A",
-            "Total Cash": "N/A",
-            "Total Debt": "N/A",
-            "Debt/Equity": "N/A",
-            "Forward PE": "N/A",
-            "Why Ranked Highly": f"Prescreen score {quick}/100 based on price, liquidity, trend, RSI, and recovery setup. Fundamentals need manual verification.",
-            "Research Summary": f"{ticker} passed automated prescreen but full fundamentals were limited.",
-            "AI Trade Plan": "Use Detail View before acting. This is a prescreen candidate, not a full execution signal.",
-            "Investment Style": "Prescreen Candidate",
-        }
-    except Exception:
-        return None
-
-
-
-def run_deep_scan(prescreen):
-    pre_df = pd.DataFrame(prescreen)
-    if pre_df.empty: return []
-    selected = []
-    if "Price Bucket" in pre_df.columns:
-        per_bucket = max(25, FULL_AGENT_LIMIT // 5)
-        for _, sub in pre_df.groupby("Price Bucket"):
-            selected += sub.sort_values("Quick Score", ascending=False)["Ticker"].head(per_bucket).tolist()
-    selected += pre_df.sort_values("Quick Score", ascending=False)["Ticker"].head(FULL_AGENT_LIMIT).tolist()
-    selected = list(dict.fromkeys(selected))[:FULL_AGENT_LIMIT]
-    rows = [{"Ticker": t} for t in selected]
-    results = []
-    with ThreadPoolExecutor(max_workers=FULL_SCAN_WORKERS) as executor:
-        for i, item in enumerate(executor.map(deep_analyze_one, rows), start=1):
-            if item:
-                results.append(item)
-            else:
-                fb = fallback_deep_row(rows[i-1])
-                if fb:
-                    results.append(fb)
-            if i % 50 == 0:
-                print(f"Deep scanned {i}/{len(rows)}; results={len(results)}")
-    results = sorted(results, key=lambda x: x.get("Final Conviction", 0), reverse=True)
-    write_json(FULL_SCAN_FILE, results)
-    return results
-
-
-# ============================================================
-# V38.4 GITHUB PERSISTENCE
-# ============================================================
-
-def persist_results_to_github():
-    """
-    Render Cron and Web Services do not share local filesystems.
-    This commits the generated scan JSON files back to GitHub so the dashboard
-    can read them from the repo after redeploy.
-    Requires GITHUB_TOKEN with repo contents read/write access.
-    """
-    token = os.getenv("GITHUB_TOKEN", "").strip()
-    repo = os.getenv("GITHUB_REPOSITORY", "abandukda/stock-ai-dashboard").strip()
-    branch = os.getenv("GITHUB_BRANCH", "main").strip()
-
-    if not token:
-        print("GITHUB_TOKEN not set. Scan files were created locally but will not persist to GitHub.")
-        return False
-
-    files = [
-        str(TOTAL_UNIVERSE_FILE),
-        str(PRESCREEN_FILE),
-        str(FULL_SCAN_FILE),
-        str(SCAN_STATE_FILE),
+    screeners = [
+        "most_actives",
+        "day_gainers",
+        "day_losers",
+        "growth_technology_stocks",
+        "undervalued_growth_stocks",
+        "aggressive_small_caps",
+        "portfolio_anchors",
+        "small_cap_gainers",
     ]
 
+    symbols = set()
+    for screener in screeners:
+        try:
+            df = yf.screen(screener, count=250)
+            quotes = df.get("quotes", []) if isinstance(df, dict) else []
+            for q in quotes:
+                sym = q.get("symbol")
+                quote_type = q.get("quoteType", "")
+                if sym and quote_type in {"EQUITY", "ETF"}:
+                    if "." not in sym and "/" not in sym and len(sym) <= 6:
+                        symbols.add(sym.upper())
+        except Exception:
+            continue
+
+    return sorted(symbols)
+
+
+def fallback_universe() -> List[str]:
+    """
+    Stable broad universe fallback. Kept intentionally large enough for Render Cron,
+    but the scanner will reject weak / invalid rows later.
+    """
+    mega_large = """
+AAPL MSFT NVDA AMZN META GOOGL GOOG AVGO TSLA BRK-B JPM LLY V UNH XOM MA COST WMT NFLX ORCL HD PG JNJ ABBV BAC KO PLTR CRM CVX CSCO WFC IBM MRK GE AMD MCD LIN ADBE DIS TMO ABT PM CAT NOW QCOM TXN ISRG AMGN INTU VZ PEP GS RTX BKNG SPGI LOW PFE HON AXON C UNP MS NEE CMCSA AMAT DHR SCHW BLK GILD TJX PANW SYK ADP DE LRCX COP BSX MDLZ ETN CB ADI MMC UPS MU BX REGN FI BMY SO KLAC AMT CME MO ELV WM ICE ANET SHW EQIX PH KKR DUKE APH WELL TT CI MCK CDNS SNPS AON NKE COF USB MMM HCA MSI ITW ZTS CL TDG ORLY EMR MAR PGR ROP AJG ECL APD CTAS WMB CMG CRWD NOC
+"""
+    growth = """
+SNOW DDOG NET MDB SHOP SE MELI UBER ABNB DASH RBLX COIN HOOD ROKU SQ PYPL AFRM SOFI UPST CELH ELF CAVA TOST DUOL HIMS APP ARM SMCI DELL VRT ANF ONON TTD FSLR ENPH RUN ALB RIVN LCID NIO LI XPEV
+"""
+    mid_small = """
+AEHR ASTS IONQ RKLB SOUN BBAI AI PATH TEM RXRX DNA LMND OPEN ROOT UUUU URA CCJ SMR OKLO JOBY ACHR ENVX QS STEM CHPT EVGO BLNK
+"""
+    etfs = """
+SPY QQQ DIA IWM VTI VOO SCHD JEPI JEPQ QYLD XYLD RYLD SPYT QQQY TLT HYG LQD XLF XLK XLE XLV XLY XLI XLP XLU XLB XLRE SMH SOXX ARKK TAN BOTZ
+"""
+    combined = f"{mega_large} {growth} {mid_small} {etfs}"
+    symbols = []
+    for raw in combined.replace("\n", " ").split():
+        sym = raw.strip().upper()
+        if sym:
+            symbols.append(sym)
+    return list(dict.fromkeys(symbols))
+
+
+def build_universe() -> List[str]:
+    symbols = set(fallback_universe())
+
+    yahoo_symbols = get_yahoo_screeners()
+    symbols.update(yahoo_symbols)
+
+    # Load prior universe if present to preserve continuity.
     try:
-        subprocess.run(["git", "config", "user.email", os.getenv("GIT_EMAIL", "render-cron@users.noreply.github.com")], check=False)
-        subprocess.run(["git", "config", "user.name", os.getenv("GIT_NAME", "Render Cron Scanner")], check=False)
+        if UNIVERSE_FILE.exists():
+            prior = json.loads(UNIVERSE_FILE.read_text())
+            if isinstance(prior, list):
+                for item in prior:
+                    sym = item.get("symbol") if isinstance(item, dict) else item
+                    if sym:
+                        symbols.add(str(sym).upper())
+            elif isinstance(prior, dict):
+                for item in prior.get("symbols", []):
+                    symbols.add(str(item).upper())
+    except Exception:
+        pass
 
-        subprocess.run(["git", "add"] + files, check=True)
+    clean = []
+    for sym in sorted(symbols):
+        if "." in sym or "/" in sym:
+            continue
+        if len(sym) > 7:
+            continue
+        clean.append(sym)
 
-        diff = subprocess.run(["git", "diff", "--cached", "--quiet"])
-        if diff.returncode == 0:
-            print("No scan result changes to commit.")
-            return True
+    return clean[:MAX_UNIVERSE]
 
-        msg = f"Update automated market scan results {datetime.now(EASTERN).strftime('%Y-%m-%d %H:%M ET')}"
-        subprocess.run(["git", "commit", "-m", msg], check=True)
 
-        push_url = f"https://x-access-token:{token}@github.com/{repo}.git"
-        subprocess.run(["git", "push", push_url, f"HEAD:{branch}"], check=True)
+# =========================
+# DATA FETCH
+# =========================
 
-        print("Scan results pushed to GitHub successfully.")
+def download_price_batch(symbols: List[str]) -> pd.DataFrame:
+    if not symbols:
+        return pd.DataFrame()
+
+    try:
+        data = yf.download(
+            tickers=" ".join(symbols),
+            period="6mo",
+            interval="1d",
+            group_by="ticker",
+            auto_adjust=True,
+            prepost=False,
+            threads=True,
+            progress=False,
+        )
+        return data
+    except Exception:
+        return pd.DataFrame()
+
+
+def extract_symbol_history(data: pd.DataFrame, symbol: str) -> pd.DataFrame:
+    if data.empty:
+        return pd.DataFrame()
+
+    try:
+        if isinstance(data.columns, pd.MultiIndex):
+            if symbol not in data.columns.get_level_values(0):
+                return pd.DataFrame()
+            df = data[symbol].copy()
+        else:
+            df = data.copy()
+
+        if df.empty or "Close" not in df.columns:
+            return pd.DataFrame()
+
+        df = df.dropna(subset=["Close"])
+        return df
+    except Exception:
+        return pd.DataFrame()
+
+
+def get_metadata(symbol: str) -> Dict[str, Any]:
+    defaults = {
+        "company_name": symbol,
+        "sector": "Unknown",
+        "industry": "Unknown",
+        "market_cap": None,
+        "quote_type": "EQUITY",
+    }
+
+    try:
+        ticker = yf.Ticker(symbol)
+        info = ticker.get_info() or {}
+
+        name = (
+            info.get("shortName")
+            or info.get("longName")
+            or info.get("displayName")
+            or info.get("underlyingSymbol")
+            or symbol
+        )
+
+        return {
+            "company_name": name if name and name != symbol else symbol,
+            "sector": info.get("sector") or info.get("category") or "Unknown",
+            "industry": info.get("industry") or info.get("fundFamily") or "Unknown",
+            "market_cap": safe_float(info.get("marketCap")),
+            "quote_type": info.get("quoteType") or "EQUITY",
+        }
+    except Exception:
+        return defaults
+
+
+# =========================
+# SIGNALS / SCORING
+# =========================
+
+def compute_indicators(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
+    if df is None or df.empty or len(df) < 45:
+        return None
+
+    close = df["Close"].astype(float)
+    volume = df["Volume"].astype(float) if "Volume" in df.columns else pd.Series([0] * len(df), index=df.index)
+    high = df["High"].astype(float) if "High" in df.columns else close
+    low = df["Low"].astype(float) if "Low" in df.columns else close
+
+    price = safe_float(close.iloc[-1])
+    if price is None or price <= 0:
+        return None
+
+    sma10 = safe_float(close.rolling(10).mean().iloc[-1])
+    sma20 = safe_float(close.rolling(20).mean().iloc[-1])
+    sma50 = safe_float(close.rolling(50).mean().iloc[-1]) if len(close) >= 50 else None
+    sma100 = safe_float(close.rolling(100).mean().iloc[-1]) if len(close) >= 100 else None
+
+    vol20 = safe_float(volume.rolling(20).mean().iloc[-1], 0)
+    dollar_volume = price * (vol20 or 0)
+
+    one_day = pct_change(price, safe_float(close.iloc[-2])) if len(close) >= 2 else None
+    five_day = pct_change(price, safe_float(close.iloc[-6])) if len(close) >= 6 else None
+    twenty_day = pct_change(price, safe_float(close.iloc[-21])) if len(close) >= 21 else None
+    sixty_day = pct_change(price, safe_float(close.iloc[-61])) if len(close) >= 61 else None
+
+    rolling_high_20 = safe_float(high.rolling(20).max().iloc[-1])
+    rolling_low_20 = safe_float(low.rolling(20).min().iloc[-1])
+    rolling_high_60 = safe_float(high.rolling(60).max().iloc[-1]) if len(high) >= 60 else rolling_high_20
+    rolling_low_60 = safe_float(low.rolling(60).min().iloc[-1]) if len(low) >= 60 else rolling_low_20
+
+    # RSI
+    delta = close.diff()
+    gains = delta.where(delta > 0, 0.0)
+    losses = -delta.where(delta < 0, 0.0)
+    avg_gain = gains.rolling(14).mean()
+    avg_loss = losses.rolling(14).mean()
+    rs = avg_gain / avg_loss.replace(0, float("nan"))
+    rsi = safe_float(100 - (100 / (1 + rs.iloc[-1])), 50)
+
+    # ATR
+    prev_close = close.shift(1)
+    tr = pd.concat(
+        [(high - low).abs(), (high - prev_close).abs(), (low - prev_close).abs()],
+        axis=1,
+    ).max(axis=1)
+    atr14 = safe_float(tr.rolling(14).mean().iloc[-1])
+    atr_pct = (atr14 / price * 100.0) if atr14 and price else None
+
+    # Volume surge
+    latest_vol = safe_float(volume.iloc[-1], 0)
+    volume_ratio = latest_vol / vol20 if vol20 and vol20 > 0 else 1.0
+
+    distance_from_20_high = pct_change(price, rolling_high_20)
+    distance_from_60_high = pct_change(price, rolling_high_60)
+    distance_above_20_low = pct_change(price, rolling_low_20)
+
+    return {
+        "price": round(price, 2),
+        "sma10": round(sma10, 2) if sma10 else None,
+        "sma20": round(sma20, 2) if sma20 else None,
+        "sma50": round(sma50, 2) if sma50 else None,
+        "sma100": round(sma100, 2) if sma100 else None,
+        "avg_volume_20d": safe_int(vol20, 0),
+        "dollar_volume": round(dollar_volume, 2),
+        "one_day_pct": round(one_day, 2) if one_day is not None else None,
+        "five_day_pct": round(five_day, 2) if five_day is not None else None,
+        "twenty_day_pct": round(twenty_day, 2) if twenty_day is not None else None,
+        "sixty_day_pct": round(sixty_day, 2) if sixty_day is not None else None,
+        "rsi": round(rsi, 1) if rsi is not None else None,
+        "atr14": round(atr14, 2) if atr14 else None,
+        "atr_pct": round(atr_pct, 2) if atr_pct else None,
+        "volume_ratio": round(volume_ratio, 2),
+        "rolling_high_20": round(rolling_high_20, 2) if rolling_high_20 else None,
+        "rolling_low_20": round(rolling_low_20, 2) if rolling_low_20 else None,
+        "rolling_high_60": round(rolling_high_60, 2) if rolling_high_60 else None,
+        "rolling_low_60": round(rolling_low_60, 2) if rolling_low_60 else None,
+        "distance_from_20_high": round(distance_from_20_high, 2) if distance_from_20_high is not None else None,
+        "distance_from_60_high": round(distance_from_60_high, 2) if distance_from_60_high is not None else None,
+        "distance_above_20_low": round(distance_above_20_low, 2) if distance_above_20_low is not None else None,
+    }
+
+
+def score_stock(ind: Dict[str, Any], meta: Dict[str, Any]) -> Tuple[int, List[str], List[str]]:
+    """
+    Meaningfully varied 0-100 score.
+    Rewards trend, momentum, liquidity, volume confirmation, relative setup quality.
+    Penalizes overextended or weak/liquid names.
+    """
+    score = 0
+    good: List[str] = []
+    risks: List[str] = []
+
+    price = ind.get("price")
+    sma10 = ind.get("sma10")
+    sma20 = ind.get("sma20")
+    sma50 = ind.get("sma50")
+    sma100 = ind.get("sma100")
+    rsi = ind.get("rsi")
+    vol_ratio = ind.get("volume_ratio") or 1
+    dollar_volume = ind.get("dollar_volume") or 0
+    one = ind.get("one_day_pct")
+    five = ind.get("five_day_pct")
+    twenty = ind.get("twenty_day_pct")
+    sixty = ind.get("sixty_day_pct")
+    dist20h = ind.get("distance_from_20_high")
+    atr_pct = ind.get("atr_pct")
+    market_cap = meta.get("market_cap")
+
+    # Liquidity / investability
+    if dollar_volume >= 100_000_000:
+        score += 12
+        good.append("Strong liquidity")
+    elif dollar_volume >= 25_000_000:
+        score += 9
+        good.append("Good liquidity")
+    elif dollar_volume >= MIN_DOLLAR_VOLUME:
+        score += 5
+    else:
+        score -= 20
+        risks.append("Weak dollar volume")
+
+    if market_cap and market_cap >= 10_000_000_000:
+        score += 8
+    elif market_cap and market_cap >= 1_000_000_000:
+        score += 5
+    elif market_cap and market_cap < MIN_MARKET_CAP:
+        score -= 15
+        risks.append("Very small market cap")
+
+    # Trend stack
+    if price and sma20 and price > sma20:
+        score += 10
+        good.append("Price is above the 20-day trend")
+    else:
+        score -= 8
+        risks.append("Price is below the 20-day trend")
+
+    if price and sma50 and price > sma50:
+        score += 12
+        good.append("Price is above the 50-day trend")
+    else:
+        score -= 8
+        risks.append("Price is below or near the 50-day trend")
+
+    if sma20 and sma50 and sma20 > sma50:
+        score += 8
+        good.append("Short-term trend is above intermediate trend")
+    elif sma20 and sma50:
+        score -= 5
+
+    if sma50 and sma100 and sma50 > sma100:
+        score += 6
+
+    # Momentum
+    if five is not None:
+        if 1 <= five <= 12:
+            score += 12
+            good.append("Healthy 5-day momentum")
+        elif five > 18:
+            score -= 6
+            risks.append("Short-term move may be extended")
+        elif five < -4:
+            score -= 8
+            risks.append("Recent momentum is weak")
+
+    if twenty is not None:
+        if 2 <= twenty <= 25:
+            score += 14
+            good.append("Positive 20-day momentum")
+        elif twenty > 35:
+            score -= 7
+            risks.append("20-day move is stretched")
+        elif twenty < -8:
+            score -= 10
+            risks.append("20-day trend is negative")
+
+    if sixty is not None:
+        if 5 <= sixty <= 45:
+            score += 9
+        elif sixty > 75:
+            score -= 5
+            risks.append("Longer move may be overextended")
+        elif sixty < -12:
+            score -= 7
+
+    # RSI
+    if rsi is not None:
+        if 48 <= rsi <= 68:
+            score += 12
+            good.append("RSI is constructive without looking overheated")
+        elif 68 < rsi <= 76:
+            score += 4
+            risks.append("RSI is warm; avoid chasing")
+        elif rsi > 76:
+            score -= 10
+            risks.append("RSI is overbought")
+        elif 35 <= rsi < 48:
+            score += 2
+            risks.append("RSI is not yet showing strong momentum")
+        else:
+            score -= 8
+            risks.append("RSI is weak")
+
+    # Volume confirmation
+    if vol_ratio >= 2.0:
+        score += 10
+        good.append("Volume is meaningfully above average")
+    elif vol_ratio >= 1.25:
+        score += 6
+        good.append("Volume is above average")
+    elif vol_ratio < 0.65:
+        score -= 5
+        risks.append("Volume confirmation is light")
+
+    # Near highs but not too extended
+    if dist20h is not None:
+        if -8 <= dist20h <= -1:
+            score += 8
+            good.append("Trading near recent highs without being at the absolute top")
+        elif -1 < dist20h <= 1:
+            score += 5
+            good.append("Testing recent highs")
+        elif dist20h < -18:
+            score -= 6
+            risks.append("Still far from recent highs")
+
+    # Volatility control
+    if atr_pct is not None:
+        if 1 <= atr_pct <= 5:
+            score += 7
+            good.append("Volatility is tradable")
+        elif atr_pct > 9:
+            score -= 8
+            risks.append("High volatility could make stops difficult")
+        elif atr_pct < 0.5:
+            score -= 3
+
+    # One-day noise guard
+    if one is not None and one < -6:
+        score -= 10
+        risks.append("Sharp down day needs confirmation")
+    elif one is not None and one > 12:
+        score -= 5
+        risks.append("Large one-day jump may pull back")
+
+    # Normalize away from common weak 20 score problem.
+    score = max(1, min(99, score))
+    if score < 35:
+        score = max(score, 20)
+    return int(round(score)), good[:5], risks[:5]
+
+
+def build_trade_plan(ind: Dict[str, Any], score: int) -> Dict[str, Any]:
+    price = ind.get("price")
+    atr = ind.get("atr14") or (price * 0.035 if price else 1)
+    sma20 = ind.get("sma20")
+    high20 = ind.get("rolling_high_20")
+
+    if not price:
+        return {}
+
+    # Entry prefers controlled pullback or break near 20-day high.
+    lower_entry = max(price - atr * 0.5, price * 0.96)
+    upper_entry = min(price + atr * 0.25, price * 1.03)
+
+    support_anchor = sma20 if sma20 and sma20 < price else price - atr
+    stop_loss = min(price - atr * 1.4, support_anchor - atr * 0.35)
+    stop_loss = max(stop_loss, price * 0.80)
+
+    risk_per_share = max(price - stop_loss, price * 0.02)
+    target_1 = price + risk_per_share * 1.8
+    target_2 = price + risk_per_share * 2.7
+
+    if high20 and high20 > price:
+        target_1 = max(target_1, high20 * 1.01)
+
+    rr = (target_1 - price) / risk_per_share if risk_per_share > 0 else None
+
+    return {
+        "entry_range": f"${lower_entry:.2f} - ${upper_entry:.2f}",
+        "entry_low": round(lower_entry, 2),
+        "entry_high": round(upper_entry, 2),
+        "stop_loss": round(stop_loss, 2),
+        "target": round(target_1, 2),
+        "target_2": round(target_2, 2),
+        "risk_reward": round(rr, 2) if rr else None,
+        "risk_reward_explanation": (
+            f"Approximate first target offers about {rr:.1f}:1 reward-to-risk based on current price, "
+            f"ATR-based stop, and recent trend structure."
+            if rr else
+            "Risk/reward could not be calculated cleanly."
+        ),
+    }
+
+
+def plain_english_guidance(symbol: str, company: str, ind: Dict[str, Any], score: int, good: List[str], risks: List[str], plan: Dict[str, Any]) -> Dict[str, str]:
+    good_text = "; ".join(good) if good else "The setup has some improving technical traits, but confirmation is limited."
+    risk_text = "; ".join(risks) if risks else "Main risk is a normal pullback if broader market momentum fades."
+
+    if score >= 75:
+        rank_reason = "High conviction because trend, momentum, liquidity, and volume confirmation are aligned."
+    elif score >= 60:
+        rank_reason = "Moderate-to-strong setup with enough technical support to watch closely."
+    elif score >= 45:
+        rank_reason = "Watchlist candidate, but it needs stronger confirmation before becoming a high-priority idea."
+    else:
+        rank_reason = "Lower conviction; included only if it has some relative strength or liquidity worth monitoring."
+
+    return {
+        "why_ranked_high": rank_reason,
+        "what_looks_good": good_text,
+        "what_could_go_wrong": risk_text,
+        "guidance": (
+            f"{company} ({symbol}) is scoring {score}/100. "
+            f"Preferred entry is {plan.get('entry_range', 'near current support')}. "
+            f"Use a stop around ${plan.get('stop_loss')} and first target near ${plan.get('target')}. "
+            f"{plan.get('risk_reward_explanation', '')}"
+        ),
+        "action_note": (
+            "Do not chase a gap-up open. Best setup is either a controlled pullback into the entry range "
+            "or a breakout that holds above prior resistance with volume."
+        ),
+    }
+
+
+def make_dashboard_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], score: int, good: List[str], risks: List[str]) -> Dict[str, Any]:
+    plan = build_trade_plan(ind, score)
+    guidance = plain_english_guidance(symbol, meta.get("company_name", symbol), ind, score, good, risks, plan)
+
+    # Keep a broad set of field names so V39 app.py has backward-compatible options.
+    row = {
+        "symbol": symbol,
+        "ticker": symbol,
+        "company": meta.get("company_name", symbol),
+        "company_name": meta.get("company_name", symbol),
+        "name": meta.get("company_name", symbol),
+        "sector": meta.get("sector", "Unknown"),
+        "industry": meta.get("industry", "Unknown"),
+        "market_cap": meta.get("market_cap"),
+        "quote_type": meta.get("quote_type", "EQUITY"),
+
+        "price": ind.get("price"),
+        "current_price": ind.get("price"),
+        "last_price": ind.get("price"),
+        "avg_volume_20d": ind.get("avg_volume_20d"),
+        "dollar_volume": ind.get("dollar_volume"),
+        "volume_ratio": ind.get("volume_ratio"),
+
+        "conviction": score,
+        "conviction_score": score,
+        "score": score,
+        "ai_score": score,
+
+        "rsi": ind.get("rsi"),
+        "atr14": ind.get("atr14"),
+        "atr_pct": ind.get("atr_pct"),
+        "sma10": ind.get("sma10"),
+        "sma20": ind.get("sma20"),
+        "sma50": ind.get("sma50"),
+        "sma100": ind.get("sma100"),
+        "one_day_pct": ind.get("one_day_pct"),
+        "five_day_pct": ind.get("five_day_pct"),
+        "twenty_day_pct": ind.get("twenty_day_pct"),
+        "sixty_day_pct": ind.get("sixty_day_pct"),
+
+        "entry_range": plan.get("entry_range"),
+        "entry_low": plan.get("entry_low"),
+        "entry_high": plan.get("entry_high"),
+        "stop_loss": plan.get("stop_loss"),
+        "target": plan.get("target"),
+        "target_2": plan.get("target_2"),
+        "risk_reward": plan.get("risk_reward"),
+        "risk_reward_explanation": plan.get("risk_reward_explanation"),
+
+        "why_ranked_high": guidance.get("why_ranked_high"),
+        "what_looks_good": guidance.get("what_looks_good"),
+        "what_could_go_wrong": guidance.get("what_could_go_wrong"),
+        "guidance": guidance.get("guidance"),
+        "action_note": guidance.get("action_note"),
+        "ai_guidance": guidance.get("guidance"),
+        "summary": guidance.get("guidance"),
+
+        "setup_tags": good,
+        "risk_tags": risks,
+        "scan_time": now_iso(),
+    }
+
+    return row
+
+
+# =========================
+# SCAN PIPELINE
+# =========================
+
+def passes_basic_filter(ind: Dict[str, Any], meta: Dict[str, Any]) -> bool:
+    price = ind.get("price")
+    if price is None or price < MIN_PRICE or price > MAX_PRICE:
+        return False
+
+    if (ind.get("dollar_volume") or 0) < MIN_DOLLAR_VOLUME:
+        return False
+
+    market_cap = meta.get("market_cap")
+    if market_cap is not None and market_cap < MIN_MARKET_CAP:
+        return False
+
+    # Must have enough valid technicals.
+    if ind.get("sma20") is None or ind.get("sma50") is None:
+        return False
+
+    return True
+
+
+def scan_market() -> Dict[str, Any]:
+    start_time = time.time()
+    universe = build_universe()
+
+    universe_payload = {
+        "generated_at": now_iso(),
+        "count": len(universe),
+        "symbols": universe,
+    }
+    write_json(UNIVERSE_FILE, universe_payload)
+
+    prescreen_rows: List[Dict[str, Any]] = []
+    full_rows: List[Dict[str, Any]] = []
+
+    metadata_cache: Dict[str, Dict[str, Any]] = {}
+
+    for i in range(0, len(universe), BATCH_SIZE):
+        batch = universe[i:i + BATCH_SIZE]
+        price_data = download_price_batch(batch)
+
+        for symbol in batch:
+            hist = extract_symbol_history(price_data, symbol)
+            ind = compute_indicators(hist)
+            if not ind:
+                continue
+
+            # Light price/liquidity filter before metadata calls.
+            if ind.get("price") is None or ind.get("price") < MIN_PRICE:
+                continue
+            if (ind.get("dollar_volume") or 0) < MIN_DOLLAR_VOLUME:
+                continue
+
+            meta = metadata_cache.get(symbol)
+            if meta is None:
+                meta = get_metadata(symbol)
+                metadata_cache[symbol] = meta
+
+            if not passes_basic_filter(ind, meta):
+                continue
+
+            score, good, risks = score_stock(ind, meta)
+            row = make_dashboard_row(symbol, meta, ind, score, good, risks)
+
+            # Prescreen can include moderate setups, but weak fallback rows are reduced.
+            if score >= 38:
+                prescreen_rows.append(row)
+
+            # Full scan requires better score quality.
+            if score >= 45:
+                full_rows.append(row)
+
+        if SLEEP_BETWEEN_BATCHES > 0:
+            time.sleep(SLEEP_BETWEEN_BATCHES)
+
+    prescreen_rows.sort(key=lambda r: (r.get("conviction") or 0, r.get("dollar_volume") or 0), reverse=True)
+    full_rows.sort(key=lambda r: (r.get("conviction") or 0, r.get("dollar_volume") or 0), reverse=True)
+
+    prescreen_rows = prescreen_rows[:MAX_PRESCREEN]
+    full_rows = full_rows[:MAX_FULL_SCAN]
+
+    # If full scan is too thin, only backfill with actual valid prescreen rows, not fake rows.
+    if len(full_rows) < min(25, MAX_FULL_SCAN):
+        seen = {r["symbol"] for r in full_rows}
+        for row in prescreen_rows:
+            if row["symbol"] not in seen and row.get("price") and row.get("conviction", 0) >= 38:
+                full_rows.append(row)
+                seen.add(row["symbol"])
+            if len(full_rows) >= min(50, MAX_FULL_SCAN):
+                break
+
+    state = {
+        "generated_at": now_iso(),
+        "status": "success",
+        "version": "V39.1",
+        "universe_count": len(universe),
+        "prescreen_count": len(prescreen_rows),
+        "full_scan_count": len(full_rows),
+        "fallback_rows_allowed": False,
+        "data_dir": str(DATA_DIR),
+        "github_persisted": False,
+        "duration_seconds": round(time.time() - start_time, 2),
+        "filters": {
+            "min_price": MIN_PRICE,
+            "max_price": MAX_PRICE,
+            "min_dollar_volume": MIN_DOLLAR_VOLUME,
+            "min_market_cap": MIN_MARKET_CAP,
+        },
+    }
+
+    write_json(PRESCREEN_FILE, prescreen_rows)
+    write_json(FULL_SCAN_FILE, full_rows)
+    write_json(STATE_FILE, state)
+
+    if GITHUB_PERSIST:
+        state["github_persisted"] = persist_to_github()
+        write_json(STATE_FILE, state)
+
+    return state
+
+
+# =========================
+# GITHUB PERSISTENCE
+# =========================
+
+def persist_to_github() -> bool:
+    """
+    Uses existing Render repo checkout and credentials.
+    Safe no-op if nothing changed.
+    """
+    files = [
+        str(FULL_SCAN_FILE),
+        str(PRESCREEN_FILE),
+        str(STATE_FILE),
+        str(UNIVERSE_FILE),
+    ]
+
+    code, out = run_cmd(["git", "status", "--porcelain"])
+    if code != 0:
+        print(f"git status failed: {out}")
+        return False
+
+    code, out = run_cmd(["git", "add"] + files)
+    if code != 0:
+        print(f"git add failed: {out}")
+        return False
+
+    code, out = run_cmd(["git", "diff", "--cached", "--quiet"])
+    if code == 0:
+        print("No scan data changes to commit.")
         return True
 
-    except subprocess.CalledProcessError as e:
-        print(f"GitHub persistence failed: {e}")
+    run_cmd(["git", "config", "user.email", os.getenv("GIT_USER_EMAIL", "render-cron@example.com")])
+    run_cmd(["git", "config", "user.name", os.getenv("GIT_USER_NAME", "Render Cron")])
+
+    commit_msg = f"{GIT_COMMIT_MESSAGE} - {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"
+    code, out = run_cmd(["git", "commit", "-m", commit_msg])
+    if code != 0:
+        print(f"git commit failed: {out}")
         return False
-    except Exception as e:
-        print(f"GitHub persistence unexpected error: {e}")
+
+    # Rebase first to avoid non-fast-forward errors.
+    run_cmd(["git", "pull", "--rebase", "origin", "main"])
+
+    code, out = run_cmd(["git", "push", "origin", "main"])
+    if code != 0:
+        print(f"git push failed: {out}")
         return False
 
+    return True
 
 
-def main():
-    started = datetime.now(EASTERN).isoformat()
-    print("Starting automated overnight market scan V38.4 with GitHub persistence...")
-    universe = fetch_universe()
-    print(f"Universe count: {len(universe)}")
-    prescreen = run_prescreen(universe)
-    print(f"Prescreen candidates: {len(prescreen)}")
-    full = run_deep_scan(prescreen)
-    print(f"Full scan rows: {len(full)}")
-    state = {"started_at": started, "finished_at": datetime.now(EASTERN).isoformat(),
-             "universe_count": len(universe), "prescreen_count": len(prescreen), "full_scan_count": len(full), "fallback_rows_allowed": True,
-             "data_dir": str(DATA_DIR)}
-    write_json(SCAN_STATE_FILE, state)
-    github_persisted = persist_results_to_github()
-    state["github_persisted"] = github_persisted
-    write_json(SCAN_STATE_FILE, state)
-    print(json.dumps(state, indent=2))
+# =========================
+# MAIN
+# =========================
+
+def main() -> None:
+    try:
+        state = scan_market()
+        print(json.dumps(state, indent=2))
+        if state.get("full_scan_count", 0) <= 0:
+            sys.exit(2)
+    except Exception as exc:
+        error_state = {
+            "generated_at": now_iso(),
+            "status": "error",
+            "version": "V39.1",
+            "error": str(exc),
+            "data_dir": str(DATA_DIR),
+            "github_persisted": False,
+        }
+        write_json(STATE_FILE, error_state)
+        print(json.dumps(error_state, indent=2))
+        sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
