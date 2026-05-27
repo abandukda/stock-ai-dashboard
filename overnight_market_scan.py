@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-V39.3 Overnight Market Scanner
+V39.5 Multi-Agent Decision Scanner
 - Keeps Render Cron compatibility
 - Keeps DATA_DIR="."
 - Preserves V39 dashboard files
@@ -206,16 +206,80 @@ def extract_symbol_history(data: pd.DataFrame, symbol: str) -> pd.DataFrame:
 
 
 def get_metadata(symbol: str) -> Dict[str, Any]:
-    defaults = {"company_name": symbol, "sector": "Unknown", "industry": "Unknown", "market_cap": None, "quote_type": "EQUITY"}
+    defaults = {
+        "company_name": symbol,
+        "sector": "Unknown",
+        "industry": "Unknown",
+        "market_cap": None,
+        "quote_type": "EQUITY",
+        "pe_ratio": None,
+        "forward_pe": None,
+        "peg_ratio": None,
+        "price_to_sales": None,
+        "price_to_book": None,
+        "profit_margin": None,
+        "gross_margin": None,
+        "operating_margin": None,
+        "revenue_growth": None,
+        "earnings_growth": None,
+        "total_cash": None,
+        "total_debt": None,
+        "debt_to_equity": None,
+        "free_cashflow": None,
+        "operating_cashflow": None,
+        "current_ratio": None,
+        "recommendation": None,
+        "target_mean_price": None,
+        "target_high_price": None,
+        "target_low_price": None,
+        "earnings_date": None,
+    }
+
     try:
-        info = yf.Ticker(symbol).get_info() or {}
+        ticker = yf.Ticker(symbol)
+        info = ticker.get_info() or {}
         name = info.get("shortName") or info.get("longName") or info.get("displayName") or symbol
+
+        earnings_date = None
+        try:
+            cal = ticker.calendar
+            if isinstance(cal, dict):
+                ed = cal.get("Earnings Date") or cal.get("EarningsDate")
+                if isinstance(ed, list) and ed:
+                    earnings_date = str(ed[0])
+                elif ed is not None:
+                    earnings_date = str(ed)
+        except Exception:
+            earnings_date = None
+
         return {
+            **defaults,
             "company_name": name if name else symbol,
             "sector": info.get("sector") or info.get("category") or "Unknown",
             "industry": info.get("industry") or info.get("fundFamily") or "Unknown",
             "market_cap": safe_float(info.get("marketCap")),
             "quote_type": info.get("quoteType") or "EQUITY",
+            "pe_ratio": safe_float(info.get("trailingPE")),
+            "forward_pe": safe_float(info.get("forwardPE")),
+            "peg_ratio": safe_float(info.get("pegRatio")),
+            "price_to_sales": safe_float(info.get("priceToSalesTrailing12Months")),
+            "price_to_book": safe_float(info.get("priceToBook")),
+            "profit_margin": safe_float(info.get("profitMargins")),
+            "gross_margin": safe_float(info.get("grossMargins")),
+            "operating_margin": safe_float(info.get("operatingMargins")),
+            "revenue_growth": safe_float(info.get("revenueGrowth")),
+            "earnings_growth": safe_float(info.get("earningsGrowth")),
+            "total_cash": safe_float(info.get("totalCash")),
+            "total_debt": safe_float(info.get("totalDebt")),
+            "debt_to_equity": safe_float(info.get("debtToEquity")),
+            "free_cashflow": safe_float(info.get("freeCashflow")),
+            "operating_cashflow": safe_float(info.get("operatingCashflow")),
+            "current_ratio": safe_float(info.get("currentRatio")),
+            "recommendation": info.get("recommendationKey") or info.get("recommendationMean"),
+            "target_mean_price": safe_float(info.get("targetMeanPrice")),
+            "target_high_price": safe_float(info.get("targetHighPrice")),
+            "target_low_price": safe_float(info.get("targetLowPrice")),
+            "earnings_date": earnings_date,
         }
     except Exception:
         return defaults
@@ -459,33 +523,446 @@ def build_trade_plan(ind: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def build_ai_reasoning(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], score: int, setup_type: str, good: List[str], risks: List[str], plan: Dict[str, Any]) -> Dict[str, str]:
+
+# =========================
+# MULTI-AGENT ANALYSIS LAYER
+# =========================
+
+def fmt_money(value: Any) -> str:
+    try:
+        value = float(value)
+        if abs(value) >= 1_000_000_000_000:
+            return f"${value/1_000_000_000_000:.1f}T"
+        if abs(value) >= 1_000_000_000:
+            return f"${value/1_000_000_000:.1f}B"
+        if abs(value) >= 1_000_000:
+            return f"${value/1_000_000:.1f}M"
+        return f"${value:,.0f}"
+    except Exception:
+        return "N/A"
+
+
+def fmt_pct(value: Any) -> str:
+    try:
+        return f"{float(value) * 100:.1f}%"
+    except Exception:
+        return "N/A"
+
+
+def clamp_score(score: float) -> int:
+    return int(max(0, min(100, round(score))))
+
+
+def technical_agent(ind: Dict[str, Any]) -> Dict[str, Any]:
+    score = 0
+    positives, risks = [], []
+
+    price = ind.get("price")
+    sma20 = ind.get("sma20")
+    sma50 = ind.get("sma50")
+    sma100 = ind.get("sma100")
+    rsi = ind.get("rsi")
+    five = ind.get("five_day_pct")
+    twenty = ind.get("twenty_day_pct")
+    sixty = ind.get("sixty_day_pct")
+    volume_ratio = ind.get("volume_ratio") or 1
+    atr_pct = ind.get("atr_pct")
+
+    if price and sma20 and price > sma20:
+        score += 18; positives.append("price is above the 20-day trend")
+    else:
+        risks.append("price is not clearly above the 20-day trend")
+
+    if price and sma50 and price > sma50:
+        score += 20; positives.append("price is above the 50-day trend")
+    else:
+        risks.append("price is below or near the 50-day trend")
+
+    if sma20 and sma50 and sma20 > sma50:
+        score += 12; positives.append("20-day average is above the 50-day average")
+
+    if sma50 and sma100 and sma50 > sma100:
+        score += 8; positives.append("50-day trend is stronger than the 100-day trend")
+
+    if five is not None and 1 <= five <= 12:
+        score += 10; positives.append(f"healthy 5-day momentum of {five}%")
+    elif five is not None and five < -4:
+        score -= 8; risks.append(f"weak 5-day momentum of {five}%")
+
+    if twenty is not None and 2 <= twenty <= 25:
+        score += 14; positives.append(f"positive 20-day momentum of {twenty}%")
+    elif twenty is not None and twenty < -8:
+        score -= 10; risks.append(f"negative 20-day move of {twenty}%")
+
+    if rsi is not None and 48 <= rsi <= 68:
+        score += 12; positives.append(f"RSI is constructive at {rsi}, not overheated")
+    elif rsi is not None and rsi > 76:
+        score -= 12; risks.append(f"RSI is overbought at {rsi}")
+    elif rsi is not None and rsi < 40:
+        score -= 8; risks.append(f"RSI is weak at {rsi}")
+
+    if volume_ratio >= 1.25:
+        score += 10; positives.append(f"volume is confirming at {volume_ratio}x average")
+    elif volume_ratio < 0.65:
+        score -= 5; risks.append("volume confirmation is light")
+
+    if atr_pct is not None and 1 <= atr_pct <= 6:
+        score += 6; positives.append(f"ATR volatility is tradable at {atr_pct}%")
+    elif atr_pct is not None and atr_pct > 9:
+        score -= 8; risks.append(f"volatility is high at {atr_pct}% ATR")
+
+    return {
+        "name": "Technical Momentum Agent",
+        "score": clamp_score(score),
+        "positives": positives[:6],
+        "risks": risks[:6],
+        "summary": "Reviews trend, momentum, RSI, volume confirmation, and volatility."
+    }
+
+
+def fundamentals_agent(meta: Dict[str, Any]) -> Dict[str, Any]:
+    score = 0
+    positives, risks = [], []
+
+    revenue_growth = meta.get("revenue_growth")
+    earnings_growth = meta.get("earnings_growth")
+    profit_margin = meta.get("profit_margin")
+    gross_margin = meta.get("gross_margin")
+    fcf = meta.get("free_cashflow")
+    ocf = meta.get("operating_cashflow")
+    cash = meta.get("total_cash")
+    debt = meta.get("total_debt")
+    current_ratio = meta.get("current_ratio")
+
+    if revenue_growth is not None:
+        if revenue_growth > 0.15:
+            score += 18; positives.append(f"strong revenue growth at {fmt_pct(revenue_growth)}")
+        elif revenue_growth > 0:
+            score += 10; positives.append(f"positive revenue growth at {fmt_pct(revenue_growth)}")
+        else:
+            score -= 10; risks.append(f"negative/weak revenue growth at {fmt_pct(revenue_growth)}")
+
+    if earnings_growth is not None:
+        if earnings_growth > 0.10:
+            score += 14; positives.append(f"earnings growth is positive at {fmt_pct(earnings_growth)}")
+        elif earnings_growth < 0:
+            score -= 8; risks.append(f"earnings growth is negative at {fmt_pct(earnings_growth)}")
+
+    if profit_margin is not None:
+        if profit_margin > 0.15:
+            score += 16; positives.append(f"healthy profit margin at {fmt_pct(profit_margin)}")
+        elif profit_margin > 0:
+            score += 8; positives.append(f"profitable with {fmt_pct(profit_margin)} margin")
+        else:
+            score -= 14; risks.append("not currently profitable")
+
+    if gross_margin is not None and gross_margin > 0.40:
+        score += 8; positives.append(f"strong gross margin at {fmt_pct(gross_margin)}")
+
+    if fcf is not None:
+        if fcf > 0:
+            score += 16; positives.append(f"positive free cash flow of {fmt_money(fcf)}")
+        else:
+            score -= 10; risks.append(f"negative free cash flow of {fmt_money(fcf)}")
+
+    if ocf is not None and ocf > 0:
+        score += 8; positives.append(f"positive operating cash flow of {fmt_money(ocf)}")
+
+    if cash is not None and debt is not None:
+        if cash > debt:
+            score += 14; positives.append(f"cash exceeds debt: {fmt_money(cash)} cash vs {fmt_money(debt)} debt")
+        elif debt > cash * 2:
+            score -= 10; risks.append(f"debt is much higher than cash: {fmt_money(debt)} debt vs {fmt_money(cash)} cash")
+        else:
+            score += 4; positives.append(f"cash/debt is manageable: {fmt_money(cash)} cash vs {fmt_money(debt)} debt")
+
+    if current_ratio is not None:
+        if current_ratio >= 1.2:
+            score += 6; positives.append(f"current ratio is acceptable at {current_ratio:.2f}")
+        elif current_ratio < 1:
+            score -= 6; risks.append(f"current ratio is below 1.0 at {current_ratio:.2f}")
+
+    return {
+        "name": "Fundamentals Quality Agent",
+        "score": clamp_score(score),
+        "positives": positives[:6],
+        "risks": risks[:6],
+        "summary": "Reviews growth, profitability, cash flow, cash balance, debt, and balance-sheet quality."
+    }
+
+
+def valuation_agent(meta: Dict[str, Any], ind: Dict[str, Any]) -> Dict[str, Any]:
+    score = 50
+    positives, risks = [], []
+
+    pe = meta.get("pe_ratio")
+    fpe = meta.get("forward_pe")
+    peg = meta.get("peg_ratio")
+    ps = meta.get("price_to_sales")
+    pb = meta.get("price_to_book")
+    target = meta.get("target_mean_price")
+    price = ind.get("price")
+
+    if pe is not None:
+        if 0 < pe < 25:
+            score += 12; positives.append(f"P/E looks reasonable at {pe:.1f}")
+        elif pe > 60:
+            score -= 12; risks.append(f"P/E is expensive at {pe:.1f}")
+
+    if fpe is not None:
+        if 0 < fpe < 30:
+            score += 10; positives.append(f"forward P/E is reasonable at {fpe:.1f}")
+        elif fpe > 70:
+            score -= 8; risks.append(f"forward P/E is expensive at {fpe:.1f}")
+
+    if peg is not None:
+        if 0 < peg < 1.5:
+            score += 8; positives.append(f"PEG is attractive at {peg:.2f}")
+        elif peg > 3:
+            score -= 6; risks.append(f"PEG is rich at {peg:.2f}")
+
+    if ps is not None:
+        if ps < 5:
+            score += 8; positives.append(f"price/sales is not excessive at {ps:.1f}")
+        elif ps > 15:
+            score -= 8; risks.append(f"price/sales is rich at {ps:.1f}")
+
+    if pb is not None:
+        if 0 < pb < 5:
+            score += 4; positives.append(f"price/book is reasonable at {pb:.1f}")
+        elif pb > 12:
+            score -= 4; risks.append(f"price/book is elevated at {pb:.1f}")
+
+    if price and target:
+        upside = (target - price) / price * 100
+        if upside > 20:
+            score += 10; positives.append(f"analyst mean target implies {upside:.1f}% upside")
+        elif upside < 0:
+            score -= 8; risks.append(f"analyst mean target is below current price by {abs(upside):.1f}%")
+
+    if not positives and not risks:
+        risks.append("valuation data is limited, so this agent cannot strongly confirm value")
+
+    return {
+        "name": "Valuation Agent",
+        "score": clamp_score(score),
+        "positives": positives[:6],
+        "risks": risks[:6],
+        "summary": "Reviews P/E, forward P/E, PEG, sales/book valuation, and analyst target upside."
+    }
+
+
+def risk_agent(meta: Dict[str, Any], ind: Dict[str, Any]) -> Dict[str, Any]:
+    score = 70
+    positives, risks = [], []
+
+    market_cap = meta.get("market_cap")
+    dollar_volume = ind.get("dollar_volume") or 0
+    atr_pct = ind.get("atr_pct")
+    one_day = ind.get("one_day_pct")
+    rsi = ind.get("rsi")
+    debt = meta.get("total_debt")
+    cash = meta.get("total_cash")
+
+    if market_cap and market_cap >= 10_000_000_000:
+        score += 8; positives.append("large-cap liquidity reduces execution risk")
+    elif market_cap and market_cap < 300_000_000:
+        score -= 15; risks.append("small market cap increases volatility and liquidity risk")
+
+    if dollar_volume >= 100_000_000:
+        score += 10; positives.append("very strong dollar volume")
+    elif dollar_volume < 5_000_000:
+        score -= 12; risks.append("low dollar volume can make entries/exits difficult")
+
+    if atr_pct is not None:
+        if atr_pct > 9:
+            score -= 14; risks.append(f"ATR volatility is high at {atr_pct}%")
+        elif 1 <= atr_pct <= 5:
+            score += 8; positives.append(f"volatility is tradable at {atr_pct}% ATR")
+
+    if one_day is not None and one_day > 12:
+        score -= 8; risks.append("large one-day move can mean chasing risk")
+    if one_day is not None and one_day < -8:
+        score -= 10; risks.append("sharp down day needs confirmation")
+
+    if rsi is not None and rsi > 76:
+        score -= 8; risks.append("overbought RSI raises pullback risk")
+
+    if cash is not None and debt is not None and debt > cash * 2:
+        score -= 8; risks.append("debt is much higher than cash")
+
+    return {
+        "name": "Risk Management Agent",
+        "score": clamp_score(score),
+        "positives": positives[:6],
+        "risks": risks[:6],
+        "summary": "Reviews liquidity, market cap, volatility, debt/cash risk, and chasing risk."
+    }
+
+
+def catalyst_agent(meta: Dict[str, Any], ind: Dict[str, Any], setup_type: str) -> Dict[str, Any]:
+    score = 50
+    positives, risks = [], []
+
+    earnings_date = meta.get("earnings_date")
+    recommendation = meta.get("recommendation")
+    target = meta.get("target_mean_price")
+    price = ind.get("price")
+    dist60 = ind.get("distance_from_60_high")
+    sixty = ind.get("sixty_day_pct")
+    twenty = ind.get("twenty_day_pct")
+
+    if earnings_date:
+        positives.append(f"earnings date available: {earnings_date}")
+        risks.append("earnings can create gap risk; avoid oversized positions before the report")
+
+    if recommendation:
+        positives.append(f"analyst recommendation signal: {recommendation}")
+
+    if price and target and target > price:
+        upside = (target - price) / price * 100
+        if upside > 15:
+            score += 12; positives.append(f"analyst target implies {upside:.1f}% potential upside")
+
+    if "Recovery" in setup_type:
+        score += 10
+        positives.append("classified as a recovery/reversal setup")
+        if sixty is not None and sixty < -10:
+            positives.append(f"60-day decline of {sixty}% creates recovery potential if reversal confirms")
+        if dist60 is not None:
+            positives.append(f"currently {dist60}% from 60-day high")
+
+    if twenty is not None and twenty < -8:
+        score -= 8; risks.append("20-day trend is still negative, so recovery needs confirmation")
+
+    if not positives:
+        risks.append("no clear catalyst detected from available data")
+
+    return {
+        "name": "Catalyst & Earnings Agent",
+        "score": clamp_score(score),
+        "positives": positives[:6],
+        "risks": risks[:6],
+        "summary": "Reviews earnings timing, analyst target upside, recovery context, and catalyst/risk events."
+    }
+
+
+def final_decision_agent(agent_results: Dict[str, Dict[str, Any]], setup_type: str) -> Dict[str, Any]:
+    weights = {
+        "technical": 0.32,
+        "fundamentals": 0.22,
+        "valuation": 0.14,
+        "risk": 0.18,
+        "catalyst": 0.14,
+    }
+
+    final_score = 0
+    for key, weight in weights.items():
+        final_score += agent_results[key]["score"] * weight
+
+    final_score = clamp_score(final_score)
+
+    if final_score >= 80:
+        rating = "Elite Candidate"
+        action = "High-priority research candidate. Still wait for clean entry and validate news/earnings."
+    elif final_score >= 70:
+        rating = "Strong Candidate"
+        action = "Good candidate for focused research. Watch entry range and stop discipline."
+    elif final_score >= 60:
+        rating = "Moderate Candidate"
+        action = "Interesting, but needs stronger confirmation or better risk/reward."
+    elif final_score >= 50:
+        rating = "Watchlist Only"
+        action = "Monitor only. Do not force a trade unless setup improves."
+    else:
+        rating = "Avoid / Low Priority"
+        action = "Low-quality setup based on current agent review."
+
+    return {
+        "final_agent_score": final_score,
+        "decision_rating": rating,
+        "decision_action": action,
+        "agent_weights": weights,
+    }
+
+
+def run_agent_team(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], setup_type: str) -> Dict[str, Any]:
+    agents = {
+        "technical": technical_agent(ind),
+        "fundamentals": fundamentals_agent(meta),
+        "valuation": valuation_agent(meta, ind),
+        "risk": risk_agent(meta, ind),
+        "catalyst": catalyst_agent(meta, ind, setup_type),
+    }
+    decision = final_decision_agent(agents, setup_type)
+    return {"agents": agents, **decision}
+
+
+def build_ai_reasoning(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], score: int, setup_type: str, good: List[str], risks: List[str], plan: Dict[str, Any]) -> Dict[str, Any]:
     company = meta.get("company_name", symbol)
     sector = meta.get("sector", "Unknown")
+    industry = meta.get("industry", "Unknown")
     price = ind.get("price")
     rsi = ind.get("rsi")
+    five = ind.get("five_day_pct")
     twenty = ind.get("twenty_day_pct")
     sixty = ind.get("sixty_day_pct")
     volume_ratio = ind.get("volume_ratio")
 
-    if setup_type == "AI Momentum Leader":
-        why = "Ranks high because trend, momentum, liquidity, and volume confirmation are aligned."
-    elif setup_type == "Recovery / Reversal Candidate":
-        why = "Ranks as a recovery setup because it appears beaten down or below prior highs while showing early stabilization."
-    elif setup_type == "Quality Watchlist Setup":
-        why = "Ranks as a watchlist-quality setup with enough technical structure to monitor, but not yet top momentum."
-    else:
-        why = "Lower conviction monitor candidate. Needs stronger confirmation before becoming a priority."
+    agent_team = run_agent_team(symbol, meta, ind, setup_type)
+    agents = agent_team["agents"]
+    final_agent_score = agent_team["final_agent_score"]
+    decision_rating = agent_team["decision_rating"]
+    decision_action = agent_team["decision_action"]
 
-    good_text = "; ".join(good) if good else "Needs stronger confirmation."
-    risk_text = "; ".join(risks) if risks else "Broad market weakness or failed follow-through."
+    technical = agents["technical"]
+    fundamentals = agents["fundamentals"]
+    valuation = agents["valuation"]
+    risk = agents["risk"]
+    catalyst = agents["catalyst"]
+
+    why = (
+        f"The AI agent team ranks this as {decision_rating}. "
+        f"Technical score {technical['score']}/100, fundamentals score {fundamentals['score']}/100, "
+        f"valuation score {valuation['score']}/100, risk score {risk['score']}/100, "
+        f"and catalyst score {catalyst['score']}/100. {decision_action}"
+    )
+
+    trade_plan = (
+        f"Preferred entry range: {plan.get('entry_range')}. "
+        f"Suggested stop loss: ${plan.get('stop_loss')}. "
+        f"First target: ${plan.get('target')}. Stretch target: ${plan.get('target_2')}. "
+        f"Risk/reward: {plan.get('risk_reward')}x. {plan.get('risk_reward_explanation')}"
+    )
+
+    positives = []
+    risks_all = []
+    for key in ["technical", "fundamentals", "valuation", "risk", "catalyst"]:
+        positives.extend(agents[key].get("positives", []))
+        risks_all.extend(agents[key].get("risks", []))
+
+    good_text = "; ".join(positives[:8]) if positives else "Needs stronger confirmation."
+    risk_text = "; ".join(risks_all[:8]) if risks_all else "No major red flags detected from available data."
+
+    financial_summary = (
+        f"Cash: {fmt_money(meta.get('total_cash'))}. Debt: {fmt_money(meta.get('total_debt'))}. "
+        f"Free cash flow: {fmt_money(meta.get('free_cashflow'))}. Operating cash flow: {fmt_money(meta.get('operating_cashflow'))}. "
+        f"P/E: {meta.get('pe_ratio') if meta.get('pe_ratio') is not None else 'N/A'}. "
+        f"Forward P/E: {meta.get('forward_pe') if meta.get('forward_pe') is not None else 'N/A'}. "
+        f"Revenue growth: {fmt_pct(meta.get('revenue_growth'))}. Profit margin: {fmt_pct(meta.get('profit_margin'))}."
+    )
+
+    recovery_catalyst = " ".join(catalyst.get("positives", []) + catalyst.get("risks", []))
+    if not recovery_catalyst:
+        recovery_catalyst = "No strong recovery or earnings catalyst detected from available data."
 
     reasoning = (
-        f"{setup_type}: {company} ({symbol}) scores {score}/100. {why} "
-        f"Sector: {sector}. Price: ${price}. RSI: {rsi}. 20-day move: {twenty}%. 60-day move: {sixty}%. "
-        f"Volume is {volume_ratio}x average. Entry: {plan.get('entry_range')}. "
-        f"Stop: ${plan.get('stop_loss')}. Target: ${plan.get('target')}. "
-        f"What looks good: {good_text}. What could go wrong: {risk_text}."
+        f"{company} ({symbol}) is classified as {setup_type} with final AI agent score {final_agent_score}/100. "
+        f"{why} It operates in {sector} / {industry}. Current price is ${price}; RSI is {rsi}; "
+        f"5-day move is {five}%, 20-day move is {twenty}%, and 60-day move is {sixty}%. "
+        f"Volume is {volume_ratio}x average. {trade_plan} "
+        f"Financial review: {financial_summary} "
+        f"Best supporting evidence: {good_text}. Main risks: {risk_text}."
     )
 
     return {
@@ -494,7 +971,21 @@ def build_ai_reasoning(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], s
         "what_could_go_wrong": risk_text,
         "guidance": reasoning,
         "ai_reasoning": reasoning,
-        "action_note": "Avoid chasing a gap-up open. Prefer a controlled pullback or a breakout that holds with volume.",
+        "trade_plan": trade_plan,
+        "financial_summary": financial_summary,
+        "financial_safety": decision_rating,
+        "financial_score": fundamentals["score"],
+        "recovery_catalyst": recovery_catalyst,
+        "agent_team": agent_team,
+        "technical_agent_score": technical["score"],
+        "fundamentals_agent_score": fundamentals["score"],
+        "valuation_agent_score": valuation["score"],
+        "risk_agent_score": risk["score"],
+        "catalyst_agent_score": catalyst["score"],
+        "final_agent_score": final_agent_score,
+        "decision_rating": decision_rating,
+        "decision_action": decision_action,
+        "action_note": "This is research guidance only, not a buy/sell order. Validate current news, earnings date, and market conditions before investing.",
     }
 
 
@@ -508,6 +999,27 @@ def make_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], score: int,
         "company": meta.get("company_name", symbol), "company_name": meta.get("company_name", symbol), "name": meta.get("company_name", symbol),
         "sector": meta.get("sector", "Unknown"), "industry": meta.get("industry", "Unknown"),
         "market_cap": meta.get("market_cap"), "quote_type": meta.get("quote_type", "EQUITY"),
+        "pe_ratio": meta.get("pe_ratio"),
+        "forward_pe": meta.get("forward_pe"),
+        "peg_ratio": meta.get("peg_ratio"),
+        "price_to_sales": meta.get("price_to_sales"),
+        "price_to_book": meta.get("price_to_book"),
+        "profit_margin": meta.get("profit_margin"),
+        "gross_margin": meta.get("gross_margin"),
+        "operating_margin": meta.get("operating_margin"),
+        "revenue_growth": meta.get("revenue_growth"),
+        "earnings_growth": meta.get("earnings_growth"),
+        "total_cash": meta.get("total_cash"),
+        "total_debt": meta.get("total_debt"),
+        "debt_to_equity": meta.get("debt_to_equity"),
+        "free_cashflow": meta.get("free_cashflow"),
+        "operating_cashflow": meta.get("operating_cashflow"),
+        "current_ratio": meta.get("current_ratio"),
+        "recommendation": meta.get("recommendation"),
+        "target_mean_price": meta.get("target_mean_price"),
+        "target_high_price": meta.get("target_high_price"),
+        "target_low_price": meta.get("target_low_price"),
+        "earnings_date": meta.get("earnings_date"),
         "price": ind.get("price"), "current_price": ind.get("price"), "last_price": ind.get("price"),
         "avg_volume_20d": ind.get("avg_volume_20d"), "dollar_volume": ind.get("dollar_volume"), "volume_ratio": ind.get("volume_ratio"),
         "conviction": score, "conviction_score": score, "score": score, "ai_score": score,
@@ -609,7 +1121,7 @@ def scan_market() -> Dict[str, Any]:
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V39.3",
+        "version": "V39.5",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -685,7 +1197,7 @@ def main() -> None:
             sys.exit(2)
     except Exception as exc:
         error_state = {
-            "generated_at": now_iso(), "status": "error", "version": "V39.3",
+            "generated_at": now_iso(), "status": "error", "version": "V39.5",
             "error": str(exc), "data_dir": str(DATA_DIR), "github_persisted": False,
         }
         write_json(STATE_FILE, error_state)

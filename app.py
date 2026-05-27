@@ -6,7 +6,7 @@ from datetime import datetime
 import pandas as pd
 import streamlit as st
 
-APP_VERSION = "V39.4 Guidance Fix Dashboard"
+APP_VERSION = "V39.5 Multi-Agent Decision Dashboard"
 
 st.set_page_config(
     page_title=f"AI Trading Dashboard {APP_VERSION}",
@@ -238,6 +238,25 @@ def normalize_raw_rows(data):
             "What Looks Good": good if good else "Needs confirmation.",
             "What Could Go Wrong": bad if bad else "Market weakness or failed follow-through.",
             "AI Trade Plan": guidance if guidance else "No AI trade plan available.",
+            "Trade Plan": pick(raw, "trade_plan", "Trade Plan", default=""),
+            "Financial Summary": pick(raw, "financial_summary", "Financial Summary", default=""),
+            "Recovery Catalyst": pick(raw, "recovery_catalyst", "Recovery Catalyst", default=""),
+            "Decision Rating": pick(raw, "decision_rating", "financial_safety", "Financial Safety", default="Needs Review"),
+            "Technical Agent": pick(raw, "technical_agent_score", default="N/A"),
+            "Fundamentals Agent": pick(raw, "fundamentals_agent_score", default="N/A"),
+            "Valuation Agent": pick(raw, "valuation_agent_score", default="N/A"),
+            "Risk Agent": pick(raw, "risk_agent_score", default="N/A"),
+            "Catalyst Agent": pick(raw, "catalyst_agent_score", default="N/A"),
+            "Final Agent Score": pick(raw, "final_agent_score", default=conviction),
+            "P/E": pick(raw, "pe_ratio", default="N/A"),
+            "Forward P/E": pick(raw, "forward_pe", default="N/A"),
+            "Cash": pick(raw, "total_cash", default=None),
+            "Debt": pick(raw, "total_debt", default=None),
+            "Free Cash Flow": pick(raw, "free_cashflow", default=None),
+            "Operating Cash Flow": pick(raw, "operating_cashflow", default=None),
+            "Revenue Growth": pick(raw, "revenue_growth", default="N/A"),
+            "Profit Margin": pick(raw, "profit_margin", default="N/A"),
+            "Earnings Date": pick(raw, "earnings_date", default="N/A"),
             "Execution Quality": pick(raw, "Execution Quality", "execution_quality", default=setup_type),
             "Financial Safety": pick(raw, "Financial Safety", "financial_safety", default="Needs Review"),
             "Agent Greenlight": pick(raw, "Agent Greenlight", "agent_greenlight", default="Research Only"),
@@ -384,8 +403,14 @@ def render_idea_cards(df, title="Highest Ranked AI Setups", limit=5):
 
             with left:
                 st.markdown(f"### {ticker} — {company}")
-                st.caption(f"{setup} | AI Score: {score} | Price: {money_display(row.get('Price'))}")
+                st.caption(f"{setup} | AI Score: {score} | Decision: {row.get('Decision Rating', 'Needs Review')} | Price: {money_display(row.get('Price'))}")
                 st.write(row.get("AI Trade Plan") or row.get("Why Ranked Highly"))
+                agent_cols = st.columns(5)
+                agent_cols[0].metric("Technical", row.get("Technical Agent", "N/A"))
+                agent_cols[1].metric("Fundamentals", row.get("Fundamentals Agent", "N/A"))
+                agent_cols[2].metric("Valuation", row.get("Valuation Agent", "N/A"))
+                agent_cols[3].metric("Risk", row.get("Risk Agent", "N/A"))
+                agent_cols[4].metric("Catalyst", row.get("Catalyst Agent", "N/A"))
 
                 st.success(f"Looks good: {row.get('What Looks Good', 'Needs confirmation.')}")
                 st.warning(f"What could go wrong: {row.get('What Could Go Wrong', 'Market weakness or failed follow-through.')}")
@@ -441,7 +466,8 @@ def render_main_table(df, title="📋 All Stock Ideas", actionable_only=True):
     c4.metric("With Guidance", len(filtered[filtered["AI Trade Plan"].astype(str).str.len() > 20]) if "AI Trade Plan" in filtered.columns else 0)
 
     show_cols = [
-        "Ticker", "Company Name", "Setup Type", "Price", "Final Conviction",
+        "Ticker", "Company Name", "Setup Type", "Decision Rating", "Price", "Final Conviction",
+        "Technical Agent", "Fundamentals Agent", "Valuation Agent", "Risk Agent", "Catalyst Agent",
         "Sector", "Industry", "RSI", "20D %", "60D %",
         "Entry Range", "Stop Loss", "Target / Sell Zone", "Risk/Reward",
         "Why Ranked Highly",
@@ -588,12 +614,37 @@ def render_detail(df):
     st.write("### What Could Go Wrong")
     st.warning(row.get("What Could Go Wrong", "Market weakness or failed follow-through."))
 
+    st.write("### AI Agent Team Scores")
+    a1, a2, a3, a4, a5 = st.columns(5)
+    a1.metric("Technical", row.get("Technical Agent", "N/A"))
+    a2.metric("Fundamentals", row.get("Fundamentals Agent", "N/A"))
+    a3.metric("Valuation", row.get("Valuation Agent", "N/A"))
+    a4.metric("Risk", row.get("Risk Agent", "N/A"))
+    a5.metric("Catalyst", row.get("Catalyst Agent", "N/A"))
+
     st.write("### Trade Plan")
+    st.write(row.get("Trade Plan") or "No detailed trade plan available.")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Entry", row.get("Entry Range", "N/A"))
     c2.metric("Stop", money_display(row.get("Stop Loss")))
     c3.metric("Target", money_display(row.get("Target / Sell Zone")))
     c4.metric("Risk/Reward", row.get("Risk/Reward", "N/A"))
+
+    st.write("### Financial Review")
+    st.write(row.get("Financial Summary") or "No financial summary available.")
+    f1, f2, f3, f4 = st.columns(4)
+    f1.metric("P/E", row.get("P/E", "N/A"))
+    f2.metric("Forward P/E", row.get("Forward P/E", "N/A"))
+    f3.metric("Cash", compact_cap(row.get("Cash")))
+    f4.metric("Debt", compact_cap(row.get("Debt")))
+    f5, f6, f7, f8 = st.columns(4)
+    f5.metric("Free Cash Flow", compact_cap(row.get("Free Cash Flow")))
+    f6.metric("Operating Cash Flow", compact_cap(row.get("Operating Cash Flow")))
+    f7.metric("Revenue Growth", row.get("Revenue Growth", "N/A"))
+    f8.metric("Profit Margin", row.get("Profit Margin", "N/A"))
+
+    st.write("### Recovery / Earnings Catalyst")
+    st.write(row.get("Recovery Catalyst") or "No recovery catalyst available.")
 
     st.write("### Details")
     detail = {
