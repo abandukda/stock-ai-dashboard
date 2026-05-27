@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
 """
-V39.1 Overnight Market Scanner
-- Render Cron compatible
-- DATA_DIR defaults to "."
-- Preserves dashboard output files:
-  - market_full_scan.json
-  - market_prescreen.json
-  - market_scan_state.json
-  - total_market_universe.json
-- Improves conviction scoring, metadata, guidance, and filtering.
+V39.3 Overnight Market Scanner
+- Keeps Render Cron compatibility
+- Keeps DATA_DIR="."
+- Preserves V39 dashboard files
+- Adds:
+  - top_ai_ideas.json
+  - watchlist.json
+  - watchlist_scan.json
+  - recovery_scan.json
+- Adds AI reasoning layer and setup buckets:
+  - AI Momentum Leader
+  - Recovery / Reversal Candidate
+  - Quality Watchlist Setup
+  - Monitor Only
 """
 
 import json
@@ -25,10 +30,6 @@ import pandas as pd
 import yfinance as yf
 
 
-# =========================
-# CONFIG
-# =========================
-
 DATA_DIR = Path(os.getenv("DATA_DIR", "."))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -36,6 +37,11 @@ FULL_SCAN_FILE = DATA_DIR / "market_full_scan.json"
 PRESCREEN_FILE = DATA_DIR / "market_prescreen.json"
 STATE_FILE = DATA_DIR / "market_scan_state.json"
 UNIVERSE_FILE = DATA_DIR / "total_market_universe.json"
+
+TOP_IDEAS_FILE = DATA_DIR / "top_ai_ideas.json"
+WATCHLIST_FILE = DATA_DIR / "watchlist.json"
+WATCHLIST_SCAN_FILE = DATA_DIR / "watchlist_scan.json"
+RECOVERY_SCAN_FILE = DATA_DIR / "recovery_scan.json"
 
 MAX_UNIVERSE = int(os.getenv("MAX_UNIVERSE", "6500"))
 MAX_PRESCREEN = int(os.getenv("MAX_PRESCREEN", "650"))
@@ -51,10 +57,6 @@ MIN_MARKET_CAP = float(os.getenv("MIN_MARKET_CAP", "50000000"))
 GITHUB_PERSIST = os.getenv("GITHUB_PERSIST", "true").lower() == "true"
 GIT_COMMIT_MESSAGE = os.getenv("GIT_COMMIT_MESSAGE", "Update overnight market scan data")
 
-
-# =========================
-# HELPERS
-# =========================
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -76,8 +78,7 @@ def safe_int(value: Any, default: Optional[int] = None) -> Optional[int]:
     try:
         if value is None:
             return default
-        value = int(float(value))
-        return value
+        return int(float(value))
     except Exception:
         return default
 
@@ -97,133 +98,92 @@ def write_json(path: Path, data: Any) -> None:
 
 def run_cmd(cmd: List[str]) -> Tuple[int, str]:
     try:
-        result = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            timeout=90,
-        )
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=90)
         return result.returncode, result.stdout.strip()
     except Exception as exc:
         return 1, str(exc)
 
 
-# =========================
-# UNIVERSE
-# =========================
+def load_watchlist() -> List[str]:
+    default_symbols = ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AMD", "PLTR", "SOFI"]
+    try:
+        if not WATCHLIST_FILE.exists():
+            write_json(WATCHLIST_FILE, {"symbols": default_symbols, "updated_at": now_iso()})
+            return default_symbols
+
+        raw = json.loads(WATCHLIST_FILE.read_text(encoding="utf-8"))
+        symbols = raw if isinstance(raw, list) else raw.get("symbols", [])
+        cleaned = []
+        for s in symbols:
+            sym = str(s).strip().upper()
+            if sym and "." not in sym and "/" not in sym and len(sym) <= 7:
+                cleaned.append(sym)
+        return list(dict.fromkeys(cleaned)) or default_symbols
+    except Exception:
+        return default_symbols
+
 
 def get_yahoo_screeners() -> List[str]:
-    """
-    Pull broad liquid lists from Yahoo predefined screeners.
-    This avoids relying only on stale hardcoded symbols.
-    """
     screeners = [
-        "most_actives",
-        "day_gainers",
-        "day_losers",
-        "growth_technology_stocks",
-        "undervalued_growth_stocks",
-        "aggressive_small_caps",
-        "portfolio_anchors",
+        "most_actives", "day_gainers", "day_losers", "growth_technology_stocks",
+        "undervalued_growth_stocks", "aggressive_small_caps", "portfolio_anchors",
         "small_cap_gainers",
     ]
-
     symbols = set()
     for screener in screeners:
         try:
-            df = yf.screen(screener, count=250)
-            quotes = df.get("quotes", []) if isinstance(df, dict) else []
+            data = yf.screen(screener, count=250)
+            quotes = data.get("quotes", []) if isinstance(data, dict) else []
             for q in quotes:
                 sym = q.get("symbol")
                 quote_type = q.get("quoteType", "")
-                if sym and quote_type in {"EQUITY", "ETF"}:
-                    if "." not in sym and "/" not in sym and len(sym) <= 6:
-                        symbols.add(sym.upper())
+                if sym and quote_type in {"EQUITY", "ETF"} and "." not in sym and "/" not in sym and len(sym) <= 7:
+                    symbols.add(sym.upper())
         except Exception:
             continue
-
     return sorted(symbols)
 
 
 def fallback_universe() -> List[str]:
-    """
-    Stable broad universe fallback. Kept intentionally large enough for Render Cron,
-    but the scanner will reject weak / invalid rows later.
-    """
-    mega_large = """
+    symbols = """
 AAPL MSFT NVDA AMZN META GOOGL GOOG AVGO TSLA BRK-B JPM LLY V UNH XOM MA COST WMT NFLX ORCL HD PG JNJ ABBV BAC KO PLTR CRM CVX CSCO WFC IBM MRK GE AMD MCD LIN ADBE DIS TMO ABT PM CAT NOW QCOM TXN ISRG AMGN INTU VZ PEP GS RTX BKNG SPGI LOW PFE HON AXON C UNP MS NEE CMCSA AMAT DHR SCHW BLK GILD TJX PANW SYK ADP DE LRCX COP BSX MDLZ ETN CB ADI MMC UPS MU BX REGN FI BMY SO KLAC AMT CME MO ELV WM ICE ANET SHW EQIX PH KKR DUKE APH WELL TT CI MCK CDNS SNPS AON NKE COF USB MMM HCA MSI ITW ZTS CL TDG ORLY EMR MAR PGR ROP AJG ECL APD CTAS WMB CMG CRWD NOC
-"""
-    growth = """
 SNOW DDOG NET MDB SHOP SE MELI UBER ABNB DASH RBLX COIN HOOD ROKU SQ PYPL AFRM SOFI UPST CELH ELF CAVA TOST DUOL HIMS APP ARM SMCI DELL VRT ANF ONON TTD FSLR ENPH RUN ALB RIVN LCID NIO LI XPEV
+AEHR ASTS IONQ RKLB SOUN BBAI AI PATH TEM RXRX DNA LMND OPEN ROOT UUUU CCJ SMR OKLO JOBY ACHR ENVX QS STEM CHPT EVGO BLNK
+SPY QQQ DIA IWM VTI VOO SCHD JEPI JEPQ QYLD XYLD RYLD TLT HYG LQD XLF XLK XLE XLV XLY XLI XLP XLU XLB XLRE SMH SOXX ARKK TAN BOTZ
 """
-    mid_small = """
-AEHR ASTS IONQ RKLB SOUN BBAI AI PATH TEM RXRX DNA LMND OPEN ROOT UUUU URA CCJ SMR OKLO JOBY ACHR ENVX QS STEM CHPT EVGO BLNK
-"""
-    etfs = """
-SPY QQQ DIA IWM VTI VOO SCHD JEPI JEPQ QYLD XYLD RYLD SPYT QQQY TLT HYG LQD XLF XLK XLE XLV XLY XLI XLP XLU XLB XLRE SMH SOXX ARKK TAN BOTZ
-"""
-    combined = f"{mega_large} {growth} {mid_small} {etfs}"
-    symbols = []
-    for raw in combined.replace("\n", " ").split():
-        sym = raw.strip().upper()
-        if sym:
-            symbols.append(sym)
-    return list(dict.fromkeys(symbols))
+    return list(dict.fromkeys([s.strip().upper() for s in symbols.split() if s.strip()]))
 
 
 def build_universe() -> List[str]:
     symbols = set(fallback_universe())
+    symbols.update(get_yahoo_screeners())
+    symbols.update(load_watchlist())
 
-    yahoo_symbols = get_yahoo_screeners()
-    symbols.update(yahoo_symbols)
-
-    # Load prior universe if present to preserve continuity.
     try:
         if UNIVERSE_FILE.exists():
             prior = json.loads(UNIVERSE_FILE.read_text())
-            if isinstance(prior, list):
-                for item in prior:
-                    sym = item.get("symbol") if isinstance(item, dict) else item
-                    if sym:
-                        symbols.add(str(sym).upper())
-            elif isinstance(prior, dict):
-                for item in prior.get("symbols", []):
-                    symbols.add(str(item).upper())
+            prior_symbols = prior.get("symbols", []) if isinstance(prior, dict) else prior
+            for item in prior_symbols:
+                sym = item.get("symbol") if isinstance(item, dict) else item
+                if sym:
+                    symbols.add(str(sym).upper())
     except Exception:
         pass
 
     clean = []
     for sym in sorted(symbols):
-        if "." in sym or "/" in sym:
-            continue
-        if len(sym) > 7:
+        if "." in sym or "/" in sym or len(sym) > 7:
             continue
         clean.append(sym)
-
     return clean[:MAX_UNIVERSE]
 
 
-# =========================
-# DATA FETCH
-# =========================
-
 def download_price_batch(symbols: List[str]) -> pd.DataFrame:
-    if not symbols:
-        return pd.DataFrame()
-
     try:
-        data = yf.download(
-            tickers=" ".join(symbols),
-            period="6mo",
-            interval="1d",
-            group_by="ticker",
-            auto_adjust=True,
-            prepost=False,
-            threads=True,
-            progress=False,
+        return yf.download(
+            tickers=" ".join(symbols), period="6mo", interval="1d", group_by="ticker",
+            auto_adjust=True, prepost=False, threads=True, progress=False,
         )
-        return data
     except Exception:
         return pd.DataFrame()
 
@@ -231,7 +191,6 @@ def download_price_batch(symbols: List[str]) -> pd.DataFrame:
 def extract_symbol_history(data: pd.DataFrame, symbol: str) -> pd.DataFrame:
     if data.empty:
         return pd.DataFrame()
-
     try:
         if isinstance(data.columns, pd.MultiIndex):
             if symbol not in data.columns.get_level_values(0):
@@ -239,39 +198,20 @@ def extract_symbol_history(data: pd.DataFrame, symbol: str) -> pd.DataFrame:
             df = data[symbol].copy()
         else:
             df = data.copy()
-
         if df.empty or "Close" not in df.columns:
             return pd.DataFrame()
-
-        df = df.dropna(subset=["Close"])
-        return df
+        return df.dropna(subset=["Close"])
     except Exception:
         return pd.DataFrame()
 
 
 def get_metadata(symbol: str) -> Dict[str, Any]:
-    defaults = {
-        "company_name": symbol,
-        "sector": "Unknown",
-        "industry": "Unknown",
-        "market_cap": None,
-        "quote_type": "EQUITY",
-    }
-
+    defaults = {"company_name": symbol, "sector": "Unknown", "industry": "Unknown", "market_cap": None, "quote_type": "EQUITY"}
     try:
-        ticker = yf.Ticker(symbol)
-        info = ticker.get_info() or {}
-
-        name = (
-            info.get("shortName")
-            or info.get("longName")
-            or info.get("displayName")
-            or info.get("underlyingSymbol")
-            or symbol
-        )
-
+        info = yf.Ticker(symbol).get_info() or {}
+        name = info.get("shortName") or info.get("longName") or info.get("displayName") or symbol
         return {
-            "company_name": name if name and name != symbol else symbol,
+            "company_name": name if name else symbol,
             "sector": info.get("sector") or info.get("category") or "Unknown",
             "industry": info.get("industry") or info.get("fundFamily") or "Unknown",
             "market_cap": safe_float(info.get("marketCap")),
@@ -280,10 +220,6 @@ def get_metadata(symbol: str) -> Dict[str, Any]:
     except Exception:
         return defaults
 
-
-# =========================
-# SIGNALS / SCORING
-# =========================
 
 def compute_indicators(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
     if df is None or df.empty or len(df) < 45:
@@ -316,7 +252,6 @@ def compute_indicators(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
     rolling_high_60 = safe_float(high.rolling(60).max().iloc[-1]) if len(high) >= 60 else rolling_high_20
     rolling_low_60 = safe_float(low.rolling(60).min().iloc[-1]) if len(low) >= 60 else rolling_low_20
 
-    # RSI
     delta = close.diff()
     gains = delta.where(delta > 0, 0.0)
     losses = -delta.where(delta < 0, 0.0)
@@ -325,22 +260,13 @@ def compute_indicators(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
     rs = avg_gain / avg_loss.replace(0, float("nan"))
     rsi = safe_float(100 - (100 / (1 + rs.iloc[-1])), 50)
 
-    # ATR
     prev_close = close.shift(1)
-    tr = pd.concat(
-        [(high - low).abs(), (high - prev_close).abs(), (low - prev_close).abs()],
-        axis=1,
-    ).max(axis=1)
+    tr = pd.concat([(high - low).abs(), (high - prev_close).abs(), (low - prev_close).abs()], axis=1).max(axis=1)
     atr14 = safe_float(tr.rolling(14).mean().iloc[-1])
     atr_pct = (atr14 / price * 100.0) if atr14 and price else None
 
-    # Volume surge
     latest_vol = safe_float(volume.iloc[-1], 0)
     volume_ratio = latest_vol / vol20 if vol20 and vol20 > 0 else 1.0
-
-    distance_from_20_high = pct_change(price, rolling_high_20)
-    distance_from_60_high = pct_change(price, rolling_high_60)
-    distance_above_20_low = pct_change(price, rolling_low_20)
 
     return {
         "price": round(price, 2),
@@ -362,207 +288,164 @@ def compute_indicators(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
         "rolling_low_20": round(rolling_low_20, 2) if rolling_low_20 else None,
         "rolling_high_60": round(rolling_high_60, 2) if rolling_high_60 else None,
         "rolling_low_60": round(rolling_low_60, 2) if rolling_low_60 else None,
-        "distance_from_20_high": round(distance_from_20_high, 2) if distance_from_20_high is not None else None,
-        "distance_from_60_high": round(distance_from_60_high, 2) if distance_from_60_high is not None else None,
-        "distance_above_20_low": round(distance_above_20_low, 2) if distance_above_20_low is not None else None,
+        "distance_from_20_high": round(pct_change(price, rolling_high_20), 2) if rolling_high_20 else None,
+        "distance_from_60_high": round(pct_change(price, rolling_high_60), 2) if rolling_high_60 else None,
+        "distance_above_20_low": round(pct_change(price, rolling_low_20), 2) if rolling_low_20 else None,
     }
 
 
 def score_stock(ind: Dict[str, Any], meta: Dict[str, Any]) -> Tuple[int, List[str], List[str]]:
-    """
-    Meaningfully varied 0-100 score.
-    Rewards trend, momentum, liquidity, volume confirmation, relative setup quality.
-    Penalizes overextended or weak/liquid names.
-    """
     score = 0
-    good: List[str] = []
-    risks: List[str] = []
+    good, risks = [], []
 
-    price = ind.get("price")
-    sma10 = ind.get("sma10")
-    sma20 = ind.get("sma20")
-    sma50 = ind.get("sma50")
-    sma100 = ind.get("sma100")
-    rsi = ind.get("rsi")
-    vol_ratio = ind.get("volume_ratio") or 1
-    dollar_volume = ind.get("dollar_volume") or 0
-    one = ind.get("one_day_pct")
-    five = ind.get("five_day_pct")
-    twenty = ind.get("twenty_day_pct")
-    sixty = ind.get("sixty_day_pct")
-    dist20h = ind.get("distance_from_20_high")
-    atr_pct = ind.get("atr_pct")
-    market_cap = meta.get("market_cap")
+    price, sma20, sma50, sma100 = ind.get("price"), ind.get("sma20"), ind.get("sma50"), ind.get("sma100")
+    rsi, vol_ratio = ind.get("rsi"), ind.get("volume_ratio") or 1
+    dollar_volume, market_cap = ind.get("dollar_volume") or 0, meta.get("market_cap")
+    one, five, twenty, sixty = ind.get("one_day_pct"), ind.get("five_day_pct"), ind.get("twenty_day_pct"), ind.get("sixty_day_pct")
+    dist20h, dist60h, atr_pct = ind.get("distance_from_20_high"), ind.get("distance_from_60_high"), ind.get("atr_pct")
 
-    # Liquidity / investability
     if dollar_volume >= 100_000_000:
-        score += 12
-        good.append("Strong liquidity")
+        score += 12; good.append("Strong liquidity")
     elif dollar_volume >= 25_000_000:
-        score += 9
-        good.append("Good liquidity")
+        score += 9; good.append("Good liquidity")
     elif dollar_volume >= MIN_DOLLAR_VOLUME:
         score += 5
     else:
-        score -= 20
-        risks.append("Weak dollar volume")
+        score -= 20; risks.append("Weak dollar volume")
 
     if market_cap and market_cap >= 10_000_000_000:
         score += 8
     elif market_cap and market_cap >= 1_000_000_000:
         score += 5
     elif market_cap and market_cap < MIN_MARKET_CAP:
-        score -= 15
-        risks.append("Very small market cap")
+        score -= 15; risks.append("Very small market cap")
 
-    # Trend stack
     if price and sma20 and price > sma20:
-        score += 10
-        good.append("Price is above the 20-day trend")
+        score += 10; good.append("Price is above the 20-day trend")
     else:
-        score -= 8
-        risks.append("Price is below the 20-day trend")
+        score -= 8; risks.append("Price is below the 20-day trend")
 
     if price and sma50 and price > sma50:
-        score += 12
-        good.append("Price is above the 50-day trend")
+        score += 12; good.append("Price is above the 50-day trend")
     else:
-        score -= 8
-        risks.append("Price is below or near the 50-day trend")
+        score -= 8; risks.append("Price is below or near the 50-day trend")
 
     if sma20 and sma50 and sma20 > sma50:
-        score += 8
-        good.append("Short-term trend is above intermediate trend")
+        score += 8; good.append("Short-term trend is above intermediate trend")
     elif sma20 and sma50:
         score -= 5
 
     if sma50 and sma100 and sma50 > sma100:
         score += 6
 
-    # Momentum
     if five is not None:
         if 1 <= five <= 12:
-            score += 12
-            good.append("Healthy 5-day momentum")
+            score += 12; good.append("Healthy 5-day momentum")
         elif five > 18:
-            score -= 6
-            risks.append("Short-term move may be extended")
+            score -= 6; risks.append("Short-term move may be extended")
         elif five < -4:
-            score -= 8
-            risks.append("Recent momentum is weak")
+            score -= 8; risks.append("Recent momentum is weak")
 
     if twenty is not None:
         if 2 <= twenty <= 25:
-            score += 14
-            good.append("Positive 20-day momentum")
+            score += 14; good.append("Positive 20-day momentum")
         elif twenty > 35:
-            score -= 7
-            risks.append("20-day move is stretched")
+            score -= 7; risks.append("20-day move is stretched")
         elif twenty < -8:
-            score -= 10
-            risks.append("20-day trend is negative")
+            score -= 10; risks.append("20-day trend is negative")
 
     if sixty is not None:
         if 5 <= sixty <= 45:
             score += 9
         elif sixty > 75:
-            score -= 5
-            risks.append("Longer move may be overextended")
+            score -= 5; risks.append("Longer move may be overextended")
         elif sixty < -12:
-            score -= 7
-
-    # RSI
-    if rsi is not None:
-        if 48 <= rsi <= 68:
-            score += 12
-            good.append("RSI is constructive without looking overheated")
-        elif 68 < rsi <= 76:
-            score += 4
-            risks.append("RSI is warm; avoid chasing")
-        elif rsi > 76:
-            score -= 10
-            risks.append("RSI is overbought")
-        elif 35 <= rsi < 48:
-            score += 2
-            risks.append("RSI is not yet showing strong momentum")
-        else:
-            score -= 8
-            risks.append("RSI is weak")
-
-    # Volume confirmation
-    if vol_ratio >= 2.0:
-        score += 10
-        good.append("Volume is meaningfully above average")
-    elif vol_ratio >= 1.25:
-        score += 6
-        good.append("Volume is above average")
-    elif vol_ratio < 0.65:
-        score -= 5
-        risks.append("Volume confirmation is light")
-
-    # Near highs but not too extended
-    if dist20h is not None:
-        if -8 <= dist20h <= -1:
-            score += 8
-            good.append("Trading near recent highs without being at the absolute top")
-        elif -1 < dist20h <= 1:
-            score += 5
-            good.append("Testing recent highs")
-        elif dist20h < -18:
-            score -= 6
-            risks.append("Still far from recent highs")
-
-    # Volatility control
-    if atr_pct is not None:
-        if 1 <= atr_pct <= 5:
-            score += 7
-            good.append("Volatility is tradable")
-        elif atr_pct > 9:
-            score -= 8
-            risks.append("High volatility could make stops difficult")
-        elif atr_pct < 0.5:
             score -= 3
 
-    # One-day noise guard
+    # Recovery bonus: beaten down but stabilizing.
+    if dist60h is not None and dist60h < -20 and rsi and 42 <= rsi <= 62 and twenty is not None and twenty > -5:
+        score += 10
+        good.append("Recovery setup: still below prior highs but stabilizing")
+
+    if rsi is not None:
+        if 48 <= rsi <= 68:
+            score += 12; good.append("RSI constructive, not overheated")
+        elif 68 < rsi <= 76:
+            score += 4; risks.append("RSI is warm; avoid chasing")
+        elif rsi > 76:
+            score -= 10; risks.append("RSI is overbought")
+        elif 35 <= rsi < 48:
+            score += 2; risks.append("RSI still needs confirmation")
+        else:
+            score -= 8; risks.append("RSI is weak")
+
+    if vol_ratio >= 2.0:
+        score += 10; good.append("Volume is meaningfully above average")
+    elif vol_ratio >= 1.25:
+        score += 6; good.append("Volume is above average")
+    elif vol_ratio < 0.65:
+        score -= 5; risks.append("Volume confirmation is light")
+
+    if dist20h is not None:
+        if -8 <= dist20h <= -1:
+            score += 8; good.append("Near recent highs without being fully extended")
+        elif -1 < dist20h <= 1:
+            score += 5; good.append("Testing recent highs")
+        elif dist20h < -18:
+            score -= 3; risks.append("Still far from recent highs")
+
+    if atr_pct is not None:
+        if 1 <= atr_pct <= 5:
+            score += 7; good.append("Volatility is tradable")
+        elif atr_pct > 9:
+            score -= 8; risks.append("High volatility could make stops difficult")
+
     if one is not None and one < -6:
-        score -= 10
-        risks.append("Sharp down day needs confirmation")
+        score -= 10; risks.append("Sharp down day needs confirmation")
     elif one is not None and one > 12:
-        score -= 5
-        risks.append("Large one-day jump may pull back")
+        score -= 5; risks.append("Large one-day jump may pull back")
 
-    # Normalize away from common weak 20 score problem.
-    score = max(1, min(99, score))
-    if score < 35:
-        score = max(score, 20)
-    return int(round(score)), good[:5], risks[:5]
+    return int(max(1, min(99, round(score)))), good[:6], risks[:6]
 
 
-def build_trade_plan(ind: Dict[str, Any], score: int) -> Dict[str, Any]:
+def classify_setup(ind: Dict[str, Any], score: int) -> str:
+    price, sma20, sma50 = ind.get("price"), ind.get("sma20"), ind.get("sma50")
+    rsi, twenty, sixty = ind.get("rsi") or 50, ind.get("twenty_day_pct") or 0, ind.get("sixty_day_pct") or 0
+    dist60h, volume_ratio = ind.get("distance_from_60_high"), ind.get("volume_ratio") or 1
+
+    if price and sma20 and sma50 and price > sma20 > sma50 and score >= 65:
+        return "AI Momentum Leader"
+    if price and sma20 and price > sma20 and sixty < -8 and rsi >= 42 and volume_ratio >= 0.9:
+        return "Recovery / Reversal Candidate"
+    if dist60h is not None and dist60h < -20 and rsi >= 45 and twenty > -5:
+        return "Recovery / Reversal Candidate"
+    if score >= 55:
+        return "Quality Watchlist Setup"
+    return "Monitor Only"
+
+
+def build_trade_plan(ind: Dict[str, Any]) -> Dict[str, Any]:
     price = ind.get("price")
-    atr = ind.get("atr14") or (price * 0.035 if price else 1)
-    sma20 = ind.get("sma20")
-    high20 = ind.get("rolling_high_20")
-
     if not price:
         return {}
 
-    # Entry prefers controlled pullback or break near 20-day high.
+    atr = ind.get("atr14") or (price * 0.035)
+    sma20 = ind.get("sma20")
+    high20 = ind.get("rolling_high_20")
+
     lower_entry = max(price - atr * 0.5, price * 0.96)
     upper_entry = min(price + atr * 0.25, price * 1.03)
-
     support_anchor = sma20 if sma20 and sma20 < price else price - atr
     stop_loss = min(price - atr * 1.4, support_anchor - atr * 0.35)
     stop_loss = max(stop_loss, price * 0.80)
 
-    risk_per_share = max(price - stop_loss, price * 0.02)
-    target_1 = price + risk_per_share * 1.8
-    target_2 = price + risk_per_share * 2.7
-
+    risk = max(price - stop_loss, price * 0.02)
+    target_1 = price + risk * 1.8
+    target_2 = price + risk * 2.7
     if high20 and high20 > price:
         target_1 = max(target_1, high20 * 1.01)
 
-    rr = (target_1 - price) / risk_per_share if risk_per_share > 0 else None
+    rr = (target_1 - price) / risk if risk > 0 else None
 
     return {
         "entry_range": f"${lower_entry:.2f} - ${upper_entry:.2f}",
@@ -572,160 +455,107 @@ def build_trade_plan(ind: Dict[str, Any], score: int) -> Dict[str, Any]:
         "target": round(target_1, 2),
         "target_2": round(target_2, 2),
         "risk_reward": round(rr, 2) if rr else None,
-        "risk_reward_explanation": (
-            f"Approximate first target offers about {rr:.1f}:1 reward-to-risk based on current price, "
-            f"ATR-based stop, and recent trend structure."
-            if rr else
-            "Risk/reward could not be calculated cleanly."
-        ),
+        "risk_reward_explanation": f"Approximate first target offers about {rr:.1f}:1 reward-to-risk." if rr else "",
     }
 
 
-def plain_english_guidance(symbol: str, company: str, ind: Dict[str, Any], score: int, good: List[str], risks: List[str], plan: Dict[str, Any]) -> Dict[str, str]:
-    good_text = "; ".join(good) if good else "The setup has some improving technical traits, but confirmation is limited."
-    risk_text = "; ".join(risks) if risks else "Main risk is a normal pullback if broader market momentum fades."
+def build_ai_reasoning(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], score: int, setup_type: str, good: List[str], risks: List[str], plan: Dict[str, Any]) -> Dict[str, str]:
+    company = meta.get("company_name", symbol)
+    sector = meta.get("sector", "Unknown")
+    price = ind.get("price")
+    rsi = ind.get("rsi")
+    twenty = ind.get("twenty_day_pct")
+    sixty = ind.get("sixty_day_pct")
+    volume_ratio = ind.get("volume_ratio")
 
-    if score >= 75:
-        rank_reason = "High conviction because trend, momentum, liquidity, and volume confirmation are aligned."
-    elif score >= 60:
-        rank_reason = "Moderate-to-strong setup with enough technical support to watch closely."
-    elif score >= 45:
-        rank_reason = "Watchlist candidate, but it needs stronger confirmation before becoming a high-priority idea."
+    if setup_type == "AI Momentum Leader":
+        why = "Ranks high because trend, momentum, liquidity, and volume confirmation are aligned."
+    elif setup_type == "Recovery / Reversal Candidate":
+        why = "Ranks as a recovery setup because it appears beaten down or below prior highs while showing early stabilization."
+    elif setup_type == "Quality Watchlist Setup":
+        why = "Ranks as a watchlist-quality setup with enough technical structure to monitor, but not yet top momentum."
     else:
-        rank_reason = "Lower conviction; included only if it has some relative strength or liquidity worth monitoring."
+        why = "Lower conviction monitor candidate. Needs stronger confirmation before becoming a priority."
+
+    good_text = "; ".join(good) if good else "Needs stronger confirmation."
+    risk_text = "; ".join(risks) if risks else "Broad market weakness or failed follow-through."
+
+    reasoning = (
+        f"{setup_type}: {company} ({symbol}) scores {score}/100. {why} "
+        f"Sector: {sector}. Price: ${price}. RSI: {rsi}. 20-day move: {twenty}%. 60-day move: {sixty}%. "
+        f"Volume is {volume_ratio}x average. Entry: {plan.get('entry_range')}. "
+        f"Stop: ${plan.get('stop_loss')}. Target: ${plan.get('target')}. "
+        f"What looks good: {good_text}. What could go wrong: {risk_text}."
+    )
 
     return {
-        "why_ranked_high": rank_reason,
+        "why_ranked_high": why,
         "what_looks_good": good_text,
         "what_could_go_wrong": risk_text,
-        "guidance": (
-            f"{company} ({symbol}) is scoring {score}/100. "
-            f"Preferred entry is {plan.get('entry_range', 'near current support')}. "
-            f"Use a stop around ${plan.get('stop_loss')} and first target near ${plan.get('target')}. "
-            f"{plan.get('risk_reward_explanation', '')}"
-        ),
-        "action_note": (
-            "Do not chase a gap-up open. Best setup is either a controlled pullback into the entry range "
-            "or a breakout that holds above prior resistance with volume."
-        ),
+        "guidance": reasoning,
+        "ai_reasoning": reasoning,
+        "action_note": "Avoid chasing a gap-up open. Prefer a controlled pullback or a breakout that holds with volume.",
     }
 
 
-def make_dashboard_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], score: int, good: List[str], risks: List[str]) -> Dict[str, Any]:
-    plan = build_trade_plan(ind, score)
-    guidance = plain_english_guidance(symbol, meta.get("company_name", symbol), ind, score, good, risks, plan)
+def make_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], score: int, good: List[str], risks: List[str]) -> Dict[str, Any]:
+    plan = build_trade_plan(ind)
+    setup_type = classify_setup(ind, score)
+    guidance = build_ai_reasoning(symbol, meta, ind, score, setup_type, good, risks, plan)
 
-    # Keep a broad set of field names so V39 app.py has backward-compatible options.
     row = {
-        "symbol": symbol,
-        "ticker": symbol,
-        "company": meta.get("company_name", symbol),
-        "company_name": meta.get("company_name", symbol),
-        "name": meta.get("company_name", symbol),
-        "sector": meta.get("sector", "Unknown"),
-        "industry": meta.get("industry", "Unknown"),
-        "market_cap": meta.get("market_cap"),
-        "quote_type": meta.get("quote_type", "EQUITY"),
-
-        "price": ind.get("price"),
-        "current_price": ind.get("price"),
-        "last_price": ind.get("price"),
-        "avg_volume_20d": ind.get("avg_volume_20d"),
-        "dollar_volume": ind.get("dollar_volume"),
-        "volume_ratio": ind.get("volume_ratio"),
-
-        "conviction": score,
-        "conviction_score": score,
-        "score": score,
-        "ai_score": score,
-
-        "rsi": ind.get("rsi"),
-        "atr14": ind.get("atr14"),
-        "atr_pct": ind.get("atr_pct"),
-        "sma10": ind.get("sma10"),
-        "sma20": ind.get("sma20"),
-        "sma50": ind.get("sma50"),
-        "sma100": ind.get("sma100"),
-        "one_day_pct": ind.get("one_day_pct"),
-        "five_day_pct": ind.get("five_day_pct"),
-        "twenty_day_pct": ind.get("twenty_day_pct"),
-        "sixty_day_pct": ind.get("sixty_day_pct"),
-
-        "entry_range": plan.get("entry_range"),
-        "entry_low": plan.get("entry_low"),
-        "entry_high": plan.get("entry_high"),
-        "stop_loss": plan.get("stop_loss"),
-        "target": plan.get("target"),
-        "target_2": plan.get("target_2"),
-        "risk_reward": plan.get("risk_reward"),
-        "risk_reward_explanation": plan.get("risk_reward_explanation"),
-
-        "why_ranked_high": guidance.get("why_ranked_high"),
-        "what_looks_good": guidance.get("what_looks_good"),
-        "what_could_go_wrong": guidance.get("what_could_go_wrong"),
-        "guidance": guidance.get("guidance"),
-        "action_note": guidance.get("action_note"),
-        "ai_guidance": guidance.get("guidance"),
-        "summary": guidance.get("guidance"),
-
-        "setup_tags": good,
-        "risk_tags": risks,
-        "scan_time": now_iso(),
+        "symbol": symbol, "ticker": symbol,
+        "company": meta.get("company_name", symbol), "company_name": meta.get("company_name", symbol), "name": meta.get("company_name", symbol),
+        "sector": meta.get("sector", "Unknown"), "industry": meta.get("industry", "Unknown"),
+        "market_cap": meta.get("market_cap"), "quote_type": meta.get("quote_type", "EQUITY"),
+        "price": ind.get("price"), "current_price": ind.get("price"), "last_price": ind.get("price"),
+        "avg_volume_20d": ind.get("avg_volume_20d"), "dollar_volume": ind.get("dollar_volume"), "volume_ratio": ind.get("volume_ratio"),
+        "conviction": score, "conviction_score": score, "score": score, "ai_score": score,
+        "setup_type": setup_type, "bucket": setup_type,
+        "rsi": ind.get("rsi"), "atr14": ind.get("atr14"), "atr_pct": ind.get("atr_pct"),
+        "sma10": ind.get("sma10"), "sma20": ind.get("sma20"), "sma50": ind.get("sma50"), "sma100": ind.get("sma100"),
+        "one_day_pct": ind.get("one_day_pct"), "five_day_pct": ind.get("five_day_pct"),
+        "twenty_day_pct": ind.get("twenty_day_pct"), "sixty_day_pct": ind.get("sixty_day_pct"),
+        "entry_range": plan.get("entry_range"), "entry_low": plan.get("entry_low"), "entry_high": plan.get("entry_high"),
+        "stop_loss": plan.get("stop_loss"), "target": plan.get("target"), "target_2": plan.get("target_2"),
+        "risk_reward": plan.get("risk_reward"), "risk_reward_explanation": plan.get("risk_reward_explanation"),
+        "setup_tags": good, "risk_tags": risks, "scan_time": now_iso(),
+        **guidance,
+        "summary": guidance.get("guidance"), "ai_guidance": guidance.get("guidance"),
     }
-
     return row
 
-
-# =========================
-# SCAN PIPELINE
-# =========================
 
 def passes_basic_filter(ind: Dict[str, Any], meta: Dict[str, Any]) -> bool:
     price = ind.get("price")
     if price is None or price < MIN_PRICE or price > MAX_PRICE:
         return False
-
     if (ind.get("dollar_volume") or 0) < MIN_DOLLAR_VOLUME:
         return False
-
     market_cap = meta.get("market_cap")
     if market_cap is not None and market_cap < MIN_MARKET_CAP:
         return False
-
-    # Must have enough valid technicals.
     if ind.get("sma20") is None or ind.get("sma50") is None:
         return False
-
     return True
 
 
 def scan_market() -> Dict[str, Any]:
-    start_time = time.time()
+    started = time.time()
     universe = build_universe()
+    write_json(UNIVERSE_FILE, {"generated_at": now_iso(), "count": len(universe), "symbols": universe})
 
-    universe_payload = {
-        "generated_at": now_iso(),
-        "count": len(universe),
-        "symbols": universe,
-    }
-    write_json(UNIVERSE_FILE, universe_payload)
-
-    prescreen_rows: List[Dict[str, Any]] = []
-    full_rows: List[Dict[str, Any]] = []
-
-    metadata_cache: Dict[str, Dict[str, Any]] = {}
+    metadata_cache, prescreen_rows, full_rows = {}, [], []
 
     for i in range(0, len(universe), BATCH_SIZE):
         batch = universe[i:i + BATCH_SIZE]
-        price_data = download_price_batch(batch)
+        data = download_price_batch(batch)
 
         for symbol in batch:
-            hist = extract_symbol_history(price_data, symbol)
+            hist = extract_symbol_history(data, symbol)
             ind = compute_indicators(hist)
             if not ind:
                 continue
-
-            # Light price/liquidity filter before metadata calls.
             if ind.get("price") is None or ind.get("price") < MIN_PRICE:
                 continue
             if (ind.get("dollar_volume") or 0) < MIN_DOLLAR_VOLUME:
@@ -740,16 +570,14 @@ def scan_market() -> Dict[str, Any]:
                 continue
 
             score, good, risks = score_stock(ind, meta)
-            row = make_dashboard_row(symbol, meta, ind, score, good, risks)
+            row = make_row(symbol, meta, ind, score, good, risks)
 
-            # Prescreen can include moderate setups, but weak fallback rows are reduced.
             if score >= 38:
                 prescreen_rows.append(row)
-
-            # Full scan requires better score quality.
             if score >= 45:
                 full_rows.append(row)
 
+        print(f"Scanned {min(i + BATCH_SIZE, len(universe))}/{len(universe)}; prescreen={len(prescreen_rows)} full={len(full_rows)}")
         if SLEEP_BETWEEN_BATCHES > 0:
             time.sleep(SLEEP_BETWEEN_BATCHES)
 
@@ -759,7 +587,6 @@ def scan_market() -> Dict[str, Any]:
     prescreen_rows = prescreen_rows[:MAX_PRESCREEN]
     full_rows = full_rows[:MAX_FULL_SCAN]
 
-    # If full scan is too thin, only backfill with actual valid prescreen rows, not fake rows.
     if len(full_rows) < min(25, MAX_FULL_SCAN):
         seen = {r["symbol"] for r in full_rows}
         for row in prescreen_rows:
@@ -769,17 +596,30 @@ def scan_market() -> Dict[str, Any]:
             if len(full_rows) >= min(50, MAX_FULL_SCAN):
                 break
 
+    watchlist_symbols = set(load_watchlist())
+    watchlist_rows = [r for r in prescreen_rows if r.get("symbol") in watchlist_symbols]
+    watchlist_rows.sort(key=lambda r: (r.get("conviction") or 0, r.get("dollar_volume") or 0), reverse=True)
+
+    recovery_rows = [r for r in prescreen_rows if "Recovery" in str(r.get("setup_type", ""))]
+    recovery_rows.sort(key=lambda r: (r.get("conviction") or 0, r.get("twenty_day_pct") or 0), reverse=True)
+    recovery_rows = recovery_rows[:50]
+
+    top_ai_ideas = full_rows[:25]
+
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V39.1",
+        "version": "V39.3",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
+        "top_ai_ideas_count": len(top_ai_ideas),
+        "watchlist_count": len(watchlist_rows),
+        "recovery_count": len(recovery_rows),
         "fallback_rows_allowed": False,
         "data_dir": str(DATA_DIR),
         "github_persisted": False,
-        "duration_seconds": round(time.time() - start_time, 2),
+        "duration_seconds": round(time.time() - started, 2),
         "filters": {
             "min_price": MIN_PRICE,
             "max_price": MAX_PRICE,
@@ -790,6 +630,9 @@ def scan_market() -> Dict[str, Any]:
 
     write_json(PRESCREEN_FILE, prescreen_rows)
     write_json(FULL_SCAN_FILE, full_rows)
+    write_json(TOP_IDEAS_FILE, top_ai_ideas)
+    write_json(WATCHLIST_SCAN_FILE, watchlist_rows)
+    write_json(RECOVERY_SCAN_FILE, recovery_rows)
     write_json(STATE_FILE, state)
 
     if GITHUB_PERSIST:
@@ -799,33 +642,18 @@ def scan_market() -> Dict[str, Any]:
     return state
 
 
-# =========================
-# GITHUB PERSISTENCE
-# =========================
-
 def persist_to_github() -> bool:
-    """
-    Uses existing Render repo checkout and credentials.
-    Safe no-op if nothing changed.
-    """
     files = [
-        str(FULL_SCAN_FILE),
-        str(PRESCREEN_FILE),
-        str(STATE_FILE),
-        str(UNIVERSE_FILE),
+        str(FULL_SCAN_FILE), str(PRESCREEN_FILE), str(STATE_FILE), str(UNIVERSE_FILE),
+        str(TOP_IDEAS_FILE), str(WATCHLIST_FILE), str(WATCHLIST_SCAN_FILE), str(RECOVERY_SCAN_FILE),
     ]
-
-    code, out = run_cmd(["git", "status", "--porcelain"])
-    if code != 0:
-        print(f"git status failed: {out}")
-        return False
 
     code, out = run_cmd(["git", "add"] + files)
     if code != 0:
         print(f"git add failed: {out}")
         return False
 
-    code, out = run_cmd(["git", "diff", "--cached", "--quiet"])
+    code, _ = run_cmd(["git", "diff", "--cached", "--quiet"])
     if code == 0:
         print("No scan data changes to commit.")
         return True
@@ -833,16 +661,14 @@ def persist_to_github() -> bool:
     run_cmd(["git", "config", "user.email", os.getenv("GIT_USER_EMAIL", "render-cron@example.com")])
     run_cmd(["git", "config", "user.name", os.getenv("GIT_USER_NAME", "Render Cron")])
 
-    commit_msg = f"{GIT_COMMIT_MESSAGE} - {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"
-    code, out = run_cmd(["git", "commit", "-m", commit_msg])
+    msg = f"{GIT_COMMIT_MESSAGE} - {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"
+    code, out = run_cmd(["git", "commit", "-m", msg])
     if code != 0:
         print(f"git commit failed: {out}")
         return False
 
-    # Rebase first to avoid non-fast-forward errors.
-    run_cmd(["git", "pull", "--rebase", "origin", "main"])
-
     repo_url = os.getenv("GITHUB_REPO_URL") or "origin"
+    run_cmd(["git", "pull", "--rebase", repo_url, "main"])
     code, out = run_cmd(["git", "push", repo_url, "HEAD:main"])
     if code != 0:
         print(f"git push failed: {out}")
@@ -850,10 +676,6 @@ def persist_to_github() -> bool:
 
     return True
 
-
-# =========================
-# MAIN
-# =========================
 
 def main() -> None:
     try:
@@ -863,12 +685,8 @@ def main() -> None:
             sys.exit(2)
     except Exception as exc:
         error_state = {
-            "generated_at": now_iso(),
-            "status": "error",
-            "version": "V39.1",
-            "error": str(exc),
-            "data_dir": str(DATA_DIR),
-            "github_persisted": False,
+            "generated_at": now_iso(), "status": "error", "version": "V39.3",
+            "error": str(exc), "data_dir": str(DATA_DIR), "github_persisted": False,
         }
         write_json(STATE_FILE, error_state)
         print(json.dumps(error_state, indent=2))
