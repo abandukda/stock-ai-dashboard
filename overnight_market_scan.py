@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-V39.5 Multi-Agent Decision Scanner
+V39.7 Multi-Agent Decision Scanner with Price Bucket Diversity
 - Keeps Render Cron compatibility
 - Keeps DATA_DIR="."
 - Preserves V39 dashboard files
@@ -56,6 +56,45 @@ MIN_MARKET_CAP = float(os.getenv("MIN_MARKET_CAP", "50000000"))
 
 GITHUB_PERSIST = os.getenv("GITHUB_PERSIST", "true").lower() == "true"
 GIT_COMMIT_MESSAGE = os.getenv("GIT_COMMIT_MESSAGE", "Update overnight market scan data")
+
+# User preference filter:
+# Excludes financial companies, entertainment/gambling/casino names,
+# alcohol/tobacco-related industries from all ranked outputs.
+EXCLUDED_SECTOR_KEYWORDS = [
+    "financial",
+    "bank",
+    "banks",
+    "banking",
+    "insurance",
+    "capital markets",
+    "asset management",
+    "credit services",
+    "mortgage",
+    "reit",
+    "entertainment",
+    "casino",
+    "casinos",
+    "gambling",
+    "gaming",
+    "resort",
+    "alcohol",
+    "alcoholic",
+    "beverages - wineries",
+    "brewers",
+    "distillers",
+    "tobacco",
+]
+
+# Price bucket diversity:
+# Prevents the Top AI Ideas from being dominated only by high-priced stocks.
+# Lower-priced names still must pass liquidity, price, market cap, and AI quality filters.
+PRICE_BUCKETS = [
+    {"name": "Lower Price", "min": 5.0, "max": 25.0, "target": 7, "min_score": 55},
+    {"name": "Mid Price", "min": 25.0, "max": 100.0, "target": 8, "min_score": 55},
+    {"name": "Higher Price", "min": 100.0, "max": 100000.0, "target": 10, "min_score": 55},
+]
+
+TOP_AI_IDEAS_TARGET = int(os.getenv("TOP_AI_IDEAS_TARGET", "25"))
 
 
 def now_iso() -> str:
@@ -1024,6 +1063,7 @@ def make_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], score: int,
         "avg_volume_20d": ind.get("avg_volume_20d"), "dollar_volume": ind.get("dollar_volume"), "volume_ratio": ind.get("volume_ratio"),
         "conviction": score, "conviction_score": score, "score": score, "ai_score": score,
         "setup_type": setup_type, "bucket": setup_type,
+        "price_bucket": price_bucket_name(ind.get("price")),
         "rsi": ind.get("rsi"), "atr14": ind.get("atr14"), "atr_pct": ind.get("atr_pct"),
         "sma10": ind.get("sma10"), "sma20": ind.get("sma20"), "sma50": ind.get("sma50"), "sma100": ind.get("sma100"),
         "one_day_pct": ind.get("one_day_pct"), "five_day_pct": ind.get("five_day_pct"),
@@ -1038,6 +1078,34 @@ def make_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], score: int,
     return row
 
 
+
+def is_excluded_by_user_preference(symbol: str, meta: Dict[str, Any]) -> Tuple[bool, str]:
+    """
+    Exclude user-restricted sectors/industries:
+    - Financial companies
+    - Entertainment/gambling/casinos
+    - Alcohol/tobacco-related industries
+
+    ETFs are generally not excluded because their sector/industry fields can be
+    unavailable and they may be useful for market context.
+    """
+    quote_type = str(meta.get("quote_type") or "").upper()
+    if quote_type in {"ETF", "MUTUALFUND", "INDEX"}:
+        return False, ""
+
+    sector = str(meta.get("sector") or "")
+    industry = str(meta.get("industry") or "")
+    company = str(meta.get("company_name") or symbol or "")
+
+    combined = f"{sector} {industry} {company}".lower()
+
+    for keyword in EXCLUDED_SECTOR_KEYWORDS:
+        if keyword.lower() in combined:
+            return True, keyword
+
+    return False, ""
+
+
 def passes_basic_filter(ind: Dict[str, Any], meta: Dict[str, Any]) -> bool:
     price = ind.get("price")
     if price is None or price < MIN_PRICE or price > MAX_PRICE:
@@ -1050,6 +1118,88 @@ def passes_basic_filter(ind: Dict[str, Any], meta: Dict[str, Any]) -> bool:
     if ind.get("sma20") is None or ind.get("sma50") is None:
         return False
     return True
+
+
+
+def price_bucket_name(price: Any) -> str:
+    p = safe_float(price)
+    if p is None:
+        return "Unknown"
+    for bucket in PRICE_BUCKETS:
+        if bucket["min"] <= p < bucket["max"]:
+            return bucket["name"]
+    return "Unknown"
+
+
+def build_diversified_top_ideas(rows: List[Dict[str, Any]], target_count: int = TOP_AI_IDEAS_TARGET) -> List[Dict[str, Any]]:
+    """
+    Creates a more useful top list by price bucket:
+    - Lower Price: $5–$25
+    - Mid Price: $25–$100
+    - Higher Price: $100+
+
+    This prevents the top list from showing only expensive mega-cap names.
+    It does NOT allow weak rows: every selected row still needs a valid price,
+    liquidity, and minimum AI score.
+    """
+    if not rows:
+        return []
+
+    clean = []
+    for row in rows:
+        price = safe_float(row.get("price") or row.get("current_price"))
+        score = safe_float(row.get("conviction") or row.get("final_agent_score") or row.get("score"), 0)
+        if price is None or price <= 0:
+            continue
+        if price < 5:
+            continue
+        if score < 50:
+            continue
+        row["price_bucket"] = price_bucket_name(price)
+        clean.append(row)
+
+    clean.sort(key=lambda r: (
+        safe_float(r.get("conviction") or r.get("final_agent_score") or r.get("score"), 0),
+        safe_float(r.get("dollar_volume"), 0),
+    ), reverse=True)
+
+    selected = []
+    used = set()
+
+    for bucket in PRICE_BUCKETS:
+        bucket_rows = [
+            r for r in clean
+            if r.get("price_bucket") == bucket["name"]
+            and safe_float(r.get("conviction") or r.get("final_agent_score") or r.get("score"), 0) >= bucket["min_score"]
+        ]
+        bucket_rows.sort(key=lambda r: (
+            safe_float(r.get("conviction") or r.get("final_agent_score") or r.get("score"), 0),
+            safe_float(r.get("dollar_volume"), 0),
+        ), reverse=True)
+
+        for row in bucket_rows[:bucket["target"]]:
+            sym = row.get("symbol") or row.get("ticker")
+            if sym and sym not in used:
+                selected.append(row)
+                used.add(sym)
+
+    # Fill remaining slots with best overall names if any bucket is thin.
+    for row in clean:
+        sym = row.get("symbol") or row.get("ticker")
+        if sym and sym not in used:
+            selected.append(row)
+            used.add(sym)
+        if len(selected) >= target_count:
+            break
+
+    selected = selected[:target_count]
+
+    # Add rank labels after final ordering.
+    for i, row in enumerate(selected, start=1):
+        row["top_ai_rank"] = i
+        row["top_ai_bucket_note"] = f"{row.get('price_bucket', 'Unknown')} bucket candidate"
+
+    return selected
 
 
 def scan_market() -> Dict[str, Any]:
@@ -1077,6 +1227,10 @@ def scan_market() -> Dict[str, Any]:
             if meta is None:
                 meta = get_metadata(symbol)
                 metadata_cache[symbol] = meta
+
+            excluded, exclusion_reason = is_excluded_by_user_preference(symbol, meta)
+            if excluded:
+                continue
 
             if not passes_basic_filter(ind, meta):
                 continue
@@ -1116,12 +1270,12 @@ def scan_market() -> Dict[str, Any]:
     recovery_rows.sort(key=lambda r: (r.get("conviction") or 0, r.get("twenty_day_pct") or 0), reverse=True)
     recovery_rows = recovery_rows[:50]
 
-    top_ai_ideas = full_rows[:25]
+    top_ai_ideas = build_diversified_top_ideas(full_rows, TOP_AI_IDEAS_TARGET)
 
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V39.5",
+        "version": "V39.7",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -1137,6 +1291,9 @@ def scan_market() -> Dict[str, Any]:
             "max_price": MAX_PRICE,
             "min_dollar_volume": MIN_DOLLAR_VOLUME,
             "min_market_cap": MIN_MARKET_CAP,
+            "excluded_sector_keywords": EXCLUDED_SECTOR_KEYWORDS,
+            "price_bucket_diversity": PRICE_BUCKETS,
+            "top_ai_ideas_target": TOP_AI_IDEAS_TARGET,
         },
     }
 
@@ -1197,7 +1354,7 @@ def main() -> None:
             sys.exit(2)
     except Exception as exc:
         error_state = {
-            "generated_at": now_iso(), "status": "error", "version": "V39.5",
+            "generated_at": now_iso(), "status": "error", "version": "V39.7",
             "error": str(exc), "data_dir": str(DATA_DIR), "github_persisted": False,
         }
         write_json(STATE_FILE, error_state)
