@@ -1,21 +1,69 @@
 {
-  "generated_at": "2026-05-27T06:35:17.664271+00:00",
+  "generated_at": "2026-05-27T06:53:12.603038+00:00",
   "status": "success",
-  "version": "V39.5",
-  "universe_count": 1188,
-  "prescreen_count": 650,
+  "version": "V39.7",
+  "universe_count": 1193,
+  "prescreen_count": 546,
   "full_scan_count": 150,
   "top_ai_ideas_count": 25,
   "watchlist_count": 4,
-  "recovery_count": 45,
+  "recovery_count": 49,
   "fallback_rows_allowed": false,
   "data_dir": ".",
   "github_persisted": false,
-  "duration_seconds": 297.49,
+  "duration_seconds": 411.36,
   "filters": {
     "min_price": 2.0,
     "max_price": 1000.0,
     "min_dollar_volume": 2500000.0,
-    "min_market_cap": 50000000.0
+    "min_market_cap": 50000000.0,
+    "excluded_sector_keywords": [
+      "financial",
+      "bank",
+      "banks",
+      "banking",
+      "insurance",
+      "capital markets",
+      "asset management",
+      "credit services",
+      "mortgage",
+      "reit",
+      "entertainment",
+      "casino",
+      "casinos",
+      "gambling",
+      "gaming",
+      "resort",
+      "alcohol",
+      "alcoholic",
+      "beverages - wineries",
+      "brewers",
+      "distillers",
+      "tobacco"
+    ],
+    "price_bucket_diversity": [
+      {
+        "name": "Lower Price",
+        "min": 5.0,
+        "max": 25.0,
+        "target": 7,
+        "min_score": 55
+      },
+      {
+        "name": "Mid Price",
+        "min": 25.0,
+        "max": 100.0,
+        "target": 8,
+        "min_score": 55
+      },
+      {
+        "name": "Higher Price",
+        "min": 100.0,
+        "max": 100000.0,
+        "target": 10,
+        "min_score": 55
+      }
+    ],
+    "top_ai_ideas_target": 25
   }
 }
