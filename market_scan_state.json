@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-27T06:53:12.603038+00:00",
+  "generated_at": "2026-05-27T07:07:05.618267+00:00",
   "status": "success",
   "version": "V39.7",
   "universe_count": 1193,
@@ -11,7 +11,7 @@
   "fallback_rows_allowed": false,
   "data_dir": ".",
   "github_persisted": false,
-  "duration_seconds": 411.36,
+  "duration_seconds": 441.38,
   "filters": {
     "min_price": 2.0,
     "max_price": 1000.0,
