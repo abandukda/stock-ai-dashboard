@@ -6,7 +6,7 @@ from datetime import datetime
 import pandas as pd
 import streamlit as st
 
-APP_VERSION = "V39.0 Stable Clean Dashboard"
+APP_VERSION = "V39.3 AI Reasoning + Watchlist Dashboard"
 
 st.set_page_config(
     page_title=f"AI Trading Dashboard {APP_VERSION}",
@@ -24,6 +24,9 @@ PRESCREEN_FILE = DATA_DIR / "market_prescreen.json"
 SCAN_STATE_FILE = DATA_DIR / "market_scan_state.json"
 UNIVERSE_FILE = DATA_DIR / "total_market_universe.json"
 WATCHLIST_FILE = DATA_DIR / "watchlist.json"
+TOP_IDEAS_FILE = DATA_DIR / "top_ai_ideas.json"
+WATCHLIST_SCAN_FILE = DATA_DIR / "watchlist_scan.json"
+RECOVERY_SCAN_FILE = DATA_DIR / "recovery_scan.json"
 
 DEFAULT_WATCHLIST = [
     "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AMD",
@@ -161,6 +164,45 @@ def normalize_scan_df(df):
 
     work = df.copy()
 
+    # V39.3 scanner outputs lowercase fields. Older V39 used display-case fields.
+    rename_map = {
+        "symbol": "Ticker",
+        "ticker": "Ticker",
+        "company": "Company Name",
+        "company_name": "Company Name",
+        "name": "Company Name",
+        "price": "Price",
+        "current_price": "Price",
+        "last_price": "Price",
+        "conviction": "Final Conviction",
+        "conviction_score": "Final Conviction",
+        "score": "Final Conviction",
+        "ai_score": "Final Conviction",
+        "setup_type": "Investment Style",
+        "bucket": "Investment Style",
+        "rsi": "RSI",
+        "entry_range": "Entry Range",
+        "stop_loss": "Stop Loss",
+        "target": "Target / Sell Zone",
+        "why_ranked_high": "Why Ranked Highly",
+        "ai_reasoning": "Research Summary",
+        "guidance": "AI Trade Plan",
+        "what_looks_good": "Execution Quality",
+        "what_could_go_wrong": "Financial Safety Detail",
+        "sector": "Sector",
+        "industry": "Industry",
+        "market_cap": "Market Cap",
+        "risk_reward": "Risk/Reward",
+        "twenty_day_pct": "20D %",
+        "sixty_day_pct": "60D %",
+        "volume_ratio": "Volume Ratio",
+        "dollar_volume": "Dollar Volume",
+    }
+
+    for old, new in rename_map.items():
+        if old in work.columns and new not in work.columns:
+            work[new] = work[old]
+
     if "Ticker" not in work.columns:
         return pd.DataFrame()
 
@@ -198,17 +240,21 @@ def normalize_scan_df(df):
         "Financial Safety Detail": "",
         "Research Summary": "",
         "AI Trade Plan": "",
+        "Sector": "Unknown",
+        "Industry": "Unknown",
+        "Market Cap": "N/A",
+        "Risk/Reward": "N/A",
+        "20D %": "N/A",
+        "60D %": "N/A",
+        "Volume Ratio": "N/A",
     }
 
     for col, val in defaults.items():
         if col not in work.columns:
             work[col] = val
 
-    # Sort high conviction first, then lower price first.
     work = work.sort_values(["Final Conviction", "Price"], ascending=[False, True], na_position="last")
-
     return work.drop_duplicates(subset=["Ticker"], keep="first")
-
 
 def load_full_scan():
     data = read_json_safe(FULL_SCAN_FILE, [])
@@ -219,6 +265,27 @@ def load_full_scan():
 
 def load_prescreen():
     data = read_json_safe(PRESCREEN_FILE, [])
+    if not data:
+        return pd.DataFrame()
+    return normalize_scan_df(pd.DataFrame(data))
+
+
+def load_top_ai_ideas():
+    data = read_json_safe(TOP_IDEAS_FILE, [])
+    if not data:
+        return pd.DataFrame()
+    return normalize_scan_df(pd.DataFrame(data))
+
+
+def load_watchlist_scan():
+    data = read_json_safe(WATCHLIST_SCAN_FILE, [])
+    if not data:
+        return pd.DataFrame()
+    return normalize_scan_df(pd.DataFrame(data))
+
+
+def load_recovery_scan():
+    data = read_json_safe(RECOVERY_SCAN_FILE, [])
     if not data:
         return pd.DataFrame()
     return normalize_scan_df(pd.DataFrame(data))
@@ -242,19 +309,99 @@ def load_best_scan():
 
 
 def load_watchlist():
-    wl = read_json_safe(WATCHLIST_FILE, DEFAULT_WATCHLIST)
+    wl = read_json_safe(WATCHLIST_FILE, {"symbols": DEFAULT_WATCHLIST})
+    if isinstance(wl, dict):
+        wl = wl.get("symbols", DEFAULT_WATCHLIST)
     if not isinstance(wl, list):
         wl = DEFAULT_WATCHLIST
     return sorted(set([normalize_ticker(x) for x in wl if normalize_ticker(x)]))
 
 
 def save_watchlist(watchlist):
-    return write_json_safe(WATCHLIST_FILE, sorted(set(watchlist)))
-
+    cleaned = sorted(set([normalize_ticker(x) for x in watchlist if normalize_ticker(x)]))
+    return write_json_safe(WATCHLIST_FILE, {"symbols": cleaned})
 
 # ============================================================
 # UI SECTIONS
 # ============================================================
+
+def render_ai_idea_cards(df, title="Top AI Results", limit=5):
+    st.subheader(title)
+
+    if df is None or df.empty:
+        st.info("No AI ideas available yet. Run the Render Cron Job to generate V39.3 files.")
+        return
+
+    for _, row in df.head(limit).iterrows():
+        ticker = row.get("Ticker", "")
+        company = company_display(row)
+        score = int(safe_number(row.get("Final Conviction"), 0))
+        setup = row.get("Investment Style", "AI Setup")
+        price = money_display(row.get("Price"))
+        entry = row.get("Entry Range", "N/A")
+        stop = row.get("Stop Loss", "N/A")
+        target = row.get("Target / Sell Zone", "N/A")
+        rr = row.get("Risk/Reward", "N/A")
+
+        with st.container(border=True):
+            left, right = st.columns([0.72, 0.28])
+
+            with left:
+                st.markdown(f"### {ticker} — {company}")
+                st.caption(f"{setup} | AI Score: {score} | Price: {price}")
+                st.write(row.get("Research Summary") or row.get("AI Trade Plan") or row.get("Why Ranked Highly") or "No AI reasoning available.")
+
+                good = row.get("Execution Quality", "")
+                risk = row.get("Financial Safety Detail", "")
+                if good:
+                    st.success(f"Looks good: {good}")
+                if risk:
+                    st.warning(f"What could go wrong: {risk}")
+
+            with right:
+                st.metric("Entry", entry)
+                st.metric("Stop", money_display(stop) if isinstance(stop, (int, float)) else stop)
+                st.metric("Target", money_display(target) if isinstance(target, (int, float)) else target)
+                st.metric("Risk/Reward", rr)
+
+
+def render_clean_ai_command_center(scan_df):
+    top_df = load_top_ai_ideas()
+    if top_df.empty:
+        top_df = scan_df.head(25).copy() if scan_df is not None and not scan_df.empty else pd.DataFrame()
+
+    watch_scan_df = load_watchlist_scan()
+    recovery_df = load_recovery_scan()
+
+    st.subheader("🤖 AI Trading Command Center")
+    st.caption("Top results are sorted by AI conviction. Watchlist and recovery setups are separated so the dashboard is easier to read.")
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Top AI Ideas", len(top_df))
+    c2.metric("Watchlist Matches", len(watch_scan_df))
+    c3.metric("Recovery Setups", len(recovery_df))
+    c4.metric("Full Scan Rows", len(scan_df) if scan_df is not None else 0)
+
+    tabs = st.tabs(["Top AI Results", "My Watchlist", "Recovery / Crashed Stocks", "All Ranked Scan"])
+
+    with tabs[0]:
+        render_ai_idea_cards(top_df, "Highest Ranked AI Setups", limit=5)
+        render_main_table(top_df, title="Top AI Ranked Table")
+
+    with tabs[1]:
+        render_watchlist(scan_df)
+        if not watch_scan_df.empty:
+            st.divider()
+            render_ai_idea_cards(watch_scan_df, "Watchlist AI Reasoning", limit=5)
+
+    with tabs[2]:
+        st.caption("These are stocks that may have crashed or pulled back but are showing early signs of stabilization or reversal.")
+        render_ai_idea_cards(recovery_df, "Recovery / Reversal Candidates", limit=5)
+        render_main_table(recovery_df, title="Recovery Ranked Table")
+
+    with tabs[3]:
+        render_main_table(scan_df, title="All Ranked Overnight Stock Ideas")
+
 
 def render_scan_status():
     state = read_json_safe(SCAN_STATE_FILE, {})
@@ -268,6 +415,11 @@ def render_scan_status():
         c2.metric("Prescreen Rows", len(pre))
         c3.metric("Full Scan Rows", len(full))
         c4.metric("GitHub Persisted", str(state.get("github_persisted", "N/A")))
+
+        c5, c6, c7 = st.columns(3)
+        c5.metric("Top AI Ideas", state.get("top_ai_ideas_count", "N/A"))
+        c6.metric("Watchlist Matches", state.get("watchlist_count", "N/A"))
+        c7.metric("Recovery Setups", state.get("recovery_count", "N/A"))
 
         st.json(state)
 
@@ -463,10 +615,11 @@ if page == "Dashboard":
     c1, c2, c3 = st.columns(3)
     c1.metric("Data Source", source)
     c2.metric("Rows Loaded", len(scan_df))
-    c3.metric("Last Scan", read_json_safe(SCAN_STATE_FILE, {}).get("finished_at", "N/A"))
+    state = read_json_safe(SCAN_STATE_FILE, {})
+    c3.metric("Last Scan", state.get("finished_at") or state.get("generated_at", "N/A"))
 
     render_scan_status()
-    render_main_table(scan_df, title="📋 All Overnight Stock Ideas")
+    render_clean_ai_command_center(scan_df)
 
 elif page == "Watchlist":
     render_watchlist(scan_df)
