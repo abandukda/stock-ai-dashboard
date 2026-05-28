@@ -523,7 +523,7 @@ def render_scan_status():
 def render_idea_cards(df, title="Highest Ranked AI Setups", limit=5, key_prefix="cards"):
     if title:
         if title:
-        st.subheader(title)
+            st.subheader(title)
 
     clean = filter_actionable(df, min_score=45) if df is not None and not df.empty else pd.DataFrame()
 
