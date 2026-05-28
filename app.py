@@ -6,7 +6,7 @@ from datetime import datetime
 import pandas as pd
 import streamlit as st
 
-APP_VERSION = "V39.5 Multi-Agent Decision Dashboard"
+APP_VERSION = "V39.10 Fix Duplicate Card Keys"
 
 st.set_page_config(
     page_title=f"AI Trading Dashboard {APP_VERSION}",
@@ -359,6 +359,143 @@ def save_watchlist(watchlist):
     return write_json_safe(WATCHLIST_FILE, {"symbols": cleaned, "updated_at": datetime.utcnow().isoformat()})
 
 
+
+# ============================================================
+# DASHBOARD GUIDANCE HELPERS
+# ============================================================
+
+def tooltip_title(title, tooltip):
+    st.markdown(
+        f"""
+        <div style="display:flex; align-items:center; gap:8px; margin-top:6px;">
+            <h3 style="margin-bottom:0;">{title}</h3>
+            <span title="{tooltip}" style="cursor:help; color:#6b7280; font-size:18px;">ⓘ</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def price_bucket_label(price):
+    try:
+        p = float(price)
+        if 5 <= p <= 25:
+            return "Lower Price"
+        if 25 < p <= 100:
+            return "Mid Price"
+        if p > 100:
+            return "Higher Price"
+    except Exception:
+        pass
+    return "Unknown"
+
+
+def diversify_for_cards(df, limit=6):
+    if df is None or df.empty:
+        return pd.DataFrame()
+
+    work = df.copy()
+    work = work[pd.notna(work["Price"])]
+    work = work[work["Price"] > 0]
+    work["__bucket"] = work["Price"].apply(price_bucket_label)
+
+    selected = []
+    used = set()
+
+    for bucket, count in [("Lower Price", 2), ("Mid Price", 2), ("Higher Price", 2)]:
+        bucket_df = work[work["__bucket"] == bucket].copy()
+        bucket_df = bucket_df.sort_values(["Final Conviction", "Dollar Volume"], ascending=[False, False])
+        for _, row in bucket_df.head(count).iterrows():
+            ticker = row.get("Ticker")
+            if ticker not in used:
+                selected.append(row)
+                used.add(ticker)
+
+    remainder = work.sort_values(["Final Conviction", "Dollar Volume"], ascending=[False, False])
+    for _, row in remainder.iterrows():
+        ticker = row.get("Ticker")
+        if ticker not in used:
+            selected.append(row)
+            used.add(ticker)
+        if len(selected) >= limit:
+            break
+
+    if not selected:
+        return pd.DataFrame()
+
+    return pd.DataFrame(selected).head(limit).drop(columns=["__bucket"], errors="ignore")
+
+
+def make_category_tabs(scan_df):
+    if scan_df is None or scan_df.empty:
+        st.warning("No scan data found.")
+        return
+
+    lower = scan_df[(scan_df["Price"] >= 5) & (scan_df["Price"] <= 25)].copy()
+    mid = scan_df[(scan_df["Price"] > 25) & (scan_df["Price"] <= 100)].copy()
+    higher = scan_df[scan_df["Price"] > 100].copy()
+    recovery = scan_df[
+        scan_df["Setup Type"].astype(str).str.contains("Recovery|Reversal", case=False, na=False)
+    ].copy()
+
+    tabs = st.tabs([
+        "Top AI Summary",
+        "Lower Price $5–$25",
+        "Mid Price $25–$100",
+        "Higher Price $100+",
+        "Recovery",
+        "Full Ranked Table",
+    ])
+
+    with tabs[0]:
+        tooltip_title(
+            "Balanced Top AI Summary",
+            "Shows a diversified sample from lower, mid, and higher price buckets so the cards are not dominated only by expensive stocks. The table below still shows the full ranking."
+        )
+        card_df = diversify_for_cards(scan_df, limit=6)
+        render_idea_cards(card_df, title="", limit=6, key_prefix="top_summary")
+        render_main_table(scan_df.head(25), "Top AI Table — Full Ranking", actionable_only=True)
+
+    with tabs[1]:
+        tooltip_title(
+            "Lower Price Opportunities ($5–$25)",
+            "Lower-priced stocks that still passed liquidity, price, and AI quality filters. They may offer more upside but usually carry higher volatility/risk."
+        )
+        render_idea_cards(lower, title="", limit=5, key_prefix="lower_price")
+        render_main_table(lower, "Lower Price Ranked Table", actionable_only=False)
+
+    with tabs[2]:
+        tooltip_title(
+            "Mid Price Opportunities ($25–$100)",
+            "Mid-priced stocks that may balance upside potential with better liquidity and more stable fundamentals."
+        )
+        render_idea_cards(mid, title="", limit=5, key_prefix="mid_price")
+        render_main_table(mid, "Mid Price Ranked Table", actionable_only=False)
+
+    with tabs[3]:
+        tooltip_title(
+            "Higher Price Institutional Leaders ($100+)",
+            "Higher-priced large-cap or institutional-quality names with stronger fundamentals, liquidity, and trend quality."
+        )
+        render_idea_cards(higher, title="", limit=5, key_prefix="higher_price")
+        render_main_table(higher, "Higher Price Ranked Table", actionable_only=False)
+
+    with tabs[4]:
+        tooltip_title(
+            "Recovery / Reversal Candidates",
+            "Names that may have pulled back, dropped post-earnings, or remain below prior highs but show early stabilization/reversal potential."
+        )
+        render_idea_cards(recovery, title="", limit=5, key_prefix="recovery")
+        render_main_table(recovery, "Recovery Ranked Table", actionable_only=False)
+
+    with tabs[5]:
+        tooltip_title(
+            "Full Ranked AI Scan",
+            "Complete actionable scan sorted by AI conviction and liquidity after exclusions, watchlist scoring, and multi-agent review."
+        )
+        render_main_table(scan_df, "Full Ranked AI Scan", actionable_only=True)
+
+
 # ============================================================
 # UI SECTIONS
 # ============================================================
@@ -383,8 +520,10 @@ def render_scan_status():
         st.json(state)
 
 
-def render_idea_cards(df, title="Highest Ranked AI Setups", limit=5):
-    st.subheader(title)
+def render_idea_cards(df, title="Highest Ranked AI Setups", limit=5, key_prefix="cards"):
+    if title:
+        if title:
+        st.subheader(title)
 
     clean = filter_actionable(df, min_score=45) if df is not None and not df.empty else pd.DataFrame()
 
@@ -415,7 +554,7 @@ def render_idea_cards(df, title="Highest Ranked AI Setups", limit=5):
                 st.success(f"Looks good: {row.get('What Looks Good', 'Needs confirmation.')}")
                 st.warning(f"What could go wrong: {row.get('What Could Go Wrong', 'Market weakness or failed follow-through.')}")
 
-                if st.button(f"Open Detail View for {ticker}", key=f"card_detail_{ticker}"):
+                if st.button(f"Open Detail View for {ticker}", key=f"{key_prefix}_card_detail_{ticker}"):
                     st.session_state.selected_ticker = ticker
                     st.session_state.page = "Detail View"
                     st.rerun()
@@ -511,25 +650,12 @@ def render_dashboard_home(scan_df, source):
 
     render_scan_status()
 
-    top = load_top_ideas()
-    recovery = load_recovery_scan()
-    watch = load_watchlist_scan()
+    tooltip_title(
+        "AI Trading Command Center",
+        "Uses multiple AI-style agents: technical, fundamentals, valuation, risk, and catalyst. Ideas are organized by price bucket so you can compare aggressive lower-priced setups against institutional-quality leaders."
+    )
 
-    tabs = st.tabs(["Top AI Results", "My Watchlist", "Recovery / Crashed Stocks", "All Ranked Scan"])
-
-    with tabs[0]:
-        render_idea_cards(top, "Highest Ranked AI Setups", limit=5)
-        render_main_table(top, "Top AI Ranked Table", actionable_only=True)
-
-    with tabs[1]:
-        render_watchlist(watch if not watch.empty else scan_df)
-
-    with tabs[2]:
-        render_idea_cards(recovery, "Recovery / Reversal Candidates", limit=5)
-        render_main_table(recovery, "Recovery Ranked Table", actionable_only=False)
-
-    with tabs[3]:
-        render_main_table(scan_df, "All Actionable Ranked Scan", actionable_only=True)
+    make_category_tabs(scan_df)
 
 
 def render_watchlist(df):
@@ -562,7 +688,7 @@ def render_watchlist(df):
             st.write(", ".join(wl))
             st.info("These tickers are saved, but they did not appear in the latest actionable scan yet.")
         else:
-            render_idea_cards(watch_df, "Watchlist AI Guidance", limit=5)
+            render_idea_cards(watch_df, "Watchlist AI Guidance", limit=5, key_prefix="watchlist")
             render_main_table(watch_df, title="Watchlist Analysis", actionable_only=False)
 
     with st.expander("Remove tickers"):
