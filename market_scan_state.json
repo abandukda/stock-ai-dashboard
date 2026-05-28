@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-28T04:10:16.766888+00:00",
+  "generated_at": "2026-05-28T04:57:19.598954+00:00",
   "status": "success",
   "version": "V39.7",
   "universe_count": 1532,
@@ -7,11 +7,11 @@
   "full_scan_count": 150,
   "top_ai_ideas_count": 25,
   "watchlist_count": 6,
-  "recovery_count": 31,
+  "recovery_count": 34,
   "fallback_rows_allowed": false,
   "data_dir": ".",
   "github_persisted": false,
-  "duration_seconds": 367.44,
+  "duration_seconds": 438.73,
   "filters": {
     "min_price": 2.0,
     "max_price": 1000.0,

@@ -71,7 +71,7 @@
       "Positive 20-day momentum"
     ],
     "risk_tags": [],
-    "scan_time": "2026-05-28T04:10:01.099826+00:00",
+    "scan_time": "2026-05-28T04:57:01.043505+00:00",
     "why_ranked_high": "The AI agent team ranks this as Watchlist Only. Technical score 92/100, fundamentals score 0/100, valuation score 50/100, risk score 88/100, and catalyst score 50/100. Monitor only. Do not force a trade unless setup improves.",
     "what_looks_good": "price is above the 20-day trend; price is above the 50-day trend; 20-day average is above the 50-day average; healthy 5-day momentum of 8.97%; positive 20-day momentum of 17.11%; RSI is constructive at 64.2, not overheated; very strong dollar volume; volatility is tradable at 3.98% ATR",
     "what_could_go_wrong": "valuation data is limited, so this agent cannot strongly confirm value; no clear catalyst detected from available data",
@@ -233,7 +233,7 @@
     "risk_tags": [
       "RSI still needs confirmation"
     ],
-    "scan_time": "2026-05-28T04:04:38.909743+00:00",
+    "scan_time": "2026-05-28T04:50:33.116875+00:00",
     "why_ranked_high": "The AI agent team ranks this as Elite Candidate. Technical score 88/100, fundamentals score 76/100, valuation score 68/100, risk score 96/100, and catalyst score 62/100. High-priority research candidate. Still wait for clean entry and validate news/earnings.",
     "what_looks_good": "price is above the 20-day trend; price is above the 50-day trend; 20-day average is above the 50-day average; 50-day trend is stronger than the 100-day trend; healthy 5-day momentum of 4.82%; positive 20-day momentum of 4.68%; strong revenue growth at 16.6%; earnings growth is positive at 74.8%",
     "what_could_go_wrong": "earnings can create gap risk; avoid oversized positions before the report",
@@ -408,7 +408,7 @@
     "risk_tags": [
       "RSI is overbought"
     ],
-    "scan_time": "2026-05-28T04:04:17.723984+00:00",
+    "scan_time": "2026-05-28T04:50:09.496865+00:00",
     "why_ranked_high": "The AI agent team ranks this as Strong Candidate. Technical score 76/100, fundamentals score 84/100, valuation score 38/100, risk score 88/100, and catalyst score 50/100. Good candidate for focused research. Watch entry range and stop discipline.",
     "what_looks_good": "price is above the 20-day trend; price is above the 50-day trend; 20-day average is above the 50-day average; 50-day trend is stronger than the 100-day trend; healthy 5-day momentum of 3.97%; positive 20-day momentum of 14.93%; strong revenue growth at 16.6%; earnings growth is positive at 21.8%",
     "what_could_go_wrong": "RSI is overbought at 87.4; price/book is elevated at 42.8; analyst mean target is below current price by 0.1%; overbought RSI raises pullback risk; earnings can create gap risk; avoid oversized positions before the report",
@@ -582,7 +582,7 @@
       "Volume is above average"
     ],
     "risk_tags": [],
-    "scan_time": "2026-05-28T04:08:13.915861+00:00",
+    "scan_time": "2026-05-28T04:54:30.747037+00:00",
     "why_ranked_high": "The AI agent team ranks this as Elite Candidate. Technical score 76/100, fundamentals score 90/100, valuation score 90/100, risk score 96/100, and catalyst score 62/100. High-priority research candidate. Still wait for clean entry and validate news/earnings.",
     "what_looks_good": "price is above the 20-day trend; price is above the 50-day trend; healthy 5-day momentum of 5.42%; RSI is constructive at 62.4, not overheated; volume is confirming at 1.37x average; ATR volatility is tradable at 2.09%; strong revenue growth at 33.1%; earnings growth is positive at 62.4%",
     "what_could_go_wrong": "earnings can create gap risk; avoid oversized positions before the report",
@@ -756,7 +756,7 @@
     "risk_tags": [
       "Price is below the 20-day trend"
     ],
-    "scan_time": "2026-05-28T04:08:45.723603+00:00",
+    "scan_time": "2026-05-28T04:55:07.268038+00:00",
     "why_ranked_high": "The AI agent team ranks this as Strong Candidate. Technical score 58/100, fundamentals score 100/100, valuation score 66/100, risk score 96/100, and catalyst score 62/100. Good candidate for focused research. Watch entry range and stop discipline.",
     "what_looks_good": "price is above the 50-day trend; 20-day average is above the 50-day average; 50-day trend is stronger than the 100-day trend; RSI is constructive at 54.2, not overheated; ATR volatility is tradable at 3.77%; strong revenue growth at 85.2%; earnings growth is positive at 214.5%; healthy profit margin at 63.0%",
     "what_could_go_wrong": "price is not clearly above the 20-day trend; price/sales is rich at 20.3; price/book is elevated at 32.8; earnings can create gap risk; avoid oversized positions before the report",
@@ -936,7 +936,7 @@
       "20-day move is stretched",
       "Longer move may be overextended"
     ],
-    "scan_time": "2026-05-28T04:04:31.880653+00:00",
+    "scan_time": "2026-05-28T04:50:25.900323+00:00",
     "why_ranked_high": "The AI agent team ranks this as Strong Candidate. Technical score 76/100, fundamentals score 92/100, valuation score 26/100, risk score 88/100, and catalyst score 50/100. Good candidate for focused research. Watch entry range and stop discipline.",
     "what_looks_good": "price is above the 20-day trend; price is above the 50-day trend; 20-day average is above the 50-day average; 50-day trend is stronger than the 100-day trend; RSI is constructive at 67.3, not overheated; ATR volatility is tradable at 5.82%; strong revenue growth at 37.8%; earnings growth is positive at 91.2%",
     "what_could_go_wrong": "P/E is expensive at 166.8; price/sales is rich at 21.6; price/book is elevated at 12.5; analyst mean target is below current price by 4.7%; earnings can create gap risk; avoid oversized positions before the report",
