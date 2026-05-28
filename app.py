@@ -6,7 +6,7 @@ from datetime import datetime
 import pandas as pd
 import streamlit as st
 
-APP_VERSION = "V39.10 Fix Duplicate Card Keys"
+APP_VERSION = "V39.12 Widget Keys + Agent Help"
 
 st.set_page_config(
     page_title=f"AI Trading Dashboard {APP_VERSION}",
@@ -376,6 +376,35 @@ def tooltip_title(title, tooltip):
     )
 
 
+
+def agent_help_text(agent_name):
+    explanations = {
+        "Technical": "Technical Agent reviews trend, moving averages, RSI, momentum, volume confirmation, and volatility. It answers: is the stock technically acting strong right now?",
+        "Fundamentals": "Fundamentals Agent reviews revenue growth, earnings growth, margins, free cash flow, operating cash flow, cash, debt, and balance-sheet health. It answers: is the business financially healthy?",
+        "Valuation": "Valuation Agent reviews P/E, forward P/E, PEG, price-to-sales, price-to-book, and analyst target upside. It answers: is the stock reasonably priced for its quality and growth?",
+        "Risk": "Risk Agent reviews liquidity, market cap, volatility, large one-day moves, overbought conditions, and debt/cash risk. It answers: what could hurt the trade or investment?",
+        "Catalyst": "Catalyst Agent reviews earnings timing, analyst target upside, recovery/reversal context, and event risk. It answers: is there a near-term reason this stock could move?",
+    }
+    return explanations.get(agent_name, "")
+
+
+def agent_metric(label, value):
+    st.markdown(
+        f"""
+        <div title="{agent_help_text(label)}" style="
+            border:1px solid rgba(128,128,128,0.25);
+            border-radius:10px;
+            padding:10px;
+            min-height:72px;
+            cursor:help;
+        ">
+            <div style="font-size:12px;color:#6b7280;">{label} ⓘ</div>
+            <div style="font-size:24px;font-weight:700;">{value}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
 def price_bucket_label(price):
     try:
         p = float(price)
@@ -454,7 +483,7 @@ def make_category_tabs(scan_df):
         )
         card_df = diversify_for_cards(scan_df, limit=6)
         render_idea_cards(card_df, title="", limit=6, key_prefix="top_summary")
-        render_main_table(scan_df.head(25), "Top AI Table — Full Ranking", actionable_only=True)
+        render_main_table(scan_df.head(25), "Top AI Table — Full Ranking", actionable_only=True, key_prefix="top_ai_table")
 
     with tabs[1]:
         tooltip_title(
@@ -462,7 +491,7 @@ def make_category_tabs(scan_df):
             "Lower-priced stocks that still passed liquidity, price, and AI quality filters. They may offer more upside but usually carry higher volatility/risk."
         )
         render_idea_cards(lower, title="", limit=5, key_prefix="lower_price")
-        render_main_table(lower, "Lower Price Ranked Table", actionable_only=False)
+        render_main_table(lower, "Lower Price Ranked Table", actionable_only=False, key_prefix="lower_price_table")
 
     with tabs[2]:
         tooltip_title(
@@ -470,7 +499,7 @@ def make_category_tabs(scan_df):
             "Mid-priced stocks that may balance upside potential with better liquidity and more stable fundamentals."
         )
         render_idea_cards(mid, title="", limit=5, key_prefix="mid_price")
-        render_main_table(mid, "Mid Price Ranked Table", actionable_only=False)
+        render_main_table(mid, "Mid Price Ranked Table", actionable_only=False, key_prefix="mid_price_table")
 
     with tabs[3]:
         tooltip_title(
@@ -478,7 +507,7 @@ def make_category_tabs(scan_df):
             "Higher-priced large-cap or institutional-quality names with stronger fundamentals, liquidity, and trend quality."
         )
         render_idea_cards(higher, title="", limit=5, key_prefix="higher_price")
-        render_main_table(higher, "Higher Price Ranked Table", actionable_only=False)
+        render_main_table(higher, "Higher Price Ranked Table", actionable_only=False, key_prefix="higher_price_table")
 
     with tabs[4]:
         tooltip_title(
@@ -486,14 +515,14 @@ def make_category_tabs(scan_df):
             "Names that may have pulled back, dropped post-earnings, or remain below prior highs but show early stabilization/reversal potential."
         )
         render_idea_cards(recovery, title="", limit=5, key_prefix="recovery")
-        render_main_table(recovery, "Recovery Ranked Table", actionable_only=False)
+        render_main_table(recovery, "Recovery Ranked Table", actionable_only=False, key_prefix="recovery_old_table")
 
     with tabs[5]:
         tooltip_title(
             "Full Ranked AI Scan",
             "Complete actionable scan sorted by AI conviction and liquidity after exclusions, watchlist scoring, and multi-agent review."
         )
-        render_main_table(scan_df, "Full Ranked AI Scan", actionable_only=True)
+        render_main_table(scan_df, "Full Ranked AI Scan", actionable_only=True, key_prefix="full_ranked_table")
 
 
 # ============================================================
@@ -523,7 +552,7 @@ def render_scan_status():
 def render_idea_cards(df, title="Highest Ranked AI Setups", limit=5, key_prefix="cards"):
     if title:
         if title:
-            st.subheader(title)
+        st.subheader(title)
 
     clean = filter_actionable(df, min_score=45) if df is not None and not df.empty else pd.DataFrame()
 
@@ -545,11 +574,16 @@ def render_idea_cards(df, title="Highest Ranked AI Setups", limit=5, key_prefix=
                 st.caption(f"{setup} | AI Score: {score} | Decision: {row.get('Decision Rating', 'Needs Review')} | Price: {money_display(row.get('Price'))}")
                 st.write(row.get("AI Trade Plan") or row.get("Why Ranked Highly"))
                 agent_cols = st.columns(5)
-                agent_cols[0].metric("Technical", row.get("Technical Agent", "N/A"))
-                agent_cols[1].metric("Fundamentals", row.get("Fundamentals Agent", "N/A"))
-                agent_cols[2].metric("Valuation", row.get("Valuation Agent", "N/A"))
-                agent_cols[3].metric("Risk", row.get("Risk Agent", "N/A"))
-                agent_cols[4].metric("Catalyst", row.get("Catalyst Agent", "N/A"))
+                with agent_cols[0]:
+                    agent_metric("Technical", row.get("Technical Agent", "N/A"))
+                with agent_cols[1]:
+                    agent_metric("Fundamentals", row.get("Fundamentals Agent", "N/A"))
+                with agent_cols[2]:
+                    agent_metric("Valuation", row.get("Valuation Agent", "N/A"))
+                with agent_cols[3]:
+                    agent_metric("Risk", row.get("Risk Agent", "N/A"))
+                with agent_cols[4]:
+                    agent_metric("Catalyst", row.get("Catalyst Agent", "N/A"))
 
                 st.success(f"Looks good: {row.get('What Looks Good', 'Needs confirmation.')}")
                 st.warning(f"What could go wrong: {row.get('What Could Go Wrong', 'Market weakness or failed follow-through.')}")
@@ -566,7 +600,7 @@ def render_idea_cards(df, title="Highest Ranked AI Setups", limit=5, key_prefix=
                 st.metric("Risk/Reward", row.get("Risk/Reward", "N/A"))
 
 
-def render_main_table(df, title="📋 All Stock Ideas", actionable_only=True):
+def render_main_table(df, title="📋 All Stock Ideas", actionable_only=True, key_prefix="main_table"):
     st.subheader(title)
 
     if df is None or df.empty:
@@ -576,13 +610,13 @@ def render_main_table(df, title="📋 All Stock Ideas", actionable_only=True):
     left, mid, right = st.columns(3)
 
     with left:
-        min_score = st.slider("Minimum score", 0, 100, 45 if actionable_only else 0)
+        min_score = st.slider("Minimum score", 0, 100, 45 if actionable_only else 0, key=f"{key_prefix}_min_score")
 
     with mid:
-        max_price = st.number_input("Max price", min_value=0.0, value=0.0, step=5.0, help="Use 0 for no max price.")
+        max_price = st.number_input("Max price", min_value=0.0, value=0.0, step=5.0, help="Use 0 for no max price.", key=f"{key_prefix}_max_price")
 
     with right:
-        search = st.text_input("Search ticker/company").strip().upper()
+        search = st.text_input("Search ticker/company", key=f"{key_prefix}_search").strip().upper()
 
     filtered = df.copy()
     filtered = filtered[filtered["Final Conviction"].fillna(0) >= min_score]
@@ -628,12 +662,12 @@ def render_main_table(df, title="📋 All Stock Ideas", actionable_only=True):
             with c1:
                 st.write(f"**{ticker}** — {name}")
             with c2:
-                if st.button("Details", key=f"detail_{ticker}"):
+                if st.button("Details", key=f"{key_prefix}_detail_{ticker}"):
                     st.session_state.selected_ticker = ticker
                     st.session_state.page = "Detail View"
                     st.rerun()
             with c3:
-                if st.button("Add Watch", key=f"watch_{ticker}"):
+                if st.button("Add Watch", key=f"{key_prefix}_watch_{ticker}"):
                     wl = load_watchlist()
                     wl.append(ticker)
                     save_watchlist(wl)
@@ -689,7 +723,7 @@ def render_watchlist(df):
             st.info("These tickers are saved, but they did not appear in the latest actionable scan yet.")
         else:
             render_idea_cards(watch_df, "Watchlist AI Guidance", limit=5, key_prefix="watchlist")
-            render_main_table(watch_df, title="Watchlist Analysis", actionable_only=False)
+            render_main_table(watch_df, title="Watchlist Analysis", actionable_only=False, key_prefix="watchlist_table")
 
     with st.expander("Remove tickers"):
         for ticker in wl:
@@ -742,11 +776,16 @@ def render_detail(df):
 
     st.write("### AI Agent Team Scores")
     a1, a2, a3, a4, a5 = st.columns(5)
-    a1.metric("Technical", row.get("Technical Agent", "N/A"))
-    a2.metric("Fundamentals", row.get("Fundamentals Agent", "N/A"))
-    a3.metric("Valuation", row.get("Valuation Agent", "N/A"))
-    a4.metric("Risk", row.get("Risk Agent", "N/A"))
-    a5.metric("Catalyst", row.get("Catalyst Agent", "N/A"))
+    with a1:
+        agent_metric("Technical", row.get("Technical Agent", "N/A"))
+    with a2:
+        agent_metric("Fundamentals", row.get("Fundamentals Agent", "N/A"))
+    with a3:
+        agent_metric("Valuation", row.get("Valuation Agent", "N/A"))
+    with a4:
+        agent_metric("Risk", row.get("Risk Agent", "N/A"))
+    with a5:
+        agent_metric("Catalyst", row.get("Catalyst Agent", "N/A"))
 
     st.write("### Trade Plan")
     st.write(row.get("Trade Plan") or "No detailed trade plan available.")
