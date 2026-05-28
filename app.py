@@ -6,7 +6,7 @@ from datetime import datetime
 import pandas as pd
 import streamlit as st
 
-APP_VERSION = "V39.12 Widget Keys + Agent Help"
+APP_VERSION = "V39.13 Stable Agent Help Dashboard"
 
 st.set_page_config(
     page_title=f"AI Trading Dashboard {APP_VERSION}",
@@ -389,34 +389,8 @@ def agent_help_text(agent_name):
 
 
 def agent_metric(label, value):
-    st.markdown(
-        f"""
-        <div title="{agent_help_text(label)}" style="
-            border:1px solid rgba(128,128,128,0.25);
-            border-radius:10px;
-            padding:10px;
-            min-height:72px;
-            cursor:help;
-        ">
-            <div style="font-size:12px;color:#6b7280;">{label} ⓘ</div>
-            <div style="font-size:24px;font-weight:700;">{value}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-def price_bucket_label(price):
-    try:
-        p = float(price)
-        if 5 <= p <= 25:
-            return "Lower Price"
-        if 25 < p <= 100:
-            return "Mid Price"
-        if p > 100:
-            return "Higher Price"
-    except Exception:
-        pass
-    return "Unknown"
+    # Stable Streamlit-native metric. Explanations live in the expander below.
+    st.metric(label, value)
 
 
 def diversify_for_cards(df, limit=6):
@@ -523,6 +497,27 @@ def make_category_tabs(scan_df):
             "Complete actionable scan sorted by AI conviction and liquidity after exclusions, watchlist scoring, and multi-agent review."
         )
         render_main_table(scan_df, "Full Ranked AI Scan", actionable_only=True, key_prefix="full_ranked_table")
+
+
+
+def render_agent_score_explainer():
+    with st.expander("What do the AI agent scores mean?", expanded=False):
+        st.markdown("""
+        **Technical** — Reviews price trend, moving averages, RSI, momentum, volume confirmation, and volatility.  
+        Higher score means the stock is acting strong technically right now.
+
+        **Fundamentals** — Reviews revenue growth, earnings growth, margins, cash flow, cash, debt, and balance-sheet quality.  
+        Higher score means the underlying business looks financially stronger.
+
+        **Valuation** — Reviews P/E, forward P/E, PEG, price-to-sales, price-to-book, and analyst target upside.  
+        Higher score means the stock looks more reasonably priced relative to quality and growth.
+
+        **Risk** — Reviews liquidity, market cap, volatility, large one-day moves, overbought conditions, and debt/cash risk.  
+        Higher score means the setup has fewer obvious risk flags.
+
+        **Catalyst** — Reviews earnings timing, recovery/reversal setup, analyst target upside, and event-driven potential.  
+        Higher score means there may be a clearer reason the stock could move.
+        """)
 
 
 # ============================================================
@@ -773,6 +768,8 @@ def render_detail(df):
 
     st.write("### What Could Go Wrong")
     st.warning(row.get("What Could Go Wrong", "Market weakness or failed follow-through."))
+
+    render_agent_score_explainer()
 
     st.write("### AI Agent Team Scores")
     a1, a2, a3, a4, a5 = st.columns(5)
