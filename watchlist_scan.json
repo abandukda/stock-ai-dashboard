@@ -76,7 +76,7 @@
     "risk_tags": [
       "Volume confirmation is light"
     ],
-    "scan_time": "2026-05-29T05:01:19.828728+00:00",
+    "scan_time": "2026-05-29T06:35:39.192692+00:00",
     "why_ranked_high": "The AI agent team ranks this as Watchlist Only. Technical score 87/100, fundamentals score 0/100, valuation score 50/100, risk score 88/100, and catalyst score 50/100. Monitor only. Do not force a trade unless setup improves.",
     "what_looks_good": "price is above the 20-day trend; price is above the 50-day trend; 20-day average is above the 50-day average; healthy 5-day momentum of 5.95%; positive 20-day momentum of 18.59%; RSI is constructive at 61.2, not overheated; very strong dollar volume; volatility is tradable at 3.81% ATR",
     "what_could_go_wrong": "volume confirmation is light; valuation data is limited, so this agent cannot strongly confirm value; no clear catalyst detected from available data",
@@ -239,7 +239,7 @@
       "Positive 20-day momentum"
     ],
     "risk_tags": [],
-    "scan_time": "2026-05-29T04:55:24.538944+00:00",
+    "scan_time": "2026-05-29T06:30:49.885077+00:00",
     "why_ranked_high": "The AI agent team ranks this as Elite Candidate. Technical score 100/100, fundamentals score 76/100, valuation score 68/100, risk score 96/100, and catalyst score 50/100. High-priority research candidate. Still wait for clean entry and validate news/earnings.",
     "what_looks_good": "price is above the 20-day trend; price is above the 50-day trend; 20-day average is above the 50-day average; 50-day trend is stronger than the 100-day trend; healthy 5-day momentum of 3.39%; positive 20-day momentum of 4.17%; strong revenue growth at 16.6%; earnings growth is positive at 74.8%",
     "what_could_go_wrong": "earnings can create gap risk; avoid oversized positions before the report",
@@ -336,7 +336,7 @@
     "action_note": "This is research guidance only, not a buy/sell order. Validate current news, earnings date, and market conditions before investing.",
     "summary": "Amazon.com, Inc. (AMZN) is classified as AI Momentum Leader with final AI agent score 83/100. The AI agent team ranks this as Elite Candidate. Technical score 100/100, fundamentals score 76/100, valuation score 68/100, risk score 96/100, and catalyst score 50/100. High-priority research candidate. Still wait for clean entry and validate news/earnings. It operates in Consumer Cyclical / Internet Retail. Current price is $274.0; RSI is 53.1; 5-day move is 3.39%, 20-day move is 4.17%, and 60-day move is 31.27%. Volume is 0.97x average. Preferred entry range: $270.82 - $275.59. Suggested stop loss: $265.11. First target: $356.2. Stretch target: $397.3. Risk/reward: 9.25x. Approximate first target offers about 9.2:1 reward-to-risk. Financial review: Cash: $143.1B. Debt: $235.5B. Free cash flow: $9.8B. Operating cash flow: $148.5B. P/E: 31.639723. Forward P/E: 27.790766. Revenue growth: 16.6%. Profit margin: 12.2%. Best supporting evidence: price is above the 20-day trend; price is above the 50-day trend; 20-day average is above the 50-day average; 50-day trend is stronger than the 100-day trend; healthy 5-day momentum of 3.39%; positive 20-day momentum of 4.17%; strong revenue growth at 16.6%; earnings growth is positive at 74.8%. Main risks: earnings can create gap risk; avoid oversized positions before the report.",
     "ai_guidance": "Amazon.com, Inc. (AMZN) is classified as AI Momentum Leader with final AI agent score 83/100. The AI agent team ranks this as Elite Candidate. Technical score 100/100, fundamentals score 76/100, valuation score 68/100, risk score 96/100, and catalyst score 50/100. High-priority research candidate. Still wait for clean entry and validate news/earnings. It operates in Consumer Cyclical / Internet Retail. Current price is $274.0; RSI is 53.1; 5-day move is 3.39%, 20-day move is 4.17%, and 60-day move is 31.27%. Volume is 0.97x average. Preferred entry range: $270.82 - $275.59. Suggested stop loss: $265.11. First target: $356.2. Stretch target: $397.3. Risk/reward: 9.25x. Approximate first target offers about 9.2:1 reward-to-risk. Financial review: Cash: $143.1B. Debt: $235.5B. Free cash flow: $9.8B. Operating cash flow: $148.5B. P/E: 31.639723. Forward P/E: 27.790766. Revenue growth: 16.6%. Profit margin: 12.2%. Best supporting evidence: price is above the 20-day trend; price is above the 50-day trend; 20-day average is above the 50-day average; 50-day trend is stronger than the 100-day trend; healthy 5-day momentum of 3.39%; positive 20-day momentum of 4.17%; strong revenue growth at 16.6%; earnings growth is positive at 74.8%. Main risks: earnings can create gap risk; avoid oversized positions before the report.",
-    "top_ai_rank": 12,
+    "top_ai_rank": 10,
     "top_ai_bucket_note": "Higher Price bucket candidate"
   },
   {
@@ -416,7 +416,7 @@
     "risk_tags": [
       "RSI is overbought"
     ],
-    "scan_time": "2026-05-29T04:54:59.151487+00:00",
+    "scan_time": "2026-05-29T06:30:26.143844+00:00",
     "why_ranked_high": "The AI agent team ranks this as Strong Candidate. Technical score 76/100, fundamentals score 84/100, valuation score 38/100, risk score 88/100, and catalyst score 50/100. Good candidate for focused research. Watch entry range and stop discipline.",
     "what_looks_good": "price is above the 20-day trend; price is above the 50-day trend; 20-day average is above the 50-day average; 50-day trend is stronger than the 100-day trend; healthy 5-day momentum of 3.39%; positive 20-day momentum of 15.78%; strong revenue growth at 16.6%; earnings growth is positive at 21.8%",
     "what_could_go_wrong": "RSI is overbought at 88.2; price/book is elevated at 43.0; analyst mean target is below current price by 0.6%; overbought RSI raises pullback risk; earnings can create gap risk; avoid oversized positions before the report",
@@ -521,44 +521,44 @@
   {
     "symbol": "PLTR",
     "ticker": "PLTR",
-    "company": "Palantir Technologies Inc.",
-    "company_name": "Palantir Technologies Inc.",
-    "name": "Palantir Technologies Inc.",
-    "sector": "Technology",
-    "industry": "Software - Infrastructure",
-    "market_cap": 343630708736.0,
+    "company": "PLTR",
+    "company_name": "PLTR",
+    "name": "PLTR",
+    "sector": "Unknown",
+    "industry": "Unknown",
+    "market_cap": null,
     "quote_type": "EQUITY",
-    "pe_ratio": 149.3125,
-    "forward_pe": 69.10349,
-    "peg_ratio": 1.9,
-    "price_to_sales": 65.77704,
-    "price_to_book": 40.663826,
-    "profit_margin": 0.43673,
-    "gross_margin": 0.84073997,
-    "operating_margin": 0.46183997,
-    "revenue_growth": 0.847,
-    "earnings_growth": 3.25,
-    "total_cash": 8026413056.0,
-    "total_debt": 211976992.0,
-    "debt_to_equity": 2.477,
-    "free_cashflow": 1752997120.0,
-    "operating_cashflow": 2723375104.0,
-    "current_ratio": 6.907,
-    "recommendation": "buy",
-    "target_mean_price": 183.7289,
-    "target_high_price": 255.0,
-    "target_low_price": 70.0,
-    "earnings_date": "2026-08-03",
+    "pe_ratio": null,
+    "forward_pe": null,
+    "peg_ratio": null,
+    "price_to_sales": null,
+    "price_to_book": null,
+    "profit_margin": null,
+    "gross_margin": null,
+    "operating_margin": null,
+    "revenue_growth": null,
+    "earnings_growth": null,
+    "total_cash": null,
+    "total_debt": null,
+    "debt_to_equity": null,
+    "free_cashflow": null,
+    "operating_cashflow": null,
+    "current_ratio": null,
+    "recommendation": null,
+    "target_mean_price": null,
+    "target_high_price": null,
+    "target_low_price": null,
+    "earnings_date": null,
     "price": 143.34,
     "current_price": 143.34,
     "last_price": 143.34,
     "avg_volume_20d": 42055120,
     "dollar_volume": 6028180746.79,
     "volume_ratio": 1.23,
-    "conviction": 90,
-    "conviction_score": 90,
-    "score": 90,
-    "ai_score": 90,
+    "conviction": 82,
+    "conviction_score": 82,
+    "score": 82,
+    "ai_score": 82,
     "setup_type": "Quality Watchlist Setup",
     "bucket": "Quality Watchlist Setup",
     "price_bucket": "Higher Price",
@@ -593,17 +593,17 @@
       "RSI constructive, not overheated"
     ],
     "risk_tags": [],
-    "scan_time": "2026-05-29T05:00:43.987950+00:00",
-    "why_ranked_high": "The AI agent team ranks this as Strong Candidate. Technical score 80/100, fundamentals score 100/100, valuation score 36/100, risk score 96/100, and catalyst score 62/100. Good candidate for focused research. Watch entry range and stop discipline.",
-    "what_looks_good": "price is above the 20-day trend; price is above the 50-day trend; healthy 5-day momentum of 4.51%; positive 20-day momentum of 3.89%; RSI is constructive at 60.0, not overheated; ATR volatility is tradable at 3.71%; strong revenue growth at 84.7%; earnings growth is positive at 325.0%",
-    "what_could_go_wrong": "P/E is expensive at 149.3; price/sales is rich at 65.8; price/book is elevated at 40.7; earnings can create gap risk; avoid oversized positions before the report",
-    "guidance": "Palantir Technologies Inc. (PLTR) is classified as Quality Watchlist Setup with final AI agent score 79/100. The AI agent team ranks this as Strong Candidate. Technical score 80/100, fundamentals score 100/100, valuation score 36/100, risk score 96/100, and catalyst score 62/100. Good candidate for focused research. Watch entry range and stop discipline. It operates in Technology / Software - Infrastructure. Current price is $143.34; RSI is 60.0; 5-day move is 4.51%, 20-day move is 3.89%, and 60-day move is -2.64%. Volume is 1.23x average. Preferred entry range: $140.68 - $144.67. Suggested stop loss: $135.08. First target: $186.34. Stretch target: $207.84. Risk/reward: 5.2x. Approximate first target offers about 5.2:1 reward-to-risk. Financial review: Cash: $8.0B. Debt: $212.0M. Free cash flow: $1.8B. Operating cash flow: $2.7B. P/E: 149.3125. Forward P/E: 69.10349. Revenue growth: 84.7%. Profit margin: 43.7%. Best supporting evidence: price is above the 20-day trend; price is above the 50-day trend; healthy 5-day momentum of 4.51%; positive 20-day momentum of 3.89%; RSI is constructive at 60.0, not overheated; ATR volatility is tradable at 3.71%; strong revenue growth at 84.7%; earnings growth is positive at 325.0%. Main risks: P/E is expensive at 149.3; price/sales is rich at 65.8; price/book is elevated at 40.7; earnings can create gap risk; avoid oversized positions before the report.",
-    "ai_reasoning": "Palantir Technologies Inc. (PLTR) is classified as Quality Watchlist Setup with final AI agent score 79/100. The AI agent team ranks this as Strong Candidate. Technical score 80/100, fundamentals score 100/100, valuation score 36/100, risk score 96/100, and catalyst score 62/100. Good candidate for focused research. Watch entry range and stop discipline. It operates in Technology / Software - Infrastructure. Current price is $143.34; RSI is 60.0; 5-day move is 4.51%, 20-day move is 3.89%, and 60-day move is -2.64%. Volume is 1.23x average. Preferred entry range: $140.68 - $144.67. Suggested stop loss: $135.08. First target: $186.34. Stretch target: $207.84. Risk/reward: 5.2x. Approximate first target offers about 5.2:1 reward-to-risk. Financial review: Cash: $8.0B. Debt: $212.0M. Free cash flow: $1.8B. Operating cash flow: $2.7B. P/E: 149.3125. Forward P/E: 69.10349. Revenue growth: 84.7%. Profit margin: 43.7%. Best supporting evidence: price is above the 20-day trend; price is above the 50-day trend; healthy 5-day momentum of 4.51%; positive 20-day momentum of 3.89%; RSI is constructive at 60.0, not overheated; ATR volatility is tradable at 3.71%; strong revenue growth at 84.7%; earnings growth is positive at 325.0%. Main risks: P/E is expensive at 149.3; price/sales is rich at 65.8; price/book is elevated at 40.7; earnings can create gap risk; avoid oversized positions before the report.",
+    "scan_time": "2026-05-29T06:35:14.608915+00:00",
+    "why_ranked_high": "The AI agent team ranks this as Watchlist Only. Technical score 80/100, fundamentals score 0/100, valuation score 50/100, risk score 88/100, and catalyst score 50/100. Monitor only. Do not force a trade unless setup improves.",
+    "what_looks_good": "price is above the 20-day trend; price is above the 50-day trend; healthy 5-day momentum of 4.51%; positive 20-day momentum of 3.89%; RSI is constructive at 60.0, not overheated; ATR volatility is tradable at 3.71%; very strong dollar volume; volatility is tradable at 3.71% ATR",
+    "what_could_go_wrong": "valuation data is limited, so this agent cannot strongly confirm value; no clear catalyst detected from available data",
+    "guidance": "PLTR (PLTR) is classified as Quality Watchlist Setup with final AI agent score 55/100. The AI agent team ranks this as Watchlist Only. Technical score 80/100, fundamentals score 0/100, valuation score 50/100, risk score 88/100, and catalyst score 50/100. Monitor only. Do not force a trade unless setup improves. It operates in Unknown / Unknown. Current price is $143.34; RSI is 60.0; 5-day move is 4.51%, 20-day move is 3.89%, and 60-day move is -2.64%. Volume is 1.23x average. Preferred entry range: $140.68 - $144.67. Suggested stop loss: $135.08. First target: $186.34. Stretch target: $207.84. Risk/reward: 5.2x. Approximate first target offers about 5.2:1 reward-to-risk. Financial review: Cash: N/A. Debt: N/A. Free cash flow: N/A. Operating cash flow: N/A. P/E: N/A. Forward P/E: N/A. Revenue growth: N/A. Profit margin: N/A. Best supporting evidence: price is above the 20-day trend; price is above the 50-day trend; healthy 5-day momentum of 4.51%; positive 20-day momentum of 3.89%; RSI is constructive at 60.0, not overheated; ATR volatility is tradable at 3.71%; very strong dollar volume; volatility is tradable at 3.71% ATR. Main risks: valuation data is limited, so this agent cannot strongly confirm value; no clear catalyst detected from available data.",
+    "ai_reasoning": "PLTR (PLTR) is classified as Quality Watchlist Setup with final AI agent score 55/100. The AI agent team ranks this as Watchlist Only. Technical score 80/100, fundamentals score 0/100, valuation score 50/100, risk score 88/100, and catalyst score 50/100. Monitor only. Do not force a trade unless setup improves. It operates in Unknown / Unknown. Current price is $143.34; RSI is 60.0; 5-day move is 4.51%, 20-day move is 3.89%, and 60-day move is -2.64%. Volume is 1.23x average. Preferred entry range: $140.68 - $144.67. Suggested stop loss: $135.08. First target: $186.34. Stretch target: $207.84. Risk/reward: 5.2x. Approximate first target offers about 5.2:1 reward-to-risk. Financial review: Cash: N/A. Debt: N/A. Free cash flow: N/A. Operating cash flow: N/A. P/E: N/A. Forward P/E: N/A. Revenue growth: N/A. Profit margin: N/A. Best supporting evidence: price is above the 20-day trend; price is above the 50-day trend; healthy 5-day momentum of 4.51%; positive 20-day momentum of 3.89%; RSI is constructive at 60.0, not overheated; ATR volatility is tradable at 3.71%; very strong dollar volume; volatility is tradable at 3.71% ATR. Main risks: valuation data is limited, so this agent cannot strongly confirm value; no clear catalyst detected from available data.",
     "trade_plan": "Preferred entry range: $140.68 - $144.67. Suggested stop loss: $135.08. First target: $186.34. Stretch target: $207.84. Risk/reward: 5.2x. Approximate first target offers about 5.2:1 reward-to-risk.",
-    "financial_summary": "Cash: $8.0B. Debt: $212.0M. Free cash flow: $1.8B. Operating cash flow: $2.7B. P/E: 149.3125. Forward P/E: 69.10349. Revenue growth: 84.7%. Profit margin: 43.7%.",
-    "financial_safety": "Strong Candidate",
-    "financial_score": 100,
-    "recovery_catalyst": "earnings date available: 2026-08-03 analyst recommendation signal: buy analyst target implies 28.2% potential upside earnings can create gap risk; avoid oversized positions before the report",
+    "financial_summary": "Cash: N/A. Debt: N/A. Free cash flow: N/A. Operating cash flow: N/A. P/E: N/A. Forward P/E: N/A. Revenue growth: N/A. Profit margin: N/A.",
+    "financial_safety": "Watchlist Only",
+    "financial_score": 0,
+    "recovery_catalyst": "no clear catalyst detected from available data",
     "agent_team": {
       "agents": {
         "technical": {
@@ -622,36 +622,24 @@
         },
         "fundamentals": {
           "name": "Fundamentals Quality Agent",
-          "score": 100,
-          "positives": [
-            "strong revenue growth at 84.7%",
-            "earnings growth is positive at 325.0%",
-            "healthy profit margin at 43.7%",
-            "strong gross margin at 84.1%",
-            "positive free cash flow of $1.8B",
-            "positive operating cash flow of $2.7B"
-          ],
+          "score": 0,
+          "positives": [],
           "risks": [],
           "summary": "Reviews growth, profitability, cash flow, cash balance, debt, and balance-sheet quality."
         },
         "valuation": {
           "name": "Valuation Agent",
-          "score": 36,
-          "positives": [
-            "analyst mean target implies 28.2% upside"
-          ],
+          "score": 50,
+          "positives": [],
           "risks": [
-            "P/E is expensive at 149.3",
-            "price/sales is rich at 65.8",
-            "price/book is elevated at 40.7"
+            "valuation data is limited, so this agent cannot strongly confirm value"
           ],
           "summary": "Reviews P/E, forward P/E, PEG, sales/book valuation, and analyst target upside."
         },
         "risk": {
           "name": "Risk Management Agent",
-          "score": 96,
+          "score": 88,
           "positives": [
-            "large-cap liquidity reduces execution risk",
             "very strong dollar volume",
             "volatility is tradable at 3.71% ATR"
           ],
@@ -660,21 +648,17 @@
         },
         "catalyst": {
           "name": "Catalyst & Earnings Agent",
-          "score": 62,
-          "positives": [
-            "earnings date available: 2026-08-03",
-            "analyst recommendation signal: buy",
-            "analyst target implies 28.2% potential upside"
-          ],
+          "score": 50,
+          "positives": [],
           "risks": [
-            "earnings can create gap risk; avoid oversized positions before the report"
+            "no clear catalyst detected from available data"
           ],
           "summary": "Reviews earnings timing, analyst target upside, recovery context, and catalyst/risk events."
         }
       },
-      "final_agent_score": 79,
-      "decision_rating": "Strong Candidate",
-      "decision_action": "Good candidate for focused research. Watch entry range and stop discipline.",
+      "final_agent_score": 55,
+      "decision_rating": "Watchlist Only",
+      "decision_action": "Monitor only. Do not force a trade unless setup improves.",
       "agent_weights": {
         "technical": 0.32,
         "fundamentals": 0.22,
@@ -684,16 +668,16 @@
       }
     },
     "technical_agent_score": 80,
-    "fundamentals_agent_score": 100,
-    "valuation_agent_score": 36,
-    "risk_agent_score": 96,
-    "catalyst_agent_score": 62,
-    "final_agent_score": 79,
-    "decision_rating": "Strong Candidate",
-    "decision_action": "Good candidate for focused research. Watch entry range and stop discipline.",
+    "fundamentals_agent_score": 0,
+    "valuation_agent_score": 50,
+    "risk_agent_score": 88,
+    "catalyst_agent_score": 50,
+    "final_agent_score": 55,
+    "decision_rating": "Watchlist Only",
+    "decision_action": "Monitor only. Do not force a trade unless setup improves.",
     "action_note": "This is research guidance only, not a buy/sell order. Validate current news, earnings date, and market conditions before investing.",
-    "summary": "Palantir Technologies Inc. (PLTR) is classified as Quality Watchlist Setup with final AI agent score 79/100. The AI agent team ranks this as Strong Candidate. Technical score 80/100, fundamentals score 100/100, valuation score 36/100, risk score 96/100, and catalyst score 62/100. Good candidate for focused research. Watch entry range and stop discipline. It operates in Technology / Software - Infrastructure. Current price is $143.34; RSI is 60.0; 5-day move is 4.51%, 20-day move is 3.89%, and 60-day move is -2.64%. Volume is 1.23x average. Preferred entry range: $140.68 - $144.67. Suggested stop loss: $135.08. First target: $186.34. Stretch target: $207.84. Risk/reward: 5.2x. Approximate first target offers about 5.2:1 reward-to-risk. Financial review: Cash: $8.0B. Debt: $212.0M. Free cash flow: $1.8B. Operating cash flow: $2.7B. P/E: 149.3125. Forward P/E: 69.10349. Revenue growth: 84.7%. Profit margin: 43.7%. Best supporting evidence: price is above the 20-day trend; price is above the 50-day trend; healthy 5-day momentum of 4.51%; positive 20-day momentum of 3.89%; RSI is constructive at 60.0, not overheated; ATR volatility is tradable at 3.71%; strong revenue growth at 84.7%; earnings growth is positive at 325.0%. Main risks: P/E is expensive at 149.3; price/sales is rich at 65.8; price/book is elevated at 40.7; earnings can create gap risk; avoid oversized positions before the report.",
-    "ai_guidance": "Palantir Technologies Inc. (PLTR) is classified as Quality Watchlist Setup with final AI agent score 79/100. The AI agent team ranks this as Strong Candidate. Technical score 80/100, fundamentals score 100/100, valuation score 36/100, risk score 96/100, and catalyst score 62/100. Good candidate for focused research. Watch entry range and stop discipline. It operates in Technology / Software - Infrastructure. Current price is $143.34; RSI is 60.0; 5-day move is 4.51%, 20-day move is 3.89%, and 60-day move is -2.64%. Volume is 1.23x average. Preferred entry range: $140.68 - $144.67. Suggested stop loss: $135.08. First target: $186.34. Stretch target: $207.84. Risk/reward: 5.2x. Approximate first target offers about 5.2:1 reward-to-risk. Financial review: Cash: $8.0B. Debt: $212.0M. Free cash flow: $1.8B. Operating cash flow: $2.7B. P/E: 149.3125. Forward P/E: 69.10349. Revenue growth: 84.7%. Profit margin: 43.7%. Best supporting evidence: price is above the 20-day trend; price is above the 50-day trend; healthy 5-day momentum of 4.51%; positive 20-day momentum of 3.89%; RSI is constructive at 60.0, not overheated; ATR volatility is tradable at 3.71%; strong revenue growth at 84.7%; earnings growth is positive at 325.0%. Main risks: P/E is expensive at 149.3; price/sales is rich at 65.8; price/book is elevated at 40.7; earnings can create gap risk; avoid oversized positions before the report."
+    "summary": "PLTR (PLTR) is classified as Quality Watchlist Setup with final AI agent score 55/100. The AI agent team ranks this as Watchlist Only. Technical score 80/100, fundamentals score 0/100, valuation score 50/100, risk score 88/100, and catalyst score 50/100. Monitor only. Do not force a trade unless setup improves. It operates in Unknown / Unknown. Current price is $143.34; RSI is 60.0; 5-day move is 4.51%, 20-day move is 3.89%, and 60-day move is -2.64%. Volume is 1.23x average. Preferred entry range: $140.68 - $144.67. Suggested stop loss: $135.08. First target: $186.34. Stretch target: $207.84. Risk/reward: 5.2x. Approximate first target offers about 5.2:1 reward-to-risk. Financial review: Cash: N/A. Debt: N/A. Free cash flow: N/A. Operating cash flow: N/A. P/E: N/A. Forward P/E: N/A. Revenue growth: N/A. Profit margin: N/A. Best supporting evidence: price is above the 20-day trend; price is above the 50-day trend; healthy 5-day momentum of 4.51%; positive 20-day momentum of 3.89%; RSI is constructive at 60.0, not overheated; ATR volatility is tradable at 3.71%; very strong dollar volume; volatility is tradable at 3.71% ATR. Main risks: valuation data is limited, so this agent cannot strongly confirm value; no clear catalyst detected from available data.",
+    "ai_guidance": "PLTR (PLTR) is classified as Quality Watchlist Setup with final AI agent score 55/100. The AI agent team ranks this as Watchlist Only. Technical score 80/100, fundamentals score 0/100, valuation score 50/100, risk score 88/100, and catalyst score 50/100. Monitor only. Do not force a trade unless setup improves. It operates in Unknown / Unknown. Current price is $143.34; RSI is 60.0; 5-day move is 4.51%, 20-day move is 3.89%, and 60-day move is -2.64%. Volume is 1.23x average. Preferred entry range: $140.68 - $144.67. Suggested stop loss: $135.08. First target: $186.34. Stretch target: $207.84. Risk/reward: 5.2x. Approximate first target offers about 5.2:1 reward-to-risk. Financial review: Cash: N/A. Debt: N/A. Free cash flow: N/A. Operating cash flow: N/A. P/E: N/A. Forward P/E: N/A. Revenue growth: N/A. Profit margin: N/A. Best supporting evidence: price is above the 20-day trend; price is above the 50-day trend; healthy 5-day momentum of 4.51%; positive 20-day momentum of 3.89%; RSI is constructive at 60.0, not overheated; ATR volatility is tradable at 3.71%; very strong dollar volume; volatility is tradable at 3.71% ATR. Main risks: valuation data is limited, so this agent cannot strongly confirm value; no clear catalyst detected from available data."
   },
   {
     "symbol": "SOFI",
@@ -770,7 +754,7 @@
       "RSI constructive, not overheated"
     ],
     "risk_tags": [],
-    "scan_time": "2026-05-29T05:01:06.372551+00:00",
+    "scan_time": "2026-05-29T06:35:27.668125+00:00",
     "why_ranked_high": "The AI agent team ranks this as Watchlist Only. Technical score 80/100, fundamentals score 0/100, valuation score 50/100, risk score 88/100, and catalyst score 60/100. Monitor only. Do not force a trade unless setup improves.",
     "what_looks_good": "price is above the 20-day trend; price is above the 50-day trend; healthy 5-day momentum of 8.16%; positive 20-day momentum of 9.31%; RSI is constructive at 59.2, not overheated; ATR volatility is tradable at 4.55%; very strong dollar volume; volatility is tradable at 4.55% ATR",
     "what_could_go_wrong": "valuation data is limited, so this agent cannot strongly confirm value",
@@ -932,7 +916,7 @@
       "Near recent highs without being fully extended"
     ],
     "risk_tags": [],
-    "scan_time": "2026-05-29T04:59:35.629959+00:00",
+    "scan_time": "2026-05-29T06:34:46.541473+00:00",
     "why_ranked_high": "The AI agent team ranks this as Strong Candidate. Technical score 66/100, fundamentals score 90/100, valuation score 90/100, risk score 96/100, and catalyst score 62/100. Good candidate for focused research. Watch entry range and stop discipline.",
     "what_looks_good": "price is above the 20-day trend; price is above the 50-day trend; healthy 5-day momentum of 5.0%; RSI is constructive at 60.7, not overheated; ATR volatility is tradable at 2.11%; strong revenue growth at 33.1%; earnings growth is positive at 62.4%; healthy profit margin at 32.8%",
     "what_could_go_wrong": "earnings can create gap risk; avoid oversized positions before the report",
@@ -1035,44 +1019,44 @@
   {
     "symbol": "NVDA",
     "ticker": "NVDA",
-    "company": "NVIDIA Corporation",
-    "company_name": "NVIDIA Corporation",
-    "name": "NVIDIA Corporation",
-    "sector": "Technology",
-    "industry": "Semiconductors",
-    "market_cap": 5189349146624.0,
+    "company": "NVDA",
+    "company_name": "NVDA",
+    "name": "NVDA",
+    "sector": "Unknown",
+    "industry": "Unknown",
+    "market_cap": null,
     "quote_type": "EQUITY",
-    "pe_ratio": 32.810104,
-    "forward_pe": 16.926723,
-    "peg_ratio": 0.66,
-    "price_to_sales": 20.47153,
-    "price_to_book": 33.10414,
-    "profit_margin": 0.62966,
-    "gross_margin": 0.74144995,
-    "operating_margin": 0.65596,
-    "revenue_growth": 0.852,
-    "earnings_growth": 2.145,
-    "total_cash": 53171998720.0,
-    "total_debt": 12814000128.0,
-    "debt_to_equity": 6.555,
-    "free_cashflow": 46335873024.0,
-    "operating_cashflow": 125648003072.0,
-    "current_ratio": 3.441,
-    "recommendation": "strong_buy",
-    "target_mean_price": 296.81033,
-    "target_high_price": 500.0,
-    "target_low_price": 180.0,
-    "earnings_date": "2026-08-26",
+    "pe_ratio": null,
+    "forward_pe": null,
+    "peg_ratio": null,
+    "price_to_sales": null,
+    "price_to_book": null,
+    "profit_margin": null,
+    "gross_margin": null,
+    "operating_margin": null,
+    "revenue_growth": null,
+    "earnings_growth": null,
+    "total_cash": null,
+    "total_debt": null,
+    "debt_to_equity": null,
+    "free_cashflow": null,
+    "operating_cashflow": null,
+    "current_ratio": null,
+    "recommendation": null,
+    "target_mean_price": null,
+    "target_high_price": null,
+    "target_low_price": null,
+    "earnings_date": null,
     "price": 214.25,
     "current_price": 214.25,
     "last_price": 214.25,
     "avg_volume_20d": 163005840,
     "dollar_volume": 34924001220.0,
     "volume_ratio": 0.88,
-    "conviction": 72,
-    "conviction_score": 72,
-    "score": 72,
-    "ai_score": 72,
+    "conviction": 64,
+    "conviction_score": 64,
+    "score": 64,
+    "ai_score": 64,
     "setup_type": "Quality Watchlist Setup",
     "bucket": "Quality Watchlist Setup",
     "price_bucket": "Higher Price",
@@ -1110,17 +1094,17 @@
       "Price is below the 20-day trend",
       "Recent momentum is weak"
     ],
-    "scan_time": "2026-05-29T05:00:08.182068+00:00",
-    "why_ranked_high": "The AI agent team ranks this as Strong Candidate. Technical score 64/100, fundamentals score 100/100, valuation score 66/100, risk score 96/100, and catalyst score 62/100. Good candidate for focused research. Watch entry range and stop discipline.",
-    "what_looks_good": "price is above the 50-day trend; 20-day average is above the 50-day average; 50-day trend is stronger than the 100-day trend; positive 20-day momentum of 2.39%; RSI is constructive at 52.5, not overheated; ATR volatility is tradable at 3.63%; strong revenue growth at 85.2%; earnings growth is positive at 214.5%",
-    "what_could_go_wrong": "price is not clearly above the 20-day trend; weak 5-day momentum of -4.13%; price/sales is rich at 20.5; price/book is elevated at 33.1; earnings can create gap risk; avoid oversized positions before the report",
-    "guidance": "NVIDIA Corporation (NVDA) is classified as Quality Watchlist Setup with final AI agent score 78/100. The AI agent team ranks this as Strong Candidate. Technical score 64/100, fundamentals score 100/100, valuation score 66/100, risk score 96/100, and catalyst score 62/100. Good candidate for focused research. Watch entry range and stop discipline. It operates in Technology / Semiconductors. Current price is $214.25; RSI is 52.5; 5-day move is -4.13%, 20-day move is 2.39%, and 60-day move is 19.0%. Volume is 0.88x average. Preferred entry range: $210.36 - $216.19. Suggested stop loss: $203.36. First target: $278.53. Stretch target: $310.66. Risk/reward: 5.9x. Approximate first target offers about 5.9:1 reward-to-risk. Financial review: Cash: $53.2B. Debt: $12.8B. Free cash flow: $46.3B. Operating cash flow: $125.6B. P/E: 32.810104. Forward P/E: 16.926723. Revenue growth: 85.2%. Profit margin: 63.0%. Best supporting evidence: price is above the 50-day trend; 20-day average is above the 50-day average; 50-day trend is stronger than the 100-day trend; positive 20-day momentum of 2.39%; RSI is constructive at 52.5, not overheated; ATR volatility is tradable at 3.63%; strong revenue growth at 85.2%; earnings growth is positive at 214.5%. Main risks: price is not clearly above the 20-day trend; weak 5-day momentum of -4.13%; price/sales is rich at 20.5; price/book is elevated at 33.1; earnings can create gap risk; avoid oversized positions before the report.",
-    "ai_reasoning": "NVIDIA Corporation (NVDA) is classified as Quality Watchlist Setup with final AI agent score 78/100. The AI agent team ranks this as Strong Candidate. Technical score 64/100, fundamentals score 100/100, valuation score 66/100, risk score 96/100, and catalyst score 62/100. Good candidate for focused research. Watch entry range and stop discipline. It operates in Technology / Semiconductors. Current price is $214.25; RSI is 52.5; 5-day move is -4.13%, 20-day move is 2.39%, and 60-day move is 19.0%. Volume is 0.88x average. Preferred entry range: $210.36 - $216.19. Suggested stop loss: $203.36. First target: $278.53. Stretch target: $310.66. Risk/reward: 5.9x. Approximate first target offers about 5.9:1 reward-to-risk. Financial review: Cash: $53.2B. Debt: $12.8B. Free cash flow: $46.3B. Operating cash flow: $125.6B. P/E: 32.810104. Forward P/E: 16.926723. Revenue growth: 85.2%. Profit margin: 63.0%. Best supporting evidence: price is above the 50-day trend; 20-day average is above the 50-day average; 50-day trend is stronger than the 100-day trend; positive 20-day momentum of 2.39%; RSI is constructive at 52.5, not overheated; ATR volatility is tradable at 3.63%; strong revenue growth at 85.2%; earnings growth is positive at 214.5%. Main risks: price is not clearly above the 20-day trend; weak 5-day momentum of -4.13%; price/sales is rich at 20.5; price/book is elevated at 33.1; earnings can create gap risk; avoid oversized positions before the report.",
+    "scan_time": "2026-05-29T06:35:03.399197+00:00",
+    "why_ranked_high": "The AI agent team ranks this as Watchlist Only. Technical score 64/100, fundamentals score 0/100, valuation score 50/100, risk score 88/100, and catalyst score 50/100. Monitor only. Do not force a trade unless setup improves.",
+    "what_looks_good": "price is above the 50-day trend; 20-day average is above the 50-day average; 50-day trend is stronger than the 100-day trend; positive 20-day momentum of 2.39%; RSI is constructive at 52.5, not overheated; ATR volatility is tradable at 3.63%; very strong dollar volume; volatility is tradable at 3.63% ATR",
+    "what_could_go_wrong": "price is not clearly above the 20-day trend; weak 5-day momentum of -4.13%; valuation data is limited, so this agent cannot strongly confirm value; no clear catalyst detected from available data",
+    "guidance": "NVDA (NVDA) is classified as Quality Watchlist Setup with final AI agent score 50/100. The AI agent team ranks this as Watchlist Only. Technical score 64/100, fundamentals score 0/100, valuation score 50/100, risk score 88/100, and catalyst score 50/100. Monitor only. Do not force a trade unless setup improves. It operates in Unknown / Unknown. Current price is $214.25; RSI is 52.5; 5-day move is -4.13%, 20-day move is 2.39%, and 60-day move is 19.0%. Volume is 0.88x average. Preferred entry range: $210.36 - $216.19. Suggested stop loss: $203.36. First target: $278.53. Stretch target: $310.66. Risk/reward: 5.9x. Approximate first target offers about 5.9:1 reward-to-risk. Financial review: Cash: N/A. Debt: N/A. Free cash flow: N/A. Operating cash flow: N/A. P/E: N/A. Forward P/E: N/A. Revenue growth: N/A. Profit margin: N/A. Best supporting evidence: price is above the 50-day trend; 20-day average is above the 50-day average; 50-day trend is stronger than the 100-day trend; positive 20-day momentum of 2.39%; RSI is constructive at 52.5, not overheated; ATR volatility is tradable at 3.63%; very strong dollar volume; volatility is tradable at 3.63% ATR. Main risks: price is not clearly above the 20-day trend; weak 5-day momentum of -4.13%; valuation data is limited, so this agent cannot strongly confirm value; no clear catalyst detected from available data.",
+    "ai_reasoning": "NVDA (NVDA) is classified as Quality Watchlist Setup with final AI agent score 50/100. The AI agent team ranks this as Watchlist Only. Technical score 64/100, fundamentals score 0/100, valuation score 50/100, risk score 88/100, and catalyst score 50/100. Monitor only. Do not force a trade unless setup improves. It operates in Unknown / Unknown. Current price is $214.25; RSI is 52.5; 5-day move is -4.13%, 20-day move is 2.39%, and 60-day move is 19.0%. Volume is 0.88x average. Preferred entry range: $210.36 - $216.19. Suggested stop loss: $203.36. First target: $278.53. Stretch target: $310.66. Risk/reward: 5.9x. Approximate first target offers about 5.9:1 reward-to-risk. Financial review: Cash: N/A. Debt: N/A. Free cash flow: N/A. Operating cash flow: N/A. P/E: N/A. Forward P/E: N/A. Revenue growth: N/A. Profit margin: N/A. Best supporting evidence: price is above the 50-day trend; 20-day average is above the 50-day average; 50-day trend is stronger than the 100-day trend; positive 20-day momentum of 2.39%; RSI is constructive at 52.5, not overheated; ATR volatility is tradable at 3.63%; very strong dollar volume; volatility is tradable at 3.63% ATR. Main risks: price is not clearly above the 20-day trend; weak 5-day momentum of -4.13%; valuation data is limited, so this agent cannot strongly confirm value; no clear catalyst detected from available data.",
     "trade_plan": "Preferred entry range: $210.36 - $216.19. Suggested stop loss: $203.36. First target: $278.53. Stretch target: $310.66. Risk/reward: 5.9x. Approximate first target offers about 5.9:1 reward-to-risk.",
-    "financial_summary": "Cash: $53.2B. Debt: $12.8B. Free cash flow: $46.3B. Operating cash flow: $125.6B. P/E: 32.810104. Forward P/E: 16.926723. Revenue growth: 85.2%. Profit margin: 63.0%.",
-    "financial_safety": "Strong Candidate",
-    "financial_score": 100,
-    "recovery_catalyst": "earnings date available: 2026-08-26 analyst recommendation signal: strong_buy analyst target implies 38.5% potential upside earnings can create gap risk; avoid oversized positions before the report",
+    "financial_summary": "Cash: N/A. Debt: N/A. Free cash flow: N/A. Operating cash flow: N/A. P/E: N/A. Forward P/E: N/A. Revenue growth: N/A. Profit margin: N/A.",
+    "financial_safety": "Watchlist Only",
+    "financial_score": 0,
+    "recovery_catalyst": "no clear catalyst detected from available data",
     "agent_team": {
       "agents": {
         "technical": {
@@ -1142,37 +1126,24 @@
         },
         "fundamentals": {
           "name": "Fundamentals Quality Agent",
-          "score": 100,
-          "positives": [
-            "strong revenue growth at 85.2%",
-            "earnings growth is positive at 214.5%",
-            "healthy profit margin at 63.0%",
-            "strong gross margin at 74.1%",
-            "positive free cash flow of $46.3B",
-            "positive operating cash flow of $125.6B"
-          ],
+          "score": 0,
+          "positives": [],
           "risks": [],
           "summary": "Reviews growth, profitability, cash flow, cash balance, debt, and balance-sheet quality."
         },
         "valuation": {
           "name": "Valuation Agent",
-          "score": 66,
-          "positives": [
-            "forward P/E is reasonable at 16.9",
-            "PEG is attractive at 0.66",
-            "analyst mean target implies 38.5% upside"
-          ],
+          "score": 50,
+          "positives": [],
           "risks": [
-            "price/sales is rich at 20.5",
-            "price/book is elevated at 33.1"
+            "valuation data is limited, so this agent cannot strongly confirm value"
           ],
           "summary": "Reviews P/E, forward P/E, PEG, sales/book valuation, and analyst target upside."
         },
         "risk": {
           "name": "Risk Management Agent",
-          "score": 96,
+          "score": 88,
           "positives": [
-            "large-cap liquidity reduces execution risk",
             "very strong dollar volume",
             "volatility is tradable at 3.63% ATR"
           ],
@@ -1181,199 +1152,17 @@
         },
         "catalyst": {
           "name": "Catalyst & Earnings Agent",
-          "score": 62,
-          "positives": [
-            "earnings date available: 2026-08-26",
-            "analyst recommendation signal: strong_buy",
-            "analyst target implies 38.5% potential upside"
-          ],
-          "risks": [
-            "earnings can create gap risk; avoid oversized positions before the report"
-          ],
-          "summary": "Reviews earnings timing, analyst target upside, recovery context, and catalyst/risk events."
-        }
-      },
-      "final_agent_score": 78,
-      "decision_rating": "Strong Candidate",
-      "decision_action": "Good candidate for focused research. Watch entry range and stop discipline.",
-      "agent_weights": {
-        "technical": 0.32,
-        "fundamentals": 0.22,
-        "valuation": 0.14,
-        "risk": 0.18,
-        "catalyst": 0.14
-      }
-    },
-    "technical_agent_score": 64,
-    "fundamentals_agent_score": 100,
-    "valuation_agent_score": 66,
-    "risk_agent_score": 96,
-    "catalyst_agent_score": 62,
-    "final_agent_score": 78,
-    "decision_rating": "Strong Candidate",
-    "decision_action": "Good candidate for focused research. Watch entry range and stop discipline.",
-    "action_note": "This is research guidance only, not a buy/sell order. Validate current news, earnings date, and market conditions before investing.",
-    "summary": "NVIDIA Corporation (NVDA) is classified as Quality Watchlist Setup with final AI agent score 78/100. The AI agent team ranks this as Strong Candidate. Technical score 64/100, fundamentals score 100/100, valuation score 66/100, risk score 96/100, and catalyst score 62/100. Good candidate for focused research. Watch entry range and stop discipline. It operates in Technology / Semiconductors. Current price is $214.25; RSI is 52.5; 5-day move is -4.13%, 20-day move is 2.39%, and 60-day move is 19.0%. Volume is 0.88x average. Preferred entry range: $210.36 - $216.19. Suggested stop loss: $203.36. First target: $278.53. Stretch target: $310.66. Risk/reward: 5.9x. Approximate first target offers about 5.9:1 reward-to-risk. Financial review: Cash: $53.2B. Debt: $12.8B. Free cash flow: $46.3B. Operating cash flow: $125.6B. P/E: 32.810104. Forward P/E: 16.926723. Revenue growth: 85.2%. Profit margin: 63.0%. Best supporting evidence: price is above the 50-day trend; 20-day average is above the 50-day average; 50-day trend is stronger than the 100-day trend; positive 20-day momentum of 2.39%; RSI is constructive at 52.5, not overheated; ATR volatility is tradable at 3.63%; strong revenue growth at 85.2%; earnings growth is positive at 214.5%. Main risks: price is not clearly above the 20-day trend; weak 5-day momentum of -4.13%; price/sales is rich at 20.5; price/book is elevated at 33.1; earnings can create gap risk; avoid oversized positions before the report.",
-    "ai_guidance": "NVIDIA Corporation (NVDA) is classified as Quality Watchlist Setup with final AI agent score 78/100. The AI agent team ranks this as Strong Candidate. Technical score 64/100, fundamentals score 100/100, valuation score 66/100, risk score 96/100, and catalyst score 62/100. Good candidate for focused research. Watch entry range and stop discipline. It operates in Technology / Semiconductors. Current price is $214.25; RSI is 52.5; 5-day move is -4.13%, 20-day move is 2.39%, and 60-day move is 19.0%. Volume is 0.88x average. Preferred entry range: $210.36 - $216.19. Suggested stop loss: $203.36. First target: $278.53. Stretch target: $310.66. Risk/reward: 5.9x. Approximate first target offers about 5.9:1 reward-to-risk. Financial review: Cash: $53.2B. Debt: $12.8B. Free cash flow: $46.3B. Operating cash flow: $125.6B. P/E: 32.810104. Forward P/E: 16.926723. Revenue growth: 85.2%. Profit margin: 63.0%. Best supporting evidence: price is above the 50-day trend; 20-day average is above the 50-day average; 50-day trend is stronger than the 100-day trend; positive 20-day momentum of 2.39%; RSI is constructive at 52.5, not overheated; ATR volatility is tradable at 3.63%; strong revenue growth at 85.2%; earnings growth is positive at 214.5%. Main risks: price is not clearly above the 20-day trend; weak 5-day momentum of -4.13%; price/sales is rich at 20.5; price/book is elevated at 33.1; earnings can create gap risk; avoid oversized positions before the report."
-  },
-  {
-    "symbol": "AMD",
-    "ticker": "AMD",
-    "company": "Advanced Micro Devices, Inc.",
-    "company_name": "Advanced Micro Devices, Inc.",
-    "name": "Advanced Micro Devices, Inc.",
-    "sector": "Technology",
-    "industry": "Semiconductors",
-    "market_cap": 844797902848.0,
-    "quote_type": "EQUITY",
-    "pe_ratio": 172.69667,
-    "forward_pe": 39.9775,
-    "peg_ratio": 1.25,
-    "price_to_sales": 22.555613,
-    "price_to_book": 13.100615,
-    "profit_margin": 0.13374,
-    "gross_margin": 0.5306,
-    "operating_margin": 0.14396,
-    "revenue_growth": 0.378,
-    "earnings_growth": 0.912,
-    "total_cash": 12346999808.0,
-    "total_debt": 3871000064.0,
-    "debt_to_equity": 6.005,
-    "free_cashflow": 7173374976.0,
-    "operating_cashflow": 9724999680.0,
-    "current_ratio": 2.725,
-    "recommendation": "strong_buy",
-    "target_mean_price": 472.16666,
-    "target_high_price": 625.0,
-    "target_low_price": 225.0,
-    "earnings_date": "2026-08-04",
-    "price": 518.09,
-    "current_price": 518.09,
-    "last_price": 518.09,
-    "avg_volume_20d": 40351345,
-    "dollar_volume": 20905629414.7,
-    "volume_ratio": 0.78,
-    "conviction": 56,
-    "conviction_score": 56,
-    "score": 56,
-    "ai_score": 56,
-    "setup_type": "Quality Watchlist Setup",
-    "bucket": "Quality Watchlist Setup",
-    "price_bucket": "Higher Price",
-    "quality_bucket": "High Risk Watchlist",
-    "rsi": 74.4,
-    "atr14": 29.76,
-    "atr_pct": 5.74,
-    "sma10": 459.1,
-    "sma20": 432.02,
-    "sma50": 321.81,
-    "sma100": 268.52,
-    "one_day_pct": 4.55,
-    "five_day_pct": 15.75,
-    "twenty_day_pct": 53.69,
-    "sixty_day_pct": 171.32,
-    "entry_range": "$503.21 - $525.53",
-    "entry_low": 503.21,
-    "entry_high": 525.53,
-    "stop_loss": 421.6,
-    "target": 691.76,
-    "target_2": 778.6,
-    "risk_reward": 1.8,
-    "target_upside_pct": 33.52,
-    "minimum_upside_required_pct": 30.0,
-    "risk_reward_explanation": "Approximate first target offers about 1.8:1 reward-to-risk.",
-    "setup_tags": [
-      "Strong liquidity",
-      "Price is above the 20-day trend",
-      "Price is above the 50-day trend",
-      "Short-term trend is above intermediate trend",
-      "Near recent highs without being fully extended"
-    ],
-    "risk_tags": [
-      "20-day move is stretched",
-      "Longer move may be overextended",
-      "RSI is warm; avoid chasing"
-    ],
-    "scan_time": "2026-05-29T04:55:21.142319+00:00",
-    "why_ranked_high": "The AI agent team ranks this as Moderate Candidate. Technical score 64/100, fundamentals score 92/100, valuation score 26/100, risk score 88/100, and catalyst score 50/100. Interesting, but needs stronger confirmation or better risk/reward.",
-    "what_looks_good": "price is above the 20-day trend; price is above the 50-day trend; 20-day average is above the 50-day average; 50-day trend is stronger than the 100-day trend; ATR volatility is tradable at 5.74%; strong revenue growth at 37.8%; earnings growth is positive at 91.2%; profitable with 13.4% margin",
-    "what_could_go_wrong": "P/E is expensive at 172.7; price/sales is rich at 22.6; price/book is elevated at 13.1; analyst mean target is below current price by 8.9%; earnings can create gap risk; avoid oversized positions before the report",
-    "guidance": "Advanced Micro Devices, Inc. (AMD) is classified as Quality Watchlist Setup with final AI agent score 67/100. The AI agent team ranks this as Moderate Candidate. Technical score 64/100, fundamentals score 92/100, valuation score 26/100, risk score 88/100, and catalyst score 50/100. Interesting, but needs stronger confirmation or better risk/reward. It operates in Technology / Semiconductors. Current price is $518.09; RSI is 74.4; 5-day move is 15.75%, 20-day move is 53.69%, and 60-day move is 171.32%. Volume is 0.78x average. Preferred entry range: $503.21 - $525.53. Suggested stop loss: $421.6. First target: $691.76. Stretch target: $778.6. Risk/reward: 1.8x. Approximate first target offers about 1.8:1 reward-to-risk. Financial review: Cash: $12.3B. Debt: $3.9B. Free cash flow: $7.2B. Operating cash flow: $9.7B. P/E: 172.69667. Forward P/E: 39.9775. Revenue growth: 37.8%. Profit margin: 13.4%. Best supporting evidence: price is above the 20-day trend; price is above the 50-day trend; 20-day average is above the 50-day average; 50-day trend is stronger than the 100-day trend; ATR volatility is tradable at 5.74%; strong revenue growth at 37.8%; earnings growth is positive at 91.2%; profitable with 13.4% margin. Main risks: P/E is expensive at 172.7; price/sales is rich at 22.6; price/book is elevated at 13.1; analyst mean target is below current price by 8.9%; earnings can create gap risk; avoid oversized positions before the report.",
-    "ai_reasoning": "Advanced Micro Devices, Inc. (AMD) is classified as Quality Watchlist Setup with final AI agent score 67/100. The AI agent team ranks this as Moderate Candidate. Technical score 64/100, fundamentals score 92/100, valuation score 26/100, risk score 88/100, and catalyst score 50/100. Interesting, but needs stronger confirmation or better risk/reward. It operates in Technology / Semiconductors. Current price is $518.09; RSI is 74.4; 5-day move is 15.75%, 20-day move is 53.69%, and 60-day move is 171.32%. Volume is 0.78x average. Preferred entry range: $503.21 - $525.53. Suggested stop loss: $421.6. First target: $691.76. Stretch target: $778.6. Risk/reward: 1.8x. Approximate first target offers about 1.8:1 reward-to-risk. Financial review: Cash: $12.3B. Debt: $3.9B. Free cash flow: $7.2B. Operating cash flow: $9.7B. P/E: 172.69667. Forward P/E: 39.9775. Revenue growth: 37.8%. Profit margin: 13.4%. Best supporting evidence: price is above the 20-day trend; price is above the 50-day trend; 20-day average is above the 50-day average; 50-day trend is stronger than the 100-day trend; ATR volatility is tradable at 5.74%; strong revenue growth at 37.8%; earnings growth is positive at 91.2%; profitable with 13.4% margin. Main risks: P/E is expensive at 172.7; price/sales is rich at 22.6; price/book is elevated at 13.1; analyst mean target is below current price by 8.9%; earnings can create gap risk; avoid oversized positions before the report.",
-    "trade_plan": "Preferred entry range: $503.21 - $525.53. Suggested stop loss: $421.6. First target: $691.76. Stretch target: $778.6. Risk/reward: 1.8x. Approximate first target offers about 1.8:1 reward-to-risk.",
-    "financial_summary": "Cash: $12.3B. Debt: $3.9B. Free cash flow: $7.2B. Operating cash flow: $9.7B. P/E: 172.69667. Forward P/E: 39.9775. Revenue growth: 37.8%. Profit margin: 13.4%.",
-    "financial_safety": "Moderate Candidate",
-    "financial_score": 92,
-    "recovery_catalyst": "earnings date available: 2026-08-04 analyst recommendation signal: strong_buy earnings can create gap risk; avoid oversized positions before the report",
-    "agent_team": {
-      "agents": {
-        "technical": {
-          "name": "Technical Momentum Agent",
-          "score": 64,
-          "positives": [
-            "price is above the 20-day trend",
-            "price is above the 50-day trend",
-            "20-day average is above the 50-day average",
-            "50-day trend is stronger than the 100-day trend",
-            "ATR volatility is tradable at 5.74%"
-          ],
-          "risks": [],
-          "summary": "Reviews trend, momentum, RSI, volume confirmation, and volatility."
-        },
-        "fundamentals": {
-          "name": "Fundamentals Quality Agent",
-          "score": 92,
-          "positives": [
-            "strong revenue growth at 37.8%",
-            "earnings growth is positive at 91.2%",
-            "profitable with 13.4% margin",
-            "strong gross margin at 53.1%",
-            "positive free cash flow of $7.2B",
-            "positive operating cash flow of $9.7B"
-          ],
-          "risks": [],
-          "summary": "Reviews growth, profitability, cash flow, cash balance, debt, and balance-sheet quality."
-        },
-        "valuation": {
-          "name": "Valuation Agent",
-          "score": 26,
-          "positives": [
-            "PEG is attractive at 1.25"
-          ],
-          "risks": [
-            "P/E is expensive at 172.7",
-            "price/sales is rich at 22.6",
-            "price/book is elevated at 13.1",
-            "analyst mean target is below current price by 8.9%"
-          ],
-          "summary": "Reviews P/E, forward P/E, PEG, sales/book valuation, and analyst target upside."
-        },
-        "risk": {
-          "name": "Risk Management Agent",
-          "score": 88,
-          "positives": [
-            "large-cap liquidity reduces execution risk",
-            "very strong dollar volume"
-          ],
-          "risks": [],
-          "summary": "Reviews liquidity, market cap, volatility, debt/cash risk, and chasing risk."
-        },
-        "catalyst": {
-          "name": "Catalyst & Earnings Agent",
           "score": 50,
-          "positives": [
-            "earnings date available: 2026-08-04",
-            "analyst recommendation signal: strong_buy"
-          ],
+          "positives": [],
           "risks": [
-            "earnings can create gap risk; avoid oversized positions before the report"
+            "no clear catalyst detected from available data"
           ],
           "summary": "Reviews earnings timing, analyst target upside, recovery context, and catalyst/risk events."
         }
       },
-      "final_agent_score": 67,
-      "decision_rating": "Moderate Candidate",
-      "decision_action": "Interesting, but needs stronger confirmation or better risk/reward.",
+      "final_agent_score": 50,
+      "decision_rating": "Watchlist Only",
+      "decision_action": "Monitor only. Do not force a trade unless setup improves.",
       "agent_weights": {
         "technical": 0.32,
         "fundamentals": 0.22,
@@ -1383,15 +1172,15 @@
       }
     },
     "technical_agent_score": 64,
-    "fundamentals_agent_score": 92,
-    "valuation_agent_score": 26,
+    "fundamentals_agent_score": 0,
+    "valuation_agent_score": 50,
     "risk_agent_score": 88,
     "catalyst_agent_score": 50,
-    "final_agent_score": 67,
-    "decision_rating": "Moderate Candidate",
-    "decision_action": "Interesting, but needs stronger confirmation or better risk/reward.",
+    "final_agent_score": 50,
+    "decision_rating": "Watchlist Only",
+    "decision_action": "Monitor only. Do not force a trade unless setup improves.",
     "action_note": "This is research guidance only, not a buy/sell order. Validate current news, earnings date, and market conditions before investing.",
-    "summary": "Advanced Micro Devices, Inc. (AMD) is classified as Quality Watchlist Setup with final AI agent score 67/100. The AI agent team ranks this as Moderate Candidate. Technical score 64/100, fundamentals score 92/100, valuation score 26/100, risk score 88/100, and catalyst score 50/100. Interesting, but needs stronger confirmation or better risk/reward. It operates in Technology / Semiconductors. Current price is $518.09; RSI is 74.4; 5-day move is 15.75%, 20-day move is 53.69%, and 60-day move is 171.32%. Volume is 0.78x average. Preferred entry range: $503.21 - $525.53. Suggested stop loss: $421.6. First target: $691.76. Stretch target: $778.6. Risk/reward: 1.8x. Approximate first target offers about 1.8:1 reward-to-risk. Financial review: Cash: $12.3B. Debt: $3.9B. Free cash flow: $7.2B. Operating cash flow: $9.7B. P/E: 172.69667. Forward P/E: 39.9775. Revenue growth: 37.8%. Profit margin: 13.4%. Best supporting evidence: price is above the 20-day trend; price is above the 50-day trend; 20-day average is above the 50-day average; 50-day trend is stronger than the 100-day trend; ATR volatility is tradable at 5.74%; strong revenue growth at 37.8%; earnings growth is positive at 91.2%; profitable with 13.4% margin. Main risks: P/E is expensive at 172.7; price/sales is rich at 22.6; price/book is elevated at 13.1; analyst mean target is below current price by 8.9%; earnings can create gap risk; avoid oversized positions before the report.",
-    "ai_guidance": "Advanced Micro Devices, Inc. (AMD) is classified as Quality Watchlist Setup with final AI agent score 67/100. The AI agent team ranks this as Moderate Candidate. Technical score 64/100, fundamentals score 92/100, valuation score 26/100, risk score 88/100, and catalyst score 50/100. Interesting, but needs stronger confirmation or better risk/reward. It operates in Technology / Semiconductors. Current price is $518.09; RSI is 74.4; 5-day move is 15.75%, 20-day move is 53.69%, and 60-day move is 171.32%. Volume is 0.78x average. Preferred entry range: $503.21 - $525.53. Suggested stop loss: $421.6. First target: $691.76. Stretch target: $778.6. Risk/reward: 1.8x. Approximate first target offers about 1.8:1 reward-to-risk. Financial review: Cash: $12.3B. Debt: $3.9B. Free cash flow: $7.2B. Operating cash flow: $9.7B. P/E: 172.69667. Forward P/E: 39.9775. Revenue growth: 37.8%. Profit margin: 13.4%. Best supporting evidence: price is above the 20-day trend; price is above the 50-day trend; 20-day average is above the 50-day average; 50-day trend is stronger than the 100-day trend; ATR volatility is tradable at 5.74%; strong revenue growth at 37.8%; earnings growth is positive at 91.2%; profitable with 13.4% margin. Main risks: P/E is expensive at 172.7; price/sales is rich at 22.6; price/book is elevated at 13.1; analyst mean target is below current price by 8.9%; earnings can create gap risk; avoid oversized positions before the report."
+    "summary": "NVDA (NVDA) is classified as Quality Watchlist Setup with final AI agent score 50/100. The AI agent team ranks this as Watchlist Only. Technical score 64/100, fundamentals score 0/100, valuation score 50/100, risk score 88/100, and catalyst score 50/100. Monitor only. Do not force a trade unless setup improves. It operates in Unknown / Unknown. Current price is $214.25; RSI is 52.5; 5-day move is -4.13%, 20-day move is 2.39%, and 60-day move is 19.0%. Volume is 0.88x average. Preferred entry range: $210.36 - $216.19. Suggested stop loss: $203.36. First target: $278.53. Stretch target: $310.66. Risk/reward: 5.9x. Approximate first target offers about 5.9:1 reward-to-risk. Financial review: Cash: N/A. Debt: N/A. Free cash flow: N/A. Operating cash flow: N/A. P/E: N/A. Forward P/E: N/A. Revenue growth: N/A. Profit margin: N/A. Best supporting evidence: price is above the 50-day trend; 20-day average is above the 50-day average; 50-day trend is stronger than the 100-day trend; positive 20-day momentum of 2.39%; RSI is constructive at 52.5, not overheated; ATR volatility is tradable at 3.63%; very strong dollar volume; volatility is tradable at 3.63% ATR. Main risks: price is not clearly above the 20-day trend; weak 5-day momentum of -4.13%; valuation data is limited, so this agent cannot strongly confirm value; no clear catalyst detected from available data.",
+    "ai_guidance": "NVDA (NVDA) is classified as Quality Watchlist Setup with final AI agent score 50/100. The AI agent team ranks this as Watchlist Only. Technical score 64/100, fundamentals score 0/100, valuation score 50/100, risk score 88/100, and catalyst score 50/100. Monitor only. Do not force a trade unless setup improves. It operates in Unknown / Unknown. Current price is $214.25; RSI is 52.5; 5-day move is -4.13%, 20-day move is 2.39%, and 60-day move is 19.0%. Volume is 0.88x average. Preferred entry range: $210.36 - $216.19. Suggested stop loss: $203.36. First target: $278.53. Stretch target: $310.66. Risk/reward: 5.9x. Approximate first target offers about 5.9:1 reward-to-risk. Financial review: Cash: N/A. Debt: N/A. Free cash flow: N/A. Operating cash flow: N/A. P/E: N/A. Forward P/E: N/A. Revenue growth: N/A. Profit margin: N/A. Best supporting evidence: price is above the 50-day trend; 20-day average is above the 50-day average; 50-day trend is stronger than the 100-day trend; positive 20-day momentum of 2.39%; RSI is constructive at 52.5, not overheated; ATR volatility is tradable at 3.63%; very strong dollar volume; volatility is tradable at 3.63% ATR. Main risks: price is not clearly above the 20-day trend; weak 5-day momentum of -4.13%; valuation data is limited, so this agent cannot strongly confirm value; no clear catalyst detected from available data."
   }
 ]
