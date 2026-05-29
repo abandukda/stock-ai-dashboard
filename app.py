@@ -9,7 +9,7 @@ import pandas as pd
 import streamlit as st
 
 
-APP_VERSION = "V40.6 Quality-Gated AI Dashboard"
+APP_VERSION = "V40.7 Reliable Detail Links"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -28,7 +28,6 @@ TOP_IDEAS_FILE = DATA_DIR / "top_ai_ideas.json"
 WATCHLIST_FILE = DATA_DIR / "watchlist.json"
 WATCHLIST_SCAN_FILE = DATA_DIR / "watchlist_scan.json"
 RECOVERY_SCAN_FILE = DATA_DIR / "recovery_scan.json"
-SPECULATIVE_IDEAS_FILE = DATA_DIR / "speculative_ai_ideas.json"
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
@@ -244,7 +243,7 @@ def normalize_rows(raw_data):
             "Entry Range": pick(raw, "Entry Range", "entry_range", default="N/A"),
             "Stop Loss": pick(raw, "Stop Loss", "stop_loss", default="N/A"),
             "Target": target,
-            "Risk/Reward": pick(raw, "Risk/Reward", "risk_reward", default="N/A"),
+            "Risk/Reward": pick(raw, "Risk/Reward", "Why Ranked Highly", "risk_reward", default="N/A"),
             "Why Ranked Highly": why or "No ranking explanation available.",
             "What Looks Good": pick(raw, "What Looks Good", "what_looks_good", default="Needs confirmation."),
             "What Could Go Wrong": pick(raw, "What Could Go Wrong", "what_could_go_wrong", default="Market weakness or failed follow-through."),
@@ -318,48 +317,11 @@ def load_full_scan():
     return load_file(FULL_SCAN_FILE)
 
 
-
-def score_num(value):
-    return safe_number(value, 0) or 0
-
-
-def institutional_quality_filter(df):
-    if df is None or df.empty:
-        return pd.DataFrame()
-    work = df.copy()
-    for col in ["Technical", "Fundamentals", "Risk", "Final Conviction"]:
-        if col not in work.columns:
-            work[col] = 0
-    if "Target Upside %" not in work.columns:
-        work["Target Upside %"] = None
-    return work[
-        (work["Technical"].apply(score_num) >= 60)
-        & (work["Fundamentals"].apply(score_num) >= 60)
-        & (work["Risk"].apply(score_num) >= 60)
-        & (work["Final Conviction"].apply(score_num) >= 70)
-        & (work["Target Upside %"].apply(score_num) >= MIN_UPSIDE_PCT * 100)
-    ].copy()
-
-
-def speculative_quality_filter(df):
-    if df is None or df.empty:
-        return pd.DataFrame()
-    work = df.copy()
-    for col in ["Technical", "Fundamentals", "Final Conviction"]:
-        if col not in work.columns:
-            work[col] = 0
-    return work[
-        (work["Technical"].apply(score_num) >= 60)
-        & (work["Fundamentals"].apply(score_num) < 60)
-        & (work["Final Conviction"].apply(score_num) >= 55)
-    ].copy()
-
-
 def load_top_ideas():
-    df = institutional_quality_filter(actionable(load_file(TOP_IDEAS_FILE), min_score=45, require_upside=True))
+    df = actionable(load_file(TOP_IDEAS_FILE), min_score=45, require_upside=True)
     if not df.empty:
         return df
-    return institutional_quality_filter(actionable(load_full_scan(), min_score=45, require_upside=True)).head(25)
+    return actionable(load_full_scan(), min_score=45, require_upside=True).head(25)
 
 
 def load_recovery():
@@ -370,10 +332,6 @@ def load_recovery():
     if full.empty:
         return full
     return actionable(full[full["Opportunity Bucket"].eq("Recovery / Reversal")].copy(), min_score=35, require_upside=True)
-
-
-def load_speculative_ideas():
-    return actionable(load_file(SPECULATIVE_IDEAS_FILE), min_score=0, require_upside=False)
 
 
 def load_watchlist_symbols():
@@ -688,11 +646,11 @@ def render_cards(df, title, key_prefix, limit=5):
             h2.metric("AI Score", int(safe_number(row.get("Final Conviction"), 0)))
             h3.metric("Price", money(row.get("Price")))
             with h4:
-                if st.button("Open Detail", key=f"{key_prefix}_detail_{ticker}", use_container_width=True):
-                    st.session_state.selected_ticker = ticker
-                    st.session_state.page = "Detail"
-                    st.session_state.nav_page = "Detail"
-                    st.rerun()
+                st.link_button(
+                    "Open Detail",
+                    url=f"?detail={ticker}",
+                    use_container_width=True,
+                )
 
             agent_metric_row(row)
 
@@ -761,6 +719,8 @@ def render_table(df, title, key_prefix, min_score_default=35):
 
     if "Target Upside %" in display.columns:
         display["Target Upside %"] = display["Target Upside %"].apply(lambda x: f"{float(x):.1f}%" if safe_number(x) is not None else "N/A")
+    if "Why Ranked Highly" in display.columns:
+        display["Why Ranked Highly"] = display["Why Ranked Highly"].apply(lambda x: (" ".join(str(x).split()))[:180] + ("..." if len(" ".join(str(x).split())) > 180 else ""))
 
     st.dataframe(display, use_container_width=True, hide_index=True, height=560)
 
@@ -799,21 +759,18 @@ def page_dashboard(scan_df, source):
     c4.metric("Persisted", str(state.get("github_persisted", "N/A")))
 
     render_scan_status()
-    st.success(f"Quality gate active: Top AI requires Technical ≥60, Fundamentals ≥60, Risk ≥60, Final Score ≥70, and at least {MIN_UPSIDE_PCT*100:.0f}% upside. Weak/missing fundamentals are moved to Speculative.")
+    st.success(f"Quality filter active: dashboard prioritizes ideas with at least {MIN_UPSIDE_PCT*100:.0f}% target upside potential.")
     render_agent_help()
 
     top = load_top_ideas()
     recovery = load_recovery()
-    speculative = load_speculative_ideas()
-    if speculative.empty:
-        speculative = speculative_quality_filter(load_full_scan())
     watch = load_watchlist_scan()
 
     lower = scan_df[(scan_df["Price"] >= 5) & (scan_df["Price"] <= 25)].copy() if not scan_df.empty else pd.DataFrame()
     mid = scan_df[(scan_df["Price"] > 25) & (scan_df["Price"] <= 100)].copy() if not scan_df.empty else pd.DataFrame()
     high = scan_df[scan_df["Price"] > 100].copy() if not scan_df.empty else pd.DataFrame()
 
-    tabs = st.tabs(["Top AI Summary", "Lower $5–$25", "Mid $25–$100", "Higher $100+", "Recovery", "Speculative", "Watchlist", "Full Table"])
+    tabs = st.tabs(["Top AI Summary", "Lower $5–$25", "Mid $25–$100", "Higher $100+", "Recovery", "Watchlist", "Full Table"])
 
     with tabs[0]:
         render_cards(diversified_cards(top if not top.empty else scan_df), "Balanced Top AI Summary", "top_cards", limit=6)
@@ -836,14 +793,9 @@ def page_dashboard(scan_df, source):
         render_table(recovery, "Recovery Table", "recovery_table", min_score_default=35)
 
     with tabs[5]:
-        st.warning("These are technical/momentum ideas that failed the institutional Top AI quality gate, often due to weak or missing fundamentals. Research only.")
-        render_cards(speculative, "Speculative / Technical Only", "speculative_cards", limit=5)
-        render_table(speculative, "Speculative Table", "speculative_table", min_score_default=0)
-
-    with tabs[6]:
         page_watchlist(watch if not watch.empty else scan_df)
 
-    with tabs[7]:
+    with tabs[6]:
         render_table(scan_df, "Full Ranked AI Scan", "full_table", min_score_default=35)
 
 
@@ -1028,6 +980,7 @@ def ask_ai_answer(row, question):
 
 def page_detail(scan_df):
     st.subheader("🔎 Stock Detail")
+    st.caption("Opened through detail link. You can also enter any ticker below for on-demand analysis.")
 
     default_ticker = st.session_state.get("selected_ticker", "")
     try:
@@ -1148,6 +1101,18 @@ if current not in pages:
     current = "Dashboard"
 
 page = st.sidebar.radio("Navigation", pages, index=pages.index(current), key="nav_page")
+
+# Reliable URL-based detail routing.
+# Any link like ?detail=AMD forces the Detail page, independent of sidebar/session state.
+try:
+    detail_param = st.query_params.get("detail", None)
+except Exception:
+    detail_param = None
+
+if detail_param:
+    st.session_state.selected_ticker = str(detail_param).upper()
+    page = "Detail"
+
 st.session_state.page = page
 
 scan_df, source = load_best_scan()
