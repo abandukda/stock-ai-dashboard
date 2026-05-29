@@ -9,10 +9,10 @@ import pandas as pd
 import streamlit as st
 
 
-APP_VERSION = "V40.5 Cleaner Layout + 30% Upside Filter"
+APP_VERSION = "V40.5 Stable Checked Clean App"
 
 st.set_page_config(
-    page_title=f"AI Trading Dashboard {APP_VERSION}",
+    page_title="AI Trading Dashboard",
     page_icon="📈",
     layout="wide",
 )
@@ -29,10 +29,10 @@ WATCHLIST_FILE = DATA_DIR / "watchlist.json"
 WATCHLIST_SCAN_FILE = DATA_DIR / "watchlist_scan.json"
 RECOVERY_SCAN_FILE = DATA_DIR / "recovery_scan.json"
 
-DEFAULT_WATCHLIST = [
-    "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AMD",
-    "PLTR", "SOFI", "AVGO", "CRWD", "PANW"
-]
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
+DEFAULT_WATCHLIST = ["AAPL", "MSFT", "NVDA", "AMD", "TSLA", "PLTR", "SOFI"]
 
 
 def first_env(*names, default=""):
@@ -45,10 +45,6 @@ def first_env(*names, default=""):
 
 ADMIN_USER = first_env("ADMIN_USER", "APP_USERNAME", "APP_USER", "USERNAME", "LOGIN_USER", default="admin")
 ADMIN_PASSWORD = first_env("ADMIN_PASSWORD", "APP_PASSWORD", "PASSWORD", "LOGIN_PASSWORD", default="admin")
-
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-
 
 
 def read_json_safe(path, default):
@@ -69,8 +65,8 @@ def write_json_safe(path, data):
         with p.open("w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, default=str)
         return True
-    except Exception as e:
-        st.error(f"Could not save file: {e}")
+    except Exception as exc:
+        st.error(f"Could not save file: {exc}")
         return False
 
 
@@ -83,7 +79,7 @@ def safe_number(value, default=None):
         if value is None:
             return default
         if isinstance(value, str):
-            cleaned = value.replace("$", "").replace(",", "").strip()
+            cleaned = value.replace("$", "").replace(",", "").replace("%", "").strip()
             if cleaned in ["", "N/A", "None", "nan", "NaN", "$None"]:
                 return default
             return float(cleaned)
@@ -96,27 +92,27 @@ def safe_number(value, default=None):
 
 def money(value):
     try:
-        if value is None or pd.isna(value):
+        val = safe_number(value)
+        if val is None:
             return "N/A"
-        return f"${float(value):,.2f}"
+        return f"${val:,.2f}"
     except Exception:
         return "N/A"
 
 
 def compact_money(value):
-    try:
-        value = float(value)
-        sign = "-" if value < 0 else ""
-        value = abs(value)
-        if value >= 1_000_000_000_000:
-            return f"{sign}${value/1_000_000_000_000:.1f}T"
-        if value >= 1_000_000_000:
-            return f"{sign}${value/1_000_000_000:.1f}B"
-        if value >= 1_000_000:
-            return f"{sign}${value/1_000_000:.1f}M"
-        return f"{sign}${value:,.0f}"
-    except Exception:
+    val = safe_number(value)
+    if val is None:
         return "N/A"
+    sign = "-" if val < 0 else ""
+    val = abs(val)
+    if val >= 1_000_000_000_000:
+        return f"{sign}${val/1_000_000_000_000:.1f}T"
+    if val >= 1_000_000_000:
+        return f"{sign}${val/1_000_000_000:.1f}B"
+    if val >= 1_000_000:
+        return f"{sign}${val/1_000_000:.1f}M"
+    return f"{sign}${val:,.0f}"
 
 
 def pick(row, *names, default=None):
@@ -126,6 +122,37 @@ def pick(row, *names, default=None):
             if value not in [None, "", "N/A", "None", "nan", "$None"]:
                 return value
     return default
+
+
+def parse_money_value(value):
+    if value is None:
+        return None
+    try:
+        if isinstance(value, (int, float)):
+            return float(value)
+        text = str(value).replace("$", "").replace(",", "").strip()
+        if not text or text in ["N/A", "None", "nan"]:
+            return None
+        text = text.replace("–", "-")
+        if "-" in text:
+            nums = []
+            for part in text.split("-"):
+                try:
+                    nums.append(float(part.strip()))
+                except Exception:
+                    pass
+            return sum(nums) / len(nums) if nums else None
+        return float(text)
+    except Exception:
+        return None
+
+
+def target_upside_pct(price, target):
+    p = safe_number(price)
+    t = parse_money_value(target)
+    if not p or not t or p <= 0:
+        return None
+    return ((t - p) / p) * 100
 
 
 def price_bucket(price):
@@ -139,46 +166,6 @@ def price_bucket(price):
     if p > 100:
         return "$100+"
     return "Under $5"
-
-
-
-def parse_money_value(value):
-    if value is None:
-        return None
-    try:
-        if isinstance(value, (int, float)):
-            return float(value)
-        text = str(value).replace("$", "").replace(",", "").strip()
-        if " - " in text:
-            parts = [p.strip() for p in text.split(" - ") if p.strip()]
-            nums = []
-            for part in parts:
-                try:
-                    nums.append(float(part.replace("$", "").replace(",", "")))
-                except Exception:
-                    pass
-            return sum(nums) / len(nums) if nums else None
-        return float(text)
-    except Exception:
-        return None
-
-
-def target_upside_pct_from_values(price, target):
-    p = safe_number(price)
-    t = parse_money_value(target)
-    if not p or not t or p <= 0:
-        return None
-    return ((t - p) / p) * 100
-
-
-def qualifies_upside(row, min_pct=None):
-    min_pct = MIN_UPSIDE_PCT * 100 if min_pct is None else min_pct
-    upside = safe_number(row.get("Target Upside %"))
-    if upside is None:
-        upside = target_upside_pct_from_values(row.get("Price"), row.get("Target"))
-    if upside is None:
-        return False
-    return upside >= min_pct
 
 
 def login_gate():
@@ -198,7 +185,7 @@ def login_gate():
             st.session_state.authenticated = True
             st.rerun()
         else:
-            st.error("Invalid login. Check Render environment variables.")
+            st.error("Invalid login.")
 
     return False
 
@@ -223,11 +210,15 @@ def normalize_rows(raw_data):
             continue
 
         price = safe_number(pick(raw, "Price", "price", "current_price", "last_price", default=None))
+        target = pick(raw, "Target / Sell Zone", "target", "target_2", default="N/A")
+        upside = pick(raw, "Target Upside %", "target_upside_pct", "upside_pct", default=None)
+        if upside is None:
+            upside = target_upside_pct(price, target)
+
         score = safe_number(
             pick(raw, "Final Conviction", "conviction", "conviction_score", "score", "ai_score", "final_agent_score", default=0),
             0,
         )
-
         setup = pick(raw, "Setup Type", "setup_type", "bucket", "Investment Style", default="AI Setup")
         guidance = pick(raw, "AI Trade Plan", "ai_reasoning", "ai_guidance", "guidance", "summary", "Research Summary", default="")
         why = pick(raw, "Why Ranked Highly", "why_ranked_high", default=guidance)
@@ -240,6 +231,7 @@ def normalize_rows(raw_data):
             "Setup Type": setup,
             "Decision Rating": pick(raw, "Decision Rating", "decision_rating", "financial_safety", "Financial Safety", default="Needs Review"),
             "Price Bucket": price_bucket(price),
+            "Target Upside %": upside,
             "Sector": pick(raw, "Sector", "sector", default="Unknown"),
             "Industry": pick(raw, "Industry", "industry", default="Unknown"),
             "Market Cap": pick(raw, "Market Cap", "market_cap", default=None),
@@ -250,8 +242,7 @@ def normalize_rows(raw_data):
             "Dollar Volume": safe_number(pick(raw, "Dollar Volume", "dollar_volume", default=0), 0),
             "Entry Range": pick(raw, "Entry Range", "entry_range", default="N/A"),
             "Stop Loss": pick(raw, "Stop Loss", "stop_loss", default="N/A"),
-            "Target": pick(raw, "Target / Sell Zone", "target", "target_2", default="N/A"),
-            "Target Upside %": pick(raw, "Target Upside %", "target_upside_pct", "upside_pct", default=None),
+            "Target": target,
             "Risk/Reward": pick(raw, "Risk/Reward", "risk_reward", default="N/A"),
             "Why Ranked Highly": why or "No ranking explanation available.",
             "What Looks Good": pick(raw, "What Looks Good", "what_looks_good", default="Needs confirmation."),
@@ -279,9 +270,6 @@ def normalize_rows(raw_data):
             "_raw": raw,
         }
 
-        if row.get("Target Upside %") is None:
-            row["Target Upside %"] = target_upside_pct_from_values(row.get("Price"), row.get("Target"))
-
         setup_text = str(row["Setup Type"])
         if "Recovery" in setup_text or "Reversal" in setup_text:
             row["Opportunity Bucket"] = "Recovery / Reversal"
@@ -303,6 +291,7 @@ def normalize_rows(raw_data):
     df["Price"] = pd.to_numeric(df["Price"], errors="coerce")
     df["Final Conviction"] = pd.to_numeric(df["Final Conviction"], errors="coerce").fillna(0)
     df["Dollar Volume"] = pd.to_numeric(df["Dollar Volume"], errors="coerce").fillna(0)
+    df["Target Upside %"] = pd.to_numeric(df["Target Upside %"], errors="coerce")
     df = df.drop_duplicates(subset=["Ticker"], keep="first")
     return df.sort_values(["Final Conviction", "Dollar Volume"], ascending=[False, False], na_position="last")
 
@@ -319,10 +308,8 @@ def actionable(df, min_score=35, require_upside=True):
     work = work[work["Price"] > 0]
     work = work[work["Final Conviction"] >= min_score]
     work = work[~work["Setup Type"].astype(str).str.contains("Prescreen Candidate", case=False, na=False)]
-
     if require_upside and "Target Upside %" in work.columns:
-        work = work[work.apply(lambda r: qualifies_upside(r), axis=1)]
-
+        work = work[work["Target Upside %"].fillna(-999) >= MIN_UPSIDE_PCT * 100]
     return work.sort_values(["Final Conviction", "Dollar Volume"], ascending=[False, False])
 
 
@@ -344,7 +331,7 @@ def load_recovery():
     full = load_full_scan()
     if full.empty:
         return full
-    return full[full["Opportunity Bucket"].eq("Recovery / Reversal")].copy()
+    return actionable(full[full["Opportunity Bucket"].eq("Recovery / Reversal")].copy(), min_score=35, require_upside=True)
 
 
 def load_watchlist_symbols():
@@ -372,6 +359,15 @@ def load_watchlist_scan():
     return full[full["Ticker"].isin(symbols)].copy()
 
 
+def load_best_scan():
+    full = actionable(load_full_scan(), min_score=35, require_upside=True)
+    pre = actionable(load_file(PRESCREEN_FILE), min_score=35, require_upside=True)
+    if len(full) >= 25:
+        return full, "Full AI Scan"
+    if len(pre) > len(full):
+        return pre, "Broad Prescreen"
+    return full, "Full AI Scan"
+
 
 def compute_rsi(series, period=14):
     try:
@@ -386,12 +382,6 @@ def compute_rsi(series, period=14):
 
 
 def analyze_ticker_now(symbol):
-    """
-    On-demand AI-agent style review for any ticker.
-    This does not wait for the overnight scan.
-    It pulls recent price history + available Yahoo fundamentals and maps it
-    into the same dashboard row format used by the scan results.
-    """
     symbol = normalize_ticker(symbol)
     if not symbol:
         return None, "Enter a valid ticker."
@@ -399,7 +389,7 @@ def analyze_ticker_now(symbol):
     try:
         import yfinance as yf
     except Exception:
-        return None, "yfinance is not installed in this environment."
+        return None, "yfinance is not installed."
 
     try:
         ticker = yf.Ticker(symbol)
@@ -411,19 +401,12 @@ def analyze_ticker_now(symbol):
         close = hist["Close"].dropna()
         volume = hist["Volume"].dropna() if "Volume" in hist.columns else pd.Series(dtype=float)
 
-        if close.empty:
-            return None, f"No valid price data found for {symbol}."
-
         price = float(close.iloc[-1])
         sma20 = float(close.rolling(20).mean().iloc[-1]) if len(close) >= 20 else None
         sma50 = float(close.rolling(50).mean().iloc[-1]) if len(close) >= 50 else None
-        sma100 = float(close.rolling(100).mean().iloc[-1]) if len(close) >= 100 else None
         rsi = compute_rsi(close)
-        one_day = ((close.iloc[-1] / close.iloc[-2]) - 1) * 100 if len(close) >= 2 else None
-        five_day = ((close.iloc[-1] / close.iloc[-6]) - 1) * 100 if len(close) >= 6 else None
         twenty_day = ((close.iloc[-1] / close.iloc[-21]) - 1) * 100 if len(close) >= 21 else None
         sixty_day = ((close.iloc[-1] / close.iloc[-61]) - 1) * 100 if len(close) >= 61 else None
-
         avg_volume = float(volume.tail(30).mean()) if not volume.empty else 0
         recent_volume = float(volume.iloc[-1]) if not volume.empty else 0
         volume_ratio = recent_volume / avg_volume if avg_volume else None
@@ -437,7 +420,6 @@ def analyze_ticker_now(symbol):
         company = info.get("shortName") or info.get("longName") or symbol
         sector = info.get("sector") or "Unknown"
         industry = info.get("industry") or "Unknown"
-        market_cap = safe_number(info.get("marketCap"))
         pe = safe_number(info.get("trailingPE"))
         forward_pe = safe_number(info.get("forwardPE"))
         peg = safe_number(info.get("pegRatio"))
@@ -450,176 +432,86 @@ def analyze_ticker_now(symbol):
         profit_margin = safe_number(info.get("profitMargins"))
         target_mean = safe_number(info.get("targetMeanPrice"))
 
-        # Agent scoring
         technical = 40
-        technical_reasons = []
-        technical_risks = []
+        good = []
+        risks = []
 
         if sma20 and price > sma20:
             technical += 12
-            technical_reasons.append("price is above the 20-day trend")
+            good.append("price is above the 20-day trend")
         else:
-            technical_risks.append("price is not clearly above the 20-day trend")
+            risks.append("price is not clearly above the 20-day trend")
 
         if sma50 and price > sma50:
             technical += 14
-            technical_reasons.append("price is above the 50-day trend")
+            good.append("price is above the 50-day trend")
         else:
-            technical_risks.append("price is below or near the 50-day trend")
-
-        if sma20 and sma50 and sma20 > sma50:
-            technical += 8
-            technical_reasons.append("20-day average is above the 50-day average")
+            risks.append("price is below or near the 50-day trend")
 
         if rsi is not None and 45 <= rsi <= 68:
             technical += 10
-            technical_reasons.append(f"RSI is constructive at {rsi:.1f}")
+            good.append(f"RSI is constructive at {rsi:.1f}")
         elif rsi is not None and rsi > 75:
             technical -= 8
-            technical_risks.append(f"RSI is overbought at {rsi:.1f}")
+            risks.append(f"RSI is overbought at {rsi:.1f}")
         elif rsi is not None and rsi < 40:
             technical -= 5
-            technical_risks.append(f"RSI is weak at {rsi:.1f}")
+            risks.append(f"RSI is weak at {rsi:.1f}")
 
         if volume_ratio and volume_ratio >= 1.25:
             technical += 8
-            technical_reasons.append(f"volume is confirming at {volume_ratio:.2f}x average")
-        elif volume_ratio and volume_ratio < 0.70:
-            technical_risks.append("volume confirmation is light")
-
-        if twenty_day and twenty_day > 5:
-            technical += 6
-            technical_reasons.append(f"20-day momentum is positive at {twenty_day:.1f}%")
-
-        technical = max(0, min(100, int(round(technical))))
+            good.append(f"volume is confirming at {volume_ratio:.2f}x average")
 
         fundamentals = 45
-        fundamental_reasons = []
-        fundamental_risks = []
-
-        if revenue_growth is not None:
-            if revenue_growth > 0.10:
-                fundamentals += 12
-                fundamental_reasons.append(f"revenue growth is positive at {revenue_growth*100:.1f}%")
-            elif revenue_growth < 0:
-                fundamentals -= 8
-                fundamental_risks.append(f"revenue growth is negative at {revenue_growth*100:.1f}%")
-
-        if profit_margin is not None:
-            if profit_margin > 0.10:
-                fundamentals += 12
-                fundamental_reasons.append(f"profit margin is healthy at {profit_margin*100:.1f}%")
-            elif profit_margin < 0:
-                fundamentals -= 10
-                fundamental_risks.append("company is not currently profitable")
-
-        if fcf is not None:
-            if fcf > 0:
-                fundamentals += 12
-                fundamental_reasons.append(f"free cash flow is positive at {compact_money(fcf)}")
-            else:
-                fundamentals -= 8
-                fundamental_risks.append(f"free cash flow is negative at {compact_money(fcf)}")
-
-        if cash is not None and debt is not None:
-            if cash > debt:
-                fundamentals += 10
-                fundamental_reasons.append(f"cash exceeds debt: {compact_money(cash)} cash vs {compact_money(debt)} debt")
-            elif debt > cash * 2 if cash else False:
-                fundamentals -= 8
-                fundamental_risks.append(f"debt is much higher than cash: {compact_money(debt)} debt vs {compact_money(cash)} cash")
-
-        fundamentals = max(0, min(100, int(round(fundamentals))))
+        if revenue_growth is not None and revenue_growth > 0.10:
+            fundamentals += 12
+            good.append(f"revenue growth is positive at {revenue_growth*100:.1f}%")
+        if profit_margin is not None and profit_margin > 0.10:
+            fundamentals += 12
+            good.append(f"profit margin is healthy at {profit_margin*100:.1f}%")
+        if fcf is not None and fcf > 0:
+            fundamentals += 12
+            good.append(f"free cash flow is positive at {compact_money(fcf)}")
+        if cash is not None and debt is not None and cash > debt:
+            fundamentals += 10
+            good.append(f"cash exceeds debt: {compact_money(cash)} vs {compact_money(debt)}")
 
         valuation = 50
-        valuation_reasons = []
-        valuation_risks = []
-
-        if pe is not None:
-            if 0 < pe < 25:
-                valuation += 10
-                valuation_reasons.append(f"P/E looks reasonable at {pe:.1f}")
-            elif pe > 60:
-                valuation -= 8
-                valuation_risks.append(f"P/E is elevated at {pe:.1f}")
-
-        if forward_pe is not None:
-            if 0 < forward_pe < 30:
+        if pe is not None and 0 < pe < 25:
+            valuation += 10
+            good.append(f"P/E is reasonable at {pe:.1f}")
+        if forward_pe is not None and 0 < forward_pe < 30:
+            valuation += 8
+            good.append(f"forward P/E is reasonable at {forward_pe:.1f}")
+        if target_mean and target_mean > price:
+            implied = ((target_mean - price) / price) * 100
+            if implied > 15:
                 valuation += 8
-                valuation_reasons.append(f"forward P/E is reasonable at {forward_pe:.1f}")
-            elif forward_pe > 70:
-                valuation -= 6
-                valuation_risks.append(f"forward P/E is elevated at {forward_pe:.1f}")
-
-        if peg is not None:
-            if 0 < peg < 1.5:
-                valuation += 6
-                valuation_reasons.append(f"PEG is attractive at {peg:.2f}")
-            elif peg > 3:
-                valuation -= 5
-                valuation_risks.append(f"PEG is rich at {peg:.2f}")
-
-        if target_mean and price:
-            upside = (target_mean - price) / price * 100
-            if upside > 15:
-                valuation += 8
-                valuation_reasons.append(f"analyst mean target implies {upside:.1f}% upside")
-            elif upside < 0:
-                valuation -= 5
-                valuation_risks.append(f"analyst mean target is below current price by {abs(upside):.1f}%")
-
-        valuation = max(0, min(100, int(round(valuation))))
+                good.append(f"analyst target implies {implied:.1f}% upside")
 
         risk = 70
-        risk_reasons = []
-        risk_risks = []
-
-        if market_cap and market_cap >= 10_000_000_000:
-            risk += 8
-            risk_reasons.append("large-cap liquidity reduces execution risk")
-        elif market_cap and market_cap < 300_000_000:
-            risk -= 15
-            risk_risks.append("small market cap increases liquidity and volatility risk")
-
         if dollar_volume >= 50_000_000:
             risk += 8
-            risk_reasons.append("dollar volume is strong")
+            good.append("dollar volume is strong")
         elif dollar_volume and dollar_volume < 5_000_000:
             risk -= 10
-            risk_risks.append("low dollar volume can make entries/exits harder")
-
-        if rsi is not None and rsi > 75:
-            risk -= 6
-            risk_risks.append("overbought RSI raises pullback risk")
-
-        risk = max(0, min(100, int(round(risk))))
+            risks.append("low dollar volume can make entries/exits harder")
 
         catalyst = 45
-        catalyst_reasons = []
-        catalyst_risks = []
-
-        if target_mean and price and target_mean > price:
-            upside = (target_mean - price) / price * 100
-            if upside > 10:
-                catalyst += 10
-                catalyst_reasons.append(f"analyst target implies {upside:.1f}% upside")
-
         if sixty_day is not None and sixty_day < -15:
             catalyst += 10
-            catalyst_reasons.append(f"recovery angle: stock is down {abs(sixty_day):.1f}% over ~60 trading days")
+            good.append(f"recovery angle: down {abs(sixty_day):.1f}% over ~60 trading days")
         elif sixty_day is not None and sixty_day > 15:
             catalyst += 5
-            catalyst_reasons.append(f"momentum angle: stock is up {sixty_day:.1f}% over ~60 trading days")
+            good.append(f"momentum angle: up {sixty_day:.1f}% over ~60 trading days")
 
+        technical = max(0, min(100, int(round(technical))))
+        fundamentals = max(0, min(100, int(round(fundamentals))))
+        valuation = max(0, min(100, int(round(valuation))))
+        risk = max(0, min(100, int(round(risk))))
         catalyst = max(0, min(100, int(round(catalyst))))
 
-        final_score = int(round(
-            technical * 0.32 +
-            fundamentals * 0.22 +
-            valuation * 0.14 +
-            risk * 0.18 +
-            catalyst * 0.14
-        ))
+        final_score = int(round(technical * 0.32 + fundamentals * 0.22 + valuation * 0.14 + risk * 0.18 + catalyst * 0.14))
 
         if final_score >= 80:
             decision = "Elite Candidate"
@@ -632,33 +524,21 @@ def analyze_ticker_now(symbol):
         else:
             decision = "Low Priority"
 
-        # Trade plan
         entry_low = price * 0.98
         entry_high = price * 1.01
         stop = price * 0.93
         target = price * (1 + MIN_UPSIDE_PCT)
         rr = (target - price) / max(price - stop, 0.01)
 
-        good_items = technical_reasons + fundamental_reasons + valuation_reasons + risk_reasons + catalyst_reasons
-        risk_items = technical_risks + fundamental_risks + valuation_risks + risk_risks + catalyst_risks
-
-        good_text = "; ".join(good_items[:8]) if good_items else "Needs stronger confirmation."
-        risk_text = "; ".join(risk_items[:8]) if risk_items else "No major red flags detected from available data."
+        good_text = "; ".join(good[:8]) if good else "Needs stronger confirmation."
+        risk_text = "; ".join(risks[:8]) if risks else "No major red flags detected from available data."
 
         guidance = (
             f"{company} ({symbol}) was reviewed on-demand by the AI agent framework. "
             f"Final score is {final_score}/100 ({decision}). "
             f"Technical={technical}, Fundamentals={fundamentals}, Valuation={valuation}, Risk={risk}, Catalyst={catalyst}. "
-            f"Current price is {price:.2f}; RSI is {rsi:.1f} if available; 20-day move is {twenty_day:.1f}% if available; "
-            f"60-day move is {sixty_day:.1f}% if available. "
-            f"Suggested entry range is {entry_low:.2f}–{entry_high:.2f}, stop around {stop:.2f}, target around {target:.2f} (minimum {MIN_UPSIDE_PCT*100:.0f}% upside screen). "
+            f"Suggested entry is {entry_low:.2f}–{entry_high:.2f}, stop around {stop:.2f}, target around {target:.2f}. "
             f"Main support: {good_text}. Main risks: {risk_text}."
-        )
-
-        financial_summary = (
-            f"P/E {pe if pe is not None else 'N/A'}, Forward P/E {forward_pe if forward_pe is not None else 'N/A'}, "
-            f"PEG {peg if peg is not None else 'N/A'}, Cash {compact_money(cash)}, Debt {compact_money(debt)}, "
-            f"Free Cash Flow {compact_money(fcf)}, Operating Cash Flow {compact_money(ocf)}."
         )
 
         raw = {
@@ -670,7 +550,6 @@ def analyze_ticker_now(symbol):
             "decision_rating": decision,
             "sector": sector,
             "industry": industry,
-            "market_cap": market_cap,
             "rsi": round(rsi, 1) if rsi is not None else None,
             "twenty_day_pct": round(twenty_day, 2) if twenty_day is not None else None,
             "sixty_day_pct": round(sixty_day, 2) if sixty_day is not None else None,
@@ -679,15 +558,15 @@ def analyze_ticker_now(symbol):
             "entry_range": f"{entry_low:.2f} – {entry_high:.2f}",
             "stop_loss": round(stop, 2),
             "target": round(target, 2),
-            "risk_reward": round(rr, 2),
             "target_upside_pct": round(MIN_UPSIDE_PCT * 100, 1),
+            "risk_reward": round(rr, 2),
             "why_ranked_high": guidance,
             "what_looks_good": good_text,
             "what_could_go_wrong": risk_text,
             "ai_reasoning": guidance,
             "trade_plan": f"Entry {entry_low:.2f}–{entry_high:.2f}; Stop {stop:.2f}; Target {target:.2f}; Risk/reward {rr:.2f}x.",
-            "financial_summary": financial_summary,
-            "recovery_catalyst": "; ".join(catalyst_reasons + catalyst_risks) or "No clear catalyst detected from available data.",
+            "financial_summary": f"P/E {pe if pe is not None else 'N/A'}, Forward P/E {forward_pe if forward_pe is not None else 'N/A'}, PEG {peg if peg is not None else 'N/A'}, Cash {compact_money(cash)}, Debt {compact_money(debt)}, Free Cash Flow {compact_money(fcf)}, Operating Cash Flow {compact_money(ocf)}.",
+            "recovery_catalyst": "; ".join(good + risks) or "No clear catalyst detected from available data.",
             "technical_agent_score": technical,
             "fundamentals_agent_score": fundamentals,
             "valuation_agent_score": valuation,
@@ -709,65 +588,36 @@ def analyze_ticker_now(symbol):
         normalized = normalize_rows([raw])
         if normalized.empty:
             return None, f"Could not normalize analysis for {symbol}."
-
         return normalized.iloc[0].to_dict(), None
 
-    except Exception as e:
-        return None, f"Could not analyze {symbol}: {e}"
-
-
-def load_best_scan():
-    full = actionable(load_full_scan(), min_score=35, require_upside=True)
-    pre = actionable(load_file(PRESCREEN_FILE), min_score=35, require_upside=True)
-    if len(full) >= 25:
-        return full, "Full AI Scan"
-    if len(pre) > len(full):
-        return pre, "Broad Prescreen"
-    return full, "Full AI Scan"
-
-
-
-def clean_display_text(value, max_chars=None):
-    text = str(value or "")
-    text = text.replace("`", "")
-    text = text.replace("\\n", " ")
-    text = " ".join(text.split())
-    if max_chars and len(text) > max_chars:
-        return text[:max_chars].rstrip() + "..."
-    return text
+    except Exception as exc:
+        return None, f"Could not analyze {symbol}: {exc}"
 
 
 def render_agent_help():
-    st.caption("Tip: Open this section to understand Technical, Fundamentals, Valuation, Risk, and Catalyst scores.")
     with st.expander("What do the AI agent scores mean?", expanded=False):
         st.markdown("""
-        **Technical** — Trend, moving averages, RSI, momentum, volume confirmation, and volatility.
+**Technical** — Trend, moving averages, RSI, momentum, volume confirmation, and volatility.
 
-        **Fundamentals** — Revenue growth, earnings growth, margins, cash flow, cash, debt, and balance-sheet quality.
+**Fundamentals** — Revenue growth, earnings growth, margins, cash flow, cash, debt, and balance-sheet quality.
 
-        **Valuation** — P/E, forward P/E, PEG, price-to-sales, price-to-book, and analyst target upside.
+**Valuation** — P/E, forward P/E, PEG, price-to-sales, price-to-book, and analyst target upside.
 
-        **Risk** — Liquidity, market cap, volatility, large one-day moves, overbought conditions, and debt/cash risk.
+**Risk** — Liquidity, market cap, volatility, overbought conditions, and debt/cash risk.
 
-        **Catalyst** — Earnings timing, recovery/reversal setup, analyst target upside, and event-driven potential.
-        """)
+**Catalyst** — Earnings timing, recovery/reversal setup, analyst target upside, and event-driven potential.
+""")
 
 
 def render_scan_status():
     state = read_json_safe(SCAN_STATE_FILE, {})
     universe = read_json_safe(UNIVERSE_FILE, {})
-    full = load_full_scan()
-    top = load_top_ideas()
-    recovery = load_recovery()
-    watch = load_watchlist_scan()
-
     with st.expander("Scan status", expanded=False):
-        c1, c2, c3, c4, c5 = st.columns(5)
+        c1, c2, c3, c4 = st.columns(4)
         c1.metric("Universe", universe.get("count", state.get("universe_count", "N/A")) if isinstance(universe, dict) else "N/A")
-        c2.metric("Full Rows", len(full))
-        c3.metric("Top Ideas", len(top))
-        c4.metric("Recovery", len(recovery))
-        c5.metric("Watchlist", len(watch))
+        c2.metric("Scan Version", state.get("version", "N/A"))
+        c3.metric("GitHub Persisted", str(state.get("github_persisted", "N/A")))
+        c4.metric("Min Upside", f"{MIN_UPSIDE_PCT*100:.0f}%")
         st.json(state)
 
 
@@ -782,60 +632,47 @@ def agent_metric_row(row):
 
 def render_cards(df, title, key_prefix, limit=5):
     st.subheader(title)
-
     if df is None or df.empty:
         st.info("No ideas available in this category yet.")
         return
 
     for _, row in df.head(limit).iterrows():
         ticker = row["Ticker"]
-        company = row.get("Company", ticker)
-        score = int(safe_number(row.get("Final Conviction"), 0))
-
         with st.container(border=True):
-            # Compact header
             h1, h2, h3, h4 = st.columns([2.4, 0.8, 0.8, 0.9])
             with h1:
-                st.markdown(f"### {ticker} — {company}")
+                st.markdown(f"### {ticker} — {row.get('Company', ticker)}")
                 st.caption(f"{row.get('Setup Type', 'AI Setup')} • {row.get('Price Bucket', 'N/A')} • {row.get('Sector', 'Unknown')}")
-            with h2:
-                st.metric("AI Score", score)
-            with h3:
-                st.metric("Price", money(row.get("Price")))
+            h2.metric("AI Score", int(safe_number(row.get("Final Conviction"), 0)))
+            h3.metric("Price", money(row.get("Price")))
             with h4:
                 if st.button("Open Detail", key=f"{key_prefix}_detail_{ticker}", use_container_width=True):
                     st.session_state.selected_ticker = ticker
                     st.session_state.page = "Detail"
-                    st.session_state.force_detail = True
-                    try:
-                        st.query_params["detail"] = ticker
-                    except Exception:
-                        pass
+                    st.session_state.nav_page = "Detail"
                     st.rerun()
 
-            # Agent score row
             agent_metric_row(row)
 
-            # Trade plan row
-            t1, t2, t3, t4 = st.columns(4)
+            t1, t2, t3, t4, t5 = st.columns(5)
             t1.metric("Entry", row.get("Entry Range", "N/A"))
             t2.metric("Stop", money(row.get("Stop Loss")))
             t3.metric("Target", money(row.get("Target")))
-            t4.metric("Risk/Reward", row.get("Risk/Reward", "N/A"))
+            upside = safe_number(row.get("Target Upside %"))
+            t4.metric("Upside", f"{upside:.1f}%" if upside is not None else "N/A")
+            t5.metric("Risk/Reward", row.get("Risk/Reward", "N/A"))
 
-            # Short readable summary instead of huge wall of text
-            summary = clean_display_text(row.get("AI Trade Plan") or row.get("Why Ranked Highly"), max_chars=300)
+            summary = str(row.get("AI Trade Plan") or row.get("Why Ranked Highly") or "")
+            summary = " ".join(summary.split())
+            if len(summary) > 350:
+                summary = summary[:350].rstrip() + "..."
             st.markdown("**Quick AI Summary**")
             st.write(summary)
 
             with st.expander(f"More reasoning for {ticker}", expanded=False):
-                st.markdown("**Why it ranked:**")
-                st.write(clean_display_text(row.get("Why Ranked Highly")))
-                st.markdown("**What looks good:**")
-                st.success(clean_display_text(row.get("What Looks Good", "Needs confirmation.")))
-                st.markdown("**What could go wrong:**")
-                st.warning(clean_display_text(row.get("What Could Go Wrong", "Market weakness or failed follow-through.")))
-                st.caption("For Ask AI, click Open Detail.")
+                st.write(row.get("Why Ranked Highly"))
+                st.success(row.get("What Looks Good", "Needs confirmation."))
+                st.warning(row.get("What Could Go Wrong", "Market weakness or failed follow-through."))
 
 
 def render_table(df, title, key_prefix, min_score_default=35):
@@ -854,10 +691,8 @@ def render_table(df, title, key_prefix, min_score_default=35):
 
     filtered = df.copy()
     filtered = filtered[filtered["Final Conviction"] >= min_score]
-
     if max_price:
         filtered = filtered[filtered["Price"].fillna(999999) <= max_price]
-
     if search:
         mask = filtered["Ticker"].astype(str).str.upper().str.contains(search, na=False)
         mask |= filtered["Company"].astype(str).str.upper().str.contains(search, na=False)
@@ -870,11 +705,10 @@ def render_table(df, title, key_prefix, min_score_default=35):
     c4.metric("Under $25", len(filtered[(filtered["Price"] >= 5) & (filtered["Price"] <= 25)]) if not filtered.empty else 0)
 
     cols = [
-        "Ticker", "Company", "Opportunity Bucket", "Price Bucket", "Price",
-        "Final Conviction", "Decision Rating",
+        "Ticker", "Company", "Opportunity Bucket", "Price Bucket", "Price", "Final Conviction",
         "Technical", "Fundamentals", "Valuation", "Risk", "Catalyst",
-        "Sector", "Industry", "RSI", "20D %", "60D %",
         "Entry Range", "Stop Loss", "Target", "Target Upside %", "Risk/Reward",
+        "Sector", "Industry", "RSI", "20D %", "60D %",
     ]
     cols = [c for c in cols if c in filtered.columns]
     display = filtered[cols].copy()
@@ -882,6 +716,7 @@ def render_table(df, title, key_prefix, min_score_default=35):
     for col in ["Price", "Stop Loss", "Target"]:
         if col in display.columns:
             display[col] = display[col].apply(money)
+
     if "Target Upside %" in display.columns:
         display["Target Upside %"] = display["Target Upside %"].apply(lambda x: f"{float(x):.1f}%" if safe_number(x) is not None else "N/A")
 
@@ -922,7 +757,7 @@ def page_dashboard(scan_df, source):
     c4.metric("Persisted", str(state.get("github_persisted", "N/A")))
 
     render_scan_status()
-    st.info("Hover tooltips were removed for stability. Use the explainer below for AI score definitions.")
+    st.success(f"Quality filter active: dashboard prioritizes ideas with at least {MIN_UPSIDE_PCT*100:.0f}% target upside potential.")
     render_agent_help()
 
     top = load_top_ideas()
@@ -964,7 +799,7 @@ def page_dashboard(scan_df, source):
 
 def page_watchlist(scan_df):
     st.subheader("⭐ Watchlist + On-Demand AI Review")
-    st.caption("Add any ticker. If it was not in the overnight scan, use Analyze Now to have the AI agents review it immediately.")
+    st.caption("Add any ticker. If it was not in the overnight scan, use Analyze Now for immediate AI-agent review.")
 
     symbols = load_watchlist_symbols()
 
@@ -974,7 +809,7 @@ def page_watchlist(scan_df):
     with col2:
         if st.button("Add", key="watchlist_add_btn", use_container_width=True):
             if new_symbols:
-                for symbol in new_symbols.replace("\n", ",").split(","):
+                for symbol in new_symbols.replace("\\n", ",").split(","):
                     sym = normalize_ticker(symbol)
                     if sym:
                         symbols.append(sym)
@@ -1000,7 +835,6 @@ def page_watchlist(scan_df):
                 save_watchlist_symbols(symbols)
             st.success(f"AI agent review completed for {analyze_symbol}.")
 
-    # Show any active on-demand analysis first.
     ondemand_rows = []
     for key, value in st.session_state.items():
         if str(key).startswith("ondemand_") and isinstance(value, dict):
@@ -1014,14 +848,13 @@ def page_watchlist(scan_df):
 
     st.write("### Saved Watchlist")
     st.caption("Saved tickers: " + ", ".join(symbols))
-
     watch_df = scan_df[scan_df["Ticker"].isin(symbols)].copy() if scan_df is not None and not scan_df.empty else pd.DataFrame()
 
     if not watch_df.empty:
         render_cards(watch_df, "Watchlist AI Guidance from Latest Scan", "watchlist_cards", limit=5)
         render_table(watch_df, "Watchlist Table", "watchlist_table", min_score_default=0)
     else:
-        st.info("Your tickers are saved, but none appeared in the latest scheduled scan yet. Use Analyze Now above for immediate review.")
+        st.info("Your tickers are saved, but none appeared in the latest scheduled scan yet. Use Analyze Now above.")
 
     with st.expander("Remove tickers"):
         for symbol in symbols:
@@ -1033,48 +866,32 @@ def page_watchlist(scan_df):
                 st.rerun()
 
 
-
 def build_stock_context(row):
     fields = {
         "ticker": row.get("Ticker"),
         "company": row.get("Company"),
         "price": money(row.get("Price")),
         "ai_score": row.get("Final Conviction"),
-        "decision": row.get("Decision Rating"),
-        "setup_type": row.get("Setup Type"),
-        "opportunity_bucket": row.get("Opportunity Bucket"),
-        "price_bucket": row.get("Price Bucket"),
-        "sector": row.get("Sector"),
-        "industry": row.get("Industry"),
-        "technical_agent": row.get("Technical"),
-        "fundamentals_agent": row.get("Fundamentals"),
-        "valuation_agent": row.get("Valuation"),
-        "risk_agent": row.get("Risk"),
-        "catalyst_agent": row.get("Catalyst"),
+        "technical": row.get("Technical"),
+        "fundamentals": row.get("Fundamentals"),
+        "valuation": row.get("Valuation"),
+        "risk": row.get("Risk"),
+        "catalyst": row.get("Catalyst"),
         "entry": row.get("Entry Range"),
         "stop": money(row.get("Stop Loss")),
         "target": money(row.get("Target")),
+        "upside": row.get("Target Upside %"),
         "risk_reward": row.get("Risk/Reward"),
         "pe": row.get("P/E"),
         "forward_pe": row.get("Forward P/E"),
-        "peg": row.get("PEG"),
-        "price_sales": row.get("Price/Sales"),
         "cash": compact_money(row.get("Cash")),
         "debt": compact_money(row.get("Debt")),
         "free_cash_flow": compact_money(row.get("Free Cash Flow")),
-        "operating_cash_flow": compact_money(row.get("Operating Cash Flow")),
-        "rsi": row.get("RSI"),
-        "twenty_day": row.get("20D %"),
-        "sixty_day": row.get("60D %"),
-        "volume_ratio": row.get("Volume Ratio"),
-        "why_ranked": row.get("Why Ranked Highly"),
-        "looks_good": row.get("What Looks Good"),
-        "could_go_wrong": row.get("What Could Go Wrong"),
-        "trade_plan": row.get("Trade Plan"),
-        "financial_summary": row.get("Financial Summary"),
-        "recovery_catalyst": row.get("Recovery Catalyst"),
+        "why": row.get("Why Ranked Highly"),
+        "good": row.get("What Looks Good"),
+        "bad": row.get("What Could Go Wrong"),
     }
-    return "\n".join([f"{k}: {v}" for k, v in fields.items() if v not in [None, "", "N/A", "$N/A"]])
+    return "\\n".join([f"{k}: {v}" for k, v in fields.items() if v not in [None, "", "N/A", "$N/A"]])
 
 
 def call_real_ai(row, question):
@@ -1086,20 +903,15 @@ def call_real_ai(row, question):
         "messages": [
             {
                 "role": "system",
-                "content": (
-                    "You are a private AI stock research assistant inside a user's dashboard. "
-                    "Use only the supplied dashboard context. Do not pretend to know live news or live prices unless provided. "
-                    "Do not tell the user to buy or sell. Provide decision support: bull case, bear case, risks, valuation, "
-                    "entry/stop/target interpretation, and what to verify before acting."
-                ),
+                "content": "You are a private AI stock research assistant. Use only the provided context. Do not give buy/sell orders. Provide decision support."
             },
             {
                 "role": "user",
-                "content": f"Dashboard stock context:\n{build_stock_context(row)}\n\nUser question: {question}\n\nAnswer clearly with practical reasoning.",
+                "content": f"Stock context:\\n{build_stock_context(row)}\\n\\nQuestion: {question}"
             },
         ],
         "temperature": 0.2,
-        "max_tokens": 750,
+        "max_tokens": 700,
     }
 
     try:
@@ -1115,62 +927,38 @@ def call_real_ai(row, question):
         with urllib.request.urlopen(req, timeout=45) as resp:
             data = json.loads(resp.read().decode("utf-8"))
         return data["choices"][0]["message"]["content"]
-    except Exception as e:
-        return f"Real AI request failed. Built-in analysis below.\n\nError: {e}"
+    except Exception as exc:
+        return f"Real AI request failed. Built-in analysis below. Error: {exc}"
 
 
 def built_in_ai_answer(row, question):
     q = (question or "").lower()
     ticker = row.get("Ticker", "This stock")
-
     base = (
         f"{ticker} has an AI score of {row.get('Final Conviction')}. "
         f"Agent scores: Technical={row.get('Technical')}, Fundamentals={row.get('Fundamentals')}, "
         f"Valuation={row.get('Valuation')}, Risk={row.get('Risk')}, Catalyst={row.get('Catalyst')}. "
     )
-
     trade = (
         f"Trade plan: entry {row.get('Entry Range')}, stop {money(row.get('Stop Loss'))}, "
-        f"target {money(row.get('Target'))}, risk/reward {row.get('Risk/Reward')}. "
+        f"target {money(row.get('Target'))}, upside {row.get('Target Upside %')}%, risk/reward {row.get('Risk/Reward')}. "
     )
-
     financial = (
-        f"Financial snapshot: P/E {row.get('P/E')}, forward P/E {row.get('Forward P/E')}, PEG {row.get('PEG')}, "
+        f"Financial snapshot: P/E {row.get('P/E')}, forward P/E {row.get('Forward P/E')}, "
         f"cash {compact_money(row.get('Cash'))}, debt {compact_money(row.get('Debt'))}, "
         f"free cash flow {compact_money(row.get('Free Cash Flow'))}. "
     )
 
+    if any(w in q for w in ["risk", "wrong", "bear", "avoid", "invalidate"]):
+        return f"Main risks for {ticker}: {row.get('What Could Go Wrong')}. Watch for a break below stop, fading volume, weak fundamentals, or failed catalyst."
+    if any(w in q for w in ["entry", "buy", "stop", "target", "sell", "trade"]):
+        return trade + "This is research guidance only; confirm current price/news before acting."
+    if any(w in q for w in ["fundamental", "cash", "debt", "pe", "valuation", "financial"]):
+        return financial + f"Summary: {row.get('Financial Summary') or 'No detailed financial summary available.'}"
     if any(w in q for w in ["why", "score", "rank", "conviction"]):
         return base + f"Why it ranked: {row.get('Why Ranked Highly')}. What looks good: {row.get('What Looks Good')}. Main risk: {row.get('What Could Go Wrong')}."
-
-    if any(w in q for w in ["risk", "wrong", "bear", "avoid", "invalidate"]):
-        return (
-            f"Main risks/invalidation points for {ticker}: {row.get('What Could Go Wrong')}. "
-            "Also watch for a break below the stop area, fading volume/momentum, weaker fundamentals than expected, or a failed catalyst."
-        )
-
-    if any(w in q for w in ["entry", "buy", "stop", "target", "sell", "trade"]):
-        return trade + "Use this as research guidance only and confirm current price/news before acting."
-
-    if any(w in q for w in ["fundamental", "cash", "debt", "pe", "valuation", "financial"]):
-        return financial + f"Financial summary: {row.get('Financial Summary') or 'No detailed financial summary available.'}"
-
-    if any(w in q for w in ["recovery", "earnings", "catalyst"]):
-        return f"Catalyst/recovery view for {ticker}: {row.get('Recovery Catalyst') or 'No specific catalyst detected.'} Catalyst score: {row.get('Catalyst')}."
-
-    if any(w in q for w in ["long", "hold", "long-term", "investment"]):
-        return (
-            base + financial +
-            "For long-term suitability, focus more on fundamentals, valuation, cash/debt, free cash flow, and durable revenue/profit trends than on short-term technical score alone."
-        )
-
-    if any(w in q for w in ["compare", "vs", "better"]):
-        return (
-            f"To compare {ticker} properly, analyze the other ticker too, then compare: AI score, fundamentals score, valuation score, risk score, cash/debt, free cash flow, "
-            "growth profile, and whether the setup is momentum, recovery, or long-term quality."
-        )
-
     return base + trade + f"Reasoning: {row.get('AI Trade Plan') or row.get('Why Ranked Highly')}"
+
 
 def ask_ai_answer(row, question):
     if row is None:
@@ -1181,10 +969,8 @@ def ask_ai_answer(row, question):
 
     real_ai = call_real_ai(row, question)
     if real_ai:
-        if real_ai.startswith("Real AI request failed"):
-            return real_ai + "
-
-" + built_in_ai_answer(row, question)
+        if isinstance(real_ai, str) and real_ai.startswith("Real AI request failed"):
+            return real_ai + "\\n\\n" + built_in_ai_answer(row, question)
         return real_ai
 
     return built_in_ai_answer(row, question)
@@ -1201,7 +987,6 @@ def page_detail(scan_df):
         pass
 
     ticker = st.text_input("Ticker", value=default_ticker, key="detail_ticker").strip().upper()
-
     if not ticker:
         st.info("Select a ticker from the dashboard or enter one above.")
         return
@@ -1226,7 +1011,6 @@ def page_detail(scan_df):
     c3.metric("AI Score", int(safe_number(row.get("Final Conviction"), 0)))
     c4.metric("Bucket", row.get("Opportunity Bucket", "N/A"))
 
-    st.info("You are now in the stock detail page. Ask AI is available below the trade plan.")
     render_agent_help()
     agent_metric_row(row)
 
@@ -1238,7 +1022,8 @@ def page_detail(scan_df):
     t1.metric("Entry", row.get("Entry Range", "N/A"))
     t2.metric("Stop", money(row.get("Stop Loss")))
     t3.metric("Target", money(row.get("Target")))
-    t4.metric("Upside", f"{safe_number(row.get('Target Upside %')):.1f}%" if safe_number(row.get("Target Upside %")) is not None else "N/A")
+    upside = safe_number(row.get("Target Upside %"))
+    t4.metric("Upside", f"{upside:.1f}%" if upside is not None else "N/A")
     t5.metric("Risk/Reward", row.get("Risk/Reward", "N/A"))
 
     st.write("### What Looks Good")
@@ -1305,25 +1090,15 @@ if not login_gate():
 
 st.sidebar.title("📈 AI Dashboard")
 st.sidebar.caption(APP_VERSION)
-st.sidebar.caption('Ask AI mode: Real AI' if OPENAI_API_KEY else 'Ask AI mode: Built-in')
+st.sidebar.caption("Ask AI mode: Real AI" if OPENAI_API_KEY else "Ask AI mode: Built-in")
 
 pages = ["Dashboard", "Watchlist", "Detail", "Scan Status"]
-
-# Keep navigation stable when a card button sends user to Detail.
 current = st.session_state.get("nav_page", st.session_state.get("page", "Dashboard"))
 if current not in pages:
     current = "Dashboard"
 
 page = st.sidebar.radio("Navigation", pages, index=pages.index(current), key="nav_page")
-
-# If a card button was clicked, force the app into Detail for this run.
-if st.session_state.get("force_detail"):
-    page = "Detail"
-    st.session_state.page = "Detail"
-    st.session_state.nav_page = "Detail"
-    st.session_state.force_detail = False
-else:
-    st.session_state.page = page
+st.session_state.page = page
 
 scan_df, source = load_best_scan()
 
