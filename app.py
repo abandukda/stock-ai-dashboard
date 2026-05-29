@@ -408,7 +408,8 @@ def price_bucket_label(price):
         pass
     return "Unknown"
 
-\ndef diversify_for_cards(df, limit=6):
+
+def diversify_for_cards(df, limit=6):
     if df is None or df.empty:
         return pd.DataFrame()
 
