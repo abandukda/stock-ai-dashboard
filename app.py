@@ -393,7 +393,22 @@ def agent_metric(label, value):
     st.metric(label, value)
 
 
-def diversify_for_cards(df, limit=6):
+
+
+def price_bucket_label(price):
+    try:
+        p = float(price)
+        if 5 <= p <= 25:
+            return "Lower Price"
+        if 25 < p <= 100:
+            return "Mid Price"
+        if p > 100:
+            return "Higher Price"
+    except Exception:
+        pass
+    return "Unknown"
+
+\ndef diversify_for_cards(df, limit=6):
     if df is None or df.empty:
         return pd.DataFrame()
 
