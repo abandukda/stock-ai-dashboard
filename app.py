@@ -8,7 +8,7 @@ import pandas as pd
 import streamlit as st
 
 
-APP_VERSION = "V40 Stable Consolidated Dashboard"
+APP_VERSION = "V40.1 Detail + Ask AI Fix"
 
 st.set_page_config(
     page_title=f"AI Trading Dashboard {APP_VERSION}",
@@ -329,6 +329,7 @@ def load_best_scan():
 
 
 def render_agent_help():
+    st.caption("Tip: Open this section to understand Technical, Fundamentals, Valuation, Risk, and Catalyst scores.")
     with st.expander("What do the AI agent scores mean?", expanded=False):
         st.markdown("""
         **Technical** — Trend, moving averages, RSI, momentum, volume confirmation, and volatility.
@@ -400,6 +401,11 @@ def render_cards(df, title, key_prefix, limit=5):
                 if st.button("Open Detail", key=f"{key_prefix}_detail_{ticker}"):
                     st.session_state.selected_ticker = ticker
                     st.session_state.page = "Detail"
+                    st.session_state.nav_page = "Detail"
+                    try:
+                        st.query_params["detail"] = ticker
+                    except Exception:
+                        pass
                     st.rerun()
 
 
@@ -485,6 +491,7 @@ def page_dashboard(scan_df, source):
     c4.metric("Persisted", str(state.get("github_persisted", "N/A")))
 
     render_scan_status()
+    st.info("Hover tooltips were removed for stability. Use the explainer below for AI score definitions.")
     render_agent_help()
 
     top = load_top_ideas()
@@ -630,6 +637,7 @@ def page_detail(scan_df):
     c3.metric("AI Score", int(safe_number(row.get("Final Conviction"), 0)))
     c4.metric("Bucket", row.get("Opportunity Bucket", "N/A"))
 
+    st.info("You are now in the stock detail page. The Ask AI field is near the bottom of this page.")
     render_agent_help()
     agent_metric_row(row)
 
@@ -668,7 +676,28 @@ def page_detail(scan_df):
     st.write(row.get("Recovery Catalyst") or "No specific recovery catalyst available.")
 
     st.write("### Ask AI About This Stock")
-    question = st.text_input("Ask a question", placeholder="Example: Why did this score high? What is the risk?", key=f"ask_ai_{ticker}")
+    st.caption("This uses the latest scan data for this ticker: agent scores, entry/stop/target, fundamentals, risk, and catalyst text.")
+
+    quick_q = st.selectbox(
+        "Quick questions",
+        [
+            "",
+            "Why did this score high?",
+            "What are the main risks?",
+            "What is the suggested entry, stop, and target?",
+            "Explain the financial and valuation picture.",
+            "Is this a recovery or catalyst idea?",
+        ],
+        key=f"ask_ai_quick_{ticker}",
+    )
+
+    custom_q = st.text_input(
+        "Or type your own question",
+        placeholder="Example: Is this better as a swing trade or long-term hold?",
+        key=f"ask_ai_custom_{ticker}",
+    )
+
+    question = custom_q or quick_q
     if question:
         st.info(ask_ai_answer(row, question))
 
@@ -683,7 +712,9 @@ st.sidebar.title("📈 AI Dashboard")
 st.sidebar.caption(APP_VERSION)
 
 pages = ["Dashboard", "Watchlist", "Detail", "Scan Status"]
-current = st.session_state.get("page", "Dashboard")
+
+# Keep navigation stable when a card button sends user to Detail.
+current = st.session_state.get("nav_page", st.session_state.get("page", "Dashboard"))
 if current not in pages:
     current = "Dashboard"
 
