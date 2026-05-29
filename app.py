@@ -1,6 +1,7 @@
 
 import os
 import json
+import urllib.request
 from pathlib import Path
 from datetime import datetime
 
@@ -8,7 +9,7 @@ import pandas as pd
 import streamlit as st
 
 
-APP_VERSION = "V40.3 On-Demand Watchlist AI Analysis"
+APP_VERSION = "V40.5 Cleaner Layout + 30% Upside Filter"
 
 st.set_page_config(
     page_title=f"AI Trading Dashboard {APP_VERSION}",
@@ -17,6 +18,7 @@ st.set_page_config(
 )
 
 DATA_DIR = Path(os.getenv("DATA_DIR", "."))
+MIN_UPSIDE_PCT = float(os.getenv("MIN_UPSIDE_PCT", "0.30"))
 
 FULL_SCAN_FILE = DATA_DIR / "market_full_scan.json"
 PRESCREEN_FILE = DATA_DIR / "market_prescreen.json"
@@ -43,6 +45,10 @@ def first_env(*names, default=""):
 
 ADMIN_USER = first_env("ADMIN_USER", "APP_USERNAME", "APP_USER", "USERNAME", "LOGIN_USER", default="admin")
 ADMIN_PASSWORD = first_env("ADMIN_PASSWORD", "APP_PASSWORD", "PASSWORD", "LOGIN_PASSWORD", default="admin")
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
 
 
 def read_json_safe(path, default):
@@ -135,6 +141,46 @@ def price_bucket(price):
     return "Under $5"
 
 
+
+def parse_money_value(value):
+    if value is None:
+        return None
+    try:
+        if isinstance(value, (int, float)):
+            return float(value)
+        text = str(value).replace("$", "").replace(",", "").strip()
+        if " - " in text:
+            parts = [p.strip() for p in text.split(" - ") if p.strip()]
+            nums = []
+            for part in parts:
+                try:
+                    nums.append(float(part.replace("$", "").replace(",", "")))
+                except Exception:
+                    pass
+            return sum(nums) / len(nums) if nums else None
+        return float(text)
+    except Exception:
+        return None
+
+
+def target_upside_pct_from_values(price, target):
+    p = safe_number(price)
+    t = parse_money_value(target)
+    if not p or not t or p <= 0:
+        return None
+    return ((t - p) / p) * 100
+
+
+def qualifies_upside(row, min_pct=None):
+    min_pct = MIN_UPSIDE_PCT * 100 if min_pct is None else min_pct
+    upside = safe_number(row.get("Target Upside %"))
+    if upside is None:
+        upside = target_upside_pct_from_values(row.get("Price"), row.get("Target"))
+    if upside is None:
+        return False
+    return upside >= min_pct
+
+
 def login_gate():
     if st.session_state.get("authenticated"):
         return True
@@ -205,6 +251,7 @@ def normalize_rows(raw_data):
             "Entry Range": pick(raw, "Entry Range", "entry_range", default="N/A"),
             "Stop Loss": pick(raw, "Stop Loss", "stop_loss", default="N/A"),
             "Target": pick(raw, "Target / Sell Zone", "target", "target_2", default="N/A"),
+            "Target Upside %": pick(raw, "Target Upside %", "target_upside_pct", "upside_pct", default=None),
             "Risk/Reward": pick(raw, "Risk/Reward", "risk_reward", default="N/A"),
             "Why Ranked Highly": why or "No ranking explanation available.",
             "What Looks Good": pick(raw, "What Looks Good", "what_looks_good", default="Needs confirmation."),
@@ -231,6 +278,9 @@ def normalize_rows(raw_data):
             "Earnings Date": pick(raw, "earnings_date", "Earnings Date", default="N/A"),
             "_raw": raw,
         }
+
+        if row.get("Target Upside %") is None:
+            row["Target Upside %"] = target_upside_pct_from_values(row.get("Price"), row.get("Target"))
 
         setup_text = str(row["Setup Type"])
         if "Recovery" in setup_text or "Reversal" in setup_text:
@@ -261,7 +311,7 @@ def load_file(path):
     return normalize_rows(read_json_safe(path, []))
 
 
-def actionable(df, min_score=35):
+def actionable(df, min_score=35, require_upside=True):
     if df is None or df.empty:
         return pd.DataFrame()
     work = df.copy()
@@ -269,6 +319,10 @@ def actionable(df, min_score=35):
     work = work[work["Price"] > 0]
     work = work[work["Final Conviction"] >= min_score]
     work = work[~work["Setup Type"].astype(str).str.contains("Prescreen Candidate", case=False, na=False)]
+
+    if require_upside and "Target Upside %" in work.columns:
+        work = work[work.apply(lambda r: qualifies_upside(r), axis=1)]
+
     return work.sort_values(["Final Conviction", "Dollar Volume"], ascending=[False, False])
 
 
@@ -277,14 +331,14 @@ def load_full_scan():
 
 
 def load_top_ideas():
-    df = actionable(load_file(TOP_IDEAS_FILE), min_score=45)
+    df = actionable(load_file(TOP_IDEAS_FILE), min_score=45, require_upside=True)
     if not df.empty:
         return df
-    return actionable(load_full_scan(), min_score=45).head(25)
+    return actionable(load_full_scan(), min_score=45, require_upside=True).head(25)
 
 
 def load_recovery():
-    df = actionable(load_file(RECOVERY_SCAN_FILE), min_score=35)
+    df = actionable(load_file(RECOVERY_SCAN_FILE), min_score=35, require_upside=True)
     if not df.empty:
         return df
     full = load_full_scan()
@@ -582,7 +636,7 @@ def analyze_ticker_now(symbol):
         entry_low = price * 0.98
         entry_high = price * 1.01
         stop = price * 0.93
-        target = price * 1.12
+        target = price * (1 + MIN_UPSIDE_PCT)
         rr = (target - price) / max(price - stop, 0.01)
 
         good_items = technical_reasons + fundamental_reasons + valuation_reasons + risk_reasons + catalyst_reasons
@@ -597,7 +651,7 @@ def analyze_ticker_now(symbol):
             f"Technical={technical}, Fundamentals={fundamentals}, Valuation={valuation}, Risk={risk}, Catalyst={catalyst}. "
             f"Current price is {price:.2f}; RSI is {rsi:.1f} if available; 20-day move is {twenty_day:.1f}% if available; "
             f"60-day move is {sixty_day:.1f}% if available. "
-            f"Suggested entry range is {entry_low:.2f}–{entry_high:.2f}, stop around {stop:.2f}, target around {target:.2f}. "
+            f"Suggested entry range is {entry_low:.2f}–{entry_high:.2f}, stop around {stop:.2f}, target around {target:.2f} (minimum {MIN_UPSIDE_PCT*100:.0f}% upside screen). "
             f"Main support: {good_text}. Main risks: {risk_text}."
         )
 
@@ -626,6 +680,7 @@ def analyze_ticker_now(symbol):
             "stop_loss": round(stop, 2),
             "target": round(target, 2),
             "risk_reward": round(rr, 2),
+            "target_upside_pct": round(MIN_UPSIDE_PCT * 100, 1),
             "why_ranked_high": guidance,
             "what_looks_good": good_text,
             "what_could_go_wrong": risk_text,
@@ -662,8 +717,8 @@ def analyze_ticker_now(symbol):
 
 
 def load_best_scan():
-    full = actionable(load_full_scan(), min_score=35)
-    pre = actionable(load_file(PRESCREEN_FILE), min_score=35)
+    full = actionable(load_full_scan(), min_score=35, require_upside=True)
+    pre = actionable(load_file(PRESCREEN_FILE), min_score=35, require_upside=True)
     if len(full) >= 25:
         return full, "Full AI Scan"
     if len(pre) > len(full):
@@ -769,7 +824,7 @@ def render_cards(df, title, key_prefix, limit=5):
             t4.metric("Risk/Reward", row.get("Risk/Reward", "N/A"))
 
             # Short readable summary instead of huge wall of text
-            summary = clean_display_text(row.get("AI Trade Plan") or row.get("Why Ranked Highly"), max_chars=420)
+            summary = clean_display_text(row.get("AI Trade Plan") or row.get("Why Ranked Highly"), max_chars=300)
             st.markdown("**Quick AI Summary**")
             st.write(summary)
 
@@ -819,7 +874,7 @@ def render_table(df, title, key_prefix, min_score_default=35):
         "Final Conviction", "Decision Rating",
         "Technical", "Fundamentals", "Valuation", "Risk", "Catalyst",
         "Sector", "Industry", "RSI", "20D %", "60D %",
-        "Entry Range", "Stop Loss", "Target", "Risk/Reward",
+        "Entry Range", "Stop Loss", "Target", "Target Upside %", "Risk/Reward",
     ]
     cols = [c for c in cols if c in filtered.columns]
     display = filtered[cols].copy()
@@ -827,6 +882,8 @@ def render_table(df, title, key_prefix, min_score_default=35):
     for col in ["Price", "Stop Loss", "Target"]:
         if col in display.columns:
             display[col] = display[col].apply(money)
+    if "Target Upside %" in display.columns:
+        display["Target Upside %"] = display["Target Upside %"].apply(lambda x: f"{float(x):.1f}%" if safe_number(x) is not None else "N/A")
 
     st.dataframe(display, use_container_width=True, hide_index=True, height=560)
 
@@ -976,41 +1033,161 @@ def page_watchlist(scan_df):
                 st.rerun()
 
 
-def ask_ai_answer(row, question):
+
+def build_stock_context(row):
+    fields = {
+        "ticker": row.get("Ticker"),
+        "company": row.get("Company"),
+        "price": money(row.get("Price")),
+        "ai_score": row.get("Final Conviction"),
+        "decision": row.get("Decision Rating"),
+        "setup_type": row.get("Setup Type"),
+        "opportunity_bucket": row.get("Opportunity Bucket"),
+        "price_bucket": row.get("Price Bucket"),
+        "sector": row.get("Sector"),
+        "industry": row.get("Industry"),
+        "technical_agent": row.get("Technical"),
+        "fundamentals_agent": row.get("Fundamentals"),
+        "valuation_agent": row.get("Valuation"),
+        "risk_agent": row.get("Risk"),
+        "catalyst_agent": row.get("Catalyst"),
+        "entry": row.get("Entry Range"),
+        "stop": money(row.get("Stop Loss")),
+        "target": money(row.get("Target")),
+        "risk_reward": row.get("Risk/Reward"),
+        "pe": row.get("P/E"),
+        "forward_pe": row.get("Forward P/E"),
+        "peg": row.get("PEG"),
+        "price_sales": row.get("Price/Sales"),
+        "cash": compact_money(row.get("Cash")),
+        "debt": compact_money(row.get("Debt")),
+        "free_cash_flow": compact_money(row.get("Free Cash Flow")),
+        "operating_cash_flow": compact_money(row.get("Operating Cash Flow")),
+        "rsi": row.get("RSI"),
+        "twenty_day": row.get("20D %"),
+        "sixty_day": row.get("60D %"),
+        "volume_ratio": row.get("Volume Ratio"),
+        "why_ranked": row.get("Why Ranked Highly"),
+        "looks_good": row.get("What Looks Good"),
+        "could_go_wrong": row.get("What Could Go Wrong"),
+        "trade_plan": row.get("Trade Plan"),
+        "financial_summary": row.get("Financial Summary"),
+        "recovery_catalyst": row.get("Recovery Catalyst"),
+    }
+    return "\n".join([f"{k}: {v}" for k, v in fields.items() if v not in [None, "", "N/A", "$N/A"]])
+
+
+def call_real_ai(row, question):
+    if not OPENAI_API_KEY:
+        return None
+
+    payload = {
+        "model": OPENAI_MODEL,
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You are a private AI stock research assistant inside a user's dashboard. "
+                    "Use only the supplied dashboard context. Do not pretend to know live news or live prices unless provided. "
+                    "Do not tell the user to buy or sell. Provide decision support: bull case, bear case, risks, valuation, "
+                    "entry/stop/target interpretation, and what to verify before acting."
+                ),
+            },
+            {
+                "role": "user",
+                "content": f"Dashboard stock context:\n{build_stock_context(row)}\n\nUser question: {question}\n\nAnswer clearly with practical reasoning.",
+            },
+        ],
+        "temperature": 0.2,
+        "max_tokens": 750,
+    }
+
+    try:
+        req = urllib.request.Request(
+            "https://api.openai.com/v1/chat/completions",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {OPENAI_API_KEY}",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=45) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        return data["choices"][0]["message"]["content"]
+    except Exception as e:
+        return f"Real AI request failed. Built-in analysis below.\n\nError: {e}"
+
+
+def built_in_ai_answer(row, question):
     q = (question or "").lower()
+    ticker = row.get("Ticker", "This stock")
 
-    if any(word in q for word in ["why", "score", "rank", "conviction"]):
-        return (
-            f"{row['Ticker']} scored {row.get('Final Conviction')} because the agent team reviewed technicals, fundamentals, "
-            f"valuation, risk, and catalysts. Technical={row.get('Technical')}, Fundamentals={row.get('Fundamentals')}, "
-            f"Valuation={row.get('Valuation')}, Risk={row.get('Risk')}, Catalyst={row.get('Catalyst')}. "
-            f"Reasoning: {row.get('AI Trade Plan') or row.get('Why Ranked Highly')}"
-        )
-
-    if any(word in q for word in ["risk", "wrong", "bear", "avoid"]):
-        return f"Main risks for {row['Ticker']}: {row.get('What Could Go Wrong', 'No risk explanation available.')}"
-
-    if any(word in q for word in ["entry", "buy", "stop", "target", "sell"]):
-        return (
-            f"Trade plan for {row['Ticker']}: Entry {row.get('Entry Range')}, Stop {money(row.get('Stop Loss'))}, "
-            f"Target {money(row.get('Target'))}, Risk/Reward {row.get('Risk/Reward')}."
-        )
-
-    if any(word in q for word in ["fundamental", "cash", "debt", "pe", "valuation", "financial"]):
-        return (
-            f"Financial view for {row['Ticker']}: P/E {row.get('P/E')}, Forward P/E {row.get('Forward P/E')}, "
-            f"PEG {row.get('PEG')}, Cash {compact_money(row.get('Cash'))}, Debt {compact_money(row.get('Debt'))}, "
-            f"Free Cash Flow {compact_money(row.get('Free Cash Flow'))}. "
-            f"Summary: {row.get('Financial Summary') or 'No detailed financial summary available.'}"
-        )
-
-    if any(word in q for word in ["recovery", "earnings", "catalyst"]):
-        return f"Recovery/catalyst view for {row['Ticker']}: {row.get('Recovery Catalyst') or 'No specific recovery catalyst available.'}"
-
-    return (
-        f"{row['Ticker']} overview: {row.get('AI Trade Plan') or row.get('Why Ranked Highly')} "
-        f"Entry {row.get('Entry Range')}, Stop {money(row.get('Stop Loss'))}, Target {money(row.get('Target'))}."
+    base = (
+        f"{ticker} has an AI score of {row.get('Final Conviction')}. "
+        f"Agent scores: Technical={row.get('Technical')}, Fundamentals={row.get('Fundamentals')}, "
+        f"Valuation={row.get('Valuation')}, Risk={row.get('Risk')}, Catalyst={row.get('Catalyst')}. "
     )
+
+    trade = (
+        f"Trade plan: entry {row.get('Entry Range')}, stop {money(row.get('Stop Loss'))}, "
+        f"target {money(row.get('Target'))}, risk/reward {row.get('Risk/Reward')}. "
+    )
+
+    financial = (
+        f"Financial snapshot: P/E {row.get('P/E')}, forward P/E {row.get('Forward P/E')}, PEG {row.get('PEG')}, "
+        f"cash {compact_money(row.get('Cash'))}, debt {compact_money(row.get('Debt'))}, "
+        f"free cash flow {compact_money(row.get('Free Cash Flow'))}. "
+    )
+
+    if any(w in q for w in ["why", "score", "rank", "conviction"]):
+        return base + f"Why it ranked: {row.get('Why Ranked Highly')}. What looks good: {row.get('What Looks Good')}. Main risk: {row.get('What Could Go Wrong')}."
+
+    if any(w in q for w in ["risk", "wrong", "bear", "avoid", "invalidate"]):
+        return (
+            f"Main risks/invalidation points for {ticker}: {row.get('What Could Go Wrong')}. "
+            "Also watch for a break below the stop area, fading volume/momentum, weaker fundamentals than expected, or a failed catalyst."
+        )
+
+    if any(w in q for w in ["entry", "buy", "stop", "target", "sell", "trade"]):
+        return trade + "Use this as research guidance only and confirm current price/news before acting."
+
+    if any(w in q for w in ["fundamental", "cash", "debt", "pe", "valuation", "financial"]):
+        return financial + f"Financial summary: {row.get('Financial Summary') or 'No detailed financial summary available.'}"
+
+    if any(w in q for w in ["recovery", "earnings", "catalyst"]):
+        return f"Catalyst/recovery view for {ticker}: {row.get('Recovery Catalyst') or 'No specific catalyst detected.'} Catalyst score: {row.get('Catalyst')}."
+
+    if any(w in q for w in ["long", "hold", "long-term", "investment"]):
+        return (
+            base + financial +
+            "For long-term suitability, focus more on fundamentals, valuation, cash/debt, free cash flow, and durable revenue/profit trends than on short-term technical score alone."
+        )
+
+    if any(w in q for w in ["compare", "vs", "better"]):
+        return (
+            f"To compare {ticker} properly, analyze the other ticker too, then compare: AI score, fundamentals score, valuation score, risk score, cash/debt, free cash flow, "
+            "growth profile, and whether the setup is momentum, recovery, or long-term quality."
+        )
+
+    return base + trade + f"Reasoning: {row.get('AI Trade Plan') or row.get('Why Ranked Highly')}"
+
+def ask_ai_answer(row, question):
+    if row is None:
+        return "Select or analyze a stock first."
+
+    if not question:
+        return "Ask a question about the selected stock."
+
+    real_ai = call_real_ai(row, question)
+    if real_ai:
+        if real_ai.startswith("Real AI request failed"):
+            return real_ai + "
+
+" + built_in_ai_answer(row, question)
+        return real_ai
+
+    return built_in_ai_answer(row, question)
 
 
 def page_detail(scan_df):
@@ -1057,11 +1234,12 @@ def page_detail(scan_df):
     st.write(row.get("AI Trade Plan") or row.get("Why Ranked Highly"))
 
     st.write("### Trade Plan")
-    t1, t2, t3, t4 = st.columns(4)
+    t1, t2, t3, t4, t5 = st.columns(5)
     t1.metric("Entry", row.get("Entry Range", "N/A"))
     t2.metric("Stop", money(row.get("Stop Loss")))
     t3.metric("Target", money(row.get("Target")))
-    t4.metric("Risk/Reward", row.get("Risk/Reward", "N/A"))
+    t4.metric("Upside", f"{safe_number(row.get('Target Upside %')):.1f}%" if safe_number(row.get("Target Upside %")) is not None else "N/A")
+    t5.metric("Risk/Reward", row.get("Risk/Reward", "N/A"))
 
     st.write("### What Looks Good")
     st.success(row.get("What Looks Good", "Needs confirmation."))
@@ -1088,28 +1266,33 @@ def page_detail(scan_df):
     st.write(row.get("Recovery Catalyst") or "No specific recovery catalyst available.")
 
     st.write("### Ask AI About This Stock")
-    st.caption("This uses the latest scan data for this ticker: agent scores, entry/stop/target, fundamentals, risk, and catalyst text.")
+    if OPENAI_API_KEY:
+        st.success("Real Ask AI is enabled.")
+    else:
+        st.warning("Built-in Ask AI is active. Add OPENAI_API_KEY in Render to enable real AI responses.")
 
-    quick_q = st.selectbox(
-        "Quick questions",
+    quick_question = st.selectbox(
+        "Quick question",
         [
             "",
             "Why did this score high?",
-            "What are the main risks?",
-            "What is the suggested entry, stop, and target?",
-            "Explain the financial and valuation picture.",
-            "Is this a recovery or catalyst idea?",
+            "What are the biggest risks?",
+            "What would invalidate this setup?",
+            "Explain the entry, stop, target, and risk/reward.",
+            "Explain the valuation and financial picture.",
+            "Is this better for a swing trade or long-term hold?",
+            "What should I verify before acting?",
         ],
         key=f"ask_ai_quick_{ticker}",
     )
 
-    custom_q = st.text_input(
+    custom_question = st.text_input(
         "Or type your own question",
-        placeholder="Example: Is this better as a swing trade or long-term hold?",
+        placeholder="Example: Is this a good stock to hold for 3 months?",
         key=f"ask_ai_custom_{ticker}",
     )
 
-    question = custom_q or quick_q
+    question = custom_question or quick_question
     if question:
         st.info(ask_ai_answer(row, question))
 
@@ -1122,6 +1305,7 @@ if not login_gate():
 
 st.sidebar.title("📈 AI Dashboard")
 st.sidebar.caption(APP_VERSION)
+st.sidebar.caption('Ask AI mode: Real AI' if OPENAI_API_KEY else 'Ask AI mode: Built-in')
 
 pages = ["Dashboard", "Watchlist", "Detail", "Scan Status"]
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-V39.7 Multi-Agent Decision Scanner with Price Bucket Diversity
+V40.5 Multi-Agent Scanner with 30 Percent Upside Filter
 - Keeps Render Cron compatibility
 - Keeps DATA_DIR="."
 - Preserves V39 dashboard files
@@ -95,6 +95,7 @@ PRICE_BUCKETS = [
 ]
 
 TOP_AI_IDEAS_TARGET = int(os.getenv("TOP_AI_IDEAS_TARGET", "25"))
+MIN_UPSIDE_PCT = float(os.getenv("MIN_UPSIDE_PCT", "0.30"))
 
 
 def now_iso() -> str:
@@ -548,6 +549,10 @@ def build_trade_plan(ind: Dict[str, Any]) -> Dict[str, Any]:
     if high20 and high20 > price:
         target_1 = max(target_1, high20 * 1.01)
 
+    # User preference: only track ideas where the planned target has meaningful upside.
+    target_1 = max(target_1, price * (1 + MIN_UPSIDE_PCT))
+    target_2 = max(target_2, price * (1 + max(MIN_UPSIDE_PCT + 0.15, 0.45)))
+
     rr = (target_1 - price) / risk if risk > 0 else None
 
     return {
@@ -557,6 +562,7 @@ def build_trade_plan(ind: Dict[str, Any]) -> Dict[str, Any]:
         "stop_loss": round(stop_loss, 2),
         "target": round(target_1, 2),
         "target_2": round(target_2, 2),
+        "target_upside_pct": round(((target_1 - price) / price) * 100, 2) if price else None,
         "risk_reward": round(rr, 2) if rr else None,
         "risk_reward_explanation": f"Approximate first target offers about {rr:.1f}:1 reward-to-risk." if rr else "",
     }
@@ -1070,7 +1076,9 @@ def make_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], score: int,
         "twenty_day_pct": ind.get("twenty_day_pct"), "sixty_day_pct": ind.get("sixty_day_pct"),
         "entry_range": plan.get("entry_range"), "entry_low": plan.get("entry_low"), "entry_high": plan.get("entry_high"),
         "stop_loss": plan.get("stop_loss"), "target": plan.get("target"), "target_2": plan.get("target_2"),
-        "risk_reward": plan.get("risk_reward"), "risk_reward_explanation": plan.get("risk_reward_explanation"),
+        "risk_reward": plan.get("risk_reward"),
+        "target_upside_pct": plan.get("target_upside_pct"),
+        "minimum_upside_required_pct": round(MIN_UPSIDE_PCT * 100, 1), "risk_reward_explanation": plan.get("risk_reward_explanation"),
         "setup_tags": good, "risk_tags": risks, "scan_time": now_iso(),
         **guidance,
         "summary": guidance.get("guidance"), "ai_guidance": guidance.get("guidance"),
@@ -1119,6 +1127,18 @@ def passes_basic_filter(ind: Dict[str, Any], meta: Dict[str, Any]) -> bool:
         return False
     return True
 
+
+
+
+def row_has_min_upside(row: Dict[str, Any]) -> bool:
+    try:
+        price = safe_float(row.get("price") or row.get("current_price"))
+        target = safe_float(row.get("target") or row.get("Target / Sell Zone"))
+        if not price or not target:
+            return False
+        return ((target - price) / price) >= MIN_UPSIDE_PCT
+    except Exception:
+        return False
 
 
 def price_bucket_name(price: Any) -> str:
@@ -1270,12 +1290,12 @@ def scan_market() -> Dict[str, Any]:
     recovery_rows.sort(key=lambda r: (r.get("conviction") or 0, r.get("twenty_day_pct") or 0), reverse=True)
     recovery_rows = recovery_rows[:50]
 
-    top_ai_ideas = build_diversified_top_ideas(full_rows, TOP_AI_IDEAS_TARGET)
+    top_ai_ideas = build_diversified_top_ideas([r for r in full_rows if row_has_min_upside(r)], TOP_AI_IDEAS_TARGET)
 
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V39.7",
+        "version": "V40.5",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -1294,6 +1314,7 @@ def scan_market() -> Dict[str, Any]:
             "excluded_sector_keywords": EXCLUDED_SECTOR_KEYWORDS,
             "price_bucket_diversity": PRICE_BUCKETS,
             "top_ai_ideas_target": TOP_AI_IDEAS_TARGET,
+            "min_upside_pct": MIN_UPSIDE_PCT,
         },
     }
 
@@ -1354,7 +1375,7 @@ def main() -> None:
             sys.exit(2)
     except Exception as exc:
         error_state = {
-            "generated_at": now_iso(), "status": "error", "version": "V39.7",
+            "generated_at": now_iso(), "status": "error", "version": "V40.5",
             "error": str(exc), "data_dir": str(DATA_DIR), "github_persisted": False,
         }
         write_json(STATE_FILE, error_state)
