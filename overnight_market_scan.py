@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-V40.5 Multi-Agent Scanner with 30 Percent Upside Filter
+V40.6 Institutional Quality-Gated Scanner
 - Keeps Render Cron compatibility
 - Keeps DATA_DIR="."
 - Preserves V39 dashboard files
@@ -96,6 +96,14 @@ PRICE_BUCKETS = [
 
 TOP_AI_IDEAS_TARGET = int(os.getenv("TOP_AI_IDEAS_TARGET", "25"))
 MIN_UPSIDE_PCT = float(os.getenv("MIN_UPSIDE_PCT", "0.30"))
+
+# Institutional quality gates for Top AI ideas.
+# A name can still appear in full scan/recovery/watchlist, but not Top AI
+# unless it passes the minimum agent standards.
+MIN_TOP_TECHNICAL_SCORE = int(os.getenv("MIN_TOP_TECHNICAL_SCORE", "60"))
+MIN_TOP_FUNDAMENTALS_SCORE = int(os.getenv("MIN_TOP_FUNDAMENTALS_SCORE", "60"))
+MIN_TOP_RISK_SCORE = int(os.getenv("MIN_TOP_RISK_SCORE", "60"))
+MIN_TOP_CONVICTION_SCORE = int(os.getenv("MIN_TOP_CONVICTION_SCORE", "70"))
 
 
 def now_iso() -> str:
@@ -1070,6 +1078,7 @@ def make_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], score: int,
         "conviction": score, "conviction_score": score, "score": score, "ai_score": score,
         "setup_type": setup_type, "bucket": setup_type,
         "price_bucket": price_bucket_name(ind.get("price")),
+        "quality_bucket": classify_quality_bucket({**meta, **ind}),
         "rsi": ind.get("rsi"), "atr14": ind.get("atr14"), "atr_pct": ind.get("atr_pct"),
         "sma10": ind.get("sma10"), "sma20": ind.get("sma20"), "sma50": ind.get("sma50"), "sma100": ind.get("sma100"),
         "one_day_pct": ind.get("one_day_pct"), "five_day_pct": ind.get("five_day_pct"),
@@ -1149,6 +1158,64 @@ def price_bucket_name(price: Any) -> str:
         if bucket["min"] <= p < bucket["max"]:
             return bucket["name"]
     return "Unknown"
+
+
+
+def get_agent_score(row: Dict[str, Any], *keys: str) -> float:
+    for key in keys:
+        val = safe_float(row.get(key))
+        if val is not None:
+            return val
+    return 0.0
+
+
+def row_top_ai_quality_pass(row: Dict[str, Any]) -> bool:
+    """
+    Institutional Top AI gate:
+    Top AI ideas must pass core agent standards.
+
+    This prevents names with 0/missing fundamentals from being promoted
+    just because technical/catalyst scores are high.
+    """
+    technical = get_agent_score(row, "technical_agent_score", "Technical Agent", "technical")
+    fundamentals = get_agent_score(row, "fundamentals_agent_score", "Fundamentals Agent", "fundamentals")
+    risk = get_agent_score(row, "risk_agent_score", "Risk Agent", "risk")
+    conviction = get_agent_score(row, "conviction", "final_agent_score", "score", "ai_score")
+
+    # Target upside gate
+    price = safe_float(row.get("price") or row.get("current_price") or row.get("Price"))
+    target = safe_float(row.get("target") or row.get("Target / Sell Zone") or row.get("target_2"))
+    target_upside = safe_float(row.get("target_upside_pct") or row.get("Target Upside %"))
+
+    if target_upside is None and price and target:
+        target_upside = ((target - price) / price) * 100
+
+    has_upside = target_upside is not None and target_upside >= (MIN_UPSIDE_PCT * 100)
+
+    return (
+        technical >= MIN_TOP_TECHNICAL_SCORE
+        and fundamentals >= MIN_TOP_FUNDAMENTALS_SCORE
+        and risk >= MIN_TOP_RISK_SCORE
+        and conviction >= MIN_TOP_CONVICTION_SCORE
+        and has_upside
+    )
+
+
+def classify_quality_bucket(row: Dict[str, Any]) -> str:
+    technical = get_agent_score(row, "technical_agent_score", "Technical Agent", "technical")
+    fundamentals = get_agent_score(row, "fundamentals_agent_score", "Fundamentals Agent", "fundamentals")
+    risk = get_agent_score(row, "risk_agent_score", "Risk Agent", "risk")
+    conviction = get_agent_score(row, "conviction", "final_agent_score", "score", "ai_score")
+
+    if row_top_ai_quality_pass(row):
+        return "Institutional Top AI"
+    if fundamentals < MIN_TOP_FUNDAMENTALS_SCORE and technical >= MIN_TOP_TECHNICAL_SCORE:
+        return "Speculative / Technical Only"
+    if risk < MIN_TOP_RISK_SCORE:
+        return "High Risk Watchlist"
+    if conviction >= 60:
+        return "Research Watchlist"
+    return "Low Priority"
 
 
 def build_diversified_top_ideas(rows: List[Dict[str, Any]], target_count: int = TOP_AI_IDEAS_TARGET) -> List[Dict[str, Any]]:
@@ -1290,12 +1357,19 @@ def scan_market() -> Dict[str, Any]:
     recovery_rows.sort(key=lambda r: (r.get("conviction") or 0, r.get("twenty_day_pct") or 0), reverse=True)
     recovery_rows = recovery_rows[:50]
 
-    top_ai_ideas = build_diversified_top_ideas([r for r in full_rows if row_has_min_upside(r)], TOP_AI_IDEAS_TARGET)
+    for _row in full_rows:
+        _row["quality_bucket"] = classify_quality_bucket(_row)
+
+    institutional_candidates = [r for r in full_rows if row_top_ai_quality_pass(r)]
+
+    # Top AI is now quality-gated. If there are fewer than 25 true institutional ideas,
+    # show fewer rather than filling with weak/missing-fundamental names.
+    top_ai_ideas = build_diversified_top_ideas(institutional_candidates, TOP_AI_IDEAS_TARGET)
 
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V40.5",
+        "version": "V40.6",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -1315,6 +1389,11 @@ def scan_market() -> Dict[str, Any]:
             "price_bucket_diversity": PRICE_BUCKETS,
             "top_ai_ideas_target": TOP_AI_IDEAS_TARGET,
             "min_upside_pct": MIN_UPSIDE_PCT,
+            "min_top_technical_score": MIN_TOP_TECHNICAL_SCORE,
+            "min_top_fundamentals_score": MIN_TOP_FUNDAMENTALS_SCORE,
+            "min_top_risk_score": MIN_TOP_RISK_SCORE,
+            "min_top_conviction_score": MIN_TOP_CONVICTION_SCORE,
+            "top_ai_quality_gated": True,
         },
     }
 
@@ -1375,7 +1454,7 @@ def main() -> None:
             sys.exit(2)
     except Exception as exc:
         error_state = {
-            "generated_at": now_iso(), "status": "error", "version": "V40.5",
+            "generated_at": now_iso(), "status": "error", "version": "V40.6",
             "error": str(exc), "data_dir": str(DATA_DIR), "github_persisted": False,
         }
         write_json(STATE_FILE, error_state)
