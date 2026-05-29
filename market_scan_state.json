@@ -1,17 +1,17 @@
 {
-  "generated_at": "2026-05-29T02:36:08.839488+00:00",
+  "generated_at": "2026-05-29T05:01:35.673414+00:00",
   "status": "success",
-  "version": "V39.7",
-  "universe_count": 1731,
+  "version": "V40.6",
+  "universe_count": 1733,
   "prescreen_count": 650,
   "full_scan_count": 150,
   "top_ai_ideas_count": 25,
-  "watchlist_count": 7,
-  "recovery_count": 31,
+  "watchlist_count": 8,
+  "recovery_count": 37,
   "fallback_rows_allowed": false,
   "data_dir": ".",
   "github_persisted": false,
-  "duration_seconds": 580.14,
+  "duration_seconds": 405.83,
   "filters": {
     "min_price": 2.0,
     "max_price": 1000.0,
@@ -64,6 +64,12 @@
         "min_score": 55
       }
     ],
-    "top_ai_ideas_target": 25
+    "top_ai_ideas_target": 25,
+    "min_upside_pct": 0.3,
+    "min_top_technical_score": 60,
+    "min_top_fundamentals_score": 60,
+    "min_top_risk_score": 60,
+    "min_top_conviction_score": 70,
+    "top_ai_quality_gated": true
   }
 }
