@@ -9,7 +9,7 @@ import pandas as pd
 import streamlit as st
 
 
-APP_VERSION = "V40.8 Top AI Guidance Cards"
+APP_VERSION = "V40.7 Reliable Detail Links"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -630,48 +630,6 @@ def agent_metric_row(row):
     c5.metric("Catalyst", row.get("Catalyst", "N/A"))
 
 
-def build_guidance_sections(row):
-    ticker = row.get("Ticker", "This stock")
-    company = row.get("Company", ticker)
-    sector = row.get("Sector", "Unknown")
-    industry = row.get("Industry", "Unknown")
-
-    thesis = row.get("AI Trade Plan") or row.get("Why Ranked Highly") or "No thesis available from scan data."
-    good = row.get("What Looks Good") or "No positive drivers available from scan data."
-    bad = row.get("What Could Go Wrong") or "No risk summary available from scan data."
-    financial = row.get("Financial Summary") or (
-        f"P/E {row.get('P/E', 'N/A')}, Forward P/E {row.get('Forward P/E', 'N/A')}, "
-        f"PEG {row.get('PEG', 'N/A')}, Cash {compact_money(row.get('Cash'))}, "
-        f"Debt {compact_money(row.get('Debt'))}, Free Cash Flow {compact_money(row.get('Free Cash Flow'))}."
-    )
-    catalyst = row.get("Recovery Catalyst") or "No specific catalyst/news item available in scan data."
-
-    verdict = "Research Candidate"
-    fundamentals = safe_number(row.get("Fundamentals"), 0) or 0
-    valuation = safe_number(row.get("Valuation"), 0) or 0
-    risk = safe_number(row.get("Risk"), 0) or 0
-    score = safe_number(row.get("Final Conviction"), 0) or 0
-
-    if score >= 85 and fundamentals >= 70 and risk >= 70:
-        verdict = "High-Conviction Quality Candidate"
-    elif fundamentals < 60:
-        verdict = "Speculative / Technical Setup — fundamentals need more proof"
-    elif valuation < 50:
-        verdict = "Quality Setup but Valuation Risk"
-    elif risk < 60:
-        verdict = "Higher-Risk Candidate"
-
-    return {
-        "thesis": thesis,
-        "good": good,
-        "bad": bad,
-        "financial": financial,
-        "catalyst": catalyst,
-        "verdict": verdict,
-        "business": f"{company} operates in {sector} / {industry}.",
-    }
-
-
 def render_cards(df, title, key_prefix, limit=5):
     st.subheader(title)
     if df is None or df.empty:
@@ -680,17 +638,19 @@ def render_cards(df, title, key_prefix, limit=5):
 
     for _, row in df.head(limit).iterrows():
         ticker = row["Ticker"]
-        guidance = build_guidance_sections(row)
-
         with st.container(border=True):
-            h1, h2, h3, h4 = st.columns([2.4, 0.8, 0.8, 1.0])
+            h1, h2, h3, h4 = st.columns([2.4, 0.8, 0.8, 0.9])
             with h1:
                 st.markdown(f"### {ticker} — {row.get('Company', ticker)}")
                 st.caption(f"{row.get('Setup Type', 'AI Setup')} • {row.get('Price Bucket', 'N/A')} • {row.get('Sector', 'Unknown')}")
             h2.metric("AI Score", int(safe_number(row.get("Final Conviction"), 0)))
             h3.metric("Price", money(row.get("Price")))
             with h4:
-                st.link_button("Open Full Detail", url=f"?detail={ticker}", use_container_width=True)
+                st.link_button(
+                    "Open Detail",
+                    url=f"?detail={ticker}",
+                    use_container_width=True,
+                )
 
             agent_metric_row(row)
 
@@ -702,31 +662,17 @@ def render_cards(df, title, key_prefix, limit=5):
             t4.metric("Upside", f"{upside:.1f}%" if upside is not None else "N/A")
             t5.metric("Risk/Reward", row.get("Risk/Reward", "N/A"))
 
-            st.markdown("#### AI Guidance")
-            st.info(f"**Verdict:** {guidance['verdict']}")
+            summary = str(row.get("AI Trade Plan") or row.get("Why Ranked Highly") or "")
+            summary = " ".join(summary.split())
+            if len(summary) > 350:
+                summary = summary[:350].rstrip() + "..."
+            st.markdown("**Quick AI Summary**")
+            st.write(summary)
 
-            g1, g2 = st.columns([1, 1])
-            with g1:
-                st.markdown("**Why AI is suggesting it**")
-                st.write(guidance["thesis"])
-
-                st.markdown("**Financial / valuation snapshot**")
-                st.write(guidance["financial"])
-
-            with g2:
-                st.markdown("**Business / growth context**")
-                st.write(guidance["business"])
-
-                st.markdown("**Catalyst / news context from scan data**")
-                st.write(guidance["catalyst"])
-
-            with st.expander(f"More details for {ticker}", expanded=False):
-                st.markdown("**What looks good**")
-                st.success(guidance["good"])
-                st.markdown("**What could go wrong**")
-                st.warning(guidance["bad"])
-                st.markdown("**Ask AI / full research**")
-                st.write("Use Open Full Detail for Ask AI, raw financials, trade plan, and on-demand analysis.")
+            with st.expander(f"More reasoning for {ticker}", expanded=False):
+                st.write(row.get("Why Ranked Highly"))
+                st.success(row.get("What Looks Good", "Needs confirmation."))
+                st.warning(row.get("What Could Go Wrong", "Market weakness or failed follow-through."))
 
 
 def render_table(df, title, key_prefix, min_score_default=35):
@@ -804,20 +750,6 @@ def diversified_cards(df, limit=6):
     return pd.DataFrame(selected).head(limit) if selected else pd.DataFrame()
 
 
-def render_top_detail_links(df, key_prefix="top_detail_links", limit=25):
-    if df is None or df.empty:
-        return
-    st.write("### Open Detail Pages")
-    st.caption("Click any ticker below to open the full AI detail page with Ask AI.")
-    cols = st.columns(5)
-    for idx, (_, row) in enumerate(df.head(limit).iterrows()):
-        ticker = row.get("Ticker")
-        if not ticker:
-            continue
-        with cols[idx % 5]:
-            st.link_button(f"{ticker} Detail", url=f"?detail={ticker}", use_container_width=True)
-
-
 def page_dashboard(scan_df, source):
     state = read_json_safe(SCAN_STATE_FILE, {})
     c1, c2, c3, c4 = st.columns(4)
@@ -841,10 +773,8 @@ def page_dashboard(scan_df, source):
     tabs = st.tabs(["Top AI Summary", "Lower $5–$25", "Mid $25–$100", "Higher $100+", "Recovery", "Watchlist", "Full Table"])
 
     with tabs[0]:
-        top_source = top if not top.empty else scan_df.head(25)
-        render_cards(diversified_cards(top_source), "Balanced Top AI Summary", "top_cards", limit=6)
-        render_top_detail_links(top_source, key_prefix="top_detail_links", limit=25)
-        render_table(top_source, "Top AI Table", "top_table", min_score_default=45)
+        render_cards(diversified_cards(top if not top.empty else scan_df), "Balanced Top AI Summary", "top_cards", limit=6)
+        render_table(top if not top.empty else scan_df.head(25), "Top AI Table", "top_table", min_score_default=45)
 
     with tabs[1]:
         render_cards(lower, "Lower Price Opportunities", "lower_cards", limit=5)
