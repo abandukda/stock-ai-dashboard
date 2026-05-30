@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-V39.3 Overnight Market Scanner - Analyst Driven AI Targets
+V40.0 Overnight Market Scanner - FMP Enrichment + Analyst Driven AI Targets
 - Render Cron compatible
 - DATA_DIR defaults to "."
 - Preserves dashboard output files:
@@ -14,6 +14,7 @@ V39.3 Overnight Market Scanner - Analyst Driven AI Targets
 import json
 import math
 import os
+import requests
 import subprocess
 import sys
 import time
@@ -50,6 +51,13 @@ MIN_MARKET_CAP = float(os.getenv("MIN_MARKET_CAP", "50000000"))
 
 GITHUB_PERSIST = os.getenv("GITHUB_PERSIST", "true").lower() == "true"
 GIT_COMMIT_MESSAGE = os.getenv("GIT_COMMIT_MESSAGE", "Update overnight market scan data")
+
+# V40.0 external research data sources
+# Add these in Render Environment Variables. Missing keys are handled safely.
+FMP_API_KEY = os.getenv("FMP_API_KEY", "").strip()
+FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "").strip()
+NEWSAPI_KEY = os.getenv("NEWSAPI_KEY", "").strip()
+
 
 
 # =========================
@@ -289,6 +297,49 @@ def get_metadata(symbol: str) -> Dict[str, Any]:
         }
     except Exception:
         return defaults
+
+
+def get_fmp_data(symbol: str) -> Dict[str, Any]:
+    """
+    V40.0 FMP enrichment layer.
+    Pulls company profile / reference data from Financial Modeling Prep when FMP_API_KEY exists.
+    This is intentionally conservative: failures return {} so the scanner never breaks.
+    """
+    if not FMP_API_KEY:
+        return {}
+
+    try:
+        url = f"https://financialmodelingprep.com/api/v3/profile/{symbol}"
+        response = requests.get(url, params={"apikey": FMP_API_KEY}, timeout=10)
+
+        if response.status_code != 200:
+            return {}
+
+        data = response.json()
+        if not isinstance(data, list) or not data:
+            return {}
+
+        row = data[0] or {}
+
+        return {
+            "company_name": row.get("companyName"),
+            "sector": row.get("sector"),
+            "industry": row.get("industry"),
+            "market_cap": safe_float(row.get("mktCap")),
+            "country": row.get("country"),
+            "exchange": row.get("exchangeShortName") or row.get("exchange"),
+            "fmp_price": safe_float(row.get("price")),
+            "beta": safe_float(row.get("beta")),
+            "last_dividend": safe_float(row.get("lastDiv")),
+            "range_52w": row.get("range"),
+            "website": row.get("website"),
+            "description": row.get("description"),
+            "source_fmp_profile": True,
+        }
+    except Exception:
+        return {}
+
+
 
 
 # =========================
@@ -773,6 +824,12 @@ def make_dashboard_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], s
         "industry": meta.get("industry", "Unknown"),
         "market_cap": meta.get("market_cap"),
         "quote_type": meta.get("quote_type", "EQUITY"),
+        "country": meta.get("country"),
+        "exchange": meta.get("exchange"),
+        "beta": meta.get("beta"),
+        "range_52w": meta.get("range_52w"),
+        "website": meta.get("website"),
+        "source_fmp_profile": meta.get("source_fmp_profile", False),
 
         "price": ind.get("price"),
         "current_price": ind.get("price"),
@@ -923,6 +980,20 @@ def scan_market() -> Dict[str, Any]:
             meta = metadata_cache.get(symbol)
             if meta is None:
                 meta = get_metadata(symbol)
+
+                # V40.0: enrich Yahoo metadata with FMP profile data when available.
+                # FMP values only replace missing/weak fields; failures safely do nothing.
+                fmp_meta = get_fmp_data(symbol)
+                if fmp_meta:
+                    for key, value in fmp_meta.items():
+                        if value not in (None, "", "Unknown"):
+                            current = meta.get(key)
+                            if current in (None, "", "Unknown", symbol) or key.startswith("source_") or key in {
+                                "country", "exchange", "fmp_price", "beta", "last_dividend",
+                                "range_52w", "website", "description"
+                            }:
+                                meta[key] = value
+
                 metadata_cache[symbol] = meta
 
             if not passes_basic_filter(ind, meta):
@@ -961,7 +1032,7 @@ def scan_market() -> Dict[str, Any]:
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V39.3",
+        "version": "V40.0",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -974,6 +1045,11 @@ def scan_market() -> Dict[str, Any]:
             "max_price": MAX_PRICE,
             "min_dollar_volume": MIN_DOLLAR_VOLUME,
             "min_market_cap": MIN_MARKET_CAP,
+        },
+        "api_keys_detected": {
+            "fmp": bool(FMP_API_KEY),
+            "finnhub": bool(FINNHUB_API_KEY),
+            "newsapi": bool(NEWSAPI_KEY),
         },
     }
 
@@ -1054,7 +1130,7 @@ def main() -> None:
         error_state = {
             "generated_at": now_iso(),
             "status": "error",
-            "version": "V39.3",
+            "version": "V40.0",
             "error": str(exc),
             "data_dir": str(DATA_DIR),
             "github_persisted": False,
