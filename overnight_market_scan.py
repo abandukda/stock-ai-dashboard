@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-V40.1 Overnight Market Scanner - Normalized Conviction + AI Fair Value Engine
+V40.3 Overnight Market Scanner - Analyst + News Intelligence
 - Render Cron compatible
 - DATA_DIR defaults to "."
 - Preserves dashboard output files:
@@ -115,6 +115,20 @@ def run_cmd(cmd: List[str]) -> Tuple[int, str]:
         return result.returncode, result.stdout.strip()
     except Exception as exc:
         return 1, str(exc)
+
+
+def http_get_json(url: str, params: Optional[Dict[str, Any]] = None, timeout: int = 10) -> Any:
+    """
+    Safe HTTP JSON helper for external research APIs.
+    All failures return None so cron never breaks.
+    """
+    try:
+        response = requests.get(url, params=params or {}, timeout=timeout)
+        if response.status_code != 200:
+            return None
+        return response.json()
+    except Exception:
+        return None
 
 
 # =========================
@@ -340,6 +354,174 @@ def get_fmp_data(symbol: str) -> Dict[str, Any]:
         return {}
 
 
+
+
+def get_finnhub_research(symbol: str) -> Dict[str, Any]:
+    """
+    V40.3 Finnhub research layer.
+    Pulls recommendation trend and price target when available.
+    """
+    if not FINNHUB_API_KEY:
+        return {}
+
+    result: Dict[str, Any] = {}
+
+    rec_data = http_get_json(
+        "https://finnhub.io/api/v1/stock/recommendation",
+        params={"symbol": symbol, "token": FINNHUB_API_KEY},
+        timeout=10,
+    )
+
+    if isinstance(rec_data, list) and rec_data:
+        latest = rec_data[0] or {}
+        strong_buy = safe_int(latest.get("strongBuy"), 0) or 0
+        buy = safe_int(latest.get("buy"), 0) or 0
+        hold = safe_int(latest.get("hold"), 0) or 0
+        sell = safe_int(latest.get("sell"), 0) or 0
+        strong_sell = safe_int(latest.get("strongSell"), 0) or 0
+        total = strong_buy + buy + hold + sell + strong_sell
+
+        if total > 0:
+            bullish_votes = strong_buy * 1.0 + buy * 0.75 + hold * 0.35
+            bearish_votes = sell * 0.65 + strong_sell * 1.0
+            analyst_support_score = round(max(0, min(100, ((bullish_votes - bearish_votes) / total) * 100)), 1)
+        else:
+            analyst_support_score = None
+
+        result.update({
+            "finnhub_period": latest.get("period"),
+            "strong_buy": strong_buy,
+            "buy": buy,
+            "hold": hold,
+            "sell": sell,
+            "strong_sell": strong_sell,
+            "finnhub_analyst_total": total,
+            "analyst_support_score": analyst_support_score,
+            "source_finnhub_recommendation": True,
+        })
+
+    target_data = http_get_json(
+        "https://finnhub.io/api/v1/stock/price-target",
+        params={"symbol": symbol, "token": FINNHUB_API_KEY},
+        timeout=10,
+    )
+
+    if isinstance(target_data, dict) and target_data:
+        result.update({
+            "finnhub_target_mean": safe_float(target_data.get("targetMean")),
+            "finnhub_target_high": safe_float(target_data.get("targetHigh")),
+            "finnhub_target_low": safe_float(target_data.get("targetLow")),
+            "finnhub_target_median": safe_float(target_data.get("targetMedian")),
+            "source_finnhub_target": True,
+        })
+
+    return {k: v for k, v in result.items() if v not in (None, "", "Unknown")}
+
+
+def score_headline_sentiment(title: str, description: str = "") -> Tuple[int, List[str], List[str]]:
+    """
+    Lightweight keyword-based news sentiment.
+    Keeps the scanner deterministic and cheap while still using real headlines.
+    """
+    text = f"{title} {description}".lower()
+
+    positive_terms = [
+        "beat", "beats", "upgrade", "upgraded", "raised target", "raises target",
+        "strong demand", "record revenue", "growth", "profit jumps", "partnership",
+        "contract", "approval", "expansion", "buyback", "guidance raised",
+        "outperform", "accelerating", "surge", "wins", "launches"
+    ]
+
+    negative_terms = [
+        "miss", "misses", "downgrade", "downgraded", "cuts target", "cut target",
+        "lawsuit", "investigation", "sec probe", "guidance cut", "weak demand",
+        "layoffs", "loss widens", "decline", "falls", "plunges", "recall",
+        "underperform", "bankruptcy", "fraud", "slows", "warning"
+    ]
+
+    positives = [term for term in positive_terms if term in text]
+    negatives = [term for term in negative_terms if term in text]
+    score = len(positives) - len(negatives)
+
+    return score, positives[:3], negatives[:3]
+
+
+def get_news_research(symbol: str, company_name: str = "") -> Dict[str, Any]:
+    """
+    V40.3 NewsAPI intelligence.
+    Pulls recent headlines and creates catalyst/risk summary.
+    """
+    if not NEWSAPI_KEY:
+        return {}
+
+    query = company_name if company_name and company_name != symbol else symbol
+
+    data = http_get_json(
+        "https://newsapi.org/v2/everything",
+        params={
+            "q": f'"{query}" OR {symbol}',
+            "language": "en",
+            "sortBy": "publishedAt",
+            "pageSize": 8,
+            "apiKey": NEWSAPI_KEY,
+        },
+        timeout=10,
+    )
+
+    if not isinstance(data, dict):
+        return {}
+
+    articles = data.get("articles") or []
+    if not isinstance(articles, list) or not articles:
+        return {}
+
+    headlines = []
+    total_score = 0
+    positive_hits: List[str] = []
+    negative_hits: List[str] = []
+
+    for article in articles[:8]:
+        title = safe_text(article.get("title"), "")
+        description = safe_text(article.get("description"), "")
+        source_name = safe_text((article.get("source") or {}).get("name"), "")
+        published_at = safe_text(article.get("publishedAt"), "")
+
+        if not title:
+            continue
+
+        score, positives, negatives = score_headline_sentiment(title, description)
+        total_score += score
+        positive_hits.extend(positives)
+        negative_hits.extend(negatives)
+
+        headlines.append({
+            "title": title,
+            "source": source_name,
+            "published_at": published_at,
+            "sentiment_score": score,
+        })
+
+    if not headlines:
+        return {}
+
+    if total_score > 1:
+        sentiment_label = "Positive"
+    elif total_score < -1:
+        sentiment_label = "Negative"
+    else:
+        sentiment_label = "Neutral"
+
+    return {
+        "news_headline_count": len(headlines),
+        "news_sentiment_score": max(-100, min(100, total_score * 15)),
+        "news_sentiment_label": sentiment_label,
+        "recent_headlines": headlines[:5],
+        "positive_news_terms": list(dict.fromkeys(positive_hits))[:5],
+        "negative_news_terms": list(dict.fromkeys(negative_hits))[:5],
+        "top_news_headline": headlines[0]["title"] if headlines else "",
+        "top_news_source": headlines[0]["source"] if headlines else "",
+        "source_newsapi": True,
+    }
 
 
 # =========================
@@ -739,11 +921,36 @@ def score_stock(ind: Dict[str, Any], meta: Dict[str, Any]) -> Tuple[int, List[st
             score -= 10
             risks.append("analyst consensus target is below current price")
 
-    # V40.1: add available research/fundamental context, then normalize.
+    # V40.3: external analyst/news intelligence.
+    analyst_support_score = meta.get("analyst_support_score")
+    if analyst_support_score is not None:
+        if analyst_support_score >= 65:
+            score += 5
+            good.append(f"Finnhub analyst support is strong at {analyst_support_score:.0f}/100")
+        elif analyst_support_score >= 45:
+            score += 2
+            good.append(f"Finnhub analyst support is constructive at {analyst_support_score:.0f}/100")
+        elif analyst_support_score < 20:
+            score -= 5
+            risks.append("Finnhub analyst support is weak")
+
+    news_sentiment_score = meta.get("news_sentiment_score")
+    news_label = meta.get("news_sentiment_label")
+    if news_sentiment_score is not None:
+        if news_sentiment_score >= 30:
+            score += 4
+            good.append("recent news flow appears positive")
+        elif news_sentiment_score <= -30:
+            score -= 5
+            risks.append("recent news flow appears negative")
+        elif news_label:
+            good.append(f"recent news flow is {str(news_label).lower()}")
+
+    # V40.1/V40.3: add available research/fundamental context, then normalize.
     score, good, risks = add_research_quality_adjustments(score, good, risks, meta)
     normalized_score = normalize_conviction(score, ind, meta)
 
-    return normalized_score, good[:8], risks[:8]
+    return normalized_score, good[:10], risks[:10]
 
 
 
@@ -762,6 +969,19 @@ def build_ai_target_model(ind: Dict[str, Any], meta: Dict[str, Any], score: int)
     analyst_high = meta.get("analyst_target_high")
     analyst_low = meta.get("analyst_target_low")
     analyst_count = meta.get("analyst_count") or 0
+
+    # V40.3: use Finnhub target data as fallback or secondary source.
+    finnhub_mean = meta.get("finnhub_target_mean")
+    finnhub_high = meta.get("finnhub_target_high")
+    finnhub_low = meta.get("finnhub_target_low")
+    if (not analyst_mean or analyst_mean <= 0) and finnhub_mean:
+        analyst_mean = finnhub_mean
+    if (not analyst_high or analyst_high <= 0) and finnhub_high:
+        analyst_high = finnhub_high
+    if (not analyst_low or analyst_low <= 0) and finnhub_low:
+        analyst_low = finnhub_low
+    if analyst_count <= 0:
+        analyst_count = meta.get("finnhub_analyst_total") or 0
     recommendation_key = meta.get("recommendation_key") or "unknown"
     recommendation_mean = meta.get("recommendation_mean")
 
@@ -1084,6 +1304,23 @@ def make_dashboard_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], s
         "target_confidence_note": target_model.get("target_confidence_note"),
         "recommendation_key": target_model.get("recommendation_key"),
         "recommendation_mean": target_model.get("recommendation_mean"),
+        "analyst_support_score": meta.get("analyst_support_score"),
+        "finnhub_analyst_total": meta.get("finnhub_analyst_total"),
+        "strong_buy": meta.get("strong_buy"),
+        "buy": meta.get("buy"),
+        "hold": meta.get("hold"),
+        "sell": meta.get("sell"),
+        "strong_sell": meta.get("strong_sell"),
+        "finnhub_target_mean": meta.get("finnhub_target_mean"),
+        "finnhub_target_high": meta.get("finnhub_target_high"),
+        "finnhub_target_low": meta.get("finnhub_target_low"),
+        "news_sentiment_score": meta.get("news_sentiment_score"),
+        "news_sentiment_label": meta.get("news_sentiment_label"),
+        "top_news_headline": meta.get("top_news_headline"),
+        "top_news_source": meta.get("top_news_source"),
+        "recent_headlines": meta.get("recent_headlines"),
+        "positive_news_terms": meta.get("positive_news_terms"),
+        "negative_news_terms": meta.get("negative_news_terms"),
 
         "risk_reward": plan.get("risk_reward"),
         "risk_reward_explanation": plan.get("risk_reward_explanation"),
@@ -1096,6 +1333,8 @@ def make_dashboard_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], s
             f"{guidance.get('what_looks_good', '').lower()}. "
             f"AI target is ${target_model.get('ai_base_target')} with expected upside of "
             f"{target_model.get('expected_upside_pct')}%, using {target_model.get('target_source')}. "
+            f"Analyst support score: {meta.get('analyst_support_score', 'N/A')}. "
+            f"News flow: {meta.get('news_sentiment_label', 'N/A')}. "
             f"Key risk: {guidance.get('what_could_go_wrong', '').lower()}."
         ),
         "table_reason": (
@@ -1105,7 +1344,9 @@ def make_dashboard_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], s
         ),
         "opportunity_reason": (
             f"AI fair-value upside: {target_model.get('expected_upside_pct')}%. "
-            f"{target_model.get('target_confidence_note')}"
+            f"{target_model.get('target_confidence_note')} "
+            f"Analyst support score: {meta.get('analyst_support_score', 'N/A')}. "
+            f"Latest news: {meta.get('top_news_headline', 'N/A')}"
         ),
         "guidance": (
             f"{guidance.get('guidance')} "
@@ -1201,6 +1442,20 @@ def scan_market() -> Dict[str, Any]:
                             }:
                                 meta[key] = value
 
+                # V40.3: analyst intelligence from Finnhub.
+                finnhub_meta = get_finnhub_research(symbol)
+                if finnhub_meta:
+                    for key, value in finnhub_meta.items():
+                        if value not in (None, "", "Unknown"):
+                            meta[key] = value
+
+                # V40.3: news/catalyst intelligence from NewsAPI.
+                news_meta = get_news_research(symbol, meta.get("company_name", symbol))
+                if news_meta:
+                    for key, value in news_meta.items():
+                        if value not in (None, "", "Unknown"):
+                            meta[key] = value
+
                 metadata_cache[symbol] = meta
 
             if not passes_basic_filter(ind, meta):
@@ -1239,7 +1494,7 @@ def scan_market() -> Dict[str, Any]:
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V40.1",
+        "version": "V40.3",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -1257,6 +1512,11 @@ def scan_market() -> Dict[str, Any]:
             "fmp": bool(FMP_API_KEY),
             "finnhub": bool(FINNHUB_API_KEY),
             "newsapi": bool(NEWSAPI_KEY),
+        },
+        "v40_3_changes": {
+            "finnhub_analyst_intelligence": True,
+            "newsapi_catalyst_intelligence": True,
+            "research_thesis_enhanced": True,
         },
         "v40_1_changes": {
             "conviction_normalized": True,
@@ -1342,7 +1602,7 @@ def main() -> None:
         error_state = {
             "generated_at": now_iso(),
             "status": "error",
-            "version": "V40.1",
+            "version": "V40.3",
             "error": str(exc),
             "data_dir": str(DATA_DIR),
             "github_persisted": False,
