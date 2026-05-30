@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-V40.3 Overnight Market Scanner - Analyst + News Intelligence
+V40.3.1 Overnight Market Scanner - Analyst + News Intelligence Hotfix
 - Render Cron compatible
 - DATA_DIR defaults to "."
 - Preserves dashboard output files:
@@ -86,6 +86,21 @@ def safe_int(value: Any, default: Optional[int] = None) -> Optional[int]:
             return default
         value = int(float(value))
         return value
+    except Exception:
+        return default
+
+
+def safe_text(value: Any, default: str = "") -> str:
+    """
+    Safe text normalization helper used by V40.3 analyst/news intelligence.
+    """
+    try:
+        if value is None:
+            return default
+        text = str(value).strip()
+        if text.lower() in {"", "none", "nan", "null"}:
+            return default
+        return text
     except Exception:
         return default
 
@@ -234,20 +249,26 @@ def download_price_batch(symbols: List[str]) -> pd.DataFrame:
     if not symbols:
         return pd.DataFrame()
 
-    try:
-        data = yf.download(
-            tickers=" ".join(symbols),
-            period="6mo",
-            interval="1d",
-            group_by="ticker",
-            auto_adjust=True,
-            prepost=False,
-            threads=True,
-            progress=False,
-        )
-        return data
-    except Exception:
-        return pd.DataFrame()
+    for attempt in range(2):
+        try:
+            data = yf.download(
+                tickers=" ".join(symbols),
+                period="6mo",
+                interval="1d",
+                group_by="ticker",
+                auto_adjust=True,
+                prepost=False,
+                threads=True,
+                progress=False,
+            )
+            return data
+        except Exception:
+            if attempt == 0:
+                time.sleep(1.0)
+                continue
+            return pd.DataFrame()
+
+    return pd.DataFrame()
 
 
 def extract_symbol_history(data: pd.DataFrame, symbol: str) -> pd.DataFrame:
@@ -1494,7 +1515,7 @@ def scan_market() -> Dict[str, Any]:
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V40.3",
+        "version": "V40.3.1",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -1602,7 +1623,7 @@ def main() -> None:
         error_state = {
             "generated_at": now_iso(),
             "status": "error",
-            "version": "V40.3",
+            "version": "V40.3.1",
             "error": str(exc),
             "data_dir": str(DATA_DIR),
             "github_persisted": False,
