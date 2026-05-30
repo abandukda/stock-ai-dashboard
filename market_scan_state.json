@@ -1,14 +1,14 @@
 {
-  "generated_at": "2026-05-30T05:34:48.352238+00:00",
+  "generated_at": "2026-05-30T06:21:05.034942+00:00",
   "status": "success",
-  "version": "V40.0",
-  "universe_count": 1896,
+  "version": "V40.1",
+  "universe_count": 1898,
   "prescreen_count": 650,
   "full_scan_count": 150,
   "fallback_rows_allowed": false,
   "data_dir": ".",
   "github_persisted": false,
-  "duration_seconds": 647.21,
+  "duration_seconds": 582.01,
   "filters": {
     "min_price": 2.0,
     "max_price": 1000.0,
@@ -19,5 +19,10 @@
     "fmp": true,
     "finnhub": true,
     "newsapi": true
+  },
+  "v40_1_changes": {
+    "conviction_normalized": true,
+    "ai_fair_value_engine": true,
+    "generic_30pct_target_reduced": true
   }
 }

@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-05-30T05:24:04.808955+00:00",
-  "count": 1896,
+  "generated_at": "2026-05-30T06:11:25.447931+00:00",
+  "count": 1898,
   "symbols": [
     "A",
     "AA",
@@ -652,6 +652,7 @@
     "FIP",
     "FIS",
     "FISV",
+    "FITB",
     "FIVE",
     "FIX",
     "FIZZ",
@@ -879,6 +880,7 @@
     "INTC",
     "INTR",
     "INTU",
+    "INVH",
     "INVX",
     "IONQ",
     "IOSP",
