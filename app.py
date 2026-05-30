@@ -1,7 +1,6 @@
 import os
 import json
 from pathlib import Path
-from datetime import datetime
 
 import pandas as pd
 import streamlit as st
@@ -31,7 +30,7 @@ MIN_UPSIDE_PCT = float(os.getenv("MIN_UPSIDE_PCT", "0"))
 
 
 # =========================
-# HELPERS
+# SAFE HELPERS
 # =========================
 
 def safe_number(value, default=0.0):
@@ -89,8 +88,7 @@ def read_json_file(path: Path):
         return []
     try:
         with path.open("r", encoding="utf-8") as f:
-            data = json.load(f)
-        return data
+            return json.load(f)
     except Exception:
         return []
 
@@ -102,16 +100,33 @@ def read_state():
 
 def normalize_rows(data):
     if isinstance(data, dict):
-        if "rows" in data and isinstance(data["rows"], list):
+        if isinstance(data.get("rows"), list):
             return data["rows"]
-        if "data" in data and isinstance(data["data"], list):
+        if isinstance(data.get("data"), list):
             return data["data"]
-        if "symbols" in data and isinstance(data["symbols"], list):
+        if isinstance(data.get("symbols"), list):
             return [{"symbol": s} for s in data["symbols"]]
         return []
     if isinstance(data, list):
         return data
     return []
+
+
+# =========================
+# DATA NORMALIZATION
+# =========================
+
+def price_bucket(price):
+    price = safe_number(price, 0)
+    if price <= 0:
+        return "Unknown"
+    if price < 25:
+        return "Lower"
+    if price < 100:
+        return "Mid"
+    if price < 300:
+        return "Higher"
+    return "Premium"
 
 
 def opportunity_bucket(row):
@@ -132,37 +147,34 @@ def opportunity_bucket(row):
     return "Higher Price"
 
 
-def price_bucket(price):
-    price = safe_number(price, 0)
-    if price <= 0:
-        return "Unknown"
-    if price < 25:
-        return "Lower"
-    if price < 100:
-        return "Mid"
-    if price < 300:
-        return "Higher"
-    return "Premium"
-
-
 def normalize_scan_row(raw):
     ticker = safe_text(pick(raw, "Ticker", "ticker", "symbol", default="")).upper()
     company = safe_text(pick(raw, "Company", "company", "company_name", "name", default=ticker), ticker)
 
-    price = safe_number(pick(raw, "Price", "price", "current_price", "last_price", default=0))
-    target = safe_number(pick(raw, "AI Fair Value", "ai_base_target", "target", "Target", default=0))
-    bull = safe_number(pick(raw, "AI Bull Case", "ai_bull_target", "target_2", default=0))
-    bear = safe_number(pick(raw, "AI Bear Case", "ai_bear_target", default=0))
+    price = safe_number(pick(raw, "Price", "price", "current_price", "last_price", default=0), 0)
+    target = safe_number(pick(raw, "AI Fair Value", "ai_base_target", "target", "Target", default=0), 0)
+    bull = safe_number(pick(raw, "AI Bull Case", "ai_bull_target", "target_2", default=0), 0)
+    bear = safe_number(pick(raw, "AI Bear Case", "ai_bear_target", default=0), 0)
 
     expected_upside = pick(raw, "Target Upside %", "expected_upside_pct", "upside", "analyst_upside_pct", default=None)
     expected_upside = safe_number(expected_upside, None)
-
     if expected_upside is None and price and target:
         expected_upside = ((target - price) / price) * 100
 
-    # V40.2: respect scanner conviction first. Do NOT recalculate to synthetic 99.
+    # Critical V40.2 fix:
+    # Respect scanner conviction first. Do NOT recalculate synthetic 99 scores inside app.py.
     score = safe_number(
-        pick(raw, "Final Conviction", "conviction", "conviction_score", "ai_confidence", "confidence", "ai_score", "score", default=0),
+        pick(
+            raw,
+            "Final Conviction",
+            "conviction",
+            "conviction_score",
+            "ai_confidence",
+            "confidence",
+            "ai_score",
+            "score",
+            default=0,
+        ),
         0,
     )
     score = int(round(score)) if score else 0
@@ -229,17 +241,42 @@ def load_file(path: Path):
     df = pd.DataFrame(normalized)
 
     if df.empty:
-        return pd.DataFrame(columns=[
-            "Ticker", "Company", "Sector", "Industry", "Price", "Final Conviction",
-            "AI Fair Value", "Target Upside %", "Investment Thesis"
-        ])
+        return pd.DataFrame(
+            columns=[
+                "Ticker",
+                "Company",
+                "Sector",
+                "Industry",
+                "Price",
+                "Final Conviction",
+                "AI Fair Value",
+                "Target Upside %",
+                "Investment Thesis",
+            ]
+        )
 
-    df["Final Conviction"] = pd.to_numeric(df["Final Conviction"], errors="coerce").fillna(0).astype(int)
-    df["Target Upside %"] = pd.to_numeric(df["Target Upside %"], errors="coerce").fillna(0)
-    df["Price"] = pd.to_numeric(df["Price"], errors="coerce").fillna(0)
-    df["Dollar Volume"] = pd.to_numeric(df["Dollar Volume"], errors="coerce").fillna(0)
+    numeric_cols = [
+        "Final Conviction",
+        "Target Upside %",
+        "Price",
+        "Dollar Volume",
+        "AI Fair Value",
+        "AI Bull Case",
+        "AI Bear Case",
+        "Analyst Target",
+        "Stop Loss",
+    ]
 
-    return df.sort_values(["Final Conviction", "Target Upside %", "Dollar Volume"], ascending=[False, False, False])
+    for col in numeric_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+
+    df["Final Conviction"] = df["Final Conviction"].astype(int)
+
+    return df.sort_values(
+        ["Final Conviction", "Target Upside %", "Dollar Volume"],
+        ascending=[False, False, False],
+    )
 
 
 def load_full_scan():
@@ -256,7 +293,10 @@ def actionable(df, min_score=35, require_upside=True):
     if require_upside:
         work = work[work["Target Upside %"].fillna(-999) >= MIN_UPSIDE_PCT * 100]
 
-    return work.sort_values(["Final Conviction", "Target Upside %", "Dollar Volume"], ascending=[False, False, False])
+    return work.sort_values(
+        ["Final Conviction", "Target Upside %", "Dollar Volume"],
+        ascending=[False, False, False],
+    )
 
 
 def latest_top_ideas():
@@ -298,6 +338,7 @@ def latest_watchlist_scan():
             symbols = watchlist_data
         else:
             symbols = []
+
         symbols = {str(s).upper() for s in symbols}
         return full[full["Ticker"].isin(symbols)].copy()
     except Exception:
@@ -305,7 +346,7 @@ def latest_watchlist_scan():
 
 
 # =========================
-# UI COMPONENTS
+# UI
 # =========================
 
 def render_status_banner():
@@ -331,16 +372,18 @@ def render_status_banner():
     if state:
         generated = state.get("generated_at", "N/A")
         duration = state.get("duration_seconds", "N/A")
-        st.caption(f"Last scan: {generated} | Duration: {duration}s | DATA_DIR={state.get('data_dir', '.')}")
+        st.caption(
+            f"Last scan: {generated} | Duration: {duration}s | DATA_DIR={state.get('data_dir', '.')}"
+        )
 
 
 def render_score_help():
     with st.expander("What changed in V40.2?", expanded=False):
         st.markdown(
             """
-            **V40.2 dashboard change:** the dashboard now respects the normalized scanner conviction from
-            `overnight_market_scan.py` instead of recalculating its own score. This prevents repeated artificial
-            99 scores.
+            **V40.2 dashboard change:** the dashboard now respects the normalized scanner conviction
+            from `overnight_market_scan.py` instead of recalculating its own score. This prevents repeated
+            artificial 99 scores.
 
             **What to look for:**
             - Better score spread
@@ -359,12 +402,30 @@ def render_table(df, title, key_prefix, min_score_default=35):
         return
 
     controls = st.columns([1, 1, 1, 2])
+
     with controls[0]:
-        min_score = st.slider("Minimum score", 0, 100, min_score_default, key=f"{key_prefix}_score")
+        min_score = st.slider(
+            "Minimum score",
+            0,
+            100,
+            min_score_default,
+            key=f"{key_prefix}_score",
+        )
     with controls[1]:
-        max_price = st.number_input("Max price", min_value=0.0, value=0.0, step=5.0, key=f"{key_prefix}_max_price")
+        max_price = st.number_input(
+            "Max price",
+            min_value=0.0,
+            value=0.0,
+            step=5.0,
+            key=f"{key_prefix}_max_price",
+        )
     with controls[2]:
-        min_upside = st.number_input("Min upside %", value=float(MIN_UPSIDE_PCT * 100), step=1.0, key=f"{key_prefix}_min_upside")
+        min_upside = st.number_input(
+            "Min upside %",
+            value=float(MIN_UPSIDE_PCT * 100),
+            step=1.0,
+            key=f"{key_prefix}_min_upside",
+        )
     with controls[3]:
         search = st.text_input("Search ticker/company", key=f"{key_prefix}_search")
 
@@ -417,10 +478,11 @@ def render_table(df, title, key_prefix, min_score_default=35):
     existing_cols = [c for c in display_cols if c in filtered.columns]
     display_df = filtered[existing_cols].head(100).copy()
 
-    # Format only display copy
     for col in ["Price", "AI Fair Value", "AI Bull Case", "AI Bear Case", "Analyst Target", "Stop Loss"]:
         if col in display_df.columns:
-            display_df[col] = display_df[col].apply(lambda x: f"${safe_number(x, 0):,.2f}" if safe_number(x, 0) else "N/A")
+            display_df[col] = display_df[col].apply(
+                lambda x: f"${safe_number(x, 0):,.2f}" if safe_number(x, 0) else "N/A"
+            )
 
     if "Target Upside %" in display_df.columns:
         display_df["Target Upside %"] = display_df["Target Upside %"].apply(fmt_pct)
@@ -498,8 +560,9 @@ def render_market_summary(full_df):
     c3.metric("Median Upside", fmt_pct(full_df["Target Upside %"].median()))
     c4.metric("FMP Enriched", int(full_df["Source FMP"].sum()) if "Source FMP" in full_df else 0)
 
-    sector_counts = full_df["Sector"].fillna("Unknown").value_counts().head(10)
-    st.bar_chart(sector_counts)
+    if "Sector" in full_df.columns:
+        sector_counts = full_df["Sector"].fillna("Unknown").value_counts().head(10)
+        st.bar_chart(sector_counts)
 
 
 def render_chat_helper(full_df):
@@ -558,18 +621,25 @@ def main():
     watch_df = latest_watchlist_scan()
     prescreen_df = load_file(PRESCREEN_FILE)
 
-    tabs = st.tabs([
-        "Top AI Ideas",
-        "Full Ranked Scan",
-        "Recovery",
-        "Watchlist",
-        "Prescreen",
-        "Summary",
-        "Ask AI",
-    ])
+    tabs = st.tabs(
+        [
+            "Top AI Ideas",
+            "Full Ranked Scan",
+            "Recovery",
+            "Watchlist",
+            "Prescreen",
+            "Summary",
+            "Ask AI",
+        ]
+    )
 
     with tabs[0]:
-        render_table(top_df if not top_df.empty else full_df.head(25), "Top AI Ideas", "top_table", min_score_default=45)
+        render_table(
+            top_df if not top_df.empty else full_df.head(25),
+            "Top AI Ideas",
+            "top_table",
+            min_score_default=45,
+        )
 
     with tabs[1]:
         render_table(full_df, "Full Ranked AI Scan", "full_table", min_score_default=35)
