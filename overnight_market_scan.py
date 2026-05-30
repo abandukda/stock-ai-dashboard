@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-V40.0 Overnight Market Scanner - FMP Enrichment + Analyst Driven AI Targets
+V40.1 Overnight Market Scanner - Normalized Conviction + AI Fair Value Engine
 - Render Cron compatible
 - DATA_DIR defaults to "."
 - Preserves dashboard output files:
@@ -429,6 +429,138 @@ def compute_indicators(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
     }
 
 
+
+def clamp(value: float, low: float, high: float) -> float:
+    return max(low, min(high, value))
+
+
+def normalize_conviction(raw_score: float, ind: Dict[str, Any], meta: Dict[str, Any]) -> int:
+    """
+    V40.1 normalized conviction model.
+    Prevents too many 99s by translating raw stacked points into a realistic score band.
+    Exceptional scores require multiple confirmations, not just momentum.
+    """
+    price = ind.get("price") or 0
+    rsi = ind.get("rsi") or 50
+    volume_ratio = ind.get("volume_ratio") or 1
+    twenty = ind.get("twenty_day_pct") or 0
+    sixty = ind.get("sixty_day_pct") or 0
+    atr_pct = ind.get("atr_pct") or 4
+    dollar_volume = ind.get("dollar_volume") or 0
+    analyst_mean = meta.get("analyst_target_mean")
+    analyst_count = meta.get("analyst_count") or 0
+    revenue_growth = meta.get("revenue_growth")
+    earnings_growth = meta.get("earnings_growth")
+    forward_pe = meta.get("forward_pe")
+    peg_ratio = meta.get("peg_ratio")
+
+    base = 48 + (raw_score * 0.42)
+
+    confirmations = 0
+    penalties = 0
+
+    if dollar_volume >= 100_000_000:
+        confirmations += 1
+    if 48 <= rsi <= 68:
+        confirmations += 1
+    if 2 <= twenty <= 25:
+        confirmations += 1
+    if 5 <= sixty <= 45:
+        confirmations += 1
+    if volume_ratio >= 1.25:
+        confirmations += 1
+    if price and analyst_mean and analyst_count >= 3:
+        analyst_upside = ((analyst_mean - price) / price) * 100
+        if analyst_upside >= 12:
+            confirmations += 1
+        elif analyst_upside < 0:
+            penalties += 1
+    if revenue_growth is not None and revenue_growth > 0.08:
+        confirmations += 1
+    if earnings_growth is not None and earnings_growth > 0.08:
+        confirmations += 1
+    if peg_ratio is not None and 0 < peg_ratio <= 2.5:
+        confirmations += 1
+
+    if rsi > 76:
+        penalties += 1
+    if twenty > 35:
+        penalties += 1
+    if atr_pct > 9:
+        penalties += 1
+    if forward_pe is not None and forward_pe > 75 and (revenue_growth or 0) < 0.15:
+        penalties += 1
+
+    score = base + confirmations * 2.1 - penalties * 4.0
+
+    if confirmations < 4:
+        score = min(score, 82)
+    elif confirmations < 6:
+        score = min(score, 89)
+    elif confirmations < 8:
+        score = min(score, 94)
+    else:
+        score = min(score, 97)
+
+    if rsi > 78 or atr_pct > 10:
+        score = min(score, 86)
+    if twenty < -8:
+        score = min(score, 78)
+    if analyst_mean and price and analyst_count >= 3 and analyst_mean < price:
+        score = min(score, 82)
+
+    return int(round(clamp(score, 20, 97)))
+
+
+def add_research_quality_adjustments(score: int, good: List[str], risks: List[str], meta: Dict[str, Any]) -> Tuple[int, List[str], List[str]]:
+    """
+    Adds light fundamental/valuation context from available data.
+    """
+    revenue_growth = meta.get("revenue_growth")
+    earnings_growth = meta.get("earnings_growth")
+    forward_pe = meta.get("forward_pe")
+    peg_ratio = meta.get("peg_ratio")
+    beta = meta.get("beta")
+
+    if revenue_growth is not None:
+        if revenue_growth >= 0.20:
+            score += 3
+            good.append(f"revenue growth is strong at {revenue_growth * 100:.1f}%")
+        elif revenue_growth < 0:
+            score -= 4
+            risks.append("revenue growth is negative")
+
+    if earnings_growth is not None:
+        if earnings_growth >= 0.15:
+            score += 3
+            good.append(f"earnings growth is positive at {earnings_growth * 100:.1f}%")
+        elif earnings_growth < 0:
+            score -= 4
+            risks.append("earnings growth is negative")
+
+    if peg_ratio is not None:
+        if 0 < peg_ratio <= 2.0:
+            score += 2
+            good.append("PEG ratio looks reasonable versus growth")
+        elif peg_ratio > 4:
+            score -= 3
+            risks.append("PEG ratio suggests valuation risk")
+
+    if forward_pe is not None:
+        if 0 < forward_pe <= 30:
+            score += 2
+            good.append("forward valuation is not excessive")
+        elif forward_pe > 70:
+            score -= 3
+            risks.append("forward valuation is elevated")
+
+    if beta is not None and beta > 2:
+        score -= 2
+        risks.append("beta is high, so price swings may be larger")
+
+    return score, good, risks
+
+
 def score_stock(ind: Dict[str, Any], meta: Dict[str, Any]) -> Tuple[int, List[str], List[str]]:
     """
     Meaningfully varied 0-100 score.
@@ -607,19 +739,20 @@ def score_stock(ind: Dict[str, Any], meta: Dict[str, Any]) -> Tuple[int, List[st
             score -= 10
             risks.append("analyst consensus target is below current price")
 
-    # Normalize away from common weak 20 score problem.
-    score = max(1, min(99, score))
-    if score < 35:
-        score = max(score, 20)
-    return int(round(score)), good[:6], risks[:6]
+    # V40.1: add available research/fundamental context, then normalize.
+    score, good, risks = add_research_quality_adjustments(score, good, risks, meta)
+    normalized_score = normalize_conviction(score, ind, meta)
+
+    return normalized_score, good[:8], risks[:8]
 
 
 
 def build_ai_target_model(ind: Dict[str, Any], meta: Dict[str, Any], score: int) -> Dict[str, Any]:
     """
-    V39.3 analyst-driven AI target model.
-    Uses analyst consensus when available, then adjusts by technical strength,
-    growth quality, risk, and volume confirmation.
+    V40.1 AI Fair Value Engine.
+    Builds bear/base/bull targets from analyst reference data when available,
+    then adjusts using growth, valuation, trend quality, volume, and risk.
+    This avoids generic ~30% upside behavior.
     """
     price = ind.get("price")
     if not price:
@@ -631,90 +764,160 @@ def build_ai_target_model(ind: Dict[str, Any], meta: Dict[str, Any], score: int)
     analyst_count = meta.get("analyst_count") or 0
     recommendation_key = meta.get("recommendation_key") or "unknown"
     recommendation_mean = meta.get("recommendation_mean")
+
     revenue_growth = meta.get("revenue_growth")
     earnings_growth = meta.get("earnings_growth")
+    forward_pe = meta.get("forward_pe")
+    peg_ratio = meta.get("peg_ratio")
+    beta = meta.get("beta")
 
     twenty = ind.get("twenty_day_pct") or 0
+    sixty = ind.get("sixty_day_pct") or 0
     rsi = ind.get("rsi") or 50
     volume_ratio = ind.get("volume_ratio") or 1
-    atr_pct = ind.get("atr_pct") or 3
+    atr_pct = ind.get("atr_pct") or 4
+    high20 = ind.get("rolling_high_20") or price
+    high60 = ind.get("rolling_high_60") or high20
+    sma20 = ind.get("sma20") or price
+    sma50 = ind.get("sma50") or price
 
     has_analyst_targets = (
-        analyst_mean is not None
-        and analyst_mean > 0
-        and analyst_count >= 3
-        and analyst_high is not None
-        and analyst_high > 0
-        and analyst_low is not None
-        and analyst_low > 0
+        analyst_mean is not None and analyst_mean > 0 and
+        analyst_high is not None and analyst_high > 0 and
+        analyst_low is not None and analyst_low > 0 and
+        analyst_count >= 3
     )
+
+    growth_score = 0.0
+    if revenue_growth is not None:
+        if revenue_growth >= 0.30:
+            growth_score += 0.18
+        elif revenue_growth >= 0.15:
+            growth_score += 0.11
+        elif revenue_growth >= 0.05:
+            growth_score += 0.05
+        elif revenue_growth < 0:
+            growth_score -= 0.12
+
+    if earnings_growth is not None:
+        if earnings_growth >= 0.30:
+            growth_score += 0.16
+        elif earnings_growth >= 0.15:
+            growth_score += 0.09
+        elif earnings_growth >= 0.05:
+            growth_score += 0.04
+        elif earnings_growth < 0:
+            growth_score -= 0.12
+
+    valuation_score = 0.0
+    if peg_ratio is not None:
+        if 0 < peg_ratio <= 1.5:
+            valuation_score += 0.10
+        elif 1.5 < peg_ratio <= 2.5:
+            valuation_score += 0.04
+        elif peg_ratio > 4:
+            valuation_score -= 0.10
+
+    if forward_pe is not None:
+        if 0 < forward_pe <= 25:
+            valuation_score += 0.07
+        elif 25 < forward_pe <= 45:
+            valuation_score += 0.02
+        elif forward_pe > 75:
+            valuation_score -= 0.10
+
+    technical_score = 0.0
+    if price > sma20:
+        technical_score += 0.04
+    if price > sma50:
+        technical_score += 0.05
+    if 2 <= twenty <= 25:
+        technical_score += 0.07
+    elif twenty > 35:
+        technical_score -= 0.06
+    elif twenty < -8:
+        technical_score -= 0.10
+
+    if 5 <= sixty <= 45:
+        technical_score += 0.05
+    elif sixty > 80:
+        technical_score -= 0.06
+
+    if 48 <= rsi <= 68:
+        technical_score += 0.06
+    elif rsi > 76:
+        technical_score -= 0.10
+
+    if volume_ratio >= 2.0:
+        technical_score += 0.07
+    elif volume_ratio >= 1.25:
+        technical_score += 0.04
+    elif volume_ratio < 0.65:
+        technical_score -= 0.04
+
+    risk_penalty = 0.0
+    if atr_pct > 9:
+        risk_penalty += 0.10
+    elif atr_pct > 6:
+        risk_penalty += 0.05
+
+    if beta is not None and beta > 2:
+        risk_penalty += 0.05
+
+    if recommendation_key in {"sell", "underperform"}:
+        risk_penalty += 0.12
+
+    total_adjustment = growth_score + valuation_score + technical_score - risk_penalty
+    total_adjustment = clamp(total_adjustment, -0.30, 0.70)
 
     if has_analyst_targets:
         analyst_upside_pct = ((analyst_mean - price) / price) * 100
         high_upside_pct = ((analyst_high - price) / price) * 100
         low_upside_pct = ((analyst_low - price) / price) * 100
 
-        adjustment = 0.0
-        if score >= 80:
-            adjustment += 0.18
-        elif score >= 70:
-            adjustment += 0.10
-        elif score < 55:
-            adjustment -= 0.12
-
-        if twenty > 8:
-            adjustment += 0.08
-        elif twenty < -5:
-            adjustment -= 0.10
-
-        if 48 <= rsi <= 68:
-            adjustment += 0.05
-        elif rsi > 75:
-            adjustment -= 0.08
-
-        if volume_ratio >= 1.25:
-            adjustment += 0.05
-
-        if revenue_growth is not None and revenue_growth > 0.10:
-            adjustment += 0.06
-        if earnings_growth is not None and earnings_growth > 0.10:
-            adjustment += 0.06
-
-        if atr_pct > 8:
-            adjustment -= 0.08
-
-        adjustment = max(-0.25, min(0.35, adjustment))
-
-        if adjustment >= 0:
-            ai_base = analyst_mean + ((analyst_high - analyst_mean) * adjustment)
+        if total_adjustment >= 0:
+            ai_base = analyst_mean + ((analyst_high - analyst_mean) * min(total_adjustment, 0.70))
         else:
-            ai_base = analyst_mean + ((analyst_mean - analyst_low) * adjustment)
+            ai_base = analyst_mean + ((analyst_mean - analyst_low) * total_adjustment)
 
-        ai_bull = min(analyst_high, ai_base * 1.12)
-        ai_bear = max(analyst_low, price * 0.88)
-        expected_upside_pct = ((ai_base - price) / price) * 100
+        if analyst_upside_pct < 8 and total_adjustment > 0.25:
+            ai_base = max(ai_base, price * (1 + min(0.08 + total_adjustment, 0.38)))
 
-        target_source = "Analyst consensus + AI adjustment"
+        ai_bull = max(ai_base * 1.10, analyst_high if analyst_high > ai_base else ai_base * 1.15)
+        ai_bull = min(ai_bull, price * 2.25)
+
+        ai_bear = min(analyst_low, price * (1 - min(0.08 + risk_penalty, 0.28)))
+        ai_bear = max(ai_bear, price * 0.55)
+
+        target_source = "Multi-factor AI fair value using analyst consensus, growth, valuation, trend, volume, and risk"
         confidence_note = (
-            f"Based on {analyst_count} analyst opinions, consensus target ${analyst_mean:.2f}, "
-            f"high target ${analyst_high:.2f}, and AI adjustment for trend, volume, growth, and risk."
+            f"AI blended {analyst_count} analyst opinions with growth, valuation, momentum, volume, and risk. "
+            f"Consensus target ${analyst_mean:.2f}; AI adjustment {total_adjustment * 100:.1f}%."
         )
     else:
-        atr = ind.get("atr14") or price * 0.035
-        high20 = ind.get("rolling_high_20") or price
-        high60 = ind.get("rolling_high_60") or high20
-
-        technical_target = max(high20 * 1.03, high60 * 1.01, price + atr * 2.2)
-        ai_base = technical_target
-        ai_bull = max(ai_base * 1.08, price + atr * 3.2)
-        ai_bear = max(price - atr * 2.0, price * 0.88)
-
         analyst_upside_pct = None
         high_upside_pct = None
         low_upside_pct = None
-        expected_upside_pct = ((ai_base - price) / price) * 100
-        target_source = "Technical AI target; analyst target unavailable"
-        confidence_note = "Analyst target data was not available, so AI used trend, recent highs, ATR, and momentum."
+
+        base_multiplier = 1.00 + clamp(0.08 + total_adjustment, -0.18, 0.65)
+
+        technical_anchor = max(high20 * 1.02, high60 * 1.01)
+        ai_base = max(price * base_multiplier, technical_anchor)
+        ai_base = min(ai_base, price * 1.75)
+
+        ai_bull = min(max(ai_base * 1.18, price * (1.15 + max(total_adjustment, 0))), price * 2.10)
+        ai_bear = max(price * (0.82 - min(risk_penalty, 0.18)), price * 0.55)
+
+        target_source = "Multi-factor AI fair value; analyst target unavailable"
+        confidence_note = (
+            f"Analyst target data unavailable. AI used growth, valuation, trend, volume, recent highs, and risk. "
+            f"AI adjustment {total_adjustment * 100:.1f}%."
+        )
+
+    expected_upside_pct = ((ai_base - price) / price) * 100
+
+    ai_bear = min(ai_bear, price * 0.98, ai_base * 0.90)
+    ai_bull = max(ai_bull, ai_base * 1.08)
 
     return {
         "analyst_target_mean": round(analyst_mean, 2) if analyst_mean else None,
@@ -732,6 +935,7 @@ def build_ai_target_model(ind: Dict[str, Any], meta: Dict[str, Any], score: int)
         "expected_upside_pct": round(expected_upside_pct, 1),
         "target_source": target_source,
         "target_confidence_note": confidence_note,
+        "ai_fair_value_adjustment_pct": round(total_adjustment * 100, 1),
     }
 
 
@@ -783,7 +987,7 @@ def plain_english_guidance(symbol: str, company: str, ind: Dict[str, Any], score
     risk_text = "; ".join(risks) if risks else "Main risk is a normal pullback if broader market momentum fades."
 
     if score >= 75:
-        rank_reason = "High conviction because trend, momentum, liquidity, and volume confirmation are aligned."
+        rank_reason = "High conviction because multiple signals align across trend, liquidity, momentum, valuation/growth context, and risk control."
     elif score >= 60:
         rank_reason = "Moderate-to-strong setup with enough technical support to watch closely."
     elif score >= 45:
@@ -873,6 +1077,9 @@ def make_dashboard_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], s
         "analyst_high_upside_pct": target_model.get("analyst_high_upside_pct"),
         "expected_upside_pct": target_model.get("expected_upside_pct"),
         "upside": target_model.get("expected_upside_pct"),
+        "ai_confidence": score,
+        "confidence": score,
+        "ai_fair_value_adjustment_pct": target_model.get("ai_fair_value_adjustment_pct"),
         "target_source": target_model.get("target_source"),
         "target_confidence_note": target_model.get("target_confidence_note"),
         "recommendation_key": target_model.get("recommendation_key"),
@@ -897,7 +1104,7 @@ def make_dashboard_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], s
             f"Watch entry {plan.get('entry_range')} with stop near ${plan.get('stop_loss')}."
         ),
         "opportunity_reason": (
-            f"Analyst-driven upside: {target_model.get('expected_upside_pct')}%. "
+            f"AI fair-value upside: {target_model.get('expected_upside_pct')}%. "
             f"{target_model.get('target_confidence_note')}"
         ),
         "guidance": (
@@ -1032,7 +1239,7 @@ def scan_market() -> Dict[str, Any]:
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V40.0",
+        "version": "V40.1",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -1050,6 +1257,11 @@ def scan_market() -> Dict[str, Any]:
             "fmp": bool(FMP_API_KEY),
             "finnhub": bool(FINNHUB_API_KEY),
             "newsapi": bool(NEWSAPI_KEY),
+        },
+        "v40_1_changes": {
+            "conviction_normalized": True,
+            "ai_fair_value_engine": True,
+            "generic_30pct_target_reduced": True,
         },
     }
 
@@ -1130,7 +1342,7 @@ def main() -> None:
         error_state = {
             "generated_at": now_iso(),
             "status": "error",
-            "version": "V40.0",
+            "version": "V40.1",
             "error": str(exc),
             "data_dir": str(DATA_DIR),
             "github_persisted": False,
