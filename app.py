@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 
-APP_VERSION = "V40.2 Dashboard - Scanner Conviction + AI Research Table"
+APP_VERSION = "V40.2.1 Dashboard - Fresh Full Scan Top Ideas"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -17,7 +17,7 @@ st.set_page_config(
 DATA_DIR = Path(os.getenv("DATA_DIR", "."))
 
 FULL_SCAN_FILE = DATA_DIR / "market_full_scan.json"
-PRESCREEN_FILE = DATA_DIR / "market_prescreen.json"
+PRESCREEN_FILE = DATA_DIR / "market_prescreen.json"a
 STATE_FILE = DATA_DIR / "market_scan_state.json"
 UNIVERSE_FILE = DATA_DIR / "total_market_universe.json"
 
@@ -300,10 +300,16 @@ def actionable(df, min_score=35, require_upside=True):
 
 
 def latest_top_ideas():
-    top_file = actionable(load_file(TOP_IDEAS_FILE), min_score=45, require_upside=True)
-    if not top_file.empty:
-        return top_file.head(25)
+    """
+    V40.2.1 fix:
+    Always use the fresh overnight market_full_scan.json for Top AI Ideas.
 
+    Reason:
+    top_ai_ideas.json can become stale because the overnight scanner now writes
+    market_full_scan.json as the source of truth. If we prioritize top_ai_ideas.json,
+    the dashboard can keep showing old 99 scores and old 30% upside values even after
+    V40.3.1 runs successfully.
+    """
     full = actionable(load_full_scan(), min_score=45, require_upside=True)
     return full.head(25)
 
