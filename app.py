@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 
-APP_VERSION = "V40.2 Dashboard - Scanner Conviction + AI Research Table"
+APP_VERSION = "V40.2.1 Dashboard - Fresh Full Scan Top Ideas"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -300,10 +300,6 @@ def actionable(df, min_score=35, require_upside=True):
 
 
 def latest_top_ideas():
-    top_file = actionable(load_file(TOP_IDEAS_FILE), min_score=45, require_upside=True)
-    if not top_file.empty:
-        return top_file.head(25)
-
     full = actionable(load_full_scan(), min_score=45, require_upside=True)
     return full.head(25)
 
