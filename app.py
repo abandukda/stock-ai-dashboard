@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 
-APP_VERSION = "V41.1 Viewer Research + Recovery Intelligence Dashboard"
+APP_VERSION = "V41.3 ETF Intelligence Dashboard"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -25,6 +25,7 @@ TOP_IDEAS_FILE = DATA_DIR / "top_ai_ideas.json"
 RECOVERY_SCAN_FILE = DATA_DIR / "recovery_scan.json"
 WATCHLIST_SCAN_FILE = DATA_DIR / "watchlist_scan.json"
 WATCHLIST_FILE = DATA_DIR / "watchlist.json"
+ETF_SCAN_FILE = DATA_DIR / "etf_scan.json"
 
 MIN_UPSIDE_PCT = float(os.getenv("MIN_UPSIDE_PCT", "0"))
 
@@ -392,6 +393,7 @@ def normalize_scan_row(raw):
         "AI Committee": pick(raw, "ai_committee", "AI Committee", default={}),
         "Target Source": safe_text(pick(raw, "Target Source", "target_source", default="N/A"), "N/A"),
         "Target Confidence Note": safe_text(pick(raw, "Target Confidence Note", "target_confidence_note", default=""), ""),
+        "ETF Screen": safe_text(pick(raw, "etf_preference_screen", "ETF Screen", default=""), ""),
         "Source FMP": bool(pick(raw, "source_fmp_profile", "Source FMP", default=False)),
         "Website": safe_text(pick(raw, "website", "Website", default=""), ""),
         "AI Committee": pick(raw, "ai_committee", default=[]),
@@ -864,15 +866,68 @@ def render_market_summary(full_df):
         st.info("No scan data available.")
         return
 
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("Total Ideas", len(full_df))
     c2.metric("Avg Score", int(full_df["Final Conviction"].mean()))
     c3.metric("Median Upside", fmt_pct(full_df["Target Upside %"].median()))
     c4.metric("FMP Enriched", int(full_df["Source FMP"].sum()) if "Source FMP" in full_df else 0)
+    c5.metric("Manual Watchlist Count", len(read_watchlist_symbols()))
 
     if "Sector" in full_df.columns:
         sector_counts = full_df["Sector"].fillna("Unknown").value_counts().head(10)
         st.bar_chart(sector_counts)
+
+
+
+def read_watchlist_symbols():
+    try:
+        data = read_json_file(WATCHLIST_FILE)
+        if isinstance(data, dict):
+            symbols = data.get("symbols", [])
+        elif isinstance(data, list):
+            symbols = data
+        else:
+            symbols = []
+
+        cleaned = []
+        for item in symbols:
+            sym = safe_text(item, "").upper().strip()
+            if sym:
+                cleaned.append(sym)
+        return list(dict.fromkeys(cleaned))
+    except Exception:
+        return []
+
+
+def write_watchlist_symbols(symbols):
+    cleaned = []
+    for item in symbols:
+        sym = safe_text(item, "").upper().strip()
+        if sym and "." not in sym and "/" not in sym and len(sym) <= 7:
+            cleaned.append(sym)
+
+    payload = {"symbols": list(dict.fromkeys(cleaned))}
+
+    try:
+        with WATCHLIST_FILE.open("w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2)
+        return True
+    except Exception as exc:
+        st.error(f"Could not update watchlist: {exc}")
+        return False
+
+
+def add_symbol_to_watchlist(symbol):
+    symbol = safe_text(symbol, "").upper().strip()
+    if not symbol:
+        return False
+
+    symbols = read_watchlist_symbols()
+    if symbol not in symbols:
+        symbols.append(symbol)
+        return write_watchlist_symbols(symbols)
+
+    return True
 
 
 def find_ticker_row(ticker, *dfs):
@@ -887,25 +942,48 @@ def find_ticker_row(ticker, *dfs):
     return None
 
 
-def render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df):
+def render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df=None):
     st.subheader("🔍 Research Any Ticker")
-    st.caption("Viewer-friendly lookup. It opens the same AI Committee research card for any ticker found in the latest scan files.")
+    st.caption(
+        "Search tickers already in the latest scan. If a ticker is not found, add it to the watchlist so the next scan includes it."
+    )
 
-    c1, c2 = st.columns([2, 1])
+    c1, c2, c3 = st.columns([2, 1, 1])
     with c1:
-        ticker = st.text_input("Enter ticker", placeholder="NVDA, MSFT, PLTR", key="research_any_ticker").upper().strip()
+        ticker = st.text_input("Enter ticker", placeholder="NVDA, MSFT, PLTR, ZS", key="research_any_ticker").upper().strip()
     with c2:
         st.write("")
         st.write("")
         open_card = st.button("Open Research Card", key="research_any_ticker_btn")
+    with c3:
+        st.write("")
+        st.write("")
+        add_watch = st.button("➕ Add to Watchlist", key="add_any_ticker_watchlist_btn")
+
+    if ticker:
+        current_watchlist = read_watchlist_symbols()
+        if ticker in current_watchlist:
+            st.success(f"{ticker} is already in your watchlist.")
+
+        if add_watch:
+            if add_symbol_to_watchlist(ticker):
+                st.success(
+                    f"{ticker} added to watchlist. It will receive a full AI Committee card after the next scanner run."
+                )
 
     if ticker and (open_card or ticker):
-        row = find_ticker_row(ticker, full_df, recovery_df, watch_df, prescreen_df)
+        row = find_ticker_row(ticker, full_df, recovery_df, watch_df, prescreen_df, etf_df)
         if row is not None:
             render_detail(row)
         else:
             st.warning(
-                f"{ticker} was not found in the latest scan files. It may not meet liquidity, price, exclusion, or universe filters."
+                f"{ticker} was not found in the latest scan files. "
+                "Click ➕ Add to Watchlist, then run the next scan so the AI agents can evaluate it."
+            )
+
+            st.info(
+                "Why this happens: Research Any Ticker uses the latest generated scan files. "
+                "Adding a ticker to the watchlist tells the next scanner run to include it in the universe."
             )
 
 
@@ -971,12 +1049,14 @@ def main():
     recovery_df = latest_recovery()
     watch_df = latest_watchlist_scan()
     prescreen_df = load_file(PRESCREEN_FILE)
+    etf_df = load_file(ETF_SCAN_FILE)
 
     tabs = st.tabs(
         [
             "Top AI Ideas",
             "Full Ranked Scan",
             "Recovery",
+            "ETFs",
             "Watchlist",
             "Prescreen",
             "Summary",
@@ -1000,18 +1080,21 @@ def main():
         render_table(recovery_df, "Recovery Intelligence: Dropped Stocks With Forward Upside", "recovery_table", min_score_default=35)
 
     with tabs[3]:
-        render_table(watch_df, "Watchlist Scan", "watch_table", min_score_default=0)
+        render_table(etf_df, "ETF Intelligence: Non-Financial / Non-Israel Screen", "etf_table", min_score_default=35)
 
     with tabs[4]:
-        render_table(prescreen_df, "Prescreen Candidates", "prescreen_table", min_score_default=35)
+        render_table(watch_df, "Watchlist Scan", "watch_table", min_score_default=0)
 
     with tabs[5]:
-        render_market_summary(full_df)
+        render_table(prescreen_df, "Prescreen Candidates", "prescreen_table", min_score_default=35)
 
     with tabs[6]:
-        render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df)
+        render_market_summary(full_df)
 
     with tabs[7]:
+        render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df)
+
+    with tabs[8]:
         render_chat_helper(full_df)
 
 

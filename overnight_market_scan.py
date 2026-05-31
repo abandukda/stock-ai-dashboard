@@ -37,7 +37,9 @@ FULL_SCAN_FILE = DATA_DIR / "market_full_scan.json"
 PRESCREEN_FILE = DATA_DIR / "market_prescreen.json"
 STATE_FILE = DATA_DIR / "market_scan_state.json"
 UNIVERSE_FILE = DATA_DIR / "total_market_universe.json"
+WATCHLIST_FILE = DATA_DIR / "watchlist.json"
 RECOVERY_SCAN_FILE = DATA_DIR / "recovery_scan.json"
+ETF_SCAN_FILE = DATA_DIR / "etf_scan.json"
 
 MAX_UNIVERSE = int(os.getenv("MAX_UNIVERSE", "6500"))
 MAX_PRESCREEN = int(os.getenv("MAX_PRESCREEN", "650"))
@@ -264,11 +266,42 @@ SPY QQQ DIA IWM VTI VOO SCHD JEPI JEPQ QYLD XYLD RYLD SPYT QQQY TLT HYG LQD XLF 
     return list(dict.fromkeys(symbols))
 
 
+
+def load_watchlist_symbols() -> List[str]:
+    """
+    V41.2: Include manually-added watchlist tickers in future scans.
+    """
+    try:
+        if not WATCHLIST_FILE.exists():
+            return []
+
+        data = json.loads(WATCHLIST_FILE.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            raw_symbols = data.get("symbols", [])
+        elif isinstance(data, list):
+            raw_symbols = data
+        else:
+            raw_symbols = []
+
+        cleaned = []
+        for item in raw_symbols:
+            sym = str(item).upper().strip()
+            if sym and "." not in sym and "/" not in sym and len(sym) <= 7:
+                cleaned.append(sym)
+        return list(dict.fromkeys(cleaned))
+    except Exception:
+        return []
+
+
 def build_universe() -> List[str]:
     symbols = set(fallback_universe())
 
     yahoo_symbols = get_yahoo_screeners()
     symbols.update(yahoo_symbols)
+
+    # V41.2: force user-added watchlist tickers into the scan universe.
+    watchlist_symbols = load_watchlist_symbols()
+    symbols.update(watchlist_symbols)
 
     # Load prior universe if present to preserve continuity.
     try:
@@ -2115,6 +2148,177 @@ def build_recovery_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return recovery_rows[:100]
 
 
+def is_excluded_etf(symbol: str, meta: Dict[str, Any]) -> Tuple[bool, str]:
+    sym = safe_text(symbol, "").upper()
+    name = safe_text(meta.get("company_name"), "").upper()
+    sector = safe_text(meta.get("sector"), "").upper()
+    industry = safe_text(meta.get("industry"), "").upper()
+    category = safe_text(meta.get("category"), "").upper()
+    text = f"{sym} {name} {sector} {industry} {category}"
+
+    blocked_symbols = {
+        "XLF", "KBE", "KRE", "IYF", "VFH", "FNCL", "IAI", "KCE", "KBWB", "KBWR",
+        "EIS", "ISRA", "IZRL",
+        "BETZ", "BJK", "PEJ", "XLC", "IYZ", "VOX"
+    }
+
+    blocked_terms = [
+        "FINANCIAL", "BANK", "BANKS", "INSURANCE", "BROKER", "CAPITAL MARKETS",
+        "ASSET MANAGEMENT", "MORTGAGE", "CREDIT", "LENDER", "LENDING",
+        "ISRAEL", "TEL AVIV",
+        "GAMING", "GAMBLING", "CASINO", "BETTING",
+        "ALCOHOL", "BREWERS", "TOBACCO",
+        "ENTERTAINMENT", "MEDIA", "COMMUNICATION SERVICES"
+    ]
+
+    if sym in blocked_symbols:
+        return True, f"Blocked ETF symbol/theme: {sym}"
+
+    for term in blocked_terms:
+        if term in text:
+            return True, f"Blocked ETF theme: {term}"
+
+    return False, ""
+
+
+def score_etf_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    excluded, reason = is_excluded_etf(symbol, meta)
+    if excluded:
+        return None
+
+    price = ind.get("price")
+    if not price:
+        return None
+
+    score = 50
+    good: List[str] = []
+    risks: List[str] = []
+
+    dollar_volume = ind.get("dollar_volume") or 0
+    if dollar_volume >= 50_000_000:
+        score += 12
+        good.append("strong ETF liquidity")
+    elif dollar_volume >= MIN_DOLLAR_VOLUME:
+        score += 6
+        good.append("acceptable ETF liquidity")
+    else:
+        return None
+
+    if ind.get("sma20") and price > ind.get("sma20"):
+        score += 10
+        good.append("price is above 20-day trend")
+    else:
+        score -= 6
+        risks.append("price is below 20-day trend")
+
+    if ind.get("sma50") and price > ind.get("sma50"):
+        score += 12
+        good.append("price is above 50-day trend")
+    else:
+        score -= 8
+        risks.append("price is below 50-day trend")
+
+    twenty = ind.get("twenty_day_pct") or 0
+    sixty = ind.get("sixty_day_pct") or 0
+    rsi = ind.get("rsi") or 50
+    atr_pct = ind.get("atr_pct") or 4
+
+    if 1 <= twenty <= 18:
+        score += 10
+        good.append("healthy 20-day ETF momentum")
+    elif twenty > 25:
+        score -= 5
+        risks.append("short-term ETF move may be stretched")
+    elif twenty < -6:
+        score -= 8
+        risks.append("20-day ETF trend is weak")
+
+    if 3 <= sixty <= 30:
+        score += 8
+        good.append("positive 60-day ETF trend")
+    elif sixty < -10:
+        score -= 8
+        risks.append("60-day ETF trend is weak")
+
+    if 45 <= rsi <= 68:
+        score += 8
+        good.append("RSI is constructive")
+    elif rsi > 76:
+        score -= 8
+        risks.append("RSI is overheated")
+    elif rsi < 38:
+        score -= 5
+        risks.append("RSI is weak")
+
+    if atr_pct <= 4:
+        score += 6
+        good.append("ETF volatility is controlled")
+    elif atr_pct > 7:
+        score -= 8
+        risks.append("ETF volatility is elevated")
+
+    score = int(clamp(score, 20, 95))
+    plan = build_trade_plan(ind, score)
+    target = plan.get("target") or (price * 1.08)
+    upside = ((target - price) / price) * 100 if price else 0
+
+    return {
+        "symbol": symbol,
+        "ticker": symbol,
+        "company": meta.get("company_name", symbol),
+        "company_name": meta.get("company_name", symbol),
+        "sector": "ETF",
+        "industry": meta.get("industry", meta.get("sector", "ETF")),
+        "quote_type": "ETF",
+        "price": price,
+        "current_price": price,
+        "dollar_volume": ind.get("dollar_volume"),
+        "avg_volume_20d": ind.get("avg_volume_20d"),
+        "volume_ratio": ind.get("volume_ratio"),
+        "conviction": score,
+        "conviction_score": score,
+        "score": score,
+        "ai_score": score,
+        "ai_confidence": score,
+        "confidence": score,
+        "rsi": ind.get("rsi"),
+        "atr_pct": ind.get("atr_pct"),
+        "sma20": ind.get("sma20"),
+        "sma50": ind.get("sma50"),
+        "twenty_day_pct": ind.get("twenty_day_pct"),
+        "sixty_day_pct": ind.get("sixty_day_pct"),
+        "entry_range": plan.get("entry_range"),
+        "entry_low": plan.get("entry_low"),
+        "entry_high": plan.get("entry_high"),
+        "stop_loss": plan.get("stop_loss"),
+        "target": round(target, 2),
+        "target_2": plan.get("target_2"),
+        "risk_reward": plan.get("risk_reward"),
+        "expected_upside_pct": round(upside, 1),
+        "upside": round(upside, 1),
+        "ai_base_target": round(target, 2),
+        "ai_bull_target": plan.get("target_2"),
+        "ai_bear_target": plan.get("stop_loss"),
+        "etf_preference_screen": "Passed non-financial / non-Israel / non-excluded-theme screen",
+        "what_looks_good": "; ".join(good) if good else "ETF has acceptable technical traits.",
+        "what_could_go_wrong": "; ".join(risks) if risks else "Main risk is a broad market or sector pullback.",
+        "investment_thesis": (
+            f"{meta.get('company_name', symbol)} ({symbol}) is an ETF candidate that passed your preference screen. "
+            f"Score {score}/100. Positive factors: {'; '.join(good) if good else 'acceptable ETF setup'}. "
+            f"Risks: {'; '.join(risks) if risks else 'market pullback risk'}."
+        ),
+        "guidance": (
+            f"{symbol} ETF score is {score}/100. Preferred entry is {plan.get('entry_range')}. "
+            f"Use stop around ${plan.get('stop_loss')} and first target near ${round(target, 2)}."
+        ),
+        "action_note": "ETF idea only. Review holdings/exposure before buying to ensure it aligns with your preferences.",
+        "summary": f"{symbol}: ETF candidate, score {score}/100, estimated trade upside {round(upside, 1)}%.",
+        "setup_tags": good,
+        "risk_tags": risks,
+        "scan_time": now_iso(),
+    }
+
+
 # =========================
 # SCAN PIPELINE
 # =========================
@@ -2156,6 +2360,7 @@ def scan_market() -> Dict[str, Any]:
 
     prescreen_rows: List[Dict[str, Any]] = []
     full_rows: List[Dict[str, Any]] = []
+    etf_rows: List[Dict[str, Any]] = []
 
     metadata_cache: Dict[str, Dict[str, Any]] = {}
 
@@ -2220,6 +2425,13 @@ def scan_market() -> Dict[str, Any]:
 
                 metadata_cache[symbol] = meta
 
+            quote_type = str(meta.get("quote_type", "")).upper()
+            if quote_type == "ETF":
+                etf_row = score_etf_row(symbol, meta, ind)
+                if etf_row:
+                    etf_rows.append(etf_row)
+                continue
+
             if not passes_basic_filter(ind, meta):
                 continue
 
@@ -2242,6 +2454,8 @@ def scan_market() -> Dict[str, Any]:
 
     prescreen_rows = prescreen_rows[:MAX_PRESCREEN]
     full_rows = full_rows[:MAX_FULL_SCAN]
+    etf_rows.sort(key=lambda r: (r.get("conviction") or 0, r.get("dollar_volume") or 0), reverse=True)
+    etf_rows = etf_rows[:150]
 
     # If full scan is too thin, only backfill with actual valid prescreen rows, not fake rows.
     if len(full_rows) < min(25, MAX_FULL_SCAN):
@@ -2266,11 +2480,12 @@ def scan_market() -> Dict[str, Any]:
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V41.1",
+        "version": "V41.3",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
         "recovery_count": len(recovery_rows),
+        "etf_count": len(etf_rows),
         "fallback_rows_allowed": False,
         "data_dir": str(DATA_DIR),
         "github_persisted": False,
@@ -2305,6 +2520,14 @@ def scan_market() -> Dict[str, Any]:
             "recovery_scan_file": True,
             "viewer_ticker_research": True,
         },
+        "v41_2_changes": {
+            "watchlist_add_from_ticker_search": True,
+            "watchlist_symbols_included": True,
+        },
+        "v41_3_changes": {
+            "etf_tab": True,
+            "non_financial_non_israel_etf_screen": True,
+        },
         "v41_changes": {
             "hard_exclusions": True,
             "ai_committee_summary": True,
@@ -2317,6 +2540,7 @@ def scan_market() -> Dict[str, Any]:
     write_json(PRESCREEN_FILE, prescreen_rows)
     write_json(FULL_SCAN_FILE, full_rows)
     write_json(RECOVERY_SCAN_FILE, recovery_rows)
+    write_json(ETF_SCAN_FILE, etf_rows)
     write_json(STATE_FILE, state)
 
     if GITHUB_PERSIST:
@@ -2341,6 +2565,8 @@ def persist_to_github() -> bool:
         str(STATE_FILE),
         str(UNIVERSE_FILE),
         str(RECOVERY_SCAN_FILE),
+        str(ETF_SCAN_FILE),
+        str(WATCHLIST_FILE),
     ]
 
     code, out = run_cmd(["git", "status", "--porcelain"])
@@ -2393,7 +2619,7 @@ def main() -> None:
         error_state = {
             "generated_at": now_iso(),
             "status": "error",
-            "version": "V41.1",
+            "version": "V41.3",
             "error": str(exc),
             "data_dir": str(DATA_DIR),
             "github_persisted": False,
