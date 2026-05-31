@@ -1,14 +1,14 @@
 {
-  "generated_at": "2026-05-31T00:30:41.288224+00:00",
+  "generated_at": "2026-05-31T03:19:12.890578+00:00",
   "status": "success",
-  "version": "V40.3.1",
-  "universe_count": 1898,
+  "version": "V40.6",
+  "universe_count": 1899,
   "prescreen_count": 650,
   "full_scan_count": 150,
   "fallback_rows_allowed": false,
   "data_dir": ".",
   "github_persisted": false,
-  "duration_seconds": 1035.5,
+  "duration_seconds": 1024.69,
   "filters": {
     "min_price": 2.0,
     "max_price": 1000.0,
@@ -29,5 +29,9 @@
     "conviction_normalized": true,
     "ai_fair_value_engine": true,
     "generic_30pct_target_reduced": true
+  },
+  "v40_6_changes": {
+    "relative_conviction_distribution": true,
+    "score_clustering_reduced": true
   }
 }
