@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-V40.6 Overnight Market Scanner - Conviction Normalization
+V41.0 AI Committee Scanner - Exclusions + Insider Intelligence
 - Render Cron compatible
 - DATA_DIR defaults to "."
 - Preserves dashboard output files:
@@ -18,7 +18,7 @@ import requests
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -144,6 +144,60 @@ def http_get_json(url: str, params: Optional[Dict[str, Any]] = None, timeout: in
         return response.json()
     except Exception:
         return None
+
+
+# =========================
+# EXCLUSIONS / PREFERENCES
+# =========================
+
+EXCLUDED_SECTORS = {
+    "FINANCIAL SERVICES",
+}
+
+EXCLUDED_INDUSTRY_KEYWORDS = [
+    "BANK", "BANKS", "BANKING", "CREDIT", "CREDIT SERVICES",
+    "LENDER", "LENDING", "LOAN", "MORTGAGE", "INSURANCE",
+    "REINSURANCE", "ASSET MANAGEMENT", "CAPITAL MARKETS",
+    "INVESTMENT BANKING", "WEALTH MANAGEMENT", "BROKER", "BROKERAGE",
+    "CONSUMER FINANCE", "FINANCIAL DATA", "PAYMENT PROCESSING",
+    "PAYMENTS", "REIT - MORTGAGE", "MORTGAGE REIT",
+]
+
+EXCLUDED_BUSINESS_KEYWORDS = [
+    "casino", "casinos", "gambling", "sports betting", "wagering",
+    "alcohol", "beer", "wine", "spirits", "tobacco", "cannabis",
+    "marijuana", "adult entertainment", "streaming entertainment",
+]
+
+EXCLUDED_COUNTRIES = {"IL", "ISR", "ISRAEL"}
+EXCLUDED_EXCHANGES = {"TASE", "TLV"}
+
+
+def exclusion_reason(meta: Dict[str, Any]) -> Optional[str]:
+    """
+    Centralized permanent exclusion rules based on user preferences.
+    Excludes financial services, Israel-based companies, and restricted categories.
+    """
+    sector = safe_text(meta.get("sector"), "").upper()
+    industry = safe_text(meta.get("industry"), "").upper()
+    country = safe_text(meta.get("country"), "").upper()
+    exchange = safe_text(meta.get("exchange"), "").upper()
+    description = safe_text(meta.get("description"), "").lower()
+    company = safe_text(meta.get("company_name"), "").lower()
+    combined_text = f"{description} {company} {industry.lower()} {sector.lower()}"
+
+    if country in EXCLUDED_COUNTRIES:
+        return "Israel-based company"
+    if exchange in EXCLUDED_EXCHANGES or "TEL AVIV" in exchange:
+        return "Israel/Tel Aviv exchange listing"
+    if sector in EXCLUDED_SECTORS:
+        return "Financial Services sector"
+    if any(keyword in industry for keyword in EXCLUDED_INDUSTRY_KEYWORDS):
+        return "Excluded financial/bank/lender/insurance/asset management industry"
+    if any(keyword in combined_text for keyword in EXCLUDED_BUSINESS_KEYWORDS):
+        return "Excluded business category"
+
+    return None
 
 
 # =========================
@@ -542,6 +596,388 @@ def get_news_research(symbol: str, company_name: str = "") -> Dict[str, Any]:
         "top_news_headline": headlines[0]["title"] if headlines else "",
         "top_news_source": headlines[0]["source"] if headlines else "",
         "source_newsapi": True,
+    }
+
+
+
+
+def get_finnhub_insider_activity(symbol: str, days: int = 180) -> Dict[str, Any]:
+    """
+    V41 Insider Agent data from Finnhub.
+    Uses insider transactions and insider sentiment when available.
+    All failures return {} so cron remains stable.
+    """
+    if not FINNHUB_API_KEY:
+        return {}
+
+    end = datetime.now(timezone.utc).date()
+    start = end - timedelta(days=days)
+    result: Dict[str, Any] = {}
+
+    tx_data = http_get_json(
+        "https://finnhub.io/api/v1/stock/insider-transactions",
+        params={"symbol": symbol, "from": str(start), "to": str(end), "token": FINNHUB_API_KEY},
+        timeout=10,
+    )
+
+    transactions = []
+    if isinstance(tx_data, dict):
+        transactions = tx_data.get("data") or []
+    elif isinstance(tx_data, list):
+        transactions = tx_data
+
+    buys = 0
+    sells = 0
+    buy_value = 0.0
+    sell_value = 0.0
+    key_people = []
+
+    if isinstance(transactions, list):
+        for tx in transactions[:80]:
+            if not isinstance(tx, dict):
+                continue
+            shares = safe_float(tx.get("share") or tx.get("change") or tx.get("shares"), 0) or 0
+            price = safe_float(tx.get("transactionPrice") or tx.get("price"), 0) or 0
+            tx_value = abs(shares * price)
+            code = safe_text(tx.get("transactionCode") or tx.get("code"), "").upper()
+            name = safe_text(tx.get("name") or tx.get("reportingName"), "")
+
+            # Finnhub commonly uses P for purchase and S for sale.
+            if code == "P" or shares > 0:
+                buys += 1
+                buy_value += tx_value
+            elif code == "S" or shares < 0:
+                sells += 1
+                sell_value += tx_value
+
+            if name and len(key_people) < 3:
+                key_people.append(name)
+
+    sentiment_data = http_get_json(
+        "https://finnhub.io/api/v1/stock/insider-sentiment",
+        params={"symbol": symbol, "from": str(start), "to": str(end), "token": FINNHUB_API_KEY},
+        timeout=10,
+    )
+
+    mspr_values = []
+    change_values = []
+    if isinstance(sentiment_data, dict):
+        for row in sentiment_data.get("data") or []:
+            if not isinstance(row, dict):
+                continue
+            mspr = safe_float(row.get("mspr"), None)
+            change = safe_float(row.get("change"), None)
+            if mspr is not None:
+                mspr_values.append(mspr)
+            if change is not None:
+                change_values.append(change)
+
+    avg_mspr = sum(mspr_values) / len(mspr_values) if mspr_values else None
+    net_change = sum(change_values) if change_values else None
+
+    if buys == 0 and sells == 0 and avg_mspr is None and net_change is None:
+        return {}
+
+    insider_score = 50.0
+    if buy_value > 0 or sell_value > 0:
+        net_value = buy_value - sell_value
+        total_value = buy_value + sell_value
+        value_ratio = net_value / total_value if total_value else 0
+        insider_score += value_ratio * 30
+    insider_score += min(buys, 6) * 2.0
+    insider_score -= min(sells, 8) * 1.5
+    if avg_mspr is not None:
+        insider_score += max(min(avg_mspr * 25, 15), -15)
+    insider_score = round(clamp(insider_score, 0, 100), 1)
+
+    if insider_score >= 70:
+        label = "Positive"
+    elif insider_score >= 45:
+        label = "Neutral/Mixed"
+    else:
+        label = "Negative"
+
+    return {
+        "insider_score": insider_score,
+        "insider_activity_label": label,
+        "insider_buy_count": buys,
+        "insider_sell_count": sells,
+        "insider_buy_value": round(buy_value, 2),
+        "insider_sell_value": round(sell_value, 2),
+        "insider_avg_mspr": round(avg_mspr, 3) if avg_mspr is not None else None,
+        "insider_net_change": round(net_change, 2) if net_change is not None else None,
+        "insider_key_people": list(dict.fromkeys(key_people))[:3],
+        "source_finnhub_insider": True,
+    }
+
+
+def agent_score_label(score: Optional[float]) -> str:
+    value = safe_float(score, None)
+    if value is None:
+        return "N/A"
+    if value >= 80:
+        return "Positive"
+    if value >= 60:
+        return "Constructive"
+    if value >= 45:
+        return "Neutral"
+    if value >= 30:
+        return "Caution"
+    return "Negative"
+
+
+def build_agent_summary(name: str, score: Optional[float], summary: str, findings: List[str], impact: str, data_used: str) -> Dict[str, Any]:
+    clean_findings = [safe_text(x, "") for x in findings if safe_text(x, "")]
+    return {
+        "agent": name,
+        "score": int(round(safe_float(score, 50) or 50)),
+        "status": agent_score_label(score),
+        "summary": safe_text(summary, "No summary available."),
+        "findings": clean_findings[:6],
+        "impact": safe_text(impact, "Neutral"),
+        "data_used": safe_text(data_used, "Internal model data"),
+    }
+
+
+def build_ai_committee(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], target_model: Dict[str, Any], score: int, good: List[str], risks: List[str], plan: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    V41 AI Committee Summary.
+    Turns the raw data into per-agent summaries so the dashboard can show why a stock ranked highly.
+    """
+    price = ind.get("price") or 0
+    rsi = ind.get("rsi") or 50
+    twenty = ind.get("twenty_day_pct") or 0
+    sixty = ind.get("sixty_day_pct") or 0
+    volume_ratio = ind.get("volume_ratio") or 1
+    atr_pct = ind.get("atr_pct") or 4
+    revenue_growth = meta.get("revenue_growth")
+    earnings_growth = meta.get("earnings_growth")
+    forward_pe = meta.get("forward_pe")
+    peg_ratio = meta.get("peg_ratio")
+    analyst_support = meta.get("analyst_support_score")
+    news_score = meta.get("news_sentiment_score")
+    news_label = meta.get("news_sentiment_label") or "N/A"
+    insider_score = meta.get("insider_score")
+    insider_label = meta.get("insider_activity_label") or "N/A"
+    expected_upside = target_model.get("expected_upside_pct") or 0
+    ai_adjust = target_model.get("ai_fair_value_adjustment_pct") or 0
+
+    technical_score = 50
+    if ind.get("sma20") and price > ind.get("sma20"):
+        technical_score += 12
+    if ind.get("sma50") and price > ind.get("sma50"):
+        technical_score += 12
+    if 2 <= twenty <= 25:
+        technical_score += 10
+    elif twenty < -8 or twenty > 35:
+        technical_score -= 8
+    if 5 <= sixty <= 45:
+        technical_score += 8
+    if 48 <= rsi <= 68:
+        technical_score += 8
+    elif rsi > 76:
+        technical_score -= 10
+    if volume_ratio >= 1.25:
+        technical_score += 7
+    technical_score = clamp(technical_score, 0, 100)
+
+    fundamental_score = 50
+    if revenue_growth is not None:
+        fundamental_score += 18 if revenue_growth >= 0.20 else 9 if revenue_growth >= 0.08 else -8 if revenue_growth < 0 else 0
+    if earnings_growth is not None:
+        fundamental_score += 14 if earnings_growth >= 0.15 else 7 if earnings_growth >= 0.05 else -8 if earnings_growth < 0 else 0
+    if forward_pe is not None and 0 < forward_pe <= 35:
+        fundamental_score += 6
+    if peg_ratio is not None and 0 < peg_ratio <= 2.5:
+        fundamental_score += 6
+    fundamental_score = clamp(fundamental_score, 0, 100)
+
+    valuation_score = 50
+    if expected_upside >= 40:
+        valuation_score += 25
+    elif expected_upside >= 20:
+        valuation_score += 16
+    elif expected_upside >= 8:
+        valuation_score += 8
+    elif expected_upside < 0:
+        valuation_score -= 20
+    valuation_score += clamp(ai_adjust, -20, 40) * 0.25
+    valuation_score = clamp(valuation_score, 0, 100)
+
+    analyst_score = safe_float(analyst_support, None)
+    if analyst_score is None:
+        analyst_score = 50
+        analyst_summary = "Analyst support data was limited or unavailable."
+    else:
+        analyst_summary = f"Analyst support score is {analyst_score:.0f}/100 based on Finnhub recommendation mix."
+
+    news_agent_score = 50 + clamp(safe_float(news_score, 0) or 0, -60, 60) * 0.45
+    news_agent_score = clamp(news_agent_score, 0, 100)
+
+    risk_score = 80
+    if atr_pct > 9:
+        risk_score -= 25
+    elif atr_pct > 6:
+        risk_score -= 12
+    if rsi > 76:
+        risk_score -= 10
+    if twenty > 35:
+        risk_score -= 8
+    risk_score = clamp(risk_score, 0, 100)
+
+    quality_score = 50
+    if revenue_growth is not None and revenue_growth > 0.08:
+        quality_score += 15
+    if earnings_growth is not None and earnings_growth > 0.08:
+        quality_score += 15
+    if peg_ratio is not None and 0 < peg_ratio <= 2.5:
+        quality_score += 8
+    if forward_pe is not None and forward_pe > 75:
+        quality_score -= 10
+    quality_score = clamp(quality_score, 0, 100)
+
+    insider_agent_score = safe_float(insider_score, 50) or 50
+
+    divergence_pct = None
+    analyst_target = target_model.get("analyst_target_mean")
+    ai_target = target_model.get("ai_base_target")
+    if analyst_target and ai_target:
+        divergence_pct = ((ai_target - analyst_target) / analyst_target) * 100
+
+    if divergence_pct is None:
+        valuation_recon = "Analyst target was unavailable, so AI fair value relies more on technicals, growth, valuation, and risk."
+    elif abs(divergence_pct) <= 20:
+        valuation_recon = "AI fair value is broadly aligned with analyst consensus."
+    elif divergence_pct > 20:
+        valuation_recon = f"AI is {divergence_pct:.1f}% more optimistic than analyst consensus, mainly due to growth/trend/valuation adjustments."
+    else:
+        valuation_recon = f"AI is {abs(divergence_pct):.1f}% more conservative than analyst consensus due to risk or weaker confirmations."
+
+    agents = [
+        build_agent_summary(
+            "Technical Agent", technical_score,
+            "Evaluates trend, momentum, RSI, volume, and volatility.",
+            [
+                f"20-day move: {twenty:.1f}%",
+                f"60-day move: {sixty:.1f}%",
+                f"RSI: {rsi:.1f}",
+                f"Volume ratio: {volume_ratio:.2f}x",
+            ],
+            "Positive" if technical_score >= 70 else "Neutral" if technical_score >= 50 else "Caution",
+            "Yahoo/yfinance price history and volume",
+        ),
+        build_agent_summary(
+            "Fundamental Agent", fundamental_score,
+            "Evaluates growth, earnings, and valuation context.",
+            [
+                f"Revenue growth: {revenue_growth * 100:.1f}%" if revenue_growth is not None else "Revenue growth unavailable",
+                f"Earnings growth: {earnings_growth * 100:.1f}%" if earnings_growth is not None else "Earnings growth unavailable",
+                f"Forward PE: {forward_pe:.1f}" if forward_pe is not None else "Forward PE unavailable",
+                f"PEG ratio: {peg_ratio:.2f}" if peg_ratio is not None else "PEG ratio unavailable",
+            ],
+            "Positive" if fundamental_score >= 70 else "Neutral" if fundamental_score >= 50 else "Caution",
+            "Yahoo/FMP fundamentals and company profile",
+        ),
+        build_agent_summary(
+            "Valuation Agent", valuation_score,
+            valuation_recon,
+            [
+                f"Current price: ${price:.2f}" if price else "Current price unavailable",
+                f"Analyst target: ${analyst_target:.2f}" if analyst_target else "Analyst target unavailable",
+                f"AI fair value: ${ai_target:.2f}" if ai_target else "AI fair value unavailable",
+                f"AI upside: {expected_upside:.1f}%",
+            ],
+            "Positive" if valuation_score >= 70 else "Neutral" if valuation_score >= 50 else "Caution",
+            "Yahoo/Finnhub analyst targets plus AI fair value model",
+        ),
+        build_agent_summary(
+            "News Agent", news_agent_score,
+            f"Recent news flow is {str(news_label).lower()}.",
+            [
+                f"News sentiment score: {safe_float(news_score, 0) or 0:.0f}",
+                f"Top headline: {meta.get('top_news_headline')}" if meta.get('top_news_headline') else "Top headline unavailable",
+            ],
+            "Positive" if news_agent_score >= 65 else "Neutral" if news_agent_score >= 45 else "Caution",
+            "NewsAPI recent headlines",
+        ),
+        build_agent_summary(
+            "Analyst Agent", analyst_score,
+            analyst_summary,
+            [
+                f"Strong buy: {meta.get('strong_buy', 'N/A')}",
+                f"Buy: {meta.get('buy', 'N/A')}",
+                f"Hold: {meta.get('hold', 'N/A')}",
+                f"Sell: {meta.get('sell', 'N/A')}",
+            ],
+            "Positive" if analyst_score >= 65 else "Neutral" if analyst_score >= 45 else "Caution",
+            "Finnhub recommendation trends and price targets",
+        ),
+        build_agent_summary(
+            "Insider Agent", insider_agent_score,
+            f"Insider activity is {str(insider_label).lower()} over the recent lookback window.",
+            [
+                f"Insider buys: {meta.get('insider_buy_count', 0)}",
+                f"Insider sells: {meta.get('insider_sell_count', 0)}",
+                f"Buy value: ${safe_float(meta.get('insider_buy_value'), 0):,.0f}",
+                f"Sell value: ${safe_float(meta.get('insider_sell_value'), 0):,.0f}",
+            ],
+            "Positive" if insider_agent_score >= 70 else "Neutral" if insider_agent_score >= 45 else "Caution",
+            "Finnhub insider transactions and sentiment",
+        ),
+        build_agent_summary(
+            "Risk Agent", risk_score,
+            "Evaluates volatility, extension risk, and technical downside risk.",
+            [
+                f"ATR volatility: {atr_pct:.1f}%",
+                f"RSI: {rsi:.1f}",
+                f"Stop loss: ${plan.get('stop_loss')}" if plan.get('stop_loss') else "Stop loss unavailable",
+            ],
+            "Positive" if risk_score >= 70 else "Moderate Risk" if risk_score >= 45 else "High Risk",
+            "ATR, RSI, price extension, and stop-loss model",
+        ),
+        build_agent_summary(
+            "Quality Agent", quality_score,
+            "Measures evidence quality and business durability using available growth and valuation signals.",
+            [
+                "Positive revenue growth" if revenue_growth is not None and revenue_growth > 0 else "Revenue growth not confirmed",
+                "Positive earnings growth" if earnings_growth is not None and earnings_growth > 0 else "Earnings growth not confirmed",
+                "Valuation not excessive" if forward_pe is not None and forward_pe <= 35 else "Valuation requires review",
+            ],
+            "Positive" if quality_score >= 70 else "Neutral" if quality_score >= 50 else "Caution",
+            "Yahoo/FMP quality and valuation fields",
+        ),
+    ]
+
+    positive_agents = sum(1 for a in agents if a["score"] >= 70)
+    caution_agents = sum(1 for a in agents if a["score"] < 45)
+
+    if positive_agents >= 6 and caution_agents == 0:
+        thesis_strength = "Exceptional Thesis"
+        evidence_confidence = "High"
+    elif positive_agents >= 4:
+        thesis_strength = "Strong Thesis"
+        evidence_confidence = "Medium-High"
+    elif positive_agents >= 2:
+        thesis_strength = "Moderate Thesis"
+        evidence_confidence = "Medium"
+    else:
+        thesis_strength = "Weak / Watchlist Thesis"
+        evidence_confidence = "Low-Medium"
+
+    committee_conclusion = (
+        f"{symbol} has a {thesis_strength.lower()} with {positive_agents} supportive agents. "
+        f"Main positives: {', '.join(good[:3]) if good else 'limited positive confirmations'}. "
+        f"Main risks: {', '.join(risks[:2]) if risks else 'normal market pullback risk'}."
+    )
+
+    return {
+        "agents": agents,
+        "thesis_strength": thesis_strength,
+        "evidence_confidence": evidence_confidence,
+        "positive_agent_count": positive_agents,
+        "caution_agent_count": caution_agents,
+        "valuation_reconciliation": valuation_recon,
+        "committee_conclusion": committee_conclusion,
     }
 
 
@@ -967,7 +1403,20 @@ def score_stock(ind: Dict[str, Any], meta: Dict[str, Any]) -> Tuple[int, List[st
         elif news_label:
             good.append(f"recent news flow is {str(news_label).lower()}")
 
-    # V40.1/V40.3: add available research/fundamental context, then normalize.
+    # V41: Insider activity intelligence.
+    insider_score = meta.get("insider_score")
+    insider_label = meta.get("insider_activity_label")
+    if insider_score is not None:
+        if insider_score >= 70:
+            score += 4
+            good.append(f"insider activity is positive ({insider_score:.0f}/100)")
+        elif insider_score < 35:
+            score -= 4
+            risks.append(f"insider activity is weak ({insider_score:.0f}/100)")
+        elif insider_label:
+            good.append(f"insider activity is {str(insider_label).lower()}")
+
+    # V40.1/V40.3/V41: add available research/fundamental context, then normalize.
     score, good, risks = add_research_quality_adjustments(score, good, risks, meta)
     normalized_score = normalize_conviction(score, ind, meta)
 
@@ -1388,6 +1837,24 @@ def make_dashboard_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], s
         "scan_time": now_iso(),
     }
 
+    committee = build_ai_committee(symbol, meta, ind, target_model, score, good, risks, plan)
+    row["ai_committee"] = committee.get("agents", [])
+    row["thesis_strength"] = committee.get("thesis_strength")
+    row["evidence_confidence"] = committee.get("evidence_confidence")
+    row["positive_agent_count"] = committee.get("positive_agent_count")
+    row["caution_agent_count"] = committee.get("caution_agent_count")
+    row["valuation_reconciliation"] = committee.get("valuation_reconciliation")
+    row["committee_conclusion"] = committee.get("committee_conclusion")
+
+    # V41 insider fields exposed to dashboard.
+    row["insider_score"] = meta.get("insider_score")
+    row["insider_activity_label"] = meta.get("insider_activity_label")
+    row["insider_buy_count"] = meta.get("insider_buy_count")
+    row["insider_sell_count"] = meta.get("insider_sell_count")
+    row["insider_buy_value"] = meta.get("insider_buy_value")
+    row["insider_sell_value"] = meta.get("insider_sell_value")
+    row["source_finnhub_insider"] = meta.get("source_finnhub_insider", False)
+
     return row
 
 
@@ -1509,6 +1976,11 @@ def normalize_final_convictions(rows: List[Dict[str, Any]]) -> List[Dict[str, An
 # =========================
 
 def passes_basic_filter(ind: Dict[str, Any], meta: Dict[str, Any]) -> bool:
+    # V41 permanent exclusion rules: remove unwanted categories before scoring.
+    reason = exclusion_reason(meta)
+    if reason:
+        return False
+
     price = ind.get("price")
     if price is None or price < MIN_PRICE or price > MAX_PRICE:
         return False
@@ -1576,10 +2048,22 @@ def scan_market() -> Dict[str, Any]:
                             }:
                                 meta[key] = value
 
+                # V41: apply hard exclusions after FMP profile enrichment and before extra API calls.
+                if exclusion_reason(meta):
+                    metadata_cache[symbol] = meta
+                    continue
+
                 # V40.3: analyst intelligence from Finnhub.
                 finnhub_meta = get_finnhub_research(symbol)
                 if finnhub_meta:
                     for key, value in finnhub_meta.items():
+                        if value not in (None, "", "Unknown"):
+                            meta[key] = value
+
+                # V41: insider intelligence from Finnhub.
+                insider_meta = get_finnhub_insider_activity(symbol)
+                if insider_meta:
+                    for key, value in insider_meta.items():
                         if value not in (None, "", "Unknown"):
                             meta[key] = value
 
@@ -1635,7 +2119,7 @@ def scan_market() -> Dict[str, Any]:
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V40.6",
+        "version": "V41.0",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -1667,6 +2151,13 @@ def scan_market() -> Dict[str, Any]:
         "v40_6_changes": {
             "relative_conviction_distribution": True,
             "score_clustering_reduced": True,
+        },
+        "v41_changes": {
+            "hard_exclusions": True,
+            "ai_committee_summary": True,
+            "finnhub_insider_agent": True,
+            "valuation_reconciliation": True,
+            "thesis_strength_and_confidence": True,
         },
     }
 
@@ -1747,7 +2238,7 @@ def main() -> None:
         error_state = {
             "generated_at": now_iso(),
             "status": "error",
-            "version": "V40.6",
+            "version": "V41.0",
             "error": str(exc),
             "data_dir": str(DATA_DIR),
             "github_persisted": False,

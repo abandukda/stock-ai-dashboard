@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 
-APP_VERSION = "V40.5 Guided Research Dashboard"
+APP_VERSION = "V41 AI Committee Research Dashboard"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -124,6 +124,51 @@ def compact_reason_list(text, max_items=5):
         if clean:
             parts.append(clean)
     return parts[:max_items]
+
+
+
+def format_agent_score(score):
+    value = safe_number(score, None)
+    if value is None:
+        return "N/A"
+    value = int(round(value))
+    if value >= 80:
+        return f"🟢 {value}/100"
+    if value >= 60:
+        return f"🟡 {value}/100"
+    if value >= 45:
+        return f"⚪ {value}/100"
+    return f"🔴 {value}/100"
+
+
+def safe_list(value):
+    if isinstance(value, list):
+        return value
+    return []
+
+
+def render_agent_card(agent):
+    if not isinstance(agent, dict):
+        return
+    name = safe_text(agent.get("agent"), "Agent")
+    score = agent.get("score")
+    status = safe_text(agent.get("status"), "N/A")
+    summary = safe_text(agent.get("summary"), "No summary available.")
+    impact = safe_text(agent.get("impact"), "Neutral")
+    data_used = safe_text(agent.get("data_used"), "")
+    findings = safe_list(agent.get("findings"))
+
+    with st.container(border=True):
+        c1, c2, c3 = st.columns([2, 1, 1])
+        c1.markdown(f"#### {name}")
+        c2.markdown(f"**{format_agent_score(score)}**")
+        c3.markdown(f"**Impact:** {impact}")
+        st.caption(f"Status: {status}" + (f" · Data used: {data_used}" if data_used else ""))
+        st.write(summary)
+        if findings:
+            st.markdown("**What AI found:**")
+            for item in findings[:6]:
+                st.markdown(f"• {safe_text(item)}")
 
 
 def tooltip_md():
@@ -299,6 +344,13 @@ def normalize_scan_row(raw):
         "Target Confidence Note": safe_text(pick(raw, "Target Confidence Note", "target_confidence_note", default=""), ""),
         "Source FMP": bool(pick(raw, "source_fmp_profile", "Source FMP", default=False)),
         "Website": safe_text(pick(raw, "website", "Website", default=""), ""),
+        "AI Committee": pick(raw, "ai_committee", default=[]),
+        "Thesis Strength": safe_text(pick(raw, "thesis_strength", default=""), ""),
+        "Evidence Confidence": safe_text(pick(raw, "evidence_confidence", default=""), ""),
+        "Committee Conclusion": safe_text(pick(raw, "committee_conclusion", default=""), ""),
+        "Valuation Reconciliation": safe_text(pick(raw, "valuation_reconciliation", default=""), ""),
+        "Insider Score": safe_number(pick(raw, "insider_score", default=0), 0),
+        "Insider Activity": safe_text(pick(raw, "insider_activity_label", default="N/A"), "N/A"),
         "Raw": raw,
     }
 
@@ -466,6 +518,9 @@ def render_score_help():
             | **Analyst Target** | Wall Street/Finnhub consensus price target when available. | Helps compare AI estimate against analyst expectations. |
             | **Analyst Support** | Strength of analyst recommendations on a 0-100 scale. | Bullish/Constructive is better than Mixed/Weak. |
             | **News Sentiment** | Recent news tone from headlines. | Positive news can support momentum; negative news can increase risk. |
+            | **Thesis Strength** | How many AI agents support the stock thesis. | Strong/Exceptional means multiple agents agree. |
+            | **Evidence Confidence** | How much support exists behind the AI Fair Value and thesis. | High confidence means more data sources agree. |
+            | **Insider Activity** | Recent insider buying/selling signal from Finnhub when available. | Positive insider buying can strengthen conviction; heavy selling adds caution. |
             | **Entry Range** | Preferred buy zone from the model. | Avoid chasing far above this range. |
             | **Stop Loss** | Suggested risk-control level. | Helps define downside before entering. |
             """
@@ -575,6 +630,9 @@ def render_table(df, title, key_prefix, min_score_default=35):
         "Analyst Count",
         "Analyst Support",
         "News Sentiment",
+        "Thesis Strength",
+        "Evidence Confidence",
+        "Insider Activity",
         "Entry Range",
         "Stop Loss",
     ]
@@ -623,6 +681,32 @@ def render_detail(row):
 
     st.markdown("---")
 
+    st.markdown("### 🧠 AI Committee Summary")
+    thesis_strength = safe_text(row.get("Thesis Strength"), "N/A")
+    evidence_confidence = safe_text(row.get("Evidence Confidence"), "N/A")
+    committee_conclusion = safe_text(row.get("Committee Conclusion"), "")
+    valuation_reconciliation = safe_text(row.get("Valuation Reconciliation"), "")
+
+    s1, s2, s3 = st.columns(3)
+    s1.metric("Thesis Strength", thesis_strength)
+    s2.metric("Evidence Confidence", evidence_confidence)
+    s3.metric("Insider Activity", safe_text(row.get("Insider Activity"), "N/A"))
+
+    if committee_conclusion:
+        st.info(committee_conclusion)
+    if valuation_reconciliation:
+        st.caption(f"Valuation reconciliation: {valuation_reconciliation}")
+
+    agents = safe_list(row.get("AI Committee"))
+    if agents:
+        with st.expander("Open AI agent-by-agent breakdown", expanded=True):
+            for agent in agents:
+                render_agent_card(agent)
+    else:
+        st.warning("AI Committee details are not available in this scan yet. Run the latest V41 scanner to populate agent summaries.")
+
+    st.markdown("---")
+
     left, right = st.columns(2)
 
     with left:
@@ -643,6 +727,7 @@ def render_detail(row):
             news_sentiment = safe_text(row.get("News Sentiment"), "N/A")
             st.markdown(f"**Analyst Support:** {analyst_support}")
             st.markdown(f"**News Sentiment:** {news_sentiment}")
+            st.markdown(f"**Insider Activity:** {safe_text(row.get('Insider Activity'), 'N/A')}")
 
         with st.container(border=True):
             st.markdown("### 🎯 AI Valuation")
@@ -752,6 +837,10 @@ def render_chat_helper(full_df):
     thesis = safe_text(matched.get("Investment Thesis"), "")
     if thesis:
         st.write(thesis)
+
+    committee = safe_text(matched.get("Committee Conclusion"), "")
+    if committee:
+        st.info(committee)
 
     risk = safe_text(matched.get("Primary Risk"), "")
     if risk:
