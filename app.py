@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 
-APP_VERSION = "V40.4.1 Clean Table + Research Cards"
+APP_VERSION = "V40.5 Guided Research Dashboard"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -452,24 +452,27 @@ def render_status_banner():
 
 
 def render_score_help():
-    with st.expander("Guide: How to read this dashboard", expanded=False):
-        st.markdown(tooltip_md())
+    st.markdown("### 📘 Quick Guide")
 
+    with st.expander("Open dashboard guide: what each column means", expanded=True):
         st.markdown(
             """
-            **Conviction Bands**
-
-            | Score | Meaning |
-            |---:|---|
-            | 95-97 | Elite Setup |
-            | 90-94 | Strong Buy Candidate |
-            | 85-89 | Attractive Setup |
-            | 75-84 | Watchlist Setup |
-            | 65-74 | Neutral Setup |
-            | <65 | Speculative Setup |
-
-            The scanner is a decision-support tool, not a guarantee. Use the thesis, risk, entry range, and stop loss together.
+            | Column | Plain-English Meaning | How to Use It |
+            |---|---|---|
+            | **Final Conviction** | Overall AI confidence score based on trend, momentum, liquidity, valuation/growth, analyst support, news, and risk. | Higher score = stronger overall setup, but still check upside and risk. |
+            | **Setup Rating** | Plain-English label for the conviction score. | Elite/Strong means high-priority research candidate. |
+            | **AI Fair Value** | The model's estimated value using analyst targets, growth, valuation, technical strength, volume, and risk. | Compare this to current price. |
+            | **Target Upside %** | Potential upside from current price to AI Fair Value. | Higher upside is attractive, but very high upside usually means higher risk. |
+            | **Analyst Target** | Wall Street/Finnhub consensus price target when available. | Helps compare AI estimate against analyst expectations. |
+            | **Analyst Support** | Strength of analyst recommendations on a 0-100 scale. | Bullish/Constructive is better than Mixed/Weak. |
+            | **News Sentiment** | Recent news tone from headlines. | Positive news can support momentum; negative news can increase risk. |
+            | **Entry Range** | Preferred buy zone from the model. | Avoid chasing far above this range. |
+            | **Stop Loss** | Suggested risk-control level. | Helps define downside before entering. |
             """
+        )
+
+        st.info(
+            "Use the research card above each table to see the full thesis, why AI likes the stock, valuation, risks, and action plan."
         )
 
 
@@ -489,6 +492,7 @@ def render_table(df, title, key_prefix, min_score_default=35):
             100,
             min_score_default,
             key=f"{key_prefix}_score",
+            help="Filters out lower-confidence ideas. Final Conviction is the model's overall score."
         )
     with controls[1]:
         max_price = st.number_input(
@@ -497,6 +501,7 @@ def render_table(df, title, key_prefix, min_score_default=35):
             value=0.0,
             step=5.0,
             key=f"{key_prefix}_max_price",
+            help="Optional filter. Leave 0 to show all prices."
         )
     with controls[2]:
         min_upside = st.number_input(
@@ -504,9 +509,14 @@ def render_table(df, title, key_prefix, min_score_default=35):
             value=float(MIN_UPSIDE_PCT * 100),
             step=1.0,
             key=f"{key_prefix}_min_upside",
+            help="Filters by potential upside from current price to AI Fair Value."
         )
     with controls[3]:
-        search = st.text_input("Search ticker/company", key=f"{key_prefix}_search")
+        search = st.text_input(
+            "Search ticker/company",
+            key=f"{key_prefix}_search",
+            help="Search by ticker or company name."
+        )
 
     filtered = df.copy()
     filtered = filtered[filtered["Final Conviction"] >= min_score]
@@ -524,17 +534,33 @@ def render_table(df, title, key_prefix, min_score_default=35):
 
     m1, m2, m3, m4 = st.columns(4)
     with m1:
-        st.metric("Rows", len(filtered))
+        st.metric("Rows", len(filtered), help="Number of stocks matching the current filters.")
     with m2:
-        st.metric("Top Score", int(filtered["Final Conviction"].max()) if not filtered.empty else 0)
+        st.metric("Top Score", int(filtered["Final Conviction"].max()) if not filtered.empty else 0, help="Highest AI conviction score in the filtered table.")
     with m3:
-        st.metric("Top Upside", fmt_pct(filtered["Target Upside %"].max()) if not filtered.empty else "N/A")
+        st.metric("Top Upside", fmt_pct(filtered["Target Upside %"].max()) if not filtered.empty else "N/A", help="Highest upside to AI Fair Value in the filtered table.")
     with m4:
-        st.metric("Median Score", int(filtered["Final Conviction"].median()) if not filtered.empty else 0)
+        st.metric("Median Score", int(filtered["Final Conviction"].median()) if not filtered.empty else 0, help="Middle conviction score across the filtered results.")
 
     if filtered.empty:
         st.warning("No rows match filters.")
         return
+
+    st.markdown("### 🔎 Full Research Card")
+    tickers = filtered["Ticker"].dropna().unique().tolist()
+    selected = st.selectbox(
+        "Choose a ticker to view the full guidance",
+        tickers,
+        key=f"{key_prefix}_select",
+        help="This opens the detailed thesis, valuation, risks, and action plan for the selected stock."
+    )
+
+    if selected:
+        row = filtered[filtered["Ticker"].eq(selected)].iloc[0]
+        render_detail(row)
+
+    st.markdown("### 📋 Ranked Table")
+    st.caption("This table is intentionally concise. Use the research card above for full guidance and decision context.")
 
     display_cols = [
         "Ticker",
@@ -567,16 +593,6 @@ def render_table(df, title, key_prefix, min_score_default=35):
 
     st.dataframe(display_df, use_container_width=True, hide_index=True)
 
-    st.caption("Use the Detail View below to open the full explainable AI research card, thesis, risk summary, valuation logic, and action plan.")
-
-    st.markdown("### Detail View")
-    tickers = filtered["Ticker"].dropna().unique().tolist()
-    selected = st.selectbox("Select ticker", tickers, key=f"{key_prefix}_select")
-
-    if selected:
-        row = filtered[filtered["Ticker"].eq(selected)].iloc[0]
-        render_detail(row)
-
 
 def render_detail(row):
     ticker = row.get("Ticker", "")
@@ -585,6 +601,7 @@ def render_detail(row):
     rating = safe_text(row.get("Setup Rating"), setup_label(score))
 
     st.markdown(f"## {ticker} — {company}")
+    st.caption("This research card explains why the stock ranked highly, what the upside is, what could go wrong, and how to approach an entry.")
     st.markdown(f"### {rating} · {score}/100")
 
     research_summary = safe_text(row.get("Research Summary"), "")
