@@ -37,6 +37,7 @@ FULL_SCAN_FILE = DATA_DIR / "market_full_scan.json"
 PRESCREEN_FILE = DATA_DIR / "market_prescreen.json"
 STATE_FILE = DATA_DIR / "market_scan_state.json"
 UNIVERSE_FILE = DATA_DIR / "total_market_universe.json"
+RECOVERY_SCAN_FILE = DATA_DIR / "recovery_scan.json"
 
 MAX_UNIVERSE = int(os.getenv("MAX_UNIVERSE", "6500"))
 MAX_PRESCREEN = int(os.getenv("MAX_PRESCREEN", "650"))
@@ -1971,6 +1972,149 @@ def normalize_final_convictions(rows: List[Dict[str, Any]]) -> List[Dict[str, An
     return normalized_rows
 
 
+def build_recovery_case(row: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    V41.1 Recovery Intelligence.
+    Finds stocks that dropped because of price/news/earnings pressure but still have forward upside.
+    """
+    twenty = safe_float(row.get("twenty_day_pct"), 0) or 0
+    sixty = safe_float(row.get("sixty_day_pct"), 0) or 0
+    upside = safe_float(row.get("expected_upside_pct"), row.get("upside")) or 0
+    analyst_support = safe_float(row.get("analyst_support_score"), 50)
+    news_score = safe_float(row.get("news_sentiment_score"), 0) or 0
+    revenue_growth = safe_float(row.get("revenue_growth"), None)
+    earnings_growth = safe_float(row.get("earnings_growth"), None)
+    analyst_upside = safe_float(row.get("analyst_upside_pct"), None)
+    rsi = safe_float(row.get("rsi"), 50) or 50
+    atr_pct = safe_float(row.get("atr_pct"), 4) or 4
+
+    drop_score = 0
+    if twenty <= -8:
+        drop_score += 30
+    elif twenty <= -4:
+        drop_score += 18
+
+    if sixty <= -15:
+        drop_score += 30
+    elif sixty <= -8:
+        drop_score += 18
+
+    if rsi <= 42:
+        drop_score += 12
+    elif rsi <= 48:
+        drop_score += 6
+
+    forward_score = 0
+    if upside >= 35:
+        forward_score += 25
+    elif upside >= 20:
+        forward_score += 18
+    elif upside >= 12:
+        forward_score += 10
+
+    if analyst_upside is not None:
+        if analyst_upside >= 20:
+            forward_score += 14
+        elif analyst_upside >= 10:
+            forward_score += 8
+
+    if analyst_support is not None:
+        if analyst_support >= 65:
+            forward_score += 12
+        elif analyst_support >= 45:
+            forward_score += 6
+
+    if news_score >= 30:
+        forward_score += 8
+    elif news_score <= -45:
+        forward_score -= 10
+
+    if revenue_growth is not None:
+        if revenue_growth >= 0.15:
+            forward_score += 10
+        elif revenue_growth < 0:
+            forward_score -= 8
+
+    if earnings_growth is not None:
+        if earnings_growth >= 0.10:
+            forward_score += 8
+        elif earnings_growth < 0:
+            forward_score -= 8
+
+    risk_penalty = 0
+    if atr_pct > 10:
+        risk_penalty += 12
+    elif atr_pct > 7:
+        risk_penalty += 6
+
+    recovery_score = int(clamp(drop_score + forward_score - risk_penalty, 0, 100))
+
+    if recovery_score >= 75:
+        label = "🟢 Strong Recovery Candidate"
+    elif recovery_score >= 60:
+        label = "🟡 Recovery Watchlist"
+    elif recovery_score >= 45:
+        label = "🔵 Early Recovery Setup"
+    else:
+        label = "⚪ Not a recovery priority"
+
+    drop_reason = []
+    if twenty <= -4:
+        drop_reason.append(f"20-day move is down {twenty:.1f}%")
+    if sixty <= -8:
+        drop_reason.append(f"60-day move is down {sixty:.1f}%")
+    if rsi <= 48:
+        drop_reason.append(f"RSI is depressed at {rsi:.1f}")
+
+    rebound_reason = []
+    if upside >= 12:
+        rebound_reason.append(f"AI fair value still implies {upside:.1f}% upside")
+    if analyst_upside is not None and analyst_upside >= 10:
+        rebound_reason.append(f"analyst target implies {analyst_upside:.1f}% upside")
+    if analyst_support is not None and analyst_support >= 45:
+        rebound_reason.append(f"analyst support remains {analyst_support:.0f}/100")
+    if revenue_growth is not None and revenue_growth >= 0.10:
+        rebound_reason.append(f"revenue growth remains positive at {revenue_growth * 100:.1f}%")
+    if news_score >= 0:
+        rebound_reason.append("news flow is not strongly negative")
+
+    row["recovery_score"] = recovery_score
+    row["recovery_label"] = label
+    row["recovery_drop_reason"] = "; ".join(drop_reason) if drop_reason else "No major price drop signal detected."
+    row["recovery_rebound_reason"] = "; ".join(rebound_reason) if rebound_reason else "Forward rebound support is limited."
+    row["recovery_risk"] = (
+        "High volatility could make timing difficult."
+        if atr_pct > 7 else
+        "Main risk is that the selloff continues if news, earnings, or market sentiment worsens."
+    )
+    row["recovery_thesis"] = (
+        f"{row.get('company_name', row.get('symbol'))} is a {label.replace('🟢 ', '').replace('🟡 ', '').replace('🔵 ', '').replace('⚪ ', '')}. "
+        f"Drop reason: {row['recovery_drop_reason']} "
+        f"Rebound case: {row['recovery_rebound_reason']} "
+        f"Risk: {row['recovery_risk']}"
+    )
+
+    return row
+
+
+def build_recovery_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    recovery_rows: List[Dict[str, Any]] = []
+    for row in rows:
+        updated = build_recovery_case(dict(row))
+        if updated.get("recovery_score", 0) >= 45:
+            recovery_rows.append(updated)
+
+    recovery_rows.sort(
+        key=lambda r: (
+            r.get("recovery_score") or 0,
+            r.get("expected_upside_pct") or 0,
+            r.get("analyst_support_score") or 0,
+        ),
+        reverse=True,
+    )
+    return recovery_rows[:100]
+
+
 # =========================
 # SCAN PIPELINE
 # =========================
@@ -2116,13 +2260,17 @@ def scan_market() -> Dict[str, Any]:
     full_rows.sort(key=lambda r: (r.get("conviction") or 0, r.get("relative_rank_score") or 0, r.get("dollar_volume") or 0), reverse=True)
     prescreen_rows.sort(key=lambda r: (r.get("conviction") or 0, r.get("relative_rank_score") or 0, r.get("dollar_volume") or 0), reverse=True)
 
+    # V41.1: Recovery tab focuses on stocks that fell but still have a forward rebound case.
+    recovery_rows = build_recovery_rows(prescreen_rows)
+
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V41.0",
+        "version": "V41.1",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
+        "recovery_count": len(recovery_rows),
         "fallback_rows_allowed": False,
         "data_dir": str(DATA_DIR),
         "github_persisted": False,
@@ -2152,6 +2300,11 @@ def scan_market() -> Dict[str, Any]:
             "relative_conviction_distribution": True,
             "score_clustering_reduced": True,
         },
+        "v41_1_changes": {
+            "recovery_intelligence": True,
+            "recovery_scan_file": True,
+            "viewer_ticker_research": True,
+        },
         "v41_changes": {
             "hard_exclusions": True,
             "ai_committee_summary": True,
@@ -2163,6 +2316,7 @@ def scan_market() -> Dict[str, Any]:
 
     write_json(PRESCREEN_FILE, prescreen_rows)
     write_json(FULL_SCAN_FILE, full_rows)
+    write_json(RECOVERY_SCAN_FILE, recovery_rows)
     write_json(STATE_FILE, state)
 
     if GITHUB_PERSIST:
@@ -2186,6 +2340,7 @@ def persist_to_github() -> bool:
         str(PRESCREEN_FILE),
         str(STATE_FILE),
         str(UNIVERSE_FILE),
+        str(RECOVERY_SCAN_FILE),
     ]
 
     code, out = run_cmd(["git", "status", "--porcelain"])
@@ -2238,7 +2393,7 @@ def main() -> None:
         error_state = {
             "generated_at": now_iso(),
             "status": "error",
-            "version": "V41.0",
+            "version": "V41.1",
             "error": str(exc),
             "data_dir": str(DATA_DIR),
             "github_persisted": False,

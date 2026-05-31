@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 
-APP_VERSION = "V41 AI Committee Research Dashboard"
+APP_VERSION = "V41.1 Viewer Research + Recovery Intelligence Dashboard"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -27,6 +27,49 @@ WATCHLIST_SCAN_FILE = DATA_DIR / "watchlist_scan.json"
 WATCHLIST_FILE = DATA_DIR / "watchlist.json"
 
 MIN_UPSIDE_PCT = float(os.getenv("MIN_UPSIDE_PCT", "0"))
+
+VIEWER_PASSWORD = os.getenv("VIEWER_PASSWORD", "").strip()
+ADMIN_PASSWORD = os.getenv("APP_PASSWORD", os.getenv("ADMIN_PASSWORD", "")).strip()
+
+
+def get_user_role():
+    if "user_role" not in st.session_state:
+        st.session_state["user_role"] = "admin" if not VIEWER_PASSWORD and not ADMIN_PASSWORD else None
+    return st.session_state.get("user_role")
+
+
+def require_login():
+    if not VIEWER_PASSWORD and not ADMIN_PASSWORD:
+        st.session_state["user_role"] = "admin"
+        return True
+
+    role = get_user_role()
+    if role in {"admin", "viewer"}:
+        with st.sidebar:
+            st.caption(f"Logged in as: {role}")
+            if st.button("Log out"):
+                st.session_state.pop("user_role", None)
+                st.rerun()
+        return True
+
+    st.title("📈 AI Trading Dashboard")
+    st.info("Enter your access password.")
+    password = st.text_input("Password", type="password")
+    if st.button("Login"):
+        if ADMIN_PASSWORD and password == ADMIN_PASSWORD:
+            st.session_state["user_role"] = "admin"
+            st.rerun()
+        elif VIEWER_PASSWORD and password == VIEWER_PASSWORD:
+            st.session_state["user_role"] = "viewer"
+            st.rerun()
+        else:
+            st.error("Invalid password.")
+    return False
+
+
+def is_viewer():
+    return get_user_role() == "viewer"
+
 
 
 # =========================
@@ -340,6 +383,13 @@ def normalize_scan_row(raw):
         "Why Ranked High": safe_text(pick(raw, "Why Ranked High", "why_ranked_high", default=""), ""),
         "Guidance": safe_text(pick(raw, "Guidance", "guidance", "ai_guidance", default=""), ""),
         "Action Note": safe_text(pick(raw, "Action Note", "action_note", default=""), ""),
+        "Recovery Score": safe_number(pick(raw, "recovery_score", "Recovery Score", default=0), 0),
+        "Recovery Label": safe_text(pick(raw, "recovery_label", "Recovery Label", default=""), ""),
+        "Recovery Thesis": safe_text(pick(raw, "recovery_thesis", "Recovery Thesis", default=""), ""),
+        "Recovery Drop Reason": safe_text(pick(raw, "recovery_drop_reason", default=""), ""),
+        "Recovery Rebound Reason": safe_text(pick(raw, "recovery_rebound_reason", default=""), ""),
+        "Recovery Risk": safe_text(pick(raw, "recovery_risk", default=""), ""),
+        "AI Committee": pick(raw, "ai_committee", "AI Committee", default={}),
         "Target Source": safe_text(pick(raw, "Target Source", "target_source", default="N/A"), "N/A"),
         "Target Confidence Note": safe_text(pick(raw, "Target Confidence Note", "target_confidence_note", default=""), ""),
         "Source FMP": bool(pick(raw, "source_fmp_profile", "Source FMP", default=False)),
@@ -494,6 +544,9 @@ def render_status_banner():
     with c5:
         persisted = state.get("github_persisted", False)
         st.metric("GitHub Persisted", "✅" if persisted else "❌")
+
+    if is_viewer():
+        st.info("Viewer mode: view scans, search tickers, and open research cards. Admin controls remain hidden.")
 
     if state:
         generated = state.get("generated_at", "N/A")
@@ -707,6 +760,27 @@ def render_detail(row):
 
     st.markdown("---")
 
+    recovery_score = safe_number(row.get("Recovery Score"), 0)
+    recovery_label = safe_text(row.get("Recovery Label"), "")
+    if recovery_score:
+        with st.container(border=True):
+            st.markdown("### 🔄 Recovery Intelligence")
+            st.markdown(f"**Recovery Score:** {int(recovery_score)}/100")
+            if recovery_label:
+                st.markdown(f"**Recovery Label:** {recovery_label}")
+            thesis = safe_text(row.get("Recovery Thesis"), "")
+            if thesis:
+                st.write(thesis)
+            drop_reason = safe_text(row.get("Recovery Drop Reason"), "")
+            rebound_reason = safe_text(row.get("Recovery Rebound Reason"), "")
+            recovery_risk = safe_text(row.get("Recovery Risk"), "")
+            if drop_reason:
+                st.markdown(f"**Why it dropped:** {drop_reason}")
+            if rebound_reason:
+                st.markdown(f"**Why it may recover:** {rebound_reason}")
+            if recovery_risk:
+                st.markdown(f"**Recovery risk:** {recovery_risk}")
+
     left, right = st.columns(2)
 
     with left:
@@ -801,6 +875,40 @@ def render_market_summary(full_df):
         st.bar_chart(sector_counts)
 
 
+def find_ticker_row(ticker, *dfs):
+    ticker = safe_text(ticker, "").upper().strip()
+    if not ticker:
+        return None
+    for df in dfs:
+        if df is not None and not df.empty and "Ticker" in df.columns:
+            matched = df[df["Ticker"].astype(str).str.upper().eq(ticker)]
+            if not matched.empty:
+                return matched.iloc[0]
+    return None
+
+
+def render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df):
+    st.subheader("🔍 Research Any Ticker")
+    st.caption("Viewer-friendly lookup. It opens the same AI Committee research card for any ticker found in the latest scan files.")
+
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        ticker = st.text_input("Enter ticker", placeholder="NVDA, MSFT, PLTR", key="research_any_ticker").upper().strip()
+    with c2:
+        st.write("")
+        st.write("")
+        open_card = st.button("Open Research Card", key="research_any_ticker_btn")
+
+    if ticker and (open_card or ticker):
+        row = find_ticker_row(ticker, full_df, recovery_df, watch_df, prescreen_df)
+        if row is not None:
+            render_detail(row)
+        else:
+            st.warning(
+                f"{ticker} was not found in the latest scan files. It may not meet liquidity, price, exclusion, or universe filters."
+            )
+
+
 def render_chat_helper(full_df):
     st.subheader("Ask About the Scan")
 
@@ -852,6 +960,9 @@ def render_chat_helper(full_df):
 # =========================
 
 def main():
+    if not require_login():
+        return
+
     render_status_banner()
     render_score_help()
 
@@ -869,6 +980,7 @@ def main():
             "Watchlist",
             "Prescreen",
             "Summary",
+            "Research Any Ticker",
             "Ask AI",
         ]
     )
@@ -885,7 +997,7 @@ def main():
         render_table(full_df, "Full Ranked AI Scan", "full_table", min_score_default=35)
 
     with tabs[2]:
-        render_table(recovery_df, "Recovery / Reversal Ideas", "recovery_table", min_score_default=35)
+        render_table(recovery_df, "Recovery Intelligence: Dropped Stocks With Forward Upside", "recovery_table", min_score_default=35)
 
     with tabs[3]:
         render_table(watch_df, "Watchlist Scan", "watch_table", min_score_default=0)
@@ -897,6 +1009,9 @@ def main():
         render_market_summary(full_df)
 
     with tabs[6]:
+        render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df)
+
+    with tabs[7]:
         render_chat_helper(full_df)
 
 
