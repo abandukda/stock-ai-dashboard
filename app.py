@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 
-APP_VERSION = "V40.2.1 Dashboard - Fresh Full Scan Top Ideas"
+APP_VERSION = "V40.4 Explainable AI Dashboard"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -72,6 +72,72 @@ def fmt_pct(value):
     if value is None:
         return "N/A"
     return f"{value:.1f}%"
+
+
+
+def setup_label(score):
+    score = safe_number(score, 0)
+    if score >= 95:
+        return "🟢 Elite Setup"
+    if score >= 90:
+        return "🟢 Strong Buy Candidate"
+    if score >= 85:
+        return "🟡 Attractive Setup"
+    if score >= 75:
+        return "🔵 Watchlist Setup"
+    if score >= 65:
+        return "⚪ Neutral Setup"
+    return "🔴 Speculative Setup"
+
+
+def analyst_support_label(value):
+    value = safe_number(value, None)
+    if value is None:
+        return "N/A"
+    if value >= 70:
+        return f"Bullish ({value:.0f}/100)"
+    if value >= 45:
+        return f"Constructive ({value:.0f}/100)"
+    if value >= 25:
+        return f"Mixed ({value:.0f}/100)"
+    return f"Weak ({value:.0f}/100)"
+
+
+def sentiment_badge(value):
+    text = safe_text(value, "N/A")
+    if text.lower() == "positive":
+        return "🟢 Positive"
+    if text.lower() == "negative":
+        return "🔴 Negative"
+    if text.lower() == "neutral":
+        return "⚪ Neutral"
+    return text
+
+
+def compact_reason_list(text, max_items=5):
+    text = safe_text(text, "")
+    if not text:
+        return []
+    parts = []
+    for chunk in text.replace(".", ";").split(";"):
+        clean = chunk.strip()
+        if clean:
+            parts.append(clean)
+    return parts[:max_items]
+
+
+def tooltip_md():
+    return """
+**Column Guide**
+
+- **Final Conviction:** AI score using trend, momentum, liquidity, valuation/growth context, analyst support, news, and risk.
+- **Setup Rating:** Plain-English label for the conviction score.
+- **Analyst Target:** Average Wall Street/Finnhub target when available.
+- **AI Fair Value:** Internal AI estimate using analyst targets, growth, valuation, technicals, volume, and risk.
+- **Target Upside %:** Difference between AI Fair Value and current price.
+- **Analyst Support:** Finnhub analyst recommendation strength.
+- **News Sentiment:** Recent headline tone from NewsAPI.
+"""
 
 
 def pick(raw, *keys, default=None):
@@ -189,6 +255,7 @@ def normalize_scan_row(raw):
         "Industry": safe_text(pick(raw, "Industry", "industry", default="Unknown"), "Unknown"),
         "Price": price,
         "Final Conviction": score,
+        "Setup Rating": setup_label(score),
         "AI Confidence": score,
         "AI Fair Value": target,
         "AI Bull Case": bull,
@@ -199,6 +266,9 @@ def normalize_scan_row(raw):
         "Analyst Low": safe_number(pick(raw, "Analyst Low", "analyst_target_low", default=0), 0),
         "Analyst Count": int(safe_number(pick(raw, "Analyst Count", "analyst_count", default=0), 0)),
         "Recommendation": safe_text(pick(raw, "Recommendation", "recommendation_key", default="N/A"), "N/A"),
+        "Analyst Support": analyst_support_label(pick(raw, "analyst_support_score", "Analyst Support", default=None)),
+        "News Sentiment": sentiment_badge(pick(raw, "news_sentiment_label", "News Sentiment", default="N/A")),
+        "Top News": safe_text(pick(raw, "top_news_headline", "Top News", default=""), ""),
         "AI Fair Value Adjustment %": safe_number(pick(raw, "AI Fair Value Adjustment %", "ai_fair_value_adjustment_pct", default=0), 0),
         "Entry Range": safe_text(pick(raw, "Entry Range", "entry_range", default="N/A"), "N/A"),
         "Stop Loss": safe_number(pick(raw, "Stop Loss", "stop_loss", default=0), 0),
@@ -300,6 +370,10 @@ def actionable(df, min_score=35, require_upside=True):
 
 
 def latest_top_ideas():
+    """
+    V40.4: use fresh market_full_scan.json as source of truth.
+    Avoid stale top_ai_ideas.json showing old scores/upside.
+    """
     full = actionable(load_full_scan(), min_score=45, require_upside=True)
     return full.head(25)
 
@@ -374,18 +448,23 @@ def render_status_banner():
 
 
 def render_score_help():
-    with st.expander("What changed in V40.2?", expanded=False):
+    with st.expander("Guide: How to read this dashboard", expanded=False):
+        st.markdown(tooltip_md())
+
         st.markdown(
             """
-            **V40.2 dashboard change:** the dashboard now respects the normalized scanner conviction
-            from `overnight_market_scan.py` instead of recalculating its own score. This prevents repeated
-            artificial 99 scores.
+            **Conviction Bands**
 
-            **What to look for:**
-            - Better score spread
-            - AI Fair Value instead of generic target
-            - Expected upside from scanner data
-            - Investment thesis and risk fields in the table
+            | Score | Meaning |
+            |---:|---|
+            | 95-97 | Elite Setup |
+            | 90-94 | Strong Buy Candidate |
+            | 85-89 | Attractive Setup |
+            | 75-84 | Watchlist Setup |
+            | 65-74 | Neutral Setup |
+            | <65 | Speculative Setup |
+
+            The scanner is a decision-support tool, not a guarantee. Use the thesis, risk, entry range, and stop loss together.
             """
         )
 
@@ -459,12 +538,13 @@ def render_table(df, title, key_prefix, min_score_default=35):
         "Sector",
         "Price",
         "Final Conviction",
+        "Setup Rating",
         "AI Fair Value",
         "Target Upside %",
-        "AI Bull Case",
-        "AI Bear Case",
         "Analyst Target",
         "Analyst Count",
+        "Analyst Support",
+        "News Sentiment",
         "Entry Range",
         "Stop Loss",
         "Investment Thesis",
@@ -497,14 +577,17 @@ def render_table(df, title, key_prefix, min_score_default=35):
 def render_detail(row):
     ticker = row.get("Ticker", "")
     company = row.get("Company", ticker)
+    score = int(safe_number(row.get("Final Conviction"), 0))
+    rating = safe_text(row.get("Setup Rating"), setup_label(score))
 
     st.markdown(f"## {ticker} — {company}")
+    st.markdown(f"### {rating} · {score}/100")
 
     c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("Price", fmt_money(row.get("Price")))
-    c2.metric("AI Score", int(safe_number(row.get("Final Conviction"), 0)))
-    c3.metric("AI Fair Value", fmt_money(row.get("AI Fair Value")))
-    c4.metric("Upside", fmt_pct(row.get("Target Upside %")))
+    c2.metric("AI Fair Value", fmt_money(row.get("AI Fair Value")))
+    c3.metric("AI Upside", fmt_pct(row.get("Target Upside %")))
+    c4.metric("Analyst Target", fmt_money(row.get("Analyst Target")))
     c5.metric("Analyst Count", int(safe_number(row.get("Analyst Count"), 0)))
 
     c6, c7, c8, c9 = st.columns(4)
@@ -513,30 +596,77 @@ def render_detail(row):
     c8.metric("Stop Loss", fmt_money(row.get("Stop Loss")))
     c9.metric("Risk/Reward", safe_text(row.get("Risk/Reward"), "N/A"))
 
-    st.markdown("### Investment Thesis")
-    thesis = safe_text(row.get("Investment Thesis"), "")
-    if thesis:
-        st.write(thesis)
-    else:
-        st.info("No investment thesis provided yet.")
+    st.markdown("---")
 
-    st.markdown("### Main Risk")
-    risk = safe_text(row.get("Primary Risk"), "")
-    if risk:
-        st.warning(risk)
-    else:
-        st.info("No primary risk provided yet.")
+    left, right = st.columns(2)
 
-    st.markdown("### Guidance")
-    guidance = safe_text(row.get("Guidance"), "")
-    if guidance:
-        st.write(guidance)
+    with left:
+        with st.container(border=True):
+            st.markdown("### 🟢 Why We Like It")
+            reasons = compact_reason_list(row.get("What Looks Good"), max_items=6)
+            if not reasons:
+                thesis = safe_text(row.get("Investment Thesis"), "")
+                reasons = compact_reason_list(thesis, max_items=5)
 
-    st.markdown("### Target Logic")
-    st.write(safe_text(row.get("Target Source"), "N/A"))
-    note = safe_text(row.get("Target Confidence Note"), "")
-    if note:
-        st.caption(note)
+            if reasons:
+                for item in reasons:
+                    st.markdown(f"✓ {item}")
+            else:
+                st.write("No positive factor summary available yet.")
+
+            analyst_support = safe_text(row.get("Analyst Support"), "N/A")
+            news_sentiment = safe_text(row.get("News Sentiment"), "N/A")
+            st.markdown(f"**Analyst Support:** {analyst_support}")
+            st.markdown(f"**News Sentiment:** {news_sentiment}")
+
+        with st.container(border=True):
+            st.markdown("### 🎯 AI Valuation")
+            st.markdown(f"**Current Price:** {fmt_money(row.get('Price'))}")
+            st.markdown(f"**Analyst Target:** {fmt_money(row.get('Analyst Target'))}")
+            st.markdown(f"**AI Fair Value:** {fmt_money(row.get('AI Fair Value'))}")
+            st.markdown(f"**AI Upside:** {fmt_pct(row.get('Target Upside %'))}")
+            st.markdown(f"**Bull Case:** {fmt_money(row.get('AI Bull Case'))}")
+            st.markdown(f"**Bear Case:** {fmt_money(row.get('AI Bear Case'))}")
+
+    with right:
+        with st.container(border=True):
+            st.markdown("### ⚠️ Key Risks")
+            risk = safe_text(row.get("Primary Risk"), "")
+            risk_items = compact_reason_list(risk, max_items=5)
+            if risk_items:
+                for item in risk_items:
+                    st.markdown(f"• {item}")
+            else:
+                st.write("No specific risk summary available yet.")
+
+        with st.container(border=True):
+            st.markdown("### 📈 Action Plan")
+            st.markdown(f"**Entry Zone:** {safe_text(row.get('Entry Range'), 'N/A')}")
+            st.markdown(f"**Stop Loss:** {fmt_money(row.get('Stop Loss'))}")
+            st.markdown(f"**First Target / Fair Value:** {fmt_money(row.get('AI Fair Value'))}")
+            st.markdown(f"**Bull Case:** {fmt_money(row.get('AI Bull Case'))}")
+            st.markdown(f"**Risk/Reward:** {safe_text(row.get('Risk/Reward'), 'N/A')}")
+
+            action_note = safe_text(row.get("Action Note"), "")
+            if action_note:
+                st.caption(action_note)
+
+    with st.expander("Full AI Thesis", expanded=False):
+        thesis = safe_text(row.get("Investment Thesis"), "")
+        if thesis:
+            st.write(thesis)
+        guidance = safe_text(row.get("Guidance"), "")
+        if guidance:
+            st.write(guidance)
+
+    with st.expander("Target Logic", expanded=False):
+        st.write(safe_text(row.get("Target Source"), "N/A"))
+        note = safe_text(row.get("Target Confidence Note"), "")
+        if note:
+            st.caption(note)
+        top_news = safe_text(row.get("Top News"), "")
+        if top_news:
+            st.markdown(f"**Top News:** {top_news}")
 
     with st.expander("Raw row data", expanded=False):
         raw = row.get("Raw", {})
