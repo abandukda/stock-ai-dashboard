@@ -1,14 +1,14 @@
 {
-  "generated_at": "2026-05-31T03:19:12.890578+00:00",
+  "generated_at": "2026-05-31T05:52:36.477938+00:00",
   "status": "success",
-  "version": "V40.6",
+  "version": "V41.0",
   "universe_count": 1899,
   "prescreen_count": 650,
   "full_scan_count": 150,
   "fallback_rows_allowed": false,
   "data_dir": ".",
   "github_persisted": false,
-  "duration_seconds": 1024.69,
+  "duration_seconds": 1221.28,
   "filters": {
     "min_price": 2.0,
     "max_price": 1000.0,
@@ -33,5 +33,12 @@
   "v40_6_changes": {
     "relative_conviction_distribution": true,
     "score_clustering_reduced": true
+  },
+  "v41_changes": {
+    "hard_exclusions": true,
+    "ai_committee_summary": true,
+    "finnhub_insider_agent": true,
+    "valuation_reconciliation": true,
+    "thesis_strength_and_confidence": true
   }
 }
