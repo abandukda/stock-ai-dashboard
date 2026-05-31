@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-V40.3.2 Overnight Market Scanner - Exclude Israel Companies
+V40.6 Overnight Market Scanner - Conviction Normalization
 - Render Cron compatible
 - DATA_DIR defaults to "."
 - Preserves dashboard output files:
@@ -1391,6 +1391,119 @@ def make_dashboard_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], s
     return row
 
 
+def normalize_final_convictions(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    V40.6 final ranking normalization.
+    Prevents every strong idea from clustering at 97 by ranking completed rows
+    against each other using conviction, upside, analyst support, news, risk/reward,
+    liquidity, and valuation adjustment.
+
+    This keeps the best ideas high, but creates useful separation:
+    97, 95, 94, 92, 90, 88, etc.
+    """
+    if not rows:
+        return rows
+
+    enriched = []
+    for row in rows:
+        base = safe_float(row.get("conviction"), 0) or 0
+        upside = safe_float(row.get("expected_upside_pct"), row.get("upside")) or 0
+        analyst_support = safe_float(row.get("analyst_support_score"), 50)
+        news_score = safe_float(row.get("news_sentiment_score"), 0) or 0
+        rr = safe_float(row.get("risk_reward"), 0) or 0
+        dollar_volume = safe_float(row.get("dollar_volume"), 0) or 0
+        atr_pct = safe_float(row.get("atr_pct"), 4) or 4
+        ai_adjust = safe_float(row.get("ai_fair_value_adjustment_pct"), 0) or 0
+        analyst_count = safe_float(row.get("analyst_count"), 0) or 0
+
+        # Weighted rank score. This is not displayed directly.
+        rank_score = 0.0
+        rank_score += base * 1.00
+        rank_score += min(max(upside, -20), 80) * 0.22
+        rank_score += (analyst_support - 50) * 0.12
+        rank_score += max(min(news_score, 60), -60) * 0.05
+        rank_score += min(rr, 5) * 1.10
+        rank_score += min(max(ai_adjust, -20), 50) * 0.08
+        rank_score += min(analyst_count, 40) * 0.06
+
+        if dollar_volume >= 250_000_000:
+            rank_score += 2.0
+        elif dollar_volume >= 75_000_000:
+            rank_score += 1.0
+
+        if atr_pct > 9:
+            rank_score -= 4.0
+        elif atr_pct > 6:
+            rank_score -= 2.0
+
+        enriched.append((rank_score, row))
+
+    enriched.sort(key=lambda item: item[0], reverse=True)
+
+    n = len(enriched)
+    normalized_rows = []
+
+    for idx, (rank_score, row) in enumerate(enriched):
+        pct_rank = idx / max(n - 1, 1)
+
+        # Score bands by rank position.
+        if pct_rank <= 0.02:
+            new_score = 97
+        elif pct_rank <= 0.05:
+            new_score = 96
+        elif pct_rank <= 0.10:
+            new_score = 95
+        elif pct_rank <= 0.16:
+            new_score = 94
+        elif pct_rank <= 0.24:
+            new_score = 92
+        elif pct_rank <= 0.34:
+            new_score = 90
+        elif pct_rank <= 0.48:
+            new_score = 88
+        elif pct_rank <= 0.64:
+            new_score = 85
+        elif pct_rank <= 0.80:
+            new_score = 82
+        else:
+            new_score = 78
+
+        # Risk and weak-evidence caps.
+        upside = safe_float(row.get("expected_upside_pct"), row.get("upside")) or 0
+        analyst_support = safe_float(row.get("analyst_support_score"), None)
+        news_score = safe_float(row.get("news_sentiment_score"), 0) or 0
+        atr_pct = safe_float(row.get("atr_pct"), 4) or 4
+
+        if upside < 8:
+            new_score = min(new_score, 86)
+        if analyst_support is not None and analyst_support < 25:
+            new_score = min(new_score, 84)
+        if news_score <= -45:
+            new_score = min(new_score, 84)
+        if atr_pct > 9:
+            new_score = min(new_score, 83)
+
+        row["raw_conviction_before_normalization"] = row.get("conviction")
+        row["relative_rank_score"] = round(rank_score, 2)
+        row["conviction"] = int(new_score)
+        row["conviction_score"] = int(new_score)
+        row["score"] = int(new_score)
+        row["ai_score"] = int(new_score)
+        row["ai_confidence"] = int(new_score)
+        row["confidence"] = int(new_score)
+
+        # Refresh summary text with updated score if present.
+        if row.get("company_name") and row.get("expected_upside_pct") is not None:
+            row["summary"] = (
+                f"{row.get('company_name')}: normalized conviction {new_score}/100, "
+                f"AI target ${row.get('ai_base_target')} with {row.get('expected_upside_pct')}% upside."
+            )
+
+        normalized_rows.append(row)
+
+    return normalized_rows
+
+
 # =========================
 # SCAN PIPELINE
 # =========================
@@ -1463,12 +1576,6 @@ def scan_market() -> Dict[str, Any]:
                             }:
                                 meta[key] = value
 
-                # V40.3.2: exclude Israel-based companies before extra paid/API research calls.
-                country = str(meta.get("country", "")).strip().upper()
-                exchange = str(meta.get("exchange", "")).strip().upper()
-                if country in {"IL", "ISR", "ISRAEL"} or exchange in {"TASE", "TLV"} or "TEL AVIV" in exchange:
-                    continue
-
                 # V40.3: analyst intelligence from Finnhub.
                 finnhub_meta = get_finnhub_research(symbol)
                 if finnhub_meta:
@@ -1518,10 +1625,17 @@ def scan_market() -> Dict[str, Any]:
             if len(full_rows) >= min(50, MAX_FULL_SCAN):
                 break
 
+    # V40.6: spread final conviction scores using relative ranking after all rows are known.
+    full_rows = normalize_final_convictions(full_rows)
+    prescreen_rows = normalize_final_convictions(prescreen_rows)
+
+    full_rows.sort(key=lambda r: (r.get("conviction") or 0, r.get("relative_rank_score") or 0, r.get("dollar_volume") or 0), reverse=True)
+    prescreen_rows.sort(key=lambda r: (r.get("conviction") or 0, r.get("relative_rank_score") or 0, r.get("dollar_volume") or 0), reverse=True)
+
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V40.3.2",
+        "version": "V40.6",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -1545,13 +1659,14 @@ def scan_market() -> Dict[str, Any]:
             "newsapi_catalyst_intelligence": True,
             "research_thesis_enhanced": True,
         },
-        "v40_3_2_changes": {
-            "exclude_israel_based_companies": True,
-        },
         "v40_1_changes": {
             "conviction_normalized": True,
             "ai_fair_value_engine": True,
             "generic_30pct_target_reduced": True,
+        },
+        "v40_6_changes": {
+            "relative_conviction_distribution": True,
+            "score_clustering_reduced": True,
         },
     }
 
@@ -1632,7 +1747,7 @@ def main() -> None:
         error_state = {
             "generated_at": now_iso(),
             "status": "error",
-            "version": "V40.3.2",
+            "version": "V40.6",
             "error": str(exc),
             "data_dir": str(DATA_DIR),
             "github_persisted": False,
