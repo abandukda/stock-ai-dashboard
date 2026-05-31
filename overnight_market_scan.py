@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-V40.3.1 Overnight Market Scanner - Analyst + News Intelligence Hotfix
+V40.3.2 Overnight Market Scanner - Exclude Israel Companies
 - Render Cron compatible
 - DATA_DIR defaults to "."
 - Preserves dashboard output files:
@@ -1463,6 +1463,12 @@ def scan_market() -> Dict[str, Any]:
                             }:
                                 meta[key] = value
 
+                # V40.3.2: exclude Israel-based companies before extra paid/API research calls.
+                country = str(meta.get("country", "")).strip().upper()
+                exchange = str(meta.get("exchange", "")).strip().upper()
+                if country in {"IL", "ISR", "ISRAEL"} or exchange in {"TASE", "TLV"} or "TEL AVIV" in exchange:
+                    continue
+
                 # V40.3: analyst intelligence from Finnhub.
                 finnhub_meta = get_finnhub_research(symbol)
                 if finnhub_meta:
@@ -1515,7 +1521,7 @@ def scan_market() -> Dict[str, Any]:
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V40.3.1",
+        "version": "V40.3.2",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -1538,6 +1544,9 @@ def scan_market() -> Dict[str, Any]:
             "finnhub_analyst_intelligence": True,
             "newsapi_catalyst_intelligence": True,
             "research_thesis_enhanced": True,
+        },
+        "v40_3_2_changes": {
+            "exclude_israel_based_companies": True,
         },
         "v40_1_changes": {
             "conviction_normalized": True,
@@ -1623,7 +1632,7 @@ def main() -> None:
         error_state = {
             "generated_at": now_iso(),
             "status": "error",
-            "version": "V40.3.1",
+            "version": "V40.3.2",
             "error": str(exc),
             "data_dir": str(DATA_DIR),
             "github_persisted": False,
