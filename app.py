@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 
-APP_VERSION = "V40.4 Explainable AI Dashboard"
+APP_VERSION = "V40.4.1 Clean Table + Research Cards"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -287,6 +287,10 @@ def normalize_scan_row(raw):
             "",
         ),
         "Primary Risk": safe_text(pick(raw, "Primary Risk", "what_could_go_wrong", default=""), ""),
+        "Research Summary": safe_text(
+            pick(raw, "Why Ranked High", "why_ranked_high", "table_reason", "summary", default=""),
+            ""
+        ),
         "What Looks Good": safe_text(pick(raw, "What Looks Good", "what_looks_good", default=""), ""),
         "Why Ranked High": safe_text(pick(raw, "Why Ranked High", "why_ranked_high", default=""), ""),
         "Guidance": safe_text(pick(raw, "Guidance", "guidance", "ai_guidance", default=""), ""),
@@ -547,8 +551,6 @@ def render_table(df, title, key_prefix, min_score_default=35):
         "News Sentiment",
         "Entry Range",
         "Stop Loss",
-        "Investment Thesis",
-        "Primary Risk",
     ]
 
     existing_cols = [c for c in display_cols if c in filtered.columns]
@@ -564,6 +566,8 @@ def render_table(df, title, key_prefix, min_score_default=35):
         display_df["Target Upside %"] = display_df["Target Upside %"].apply(fmt_pct)
 
     st.dataframe(display_df, use_container_width=True, hide_index=True)
+
+    st.caption("Use the Detail View below to open the full explainable AI research card, thesis, risk summary, valuation logic, and action plan.")
 
     st.markdown("### Detail View")
     tickers = filtered["Ticker"].dropna().unique().tolist()
@@ -582,6 +586,10 @@ def render_detail(row):
 
     st.markdown(f"## {ticker} — {company}")
     st.markdown(f"### {rating} · {score}/100")
+
+    research_summary = safe_text(row.get("Research Summary"), "")
+    if research_summary:
+        st.info(research_summary)
 
     c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("Price", fmt_money(row.get("Price")))
