@@ -4,9 +4,11 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+import yfinance as yf
+import plotly.graph_objects as go
 
 
-APP_VERSION = "V41.6 Price History Intelligence Dashboard"
+APP_VERSION = "V41.6.1 True 52W + Interactive Chart Dashboard"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -1009,6 +1011,111 @@ def render_price_history_intelligence(row):
             st.caption("Moderate pullback from recent highs.")
 
 
+@st.cache_data(ttl=900)
+def fetch_chart_history(ticker, period="5y"):
+    ticker = safe_text(ticker, "").upper().strip()
+    if not ticker:
+        return pd.DataFrame()
+    try:
+        df = yf.download(
+            ticker,
+            period=period,
+            interval="1d",
+            auto_adjust=True,
+            progress=False,
+            threads=False,
+        )
+        if df is None or df.empty:
+            return pd.DataFrame()
+        df = df.dropna(subset=["Close"]).copy()
+        df["SMA20"] = df["Close"].rolling(20).mean()
+        df["SMA50"] = df["Close"].rolling(50).mean()
+        df["SMA200"] = df["Close"].rolling(200).mean()
+        return df
+    except Exception:
+        return pd.DataFrame()
+
+
+def render_interactive_price_chart(row):
+    ticker = safe_text(row.get("Ticker"), "").upper()
+    if not ticker:
+        return
+
+    st.markdown("### 📊 Interactive Price Chart")
+    st.caption("Shows price trend, 20/50/200-day averages, true 52-week high/low, analyst target, and AI fair value.")
+
+    period = st.selectbox(
+        "Chart range",
+        ["6mo", "1y", "3y", "5y"],
+        index=3,
+        key=f"chart_range_{ticker}",
+    )
+
+    hist = fetch_chart_history(ticker, period=period)
+    if hist.empty:
+        st.warning("Chart data unavailable for this ticker.")
+        return
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=hist.index, y=hist["Close"], mode="lines", name="Price"))
+    fig.add_trace(go.Scatter(x=hist.index, y=hist["SMA20"], mode="lines", name="SMA 20"))
+    fig.add_trace(go.Scatter(x=hist.index, y=hist["SMA50"], mode="lines", name="SMA 50"))
+    if hist["SMA200"].notna().any():
+        fig.add_trace(go.Scatter(x=hist.index, y=hist["SMA200"], mode="lines", name="SMA 200"))
+
+    close = hist["Close"].dropna()
+    high = hist["High"].dropna() if "High" in hist.columns else close
+    low = hist["Low"].dropna() if "Low" in hist.columns else close
+
+    high_52 = float(high.tail(min(252, len(high))).max()) if not high.empty else None
+    low_52 = float(low.tail(min(252, len(low))).min()) if not low.empty else None
+    current = float(close.iloc[-1]) if not close.empty else None
+
+    analyst_target = safe_number(row.get("Analyst Target"), 0)
+    ai_target = safe_number(row.get("AI Fair Value"), 0)
+
+    if high_52:
+        fig.add_hline(y=high_52, line_dash="dash", annotation_text="52W High", annotation_position="top left")
+    if low_52:
+        fig.add_hline(y=low_52, line_dash="dash", annotation_text="52W Low", annotation_position="bottom left")
+    if analyst_target:
+        fig.add_hline(y=analyst_target, line_dash="dot", annotation_text="Analyst Target", annotation_position="top right")
+    if ai_target:
+        fig.add_hline(y=ai_target, line_dash="dot", annotation_text="AI Fair Value", annotation_position="top right")
+
+    fig.update_layout(
+        height=520,
+        margin=dict(l=20, r=20, t=40, b=20),
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        xaxis_title="Date",
+        yaxis_title="Price",
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    if current and high_52 and low_52 and high_52 > low_52:
+        range_pos = ((current - low_52) / (high_52 - low_52)) * 100
+        d_high = ((current - high_52) / high_52) * 100
+        d_low = ((current - low_52) / low_52) * 100
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Current Price", fmt_money(current))
+        c2.metric("True 52W Low", fmt_money(low_52))
+        c3.metric("True 52W High", fmt_money(high_52))
+        c4.metric("Position in 52W Range", f"{range_pos:.1f}%")
+
+        st.progress(min(max(range_pos / 100, 0), 1))
+        st.caption(f"From 52W low: {d_low:.1f}% · From 52W high: {d_high:.1f}%")
+
+        if range_pos >= 75:
+            st.info("Chart interpretation: The stock is near the upper part of its 52-week range. Upside depends more on earnings growth, valuation, and analyst support.")
+        elif range_pos <= 35:
+            st.info("Chart interpretation: The stock is closer to the lower part of its 52-week range. This can support a recovery setup if fundamentals remain intact.")
+        else:
+            st.info("Chart interpretation: The stock is in the middle of its 52-week range. Confirmation from trend, analysts, and financial execution matters.")
+
+
 # =========================
 # UI
 # =========================
@@ -1018,7 +1125,7 @@ def render_status_banner():
 
     st.title("📈 AI Trading Dashboard")
     st.caption(APP_VERSION)
-    st.caption("Includes plain-English metric definitions, good/bad ranges, and AI interpretations inside each research card.")
+    st.caption("Includes visible 52-week table fields, true 52-week detail metrics, and an on-demand interactive chart inside each research card.")
 
     c1, c2, c3, c4, c5 = st.columns(5)
 
@@ -1168,6 +1275,9 @@ def render_table(df, title, key_prefix, min_score_default=35):
         "Setup Rating",
         "AI Fair Value",
         "Target Upside %",
+        "52W Low",
+        "52W High",
+        "Range Position %",
         "Analyst Target",
         "Analyst Count",
         "Analyst Support",
@@ -1182,7 +1292,7 @@ def render_table(df, title, key_prefix, min_score_default=35):
     existing_cols = [c for c in display_cols if c in filtered.columns]
     display_df = filtered[existing_cols].head(100).copy()
 
-    for col in ["Price", "AI Fair Value", "AI Bull Case", "AI Bear Case", "Analyst Target", "Stop Loss"]:
+    for col in ["Price", "AI Fair Value", "AI Bull Case", "AI Bear Case", "Analyst Target", "Stop Loss", "52W Low", "52W High"]:
         if col in display_df.columns:
             display_df[col] = display_df[col].apply(
                 lambda x: f"${safe_number(x, 0):,.2f}" if safe_number(x, 0) else "N/A"
@@ -1190,6 +1300,8 @@ def render_table(df, title, key_prefix, min_score_default=35):
 
     if "Target Upside %" in display_df.columns:
         display_df["Target Upside %"] = display_df["Target Upside %"].apply(fmt_pct)
+    if "Range Position %" in display_df.columns:
+        display_df["Range Position %"] = display_df["Range Position %"].apply(fmt_pct)
 
     st.dataframe(display_df, use_container_width=True, hide_index=True)
 

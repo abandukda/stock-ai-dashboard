@@ -341,7 +341,7 @@ def download_price_batch(symbols: List[str]) -> pd.DataFrame:
         try:
             data = yf.download(
                 tickers=" ".join(symbols),
-                period="6mo",
+                period="1y",
                 interval="1d",
                 group_by="ticker",
                 auto_adjust=True,
@@ -2836,7 +2836,7 @@ def enhance_ai_committee(row: Dict[str, Any], meta: Dict[str, Any], ind: Dict[st
 
 def build_price_history_intelligence(df: pd.DataFrame, ind: Dict[str, Any]) -> Dict[str, Any]:
     """
-    V41.6 Price History Intelligence.
+    V41.6.1 True 52W + Chart Support.
     Adds 52-week low/high, current position in range, 6M/1Y/3Y/5Y returns when available.
     Uses available downloaded history, so it does not add extra API calls.
     """
@@ -2907,7 +2907,7 @@ def build_price_history_intelligence(df: pd.DataFrame, ind: Dict[str, Any]) -> D
 
     return {
         "history_days_available": history_days,
-        "price_history_note": "Full 5-year chart needs scanner history period expanded beyond current downloaded range." if history_days < 1000 else "Full long-term history available.",
+        "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand." if history_days < 1000 else "Full long-term history available.",
         "high_52w": round(high_52w, 2) if high_52w else None,
         "low_52w": round(low_52w, 2) if low_52w else None,
         "all_period_high": round(all_period_high, 2) if all_period_high else None,
@@ -3102,7 +3102,7 @@ def scan_market() -> Dict[str, Any]:
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V41.6",
+        "version": "V41.6.1",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -3169,6 +3169,11 @@ def scan_market() -> Dict[str, Any]:
             "range_52w_position": True,
             "drawdown_analysis": True,
             "multi_period_return_fields": True,
+        },
+        "v41_6_1_changes": {
+            "true_52w_scan_history": True,
+            "interactive_5y_chart_supported_by_dashboard": True,
+            "visible_52w_table_columns": True,
         },
         "v41_changes": {
             "hard_exclusions": True,
@@ -3261,7 +3266,7 @@ def main() -> None:
         error_state = {
             "generated_at": now_iso(),
             "status": "error",
-            "version": "V41.6",
+            "version": "V41.6.1",
             "error": str(exc),
             "data_dir": str(DATA_DIR),
             "github_persisted": False,
