@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 
-APP_VERSION = "V41.4 Explainable AI Agents Dashboard"
+APP_VERSION = "V41.5 Deep Finance Agent Dashboard"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -598,6 +598,27 @@ def normalize_scan_row(raw):
         "Recovery Rebound Reason": safe_text(pick(raw, "recovery_rebound_reason", default=""), ""),
         "Recovery Risk": safe_text(pick(raw, "recovery_risk", default=""), ""),
         "AI Committee": pick(raw, "ai_committee", "AI Committee", default={}),
+        "Finance Agent Score": safe_number(pick(raw, "finance_agent_score", default=0), 0),
+        "Finance Agent Status": safe_text(pick(raw, "finance_agent_status", default=""), ""),
+        "Finance Agent Bottom Line": safe_text(pick(raw, "finance_agent_bottom_line", default=""), ""),
+        "Finance Agent Findings": pick(raw, "finance_agent_findings", default=[]),
+        "Finance Agent Risks": pick(raw, "finance_agent_risks", default=[]),
+        "Thesis Strength": safe_text(pick(raw, "thesis_strength", default=""), ""),
+        "Latest EPS": safe_number(pick(raw, "latest_eps", default=0), 0),
+        "Revenue QoQ %": safe_number(pick(raw, "revenue_qoq_pct", default=0), 0),
+        "EPS Beats Last 4": int(safe_number(pick(raw, "eps_beats_last4", default=0), 0)),
+        "EPS Misses Last 4": int(safe_number(pick(raw, "eps_misses_last4", default=0), 0)),
+        "Debt to Equity": safe_number(pick(raw, "debt_to_equity", default=0), 0),
+        "Debt to Assets": safe_number(pick(raw, "debt_to_assets", default=0), 0),
+        "Current Ratio": safe_number(pick(raw, "current_ratio", default=0), 0),
+        "Gross Margin": safe_number(pick(raw, "gross_profit_margin", default=0), 0),
+        "Operating Margin": safe_number(pick(raw, "operating_profit_margin", default=0), 0),
+        "Net Margin": safe_number(pick(raw, "net_profit_margin", default=0), 0),
+        "Free Cash Flow": safe_number(pick(raw, "free_cash_flow", default=0), 0),
+        "Operating Cash Flow": safe_number(pick(raw, "operating_cash_flow", default=0), 0),
+        "ROIC": safe_number(pick(raw, "roic", default=0), 0),
+        "EV/Sales": safe_number(pick(raw, "ev_to_sales", default=0), 0),
+        "Peers": pick(raw, "peer_symbols", default=[]),
         "Target Source": safe_text(pick(raw, "Target Source", "target_source", default="N/A"), "N/A"),
         "Target Confidence Note": safe_text(pick(raw, "Target Confidence Note", "target_confidence_note", default=""), ""),
         "ETF Screen": safe_text(pick(raw, "etf_preference_screen", "ETF Screen", default=""), ""),
@@ -728,6 +749,189 @@ def latest_watchlist_scan():
         return full[full["Ticker"].isin(symbols)].copy()
     except Exception:
         return pd.DataFrame()
+
+
+def render_inline_metric_summary(row):
+    """
+    V41.4.1: Always-visible educational summary.
+    Keeps the full explainer expander, but surfaces the most important meanings/ranges directly.
+    """
+    raw = row.get("Raw", {})
+    raw = raw if isinstance(raw, dict) else {}
+
+    rev = pick(raw, "revenue_growth", "Revenue Growth", default=None)
+    rev = safe_number(rev, None)
+    if rev is not None and abs(rev) <= 2:
+        rev *= 100
+
+    earn = pick(raw, "earnings_growth", "Earnings Growth", default=None)
+    earn = safe_number(earn, None)
+    if earn is not None and abs(earn) <= 2:
+        earn *= 100
+
+    pe = safe_number(pick(raw, "forward_pe", "Forward PE", default=None), None)
+    peg = safe_number(pick(raw, "peg_ratio", "PEG Ratio", default=None), None)
+    rsi = safe_number(row.get("RSI"), None)
+    atr = safe_number(row.get("ATR %"), None)
+    vol = safe_number(row.get("Volume Ratio"), None)
+    upside = safe_number(row.get("Target Upside %"), None)
+
+    with st.container(border=True):
+        st.markdown("### 📘 Quick Metric Guide")
+        st.caption("These are the key readings from the AI agents with plain-English meaning and good/bad ranges.")
+
+        c1, c2 = st.columns(2)
+
+        with c1:
+            st.markdown("#### 🏢 Fundamentals")
+            if rev is not None:
+                st.markdown(f"**Revenue Growth:** {rev:.1f}% — {metric_label('revenue', rev)}")
+                st.caption("Sales growth. Range: <0 declining · 0-10 slow · 10-20 healthy · 20-40 strong · 40+ exceptional.")
+            if earn is not None:
+                st.markdown(f"**Earnings Growth:** {earn:.1f}% — {metric_label('earnings', earn)}")
+                st.caption("Profit growth. Range: negative concern · 0-10 stable · 10-20 good · 20+ strong.")
+            if pe is not None and pe > 0:
+                st.markdown(f"**Forward PE:** {pe:.1f} — {metric_label('pe', pe)}")
+                st.caption("Price paid for $1 of next year's expected earnings. Range: <15 cheap · 15-25 reasonable · 25-40 expensive · 40+ very expensive.")
+            if peg is not None and peg > 0:
+                st.markdown(f"**PEG Ratio:** {peg:.2f} — {metric_label('peg', peg)}")
+                st.caption("Valuation compared to growth. Range: <1 undervalued · 1-2 fair · 2+ expensive.")
+
+        with c2:
+            st.markdown("#### 📈 Technical / Risk")
+            if rsi is not None and rsi > 0:
+                st.markdown(f"**RSI:** {rsi:.1f} — {metric_label('rsi', rsi)}")
+                st.caption("Momentum score. Range: <30 oversold · 30-50 weak/recovering · 50-70 healthy · 70+ overbought.")
+            if vol is not None and vol > 0:
+                st.markdown(f"**Volume Ratio:** {vol:.2f}x — {metric_label('volume', vol)}")
+                st.caption("Volume vs average. Range: <0.75 light · 0.75-1.25 normal · 1.25-2 above average · 2+ strong.")
+            if atr is not None and atr > 0:
+                st.markdown(f"**ATR %:** {atr:.1f}% — {metric_label('atr', atr)}")
+                st.caption("Volatility. Range: <2 low · 2-5 tradable · 5-8 elevated · 8+ high risk.")
+            if upside is not None:
+                st.markdown(f"**Target Upside:** {fmt_pct(upside)} — {metric_label('upside', upside)}")
+                st.caption("Upside to AI fair value. Range: <10 limited · 10-25 moderate · 25-50 strong · 50+ high upside but higher uncertainty.")
+
+        st.markdown("**Plain-English takeaway:**")
+        st.info(educational_bottom_line(row))
+
+
+def fmt_ratio(value):
+    value = safe_number(value, None)
+    return "N/A" if value is None or value == 0 else f"{value:.2f}"
+
+
+def fmt_margin(value):
+    value = safe_number(value, None)
+    if value is None or value == 0:
+        return "N/A"
+    if abs(value) <= 2:
+        value *= 100
+    return f"{value:.1f}%"
+
+
+def render_bullets(items, empty="No detail available."):
+    if isinstance(items, str):
+        items = compact_reason_list(items, max_items=8)
+    if not isinstance(items, list) or not items:
+        st.caption(empty)
+        return
+    for item in items[:10]:
+        st.markdown(f"• {safe_text(item)}")
+
+
+def render_deep_finance_agent(row):
+    with st.container(border=True):
+        st.markdown("### 💰 Finance Agent — Deep Financial Execution")
+        score = int(safe_number(row.get("Finance Agent Score"), 0))
+        status = safe_text(row.get("Finance Agent Status"), "N/A")
+        thesis = safe_text(row.get("Thesis Strength"), "")
+        st.markdown(f"**Score:** {score}/100 · **Status:** {status}" + (f" · **Thesis Strength:** {thesis}" if thesis else ""))
+        st.caption("Cross-checks EPS, revenue execution, debt, liquidity, margins, cash flow, valuation, and peer context.")
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Latest EPS", f"{safe_number(row.get('Latest EPS'), 0):.2f}" if safe_number(row.get("Latest EPS"), 0) else "N/A")
+        c2.metric("Revenue QoQ", fmt_pct(row.get("Revenue QoQ %")) if safe_number(row.get("Revenue QoQ %"), 0) else "N/A")
+        c3.metric("Debt/Equity", fmt_ratio(row.get("Debt to Equity")))
+        c4.metric("Current Ratio", fmt_ratio(row.get("Current Ratio")))
+
+        c5, c6, c7, c8 = st.columns(4)
+        c5.metric("Gross Margin", fmt_margin(row.get("Gross Margin")))
+        c6.metric("Operating Margin", fmt_margin(row.get("Operating Margin")))
+        c7.metric("Net Margin", fmt_margin(row.get("Net Margin")))
+        c8.metric("ROIC", fmt_margin(row.get("ROIC")))
+
+        c9, c10, c11, c12 = st.columns(4)
+        c9.metric("EPS Beats/Misses", f"{row.get('EPS Beats Last 4', 0)}/{row.get('EPS Misses Last 4', 0)}")
+        c10.metric("FCF", fmt_money(row.get("Free Cash Flow")) if safe_number(row.get("Free Cash Flow"), 0) else "N/A")
+        c11.metric("Op. Cash Flow", fmt_money(row.get("Operating Cash Flow")) if safe_number(row.get("Operating Cash Flow"), 0) else "N/A")
+        c12.metric("EV/Sales", fmt_ratio(row.get("EV/Sales")))
+
+        st.markdown("**What AI cross-checked:**")
+        render_bullets(row.get("Finance Agent Findings"), empty="Finance findings not available yet.")
+
+        st.markdown("**Watch-outs:**")
+        render_bullets(row.get("Finance Agent Risks"), empty="No major finance-specific red flags detected.")
+
+        peers = row.get("Peers")
+        if isinstance(peers, list) and peers:
+            st.markdown(f"**Peer set for comparison:** {', '.join([safe_text(x) for x in peers[:8]])}")
+            st.caption("Peer set is used as the foundation for future peer valuation and growth comparison.")
+
+        bottom = safe_text(row.get("Finance Agent Bottom Line"), "")
+        if bottom:
+            st.info(f"**Finance Agent Bottom Line:** {bottom}")
+
+        with st.expander("📘 What these finance metrics mean", expanded=False):
+            st.markdown("""
+**EPS:** Earnings per share. Positive and improving EPS usually means profitability is improving.
+
+**Revenue QoQ:** Sequential revenue growth from the prior quarter. Positive is better; repeated declines can signal weakening demand.
+
+**Debt/Equity:** Debt compared to shareholder equity. Under 0.5 is conservative, 0.5-1.5 is manageable, above 1.5 can be risky.
+
+**Current Ratio:** Short-term assets divided by short-term liabilities. Above 1.5 is usually healthy; below 1 can signal liquidity risk.
+
+**Margins:** Gross, operating, and net margins show profitability quality. Higher and stable/improving margins are better.
+
+**Free Cash Flow:** Cash left after operating needs and capital spending. Positive FCF gives the company flexibility.
+
+**ROIC:** Return on invested capital. Higher ROIC means the business is using capital efficiently.
+
+**EV/Sales:** Enterprise value compared to revenue. Lower can be cheaper, but growth and margins matter.
+""")
+
+
+def render_ai_committee_details(row):
+    committee = row.get("AI Committee")
+    if not isinstance(committee, dict) or not committee:
+        return
+
+    with st.expander("🧠 Full AI Committee Agent Details", expanded=False):
+        for name, agent in committee.items():
+            if not isinstance(agent, dict):
+                continue
+            st.markdown(f"### {name}")
+            st.markdown(
+                f"**Score:** {agent.get('score', 'N/A')}/100 · "
+                f"**Status:** {agent.get('status', 'N/A')} · "
+                f"**Impact:** {agent.get('impact', 'N/A')}"
+            )
+            st.caption(f"**Data used:** {agent.get('data_used', 'N/A')}")
+            st.write(agent.get("summary", ""))
+
+            findings = agent.get("findings") or []
+            risks = agent.get("risks") or []
+            if findings:
+                st.markdown("**Findings:**")
+                render_bullets(findings)
+            if risks:
+                st.markdown("**Risks / limits:**")
+                render_bullets(risks)
+            bottom = agent.get("bottom_line")
+            if bottom:
+                st.info(f"**Bottom line:** {bottom}")
+            st.markdown("---")
 
 
 # =========================
@@ -942,9 +1146,9 @@ def render_detail(row):
     c8.metric("Stop Loss", fmt_money(row.get("Stop Loss")))
     c9.metric("Risk/Reward", safe_text(row.get("Risk/Reward"), "N/A"))
 
-    st.info(educational_bottom_line(row))
+    render_inline_metric_summary(row)
 
-    with st.expander("📚 Explain these metrics: meanings, good ranges, bad ranges", expanded=False):
+    with st.expander("📚 Full metric education and AI vs analyst explanation", expanded=False):
         render_metric_education(row)
 
     st.markdown("---")

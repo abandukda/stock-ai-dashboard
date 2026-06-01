@@ -1758,6 +1758,31 @@ def make_dashboard_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], s
         "range_52w": meta.get("range_52w"),
         "website": meta.get("website"),
         "source_fmp_profile": meta.get("source_fmp_profile", False),
+        "source_fmp_financials": meta.get("source_fmp_financials", False),
+        "source_fmp_earnings_surprises": meta.get("source_fmp_earnings_surprises", False),
+        "latest_revenue": meta.get("latest_revenue"),
+        "latest_eps": meta.get("latest_eps"),
+        "revenue_qoq_pct": meta.get("revenue_qoq_pct"),
+        "revenue_quarters": meta.get("revenue_quarters"),
+        "eps_quarters": meta.get("eps_quarters"),
+        "eps_surprises_last4": meta.get("eps_surprises_last4"),
+        "eps_beats_last4": meta.get("eps_beats_last4"),
+        "eps_misses_last4": meta.get("eps_misses_last4"),
+        "total_debt": meta.get("total_debt"),
+        "cash_and_equivalents": meta.get("cash_and_equivalents"),
+        "net_cash": meta.get("net_cash"),
+        "debt_to_equity": meta.get("debt_to_equity"),
+        "debt_to_assets": meta.get("debt_to_assets"),
+        "current_ratio": meta.get("current_ratio"),
+        "gross_profit_margin": meta.get("gross_profit_margin"),
+        "operating_profit_margin": meta.get("operating_profit_margin"),
+        "net_profit_margin": meta.get("net_profit_margin"),
+        "operating_cash_flow": meta.get("operating_cash_flow"),
+        "free_cash_flow": meta.get("free_cash_flow"),
+        "roic": meta.get("roic"),
+        "ev_to_sales": meta.get("ev_to_sales"),
+        "ev_to_ebitda": meta.get("ev_to_ebitda"),
+        "peer_symbols": meta.get("peer_symbols"),
 
         "price": ind.get("price"),
         "current_price": ind.get("price"),
@@ -2319,6 +2344,494 @@ def score_etf_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any]) -> Opt
     }
 
 
+def get_fmp_financial_intelligence(symbol: str) -> Dict[str, Any]:
+    """
+    V41.5 Deep Finance Agent.
+    Pulls financial statement, ratio, earnings surprise, and peer data from FMP when available.
+    All failures return {} so cron never breaks.
+    """
+    if not FMP_API_KEY:
+        return {}
+
+    result: Dict[str, Any] = {}
+
+    def get(endpoint: str, params: Optional[Dict[str, Any]] = None):
+        base = f"https://financialmodelingprep.com/api/v3/{endpoint}"
+        merged = {"apikey": FMP_API_KEY}
+        if params:
+            merged.update(params)
+        return http_get_json(base, params=merged, timeout=12)
+
+    # Quarterly financials
+    income = get(f"income-statement/{symbol}", {"period": "quarter", "limit": 5})
+    balance = get(f"balance-sheet-statement/{symbol}", {"period": "quarter", "limit": 5})
+    cashflow = get(f"cash-flow-statement/{symbol}", {"period": "quarter", "limit": 5})
+    ratios = get(f"ratios/{symbol}", {"period": "quarter", "limit": 4})
+    key_metrics = get(f"key-metrics/{symbol}", {"period": "quarter", "limit": 4})
+    earnings = get(f"earnings-surprises/{symbol}", {"limit": 4})
+    peers = get(f"stock_peers", {"symbol": symbol})
+
+    if isinstance(income, list) and income:
+        latest_income = income[0] or {}
+        prior_income = income[1] if len(income) > 1 else {}
+        four_q = income[:4]
+
+        revenues = [safe_float(x.get("revenue")) for x in four_q if isinstance(x, dict)]
+        eps_values = [safe_float(x.get("eps")) for x in four_q if isinstance(x, dict)]
+        net_income_values = [safe_float(x.get("netIncome")) for x in four_q if isinstance(x, dict)]
+
+        latest_revenue = safe_float(latest_income.get("revenue"))
+        prior_revenue = safe_float(prior_income.get("revenue")) if isinstance(prior_income, dict) else None
+        revenue_qoq = pct_change(latest_revenue, prior_revenue)
+
+        result.update({
+            "latest_revenue": latest_revenue,
+            "latest_eps": safe_float(latest_income.get("eps")),
+            "latest_net_income": safe_float(latest_income.get("netIncome")),
+            "latest_gross_profit": safe_float(latest_income.get("grossProfit")),
+            "latest_operating_income": safe_float(latest_income.get("operatingIncome")),
+            "revenue_qoq_pct": round(revenue_qoq, 1) if revenue_qoq is not None else None,
+            "revenue_quarters": revenues,
+            "eps_quarters": eps_values,
+            "net_income_quarters": net_income_values,
+            "source_fmp_financials": True,
+        })
+
+    if isinstance(balance, list) and balance:
+        latest_balance = balance[0] or {}
+        total_debt = safe_float(latest_balance.get("totalDebt"))
+        total_assets = safe_float(latest_balance.get("totalAssets"))
+        total_equity = safe_float(latest_balance.get("totalStockholdersEquity"))
+        cash = safe_float(latest_balance.get("cashAndCashEquivalents"))
+
+        debt_to_equity = (total_debt / total_equity) if total_debt is not None and total_equity and total_equity > 0 else None
+        debt_to_assets = (total_debt / total_assets) if total_debt is not None and total_assets and total_assets > 0 else None
+        net_cash = (cash - total_debt) if cash is not None and total_debt is not None else None
+
+        result.update({
+            "total_debt": total_debt,
+            "total_assets": total_assets,
+            "total_equity": total_equity,
+            "cash_and_equivalents": cash,
+            "debt_to_equity": round(debt_to_equity, 2) if debt_to_equity is not None else None,
+            "debt_to_assets": round(debt_to_assets, 2) if debt_to_assets is not None else None,
+            "net_cash": net_cash,
+        })
+
+    if isinstance(cashflow, list) and cashflow:
+        latest_cf = cashflow[0] or {}
+        result.update({
+            "operating_cash_flow": safe_float(latest_cf.get("operatingCashFlow")),
+            "free_cash_flow": safe_float(latest_cf.get("freeCashFlow")),
+            "capex": safe_float(latest_cf.get("capitalExpenditure")),
+        })
+
+    if isinstance(ratios, list) and ratios:
+        latest_ratios = ratios[0] or {}
+        result.update({
+            "gross_profit_margin": safe_float(latest_ratios.get("grossProfitMargin")),
+            "operating_profit_margin": safe_float(latest_ratios.get("operatingProfitMargin")),
+            "net_profit_margin": safe_float(latest_ratios.get("netProfitMargin")),
+            "current_ratio": safe_float(latest_ratios.get("currentRatio")),
+            "return_on_equity": safe_float(latest_ratios.get("returnOnEquity")),
+            "return_on_assets": safe_float(latest_ratios.get("returnOnAssets")),
+        })
+
+    if isinstance(key_metrics, list) and key_metrics:
+        latest_metrics = key_metrics[0] or {}
+        result.update({
+            "roic": safe_float(latest_metrics.get("roic")),
+            "enterprise_value": safe_float(latest_metrics.get("enterpriseValue")),
+            "ev_to_sales": safe_float(latest_metrics.get("evToSales")),
+            "ev_to_ebitda": safe_float(latest_metrics.get("enterpriseValueOverEBITDA")),
+            "revenue_per_share": safe_float(latest_metrics.get("revenuePerShare")),
+            "net_income_per_share": safe_float(latest_metrics.get("netIncomePerShare")),
+        })
+
+    if isinstance(earnings, list) and earnings:
+        surprises = []
+        beats = 0
+        misses = 0
+        for item in earnings[:4]:
+            if not isinstance(item, dict):
+                continue
+            actual = safe_float(item.get("actualEarningResult"))
+            estimate = safe_float(item.get("estimatedEarning"))
+            if actual is not None and estimate is not None:
+                diff = actual - estimate
+                surprises.append(round(diff, 3))
+                if diff >= 0:
+                    beats += 1
+                else:
+                    misses += 1
+
+        result.update({
+            "eps_surprises_last4": surprises,
+            "eps_beats_last4": beats,
+            "eps_misses_last4": misses,
+            "source_fmp_earnings_surprises": True,
+        })
+
+    if isinstance(peers, list) and peers:
+        # FMP stock_peers commonly returns list of symbols or dict with peersList.
+        peer_symbols = []
+        if peers and isinstance(peers[0], dict):
+            peer_symbols = peers[0].get("peersList") or []
+        elif all(isinstance(x, str) for x in peers):
+            peer_symbols = peers
+        result["peer_symbols"] = [str(x).upper() for x in peer_symbols[:8] if x]
+
+    return {k: v for k, v in result.items() if v not in (None, "", "Unknown", [])}
+
+
+def build_finance_agent(meta: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    V41.5 Finance Agent score and bullet summary.
+    Cross-checks growth, EPS execution, debt, margins, cash flow, and peer context.
+    """
+    score = 50
+    positives: List[str] = []
+    cautions: List[str] = []
+
+    revenue_growth = safe_float(meta.get("revenue_growth"), None)
+    earnings_growth = safe_float(meta.get("earnings_growth"), None)
+    revenue_qoq = safe_float(meta.get("revenue_qoq_pct"), None)
+    latest_eps = safe_float(meta.get("latest_eps"), None)
+    eps_beats = safe_int(meta.get("eps_beats_last4"), 0) or 0
+    eps_misses = safe_int(meta.get("eps_misses_last4"), 0) or 0
+    debt_to_equity = safe_float(meta.get("debt_to_equity"), None)
+    debt_to_assets = safe_float(meta.get("debt_to_assets"), None)
+    current_ratio = safe_float(meta.get("current_ratio"), None)
+    gross_margin = safe_float(meta.get("gross_profit_margin"), None)
+    operating_margin = safe_float(meta.get("operating_profit_margin"), None)
+    net_margin = safe_float(meta.get("net_profit_margin"), None)
+    free_cash_flow = safe_float(meta.get("free_cash_flow"), None)
+    operating_cash_flow = safe_float(meta.get("operating_cash_flow"), None)
+    roic = safe_float(meta.get("roic"), None)
+    forward_pe = safe_float(meta.get("forward_pe"), None)
+    peg_ratio = safe_float(meta.get("peg_ratio"), None)
+    ev_to_sales = safe_float(meta.get("ev_to_sales"), None)
+    peers = meta.get("peer_symbols") or []
+
+    if revenue_growth is not None:
+        if revenue_growth >= 0.20:
+            score += 10
+            positives.append(f"Revenue growth is strong at {revenue_growth * 100:.1f}%")
+        elif revenue_growth >= 0.08:
+            score += 6
+            positives.append(f"Revenue growth is healthy at {revenue_growth * 100:.1f}%")
+        elif revenue_growth < 0:
+            score -= 8
+            cautions.append("Revenue growth is negative")
+
+    if revenue_qoq is not None:
+        if revenue_qoq > 5:
+            score += 5
+            positives.append(f"Latest quarter revenue improved {revenue_qoq:.1f}% sequentially")
+        elif revenue_qoq < -5:
+            score -= 5
+            cautions.append(f"Latest quarter revenue declined {abs(revenue_qoq):.1f}% sequentially")
+
+    if earnings_growth is not None:
+        if earnings_growth >= 0.20:
+            score += 9
+            positives.append(f"Earnings growth is strong at {earnings_growth * 100:.1f}%")
+        elif earnings_growth >= 0.05:
+            score += 5
+            positives.append(f"Earnings growth is positive at {earnings_growth * 100:.1f}%")
+        elif earnings_growth < 0:
+            score -= 8
+            cautions.append("Earnings growth is negative")
+
+    if latest_eps is not None:
+        if latest_eps > 0:
+            score += 4
+            positives.append(f"Latest EPS is positive at {latest_eps:.2f}")
+        else:
+            score -= 4
+            cautions.append(f"Latest EPS is negative at {latest_eps:.2f}")
+
+    if eps_beats or eps_misses:
+        if eps_beats >= 3:
+            score += 6
+            positives.append(f"EPS beat estimates in {eps_beats} of the last 4 reported quarters")
+        elif eps_misses >= 2:
+            score -= 6
+            cautions.append(f"EPS missed estimates in {eps_misses} of the last 4 reported quarters")
+
+    if debt_to_equity is not None:
+        if debt_to_equity < 0.5:
+            score += 6
+            positives.append(f"Debt-to-equity is low at {debt_to_equity:.2f}")
+        elif debt_to_equity <= 1.5:
+            score += 2
+            positives.append(f"Debt-to-equity is manageable at {debt_to_equity:.2f}")
+        else:
+            score -= 7
+            cautions.append(f"Debt-to-equity is elevated at {debt_to_equity:.2f}")
+
+    if debt_to_assets is not None:
+        if debt_to_assets < 0.3:
+            score += 3
+            positives.append(f"Debt-to-assets is conservative at {debt_to_assets:.2f}")
+        elif debt_to_assets > 0.6:
+            score -= 4
+            cautions.append(f"Debt-to-assets is high at {debt_to_assets:.2f}")
+
+    if current_ratio is not None:
+        if current_ratio >= 1.5:
+            score += 3
+            positives.append(f"Current ratio is healthy at {current_ratio:.2f}")
+        elif current_ratio < 1:
+            score -= 3
+            cautions.append(f"Current ratio is below 1.0 at {current_ratio:.2f}")
+
+    if gross_margin is not None:
+        if gross_margin >= 0.50:
+            score += 4
+            positives.append(f"Gross margin is strong at {gross_margin * 100:.1f}%")
+        elif gross_margin < 0.20:
+            score -= 3
+            cautions.append(f"Gross margin is thin at {gross_margin * 100:.1f}%")
+
+    if operating_margin is not None:
+        if operating_margin >= 0.20:
+            score += 5
+            positives.append(f"Operating margin is strong at {operating_margin * 100:.1f}%")
+        elif operating_margin < 0:
+            score -= 5
+            cautions.append("Operating margin is negative")
+
+    if net_margin is not None:
+        if net_margin >= 0.15:
+            score += 4
+            positives.append(f"Net margin is healthy at {net_margin * 100:.1f}%")
+        elif net_margin < 0:
+            score -= 5
+            cautions.append("Net margin is negative")
+
+    if free_cash_flow is not None:
+        if free_cash_flow > 0:
+            score += 6
+            positives.append("Free cash flow is positive")
+        else:
+            score -= 5
+            cautions.append("Free cash flow is negative")
+
+    if operating_cash_flow is not None:
+        if operating_cash_flow > 0:
+            score += 3
+            positives.append("Operating cash flow is positive")
+        else:
+            score -= 3
+            cautions.append("Operating cash flow is negative")
+
+    if roic is not None:
+        if roic >= 0.12:
+            score += 5
+            positives.append(f"ROIC is attractive at {roic * 100:.1f}%")
+        elif roic < 0:
+            score -= 4
+            cautions.append("ROIC is negative")
+
+    if peg_ratio is not None:
+        if 0 < peg_ratio < 1:
+            score += 5
+            positives.append(f"PEG ratio is attractive at {peg_ratio:.2f}")
+        elif peg_ratio > 3:
+            score -= 4
+            cautions.append(f"PEG ratio is expensive at {peg_ratio:.2f}")
+
+    if forward_pe is not None:
+        if 0 < forward_pe <= 25:
+            score += 3
+            positives.append(f"Forward PE is reasonable at {forward_pe:.1f}")
+        elif forward_pe > 50:
+            score -= 4
+            cautions.append(f"Forward PE is elevated at {forward_pe:.1f}")
+
+    if ev_to_sales is not None:
+        if ev_to_sales <= 5:
+            score += 2
+            positives.append(f"EV/Sales is reasonable at {ev_to_sales:.1f}")
+        elif ev_to_sales > 12:
+            score -= 3
+            cautions.append(f"EV/Sales is expensive at {ev_to_sales:.1f}")
+
+    if peers:
+        positives.append(f"Peer set identified for comparison: {', '.join(peers[:5])}")
+
+    score = int(clamp(score, 15, 98))
+
+    if score >= 85:
+        status = "Positive"
+        impact = "Positive"
+    elif score >= 65:
+        status = "Mixed / constructive"
+        impact = "Moderate Positive"
+    elif score >= 45:
+        status = "Mixed"
+        impact = "Neutral"
+    else:
+        status = "Weak"
+        impact = "Negative"
+
+    if not positives:
+        positives.append("Financial data is limited; agent relied on available fundamentals only")
+    if not cautions:
+        cautions.append("No major financial red flag detected from available data")
+
+    return {
+        "score": score,
+        "status": status,
+        "impact": impact,
+        "data_used": "FMP/Yahoo financial statements, ratios, earnings surprises, balance sheet, cash flow, and peer set",
+        "summary": "Evaluates financial execution, EPS quality, revenue consistency, balance sheet risk, cash flow, margins, valuation, and peer context.",
+        "findings": positives[:10],
+        "risks": cautions[:8],
+        "bottom_line": (
+            "Financial execution looks strong across multiple checks."
+            if score >= 85 else
+            "Financial profile is constructive but has some items to monitor."
+            if score >= 65 else
+            "Financial profile is mixed and should be reviewed carefully before acting."
+        ),
+    }
+
+
+def enhance_ai_committee(row: Dict[str, Any], meta: Dict[str, Any], ind: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    V41.5: enrich or create AI committee data with deeper cross-checking bullets.
+    """
+    finance_agent = build_finance_agent(meta)
+
+    technical_findings = []
+    technical_risks = []
+    price = ind.get("price")
+    if price and ind.get("sma20"):
+        technical_findings.append("Price is above the 20-day trend" if price > ind.get("sma20") else "Price is below the 20-day trend")
+    if price and ind.get("sma50"):
+        technical_findings.append("Price is above the 50-day trend" if price > ind.get("sma50") else "Price is below the 50-day trend")
+    if ind.get("rsi") is not None:
+        technical_findings.append(f"RSI is {ind.get('rsi')}")
+    if ind.get("volume_ratio") is not None:
+        technical_findings.append(f"Volume ratio is {ind.get('volume_ratio')}x")
+    if ind.get("atr_pct") is not None:
+        if ind.get("atr_pct") > 7:
+            technical_risks.append(f"ATR volatility is elevated at {ind.get('atr_pct')}%")
+        else:
+            technical_findings.append(f"ATR volatility is manageable at {ind.get('atr_pct')}%")
+
+    analyst_findings = []
+    analyst_risks = []
+    if meta.get("analyst_support_score") is not None:
+        analyst_findings.append(f"Finnhub analyst support score is {meta.get('analyst_support_score')}/100")
+    if row.get("analyst_upside_pct") is not None:
+        analyst_findings.append(f"Analyst target implies {row.get('analyst_upside_pct')}% upside")
+    if row.get("analyst_count"):
+        analyst_findings.append(f"Analyst coverage count is {row.get('analyst_count')}")
+    if not analyst_findings:
+        analyst_risks.append("Analyst coverage data is limited")
+
+    news_findings = []
+    news_risks = []
+    if meta.get("news_sentiment_label"):
+        news_findings.append(f"Recent news sentiment is {meta.get('news_sentiment_label')}")
+    if meta.get("top_news_headline"):
+        news_findings.append(f"Top headline: {meta.get('top_news_headline')}")
+    if meta.get("negative_news_terms"):
+        news_risks.append(f"Negative news terms detected: {', '.join(meta.get('negative_news_terms')[:3])}")
+    if not news_findings:
+        news_risks.append("Recent news data is limited")
+
+    valuation_findings = []
+    valuation_risks = []
+    if row.get("ai_base_target"):
+        valuation_findings.append(f"AI fair value target is ${row.get('ai_base_target')}")
+    if row.get("expected_upside_pct") is not None:
+        valuation_findings.append(f"AI expected upside is {row.get('expected_upside_pct')}%")
+        if row.get("expected_upside_pct") > 60:
+            valuation_risks.append("Very high AI upside requires stronger confirmation")
+    if row.get("analyst_target_mean"):
+        valuation_findings.append(f"Analyst target is ${row.get('analyst_target_mean')}")
+
+    committee = row.get("ai_committee") if isinstance(row.get("ai_committee"), dict) else {}
+    committee.update({
+        "Finance Agent": finance_agent,
+        "Technical Agent": {
+            "score": row.get("conviction", 0),
+            "status": "Positive" if row.get("conviction", 0) >= 85 else "Mixed",
+            "impact": "Positive" if row.get("conviction", 0) >= 85 else "Neutral",
+            "data_used": "Yahoo price history, moving averages, RSI, volume, ATR, momentum",
+            "summary": "Cross-checks trend quality, momentum, liquidity, volume confirmation, volatility, and entry risk.",
+            "findings": technical_findings[:8],
+            "risks": technical_risks[:6] or ["No major technical risk detected from available data"],
+            "bottom_line": "Technical setup is constructive." if row.get("conviction", 0) >= 85 else "Technical setup is mixed and needs confirmation.",
+        },
+        "Analyst Agent": {
+            "score": int(safe_float(meta.get("analyst_support_score"), 50) or 50),
+            "status": "Positive" if (safe_float(meta.get("analyst_support_score"), 50) or 50) >= 60 else "Mixed",
+            "impact": "Positive" if (safe_float(meta.get("analyst_support_score"), 50) or 50) >= 60 else "Neutral",
+            "data_used": "Finnhub/Yahoo analyst recommendations, target prices, analyst count",
+            "summary": "Checks whether Wall Street target data and recommendation trends support the thesis.",
+            "findings": analyst_findings[:8],
+            "risks": analyst_risks[:6] or ["No major analyst red flag detected from available data"],
+            "bottom_line": "Analyst view supports the thesis." if (safe_float(meta.get("analyst_support_score"), 50) or 50) >= 60 else "Analyst view is mixed or limited.",
+        },
+        "News Agent": {
+            "score": int(clamp(50 + (safe_float(meta.get("news_sentiment_score"), 0) or 0), 0, 100)),
+            "status": meta.get("news_sentiment_label") or "Unknown",
+            "impact": "Positive" if meta.get("news_sentiment_label") == "Positive" else "Negative" if meta.get("news_sentiment_label") == "Negative" else "Neutral",
+            "data_used": "NewsAPI recent headlines, positive/negative keyword sentiment, catalyst terms",
+            "summary": "Checks if recent headlines confirm or weaken the investment thesis.",
+            "findings": news_findings[:8],
+            "risks": news_risks[:6],
+            "bottom_line": "News flow supports the thesis." if meta.get("news_sentiment_label") == "Positive" else "News flow is mixed or limited.",
+        },
+        "Valuation Agent": {
+            "score": int(clamp(55 + (safe_float(row.get("expected_upside_pct"), 0) or 0) * 0.4, 20, 95)),
+            "status": "Positive" if (safe_float(row.get("expected_upside_pct"), 0) or 0) >= 20 else "Neutral",
+            "impact": "Positive" if (safe_float(row.get("expected_upside_pct"), 0) or 0) >= 20 else "Neutral",
+            "data_used": "AI fair value, analyst target, growth/valuation adjustment, bull/bear target model",
+            "summary": "Compares current price, analyst target, AI fair value, and expected upside.",
+            "findings": valuation_findings[:8],
+            "risks": valuation_risks[:6] or ["Valuation risk depends on whether growth assumptions hold"],
+            "bottom_line": "Valuation supports upside." if (safe_float(row.get("expected_upside_pct"), 0) or 0) >= 20 else "Valuation upside is limited or still developing.",
+        },
+    })
+
+    positive_agents = 0
+    total_agents = 0
+    for agent in committee.values():
+        if isinstance(agent, dict):
+            total_agents += 1
+            if str(agent.get("impact", "")).lower().startswith("positive") or str(agent.get("status", "")).lower().startswith("positive"):
+                positive_agents += 1
+
+    if total_agents:
+        agreement = positive_agents / total_agents
+        if agreement >= 0.75:
+            thesis_strength = "Exceptional Thesis"
+        elif agreement >= 0.55:
+            thesis_strength = "Strong Thesis"
+        elif agreement >= 0.35:
+            thesis_strength = "Moderate Thesis"
+        else:
+            thesis_strength = "Weak Thesis"
+    else:
+        thesis_strength = "Unknown"
+
+    row["ai_committee"] = committee
+    row["thesis_strength"] = thesis_strength
+    row["finance_agent_score"] = finance_agent.get("score")
+    row["finance_agent_status"] = finance_agent.get("status")
+    row["finance_agent_bottom_line"] = finance_agent.get("bottom_line")
+    row["finance_agent_findings"] = finance_agent.get("findings")
+    row["finance_agent_risks"] = finance_agent.get("risks")
+
+    return row
+
+
 # =========================
 # SCAN PIPELINE
 # =========================
@@ -2402,6 +2915,13 @@ def scan_market() -> Dict[str, Any]:
                     metadata_cache[symbol] = meta
                     continue
 
+                # V41.5: deep financial intelligence from FMP.
+                finance_meta = get_fmp_financial_intelligence(symbol)
+                if finance_meta:
+                    for key, value in finance_meta.items():
+                        if value not in (None, "", "Unknown"):
+                            meta[key] = value
+
                 # V40.3: analyst intelligence from Finnhub.
                 finnhub_meta = get_finnhub_research(symbol)
                 if finnhub_meta:
@@ -2437,6 +2957,7 @@ def scan_market() -> Dict[str, Any]:
 
             score, good, risks = score_stock(ind, meta)
             row = make_dashboard_row(symbol, meta, ind, score, good, risks)
+            row = enhance_ai_committee(row, meta, ind)
 
             # Prescreen can include moderate setups, but weak fallback rows are reduced.
             if score >= 38:
@@ -2480,7 +3001,7 @@ def scan_market() -> Dict[str, Any]:
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V41.4",
+        "version": "V41.5",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -2531,6 +3052,16 @@ def scan_market() -> Dict[str, Any]:
         "v41_4_changes": {
             "explainable_agent_cards": True,
             "metric_ranges_and_definitions": True,
+        },
+        "v41_4_1_changes": {
+            "inline_metric_explanations": True,
+            "agent_cards_more_educational": True,
+        },
+        "v41_5_changes": {
+            "deep_finance_agent": True,
+            "eps_revenue_debt_margin_cashflow_checks": True,
+            "peer_comparison_scaffolding": True,
+            "richer_agent_cross_checks": True,
         },
         "v41_changes": {
             "hard_exclusions": True,
@@ -2623,7 +3154,7 @@ def main() -> None:
         error_state = {
             "generated_at": now_iso(),
             "status": "error",
-            "version": "V41.4",
+            "version": "V41.5",
             "error": str(exc),
             "data_dir": str(DATA_DIR),
             "github_persisted": False,
