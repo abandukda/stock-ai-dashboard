@@ -8,7 +8,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V41.8.2 Rate-Limit Safe Live Research Dashboard"
+APP_VERSION = "V41.8.3 Force Chart + Legacy Agent Details Dashboard"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -1230,6 +1230,144 @@ def render_interactive_price_chart_fixed(row):
 
             st.progress(min(max(range_pos / 100, 0), 1))
             st.caption(f"From 52W low: {from_low:.1f}% · From 52W high: {from_high:.1f}%")
+
+
+@st.cache_data(ttl=900)
+def fetch_chart_history_force_chart(ticker, period="5y"):
+    ticker = safe_text(ticker, "").upper().strip()
+    if not ticker:
+        return pd.DataFrame()
+    try:
+        df = yf.download(ticker, period=period, interval="1d", auto_adjust=True, progress=False, threads=False)
+        if df is None or df.empty:
+            return pd.DataFrame()
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = [c[0] if isinstance(c, tuple) else c for c in df.columns]
+        df = df.dropna(subset=["Close"]).copy()
+        if df.empty:
+            return pd.DataFrame()
+        df["SMA20"] = df["Close"].rolling(20).mean()
+        df["SMA50"] = df["Close"].rolling(50).mean()
+        df["SMA200"] = df["Close"].rolling(200).mean()
+        return df
+    except Exception:
+        return pd.DataFrame()
+
+
+def render_force_chart_section(row):
+    ticker = safe_text(row.get("Ticker"), "").upper()
+    if not ticker:
+        return
+
+    with st.container(border=True):
+        st.markdown("### 📊 Interactive Price Chart")
+        st.caption("Loads on demand. Shows price, SMA 20/50/200, 52-week high/low, analyst target, and AI fair value.")
+
+        period = st.selectbox(
+            "Chart range",
+            ["6mo", "1y", "3y", "5y"],
+            index=3,
+            key=f"force_chart_range_{ticker}",
+        )
+
+        hist = fetch_chart_history_force_chart(ticker, period)
+        if hist.empty:
+            st.warning("Chart data unavailable. Make sure `yfinance` and `plotly` are in requirements.txt, then redeploy.")
+            st.code("yfinance\nplotly")
+            return
+
+        close = hist["Close"].dropna()
+        high = hist["High"].dropna() if "High" in hist.columns else close
+        low = hist["Low"].dropna() if "Low" in hist.columns else close
+
+        current = float(close.iloc[-1])
+        high_52 = float(high.tail(min(252, len(high))).max())
+        low_52 = float(low.tail(min(252, len(low))).min())
+        range_pos = ((current - low_52) / (high_52 - low_52)) * 100 if high_52 > low_52 else 0
+
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=hist.index, y=hist["Close"], mode="lines", name="Price"))
+        if hist["SMA20"].notna().any():
+            fig.add_trace(go.Scatter(x=hist.index, y=hist["SMA20"], mode="lines", name="SMA 20"))
+        if hist["SMA50"].notna().any():
+            fig.add_trace(go.Scatter(x=hist.index, y=hist["SMA50"], mode="lines", name="SMA 50"))
+        if hist["SMA200"].notna().any():
+            fig.add_trace(go.Scatter(x=hist.index, y=hist["SMA200"], mode="lines", name="SMA 200"))
+
+        fig.add_hline(y=high_52, line_dash="dash", annotation_text="52W High", annotation_position="top left")
+        fig.add_hline(y=low_52, line_dash="dash", annotation_text="52W Low", annotation_position="bottom left")
+
+        analyst_target = safe_number(row.get("Analyst Target"), 0)
+        ai_target = safe_number(row.get("AI Fair Value"), 0)
+        if analyst_target:
+            fig.add_hline(y=analyst_target, line_dash="dot", annotation_text="Analyst Target", annotation_position="top right")
+        if ai_target:
+            fig.add_hline(y=ai_target, line_dash="dot", annotation_text="AI Fair Value", annotation_position="top right")
+
+        fig.update_layout(
+            height=540,
+            margin=dict(l=20, r=20, t=35, b=20),
+            hovermode="x unified",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+            xaxis_title="Date",
+            yaxis_title="Price",
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Current Price", fmt_money(current))
+        c2.metric("True 52W Low", fmt_money(low_52))
+        c3.metric("True 52W High", fmt_money(high_52))
+        c4.metric("52W Range Position", f"{range_pos:.1f}%")
+        st.progress(min(max(range_pos / 100, 0), 1))
+
+
+def render_legacy_agent_details_force(row):
+    committee = row.get("AI Committee")
+    if isinstance(committee, dict) and committee:
+        return
+
+    with st.container(border=True):
+        st.markdown("### 🧠 AI Agent Details")
+        st.caption("Fallback agent breakdown from available scan fields because this row does not have full committee JSON yet.")
+
+        conviction = safe_number(row.get("Final Conviction"), 0)
+        upside = safe_number(row.get("Target Upside %"), 0)
+        rsi = safe_number(row.get("RSI"), 0)
+        atr = safe_number(row.get("ATR %"), 0)
+
+        st.markdown("#### 📈 Technical Agent")
+        st.markdown(f"• Final conviction context: {conviction:.0f}/100")
+        st.markdown(f"• RSI: {rsi:.1f}")
+        st.markdown(f"• ATR volatility: {atr:.1f}%")
+        if rsi >= 70:
+            st.warning("RSI is overbought, so avoid chasing.")
+        else:
+            st.info("Momentum is not excessively overheated.")
+
+        st.markdown("#### 💰 Valuation Agent")
+        st.markdown(f"• AI upside: {upside:.1f}%")
+        st.markdown(f"• Analyst target: {fmt_money(row.get('Analyst Target'))}")
+        st.markdown(f"• AI fair value: {fmt_money(row.get('AI Fair Value'))}")
+        if upside >= 50:
+            st.warning("AI upside is very high; treat this as higher uncertainty unless finance/news/analyst data confirms it.")
+
+        st.markdown("#### 👨‍💼 Analyst Agent")
+        st.markdown(f"• Analyst support: {safe_text(row.get('Analyst Support'), 'N/A')}")
+        st.markdown(f"• Analyst count: {row.get('Analyst Count', 'N/A')}")
+        source = safe_text(row.get("Analyst Support Source"), "")
+        if source:
+            st.caption(source)
+
+        st.markdown("#### 📰 News Agent")
+        st.markdown(f"• News sentiment: {safe_text(row.get('News Sentiment'), 'N/A')}")
+        news_source = safe_text(row.get("News Sentiment Source"), "")
+        if news_source:
+            st.caption(news_source)
+
+        st.markdown("#### 🏢 Finance Agent")
+        st.markdown("• Finance Agent details require V41.5+ row data or live AI research.")
+        st.markdown("• Use ⚡ Run Live AI or run the latest cron scan to populate deeper financial details.")
 
 
 # =========================
