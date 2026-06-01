@@ -8,7 +8,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V41.8.1 Fixed Interactive Charts Dashboard"
+APP_VERSION = "V41.8.2 Rate-Limit Safe Live Research Dashboard"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -1928,6 +1928,205 @@ def build_live_research_row(ticker):
         return {"error": str(exc), "Ticker": ticker}
 
 
+@st.cache_data(ttl=900)
+def build_price_only_live_row(ticker, reason="Live fundamentals unavailable"):
+    """
+    V41.8.2 fallback card.
+    Used when Yahoo quoteSummary/info is rate-limited.
+    Still produces a usable research card from price history, 52W range, RSI, SMA, ATR, and chart data.
+    """
+    ticker = safe_text(ticker, "").upper().strip()
+    if not ticker:
+        return None
+
+    hist = yf.download(
+        ticker,
+        period="5y",
+        interval="1d",
+        auto_adjust=True,
+        progress=False,
+        threads=False,
+    )
+    if hist is None or hist.empty:
+        return None
+
+    if isinstance(hist.columns, pd.MultiIndex):
+        hist.columns = [c[0] if isinstance(c, tuple) else c for c in hist.columns]
+
+    hist = hist.dropna(subset=["Close"]).copy()
+    if hist.empty:
+        return None
+
+    close = hist["Close"].astype(float)
+    high = hist["High"].astype(float) if "High" in hist else close
+    low = hist["Low"].astype(float) if "Low" in hist else close
+    volume = hist["Volume"].astype(float) if "Volume" in hist else pd.Series(index=hist.index, data=0)
+
+    price = float(close.iloc[-1])
+    sma20 = float(close.rolling(20).mean().iloc[-1]) if len(close) >= 20 else price
+    sma50 = float(close.rolling(50).mean().iloc[-1]) if len(close) >= 50 else price
+    sma200 = float(close.rolling(200).mean().iloc[-1]) if len(close) >= 200 else price
+
+    delta = close.diff()
+    gain = delta.where(delta > 0, 0).rolling(14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+    rs = gain / loss.replace(0, pd.NA)
+    rsi_series = 100 - (100 / (1 + rs))
+    rsi = float(rsi_series.iloc[-1]) if rsi_series.notna().any() else 50.0
+
+    avg_vol_20 = float(volume.tail(20).mean()) if len(volume) >= 20 else float(volume.mean())
+    latest_vol = float(volume.iloc[-1]) if len(volume) else 0
+    volume_ratio = latest_vol / avg_vol_20 if avg_vol_20 else 1
+
+    tr = (high - low).abs()
+    atr = float(tr.rolling(14).mean().iloc[-1]) if len(tr) >= 14 else float(tr.mean())
+    atr_pct = (atr / price) * 100 if price else 0
+
+    high_52 = float(high.tail(min(252, len(high))).max())
+    low_52 = float(low.tail(min(252, len(low))).min())
+    range_pos = ((price - low_52) / (high_52 - low_52)) * 100 if high_52 > low_52 else 0
+    dist_high = ((price - high_52) / high_52) * 100 if high_52 else 0
+    dist_low = ((price - low_52) / low_52) * 100 if low_52 else 0
+
+    def ret(days):
+        if len(close) > days:
+            base = float(close.iloc[-days-1])
+            return ((price - base) / base) * 100 if base else 0
+        return 0
+
+    technical_score = 50
+    if price > sma20: technical_score += 10
+    if price > sma50: technical_score += 12
+    if price > sma200: technical_score += 10
+    if 45 <= rsi <= 70: technical_score += 8
+    elif rsi > 75: technical_score -= 5
+    if volume_ratio >= 1.2: technical_score += 5
+    if atr_pct > 8: technical_score -= 6
+    technical_score = int(min(max(technical_score, 20), 95))
+
+    ai_fair = price * (1.08 if price > sma50 else 1.03)
+    upside = ((ai_fair - price) / price) * 100 if price else 0
+    upside_score = 82 if upside >= 25 else 68 if upside >= 10 else 55 if upside >= 0 else 35
+    conviction = int(round((technical_score * 0.70) + (upside_score * 0.30)))
+    conviction = int(min(max(conviction, 20), 92))
+
+    stop_loss = price * (1 - max(0.06, min(0.14, atr_pct / 100 * 2)))
+    entry_low = price * 0.97
+    entry_high = price * 1.01
+
+    finance_risks = [
+        "Live fundamentals were rate-limited or unavailable.",
+        "Finance Agent is limited until the next full cron scan pulls FMP/Finnhub/NewsAPI data.",
+        safe_text(reason, "Live data rate-limited")[:180],
+    ]
+
+    committee = {
+        "Technical Agent": {
+            "score": technical_score,
+            "status": "Positive" if technical_score >= 75 else "Mixed",
+            "impact": "Positive" if technical_score >= 75 else "Neutral",
+            "data_used": "Live Yahoo price history, SMA20/50/200, RSI, volume, ATR",
+            "summary": "Rate-limit-safe live technical card from price history.",
+            "findings": [
+                f"Price vs SMA20: {'above' if price > sma20 else 'below'}",
+                f"Price vs SMA50: {'above' if price > sma50 else 'below'}",
+                f"Price vs SMA200: {'above' if price > sma200 else 'below'}",
+                f"RSI is {rsi:.1f}",
+                f"Volume ratio is {volume_ratio:.2f}x",
+                f"52W range position is {range_pos:.1f}%",
+            ],
+            "risks": [f"ATR volatility is {atr_pct:.1f}%"],
+            "bottom_line": "Technical setup is constructive." if technical_score >= 75 else "Technical setup needs confirmation.",
+        },
+        "Finance Agent": {
+            "score": 50,
+            "status": "Limited",
+            "impact": "Neutral",
+            "data_used": "Fundamentals unavailable in live mode due to rate limit; full scan uses deeper API data.",
+            "summary": "Finance data is limited for this immediate card.",
+            "findings": ["Price/technical live research completed successfully."],
+            "risks": finance_risks,
+            "bottom_line": "Financial fields are limited right now. Use the next full scan for deeper Finance Agent analysis.",
+        },
+        "Analyst Agent": {
+            "score": 50,
+            "status": "Limited",
+            "impact": "Neutral",
+            "data_used": "Analyst target unavailable in rate-limit-safe fallback mode.",
+            "summary": "Analyst data is limited until next full scan or Yahoo rate limit clears.",
+            "findings": ["No live analyst target returned."],
+            "risks": ["Analyst/Finnhub details may populate on full cron scan."],
+            "bottom_line": "Analyst data is limited for this immediate card.",
+        },
+    }
+
+    return {
+        "Ticker": ticker,
+        "Company": ticker,
+        "Sector": "N/A",
+        "Industry": "N/A",
+        "Price": round(price, 2),
+        "Final Conviction": conviction,
+        "Setup Rating": "🟡 Strong Setup" if conviction >= 80 else "🔵 Watchlist",
+        "AI Fair Value": round(ai_fair, 2),
+        "Target Upside %": round(upside, 1),
+        "Analyst Target": 0,
+        "Analyst Count": 0,
+        "Analyst Support": "Coverage-based",
+        "Analyst Support Source": "Rate-limit-safe fallback",
+        "News Sentiment": "⚪ Neutral",
+        "News Sentiment Source": "Live fallback defaults news to neutral until full scan",
+        "Entry Range": f"${entry_low:.2f} - ${entry_high:.2f}",
+        "Stop Loss": round(stop_loss, 2),
+        "Risk/Reward": "Live fallback",
+        "AI Bull Case": round(ai_fair * 1.12, 2),
+        "AI Bear Case": round(stop_loss, 2),
+        "52W High": round(high_52, 2),
+        "52W Low": round(low_52, 2),
+        "Range Position %": round(range_pos, 1),
+        "Distance From 52W High %": round(dist_high, 1),
+        "Distance From 52W Low %": round(dist_low, 1),
+        "Drawdown From High %": round(dist_high, 1),
+        "Range Position Label": "Near 52-week highs" if range_pos >= 75 else "Lower range" if range_pos <= 35 else "Middle range",
+        "Drawdown Label": "Moderate drawdown" if dist_high <= -10 else "Shallow drawdown",
+        "Return 1M %": round(ret(21), 1),
+        "Return 3M %": round(ret(63), 1),
+        "Return 6M %": round(ret(126), 1),
+        "Return 1Y %": round(ret(252), 1),
+        "Return 3Y %": round(ret(252*3), 1),
+        "Return 5Y %": round(ret(252*5), 1),
+        "History Days Available": len(close),
+        "Price History Note": "Rate-limit-safe live chart and 52-week range fetched on demand.",
+        "RSI": round(rsi, 1),
+        "ATR %": round(atr_pct, 1),
+        "Volume Ratio": round(volume_ratio, 2),
+        "20D %": round(ret(21), 1),
+        "60D %": round(ret(63), 1),
+        "Finance Agent Score": 50,
+        "Finance Agent Status": "Limited",
+        "Finance Agent Bottom Line": "Financial fields are limited due to rate limit; price/technical card is available.",
+        "Finance Agent Findings": ["Price/technical live research completed successfully."],
+        "Finance Agent Risks": finance_risks,
+        "Latest EPS": 0,
+        "Debt to Equity": 0,
+        "Current Ratio": 0,
+        "Gross Margin": 0,
+        "Operating Margin": 0,
+        "Net Margin": 0,
+        "Free Cash Flow": 0,
+        "Operating Cash Flow": 0,
+        "Thesis Strength": "Moderate Thesis" if conviction >= 65 else "Developing Thesis",
+        "Evidence Confidence": "Medium-Low",
+        "Investment Thesis": f"{ticker} live fallback card generated from price history due to rate limits.",
+        "Primary Risk": "Finance/analyst/news data is limited until full scan or rate limit clears.",
+        "Guidance": f"Live fallback view: conviction {conviction}/100, technical fair value {fmt_money(ai_fair)}, upside {upside:.1f}%.",
+        "Action Note": "Use this for immediate chart/technical review; run full cron scan for deeper API-backed research.",
+        "AI Committee": committee,
+        "Raw": {"source_live_fallback": True, "fundamentals_limited": True},
+        "Live Research": True,
+    }
+
+
 def render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df=None):
     st.subheader("🔍 Research Any Ticker")
     st.caption("Search existing scan files first. If not found, run live AI research immediately without waiting for cron.")
@@ -1969,7 +2168,14 @@ def render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf
             if not live_row:
                 st.error(f"Could not fetch live data for {ticker}. Please verify the ticker symbol.")
             elif isinstance(live_row, dict) and live_row.get("error"):
-                st.error(f"Live research failed for {ticker}: {live_row.get('error')}")
+                st.warning(f"Full live research was limited for {ticker}: {live_row.get('error')}")
+                with st.spinner(f"Building rate-limit-safe price/technical card for {ticker}..."):
+                    fallback_row = build_price_only_live_row(ticker, reason=live_row.get("error"))
+                if fallback_row:
+                    st.info("Showing rate-limit-safe live card now. The next full cron scan may add deeper FMP/Finnhub/NewsAPI details.")
+                    render_detail(pd.Series(fallback_row))
+                else:
+                    st.error(f"Could not fetch even price-history data for {ticker}. Try again later.")
             else:
                 st.info("Live card generated now. The next full cron scan may add deeper FMP/Finnhub/NewsAPI details.")
                 render_detail(pd.Series(live_row))

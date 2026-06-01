@@ -2836,7 +2836,7 @@ def enhance_ai_committee(row: Dict[str, Any], meta: Dict[str, Any], ind: Dict[st
 
 def build_price_history_intelligence(df: pd.DataFrame, ind: Dict[str, Any]) -> Dict[str, Any]:
     """
-    V41.8.1 Fixed Interactive Charts.
+    V41.8.2 Rate-Limit Safe Live Research.
     Adds 52-week low/high, current position in range, 6M/1Y/3Y/5Y returns when available.
     Uses available downloaded history, so it does not add extra API calls.
     """
@@ -3228,7 +3228,7 @@ def scan_market() -> Dict[str, Any]:
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V41.8.1",
+        "version": "V41.8.2",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -3314,6 +3314,10 @@ def scan_market() -> Dict[str, Any]:
         "v41_8_1_changes": {
             "fixed_interactive_detail_charts": True,
             "chart_dependency_warning": True,
+        },
+        "v41_8_2_changes": {
+            "rate_limit_safe_live_research": True,
+            "price_history_fallback_cards": True,
         },
         "v41_changes": {
             "hard_exclusions": True,
@@ -3406,7 +3410,7 @@ def main() -> None:
         error_state = {
             "generated_at": now_iso(),
             "status": "error",
-            "version": "V41.8.1",
+            "version": "V41.8.2",
             "error": str(exc),
             "data_dir": str(DATA_DIR),
             "github_persisted": False,
