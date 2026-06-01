@@ -2480,7 +2480,7 @@ def scan_market() -> Dict[str, Any]:
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V41.3",
+        "version": "V41.4",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -2527,6 +2527,10 @@ def scan_market() -> Dict[str, Any]:
         "v41_3_changes": {
             "etf_tab": True,
             "non_financial_non_israel_etf_screen": True,
+        },
+        "v41_4_changes": {
+            "explainable_agent_cards": True,
+            "metric_ranges_and_definitions": True,
         },
         "v41_changes": {
             "hard_exclusions": True,
@@ -2619,7 +2623,7 @@ def main() -> None:
         error_state = {
             "generated_at": now_iso(),
             "status": "error",
-            "version": "V41.3",
+            "version": "V41.4",
             "error": str(exc),
             "data_dir": str(DATA_DIR),
             "github_persisted": False,

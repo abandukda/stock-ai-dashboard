@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 
-APP_VERSION = "V41.3 ETF Intelligence Dashboard"
+APP_VERSION = "V41.4 Explainable AI Agents Dashboard"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -213,6 +213,213 @@ def render_agent_card(agent):
             st.markdown("**What AI found:**")
             for item in findings[:6]:
                 st.markdown(f"• {safe_text(item)}")
+
+
+
+def metric_label(kind, value):
+    value = safe_number(value, None)
+    if value is None:
+        return "N/A"
+    if kind == "revenue":
+        if value < 0: return "🔴 Declining"
+        if value < 10: return "🟡 Slow"
+        if value < 20: return "🟢 Healthy"
+        if value < 40: return "🟢 Strong"
+        return "🟢 Exceptional"
+    if kind == "earnings":
+        if value < 0: return "🔴 Concern"
+        if value < 10: return "🟡 Stable"
+        if value < 20: return "🟢 Good"
+        return "🟢 Strong"
+    if kind == "pe":
+        if value <= 0: return "N/A"
+        if value < 15: return "🟢 Cheap"
+        if value <= 25: return "🟢 Reasonable"
+        if value <= 40: return "🟡 Expensive"
+        return "🔴 Very expensive"
+    if kind == "peg":
+        if value <= 0: return "N/A"
+        if value < 1: return "🟢 Excellent / undervalued"
+        if value <= 2: return "🟡 Fair"
+        return "🔴 Expensive"
+    if kind == "rsi":
+        if value < 30: return "🟡 Oversold"
+        if value < 50: return "🟡 Weak / recovering"
+        if value <= 70: return "🟢 Healthy"
+        return "🔴 Overbought"
+    if kind == "volume":
+        if value < 0.75: return "🔴 Light"
+        if value < 1.25: return "🟡 Normal"
+        if value < 2: return "🟢 Above average"
+        return "🟢 Strong"
+    if kind == "atr":
+        if value < 2: return "🟢 Low volatility"
+        if value <= 5: return "🟢 Tradable"
+        if value <= 8: return "🟡 Elevated"
+        return "🔴 High risk"
+    if kind == "upside":
+        if value < 0: return "🔴 Downside"
+        if value < 10: return "🟡 Limited"
+        if value < 25: return "🟢 Moderate"
+        if value < 50: return "🟢 Strong"
+        return "🟡 Very high / higher uncertainty"
+    return "N/A"
+
+
+def metric_card(title, value, label, meaning, ranges, take):
+    st.markdown(f"**{title}: {value} — {label}**")
+    st.caption(f"**What it means:** {meaning}")
+    st.caption(f"**Good/bad range:** {ranges}")
+    st.caption(f"**AI take:** {take}")
+    st.write("")
+
+
+def render_metric_education(row):
+    raw = row.get("Raw", {})
+    raw = raw if isinstance(raw, dict) else {}
+
+    st.markdown("### 📚 Metric Education")
+    st.caption("Plain-English definitions, good/bad ranges, and how to interpret this stock's readings.")
+
+    rev = pick(raw, "revenue_growth", "Revenue Growth", default=None)
+    rev = safe_number(rev, None)
+    if rev is not None:
+        if abs(rev) <= 2:
+            rev = rev * 100
+        metric_card(
+            "Revenue growth",
+            f"{rev:.1f}%",
+            metric_label("revenue", rev),
+            "How fast the company's sales are growing.",
+            "<0% declining · 0-10% slow · 10-20% healthy · 20-40% strong · 40%+ exceptional",
+            "Strong revenue growth supports the long-term thesis if profitability and cash flow are not weakening."
+        )
+
+    earn = pick(raw, "earnings_growth", "Earnings Growth", default=None)
+    earn = safe_number(earn, None)
+    if earn is not None:
+        if abs(earn) <= 2:
+            earn = earn * 100
+        metric_card(
+            "Earnings growth",
+            f"{earn:.1f}%",
+            metric_label("earnings", earn),
+            "How fast profits are growing.",
+            "Negative = concern · 0-10% stable · 10-20% good · 20%+ strong",
+            "Positive earnings growth confirms the business is converting sales into profit."
+        )
+
+    pe = safe_number(pick(raw, "forward_pe", "Forward PE", default=None), None)
+    if pe is not None and pe > 0:
+        metric_card(
+            "Forward PE",
+            f"{pe:.1f}",
+            metric_label("pe", pe),
+            "How much investors pay today for $1 of expected earnings next year.",
+            "<15 cheap · 15-25 reasonable · 25-40 expensive · 40+ very expensive",
+            "Lower is generally better, but high-growth companies can justify higher PE ratios."
+        )
+
+    peg = safe_number(pick(raw, "peg_ratio", "PEG Ratio", default=None), None)
+    if peg is not None and peg > 0:
+        metric_card(
+            "PEG ratio",
+            f"{peg:.2f}",
+            metric_label("peg", peg),
+            "PEG compares valuation to growth.",
+            "<1 undervalued · 1-2 fair · 2+ expensive",
+            "A PEG below 1 can suggest the stock is inexpensive relative to its growth."
+        )
+
+    rsi = safe_number(row.get("RSI"), None)
+    if rsi is not None and rsi > 0:
+        metric_card(
+            "RSI",
+            f"{rsi:.1f}",
+            metric_label("rsi", rsi),
+            "RSI measures price momentum on a 0-100 scale.",
+            "<30 oversold · 30-50 weak/recovering · 50-70 healthy · 70+ overbought",
+            "Healthy RSI suggests positive momentum without excessive overheating."
+        )
+
+    vol = safe_number(row.get("Volume Ratio"), None)
+    if vol is not None and vol > 0:
+        metric_card(
+            "Volume ratio",
+            f"{vol:.2f}x",
+            metric_label("volume", vol),
+            "Compares current/recent volume to average volume.",
+            "<0.75 light · 0.75-1.25 normal · 1.25-2 above average · 2+ strong",
+            "Above-average volume suggests broader participation behind the move."
+        )
+
+    atr = safe_number(row.get("ATR %"), None)
+    if atr is not None and atr > 0:
+        metric_card(
+            "ATR %",
+            f"{atr:.1f}%",
+            metric_label("atr", atr),
+            "ATR estimates normal price volatility.",
+            "<2% low · 2-5% tradable · 5-8% elevated · 8%+ high risk",
+            "Higher ATR means bigger swings, so position sizing should be smaller."
+        )
+
+    upside = safe_number(row.get("Target Upside %"), None)
+    if upside is not None:
+        metric_card(
+            "Target upside",
+            fmt_pct(upside),
+            metric_label("upside", upside),
+            "Potential upside from current price to AI fair value.",
+            "<10% limited · 10-25% moderate · 25-50% strong · 50%+ high upside but higher uncertainty",
+            "Very high upside is attractive but should be confirmed by fundamentals, analysts, and risk signals."
+        )
+
+    st.markdown("### 🧮 AI vs Analyst Target")
+    price = safe_number(row.get("Price"), 0)
+    analyst = safe_number(row.get("Analyst Target"), 0)
+    ai_value = safe_number(row.get("AI Fair Value"), 0)
+    st.markdown(f"**Current Price:** {fmt_money(price)}")
+    st.markdown(f"**Analyst Target:** {fmt_money(analyst) if analyst else 'N/A'}")
+    st.markdown(f"**AI Fair Value:** {fmt_money(ai_value) if ai_value else 'N/A'}")
+    if analyst and ai_value:
+        gap = ((ai_value - analyst) / analyst) * 100
+        st.markdown(f"**AI vs Analyst Gap:** {gap:.1f}%")
+        if gap > 60:
+            st.warning("AI is much more optimistic than Wall Street. Treat this as higher upside but higher uncertainty.")
+        elif gap > 20:
+            st.info("AI is more optimistic than analysts, likely due to growth, valuation, or trend factors.")
+        elif gap < -20:
+            st.warning("AI is more conservative than analysts, likely due to technical or risk concerns.")
+        else:
+            st.success("AI fair value broadly agrees with analyst expectations.")
+
+
+def educational_bottom_line(row):
+    score = safe_number(row.get("Final Conviction"), 0)
+    upside = safe_number(row.get("Target Upside %"), 0)
+    support = safe_text(row.get("Analyst Support"), "N/A")
+    news = safe_text(row.get("News Sentiment"), "N/A")
+
+    positives = []
+    cautions = []
+    if score >= 90:
+        positives.append("high AI conviction")
+    if upside >= 25:
+        positives.append("strong upside to AI fair value")
+    elif upside < 10:
+        cautions.append("limited upside")
+    if "Bullish" in support or "Constructive" in support:
+        positives.append("supportive analyst view")
+    if "Positive" in news:
+        positives.append("positive news flow")
+    if "Negative" in news:
+        cautions.append("negative news flow")
+    if not positives:
+        positives.append("some supportive signals")
+    if not cautions:
+        cautions.append("normal market and execution risk")
+    return f"Bottom line: This setup is supported by {', '.join(positives)}. Watch for {', '.join(cautions)}."
 
 
 def tooltip_md():
@@ -532,6 +739,7 @@ def render_status_banner():
 
     st.title("📈 AI Trading Dashboard")
     st.caption(APP_VERSION)
+    st.caption("Includes plain-English metric definitions, good/bad ranges, and AI interpretations inside each research card.")
 
     c1, c2, c3, c4, c5 = st.columns(5)
 
@@ -733,6 +941,11 @@ def render_detail(row):
     c7.metric("Bear Case", fmt_money(row.get("AI Bear Case")))
     c8.metric("Stop Loss", fmt_money(row.get("Stop Loss")))
     c9.metric("Risk/Reward", safe_text(row.get("Risk/Reward"), "N/A"))
+
+    st.info(educational_bottom_line(row))
+
+    with st.expander("📚 Explain these metrics: meanings, good ranges, bad ranges", expanded=False):
+        render_metric_education(row)
 
     st.markdown("---")
 
