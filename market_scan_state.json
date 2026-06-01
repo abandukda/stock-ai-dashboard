@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-06-01T19:39:50.809022+00:00",
+  "generated_at": "2026-06-01T22:52:09.389765+00:00",
   "status": "success",
-  "version": "V41.8.4",
-  "universe_count": 2124,
+  "version": "V41.8.6",
+  "universe_count": 2136,
   "prescreen_count": 650,
   "full_scan_count": 150,
   "recovery_count": 100,
@@ -10,7 +10,7 @@
   "fallback_rows_allowed": false,
   "data_dir": ".",
   "github_persisted": false,
-  "duration_seconds": 570.82,
+  "duration_seconds": 1311.17,
   "filters": {
     "min_price": 2.0,
     "max_price": 1000.0,
@@ -19,8 +19,8 @@
   },
   "api_keys_detected": {
     "fmp": false,
-    "finnhub": false,
-    "newsapi": false
+    "finnhub": true,
+    "newsapi": true
   },
   "v40_3_changes": {
     "finnhub_analyst_intelligence": true,
@@ -99,6 +99,14 @@
   "v41_8_4_changes": {
     "chart_inserted_inside_render_detail": true,
     "chart_above_quick_metric_guide": true
+  },
+  "v41_8_5_changes": {
+    "fmp_chart_fallback": true,
+    "yahoo_then_fmp_history": true
+  },
+  "v41_8_6_changes": {
+    "unique_chart_widget_keys": true,
+    "duplicate_chart_key_fix": true
   },
   "v41_changes": {
     "hard_exclusions": true,
