@@ -1,16 +1,16 @@
 {
-  "generated_at": "2026-06-01T12:39:26.932407+00:00",
+  "generated_at": "2026-06-01T13:42:17.482530+00:00",
   "status": "success",
-  "version": "V41.6",
-  "universe_count": 1906,
+  "version": "V41.7",
+  "universe_count": 1943,
   "prescreen_count": 650,
   "full_scan_count": 150,
   "recovery_count": 100,
-  "etf_count": 32,
+  "etf_count": 31,
   "fallback_rows_allowed": false,
   "data_dir": ".",
   "github_persisted": false,
-  "duration_seconds": 545.97,
+  "duration_seconds": 618.19,
   "filters": {
     "min_price": 2.0,
     "max_price": 1000.0,
@@ -68,6 +68,17 @@
     "range_52w_position": true,
     "drawdown_analysis": true,
     "multi_period_return_fields": true
+  },
+  "v41_6_1_changes": {
+    "true_52w_scan_history": true,
+    "interactive_5y_chart_supported_by_dashboard": true,
+    "visible_52w_table_columns": true
+  },
+  "v41_7_changes": {
+    "analyst_support_fallbacks": true,
+    "news_sentiment_fallbacks": true,
+    "thesis_strength_differentiated": true,
+    "research_field_quality_assurance": true
   },
   "v41_changes": {
     "hard_exclusions": true,
