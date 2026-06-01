@@ -4,11 +4,12 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+import requests
 import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V41.8.4 Chart Above Quick Guide Dashboard"
+APP_VERSION = "V41.8.6 Unique Chart Keys Dashboard"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -17,6 +18,7 @@ st.set_page_config(
 )
 
 DATA_DIR = Path(os.getenv("DATA_DIR", "."))
+FMP_API_KEY = os.getenv("FMP_API_KEY", "").strip()
 
 FULL_SCAN_FILE = DATA_DIR / "market_full_scan.json"
 PRESCREEN_FILE = DATA_DIR / "market_prescreen.json"
@@ -1050,7 +1052,7 @@ def render_interactive_price_chart_fixed(row):
         "Chart range",
         ["6mo", "1y", "3y", "5y"],
         index=3,
-        key=f"chart_range_{ticker}",
+        key=chart_instance_key(row, "detail_chart_range"),
     )
 
     hist = fetch_chart_history(ticker, period=period)
@@ -1164,7 +1166,7 @@ def render_interactive_price_chart_fixed(row):
             "Chart range",
             ["6mo", "1y", "3y", "5y"],
             index=3,
-            key=f"chart_range_fixed_{ticker}",
+            key=chart_instance_key(row, "detail_chart_range"),
         )
 
         hist = fetch_chart_history_fixed(ticker, period=period)
@@ -1267,13 +1269,13 @@ def render_force_chart_section(row):
             "Chart range",
             ["6mo", "1y", "3y", "5y"],
             index=3,
-            key=f"force_chart_range_{ticker}",
+            key=chart_instance_key(row, "detail_chart_range"),
         )
 
         hist = fetch_chart_history_force_chart(ticker, period)
         if hist.empty:
             st.warning("Chart data unavailable. Make sure `yfinance` and `plotly` are in requirements.txt, then redeploy.")
-            st.code("yfinance\nplotly")
+            st.code("yfinance\nplotly\nrequests")
             return
 
         close = hist["Close"].dropna()
@@ -1370,6 +1372,13 @@ def render_legacy_agent_details_force(row):
         st.markdown("• Use ⚡ Run Live AI or run the latest cron scan to populate deeper financial details.")
 
 
+def chart_instance_key(row, prefix="chart"):
+    ticker = safe_text(row.get("Ticker"), "UNKNOWN").upper()
+    source = safe_text(row.get("Table Key"), "") or safe_text(row.get("Live Research"), "") or safe_text(row.get("Company"), "")
+    raw = f"{ticker}_{source}_{safe_text(row.get('Price'), '')}_{safe_text(row.get('AI Fair Value'), '')}"
+    return f"{prefix}_{ticker}_{abs(hash(raw)) % 1000000}"
+
+
 @st.cache_data(ttl=900)
 def fetch_detail_chart_history_v4184(ticker, period="5y"):
     ticker = safe_text(ticker, "").upper().strip()
@@ -1405,13 +1414,13 @@ def render_detail_chart_v4184(row):
             "Chart range",
             ["6mo", "1y", "3y", "5y"],
             index=3,
-            key=f"detail_chart_v4184_{ticker}",
+            key=chart_instance_key(row, "detail_chart_range"),
         )
 
         hist = fetch_detail_chart_history_v4184(ticker, period)
         if hist.empty:
-            st.warning("Chart data unavailable. Confirm `yfinance` and `plotly` are in requirements.txt, then redeploy.")
-            st.code("yfinance\nplotly")
+            st.warning("Chart data unavailable from both Yahoo and FMP. Confirm `yfinance`, `plotly`, and `requests` are in requirements.txt and FMP_API_KEY is set in Render.")
+            st.code("yfinance\nplotly\nrequests")
             return
 
         close = hist["Close"].dropna()
@@ -1494,6 +1503,104 @@ def render_legacy_agent_details_v4184(row):
 
         st.markdown("#### 🏢 Finance Agent")
         st.markdown("• Finance Agent details require V41.5+ row data or live AI research.")
+
+
+def fetch_fmp_chart_history_v4185(ticker, period="5y"):
+    """
+    FMP fallback for chart data when yfinance is unavailable or rate-limited.
+    Uses /api/v3/historical-price-full/{ticker}.
+    """
+    ticker = safe_text(ticker, "").upper().strip()
+    if not ticker or not FMP_API_KEY:
+        return pd.DataFrame()
+
+    try:
+        import datetime as _dt
+        end = _dt.date.today()
+        years = 5
+        if period == "6mo":
+            start = end - _dt.timedelta(days=190)
+        elif period == "1y":
+            start = end - _dt.timedelta(days=370)
+        elif period == "3y":
+            start = end - _dt.timedelta(days=365 * 3 + 10)
+        else:
+            start = end - _dt.timedelta(days=365 * years + 20)
+
+        url = f"https://financialmodelingprep.com/api/v3/historical-price-full/{ticker}"
+        params = {
+            "from": start.isoformat(),
+            "to": end.isoformat(),
+            "apikey": FMP_API_KEY,
+        }
+        resp = requests.get(url, params=params, timeout=15)
+        if resp.status_code != 200:
+            return pd.DataFrame()
+
+        data = resp.json()
+        historical = data.get("historical", [])
+        if not historical:
+            return pd.DataFrame()
+
+        df = pd.DataFrame(historical)
+        if df.empty or "date" not in df or "close" not in df:
+            return pd.DataFrame()
+
+        df["Date"] = pd.to_datetime(df["date"])
+        df = df.sort_values("Date").set_index("Date")
+
+        rename = {
+            "open": "Open",
+            "high": "High",
+            "low": "Low",
+            "close": "Close",
+            "volume": "Volume",
+        }
+        df = df.rename(columns=rename)
+        for col in ["Open", "High", "Low", "Close", "Volume"]:
+            if col not in df.columns:
+                if col == "Volume":
+                    df[col] = 0
+                else:
+                    df[col] = df["Close"]
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        df = df.dropna(subset=["Close"]).copy()
+        if df.empty:
+            return pd.DataFrame()
+
+        df["SMA20"] = df["Close"].rolling(20).mean()
+        df["SMA50"] = df["Close"].rolling(50).mean()
+        df["SMA200"] = df["Close"].rolling(200).mean()
+        return df
+    except Exception:
+        return pd.DataFrame()
+
+
+# Override the V41.8.4 chart fetcher with a Yahoo -> FMP fallback.
+@st.cache_data(ttl=900)
+def fetch_detail_chart_history_v4184(ticker, period="5y"):
+    ticker = safe_text(ticker, "").upper().strip()
+    if not ticker:
+        return pd.DataFrame()
+
+    # 1) Try Yahoo/yfinance first.
+    try:
+        df = yf.download(ticker, period=period, interval="1d", auto_adjust=True, progress=False, threads=False)
+        if df is not None and not df.empty:
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = [c[0] if isinstance(c, tuple) else c for c in df.columns]
+            df = df.dropna(subset=["Close"]).copy()
+            if not df.empty:
+                df["SMA20"] = df["Close"].rolling(20).mean()
+                df["SMA50"] = df["Close"].rolling(50).mean()
+                df["SMA200"] = df["Close"].rolling(200).mean()
+                return df
+    except Exception:
+        pass
+
+    # 2) Fallback to FMP historical prices.
+    return fetch_fmp_chart_history_v4185(ticker, period)
 
 
 # =========================

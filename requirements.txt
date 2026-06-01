@@ -6,5 +6,5 @@ pandas
 numpy
 plotly
 matplotlib
-streamlit-autorefresh
 alpaca-py
+requests
