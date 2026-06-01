@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-06-01T13:42:17.482530+00:00",
+  "generated_at": "2026-06-01T15:42:17.765018+00:00",
   "status": "success",
-  "version": "V41.7",
-  "universe_count": 1943,
+  "version": "V41.8.2",
+  "universe_count": 2051,
   "prescreen_count": 650,
   "full_scan_count": 150,
   "recovery_count": 100,
@@ -10,7 +10,7 @@
   "fallback_rows_allowed": false,
   "data_dir": ".",
   "github_persisted": false,
-  "duration_seconds": 618.19,
+  "duration_seconds": 564.52,
   "filters": {
     "min_price": 2.0,
     "max_price": 1000.0,
@@ -79,6 +79,18 @@
     "news_sentiment_fallbacks": true,
     "thesis_strength_differentiated": true,
     "research_field_quality_assurance": true
+  },
+  "v41_8_changes": {
+    "live_any_ticker_research_app_side": true,
+    "no_wait_research_cards": true
+  },
+  "v41_8_1_changes": {
+    "fixed_interactive_detail_charts": true,
+    "chart_dependency_warning": true
+  },
+  "v41_8_2_changes": {
+    "rate_limit_safe_live_research": true,
+    "price_history_fallback_cards": true
   },
   "v41_changes": {
     "hard_exclusions": true,
