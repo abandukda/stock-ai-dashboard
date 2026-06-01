@@ -8,7 +8,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V41.7 Research Field QA Dashboard"
+APP_VERSION = "V41.8.1 Fixed Interactive Charts Dashboard"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -1038,7 +1038,7 @@ def fetch_chart_history(ticker, period="5y"):
         return pd.DataFrame()
 
 
-def render_interactive_price_chart(row):
+def render_interactive_price_chart_fixed(row):
     ticker = safe_text(row.get("Ticker"), "").upper()
     if not ticker:
         return
@@ -1118,6 +1118,120 @@ def render_interactive_price_chart(row):
             st.info("Chart interpretation: The stock is in the middle of its 52-week range. Confirmation from trend, analysts, and financial execution matters.")
 
 
+@st.cache_data(ttl=900)
+def fetch_chart_history_fixed(ticker, period="5y"):
+    ticker = safe_text(ticker, "").upper().strip()
+    if not ticker:
+        return pd.DataFrame()
+    try:
+        df = yf.download(
+            ticker,
+            period=period,
+            interval="1d",
+            auto_adjust=True,
+            progress=False,
+            threads=False,
+        )
+        if df is None or df.empty:
+            return pd.DataFrame()
+
+        # yfinance can return multi-index columns sometimes.
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = [c[0] if isinstance(c, tuple) else c for c in df.columns]
+
+        df = df.dropna(subset=["Close"]).copy()
+        if df.empty:
+            return pd.DataFrame()
+
+        df["SMA20"] = df["Close"].rolling(20).mean()
+        df["SMA50"] = df["Close"].rolling(50).mean()
+        df["SMA200"] = df["Close"].rolling(200).mean()
+        return df
+    except Exception:
+        return pd.DataFrame()
+
+
+def render_interactive_price_chart_fixed(row):
+    ticker = safe_text(row.get("Ticker"), "").upper()
+    if not ticker:
+        return
+
+    with st.container(border=True):
+        st.markdown("### 📊 Interactive Price Chart")
+        st.caption("Price trend with 20/50/200-day averages, 52-week high/low, analyst target, and AI fair value.")
+
+        period = st.selectbox(
+            "Chart range",
+            ["6mo", "1y", "3y", "5y"],
+            index=3,
+            key=f"chart_range_fixed_{ticker}",
+        )
+
+        hist = fetch_chart_history_fixed(ticker, period=period)
+        if hist.empty:
+            st.warning("Chart data unavailable. Check that yfinance is installed in requirements.txt and that the ticker is valid.")
+            st.code("Add to requirements.txt if missing: yfinance, plotly")
+            return
+
+        close = hist["Close"].dropna()
+        if close.empty:
+            st.warning("No close-price history returned for this ticker.")
+            return
+
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=hist.index, y=hist["Close"], mode="lines", name="Price"))
+
+        if "SMA20" in hist.columns and hist["SMA20"].notna().any():
+            fig.add_trace(go.Scatter(x=hist.index, y=hist["SMA20"], mode="lines", name="SMA 20"))
+        if "SMA50" in hist.columns and hist["SMA50"].notna().any():
+            fig.add_trace(go.Scatter(x=hist.index, y=hist["SMA50"], mode="lines", name="SMA 50"))
+        if "SMA200" in hist.columns and hist["SMA200"].notna().any():
+            fig.add_trace(go.Scatter(x=hist.index, y=hist["SMA200"], mode="lines", name="SMA 200"))
+
+        high = hist["High"].dropna() if "High" in hist.columns else close
+        low = hist["Low"].dropna() if "Low" in hist.columns else close
+
+        high_52 = float(high.tail(min(252, len(high))).max()) if not high.empty else None
+        low_52 = float(low.tail(min(252, len(low))).min()) if not low.empty else None
+        current = float(close.iloc[-1])
+
+        analyst_target = safe_number(row.get("Analyst Target"), 0)
+        ai_target = safe_number(row.get("AI Fair Value"), 0)
+
+        if high_52:
+            fig.add_hline(y=high_52, line_dash="dash", annotation_text="52W High", annotation_position="top left")
+        if low_52:
+            fig.add_hline(y=low_52, line_dash="dash", annotation_text="52W Low", annotation_position="bottom left")
+        if analyst_target:
+            fig.add_hline(y=analyst_target, line_dash="dot", annotation_text="Analyst Target", annotation_position="top right")
+        if ai_target:
+            fig.add_hline(y=ai_target, line_dash="dot", annotation_text="AI Fair Value", annotation_position="top right")
+
+        fig.update_layout(
+            height=520,
+            margin=dict(l=20, r=20, t=35, b=20),
+            hovermode="x unified",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+            xaxis_title="Date",
+            yaxis_title="Price",
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        if high_52 and low_52 and high_52 > low_52:
+            range_pos = ((current - low_52) / (high_52 - low_52)) * 100
+            from_low = ((current - low_52) / low_52) * 100 if low_52 else 0
+            from_high = ((current - high_52) / high_52) * 100 if high_52 else 0
+
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Current Price", fmt_money(current))
+            c2.metric("True 52W Low", fmt_money(low_52))
+            c3.metric("True 52W High", fmt_money(high_52))
+            c4.metric("52W Range Position", f"{range_pos:.1f}%")
+
+            st.progress(min(max(range_pos / 100, 0), 1))
+            st.caption(f"From 52W low: {from_low:.1f}% · From 52W high: {from_high:.1f}%")
+
+
 # =========================
 # UI
 # =========================
@@ -1127,7 +1241,7 @@ def render_status_banner():
 
     st.title("📈 AI Trading Dashboard")
     st.caption(APP_VERSION)
-    st.caption("Includes visible 52-week table fields, true 52-week detail metrics, and an on-demand interactive chart inside each research card.")
+    st.caption("Includes live any-ticker research, visible 52-week fields, and interactive charts inside each research card.")
 
     c1, c2, c3, c4, c5 = st.columns(5)
 
@@ -1554,20 +1668,282 @@ def find_ticker_row(ticker, *dfs):
     return None
 
 
+def _safe_float_live(value, default=None):
+    try:
+        if value is None:
+            return default
+        return float(value)
+    except Exception:
+        return default
+
+
+@st.cache_data(ttl=900)
+def build_live_research_row(ticker):
+    ticker = safe_text(ticker, "").upper().strip()
+    if not ticker:
+        return None
+
+    try:
+        tk = yf.Ticker(ticker)
+        info = tk.info or {}
+        hist = yf.download(ticker, period="5y", interval="1d", auto_adjust=True, progress=False, threads=False)
+        if hist is None or hist.empty:
+            return None
+
+        hist = hist.dropna(subset=["Close"]).copy()
+        if hist.empty:
+            return None
+
+        close = hist["Close"].astype(float)
+        high = hist["High"].astype(float) if "High" in hist else close
+        low = hist["Low"].astype(float) if "Low" in hist else close
+        volume = hist["Volume"].astype(float) if "Volume" in hist else pd.Series(index=hist.index, data=0)
+
+        price = float(close.iloc[-1])
+        sma20 = float(close.rolling(20).mean().iloc[-1]) if len(close) >= 20 else price
+        sma50 = float(close.rolling(50).mean().iloc[-1]) if len(close) >= 50 else price
+        sma200 = float(close.rolling(200).mean().iloc[-1]) if len(close) >= 200 else price
+
+        delta = close.diff()
+        gain = delta.where(delta > 0, 0).rolling(14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+        rs = gain / loss.replace(0, pd.NA)
+        rsi_series = 100 - (100 / (1 + rs))
+        rsi = float(rsi_series.iloc[-1]) if rsi_series.notna().any() else 50.0
+
+        avg_vol_20 = float(volume.tail(20).mean()) if len(volume) >= 20 else float(volume.mean())
+        latest_vol = float(volume.iloc[-1]) if len(volume) else 0
+        volume_ratio = latest_vol / avg_vol_20 if avg_vol_20 else 1
+
+        tr = (high - low).abs()
+        atr = float(tr.rolling(14).mean().iloc[-1]) if len(tr) >= 14 else float(tr.mean())
+        atr_pct = (atr / price) * 100 if price else 0
+
+        high_52 = float(high.tail(min(252, len(high))).max())
+        low_52 = float(low.tail(min(252, len(low))).min())
+        range_pos = ((price - low_52) / (high_52 - low_52)) * 100 if high_52 > low_52 else 0
+        dist_high = ((price - high_52) / high_52) * 100 if high_52 else 0
+        dist_low = ((price - low_52) / low_52) * 100 if low_52 else 0
+
+        def ret(days):
+            if len(close) > days:
+                base = float(close.iloc[-days-1])
+                return ((price - base) / base) * 100 if base else 0
+            return 0
+
+        analyst_target = _safe_float_live(info.get("targetMeanPrice"), 0) or 0
+        analyst_count = int(_safe_float_live(info.get("numberOfAnalystOpinions"), 0) or 0)
+        recommendation = safe_text(info.get("recommendationKey"), "").replace("_", " ").title()
+
+        revenue_growth = _safe_float_live(info.get("revenueGrowth"), None)
+        earnings_growth = _safe_float_live(info.get("earningsGrowth"), None)
+        forward_pe = _safe_float_live(info.get("forwardPE"), None)
+        peg_ratio = _safe_float_live(info.get("pegRatio"), None)
+        debt_to_equity = _safe_float_live(info.get("debtToEquity"), None)
+        current_ratio = _safe_float_live(info.get("currentRatio"), None)
+        gross_margin = _safe_float_live(info.get("grossMargins"), None)
+        op_margin = _safe_float_live(info.get("operatingMargins"), None)
+        profit_margin = _safe_float_live(info.get("profitMargins"), None)
+        free_cash_flow = _safe_float_live(info.get("freeCashflow"), 0) or 0
+        operating_cash_flow = _safe_float_live(info.get("operatingCashflow"), 0) or 0
+        latest_eps = _safe_float_live(info.get("trailingEps"), 0) or 0
+
+        ai_fair = analyst_target if analyst_target > 0 else price * (1.10 if price > sma50 else 1.04)
+        if revenue_growth is not None and revenue_growth >= 0.15:
+            ai_fair *= 1.08
+        if earnings_growth is not None and earnings_growth >= 0.15:
+            ai_fair *= 1.05
+        if atr_pct > 8:
+            ai_fair *= 0.96
+
+        upside = ((ai_fair - price) / price) * 100 if price else 0
+
+        technical_score = 50
+        if price > sma20: technical_score += 10
+        if price > sma50: technical_score += 12
+        if price > sma200: technical_score += 10
+        if 45 <= rsi <= 70: technical_score += 8
+        elif rsi > 75: technical_score -= 5
+        if volume_ratio >= 1.2: technical_score += 5
+        if atr_pct > 8: technical_score -= 6
+        technical_score = int(min(max(technical_score, 20), 95))
+
+        finance_score = 50
+        finance_findings = []
+        finance_risks = []
+
+        if revenue_growth is not None:
+            if revenue_growth >= 0.15:
+                finance_score += 12
+                finance_findings.append(f"Revenue growth is strong at {revenue_growth*100:.1f}%")
+            elif revenue_growth >= 0.05:
+                finance_score += 6
+                finance_findings.append(f"Revenue growth is positive at {revenue_growth*100:.1f}%")
+            else:
+                finance_risks.append(f"Revenue growth is weak at {revenue_growth*100:.1f}%")
+
+        if earnings_growth is not None:
+            if earnings_growth >= 0.15:
+                finance_score += 10
+                finance_findings.append(f"Earnings growth is strong at {earnings_growth*100:.1f}%")
+            elif earnings_growth >= 0:
+                finance_score += 4
+                finance_findings.append(f"Earnings growth is positive at {earnings_growth*100:.1f}%")
+            else:
+                finance_score -= 8
+                finance_risks.append("Earnings growth is negative")
+
+        if debt_to_equity is not None:
+            de = debt_to_equity / 100 if debt_to_equity > 10 else debt_to_equity
+            if de < 0.5:
+                finance_score += 6
+                finance_findings.append(f"Debt-to-equity is low at {de:.2f}")
+            elif de <= 1.5:
+                finance_score += 2
+                finance_findings.append(f"Debt-to-equity is manageable at {de:.2f}")
+            else:
+                finance_score -= 6
+                finance_risks.append(f"Debt-to-equity is elevated at {de:.2f}")
+            debt_to_equity = de
+
+        if current_ratio is not None:
+            if current_ratio >= 1.5:
+                finance_score += 4
+                finance_findings.append(f"Current ratio is healthy at {current_ratio:.2f}")
+            elif current_ratio < 1:
+                finance_score -= 4
+                finance_risks.append(f"Current ratio is below 1.0 at {current_ratio:.2f}")
+
+        if free_cash_flow > 0:
+            finance_score += 6
+            finance_findings.append("Free cash flow is positive")
+        elif free_cash_flow < 0:
+            finance_score -= 5
+            finance_risks.append("Free cash flow is negative")
+
+        finance_score = int(min(max(finance_score, 15), 98))
+
+        analyst_support = 50
+        if analyst_target:
+            analyst_support += min(max(upside, -20), 50) * 0.45
+        if analyst_count >= 20:
+            analyst_support += 8
+        elif analyst_count >= 5:
+            analyst_support += 5
+        if recommendation in {"Buy", "Strong Buy"}:
+            analyst_support += 10
+        elif recommendation in {"Sell", "Underperform"}:
+            analyst_support -= 15
+        analyst_support = int(min(max(analyst_support, 0), 100))
+
+        upside_score = 90 if upside >= 40 else 82 if upside >= 25 else 68 if upside >= 10 else 55 if upside >= 0 else 35
+        conviction = int(round((technical_score * 0.35) + (finance_score * 0.30) + (upside_score * 0.20) + (analyst_support * 0.15)))
+        conviction = int(min(max(conviction, 20), 97))
+
+        thesis_strength = "Exceptional Thesis" if conviction >= 90 and finance_score >= 80 else "Strong Thesis" if conviction >= 80 else "Moderate Thesis" if conviction >= 65 else "Developing Thesis"
+        evidence_confidence = "High" if analyst_count >= 10 and finance_score >= 75 else "Medium-High" if analyst_count >= 5 else "Medium"
+
+        entry_low = price * 0.97
+        entry_high = price * 1.01
+        stop_loss = price * (1 - max(0.06, min(0.14, atr_pct / 100 * 2)))
+        bull_case = ai_fair * 1.15
+
+        finance_findings = finance_findings or ["Live finance data is limited; review latest company filings before acting"]
+        finance_risks = finance_risks or ["No major live financial red flag detected from available Yahoo data"]
+
+        raw = {
+            "revenue_growth": revenue_growth,
+            "earnings_growth": earnings_growth,
+            "forward_pe": forward_pe,
+            "peg_ratio": peg_ratio,
+            "latest_eps": latest_eps,
+            "debt_to_equity": debt_to_equity,
+            "current_ratio": current_ratio,
+            "gross_profit_margin": gross_margin,
+            "operating_profit_margin": op_margin,
+            "net_profit_margin": profit_margin,
+            "free_cash_flow": free_cash_flow,
+            "operating_cash_flow": operating_cash_flow,
+            "source_live_research": True,
+        }
+
+        committee = {
+            "Technical Agent": {
+                "score": technical_score, "status": "Positive" if technical_score >= 75 else "Mixed", "impact": "Positive" if technical_score >= 75 else "Neutral",
+                "data_used": "Live Yahoo price history, SMA20/50/200, RSI, volume, ATR",
+                "summary": "Live technical check from on-demand history.",
+                "findings": [f"Price vs SMA20: {'above' if price > sma20 else 'below'}", f"Price vs SMA50: {'above' if price > sma50 else 'below'}", f"Price vs SMA200: {'above' if price > sma200 else 'below'}", f"RSI is {rsi:.1f}", f"Volume ratio is {volume_ratio:.2f}x"],
+                "risks": [f"ATR volatility is {atr_pct:.1f}%"], "bottom_line": "Technical setup is constructive." if technical_score >= 75 else "Technical setup needs confirmation."
+            },
+            "Finance Agent": {
+                "score": finance_score, "status": "Positive" if finance_score >= 75 else "Mixed", "impact": "Positive" if finance_score >= 75 else "Neutral",
+                "data_used": "Live Yahoo fundamentals, margins, debt, liquidity, cash flow",
+                "summary": "Live financial execution check.",
+                "findings": finance_findings, "risks": finance_risks,
+                "bottom_line": "Financial profile supports the thesis." if finance_score >= 75 else "Financial profile is mixed or limited."
+            },
+            "Analyst Agent": {
+                "score": analyst_support, "status": "Positive" if analyst_support >= 60 else "Mixed", "impact": "Positive" if analyst_support >= 60 else "Neutral",
+                "data_used": "Yahoo analyst target, analyst count, recommendation key",
+                "summary": "Live analyst support check.",
+                "findings": [f"Analyst target: {fmt_money(analyst_target) if analyst_target else 'N/A'}", f"Analyst count: {analyst_count}", f"Recommendation: {recommendation or 'N/A'}"],
+                "risks": ["Analyst data may lag real-time revisions."],
+                "bottom_line": "Analyst data supports the thesis." if analyst_support >= 60 else "Analyst data is mixed or limited."
+            },
+        }
+
+        return {
+            "Ticker": ticker, "Company": safe_text(info.get("longName") or info.get("shortName"), ticker),
+            "Sector": safe_text(info.get("sector"), "N/A"), "Industry": safe_text(info.get("industry"), "N/A"),
+            "Price": round(price, 2), "Final Conviction": conviction,
+            "Setup Rating": "🟢 Elite Setup" if conviction >= 90 else "🟡 Strong Setup" if conviction >= 80 else "🔵 Watchlist",
+            "AI Fair Value": round(ai_fair, 2), "Target Upside %": round(upside, 1),
+            "Analyst Target": round(analyst_target, 2) if analyst_target else 0, "Analyst Count": analyst_count,
+            "Analyst Support": analyst_support_label(analyst_support), "Analyst Support Source": "Live Yahoo analyst fallback",
+            "News Sentiment": "⚪ Neutral", "News Sentiment Source": "Live on-demand mode defaults news to neutral unless scan data exists",
+            "Entry Range": f"${entry_low:.2f} - ${entry_high:.2f}", "Stop Loss": round(stop_loss, 2), "Risk/Reward": "Live",
+            "AI Bull Case": round(bull_case, 2), "AI Bear Case": round(stop_loss, 2),
+            "52W High": round(high_52, 2), "52W Low": round(low_52, 2), "Range Position %": round(range_pos, 1),
+            "Distance From 52W High %": round(dist_high, 1), "Distance From 52W Low %": round(dist_low, 1),
+            "Drawdown From High %": round(dist_high, 1), "Range Position Label": "Near 52-week highs" if range_pos >= 75 else "Lower range" if range_pos <= 35 else "Middle range",
+            "Drawdown Label": "Moderate drawdown" if dist_high <= -10 else "Shallow drawdown",
+            "Return 1M %": round(ret(21), 1), "Return 3M %": round(ret(63), 1), "Return 6M %": round(ret(126), 1),
+            "Return 1Y %": round(ret(252), 1), "Return 3Y %": round(ret(252*3), 1), "Return 5Y %": round(ret(252*5), 1),
+            "History Days Available": len(close), "Price History Note": "Live 5-year chart and 52-week range fetched on demand.",
+            "RSI": round(rsi, 1), "ATR %": round(atr_pct, 1), "Volume Ratio": round(volume_ratio, 2), "20D %": round(ret(21), 1), "60D %": round(ret(63), 1),
+            "Finance Agent Score": finance_score, "Finance Agent Status": "Positive" if finance_score >= 75 else "Mixed",
+            "Finance Agent Bottom Line": "Financial profile supports the thesis." if finance_score >= 75 else "Financial profile is mixed or limited.",
+            "Finance Agent Findings": finance_findings, "Finance Agent Risks": finance_risks,
+            "Latest EPS": latest_eps, "Debt to Equity": debt_to_equity or 0, "Current Ratio": current_ratio or 0,
+            "Gross Margin": gross_margin or 0, "Operating Margin": op_margin or 0, "Net Margin": profit_margin or 0,
+            "Free Cash Flow": free_cash_flow or 0, "Operating Cash Flow": operating_cash_flow or 0,
+            "Thesis Strength": thesis_strength, "Evidence Confidence": evidence_confidence,
+            "Investment Thesis": f"{ticker} live research card generated on demand. The setup is {thesis_strength.lower()} with {conviction}/100 conviction.",
+            "Primary Risk": "Live on-demand research may not include all FMP/Finnhub/NewsAPI fields until the next full scan.",
+            "Guidance": f"Live AI view: conviction {conviction}/100, AI fair value {fmt_money(ai_fair)}, upside {upside:.1f}%.",
+            "Action Note": "Use this live card for immediate review; full cron scan may add deeper FMP/Finnhub/NewsAPI details later.",
+            "AI Committee": committee, "Raw": raw, "Live Research": True,
+        }
+    except Exception as exc:
+        return {"error": str(exc), "Ticker": ticker}
+
+
 def render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df=None):
     st.subheader("🔍 Research Any Ticker")
-    st.caption(
-        "Search tickers already in the latest scan. If a ticker is not found, add it to the watchlist so the next scan includes it."
-    )
+    st.caption("Search existing scan files first. If not found, run live AI research immediately without waiting for cron.")
 
-    c1, c2, c3 = st.columns([2, 1, 1])
+    c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
     with c1:
-        ticker = st.text_input("Enter ticker", placeholder="NVDA, MSFT, PLTR, ZS", key="research_any_ticker").upper().strip()
+        ticker = st.text_input("Enter ticker", placeholder="NVDA, MSFT, PLTR, ELF, ZS", key="research_any_ticker").upper().strip()
     with c2:
         st.write("")
         st.write("")
         open_card = st.button("Open Research Card", key="research_any_ticker_btn")
     with c3:
+        st.write("")
+        st.write("")
+        force_live = st.button("⚡ Run Live AI", key="force_live_research_btn")
+    with c4:
         st.write("")
         st.write("")
         add_watch = st.button("➕ Add to Watchlist", key="add_any_ticker_watchlist_btn")
@@ -1579,24 +1955,24 @@ def render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf
 
         if add_watch:
             if add_symbol_to_watchlist(ticker):
-                st.success(
-                    f"{ticker} added to watchlist. It will receive a full AI Committee card after the next scanner run."
-                )
+                st.success(f"{ticker} added to watchlist.")
 
-    if ticker and (open_card or ticker):
-        row = find_ticker_row(ticker, full_df, recovery_df, watch_df, prescreen_df, etf_df)
+    if ticker and (open_card or force_live or ticker):
+        row = None if force_live else find_ticker_row(ticker, full_df, recovery_df, watch_df, prescreen_df, etf_df)
+
         if row is not None:
             render_detail(row)
         else:
-            st.warning(
-                f"{ticker} was not found in the latest scan files. "
-                "Click ➕ Add to Watchlist, then run the next scan so the AI agents can evaluate it."
-            )
+            with st.spinner(f"Running live AI research for {ticker}..."):
+                live_row = build_live_research_row(ticker)
 
-            st.info(
-                "Why this happens: Research Any Ticker uses the latest generated scan files. "
-                "Adding a ticker to the watchlist tells the next scanner run to include it in the universe."
-            )
+            if not live_row:
+                st.error(f"Could not fetch live data for {ticker}. Please verify the ticker symbol.")
+            elif isinstance(live_row, dict) and live_row.get("error"):
+                st.error(f"Live research failed for {ticker}: {live_row.get('error')}")
+            else:
+                st.info("Live card generated now. The next full cron scan may add deeper FMP/Finnhub/NewsAPI details.")
+                render_detail(pd.Series(live_row))
 
 
 def render_chat_helper(full_df):
