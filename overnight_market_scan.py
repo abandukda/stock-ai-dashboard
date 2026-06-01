@@ -2836,7 +2836,7 @@ def enhance_ai_committee(row: Dict[str, Any], meta: Dict[str, Any], ind: Dict[st
 
 def build_price_history_intelligence(df: pd.DataFrame, ind: Dict[str, Any]) -> Dict[str, Any]:
     """
-    V41.6.1 True 52W + Chart Support.
+    V41.7 Research Field QA + Fallbacks.
     Adds 52-week low/high, current position in range, 6M/1Y/3Y/5Y returns when available.
     Uses available downloaded history, so it does not add extra API calls.
     """
@@ -2925,6 +2925,130 @@ def build_price_history_intelligence(df: pd.DataFrame, ind: Dict[str, Any]) -> D
         "return_3y_pct": round(ret_3y, 1) if ret_3y is not None else None,
         "return_5y_pct": round(ret_5y, 1) if ret_5y is not None else None,
     }
+
+
+def apply_research_field_fallbacks(row: Dict[str, Any], meta: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    V41.7 QA fix:
+    Ensure dashboard research columns are useful even when an API endpoint returns no specific field.
+    This prevents Analyst Support and News Sentiment from showing N/A when other data exists.
+    """
+    # Analyst Support fallback
+    analyst_support = safe_float(row.get("analyst_support_score"), None)
+    analyst_count = safe_float(row.get("analyst_count"), meta.get("analyst_count")) or 0
+    analyst_upside = safe_float(row.get("analyst_upside_pct"), None)
+    expected_upside = safe_float(row.get("expected_upside_pct"), None)
+    recommendation_key = safe_text(row.get("recommendation_key") or meta.get("recommendation_key"), "").lower()
+
+    if analyst_support is None:
+        derived = 50.0
+
+        if analyst_upside is not None:
+            derived += clamp(analyst_upside, -30, 60) * 0.45
+        elif expected_upside is not None:
+            derived += clamp(expected_upside, -30, 60) * 0.25
+
+        if analyst_count >= 30:
+            derived += 8
+        elif analyst_count >= 10:
+            derived += 5
+        elif analyst_count >= 3:
+            derived += 2
+        elif analyst_count == 0:
+            derived -= 10
+
+        if recommendation_key in {"buy", "strong_buy"}:
+            derived += 10
+        elif recommendation_key in {"hold", "neutral"}:
+            derived += 0
+        elif recommendation_key in {"sell", "underperform"}:
+            derived -= 18
+
+        analyst_support = round(clamp(derived, 0, 100), 1)
+        row["analyst_support_score"] = analyst_support
+        row["analyst_support_source"] = "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable"
+    else:
+        row["analyst_support_source"] = "Finnhub recommendation trend"
+
+    if analyst_support >= 70:
+        row["analyst_support_label"] = f"Bullish ({analyst_support:.0f}/100)"
+    elif analyst_support >= 45:
+        row["analyst_support_label"] = f"Constructive ({analyst_support:.0f}/100)"
+    elif analyst_support >= 25:
+        row["analyst_support_label"] = f"Mixed ({analyst_support:.0f}/100)"
+    else:
+        row["analyst_support_label"] = f"Weak ({analyst_support:.0f}/100)"
+
+    # News fallback
+    news_label = safe_text(row.get("news_sentiment_label") or meta.get("news_sentiment_label"), "")
+    news_score = safe_float(row.get("news_sentiment_score"), meta.get("news_sentiment_score"))
+
+    if not news_label or news_label.upper() == "N/A":
+        news_label = "Neutral"
+        news_score = 0 if news_score is None else news_score
+        row["news_sentiment_source"] = "No recent NewsAPI headline returned; defaulted to neutral"
+        if not row.get("top_news_headline"):
+            row["top_news_headline"] = "No recent high-confidence company headline returned by NewsAPI"
+    else:
+        row["news_sentiment_source"] = "NewsAPI headline sentiment"
+
+    row["news_sentiment_label"] = news_label
+    row["news_sentiment_score"] = 0 if news_score is None else news_score
+
+    # Differentiated thesis strength fallback
+    conviction = safe_float(row.get("conviction"), 0) or 0
+    upside = safe_float(row.get("expected_upside_pct"), 0) or 0
+    finance_score = safe_float(row.get("finance_agent_score"), None)
+
+    evidence_score = 0
+    if conviction >= 90:
+        evidence_score += 30
+    elif conviction >= 80:
+        evidence_score += 22
+    elif conviction >= 70:
+        evidence_score += 15
+
+    if upside >= 40:
+        evidence_score += 25
+    elif upside >= 20:
+        evidence_score += 18
+    elif upside >= 10:
+        evidence_score += 10
+
+    if analyst_support >= 70:
+        evidence_score += 20
+    elif analyst_support >= 45:
+        evidence_score += 12
+
+    if news_label == "Positive":
+        evidence_score += 10
+    elif news_label == "Negative":
+        evidence_score -= 10
+    elif news_label == "Neutral":
+        evidence_score += 3
+
+    if finance_score is not None:
+        if finance_score >= 85:
+            evidence_score += 15
+        elif finance_score >= 65:
+            evidence_score += 8
+        elif finance_score < 45:
+            evidence_score -= 10
+
+    if evidence_score >= 80:
+        row["thesis_strength"] = "Exceptional Thesis"
+        row["evidence_confidence"] = "High"
+    elif evidence_score >= 60:
+        row["thesis_strength"] = "Strong Thesis"
+        row["evidence_confidence"] = "Medium-High"
+    elif evidence_score >= 40:
+        row["thesis_strength"] = "Moderate Thesis"
+        row["evidence_confidence"] = "Medium"
+    else:
+        row["thesis_strength"] = "Developing Thesis"
+        row["evidence_confidence"] = "Low-Medium"
+
+    return row
 
 
 # =========================
@@ -3047,6 +3171,7 @@ def scan_market() -> Dict[str, Any]:
                     price_history = build_price_history_intelligence(hist, ind)
                     if price_history:
                         etf_row.update(price_history)
+                    etf_row = apply_research_field_fallbacks(etf_row, meta)
                     etf_rows.append(etf_row)
                 continue
 
@@ -3059,6 +3184,7 @@ def scan_market() -> Dict[str, Any]:
             if price_history:
                 row.update(price_history)
             row = enhance_ai_committee(row, meta, ind)
+            row = apply_research_field_fallbacks(row, meta)
 
             # Prescreen can include moderate setups, but weak fallback rows are reduced.
             if score >= 38:
@@ -3102,7 +3228,7 @@ def scan_market() -> Dict[str, Any]:
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V41.6.1",
+        "version": "V41.7",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -3174,6 +3300,12 @@ def scan_market() -> Dict[str, Any]:
             "true_52w_scan_history": True,
             "interactive_5y_chart_supported_by_dashboard": True,
             "visible_52w_table_columns": True,
+        },
+        "v41_7_changes": {
+            "analyst_support_fallbacks": True,
+            "news_sentiment_fallbacks": True,
+            "thesis_strength_differentiated": True,
+            "research_field_quality_assurance": True,
         },
         "v41_changes": {
             "hard_exclusions": True,
@@ -3266,7 +3398,7 @@ def main() -> None:
         error_state = {
             "generated_at": now_iso(),
             "status": "error",
-            "version": "V41.6.1",
+            "version": "V41.7",
             "error": str(exc),
             "data_dir": str(DATA_DIR),
             "github_persisted": False,

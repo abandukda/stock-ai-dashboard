@@ -8,7 +8,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V41.6.1 True 52W + Interactive Chart Dashboard"
+APP_VERSION = "V41.7 Research Field QA Dashboard"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -139,7 +139,7 @@ def setup_label(score):
 def analyst_support_label(value):
     value = safe_number(value, None)
     if value is None:
-        return "N/A"
+        return "Coverage-based"
     if value >= 70:
         return f"Bullish ({value:.0f}/100)"
     if value >= 45:
@@ -564,8 +564,10 @@ def normalize_scan_row(raw):
         "Analyst Low": safe_number(pick(raw, "Analyst Low", "analyst_target_low", default=0), 0),
         "Analyst Count": int(safe_number(pick(raw, "Analyst Count", "analyst_count", default=0), 0)),
         "Recommendation": safe_text(pick(raw, "Recommendation", "recommendation_key", default="N/A"), "N/A"),
-        "Analyst Support": analyst_support_label(pick(raw, "analyst_support_score", "Analyst Support", default=None)),
-        "News Sentiment": sentiment_badge(pick(raw, "news_sentiment_label", "News Sentiment", default="N/A")),
+        "Analyst Support": safe_text(pick(raw, "analyst_support_label", default=""), "") or analyst_support_label(pick(raw, "analyst_support_score", "Analyst Support", default=None)),
+        "Analyst Support Source": safe_text(pick(raw, "analyst_support_source", default=""), ""),
+        "News Sentiment": sentiment_badge(pick(raw, "news_sentiment_label", "News Sentiment", default="Neutral")),
+        "News Sentiment Source": safe_text(pick(raw, "news_sentiment_source", default=""), ""),
         "Top News": safe_text(pick(raw, "top_news_headline", "Top News", default=""), ""),
         "AI Fair Value Adjustment %": safe_number(pick(raw, "AI Fair Value Adjustment %", "ai_fair_value_adjustment_pct", default=0), 0),
         "Entry Range": safe_text(pick(raw, "Entry Range", "entry_range", default="N/A"), "N/A"),
@@ -644,7 +646,7 @@ def normalize_scan_row(raw):
         "Website": safe_text(pick(raw, "website", "Website", default=""), ""),
         "AI Committee": pick(raw, "ai_committee", default=[]),
         "Thesis Strength": safe_text(pick(raw, "thesis_strength", default=""), ""),
-        "Evidence Confidence": safe_text(pick(raw, "evidence_confidence", default=""), ""),
+        "Evidence Confidence": safe_text(pick(raw, "evidence_confidence", default="Medium"), "Medium"),
         "Committee Conclusion": safe_text(pick(raw, "committee_conclusion", default=""), ""),
         "Valuation Reconciliation": safe_text(pick(raw, "valuation_reconciliation", default=""), ""),
         "Insider Score": safe_number(pick(raw, "insider_score", default=0), 0),
@@ -1406,7 +1408,13 @@ def render_detail(row):
             analyst_support = safe_text(row.get("Analyst Support"), "N/A")
             news_sentiment = safe_text(row.get("News Sentiment"), "N/A")
             st.markdown(f"**Analyst Support:** {analyst_support}")
+            analyst_source = safe_text(row.get("Analyst Support Source"), "")
+            if analyst_source:
+                st.caption(f"Analyst support source: {analyst_source}")
             st.markdown(f"**News Sentiment:** {news_sentiment}")
+            news_source = safe_text(row.get("News Sentiment Source"), "")
+            if news_source:
+                st.caption(f"News sentiment source: {news_source}")
             st.markdown(f"**Insider Activity:** {safe_text(row.get('Insider Activity'), 'N/A')}")
 
         with st.container(border=True):
