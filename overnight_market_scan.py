@@ -2836,7 +2836,7 @@ def enhance_ai_committee(row: Dict[str, Any], meta: Dict[str, Any], ind: Dict[st
 
 def build_price_history_intelligence(df: pd.DataFrame, ind: Dict[str, Any]) -> Dict[str, Any]:
     """
-    V41.8.3 Force Chart + Legacy Agent Details.
+    V41.8.4 Chart Above Quick Guide.
     Adds 52-week low/high, current position in range, 6M/1Y/3Y/5Y returns when available.
     Uses available downloaded history, so it does not add extra API calls.
     """
@@ -3228,7 +3228,7 @@ def scan_market() -> Dict[str, Any]:
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V41.8.3",
+        "version": "V41.8.4",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -3323,6 +3323,10 @@ def scan_market() -> Dict[str, Any]:
             "forced_chart_rendering": True,
             "legacy_agent_detail_fallback": True,
         },
+        "v41_8_4_changes": {
+            "chart_inserted_inside_render_detail": True,
+            "chart_above_quick_metric_guide": True,
+        },
         "v41_changes": {
             "hard_exclusions": True,
             "ai_committee_summary": True,
@@ -3414,7 +3418,7 @@ def main() -> None:
         error_state = {
             "generated_at": now_iso(),
             "status": "error",
-            "version": "V41.8.3",
+            "version": "V41.8.4",
             "error": str(exc),
             "data_dir": str(DATA_DIR),
             "github_persisted": False,
