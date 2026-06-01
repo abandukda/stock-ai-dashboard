@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 
-APP_VERSION = "V41.5 Deep Finance Agent Dashboard"
+APP_VERSION = "V41.6 Price History Intelligence Dashboard"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -619,6 +619,22 @@ def normalize_scan_row(raw):
         "ROIC": safe_number(pick(raw, "roic", default=0), 0),
         "EV/Sales": safe_number(pick(raw, "ev_to_sales", default=0), 0),
         "Peers": pick(raw, "peer_symbols", default=[]),
+        "52W High": safe_number(pick(raw, "high_52w", "52W High", default=0), 0),
+        "52W Low": safe_number(pick(raw, "low_52w", "52W Low", default=0), 0),
+        "Range Position %": safe_number(pick(raw, "range_position_pct", default=0), 0),
+        "Range Position Label": safe_text(pick(raw, "range_position_label", default=""), ""),
+        "Distance From 52W High %": safe_number(pick(raw, "distance_from_52w_high_pct", default=0), 0),
+        "Distance From 52W Low %": safe_number(pick(raw, "distance_from_52w_low_pct", default=0), 0),
+        "Drawdown From High %": safe_number(pick(raw, "drawdown_from_period_high_pct", default=0), 0),
+        "Drawdown Label": safe_text(pick(raw, "drawdown_label", default=""), ""),
+        "Return 1M %": safe_number(pick(raw, "return_1m_pct", default=0), 0),
+        "Return 3M %": safe_number(pick(raw, "return_3m_pct", default=0), 0),
+        "Return 6M %": safe_number(pick(raw, "return_6m_pct", default=0), 0),
+        "Return 1Y %": safe_number(pick(raw, "return_1y_pct", default=0), 0),
+        "Return 3Y %": safe_number(pick(raw, "return_3y_pct", default=0), 0),
+        "Return 5Y %": safe_number(pick(raw, "return_5y_pct", default=0), 0),
+        "History Days Available": int(safe_number(pick(raw, "history_days_available", default=0), 0)),
+        "Price History Note": safe_text(pick(raw, "price_history_note", default=""), ""),
         "Target Source": safe_text(pick(raw, "Target Source", "target_source", default="N/A"), "N/A"),
         "Target Confidence Note": safe_text(pick(raw, "Target Confidence Note", "target_confidence_note", default=""), ""),
         "ETF Screen": safe_text(pick(raw, "etf_preference_screen", "ETF Screen", default=""), ""),
@@ -932,6 +948,65 @@ def render_ai_committee_details(row):
             if bottom:
                 st.info(f"**Bottom line:** {bottom}")
             st.markdown("---")
+
+
+def render_price_history_intelligence(row):
+    with st.container(border=True):
+        st.markdown("### 📉 Price History Intelligence")
+
+        price = safe_number(row.get("Price"), 0)
+        high_52 = safe_number(row.get("52W High"), 0)
+        low_52 = safe_number(row.get("52W Low"), 0)
+        range_pos = safe_number(row.get("Range Position %"), 0)
+        range_label = safe_text(row.get("Range Position Label"), "")
+        dist_high = safe_number(row.get("Distance From 52W High %"), 0)
+        dist_low = safe_number(row.get("Distance From 52W Low %"), 0)
+        drawdown = safe_number(row.get("Drawdown From High %"), 0)
+        drawdown_label = safe_text(row.get("Drawdown Label"), "")
+        note = safe_text(row.get("Price History Note"), "")
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Current Price", fmt_money(price))
+        c2.metric("52W Low", fmt_money(low_52) if low_52 else "N/A")
+        c3.metric("52W High", fmt_money(high_52) if high_52 else "N/A")
+        c4.metric("52W Range Position", f"{range_pos:.1f}%" if range_pos else "N/A")
+
+        c5, c6, c7 = st.columns(3)
+        c5.metric("From 52W Low", fmt_pct(dist_low) if dist_low else "N/A")
+        c6.metric("From 52W High", fmt_pct(dist_high) if dist_high else "N/A")
+        c7.metric("Drawdown", fmt_pct(drawdown) if drawdown else "N/A")
+
+        if high_52 and low_52 and price:
+            st.progress(min(max(range_pos / 100, 0), 1))
+            st.caption(f"Position in 52-week range: {range_label or 'N/A'}. 0% means near low, 100% means near high.")
+
+        returns = {
+            "1M": safe_number(row.get("Return 1M %"), 0),
+            "3M": safe_number(row.get("Return 3M %"), 0),
+            "6M": safe_number(row.get("Return 6M %"), 0),
+            "1Y": safe_number(row.get("Return 1Y %"), 0),
+            "3Y": safe_number(row.get("Return 3Y %"), 0),
+            "5Y": safe_number(row.get("Return 5Y %"), 0),
+        }
+        return_rows = [{"Period": k, "Return %": v} for k, v in returns.items() if v]
+        if return_rows:
+            st.markdown("**Multi-period return snapshot**")
+            st.dataframe(pd.DataFrame(return_rows), use_container_width=True, hide_index=True)
+
+        if note:
+            st.caption(note)
+
+        if range_pos >= 75:
+            st.info("AI interpretation: Price is near the upper part of its 52-week range. Upside depends more on earnings growth, news, and valuation support.")
+        elif 0 < range_pos <= 35:
+            st.info("AI interpretation: Price is closer to the lower part of its 52-week range. This may support a recovery thesis if fundamentals and analyst support remain healthy.")
+        elif range_pos:
+            st.info("AI interpretation: Price is in the middle of its 52-week range, so confirmation from trend, earnings, and analyst support matters.")
+
+        if drawdown <= -30:
+            st.warning("Large drawdown detected. This can create opportunity, but only if the business outlook remains intact.")
+        elif drawdown <= -10:
+            st.caption("Moderate pullback from recent highs.")
 
 
 # =========================

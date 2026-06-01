@@ -1893,6 +1893,7 @@ def make_dashboard_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], s
 
         "setup_tags": good,
         "risk_tags": risks,
+        # V41.6 price history fields are merged after row creation.
         "scan_time": now_iso(),
     }
 
@@ -2340,6 +2341,7 @@ def score_etf_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any]) -> Opt
         "summary": f"{symbol}: ETF candidate, score {score}/100, estimated trade upside {round(upside, 1)}%.",
         "setup_tags": good,
         "risk_tags": risks,
+        # V41.6 price history fields are merged after row creation.
         "scan_time": now_iso(),
     }
 
@@ -2832,6 +2834,99 @@ def enhance_ai_committee(row: Dict[str, Any], meta: Dict[str, Any], ind: Dict[st
     return row
 
 
+def build_price_history_intelligence(df: pd.DataFrame, ind: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    V41.6 Price History Intelligence.
+    Adds 52-week low/high, current position in range, 6M/1Y/3Y/5Y returns when available.
+    Uses available downloaded history, so it does not add extra API calls.
+    """
+    if df is None or df.empty or "Close" not in df.columns:
+        return {}
+
+    close = df["Close"].dropna().astype(float)
+    high = df["High"].dropna().astype(float) if "High" in df.columns else close
+    low = df["Low"].dropna().astype(float) if "Low" in df.columns else close
+
+    if close.empty:
+        return {}
+
+    price = safe_float(close.iloc[-1])
+    if not price:
+        return {}
+
+    # Existing scan currently uses ~6 months of data, so 52-week and 5Y will be partial until scanner period is expanded.
+    # The dashboard labels this clearly if full history is unavailable.
+    history_days = len(close)
+
+    high_52w = safe_float(high.tail(min(252, len(high))).max())
+    low_52w = safe_float(low.tail(min(252, len(low))).min())
+    all_period_high = safe_float(high.max())
+    all_period_low = safe_float(low.min())
+
+    range_position = None
+    if high_52w and low_52w and high_52w > low_52w:
+        range_position = ((price - low_52w) / (high_52w - low_52w)) * 100
+
+    distance_from_52w_high = pct_change(price, high_52w)
+    distance_from_52w_low = pct_change(price, low_52w)
+    drawdown_from_period_high = pct_change(price, all_period_high)
+
+    def ret_from_days(days: int):
+        if len(close) > days:
+            return pct_change(price, safe_float(close.iloc[-days-1]))
+        return None
+
+    ret_1m = ret_from_days(21)
+    ret_3m = ret_from_days(63)
+    ret_6m = ret_from_days(126)
+    ret_1y = ret_from_days(252)
+    ret_3y = ret_from_days(252 * 3)
+    ret_5y = ret_from_days(252 * 5)
+
+    if range_position is None:
+        range_label = "N/A"
+    elif range_position < 25:
+        range_label = "Near lower range"
+    elif range_position < 50:
+        range_label = "Lower-middle range"
+    elif range_position < 75:
+        range_label = "Upper-middle range"
+    else:
+        range_label = "Near 52-week highs"
+
+    if drawdown_from_period_high is None:
+        drawdown_label = "N/A"
+    elif drawdown_from_period_high > -10:
+        drawdown_label = "Shallow drawdown"
+    elif drawdown_from_period_high > -25:
+        drawdown_label = "Moderate drawdown"
+    elif drawdown_from_period_high > -45:
+        drawdown_label = "Deep drawdown"
+    else:
+        drawdown_label = "Severe drawdown"
+
+    return {
+        "history_days_available": history_days,
+        "price_history_note": "Full 5-year chart needs scanner history period expanded beyond current downloaded range." if history_days < 1000 else "Full long-term history available.",
+        "high_52w": round(high_52w, 2) if high_52w else None,
+        "low_52w": round(low_52w, 2) if low_52w else None,
+        "all_period_high": round(all_period_high, 2) if all_period_high else None,
+        "all_period_low": round(all_period_low, 2) if all_period_low else None,
+        "range_position_pct": round(range_position, 1) if range_position is not None else None,
+        "range_position_label": range_label,
+        "distance_from_52w_high_pct": round(distance_from_52w_high, 1) if distance_from_52w_high is not None else None,
+        "distance_from_52w_low_pct": round(distance_from_52w_low, 1) if distance_from_52w_low is not None else None,
+        "drawdown_from_period_high_pct": round(drawdown_from_period_high, 1) if drawdown_from_period_high is not None else None,
+        "drawdown_label": drawdown_label,
+        "return_1m_pct": round(ret_1m, 1) if ret_1m is not None else None,
+        "return_3m_pct": round(ret_3m, 1) if ret_3m is not None else None,
+        "return_6m_pct": round(ret_6m, 1) if ret_6m is not None else None,
+        "return_1y_pct": round(ret_1y, 1) if ret_1y is not None else None,
+        "return_3y_pct": round(ret_3y, 1) if ret_3y is not None else None,
+        "return_5y_pct": round(ret_5y, 1) if ret_5y is not None else None,
+    }
+
+
 # =========================
 # SCAN PIPELINE
 # =========================
@@ -2949,6 +3044,9 @@ def scan_market() -> Dict[str, Any]:
             if quote_type == "ETF":
                 etf_row = score_etf_row(symbol, meta, ind)
                 if etf_row:
+                    price_history = build_price_history_intelligence(hist, ind)
+                    if price_history:
+                        etf_row.update(price_history)
                     etf_rows.append(etf_row)
                 continue
 
@@ -2957,6 +3055,9 @@ def scan_market() -> Dict[str, Any]:
 
             score, good, risks = score_stock(ind, meta)
             row = make_dashboard_row(symbol, meta, ind, score, good, risks)
+            price_history = build_price_history_intelligence(hist, ind)
+            if price_history:
+                row.update(price_history)
             row = enhance_ai_committee(row, meta, ind)
 
             # Prescreen can include moderate setups, but weak fallback rows are reduced.
@@ -3001,7 +3102,7 @@ def scan_market() -> Dict[str, Any]:
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V41.5",
+        "version": "V41.6",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -3062,6 +3163,12 @@ def scan_market() -> Dict[str, Any]:
             "eps_revenue_debt_margin_cashflow_checks": True,
             "peer_comparison_scaffolding": True,
             "richer_agent_cross_checks": True,
+        },
+        "v41_6_changes": {
+            "price_history_intelligence": True,
+            "range_52w_position": True,
+            "drawdown_analysis": True,
+            "multi_period_return_fields": True,
         },
         "v41_changes": {
             "hard_exclusions": True,
@@ -3154,7 +3261,7 @@ def main() -> None:
         error_state = {
             "generated_at": now_iso(),
             "status": "error",
-            "version": "V41.5",
+            "version": "V41.6",
             "error": str(exc),
             "data_dir": str(DATA_DIR),
             "github_persisted": False,
