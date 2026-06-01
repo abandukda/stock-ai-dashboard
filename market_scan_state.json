@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-06-01T04:43:47.530573+00:00",
+  "generated_at": "2026-06-01T07:07:14.995401+00:00",
   "status": "success",
-  "version": "V41.3",
+  "version": "V41.6",
   "universe_count": 1906,
   "prescreen_count": 650,
   "full_scan_count": 150,
@@ -10,7 +10,7 @@
   "fallback_rows_allowed": false,
   "data_dir": ".",
   "github_persisted": false,
-  "duration_seconds": 509.28,
+  "duration_seconds": 2220.48,
   "filters": {
     "min_price": 2.0,
     "max_price": 1000.0,
@@ -18,9 +18,9 @@
     "min_market_cap": 50000000.0
   },
   "api_keys_detected": {
-    "fmp": false,
-    "finnhub": false,
-    "newsapi": false
+    "fmp": true,
+    "finnhub": true,
+    "newsapi": true
   },
   "v40_3_changes": {
     "finnhub_analyst_intelligence": true,
@@ -48,6 +48,26 @@
   "v41_3_changes": {
     "etf_tab": true,
     "non_financial_non_israel_etf_screen": true
+  },
+  "v41_4_changes": {
+    "explainable_agent_cards": true,
+    "metric_ranges_and_definitions": true
+  },
+  "v41_4_1_changes": {
+    "inline_metric_explanations": true,
+    "agent_cards_more_educational": true
+  },
+  "v41_5_changes": {
+    "deep_finance_agent": true,
+    "eps_revenue_debt_margin_cashflow_checks": true,
+    "peer_comparison_scaffolding": true,
+    "richer_agent_cross_checks": true
+  },
+  "v41_6_changes": {
+    "price_history_intelligence": true,
+    "range_52w_position": true,
+    "drawdown_analysis": true,
+    "multi_period_return_fields": true
   },
   "v41_changes": {
     "hard_exclusions": true,
