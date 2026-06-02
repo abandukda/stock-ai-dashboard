@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-06-02T13:51:04.751819+00:00",
+  "generated_at": "2026-06-02T18:07:54.837581+00:00",
   "status": "success",
   "version": "V42.0.4",
-  "universe_count": 2140,
+  "universe_count": 2201,
   "prescreen_count": 650,
   "full_scan_count": 150,
   "recovery_count": 100,
@@ -10,7 +10,7 @@
   "fallback_rows_allowed": false,
   "data_dir": ".",
   "github_persisted": false,
-  "duration_seconds": 4847.05,
+  "duration_seconds": 5850.82,
   "filters": {
     "min_price": 2.0,
     "max_price": 1000.0,
