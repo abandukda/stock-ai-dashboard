@@ -9,7 +9,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V42 AI Investment Committee Dashboard"
+APP_VERSION = "V42.0.4 News Relevance Quality Fix Dashboard"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -654,11 +654,14 @@ def normalize_scan_row(raw):
         "Insider Score": safe_number(pick(raw, "insider_score", default=0), 0),
         "Insider Activity": safe_text(pick(raw, "insider_activity_label", default="N/A"), "N/A"),
 
-        "V42 News Score": safe_number(pick(raw, "v42_news_score", default=0), 0),
+        "V42 News Score": pick(raw, "v42_news_score", default=None),
+        "V42 News Available": pick(raw, "v42_news_available", default=False),
         "V42 News Summary": safe_text(pick(raw, "v42_news_summary", default=""), ""),
         "V42 News Catalysts": pick(raw, "v42_news_catalysts", default=[]),
         "V42 News Risks": pick(raw, "v42_news_risks", default=[]),
         "V42 News Sources": pick(raw, "v42_news_sources", default=[]),
+        "V42 News Direct Headlines": pick(raw, "v42_news_direct_headlines", default=[]),
+        "V42 News Indirect Headlines": pick(raw, "v42_news_indirect_headlines", default=[]),
         "V42 SEC Available": pick(raw, "v42_sec_available", default=False),
         "V42 SEC CIK": safe_text(pick(raw, "v42_sec_cik", default=""), ""),
         "Support 1": safe_number(pick(raw, "v42_support_1", default=0), 0),
@@ -952,7 +955,7 @@ def render_ai_committee_details(row):
                 continue
             st.markdown(f"### {name}")
             st.markdown(
-                f"**Score:** {agent.get('score', 'N/A')}/100 · "
+                f"**Score:** {(str(agent.get('score')) + '/100') if agent.get('score') is not None else 'Not scored'} · "
                 f"**Status:** {agent.get('status', 'N/A')} · "
                 f"**Impact:** {agent.get('impact', 'N/A')}"
             )
@@ -1400,9 +1403,8 @@ def render_legacy_agent_details_force(row):
 
 def chart_instance_key(row, prefix="chart"):
     ticker = safe_text(row.get("Ticker"), "UNKNOWN").upper()
-    source = safe_text(row.get("Table Key"), "") or safe_text(row.get("Live Research"), "") or safe_text(row.get("Company"), "")
-    raw = f"{ticker}_{source}_{safe_text(row.get('Price'), '')}_{safe_text(row.get('AI Fair Value'), '')}"
-    return f"{prefix}_{ticker}_{abs(hash(raw)) % 1000000}"
+    st.session_state["_chart_key_counter"] = st.session_state.get("_chart_key_counter", 0) + 1
+    return f"{prefix}_{ticker}_{st.session_state['_chart_key_counter']}"
 
 
 @st.cache_data(ttl=900)
@@ -1634,7 +1636,12 @@ def render_v42_news_block(row):
     if not score and not catalysts and not summary: return
     with st.container(border=True):
         st.markdown("### 📰 News Agent Summary")
-        st.metric("News Agent Score", f"{score:.0f}/100" if score else "N/A")
+        news_available = bool(row.get("V42 News Available"))
+        if news_available and score:
+            st.metric("News Agent Score", f"{safe_number(score, 0):.0f}/100")
+        else:
+            st.metric("News Agent Status", "No recent news found", "Not scored")
+            st.warning("No recent company-specific news was retrieved from the connected sources. This is not bearish or neutral — it means there was no news summary available from the scan.")
         if sources: st.caption("Sources used: "+", ".join([safe_text(x) for x in sources[:5]]) if isinstance(sources,list) else safe_text(sources))
         if catalysts:
             st.markdown("**Key catalysts:**")
@@ -1902,9 +1909,9 @@ def render_detail(row):
     c8.metric("Stop Loss", fmt_money(row.get("Stop Loss")))
     c9.metric("Risk/Reward", safe_text(row.get("Risk/Reward"), "N/A"))
 
-    render_detail_chart_v4184(row)
     render_v42_support_resistance(row)
     render_v42_news_block(row)
+    render_detail_chart_v4184(row)
     render_inline_metric_summary(row)
 
     with st.expander("📚 Full metric education and AI vs analyst explanation", expanded=False):

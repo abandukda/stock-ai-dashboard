@@ -2838,7 +2838,7 @@ def enhance_ai_committee(row: Dict[str, Any], meta: Dict[str, Any], ind: Dict[st
 
 def build_price_history_intelligence(df: pd.DataFrame, ind: Dict[str, Any]) -> Dict[str, Any]:
     """
-    V42 AI Investment Committee.
+    V42.0.4 News Relevance Quality Fix.
     Adds 52-week low/high, current position in range, 6M/1Y/3Y/5Y returns when available.
     Uses available downloaded history, so it does not add extra API calls.
     """
@@ -3084,7 +3084,83 @@ def v42_agent(score, status, impact, data_used, summary, findings=None, risks=No
     if not impact: impact='Positive' if score>=70 else 'Neutral' if score>=45 else 'Negative'
     return {'score':score,'status':status,'impact':impact,'data_used':data_used,'summary':summary,'findings':[str(x) for x in (findings or []) if x][:10],'risks':[str(x) for x in (risks or []) if x][:8],'bottom_line':bottom_line or ('Supportive signal.' if score>=70 else 'Mixed/limited signal.')}
 
-def v42_news_stack(symbol: str) -> Dict[str, Any]:
+
+def v42_company_aliases(symbol: str, company_name: str = "") -> List[str]:
+    symbol = str(symbol or "").upper().strip()
+    company_name = str(company_name or "").strip()
+    aliases = [symbol]
+    if company_name:
+        aliases.append(company_name)
+        # Strip common suffixes for better matching.
+        short = re.sub(r"\b(Inc\.?|Corporation|Corp\.?|Ltd\.?|Limited|PLC|Class A|Common Stock)\b", "", company_name, flags=re.I).strip()
+        short = re.sub(r"\s+", " ", short).strip(" ,.-")
+        if short and short.lower() != company_name.lower():
+            aliases.append(short)
+    # Known ticker/company alias overrides.
+    overrides = {
+        "NVDA": ["NVIDIA", "Nvidia"],
+        "TEAM": ["Atlassian", "Atlassian Corporation"],
+        "GOOGL": ["Alphabet", "Google"],
+        "GOOG": ["Alphabet", "Google"],
+        "META": ["Meta", "Facebook"],
+        "MSFT": ["Microsoft"],
+        "AAPL": ["Apple"],
+        "AMZN": ["Amazon"],
+        "TSLA": ["Tesla"],
+        "PLTR": ["Palantir"],
+    }
+    aliases.extend(overrides.get(symbol, []))
+    # De-dupe
+    out = []
+    seen = set()
+    for a in aliases:
+        key = a.lower()
+        if a and key not in seen:
+            seen.add(key)
+            out.append(a)
+    return out
+
+
+def v42_news_relevance(headline: str, symbol: str, company_name: str = "") -> str:
+    """
+    Classify headline relevance:
+    direct = company is the main subject or action owner.
+    indirect = company is mentioned as partner/customer/supplier/platform.
+    low = not enough company-specific signal.
+    """
+    h = str(headline or "").strip()
+    low = h.lower()
+    aliases = v42_company_aliases(symbol, company_name)
+    alias_hits = [a for a in aliases if a and a.lower() in low]
+    if not alias_hits:
+        return "low"
+
+    indirect_patterns = [
+        "with ", "powered by", "using ", "built on", "compatible with", "partnering with",
+        "partnership with", "collaborates with", "supplier", "customer", "launches", "brings",
+    ]
+    # If the headline begins with company/alias, it is more likely direct.
+    for a in alias_hits:
+        if low.startswith(a.lower()):
+            return "direct"
+
+    direct_verbs = [
+        "nvidia announces", "nvidia reports", "nvidia launches", "nvidia unveils", "nvidia expands",
+        "nvidia beats", "nvidia raises", "nvidia partners", "nvidia invests", "nvidia acquires",
+        "atlassian announces", "atlassian reports", "atlassian launches", "atlassian expands",
+    ]
+    if any(p in low for p in direct_verbs):
+        return "direct"
+
+    # If company appears after "with/using/powered by", treat as indirect.
+    if any(p + alias_hits[0].lower() in low for p in ["with ", "using ", "powered by "]):
+        return "indirect"
+
+    # Otherwise, it is relevant but may not be direct.
+    return "indirect"
+
+
+def v42_news_stack(symbol: str, company_name: str = "") -> Dict[str, Any]:
     symbol=str(symbol).upper(); headlines=[]; sources=[]; today=dt.date.today(); start=today-dt.timedelta(days=30)
     if NEWSAPI_KEY:
         try:
@@ -3392,7 +3468,7 @@ def scan_market() -> Dict[str, Any]:
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V42.0",
+        "version": "V42.0.4",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -3598,7 +3674,7 @@ def main() -> None:
         error_state = {
             "generated_at": now_iso(),
             "status": "error",
-            "version": "V42.0",
+            "version": "V42.0.4",
             "error": str(exc),
             "data_dir": str(DATA_DIR),
             "github_persisted": False,
