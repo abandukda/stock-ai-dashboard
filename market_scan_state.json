@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-06-01T22:52:09.389765+00:00",
+  "generated_at": "2026-06-02T02:38:35.625714+00:00",
   "status": "success",
   "version": "V41.8.6",
-  "universe_count": 2136,
+  "universe_count": 2138,
   "prescreen_count": 650,
   "full_scan_count": 150,
   "recovery_count": 100,
@@ -10,7 +10,7 @@
   "fallback_rows_allowed": false,
   "data_dir": ".",
   "github_persisted": false,
-  "duration_seconds": 1311.17,
+  "duration_seconds": 2718.54,
   "filters": {
     "min_price": 2.0,
     "max_price": 1000.0,
@@ -18,7 +18,7 @@
     "min_market_cap": 50000000.0
   },
   "api_keys_detected": {
-    "fmp": false,
+    "fmp": true,
     "finnhub": true,
     "newsapi": true
   },
