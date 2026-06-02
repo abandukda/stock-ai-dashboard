@@ -9,7 +9,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V42.0.4 News Relevance Quality Fix Dashboard"
+APP_VERSION = "V42.0.5 Plotly Chart Key Fix Dashboard"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -1116,7 +1116,7 @@ def render_interactive_price_chart_fixed(row):
         yaxis_title="Price",
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, key=chart_instance_key(row, "plotly_detail_chart"))
 
     if current and high_52 and low_52 and high_52 > low_52:
         range_pos = ((current - low_52) / (high_52 - low_52)) * 100
@@ -1246,7 +1246,7 @@ def render_interactive_price_chart_fixed(row):
             xaxis_title="Date",
             yaxis_title="Price",
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key=chart_instance_key(row, "plotly_detail_chart"))
 
         if high_52 and low_52 and high_52 > low_52:
             range_pos = ((current - low_52) / (high_52 - low_52)) * 100
@@ -1343,7 +1343,7 @@ def render_force_chart_section(row):
             xaxis_title="Date",
             yaxis_title="Price",
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key=chart_instance_key(row, "plotly_detail_chart"))
 
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Current Price", fmt_money(current))
@@ -1486,7 +1486,7 @@ def render_detail_chart_v4184(row):
             xaxis_title="Date",
             yaxis_title="Price",
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key=chart_instance_key(row, "plotly_detail_chart"))
 
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Current Price", fmt_money(current))
