@@ -9,7 +9,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V41.8.6 Unique Chart Keys Dashboard"
+APP_VERSION = "V42 AI Investment Committee Dashboard"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -653,6 +653,23 @@ def normalize_scan_row(raw):
         "Valuation Reconciliation": safe_text(pick(raw, "valuation_reconciliation", default=""), ""),
         "Insider Score": safe_number(pick(raw, "insider_score", default=0), 0),
         "Insider Activity": safe_text(pick(raw, "insider_activity_label", default="N/A"), "N/A"),
+
+        "V42 News Score": safe_number(pick(raw, "v42_news_score", default=0), 0),
+        "V42 News Summary": safe_text(pick(raw, "v42_news_summary", default=""), ""),
+        "V42 News Catalysts": pick(raw, "v42_news_catalysts", default=[]),
+        "V42 News Risks": pick(raw, "v42_news_risks", default=[]),
+        "V42 News Sources": pick(raw, "v42_news_sources", default=[]),
+        "V42 SEC Available": pick(raw, "v42_sec_available", default=False),
+        "V42 SEC CIK": safe_text(pick(raw, "v42_sec_cik", default=""), ""),
+        "Support 1": safe_number(pick(raw, "v42_support_1", default=0), 0),
+        "Support 2": safe_number(pick(raw, "v42_support_2", default=0), 0),
+        "Resistance 1": safe_number(pick(raw, "v42_resistance_1", default=0), 0),
+        "Resistance 2": safe_number(pick(raw, "v42_resistance_2", default=0), 0),
+        "Breakout Level": safe_number(pick(raw, "v42_breakout_level", default=0), 0),
+        "Pullback Zone": safe_text(pick(raw, "v42_pullback_zone", default=""), ""),
+        "Chart Guidance": safe_text(pick(raw, "v42_chart_guidance", default=""), ""),
+        "Committee Positive Agents": int(safe_number(pick(raw, "v42_committee_positive_agents", default=0), 0)),
+        "Committee Total Agents": int(safe_number(pick(raw, "v42_committee_total_agents", default=0), 0)),
         "Raw": raw,
     }
 
@@ -1208,6 +1225,15 @@ def render_interactive_price_chart_fixed(row):
             fig.add_hline(y=analyst_target, line_dash="dot", annotation_text="Analyst Target", annotation_position="top right")
         if ai_target:
             fig.add_hline(y=ai_target, line_dash="dot", annotation_text="AI Fair Value", annotation_position="top right")
+        support_1 = safe_number(row.get("Support 1"), 0)
+        resistance_1 = safe_number(row.get("Resistance 1"), 0)
+        breakout = safe_number(row.get("Breakout Level"), 0)
+        if support_1:
+            fig.add_hline(y=support_1, line_dash="dash", annotation_text="Support 1", annotation_position="bottom right")
+        if resistance_1:
+            fig.add_hline(y=resistance_1, line_dash="dash", annotation_text="Resistance 1", annotation_position="top right")
+        if breakout:
+            fig.add_hline(y=breakout, line_dash="dot", annotation_text="Breakout", annotation_position="top right")
 
         fig.update_layout(
             height=520,
@@ -1603,6 +1629,62 @@ def fetch_detail_chart_history_v4184(ticker, period="5y"):
     return fetch_fmp_chart_history_v4185(ticker, period)
 
 
+def render_v42_news_block(row):
+    score=safe_number(row.get("V42 News Score"),0); catalysts=row.get("V42 News Catalysts"); risks=row.get("V42 News Risks"); sources=row.get("V42 News Sources"); summary=safe_text(row.get("V42 News Summary"),"")
+    if not score and not catalysts and not summary: return
+    with st.container(border=True):
+        st.markdown("### 📰 News Agent Summary")
+        st.metric("News Agent Score", f"{score:.0f}/100" if score else "N/A")
+        if sources: st.caption("Sources used: "+", ".join([safe_text(x) for x in sources[:5]]) if isinstance(sources,list) else safe_text(sources))
+        if catalysts:
+            st.markdown("**Key catalysts:**")
+            for item in (catalysts if isinstance(catalysts,list) else compact_reason_list(catalysts))[:6]: st.markdown(f"• {safe_text(item)}")
+        if risks:
+            st.markdown("**News risks / limits:**")
+            for item in (risks if isinstance(risks,list) else compact_reason_list(risks))[:5]: st.markdown(f"• {safe_text(item)}")
+        if summary: st.info(summary)
+
+def render_v42_support_resistance(row):
+    vals=[row.get("Support 1"),row.get("Support 2"),row.get("Resistance 1"),row.get("Resistance 2"),row.get("Breakout Level")]
+    if not any(safe_number(v,0) for v in vals) and not row.get("Chart Guidance"): return
+    with st.container(border=True):
+        st.markdown("### 🧭 Support / Resistance Guidance")
+        c1,c2,c3,c4=st.columns(4)
+        c1.metric("Support 1",fmt_money(row.get("Support 1")) if safe_number(row.get("Support 1"),0) else "N/A")
+        c2.metric("Support 2",fmt_money(row.get("Support 2")) if safe_number(row.get("Support 2"),0) else "N/A")
+        c3.metric("Resistance 1",fmt_money(row.get("Resistance 1")) if safe_number(row.get("Resistance 1"),0) else "N/A")
+        c4.metric("Resistance 2",fmt_money(row.get("Resistance 2")) if safe_number(row.get("Resistance 2"),0) else "N/A")
+        c5,c6=st.columns(2); c5.metric("Breakout Level",fmt_money(row.get("Breakout Level")) if safe_number(row.get("Breakout Level"),0) else "N/A"); c6.metric("Pullback Zone",safe_text(row.get("Pullback Zone"),"N/A"))
+        if row.get("Chart Guidance"): st.info(row.get("Chart Guidance"))
+
+def render_v42_committee_dashboard(row):
+    committee=row.get("AI Committee")
+    if not isinstance(committee,dict) or not committee: return
+    st.markdown("### 🧠 V42 AI Investment Committee")
+    total=int(safe_number(row.get("Committee Total Agents"),0)); positive=int(safe_number(row.get("Committee Positive Agents"),0))
+    if total: st.caption(f"{positive} of {total} agents are supportive.")
+    names=["News Agent","Finance Agent","Analyst Agent","Technical Agent","Insider Agent","Institutional Agent","Competitor Agent","Political Agent","Recovery Agent","ETF / Ownership Agent"]
+    cols=st.columns(5)
+    for i,n in enumerate(names):
+        a=committee.get(n,{})
+        if isinstance(a,dict):
+            with cols[i%5]: st.metric(n.replace(" Agent","").replace(" / Ownership","").replace("ETF", "ETF"), f"{safe_number(a.get('score'),0):.0f}/100", safe_text(a.get('status'),""))
+    with st.expander("Open full V42 agent findings, risks, and bottom lines", expanded=True):
+        for n in names:
+            a=committee.get(n)
+            if not isinstance(a,dict): continue
+            st.markdown(f"#### {n}"); st.markdown(f"**Score:** {a.get('score','N/A')}/100 · **Status:** {a.get('status','N/A')} · **Impact:** {a.get('impact','N/A')}"); st.caption(f"**Data used:** {a.get('data_used','N/A')}")
+            if a.get('summary'): st.write(a.get('summary'))
+            if a.get('findings'):
+                st.markdown("**Findings:**")
+                for item in a.get('findings',[])[:8]: st.markdown(f"• {safe_text(item)}")
+            if a.get('risks'):
+                st.markdown("**Risks / limits:**")
+                for item in a.get('risks',[])[:6]: st.markdown(f"• {safe_text(item)}")
+            if a.get('bottom_line'): st.info(f"**Bottom line:** {a.get('bottom_line')}")
+            st.markdown("---")
+
+
 # =========================
 # UI
 # =========================
@@ -1821,10 +1903,14 @@ def render_detail(row):
     c9.metric("Risk/Reward", safe_text(row.get("Risk/Reward"), "N/A"))
 
     render_detail_chart_v4184(row)
+    render_v42_support_resistance(row)
+    render_v42_news_block(row)
     render_inline_metric_summary(row)
 
     with st.expander("📚 Full metric education and AI vs analyst explanation", expanded=False):
         render_metric_education(row)
+
+    render_v42_committee_dashboard(row)
 
     st.markdown("---")
 

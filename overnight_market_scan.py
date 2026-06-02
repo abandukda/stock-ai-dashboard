@@ -14,6 +14,7 @@ V41.0 AI Committee Scanner - Exclusions + Insider Intelligence
 import json
 import math
 import os
+import datetime as dt
 import requests
 import subprocess
 import sys
@@ -60,6 +61,7 @@ GIT_COMMIT_MESSAGE = os.getenv("GIT_COMMIT_MESSAGE", "Update overnight market sc
 FMP_API_KEY = os.getenv("FMP_API_KEY", "").strip()
 FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "").strip()
 NEWSAPI_KEY = os.getenv("NEWSAPI_KEY", "").strip()
+SEC_USER_AGENT = os.getenv("SEC_USER_AGENT", "Asif Bandukda abandukda@gmail.com").strip()
 
 
 
@@ -2836,7 +2838,7 @@ def enhance_ai_committee(row: Dict[str, Any], meta: Dict[str, Any], ind: Dict[st
 
 def build_price_history_intelligence(df: pd.DataFrame, ind: Dict[str, Any]) -> Dict[str, Any]:
     """
-    V41.8.6 Unique Chart Keys.
+    V42 AI Investment Committee.
     Adds 52-week low/high, current position in range, 6M/1Y/3Y/5Y returns when available.
     Uses available downloaded history, so it does not add extra API calls.
     """
@@ -3050,6 +3052,163 @@ def apply_research_field_fallbacks(row: Dict[str, Any], meta: Dict[str, Any]) ->
 
     return row
 
+# =========================
+# V42 AI INVESTMENT COMMITTEE
+# =========================
+ISRAEL_LINKED_EXCLUDED_TICKERS = {"ALLT","MBLY","WIX","FVRR","CYBR","CHKP","NICE","CAMT","TSEM","SPNS","GILT","MNDY"}
+FINANCIAL_EXCLUDED_TERMS = {"bank","banks","financial","capital markets","credit services","insurance","asset management","brokerage","mortgage","lender","lending","reit"}
+
+def v42_float(x, default=None):
+    try:
+        if x is None: return default
+        return float(x)
+    except Exception:
+        return default
+
+def v42_pct(x):
+    x=v42_float(x,None)
+    if x is None: return None
+    return x*100 if abs(x)<=2 else x
+
+def v42_is_excluded_company(symbol: str, meta: Dict[str, Any]) -> bool:
+    s=str(symbol).upper()
+    if s in ISRAEL_LINKED_EXCLUDED_TICKERS: return True
+    text=' '.join(str(meta.get(k,'')) for k in ['sector','industry','companyName','company_name','longName','country']).lower()
+    if 'israel' in text or 'israeli' in text: return True
+    if any(t in text for t in FINANCIAL_EXCLUDED_TERMS): return True
+    return False
+
+def v42_agent(score, status, impact, data_used, summary, findings=None, risks=None, bottom_line=''):
+    score=int(clamp(v42_float(score,50) or 50,0,100))
+    if not status: status='Positive' if score>=70 else 'Mixed' if score>=45 else 'Weak'
+    if not impact: impact='Positive' if score>=70 else 'Neutral' if score>=45 else 'Negative'
+    return {'score':score,'status':status,'impact':impact,'data_used':data_used,'summary':summary,'findings':[str(x) for x in (findings or []) if x][:10],'risks':[str(x) for x in (risks or []) if x][:8],'bottom_line':bottom_line or ('Supportive signal.' if score>=70 else 'Mixed/limited signal.')}
+
+def v42_news_stack(symbol: str) -> Dict[str, Any]:
+    symbol=str(symbol).upper(); headlines=[]; sources=[]; today=dt.date.today(); start=today-dt.timedelta(days=30)
+    if NEWSAPI_KEY:
+        try:
+            r=requests.get('https://newsapi.org/v2/everything',params={'q':f'"{symbol}" OR "{symbol} stock"','language':'en','sortBy':'publishedAt','pageSize':8,'apiKey':NEWSAPI_KEY},timeout=10)
+            if r.status_code==200:
+                for a in (r.json().get('articles') or [])[:8]:
+                    if a.get('title'): headlines.append(a['title'])
+                if headlines: sources.append('NewsAPI')
+        except Exception: pass
+    if FINNHUB_API_KEY:
+        try:
+            r=requests.get('https://finnhub.io/api/v1/company-news',params={'symbol':symbol,'from':start.isoformat(),'to':today.isoformat(),'token':FINNHUB_API_KEY},timeout=10)
+            if r.status_code==200:
+                before=len(headlines)
+                for a in (r.json() or [])[:8]:
+                    if a.get('headline'): headlines.append(a['headline'])
+                if len(headlines)>before: sources.append('Finnhub company news')
+        except Exception: pass
+    if FMP_API_KEY:
+        try:
+            r=requests.get('https://financialmodelingprep.com/api/v3/stock_news',params={'tickers':symbol,'limit':8,'apikey':FMP_API_KEY},timeout=10)
+            if r.status_code==200:
+                before=len(headlines)
+                for a in (r.json() or [])[:8]:
+                    if a.get('title'): headlines.append(a['title'])
+                if len(headlines)>before: sources.append('FMP stock news')
+        except Exception: pass
+    seen=set(); clean=[]
+    for h in headlines:
+        k=h.strip().lower()
+        if k and k not in seen: seen.add(k); clean.append(h.strip())
+    pos_terms=['beat','raised','raise','upgrade','growth','record','partnership','expands','ai','launch','strong','accelerat','profit','guidance','contract']
+    neg_terms=['miss','downgrade','cut','lawsuit','probe','investigation','layoff','decline','weak','warning','risk','slump','loss']
+    pos=[h for h in clean if any(t in h.lower() for t in pos_terms)]
+    neg=[h for h in clean if any(t in h.lower() for t in neg_terms)]
+    if clean:
+        score=int(clamp(55+min(len(pos),5)*7-min(len(neg),5)*8,15,95)); status='Positive' if score>=70 else 'Mixed' if score>=45 else 'Negative'; conf='High' if len(clean)>=5 else 'Medium'
+    else:
+        score=45; status='Unknown / insufficient data'; conf='Low'
+    return {'score':score,'status':status,'confidence':conf,'sources':sources or ['No source returned recent data'],'headlines':clean[:8],'catalysts':(pos or clean)[:6],'risks':(neg[:5] if neg else (['No negative high-confidence headline detected.'] if clean else ['No recent high-confidence news retrieved; treat as insufficient data, not neutral.']))}
+
+def v42_sec_filings(symbol: str) -> Dict[str, Any]:
+    headers={'User-Agent': SEC_USER_AGENT or 'Asif Bandukda abandukda@gmail.com'}; sym=str(symbol).upper()
+    try:
+        r=requests.get('https://www.sec.gov/files/company_tickers.json',headers=headers,timeout=12)
+        if r.status_code!=200: return {'available':False,'reason':f'SEC ticker map HTTP {r.status_code}'}
+        cik=None; title=None
+        for item in (r.json() or {}).values():
+            if str(item.get('ticker','')).upper()==sym:
+                cik=str(item.get('cik_str')).zfill(10); title=item.get('title'); break
+        if not cik: return {'available':False,'reason':'CIK not found'}
+        r=requests.get(f'https://data.sec.gov/submissions/CIK{cik}.json',headers=headers,timeout=12)
+        if r.status_code!=200: return {'available':False,'reason':f'SEC submissions HTTP {r.status_code}','cik':cik}
+        recent=r.json().get('filings',{}).get('recent',{})
+        forms=recent.get('form',[]) or []; dates=recent.get('filingDate',[]) or []
+        rows=[{'form':f,'date':d} for f,d in list(zip(forms,dates))[:40]]
+        return {'available':True,'cik':cik,'company':title,'recent_forms':rows[:15],'form4_count_recent':sum(1 for x in rows if x['form']=='4'),'form4_recent':[x for x in rows if x['form']=='4'][:5],'forms_8k_count_recent':sum(1 for x in rows if x['form']=='8-K'),'forms_13f_count_recent':sum(1 for x in rows if '13F' in x['form'])}
+    except Exception as e:
+        return {'available':False,'reason':str(e)[:120]}
+
+def v42_support_resistance(hist: pd.DataFrame, ind: Dict[str,Any]) -> Dict[str, Any]:
+    try:
+        close=hist['Close'].dropna().astype(float); high=(hist['High'] if 'High' in hist else hist['Close']).dropna().astype(float); low=(hist['Low'] if 'Low' in hist else hist['Close']).dropna().astype(float)
+        price=float(close.iloc[-1]); lows=[float(low.tail(20).min()),float(low.tail(50).min()),float(low.tail(min(252,len(low))).min())]; highs=[float(high.tail(20).max()),float(high.tail(50).max()),float(high.tail(min(252,len(high))).max())]
+        s1=max([x for x in lows[:2] if x<price], default=min(lows[:2])); s2=min(lows); r1=min([x for x in highs[:2] if x>price], default=max(highs[:2])); r2=max(highs)
+        guidance='Near resistance. Avoid chasing unless breakout holds with volume.' if price>=r1*.98 else ('Near support. Better risk/reward if support holds.' if price<=s1*1.04 else 'Between support and resistance. Prefer pullback entry or confirmed breakout.')
+        return {'support_1':round(s1,2),'support_2':round(s2,2),'resistance_1':round(r1,2),'resistance_2':round(r2,2),'breakout_level':round(r1*1.01,2),'pullback_zone':f'${s1:.2f} - ${max(s1,price*.98):.2f}','guidance':guidance}
+    except Exception:
+        return {'guidance':'Support/resistance unavailable.'}
+
+def v42_peer_context(symbol: str, meta: Dict[str,Any]) -> Dict[str,Any]:
+    peers=meta.get('peer_symbols') or []
+    peers=[str(p).upper() for p in peers if p and str(p).upper()!=str(symbol).upper()][:5]
+    score=55; findings=[]; risks=[]
+    if peers: findings.append('Peer set identified: '+', '.join(peers)); score+=5
+    else: risks.append('Peer list unavailable in current scan.')
+    rg=v42_pct(meta.get('revenue_growth')); pe=v42_float(meta.get('forward_pe'))
+    if rg is not None: findings.append(f'Revenue growth available for peer context: {rg:.1f}%.'); score += 10 if rg>=15 else 3 if rg>=5 else 0
+    if pe is not None and pe>0: findings.append(f'Forward PE available for peer context: {pe:.1f}.'); score += 5 if pe<=25 else 0
+    return {'score':int(clamp(score,20,90)),'peers':peers,'findings':findings or ['Peer comparison framework active.'],'risks':risks or ['Peer comparison is directional; confirm exact peer metrics before investing.']}
+
+def v42_build_committee(symbol: str, row: Dict[str,Any], meta: Dict[str,Any], ind: Dict[str,Any], hist: pd.DataFrame) -> Dict[str,Any]:
+    news=v42_news_stack(symbol); sec=v42_sec_filings(symbol); sr=v42_support_resistance(hist,ind); peer=v42_peer_context(symbol,meta)
+    conviction=v42_float(row.get('conviction'), row.get('Final Conviction') or 50) or 50; upside=v42_float(row.get('expected_upside_pct'), row.get('Target Upside %') or 0) or 0; analyst=v42_float(row.get('analyst_support_score'), meta.get('analyst_support_score') or 50) or 50
+    rsi=ind.get('rsi'); atr=ind.get('atr_pct'); price=ind.get('price')
+    tech_find=[f'Support 1: ${sr.get("support_1","N/A")} · Resistance 1: ${sr.get("resistance_1","N/A")}.']
+    for label,key in [('20-day','sma20'),('50-day','sma50'),('200-day','sma200')]:
+        if price and ind.get(key): tech_find.append(f'Price is {"above" if price>ind.get(key) else "below"} the {label} trend.')
+    if rsi is not None: tech_find.append(f'RSI is {rsi}.')
+    tech_risk=[]
+    if rsi is not None and rsi>=70: tech_risk.append('RSI is overbought; avoid chasing.')
+    if atr is not None and atr>=8: tech_risk.append('ATR volatility is high; use smaller position sizing.')
+    rg=v42_pct(meta.get('revenue_growth')); eg=v42_pct(meta.get('earnings_growth')); finance_find=[]; finance_risk=[]
+    if rg is not None: finance_find.append(f'Revenue growth: {rg:.1f}%.')
+    if eg is not None: finance_find.append(f'Earnings growth: {eg:.1f}%.')
+    for label,key in [('Debt/equity','debt_to_equity'),('Current ratio','current_ratio'),('Free cash flow','free_cash_flow'),('Operating cash flow','operating_cash_flow')]:
+        if meta.get(key) not in (None,'',0): finance_find.append(f'{label}: {meta.get(key)}.')
+    finance_score=v42_float(row.get('finance_agent_score'), row.get('Finance Agent Score') or 50) or 50
+    insider_find=[]; insider_risk=[]; insider_score=50
+    if sec.get('available'):
+        insider_find += [f'SEC CIK found: {sec.get("cik")}.', f'Recent SEC Form 4 filings found: {sec.get("form4_count_recent",0)}.']; insider_score += min(sec.get('form4_count_recent',0)*3,15)
+        insider_risk.append('SEC v1 counts Form 4 activity; transaction-level buy/sell classification will be expanded.')
+    else: insider_risk.append('SEC insider data unavailable: '+str(sec.get('reason','unknown')))
+    inst_find=[]; inst_score=50
+    if sec.get('available'):
+        inst_find.append('SEC recent filings reviewed.');
+        if sec.get('forms_13f_count_recent',0): inst_find.append(f'Recent 13F-related filings found: {sec.get("forms_13f_count_recent")}.'); inst_score+=10
+        else: inst_find.append('No recent issuer-level 13F form found in recent company submissions.')
+    agents={
+        'News Agent':v42_agent(news['score'],news['status'],'Positive' if news['score']>=70 else 'Neutral' if news['score']>=45 else 'Negative',', '.join(news['sources']),f'Reviews headlines/catalysts. Confidence: {news["confidence"]}.',news['catalysts'],news['risks'],'News flow supports the thesis.' if news['score']>=70 else 'News is mixed or insufficient.'),
+        'Finance Agent':v42_agent(finance_score,'Positive' if finance_score>=75 else 'Mixed','Positive' if finance_score>=75 else 'Neutral','FMP/Yahoo fundamentals, financial statements, balance sheet, cash flow','Checks revenue, EPS, margins, leverage, liquidity, cash flow, valuation, and execution.',finance_find or row.get('finance_agent_findings') or ['Financial data limited.'],finance_risk or row.get('finance_agent_risks') or ['No major finance-specific red flag detected.'],row.get('finance_agent_bottom_line') or 'Financial profile reviewed.'),
+        'Analyst Agent':v42_agent(analyst,'Positive' if analyst>=65 else 'Mixed','Positive' if analyst>=65 else 'Neutral','Finnhub/Yahoo/FMP analyst targets and recommendation trends','Checks whether Wall Street estimates support the AI thesis.',[f'Analyst support score: {analyst:.0f}/100.', f'Analyst target: ${row.get("analyst_target_mean") or row.get("Analyst Target") or "N/A"}.', f'Analyst count: {row.get("analyst_count") or row.get("Analyst Count") or "N/A"}.'],['Analyst data can lag fast-moving news.'] + (['AI fair value is far above analyst consensus; higher uncertainty.'] if upside>=50 else []),'Analyst view supports the thesis.' if analyst>=65 else 'Analyst view is mixed/limited.'),
+        'Technical Agent':v42_agent(conviction,'Positive' if conviction>=75 else 'Mixed','Positive' if conviction>=75 else 'Neutral','Price history, RSI, ATR, volume, SMA, support/resistance','Evaluates trend, momentum, volatility, support/resistance and entry quality.',tech_find,tech_risk or ['No major technical risk detected.'],sr.get('guidance','Technical setup reviewed.')),
+        'Insider Agent':v42_agent(insider_score,'Constructive' if insider_score>=60 else 'Limited','Neutral','SEC EDGAR Form 4 framework; Finnhub insider-ready','Checks insider filing activity and prepares buy/sell classification.',insider_find or ['No recent Form 4 activity retrieved.'],insider_risk,'Insider signal is limited until transaction-level parsing is expanded.'),
+        'Institutional Agent':v42_agent(inst_score,'Constructive' if inst_score>=60 else 'Limited','Neutral','SEC EDGAR filings plus FMP institutional ownership-ready','Checks institutional context and 13F availability.',inst_find or ['Institutional data limited.'],['13F data is delayed by reporting schedule.'],'Institutional signal is directional and should be confirmed with holder details.'),
+        'Competitor Agent':v42_agent(peer['score'],'Constructive' if peer['score']>=60 else 'Limited','Positive' if peer['score']>=70 else 'Neutral','FMP peer list and company fundamentals','Compares company fundamentals and valuation context against peers.',peer['findings'],peer['risks'],'Peer context supports the thesis.' if peer['score']>=70 else 'Peer context is limited/mixed.'),
+        'Political Agent':v42_agent(50,'Not connected yet','Neutral','Capitol Trades public data planned; no API key required','Tracks congressional trading once public feed integration is enabled.',['Political Agent framework is active.'],['Capitol Trades ingestion not enabled yet; no political score applied.'],'No political trading signal applied yet.'),
+        'Recovery Agent':v42_agent(65 if (v42_float(row.get('distance_from_52w_high_pct'),0) or 0)<-20 else 50,'Constructive' if (v42_float(row.get('distance_from_52w_high_pct'),0) or 0)<-20 else 'Limited','Positive' if (v42_float(row.get('distance_from_52w_high_pct'),0) or 0)<-20 else 'Neutral','52-week drawdown, growth, analyst support, technical recovery signals','Explains whether this is a recovery candidate or momentum setup.',['Recovery framework active.'],['Recovery thesis requires business outlook to remain intact.'],'Recovery setup exists only if fundamentals remain healthy.'),
+        'ETF / Ownership Agent':v42_agent(55,'Framework active','Neutral','ETF inclusion and ownership flow framework','Checks ETF/index ownership support.',['ETF/ownership framework is active.'],['Detailed ETF flow data not fully connected yet.'],'ETF/ownership is not yet a primary scoring driver.')
+    }
+    pos=sum(1 for a in agents.values() if a['score']>=65); total=len(agents); agree=pos/total
+    row.update({'ai_committee':agents,'v42_news_score':agents['News Agent']['score'],'v42_news_summary':agents['News Agent']['bottom_line'],'v42_news_catalysts':news['catalysts'],'v42_news_risks':news['risks'],'v42_news_sources':news['sources'],'v42_sec_available':sec.get('available',False),'v42_sec_cik':sec.get('cik'),'v42_support_1':sr.get('support_1'),'v42_support_2':sr.get('support_2'),'v42_resistance_1':sr.get('resistance_1'),'v42_resistance_2':sr.get('resistance_2'),'v42_breakout_level':sr.get('breakout_level'),'v42_pullback_zone':sr.get('pullback_zone'),'v42_chart_guidance':sr.get('guidance'),'thesis_strength':'Exceptional Thesis' if agree>=.75 and conviction>=85 else 'Strong Thesis' if agree>=.60 else 'Moderate Thesis' if agree>=.40 else 'Developing Thesis','evidence_confidence':'High' if agree>=.75 else 'Medium-High' if agree>=.60 else 'Medium' if agree>=.40 else 'Low-Medium','v42_committee_positive_agents':pos,'v42_committee_total_agents':total})
+    return row
+
 
 # =========================
 # SCAN PIPELINE
@@ -3164,6 +3323,9 @@ def scan_market() -> Dict[str, Any]:
 
                 metadata_cache[symbol] = meta
 
+            if v42_is_excluded_company(symbol, meta):
+                continue
+
             quote_type = str(meta.get("quote_type", "")).upper()
             if quote_type == "ETF":
                 etf_row = score_etf_row(symbol, meta, ind)
@@ -3172,6 +3334,7 @@ def scan_market() -> Dict[str, Any]:
                     if price_history:
                         etf_row.update(price_history)
                     etf_row = apply_research_field_fallbacks(etf_row, meta)
+                    etf_row = v42_build_committee(symbol, etf_row, meta, ind, hist)
                     etf_rows.append(etf_row)
                 continue
 
@@ -3185,6 +3348,7 @@ def scan_market() -> Dict[str, Any]:
                 row.update(price_history)
             row = enhance_ai_committee(row, meta, ind)
             row = apply_research_field_fallbacks(row, meta)
+            row = v42_build_committee(symbol, row, meta, ind, hist)
 
             # Prescreen can include moderate setups, but weak fallback rows are reduced.
             if score >= 38:
@@ -3228,7 +3392,7 @@ def scan_market() -> Dict[str, Any]:
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V41.8.6",
+        "version": "V42.0",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -3335,6 +3499,14 @@ def scan_market() -> Dict[str, Any]:
             "unique_chart_widget_keys": True,
             "duplicate_chart_key_fix": True,
         },
+        "v42_changes": {
+            "universal_ai_investment_committee": True,
+            "enhanced_news_agent_multi_source": True,
+            "sec_edgar_agent_framework": True,
+            "insider_institutional_competitor_political_framework": True,
+            "support_resistance_intelligence": True,
+            "applies_to_all_tabs_and_live_lookup": True,
+        },
         "v41_changes": {
             "hard_exclusions": True,
             "ai_committee_summary": True,
@@ -3426,7 +3598,7 @@ def main() -> None:
         error_state = {
             "generated_at": now_iso(),
             "status": "error",
-            "version": "V41.8.6",
+            "version": "V42.0",
             "error": str(exc),
             "data_dir": str(DATA_DIR),
             "github_persisted": False,
