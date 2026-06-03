@@ -2838,7 +2838,7 @@ def enhance_ai_committee(row: Dict[str, Any], meta: Dict[str, Any], ind: Dict[st
 
 def build_price_history_intelligence(df: pd.DataFrame, ind: Dict[str, Any]) -> Dict[str, Any]:
     """
-    V42.0.6 Investor Translation.
+    V42.0.7 Safe Investor Translation.
     Adds 52-week low/high, current position in range, 6M/1Y/3Y/5Y returns when available.
     Uses available downloaded history, so it does not add extra API calls.
     """
@@ -3428,6 +3428,63 @@ def v42_apply_investor_translations(row: Dict[str, Any]) -> Dict[str, Any]:
     return row
 
 
+def v42_apply_investor_translations_safe(row: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    V42.0.7 safety wrapper.
+    Investor translation is a display enhancement. It must never crash the overnight scan.
+    If anything goes wrong, keep the existing committee and add a diagnostic note.
+    """
+    try:
+        return v42_apply_investor_translations(row)
+    except Exception as e:
+        try:
+            committee = row.get("ai_committee")
+            if isinstance(committee, dict):
+                for name, agent in committee.items():
+                    if isinstance(agent, dict):
+                        agent.setdefault("what_it_means", "This agent summarizes one part of the investment thesis.")
+                        agent.setdefault("why_it_matters", "It helps determine whether the stock has enough supporting evidence.")
+                        agent.setdefault("investor_action", "Use this as one input, not a standalone buy/sell signal.")
+                        agent.setdefault("green_flag", "Supportive evidence from this agent.")
+                        agent.setdefault("red_flag", "Weak or missing evidence from this agent.")
+                row["ai_committee"] = committee
+            row["v42_translation_warning"] = f"Investor translation fallback used: {str(e)[:160]}"
+        except Exception:
+            row["v42_translation_warning"] = "Investor translation fallback used."
+        return row
+
+
+def v42_build_committee_safe(symbol: str, row: Dict[str, Any], meta: Dict[str, Any], ind: Dict[str, Any], hist: pd.DataFrame) -> Dict[str, Any]:
+    """
+    V42.0.7 safety wrapper around V42 committee creation.
+    The scanner should continue even if a live API source is rate-limited or one ticker has malformed data.
+    """
+    try:
+        return v42_build_committee(symbol, row, meta, ind, hist)
+    except Exception as e:
+        row["v42_committee_warning"] = f"V42 committee fallback used: {str(e)[:160]}"
+        existing = row.get("ai_committee")
+        if not isinstance(existing, dict):
+            row["ai_committee"] = {
+                "Technical Agent": {
+                    "score": int(row.get("conviction", row.get("Final Conviction", 50)) or 50),
+                    "status": "Available",
+                    "impact": "Neutral",
+                    "data_used": "Existing scan fields",
+                    "summary": "Fallback technical/scan score used because V42 committee could not fully build.",
+                    "findings": row.get("setup_tags", []) if isinstance(row.get("setup_tags"), list) else [],
+                    "risks": row.get("risk_tags", []) if isinstance(row.get("risk_tags"), list) else [],
+                    "bottom_line": "Use the existing scan score while V42 committee data is unavailable.",
+                    "what_it_means": "The fallback uses existing scanner fields only.",
+                    "why_it_matters": "This prevents one failed API source from breaking the full scan.",
+                    "investor_action": "Review this ticker with Live Research or rerun the scan.",
+                    "green_flag": "Core scan still completed for this ticker.",
+                    "red_flag": "Full V42 committee did not populate for this ticker.",
+                }
+            }
+        return row
+
+
 # =========================
 # SCAN PIPELINE
 # =========================
@@ -3566,8 +3623,8 @@ def scan_market() -> Dict[str, Any]:
                 row.update(price_history)
             row = enhance_ai_committee(row, meta, ind)
             row = apply_research_field_fallbacks(row, meta)
-            row = v42_build_committee(symbol, row, meta, ind, hist)
-            row = v42_apply_investor_translations(row)
+            row = v42_build_committee_safe(symbol, row, meta, ind, hist)
+            row = v42_apply_investor_translations_safe(row)
 
             # Prescreen can include moderate setups, but weak fallback rows are reduced.
             if score >= 38:
@@ -3611,7 +3668,7 @@ def scan_market() -> Dict[str, Any]:
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V42.0.6",
+        "version": "V42.0.7",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -3817,7 +3874,7 @@ def main() -> None:
         error_state = {
             "generated_at": now_iso(),
             "status": "error",
-            "version": "V42.0.6",
+            "version": "V42.0.7",
             "error": str(exc),
             "data_dir": str(DATA_DIR),
             "github_persisted": False,

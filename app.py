@@ -9,7 +9,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V42.0.6 Investor Translation Dashboard"
+APP_VERSION = "V42.0.7 Safe Investor Translation Dashboard"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -673,6 +673,8 @@ def normalize_scan_row(raw):
         "Chart Guidance": safe_text(pick(raw, "v42_chart_guidance", default=""), ""),
         "Committee Positive Agents": int(safe_number(pick(raw, "v42_committee_positive_agents", default=0), 0)),
         "Committee Total Agents": int(safe_number(pick(raw, "v42_committee_total_agents", default=0), 0)),
+        "V42 Committee Warning": safe_text(pick(raw, "v42_committee_warning", default=""), ""),
+        "V42 Translation Warning": safe_text(pick(raw, "v42_translation_warning", default=""), ""),
         "Raw": raw,
     }
 
@@ -1734,6 +1736,19 @@ def render_agent_translation_box(agent):
             st.warning(f"Red flag: {safe_text(agent.get('red_flag', 'Watch for weak evidence.'))}")
 
 
+def render_v42_diagnostics(row):
+    warnings = []
+    for key in ["V42 Committee Warning", "V42 Translation Warning"]:
+        value = safe_text(row.get(key), "")
+        if value:
+            warnings.append(value)
+    if warnings:
+        with st.container(border=True):
+            st.markdown("### ⚙️ V42 Diagnostics")
+            for w in warnings:
+                st.warning(w)
+
+
 # =========================
 # UI
 # =========================
@@ -1959,6 +1974,7 @@ def render_detail(row):
     with st.expander("📚 Full metric education and AI vs analyst explanation", expanded=False):
         render_metric_education(row)
 
+    render_v42_diagnostics(row)
     render_agent_education_summary(row)
     render_v42_committee_dashboard(row)
 
