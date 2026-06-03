@@ -9,7 +9,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V42.0.8 Login Password Fix Dashboard"
+APP_VERSION = "V42.1 Fast Tiered Scan Dashboard"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -679,6 +679,8 @@ def normalize_scan_row(raw):
         "Committee Total Agents": int(safe_number(pick(raw, "v42_committee_total_agents", default=0), 0)),
         "V42 Committee Warning": safe_text(pick(raw, "v42_committee_warning", default=""), ""),
         "V42 Translation Warning": safe_text(pick(raw, "v42_translation_warning", default=""), ""),
+        "V42 Tier": safe_text(pick(raw, "v42_tier", default=""), ""),
+        "V42 Tier Warning": safe_text(pick(raw, "v42_tier_warning", default=""), ""),
         "Raw": raw,
     }
 
@@ -1753,6 +1755,22 @@ def render_v42_diagnostics(row):
                 st.warning(w)
 
 
+def render_v42_tier_status(row):
+    tier = safe_text(row.get("V42 Tier"), "")
+    warn = safe_text(row.get("V42 Tier Warning"), "")
+    if not tier and not warn:
+        return
+    with st.container(border=True):
+        if tier == "full":
+            st.success("V42 Research Tier: Full AI Committee completed in scheduled scan.")
+        elif tier == "light":
+            st.info("V42 Research Tier: Lightweight scheduled scan. Use ⚡ Run Live AI / Research Any Ticker for full live committee, latest news, SEC, and competitor data.")
+        elif tier:
+            st.caption(f"V42 Research Tier: {tier}")
+        if warn:
+            st.warning(warn)
+
+
 # =========================
 # UI
 # =========================
@@ -1978,6 +1996,7 @@ def render_detail(row):
     with st.expander("📚 Full metric education and AI vs analyst explanation", expanded=False):
         render_metric_education(row)
 
+    render_v42_tier_status(row)
     render_v42_diagnostics(row)
     render_agent_education_summary(row)
     render_v42_committee_dashboard(row)

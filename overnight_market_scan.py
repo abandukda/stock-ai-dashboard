@@ -2838,7 +2838,7 @@ def enhance_ai_committee(row: Dict[str, Any], meta: Dict[str, Any], ind: Dict[st
 
 def build_price_history_intelligence(df: pd.DataFrame, ind: Dict[str, Any]) -> Dict[str, Any]:
     """
-    V42.0.8 Login Password Fix.
+    V42.1 Fast Tiered Scan.
     Adds 52-week low/high, current position in range, 6M/1Y/3Y/5Y returns when available.
     Uses available downloaded history, so it does not add extra API calls.
     """
@@ -3486,6 +3486,239 @@ def v42_build_committee_safe(symbol: str, row: Dict[str, Any], meta: Dict[str, A
 
 
 # =========================
+# V42.1 FAST TIERED SCAN
+# =========================
+FULL_COMMITTEE_LIMIT = int(os.getenv("FULL_COMMITTEE_LIMIT", "15"))
+FULL_RESEARCH_MIN_CONVICTION = float(os.getenv("FULL_RESEARCH_MIN_CONVICTION", "88"))
+FULL_RESEARCH_MIN_RECOVERY = float(os.getenv("FULL_RESEARCH_MIN_RECOVERY", "75"))
+WATCHLIST_FULL_COMMITTEE_LIMIT = int(os.getenv("WATCHLIST_FULL_COMMITTEE_LIMIT", "50"))
+
+
+def v421_watchlist_symbols() -> set:
+    symbols = set()
+    try:
+        env_watch = os.getenv("WATCHLIST_SYMBOLS", "")
+        if env_watch:
+            symbols.update([x.strip().upper() for x in env_watch.split(",") if x.strip()])
+
+        for fname in ["watchlist.json", "watchlist.txt"]:
+            p = Path(DATA_DIR) / fname
+            if not p.exists():
+                continue
+            txt = p.read_text()
+            if fname.endswith(".json"):
+                try:
+                    data = json.loads(txt)
+                    if isinstance(data, list):
+                        symbols.update([str(x).upper() for x in data])
+                    elif isinstance(data, dict):
+                        for v in data.values():
+                            if isinstance(v, list):
+                                symbols.update([str(x).upper() for x in v])
+                            elif isinstance(v, str):
+                                symbols.add(v.upper())
+                except Exception:
+                    pass
+            else:
+                symbols.update([x.strip().upper() for x in txt.splitlines() if x.strip()])
+    except Exception:
+        pass
+    return set(list(symbols)[:WATCHLIST_FULL_COMMITTEE_LIMIT])
+
+
+def v421_should_run_full_research(symbol: str, row: Dict[str, Any]) -> bool:
+    """
+    Scheduled cron full-committee eligibility.
+    Heavy API calls are only run for:
+      - likely top ideas
+      - strong recovery names
+      - watchlist symbols
+      - high conviction + high upside names
+    """
+    symbol = str(symbol).upper().strip()
+    conviction = v42_safe_float(row.get("conviction"), row.get("Final Conviction") or 0) or 0
+    recovery_score = v42_safe_float(row.get("recovery_score"), row.get("Recovery Score") or 0) or 0
+    upside = v42_safe_float(row.get("expected_upside_pct"), row.get("Target Upside %") or 0) or 0
+
+    if symbol in v421_watchlist_symbols():
+        return True
+
+    if conviction >= FULL_RESEARCH_MIN_CONVICTION:
+        return True
+
+    if recovery_score >= FULL_RESEARCH_MIN_RECOVERY:
+        return True
+
+    if conviction >= 82 and upside >= 25:
+        return True
+
+    return False
+
+
+def v421_build_light_committee(symbol: str, row: Dict[str, Any], meta: Dict[str, Any], ind: Dict[str, Any], hist: pd.DataFrame) -> Dict[str, Any]:
+    """
+    Lightweight committee for non-priority rows.
+    No live News/Finnhub/FMP/SEC/Competitor calls.
+    Keeps cron fast while preserving useful basic research.
+    """
+    try:
+        sr = v42_support_resistance(hist, ind, row)
+    except Exception:
+        sr = {"guidance": "Support/resistance unavailable."}
+
+    conviction = v42_safe_float(row.get("conviction"), row.get("Final Conviction") or 50) or 50
+    finance_score = v42_safe_float(row.get("finance_agent_score"), row.get("Finance Agent Score") or 50) or 50
+    analyst_score = v42_safe_float(row.get("analyst_support_score"), row.get("Analyst Support Score") or 50) or 50
+    recovery_score = v42_safe_float(row.get("recovery_score"), row.get("Recovery Score") or 0) or 0
+
+    committee = {
+        "Technical Agent": v42_agent(
+            conviction,
+            "Positive" if conviction >= 75 else "Mixed",
+            "Positive" if conviction >= 75 else "Neutral",
+            "Price history, RSI, ATR, volume, SMA, support/resistance",
+            "Lightweight scheduled scan: evaluates trend, momentum, volatility, support/resistance and entry quality.",
+            [
+                f"Support 1: {sr.get('support_1', 'N/A')} · Resistance 1: {sr.get('resistance_1', 'N/A')}.",
+                f"RSI: {ind.get('rsi', 'N/A')}.",
+            ],
+            ["Latest news/SEC/competitor checks are deferred to full committee or live lookup."],
+            sr.get("guidance", "Use pullback or breakout confirmation."),
+        ),
+        "Finance Agent": v42_agent(
+            finance_score,
+            "Positive" if finance_score >= 75 else "Mixed",
+            "Positive" if finance_score >= 75 else "Neutral",
+            "Existing scan fundamentals only",
+            "Lightweight scheduled scan: uses already-fetched financial fields to avoid extra API calls.",
+            row.get("finance_agent_findings") or ["Basic financial score available from scan."],
+            row.get("finance_agent_risks") or ["Deep financial detail available in full committee or live research."],
+            row.get("finance_agent_bottom_line") or "Financial profile requires full research for deeper detail.",
+        ),
+        "Analyst Agent": v42_agent(
+            analyst_score,
+            "Positive" if analyst_score >= 65 else "Mixed",
+            "Positive" if analyst_score >= 65 else "Neutral",
+            "Existing analyst target/count/recommendation fields",
+            "Lightweight scheduled scan: checks analyst target and support using existing scan fields.",
+            [f"Analyst target: {row.get('analyst_target_mean') or row.get('Analyst Target') or 'N/A'}."],
+            ["Recent target revisions are checked in full committee or live research."],
+            "Analyst support is directional in lightweight mode.",
+        ),
+        "News Agent": {
+            "score": None,
+            "status": "Deferred to full/live research",
+            "impact": "Not scored",
+            "available": False,
+            "data_used": "Skipped in lightweight scheduled scan",
+            "summary": "News was not pulled for this lower-tier row to keep the scheduled scan fast.",
+            "findings": ["Use Live Research or wait for this ticker to rank into the full committee tier."],
+            "risks": ["Do not assume no news; news was intentionally deferred."],
+            "bottom_line": "News Agent deferred to full committee/live lookup.",
+        },
+        "Insider Agent": {
+            "score": None,
+            "status": "Deferred to full/live research",
+            "impact": "Not scored",
+            "data_used": "SEC skipped in lightweight scheduled scan",
+            "summary": "Insider/SEC data is only run for priority tickers during cron.",
+            "findings": [],
+            "risks": ["Use Live Research for immediate insider/SEC check."],
+            "bottom_line": "Insider Agent deferred.",
+        },
+        "Institutional Agent": {
+            "score": None,
+            "status": "Deferred to full/live research",
+            "impact": "Not scored",
+            "data_used": "SEC/FMP ownership skipped in lightweight scheduled scan",
+            "summary": "Institutional data is not run for every row during cron.",
+            "findings": [],
+            "risks": ["Use Live Research for immediate ownership check."],
+            "bottom_line": "Institutional Agent deferred.",
+        },
+        "Competitor Agent": {
+            "score": None,
+            "status": "Deferred to full/live research",
+            "impact": "Not scored",
+            "data_used": "Peer comparison skipped in lightweight scheduled scan",
+            "summary": "Competitor comparison is deferred for lower-tier rows to reduce API calls.",
+            "findings": [],
+            "risks": ["Use full committee/live lookup for peer analysis."],
+            "bottom_line": "Competitor Agent deferred.",
+        },
+        "Recovery Agent": v42_agent(
+            recovery_score if recovery_score else 50,
+            "Constructive" if recovery_score >= 65 else "Limited",
+            "Positive" if recovery_score >= 65 else "Neutral",
+            "Existing drawdown/recovery fields",
+            "Lightweight recovery check from scan data.",
+            row.get("recovery_findings") or ["Recovery scan field available if present."],
+            row.get("recovery_risks") or ["Full recovery explanation available in full committee/live research."],
+            "Recovery signal is directional in lightweight mode.",
+        ),
+        "ETF / Ownership Agent": {
+            "score": None,
+            "status": "Deferred to full/live research",
+            "impact": "Not scored",
+            "data_used": "ETF/ownership checks skipped in lightweight scheduled scan",
+            "summary": "ETF ownership data is deferred unless this is a priority ETF/watchlist row.",
+            "findings": [],
+            "risks": ["Use ETF tab/detail or live lookup for deeper ETF/ownership context."],
+            "bottom_line": "ETF/Ownership Agent deferred.",
+        },
+        "Political Agent": {
+            "score": None,
+            "status": "Not connected yet",
+            "impact": "Not scored",
+            "data_used": "Capitol Trades planned",
+            "summary": "Political trading feed is not enabled yet.",
+            "findings": [],
+            "risks": ["No political score applied."],
+            "bottom_line": "Political Agent not scored.",
+        },
+    }
+
+    row["ai_committee"] = committee
+    row["v42_tier"] = "light"
+    row["v42_support_1"] = sr.get("support_1")
+    row["v42_support_2"] = sr.get("support_2")
+    row["v42_resistance_1"] = sr.get("resistance_1")
+    row["v42_resistance_2"] = sr.get("resistance_2")
+    row["v42_breakout_level"] = sr.get("breakout_level")
+    row["v42_pullback_zone"] = sr.get("pullback_zone")
+    row["v42_chart_guidance"] = sr.get("guidance")
+    return row
+
+
+def v421_apply_tiered_committee(symbol: str, row: Dict[str, Any], meta: Dict[str, Any], ind: Dict[str, Any], hist: pd.DataFrame) -> Dict[str, Any]:
+    """
+    V42.1 tiered scheduled scan:
+      - Full committee for priority names.
+      - Lightweight committee for the remaining Top 150.
+      - Live lookup remains full research on demand.
+    """
+    try:
+        if v421_should_run_full_research(symbol, row):
+            if "v42_build_committee_safe" in globals():
+                row = v421_apply_tiered_committee(symbol, row, meta, ind, hist)
+            else:
+                row = v421_apply_tiered_committee(symbol, row, meta, ind, hist)
+            row["v42_tier"] = "full"
+        else:
+            row = v421_build_light_committee(symbol, row, meta, ind, hist)
+
+        if "v42_apply_investor_translations_safe" in globals():
+            row = v42_apply_investor_translations_safe(row)
+        elif "v42_apply_investor_translations" in globals():
+            row = v42_apply_investor_translations(row)
+        return row
+    except Exception as e:
+        row["v42_tier"] = "light_fallback"
+        row["v42_tier_warning"] = f"Tiered committee fallback used: {str(e)[:160]}"
+        return row
+
+
+# =========================
 # SCAN PIPELINE
 # =========================
 
@@ -3623,8 +3856,7 @@ def scan_market() -> Dict[str, Any]:
                 row.update(price_history)
             row = enhance_ai_committee(row, meta, ind)
             row = apply_research_field_fallbacks(row, meta)
-            row = v42_build_committee_safe(symbol, row, meta, ind, hist)
-            row = v42_apply_investor_translations_safe(row)
+            row = v421_apply_tiered_committee(symbol, row, meta, ind, hist)
 
             # Prescreen can include moderate setups, but weak fallback rows are reduced.
             if score >= 38:
@@ -3668,7 +3900,7 @@ def scan_market() -> Dict[str, Any]:
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V42.0.8",
+        "version": "V42.1",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -3874,7 +4106,7 @@ def main() -> None:
         error_state = {
             "generated_at": now_iso(),
             "status": "error",
-            "version": "V42.0.8",
+            "version": "V42.1",
             "error": str(exc),
             "data_dir": str(DATA_DIR),
             "github_persisted": False,
