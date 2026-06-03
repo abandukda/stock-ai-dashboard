@@ -9,7 +9,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V42.1 Fast Tiered Scan Dashboard"
+APP_VERSION = "V42.2 Agent V2 Intelligence Dashboard"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -1772,6 +1772,250 @@ def render_v42_tier_status(row):
 
 
 # =========================
+# V42.2 AGENT V2 DISPLAY INTELLIGENCE
+# =========================
+
+def v422_display_num(value, default=None):
+    try:
+        if value in (None, "", "N/A"):
+            return default
+        if isinstance(value, str):
+            value = value.replace("$", "").replace(",", "").replace("%", "").strip()
+        return float(value)
+    except Exception:
+        return default
+
+
+def v422_display_money(value):
+    value = v422_display_num(value, None)
+    return "N/A" if value is None else f"${value:,.2f}"
+
+
+def v422_display_pct(value):
+    value = v422_display_num(value, None)
+    return "N/A" if value is None else f"{value:.1f}%"
+
+
+def v422_row_num(row, *keys, default=None):
+    for key in keys:
+        try:
+            value = row.get(key)
+            if value not in (None, "", "N/A"):
+                return v422_display_num(value, default)
+        except Exception:
+            pass
+    return default
+
+
+def v422_agent_v2_commentary(agent_name, agent, row):
+    """
+    Dashboard-side intelligence layer.
+    Converts raw agent findings into deeper investment judgment without requiring another heavy cron.
+    """
+    name = safe_text(agent_name, "").lower()
+    score = v422_display_num(agent.get("score"), None) if isinstance(agent, dict) else None
+
+    if "finance" in name:
+        revenue_growth = None
+        earnings_growth = None
+        forward_pe = None
+        debt_equity = None
+        current_ratio = None
+        free_cash_flow = None
+
+        # Try to parse from existing findings.
+        for item in agent.get("findings", []) if isinstance(agent, dict) else []:
+            txt = safe_text(item)
+            m = re.search(r"Revenue growth[^0-9\-]*(-?\d+\.?\d*)", txt, re.I)
+            if m: revenue_growth = float(m.group(1))
+            m = re.search(r"Earnings growth[^0-9\-]*(-?\d+\.?\d*)", txt, re.I)
+            if m: earnings_growth = float(m.group(1))
+            m = re.search(r"Forward PE[^0-9\-]*(-?\d+\.?\d*)", txt, re.I)
+            if m: forward_pe = float(m.group(1))
+            m = re.search(r"Debt/equity[^0-9\-]*(-?\d+\.?\d*)", txt, re.I)
+            if m: debt_equity = float(m.group(1))
+            m = re.search(r"Current ratio[^0-9\-]*(-?\d+\.?\d*)", txt, re.I)
+            if m: current_ratio = float(m.group(1))
+
+        judgments = []
+        concerns = []
+        if revenue_growth is not None:
+            if revenue_growth >= 30:
+                judgments.append("Revenue growth is exceptional and indicates strong demand.")
+            elif revenue_growth >= 15:
+                judgments.append("Revenue growth is strong.")
+            elif revenue_growth < 0:
+                concerns.append("Revenue growth is negative.")
+        if revenue_growth is not None and earnings_growth is not None:
+            if revenue_growth >= 20 and earnings_growth < revenue_growth * 0.35:
+                concerns.append("Revenue is growing much faster than earnings, which may signal reinvestment, margin pressure, or weaker profit conversion.")
+            elif earnings_growth >= 15:
+                judgments.append("Earnings growth supports the revenue story.")
+        if forward_pe is not None and revenue_growth is not None:
+            if forward_pe < max(revenue_growth, 1):
+                judgments.append("Valuation appears reasonable relative to growth.")
+            elif forward_pe > 50:
+                concerns.append("Valuation is elevated and depends on continued execution.")
+        if debt_equity is not None:
+            if debt_equity < 0.5:
+                judgments.append("Balance sheet leverage appears low.")
+            elif debt_equity > 2:
+                concerns.append("Leverage is elevated.")
+
+        return {
+            "title": "Finance Agent V2 Judgment",
+            "what_it_means": "This checks whether sales growth is converting into earnings, margins, cash flow, and balance-sheet strength.",
+            "why_it_matters": "High revenue growth alone is not enough. The best setups show quality growth with profit conversion and manageable debt.",
+            "judgment": judgments or ["Financial profile is constructive, but deeper margin/cash-flow comparison would improve confidence."],
+            "watchouts": concerns or ["No major finance-specific red flag detected from the available fields."],
+            "action": "Prefer entries when revenue growth, earnings growth, margins, and cash flow agree. If revenue growth is much faster than earnings growth, use smaller sizing and require confirmation.",
+        }
+
+    if "analyst" in name:
+        price = v422_row_num(row, "Price")
+        analyst_target = v422_row_num(row, "Analyst Target")
+        analyst_count = v422_row_num(row, "Analyst Count")
+        ai_fair = v422_row_num(row, "AI Fair Value")
+        judgments = []
+        concerns = []
+        if analyst_count is not None:
+            if analyst_count >= 25:
+                judgments.append(f"Coverage is broad with {int(analyst_count)} analysts, so consensus is more meaningful.")
+            elif analyst_count < 5:
+                concerns.append("Analyst coverage is thin, so consensus is less reliable.")
+        if price and analyst_target:
+            upside = (analyst_target - price) / price * 100
+            judgments.append(f"Analyst consensus implies {upside:.1f}% upside.")
+            if upside < 5:
+                concerns.append("Analyst target shows limited upside.")
+        if ai_fair and analyst_target:
+            gap = (ai_fair - analyst_target) / analyst_target * 100
+            if gap > 50:
+                concerns.append(f"AI fair value is {gap:.1f}% above analyst consensus; treat model upside as higher uncertainty.")
+            elif abs(gap) <= 20:
+                judgments.append("AI fair value is reasonably aligned with analyst consensus.")
+
+        return {
+            "title": "Analyst Agent V2 Judgment",
+            "what_it_means": "This checks whether Wall Street consensus supports or conflicts with the AI thesis.",
+            "why_it_matters": "If AI upside is far above analyst consensus, the idea may still work but requires stronger confirmation.",
+            "judgment": judgments or ["Analyst data is supportive but should be combined with finance, news, and technical signals."],
+            "watchouts": concerns or ["Analyst data can lag fast-moving news."],
+            "action": "Use analyst support as confirmation. When AI fair value is far above consensus, require stronger evidence from other agents.",
+        }
+
+    if "technical" in name:
+        price = v422_row_num(row, "Price")
+        support = v422_row_num(row, "Support 1")
+        resistance = v422_row_num(row, "Resistance 1")
+        breakout = v422_row_num(row, "Breakout Level")
+        rsi = None
+        for item in agent.get("findings", []) if isinstance(agent, dict) else []:
+            txt = safe_text(item)
+            m = re.search(r"RSI[^0-9]*(\d+\.?\d*)", txt, re.I)
+            if m: rsi = float(m.group(1))
+        judgments = []
+        concerns = []
+        if price and support:
+            judgments.append(f"Price is {(price-support)/price*100:.1f}% above support at {v422_display_money(support)}.")
+        if price and resistance:
+            judgments.append(f"Price is {(resistance-price)/price*100:.1f}% below resistance at {v422_display_money(resistance)}.")
+        if price and support and resistance:
+            rr = max(resistance-price, 0) / max(price-support, 0.01)
+            judgments.append(f"Near-term chart risk/reward to first resistance is about {rr:.2f}:1.")
+            if rr < 1:
+                concerns.append("Price is closer to resistance than support; entry is less attractive.")
+        if rsi is not None:
+            if rsi >= 70:
+                concerns.append("RSI is overbought; avoid chasing.")
+            elif 45 <= rsi <= 65:
+                judgments.append("RSI is in a healthier momentum zone.")
+        return {
+            "title": "Technical Agent V2 Judgment",
+            "what_it_means": "This checks whether the current price is a good entry, not just whether the trend is strong.",
+            "why_it_matters": "A strong stock can still be a poor entry if it is too close to resistance or overbought.",
+            "judgment": judgments or ["Technical setup is being evaluated using trend, RSI, support, and resistance."],
+            "watchouts": concerns or ["No major technical risk detected from available chart fields."],
+            "action": f"Prefer pullback near {v422_display_money(support)} or breakout above {v422_display_money(breakout or resistance)} with volume.",
+        }
+
+    if "insider" in name:
+        form4_count = None
+        for item in agent.get("findings", []) if isinstance(agent, dict) else []:
+            m = re.search(r"Form 4 filings found:\s*(\d+)", safe_text(item), re.I)
+            if m: form4_count = int(m.group(1))
+        return {
+            "title": "Insider Agent V2 Judgment",
+            "what_it_means": "The system detected SEC insider filing activity, but it may not yet classify whether insiders bought or sold.",
+            "why_it_matters": "Insider buying can be powerful, but Form 4 count alone is not bullish because it can include sales, option exercises, and routine compensation.",
+            "judgment": [f"Recent Form 4 count: {form4_count}." if form4_count is not None else "Transaction-level insider detail is not available yet."],
+            "watchouts": ["Do not treat filing count alone as bullish."],
+            "action": "Wait for buy/sell classification before using this as a major decision factor.",
+        }
+
+    if "institutional" in name:
+        return {
+            "title": "Institutional Agent V2 Judgment",
+            "what_it_means": "This checks whether institutional filing context exists, but 13F data is delayed.",
+            "why_it_matters": "Institutional accumulation can confirm a thesis, but delayed filings are not real-time trade signals.",
+            "judgment": ["Institutional signal is directional until holder-level net flow is shown."],
+            "watchouts": ["Do not buy solely because 13F context exists; confirm actual holders added shares."],
+            "action": "Use institutional data as confirmation only. Strong signal requires funds added vs funds reduced over multiple quarters.",
+        }
+
+    if "competitor" in name:
+        return {
+            "title": "Competitor Agent V2 Judgment",
+            "what_it_means": "This should tell whether the company is growing faster, trading cheaper, or operating better than peers.",
+            "why_it_matters": "A stock can look good alone but be less attractive if peers are cheaper or growing faster.",
+            "judgment": ["Peer context is useful only when actual peer averages are available."],
+            "watchouts": ["If peer list or peer averages are unavailable, do not over-weight this score."],
+            "action": "Use full/live research for peer average revenue growth, margins, PE, and debt comparison.",
+        }
+
+    if "recovery" in name:
+        price = v422_row_num(row, "Price")
+        high52 = v422_row_num(row, "52W High")
+        judgments = []
+        if price and high52:
+            dd = (price-high52)/high52*100
+            judgments.append(f"Current price is {dd:.1f}% from the 52-week high.")
+        return {
+            "title": "Recovery Agent V2 Judgment",
+            "what_it_means": "This checks whether weakness is a temporary dislocation or a broken-business decline.",
+            "why_it_matters": "A lower price is only attractive if the reason for the drop is temporary or already priced in.",
+            "judgment": judgments or ["Recovery case depends on whether fundamentals remain intact after the drawdown."],
+            "watchouts": ["Avoid recovery setups caused by deteriorating fundamentals, debt stress, or repeated guidance cuts."],
+            "action": "Prefer recovery names with stabilizing fundamentals, improving news, analyst support, and clear support levels.",
+        }
+
+    return None
+
+
+def render_v422_agent_v2_box(agent_name, agent, row):
+    info = v422_agent_v2_commentary(agent_name, agent, row)
+    if not info:
+        return
+    with st.container(border=True):
+        st.markdown(f"**{info['title']}**")
+        st.markdown(f"• **What it means:** {info['what_it_means']}")
+        st.markdown(f"• **Why it matters:** {info['why_it_matters']}")
+        if info.get("judgment"):
+            st.markdown("**Judgment:**")
+            for item in info["judgment"][:5]:
+                st.markdown(f"✓ {safe_text(item)}")
+        if info.get("watchouts"):
+            st.markdown("**Watchouts:**")
+            for item in info["watchouts"][:5]:
+                st.markdown(f"⚠️ {safe_text(item)}")
+        st.info(f"**Action:** {info['action']}")
+
+
+def render_v422_status(row):
+    st.success("V42.2 Agent V2 Intelligence: report cards now add investment judgment on top of raw agent metrics.")
+
+
+# =========================
 # UI
 # =========================
 
@@ -1996,6 +2240,7 @@ def render_detail(row):
     with st.expander("📚 Full metric education and AI vs analyst explanation", expanded=False):
         render_metric_education(row)
 
+    render_v422_status(row)
     render_v42_tier_status(row)
     render_v42_diagnostics(row)
     render_agent_education_summary(row)
