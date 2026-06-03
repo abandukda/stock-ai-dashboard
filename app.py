@@ -1,4 +1,5 @@
 import os
+import datetime as dt
 import json
 from pathlib import Path
 
@@ -9,7 +10,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V42.2.1 Guest Viewer Login Fix Dashboard"
+APP_VERSION = "V42.3 Professional Market Command Center"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -2017,6 +2018,321 @@ def render_v422_status(row):
 
 
 # =========================
+# V42.3 PROFESSIONAL MARKET COMMAND CENTER
+# =========================
+
+def v423_safe_float(value, default=None):
+    try:
+        if value in (None, "", "N/A"):
+            return default
+        if isinstance(value, str):
+            value = value.replace("$", "").replace(",", "").replace("%", "").strip()
+        return float(value)
+    except Exception:
+        return default
+
+
+def v423_fmt_money(value):
+    value = v423_safe_float(value, None)
+    if value is None:
+        return "N/A"
+    return f"${value:,.2f}"
+
+
+@st.cache_data(ttl=300)
+def v423_fetch_quote(symbol):
+    symbol = str(symbol).upper().strip()
+    if not symbol:
+        return {}
+    try:
+        if FMP_API_KEY:
+            url = f"https://financialmodelingprep.com/api/v3/quote/{symbol}"
+            r = requests.get(url, params={"apikey": FMP_API_KEY}, timeout=8)
+            if r.status_code == 200:
+                data = r.json() or []
+                if data:
+                    q = data[0]
+                    return {
+                        "symbol": symbol,
+                        "price": q.get("price"),
+                        "change_pct": q.get("changesPercentage"),
+                        "change": q.get("change"),
+                        "name": q.get("name"),
+                    }
+    except Exception:
+        pass
+    return {}
+
+
+@st.cache_data(ttl=900)
+def v423_fetch_market_snapshot():
+    symbols = ["SPY", "QQQ", "DIA", "IWM"]
+    out = []
+    for s in symbols:
+        q = v423_fetch_quote(s)
+        if q:
+            out.append(q)
+    vix = v423_fetch_quote("^VIX") or v423_fetch_quote("VIX")
+    return {"indexes": out, "vix": vix}
+
+
+@st.cache_data(ttl=1800)
+def v423_fetch_economic_calendar():
+    events = []
+    try:
+        if FMP_API_KEY:
+            today = dt.datetime.now().date()
+            end = today + dt.timedelta(days=7)
+            url = "https://financialmodelingprep.com/api/v3/economic_calendar"
+            r = requests.get(url, params={"from": today.isoformat(), "to": end.isoformat(), "apikey": FMP_API_KEY}, timeout=10)
+            if r.status_code == 200:
+                data = r.json() or []
+                important_terms = ["CPI", "PPI", "Payroll", "Nonfarm", "FOMC", "Fed", "Jobless", "GDP", "Retail Sales", "Inflation", "Unemployment", "ISM", "PMI"]
+                for item in data:
+                    name = safe_text(item.get("event") or item.get("name") or "")
+                    if name and any(term.lower() in name.lower() for term in important_terms):
+                        events.append({
+                            "date": safe_text(item.get("date") or item.get("datetime") or ""),
+                            "event": name,
+                            "actual": item.get("actual"),
+                            "estimate": item.get("estimate"),
+                            "previous": item.get("previous"),
+                        })
+                    if len(events) >= 8:
+                        break
+    except Exception:
+        pass
+    return events
+
+
+@st.cache_data(ttl=1800)
+def v423_fetch_earnings_calendar():
+    events = []
+    try:
+        if FMP_API_KEY:
+            today = dt.datetime.now().date()
+            end = today + dt.timedelta(days=7)
+            url = "https://financialmodelingprep.com/api/v3/earning_calendar"
+            r = requests.get(url, params={"from": today.isoformat(), "to": end.isoformat(), "apikey": FMP_API_KEY}, timeout=12)
+            if r.status_code == 200:
+                data = r.json() or []
+                watch = {"NVDA","AAPL","MSFT","AMZN","GOOGL","GOOG","META","TSLA","AMD","PLTR","CRM","ADBE","AVGO","NFLX","COST","ORCL","TEAM","ELF","SOFI","SNOW","CRWD","NOW"}
+                for item in data:
+                    sym = safe_text(item.get("symbol") or "").upper()
+                    if sym in watch:
+                        events.append({
+                            "symbol": sym,
+                            "date": safe_text(item.get("date") or ""),
+                            "epsEstimated": item.get("epsEstimated"),
+                            "time": safe_text(item.get("time") or ""),
+                        })
+                    if len(events) >= 10:
+                        break
+    except Exception:
+        pass
+    return events
+
+
+def render_v423_market_ribbon():
+    snap = v423_fetch_market_snapshot()
+    parts = []
+    for q in snap.get("indexes", []):
+        sym = q.get("symbol")
+        pct = v423_safe_float(q.get("change_pct"), None)
+        if sym and pct is not None:
+            icon = "🟢" if pct >= 0 else "🔴"
+            parts.append(f"{icon} {sym} {pct:+.2f}%")
+    vix = snap.get("vix") or {}
+    if vix.get("price") is not None:
+        parts.append(f"⚠️ VIX {v423_safe_float(vix.get('price'), 0):.2f}")
+    if not parts:
+        parts = ["Market data loading from connected sources"]
+    ribbon_text = "  •  ".join(parts)
+    st.markdown(f"""
+<style>
+.v423-ribbon {{
+    width: 100%; overflow: hidden; white-space: nowrap;
+    background: linear-gradient(90deg, #0E1117, #172033);
+    color: #E8EEF7; border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 12px; padding: 10px 0; margin-bottom: 12px;
+}}
+.v423-ribbon span {{
+    display: inline-block; padding-left: 100%;
+    animation: v423-marquee 28s linear infinite;
+    font-weight: 650; letter-spacing: 0.2px;
+}}
+@keyframes v423-marquee {{
+    0% {{ transform: translate(0, 0); }}
+    100% {{ transform: translate(-100%, 0); }}
+}}
+.v423-meter-bg {{
+    width: 100%; height: 14px; background: rgba(255,255,255,0.12);
+    border-radius: 999px; overflow: hidden;
+}}
+.v423-meter-fill {{
+    height: 14px; background: linear-gradient(90deg, #1E88E5, #00C853);
+    border-radius: 999px;
+}}
+</style>
+<div class="v423-ribbon"><span>{ribbon_text} &nbsp;&nbsp;&nbsp; {ribbon_text}</span></div>
+""", unsafe_allow_html=True)
+
+
+def render_v423_command_center():
+    st.markdown("## 🧭 Market Command Center")
+    render_v423_market_ribbon()
+    econ = v423_fetch_economic_calendar()
+    earnings = v423_fetch_earnings_calendar()
+    c1, c2 = st.columns(2)
+    with c1:
+        with st.container(border=True):
+            st.markdown("### 🗓️ Economic Calendar")
+            if econ:
+                for e in econ[:6]:
+                    st.markdown(f"• **{safe_text(e.get('event'))}** — {safe_text(e.get('date'))}")
+                    details = []
+                    if e.get("estimate") not in (None, ""):
+                        details.append(f"Est: {e.get('estimate')}")
+                    if e.get("previous") not in (None, ""):
+                        details.append(f"Prev: {e.get('previous')}")
+                    if details:
+                        st.caption(" | ".join(details))
+            else:
+                st.caption("No high-priority economic events returned from connected source.")
+    with c2:
+        with st.container(border=True):
+            st.markdown("### 💼 Earnings Focus")
+            if earnings:
+                for e in earnings[:8]:
+                    time_txt = f" · {safe_text(e.get('time'))}" if e.get("time") else ""
+                    st.markdown(f"• **{safe_text(e.get('symbol'))}** — {safe_text(e.get('date'))}{time_txt}")
+                    if e.get("epsEstimated") not in (None, ""):
+                        st.caption(f"EPS Est: {e.get('epsEstimated')}")
+            else:
+                st.caption("No major watchlist earnings returned for the next 7 days.")
+
+
+def render_v423_conviction_meter(row):
+    score = v423_safe_float(row.get("Final Conviction") or row.get("Score") or row.get("AI Score"), None)
+    if score is None:
+        return
+    score = max(0, min(100, score))
+    st.markdown("### 🎯 Conviction Meter")
+    st.markdown(f"**{score:.0f}/100**")
+    st.markdown(f"""<div class="v423-meter-bg"><div class="v423-meter-fill" style="width: {score:.0f}%"></div></div>""", unsafe_allow_html=True)
+    if score >= 90:
+        st.success("Elite conviction — multiple signals appear aligned.")
+    elif score >= 75:
+        st.info("Strong conviction — attractive, but confirm risks and entry.")
+    elif score >= 55:
+        st.warning("Moderate conviction — needs stronger confirmation.")
+    else:
+        st.error("Low conviction — not a priority idea.")
+
+
+def render_v423_why_ranked(row):
+    positives, risks = [], []
+    score = v423_safe_float(row.get("Final Conviction") or row.get("Score") or row.get("AI Score"), None)
+    upside = v423_safe_float(row.get("Target Upside %") or row.get("AI Upside"), None)
+    rsi = v423_safe_float(row.get("RSI"), None)
+    price = v423_safe_float(row.get("Price"), None)
+    resistance = v423_safe_float(row.get("Resistance 1"), None)
+    committee = row.get("AI Committee")
+    if isinstance(committee, dict):
+        for agent_name, agent in committee.items():
+            if not isinstance(agent, dict):
+                continue
+            a_score = v423_safe_float(agent.get("score"), None)
+            if a_score is not None and a_score >= 75:
+                positives.append(f"{agent_name}: supportive ({a_score:.0f}/100)")
+            for r in (agent.get("risks") or [])[:1]:
+                if r and len(risks) < 5:
+                    risks.append(f"{agent_name}: {safe_text(r)}")
+    if score is not None and score >= 85:
+        positives.insert(0, f"High AI conviction score: {score:.0f}/100")
+    if upside is not None and upside >= 20:
+        positives.append(f"Attractive modeled upside: {upside:.1f}%")
+    if rsi is not None:
+        if rsi >= 70:
+            risks.append(f"RSI is overbought at {rsi:.1f}; avoid chasing.")
+        elif 45 <= rsi <= 65:
+            positives.append(f"RSI is healthy at {rsi:.1f}.")
+    if price and resistance:
+        dist = (resistance - price) / price * 100
+        if dist > 5:
+            positives.append(f"Room to resistance: {dist:.1f}%")
+        elif dist < 3:
+            risks.append("Price is close to resistance; entry may be less attractive.")
+    positives = positives[:7] or ["Ranking is based on combined AI score, trend, valuation, analyst, and risk signals."]
+    risks = risks[:5] or ["No major red flag detected from available report-card fields."]
+    with st.container(border=True):
+        st.markdown("### 🏆 Why This Ranked")
+        st.markdown("**Key reasons:**")
+        for p in positives:
+            st.markdown(f"✓ {safe_text(p)}")
+        st.markdown("**Biggest risks / watchouts:**")
+        for r in risks:
+            st.markdown(f"⚠️ {safe_text(r)}")
+
+
+def render_v423_professional_trading_levels(row):
+    price = v423_safe_float(row.get("Price"), None)
+    support1 = v423_safe_float(row.get("Support 1"), None)
+    support2 = v423_safe_float(row.get("Support 2"), None)
+    resistance1 = v423_safe_float(row.get("Resistance 1"), None)
+    resistance2 = v423_safe_float(row.get("Resistance 2"), None)
+    breakout = v423_safe_float(row.get("Breakout Level"), None)
+    pullback = safe_text(row.get("Pullback Zone"), "")
+    guidance = safe_text(row.get("Chart Guidance"), "")
+    if not any([price, support1, support2, resistance1, resistance2, breakout, pullback, guidance]):
+        return
+    with st.container(border=True):
+        st.markdown("### 📈 Professional Trading Levels")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Current", v423_fmt_money(price))
+        c2.metric("Support 1", v423_fmt_money(support1))
+        c3.metric("Resistance 1", v423_fmt_money(resistance1))
+        c4, c5, c6 = st.columns(3)
+        c4.metric("Support 2", v423_fmt_money(support2))
+        c5.metric("Resistance 2", v423_fmt_money(resistance2))
+        c6.metric("Breakout", v423_fmt_money(breakout))
+        if pullback:
+            st.caption(f"Pullback Zone: {pullback}")
+        if guidance:
+            st.info(guidance)
+
+
+def render_v423_ai_news_summary(row):
+    catalysts = row.get("V42 News Catalysts")
+    risks = row.get("V42 News Risks")
+    sources = row.get("V42 News Sources")
+    score = v423_safe_float(row.get("V42 News Score"), None)
+    if not catalysts and not risks:
+        return
+    with st.container(border=True):
+        st.markdown("### 📰 AI News Summary")
+        if score is not None:
+            st.metric("News Score", f"{score:.0f}/100")
+        else:
+            st.metric("News Status", "No scored news", "Check live research")
+        if sources:
+            if isinstance(sources, list):
+                st.caption("Sources checked: " + ", ".join([safe_text(x) for x in sources[:5]]))
+            else:
+                st.caption(f"Sources checked: {safe_text(sources)}")
+        if catalysts:
+            st.markdown("**Catalysts / headlines:**")
+            items = catalysts if isinstance(catalysts, list) else compact_reason_list(catalysts)
+            for item in items[:5]:
+                st.markdown(f"• {safe_text(item)}")
+        if risks:
+            st.markdown("**News risks / limits:**")
+            items = risks if isinstance(risks, list) else compact_reason_list(risks)
+            for item in items[:4]:
+                st.markdown(f"⚠️ {safe_text(item)}")
+
+
+# =========================
 # UI
 # =========================
 
@@ -2234,8 +2550,12 @@ def render_detail(row):
     c9.metric("Risk/Reward", safe_text(row.get("Risk/Reward"), "N/A"))
 
     render_v42_support_resistance(row)
+    render_v423_ai_news_summary(row)
     render_v42_news_block(row)
+    render_v423_conviction_meter(row)
+    render_v423_why_ranked(row)
     render_detail_chart_v4184(row)
+    render_v423_professional_trading_levels(row)
     render_inline_metric_summary(row)
 
     with st.expander("📚 Full metric education and AI vs analyst explanation", expanded=False):
@@ -3084,6 +3404,7 @@ def check_login():
 def main():
     if not require_login():
         return
+    render_v423_command_center()
 
     render_status_banner()
     render_score_help()
