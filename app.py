@@ -10,7 +10,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V42.3.1 Login Hard Fix Dashboard"
+APP_VERSION = "V42.3.3 Login Visibility + Multi Password Fix"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -2073,49 +2073,127 @@ def v423_fetch_economic_calendar():
     return events
 
 
-@st.cache_data(ttl=1800)
+@st.cache_data(ttl=900)
 def v423_fetch_earnings_calendar():
+    """
+    V42.3.2: Today's broad earnings calendar.
+    Not watchlist-only. Shows major earnings due today from FMP.
+    """
     events = []
     try:
         if FMP_API_KEY:
             today = dt.datetime.now().date()
-            end = today + dt.timedelta(days=7)
             url = "https://financialmodelingprep.com/api/v3/earning_calendar"
-            r = requests.get(url, params={"from": today.isoformat(), "to": end.isoformat(), "apikey": FMP_API_KEY}, timeout=12)
+            r = requests.get(
+                url,
+                params={
+                    "from": today.isoformat(),
+                    "to": today.isoformat(),
+                    "apikey": FMP_API_KEY,
+                },
+                timeout=12,
+            )
             if r.status_code == 200:
                 data = r.json() or []
-                watch = {"NVDA","AAPL","MSFT","AMZN","GOOGL","GOOG","META","TSLA","AMD","PLTR","CRM","ADBE","AVGO","NFLX","COST","ORCL","TEAM","ELF","SOFI","SNOW","CRWD","NOW"}
-                for item in data:
+                priority_symbols = {
+                    "AAPL","MSFT","NVDA","AMZN","GOOGL","GOOG","META","TSLA","AMD","AVGO","NFLX",
+                    "CRM","ADBE","ORCL","COST","WMT","HD","LOW","JPM","BAC","WFC","GS","MS",
+                    "UNH","LLY","NVO","MRK","PFE","ABBV","JNJ","XOM","CVX","CAT","DE",
+                    "PLTR","SOFI","TEAM","SNOW","CRWD","NOW","PANW","SHOP","UBER","DIS"
+                }
+
+                def rank_item(item):
                     sym = safe_text(item.get("symbol") or "").upper()
-                    if sym in watch:
-                        events.append({
-                            "symbol": sym,
-                            "date": safe_text(item.get("date") or ""),
-                            "epsEstimated": item.get("epsEstimated"),
-                            "time": safe_text(item.get("time") or ""),
-                        })
-                    if len(events) >= 10:
+                    pri = 0 if sym in priority_symbols else 1
+                    rev_est = item.get("revenueEstimated")
+                    eps_est = item.get("epsEstimated")
+                    has_rev = 0 if rev_est not in (None, "", 0) else 1
+                    has_eps = 0 if eps_est not in (None, "", 0) else 1
+                    return (pri, has_rev, has_eps, sym)
+
+                for item in sorted(data, key=rank_item):
+                    sym = safe_text(item.get("symbol") or "").upper()
+                    if not sym:
+                        continue
+                    events.append({
+                        "symbol": sym,
+                        "date": safe_text(item.get("date") or ""),
+                        "eps": item.get("eps"),
+                        "epsEstimated": item.get("epsEstimated"),
+                        "time": safe_text(item.get("time") or ""),
+                        "revenueEstimated": item.get("revenueEstimated"),
+                    })
+                    if len(events) >= 18:
                         break
     except Exception:
         pass
     return events
 
 
+@st.cache_data(ttl=900)
+def v423_fetch_market_news_headlines():
+    """
+    V42.3.2: lightweight broad market/news headlines for top ribbon.
+    """
+    headlines = []
+    try:
+        if NEWSAPI_KEY:
+            url = "https://newsapi.org/v2/everything"
+            r = requests.get(
+                url,
+                params={
+                    "q": '(stock market OR S&P 500 OR Nasdaq OR Federal Reserve OR CPI OR inflation OR earnings)',
+                    "language": "en",
+                    "sortBy": "publishedAt",
+                    "pageSize": 5,
+                    "apiKey": NEWSAPI_KEY,
+                },
+                timeout=10,
+            )
+            if r.status_code == 200:
+                for article in (r.json().get("articles") or [])[:5]:
+                    title = safe_text(article.get("title") or "")
+                    if title:
+                        headlines.append(title)
+    except Exception:
+        pass
+    return headlines[:5]
+
+
 def render_v423_market_ribbon():
     snap = v423_fetch_market_snapshot()
     parts = []
+
     for q in snap.get("indexes", []):
         sym = q.get("symbol")
         pct = v423_safe_float(q.get("change_pct"), None)
         if sym and pct is not None:
             icon = "🟢" if pct >= 0 else "🔴"
             parts.append(f"{icon} {sym} {pct:+.2f}%")
+
     vix = snap.get("vix") or {}
     if vix.get("price") is not None:
         parts.append(f"⚠️ VIX {v423_safe_float(vix.get('price'), 0):.2f}")
+
+    earnings = v423_fetch_earnings_calendar()
+    earnings_symbols = [safe_text(e.get("symbol")).upper() for e in earnings[:8] if e.get("symbol")]
+    if earnings_symbols:
+        parts.append("💼 Earnings Today: " + ", ".join(earnings_symbols))
+
+    econ = v423_fetch_economic_calendar()
+    econ_items = [safe_text(e.get("event")) for e in econ[:2] if e.get("event")]
+    if econ_items:
+        parts.append("🗓️ Macro: " + " | ".join(econ_items))
+
+    headlines = v423_fetch_market_news_headlines()
+    if headlines:
+        parts.append("📰 " + " | ".join(headlines[:2]))
+
     if not parts:
         parts = ["Market data loading from connected sources"]
+
     ribbon_text = "  •  ".join(parts)
+
     st.markdown(f"""
 <style>
 .v423-ribbon {{
@@ -2126,7 +2204,7 @@ def render_v423_market_ribbon():
 }}
 .v423-ribbon span {{
     display: inline-block; padding-left: 100%;
-    animation: v423-marquee 28s linear infinite;
+    animation: v423-marquee 36s linear infinite;
     font-weight: 650; letter-spacing: 0.2px;
 }}
 @keyframes v423-marquee {{
@@ -2169,15 +2247,15 @@ def render_v423_command_center():
                 st.caption("No high-priority economic events returned from connected source.")
     with c2:
         with st.container(border=True):
-            st.markdown("### 💼 Earnings Focus")
+            st.markdown("### 💼 Earnings Due Today")
             if earnings:
-                for e in earnings[:8]:
+                for e in earnings[:12]:
                     time_txt = f" · {safe_text(e.get('time'))}" if e.get("time") else ""
                     st.markdown(f"• **{safe_text(e.get('symbol'))}** — {safe_text(e.get('date'))}{time_txt}")
                     if e.get("epsEstimated") not in (None, ""):
                         st.caption(f"EPS Est: {e.get('epsEstimated')}")
             else:
-                st.caption("No major watchlist earnings returned for the next 7 days.")
+                st.caption("No earnings returned for today from connected source.")
 
 
 def render_v423_conviction_meter(row):
@@ -3315,34 +3393,47 @@ def render_chat_helper(full_df):
 
 
 
-def dashboard_login_gate():
-    """
-    V42.3.1 hard login fix.
-    This is the only login gate main() should call.
 
-    Supports:
-    - Admin password: APP_PASSWORD or ADMIN_PASSWORD
-    - Viewer password: VIEWER_PASSWORD, VIEW_PASSWORD, or GUEST_PASSWORD
-    - Optional username: guest/viewer/view or VIEWER_USERNAME
-    - Password-only viewer login
-    """
+def get_configured_viewer_passwords():
+    candidates = {
+        "VIEWER_PASSWORD": (os.getenv("VIEWER_PASSWORD") or "").strip(),
+        "GUEST_PASSWORD": (os.getenv("GUEST_PASSWORD") or "").strip(),
+        "VIEW_PASSWORD": (os.getenv("VIEW_PASSWORD") or "").strip(),
+    }
+    return {k: v for k, v in candidates.items() if v}
+
+
+def viewer_password_matches(password):
+    password = (password or "").strip()
+    return bool(password) and any(password == v for v in get_configured_viewer_passwords().values())
+
+
+# Backward-compatible aliases so any old code path still uses the hard-fixed login gate.
+
+
+
+def dashboard_login_gate():
     if st.session_state.get("authenticated"):
         return True
 
-    # If no passwords configured, allow access as admin for development.
-    if not ADMIN_PASSWORD and not VIEWER_PASSWORD:
+    viewer_passwords = get_configured_viewer_passwords()
+
+    if not ADMIN_PASSWORD and not viewer_passwords:
         st.session_state["authenticated"] = True
         st.session_state["role"] = "admin"
         return True
 
     st.title("🔐 AI Stock Dashboard Login")
+    st.caption(f"Running: {APP_VERSION}")
     st.info("Enter your access password. Viewer access uses the guest/viewer password.")
 
     with st.expander("Login diagnostics"):
         st.caption(f"Viewer username expected: {VIEWER_USERNAME or 'guest'}")
-        st.caption(f"Viewer password configured: {'Yes' if bool(VIEWER_PASSWORD) else 'No'}")
-        st.caption(f"Viewer password length: {len(VIEWER_PASSWORD) if VIEWER_PASSWORD else 0}")
+        st.caption(f"APP_VERSION: {APP_VERSION}")
         st.caption(f"Admin password configured: {'Yes' if bool(ADMIN_PASSWORD) else 'No'}")
+        st.caption(f"VIEWER_PASSWORD configured: {'Yes' if bool((os.getenv('VIEWER_PASSWORD') or '').strip()) else 'No'} | length: {len((os.getenv('VIEWER_PASSWORD') or '').strip())}")
+        st.caption(f"GUEST_PASSWORD configured: {'Yes' if bool((os.getenv('GUEST_PASSWORD') or '').strip()) else 'No'} | length: {len((os.getenv('GUEST_PASSWORD') or '').strip())}")
+        st.caption(f"VIEW_PASSWORD configured: {'Yes' if bool((os.getenv('VIEW_PASSWORD') or '').strip()) else 'No'} | length: {len((os.getenv('VIEW_PASSWORD') or '').strip())}")
         st.caption("Password comparison trims spaces before checking.")
 
     username = st.text_input("Username (optional)", value="", placeholder="guest").strip().lower()
@@ -3362,17 +3453,16 @@ def dashboard_login_gate():
             st.session_state["role"] = "admin"
             st.rerun()
 
-        if VIEWER_PASSWORD and password == VIEWER_PASSWORD and username in viewer_names:
+        if username in viewer_names and viewer_password_matches(password):
             st.session_state["authenticated"] = True
             st.session_state["role"] = "viewer"
             st.rerun()
 
-        st.error("Invalid password. If diagnostics says Viewer password configured = No, set VIEWER_PASSWORD on the Web Service environment and redeploy.")
+        st.error("Invalid password. Check diagnostics: the password variable you changed must show the expected length here after redeploy.")
 
     return False
 
 
-# Backward-compatible aliases so any old code path still uses the hard-fixed login gate.
 def check_login():
     return dashboard_login_gate()
 
