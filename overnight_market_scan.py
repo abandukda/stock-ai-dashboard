@@ -2838,7 +2838,7 @@ def enhance_ai_committee(row: Dict[str, Any], meta: Dict[str, Any], ind: Dict[st
 
 def build_price_history_intelligence(df: pd.DataFrame, ind: Dict[str, Any]) -> Dict[str, Any]:
     """
-    V42.0.5 Plotly Chart Key Fix.
+    V42.0.6 Investor Translation.
     Adds 52-week low/high, current position in range, 6M/1Y/3Y/5Y returns when available.
     Uses available downloaded history, so it does not add extra API calls.
     """
@@ -3286,6 +3286,148 @@ def v42_build_committee(symbol: str, row: Dict[str,Any], meta: Dict[str,Any], in
     return row
 
 
+def v42_agent_translation(name: str, agent: Dict[str, Any], row: Dict[str, Any]) -> Dict[str, str]:
+    name_l = str(name).lower()
+    price = v42_safe_float(row.get("price"), row.get("Price"))
+    support_1 = v42_safe_float(row.get("v42_support_1"), row.get("Support 1"))
+    resistance_1 = v42_safe_float(row.get("v42_resistance_1"), row.get("Resistance 1"))
+    breakout = v42_safe_float(row.get("v42_breakout_level"), row.get("Breakout Level"))
+
+    if "technical" in name_l:
+        if price and support_1 and resistance_1:
+            action = f"Do not chase. Better entries are a pullback near ${support_1:.2f} support or a confirmed breakout above ${breakout or resistance_1:.2f} with volume."
+        else:
+            action = "Use trend confirmation and avoid buying extended moves without a pullback or breakout confirmation."
+        return {
+            "what_it_means": "The stock trend and momentum are evaluated using moving averages, RSI, volatility, volume, and support/resistance.",
+            "why_it_matters": "A strong technical score means the stock is moving well, but overbought momentum can increase pullback risk.",
+            "investor_action": action,
+            "green_flag": "Price trend is constructive when it stays above key moving averages.",
+            "red_flag": "RSI above 70 means the stock may be overheated short term.",
+        }
+
+    if "news" in name_l:
+        if agent.get("available") is False or agent.get("score") is None:
+            return {
+                "what_it_means": "The system did not retrieve recent direct company-specific headlines from connected sources.",
+                "why_it_matters": "This is not bullish or bearish; it means the news source did not provide enough current evidence to score the catalyst backdrop.",
+                "investor_action": "Do not treat missing news as neutral. Manually verify major headlines or use live research before acting on a high-conviction idea.",
+                "green_flag": "No negative high-confidence company headline was detected.",
+                "red_flag": "No confirmed catalyst was found, so the thesis relies more heavily on finance, analyst, and technical agents.",
+            }
+        return {
+            "what_it_means": "The News Agent checks whether recent headlines provide a positive catalyst, negative risk, or mixed backdrop.",
+            "why_it_matters": "Fresh news can explain why a stock is moving and whether the move is supported by a real catalyst.",
+            "investor_action": "Use direct company headlines as decision support. Treat indirect ecosystem mentions as weaker evidence.",
+            "green_flag": "Direct earnings, product, guidance, partnership, or analyst-upgrade headlines support the thesis.",
+            "red_flag": "Lawsuits, guidance cuts, downgrades, weak earnings, or indirect-only mentions reduce confidence.",
+        }
+
+    if "finance" in name_l:
+        return {
+            "what_it_means": "The Finance Agent checks revenue growth, EPS, margins, debt, liquidity, valuation, and cash flow quality.",
+            "why_it_matters": "A stock can look technically strong but still be risky if the business is not executing financially.",
+            "investor_action": "Prefer stocks where revenue/EPS growth, margins, and cash flow support the technical setup. Be cautious if upside is high but financial execution is weak.",
+            "green_flag": "Positive revenue growth, improving EPS, manageable debt, and positive free cash flow.",
+            "red_flag": "Negative growth, high leverage, falling margins, or negative free cash flow.",
+        }
+
+    if "analyst" in name_l:
+        return {
+            "what_it_means": "The Analyst Agent compares AI fair value with Wall Street targets, analyst count, and recommendation support.",
+            "why_it_matters": "Analyst support helps validate the thesis, but analyst targets can lag fast-moving news.",
+            "investor_action": "If AI fair value is much higher than analyst consensus, treat upside as higher uncertainty and require stronger confirmation from other agents.",
+            "green_flag": "Large analyst coverage, constructive target upside, and positive recommendation support.",
+            "red_flag": "AI target far above analyst target, low analyst count, or recent downgrades.",
+        }
+
+    if "insider" in name_l:
+        return {
+            "what_it_means": "The Insider Agent currently detects SEC Form 4 filing activity, but does not yet fully classify buys versus sells.",
+            "why_it_matters": "Insider buying can be a strong confidence signal; insider selling is more nuanced and may be routine compensation or diversification.",
+            "investor_action": "Do not treat Form 4 count alone as bullish. Wait for buy/sell classification before using this as a major decision factor.",
+            "green_flag": "Confirmed open-market insider purchases by executives or directors.",
+            "red_flag": "Heavy discretionary selling without purchases, especially by multiple executives.",
+        }
+
+    if "institutional" in name_l:
+        return {
+            "what_it_means": "The Institutional Agent checks SEC/FMP ownership context and whether large funds may be accumulating or reducing exposure.",
+            "why_it_matters": "Institutional buying can support demand, but 13F data is delayed and not real time.",
+            "investor_action": "Use institutional data as confirmation, not as the primary reason to buy. Look for net fund accumulation over multiple quarters.",
+            "green_flag": "Major holders increasing positions or more funds adding than reducing.",
+            "red_flag": "Broad institutional reduction or falling ownership across several quarters.",
+        }
+
+    if "competitor" in name_l:
+        return {
+            "what_it_means": "The Competitor Agent compares growth, valuation, margin, and peer context where peer data is available.",
+            "why_it_matters": "A stock is more attractive when it grows faster or has better margins while trading at a reasonable valuation versus peers.",
+            "investor_action": "If peer data is unavailable, do not over-weight this agent. When available, prefer stocks with stronger growth and cheaper valuation than peers.",
+            "green_flag": "Growth above peer average with equal or lower valuation.",
+            "red_flag": "Expensive valuation while growth or margins lag competitors.",
+        }
+
+    if "political" in name_l:
+        return {
+            "what_it_means": "The Political Agent framework is present but congressional-trading ingestion is not fully connected yet.",
+            "why_it_matters": "Political trading data can be interesting, but it should not drive the investment thesis by itself.",
+            "investor_action": "Ignore this score until Capitol Trades ingestion is enabled. Do not treat the current framework status as positive or negative.",
+            "green_flag": "Future signal: repeated congressional buys across multiple lawmakers.",
+            "red_flag": "Future signal: repeated congressional sells or regulatory risk exposure.",
+        }
+
+    if "recovery" in name_l:
+        return {
+            "what_it_means": "The Recovery Agent evaluates whether a stock has dropped enough to create a recovery opportunity while fundamentals remain intact.",
+            "why_it_matters": "A stock that is down sharply is not automatically cheap; the reason for the drop matters.",
+            "investor_action": "Prefer recovery setups where the drop appears temporary, revenue/EPS outlook remains stable, and analyst/news support improves.",
+            "green_flag": "Large drawdown with improving fundamentals or stabilizing guidance.",
+            "red_flag": "Drop caused by broken business model, worsening guidance, debt stress, or repeated misses.",
+        }
+
+    if "etf" in name_l or "ownership" in name_l:
+        return {
+            "what_it_means": "The ETF / Ownership Agent checks whether index or ETF exposure may support demand for the stock.",
+            "why_it_matters": "Stocks included in major ETFs can benefit from passive inflows, but this is usually a secondary signal.",
+            "investor_action": "Use ETF ownership as a supporting confirmation only.",
+            "green_flag": "Included in major growth/technology ETFs with strong inflows.",
+            "red_flag": "Low ownership support or removal from key indexes/ETFs.",
+        }
+
+    return {
+        "what_it_means": "This agent summarizes one part of the investment thesis.",
+        "why_it_matters": "It helps determine whether the stock has enough supporting evidence.",
+        "investor_action": "Use this as one input, not a standalone buy/sell signal.",
+        "green_flag": "Supportive evidence from this agent.",
+        "red_flag": "Weak or missing evidence from this agent.",
+    }
+
+
+def v42_apply_investor_translations(row: Dict[str, Any]) -> Dict[str, Any]:
+    committee = row.get("ai_committee")
+    if not isinstance(committee, dict):
+        return row
+
+    for name, agent in committee.items():
+        if not isinstance(agent, dict):
+            continue
+
+        agent.update(v42_agent_translation(name, agent, row))
+
+        if name == "Political Agent" and str(agent.get("status", "")).lower().startswith("not connected"):
+            agent["score"] = None
+            agent["impact"] = "Not scored"
+        if name == "Insider Agent" and "transaction-level" in " ".join(agent.get("risks", [])).lower():
+            agent["status"] = "Limited"
+            agent["impact"] = "Not scored"
+        if name == "Institutional Agent" and str(agent.get("status", "")).lower() == "limited":
+            agent["impact"] = "Not scored"
+
+    row["ai_committee"] = committee
+    return row
+
+
 # =========================
 # SCAN PIPELINE
 # =========================
@@ -3425,6 +3567,7 @@ def scan_market() -> Dict[str, Any]:
             row = enhance_ai_committee(row, meta, ind)
             row = apply_research_field_fallbacks(row, meta)
             row = v42_build_committee(symbol, row, meta, ind, hist)
+            row = v42_apply_investor_translations(row)
 
             # Prescreen can include moderate setups, but weak fallback rows are reduced.
             if score >= 38:
@@ -3468,7 +3611,7 @@ def scan_market() -> Dict[str, Any]:
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V42.0.5",
+        "version": "V42.0.6",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -3674,7 +3817,7 @@ def main() -> None:
         error_state = {
             "generated_at": now_iso(),
             "status": "error",
-            "version": "V42.0.5",
+            "version": "V42.0.6",
             "error": str(exc),
             "data_dir": str(DATA_DIR),
             "github_persisted": False,

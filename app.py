@@ -9,7 +9,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V42.0.5 Plotly Chart Key Fix Dashboard"
+APP_VERSION = "V42.0.6 Investor Translation Dashboard"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -1692,6 +1692,48 @@ def render_v42_committee_dashboard(row):
             st.markdown("---")
 
 
+def render_agent_education_summary(row):
+    with st.container(border=True):
+        st.markdown("### 📘 How to Read This Report Card")
+        st.markdown("""
+**Score** tells you how supportive that agent is.
+
+**Status** tells you whether the signal is positive, mixed, limited, unavailable, or not connected.
+
+**Impact** tells you whether the signal should influence the decision.
+
+**Findings** are the facts the agent found.
+
+**Risks / limits** explain what is missing, weak, or dangerous.
+
+**Investor translation** explains what it means, why it matters, and what action to consider.
+
+A high score does **not** automatically mean buy. The best setups happen when news, finance, analyst, technical, and valuation evidence all agree.
+""")
+
+
+def render_agent_translation_box(agent):
+    if not isinstance(agent, dict):
+        return
+    if not (agent.get("what_it_means") or agent.get("why_it_matters") or agent.get("investor_action")):
+        return
+
+    with st.container(border=True):
+        st.markdown("**Investor translation**")
+        if agent.get("what_it_means"):
+            st.markdown(f"• **What it means:** {safe_text(agent.get('what_it_means'))}")
+        if agent.get("why_it_matters"):
+            st.markdown(f"• **Why it matters:** {safe_text(agent.get('why_it_matters'))}")
+        if agent.get("investor_action"):
+            st.markdown(f"• **What to do:** {safe_text(agent.get('investor_action'))}")
+
+        cgreen, cred = st.columns(2)
+        with cgreen:
+            st.success(f"Green flag: {safe_text(agent.get('green_flag', 'Supportive evidence.'))}")
+        with cred:
+            st.warning(f"Red flag: {safe_text(agent.get('red_flag', 'Watch for weak evidence.'))}")
+
+
 # =========================
 # UI
 # =========================
@@ -1917,6 +1959,7 @@ def render_detail(row):
     with st.expander("📚 Full metric education and AI vs analyst explanation", expanded=False):
         render_metric_education(row)
 
+    render_agent_education_summary(row)
     render_v42_committee_dashboard(row)
 
     st.markdown("---")
