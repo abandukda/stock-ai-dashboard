@@ -9,7 +9,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V42.2 Agent V2 Intelligence Dashboard"
+APP_VERSION = "V42.2.1 Guest Viewer Login Fix Dashboard"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -34,6 +34,7 @@ ETF_SCAN_FILE = DATA_DIR / "etf_scan.json"
 MIN_UPSIDE_PCT = float(os.getenv("MIN_UPSIDE_PCT", "0"))
 
 VIEWER_PASSWORD = (os.getenv("VIEWER_PASSWORD") or os.getenv("VIEW_PASSWORD") or os.getenv("GUEST_PASSWORD") or "").strip()
+VIEWER_USERNAME = (os.getenv("VIEWER_USERNAME") or os.getenv("GUEST_USERNAME") or "guest").strip()
 ADMIN_PASSWORD = (os.getenv("APP_PASSWORD") or os.getenv("ADMIN_PASSWORD") or "").strip()
 
 
@@ -3022,6 +3023,63 @@ def render_chat_helper(full_df):
 # =========================
 # MAIN APP
 # =========================
+
+
+def check_login():
+    """
+    V42.2.1 login:
+    - Admin can login with APP_PASSWORD or ADMIN_PASSWORD.
+    - Viewer can login with VIEWER_PASSWORD.
+    - Username is optional.
+      If a Username box appears, guest + VIEWER_PASSWORD works.
+      If only Password is used, VIEWER_PASSWORD works.
+    """
+    if not ADMIN_PASSWORD and not VIEWER_PASSWORD:
+        st.session_state["authenticated"] = True
+        st.session_state["role"] = "admin"
+        return True
+
+    if st.session_state.get("authenticated"):
+        return True
+
+    st.title("🔐 AI Stock Dashboard Login")
+    st.info("Enter access password. Viewer access uses the guest/viewer password.")
+
+    with st.expander("Login diagnostics"):
+        st.caption(f"Viewer username expected: {VIEWER_USERNAME or 'guest'}")
+        st.caption(f"Viewer password configured: {'Yes' if bool(VIEWER_PASSWORD) else 'No'}")
+        st.caption(f"Admin password configured: {'Yes' if bool(ADMIN_PASSWORD) else 'No'}")
+        st.caption(f"Viewer password length: {len(VIEWER_PASSWORD) if VIEWER_PASSWORD else 0}")
+
+    username = st.text_input("Username (optional)", value="", placeholder="guest")
+    password = st.text_input("Password", type="password").strip()
+
+    if st.button("Login"):
+        username_clean = (username or "").strip().lower()
+        viewer_username_clean = (VIEWER_USERNAME or "guest").strip().lower()
+
+        is_admin = bool(ADMIN_PASSWORD) and password == ADMIN_PASSWORD
+        is_viewer_password_only = bool(VIEWER_PASSWORD) and password == VIEWER_PASSWORD and username_clean == ""
+        is_viewer_with_username = bool(VIEWER_PASSWORD) and password == VIEWER_PASSWORD and username_clean in {
+            viewer_username_clean,
+            "guest",
+            "viewer",
+            "view",
+        }
+
+        if is_admin:
+            st.session_state["authenticated"] = True
+            st.session_state["role"] = "admin"
+            st.rerun()
+        elif is_viewer_password_only or is_viewer_with_username:
+            st.session_state["authenticated"] = True
+            st.session_state["role"] = "viewer"
+            st.rerun()
+        else:
+            st.error("Invalid password. Confirm VIEWER_PASSWORD is set on the Web Service, not only the Cron Job.")
+
+    return False
+
 
 def main():
     if not require_login():
