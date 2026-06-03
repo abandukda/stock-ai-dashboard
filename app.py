@@ -9,7 +9,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V42.0.7 Safe Investor Translation Dashboard"
+APP_VERSION = "V42.0.8 Login Password Fix Dashboard"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -33,8 +33,8 @@ ETF_SCAN_FILE = DATA_DIR / "etf_scan.json"
 
 MIN_UPSIDE_PCT = float(os.getenv("MIN_UPSIDE_PCT", "0"))
 
-VIEWER_PASSWORD = os.getenv("VIEWER_PASSWORD", "").strip()
-ADMIN_PASSWORD = os.getenv("APP_PASSWORD", os.getenv("ADMIN_PASSWORD", "")).strip()
+VIEWER_PASSWORD = (os.getenv("VIEWER_PASSWORD") or os.getenv("VIEW_PASSWORD") or os.getenv("GUEST_PASSWORD") or "").strip()
+ADMIN_PASSWORD = (os.getenv("APP_PASSWORD") or os.getenv("ADMIN_PASSWORD") or "").strip()
 
 
 def get_user_role():
@@ -59,7 +59,11 @@ def require_login():
 
     st.title("📈 AI Trading Dashboard")
     st.info("Enter your access password.")
-    password = st.text_input("Password", type="password")
+    with st.expander("Login diagnostics"):
+        st.caption(f"Viewer password configured: {'Yes' if bool(VIEWER_PASSWORD) else 'No'}")
+        st.caption(f"Admin password configured: {'Yes' if bool(ADMIN_PASSWORD) else 'No'}")
+        st.caption(f"Viewer password length: {len(VIEWER_PASSWORD) if VIEWER_PASSWORD else 0}")
+    password = st.text_input("Password", type="password").strip()
     if st.button("Login"):
         if ADMIN_PASSWORD and password == ADMIN_PASSWORD:
             st.session_state["user_role"] = "admin"
