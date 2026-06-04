@@ -12,7 +12,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V42.5.2 Analyst Details Fallback Fix"
+APP_VERSION = "V42.5.3 Official Economic Calendar Fallback"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -5677,6 +5677,288 @@ def render_v424_analyst_ratings_box(row):
             st.caption(f"Analyst support source: {base['analyst_source']}")
 
 
+
+
+
+# =========================
+# V42.5.3 OFFICIAL ECONOMIC CALENDAR FALLBACK
+# =========================
+
+def v4253_extract_dates_from_text(text):
+    text = safe_text(text, "")
+    text = re.sub(r"\s+", " ", text)
+    patterns = [
+        r"(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2},\s+20\d{2}",
+        r"20\d{2}-\d{2}-\d{2}",
+        r"\d{1,2}/\d{1,2}/20\d{2}",
+    ]
+    out = []
+    for pat in patterns:
+        for m in re.finditer(pat, text, flags=re.I):
+            val = m.group(0)
+            if val not in out:
+                out.append(val)
+            if len(out) >= 5:
+                return out
+    return out
+
+
+@st.cache_data(ttl=21600)
+def v4253_official_bls_calendar():
+    events = []
+    try:
+        url = "https://www.bls.gov/schedule/news_release/"
+        r = requests.get(url, timeout=12, headers={"User-Agent": "Mozilla/5.0"})
+        if r.status_code != 200:
+            return events
+        text = r.text
+        checks = [
+            ("CPI / Inflation report", ["Consumer Price Index", "CPI"]),
+            ("PPI report", ["Producer Price Index", "PPI"]),
+            ("Jobs report / Employment Situation", ["Employment Situation"]),
+            ("Job Openings / JOLTS", ["Job Openings and Labor Turnover", "JOLTS"]),
+        ]
+        for label, terms in checks:
+            loc = -1
+            for term in terms:
+                loc = text.lower().find(term.lower())
+                if loc >= 0:
+                    break
+            if loc >= 0:
+                snippet = text[max(0, loc-500): loc+900]
+                dates = v4253_extract_dates_from_text(snippet)
+                events.append({
+                    "date": dates[0] if dates else "Open official BLS schedule",
+                    "event": label,
+                    "source": "Official BLS schedule",
+                    "link": url,
+                })
+    except Exception:
+        pass
+    return events
+
+
+@st.cache_data(ttl=21600)
+def v4253_official_fed_calendar():
+    events = []
+    try:
+        url = "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
+        r = requests.get(url, timeout=12, headers={"User-Agent": "Mozilla/5.0"})
+        if r.status_code != 200:
+            return events
+        text = r.text
+        idx = text.lower().find("fomc")
+        snippet = text[idx:idx+5000] if idx >= 0 else text[:5000]
+        dates = v4253_extract_dates_from_text(snippet)
+        events.append({
+            "date": dates[0] if dates else "Open official Federal Reserve calendar",
+            "event": "FOMC / Fed decision or minutes",
+            "source": "Official Federal Reserve calendar",
+            "link": url,
+        })
+    except Exception:
+        pass
+    return events
+
+
+@st.cache_data(ttl=21600)
+def v4253_official_bea_calendar():
+    events = []
+    try:
+        url = "https://www.bea.gov/news/schedule"
+        r = requests.get(url, timeout=12, headers={"User-Agent": "Mozilla/5.0"})
+        if r.status_code != 200:
+            return events
+        text = r.text
+        checks = [
+            ("GDP report", ["Gross Domestic Product", "GDP"]),
+            ("PCE / Personal Income and Outlays", ["Personal Income and Outlays", "PCE"]),
+        ]
+        for label, terms in checks:
+            loc = -1
+            for term in terms:
+                loc = text.lower().find(term.lower())
+                if loc >= 0:
+                    break
+            if loc >= 0:
+                snippet = text[max(0, loc-600): loc+1000]
+                dates = v4253_extract_dates_from_text(snippet)
+                events.append({
+                    "date": dates[0] if dates else "Open official BEA schedule",
+                    "event": label,
+                    "source": "Official BEA schedule",
+                    "link": url,
+                })
+    except Exception:
+        pass
+    return events
+
+
+@st.cache_data(ttl=21600)
+def v4253_official_econ_fallback():
+    events = []
+    events.extend(v4253_official_bls_calendar())
+    events.extend(v4253_official_fed_calendar())
+    events.extend(v4253_official_bea_calendar())
+
+    clean = []
+    seen = set()
+    for e in events:
+        key = (safe_text(e.get("event")), safe_text(e.get("source")))
+        if key in seen:
+            continue
+        seen.add(key)
+        clean.append(e)
+
+    if clean:
+        return clean[:12]
+
+    return [
+        {
+            "date": "Open official BLS schedule",
+            "event": "CPI, PPI, Jobs Report, JOLTS",
+            "source": "Official BLS link fallback",
+            "link": "https://www.bls.gov/schedule/news_release/",
+        },
+        {
+            "date": "Open official Federal Reserve calendar",
+            "event": "FOMC / Fed decision or minutes",
+            "source": "Official Fed link fallback",
+            "link": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm",
+        },
+        {
+            "date": "Open official BEA schedule",
+            "event": "GDP, PCE, Personal Income and Outlays",
+            "source": "Official BEA link fallback",
+            "link": "https://www.bea.gov/news/schedule",
+        },
+    ]
+
+
+@st.cache_data(ttl=1800)
+def v424_economic_calendar():
+    important = ["CPI", "PPI", "Payroll", "Nonfarm", "FOMC", "Fed", "Jobless", "GDP", "Retail Sales", "Inflation", "Unemployment", "ISM", "PMI", "PCE"]
+    today = v424_today() if "v424_today" in globals() else dt.datetime.now().date()
+    end = today + dt.timedelta(days=45)
+    events = []
+
+    try:
+        data = v424_fmp_get("economic_calendar", {"from": today.isoformat(), "to": end.isoformat()}) if "v424_fmp_get" in globals() else None
+        if isinstance(data, list):
+            for item in data:
+                name = safe_text(item.get("event") or item.get("name") or "")
+                if not name:
+                    continue
+                if any(term.lower() in name.lower() for term in important):
+                    events.append({
+                        "date": safe_text(item.get("date") or item.get("datetime") or ""),
+                        "event": name,
+                        "actual": item.get("actual"),
+                        "estimate": item.get("estimate"),
+                        "previous": item.get("previous"),
+                        "source": "FMP",
+                    })
+    except Exception:
+        pass
+
+    if not events and "v4242_tradingeconomics_calendar" in globals():
+        events = v4242_tradingeconomics_calendar()
+
+    if not events:
+        events = v4253_official_econ_fallback()
+
+    events = sorted(events, key=lambda x: safe_text(x.get("date")))
+    today_str = today.isoformat()
+    todays = [e for e in events if safe_text(e.get("date")).startswith(today_str)]
+
+    return {
+        "today": todays[:8],
+        "next": events[:12],
+        "source": safe_text(events[0].get("source"), "Official fallback") if events else "No source",
+    }
+
+
+def v4253_render_event_line(e):
+    event = safe_text(e.get("event"), "Economic event")
+    date = safe_text(e.get("date"), "Date unavailable")
+    link = safe_text(e.get("link"), "")
+    source = safe_text(e.get("source"), "")
+    label = f"**{event}** — {date}"
+    if link:
+        label += f" ([official source]({link}))"
+    if source:
+        label += f" · _{source}_"
+    return label
+
+
+def render_v424_market_command_center():
+    st.markdown("## 🧭 Market Command Center")
+
+    quotes = v424_market_quotes()
+    if quotes:
+        cols = st.columns(min(5, len(quotes)))
+        for i, q in enumerate(quotes[:5]):
+            pct = v424_float(q.get("change_pct"), None) if "v424_float" in globals() else safe_number(q.get("change_pct"), None)
+            delta = f"{pct:+.2f}%" if pct is not None else None
+            label = q.get("display_label") or q.get("symbol", "")
+            source = safe_text(q.get("source"), "")
+            cols[i].metric(label, v424_money(q.get("price")) if "v424_money" in globals() else fmt_money(q.get("price")), delta)
+            if source:
+                cols[i].caption(source)
+    else:
+        st.info(
+            "Market quote data did not return from FMP or Yahoo fallback. "
+            f"FMP_API_KEY configured={'Yes' if bool(FMP_API_KEY) else 'No'}."
+        )
+
+    econ = v424_economic_calendar()
+    earnings = v424_earnings_today()
+    news = v424_market_news()
+
+    c1, c2 = st.columns(2)
+    with c1:
+        with st.container(border=True):
+            st.markdown("### 🗓️ Economic Calendar")
+            st.caption(f"Source: {safe_text(econ.get('source'), 'Unknown')}")
+            today_events = econ.get("today") or []
+            next_events = econ.get("next") or []
+            if today_events:
+                st.markdown("**Today:**")
+                for e in today_events[:6]:
+                    st.markdown(f"• {v4253_render_event_line(e)}")
+            elif next_events:
+                st.caption("No major event found for today. Showing next market-moving reports.")
+                for e in next_events[:8]:
+                    st.markdown(f"• {v4253_render_event_line(e)}")
+            else:
+                st.caption("No economic calendar source returned data.")
+
+    with c2:
+        with st.container(border=True):
+            st.markdown("### 💼 Earnings Due Today")
+            if earnings:
+                edf = pd.DataFrame(earnings)
+                st.caption("Source priority: FMP → Nasdaq public fallback → Alpha Vantage optional fallback")
+                st.dataframe(edf, use_container_width=True, hide_index=True)
+            else:
+                st.caption(
+                    "No earnings returned from FMP, Nasdaq fallback, or Alpha Vantage. "
+                    f"FMP_API_KEY configured={'Yes' if bool(FMP_API_KEY) else 'No'}; "
+                    f"ALPHA_VANTAGE_API_KEY configured={'Yes' if bool((globals().get('ALPHA_VANTAGE_API_KEY') or '').strip()) else 'No'}."
+                )
+
+    with st.container(border=True):
+        st.markdown("### 📰 Market News")
+        if news:
+            st.caption("Source priority: NewsAPI → Finnhub general news")
+            for h in news[:5]:
+                st.markdown(f"• {safe_text(h)}")
+        else:
+            st.caption(
+                "No broad market headlines returned. "
+                f"NEWSAPI_KEY configured={'Yes' if bool((globals().get('NEWSAPI_KEY') or globals().get('NEWS_API_KEY') or os.getenv('NEWSAPI_KEY') or os.getenv('NEWS_API_KEY') or '').strip()) else 'No'}; "
+                f"FINNHUB_API_KEY configured={'Yes' if bool((globals().get('FINNHUB_API_KEY') or os.getenv('FINNHUB_API_KEY') or os.getenv('FINNHUB_TOKEN') or '').strip()) else 'No'}."
+            )
 
 
 def main():
