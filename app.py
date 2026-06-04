@@ -10,7 +10,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V42.3.4 Clean Syntax Fix"
+APP_VERSION = "V42.4 Command Center + Analyst Ratings Agent"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -2378,6 +2378,402 @@ def render_v423_ai_news_summary(row):
                 st.markdown(f"⚠️ {safe_text(item)}")
 
 
+
+# =========================
+# V42.4 COMMAND CENTER + ANALYST RATINGS AGENT
+# =========================
+
+def v424_float(value, default=None):
+    try:
+        if value in (None, "", "N/A"):
+            return default
+        if isinstance(value, str):
+            value = value.replace("$", "").replace(",", "").replace("%", "").strip()
+        return float(value)
+    except Exception:
+        return default
+
+
+def v424_money(value):
+    x = v424_float(value, None)
+    return "N/A" if x is None else f"${x:,.2f}"
+
+
+def v424_pct(value):
+    x = v424_float(value, None)
+    return "N/A" if x is None else f"{x:.1f}%"
+
+
+def v424_today():
+    return dt.datetime.now().date()
+
+
+@st.cache_data(ttl=300)
+def v424_fmp_get(endpoint, params=None):
+    if not FMP_API_KEY:
+        return None
+    try:
+        url = f"https://financialmodelingprep.com/api/v3/{endpoint.lstrip('/')}"
+        merged = dict(params or {})
+        merged["apikey"] = FMP_API_KEY
+        r = requests.get(url, params=merged, timeout=12)
+        if r.status_code == 200:
+            return r.json()
+    except Exception:
+        return None
+    return None
+
+
+@st.cache_data(ttl=300)
+def v424_quote(symbol):
+    symbol = safe_text(symbol, "").upper().strip()
+    if not symbol:
+        return {}
+    data = v424_fmp_get(f"quote/{symbol}")
+    if isinstance(data, list) and data:
+        q = data[0]
+        return {
+            "symbol": symbol,
+            "price": q.get("price"),
+            "change_pct": q.get("changesPercentage"),
+            "change": q.get("change"),
+            "name": q.get("name"),
+        }
+    return {}
+
+
+@st.cache_data(ttl=900)
+def v424_market_quotes():
+    symbols = ["SPY", "QQQ", "DIA", "IWM", "VIX"]
+    return [v424_quote(s) for s in symbols if v424_quote(s)]
+
+
+@st.cache_data(ttl=1800)
+def v424_economic_calendar():
+    """
+    Shows today's high-impact events if available.
+    If none today, shows next high-impact macro reports in the next 45 days.
+    """
+    important = ["CPI", "PPI", "Payroll", "Nonfarm", "FOMC", "Fed", "Jobless", "GDP", "Retail Sales", "Inflation", "Unemployment", "ISM", "PMI"]
+    today = v424_today()
+    end = today + dt.timedelta(days=45)
+    data = v424_fmp_get("economic_calendar", {"from": today.isoformat(), "to": end.isoformat()})
+    events = []
+    if isinstance(data, list):
+        for item in data:
+            name = safe_text(item.get("event") or item.get("name") or "")
+            if not name:
+                continue
+            if any(term.lower() in name.lower() for term in important):
+                events.append({
+                    "date": safe_text(item.get("date") or item.get("datetime") or ""),
+                    "event": name,
+                    "actual": item.get("actual"),
+                    "estimate": item.get("estimate"),
+                    "previous": item.get("previous"),
+                })
+    # Sort by date text; FMP usually returns ISO-style strings
+    events = sorted(events, key=lambda x: safe_text(x.get("date")))
+    today_str = today.isoformat()
+    todays = [e for e in events if safe_text(e.get("date")).startswith(today_str)]
+    return {
+        "today": todays[:8],
+        "next": events[:12],
+        "source": "FMP economic calendar" if events else "No source data returned",
+    }
+
+
+@st.cache_data(ttl=900)
+def v424_earnings_today():
+    """
+    Broad earnings calendar for today; not watchlist-limited.
+    """
+    today = v424_today()
+    data = v424_fmp_get("earning_calendar", {"from": today.isoformat(), "to": today.isoformat()})
+    rows = []
+    if isinstance(data, list):
+        priority = {
+            "AAPL","MSFT","NVDA","AMZN","GOOGL","GOOG","META","TSLA","AMD","AVGO","NFLX","CRM","ADBE","ORCL",
+            "COST","WMT","HD","LOW","JPM","BAC","WFC","GS","MS","UNH","LLY","MRK","PFE","ABBV","JNJ",
+            "XOM","CVX","CAT","DE","PLTR","SOFI","TEAM","SNOW","CRWD","NOW","PANW","SHOP","UBER","DIS"
+        }
+        def rank_item(item):
+            sym = safe_text(item.get("symbol") or "").upper()
+            return (0 if sym in priority else 1, sym)
+        for item in sorted(data, key=rank_item):
+            sym = safe_text(item.get("symbol") or "").upper()
+            if not sym:
+                continue
+            rows.append({
+                "Symbol": sym,
+                "Date": safe_text(item.get("date") or ""),
+                "Time": safe_text(item.get("time") or ""),
+                "EPS Est": item.get("epsEstimated"),
+                "Revenue Est": item.get("revenueEstimated"),
+            })
+            if len(rows) >= 30:
+                break
+    return rows
+
+
+@st.cache_data(ttl=900)
+def v424_market_news():
+    """
+    Broad market news fallback for command center.
+    """
+    headlines = []
+    try:
+        key = globals().get("NEWSAPI_KEY") or globals().get("NEWS_API_KEY") or os.getenv("NEWSAPI_KEY") or os.getenv("NEWS_API_KEY")
+        key = (key or "").strip()
+        if key:
+            r = requests.get(
+                "https://newsapi.org/v2/everything",
+                params={
+                    "q": '(stock market OR S&P 500 OR Nasdaq OR Federal Reserve OR CPI OR inflation OR earnings)',
+                    "language": "en",
+                    "sortBy": "publishedAt",
+                    "pageSize": 5,
+                    "apiKey": key,
+                },
+                timeout=10,
+            )
+            if r.status_code == 200:
+                for a in (r.json().get("articles") or [])[:5]:
+                    title = safe_text(a.get("title") or "")
+                    source = safe_text((a.get("source") or {}).get("name") or "")
+                    if title:
+                        headlines.append(f"{title}" + (f" — {source}" if source else ""))
+    except Exception:
+        pass
+    return headlines
+
+
+@st.cache_data(ttl=900)
+def v424_analyst_ratings_agent(ticker, current_price=None, ai_fair_value=None):
+    """
+    Analyst Ratings Agent:
+    Pulls top target/recommendation style data from FMP when available.
+    Falls back to quote/target consensus fields already available in report cards.
+    """
+    ticker = safe_text(ticker, "").upper().strip()
+    result = {
+        "ticker": ticker,
+        "available": False,
+        "source": "FMP / scan fallback",
+        "top_ratings": [],
+        "consensus_target": None,
+        "analyst_count": None,
+        "consensus_rating": "N/A",
+        "upside_pct": None,
+        "ai_gap_pct": None,
+        "summary": "",
+        "risks": [],
+    }
+    if not ticker:
+        return result
+
+    current_price = v424_float(current_price, None)
+    ai_fair_value = v424_float(ai_fair_value, None)
+
+    # FMP target consensus endpoint availability varies by plan; try multiple endpoints safely.
+    targets = None
+    for endpoint in [
+        f"price-target-consensus/{ticker}",
+        f"price-target/{ticker}",
+        f"analyst-stock-recommendations/{ticker}",
+    ]:
+        data = v424_fmp_get(endpoint)
+        if data:
+            targets = data
+            break
+
+    # Parse price target consensus if available.
+    if isinstance(targets, list) and targets:
+        result["available"] = True
+        for item in targets[:20]:
+            if not isinstance(item, dict):
+                continue
+            target = item.get("priceTarget") or item.get("target") or item.get("targetPrice") or item.get("publishedPriceTarget")
+            firm = item.get("analystCompany") or item.get("firm") or item.get("analyst") or item.get("company") or item.get("brokerage") or "Analyst"
+            rating = item.get("rating") or item.get("newGrade") or item.get("recommendation") or item.get("grade") or ""
+            date = item.get("publishedDate") or item.get("date") or item.get("updatedDate") or ""
+            target_num = v424_float(target, None)
+            if target_num:
+                result["top_ratings"].append({
+                    "Firm": safe_text(firm, "Analyst"),
+                    "Rating": safe_text(rating, "N/A"),
+                    "Target": target_num,
+                    "Date": safe_text(date, ""),
+                })
+
+    # FMP consensus may return one row with target fields.
+    if isinstance(targets, list) and targets:
+        first = targets[0] if isinstance(targets[0], dict) else {}
+        consensus = (
+            first.get("targetConsensus") or first.get("targetMedian") or first.get("targetMean") or
+            first.get("priceTargetAverage") or first.get("target")
+        )
+        count = first.get("numberOfAnalyst") or first.get("analystCount") or first.get("analysts")
+        rating = first.get("rating") or first.get("consensus") or first.get("recommendation")
+        result["consensus_target"] = v424_float(consensus, result["consensus_target"])
+        result["analyst_count"] = v424_float(count, result["analyst_count"])
+        if rating:
+            result["consensus_rating"] = safe_text(rating, "N/A")
+
+    # If top ratings are available, use top 5 highest target rows as the "top analyst targets".
+    if result["top_ratings"]:
+        result["top_ratings"] = sorted(result["top_ratings"], key=lambda x: v424_float(x.get("Target"), 0), reverse=True)[:5]
+        if not result["consensus_target"]:
+            vals = [v424_float(x.get("Target"), None) for x in result["top_ratings"]]
+            vals = [x for x in vals if x]
+            if vals:
+                result["consensus_target"] = sum(vals) / len(vals)
+        if not result["analyst_count"]:
+            result["analyst_count"] = len(result["top_ratings"])
+
+    if current_price and result["consensus_target"]:
+        result["upside_pct"] = ((result["consensus_target"] - current_price) / current_price) * 100
+    if ai_fair_value and result["consensus_target"]:
+        result["ai_gap_pct"] = ((ai_fair_value - result["consensus_target"]) / result["consensus_target"]) * 100
+
+    # Summary
+    upside = result["upside_pct"]
+    ai_gap = result["ai_gap_pct"]
+    if result["top_ratings"]:
+        result["summary"] = "Recent/high target analyst data is available. Use this to validate whether Wall Street supports the AI thesis."
+    elif result["consensus_target"]:
+        result["summary"] = "Consensus analyst target is available, but individual top 5 analyst rows were not returned by the data source."
+    else:
+        result["summary"] = "Analyst target detail was not returned by connected sources. Use scan-level analyst target/count as fallback."
+
+    if ai_gap is not None and ai_gap > 50:
+        result["risks"].append("AI fair value is far above analyst consensus; treat modeled upside as higher uncertainty.")
+    if upside is not None and upside < 5:
+        result["risks"].append("Analyst consensus implies limited upside.")
+    if not result["top_ratings"]:
+        result["risks"].append("Top 5 individual analyst firm targets may require a higher-tier analyst data source if FMP does not return firm-level rows.")
+
+    return result
+
+
+def render_v424_market_command_center():
+    st.markdown("## 🧭 Market Command Center")
+
+    quotes = v424_market_quotes()
+    if quotes:
+        cols = st.columns(min(5, len(quotes)))
+        for i, q in enumerate(quotes[:5]):
+            pct = v424_float(q.get("change_pct"), None)
+            delta = f"{pct:+.2f}%" if pct is not None else None
+            cols[i].metric(q.get("symbol", ""), v424_money(q.get("price")), delta)
+    else:
+        st.info("Market quote data did not return from connected source yet.")
+
+    econ = v424_economic_calendar()
+    earnings = v424_earnings_today()
+    news = v424_market_news()
+
+    c1, c2 = st.columns(2)
+    with c1:
+        with st.container(border=True):
+            st.markdown("### 🗓️ Economic Calendar")
+            today_events = econ.get("today") or []
+            next_events = econ.get("next") or []
+            if today_events:
+                st.markdown("**Today:**")
+                for e in today_events[:6]:
+                    st.markdown(f"• **{safe_text(e.get('event'))}** — {safe_text(e.get('date'))}")
+            elif next_events:
+                st.caption("No major event found for today. Showing next market-moving reports.")
+                for e in next_events[:8]:
+                    st.markdown(f"• **{safe_text(e.get('event'))}** — {safe_text(e.get('date'))}")
+            else:
+                st.caption("No economic calendar data returned. Check FMP_API_KEY access/plan.")
+
+    with c2:
+        with st.container(border=True):
+            st.markdown("### 💼 Earnings Due Today")
+            if earnings:
+                edf = pd.DataFrame(earnings)
+                st.dataframe(edf, use_container_width=True, hide_index=True)
+            else:
+                st.caption("No earnings returned for today from connected source.")
+
+    with st.container(border=True):
+        st.markdown("### 📰 Market News Ribbon / Table")
+        if news:
+            for h in news[:5]:
+                st.markdown(f"• {safe_text(h)}")
+        else:
+            st.caption("No broad market headlines returned. Check NEWSAPI_KEY if you want this populated.")
+
+
+def render_v424_analyst_ratings_box(row):
+    ticker = safe_text(row.get("Ticker"), "").upper().strip()
+    if not ticker:
+        return
+    data = v424_analyst_ratings_agent(
+        ticker,
+        current_price=row.get("Price"),
+        ai_fair_value=row.get("AI Fair Value"),
+    )
+    with st.container(border=True):
+        st.markdown("### 🏦 Analyst Ratings Agent")
+        st.caption("Shows top analyst target data where available, plus consensus vs AI valuation.")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Consensus Target", v424_money(data.get("consensus_target")))
+        c2.metric("Analyst Count", "N/A" if data.get("analyst_count") is None else f"{int(v424_float(data.get('analyst_count'), 0))}")
+        c3.metric("Consensus Upside", v424_pct(data.get("upside_pct")))
+        c4.metric("AI vs Consensus", v424_pct(data.get("ai_gap_pct")))
+        st.info(data.get("summary") or "Analyst ratings data processed.")
+
+        rows = data.get("top_ratings") or []
+        if rows:
+            display = []
+            for r in rows[:5]:
+                display.append({
+                    "Firm / Analyst": r.get("Firm"),
+                    "Rating": r.get("Rating") or "N/A",
+                    "Price Target": v424_money(r.get("Target")),
+                    "Date": r.get("Date") or "",
+                })
+            st.markdown("**Top 5 analyst targets returned by source:**")
+            st.dataframe(pd.DataFrame(display), use_container_width=True, hide_index=True)
+        else:
+            st.warning("Top 5 firm-level analyst targets were not returned by current data source. Consensus target is shown when available.")
+
+        risks = data.get("risks") or []
+        if risks:
+            st.markdown("**Limits / watchouts:**")
+            for r in risks[:4]:
+                st.markdown(f"⚠️ {safe_text(r)}")
+
+
+def render_v424_support_resistance_box(row):
+    price = v424_float(row.get("Price"), None)
+    s1 = v424_float(row.get("Support 1"), None)
+    s2 = v424_float(row.get("Support 2"), None)
+    r1 = v424_float(row.get("Resistance 1"), None)
+    r2 = v424_float(row.get("Resistance 2"), None)
+    breakout = v424_float(row.get("Breakout Level"), None)
+    guidance = safe_text(row.get("Chart Guidance"), "")
+    if not any([s1, s2, r1, r2, breakout, guidance]):
+        return
+    with st.container(border=True):
+        st.markdown("### 📍 Support / Resistance Agent")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Current", v424_money(price))
+        c2.metric("Support 1", v424_money(s1))
+        c3.metric("Resistance 1", v424_money(r1))
+        c4, c5, c6 = st.columns(3)
+        c4.metric("Support 2", v424_money(s2))
+        c5.metric("Resistance 2", v424_money(r2))
+        c6.metric("Breakout", v424_money(breakout))
+        if guidance:
+            st.info(guidance)
+
+
+
 # =========================
 # UI
 # =========================
@@ -2600,6 +2996,8 @@ def render_detail(row):
     render_v42_news_block(row)
     render_v423_conviction_meter(row)
     render_v423_why_ranked(row)
+    render_v424_analyst_ratings_box(row)
+    render_v424_support_resistance_box(row)
     render_detail_chart_v4184(row)
     render_v423_professional_trading_levels(row)
     render_inline_metric_summary(row)
@@ -3470,6 +3868,7 @@ def require_login():
 def main():
     if not dashboard_login_gate():
         return
+    render_v424_market_command_center()
     render_v423_command_center()
 
     render_status_banner()
