@@ -53,7 +53,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-04T07:18:03.402739+00:00",
+    "scan_time": "2026-06-04T13:19:18.021235+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 760.4,
@@ -83,18 +83,17 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 53,
+        "score": 69,
         "status": "Mixed",
         "impact": "Neutral",
         "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "The Quiet Erosion Beneath U.S. Growth",
-          "The Stock Market Is Still Trading Near Record Highs. Here's the Biggest Risk Investors Are Overlooking."
+          "Oil Services Are Setting Up to Do It Again, But There\u2019s a Catch the Strait of Hormuz Trade Can\u2019t Ignore",
+          "The Highest Quality Dividend Growth Stocks In June 2026"
         ],
         "risks": [
-          "S&P 500, Nasdaq Futures Slip Amid Renewed US-Iran Tensions, Chipmaker Losses: AVGO, KEEL, CRWD, MSTR Stocks In Focus",
-          "The Stock Market Is Still Trading Near Record Highs. Here's the Biggest Risk Investors Are Overlooking."
+          "No negative high-confidence headline detected."
         ],
         "bottom_line": "News is mixed or insufficient."
       },
@@ -232,15 +231,14 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 53,
+    "v42_news_score": 69,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "The Quiet Erosion Beneath U.S. Growth",
-      "The Stock Market Is Still Trading Near Record Highs. Here's the Biggest Risk Investors Are Overlooking."
+      "Oil Services Are Setting Up to Do It Again, But There\u2019s a Catch the Strait of Hormuz Trade Can\u2019t Ignore",
+      "The Highest Quality Dividend Growth Stocks In June 2026"
     ],
     "v42_news_risks": [
-      "S&P 500, Nasdaq Futures Slip Amid Renewed US-Iran Tensions, Chipmaker Losses: AVGO, KEEL, CRWD, MSTR Stocks In Focus",
-      "The Stock Market Is Still Trading Near Record Highs. Here's the Biggest Risk Investors Are Overlooking."
+      "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
       "Finnhub company news"
@@ -254,7 +252,7 @@
     "v42_breakout_level": 768.0,
     "v42_pullback_zone": "$727.82 - $739.16",
     "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
-    "v42_committee_positive_agents": 1,
+    "v42_committee_positive_agents": 2,
     "v42_committee_total_agents": 10
   },
   {
@@ -310,7 +308,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-04T07:12:27.518995+00:00",
+    "scan_time": "2026-06-04T13:13:53.942768+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 748.65,
@@ -340,23 +338,16 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 90,
-        "status": "Positive",
-        "impact": "Positive",
-        "data_used": "Finnhub company news",
-        "summary": "Reviews headlines/catalysts. Confidence: High.",
-        "findings": [
-          "The Quiet Erosion Beneath U.S. Growth",
-          "S&P 500, Nasdaq 100 Drop From Records As Rate-Hike Bets Build, Oil Climbs: Stock Market Today",
-          "Breadth Confirms the Rally, But Leadership Still Runs Through AI",
-          "May ADP Employment Report: Strongest Job Gains In Over A Year",
-          "SCHX: An AI Alternative To S&P 500 ETFs",
-          "Nvidia's CEO Accelerates Semi Mania; Extraordinary SpaceX Confidence; Tariffs Are Back"
-        ],
+        "score": 45,
+        "status": "Unknown / insufficient data",
+        "impact": "Neutral",
+        "data_used": "No source returned recent data",
+        "summary": "Reviews headlines/catalysts. Confidence: Low.",
+        "findings": [],
         "risks": [
-          "No negative high-confidence headline detected."
+          "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
         ],
-        "bottom_line": "News flow supports the thesis."
+        "bottom_line": "News is mixed or insufficient."
       },
       "Finance Agent": {
         "score": 50,
@@ -492,21 +483,14 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 90,
-    "v42_news_summary": "News flow supports the thesis.",
-    "v42_news_catalysts": [
-      "The Quiet Erosion Beneath U.S. Growth",
-      "S&P 500, Nasdaq 100 Drop From Records As Rate-Hike Bets Build, Oil Climbs: Stock Market Today",
-      "Breadth Confirms the Rally, But Leadership Still Runs Through AI",
-      "May ADP Employment Report: Strongest Job Gains In Over A Year",
-      "SCHX: An AI Alternative To S&P 500 ETFs",
-      "Nvidia's CEO Accelerates Semi Mania; Extraordinary SpaceX Confidence; Tariffs Are Back"
-    ],
+    "v42_news_score": 45,
+    "v42_news_summary": "News is mixed or insufficient.",
+    "v42_news_catalysts": [],
     "v42_news_risks": [
-      "No negative high-confidence headline detected."
+      "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
     ],
     "v42_news_sources": [
-      "Finnhub company news"
+      "No source returned recent data"
     ],
     "v42_sec_available": true,
     "v42_sec_cik": "0001067839",
@@ -517,7 +501,7 @@
     "v42_breakout_level": 756.14,
     "v42_pullback_zone": "$686.48 - $729.33",
     "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
-    "v42_committee_positive_agents": 2,
+    "v42_committee_positive_agents": 1,
     "v42_committee_total_agents": 10
   },
   {
@@ -574,7 +558,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-04T06:56:53.970217+00:00",
+    "scan_time": "2026-06-04T12:56:33.926952+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 292.74,
@@ -604,23 +588,16 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 90,
-        "status": "Positive",
-        "impact": "Positive",
-        "data_used": "Finnhub company news",
-        "summary": "Reviews headlines/catalysts. Confidence: High.",
-        "findings": [
-          "S&P 500, Nasdaq 100 Drop From Records As Rate-Hike Bets Build, Oil Climbs: Stock Market Today",
-          "Breadth Confirms the Rally, But Leadership Still Runs Through AI",
-          "May ADP Employment Report: Strongest Job Gains In Over A Year",
-          "SPY: AI And Inflation Are Now Feeding Each Other",
-          "Jensen Huang's $9 Trillion Productivity Claim",
-          "Fed Chair Warsh Steps In As Inflation Reignites And The Treasury Market Hints At A Rate Hike"
-        ],
+        "score": 45,
+        "status": "Unknown / insufficient data",
+        "impact": "Neutral",
+        "data_used": "No source returned recent data",
+        "summary": "Reviews headlines/catalysts. Confidence: Low.",
+        "findings": [],
         "risks": [
-          "No negative high-confidence headline detected."
+          "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
         ],
-        "bottom_line": "News flow supports the thesis."
+        "bottom_line": "News is mixed or insufficient."
       },
       "Finance Agent": {
         "score": 50,
@@ -754,21 +731,14 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 90,
-    "v42_news_summary": "News flow supports the thesis.",
-    "v42_news_catalysts": [
-      "S&P 500, Nasdaq 100 Drop From Records As Rate-Hike Bets Build, Oil Climbs: Stock Market Today",
-      "Breadth Confirms the Rally, But Leadership Still Runs Through AI",
-      "May ADP Employment Report: Strongest Job Gains In Over A Year",
-      "SPY: AI And Inflation Are Now Feeding Each Other",
-      "Jensen Huang's $9 Trillion Productivity Claim",
-      "Fed Chair Warsh Steps In As Inflation Reignites And The Treasury Market Hints At A Rate Hike"
-    ],
+    "v42_news_score": 45,
+    "v42_news_summary": "News is mixed or insufficient.",
+    "v42_news_catalysts": [],
     "v42_news_risks": [
-      "No negative high-confidence headline detected."
+      "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
     ],
     "v42_news_sources": [
-      "Finnhub company news"
+      "No source returned recent data"
     ],
     "v42_sec_available": false,
     "v42_sec_cik": null,
@@ -779,7 +749,7 @@
     "v42_breakout_level": 295.67,
     "v42_pullback_zone": "$270.63 - $281.92",
     "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
-    "v42_committee_positive_agents": 2,
+    "v42_committee_positive_agents": 1,
     "v42_committee_total_agents": 10
   },
   {
@@ -836,7 +806,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-04T07:24:59.519873+00:00",
+    "scan_time": "2026-06-04T13:26:02.251510+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 699.15,
@@ -866,17 +836,14 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 61,
-        "status": "Mixed",
+        "score": 45,
+        "status": "Unknown / insufficient data",
         "impact": "Neutral",
-        "data_used": "Finnhub company news",
-        "summary": "Reviews headlines/catalysts. Confidence: High.",
-        "findings": [
-          "The Quiet Erosion Beneath U.S. Growth",
-          "The Stock Market Is Still Trading Near Record Highs. Here's the Biggest Risk Investors Are Overlooking."
-        ],
+        "data_used": "No source returned recent data",
+        "summary": "Reviews headlines/catalysts. Confidence: Low.",
+        "findings": [],
         "risks": [
-          "The Stock Market Is Still Trading Near Record Highs. Here's the Biggest Risk Investors Are Overlooking."
+          "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
         ],
         "bottom_line": "News is mixed or insufficient."
       },
@@ -1012,17 +979,14 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 61,
+    "v42_news_score": 45,
     "v42_news_summary": "News is mixed or insufficient.",
-    "v42_news_catalysts": [
-      "The Quiet Erosion Beneath U.S. Growth",
-      "The Stock Market Is Still Trading Near Record Highs. Here's the Biggest Risk Investors Are Overlooking."
-    ],
+    "v42_news_catalysts": [],
     "v42_news_risks": [
-      "The Stock Market Is Still Trading Near Record Highs. Here's the Biggest Risk Investors Are Overlooking."
+      "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
     ],
     "v42_news_sources": [
-      "Finnhub company news"
+      "No source returned recent data"
     ],
     "v42_sec_available": false,
     "v42_sec_cik": null,
@@ -1088,7 +1052,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-04T06:54:36.309455+00:00",
+    "scan_time": "2026-06-04T12:54:35.990503+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 79.95,
@@ -1118,18 +1082,14 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 53,
-        "status": "Mixed",
+        "score": 45,
+        "status": "Unknown / insufficient data",
         "impact": "Neutral",
-        "data_used": "Finnhub company news",
-        "summary": "Reviews headlines/catalysts. Confidence: High.",
-        "findings": [
-          "BANX: 9%+ Distribution Yield With Monthly Pay (Upgrade)",
-          "GHY: Discounted Price, Monthly Pay, With Strong Performance"
-        ],
+        "data_used": "No source returned recent data",
+        "summary": "Reviews headlines/catalysts. Confidence: Low.",
+        "findings": [],
         "risks": [
-          "EMB\u2019s 6 Percent Emerging Market Bond Yield Hides Hard Currency Sovereign Default Risk Most Income Investors Have Never Modeled",
-          "The #1 Risk BDC Investors Face - And How I'm Avoiding It"
+          "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
         ],
         "bottom_line": "News is mixed or insufficient."
       },
@@ -1265,18 +1225,14 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 53,
+    "v42_news_score": 45,
     "v42_news_summary": "News is mixed or insufficient.",
-    "v42_news_catalysts": [
-      "BANX: 9%+ Distribution Yield With Monthly Pay (Upgrade)",
-      "GHY: Discounted Price, Monthly Pay, With Strong Performance"
-    ],
+    "v42_news_catalysts": [],
     "v42_news_risks": [
-      "EMB\u2019s 6 Percent Emerging Market Bond Yield Hides Hard Currency Sovereign Default Risk Most Income Investors Have Never Modeled",
-      "The #1 Risk BDC Investors Face - And How I'm Avoiding It"
+      "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
     ],
     "v42_news_sources": [
-      "Finnhub company news"
+      "No source returned recent data"
     ],
     "v42_sec_available": false,
     "v42_sec_cik": null,
@@ -1342,7 +1298,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-04T07:01:01.339816+00:00",
+    "scan_time": "2026-06-04T13:00:11.765338+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 110.24,
@@ -1598,7 +1554,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-04T06:45:24.706518+00:00",
+    "scan_time": "2026-06-04T12:45:30.189059+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 514.49,
@@ -1628,7 +1584,7 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 90,
+        "score": 76,
         "status": "Positive",
         "impact": "Positive",
         "data_used": "Finnhub company news",
@@ -1636,9 +1592,7 @@
         "findings": [
           "S&P 500, Nasdaq 100 Drop From Records As Rate-Hike Bets Build, Oil Climbs: Stock Market Today",
           "May ADP Employment Report: Strongest Job Gains In Over A Year",
-          "SPY: AI And Inflation Are Now Feeding Each Other",
-          "Fed Chair Warsh Steps In As Inflation Reignites And The Treasury Market Hints At A Rate Hike",
-          "Energy Shock Looms, But Q2 GDP Still Looks Surprisingly Strong"
+          "SPY: AI And Inflation Are Now Feeding Each Other"
         ],
         "risks": [
           "No negative high-confidence headline detected."
@@ -1779,14 +1733,12 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 90,
+    "v42_news_score": 76,
     "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
       "S&P 500, Nasdaq 100 Drop From Records As Rate-Hike Bets Build, Oil Climbs: Stock Market Today",
       "May ADP Employment Report: Strongest Job Gains In Over A Year",
-      "SPY: AI And Inflation Are Now Feeding Each Other",
-      "Fed Chair Warsh Steps In As Inflation Reignites And The Treasury Market Hints At A Rate Hike",
-      "Energy Shock Looms, But Q2 GDP Still Looks Surprisingly Strong"
+      "SPY: AI And Inflation Are Now Feeding Each Other"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
@@ -1859,7 +1811,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-04T07:27:18.012941+00:00",
+    "scan_time": "2026-06-04T13:28:13.580612+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 63.46,
@@ -2110,7 +2062,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-04T07:27:32.525739+00:00",
+    "scan_time": "2026-06-04T13:28:25.385374+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 159.93,
@@ -2140,14 +2092,21 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 45,
-        "status": "Unknown / insufficient data",
+        "score": 55,
+        "status": "Mixed",
         "impact": "Neutral",
-        "data_used": "No source returned recent data",
-        "summary": "Reviews headlines/catalysts. Confidence: Low.",
-        "findings": [],
+        "data_used": "Finnhub company news",
+        "summary": "Reviews headlines/catalysts. Confidence: High.",
+        "findings": [
+          "Leading And Lagging Sectors For June 3, 2026",
+          "Leading And Lagging Sectors For June 2, 2026",
+          "ValuEngine Weekly Market Summary And Commentary",
+          "Leading And Lagging Sectors For June 1, 2026",
+          "Leading And Lagging Sectors For May 29, 2026",
+          "First Quarter Earnings: Sharpening Sector Divergence"
+        ],
         "risks": [
-          "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
+          "No negative high-confidence headline detected."
         ],
         "bottom_line": "News is mixed or insufficient."
       },
@@ -2283,14 +2242,21 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 45,
+    "v42_news_score": 55,
     "v42_news_summary": "News is mixed or insufficient.",
-    "v42_news_catalysts": [],
+    "v42_news_catalysts": [
+      "Leading And Lagging Sectors For June 3, 2026",
+      "Leading And Lagging Sectors For June 2, 2026",
+      "ValuEngine Weekly Market Summary And Commentary",
+      "Leading And Lagging Sectors For June 1, 2026",
+      "Leading And Lagging Sectors For May 29, 2026",
+      "First Quarter Earnings: Sharpening Sector Divergence"
+    ],
     "v42_news_risks": [
-      "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
+      "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
-      "No source returned recent data"
+      "Finnhub company news"
     ],
     "v42_sec_available": false,
     "v42_sec_cik": null,
@@ -2356,7 +2322,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-04T07:27:21.693495+00:00",
+    "scan_time": "2026-06-04T13:28:16.545594+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 178.81,
@@ -2610,7 +2576,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-04T07:25:36.412977+00:00",
+    "scan_time": "2026-06-04T13:26:37.704701+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 374.7,
@@ -2640,16 +2606,21 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 45,
-        "status": "Unknown / insufficient data",
-        "impact": "Neutral",
-        "data_used": "No source returned recent data",
-        "summary": "Reviews headlines/catalysts. Confidence: Low.",
-        "findings": [],
-        "risks": [
-          "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
+        "score": 83,
+        "status": "Positive",
+        "impact": "Positive",
+        "data_used": "Finnhub company news",
+        "summary": "Reviews headlines/catalysts. Confidence: High.",
+        "findings": [
+          "Trailing Yields: Major Asset Classes - June 4, 2026",
+          "Korea And Japan Worry Me More Than The Strait Of Hormuz",
+          "If Your Advisor Said to Add Bonds at 65, They Were Right (in 1995). Here\u2019s What That Advice Should Sound Like Today.",
+          "Vanguard Total Stock Market Index Fund ETF Shares (VTI): Graham Stephan Remains Bullish"
         ],
-        "bottom_line": "News is mixed or insufficient."
+        "risks": [
+          "No negative high-confidence headline detected."
+        ],
+        "bottom_line": "News flow supports the thesis."
       },
       "Finance Agent": {
         "score": 50,
@@ -2783,14 +2754,19 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 45,
-    "v42_news_summary": "News is mixed or insufficient.",
-    "v42_news_catalysts": [],
+    "v42_news_score": 83,
+    "v42_news_summary": "News flow supports the thesis.",
+    "v42_news_catalysts": [
+      "Trailing Yields: Major Asset Classes - June 4, 2026",
+      "Korea And Japan Worry Me More Than The Strait Of Hormuz",
+      "If Your Advisor Said to Add Bonds at 65, They Were Right (in 1995). Here\u2019s What That Advice Should Sound Like Today.",
+      "Vanguard Total Stock Market Index Fund ETF Shares (VTI): Graham Stephan Remains Bullish"
+    ],
     "v42_news_risks": [
-      "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
+      "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
-      "No source returned recent data"
+      "Finnhub company news"
     ],
     "v42_sec_available": false,
     "v42_sec_cik": null,
@@ -2801,7 +2777,7 @@
     "v42_breakout_level": 378.45,
     "v42_pullback_zone": "$358.80 - $364.22",
     "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
-    "v42_committee_positive_agents": 1,
+    "v42_committee_positive_agents": 2,
     "v42_committee_total_agents": 10
   },
   {
@@ -2858,7 +2834,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-04T07:15:45.804201+00:00",
+    "scan_time": "2026-06-04T13:17:06.906728+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 32.91,
@@ -3111,7 +3087,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-04T07:27:16.104342+00:00",
+    "scan_time": "2026-06-04T13:28:11.825345+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 53.9,
@@ -3147,12 +3123,12 @@
         "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
+          "5 Dynamics Shaping Today's Investment Landscape",
           "Leading And Lagging Sectors For June 3, 2026",
           "Leading And Lagging Sectors For June 2, 2026",
           "ValuEngine Weekly Market Summary And Commentary",
           "Leading And Lagging Sectors For June 1, 2026",
-          "Leading And Lagging Sectors For May 29, 2026",
-          "First Quarter Earnings: Sharpening Sector Divergence"
+          "Leading And Lagging Sectors For May 29, 2026"
         ],
         "risks": [
           "No negative high-confidence headline detected."
@@ -3294,12 +3270,12 @@
     "v42_news_score": 55,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
+      "5 Dynamics Shaping Today's Investment Landscape",
       "Leading And Lagging Sectors For June 3, 2026",
       "Leading And Lagging Sectors For June 2, 2026",
       "ValuEngine Weekly Market Summary And Commentary",
       "Leading And Lagging Sectors For June 1, 2026",
-      "Leading And Lagging Sectors For May 29, 2026",
-      "First Quarter Earnings: Sharpening Sector Divergence"
+      "Leading And Lagging Sectors For May 29, 2026"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
@@ -3373,7 +3349,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-04T06:34:32.521760+00:00",
+    "scan_time": "2026-06-04T12:35:00.649853+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 92.65,
@@ -3622,7 +3598,7 @@
     "risk_tags": [
       "RSI is overheated"
     ],
-    "scan_time": "2026-06-04T06:57:14.970536+00:00",
+    "scan_time": "2026-06-04T12:56:54.952884+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 60.97,
@@ -3883,7 +3859,7 @@
       "RSI is constructive"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-04T07:19:46.032930+00:00",
+    "scan_time": "2026-06-04T13:20:52.212842+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 75.6,
@@ -3913,21 +3889,16 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 83,
-        "status": "Positive",
-        "impact": "Positive",
-        "data_used": "Finnhub company news",
-        "summary": "Reviews headlines/catalysts. Confidence: High.",
-        "findings": [
-          "Trump Slammed Clean Energy As 'Green New Scam' \u2014 The Stocks Still Rallied Like AI",
-          "Renewable Energy Curtailment Offers A Surplus Opportunity For Texas Data Centers",
-          "Nextpower: Mind The Hype As Its Apex Acquisition Locks It Into Data Center Growth",
-          "Stock Market Today: Nasdaq 100 Rises Despite Hot PPI, Nvidia Hits Record High"
-        ],
+        "score": 45,
+        "status": "Unknown / insufficient data",
+        "impact": "Neutral",
+        "data_used": "No source returned recent data",
+        "summary": "Reviews headlines/catalysts. Confidence: Low.",
+        "findings": [],
         "risks": [
-          "No negative high-confidence headline detected."
+          "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
         ],
-        "bottom_line": "News flow supports the thesis."
+        "bottom_line": "News is mixed or insufficient."
       },
       "Finance Agent": {
         "score": 50,
@@ -4061,19 +4032,14 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 83,
-    "v42_news_summary": "News flow supports the thesis.",
-    "v42_news_catalysts": [
-      "Trump Slammed Clean Energy As 'Green New Scam' \u2014 The Stocks Still Rallied Like AI",
-      "Renewable Energy Curtailment Offers A Surplus Opportunity For Texas Data Centers",
-      "Nextpower: Mind The Hype As Its Apex Acquisition Locks It Into Data Center Growth",
-      "Stock Market Today: Nasdaq 100 Rises Despite Hot PPI, Nvidia Hits Record High"
-    ],
+    "v42_news_score": 45,
+    "v42_news_summary": "News is mixed or insufficient.",
+    "v42_news_catalysts": [],
     "v42_news_risks": [
-      "No negative high-confidence headline detected."
+      "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
     ],
     "v42_news_sources": [
-      "Finnhub company news"
+      "No source returned recent data"
     ],
     "v42_sec_available": false,
     "v42_sec_cik": null,
@@ -4084,7 +4050,7 @@
     "v42_breakout_level": 76.36,
     "v42_pullback_zone": "$59.39 - $68.88",
     "v42_chart_guidance": "Between support and resistance. Prefer pullback entry or confirmed breakout.",
-    "v42_committee_positive_agents": 2,
+    "v42_committee_positive_agents": 1,
     "v42_committee_total_agents": 10
   },
   {
@@ -4141,7 +4107,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-04T07:12:52.789391+00:00",
+    "scan_time": "2026-06-04T13:14:12.438867+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 18.15,
@@ -4392,7 +4358,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-04T07:27:49.280745+00:00",
+    "scan_time": "2026-06-04T13:28:41.710261+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 40.83,
@@ -4644,7 +4610,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-04T07:14:55.671256+00:00",
+    "scan_time": "2026-06-04T13:16:22.992501+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 15.8,
@@ -4891,7 +4857,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-04T07:12:29.917312+00:00",
+    "scan_time": "2026-06-04T13:13:55.711397+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 24.96,
@@ -5143,7 +5109,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-04T07:18:06.055930+00:00",
+    "scan_time": "2026-06-04T13:19:19.912350+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 17.87,
@@ -5392,7 +5358,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-04T07:16:56.903029+00:00",
+    "scan_time": "2026-06-04T13:18:16.802128+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 642.77,
@@ -5422,7 +5388,7 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 90,
+        "score": 83,
         "status": "Positive",
         "impact": "Positive",
         "data_used": "Finnhub company news",
@@ -5431,8 +5397,7 @@
           "Chart Of The Day: AI. AI. AI. (And A Handful Of Other Stocks, Too)",
           "AI Stocks Enter A Crucial Month As Major Tech Events Crowd The Calendar",
           "Trump Slammed Clean Energy As 'Green New Scam' \u2014 The Stocks Still Rallied Like AI",
-          "AI Gold Rush Moves Beyond Chips: VanEck's New RACK ETF Captures Data Center Buildout",
-          "The Multi-Trillion AI Tsunami Sweeping The Market"
+          "AI Gold Rush Moves Beyond Chips: VanEck's New RACK ETF Captures Data Center Buildout"
         ],
         "risks": [
           "No negative high-confidence headline detected."
@@ -5571,14 +5536,13 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 90,
+    "v42_news_score": 83,
     "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
       "Chart Of The Day: AI. AI. AI. (And A Handful Of Other Stocks, Too)",
       "AI Stocks Enter A Crucial Month As Major Tech Events Crowd The Calendar",
       "Trump Slammed Clean Energy As 'Green New Scam' \u2014 The Stocks Still Rallied Like AI",
-      "AI Gold Rush Moves Beyond Chips: VanEck's New RACK ETF Captures Data Center Buildout",
-      "The Multi-Trillion AI Tsunami Sweeping The Market"
+      "AI Gold Rush Moves Beyond Chips: VanEck's New RACK ETF Captures Data Center Buildout"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
@@ -5649,7 +5613,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-04T07:27:24.080998+00:00",
+    "scan_time": "2026-06-04T13:28:18.359473+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 198.73,
@@ -5679,14 +5643,13 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 69,
+        "score": 62,
         "status": "Mixed",
         "impact": "Neutral",
         "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "S&P 500, Nasdaq 100 Drop From Records As Rate-Hike Bets Build, Oil Climbs: Stock Market Today",
-          "The Multi-Trillion AI Tsunami Sweeping The Market"
+          "S&P 500, Nasdaq 100 Drop From Records As Rate-Hike Bets Build, Oil Climbs: Stock Market Today"
         ],
         "risks": [
           "No negative high-confidence headline detected."
@@ -5825,11 +5788,10 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 69,
+    "v42_news_score": 62,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "S&P 500, Nasdaq 100 Drop From Records As Rate-Hike Bets Build, Oil Climbs: Stock Market Today",
-      "The Multi-Trillion AI Tsunami Sweeping The Market"
+      "S&P 500, Nasdaq 100 Drop From Records As Rate-Hike Bets Build, Oil Climbs: Stock Market Today"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
@@ -5846,7 +5808,7 @@
     "v42_breakout_level": 200.72,
     "v42_pullback_zone": "$166.84 - $192.31",
     "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
-    "v42_committee_positive_agents": 2,
+    "v42_committee_positive_agents": 1,
     "v42_committee_total_agents": 10
   },
   {
@@ -5903,7 +5865,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-04T06:38:06.987123+00:00",
+    "scan_time": "2026-06-04T12:38:23.406520+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 41.71,
@@ -5939,10 +5901,10 @@
         "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
+          "AI News You Need To Know - June Edition: Capex, Inference, And Beyond",
           "Chart Of The Day: AI. AI. AI. (And A Handful Of Other Stocks, Too)",
           "The Multi-Trillion AI Tsunami Sweeping The Market",
-          "Market Brief: AI Infrastructure Trade Is Due For A Pause",
-          "Week-In-Review: Market Moves, AI Momentum, And What's Next"
+          "Market Brief: AI Infrastructure Trade Is Due For A Pause"
         ],
         "risks": [
           "No negative high-confidence headline detected."
@@ -6084,10 +6046,10 @@
     "v42_news_score": 83,
     "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
+      "AI News You Need To Know - June Edition: Capex, Inference, And Beyond",
       "Chart Of The Day: AI. AI. AI. (And A Handful Of Other Stocks, Too)",
       "The Multi-Trillion AI Tsunami Sweeping The Market",
-      "Market Brief: AI Infrastructure Trade Is Due For A Pause",
-      "Week-In-Review: Market Moves, AI Momentum, And What's Next"
+      "Market Brief: AI Infrastructure Trade Is Due For A Pause"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
@@ -6160,7 +6122,7 @@
     "risk_tags": [
       "short-term ETF move may be stretched"
     ],
-    "scan_time": "2026-06-04T07:17:43.121920+00:00",
+    "scan_time": "2026-06-04T13:18:59.250973+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 618.84,
@@ -6413,7 +6375,7 @@
     "risk_tags": [
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-04T07:21:13.517260+00:00",
+    "scan_time": "2026-06-04T13:22:12.239370+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.51,
@@ -6443,9 +6405,9 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 68,
-        "status": "Mixed",
-        "impact": "Neutral",
+        "score": 76,
+        "status": "Positive",
+        "impact": "Positive",
         "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
@@ -6454,9 +6416,9 @@
           "AI Financing Needs Do Not Override Cyclical Drivers Of Yield"
         ],
         "risks": [
-          "What Stock Market Pessimists May Be Missing"
+          "No negative high-confidence headline detected."
         ],
-        "bottom_line": "News is mixed or insufficient."
+        "bottom_line": "News flow supports the thesis."
       },
       "Finance Agent": {
         "score": 50,
@@ -6590,15 +6552,15 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 68,
-    "v42_news_summary": "News is mixed or insufficient.",
+    "v42_news_score": 76,
+    "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
       "Crude Reality: Oil Prices Likely To Remain Higher For Longer",
       "Fed Chair Warsh Steps In As Inflation Reignites And The Treasury Market Hints At A Rate Hike",
       "AI Financing Needs Do Not Override Cyclical Drivers Of Yield"
     ],
     "v42_news_risks": [
-      "What Stock Market Pessimists May Be Missing"
+      "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
       "Finnhub company news"
@@ -6667,7 +6629,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-04T07:27:34.530688+00:00",
+    "scan_time": "2026-06-04T13:28:27.307130+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 124.76,
@@ -6697,16 +6659,20 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 45,
-        "status": "Unknown / insufficient data",
-        "impact": "Neutral",
-        "data_used": "No source returned recent data",
-        "summary": "Reviews headlines/catalysts. Confidence: Low.",
-        "findings": [],
-        "risks": [
-          "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
+        "score": 76,
+        "status": "Positive",
+        "impact": "Positive",
+        "data_used": "Finnhub company news",
+        "summary": "Reviews headlines/catalysts. Confidence: High.",
+        "findings": [
+          "S&P 500 Halts Gains As Oil Jumps 8% On Iran Ceasefire Standoff: Stock Market Today",
+          "Chart Of The Day: Why Is Main Street So Glum?",
+          "Consumer And Retail: Better Than Expected Results And Outlooks Has XRT Primed To Outperform"
         ],
-        "bottom_line": "News is mixed or insufficient."
+        "risks": [
+          "No negative high-confidence headline detected."
+        ],
+        "bottom_line": "News flow supports the thesis."
       },
       "Finance Agent": {
         "score": 50,
@@ -6840,14 +6806,18 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 45,
-    "v42_news_summary": "News is mixed or insufficient.",
-    "v42_news_catalysts": [],
+    "v42_news_score": 76,
+    "v42_news_summary": "News flow supports the thesis.",
+    "v42_news_catalysts": [
+      "S&P 500 Halts Gains As Oil Jumps 8% On Iran Ceasefire Standoff: Stock Market Today",
+      "Chart Of The Day: Why Is Main Street So Glum?",
+      "Consumer And Retail: Better Than Expected Results And Outlooks Has XRT Primed To Outperform"
+    ],
     "v42_news_risks": [
-      "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
+      "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
-      "No source returned recent data"
+      "Finnhub company news"
     ],
     "v42_sec_available": false,
     "v42_sec_cik": null,
@@ -6858,7 +6828,7 @@
     "v42_breakout_level": 123.41,
     "v42_pullback_zone": "$114.20 - $114.40",
     "v42_chart_guidance": "Near support. Better risk/reward if support holds.",
-    "v42_committee_positive_agents": 1,
+    "v42_committee_positive_agents": 2,
     "v42_committee_total_agents": 10
   },
   {
@@ -6913,7 +6883,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-04T07:27:27.851092+00:00",
+    "scan_time": "2026-06-04T13:28:21.938151+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 44.99,
@@ -7174,7 +7144,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-04T06:57:13.173816+00:00",
+    "scan_time": "2026-06-04T12:56:52.274331+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 58.27,
@@ -7204,14 +7174,17 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 45,
-        "status": "Unknown / insufficient data",
+        "score": 46,
+        "status": "Mixed",
         "impact": "Neutral",
-        "data_used": "No source returned recent data",
-        "summary": "Reviews headlines/catalysts. Confidence: Low.",
-        "findings": [],
+        "data_used": "Finnhub company news",
+        "summary": "Reviews headlines/catalysts. Confidence: High.",
+        "findings": [
+          "PAPI: Buy-Write ETF With 7.6% Yield, Strong Value But Below-Par Returns"
+        ],
         "risks": [
-          "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
+          "Important Warning For Dividend Investors: 4 Dangerous Misconceptions Quietly Sabotaging Your Portfolio",
+          "I'm Betting Big On This Near-Perfect Retirement Strategy That Most Investors Miss"
         ],
         "bottom_line": "News is mixed or insufficient."
       },
@@ -7347,14 +7320,17 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 45,
+    "v42_news_score": 46,
     "v42_news_summary": "News is mixed or insufficient.",
-    "v42_news_catalysts": [],
+    "v42_news_catalysts": [
+      "PAPI: Buy-Write ETF With 7.6% Yield, Strong Value But Below-Par Returns"
+    ],
     "v42_news_risks": [
-      "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
+      "Important Warning For Dividend Investors: 4 Dangerous Misconceptions Quietly Sabotaging Your Portfolio",
+      "I'm Betting Big On This Near-Perfect Retirement Strategy That Most Investors Miss"
     ],
     "v42_news_sources": [
-      "No source returned recent data"
+      "Finnhub company news"
     ],
     "v42_sec_available": false,
     "v42_sec_cik": null,
@@ -7420,7 +7396,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-04T07:27:29.801699+00:00",
+    "scan_time": "2026-06-04T13:28:23.585249+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 47.71,
@@ -7673,7 +7649,7 @@
       "price is below 50-day trend",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-04T07:27:25.968404+00:00",
+    "scan_time": "2026-06-04T13:28:20.149137+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.64,
@@ -7929,7 +7905,7 @@
       "price is below 50-day trend",
       "20-day ETF trend is weak"
     ],
-    "scan_time": "2026-06-04T07:23:51.088351+00:00",
+    "scan_time": "2026-06-04T13:24:53.660922+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 62.28,
@@ -7959,16 +7935,14 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 62,
-        "status": "Mixed",
+        "score": 45,
+        "status": "Unknown / insufficient data",
         "impact": "Neutral",
-        "data_used": "Finnhub company news",
-        "summary": "Reviews headlines/catalysts. Confidence: High.",
-        "findings": [
-          "As 60/40 Investing Fails, Expect A 'Great Migration'"
-        ],
+        "data_used": "No source returned recent data",
+        "summary": "Reviews headlines/catalysts. Confidence: Low.",
+        "findings": [],
         "risks": [
-          "No negative high-confidence headline detected."
+          "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
         ],
         "bottom_line": "News is mixed or insufficient."
       },
@@ -8104,16 +8078,14 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 62,
+    "v42_news_score": 45,
     "v42_news_summary": "News is mixed or insufficient.",
-    "v42_news_catalysts": [
-      "As 60/40 Investing Fails, Expect A 'Great Migration'"
-    ],
+    "v42_news_catalysts": [],
     "v42_news_risks": [
-      "No negative high-confidence headline detected."
+      "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
     ],
     "v42_news_sources": [
-      "Finnhub company news"
+      "No source returned recent data"
     ],
     "v42_sec_available": false,
     "v42_sec_cik": null,
