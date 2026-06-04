@@ -10,7 +10,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V42.3.4 Simple Guest Login Fix"
+APP_VERSION = "V42.3.4 Clean Syntax Fix"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -19,7 +19,7 @@ st.set_page_config(
 )
 
 DATA_DIR = Path(os.getenv("DATA_DIR", "."))
-FMP_API_KEY = os.getenv("FMP_API_KEY", "").strip()a
+FMP_API_KEY = os.getenv("FMP_API_KEY", "").strip()
 
 FULL_SCAN_FILE = DATA_DIR / "market_full_scan.json"
 PRESCREEN_FILE = DATA_DIR / "market_prescreen.json"
