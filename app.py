@@ -1,7 +1,9 @@
 import os
 import datetime as dt
 import json
+import csv
 from pathlib import Path
+from io import StringIO
 
 import pandas as pd
 import streamlit as st
@@ -10,7 +12,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V42.4 Command Center + Analyst Ratings Agent"
+APP_VERSION = "V42.4.2 Command Center Fallback Sources"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -20,6 +22,9 @@ st.set_page_config(
 
 DATA_DIR = Path(os.getenv("DATA_DIR", "."))
 FMP_API_KEY = os.getenv("FMP_API_KEY", "").strip()
+FINNHUB_API_KEY = (os.getenv("FINNHUB_API_KEY") or os.getenv("FINNHUB_TOKEN") or "").strip()
+NEWSAPI_KEY = (os.getenv("NEWSAPI_KEY") or os.getenv("NEWS_API_KEY") or "").strip()
+ALPHA_VANTAGE_API_KEY = (os.getenv("ALPHA_VANTAGE_API_KEY") or os.getenv("ALPHAVANTAGE_API_KEY") or "").strip()
 
 FULL_SCAN_FILE = DATA_DIR / "market_full_scan.json"
 PRESCREEN_FILE = DATA_DIR / "market_prescreen.json"
@@ -2255,7 +2260,10 @@ def render_v423_command_center():
                     if e.get("epsEstimated") not in (None, ""):
                         st.caption(f"EPS Est: {e.get('epsEstimated')}")
             else:
-                st.caption("No earnings returned for today from connected source.")
+                st.caption(
+                    f"No earnings returned for today. FMP_API_KEY configured={'Yes' if bool(FMP_API_KEY) else 'No'}. "
+                    "If key is configured, there may simply be no major earnings today or the endpoint is plan-limited."
+                )
 
 
 def render_v423_conviction_meter(row):
@@ -2667,7 +2675,11 @@ def render_v424_market_command_center():
             delta = f"{pct:+.2f}%" if pct is not None else None
             cols[i].metric(q.get("symbol", ""), v424_money(q.get("price")), delta)
     else:
-        st.info("Market quote data did not return from connected source yet.")
+        st.info(
+            "Market quote data did not return. Diagnostics: "
+            f"FMP_API_KEY configured={'Yes' if bool(FMP_API_KEY) else 'No'}; "
+            "check FMP plan/access for quote endpoint."
+        )
 
     econ = v424_economic_calendar()
     earnings = v424_earnings_today()
@@ -2688,7 +2700,10 @@ def render_v424_market_command_center():
                 for e in next_events[:8]:
                     st.markdown(f"• **{safe_text(e.get('event'))}** — {safe_text(e.get('date'))}")
             else:
-                st.caption("No economic calendar data returned. Check FMP_API_KEY access/plan.")
+                st.caption(
+                    f"No economic calendar data returned. FMP_API_KEY configured={'Yes' if bool(FMP_API_KEY) else 'No'}. "
+                    "This may require FMP calendar endpoint access on your plan."
+                )
 
     with c2:
         with st.container(border=True):
@@ -2697,7 +2712,10 @@ def render_v424_market_command_center():
                 edf = pd.DataFrame(earnings)
                 st.dataframe(edf, use_container_width=True, hide_index=True)
             else:
-                st.caption("No earnings returned for today from connected source.")
+                st.caption(
+                    f"No earnings returned for today. FMP_API_KEY configured={'Yes' if bool(FMP_API_KEY) else 'No'}. "
+                    "If key is configured, there may simply be no major earnings today or the endpoint is plan-limited."
+                )
 
     with st.container(border=True):
         st.markdown("### 📰 Market News Ribbon / Table")
@@ -2705,7 +2723,10 @@ def render_v424_market_command_center():
             for h in news[:5]:
                 st.markdown(f"• {safe_text(h)}")
         else:
-            st.caption("No broad market headlines returned. Check NEWSAPI_KEY if you want this populated.")
+            st.caption(
+            "No broad market headlines returned. "
+            f"NEWSAPI_KEY configured={'Yes' if bool((globals().get('NEWSAPI_KEY') or globals().get('NEWS_API_KEY') or os.getenv('NEWSAPI_KEY') or os.getenv('NEWS_API_KEY') or '').strip()) else 'No'}."
+        )
 
 
 def render_v424_analyst_ratings_box(row):
@@ -3865,11 +3886,464 @@ def require_login():
     return dashboard_login_gate()
 
 
+
+# =========================
+# V42.4.2 COMMAND CENTER FALLBACK SOURCES
+# =========================
+
+def v4242_source_label(label, ok=True):
+    return {"source": label, "ok": bool(ok)}
+
+
+@st.cache_data(ttl=300)
+def v4242_yahoo_quote(symbol):
+    """
+    Fallback quote via yfinance when FMP quote endpoint is unavailable/plan-limited.
+    """
+    symbol = safe_text(symbol, "").upper().strip()
+    if not symbol:
+        return {}
+    yf_symbol = {"VIX": "^VIX"}.get(symbol, symbol)
+    try:
+        t = yf.Ticker(yf_symbol)
+        price = None
+        prev = None
+
+        # fast_info is quicker and usually works.
+        try:
+            fi = t.fast_info
+            price = fi.get("last_price") or fi.get("lastPrice")
+            prev = fi.get("previous_close") or fi.get("previousClose")
+        except Exception:
+            pass
+
+        # Fallback to short history.
+        if price is None:
+            hist = t.history(period="5d", interval="1d", auto_adjust=False)
+            if hist is not None and not hist.empty:
+                price = float(hist["Close"].dropna().iloc[-1])
+                if len(hist["Close"].dropna()) >= 2:
+                    prev = float(hist["Close"].dropna().iloc[-2])
+
+        pct = None
+        if price is not None and prev:
+            pct = ((float(price) - float(prev)) / float(prev)) * 100
+
+        if price is not None:
+            return {
+                "symbol": symbol,
+                "price": float(price),
+                "change_pct": pct,
+                "source": "Yahoo/yfinance fallback",
+            }
+    except Exception:
+        return {}
+    return {}
+
+
+@st.cache_data(ttl=300)
+def v424_quote(symbol):
+    """
+    V42.4.2 override:
+    Quote source priority:
+      1) FMP quote endpoint
+      2) Yahoo/yfinance fallback
+    """
+    symbol = safe_text(symbol, "").upper().strip()
+    if not symbol:
+        return {}
+
+    # Try original/FMP path directly
+    try:
+        if FMP_API_KEY:
+            data = v424_fmp_get(f"quote/{symbol}") if "v424_fmp_get" in globals() else None
+            if isinstance(data, list) and data:
+                q = data[0]
+                if q.get("price") not in (None, ""):
+                    return {
+                        "symbol": symbol,
+                        "price": q.get("price"),
+                        "change_pct": q.get("changesPercentage"),
+                        "change": q.get("change"),
+                        "name": q.get("name"),
+                        "source": "FMP",
+                    }
+    except Exception:
+        pass
+
+    return v4242_yahoo_quote(symbol)
+
+
+@st.cache_data(ttl=900)
+def v424_market_quotes():
+    """
+    V42.4.2 override with Yahoo fallback.
+    """
+    symbols = ["SPY", "QQQ", "DIA", "IWM", "VIX"]
+    rows = []
+    for s in symbols:
+        q = v424_quote(s)
+        if q:
+            rows.append(q)
+    return rows
+
+
+@st.cache_data(ttl=900)
+def v4242_nasdaq_earnings_today():
+    """
+    No-key public Nasdaq earnings-calendar fallback.
+    This endpoint can occasionally block cloud hosts; if so, we fail safely.
+    """
+    rows = []
+    try:
+        today = v424_today() if "v424_today" in globals() else dt.datetime.now().date()
+        url = "https://api.nasdaq.com/api/calendar/earnings"
+        headers = {
+            "User-Agent": "Mozilla/5.0",
+            "Accept": "application/json, text/plain, */*",
+            "Origin": "https://www.nasdaq.com",
+            "Referer": "https://www.nasdaq.com/market-activity/earnings",
+        }
+        r = requests.get(url, params={"date": today.isoformat()}, headers=headers, timeout=12)
+        if r.status_code == 200:
+            data = r.json() or {}
+            table = (((data.get("data") or {}).get("rows")) or [])
+            for item in table:
+                sym = safe_text(item.get("symbol") or "").upper()
+                if not sym:
+                    continue
+                rows.append({
+                    "Symbol": sym,
+                    "Date": today.isoformat(),
+                    "Time": safe_text(item.get("time") or item.get("timeOfDay") or ""),
+                    "EPS Est": item.get("epsForecast") or item.get("eps_estimate"),
+                    "Revenue Est": item.get("revenueForecast") or item.get("revenue_estimate"),
+                    "Source": "Nasdaq public fallback",
+                })
+                if len(rows) >= 30:
+                    break
+    except Exception:
+        pass
+    return rows
+
+
+@st.cache_data(ttl=1800)
+def v4242_alpha_vantage_earnings_today():
+    """
+    Optional Alpha Vantage fallback if ALPHA_VANTAGE_API_KEY is configured.
+    """
+    rows = []
+    try:
+        key = (globals().get("ALPHA_VANTAGE_API_KEY") or os.getenv("ALPHA_VANTAGE_API_KEY") or "").strip()
+        if not key:
+            return rows
+        url = "https://www.alphavantage.co/query"
+        r = requests.get(url, params={"function": "EARNINGS_CALENDAR", "horizon": "3month", "apikey": key}, timeout=15)
+        if r.status_code == 200 and r.text:
+            today = (v424_today() if "v424_today" in globals() else dt.datetime.now().date()).isoformat()
+            reader = csv.DictReader(StringIO(r.text))
+            for item in reader:
+                if safe_text(item.get("reportDate")) != today:
+                    continue
+                sym = safe_text(item.get("symbol")).upper()
+                if not sym:
+                    continue
+                rows.append({
+                    "Symbol": sym,
+                    "Date": today,
+                    "Time": "",
+                    "EPS Est": item.get("estimate"),
+                    "Revenue Est": "",
+                    "Source": "Alpha Vantage fallback",
+                })
+                if len(rows) >= 30:
+                    break
+    except Exception:
+        pass
+    return rows
+
+
+@st.cache_data(ttl=900)
+def v424_earnings_today():
+    """
+    V42.4.2 override:
+    Earnings source priority:
+      1) FMP earning_calendar
+      2) Nasdaq public earnings calendar
+      3) Alpha Vantage optional fallback
+    """
+    rows = []
+    today = v424_today() if "v424_today" in globals() else dt.datetime.now().date()
+
+    # 1) FMP
+    try:
+        data = v424_fmp_get("earning_calendar", {"from": today.isoformat(), "to": today.isoformat()}) if "v424_fmp_get" in globals() else None
+        if isinstance(data, list):
+            for item in data:
+                sym = safe_text(item.get("symbol") or "").upper()
+                if not sym:
+                    continue
+                rows.append({
+                    "Symbol": sym,
+                    "Date": safe_text(item.get("date") or today.isoformat()),
+                    "Time": safe_text(item.get("time") or ""),
+                    "EPS Est": item.get("epsEstimated"),
+                    "Revenue Est": item.get("revenueEstimated"),
+                    "Source": "FMP",
+                })
+                if len(rows) >= 30:
+                    break
+    except Exception:
+        pass
+
+    if rows:
+        return rows
+
+    # 2) Nasdaq no-key fallback
+    rows = v4242_nasdaq_earnings_today()
+    if rows:
+        return rows
+
+    # 3) Alpha Vantage optional
+    rows = v4242_alpha_vantage_earnings_today()
+    if rows:
+        return rows
+
+    return []
+
+
+@st.cache_data(ttl=1800)
+def v4242_tradingeconomics_calendar():
+    """
+    No-key TradingEconomics guest fallback.
+    Guest access can be rate-limited, but often returns broad macro calendar.
+    """
+    events = []
+    try:
+        today = v424_today() if "v424_today" in globals() else dt.datetime.now().date()
+        end = today + dt.timedelta(days=45)
+        url = "https://api.tradingeconomics.com/calendar"
+        r = requests.get(
+            url,
+            params={"c": "guest:guest", "f": "json", "d1": today.isoformat(), "d2": end.isoformat()},
+            timeout=12,
+        )
+        if r.status_code == 200:
+            data = r.json() or []
+            important = ["CPI", "PPI", "Payroll", "Non Farm", "Nonfarm", "FOMC", "Fed", "Jobless", "GDP", "Retail Sales", "Inflation", "Unemployment", "ISM", "PMI"]
+            for item in data:
+                name = safe_text(item.get("Event") or item.get("event") or item.get("Category") or "")
+                country = safe_text(item.get("Country") or item.get("country") or "")
+                if country and country.lower() not in {"united states", "united states of america", "us", "usa"}:
+                    continue
+                if not any(term.lower() in name.lower() for term in important):
+                    continue
+                date_val = safe_text(item.get("Date") or item.get("date") or "")
+                events.append({
+                    "date": date_val,
+                    "event": name,
+                    "actual": item.get("Actual"),
+                    "estimate": item.get("Forecast"),
+                    "previous": item.get("Previous"),
+                    "source": "TradingEconomics guest fallback",
+                })
+                if len(events) >= 12:
+                    break
+    except Exception:
+        pass
+    return events
+
+
+@st.cache_data(ttl=1800)
+def v424_economic_calendar():
+    """
+    V42.4.2 override:
+    Economic calendar source priority:
+      1) FMP economic_calendar
+      2) TradingEconomics guest fallback
+      3) Static upcoming macro checklist fallback
+    """
+    important = ["CPI", "PPI", "Payroll", "Nonfarm", "FOMC", "Fed", "Jobless", "GDP", "Retail Sales", "Inflation", "Unemployment", "ISM", "PMI"]
+    today = v424_today() if "v424_today" in globals() else dt.datetime.now().date()
+    end = today + dt.timedelta(days=45)
+    events = []
+
+    # 1) FMP
+    try:
+        data = v424_fmp_get("economic_calendar", {"from": today.isoformat(), "to": end.isoformat()}) if "v424_fmp_get" in globals() else None
+        if isinstance(data, list):
+            for item in data:
+                name = safe_text(item.get("event") or item.get("name") or "")
+                if not name:
+                    continue
+                if any(term.lower() in name.lower() for term in important):
+                    events.append({
+                        "date": safe_text(item.get("date") or item.get("datetime") or ""),
+                        "event": name,
+                        "actual": item.get("actual"),
+                        "estimate": item.get("estimate"),
+                        "previous": item.get("previous"),
+                        "source": "FMP",
+                    })
+    except Exception:
+        pass
+
+    # 2) Trading Economics fallback
+    if not events:
+        events = v4242_tradingeconomics_calendar()
+
+    # 3) Static fallback so card is not blank.
+    if not events:
+        events = [
+            {"date": "Check official calendar", "event": "CPI / Inflation report", "source": "Static fallback"},
+            {"date": "Check official calendar", "event": "PPI report", "source": "Static fallback"},
+            {"date": "Check official calendar", "event": "FOMC / Fed decision or minutes", "source": "Static fallback"},
+            {"date": "Check official calendar", "event": "Nonfarm Payrolls / Jobs report", "source": "Static fallback"},
+            {"date": "Check official calendar", "event": "Jobless Claims", "source": "Static fallback"},
+        ]
+
+    events = sorted(events, key=lambda x: safe_text(x.get("date")))
+    today_str = today.isoformat()
+    todays = [e for e in events if safe_text(e.get("date")).startswith(today_str)]
+    return {
+        "today": todays[:8],
+        "next": events[:12],
+        "source": safe_text(events[0].get("source"), "Fallback") if events else "No source",
+    }
+
+
+@st.cache_data(ttl=900)
+def v424_market_news():
+    """
+    V42.4.2 override:
+    Market news source priority:
+      1) NewsAPI
+      2) Finnhub general news
+      3) No-data message
+    """
+    headlines = []
+
+    # 1) NewsAPI
+    try:
+        key = (globals().get("NEWSAPI_KEY") or globals().get("NEWS_API_KEY") or os.getenv("NEWSAPI_KEY") or os.getenv("NEWS_API_KEY") or "").strip()
+        if key:
+            r = requests.get(
+                "https://newsapi.org/v2/everything",
+                params={
+                    "q": '(stock market OR S&P 500 OR Nasdaq OR Federal Reserve OR CPI OR inflation OR earnings)',
+                    "language": "en",
+                    "sortBy": "publishedAt",
+                    "pageSize": 5,
+                    "apiKey": key,
+                },
+                timeout=10,
+            )
+            if r.status_code == 200:
+                for a in (r.json().get("articles") or [])[:5]:
+                    title = safe_text(a.get("title") or "")
+                    source = safe_text((a.get("source") or {}).get("name") or "")
+                    if title:
+                        headlines.append(f"{title}" + (f" — {source}" if source else ""))
+    except Exception:
+        pass
+
+    if headlines:
+        return headlines
+
+    # 2) Finnhub
+    try:
+        token = (globals().get("FINNHUB_API_KEY") or os.getenv("FINNHUB_API_KEY") or os.getenv("FINNHUB_TOKEN") or "").strip()
+        if token:
+            r = requests.get("https://finnhub.io/api/v1/news", params={"category": "general", "token": token}, timeout=10)
+            if r.status_code == 200:
+                for a in (r.json() or [])[:5]:
+                    headline = safe_text(a.get("headline") or "")
+                    source = safe_text(a.get("source") or "")
+                    if headline:
+                        headlines.append(f"{headline}" + (f" — {source}" if source else ""))
+    except Exception:
+        pass
+
+    return headlines
+
+
+def render_v424_market_command_center():
+    """
+    V42.4.2 override: one Command Center with source fallbacks and visible source diagnostics.
+    """
+    st.markdown("## 🧭 Market Command Center")
+
+    quotes = v424_market_quotes()
+    if quotes:
+        cols = st.columns(min(5, len(quotes)))
+        for i, q in enumerate(quotes[:5]):
+            pct = v424_float(q.get("change_pct"), None) if "v424_float" in globals() else safe_number(q.get("change_pct"), None)
+            delta = f"{pct:+.2f}%" if pct is not None else None
+            label = q.get("symbol", "")
+            source = safe_text(q.get("source"), "")
+            cols[i].metric(label, v424_money(q.get("price")) if "v424_money" in globals() else fmt_money(q.get("price")), delta)
+            if source:
+                cols[i].caption(source)
+    else:
+        st.info(
+            "Market quote data did not return from FMP or Yahoo fallback. "
+            f"FMP_API_KEY configured={'Yes' if bool(FMP_API_KEY) else 'No'}."
+        )
+
+    econ = v424_economic_calendar()
+    earnings = v424_earnings_today()
+    news = v424_market_news()
+
+    c1, c2 = st.columns(2)
+    with c1:
+        with st.container(border=True):
+            st.markdown("### 🗓️ Economic Calendar")
+            st.caption(f"Source: {safe_text(econ.get('source'), 'Unknown')}")
+            today_events = econ.get("today") or []
+            next_events = econ.get("next") or []
+            if today_events:
+                st.markdown("**Today:**")
+                for e in today_events[:6]:
+                    st.markdown(f"• **{safe_text(e.get('event'))}** — {safe_text(e.get('date'))}")
+            elif next_events:
+                st.caption("No major event found for today. Showing next market-moving reports.")
+                for e in next_events[:8]:
+                    st.markdown(f"• **{safe_text(e.get('event'))}** — {safe_text(e.get('date'))}")
+            else:
+                st.caption("No economic calendar source returned data.")
+
+    with c2:
+        with st.container(border=True):
+            st.markdown("### 💼 Earnings Due Today")
+            if earnings:
+                edf = pd.DataFrame(earnings)
+                st.caption("Source priority: FMP → Nasdaq public fallback → Alpha Vantage optional fallback")
+                st.dataframe(edf, use_container_width=True, hide_index=True)
+            else:
+                st.caption(
+                    "No earnings returned from FMP, Nasdaq fallback, or Alpha Vantage. "
+                    f"FMP_API_KEY configured={'Yes' if bool(FMP_API_KEY) else 'No'}; "
+                    f"ALPHA_VANTAGE_API_KEY configured={'Yes' if bool((globals().get('ALPHA_VANTAGE_API_KEY') or '').strip()) else 'No'}."
+                )
+
+    with st.container(border=True):
+        st.markdown("### 📰 Market News")
+        if news:
+            st.caption("Source priority: NewsAPI → Finnhub general news")
+            for h in news[:5]:
+                st.markdown(f"• {safe_text(h)}")
+        else:
+            st.caption(
+                "No broad market headlines returned. "
+                f"NEWSAPI_KEY configured={'Yes' if bool((globals().get('NEWSAPI_KEY') or globals().get('NEWS_API_KEY') or os.getenv('NEWSAPI_KEY') or os.getenv('NEWS_API_KEY') or '').strip()) else 'No'}; "
+                f"FINNHUB_API_KEY configured={'Yes' if bool((globals().get('FINNHUB_API_KEY') or os.getenv('FINNHUB_API_KEY') or os.getenv('FINNHUB_TOKEN') or '').strip()) else 'No'}."
+            )
+
+
 def main():
     if not dashboard_login_gate():
         return
     render_v424_market_command_center()
-    render_v423_command_center()
 
     render_status_banner()
     render_score_help()
