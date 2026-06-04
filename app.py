@@ -12,7 +12,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V42.4.2 Command Center Fallback Sources"
+APP_VERSION = "V42.5 Standardized Investor Agent Explanations"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -944,7 +944,9 @@ def render_ai_committee_details(row):
             )
             st.caption(f"**Data used:** {agent.get('data_used', 'N/A')}")
             st.write(agent.get("summary", ""))
+            render_v425_agent_standard_box(name, agent, row)
 
+            render_v4244_agent_plain_english_box(name, agent, row)
             findings = agent.get("findings") or []
             risks = agent.get("risks") or []
             if findings:
@@ -3019,6 +3021,7 @@ def render_detail(row):
     render_v423_why_ranked(row)
     render_v424_analyst_ratings_box(row)
     render_v424_support_resistance_box(row)
+    render_v4243_technical_translation_box(row)
     render_detail_chart_v4184(row)
     render_v423_professional_trading_levels(row)
     render_inline_metric_summary(row)
@@ -3157,6 +3160,8 @@ def render_detail(row):
         top_news = safe_text(row.get("Top News"), "")
         if top_news:
             st.markdown(f"**Top News:** {top_news}")
+
+    render_v425_final_ai_thesis(row)
 
     with st.expander("Raw row data", expanded=False):
         raw = row.get("Raw", {})
@@ -4279,7 +4284,7 @@ def render_v424_market_command_center():
         for i, q in enumerate(quotes[:5]):
             pct = v424_float(q.get("change_pct"), None) if "v424_float" in globals() else safe_number(q.get("change_pct"), None)
             delta = f"{pct:+.2f}%" if pct is not None else None
-            label = q.get("symbol", "")
+            label = q.get("display_label") or q.get("symbol", "")
             source = safe_text(q.get("source"), "")
             cols[i].metric(label, v424_money(q.get("price")) if "v424_money" in globals() else fmt_money(q.get("price")), delta)
             if source:
@@ -4338,6 +4343,760 @@ def render_v424_market_command_center():
                 f"NEWSAPI_KEY configured={'Yes' if bool((globals().get('NEWSAPI_KEY') or globals().get('NEWS_API_KEY') or os.getenv('NEWSAPI_KEY') or os.getenv('NEWS_API_KEY') or '').strip()) else 'No'}; "
                 f"FINNHUB_API_KEY configured={'Yes' if bool((globals().get('FINNHUB_API_KEY') or os.getenv('FINNHUB_API_KEY') or os.getenv('FINNHUB_TOKEN') or '').strip()) else 'No'}."
             )
+
+
+
+# =========================
+# V42.4.3 COMMAND CENTER LABELS + EARNINGS NAMES
+# =========================
+
+INDEX_DISPLAY_LABELS = {
+    "SPY": "S&P 500 ETF",
+    "QQQ": "Nasdaq 100 ETF",
+    "DIA": "Dow Jones ETF",
+    "IWM": "Russell 2000 ETF",
+    "VIX": "VIX Fear Gauge",
+}
+
+
+@st.cache_data(ttl=300)
+def v424_market_quotes():
+    """
+    V42.4.3 override:
+    Show recognizable market labels instead of only ETF tickers.
+    Uses FMP first, Yahoo/yfinance fallback.
+    """
+    symbols = ["SPY", "QQQ", "DIA", "IWM", "VIX"]
+    rows = []
+    for s in symbols:
+        q = v424_quote(s)
+        if q:
+            q["display_label"] = INDEX_DISPLAY_LABELS.get(s, s)
+            rows.append(q)
+    return rows
+
+
+@st.cache_data(ttl=900)
+def v4242_nasdaq_earnings_today():
+    """
+    V42.4.3: Nasdaq public fallback with company names when returned.
+    """
+    rows = []
+    try:
+        today = v424_today() if "v424_today" in globals() else dt.datetime.now().date()
+        url = "https://api.nasdaq.com/api/calendar/earnings"
+        headers = {
+            "User-Agent": "Mozilla/5.0",
+            "Accept": "application/json, text/plain, */*",
+            "Origin": "https://www.nasdaq.com",
+            "Referer": "https://www.nasdaq.com/market-activity/earnings",
+        }
+        r = requests.get(url, params={"date": today.isoformat()}, headers=headers, timeout=12)
+        if r.status_code == 200:
+            data = r.json() or {}
+            table = (((data.get("data") or {}).get("rows")) or [])
+            for item in table:
+                sym = safe_text(item.get("symbol") or "").upper()
+                if not sym:
+                    continue
+                company = (
+                    item.get("name") or item.get("companyName") or item.get("company") or
+                    item.get("securityName") or ""
+                )
+                rows.append({
+                    "Company": safe_text(company, ""),
+                    "Ticker": sym,
+                    "Date": today.isoformat(),
+                    "Time": safe_text(item.get("time") or item.get("timeOfDay") or ""),
+                    "EPS Est": item.get("epsForecast") or item.get("eps_estimate"),
+                    "Revenue Est": item.get("revenueForecast") or item.get("revenue_estimate"),
+                    "Source": "Nasdaq public fallback",
+                })
+                if len(rows) >= 30:
+                    break
+    except Exception:
+        pass
+    return rows
+
+
+@st.cache_data(ttl=1800)
+def v4242_alpha_vantage_earnings_today():
+    """
+    V42.4.3: Alpha Vantage fallback with company/name field when available.
+    """
+    rows = []
+    try:
+        key = (globals().get("ALPHA_VANTAGE_API_KEY") or os.getenv("ALPHA_VANTAGE_API_KEY") or "").strip()
+        if not key:
+            return rows
+        url = "https://www.alphavantage.co/query"
+        r = requests.get(url, params={"function": "EARNINGS_CALENDAR", "horizon": "3month", "apikey": key}, timeout=15)
+        if r.status_code == 200 and r.text:
+            today = (v424_today() if "v424_today" in globals() else dt.datetime.now().date()).isoformat()
+            reader = csv.DictReader(StringIO(r.text))
+            for item in reader:
+                if safe_text(item.get("reportDate")) != today:
+                    continue
+                sym = safe_text(item.get("symbol")).upper()
+                if not sym:
+                    continue
+                rows.append({
+                    "Company": safe_text(item.get("name") or item.get("companyName") or "", ""),
+                    "Ticker": sym,
+                    "Date": today,
+                    "Time": "",
+                    "EPS Est": item.get("estimate"),
+                    "Revenue Est": "",
+                    "Source": "Alpha Vantage fallback",
+                })
+                if len(rows) >= 30:
+                    break
+    except Exception:
+        pass
+    return rows
+
+
+@st.cache_data(ttl=900)
+def v424_earnings_today():
+    """
+    V42.4.3 override:
+    Earnings source priority:
+      1) FMP earning_calendar with company name lookup where possible
+      2) Nasdaq public earnings calendar
+      3) Alpha Vantage optional fallback
+    """
+    rows = []
+    today = v424_today() if "v424_today" in globals() else dt.datetime.now().date()
+
+    # 1) FMP
+    try:
+        data = v424_fmp_get("earning_calendar", {"from": today.isoformat(), "to": today.isoformat()}) if "v424_fmp_get" in globals() else None
+        if isinstance(data, list):
+            for item in data:
+                sym = safe_text(item.get("symbol") or "").upper()
+                if not sym:
+                    continue
+                company = safe_text(item.get("name") or item.get("companyName") or item.get("company") or "", "")
+                if not company:
+                    try:
+                        q = v424_quote(sym)
+                        company = safe_text(q.get("name") or "", "")
+                    except Exception:
+                        company = ""
+                rows.append({
+                    "Company": company,
+                    "Ticker": sym,
+                    "Date": safe_text(item.get("date") or today.isoformat()),
+                    "Time": safe_text(item.get("time") or ""),
+                    "EPS Est": item.get("epsEstimated"),
+                    "Revenue Est": item.get("revenueEstimated"),
+                    "Source": "FMP",
+                })
+                if len(rows) >= 30:
+                    break
+    except Exception:
+        pass
+
+    if rows:
+        return rows
+
+    rows = v4242_nasdaq_earnings_today()
+    if rows:
+        return rows
+
+    rows = v4242_alpha_vantage_earnings_today()
+    if rows:
+        return rows
+
+    return []
+
+
+def v4243_technical_translation(row):
+    """
+    Investor-friendly interpretation for technical agent signals.
+    """
+    rsi = safe_number(row.get("RSI"), None)
+    vol = safe_number(row.get("Volume Ratio"), None)
+    atr = safe_number(row.get("ATR %"), None)
+    support = safe_number(row.get("Support 1"), 0)
+    resistance = safe_number(row.get("Resistance 1"), 0)
+
+    positives = []
+    watchouts = []
+    action = []
+
+    if rsi is not None and rsi > 0:
+        if rsi >= 70:
+            watchouts.append(f"RSI is {rsi:.1f}, which is overbought. Avoid chasing a gap-up move.")
+            action.append("Prefer a pullback or a confirmed breakout with volume.")
+        elif 50 <= rsi < 70:
+            positives.append(f"RSI is {rsi:.1f}, which shows healthy momentum without extreme overheating.")
+        elif rsi < 40:
+            watchouts.append(f"RSI is {rsi:.1f}, which suggests weak momentum or an oversold setup.")
+
+    if vol is not None and vol > 0:
+        if vol < 0.75:
+            watchouts.append(f"Volume ratio is {vol:.2f}x, meaning the move is not strongly confirmed by trading volume.")
+        elif vol >= 1.25:
+            positives.append(f"Volume ratio is {vol:.2f}x, showing stronger-than-normal participation.")
+
+    if atr is not None and atr > 0:
+        if atr >= 8:
+            watchouts.append(f"ATR volatility is high at {atr:.2f}%; position size should be smaller.")
+        elif atr >= 5:
+            watchouts.append(f"ATR volatility is elevated at {atr:.2f}%; expect wider swings and avoid oversized positions.")
+        else:
+            positives.append(f"ATR volatility is manageable at {atr:.2f}%.")
+
+    if support:
+        action.append(f"Preferred pullback area is near support around {fmt_money(support)}.")
+    if resistance:
+        action.append(f"Breakout confirmation is stronger above resistance around {fmt_money(resistance)}.")
+
+    if not positives:
+        positives.append("Trend signals are being evaluated from price, moving averages, RSI, volume, and volatility.")
+    if not watchouts:
+        watchouts.append("No major technical warning from available fields.")
+    if not action:
+        action.append("Use pullback or breakout confirmation rather than chasing.")
+
+    return positives, watchouts, action
+
+
+def render_v4243_technical_translation_box(row):
+    positives, watchouts, action = v4243_technical_translation(row)
+    with st.container(border=True):
+        st.markdown("### 📈 Technical Agent — Investor Translation")
+        st.markdown("**Bullish / constructive signals:**")
+        for p in positives[:5]:
+            st.markdown(f"✓ {safe_text(p)}")
+        st.markdown("**Watchouts:**")
+        for w in watchouts[:5]:
+            st.markdown(f"⚠️ {safe_text(w)}")
+        st.info(" ".join([safe_text(a) for a in action[:3]]))
+
+
+
+
+# =========================
+# V42.4.4 PLAIN ENGLISH AGENTS + SMART LEVELS
+# =========================
+
+def v4244_is_valid_level(x):
+    x = safe_number(x, 0)
+    return x is not None and x > 0.01
+
+
+@st.cache_data(ttl=900)
+def v4244_chart_levels_from_history(ticker):
+    """
+    Fallback support/resistance from Yahoo price history when scanner values are missing.
+    """
+    ticker = safe_text(ticker, "").upper().strip()
+    if not ticker:
+        return {}
+    try:
+        hist = yf.download(ticker, period="6mo", interval="1d", auto_adjust=True, progress=False, threads=False)
+        if hist is None or hist.empty:
+            return {}
+        if isinstance(hist.columns, pd.MultiIndex):
+            hist.columns = [c[0] if isinstance(c, tuple) else c for c in hist.columns]
+        if "Close" not in hist.columns:
+            return {}
+        high = hist["High"].dropna() if "High" in hist.columns else hist["Close"].dropna()
+        low = hist["Low"].dropna() if "Low" in hist.columns else hist["Close"].dropna()
+        close = hist["Close"].dropna()
+        if close.empty or high.empty or low.empty:
+            return {}
+        support1 = float(low.tail(min(20, len(low))).min())
+        support2 = float(low.tail(min(60, len(low))).min())
+        resistance1 = float(high.tail(min(20, len(high))).max())
+        resistance2 = float(high.tail(min(60, len(high))).max())
+        return {
+            "support1": support1,
+            "support2": support2,
+            "resistance1": resistance1,
+            "resistance2": resistance2,
+            "breakout": resistance1,
+            "source": "Yahoo 20/60-day price history fallback",
+        }
+    except Exception:
+        return {}
+
+
+def v4244_get_smart_levels(row):
+    price = safe_number(row.get("Price"), 0)
+    levels = {
+        "price": price,
+        "support1": safe_number(row.get("Support 1"), 0),
+        "support2": safe_number(row.get("Support 2"), 0),
+        "resistance1": safe_number(row.get("Resistance 1"), 0),
+        "resistance2": safe_number(row.get("Resistance 2"), 0),
+        "breakout": safe_number(row.get("Breakout Level"), 0),
+        "source": "Scanner support/resistance",
+    }
+    if any(v4244_is_valid_level(levels[k]) for k in ["support1", "support2", "resistance1", "resistance2", "breakout"]):
+        return levels
+
+    fallback = v4244_chart_levels_from_history(row.get("Ticker"))
+    if fallback:
+        levels.update(fallback)
+    return levels
+
+
+def render_v423_professional_trading_levels(row):
+    """
+    V42.4.4 override:
+    Hide $0.00 levels and calculate fallback support/resistance from recent chart history.
+    """
+    levels = v4244_get_smart_levels(row)
+    price = levels.get("price")
+    s1 = levels.get("support1")
+    s2 = levels.get("support2")
+    r1 = levels.get("resistance1")
+    r2 = levels.get("resistance2")
+    breakout = levels.get("breakout")
+    guidance = safe_text(row.get("Chart Guidance"), "")
+    has_levels = any(v4244_is_valid_level(x) for x in [s1, s2, r1, r2, breakout])
+
+    with st.container(border=True):
+        st.markdown("### 📈 Professional Trading Levels")
+        if not has_levels:
+            st.warning("Trading levels are unavailable for this ticker. Run live research or latest scan to calculate support/resistance.")
+            return
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Current", fmt_money(price))
+        c2.metric("Support 1", fmt_money(s1) if v4244_is_valid_level(s1) else "N/A")
+        c3.metric("Resistance 1", fmt_money(r1) if v4244_is_valid_level(r1) else "N/A")
+        c4, c5, c6 = st.columns(3)
+        c4.metric("Support 2", fmt_money(s2) if v4244_is_valid_level(s2) else "N/A")
+        c5.metric("Resistance 2", fmt_money(r2) if v4244_is_valid_level(r2) else "N/A")
+        c6.metric("Breakout", fmt_money(breakout) if v4244_is_valid_level(breakout) else "N/A")
+        st.caption(f"Level source: {safe_text(levels.get('source'), 'N/A')}")
+
+        if price and s1 and r1 and s1 > 0 and r1 > 0:
+            downside = ((price - s1) / price) * 100
+            upside = ((r1 - price) / price) * 100
+            st.info(
+                f"Plain English: nearest support is about {downside:.1f}% below current price and nearest resistance is about {upside:.1f}% above. "
+                "A better entry is usually near support, or after a breakout above resistance with stronger volume."
+            )
+        elif guidance:
+            st.info(guidance)
+
+
+def render_v424_support_resistance_box(row):
+    """
+    V42.4.4 override: same smart levels for the Support / Resistance Agent.
+    """
+    levels = v4244_get_smart_levels(row)
+    price = levels.get("price")
+    s1 = levels.get("support1")
+    s2 = levels.get("support2")
+    r1 = levels.get("resistance1")
+    r2 = levels.get("resistance2")
+    breakout = levels.get("breakout")
+    has_levels = any(v4244_is_valid_level(x) for x in [s1, s2, r1, r2, breakout])
+
+    with st.container(border=True):
+        st.markdown("### 📍 Support / Resistance Agent")
+        if not has_levels:
+            st.warning("Support/resistance was not calculated yet. This is not bearish — it just means the agent needs live chart history or a fresh scan.")
+            return
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Current", fmt_money(price))
+        c2.metric("Support 1", fmt_money(s1) if v4244_is_valid_level(s1) else "N/A")
+        c3.metric("Resistance 1", fmt_money(r1) if v4244_is_valid_level(r1) else "N/A")
+        c4, c5, c6 = st.columns(3)
+        c4.metric("Support 2", fmt_money(s2) if v4244_is_valid_level(s2) else "N/A")
+        c5.metric("Resistance 2", fmt_money(r2) if v4244_is_valid_level(r2) else "N/A")
+        c6.metric("Breakout", fmt_money(breakout) if v4244_is_valid_level(breakout) else "N/A")
+
+        st.caption(f"Source: {safe_text(levels.get('source'), 'N/A')}")
+        if price and s1 and r1 and s1 > 0 and r1 > 0:
+            risk = max(price - s1, 0)
+            reward = max(r1 - price, 0)
+            rr = reward / risk if risk > 0 else 0
+            st.info(
+                f"Plain English: support is the area buyers may defend; resistance is where sellers may appear. "
+                f"The short-term reward/risk to first resistance is about {rr:.2f}:1."
+            )
+
+
+def v4244_agent_plain_english(agent_name, agent, row):
+    name = safe_text(agent_name, "").lower()
+    score = safe_number(agent.get("score") if isinstance(agent, dict) else None, None)
+
+    if "technical" in name:
+        rsi = safe_number(row.get("RSI"), None)
+        vol = safe_number(row.get("Volume Ratio"), None)
+        atr = safe_number(row.get("ATR %"), None)
+        explanation = []
+        action = []
+        if rsi is not None and rsi > 0:
+            if rsi >= 70:
+                explanation.append(f"RSI is {rsi:.1f}, which means the stock may be hot/extended short term.")
+                action.append("Avoid chasing; wait for a pullback or a clean breakout with volume.")
+            elif rsi >= 50:
+                explanation.append(f"RSI is {rsi:.1f}, showing healthy momentum.")
+            else:
+                explanation.append(f"RSI is {rsi:.1f}, showing weaker or recovering momentum.")
+        if vol is not None and vol > 0:
+            if vol < 0.75:
+                explanation.append(f"Volume is light at {vol:.2f}x average, so the move has weaker confirmation.")
+            elif vol >= 1.25:
+                explanation.append(f"Volume is strong at {vol:.2f}x average, which confirms participation.")
+        if atr is not None and atr > 0:
+            if atr >= 5:
+                explanation.append(f"ATR is {atr:.2f}%, meaning daily swings are elevated; use smaller position sizing.")
+        if not action:
+            action.append("Best setup is a pullback near support or breakout above resistance with volume.")
+        return explanation, action
+
+    if "finance" in name:
+        return [
+            "This checks whether the business growth is backed by profits, margins, cash flow, and a healthy balance sheet.",
+            "Strong revenue is good, but it is better when earnings and cash flow also improve."
+        ], [
+            "Prefer stocks where revenue growth, earnings growth, margins, and cash flow point in the same direction."
+        ]
+
+    if "analyst" in name:
+        return [
+            "This checks whether Wall Street target prices and ratings support the AI thesis.",
+            "If AI fair value is much higher than analyst consensus, the idea may still work but has higher uncertainty."
+        ], [
+            "Use analyst support as confirmation, not as the only reason to buy."
+        ]
+
+    if "news" in name:
+        return [
+            "This checks whether recent headlines are creating positive catalysts, negative risk, or no clear signal.",
+            "No news is not automatically bad — it means the stock may be moving on technicals, earnings, or sector trends."
+        ], [
+            "Prefer stocks where news flow supports the technical and financial setup."
+        ]
+
+    if "insider" in name:
+        return [
+            "This checks whether executives/directors are buying or selling shares.",
+            "Form 4 count alone is not enough; actual buy/sell classification matters."
+        ], [
+            "Treat insider activity as supporting evidence only until transaction-level buy/sell details are shown."
+        ]
+
+    if "institutional" in name:
+        return [
+            "This checks whether large funds appear to be accumulating or reducing exposure.",
+            "13F data can be delayed, so it is useful for confirmation, not real-time timing."
+        ], [
+            "Best signal is multiple large institutions adding over more than one quarter."
+        ]
+
+    if "competitor" in name:
+        return [
+            "This compares the company against peers on growth, valuation, margins, and risk.",
+            "A stock can look good alone but less attractive if peers are cheaper or growing faster."
+        ], [
+            "Use peer comparison to decide whether this is the best stock in its group."
+        ]
+
+    if "recovery" in name:
+        return [
+            "This checks whether the stock is temporarily beaten down or suffering from a broken business trend.",
+            "A lower price is only attractive when fundamentals remain intact."
+        ], [
+            "Prefer recovery names with improving fundamentals, analyst support, and clear catalysts."
+        ]
+
+    return [], []
+
+
+def render_v4244_agent_plain_english_box(agent_name, agent, row):
+    explanation, action = v4244_agent_plain_english(agent_name, agent, row)
+    if not explanation and not action:
+        return
+    with st.container(border=True):
+        st.markdown("**Plain-English Agent Explanation**")
+        for e in explanation[:5]:
+            st.markdown(f"• {safe_text(e)}")
+        if action:
+            st.info(" ".join([safe_text(a) for a in action[:3]]))
+
+
+
+
+
+# =========================
+# V42.5 STANDARDIZED INVESTOR AGENT EXPLANATIONS
+# =========================
+
+def v425_score_label(score):
+    score = safe_number(score, None)
+    if score is None:
+        return "Not scored"
+    if score >= 85:
+        return f"{int(score)}/100 · Strong"
+    if score >= 70:
+        return f"{int(score)}/100 · Constructive"
+    if score >= 50:
+        return f"{int(score)}/100 · Mixed"
+    return f"{int(score)}/100 · Weak"
+
+
+def v425_extract_agent_findings(agent):
+    if not isinstance(agent, dict):
+        return []
+    findings = agent.get("findings") or []
+    if isinstance(findings, str):
+        findings = compact_reason_list(findings, max_items=8)
+    if not isinstance(findings, list):
+        findings = []
+    cleaned = []
+    for x in findings:
+        txt = safe_text(x, "").strip()
+        if txt:
+            cleaned.append(txt)
+    return cleaned[:8]
+
+
+def v425_agent_template(agent_name, agent, row):
+    name = safe_text(agent_name, "Agent")
+    lname = name.lower()
+    score = agent.get("score") if isinstance(agent, dict) else None
+    findings = v425_extract_agent_findings(agent)
+
+    what_found = findings[:5] if findings else []
+    what_means = []
+    why_matters = []
+    how_use = []
+
+    price = safe_number(row.get("Price"), 0)
+    upside = safe_number(row.get("Target Upside %"), 0)
+    rsi = safe_number(row.get("RSI"), 0)
+    vol = safe_number(row.get("Volume Ratio"), 0)
+    atr = safe_number(row.get("ATR %"), 0)
+    analyst_target = safe_number(row.get("Analyst Target"), 0)
+    analyst_count = safe_number(row.get("Analyst Count"), 0)
+    ai_value = safe_number(row.get("AI Fair Value"), 0)
+
+    if "technical" in lname:
+        if not what_found:
+            if rsi:
+                what_found.append(f"RSI: {rsi:.1f}")
+            if vol:
+                what_found.append(f"Volume ratio: {vol:.2f}x average")
+            if atr:
+                what_found.append(f"ATR volatility: {atr:.2f}%")
+        if rsi >= 70:
+            what_means.append("Momentum is strong but may be stretched in the short term.")
+        elif rsi >= 50:
+            what_means.append("Momentum is positive and generally healthy.")
+        elif rsi > 0:
+            what_means.append("Momentum is weaker or still recovering.")
+        if vol and vol < 0.75:
+            what_means.append("The move is not strongly confirmed by volume yet.")
+        elif vol >= 1.25:
+            what_means.append("Volume confirms stronger buyer/seller participation.")
+        if atr >= 5:
+            what_means.append("Volatility is elevated, so daily swings may be larger than normal.")
+        why_matters.append("A good stock can still be a poor entry if it is overbought, near resistance, or moving on weak volume.")
+        how_use.append("Prefer buying near support or after a confirmed breakout with stronger volume. Use smaller size when ATR is elevated.")
+
+    elif "finance" in lname:
+        what_means.append("This checks whether the company is converting growth into profits, margins, cash flow, and balance-sheet strength.")
+        why_matters.append("Revenue growth alone is not enough. Higher-quality companies also show earnings and cash-flow conversion.")
+        how_use.append("Give more weight to ideas where revenue, EPS, margins, and free cash flow are all improving.")
+
+    elif "analyst" in lname:
+        if analyst_target:
+            what_found.append(f"Analyst target: {fmt_money(analyst_target)}")
+        if analyst_count:
+            what_found.append(f"Analyst count: {int(analyst_count)}")
+        if price and analyst_target:
+            a_up = ((analyst_target - price) / price) * 100
+            what_found.append(f"Analyst upside: {a_up:.1f}%")
+        what_means.append("This checks whether Wall Street targets and recommendations support or challenge the AI thesis.")
+        if ai_value and analyst_target and analyst_target > 0:
+            gap = ((ai_value - analyst_target) / analyst_target) * 100
+            if gap > 50:
+                what_means.append("AI fair value is much higher than analyst consensus, which means the modeled upside is higher uncertainty.")
+            elif abs(gap) <= 20:
+                what_means.append("AI fair value is reasonably aligned with analyst consensus.")
+        why_matters.append("Analyst support can validate a thesis, but analysts can lag fast-moving news and market reactions.")
+        how_use.append("Use analyst support as confirmation, not as the only reason to buy.")
+
+    elif "news" in lname:
+        what_means.append("This checks whether recent headlines are creating positive catalysts, negative risks, or no clear signal.")
+        why_matters.append("News can change analyst revisions, sentiment, and short-term demand quickly.")
+        how_use.append("Positive news is strongest when it aligns with strong technicals and financial execution. If no news is found, do not treat that as bullish or bearish.")
+
+    elif "insider" in lname:
+        what_means.append("This checks whether executives or directors are filing transactions in the stock.")
+        why_matters.append("Open-market insider buying can be bullish, while selling can be routine or cautionary depending on the pattern.")
+        how_use.append("Treat Form 4 count as neutral until the agent classifies actual buys, sells, option exercises, and net dollars.")
+
+    elif "institutional" in lname:
+        what_means.append("This checks whether large funds appear to be involved in the stock.")
+        why_matters.append("Institutional demand can support longer-term moves, but 13F data is delayed.")
+        how_use.append("Use institutional ownership as confirmation only. Stronger signal comes from multiple funds adding over multiple quarters.")
+
+    elif "competitor" in lname or "peer" in lname:
+        what_means.append("This compares the company against peers on growth, valuation, margins, and risk.")
+        why_matters.append("A stock can look attractive alone but less attractive if peers are cheaper, growing faster, or more profitable.")
+        how_use.append("Use peer comparison to decide whether this is the best stock in its group, not just a good stock by itself.")
+
+    elif "recovery" in lname:
+        what_means.append("This checks whether the stock is temporarily beaten down or suffering from a broken business trend.")
+        why_matters.append("A lower price is only attractive if fundamentals remain intact and catalysts can support recovery.")
+        how_use.append("Prefer recovery setups with improving fundamentals, analyst support, positive catalysts, and clear support levels.")
+
+    elif "political" in lname or "congress" in lname:
+        what_means.append("This checks whether congressional trading activity may add a sentiment signal.")
+        why_matters.append("Political trading data can be interesting but is delayed and should not be treated as a primary buy signal.")
+        how_use.append("Use it as a minor supporting signal only after technical, financial, and valuation checks pass.")
+
+    else:
+        what_means.append("This agent contributes one piece of the overall AI thesis.")
+        why_matters.append("No single agent should drive the decision alone; the best setups have multiple agents aligned.")
+        how_use.append("Use this together with valuation, technicals, news, and risk management.")
+
+    risks = []
+    if isinstance(agent, dict):
+        raw_risks = agent.get("risks") or []
+        if isinstance(raw_risks, str):
+            raw_risks = compact_reason_list(raw_risks, max_items=5)
+        if isinstance(raw_risks, list):
+            risks = [safe_text(r) for r in raw_risks if safe_text(r)][:5]
+
+    if not what_found:
+        what_found = ["No detailed metric returned yet for this agent. Run live research or latest scan for deeper data."]
+    if not risks:
+        risks = ["No major agent-specific red flag returned from available data."]
+
+    return {
+        "name": name,
+        "score_label": v425_score_label(score),
+        "what_found": what_found[:6],
+        "what_means": what_means[:5],
+        "why_matters": why_matters[:4],
+        "how_use": how_use[:4],
+        "risks": risks[:5],
+    }
+
+
+def render_v425_agent_standard_box(agent_name, agent, row):
+    t = v425_agent_template(agent_name, agent, row)
+    with st.container(border=True):
+        st.markdown(f"#### {t['name']} — Investor Explanation")
+        st.caption(f"Score interpretation: {t['score_label']}")
+
+        st.markdown("**What We Found**")
+        for x in t["what_found"]:
+            st.markdown(f"• {safe_text(x)}")
+
+        st.markdown("**What This Means**")
+        for x in t["what_means"]:
+            st.markdown(f"• {safe_text(x)}")
+
+        st.markdown("**Why It Matters**")
+        for x in t["why_matters"]:
+            st.markdown(f"• {safe_text(x)}")
+
+        st.markdown("**How To Use This**")
+        for x in t["how_use"]:
+            st.markdown(f"• {safe_text(x)}")
+
+        if t["risks"]:
+            st.markdown("**Risks / Limits**")
+            for x in t["risks"]:
+                st.markdown(f"⚠️ {safe_text(x)}")
+
+
+def v425_build_final_thesis(row):
+    ticker = safe_text(row.get("Ticker"), "This stock")
+    score = safe_number(row.get("Final Conviction"), 0)
+    upside = safe_number(row.get("Target Upside %"), 0)
+    analyst = safe_text(row.get("Analyst Support"), "")
+    news = safe_text(row.get("News Sentiment"), "")
+    rsi = safe_number(row.get("RSI"), 0)
+    atr = safe_number(row.get("ATR %"), 0)
+    entry = safe_text(row.get("Entry Range"), "")
+    support = safe_number(row.get("Support 1"), 0)
+    resistance = safe_number(row.get("Resistance 1"), 0)
+
+    positives = []
+    risks = []
+    strategy = []
+
+    if score >= 90:
+        positives.append(f"High AI conviction at {score:.0f}/100.")
+    elif score >= 75:
+        positives.append(f"Constructive AI conviction at {score:.0f}/100.")
+    if upside >= 25:
+        positives.append(f"Strong modeled upside of {upside:.1f}%.")
+    elif upside >= 10:
+        positives.append(f"Moderate modeled upside of {upside:.1f}%.")
+    if "Bullish" in analyst or "Constructive" in analyst:
+        positives.append(f"Analyst support is {analyst}.")
+    if "Positive" in news:
+        positives.append("Recent news flow appears supportive.")
+    if rsi and rsi >= 70:
+        risks.append("RSI is overbought, so entry timing matters.")
+    if atr and atr >= 5:
+        risks.append("Volatility is elevated, so position size should be controlled.")
+    if upside < 10:
+        risks.append("Modeled upside is limited unless new catalysts appear.")
+
+    if entry and entry != "N/A":
+        strategy.append(f"Preferred entry zone: {entry}.")
+    elif support:
+        strategy.append(f"Preferred entry is closer to support around {fmt_money(support)}.")
+    else:
+        strategy.append("Preferred entry is a controlled pullback or confirmed breakout, not a chase.")
+    if resistance:
+        strategy.append(f"Watch resistance near {fmt_money(resistance)} for breakout confirmation.")
+    strategy.append("Use stop loss and position sizing because AI conviction does not eliminate market risk.")
+
+    if not positives:
+        positives.append("Some supportive signals are present, but the thesis needs stronger confirmation.")
+    if not risks:
+        risks.append("No major red flag returned, but normal market, earnings, and execution risks still apply.")
+
+    return {
+        "ticker": ticker,
+        "confidence": score,
+        "positives": positives[:6],
+        "risks": risks[:5],
+        "strategy": strategy[:5],
+    }
+
+
+def render_v425_final_ai_thesis(row):
+    t = v425_build_final_thesis(row)
+    with st.container(border=True):
+        st.markdown("### 🎯 Final AI Investment Thesis")
+        st.caption("This section translates all agents into a simple action-oriented summary.")
+
+        c1, c2 = st.columns(2)
+        c1.metric("AI Confidence", f"{t['confidence']:.0f}/100" if t["confidence"] else "N/A")
+        c2.metric("Ticker", t["ticker"])
+
+        st.markdown("**Why This Stock Is Attractive**")
+        for x in t["positives"]:
+            st.markdown(f"✓ {safe_text(x)}")
+
+        st.markdown("**Biggest Risks**")
+        for x in t["risks"]:
+            st.markdown(f"⚠️ {safe_text(x)}")
+
+        st.markdown("**Preferred Strategy**")
+        for x in t["strategy"]:
+            st.markdown(f"• {safe_text(x)}")
+
+
 
 
 def main():
