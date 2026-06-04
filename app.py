@@ -12,7 +12,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V42.5.1 Agent Explanation Wiring Fix"
+APP_VERSION = "V42.5.2 Analyst Details Fallback Fix"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -5461,6 +5461,222 @@ def render_v4251_scanner_version_notice():
             )
     except Exception:
         pass
+
+
+
+# =========================
+# V42.5.2 ANALYST DETAILS FALLBACK FIX
+# =========================
+
+def v4252_analyst_signal_from_row(row):
+    """
+    Guaranteed analyst fallback from existing scan row.
+    Prevents Analyst Ratings Agent from showing all N/A when firm-level targets are unavailable.
+    """
+    price = safe_number(row.get("Price"), 0)
+    analyst_target = safe_number(row.get("Analyst Target"), 0)
+    analyst_high = safe_number(row.get("Analyst High"), 0)
+    analyst_low = safe_number(row.get("Analyst Low"), 0)
+    analyst_count = int(safe_number(row.get("Analyst Count"), 0))
+    analyst_support = safe_text(row.get("Analyst Support"), "N/A")
+    analyst_source = safe_text(row.get("Analyst Support Source"), "")
+    recommendation = safe_text(row.get("Recommendation"), "N/A")
+    ai_value = safe_number(row.get("AI Fair Value"), 0)
+
+    analyst_upside = None
+    if price and analyst_target:
+        analyst_upside = ((analyst_target - price) / price) * 100
+
+    ai_gap = None
+    if analyst_target and ai_value:
+        ai_gap = ((ai_value - analyst_target) / analyst_target) * 100
+
+    if "Bullish" in analyst_support:
+        consensus = "Bullish"
+    elif "Constructive" in analyst_support:
+        consensus = "Constructive"
+    elif "Mixed" in analyst_support:
+        consensus = "Mixed"
+    elif "Weak" in analyst_support:
+        consensus = "Weak"
+    elif analyst_upside is not None and analyst_upside >= 20:
+        consensus = "Bullish / upside-supported"
+    elif analyst_upside is not None and analyst_upside >= 5:
+        consensus = "Constructive"
+    elif analyst_upside is not None:
+        consensus = "Limited upside"
+    else:
+        consensus = "N/A"
+
+    return {
+        "price": price,
+        "analyst_target": analyst_target,
+        "analyst_high": analyst_high,
+        "analyst_low": analyst_low,
+        "analyst_count": analyst_count,
+        "analyst_support": analyst_support,
+        "analyst_source": analyst_source,
+        "recommendation": recommendation,
+        "analyst_upside": analyst_upside,
+        "ai_gap": ai_gap,
+        "consensus": consensus,
+    }
+
+
+@st.cache_data(ttl=900)
+def v4252_fetch_fmp_analyst_detail_rows(ticker):
+    """
+    Best-effort firm-level analyst detail retrieval.
+    FMP access varies by plan. This function safely tries several endpoints.
+    """
+    ticker = safe_text(ticker, "").upper().strip()
+    if not ticker or not FMP_API_KEY:
+        return []
+
+    endpoints = [
+        f"price-target/{ticker}",
+        f"price-target-consensus/{ticker}",
+        f"upgrades-downgrades/{ticker}",
+        f"analyst-stock-recommendations/{ticker}",
+    ]
+
+    rows = []
+    for endpoint in endpoints:
+        try:
+            data = v424_fmp_get(endpoint) if "v424_fmp_get" in globals() else None
+            if not isinstance(data, list):
+                continue
+            for item in data[:20]:
+                if not isinstance(item, dict):
+                    continue
+                firm = (
+                    item.get("analystCompany") or item.get("firm") or item.get("analyst") or
+                    item.get("brokerage") or item.get("company") or item.get("publishedBy") or ""
+                )
+                rating = (
+                    item.get("rating") or item.get("newGrade") or item.get("previousGrade") or
+                    item.get("recommendation") or item.get("grade") or item.get("action") or ""
+                )
+                target = (
+                    item.get("priceTarget") or item.get("target") or item.get("targetPrice") or
+                    item.get("publishedPriceTarget") or item.get("targetConsensus") or
+                    item.get("targetMean") or item.get("targetMedian")
+                )
+                date = item.get("publishedDate") or item.get("date") or item.get("updatedDate") or ""
+                target_num = safe_number(target, 0)
+
+                # Keep rows if they contain useful firm/rating/target detail.
+                if firm or rating or target_num:
+                    rows.append({
+                        "Firm": safe_text(firm, "Analyst"),
+                        "Rating": safe_text(rating, "N/A"),
+                        "Target": target_num,
+                        "Date": safe_text(date, ""),
+                        "Source": f"FMP {endpoint}",
+                    })
+            if rows:
+                break
+        except Exception:
+            continue
+
+    # Deduplicate and sort target-bearing rows first.
+    seen = set()
+    clean = []
+    for r in rows:
+        key = (r.get("Firm"), r.get("Rating"), r.get("Target"), r.get("Date"))
+        if key in seen:
+            continue
+        seen.add(key)
+        clean.append(r)
+
+    clean = sorted(clean, key=lambda x: safe_number(x.get("Target"), 0), reverse=True)
+    return clean[:5]
+
+
+def render_v424_analyst_ratings_box(row):
+    """
+    V42.5.2 override:
+    Always shows useful analyst data using scan fallback even when top firm-level rows are unavailable.
+    """
+    ticker = safe_text(row.get("Ticker"), "").upper().strip()
+    if not ticker:
+        return
+
+    base = v4252_analyst_signal_from_row(row)
+    firm_rows = v4252_fetch_fmp_analyst_detail_rows(ticker)
+
+    with st.container(border=True):
+        st.markdown("### 🏦 Analyst Ratings Agent")
+        st.caption("Uses firm-level analyst targets when available. Falls back to scan-level analyst target/count/support so this section does not show all N/A.")
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Consensus Target", fmt_money(base["analyst_target"]) if base["analyst_target"] else "N/A")
+        c2.metric("Analyst Count", str(base["analyst_count"]) if base["analyst_count"] else "N/A")
+        c3.metric("Analyst Upside", f"{base['analyst_upside']:.1f}%" if base["analyst_upside"] is not None else "N/A")
+        c4.metric("AI vs Analysts", f"{base['ai_gap']:.1f}%" if base["ai_gap"] is not None else "N/A")
+
+        st.markdown("**What We Found**")
+        found = []
+        if base["analyst_target"]:
+            found.append(f"Average analyst target is {fmt_money(base['analyst_target'])}.")
+        if base["analyst_count"]:
+            found.append(f"{base['analyst_count']} analysts are included in the available coverage count.")
+        if base["analyst_upside"] is not None:
+            found.append(f"Analyst consensus implies {base['analyst_upside']:.1f}% upside from the current price.")
+        if base["analyst_support"] and base["analyst_support"] != "N/A":
+            found.append(f"Analyst support reads: {base['analyst_support']}.")
+        if base["analyst_high"]:
+            found.append(f"High target is {fmt_money(base['analyst_high'])}.")
+        if base["analyst_low"]:
+            found.append(f"Low target is {fmt_money(base['analyst_low'])}.")
+        if not found:
+            found.append("No analyst target or coverage data was returned for this ticker.")
+        for x in found:
+            st.markdown(f"• {safe_text(x)}")
+
+        st.markdown("**What This Means**")
+        if base["consensus"] != "N/A":
+            st.markdown(f"• Overall analyst read is **{base['consensus']}** based on available target/support data.")
+        if base["ai_gap"] is not None:
+            if base["ai_gap"] > 50:
+                st.markdown("• AI fair value is far above analyst consensus, so the AI upside should be treated as higher uncertainty.")
+            elif base["ai_gap"] < -20:
+                st.markdown("• AI fair value is below analyst consensus, meaning the AI model is more conservative than Wall Street.")
+            else:
+                st.markdown("• AI fair value is reasonably close to analyst consensus.")
+        else:
+            st.markdown("• AI vs analyst comparison is limited because one of the target fields is unavailable.")
+
+        st.markdown("**Why It Matters**")
+        st.markdown("• Analyst targets help validate whether Wall Street broadly supports the investment thesis.")
+        st.markdown("• Analyst support is useful confirmation, but it can lag fast-moving earnings, news, and market moves.")
+
+        st.markdown("**How To Use This**")
+        st.markdown("• Use analyst support as confirmation, not as the only reason to buy.")
+        st.markdown("• If AI upside is much higher than analyst upside, require stronger confirmation from financials, news, and technicals.")
+
+        if firm_rows:
+            display = []
+            for r in firm_rows[:5]:
+                display.append({
+                    "Firm / Analyst": r.get("Firm") or "Analyst",
+                    "Rating / Action": r.get("Rating") or "N/A",
+                    "Price Target": fmt_money(r.get("Target")) if safe_number(r.get("Target"), 0) else "N/A",
+                    "Date": r.get("Date") or "",
+                    "Source": r.get("Source") or "",
+                })
+            st.markdown("**Top analyst / firm-level rows returned by source:**")
+            st.dataframe(pd.DataFrame(display), use_container_width=True, hide_index=True)
+        else:
+            st.warning(
+                "Firm-level top 5 analyst rows were not returned by the available API plan/source. "
+                "The section above is using scan-level analyst target, count, and support as the fallback."
+            )
+
+        if base["analyst_source"]:
+            st.caption(f"Analyst support source: {base['analyst_source']}")
+
+
 
 
 def main():
