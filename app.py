@@ -10,7 +10,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V42.3.3 Login Visibility + Multi Password Fix"
+APP_VERSION = "V42.3.4 Simple Guest Login Fix"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -19,7 +19,7 @@ st.set_page_config(
 )
 
 DATA_DIR = Path(os.getenv("DATA_DIR", "."))
-FMP_API_KEY = os.getenv("FMP_API_KEY", "").strip()
+FMP_API_KEY = os.getenv("FMP_API_KEY", "").strip()a
 
 FULL_SCAN_FILE = DATA_DIR / "market_full_scan.json"
 PRESCREEN_FILE = DATA_DIR / "market_prescreen.json"
@@ -3412,6 +3412,10 @@ def viewer_password_matches(password):
 
 
 
+
+
+
+
 def dashboard_login_gate():
     if st.session_state.get("authenticated"):
         return True
@@ -3425,40 +3429,32 @@ def dashboard_login_gate():
 
     st.title("🔐 AI Stock Dashboard Login")
     st.caption(f"Running: {APP_VERSION}")
-    st.info("Enter your access password. Viewer access uses the guest/viewer password.")
+    st.info("Admin password opens admin mode. Any configured viewer password opens guest/viewer mode.")
 
     with st.expander("Login diagnostics"):
-        st.caption(f"Viewer username expected: {VIEWER_USERNAME or 'guest'}")
         st.caption(f"APP_VERSION: {APP_VERSION}")
         st.caption(f"Admin password configured: {'Yes' if bool(ADMIN_PASSWORD) else 'No'}")
         st.caption(f"VIEWER_PASSWORD configured: {'Yes' if bool((os.getenv('VIEWER_PASSWORD') or '').strip()) else 'No'} | length: {len((os.getenv('VIEWER_PASSWORD') or '').strip())}")
         st.caption(f"GUEST_PASSWORD configured: {'Yes' if bool((os.getenv('GUEST_PASSWORD') or '').strip()) else 'No'} | length: {len((os.getenv('GUEST_PASSWORD') or '').strip())}")
         st.caption(f"VIEW_PASSWORD configured: {'Yes' if bool((os.getenv('VIEW_PASSWORD') or '').strip()) else 'No'} | length: {len((os.getenv('VIEW_PASSWORD') or '').strip())}")
-        st.caption("Password comparison trims spaces before checking.")
+        st.caption("V42.3.4: Viewer login no longer requires username.")
 
-    username = st.text_input("Username (optional)", value="", placeholder="guest").strip().lower()
     password = st.text_input("Password", type="password").strip()
 
     if st.button("Login"):
-        viewer_names = {
-            (VIEWER_USERNAME or "guest").strip().lower(),
-            "guest",
-            "viewer",
-            "view",
-            "",
-        }
+        st.session_state["last_login_typed_length"] = len(password)
 
         if ADMIN_PASSWORD and password == ADMIN_PASSWORD:
             st.session_state["authenticated"] = True
             st.session_state["role"] = "admin"
             st.rerun()
 
-        if username in viewer_names and viewer_password_matches(password):
+        if viewer_password_matches(password):
             st.session_state["authenticated"] = True
             st.session_state["role"] = "viewer"
             st.rerun()
 
-        st.error("Invalid password. Check diagnostics: the password variable you changed must show the expected length here after redeploy.")
+        st.error(f"Invalid password. Typed password length: {len(password)}. Match it to one of the configured viewer password lengths above.")
 
     return False
 
