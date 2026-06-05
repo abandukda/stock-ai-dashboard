@@ -12,7 +12,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V42.5.3 Official Economic Calendar Fallback"
+APP_VERSION = "V42.6 Paid Client Intelligence + Robust Fallbacks"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -3019,6 +3019,7 @@ def render_detail(row):
     render_v42_news_block(row)
     render_v423_conviction_meter(row)
     render_v423_why_ranked(row)
+    render_v426_compact_research_card(row)
     render_v424_analyst_ratings_box(row)
     render_v424_support_resistance_box(row)
     render_v4243_technical_translation_box(row)
@@ -5959,6 +5960,357 @@ def render_v424_market_command_center():
                 f"NEWSAPI_KEY configured={'Yes' if bool((globals().get('NEWSAPI_KEY') or globals().get('NEWS_API_KEY') or os.getenv('NEWSAPI_KEY') or os.getenv('NEWS_API_KEY') or '').strip()) else 'No'}; "
                 f"FINNHUB_API_KEY configured={'Yes' if bool((globals().get('FINNHUB_API_KEY') or os.getenv('FINNHUB_API_KEY') or os.getenv('FINNHUB_TOKEN') or '').strip()) else 'No'}."
             )
+
+
+
+# =========================
+# V42.6 PAID CLIENT INTELLIGENCE + ROBUST FALLBACKS
+# =========================
+
+def v426_key_status():
+    return {
+        "FMP": bool((globals().get("FMP_API_KEY") or os.getenv("FMP_API_KEY") or "").strip()),
+        "Finnhub": bool((globals().get("FINNHUB_API_KEY") or os.getenv("FINNHUB_API_KEY") or os.getenv("FINNHUB_TOKEN") or "").strip()),
+        "NewsAPI": bool((globals().get("NEWSAPI_KEY") or globals().get("NEWS_API_KEY") or os.getenv("NEWSAPI_KEY") or os.getenv("NEWS_API_KEY") or "").strip()),
+        "AlphaVantage": bool((globals().get("ALPHA_VANTAGE_API_KEY") or os.getenv("ALPHA_VANTAGE_API_KEY") or os.getenv("ALPHAVANTAGE_API_KEY") or "").strip()),
+    }
+
+
+def v426_safe_get(url, params=None, headers=None, timeout=12):
+    try:
+        r = requests.get(url, params=params or {}, headers=headers or {"User-Agent": "Mozilla/5.0"}, timeout=timeout)
+        if r.status_code == 200:
+            ctype = safe_text(r.headers.get("content-type"), "")
+            if "json" in ctype.lower():
+                return r.json()
+            return r.text
+    except Exception:
+        return None
+    return None
+
+
+@st.cache_data(ttl=900)
+def v426_finnhub_earnings_today():
+    rows = []
+    try:
+        token = (globals().get("FINNHUB_API_KEY") or os.getenv("FINNHUB_API_KEY") or os.getenv("FINNHUB_TOKEN") or "").strip()
+        if not token:
+            return rows
+        today = v424_today() if "v424_today" in globals() else dt.datetime.now().date()
+        data = v426_safe_get(
+            "https://finnhub.io/api/v1/calendar/earnings",
+            params={"from": today.isoformat(), "to": today.isoformat(), "token": token},
+        )
+        earnings = []
+        if isinstance(data, dict):
+            earnings = data.get("earningsCalendar") or data.get("earnings") or []
+        if isinstance(earnings, list):
+            for item in earnings:
+                sym = safe_text(item.get("symbol") or "").upper()
+                if not sym:
+                    continue
+                rows.append({
+                    "Company": safe_text(item.get("name") or item.get("company") or ""),
+                    "Ticker": sym,
+                    "Date": safe_text(item.get("date") or today.isoformat()),
+                    "Time": safe_text(item.get("hour") or item.get("time") or ""),
+                    "EPS Est": item.get("epsEstimate"),
+                    "Revenue Est": item.get("revenueEstimate"),
+                    "Source": "Finnhub earnings calendar",
+                })
+                if len(rows) >= 40:
+                    break
+    except Exception:
+        pass
+    return rows
+
+
+@st.cache_data(ttl=900)
+def v426_yahoo_calendar_earnings():
+    rows = []
+    try:
+        today = v424_today() if "v424_today" in globals() else dt.datetime.now().date()
+        html = v426_safe_get("https://finance.yahoo.com/calendar/earnings", params={"day": today.isoformat()}, headers={"User-Agent": "Mozilla/5.0"})
+        if not isinstance(html, str):
+            return rows
+        # Best-effort no-key fallback; Yahoo markup is unstable, so this is intentionally conservative.
+        symbols = re.findall(r'>([A-Z][A-Z0-9.\-]{0,8})</a>', html)
+        seen = set()
+        for sym in symbols:
+            if sym in seen or len(sym) > 8:
+                continue
+            seen.add(sym)
+            rows.append({
+                "Company": "",
+                "Ticker": sym,
+                "Date": today.isoformat(),
+                "Time": "",
+                "EPS Est": "",
+                "Revenue Est": "",
+                "Source": "Yahoo earnings calendar fallback",
+            })
+            if len(rows) >= 40:
+                break
+    except Exception:
+        pass
+    return rows
+
+
+@st.cache_data(ttl=900)
+def v424_earnings_today():
+    """
+    V42.6 override:
+    Earnings source priority:
+    FMP -> Finnhub -> Nasdaq public -> Alpha Vantage -> Yahoo.
+    This is broader than only Nasdaq and shows the source used.
+    """
+    today = v424_today() if "v424_today" in globals() else dt.datetime.now().date()
+    rows = []
+
+    try:
+        data = v424_fmp_get("earning_calendar", {"from": today.isoformat(), "to": today.isoformat()}) if "v424_fmp_get" in globals() else None
+        if isinstance(data, list):
+            for item in data:
+                sym = safe_text(item.get("symbol") or "").upper()
+                if not sym:
+                    continue
+                company = safe_text(item.get("name") or item.get("companyName") or item.get("company") or "")
+                rows.append({
+                    "Company": company,
+                    "Ticker": sym,
+                    "Date": safe_text(item.get("date") or today.isoformat()),
+                    "Time": safe_text(item.get("time") or ""),
+                    "EPS Est": item.get("epsEstimated"),
+                    "Revenue Est": item.get("revenueEstimated"),
+                    "Source": "FMP",
+                })
+                if len(rows) >= 40:
+                    break
+    except Exception:
+        pass
+    if rows:
+        return rows
+
+    for fn_name in ["v426_finnhub_earnings_today", "v4242_nasdaq_earnings_today", "v4242_alpha_vantage_earnings_today", "v426_yahoo_calendar_earnings"]:
+        try:
+            fn = globals().get(fn_name)
+            if not fn:
+                continue
+            rows = fn()
+            if rows:
+                for r in rows:
+                    if "Ticker" not in r and "Symbol" in r:
+                        r["Ticker"] = r.get("Symbol")
+                    if "Company" not in r:
+                        r["Company"] = ""
+                return rows
+        except Exception:
+            continue
+    return []
+
+
+def v426_source_health_card():
+    keys = v426_key_status()
+    with st.expander("🔌 Data Source Health", expanded=False):
+        st.markdown("**Configured:** " + ", ".join([k for k, v in keys.items() if v]) if any(keys.values()) else "**Configured:** None detected")
+        st.markdown("**Missing optional:** " + ", ".join([k for k, v in keys.items() if not v]) if any(not v for v in keys.values()) else "**Missing optional:** None")
+        st.caption("For paid-client quality, configure FMP + Finnhub + NewsAPI + Alpha Vantage. Public fallbacks are best-effort and can be incomplete or blocked.")
+
+
+def v426_truthful_agent_quality(row):
+    committee = row.get("AI Committee")
+    if not isinstance(committee, dict):
+        return {"ready": [], "limited": []}
+    ready, limited = [], []
+    for name, agent in committee.items():
+        if not isinstance(agent, dict):
+            continue
+        status = safe_text(agent.get("status"), "").lower()
+        findings = agent.get("findings") or []
+        if not isinstance(findings, list):
+            findings = []
+        if "not connected" in status or "framework" in status or (not findings and "technical" not in safe_text(name).lower()):
+            limited.append(safe_text(name))
+        else:
+            ready.append(safe_text(name))
+    return {"ready": ready, "limited": limited}
+
+
+def v426_verdict(row):
+    score = safe_number(row.get("Final Conviction"), 0)
+    upside = safe_number(row.get("Target Upside %"), 0)
+    price = safe_number(row.get("Price"), 0)
+    s1 = safe_number(row.get("Support 1"), 0)
+    r1 = safe_number(row.get("Resistance 1"), 0)
+    rsi = safe_number(row.get("RSI"), 0)
+    vol = safe_number(row.get("Volume Ratio"), 0)
+    atr = safe_number(row.get("ATR %"), 0)
+    ai_value = safe_number(row.get("AI Fair Value"), 0)
+    analyst = safe_number(row.get("Analyst Target"), 0)
+    analyst_support = safe_text(row.get("Analyst Support"), "")
+
+    reasons, risks = [], []
+    action, action_detail = "Watchlist", "Monitor for a cleaner entry."
+
+    if score >= 90:
+        reasons.append(f"High AI conviction ({score:.0f}/100).")
+    if analyst and price:
+        aup = ((analyst - price) / price) * 100
+        if aup > 20:
+            reasons.append(f"Analysts imply {aup:.1f}% upside.")
+        elif aup < 5:
+            risks.append("Analyst consensus shows limited upside.")
+    if upside >= 50:
+        reasons.append(f"AI model shows very high upside ({upside:.1f}%).")
+        risks.append("Very high AI upside needs confirmation from fundamentals, news, and analysts.")
+    if ai_value and analyst:
+        gap = ((ai_value - analyst) / analyst) * 100
+        if gap > 60:
+            risks.append(f"AI fair value is {gap:.1f}% above analyst consensus, so uncertainty is elevated.")
+    if rsi >= 70:
+        risks.append("RSI is overbought.")
+    elif 50 <= rsi < 70:
+        reasons.append("Momentum is positive without being extremely overheated.")
+    if vol and vol < 0.75:
+        risks.append("Volume is light; recent move has weaker confirmation.")
+    if atr >= 5:
+        risks.append("Volatility is elevated; use smaller position sizing.")
+    if price and s1 and r1 and price > s1:
+        rr = (r1 - price) / (price - s1) if (price - s1) > 0 else 0
+        if rr < 1:
+            risks.append(f"Short-term reward/risk is weak ({rr:.2f}:1).")
+            action = "Wait"
+            action_detail = f"Wait for pullback near {fmt_money(s1)} or breakout above {fmt_money(r1)} with volume."
+        elif rr >= 1.5 and score >= 75:
+            action = "Actionable Watch"
+            action_detail = f"Entry is more attractive if support near {fmt_money(s1)} holds."
+    if "Bullish" in analyst_support:
+        reasons.append(f"Analyst support is {analyst_support}.")
+    if not reasons:
+        reasons.append("Some supportive signals exist, but more confirmation is needed.")
+    if not risks:
+        risks.append("Normal market, earnings, liquidity, and execution risks still apply.")
+    return {"action": action, "action_detail": action_detail, "reasons": reasons[:4], "risks": risks[:4]}
+
+
+def render_v426_paid_client_summary(row):
+    ticker = safe_text(row.get("Ticker"), "")
+    company = safe_text(row.get("Company"), ticker)
+    v = v426_verdict(row)
+    quality = v426_truthful_agent_quality(row)
+    with st.container(border=True):
+        st.markdown(f"### 🧠 AI Verdict — {ticker}{(' · ' + company) if company and company != ticker else ''}")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Decision Lens", v["action"])
+        c2.metric("AI Score", f"{safe_number(row.get('Final Conviction'), 0):.0f}/100")
+        c3.metric("Analyst Target", fmt_money(row.get("Analyst Target")) if safe_number(row.get("Analyst Target"), 0) else "N/A")
+        st.info(v["action_detail"])
+        left, right = st.columns(2)
+        with left:
+            st.markdown("**Top Reasons**")
+            for r in v["reasons"]:
+                st.markdown(f"✓ {safe_text(r)}")
+        with right:
+            st.markdown("**Key Risks**")
+            for r in v["risks"]:
+                st.markdown(f"⚠️ {safe_text(r)}")
+        if quality["limited"]:
+            st.caption(f"Agent readiness: {len(quality['ready'])} data-backed agents, {len(quality['limited'])} limited/framework agents. Framework-only agents are not primary buy signals.")
+
+
+def render_v426_agent_scorecard(row):
+    committee = row.get("AI Committee")
+    if not isinstance(committee, dict) or not committee:
+        return
+    rows = []
+    for name, agent in committee.items():
+        if not isinstance(agent, dict):
+            continue
+        score = agent.get("score")
+        status = safe_text(agent.get("status"), "N/A")
+        impact = safe_text(agent.get("impact"), "Neutral")
+        findings = agent.get("findings") or []
+        risks = agent.get("risks") or []
+        if not isinstance(findings, list):
+            findings = []
+        if not isinstance(risks, list):
+            risks = []
+        readiness = "Data-backed" if findings and "not connected" not in status.lower() and "framework" not in status.lower() else "Limited"
+        rows.append({
+            "Agent": safe_text(name),
+            "Score": "N/A" if score is None else f"{int(safe_number(score, 0))}",
+            "Status": status,
+            "Readiness": readiness,
+            "Main Finding": safe_text(findings[0]) if findings else "No detailed finding returned",
+            "Main Risk": safe_text(risks[0]) if risks else "No major risk returned",
+        })
+    with st.container(border=True):
+        st.markdown("### 🤖 Agent Scorecard")
+        st.caption("Condensed view for quick decision-making. Full agent explanations remain below.")
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+
+def render_v426_compact_research_card(row):
+    render_v426_paid_client_summary(row)
+    render_v426_agent_scorecard(row)
+
+
+def render_v424_market_command_center():
+    st.markdown("## 🧭 Market Command Center")
+    quotes = v424_market_quotes()
+    if quotes:
+        cols = st.columns(min(5, len(quotes)))
+        for i, q in enumerate(quotes[:5]):
+            pct = v424_float(q.get("change_pct"), None) if "v424_float" in globals() else safe_number(q.get("change_pct"), None)
+            delta = f"{pct:+.2f}%" if pct is not None else None
+            label = q.get("display_label") or q.get("symbol", "")
+            cols[i].metric(label, v424_money(q.get("price")) if "v424_money" in globals() else fmt_money(q.get("price")), delta)
+            cols[i].caption(safe_text(q.get("source"), ""))
+    else:
+        st.info("Market quotes unavailable from FMP/Yahoo fallback.")
+
+    econ = v424_economic_calendar()
+    earnings = v424_earnings_today()
+    news = v424_market_news()
+
+    c1, c2 = st.columns(2)
+    with c1:
+        with st.container(border=True):
+            st.markdown("### 🗓️ Economic Calendar")
+            st.caption(f"Source: {safe_text(econ.get('source'), 'Unknown')}")
+            events = (econ.get("today") or []) or (econ.get("next") or [])
+            if events:
+                if not econ.get("today"):
+                    st.caption("No major event found for today. Showing upcoming market-moving events.")
+                for e in events[:6]:
+                    if "v4253_render_event_line" in globals():
+                        st.markdown(f"• {v4253_render_event_line(e)}")
+                    else:
+                        st.markdown(f"• **{safe_text(e.get('event'))}** — {safe_text(e.get('date'))}")
+            else:
+                st.caption("No economic calendar data returned from connected or official fallback sources.")
+
+    with c2:
+        with st.container(border=True):
+            st.markdown("### 💼 Earnings Due Today")
+            if earnings:
+                edf = pd.DataFrame(earnings)
+                preferred = [c for c in ["Company", "Ticker", "Symbol", "Date", "Time", "EPS Est", "Revenue Est", "Source"] if c in edf.columns]
+                edf = edf[preferred] if preferred else edf
+                st.caption("Source priority: FMP → Finnhub → Nasdaq → Alpha Vantage → Yahoo")
+                st.dataframe(edf, use_container_width=True, hide_index=True)
+            else:
+                st.caption("No earnings returned today from FMP, Finnhub, Nasdaq, Alpha Vantage, or Yahoo fallback.")
+
+    with st.container(border=True):
+        st.markdown("### 📰 Market News")
+        if news:
+            for h in news[:5]:
+                st.markdown(f"• {safe_text(h)}")
+        else:
+            st.caption("No broad market headlines returned. Add NEWSAPI_KEY or FINNHUB_API_KEY for better market news.")
+    v426_source_health_card()
+
 
 
 def main():

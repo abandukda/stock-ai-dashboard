@@ -3912,7 +3912,7 @@ def scan_market() -> Dict[str, Any]:
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V42.5.3",
+        "version": "V42.6",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -4130,3 +4130,10 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+# V42.6 changes:
+# - paid_client_verdict_first_layout
+# - agent_scorecard_condensed
+# - earnings_sources_fmp_finnhub_nasdaq_alpha_yahoo
+# - source_health_card
+# - framework_agents_not_primary_signals
