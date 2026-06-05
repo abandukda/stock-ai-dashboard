@@ -12,7 +12,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V42.6.1 Fast Cron Enforcement"
+APP_VERSION = "V42.7 Paid Client Layout + Intelligence Upgrade"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -3019,7 +3019,7 @@ def render_detail(row):
     render_v42_news_block(row)
     render_v423_conviction_meter(row)
     render_v423_why_ranked(row)
-    render_v426_compact_research_card(row)
+    render_v427_clean_research_card(row)
     render_v424_analyst_ratings_box(row)
     render_v424_support_resistance_box(row)
     render_v4243_technical_translation_box(row)
@@ -3034,6 +3034,7 @@ def render_detail(row):
     render_v42_tier_status(row)
     render_v42_diagnostics(row)
     render_agent_education_summary(row)
+    v427_hide_duplicate_notice()
     render_v4251_standardized_committee(row)
     render_v42_committee_dashboard(row)
 
@@ -6319,6 +6320,269 @@ def render_v4261_cron_performance_note():
         st.markdown("V42.6.1 is designed to cut scheduled scan time by skipping expensive deep APIs during the pre-rank pass and hard-capping full committee work.")
         st.markdown("Target: Top candidates get deeper agents; the rest stay lightweight until searched/opened live.")
         st.caption("Recommended Render Cron env vars: FAST_CRON_MODE=true, FAST_CRON_SKIP_PRE_RANK_DEEP_APIS=true, FULL_COMMITTEE_LIMIT=15, ETF_FULL_COMMITTEE_LIMIT=10, HTTP_TIMEOUT_FAST=6")
+
+
+# =========================
+# V42.7 PAID CLIENT LAYOUT + INTELLIGENCE UPGRADE
+# =========================
+
+def v427_metric_money(value):
+    try:
+        return fmt_money(value)
+    except Exception:
+        x = safe_number(value, 0)
+        return "N/A" if not x else f"${x:,.2f}"
+
+
+def v427_agent_readiness(agent_name, agent):
+    if not isinstance(agent, dict):
+        return "Limited"
+    status = safe_text(agent.get("status"), "").lower()
+    findings = agent.get("findings") or []
+    data_used = safe_text(agent.get("data_used"), "").lower()
+    if "not connected" in status or "framework" in status or "planned" in data_used:
+        return "Beta / framework"
+    if isinstance(findings, list) and len(findings) >= 1:
+        return "Data-backed"
+    return "Limited"
+
+
+def v427_decision_color_label(action):
+    action = safe_text(action, "")
+    if "Wait" in action:
+        return "🟡 WAIT"
+    if "Actionable" in action or "Strong" in action:
+        return "🟢 WATCH / ACTIONABLE"
+    if "Avoid" in action:
+        return "🔴 AVOID"
+    return "⚪ WATCHLIST"
+
+
+def v427_build_client_verdict(row):
+    # Reuse V42.6 logic when available, then sharpen wording.
+    base = v426_verdict(row) if "v426_verdict" in globals() else {
+        "action": "Watchlist",
+        "action_detail": "Monitor for a cleaner entry.",
+        "reasons": [],
+        "risks": [],
+    }
+
+    score = safe_number(row.get("Final Conviction"), 0)
+    price = safe_number(row.get("Price"), 0)
+    ai_value = safe_number(row.get("AI Fair Value"), 0)
+    analyst_target = safe_number(row.get("Analyst Target"), 0)
+    upside = safe_number(row.get("Target Upside %"), 0)
+    support = safe_number(row.get("Support 1"), 0)
+    resistance = safe_number(row.get("Resistance 1"), 0)
+    volume = safe_number(row.get("Volume Ratio"), 0)
+    atr = safe_number(row.get("ATR %"), 0)
+
+    decision = base.get("action", "Watchlist")
+    headline = base.get("action_detail", "Monitor for a cleaner entry.")
+
+    # Paid-customer rule: if AI value is extremely above analyst target, don't call it a straight buy.
+    if ai_value and analyst_target:
+        gap = ((ai_value - analyst_target) / analyst_target) * 100
+        if gap > 75:
+            decision = "Wait / Validate"
+            headline = "AI upside is much higher than Wall Street consensus. Treat this as a high-upside watchlist idea, not an automatic buy."
+
+    if volume and volume < 0.75 and atr >= 5:
+        decision = "Wait"
+        headline = "Trend is constructive, but light volume plus elevated volatility makes this a poor chase entry."
+
+    if price and resistance and support and price > support:
+        rr = (resistance - price) / (price - support) if (price - support) > 0 else 0
+        if rr < 1:
+            decision = "Wait"
+            headline = f"Reward/risk is weak at current price. Prefer pullback near {v427_metric_money(support)} or breakout above {v427_metric_money(resistance)} with volume."
+
+    reasons = list(dict.fromkeys([safe_text(x) for x in base.get("reasons", []) if safe_text(x)]))
+    risks = list(dict.fromkeys([safe_text(x) for x in base.get("risks", []) if safe_text(x)]))
+
+    if score >= 90 and "High AI conviction" not in " ".join(reasons):
+        reasons.insert(0, f"High AI conviction at {score:.0f}/100.")
+    if analyst_target and price:
+        aup = ((analyst_target - price) / price) * 100
+        reasons.append(f"Wall Street target implies {aup:.1f}% upside.")
+    if upside >= 50:
+        risks.append("Modeled AI upside is very high, so confidence depends on source quality and confirmation.")
+    if volume and volume < 0.75:
+        risks.append("Trading volume is light, which weakens breakout confirmation.")
+    if atr >= 5:
+        risks.append("Volatility is elevated; position size should be smaller.")
+
+    reasons = list(dict.fromkeys(reasons))[:4]
+    risks = list(dict.fromkeys(risks))[:4]
+
+    return {
+        "decision": v427_decision_color_label(decision),
+        "headline": headline,
+        "reasons": reasons or ["Some supportive signals exist, but the setup needs more confirmation."],
+        "risks": risks or ["Normal market, earnings, and execution risks still apply."],
+    }
+
+
+def render_v427_paid_customer_header(row):
+    ticker = safe_text(row.get("Ticker"), "")
+    company = safe_text(row.get("Company"), "")
+    verdict = v427_build_client_verdict(row)
+
+    with st.container(border=True):
+        st.markdown(f"## {ticker} {('— ' + company) if company else ''}")
+        st.markdown(f"### {verdict['decision']}")
+        st.info(verdict["headline"])
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("AI Score", f"{safe_number(row.get('Final Conviction'), 0):.0f}/100")
+        c2.metric("Price", v427_metric_money(row.get("Price")))
+        c3.metric("Analyst Target", v427_metric_money(row.get("Analyst Target")))
+        c4.metric("AI Fair Value", v427_metric_money(row.get("AI Fair Value")))
+
+        left, right = st.columns(2)
+        with left:
+            st.markdown("**Why it’s interesting**")
+            for x in verdict["reasons"]:
+                st.markdown(f"✓ {safe_text(x)}")
+        with right:
+            st.markdown("**What could go wrong**")
+            for x in verdict["risks"]:
+                st.markdown(f"⚠️ {safe_text(x)}")
+
+
+def render_v427_entry_plan(row):
+    price = safe_number(row.get("Price"), 0)
+    support = safe_number(row.get("Support 1"), 0)
+    resistance = safe_number(row.get("Resistance 1"), 0)
+    breakout = safe_number(row.get("Breakout Level"), 0)
+    entry = safe_text(row.get("Entry Range"), "")
+    stop = safe_number(row.get("Stop Loss"), 0)
+    atr = safe_number(row.get("ATR %"), 0)
+    volume = safe_number(row.get("Volume Ratio"), 0)
+
+    with st.container(border=True):
+        st.markdown("### 🎯 Entry & Risk Plan")
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Preferred Entry", entry if entry and entry != "N/A" else (v427_metric_money(support) if support else "Wait"))
+        c2.metric("Support", v427_metric_money(support) if support else "N/A")
+        c3.metric("Breakout", v427_metric_money(breakout or resistance) if (breakout or resistance) else "N/A")
+        c4.metric("Stop", v427_metric_money(stop) if stop else "N/A")
+
+        bullets = []
+        if price and support and resistance and price > support:
+            rr = (resistance - price) / (price - support) if (price - support) > 0 else 0
+            if rr < 1:
+                bullets.append(f"Current reward/risk is weak ({rr:.2f}:1). Waiting improves the setup.")
+            else:
+                bullets.append(f"Current reward/risk is acceptable ({rr:.2f}:1) if support holds.")
+        if volume and volume < 0.75:
+            bullets.append("Volume is light. A breakout should be confirmed by stronger trading volume.")
+        if atr >= 5:
+            bullets.append("ATR volatility is elevated. Use smaller position size and avoid oversized entries.")
+        if not bullets:
+            bullets.append("Entry quality is acceptable, but still use a stop and avoid chasing gap-ups.")
+
+        for b in bullets:
+            st.markdown(f"• {safe_text(b)}")
+
+
+def render_v427_agent_score_strip(row):
+    committee = row.get("AI Committee")
+    if not isinstance(committee, dict) or not committee:
+        return
+
+    rows = []
+    for name, agent in committee.items():
+        if not isinstance(agent, dict):
+            continue
+        findings = agent.get("findings") or []
+        risks = agent.get("risks") or []
+        if not isinstance(findings, list):
+            findings = []
+        if not isinstance(risks, list):
+            risks = []
+        rows.append({
+            "Agent": safe_text(name),
+            "Score": "N/A" if agent.get("score") is None else f"{int(safe_number(agent.get('score'), 0))}",
+            "Status": safe_text(agent.get("status"), "N/A"),
+            "Readiness": v427_agent_readiness(name, agent),
+            "Takeaway": safe_text(agent.get("bottom_line") or (findings[0] if findings else "No detail returned"))[:140],
+        })
+
+    with st.container(border=True):
+        st.markdown("### 🤖 AI Agent Scorecard")
+        st.caption("Fast paid-client view. Open detailed agent explanations only when needed.")
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+
+def render_v427_clean_research_card(row):
+    render_v427_paid_customer_header(row)
+    render_v427_entry_plan(row)
+    render_v427_agent_score_strip(row)
+
+
+def v427_hide_duplicate_notice():
+    st.caption("Detailed education, raw data, and legacy committee details are intentionally kept lower on the page for advanced review.")
+
+
+# Stronger market command center language.
+def render_v424_market_command_center():
+    st.markdown("## 🧭 Market Command Center")
+
+    quotes = v424_market_quotes()
+    if quotes:
+        cols = st.columns(min(5, len(quotes)))
+        for i, q in enumerate(quotes[:5]):
+            pct = v424_float(q.get("change_pct"), None) if "v424_float" in globals() else safe_number(q.get("change_pct"), None)
+            delta = f"{pct:+.2f}%" if pct is not None else None
+            label = q.get("display_label") or q.get("symbol", "")
+            cols[i].metric(label, v424_money(q.get("price")) if "v424_money" in globals() else fmt_money(q.get("price")), delta)
+            cols[i].caption(safe_text(q.get("source"), ""))
+    else:
+        st.warning("Market quotes unavailable from connected and fallback sources.")
+
+    econ = v424_economic_calendar()
+    earnings = v424_earnings_today()
+    news = v424_market_news()
+
+    c1, c2 = st.columns(2)
+    with c1:
+        with st.container(border=True):
+            st.markdown("### 🗓️ Economic Calendar")
+            st.caption(f"Source: {safe_text(econ.get('source'), 'Unknown')}")
+            events = (econ.get("today") or []) or (econ.get("next") or [])
+            if events:
+                for e in events[:5]:
+                    if "v4253_render_event_line" in globals():
+                        st.markdown(f"• {v4253_render_event_line(e)}")
+                    else:
+                        st.markdown(f"• **{safe_text(e.get('event'))}** — {safe_text(e.get('date'))}")
+            else:
+                st.warning("No economic calendar data returned. Configure FMP or rely on official BLS/Fed/BEA fallback.")
+
+    with c2:
+        with st.container(border=True):
+            st.markdown("### 💼 Earnings Due Today")
+            st.caption("Source priority: FMP → Finnhub → Nasdaq → Alpha Vantage → Yahoo")
+            if earnings:
+                edf = pd.DataFrame(earnings)
+                preferred = [c for c in ["Company", "Ticker", "Symbol", "Date", "Time", "EPS Est", "Revenue Est", "Source"] if c in edf.columns]
+                st.dataframe(edf[preferred] if preferred else edf, use_container_width=True, hide_index=True)
+            else:
+                st.warning("No earnings returned from any connected/fallback source today.")
+
+    with st.container(border=True):
+        st.markdown("### 📰 Market News")
+        if news:
+            for h in news[:5]:
+                st.markdown(f"• {safe_text(h)}")
+        else:
+            st.warning("No broad market headlines returned. Add NEWSAPI_KEY and FINNHUB_API_KEY for paid-client quality news.")
+    if "v426_source_health_card" in globals():
+        v426_source_health_card()
+
+
 
 def main():
     if not dashboard_login_gate():

@@ -3954,7 +3954,7 @@ def scan_market() -> Dict[str, Any]:
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V42.6.1",
+        "version": "V42.7",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -4182,3 +4182,9 @@ if __name__ == "__main__":
 # - earnings_sources_fmp_finnhub_nasdaq_alpha_yahoo
 # - source_health_card
 # - framework_agents_not_primary_signals
+
+# V42.7 changes:
+# - paid customer verdict-first layout in app
+# - cleaner agent scorecard and readiness labels
+# - command center source transparency
+# - detailed legacy content kept lower on page
