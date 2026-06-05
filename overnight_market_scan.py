@@ -3954,7 +3954,7 @@ def scan_market() -> Dict[str, Any]:
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V42.7",
+        "version": "V43",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -4173,6 +4173,153 @@ def main() -> None:
         sys.exit(1)
 
 
+
+
+# =========================
+# V43 BUSINESS QUALITY + SCORE DISTRIBUTION HELPERS
+# =========================
+
+def v43s_float(value, default=0.0):
+    try:
+        if value in (None, "", "N/A", "None"):
+            return default
+        if isinstance(value, str):
+            value = value.replace("$", "").replace(",", "").replace("%", "").strip()
+        return float(value)
+    except Exception:
+        return default
+
+
+def v43s_business_quality(row):
+    sector = str(row.get("Sector") or "").lower() if hasattr(row, "get") else ""
+    ticker = str(row.get("Ticker") or row.get("Symbol") or "").upper() if hasattr(row, "get") else ""
+    pe = row.get("PE Ratio") if hasattr(row, "get") else None
+    if pe is None and hasattr(row, "get"):
+        pe = row.get("P/E") or row.get("Forward PE") or row.get("Trailing PE")
+    pe = v43s_float(pe, None)
+    analyst_count = int(v43s_float(row.get("Analyst Count") if hasattr(row, "get") else 0, 0))
+    score = 70
+    flags = []
+    if pe is not None:
+        if pe < 0:
+            score -= 25
+            flags.append("negative_pe")
+        elif pe > 80:
+            score -= 8
+            flags.append("high_pe")
+        elif pe <= 35:
+            score += 8
+    else:
+        flags.append("pe_unavailable")
+    if analyst_count >= 20:
+        score += 4
+    elif 0 < analyst_count < 5:
+        score -= 4
+    if any(k in (sector + " " + ticker.lower()) for k in ["biotech", "therapeutics", "pharma"]):
+        if pe is not None and pe < 0:
+            score -= 12
+            flags.append("speculative_biotech_losses")
+    score = max(0, min(100, round(score)))
+    if score >= 85:
+        tier = "Quality Compounder"
+    elif score >= 70:
+        tier = "Growth Leader"
+    elif score >= 55:
+        tier = "Recovery / Mixed Quality"
+    else:
+        tier = "Speculative"
+    return score, tier, flags
+
+
+def v43s_rebalanced_score(row):
+    existing = v43s_float(row.get("Final Conviction") if hasattr(row, "get") else 0, 0)
+    quality_score, tier, flags = v43s_business_quality(row)
+    analyst_support = str(row.get("Analyst Support") or "") if hasattr(row, "get") else ""
+    news = str(row.get("News Sentiment") or "") if hasattr(row, "get") else ""
+    upside = v43s_float(row.get("Target Upside %") if hasattr(row, "get") else 0, 0)
+    ai = v43s_float(row.get("AI Fair Value") if hasattr(row, "get") else 0, 0)
+    analyst_target = v43s_float(row.get("Analyst Target") if hasattr(row, "get") else 0, 0)
+    vol = v43s_float(row.get("Volume Ratio") if hasattr(row, "get") else 0, 0)
+    atr = v43s_float(row.get("ATR %") if hasattr(row, "get") else 0, 0)
+
+    analyst_score = 60
+    if "Bullish" in analyst_support:
+        analyst_score = 82
+    elif "Constructive" in analyst_support:
+        analyst_score = 68
+    elif "Weak" in analyst_support:
+        analyst_score = 45
+
+    news_score = 50
+    if "Positive" in news:
+        news_score = 75
+    elif "Negative" in news:
+        news_score = 35
+
+    valuation_score = 72
+    if ai and analyst_target:
+        gap = ((ai - analyst_target) / analyst_target) * 100
+        if gap > 75:
+            valuation_score = 48
+        elif gap > 50:
+            valuation_score = 58
+        elif gap > 20:
+            valuation_score = 70
+        else:
+            valuation_score = 82
+
+    risk_score = 75
+    if vol and vol < 0.75:
+        risk_score -= 8
+    if atr >= 5:
+        risk_score -= 8
+    if upside > 150:
+        risk_score -= 5
+
+    raw = (
+        quality_score * 0.25 +
+        analyst_score * 0.15 +
+        valuation_score * 0.20 +
+        news_score * 0.10 +
+        risk_score * 0.15 +
+        existing * 0.15
+    )
+    adjusted = 50 + (raw - 50) * 0.9
+    if "Speculative" in tier:
+        adjusted -= 8
+    return max(0, min(99, round(adjusted, 1))), tier, quality_score, flags
+
+
+def v43s_apply_quality_overlay(rows):
+    if rows is None:
+        return rows
+    out = []
+    try:
+        for row in rows:
+            if not hasattr(row, "get"):
+                out.append(row)
+                continue
+            score, tier, quality_score, flags = v43s_rebalanced_score(row)
+            row["V43 Score"] = score
+            row["Quality Tier"] = tier
+            row["Business Quality Score"] = quality_score
+            row["Quality Flags"] = ", ".join(flags)
+            if "Speculative" in tier:
+                row["Setup Rating"] = "⚠️ Speculative High-Upside" if score >= 80 else "⚠️ Speculative"
+            elif score >= 92:
+                row["Setup Rating"] = "🟢 Elite Quality Setup"
+            elif score >= 86:
+                row["Setup Rating"] = "🟢 Strong Setup"
+            elif score >= 78:
+                row["Setup Rating"] = "🟡 Actionable Watch"
+            else:
+                row["Setup Rating"] = "🟡 Watchlist"
+            out.append(row)
+        return sorted(out, key=lambda r: v43s_float(r.get("V43 Score") if hasattr(r, "get") else 0, 0), reverse=True)
+    except Exception:
+        return rows
+
+
 if __name__ == "__main__":
     main()
 
@@ -4188,3 +4335,11 @@ if __name__ == "__main__":
 # - cleaner agent scorecard and readiness labels
 # - command center source transparency
 # - detailed legacy content kept lower on page
+
+# V43 changes:
+# - Business Quality Agent
+# - Quality/Growth/Recovery/Speculative tiering
+# - AI Fair Value conservative/base/aggressive target logic
+# - Valuation confidence penalty
+# - Score distribution overlay
+# - Paid-client decision-card layout

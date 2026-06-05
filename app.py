@@ -1,4 +1,5 @@
 import os
+import math
 import datetime as dt
 import json
 import csv
@@ -12,7 +13,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V42.7 Paid Client Layout + Intelligence Upgrade"
+APP_VERSION = "V43 Professional Intelligence Platform"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -3019,7 +3020,7 @@ def render_detail(row):
     render_v42_news_block(row)
     render_v423_conviction_meter(row)
     render_v423_why_ranked(row)
-    render_v427_clean_research_card(row)
+    render_v43_professional_research_card(row)
     render_v424_analyst_ratings_box(row)
     render_v424_support_resistance_box(row)
     render_v4243_technical_translation_box(row)
@@ -6579,6 +6580,588 @@ def render_v424_market_command_center():
                 st.markdown(f"• {safe_text(h)}")
         else:
             st.warning("No broad market headlines returned. Add NEWSAPI_KEY and FINNHUB_API_KEY for paid-client quality news.")
+    if "v426_source_health_card" in globals():
+        v426_source_health_card()
+
+
+
+
+# =========================
+# V43 PROFESSIONAL INTELLIGENCE PLATFORM
+# =========================
+
+def v43_num(value, default=0.0):
+    try:
+        if value in (None, "", "N/A", "None"):
+            return default
+        if isinstance(value, str):
+            value = value.replace("$", "").replace(",", "").replace("%", "").strip()
+        return float(value)
+    except Exception:
+        return default
+
+
+def v43_money(value):
+    try:
+        return fmt_money(value)
+    except Exception:
+        x = v43_num(value, 0)
+        return "N/A" if not x else f"${x:,.2f}"
+
+
+def v43_pct(value):
+    x = v43_num(value, None)
+    return "N/A" if x is None else f"{x:.1f}%"
+
+
+def v43_business_quality(row):
+    """
+    Business Quality Agent for paid-client credibility.
+    Uses available row fields first; falls back conservatively when missing.
+    """
+    sector = safe_text(row.get("Sector"), "")
+    ticker = safe_text(row.get("Ticker"), "")
+    pe = v43_num(row.get("PE Ratio") or row.get("P/E") or row.get("Trailing PE") or row.get("Forward PE"), None)
+    fpe = v43_num(row.get("Forward PE"), None)
+    rev_growth = v43_num(row.get("Revenue Growth") or row.get("Revenue Growth %"), None)
+    eps_growth = v43_num(row.get("EPS Growth") or row.get("Earnings Growth %"), None)
+    fcf = v43_num(row.get("Free Cash Flow") or row.get("FCF"), None)
+    net_income = v43_num(row.get("Net Income"), None)
+    debt_equity = v43_num(row.get("Debt/Equity") or row.get("Debt To Equity"), None)
+    margin = v43_num(row.get("Operating Margin") or row.get("Profit Margin") or row.get("Net Margin"), None)
+    price = v43_num(row.get("Price"), 0)
+    analyst_count = int(v43_num(row.get("Analyst Count"), 0))
+    market_cap = v43_num(row.get("Market Cap"), 0)
+
+    score = 70
+    flags = []
+    positives = []
+
+    # Profitability / valuation
+    if pe is not None:
+        if pe < 0:
+            score -= 25
+            flags.append(f"Negative P/E ({pe:.1f}) suggests the company is currently unprofitable.")
+        elif pe > 80:
+            score -= 8
+            flags.append(f"Very high P/E ({pe:.1f}) raises valuation risk.")
+        elif 0 < pe <= 35:
+            score += 8
+            positives.append(f"P/E of {pe:.1f} is within a more reasonable range.")
+    elif fpe is not None:
+        if fpe < 0:
+            score -= 18
+            flags.append(f"Negative forward P/E ({fpe:.1f}) suggests expected losses.")
+        elif fpe <= 35:
+            score += 5
+            positives.append(f"Forward P/E of {fpe:.1f} is reasonable.")
+    else:
+        flags.append("Profitability valuation metric was not available.")
+
+    if net_income is not None:
+        if net_income < 0:
+            score -= 15
+            flags.append("Net income is negative.")
+        else:
+            score += 8
+            positives.append("Net income is positive.")
+
+    if fcf is not None:
+        if fcf < 0:
+            score -= 15
+            flags.append("Free cash flow is negative.")
+        else:
+            score += 10
+            positives.append("Free cash flow is positive.")
+
+    if eps_growth is not None:
+        if eps_growth < 0:
+            score -= 8
+            flags.append("EPS growth is negative.")
+        elif eps_growth > 10:
+            score += 6
+            positives.append(f"EPS growth is positive ({eps_growth:.1f}%).")
+
+    if rev_growth is not None:
+        if rev_growth > 20:
+            score += 8
+            positives.append(f"Revenue growth is strong ({rev_growth:.1f}%).")
+        elif rev_growth < 0:
+            score -= 8
+            flags.append("Revenue growth is negative.")
+
+    if margin is not None:
+        if margin < 0:
+            score -= 10
+            flags.append("Margins are negative.")
+        elif margin > 15:
+            score += 6
+            positives.append("Margins appear healthy.")
+
+    if debt_equity is not None:
+        if debt_equity > 2:
+            score -= 8
+            flags.append("Debt load appears elevated.")
+        elif 0 <= debt_equity < 1:
+            score += 4
+            positives.append("Debt load appears manageable.")
+
+    # Coverage and size confidence
+    if analyst_count >= 20:
+        score += 4
+        positives.append(f"Strong analyst coverage ({analyst_count} analysts).")
+    elif analyst_count and analyst_count < 5:
+        score -= 4
+        flags.append("Limited analyst coverage.")
+
+    # Sector-specific speculative treatment
+    speculative_keywords = ["biotech", "biotechnology", "therapeutics", "pharma", "pharmaceutical"]
+    if any(k in (sector + " " + ticker).lower() for k in speculative_keywords):
+        if pe is not None and pe < 0:
+            score -= 10
+            flags.append("Biotech/therapeutics with losses should be treated as speculative.")
+        elif price < 10:
+            score -= 8
+            flags.append("Low-priced healthcare/biotech name carries speculative risk.")
+
+    score = max(0, min(100, round(score)))
+
+    if score >= 85:
+        quality = "🏆 Quality Compounder"
+    elif score >= 70:
+        quality = "📈 Growth Leader"
+    elif score >= 55:
+        quality = "🔄 Recovery / Mixed Quality"
+    else:
+        quality = "⚠️ Speculative"
+
+    if not positives:
+        positives = ["Some business-quality data was unavailable or mixed."]
+    if not flags:
+        flags = ["No major business-quality red flag from available fields."]
+
+    return {
+        "score": score,
+        "tier": quality,
+        "positives": positives[:4],
+        "flags": flags[:5],
+        "pe": pe,
+        "fcf": fcf,
+        "net_income": net_income,
+    }
+
+
+def v43_valuation_confidence(row):
+    price = v43_num(row.get("Price"), 0)
+    analyst = v43_num(row.get("Analyst Target"), 0)
+    ai = v43_num(row.get("AI Fair Value"), 0)
+    bull = v43_num(row.get("Bull Case"), 0)
+    bear = v43_num(row.get("Bear Case"), 0)
+
+    if not price:
+        return {
+            "confidence": "Low",
+            "gap": None,
+            "conservative": analyst or ai,
+            "base": analyst or ai,
+            "aggressive": ai or bull,
+            "note": "Price data unavailable."
+        }
+
+    conservative = analyst if analyst else (price * 1.15)
+    base = conservative
+    aggressive = ai if ai else (bull if bull else conservative)
+
+    gap = None
+    confidence = "Medium"
+    note = "AI fair value is reasonably aligned with available target data."
+
+    if analyst and ai:
+        gap = ((ai - analyst) / analyst) * 100
+        if gap > 75:
+            confidence = "Low"
+            # Bring base case down to avoid showing unrealistic value as the primary target.
+            base = analyst * 1.25
+            note = "AI fair value is far above analyst consensus; treat AI value as aggressive scenario, not base case."
+        elif gap > 50:
+            confidence = "Low-Medium"
+            base = analyst * 1.15
+            note = "AI fair value is materially above analyst consensus; confidence is reduced."
+        elif gap > 20:
+            confidence = "Medium"
+            base = (analyst + ai) / 2
+            note = "AI fair value is above analyst consensus but not extreme."
+        else:
+            confidence = "High"
+            base = (analyst + ai) / 2
+            note = "AI fair value is close to analyst consensus."
+
+    if bear and bear < conservative:
+        conservative = max(bear, price * 0.9)
+
+    return {
+        "confidence": confidence,
+        "gap": gap,
+        "conservative": conservative,
+        "base": base,
+        "aggressive": aggressive,
+        "note": note,
+    }
+
+
+def v43_rebalanced_score(row):
+    """
+    Rebalanced paid-client score to reduce compression.
+    Combines existing conviction with quality, valuation confidence, technical risk, news, and analyst support.
+    """
+    existing = v43_num(row.get("Final Conviction"), 0)
+    quality = v43_business_quality(row)
+    valuation = v43_valuation_confidence(row)
+    analyst_support = safe_text(row.get("Analyst Support"), "")
+    news = safe_text(row.get("News Sentiment"), "")
+    rsi = v43_num(row.get("RSI"), 0)
+    vol = v43_num(row.get("Volume Ratio"), 0)
+    atr = v43_num(row.get("ATR %"), 0)
+    upside = v43_num(row.get("Target Upside %"), 0)
+
+    # Normalize components
+    tech = 75
+    if 50 <= rsi < 70:
+        tech += 8
+    elif rsi >= 70:
+        tech -= 8
+    elif rsi and rsi < 40:
+        tech -= 10
+    if vol and vol < 0.75:
+        tech -= 8
+    elif vol >= 1.25:
+        tech += 5
+    if atr >= 8:
+        tech -= 10
+    elif atr >= 5:
+        tech -= 5
+    tech = max(0, min(100, tech))
+
+    analyst = 60
+    if "Bullish" in analyst_support:
+        analyst = 82
+    elif "Constructive" in analyst_support:
+        analyst = 68
+    elif "Weak" in analyst_support:
+        analyst = 45
+
+    news_score = 55
+    if "Positive" in news:
+        news_score = 75
+    elif "Negative" in news:
+        news_score = 35
+    elif "Neutral" in news:
+        news_score = 50
+
+    valuation_score = 75
+    if valuation["confidence"] == "High":
+        valuation_score = 85
+    elif valuation["confidence"] == "Medium":
+        valuation_score = 72
+    elif valuation["confidence"] == "Low-Medium":
+        valuation_score = 62
+    elif valuation["confidence"] == "Low":
+        valuation_score = 50
+
+    if upside > 150:
+        valuation_score -= 8  # giant upside is attractive but less reliable
+    elif 20 <= upside <= 80:
+        valuation_score += 5
+
+    # Weighted
+    raw = (
+        quality["score"] * 0.25 +
+        tech * 0.20 +
+        analyst * 0.15 +
+        valuation_score * 0.20 +
+        news_score * 0.10 +
+        existing * 0.10
+    )
+
+    # Spread out scores so everything is not 96/97.
+    adjusted = 50 + (raw - 50) * 0.88
+
+    # Additional credibility penalties
+    if "Speculative" in quality["tier"]:
+        adjusted -= 8
+    if valuation["confidence"] == "Low":
+        adjusted -= 5
+    if vol and vol < 0.75:
+        adjusted -= 2
+
+    adjusted = max(0, min(99, round(adjusted, 1)))
+    return adjusted
+
+
+def v43_setup_label(score, tier):
+    if "Speculative" in tier:
+        if score >= 80:
+            return "⚠️ Speculative High-Upside"
+        return "⚠️ Speculative"
+    if score >= 92:
+        return "🟢 Elite Quality Setup"
+    if score >= 86:
+        return "🟢 Strong Setup"
+    if score >= 78:
+        return "🟡 Actionable Watch"
+    if score >= 70:
+        return "🟡 Watchlist"
+    return "⚪ Low Priority"
+
+
+def v43_decision(row):
+    quality = v43_business_quality(row)
+    valuation = v43_valuation_confidence(row)
+    score = v43_rebalanced_score(row)
+    label = v43_setup_label(score, quality["tier"])
+
+    price = v43_num(row.get("Price"), 0)
+    support = v43_num(row.get("Support 1"), 0)
+    resistance = v43_num(row.get("Resistance 1"), 0)
+    vol = v43_num(row.get("Volume Ratio"), 0)
+    atr = v43_num(row.get("ATR %"), 0)
+
+    decision = "WATCH"
+    rationale = "Monitor for a cleaner entry."
+    if "Speculative" in quality["tier"]:
+        decision = "SPECULATIVE"
+        rationale = "Higher-risk idea. Use smaller size and require stronger confirmation."
+    elif score >= 90 and valuation["confidence"] in {"High", "Medium"}:
+        decision = "ACTIONABLE WATCH"
+        rationale = "High-quality setup, but entry timing still matters."
+    elif score >= 82:
+        decision = "WATCH"
+        rationale = "Good setup, but confirm entry and risk."
+    elif score < 70:
+        decision = "LOW PRIORITY"
+        rationale = "Not enough quality-adjusted confirmation."
+
+    if price and support and resistance and price > support:
+        rr = (resistance - price) / (price - support) if (price - support) > 0 else 0
+        if rr < 1:
+            decision = "WAIT"
+            rationale = f"Reward/risk is weak. Prefer pullback near {v43_money(support)} or breakout above {v43_money(resistance)} with volume."
+
+    if vol and vol < 0.75:
+        rationale += " Volume is light."
+    if atr >= 5:
+        rationale += " Volatility is elevated."
+
+    return {
+        "score": score,
+        "label": label,
+        "decision": decision,
+        "rationale": rationale,
+        "quality": quality,
+        "valuation": valuation,
+    }
+
+
+def render_v43_decision_card(row):
+    d = v43_decision(row)
+    q = d["quality"]
+    v = d["valuation"]
+    ticker = safe_text(row.get("Ticker"), "")
+    company = safe_text(row.get("Company"), "")
+    sector = safe_text(row.get("Sector"), "")
+
+    with st.container(border=True):
+        st.markdown(f"## {ticker}{(' — ' + company) if company else ''}")
+        st.markdown(f"### {d['label']} · {d['decision']}")
+        st.info(d["rationale"])
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("V43 Score", f"{d['score']:.1f}/100")
+        c2.metric("Tier", q["tier"])
+        c3.metric("Valuation Confidence", v["confidence"])
+        c4.metric("Sector", sector if sector else "N/A")
+
+        st.markdown("**Why it can work**")
+        cols = st.columns(2)
+        with cols[0]:
+            for p in q["positives"][:4]:
+                st.markdown(f"✓ {safe_text(p)}")
+        with cols[1]:
+            analyst = v43_num(row.get("Analyst Target"), 0)
+            price = v43_num(row.get("Price"), 0)
+            if analyst and price:
+                st.markdown(f"✓ Analyst target implies {((analyst-price)/price)*100:.1f}% upside.")
+            st.markdown(f"✓ Existing AI conviction: {v43_num(row.get('Final Conviction'), 0):.0f}/100.")
+
+        st.markdown("**What could go wrong**")
+        for flag in q["flags"][:5]:
+            st.markdown(f"⚠️ {safe_text(flag)}")
+        if v["gap"] is not None and v["gap"] > 50:
+            st.markdown(f"⚠️ AI fair value is {v['gap']:.1f}% above analyst consensus, so aggressive target confidence is lower.")
+
+
+def render_v43_targets_card(row):
+    v = v43_valuation_confidence(row)
+    price = v43_num(row.get("Price"), 0)
+    stop = v43_num(row.get("Stop Loss"), 0)
+    support = v43_num(row.get("Support 1"), 0)
+    resistance = v43_num(row.get("Resistance 1"), 0)
+    entry = safe_text(row.get("Entry Range"), "")
+
+    with st.container(border=True):
+        st.markdown("### 🎯 Targets & Entry Plan")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Conservative", v43_money(v["conservative"]))
+        c2.metric("Base", v43_money(v["base"]))
+        c3.metric("Aggressive", v43_money(v["aggressive"]))
+        c4.metric("Stop", v43_money(stop) if stop else "N/A")
+        st.caption(v["note"])
+
+        c5, c6, c7 = st.columns(3)
+        c5.metric("Entry Zone", entry if entry and entry != "N/A" else "Wait")
+        c6.metric("Support", v43_money(support) if support else "N/A")
+        c7.metric("Resistance", v43_money(resistance) if resistance else "N/A")
+
+        if price and support and resistance and price > support:
+            rr = (resistance - price) / (price - support) if (price - support) > 0 else 0
+            if rr < 1:
+                st.warning(f"Entry quality is weak at current price: reward/risk is only {rr:.2f}:1.")
+            else:
+                st.success(f"Entry quality is acceptable if support holds: reward/risk is {rr:.2f}:1.")
+
+
+def render_v43_business_quality_agent(row):
+    q = v43_business_quality(row)
+    with st.container(border=True):
+        st.markdown("### 🧱 Business Quality Agent")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Business Quality", f"{q['score']}/100")
+        c2.metric("Tier", q["tier"])
+        c3.metric("P/E", "N/A" if q["pe"] is None else f"{q['pe']:.1f}")
+
+        st.markdown("**Strengths**")
+        for p in q["positives"]:
+            st.markdown(f"✓ {safe_text(p)}")
+        st.markdown("**Quality risks**")
+        for f in q["flags"]:
+            st.markdown(f"⚠️ {safe_text(f)}")
+
+
+def render_v43_agent_summary(row):
+    committee = row.get("AI Committee")
+    if not isinstance(committee, dict) or not committee:
+        return
+
+    rows = []
+    for name, agent in committee.items():
+        if not isinstance(agent, dict):
+            continue
+        status = safe_text(agent.get("status"), "N/A")
+        findings = agent.get("findings") or []
+        risks = agent.get("risks") or []
+        if not isinstance(findings, list):
+            findings = []
+        if not isinstance(risks, list):
+            risks = []
+        readiness = "Data-backed"
+        if "not connected" in status.lower() or "framework" in status.lower() or not findings:
+            readiness = "Beta / Limited"
+        rows.append({
+            "Agent": safe_text(name),
+            "Score": "N/A" if agent.get("score") is None else f"{int(v43_num(agent.get('score'), 0))}",
+            "Status": status,
+            "Readiness": readiness,
+            "Main Takeaway": safe_text(agent.get("bottom_line") or (findings[0] if findings else "No detailed data yet"))[:150],
+        })
+
+    with st.container(border=True):
+        st.markdown("### 🤖 Agent Summary")
+        st.caption("Paid-client view: real data first; beta/framework agents are labeled clearly.")
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+
+def render_v43_professional_research_card(row):
+    render_v43_decision_card(row)
+    render_v43_targets_card(row)
+    render_v43_business_quality_agent(row)
+    render_v43_agent_summary(row)
+
+
+def v43_market_regime():
+    quotes = v424_market_quotes() if "v424_market_quotes" in globals() else []
+    qmap = {safe_text(q.get("symbol")): q for q in quotes if isinstance(q, dict)}
+    spy = v43_num(qmap.get("SPY", {}).get("change_pct"), 0)
+    qqq = v43_num(qmap.get("QQQ", {}).get("change_pct"), 0)
+    iwm = v43_num(qmap.get("IWM", {}).get("change_pct"), 0)
+    vix = v43_num(qmap.get("VIX", {}).get("price"), 0)
+    score = 50
+    if spy > 0: score += 12
+    if qqq > 0: score += 12
+    if iwm > 0: score += 8
+    if vix and vix < 18: score += 12
+    if vix and vix > 22: score -= 15
+    if score >= 70:
+        return "🟢 Risk On", score
+    if score >= 45:
+        return "🟡 Neutral", score
+    return "🔴 Risk Off", score
+
+
+def render_v424_market_command_center():
+    st.markdown("## 🧭 Market Command Center")
+    regime, regime_score = v43_market_regime()
+    st.metric("Market Regime", regime, f"{regime_score:.0f}/100")
+
+    quotes = v424_market_quotes()
+    if quotes:
+        cols = st.columns(min(5, len(quotes)))
+        for i, q in enumerate(quotes[:5]):
+            pct = v424_float(q.get("change_pct"), None) if "v424_float" in globals() else v43_num(q.get("change_pct"), None)
+            delta = f"{pct:+.2f}%" if pct is not None else None
+            label = q.get("display_label") or q.get("symbol", "")
+            cols[i].metric(label, v43_money(q.get("price")), delta)
+            cols[i].caption(safe_text(q.get("source"), ""))
+    else:
+        st.warning("Market quotes unavailable from connected and fallback sources.")
+
+    econ = v424_economic_calendar()
+    earnings = v424_earnings_today()
+    news = v424_market_news()
+
+    c1, c2 = st.columns(2)
+    with c1:
+        with st.container(border=True):
+            st.markdown("### 🗓️ Economic Calendar")
+            st.caption(f"Source: {safe_text(econ.get('source'), 'Unknown')}")
+            events = (econ.get("today") or []) or (econ.get("next") or [])
+            if events:
+                for e in events[:5]:
+                    if "v4253_render_event_line" in globals():
+                        st.markdown(f"• {v4253_render_event_line(e)}")
+                    else:
+                        st.markdown(f"• **{safe_text(e.get('event'))}** — {safe_text(e.get('date'))}")
+            else:
+                st.warning("No economic calendar data returned.")
+
+    with c2:
+        with st.container(border=True):
+            st.markdown("### 💼 Earnings Due Today")
+            st.caption("Source priority: FMP → Finnhub → Nasdaq → Alpha Vantage → Yahoo")
+            if earnings:
+                edf = pd.DataFrame(earnings)
+                preferred = [c for c in ["Company", "Ticker", "Symbol", "Date", "Time", "EPS Est", "Revenue Est", "Source"] if c in edf.columns]
+                st.dataframe(edf[preferred] if preferred else edf, use_container_width=True, hide_index=True)
+            else:
+                st.warning("No earnings returned from any connected/fallback source today.")
+
+    with st.container(border=True):
+        st.markdown("### 📰 Market News")
+        if news:
+            for h in news[:5]:
+                st.markdown(f"• {safe_text(h)}")
+        else:
+            st.warning("No broad market headlines returned. Add NEWSAPI_KEY and FINNHUB_API_KEY for paid-client quality news.")
+
     if "v426_source_health_card" in globals():
         v426_source_health_card()
 
