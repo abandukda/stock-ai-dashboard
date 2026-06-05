@@ -3954,7 +3954,7 @@ def scan_market() -> Dict[str, Any]:
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V43",
+        "version": "V43.1",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -4343,3 +4343,53 @@ if __name__ == "__main__":
 # - Valuation confidence penalty
 # - Score distribution overlay
 # - Paid-client decision-card layout
+
+
+
+# =========================
+# V43.1 SCANNER WIRING CLEANUP
+# =========================
+
+def v431s_apply_final_score_overlay(rows):
+    """
+    Applies V43 score into both V43 fields and the legacy Final Conviction field so existing tables stop showing 96/97 compression.
+    """
+    if rows is None:
+        return rows
+    try:
+        processed = []
+        for row in rows:
+            if not hasattr(row, "get"):
+                processed.append(row)
+                continue
+            if "v43s_rebalanced_score" in globals():
+                score, tier, quality_score, flags = v43s_rebalanced_score(row)
+            else:
+                score = v43s_float(row.get("Final Conviction"), 0) if "v43s_float" in globals() else 0
+                tier, quality_score, flags = "N/A", 0, []
+            row["V43 Score"] = score
+            row["Final Conviction"] = score
+            row["Quality Tier"] = tier
+            row["Business Quality Score"] = quality_score
+            row["Quality Flags"] = ", ".join(flags) if isinstance(flags, list) else str(flags)
+            if "Speculative" in tier:
+                row["Setup Rating"] = "⚠️ Speculative High-Upside" if score >= 78 else "⚠️ Speculative"
+            elif score >= 90:
+                row["Setup Rating"] = "🟢 Elite Quality Setup"
+            elif score >= 84:
+                row["Setup Rating"] = "🟢 Strong Setup"
+            elif score >= 76:
+                row["Setup Rating"] = "🟡 Actionable Watch"
+            elif score >= 68:
+                row["Setup Rating"] = "🟡 Watchlist"
+            else:
+                row["Setup Rating"] = "⚪ Low Priority"
+            processed.append(row)
+        return sorted(processed, key=lambda r: float(r.get("V43 Score") or 0), reverse=True)
+    except Exception:
+        return rows
+
+# V43.1 changes:
+# - legacy Final Conviction overwritten with V43 Score after scan overlay
+# - V43 fields written into scan rows
+# - old 96/97 score compression reduced once scan output uses overlay

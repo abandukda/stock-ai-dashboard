@@ -13,7 +13,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V43 Professional Intelligence Platform"
+APP_VERSION = "V43.1 Clean Wiring + Paid Layout Fix"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -7167,6 +7167,308 @@ def render_v424_market_command_center():
 
 
 
+
+# =========================
+# V43.1 CLEAN WIRING + PAID LAYOUT FIX
+# =========================
+
+def v431_get_score(row):
+    """
+    Use V43 score everywhere when present; otherwise compute live from row.
+    """
+    existing = v43_num(row.get("V43 Score"), None) if "v43_num" in globals() else safe_number(row.get("V43 Score"), None)
+    if existing is not None and existing > 0:
+        return existing
+    if "v43_rebalanced_score" in globals():
+        return v43_rebalanced_score(row)
+    return safe_number(row.get("Final Conviction"), 0)
+
+
+def v431_get_quality(row):
+    if "v43_business_quality" in globals():
+        return v43_business_quality(row)
+    return {"score": 0, "tier": "N/A", "positives": [], "flags": []}
+
+
+def v431_smart_levels(row):
+    """
+    One single support/resistance source for all V43.1 paid sections.
+    Uses scanner fields, then V42.4.4 Yahoo fallback if available.
+    """
+    if "v4244_get_smart_levels" in globals():
+        try:
+            return v4244_get_smart_levels(row)
+        except Exception:
+            pass
+    return {
+        "price": safe_number(row.get("Price"), 0),
+        "support1": safe_number(row.get("Support 1"), 0),
+        "support2": safe_number(row.get("Support 2"), 0),
+        "resistance1": safe_number(row.get("Resistance 1"), 0),
+        "resistance2": safe_number(row.get("Resistance 2"), 0),
+        "breakout": safe_number(row.get("Breakout Level"), 0),
+        "source": "Scanner support/resistance",
+    }
+
+
+def v431_setup_label(row):
+    score = v431_get_score(row)
+    q = v431_get_quality(row)
+    tier = q.get("tier", "")
+    if "Speculative" in tier:
+        return "⚠️ Speculative High-Upside" if score >= 78 else "⚠️ Speculative"
+    if score >= 90:
+        return "🟢 Elite Quality Setup"
+    if score >= 84:
+        return "🟢 Strong Setup"
+    if score >= 76:
+        return "🟡 Actionable Watch"
+    if score >= 68:
+        return "🟡 Watchlist"
+    return "⚪ Low Priority"
+
+
+def v431_decision(row):
+    q = v431_get_quality(row)
+    val = v43_valuation_confidence(row) if "v43_valuation_confidence" in globals() else {"confidence": "Medium", "gap": None, "note": ""}
+    levels = v431_smart_levels(row)
+    score = v431_get_score(row)
+    price = safe_number(levels.get("price") or row.get("Price"), 0)
+    support = safe_number(levels.get("support1"), 0)
+    resistance = safe_number(levels.get("resistance1"), 0)
+    vol = safe_number(row.get("Volume Ratio"), 0)
+    atr = safe_number(row.get("ATR %"), 0)
+
+    decision = "WATCH"
+    why = "Setup is worth monitoring, but entry quality and data confidence still matter."
+
+    if "Speculative" in q.get("tier", ""):
+        decision = "SPECULATIVE"
+        why = "Higher-risk idea. Use smaller position sizing and require stronger confirmation."
+    elif score >= 88 and val.get("confidence") in {"High", "Medium"}:
+        decision = "ACTIONABLE WATCH"
+        why = "Quality-adjusted score is strong, but still confirm entry and risk."
+    elif score < 68:
+        decision = "LOW PRIORITY"
+        why = "Not enough quality-adjusted confirmation for a premium recommendation."
+
+    if price and support and resistance and price > support:
+        rr = (resistance - price) / (price - support) if (price - support) > 0 else 0
+        if rr < 1:
+            decision = "WAIT"
+            why = f"Reward/risk is weak. Prefer pullback near {v43_money(support)} or breakout above {v43_money(resistance)} with volume."
+    elif not support or not resistance:
+        why += " Support/resistance needs live/fallback confirmation."
+
+    if vol and vol < 0.75:
+        why += " Volume is light."
+    if atr >= 5:
+        why += " Volatility is elevated."
+
+    return {"decision": decision, "why": why, "score": score, "quality": q, "valuation": val, "levels": levels}
+
+
+def render_v431_decision_card(row):
+    d = v431_decision(row)
+    q = d["quality"]
+    v = d["valuation"]
+    levels = d["levels"]
+    ticker = safe_text(row.get("Ticker"), "")
+    company = safe_text(row.get("Company"), "")
+    sector = safe_text(row.get("Sector"), "")
+
+    with st.container(border=True):
+        st.markdown(f"## {ticker}{(' — ' + company) if company else ''}")
+        st.markdown(f"### {v431_setup_label(row)} · {d['decision']}")
+        st.info(d["why"])
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("V43 Score", f"{d['score']:.1f}/100")
+        c2.metric("Tier", q.get("tier", "N/A"))
+        c3.metric("Valuation Confidence", v.get("confidence", "N/A"))
+        c4.metric("Sector", sector if sector else "N/A")
+
+        c5, c6, c7, c8 = st.columns(4)
+        c5.metric("Price", v43_money(levels.get("price") or row.get("Price")))
+        c6.metric("Support", v43_money(levels.get("support1")) if safe_number(levels.get("support1"), 0) else "N/A")
+        c7.metric("Resistance", v43_money(levels.get("resistance1")) if safe_number(levels.get("resistance1"), 0) else "N/A")
+        c8.metric("Level Source", safe_text(levels.get("source"), "N/A")[:18])
+
+        left, right = st.columns(2)
+        with left:
+            st.markdown("**Why it can work**")
+            for p in q.get("positives", [])[:4]:
+                st.markdown(f"✓ {safe_text(p)}")
+            analyst = safe_number(row.get("Analyst Target"), 0)
+            price = safe_number(row.get("Price"), 0)
+            if analyst and price:
+                st.markdown(f"✓ Analyst target implies {((analyst-price)/price)*100:.1f}% upside.")
+        with right:
+            st.markdown("**What could go wrong**")
+            flags = q.get("flags", [])[:4] if q else []
+            if v.get("gap") is not None and v.get("gap") > 50:
+                flags.append(f"AI fair value is {v['gap']:.1f}% above analyst consensus; aggressive target confidence is lower.")
+            if not flags:
+                flags = ["Normal market, earnings, liquidity, and execution risk still applies."]
+            for f in flags[:5]:
+                st.markdown(f"⚠️ {safe_text(f)}")
+
+
+def render_v431_targets_card(row):
+    val = v43_valuation_confidence(row) if "v43_valuation_confidence" in globals() else {}
+    levels = v431_smart_levels(row)
+    stop = safe_number(row.get("Stop Loss"), 0)
+    entry = safe_text(row.get("Entry Range"), "")
+
+    with st.container(border=True):
+        st.markdown("### 🎯 Targets & Entry Plan")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Conservative", v43_money(val.get("conservative")) if val else "N/A")
+        c2.metric("Base", v43_money(val.get("base")) if val else "N/A")
+        c3.metric("Aggressive", v43_money(val.get("aggressive")) if val else "N/A")
+        c4.metric("Stop", v43_money(stop) if stop else "N/A")
+        if val.get("note"):
+            st.caption(val.get("note"))
+
+        c5, c6, c7 = st.columns(3)
+        c5.metric("Entry Zone", entry if entry and entry != "N/A" else "Wait")
+        c6.metric("Support", v43_money(levels.get("support1")) if safe_number(levels.get("support1"), 0) else "N/A")
+        c7.metric("Breakout", v43_money(levels.get("breakout") or levels.get("resistance1")) if safe_number(levels.get("breakout") or levels.get("resistance1"), 0) else "N/A")
+
+        price = safe_number(levels.get("price"), 0)
+        support = safe_number(levels.get("support1"), 0)
+        resistance = safe_number(levels.get("resistance1"), 0)
+        if price and support and resistance and price > support:
+            rr = (resistance - price) / (price - support) if (price - support) > 0 else 0
+            if rr < 1:
+                st.warning(f"Entry quality is weak at current price: reward/risk is only {rr:.2f}:1.")
+            else:
+                st.success(f"Entry quality is acceptable if support holds: reward/risk is {rr:.2f}:1.")
+        else:
+            st.warning("Support/resistance could not be confirmed for the entry-quality calculation.")
+
+
+def render_v431_business_quality_agent(row):
+    q = v431_get_quality(row)
+    with st.container(border=True):
+        st.markdown("### 🧱 Business Quality Agent")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Business Quality", f"{q.get('score', 0)}/100")
+        c2.metric("Tier", q.get("tier", "N/A"))
+        pe = q.get("pe")
+        c3.metric("P/E", "N/A" if pe is None else f"{pe:.1f}")
+        st.markdown("**Strengths**")
+        for p in q.get("positives", ["No quality strengths returned."])[:4]:
+            st.markdown(f"✓ {safe_text(p)}")
+        st.markdown("**Quality risks / limits**")
+        for f in q.get("flags", ["No major quality red flag returned."])[:5]:
+            st.markdown(f"⚠️ {safe_text(f)}")
+
+
+def render_v431_agent_summary(row):
+    committee = row.get("AI Committee")
+    if not isinstance(committee, dict) or not committee:
+        return
+    rows = []
+    for name, agent in committee.items():
+        if not isinstance(agent, dict):
+            continue
+        status = safe_text(agent.get("status"), "N/A")
+        findings = agent.get("findings") or []
+        risks = agent.get("risks") or []
+        if not isinstance(findings, list):
+            findings = []
+        if not isinstance(risks, list):
+            risks = []
+        readiness = "Data-backed"
+        if "not connected" in status.lower() or "framework" in status.lower() or "deferred" in status.lower() or not findings:
+            readiness = "Deferred / Beta"
+        rows.append({
+            "Agent": safe_text(name),
+            "Score": "N/A" if agent.get("score") is None else f"{int(safe_number(agent.get('score'), 0))}",
+            "Readiness": readiness,
+            "Status": status,
+            "Main Takeaway": safe_text(agent.get("bottom_line") or (findings[0] if findings else "Deferred to live research"))[:150],
+        })
+    with st.container(border=True):
+        st.markdown("### 🤖 Agent Summary")
+        st.caption("Deferred/Beta agents are not treated as primary buy signals.")
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+
+def render_v431_professional_research_card(row):
+    render_v431_decision_card(row)
+    render_v431_targets_card(row)
+    render_v431_business_quality_agent(row)
+    render_v431_agent_summary(row)
+
+
+def render_v431_advanced_legacy_sections(row):
+    """
+    Keeps legacy details available without confusing paid users.
+    """
+    with st.expander("Advanced details / legacy V42 sections", expanded=False):
+        st.caption("These sections are retained for audit/debug context and will be simplified in future releases.")
+        try:
+            if "render_v424_analyst_ratings_box" in globals():
+                render_v424_analyst_ratings_box(row)
+            if "render_v424_support_resistance_box" in globals():
+                render_v424_support_resistance_box(row)
+            if "render_v4243_technical_translation_box" in globals():
+                render_v4243_technical_translation_box(row)
+            if "render_inline_metric_summary" in globals():
+                render_inline_metric_summary(row)
+            if "render_v4251_standardized_committee" in globals():
+                render_v4251_standardized_committee(row)
+        except Exception as e:
+            st.caption(f"Advanced detail rendering skipped: {e}")
+
+
+def render_detail(row):
+    """
+    V43.1 full override: one paid-client research card first, legacy content collapsed.
+    This prevents old Elite 97 card and V42/V41 text from appearing above the V43 verdict.
+    """
+    render_v431_professional_research_card(row)
+
+    if "render_detail_chart_v4184" in globals():
+        try:
+            render_detail_chart_v4184(row)
+        except Exception:
+            pass
+
+    render_v431_advanced_legacy_sections(row)
+
+    with st.expander("Raw row data", expanded=False):
+        try:
+            st.json(row if isinstance(row, dict) else dict(row))
+        except Exception:
+            st.write(row)
+
+
+def v431_prepare_display_df(df):
+    """
+    For ranked tables: show V43 score/rating first and prevent old Final Conviction from dominating.
+    """
+    if df is None or getattr(df, "empty", True):
+        return df
+    out = df.copy()
+    try:
+        # Compute columns if missing
+        if "V43 Score" not in out.columns:
+            out["V43 Score"] = out.apply(lambda r: v431_get_score(r), axis=1)
+        if "Quality Tier" not in out.columns:
+            out["Quality Tier"] = out.apply(lambda r: v431_get_quality(r).get("tier", "N/A"), axis=1)
+        out["V43 Rating"] = out.apply(lambda r: v431_setup_label(r), axis=1)
+        if "Final Conviction" in out.columns:
+            out["Legacy Score"] = out["Final Conviction"]
+        out = out.sort_values("V43 Score", ascending=False)
+    except Exception:
+        pass
+    return out
+
+
+
 def main():
     if not dashboard_login_gate():
         return
@@ -7233,3 +7535,28 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+# =========================
+# V43.1 FINAL OVERRIDE GUARANTEE
+# =========================
+def render_detail(row):
+    """
+    V43.1 final override loaded last.
+    """
+    render_v431_professional_research_card(row)
+
+    if "render_detail_chart_v4184" in globals():
+        try:
+            render_detail_chart_v4184(row)
+        except Exception:
+            pass
+
+    render_v431_advanced_legacy_sections(row)
+
+    with st.expander("Raw row data", expanded=False):
+        try:
+            st.json(row if isinstance(row, dict) else dict(row))
+        except Exception:
+            st.write(row)
