@@ -3500,11 +3500,43 @@ def v42_build_committee_safe(symbol: str, row: Dict[str, Any], meta: Dict[str, A
 # =========================
 # V42.1 FAST TIERED SCAN
 # =========================
+# V42.6.1 hard cron controls
+FAST_CRON_MODE = os.getenv("FAST_CRON_MODE", "true").strip().lower() not in {"0", "false", "no", "off"}
 FULL_COMMITTEE_LIMIT = int(os.getenv("FULL_COMMITTEE_LIMIT", "15"))
-FULL_RESEARCH_MIN_CONVICTION = float(os.getenv("FULL_RESEARCH_MIN_CONVICTION", "88"))
-FULL_RESEARCH_MIN_RECOVERY = float(os.getenv("FULL_RESEARCH_MIN_RECOVERY", "75"))
-WATCHLIST_FULL_COMMITTEE_LIMIT = int(os.getenv("WATCHLIST_FULL_COMMITTEE_LIMIT", "50"))
+RECOVERY_FULL_COMMITTEE_LIMIT = int(os.getenv("RECOVERY_FULL_COMMITTEE_LIMIT", "10"))
+ETF_FULL_COMMITTEE_LIMIT = int(os.getenv("ETF_FULL_COMMITTEE_LIMIT", "10"))
+NEWS_AGENT_LIMIT = int(os.getenv("NEWS_AGENT_LIMIT", "25"))
+SEC_AGENT_LIMIT = int(os.getenv("SEC_AGENT_LIMIT", "10"))
+COMPETITOR_AGENT_LIMIT = int(os.getenv("COMPETITOR_AGENT_LIMIT", "10"))
+FULL_RESEARCH_MIN_CONVICTION = float(os.getenv("FULL_RESEARCH_MIN_CONVICTION", "96"))
+FULL_RESEARCH_MIN_RECOVERY = float(os.getenv("FULL_RESEARCH_MIN_RECOVERY", "88"))
+WATCHLIST_FULL_COMMITTEE_LIMIT = int(os.getenv("WATCHLIST_FULL_COMMITTEE_LIMIT", "25"))
+FAST_CRON_SKIP_PRE_RANK_DEEP_APIS = os.getenv("FAST_CRON_SKIP_PRE_RANK_DEEP_APIS", "true").strip().lower() not in {"0", "false", "no", "off"}
+HTTP_TIMEOUT_FAST = float(os.getenv("HTTP_TIMEOUT_FAST", "6"))
 
+
+
+
+# V42.6.1 safety timeout patch: prevents one slow endpoint from dragging cron.
+def v4261_patch_requests_timeouts():
+    try:
+        if getattr(requests, "_v4261_patched", False):
+            return
+        _orig_get = requests.get
+        _orig_post = requests.post
+        def _get(*args, **kwargs):
+            kwargs.setdefault("timeout", HTTP_TIMEOUT_FAST)
+            return _orig_get(*args, **kwargs)
+        def _post(*args, **kwargs):
+            kwargs.setdefault("timeout", HTTP_TIMEOUT_FAST)
+            return _orig_post(*args, **kwargs)
+        requests.get = _get
+        requests.post = _post
+        requests._v4261_patched = True
+    except Exception:
+        pass
+
+v4261_patch_requests_timeouts()
 
 def v421_watchlist_symbols() -> set:
     symbols = set()
@@ -3540,32 +3572,38 @@ def v421_watchlist_symbols() -> set:
 
 def v421_should_run_full_research(symbol: str, row: Dict[str, Any]) -> bool:
     """
-    Scheduled cron full-committee eligibility.
-    Heavy API calls are only run for:
-      - likely top ideas
-      - strong recovery names
-      - watchlist symbols
-      - high conviction + high upside names
+    V42.6.1 hard cap: scheduled cron full committee is only for the very best names.
+    This prevents 150 rows from running expensive News/SEC/FMP/Finnhub/competitor calls.
     """
+    if not FAST_CRON_MODE:
+        return True
+
     symbol = str(symbol).upper().strip()
     conviction = v42_safe_float(row.get("conviction"), row.get("Final Conviction") or 0) or 0
     recovery_score = v42_safe_float(row.get("recovery_score"), row.get("Recovery Score") or 0) or 0
     upside = v42_safe_float(row.get("expected_upside_pct"), row.get("Target Upside %") or 0) or 0
 
-    if symbol in v421_watchlist_symbols():
+    watch = v421_watchlist_symbols()
+    if symbol in watch:
         return True
 
+    # Function-level counter persists during this cron run.
+    used = getattr(v421_should_run_full_research, "_used", 0)
+    if used >= FULL_COMMITTEE_LIMIT:
+        return False
+
+    eligible = False
     if conviction >= FULL_RESEARCH_MIN_CONVICTION:
-        return True
+        eligible = True
+    elif recovery_score >= FULL_RESEARCH_MIN_RECOVERY:
+        eligible = True
+    elif conviction >= 94 and upside >= 30:
+        eligible = True
 
-    if recovery_score >= FULL_RESEARCH_MIN_RECOVERY:
+    if eligible:
+        setattr(v421_should_run_full_research, "_used", used + 1)
         return True
-
-    if conviction >= 82 and upside >= 25:
-        return True
-
     return False
-
 
 def v421_build_light_committee(symbol: str, row: Dict[str, Any], meta: Dict[str, Any], ind: Dict[str, Any], hist: pd.DataFrame) -> Dict[str, Any]:
     """
@@ -3813,33 +3851,34 @@ def scan_market() -> Dict[str, Any]:
                     metadata_cache[symbol] = meta
                     continue
 
-                # V41.5: deep financial intelligence from FMP.
-                finance_meta = get_fmp_financial_intelligence(symbol)
-                if finance_meta:
-                    for key, value in finance_meta.items():
-                        if value not in (None, "", "Unknown"):
-                            meta[key] = value
+                # V42.6.1: skip expensive deep APIs during pre-rank pass.
+                # Full/deep enrichment should happen only for selected top names or live ticker research.
+                if not FAST_CRON_SKIP_PRE_RANK_DEEP_APIS:
+                    finance_meta = get_fmp_financial_intelligence(symbol)
+                    if finance_meta:
+                        for key, value in finance_meta.items():
+                            if value not in (None, "", "Unknown"):
+                                meta[key] = value
 
-                # V40.3: analyst intelligence from Finnhub.
-                finnhub_meta = get_finnhub_research(symbol)
-                if finnhub_meta:
-                    for key, value in finnhub_meta.items():
-                        if value not in (None, "", "Unknown"):
-                            meta[key] = value
+                    finnhub_meta = get_finnhub_research(symbol)
+                    if finnhub_meta:
+                        for key, value in finnhub_meta.items():
+                            if value not in (None, "", "Unknown"):
+                                meta[key] = value
 
-                # V41: insider intelligence from Finnhub.
-                insider_meta = get_finnhub_insider_activity(symbol)
-                if insider_meta:
-                    for key, value in insider_meta.items():
-                        if value not in (None, "", "Unknown"):
-                            meta[key] = value
+                    insider_meta = get_finnhub_insider_activity(symbol)
+                    if insider_meta:
+                        for key, value in insider_meta.items():
+                            if value not in (None, "", "Unknown"):
+                                meta[key] = value
 
-                # V40.3: news/catalyst intelligence from NewsAPI.
-                news_meta = get_news_research(symbol, meta.get("company_name", symbol))
-                if news_meta:
-                    for key, value in news_meta.items():
-                        if value not in (None, "", "Unknown"):
-                            meta[key] = value
+                    news_meta = get_news_research(symbol, meta.get("company_name", symbol))
+                    if news_meta:
+                        for key, value in news_meta.items():
+                            if value not in (None, "", "Unknown"):
+                                meta[key] = value
+                else:
+                    meta["fast_cron_pre_rank_deep_apis_skipped"] = True
 
                 metadata_cache[symbol] = meta
 
@@ -3854,7 +3893,10 @@ def scan_market() -> Dict[str, Any]:
                     if price_history:
                         etf_row.update(price_history)
                     etf_row = apply_research_field_fallbacks(etf_row, meta)
-                    etf_row = v42_build_committee(symbol, etf_row, meta, ind, hist)
+                    if FAST_CRON_MODE and len(etf_rows) >= ETF_FULL_COMMITTEE_LIMIT:
+                        etf_row = v421_build_light_committee(symbol, etf_row, meta, ind, hist)
+                    else:
+                        etf_row = v42_build_committee(symbol, etf_row, meta, ind, hist)
                     etf_rows.append(etf_row)
                 continue
 
@@ -3912,7 +3954,7 @@ def scan_market() -> Dict[str, Any]:
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V42.6",
+        "version": "V42.6.1",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -3922,6 +3964,9 @@ def scan_market() -> Dict[str, Any]:
         "data_dir": str(DATA_DIR),
         "github_persisted": False,
         "duration_seconds": round(time.time() - start_time, 2),
+        "fast_cron_mode": FAST_CRON_MODE,
+        "full_committee_limit": FULL_COMMITTEE_LIMIT,
+        "pre_rank_deep_apis_skipped": FAST_CRON_SKIP_PRE_RANK_DEEP_APIS,
         "filters": {
             "min_price": MIN_PRICE,
             "max_price": MAX_PRICE,
@@ -4118,7 +4163,7 @@ def main() -> None:
         error_state = {
             "generated_at": now_iso(),
             "status": "error",
-            "version": "V42.5.3",
+            "version": "V42.6.1",
             "error": str(exc),
             "data_dir": str(DATA_DIR),
             "github_persisted": False,

@@ -12,7 +12,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V42.6 Paid Client Intelligence + Robust Fallbacks"
+APP_VERSION = "V42.6.1 Fast Cron Enforcement"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -6313,10 +6313,18 @@ def render_v424_market_command_center():
 
 
 
+
+def render_v4261_cron_performance_note():
+    with st.expander("⚡ Cron Performance Mode", expanded=False):
+        st.markdown("V42.6.1 is designed to cut scheduled scan time by skipping expensive deep APIs during the pre-rank pass and hard-capping full committee work.")
+        st.markdown("Target: Top candidates get deeper agents; the rest stay lightweight until searched/opened live.")
+        st.caption("Recommended Render Cron env vars: FAST_CRON_MODE=true, FAST_CRON_SKIP_PRE_RANK_DEEP_APIS=true, FULL_COMMITTEE_LIMIT=15, ETF_FULL_COMMITTEE_LIMIT=10, HTTP_TIMEOUT_FAST=6")
+
 def main():
     if not dashboard_login_gate():
         return
     render_v424_market_command_center()
+    render_v4261_cron_performance_note()
     render_v4251_scanner_version_notice()
 
     render_status_banner()
