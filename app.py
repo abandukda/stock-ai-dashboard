@@ -1,9 +1,11 @@
 import os
+import xml.etree.ElementTree as ET
 import math
 import datetime as dt
 import json
 import csv
 from pathlib import Path
+from urllib.parse import quote_plus
 from io import StringIO
 
 import pandas as pd
@@ -13,7 +15,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V43.1 Clean Wiring + Paid Layout Fix"
+APP_VERSION = "V43.2 Data Intelligence + Paid Client UX"
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -7469,6 +7471,537 @@ def v431_prepare_display_df(df):
 
 
 
+
+# =========================
+# V43.2 DATA INTELLIGENCE + PAID CLIENT UX
+# =========================
+
+def v432_env_value(*names):
+    for n in names:
+        val = (globals().get(n) or os.getenv(n) or "").strip()
+        if val:
+            return val
+    return ""
+
+
+def v432_env_status():
+    keys = {
+        "APP_PASSWORD": v432_env_value("APP_PASSWORD"),
+        "GUEST_PASSWORD": v432_env_value("GUEST_PASSWORD"),
+        "FMP_API_KEY": v432_env_value("FMP_API_KEY"),
+        "FINNHUB_API_KEY": v432_env_value("FINNHUB_API_KEY", "FINNHUB_TOKEN"),
+        "NEWSAPI_KEY": v432_env_value("NEWSAPI_KEY", "NEWS_API_KEY"),
+        "ALPHA_VANTAGE_API_KEY": v432_env_value("ALPHA_VANTAGE_API_KEY", "ALPHAVANTAGE_API_KEY"),
+        "SEC_USER_AGENT": v432_env_value("SEC_USER_AGENT"),
+        "GITHUB_TOKEN": v432_env_value("GITHUB_TOKEN"),
+        "GITHUB_REPO_URL": v432_env_value("GITHUB_REPO_URL"),
+    }
+    return {k: {"configured": bool(v), "length": len(v)} for k, v in keys.items()}
+
+
+def v432_http_json(url, params=None, headers=None, timeout=8):
+    try:
+        r = requests.get(url, params=params or {}, headers=headers or {"User-Agent": "Mozilla/5.0"}, timeout=timeout)
+        if r.status_code == 200:
+            return r.json(), r.status_code
+        return None, r.status_code
+    except Exception:
+        return None, None
+
+
+def v432_http_text(url, params=None, headers=None, timeout=8):
+    try:
+        r = requests.get(url, params=params or {}, headers=headers or {"User-Agent": "Mozilla/5.0"}, timeout=timeout)
+        if r.status_code == 200:
+            return r.text, r.status_code
+        return None, r.status_code
+    except Exception:
+        return None, None
+
+
+@st.cache_data(ttl=900)
+def v432_market_news_items():
+    rows = []
+    diagnostics = []
+
+    news_key = v432_env_value("NEWSAPI_KEY", "NEWS_API_KEY")
+    if news_key:
+        data, status = v432_http_json(
+            "https://newsapi.org/v2/top-headlines",
+            params={"category": "business", "language": "en", "pageSize": 8, "apiKey": news_key},
+        )
+        diagnostics.append(f"NewsAPI status={status}")
+        if isinstance(data, dict):
+            for a in data.get("articles", [])[:8]:
+                title = safe_text(a.get("title"), "")
+                if title:
+                    rows.append({
+                        "headline": title,
+                        "source": safe_text((a.get("source") or {}).get("name"), "NewsAPI"),
+                        "url": safe_text(a.get("url"), ""),
+                        "published": safe_text(a.get("publishedAt"), ""),
+                        "provider": "NewsAPI",
+                    })
+    else:
+        diagnostics.append("NewsAPI missing")
+
+    finnhub_key = v432_env_value("FINNHUB_API_KEY", "FINNHUB_TOKEN")
+    if not rows and finnhub_key:
+        data, status = v432_http_json(
+            "https://finnhub.io/api/v1/news",
+            params={"category": "general", "token": finnhub_key},
+        )
+        diagnostics.append(f"Finnhub news status={status}")
+        if isinstance(data, list):
+            for a in data[:8]:
+                title = safe_text(a.get("headline"), "")
+                if title:
+                    rows.append({
+                        "headline": title,
+                        "source": safe_text(a.get("source"), "Finnhub"),
+                        "url": safe_text(a.get("url"), ""),
+                        "published": safe_text(a.get("datetime"), ""),
+                        "provider": "Finnhub",
+                    })
+    elif not finnhub_key:
+        diagnostics.append("Finnhub missing")
+
+    rss_sources = [
+        ("Yahoo Finance RSS", "https://finance.yahoo.com/news/rssindex"),
+        ("CNBC Business RSS", "https://www.cnbc.com/id/10001147/device/rss/rss.html"),
+        ("MarketWatch RSS", "https://feeds.content.dowjones.io/public/rss/mw_topstories"),
+    ]
+    if not rows:
+        for provider, url in rss_sources:
+            text, status = v432_http_text(url, timeout=8)
+            diagnostics.append(f"{provider} status={status}")
+            if not text:
+                continue
+            try:
+                root = ET.fromstring(text.encode("utf-8"))
+                for item in root.findall(".//item")[:8]:
+                    title_node = item.find("title")
+                    link_node = item.find("link")
+                    pub_node = item.find("pubDate")
+                    title = safe_text(title_node.text if title_node is not None else "", "")
+                    if title:
+                        rows.append({
+                            "headline": title,
+                            "source": provider,
+                            "url": safe_text(link_node.text if link_node is not None else "", ""),
+                            "published": safe_text(pub_node.text if pub_node is not None else "", ""),
+                            "provider": provider,
+                        })
+                if rows:
+                    break
+            except Exception:
+                continue
+
+    return {"rows": rows[:8], "diagnostics": diagnostics}
+
+
+def v432_market_news_summary():
+    data = v432_market_news_items()
+    rows = data.get("rows", [])
+    diagnostics = data.get("diagnostics", [])
+    if not rows:
+        return {
+            "status": "No headlines returned",
+            "sentiment": "Unknown",
+            "top": "No market headline source returned a usable headline.",
+            "rows": [],
+            "diagnostics": diagnostics,
+        }
+
+    joined = " ".join([r["headline"].lower() for r in rows])
+    bullish_terms = ["rally", "surge", "gain", "beat", "optimism", "growth", "record", "upgrade", "strong"]
+    bearish_terms = ["fall", "drop", "selloff", "recession", "inflation", "war", "tariff", "downgrade", "weak", "risk"]
+    bull_count = sum(t in joined for t in bullish_terms)
+    bear_count = sum(t in joined for t in bearish_terms)
+    sentiment = "Mixed / Neutral"
+    if bull_count > bear_count:
+        sentiment = "Constructive"
+    elif bear_count > bull_count:
+        sentiment = "Cautious"
+    return {"status": "Headlines available", "sentiment": sentiment, "top": rows[0]["headline"], "rows": rows, "diagnostics": diagnostics}
+
+
+@st.cache_data(ttl=900)
+def v432_company_news_items(ticker):
+    ticker = safe_text(ticker, "").upper().strip()
+    rows, diagnostics = [], []
+    if not ticker:
+        return {"rows": [], "diagnostics": ["ticker missing"]}
+
+    finnhub_key = v432_env_value("FINNHUB_API_KEY", "FINNHUB_TOKEN")
+    if finnhub_key:
+        end = dt.datetime.utcnow().date()
+        start = end - dt.timedelta(days=21)
+        data, status = v432_http_json(
+            "https://finnhub.io/api/v1/company-news",
+            params={"symbol": ticker, "from": start.isoformat(), "to": end.isoformat(), "token": finnhub_key},
+        )
+        diagnostics.append(f"Finnhub company-news status={status}")
+        if isinstance(data, list):
+            for a in data[:8]:
+                h = safe_text(a.get("headline"), "")
+                if h:
+                    rows.append({"headline": h, "source": safe_text(a.get("source"), "Finnhub"), "url": safe_text(a.get("url"), ""), "provider": "Finnhub company news"})
+
+    news_key = v432_env_value("NEWSAPI_KEY", "NEWS_API_KEY")
+    if not rows and news_key:
+        data, status = v432_http_json(
+            "https://newsapi.org/v2/everything",
+            params={"q": ticker, "language": "en", "sortBy": "publishedAt", "pageSize": 8, "apiKey": news_key},
+        )
+        diagnostics.append(f"NewsAPI company status={status}")
+        if isinstance(data, dict):
+            for a in data.get("articles", [])[:8]:
+                h = safe_text(a.get("title"), "")
+                if h:
+                    rows.append({"headline": h, "source": safe_text((a.get("source") or {}).get("name"), "NewsAPI"), "url": safe_text(a.get("url"), ""), "provider": "NewsAPI company search"})
+
+    if not rows:
+        url = f"https://feeds.finance.yahoo.com/rss/2.0/headline?s={quote_plus(ticker)}&region=US&lang=en-US"
+        text, status = v432_http_text(url, timeout=8)
+        diagnostics.append(f"Yahoo company RSS status={status}")
+        if text:
+            try:
+                root = ET.fromstring(text.encode("utf-8"))
+                for item in root.findall(".//item")[:8]:
+                    title_node = item.find("title")
+                    link_node = item.find("link")
+                    h = safe_text(title_node.text if title_node is not None else "", "")
+                    if h:
+                        rows.append({"headline": h, "source": "Yahoo Finance RSS", "url": safe_text(link_node.text if link_node is not None else "", ""), "provider": "Yahoo Finance RSS"})
+            except Exception:
+                pass
+
+    return {"rows": rows[:8], "diagnostics": diagnostics}
+
+
+def v432_news_intelligence(ticker):
+    data = v432_company_news_items(ticker)
+    rows = data.get("rows", [])
+    diagnostics = data.get("diagnostics", [])
+    if not rows:
+        return {"score": 45, "status": "Insufficient data", "summary": "No recent company headlines returned from connected/fallback sources.", "bullish": [], "bearish": ["News confidence is low because no source returned usable company headlines."], "rows": [], "diagnostics": diagnostics}
+    bullish_terms = ["beat", "raise", "upgrade", "growth", "record", "profit", "partnership", "contract", "launch", "approval"]
+    bearish_terms = ["miss", "cut", "downgrade", "lawsuit", "probe", "decline", "loss", "warning", "recall", "delay"]
+    bull = [r["headline"] for r in rows if any(t in r["headline"].lower() for t in bullish_terms)]
+    bear = [r["headline"] for r in rows if any(t in r["headline"].lower() for t in bearish_terms)]
+    score = max(0, min(100, 55 + min(20, len(bull) * 5) - min(20, len(bear) * 5)))
+    status = "Positive" if score >= 70 else ("Cautious" if score <= 45 else "Mixed")
+    return {"score": score, "status": status, "summary": f"{len(rows)} recent company headlines reviewed from available sources.", "bullish": bull[:3] or ["No clear bullish catalyst isolated from headlines."], "bearish": bear[:3] or ["No clear bearish headline risk isolated."], "rows": rows, "diagnostics": diagnostics}
+
+
+@st.cache_data(ttl=1800)
+def v432_analyst_intelligence(ticker, price=0, analyst_target=0, analyst_count=0):
+    ticker = safe_text(ticker, "").upper().strip()
+    out = {"consensus": analyst_target, "high": 0, "low": 0, "count": int(safe_number(analyst_count, 0)), "upgrades": [], "downgrades": [], "firm_rows": [], "source_notes": [], "rating_trend": "Unknown"}
+    if not ticker:
+        return out
+
+    if v432_env_value("FMP_API_KEY") and "v424_fmp_get" in globals():
+        try:
+            data = v424_fmp_get(f"price-target-consensus/{ticker}")
+            out["source_notes"].append("FMP price-target-consensus tried")
+            if isinstance(data, list) and data:
+                d = data[0]
+                out["consensus"] = safe_number(d.get("targetConsensus") or d.get("targetMean") or out["consensus"], out["consensus"])
+                out["high"] = safe_number(d.get("targetHigh") or d.get("targetHighPrice"), out["high"])
+                out["low"] = safe_number(d.get("targetLow") or d.get("targetLowPrice"), out["low"])
+                out["count"] = int(safe_number(d.get("numberOfAnalysts") or d.get("analystCount"), out["count"]))
+        except Exception as e:
+            out["source_notes"].append(f"FMP consensus failed: {e}")
+
+        try:
+            data = v424_fmp_get(f"upgrades-downgrades/{ticker}")
+            out["source_notes"].append("FMP upgrades-downgrades tried")
+            if isinstance(data, list):
+                for d in data[:12]:
+                    firm = safe_text(d.get("gradingCompany") or d.get("firm") or d.get("analystCompany"), "Analyst firm")
+                    new_grade = safe_text(d.get("newGrade") or d.get("rating") or "")
+                    old_grade = safe_text(d.get("previousGrade") or "")
+                    action = safe_text(d.get("action") or "")
+                    row = {"firm": firm, "action": action or new_grade, "rating": new_grade, "previous": old_grade, "date": safe_text(d.get("publishedDate") or d.get("date"), ""), "source": "FMP upgrades/downgrades"}
+                    txt = f"{action} {new_grade}".lower()
+                    if "upgrade" in txt or "buy" in txt or "overweight" in txt:
+                        out["upgrades"].append(row)
+                    elif "downgrade" in txt or "sell" in txt or "underweight" in txt:
+                        out["downgrades"].append(row)
+                    out["firm_rows"].append(row)
+        except Exception as e:
+            out["source_notes"].append(f"FMP upgrades failed: {e}")
+
+    finnhub_key = v432_env_value("FINNHUB_API_KEY", "FINNHUB_TOKEN")
+    if finnhub_key:
+        data, status = v432_http_json("https://finnhub.io/api/v1/stock/recommendation", params={"symbol": ticker, "token": finnhub_key})
+        out["source_notes"].append(f"Finnhub recommendation status={status}")
+        if isinstance(data, list) and data:
+            d = data[0]
+            strong_buy = int(safe_number(d.get("strongBuy"), 0))
+            buy = int(safe_number(d.get("buy"), 0))
+            hold = int(safe_number(d.get("hold"), 0))
+            sell = int(safe_number(d.get("sell"), 0)) + int(safe_number(d.get("strongSell"), 0))
+            out["rating_trend"] = "Bullish / positive recommendation mix" if strong_buy + buy > hold + sell else ("Bearish / negative recommendation mix" if sell > strong_buy + buy else "Mixed / hold-heavy recommendation mix")
+            if not out["count"]:
+                out["count"] = strong_buy + buy + hold + sell
+
+    if not out["high"] and analyst_target:
+        out["high"] = analyst_target * 1.15
+    if not out["low"] and analyst_target:
+        out["low"] = analyst_target * 0.85
+    out["upside"] = ((out["consensus"] - price) / price) * 100 if price and out["consensus"] else None
+    return out
+
+
+def v432_business_quality(row):
+    sector = safe_text(row.get("Sector"), "")
+    pe = safe_number(row.get("PE Ratio") or row.get("P/E") or row.get("Trailing PE"), None)
+    fpe = safe_number(row.get("Forward PE"), None)
+    peg = safe_number(row.get("PEG Ratio") or row.get("PEG"), None)
+    rev_growth = safe_number(row.get("Revenue Growth") or row.get("Revenue Growth %"), None)
+    eps_growth = safe_number(row.get("EPS Growth") or row.get("Earnings Growth %"), None)
+    analyst_count = int(safe_number(row.get("Analyst Count"), 0))
+
+    score = 68
+    confidence = "Medium"
+    positives, risks = [], []
+
+    if pe is not None:
+        if pe < 0:
+            score -= 18
+            risks.append(f"Negative P/E ({pe:.1f}) means current earnings are negative.")
+        elif pe <= 35:
+            score += 8
+            positives.append(f"P/E looks reasonable at {pe:.1f}.")
+        elif pe > 80:
+            score -= 8
+            risks.append(f"P/E is high at {pe:.1f}.")
+    elif fpe is not None:
+        if fpe > 0 and fpe <= 35:
+            score += 7
+            positives.append(f"Forward P/E is reasonable at {fpe:.1f}.")
+        elif fpe < 0:
+            score -= 12
+            risks.append(f"Forward P/E is negative ({fpe:.1f}).")
+        else:
+            risks.append("Trailing P/E unavailable; using forward valuation only.")
+    else:
+        confidence = "Low-Medium"
+        risks.append("Profitability valuation metric is unavailable; quality confidence is lower, not automatically negative.")
+
+    if peg is not None:
+        if 0 < peg <= 1.5:
+            score += 7
+            positives.append(f"PEG ratio appears attractive at {peg:.2f}.")
+        elif peg > 3:
+            score -= 5
+            risks.append(f"PEG ratio is elevated at {peg:.2f}.")
+
+    if rev_growth is not None:
+        if rev_growth >= 20:
+            score += 8
+            positives.append(f"Revenue growth is strong at {rev_growth:.1f}%.")
+        elif rev_growth < 0:
+            score -= 8
+            risks.append("Revenue growth is negative.")
+
+    if eps_growth is not None:
+        if eps_growth >= 10:
+            score += 6
+            positives.append(f"EPS growth is positive at {eps_growth:.1f}%.")
+        elif eps_growth < 0:
+            score -= 8
+            risks.append("EPS growth is negative.")
+
+    if analyst_count >= 20:
+        score += 4
+        positives.append(f"Strong analyst coverage ({analyst_count} analysts).")
+    elif analyst_count and analyst_count < 5:
+        score -= 3
+        risks.append("Limited analyst coverage.")
+
+    if "biotech" in sector.lower() or "therapeutic" in safe_text(row.get("Company"), "").lower():
+        if pe is not None and pe < 0:
+            score -= 10
+            risks.append("Unprofitable biotech/therapeutics name should be treated as speculative.")
+
+    score = max(0, min(100, round(score)))
+    tier = "🏆 Quality Compounder" if score >= 85 else ("📈 Growth Leader" if score >= 70 else ("🔄 Recovery / Mixed Quality" if score >= 55 else "⚠️ Speculative"))
+    if not positives:
+        positives = ["Some quality inputs are constructive, but more data would improve confidence."]
+    if not risks:
+        risks = ["No major business-quality red flag from available fields."]
+    return {"score": score, "tier": tier, "confidence": confidence, "positives": positives[:5], "flags": risks[:5], "pe": pe, "fpe": fpe, "peg": peg}
+
+
+def v432_agent_data_grade(row):
+    committee = row.get("AI Committee")
+    if not isinstance(committee, dict):
+        return {"full": 0, "partial": 0, "deferred": 0, "grade": "Limited"}
+    full = partial = deferred = 0
+    for _, agent in committee.items():
+        if not isinstance(agent, dict):
+            continue
+        status = safe_text(agent.get("status"), "").lower()
+        if "deferred" in status or "not connected" in status:
+            deferred += 1
+        elif "limited" in status or "mixed" in status:
+            partial += 1
+        else:
+            full += 1
+    grade = "Strong" if full >= 5 else ("Moderate" if full >= 3 else "Lightweight")
+    return {"full": full, "partial": partial, "deferred": deferred, "grade": grade}
+
+
+def render_v432_news_panel(row):
+    n = v432_news_intelligence(safe_text(row.get("Ticker"), ""))
+    with st.container(border=True):
+        st.markdown("### 📰 News Intelligence")
+        c1, c2 = st.columns(2)
+        c1.metric("News Score", f"{n['score']}/100")
+        c2.metric("Status", n["status"])
+        st.caption(n["summary"])
+        left, right = st.columns(2)
+        with left:
+            st.markdown("**Bullish / supportive headlines**")
+            for x in n["bullish"][:3]:
+                st.markdown(f"✓ {safe_text(x)}")
+        with right:
+            st.markdown("**Bearish / risk headlines**")
+            for x in n["bearish"][:3]:
+                st.markdown(f"⚠️ {safe_text(x)}")
+        with st.expander("News source diagnostics", expanded=False):
+            for d in n["diagnostics"]:
+                st.caption(d)
+
+
+def render_v432_analyst_panel(row):
+    ticker = safe_text(row.get("Ticker"), "")
+    price = safe_number(row.get("Price"), 0)
+    a = v432_analyst_intelligence(ticker, price=price, analyst_target=safe_number(row.get("Analyst Target"), 0), analyst_count=safe_number(row.get("Analyst Count"), 0))
+    with st.container(border=True):
+        st.markdown("### 🏦 Analyst Intelligence V2")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Consensus", v43_money(a.get("consensus")) if a.get("consensus") else "N/A")
+        c2.metric("Upside", f"{a.get('upside'):.1f}%" if a.get("upside") is not None else "N/A")
+        c3.metric("High / Low", f"{v43_money(a.get('high'))} / {v43_money(a.get('low'))}" if a.get("high") or a.get("low") else "N/A")
+        c4.metric("Coverage", str(a.get("count") or "N/A"))
+        st.caption(f"Rating trend: {a.get('rating_trend', 'Unknown')}")
+        if a.get("firm_rows"):
+            st.markdown("**Recent firm-level actions returned by source**")
+            st.dataframe(pd.DataFrame(a["firm_rows"][:6]), use_container_width=True, hide_index=True)
+        else:
+            st.warning("Firm-level top analyst rows were not returned by the available source/API plan. Using consensus target, high/low, coverage, and recommendation trend.")
+        with st.expander("Analyst source diagnostics", expanded=False):
+            for d in a.get("source_notes", []):
+                st.caption(d)
+
+
+def render_v432_data_confidence_panel(row):
+    grade = v432_agent_data_grade(row)
+    q = v432_business_quality(row)
+    with st.container(border=True):
+        st.markdown("### 🧪 Data Confidence")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Overall Data Grade", grade["grade"])
+        c2.metric("Full Agents", grade["full"])
+        c3.metric("Partial Agents", grade["partial"])
+        c4.metric("Deferred", grade["deferred"])
+        st.caption(f"Business quality confidence: {q.get('confidence', 'N/A')}. Deferred agents are not treated as primary buy signals.")
+
+
+def render_v432_source_diagnostics():
+    with st.expander("🔌 Source Diagnostics", expanded=False):
+        rows = [{"Variable": k, "Detected": "Yes" if v["configured"] else "No", "Length": v["length"]} for k, v in v432_env_status().items()]
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        mn = v432_market_news_items()
+        st.markdown("**Market news test:**")
+        for d in mn.get("diagnostics", []):
+            st.caption(d)
+
+
+def render_v424_market_command_center():
+    st.markdown("## 🧭 Market Command Center")
+    if "v43_market_regime" in globals():
+        regime, regime_score = v43_market_regime()
+        st.metric("Market Regime", regime, f"{regime_score:.0f}/100")
+
+    quotes = v424_market_quotes()
+    if quotes:
+        cols = st.columns(min(5, len(quotes)))
+        for i, q in enumerate(quotes[:5]):
+            pct = v424_float(q.get("change_pct"), None) if "v424_float" in globals() else safe_number(q.get("change_pct"), None)
+            delta = f"{pct:+.2f}%" if pct is not None else None
+            label = q.get("display_label") or q.get("symbol", "")
+            cols[i].metric(label, v43_money(q.get("price")) if "v43_money" in globals() else fmt_money(q.get("price")), delta)
+            cols[i].caption(safe_text(q.get("source"), ""))
+    else:
+        st.warning("Market quotes unavailable from connected and fallback sources.")
+
+    econ = v424_economic_calendar()
+    earnings = v424_earnings_today()
+    news = v432_market_news_summary()
+
+    c1, c2 = st.columns(2)
+    with c1:
+        with st.container(border=True):
+            st.markdown("### 🗓️ Economic Calendar")
+            st.caption(f"Source: {safe_text(econ.get('source'), 'Unknown')}")
+            events = (econ.get("today") or []) or (econ.get("next") or [])
+            if events:
+                for e in events[:5]:
+                    if "v4253_render_event_line" in globals():
+                        st.markdown(f"• {v4253_render_event_line(e)}")
+                    else:
+                        st.markdown(f"• **{safe_text(e.get('event'))}** — {safe_text(e.get('date'))}")
+            else:
+                st.warning("No economic calendar data returned.")
+
+    with c2:
+        with st.container(border=True):
+            st.markdown("### 💼 Earnings Due Today")
+            st.caption("Source priority: FMP → Finnhub → Nasdaq → Alpha Vantage → Yahoo")
+            if earnings:
+                edf = pd.DataFrame(earnings)
+                preferred = [c for c in ["Company", "Ticker", "Symbol", "Date", "Time", "EPS Est", "Revenue Est", "Source"] if c in edf.columns]
+                st.dataframe(edf[preferred] if preferred else edf, use_container_width=True, hide_index=True)
+            else:
+                st.warning("No earnings returned from any connected/fallback source today.")
+
+    with st.container(border=True):
+        st.markdown("### 📰 Market News Intelligence")
+        c1, c2 = st.columns(2)
+        c1.metric("Status", news["status"])
+        c2.metric("Sentiment", news["sentiment"])
+        st.markdown(f"**Top headline:** {safe_text(news['top'])}")
+        for r in news.get("rows", [])[:5]:
+            h, src, url = safe_text(r.get("headline"), ""), safe_text(r.get("source"), ""), safe_text(r.get("url"), "")
+            st.markdown(f"• [{h}]({url}) · _{src}_" if url else f"• {h} · _{src}_")
+        with st.expander("Market news diagnostics", expanded=False):
+            for d in news.get("diagnostics", []):
+                st.caption(d)
+
+    render_v432_source_diagnostics()
+
+
+def v431_get_quality(row):
+    return v432_business_quality(row)
+
+
+def render_v431_professional_research_card(row):
+    render_v431_decision_card(row)
+    render_v431_targets_card(row)
+    render_v432_data_confidence_panel(row)
+    render_v431_business_quality_agent(row)
+    render_v432_analyst_panel(row)
+    render_v432_news_panel(row)
+    render_v431_agent_summary(row)
+
+
+
 def main():
     if not dashboard_login_gate():
         return
@@ -7555,6 +8088,37 @@ def render_detail(row):
 
     render_v431_advanced_legacy_sections(row)
 
+    with st.expander("Raw row data", expanded=False):
+        try:
+            st.json(row if isinstance(row, dict) else dict(row))
+        except Exception:
+            st.write(row)
+
+
+
+# =========================
+# V43.2 FINAL OVERRIDES GUARANTEE
+# =========================
+def v431_get_quality(row):
+    return v432_business_quality(row)
+
+def render_v431_professional_research_card(row):
+    render_v431_decision_card(row)
+    render_v431_targets_card(row)
+    render_v432_data_confidence_panel(row)
+    render_v431_business_quality_agent(row)
+    render_v432_analyst_panel(row)
+    render_v432_news_panel(row)
+    render_v431_agent_summary(row)
+
+def render_detail(row):
+    render_v431_professional_research_card(row)
+    if "render_detail_chart_v4184" in globals():
+        try:
+            render_detail_chart_v4184(row)
+        except Exception:
+            pass
+    render_v431_advanced_legacy_sections(row)
     with st.expander("Raw row data", expanded=False):
         try:
             st.json(row if isinstance(row, dict) else dict(row))

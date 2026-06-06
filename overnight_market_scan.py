@@ -3954,7 +3954,7 @@ def scan_market() -> Dict[str, Any]:
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V43.1",
+        "version": "V43.2",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -4393,3 +4393,20 @@ def v431s_apply_final_score_overlay(rows):
 # - legacy Final Conviction overwritten with V43 Score after scan overlay
 # - V43 fields written into scan rows
 # - old 96/97 score compression reduced once scan output uses overlay
+
+
+
+# =========================
+# V43.2 SCANNER DATA INTELLIGENCE MARKERS
+# =========================
+def v432s_source_config_status():
+    import os
+    names = ["FMP_API_KEY", "FINNHUB_API_KEY", "NEWSAPI_KEY", "ALPHA_VANTAGE_API_KEY", "SEC_USER_AGENT", "GITHUB_TOKEN", "GITHUB_REPO_URL"]
+    return {n: {"configured": bool((os.getenv(n) or "").strip()), "length": len((os.getenv(n) or "").strip())} for n in names}
+
+# V43.2 changes:
+# - app-level NewsAPI/Finnhub/Yahoo/CNBC/MarketWatch news fallback
+# - Analyst Intelligence V2 source diagnostics and upgrade/downgrade attempts
+# - improved business quality logic: missing P/E lowers confidence, not score collapse
+# - data confidence panel
+# - source diagnostics panel
