@@ -15,7 +15,36 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V43.2 Data Intelligence + Paid Client UX"
+APP_VERSION = "V43.2.1 Strict Environment Names Fix"
+
+
+# =========================
+# V43.2.1 STRICT ENVIRONMENT VARIABLE NAMES
+# =========================
+# Exact Render variable names supported. No legacy aliases.
+APP_PASSWORD = os.getenv("APP_PASSWORD", "").strip()
+GUEST_PASSWORD = os.getenv("GUEST_PASSWORD", "").strip()
+
+FMP_API_KEY = os.getenv("FMP_API_KEY", "").strip()
+FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "").strip()
+NEWSAPI_KEY = os.getenv("NEWSAPI_KEY", "").strip()
+ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY", "").strip()
+SEC_USER_AGENT = os.getenv("SEC_USER_AGENT", "").strip()
+
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "").strip()
+GITHUB_REPO_URL = os.getenv("GITHUB_REPO_URL", "").strip()
+DATA_DIR = os.getenv("DATA_DIR", ".").strip() or "."
+
+def strict_env(name, default=""):
+    """Read one exact environment variable name only."""
+    return os.getenv(name, default).strip()
+
+def strict_env_len(name):
+    return len(strict_env(name, ""))
+
+def strict_env_detected(name):
+    return bool(strict_env(name, ""))
+
 
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -8124,3 +8153,274 @@ def render_detail(row):
             st.json(row if isinstance(row, dict) else dict(row))
         except Exception:
             st.write(row)
+
+
+
+# =========================
+# V43.2.1 FINAL STRICT ENV OVERRIDES
+# =========================
+def v432_env_value(name):
+    """
+    Strict V43.2.1: one exact Render environment variable name only.
+    No aliases such as NEWS_API_KEY, FINNHUB_TOKEN, VIEW_PASSWORD, or VIEWER_PASSWORD.
+    """
+    return os.getenv(str(name), "").strip()
+
+
+def v432_env_status():
+    names = [
+        "APP_PASSWORD",
+        "GUEST_PASSWORD",
+        "FMP_API_KEY",
+        "FINNHUB_API_KEY",
+        "NEWSAPI_KEY",
+        "ALPHA_VANTAGE_API_KEY",
+        "SEC_USER_AGENT",
+        "GITHUB_TOKEN",
+        "GITHUB_REPO_URL",
+        "DATA_DIR",
+    ]
+    return {
+        n: {
+            "configured": bool(os.getenv(n, "").strip()),
+            "length": len(os.getenv(n, "").strip()),
+        }
+        for n in names
+    }
+
+
+def v432_debug_key_readout():
+    """
+    Safe diagnostics only: never prints actual secrets.
+    """
+    status = v432_env_status()
+    return [
+        {
+            "Variable": k,
+            "Detected": "Yes" if v["configured"] else "No",
+            "Length": v["length"],
+        }
+        for k, v in status.items()
+    ]
+
+
+def render_v432_source_diagnostics():
+    with st.expander("🔌 Source Diagnostics", expanded=False):
+        st.markdown("**Strict V43.2.1 environment names. No aliases are checked.**")
+        st.dataframe(pd.DataFrame(v432_debug_key_readout()), use_container_width=True, hide_index=True)
+
+        st.markdown("**Market news test:**")
+        mn = v432_market_news_items()
+        for d in mn.get("diagnostics", []):
+            st.caption(d)
+
+
+# Patch market news/company news/analyst functions to call exact names.
+# Existing functions call v432_env_value(...). Since V43.2.1 v432_env_value accepts one
+# exact name, override the functions that previously passed aliases.
+
+@st.cache_data(ttl=900)
+def v432_market_news_items():
+    rows = []
+    diagnostics = []
+
+    news_key = v432_env_value("NEWSAPI_KEY")
+    if news_key:
+        data, status = v432_http_json(
+            "https://newsapi.org/v2/top-headlines",
+            params={"category": "business", "language": "en", "pageSize": 8, "apiKey": news_key},
+        )
+        diagnostics.append(f"NEWSAPI_KEY detected length={len(news_key)}; NewsAPI status={status}")
+        if isinstance(data, dict):
+            for a in data.get("articles", [])[:8]:
+                title = safe_text(a.get("title"), "")
+                if title:
+                    rows.append({
+                        "headline": title,
+                        "source": safe_text((a.get("source") or {}).get("name"), "NewsAPI"),
+                        "url": safe_text(a.get("url"), ""),
+                        "published": safe_text(a.get("publishedAt"), ""),
+                        "provider": "NewsAPI",
+                    })
+    else:
+        diagnostics.append("NEWSAPI_KEY missing or blank")
+
+    finnhub_key = v432_env_value("FINNHUB_API_KEY")
+    if not rows and finnhub_key:
+        data, status = v432_http_json(
+            "https://finnhub.io/api/v1/news",
+            params={"category": "general", "token": finnhub_key},
+        )
+        diagnostics.append(f"FINNHUB_API_KEY detected length={len(finnhub_key)}; Finnhub news status={status}")
+        if isinstance(data, list):
+            for a in data[:8]:
+                title = safe_text(a.get("headline"), "")
+                if title:
+                    rows.append({
+                        "headline": title,
+                        "source": safe_text(a.get("source"), "Finnhub"),
+                        "url": safe_text(a.get("url"), ""),
+                        "published": safe_text(a.get("datetime"), ""),
+                        "provider": "Finnhub",
+                    })
+    elif not finnhub_key:
+        diagnostics.append("FINNHUB_API_KEY missing or blank")
+
+    rss_sources = [
+        ("Yahoo Finance RSS", "https://finance.yahoo.com/news/rssindex"),
+        ("CNBC Business RSS", "https://www.cnbc.com/id/10001147/device/rss/rss.html"),
+        ("MarketWatch RSS", "https://feeds.content.dowjones.io/public/rss/mw_topstories"),
+    ]
+    if not rows:
+        for provider, url in rss_sources:
+            text, status = v432_http_text(url, timeout=8)
+            diagnostics.append(f"{provider} status={status}")
+            if not text:
+                continue
+            try:
+                root = ET.fromstring(text.encode("utf-8"))
+                for item in root.findall(".//item")[:8]:
+                    title_node = item.find("title")
+                    link_node = item.find("link")
+                    pub_node = item.find("pubDate")
+                    title = safe_text(title_node.text if title_node is not None else "", "")
+                    if title:
+                        rows.append({
+                            "headline": title,
+                            "source": provider,
+                            "url": safe_text(link_node.text if link_node is not None else "", ""),
+                            "published": safe_text(pub_node.text if pub_node is not None else "", ""),
+                            "provider": provider,
+                        })
+                if rows:
+                    break
+            except Exception as e:
+                diagnostics.append(f"{provider} parse failed: {e}")
+                continue
+
+    return {"rows": rows[:8], "diagnostics": diagnostics}
+
+
+@st.cache_data(ttl=900)
+def v432_company_news_items(ticker):
+    ticker = safe_text(ticker, "").upper().strip()
+    rows, diagnostics = [], []
+    if not ticker:
+        return {"rows": [], "diagnostics": ["ticker missing"]}
+
+    finnhub_key = v432_env_value("FINNHUB_API_KEY")
+    if finnhub_key:
+        end = dt.datetime.utcnow().date()
+        start = end - dt.timedelta(days=21)
+        data, status = v432_http_json(
+            "https://finnhub.io/api/v1/company-news",
+            params={"symbol": ticker, "from": start.isoformat(), "to": end.isoformat(), "token": finnhub_key},
+        )
+        diagnostics.append(f"FINNHUB_API_KEY detected length={len(finnhub_key)}; Finnhub company-news status={status}")
+        if isinstance(data, list):
+            for a in data[:8]:
+                h = safe_text(a.get("headline"), "")
+                if h:
+                    rows.append({"headline": h, "source": safe_text(a.get("source"), "Finnhub"), "url": safe_text(a.get("url"), ""), "provider": "Finnhub company news"})
+    else:
+        diagnostics.append("FINNHUB_API_KEY missing or blank")
+
+    news_key = v432_env_value("NEWSAPI_KEY")
+    if not rows and news_key:
+        data, status = v432_http_json(
+            "https://newsapi.org/v2/everything",
+            params={"q": ticker, "language": "en", "sortBy": "publishedAt", "pageSize": 8, "apiKey": news_key},
+        )
+        diagnostics.append(f"NEWSAPI_KEY detected length={len(news_key)}; NewsAPI company status={status}")
+        if isinstance(data, dict):
+            for a in data.get("articles", [])[:8]:
+                h = safe_text(a.get("title"), "")
+                if h:
+                    rows.append({"headline": h, "source": safe_text((a.get("source") or {}).get("name"), "NewsAPI"), "url": safe_text(a.get("url"), ""), "provider": "NewsAPI company search"})
+    elif not news_key:
+        diagnostics.append("NEWSAPI_KEY missing or blank")
+
+    if not rows:
+        url = f"https://feeds.finance.yahoo.com/rss/2.0/headline?s={quote_plus(ticker)}&region=US&lang=en-US"
+        text, status = v432_http_text(url, timeout=8)
+        diagnostics.append(f"Yahoo company RSS status={status}")
+        if text:
+            try:
+                root = ET.fromstring(text.encode("utf-8"))
+                for item in root.findall(".//item")[:8]:
+                    title_node = item.find("title")
+                    link_node = item.find("link")
+                    h = safe_text(title_node.text if title_node is not None else "", "")
+                    if h:
+                        rows.append({"headline": h, "source": "Yahoo Finance RSS", "url": safe_text(link_node.text if link_node is not None else "", ""), "provider": "Yahoo Finance RSS"})
+            except Exception as e:
+                diagnostics.append(f"Yahoo company RSS parse failed: {e}")
+
+    return {"rows": rows[:8], "diagnostics": diagnostics}
+
+
+@st.cache_data(ttl=1800)
+def v432_analyst_intelligence(ticker, price=0, analyst_target=0, analyst_count=0):
+    ticker = safe_text(ticker, "").upper().strip()
+    out = {"consensus": analyst_target, "high": 0, "low": 0, "count": int(safe_number(analyst_count, 0)), "upgrades": [], "downgrades": [], "firm_rows": [], "source_notes": [], "rating_trend": "Unknown"}
+    if not ticker:
+        return out
+
+    fmp_key = v432_env_value("FMP_API_KEY")
+    if fmp_key and "v424_fmp_get" in globals():
+        try:
+            data = v424_fmp_get(f"price-target-consensus/{ticker}")
+            out["source_notes"].append(f"FMP_API_KEY detected length={len(fmp_key)}; FMP price-target-consensus tried")
+            if isinstance(data, list) and data:
+                d = data[0]
+                out["consensus"] = safe_number(d.get("targetConsensus") or d.get("targetMean") or out["consensus"], out["consensus"])
+                out["high"] = safe_number(d.get("targetHigh") or d.get("targetHighPrice"), out["high"])
+                out["low"] = safe_number(d.get("targetLow") or d.get("targetLowPrice"), out["low"])
+                out["count"] = int(safe_number(d.get("numberOfAnalysts") or d.get("analystCount"), out["count"]))
+        except Exception as e:
+            out["source_notes"].append(f"FMP consensus failed: {e}")
+
+        try:
+            data = v424_fmp_get(f"upgrades-downgrades/{ticker}")
+            out["source_notes"].append("FMP upgrades-downgrades tried")
+            if isinstance(data, list):
+                for d in data[:12]:
+                    firm = safe_text(d.get("gradingCompany") or d.get("firm") or d.get("analystCompany"), "Analyst firm")
+                    new_grade = safe_text(d.get("newGrade") or d.get("rating") or "")
+                    old_grade = safe_text(d.get("previousGrade") or "")
+                    action = safe_text(d.get("action") or "")
+                    row = {"firm": firm, "action": action or new_grade, "rating": new_grade, "previous": old_grade, "date": safe_text(d.get("publishedDate") or d.get("date"), ""), "source": "FMP upgrades/downgrades"}
+                    txt = f"{action} {new_grade}".lower()
+                    if "upgrade" in txt or "buy" in txt or "overweight" in txt:
+                        out["upgrades"].append(row)
+                    elif "downgrade" in txt or "sell" in txt or "underweight" in txt:
+                        out["downgrades"].append(row)
+                    out["firm_rows"].append(row)
+        except Exception as e:
+            out["source_notes"].append(f"FMP upgrades failed: {e}")
+    else:
+        out["source_notes"].append("FMP_API_KEY missing/blank or FMP helper unavailable")
+
+    finnhub_key = v432_env_value("FINNHUB_API_KEY")
+    if finnhub_key:
+        data, status = v432_http_json("https://finnhub.io/api/v1/stock/recommendation", params={"symbol": ticker, "token": finnhub_key})
+        out["source_notes"].append(f"FINNHUB_API_KEY detected length={len(finnhub_key)}; Finnhub recommendation status={status}")
+        if isinstance(data, list) and data:
+            d = data[0]
+            strong_buy = int(safe_number(d.get("strongBuy"), 0))
+            buy = int(safe_number(d.get("buy"), 0))
+            hold = int(safe_number(d.get("hold"), 0))
+            sell = int(safe_number(d.get("sell"), 0)) + int(safe_number(d.get("strongSell"), 0))
+            out["rating_trend"] = "Bullish / positive recommendation mix" if strong_buy + buy > hold + sell else ("Bearish / negative recommendation mix" if sell > strong_buy + buy else "Mixed / hold-heavy recommendation mix")
+            if not out["count"]:
+                out["count"] = strong_buy + buy + hold + sell
+    else:
+        out["source_notes"].append("FINNHUB_API_KEY missing/blank")
+
+    if not out["high"] and analyst_target:
+        out["high"] = analyst_target * 1.15
+    if not out["low"] and analyst_target:
+        out["low"] = analyst_target * 0.85
+    out["upside"] = ((out["consensus"] - price) / price) * 100 if price and out["consensus"] else None
+    return out
+

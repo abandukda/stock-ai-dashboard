@@ -3954,7 +3954,7 @@ def scan_market() -> Dict[str, Any]:
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V43.2",
+        "version": "V43.2.1",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -4410,3 +4410,36 @@ def v432s_source_config_status():
 # - improved business quality logic: missing P/E lowers confidence, not score collapse
 # - data confidence panel
 # - source diagnostics panel
+
+
+
+# =========================
+# V43.2.1 STRICT SCANNER ENVIRONMENT VARIABLE NAMES
+# =========================
+# Exact Render variable names only. No legacy aliases.
+def v432s_source_config_status():
+    import os
+    names = [
+        "APP_PASSWORD",
+        "GUEST_PASSWORD",
+        "FMP_API_KEY",
+        "FINNHUB_API_KEY",
+        "NEWSAPI_KEY",
+        "ALPHA_VANTAGE_API_KEY",
+        "SEC_USER_AGENT",
+        "GITHUB_TOKEN",
+        "GITHUB_REPO_URL",
+        "DATA_DIR",
+    ]
+    return {
+        n: {
+            "configured": bool((os.getenv(n) or "").strip()),
+            "length": len((os.getenv(n) or "").strip())
+        }
+        for n in names
+    }
+
+# V43.2.1 changes:
+# - strict 1:1 Render variable names only
+# - removed alias logic for NEWS_API_KEY, FINNHUB_TOKEN, VIEW_PASSWORD, VIEWER_PASSWORD
+# - source diagnostics report detected length safely without exposing secrets
