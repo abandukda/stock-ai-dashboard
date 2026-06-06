@@ -15,7 +15,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V43.2.1 Strict Environment Names Fix"
+APP_VERSION = "V44.0 Paid Client Intelligence Upgrade"
 
 
 # =========================
@@ -8031,6 +8031,489 @@ def render_v431_professional_research_card(row):
 
 
 
+
+# =========================
+# V44.0 PAID CLIENT INTELLIGENCE UPGRADE
+# =========================
+
+def v44_secret(name, default=""):
+    """Read Streamlit Secrets first, then environment variables."""
+    try:
+        if hasattr(st, "secrets") and name in st.secrets:
+            return str(st.secrets.get(name, default)).strip()
+    except Exception:
+        pass
+    return os.getenv(name, default).strip()
+
+
+def v44_float(x, default=0.0):
+    try:
+        if x in (None, "", "N/A", "None"):
+            return default
+        if isinstance(x, str):
+            x = x.replace("$", "").replace(",", "").replace("%", "").strip()
+        return float(x)
+    except Exception:
+        return default
+
+
+def v44_money(x):
+    x = v44_float(x, None)
+    return "N/A" if x is None else f"${x:,.2f}"
+
+
+@st.cache_data(ttl=900)
+def v44_market_news_items():
+    rows, diag = [], []
+    news_key = v44_secret("NEWSAPI_KEY")
+    if news_key:
+        q = '(stock market OR "S&P 500" OR Nasdaq OR Federal Reserve OR earnings OR inflation OR treasury OR semiconductor)'
+        data, status = v432_http_json(
+            "https://newsapi.org/v2/everything",
+            params={"q": q, "language": "en", "sortBy": "publishedAt", "pageSize": 10, "apiKey": news_key},
+        )
+        diag.append(f"NEWSAPI_KEY detected length={len(news_key)}; NewsAPI market-query status={status}")
+        if isinstance(data, dict):
+            for a in data.get("articles", [])[:10]:
+                h = safe_text(a.get("title"), "")
+                if h:
+                    rows.append({
+                        "headline": h,
+                        "source": safe_text((a.get("source") or {}).get("name"), "NewsAPI"),
+                        "url": safe_text(a.get("url"), ""),
+                        "provider": "NewsAPI market query",
+                    })
+    else:
+        diag.append("NEWSAPI_KEY missing or blank")
+
+    finnhub_key = v44_secret("FINNHUB_API_KEY")
+    if not rows and finnhub_key:
+        data, status = v432_http_json("https://finnhub.io/api/v1/news", params={"category": "general", "token": finnhub_key})
+        diag.append(f"FINNHUB_API_KEY detected length={len(finnhub_key)}; Finnhub status={status}")
+        if isinstance(data, list):
+            for a in data[:10]:
+                h = safe_text(a.get("headline"), "")
+                if h:
+                    rows.append({"headline": h, "source": safe_text(a.get("source"), "Finnhub"), "url": safe_text(a.get("url"), ""), "provider": "Finnhub"})
+
+    if not rows:
+        for provider, url in [
+            ("Yahoo Finance RSS", "https://finance.yahoo.com/news/rssindex"),
+            ("CNBC Business RSS", "https://www.cnbc.com/id/10001147/device/rss/rss.html"),
+            ("MarketWatch RSS", "https://feeds.content.dowjones.io/public/rss/mw_topstories"),
+        ]:
+            text, status = v432_http_text(url, timeout=8)
+            diag.append(f"{provider} status={status}")
+            if not text:
+                continue
+            try:
+                root = ET.fromstring(text.encode("utf-8"))
+                for item in root.findall(".//item")[:10]:
+                    title = safe_text(item.findtext("title"), "")
+                    link = safe_text(item.findtext("link"), "")
+                    if title:
+                        rows.append({"headline": title, "source": provider, "url": link, "provider": provider})
+                if rows:
+                    break
+            except Exception as e:
+                diag.append(f"{provider} parse failed: {e}")
+
+    return {"rows": rows[:10], "diagnostics": diag}
+
+
+def v44_news_sentiment(rows):
+    bullish = ["rally", "surge", "gain", "jumps", "record", "beat", "raises", "upgrade", "strong", "breakout", "growth"]
+    bearish = ["sell-off", "selloff", "slump", "drops", "falls", "miss", "cuts", "downgrade", "inflation", "tariff", "recession", "layoff", "probe", "weak", "warning", "risk"]
+    bulls, bears = [], []
+    for r in rows:
+        h = safe_text(r.get("headline"), "")
+        low = h.lower()
+        if any(t in low for t in bullish):
+            bulls.append(h)
+        if any(t in low for t in bearish):
+            bears.append(h)
+    score = max(0, min(100, 50 + min(25, len(bulls)*6) - min(25, len(bears)*6)))
+    sentiment = "Constructive" if score >= 62 else ("Cautious" if score <= 42 else "Mixed / Neutral")
+    return {"score": score, "sentiment": sentiment, "bullish": bulls[:3], "bearish": bears[:3]}
+
+
+def v44_market_news_summary():
+    data = v44_market_news_items()
+    rows = data.get("rows", [])
+    s = v44_news_sentiment(rows)
+    return {
+        "status": "Headlines available" if rows else "No headlines returned",
+        "sentiment": s["sentiment"],
+        "score": s["score"],
+        "top": rows[0]["headline"] if rows else "No market headline source returned a usable headline.",
+        "rows": rows,
+        "bullish": s["bullish"],
+        "bearish": s["bearish"],
+        "diagnostics": data.get("diagnostics", []),
+    }
+
+
+@st.cache_data(ttl=1800)
+def v44_fmp_extra(ticker):
+    out = {"profile": {}, "metrics": {}, "income": {}, "cashflow": {}, "diagnostics": []}
+    ticker = safe_text(ticker, "").upper().strip()
+    if not ticker or not v44_secret("FMP_API_KEY") or "v424_fmp_get" not in globals():
+        out["diagnostics"].append("FMP unavailable or ticker missing")
+        return out
+    for key, endpoint, params in [
+        ("profile", f"profile/{ticker}", None),
+        ("metrics", f"key-metrics-ttm/{ticker}", None),
+        ("income", f"income-statement/{ticker}", {"limit": 1}),
+        ("cashflow", f"cash-flow-statement/{ticker}", {"limit": 1}),
+    ]:
+        try:
+            data = v424_fmp_get(endpoint, params)
+            out["diagnostics"].append(f"FMP {endpoint} tried")
+            if isinstance(data, list) and data:
+                out[key] = data[0]
+            elif isinstance(data, dict):
+                out[key] = data
+        except Exception as e:
+            out["diagnostics"].append(f"FMP {endpoint} failed: {e}")
+    return out
+
+
+def v44_business_quality(row):
+    ticker = safe_text(row.get("Ticker"), "")
+    extra = v44_fmp_extra(ticker)
+    metrics = extra.get("metrics", {}) or {}
+    profile = extra.get("profile", {}) or {}
+    income = extra.get("income", {}) or {}
+    cashflow = extra.get("cashflow", {}) or {}
+
+    pe = v44_float(row.get("PE Ratio") or row.get("P/E") or metrics.get("peRatioTTM") or profile.get("pe"), None)
+    fpe = v44_float(row.get("Forward PE"), None)
+    peg = v44_float(row.get("PEG Ratio") or row.get("PEG") or metrics.get("pegRatioTTM"), None)
+    net_income = v44_float(income.get("netIncome"), None)
+    fcf = v44_float(cashflow.get("freeCashFlow"), None)
+    gross_margin = v44_float(metrics.get("grossProfitMarginTTM"), None)
+    analyst_count = int(v44_float(row.get("Analyst Count"), 0))
+    sector = safe_text(row.get("Sector") or profile.get("sector"), "")
+    company = safe_text(row.get("Company") or profile.get("companyName"), ticker)
+
+    score, positives, risks, confidence = 68, [], [], "Medium"
+
+    if pe is not None:
+        if pe < 0:
+            score -= 18; risks.append(f"Negative P/E ({pe:.1f}) means current earnings are negative.")
+        elif pe <= 35:
+            score += 8; positives.append(f"P/E looks reasonable at {pe:.1f}.")
+        elif pe > 80:
+            score -= 8; risks.append(f"P/E is high at {pe:.1f}.")
+    elif fpe is not None:
+        if 0 < fpe <= 35:
+            score += 7; positives.append(f"Forward P/E is reasonable at {fpe:.1f}.")
+        elif fpe < 0:
+            score -= 12; risks.append(f"Forward P/E is negative ({fpe:.1f}).")
+    else:
+        confidence = "Low-Medium"; risks.append("P/E data is unavailable; quality confidence is lower.")
+
+    if net_income is not None:
+        if net_income > 0:
+            score += 8; positives.append("Net income is positive.")
+        else:
+            score -= 12; risks.append("Net income is negative.")
+    if fcf is not None:
+        if fcf > 0:
+            score += 10; positives.append("Free cash flow is positive.")
+        else:
+            score -= 12; risks.append("Free cash flow is negative.")
+    if peg is not None:
+        if 0 < peg <= 1.5:
+            score += 6; positives.append(f"PEG ratio appears attractive at {peg:.2f}.")
+        elif peg > 3:
+            score -= 5; risks.append(f"PEG ratio is elevated at {peg:.2f}.")
+    if gross_margin is not None:
+        gm = gross_margin * 100 if gross_margin < 2 else gross_margin
+        if gm >= 40:
+            score += 5; positives.append(f"Gross margin is strong at {gm:.1f}%.")
+        elif gm < 20:
+            score -= 4; risks.append(f"Gross margin is low at {gm:.1f}%.")
+    if analyst_count >= 20:
+        score += 4; positives.append(f"Strong analyst coverage ({analyst_count} analysts).")
+    elif 0 < analyst_count < 5:
+        score -= 3; risks.append("Limited analyst coverage.")
+
+    speculative = False
+    if "biotech" in sector.lower() or "therapeutic" in company.lower() or "bio" in company.lower():
+        if (pe is not None and pe < 0) or (net_income is not None and net_income < 0) or (fcf is not None and fcf < 0):
+            speculative = True; score -= 12; risks.append("Unprofitable biotech/therapeutics profile should be treated as speculative.")
+
+    score = max(0, min(100, round(score)))
+    tier = "⚠️ Speculative" if speculative or score < 55 else ("🏆 Quality Compounder" if score >= 85 else ("📈 Growth Leader" if score >= 70 else "🔄 Recovery / Mixed Quality"))
+    if not positives:
+        positives = ["Some quality inputs are constructive, but more data would improve confidence."]
+    if not risks:
+        risks = ["No major business-quality red flag from available fields."]
+    return {"score": score, "tier": tier, "confidence": confidence, "positives": positives[:5], "flags": risks[:6], "pe": pe, "fpe": fpe, "peg": peg, "diagnostics": extra.get("diagnostics", [])}
+
+
+@st.cache_data(ttl=1800)
+def v44_analyst_intelligence(ticker, price=0, analyst_target=0, analyst_count=0):
+    out = {"consensus": analyst_target, "high": 0, "low": 0, "count": int(v44_float(analyst_count, 0)), "firm_rows": [], "rating_trend": "Unknown", "source_notes": []}
+    ticker = safe_text(ticker, "").upper().strip()
+    if not ticker:
+        return out
+
+    if v44_secret("FMP_API_KEY") and "v424_fmp_get" in globals():
+        for endpoint in [f"price-target-consensus/{ticker}", f"price-target-summary/{ticker}"]:
+            try:
+                data = v424_fmp_get(endpoint)
+                out["source_notes"].append(f"FMP {endpoint} tried")
+                if isinstance(data, list) and data:
+                    d = data[0]
+                    out["consensus"] = v44_float(d.get("targetConsensus") or d.get("targetMean") or d.get("priceTargetAverage") or out["consensus"], out["consensus"])
+                    out["high"] = v44_float(d.get("targetHigh") or d.get("targetHighPrice") or d.get("priceTargetHigh"), out["high"])
+                    out["low"] = v44_float(d.get("targetLow") or d.get("targetLowPrice") or d.get("priceTargetLow"), out["low"])
+                    out["count"] = int(v44_float(d.get("numberOfAnalysts") or d.get("analystCount") or d.get("analystsCount"), out["count"]))
+            except Exception as e:
+                out["source_notes"].append(f"FMP {endpoint} failed: {e}")
+        try:
+            data = v424_fmp_get(f"upgrades-downgrades/{ticker}")
+            out["source_notes"].append("FMP upgrades-downgrades tried")
+            if isinstance(data, list):
+                for d in data[:8]:
+                    out["firm_rows"].append({
+                        "Firm": safe_text(d.get("gradingCompany") or d.get("firm") or d.get("analystCompany"), "Analyst firm"),
+                        "Action": safe_text(d.get("action") or d.get("newGrade") or "Update"),
+                        "Rating": safe_text(d.get("newGrade") or d.get("rating") or "N/A"),
+                        "Previous": safe_text(d.get("previousGrade") or "N/A"),
+                        "Date": safe_text(d.get("publishedDate") or d.get("date"), ""),
+                    })
+        except Exception as e:
+            out["source_notes"].append(f"FMP upgrades failed: {e}")
+
+    if v44_secret("FINNHUB_API_KEY"):
+        data, status = v432_http_json("https://finnhub.io/api/v1/stock/recommendation", params={"symbol": ticker, "token": v44_secret("FINNHUB_API_KEY")})
+        out["source_notes"].append(f"Finnhub recommendation status={status}")
+        if isinstance(data, list) and data:
+            d = data[0]
+            sb, b, h = int(v44_float(d.get("strongBuy"),0)), int(v44_float(d.get("buy"),0)), int(v44_float(d.get("hold"),0))
+            s = int(v44_float(d.get("sell"),0)) + int(v44_float(d.get("strongSell"),0))
+            out["rating_trend"] = "Bullish / positive recommendation mix" if sb + b > h + s else ("Bearish / negative recommendation mix" if s > sb + b else "Mixed / hold-heavy recommendation mix")
+            if not out["count"]:
+                out["count"] = sb + b + h + s
+
+    if not out["high"] and out["consensus"]:
+        out["high"] = out["consensus"] * 1.15
+    if not out["low"] and out["consensus"]:
+        out["low"] = out["consensus"] * 0.85
+    out["upside"] = ((out["consensus"] - price) / price) * 100 if price and out["consensus"] else None
+    return out
+
+
+def v44_valuation(row):
+    price, analyst, ai = v44_float(row.get("Price"),0), v44_float(row.get("Analyst Target"),0), v44_float(row.get("AI Fair Value"),0)
+    conservative = analyst if analyst else (price * 1.12 if price else 0)
+    base, aggressive, confidence, note = conservative, (ai or conservative), "Medium", "Base case uses analyst consensus when available."
+    if analyst and ai:
+        gap = ((ai - analyst) / analyst) * 100
+        if gap > 75:
+            confidence, base, note = "Low", analyst * 1.20, "AI fair value is far above analyst consensus, so AI value is aggressive only."
+        elif gap > 50:
+            confidence, base, note = "Low-Medium", analyst * 1.15, "AI fair value is materially above consensus, so confidence is reduced."
+        elif gap > 20:
+            confidence, base, note = "Medium", (analyst + ai) / 2, "AI fair value is above consensus but not extreme."
+        else:
+            confidence, base, note = "High", (analyst + ai) / 2, "AI fair value is close to analyst consensus."
+    return {"conservative": conservative, "base": base, "aggressive": aggressive, "confidence": confidence, "note": note}
+
+
+def v44_score(row):
+    old = v44_float(row.get("Final Conviction"),0)
+    q = v44_business_quality(row)
+    a = v44_analyst_intelligence(safe_text(row.get("Ticker"),""), price=v44_float(row.get("Price"),0), analyst_target=v44_float(row.get("Analyst Target"),0), analyst_count=v44_float(row.get("Analyst Count"),0))
+    val = v44_valuation(row)
+    analyst_score = 82 if a.get("rating_trend","").startswith("Bullish") else (62 if a.get("rating_trend","").startswith("Mixed") else 60)
+    valuation_score = {"High":85, "Medium":72, "Low-Medium":60, "Low":48}.get(val.get("confidence"),65)
+    risk = 75
+    if v44_float(row.get("Volume Ratio"),0) < 0.75:
+        risk -= 8
+    if v44_float(row.get("ATR %"),0) >= 5:
+        risk -= 8
+    raw = q["score"]*.30 + analyst_score*.18 + valuation_score*.22 + risk*.15 + old*.15
+    adjusted = 50 + (raw - 50) * .90
+    if "Speculative" in q["tier"]:
+        adjusted -= 8
+    if val["confidence"] == "Low":
+        adjusted -= 5
+    return max(0, min(99, round(adjusted,1)))
+
+
+def v44_verdict(row):
+    score, q, val = v44_score(row), v44_business_quality(row), v44_valuation(row)
+    levels = v431_smart_levels(row) if "v431_smart_levels" in globals() else {}
+    decision, explanation = "WATCH", "Good research candidate, but confirm entry and risk before buying."
+    if "Speculative" in q["tier"]:
+        decision, explanation = "SPECULATIVE", "Higher-risk idea. Use smaller sizing and require stronger confirmation."
+    elif score >= 88 and val["confidence"] in {"High","Medium"}:
+        decision, explanation = "ACTIONABLE WATCH", "Quality-adjusted score is strong, but entry discipline still matters."
+    elif score < 68:
+        decision, explanation = "LOW PRIORITY", "Not enough quality-adjusted confirmation for a paid-client recommendation."
+    price, support, resistance = v44_float(levels.get("price") or row.get("Price"),0), v44_float(levels.get("support1"),0), v44_float(levels.get("resistance1"),0)
+    if price and support and resistance and price > support:
+        rr = (resistance-price)/(price-support) if price-support else 0
+        if rr < 1:
+            decision, explanation = "WAIT", f"Reward/risk is weak. Prefer pullback near {v44_money(support)} or breakout above {v44_money(resistance)} with volume."
+    label = "🟢 Elite Quality Setup" if score >= 90 and "Speculative" not in q["tier"] else ("🟢 Strong Setup" if score >= 84 else ("🟡 Actionable Watch" if score >= 76 else ("⚠️ Speculative High-Upside" if "Speculative" in q["tier"] else "⚪ Low Priority")))
+    return {"score": score, "quality": q, "valuation": val, "levels": levels, "decision": decision, "explanation": explanation, "label": label}
+
+
+def render_v44_executive_card(row):
+    v = v44_verdict(row); q = v["quality"]; val = v["valuation"]; levels = v["levels"]
+    ticker, company = safe_text(row.get("Ticker"),""), safe_text(row.get("Company"),"")
+    with st.container(border=True):
+        st.markdown(f"## {ticker}{(' — ' + company) if company else ''}")
+        st.markdown(f"### {v['label']} · {v['decision']}")
+        st.info(v["explanation"])
+        c1,c2,c3,c4 = st.columns(4)
+        c1.metric("V44 Score", f"{v['score']:.1f}/100")
+        c2.metric("Tier", q["tier"])
+        c3.metric("Quality", f"{q['score']}/100")
+        c4.metric("Valuation Confidence", val["confidence"])
+        c5,c6,c7,c8 = st.columns(4)
+        c5.metric("Price", v44_money(levels.get("price") or row.get("Price")))
+        c6.metric("Support", v44_money(levels.get("support1")) if v44_float(levels.get("support1"),0) else "N/A")
+        c7.metric("Resistance", v44_money(levels.get("resistance1")) if v44_float(levels.get("resistance1"),0) else "N/A")
+        c8.metric("Stop", v44_money(row.get("Stop Loss")) if v44_float(row.get("Stop Loss"),0) else "N/A")
+        left,right = st.columns(2)
+        with left:
+            st.markdown("**Top reasons**")
+            for p in q["positives"][:4]: st.markdown(f"✓ {safe_text(p)}")
+        with right:
+            st.markdown("**Top risks**")
+            risks = list(q["flags"][:4])
+            if val["confidence"] in {"Low","Low-Medium"}: risks.append(val["note"])
+            for r in risks[:5]: st.markdown(f"⚠️ {safe_text(r)}")
+
+
+def render_v44_targets_analyst(row):
+    val = v44_valuation(row)
+    a = v44_analyst_intelligence(safe_text(row.get("Ticker"),""), price=v44_float(row.get("Price"),0), analyst_target=v44_float(row.get("Analyst Target"),0), analyst_count=v44_float(row.get("Analyst Count"),0))
+    with st.container(border=True):
+        st.markdown("### 🎯 Targets + Analyst Intelligence")
+        c1,c2,c3,c4 = st.columns(4)
+        c1.metric("Conservative", v44_money(val["conservative"]))
+        c2.metric("Base", v44_money(val["base"]))
+        c3.metric("Aggressive", v44_money(val["aggressive"]))
+        c4.metric("Consensus Upside", f"{a['upside']:.1f}%" if a.get("upside") is not None else "N/A")
+        st.caption(val["note"])
+        c5,c6,c7,c8 = st.columns(4)
+        c5.metric("Consensus", v44_money(a.get("consensus")) if a.get("consensus") else "N/A")
+        c6.metric("High Target", v44_money(a.get("high")) if a.get("high") else "N/A")
+        c7.metric("Low Target", v44_money(a.get("low")) if a.get("low") else "N/A")
+        c8.metric("Coverage", str(a.get("count") or "N/A"))
+        st.caption(f"Rating trend: {a.get('rating_trend','Unknown')}")
+        if a.get("firm_rows"):
+            st.dataframe(pd.DataFrame(a["firm_rows"][:6]), use_container_width=True, hide_index=True)
+        else:
+            st.warning("Firm-level analyst rows were not returned by the current source/API. Showing consensus/range/trend instead.")
+        with st.expander("Analyst source diagnostics", expanded=False):
+            for n in a.get("source_notes",[]): st.caption(n)
+
+
+def render_v44_business_quality(row):
+    q = v44_business_quality(row)
+    with st.container(border=True):
+        st.markdown("### 🧱 Business Quality 2.0")
+        c1,c2,c3,c4 = st.columns(4)
+        c1.metric("Quality Score", f"{q['score']}/100")
+        c2.metric("Tier", q["tier"])
+        c3.metric("P/E", "N/A" if q["pe"] is None else f"{q['pe']:.1f}")
+        c4.metric("Confidence", q["confidence"])
+        left,right = st.columns(2)
+        with left:
+            st.markdown("**Strengths**")
+            for p in q["positives"][:5]: st.markdown(f"✓ {safe_text(p)}")
+        with right:
+            st.markdown("**Risks / limits**")
+            for r in q["flags"][:6]: st.markdown(f"⚠️ {safe_text(r)}")
+        with st.expander("Business quality diagnostics", expanded=False):
+            for d in q.get("diagnostics",[]): st.caption(d)
+
+
+def render_v44_market_command_center():
+    st.markdown("## 🧭 Market Command Center")
+    if "v43_market_regime" in globals():
+        regime, regime_score = v43_market_regime()
+        st.metric("Market Regime", regime, f"{regime_score:.0f}/100")
+    quotes = v424_market_quotes()
+    if quotes:
+        cols = st.columns(min(5,len(quotes)))
+        for i,q in enumerate(quotes[:5]):
+            pct = v424_float(q.get("change_pct"), None) if "v424_float" in globals() else v44_float(q.get("change_pct"), None)
+            cols[i].metric(q.get("display_label") or q.get("symbol",""), v44_money(q.get("price")), f"{pct:+.2f}%" if pct is not None else None)
+            cols[i].caption(safe_text(q.get("source"),""))
+    econ, earnings, news = v424_economic_calendar(), v424_earnings_today(), v44_market_news_summary()
+    c1,c2 = st.columns(2)
+    with c1:
+        with st.container(border=True):
+            st.markdown("### 🗓️ Economic Calendar")
+            st.caption(f"Source: {safe_text(econ.get('source'),'Unknown')}")
+            for e in ((econ.get("today") or []) or (econ.get("next") or []))[:5]:
+                st.markdown(f"• {v4253_render_event_line(e)}" if "v4253_render_event_line" in globals() else f"• **{safe_text(e.get('event'))}** — {safe_text(e.get('date'))}")
+    with c2:
+        with st.container(border=True):
+            st.markdown("### 💼 Earnings Due Today")
+            st.caption("Source priority: FMP → Finnhub → Nasdaq → Alpha Vantage → Yahoo")
+            if earnings:
+                edf = pd.DataFrame(earnings)
+                cols = [c for c in ["Company","Ticker","Symbol","Date","Time","EPS Est","Revenue Est","Source"] if c in edf.columns]
+                st.dataframe(edf[cols] if cols else edf, use_container_width=True, hide_index=True)
+            else:
+                st.warning("No earnings returned from any connected/fallback source today.")
+    with st.container(border=True):
+        st.markdown("### 📰 Market News Intelligence")
+        c1,c2,c3 = st.columns(3)
+        c1.metric("Status", news["status"]); c2.metric("Sentiment", news["sentiment"]); c3.metric("News Score", f"{news['score']}/100")
+        st.markdown(f"**Top headline:** {safe_text(news['top'])}")
+        for r in news.get("rows",[])[:5]:
+            h,src,url = safe_text(r.get("headline"),""), safe_text(r.get("source"),""), safe_text(r.get("url"),"")
+            st.markdown(f"• [{h}]({url}) · _{src}_" if url else f"• {h} · _{src}_")
+        with st.expander("Market news diagnostics", expanded=False):
+            for d in news.get("diagnostics",[]): st.caption(d)
+    if "render_v44_source_diagnostics" in globals(): render_v44_source_diagnostics()
+
+
+def render_v44_source_diagnostics():
+    with st.expander("🔌 Source Diagnostics", expanded=False):
+        names = ["APP_PASSWORD","GUEST_PASSWORD","FMP_API_KEY","FINNHUB_API_KEY","NEWSAPI_KEY","ALPHA_VANTAGE_API_KEY","SEC_USER_AGENT","GITHUB_TOKEN","GITHUB_REPO_URL","DATA_DIR"]
+        st.dataframe(pd.DataFrame([{"Variable":n,"Detected":"Yes" if v44_secret(n) else "No","Length":len(v44_secret(n))} for n in names]), use_container_width=True, hide_index=True)
+        for d in v44_market_news_items().get("diagnostics",[]): st.caption(d)
+
+
+def render_v44_professional_research_card(row):
+    render_v44_executive_card(row)
+    render_v44_targets_analyst(row)
+    render_v44_business_quality(row)
+    if "render_v44_news_panel" in globals():
+        render_v44_news_panel(row)
+    elif "render_v432_news_panel" in globals():
+        render_v432_news_panel(row)
+    if "render_v432_data_confidence_panel" in globals(): render_v432_data_confidence_panel(row)
+    if "render_v431_agent_summary" in globals(): render_v431_agent_summary(row)
+
+
+def render_v424_market_command_center():
+    render_v44_market_command_center()
+
+
+def render_detail(row):
+    render_v44_professional_research_card(row)
+    if "render_detail_chart_v4184" in globals():
+        try: render_detail_chart_v4184(row)
+        except Exception: pass
+    if "render_v431_advanced_legacy_sections" in globals(): render_v431_advanced_legacy_sections(row)
+    with st.expander("Raw row data", expanded=False):
+        try: st.json(row if isinstance(row, dict) else dict(row))
+        except Exception: st.write(row)
+
+
 def main():
     if not dashboard_login_gate():
         return
@@ -8424,3 +8907,20 @@ def v432_analyst_intelligence(ticker, price=0, analyst_target=0, analyst_count=0
     out["upside"] = ((out["consensus"] - price) / price) * 100 if price and out["consensus"] else None
     return out
 
+
+# =========================
+# V44.0 FINAL OVERRIDES GUARANTEE
+# =========================
+def v431_get_quality(row):
+    return v44_business_quality(row)
+def render_v431_professional_research_card(row):
+    render_v44_professional_research_card(row)
+def render_detail(row):
+    render_v44_professional_research_card(row)
+    if "render_detail_chart_v4184" in globals():
+        try: render_detail_chart_v4184(row)
+        except Exception: pass
+    if "render_v431_advanced_legacy_sections" in globals(): render_v431_advanced_legacy_sections(row)
+    with st.expander("Raw row data", expanded=False):
+        try: st.json(row if isinstance(row, dict) else dict(row))
+        except Exception: st.write(row)
