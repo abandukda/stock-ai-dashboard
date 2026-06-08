@@ -1,68 +1,68 @@
 name: Overnight Market Scan
 
 on:
-schedule:
-- cron: "15 4 * * 1-5"   # 12:15 AM ET
-- cron: "00 11 * * 1-5"  # 7:00 AM ET
-- cron: "00 16 * * 1-5"  # 12:00 PM ET
-- cron: "00 19 * * 1-5"  # 3:00 PM ET
-- cron: "00 23 * * 1-5"  # 7:00 PM ET
-workflow_dispatch:
+  schedule:
+    - cron: "15 4 * * 1-5"
+    - cron: "00 11 * * 1-5"
+    - cron: "00 16 * * 1-5"
+    - cron: "00 19 * * 1-5"
+    - cron: "00 23 * * 1-5"
+  workflow_dispatch:
 
 permissions:
-contents: write
+  contents: write
 
 jobs:
-overnight-scan:
-runs-on: ubuntu-latest
-timeout-minutes: 35
+  overnight-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
 
-env:
-  FAST_CRON_MODE: "true"
-  FAST_CRON_SKIP_PRE_RANK_DEEP_APIS: "true"
-  FULL_COMMITTEE_LIMIT: "15"
-  ETF_FULL_COMMITTEE_LIMIT: "10"
-  HTTP_TIMEOUT_FAST: "6"
+    env:
+      FAST_CRON_MODE: "true"
+      FAST_CRON_SKIP_PRE_RANK_DEEP_APIS: "true"
+      FULL_COMMITTEE_LIMIT: "15"
+      ETF_FULL_COMMITTEE_LIMIT: "10"
+      HTTP_TIMEOUT_FAST: "6"
+      FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+      FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+      NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
+      ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
+      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+      GITHUB_REPO_URL: "abandukda/stock-ai-dashboard"
+      DATA_DIR: "."
 
-  FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
-  FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
-  NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
-  ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
-  SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
 
-  GITHUB_REPO_URL: "abandukda/stock-ai-dashboard"
-  DATA_DIR: "."
+      - name: Force main branch checkout
+        run: |
+          git fetch origin main
+          git checkout -B main origin/main
+          git status
 
-steps:
-  - name: Checkout repo
-    uses: actions/checkout@v4
-    with:
-      ref: main
-      fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-  - name: Set up Python
-    uses: actions/setup-python@v5
-    with:
-      python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-  - name: Install dependencies
-    run: |
-      python -m pip install --upgrade pip
-      pip install -r requirements.txt
+      - name: Run overnight scan
+        run: |
+          python overnight_market_scan.py
 
-  - name: Run overnight scan
-    run: |
-      python overnight_market_scan.py
-
-  - name: Commit updated scan output
-    run: |
-      git config user.name "github-actions"
-      git config user.email "github-actions@github.com"
-
-      git status
-      git add -A
-
-      git commit -m "Update overnight market scan data - $(date -u +'%Y-%m-%d %H:%M UTC')" || echo "No changes to commit"
-
-      git pull --rebase origin main
-      git push origin main
+      - name: Commit updated scan output
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git status
+          git add -A
+          git commit -m "Update overnight market scan data - $(date -u +'%Y-%m-%d %H:%M UTC')" || echo "No changes to commit"
+          git push origin main
