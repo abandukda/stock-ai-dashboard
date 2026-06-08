@@ -17,7 +17,6 @@ overnight-scan:
 runs-on: ubuntu-latest
 timeout-minutes: 35
 
-```
 env:
   FAST_CRON_MODE: "true"
   FAST_CRON_SKIP_PRE_RANK_DEEP_APIS: "true"
@@ -39,6 +38,7 @@ steps:
     uses: actions/checkout@v4
     with:
       ref: main
+      fetch-depth: 0
 
   - name: Set up Python
     uses: actions/setup-python@v5
@@ -59,9 +59,11 @@ steps:
       git config user.name "github-actions"
       git config user.email "github-actions@github.com"
 
-      git add .
+      git status
+      git add -A
 
       git commit -m "Update overnight market scan data - $(date -u +'%Y-%m-%d %H:%M UTC')" || echo "No changes to commit"
 
-      git push origin HEAD:main
+      git pull --rebase origin main
+      git push origin main
 ```
