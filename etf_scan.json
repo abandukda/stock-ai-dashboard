@@ -54,7 +54,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-08T06:40:46.093595+00:00",
+    "scan_time": "2026-06-08T12:42:41.987655+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 748.65,
@@ -84,20 +84,19 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 76,
-        "status": "Positive",
-        "impact": "Positive",
+        "score": 69,
+        "status": "Mixed",
+        "impact": "Neutral",
         "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Why U.S. And International Dividend Strategies Are Working Again",
-          "AI Boom: Are More Equity Raises Coming?",
-          "Navigating The New Narrative Economy, And The Rise Of The Retail Investor"
+          "QQQ: The $700 Billion AI Bet That Could Blow Up In Everyone's Face",
+          "Why U.S. And International Dividend Strategies Are Working Again"
         ],
         "risks": [
           "No negative high-confidence headline detected."
         ],
-        "bottom_line": "News flow supports the thesis."
+        "bottom_line": "News is mixed or insufficient."
       },
       "Finance Agent": {
         "score": 50,
@@ -233,12 +232,11 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 76,
-    "v42_news_summary": "News flow supports the thesis.",
+    "v42_news_score": 69,
+    "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "Why U.S. And International Dividend Strategies Are Working Again",
-      "AI Boom: Are More Equity Raises Coming?",
-      "Navigating The New Narrative Economy, And The Rise Of The Retail Investor"
+      "QQQ: The $700 Billion AI Bet That Could Blow Up In Everyone's Face",
+      "Why U.S. And International Dividend Strategies Are Working Again"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
@@ -312,7 +310,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-08T06:34:18.448765+00:00",
+    "scan_time": "2026-06-08T12:35:27.627192+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 517.75,
@@ -342,20 +340,18 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 76,
-        "status": "Positive",
-        "impact": "Positive",
+        "score": 62,
+        "status": "Mixed",
+        "impact": "Neutral",
         "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "AI Boom: Are More Equity Raises Coming?",
-          "I Have Been Patiently Waiting For This Market Meltdown",
-          "After A 40% Gain In 10 Weeks, Where Does The S&P Tech Index Go From Here?"
+          "AI Boom: Are More Equity Raises Coming?"
         ],
         "risks": [
           "No negative high-confidence headline detected."
         ],
-        "bottom_line": "News flow supports the thesis."
+        "bottom_line": "News is mixed or insufficient."
       },
       "Finance Agent": {
         "score": 50,
@@ -491,12 +487,10 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 76,
-    "v42_news_summary": "News flow supports the thesis.",
+    "v42_news_score": 62,
+    "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "AI Boom: Are More Equity Raises Coming?",
-      "I Have Been Patiently Waiting For This Market Meltdown",
-      "After A 40% Gain In 10 Weeks, Where Does The S&P Tech Index Go From Here?"
+      "AI Boom: Are More Equity Raises Coming?"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
@@ -513,7 +507,7 @@
     "v42_breakout_level": 522.93,
     "v42_pullback_zone": "$492.49 - $499.51",
     "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
-    "v42_committee_positive_agents": 2,
+    "v42_committee_positive_agents": 1,
     "v42_committee_total_agents": 10
   },
   {
@@ -571,7 +565,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-08T06:44:07.299515+00:00",
+    "scan_time": "2026-06-08T12:46:24.820344+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 198.73,
@@ -794,7 +788,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-08T06:44:08.491649+00:00",
+    "scan_time": "2026-06-08T12:46:26.460126+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 159.93,
@@ -1018,7 +1012,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-08T06:44:07.018912+00:00",
+    "scan_time": "2026-06-08T12:46:24.512538+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 178.81,
@@ -1243,7 +1237,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-08T06:41:27.656224+00:00",
+    "scan_time": "2026-06-08T12:43:31.007344+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 32.91,
@@ -1467,7 +1461,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-08T06:44:07.905353+00:00",
+    "scan_time": "2026-06-08T12:46:25.692153+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 45.05,
@@ -1692,7 +1686,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-08T06:41:16.314907+00:00",
+    "scan_time": "2026-06-08T12:43:19.111171+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 15.82,
@@ -1917,7 +1911,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-08T06:42:21.205445+00:00",
+    "scan_time": "2026-06-08T12:44:26.303834+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 75.6,
@@ -2143,7 +2137,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-08T06:40:46.945703+00:00",
+    "scan_time": "2026-06-08T12:42:45.058258+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 24.81,
@@ -2393,7 +2387,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-08T06:44:11.893111+00:00",
+    "scan_time": "2026-06-08T12:46:30.178897+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 40.83,
@@ -2618,7 +2612,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-08T06:41:58.098955+00:00",
+    "scan_time": "2026-06-08T12:44:02.547790+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 760.4,
@@ -2843,7 +2837,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-08T06:37:09.965048+00:00",
+    "scan_time": "2026-06-08T12:38:34.290439+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 292.88,
@@ -2873,20 +2867,18 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 76,
-        "status": "Positive",
-        "impact": "Positive",
+        "score": 62,
+        "status": "Mixed",
+        "impact": "Neutral",
         "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Why U.S. And International Dividend Strategies Are Working Again",
-          "AI Boom: Are More Equity Raises Coming?",
-          "Navigating The New Narrative Economy, And The Rise Of The Retail Investor"
+          "Why U.S. And International Dividend Strategies Are Working Again"
         ],
         "risks": [
           "No negative high-confidence headline detected."
         ],
-        "bottom_line": "News flow supports the thesis."
+        "bottom_line": "News is mixed or insufficient."
       },
       "Finance Agent": {
         "score": 50,
@@ -3020,12 +3012,10 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 76,
-    "v42_news_summary": "News flow supports the thesis.",
+    "v42_news_score": 62,
+    "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "Why U.S. And International Dividend Strategies Are Working Again",
-      "AI Boom: Are More Equity Raises Coming?",
-      "Navigating The New Narrative Economy, And The Rise Of The Retail Investor"
+      "Why U.S. And International Dividend Strategies Are Working Again"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
@@ -3042,7 +3032,7 @@
     "v42_breakout_level": 295.81,
     "v42_pullback_zone": "$270.63 - $276.02",
     "v42_chart_guidance": "Between support and resistance. Prefer pullback entry or confirmed breakout.",
-    "v42_committee_positive_agents": 2,
+    "v42_committee_positive_agents": 1,
     "v42_committee_total_agents": 10
   },
   {
@@ -3099,7 +3089,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-08T06:43:30.641417+00:00",
+    "scan_time": "2026-06-08T12:45:45.770196+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 699.15,
@@ -3324,7 +3314,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-08T06:43:41.071942+00:00",
+    "scan_time": "2026-06-08T12:45:57.312075+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 374.7,
@@ -3549,7 +3539,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-08T06:37:14.779591+00:00",
+    "scan_time": "2026-06-08T12:38:39.467323+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 60.97,
@@ -3811,7 +3801,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-08T06:40:49.425695+00:00",
+    "scan_time": "2026-06-08T12:42:49.236645+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 18.15,
@@ -4035,7 +4025,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-08T06:41:43.303408+00:00",
+    "scan_time": "2026-06-08T12:43:46.495602+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 642.77,
@@ -4259,7 +4249,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-08T06:41:54.755815+00:00",
+    "scan_time": "2026-06-08T12:43:58.609730+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 618.84,
@@ -4483,7 +4473,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-08T06:36:39.997848+00:00",
+    "scan_time": "2026-06-08T12:38:02.240564+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 79.95,
@@ -4513,7 +4503,7 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 54,
+        "score": 62,
         "status": "Mixed",
         "impact": "Neutral",
         "data_used": "Finnhub company news",
@@ -4522,7 +4512,7 @@
           "BANX: 9%+ Distribution Yield With Monthly Pay (Upgrade)"
         ],
         "risks": [
-          "EMB\u2019s 6 Percent Emerging Market Bond Yield Hides Hard Currency Sovereign Default Risk Most Income Investors Have Never Modeled"
+          "No negative high-confidence headline detected."
         ],
         "bottom_line": "News is mixed or insufficient."
       },
@@ -4658,13 +4648,13 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 54,
+    "v42_news_score": 62,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
       "BANX: 9%+ Distribution Yield With Monthly Pay (Upgrade)"
     ],
     "v42_news_risks": [
-      "EMB\u2019s 6 Percent Emerging Market Bond Yield Hides Hard Currency Sovereign Default Risk Most Income Investors Have Never Modeled"
+      "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
       "Finnhub company news"
@@ -4733,7 +4723,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-08T06:44:07.588896+00:00",
+    "scan_time": "2026-06-08T12:46:25.354750+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.64,
@@ -4958,7 +4948,7 @@
       "price is below 20-day trend",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-08T06:32:28.263655+00:00",
+    "scan_time": "2026-06-08T12:33:32.064175+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 41.71,
@@ -5218,7 +5208,7 @@
     "risk_tags": [
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-08T06:42:36.918885+00:00",
+    "scan_time": "2026-06-08T12:44:45.136752+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.51,
@@ -5442,7 +5432,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-08T06:44:06.387434+00:00",
+    "scan_time": "2026-06-08T12:46:23.871160+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 63.46,
@@ -5666,7 +5656,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-08T06:38:04.756586+00:00",
+    "scan_time": "2026-06-08T12:39:35.995316+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 110.24,
@@ -5919,7 +5909,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-08T06:44:08.193360+00:00",
+    "scan_time": "2026-06-08T12:46:25.979894+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 47.71,
@@ -6143,7 +6133,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-08T06:44:08.790473+00:00",
+    "scan_time": "2026-06-08T12:46:26.756364+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 124.76,
@@ -6367,7 +6357,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-08T06:44:06.080342+00:00",
+    "scan_time": "2026-06-08T12:46:23.533162+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 53.9,
@@ -6591,7 +6581,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-08T06:31:27.159273+00:00",
+    "scan_time": "2026-06-08T12:32:25.718895+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 92.65,
@@ -6621,20 +6611,19 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 76,
-        "status": "Positive",
-        "impact": "Positive",
+        "score": 69,
+        "status": "Mixed",
+        "impact": "Neutral",
         "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
           "Why U.S. And International Dividend Strategies Are Working Again",
-          "Navigating The New Narrative Economy, And The Rise Of The Retail Investor",
-          "This Week's Market Wrap: AI Ups And Downs, Oil Roars Back, And Strong Data"
+          "Navigating The New Narrative Economy, And The Rise Of The Retail Investor"
         ],
         "risks": [
           "No negative high-confidence headline detected."
         ],
-        "bottom_line": "News flow supports the thesis."
+        "bottom_line": "News is mixed or insufficient."
       },
       "Finance Agent": {
         "score": 50,
@@ -6768,12 +6757,11 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 76,
-    "v42_news_summary": "News flow supports the thesis.",
+    "v42_news_score": 69,
+    "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
       "Why U.S. And International Dividend Strategies Are Working Again",
-      "Navigating The New Narrative Economy, And The Rise Of The Retail Investor",
-      "This Week's Market Wrap: AI Ups And Downs, Oil Roars Back, And Strong Data"
+      "Navigating The New Narrative Economy, And The Rise Of The Retail Investor"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
@@ -6846,7 +6834,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-08T06:37:14.054590+00:00",
+    "scan_time": "2026-06-08T12:38:38.771356+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 58.27,
@@ -7100,7 +7088,7 @@
       "60-day ETF trend is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-08T06:43:16.343211+00:00",
+    "scan_time": "2026-06-08T12:45:29.727710+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 62.28,
