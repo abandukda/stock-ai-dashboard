@@ -15,7 +15,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V44.0 Paid Client Intelligence Upgrade"
+APP_VERSION = "V45.0 Institutional Research Experience"
 
 
 # =========================
@@ -8512,6 +8512,699 @@ def render_detail(row):
     with st.expander("Raw row data", expanded=False):
         try: st.json(row if isinstance(row, dict) else dict(row))
         except Exception: st.write(row)
+
+
+
+# =========================
+# V45.0 INSTITUTIONAL RESEARCH EXPERIENCE
+# Customer-facing decision engine, metric interpretation, QA export
+# =========================
+
+def v45_secret(name, default=""):
+    try:
+        if hasattr(st, "secrets") and name in st.secrets:
+            return str(st.secrets.get(name, default)).strip()
+    except Exception:
+        pass
+    try:
+        return os.getenv(name, default).strip()
+    except Exception:
+        return default
+
+
+def v45_text(x, default=""):
+    try:
+        return safe_text(x, default)
+    except Exception:
+        return default if x is None else str(x)
+
+
+def v45_num(x, default=None):
+    try:
+        if x in (None, "", "N/A", "None", "nan"):
+            return default
+        if isinstance(x, str):
+            x = x.replace("$", "").replace(",", "").replace("%", "").strip()
+        return float(x)
+    except Exception:
+        return default
+
+
+def v45_money(x):
+    x = v45_num(x, None)
+    return "N/A" if x is None else f"${x:,.2f}"
+
+
+def v45_pct(x):
+    x = v45_num(x, None)
+    return "N/A" if x is None else f"{x:.1f}%"
+
+
+def v45_grade(score):
+    s = v45_num(score, 0)
+    if s >= 93: return "A+"
+    if s >= 88: return "A"
+    if s >= 83: return "A-"
+    if s >= 78: return "B+"
+    if s >= 72: return "B"
+    if s >= 66: return "B-"
+    if s >= 58: return "C"
+    return "D"
+
+
+def v45_sector(row):
+    return v45_text(row.get("Sector") or row.get("sector") or "General")
+
+
+def v45_industry(row):
+    return v45_text(row.get("Industry") or row.get("industry") or v45_sector(row))
+
+
+def v45_benchmarks(row):
+    sector = v45_sector(row).lower()
+    industry = v45_industry(row).lower()
+    text = f"{sector} {industry}"
+    # Ranges are pragmatic interpretation bands for customer explanation, not hard valuation rules.
+    if any(k in text for k in ["software", "technology", "cloud", "internet", "semiconductor", "chip"]):
+        return {"pe_good": 35, "pe_fair": 50, "pe_high": 70, "peg_good": 1.5, "rev_good": 12, "eps_good": 12, "gross_good": 45, "debt_good": 1.0, "label": "technology/software peers"}
+    if any(k in text for k in ["healthcare", "biotech", "therapeutic", "pharma"]):
+        return {"pe_good": 30, "pe_fair": 45, "pe_high": 65, "peg_good": 1.8, "rev_good": 10, "eps_good": 10, "gross_good": 40, "debt_good": 1.2, "label": "healthcare peers"}
+    if any(k in text for k in ["consumer", "retail", "cyclical", "discretionary"]):
+        return {"pe_good": 25, "pe_fair": 35, "pe_high": 50, "peg_good": 1.6, "rev_good": 7, "eps_good": 8, "gross_good": 30, "debt_good": 1.5, "label": "consumer peers"}
+    if any(k in text for k in ["industrial", "materials", "energy"]):
+        return {"pe_good": 20, "pe_fair": 30, "pe_high": 45, "peg_good": 1.5, "rev_good": 6, "eps_good": 8, "gross_good": 25, "debt_good": 1.5, "label": "cyclical/industrial peers"}
+    if any(k in text for k in ["utility", "staples", "telecom", "real estate", "reit"]):
+        return {"pe_good": 22, "pe_fair": 30, "pe_high": 40, "peg_good": 2.0, "rev_good": 4, "eps_good": 5, "gross_good": 25, "debt_good": 2.0, "label": "defensive peers"}
+    if any(k in text for k in ["financial", "bank", "insurance"]):
+        return {"pe_good": 15, "pe_fair": 22, "pe_high": 30, "peg_good": 1.4, "rev_good": 5, "eps_good": 6, "gross_good": 0, "debt_good": 3.0, "label": "financial peers"}
+    return {"pe_good": 25, "pe_fair": 35, "pe_high": 50, "peg_good": 1.6, "rev_good": 8, "eps_good": 8, "gross_good": 30, "debt_good": 1.5, "label": "broad market peers"}
+
+
+def v45_row_metric(row, *names, default=None):
+    for n in names:
+        try:
+            if n in row and row.get(n) not in (None, "", "N/A"):
+                return row.get(n)
+        except Exception:
+            pass
+    return default
+
+
+@st.cache_data(ttl=1800)
+def v45_fmp_snapshot(ticker):
+    ticker = v45_text(ticker).upper().strip()
+    out = {"profile": {}, "metrics": {}, "ratios": {}, "income": {}, "cashflow": {}, "balance": {}, "diagnostics": []}
+    if not ticker or not v45_secret("FMP_API_KEY") or "v424_fmp_get" not in globals():
+        out["diagnostics"].append("FMP unavailable or ticker missing")
+        return out
+    endpoints = [
+        ("profile", f"profile/{ticker}", None),
+        ("metrics", f"key-metrics-ttm/{ticker}", None),
+        ("ratios", f"ratios-ttm/{ticker}", None),
+        ("income", f"income-statement/{ticker}", {"limit": 1}),
+        ("cashflow", f"cash-flow-statement/{ticker}", {"limit": 1}),
+        ("balance", f"balance-sheet-statement/{ticker}", {"limit": 1}),
+    ]
+    for key, endpoint, params in endpoints:
+        try:
+            data = v424_fmp_get(endpoint, params)
+            out["diagnostics"].append(f"FMP {endpoint} tried")
+            if isinstance(data, list) and data:
+                out[key] = data[0] or {}
+            elif isinstance(data, dict):
+                out[key] = data
+        except Exception as e:
+            out["diagnostics"].append(f"FMP {endpoint} failed: {e}")
+    return out
+
+
+def v45_financial_inputs(row):
+    ticker = v45_text(row.get("Ticker"))
+    snap = v45_fmp_snapshot(ticker)
+    metrics = snap.get("metrics", {}) or {}
+    ratios = snap.get("ratios", {}) or {}
+    income = snap.get("income", {}) or {}
+    cash = snap.get("cashflow", {}) or {}
+    balance = snap.get("balance", {}) or {}
+    price = v45_num(row.get("Price"), None)
+    revenue = v45_num(income.get("revenue"), None)
+    net_income = v45_num(income.get("netIncome"), None)
+    fcf = v45_num(cash.get("freeCashFlow"), None)
+    total_debt = v45_num(balance.get("totalDebt"), None)
+    equity = v45_num(balance.get("totalStockholdersEquity"), None)
+    debt_equity = v45_num(metrics.get("debtToEquityTTM") or ratios.get("debtEquityRatioTTM"), None)
+    if debt_equity is None and total_debt is not None and equity not in (None, 0):
+        debt_equity = total_debt / equity
+    pe = v45_num(v45_row_metric(row, "PE Ratio", "P/E", "Trailing PE", default=None), None)
+    if pe is None:
+        pe = v45_num(metrics.get("peRatioTTM") or ratios.get("priceEarningsRatioTTM") or snap.get("profile", {}).get("pe"), None)
+    fpe = v45_num(v45_row_metric(row, "Forward PE", "forwardPE", default=None), None)
+    peg = v45_num(v45_row_metric(row, "PEG Ratio", "PEG", default=None), None)
+    if peg is None:
+        peg = v45_num(metrics.get("pegRatioTTM"), None)
+    rev_growth = v45_num(v45_row_metric(row, "Revenue Growth", "Revenue Growth %", default=None), None)
+    eps_growth = v45_num(v45_row_metric(row, "EPS Growth", "Earnings Growth %", "Earnings Growth", default=None), None)
+    gross_margin = v45_num(metrics.get("grossProfitMarginTTM") or ratios.get("grossProfitMarginTTM"), None)
+    if gross_margin is not None and gross_margin < 2:
+        gross_margin *= 100
+    operating_margin = v45_num(metrics.get("operatingProfitMarginTTM") or ratios.get("operatingProfitMarginTTM"), None)
+    if operating_margin is not None and operating_margin < 2:
+        operating_margin *= 100
+    return {
+        "price": price, "pe": pe, "forward_pe": fpe, "peg": peg,
+        "revenue_growth": rev_growth, "eps_growth": eps_growth,
+        "revenue": revenue, "net_income": net_income, "free_cash_flow": fcf,
+        "debt_equity": debt_equity, "gross_margin": gross_margin, "operating_margin": operating_margin,
+        "diagnostics": snap.get("diagnostics", []),
+    }
+
+
+def v45_assess_metric(name, value, row):
+    b = v45_benchmarks(row)
+    if value is None:
+        return {"assessment": "Unavailable", "tone": "neutral", "explain": f"{name} was not returned by the connected sources, so it should not be used as a primary reason to buy or avoid."}
+    v = v45_num(value, None)
+    if name == "RSI":
+        if v < 30: return {"assessment": "Oversold", "tone": "positive", "explain": "RSI below 30 can mean the stock is oversold, but it still needs confirmation because weak stocks can stay oversold."}
+        if v < 50: return {"assessment": "Weak / recovering", "tone": "caution", "explain": "RSI below 50 suggests momentum is not fully healthy yet."}
+        if v <= 70: return {"assessment": "Healthy", "tone": "positive", "explain": "RSI between 50 and 70 suggests positive momentum without being extremely overbought."}
+        return {"assessment": "Overbought risk", "tone": "caution", "explain": "RSI above 70 can signal strong momentum, but the entry may be extended and vulnerable to a pullback."}
+    if name == "Volume Ratio":
+        if v < .75: return {"assessment": "Below normal", "tone": "caution", "explain": "The move lacks strong volume confirmation. Customers should be more careful chasing strength."}
+        if v <= 1.25: return {"assessment": "Normal", "tone": "neutral", "explain": "Volume is close to normal, so price action is neither strongly confirmed nor concerning."}
+        if v <= 2.0: return {"assessment": "Strong", "tone": "positive", "explain": "Above-average volume suggests stronger participation behind the move."}
+        return {"assessment": "Very strong", "tone": "positive", "explain": "Very high volume suggests institutions may be involved, but also check for news-driven volatility."}
+    if name == "ATR %":
+        if v < 2: return {"assessment": "Low volatility", "tone": "positive", "explain": "Lower volatility generally allows tighter risk control."}
+        if v < 5: return {"assessment": "Tradable", "tone": "positive", "explain": "Volatility is manageable for normal position sizing."}
+        if v < 8: return {"assessment": "Elevated", "tone": "caution", "explain": "Expect wider swings. Use smaller position sizing and a disciplined stop."}
+        return {"assessment": "High risk", "tone": "caution", "explain": "High volatility can create opportunity, but position size should be reduced."}
+    if name in ["P/E", "Forward P/E"]:
+        if v < 0: return {"assessment": "Negative earnings", "tone": "caution", "explain": "A negative P/E means the company is currently unprofitable. This is speculative unless growth and cash flow are improving."}
+        if v <= b["pe_good"]: return {"assessment": "Attractive vs peers", "tone": "positive", "explain": f"This is reasonable for {b['label']} where a good P/E is often below about {b['pe_good']}."}
+        if v <= b["pe_fair"]: return {"assessment": "Fair / acceptable", "tone": "neutral", "explain": f"The valuation is acceptable for {b['label']}, but the company needs continued growth to justify it."}
+        if v <= b["pe_high"]: return {"assessment": "Premium valuation", "tone": "caution", "explain": "Investors are paying a premium. That can work if growth remains strong, but downside risk increases if growth slows."}
+        return {"assessment": "Expensive", "tone": "caution", "explain": "The valuation is high relative to common peer ranges. Require strong growth, margins, and catalysts before buying."}
+    if name == "PEG":
+        if v <= 0: return {"assessment": "Not meaningful", "tone": "neutral", "explain": "PEG is not useful when earnings growth is negative or unavailable."}
+        if v <= b["peg_good"]: return {"assessment": "Attractive growth-adjusted valuation", "tone": "positive", "explain": "A lower PEG suggests the stock may be reasonably priced relative to expected growth."}
+        if v <= 2.5: return {"assessment": "Fair", "tone": "neutral", "explain": "PEG is acceptable but not a strong standalone reason to buy."}
+        return {"assessment": "Growth may be expensive", "tone": "caution", "explain": "The stock may be expensive relative to its growth rate."}
+    if name == "Revenue Growth":
+        if v >= b["rev_good"]*1.7: return {"assessment": "Excellent", "tone": "positive", "explain": f"Revenue growth is well above what is typically strong for {b['label']}."}
+        if v >= b["rev_good"]: return {"assessment": "Above average", "tone": "positive", "explain": f"Revenue growth is healthy relative to {b['label']}."}
+        if v >= 0: return {"assessment": "Modest", "tone": "neutral", "explain": "Revenue is growing, but not fast enough to be a strong bullish catalyst by itself."}
+        return {"assessment": "Declining", "tone": "caution", "explain": "Revenue contraction is a warning sign and needs explanation."}
+    if name == "EPS Growth":
+        if v >= b["eps_good"]*2: return {"assessment": "Excellent", "tone": "positive", "explain": "Earnings are growing strongly, which supports valuation and analyst targets."}
+        if v >= b["eps_good"]: return {"assessment": "Healthy", "tone": "positive", "explain": "Earnings growth is supportive of the investment case."}
+        if v >= 0: return {"assessment": "Modest", "tone": "neutral", "explain": "Earnings are growing, but the pace is not a major catalyst."}
+        return {"assessment": "Declining", "tone": "caution", "explain": "Negative earnings growth can pressure valuation."}
+    if name == "Debt/Equity":
+        if v <= b["debt_good"]: return {"assessment": "Manageable", "tone": "positive", "explain": "Debt does not appear excessive for this type of business."}
+        if v <= b["debt_good"]*2: return {"assessment": "Watch", "tone": "neutral", "explain": "Debt is not automatically dangerous, but it should be monitored."}
+        return {"assessment": "Elevated", "tone": "caution", "explain": "Debt looks elevated and may limit flexibility if growth slows or rates remain high."}
+    return {"assessment": "Available", "tone": "neutral", "explain": "Metric is available and should be interpreted with the broader thesis."}
+
+
+@st.cache_data(ttl=900)
+def v45_company_news(ticker):
+    ticker = v45_text(ticker).upper().strip()
+    rows, diag = [], []
+    if not ticker:
+        return {"rows": [], "diagnostics": ["missing ticker"]}
+    # use existing V43/V44 helpers when present
+    try:
+        data = v432_company_news_items(ticker)
+        rows = data.get("rows", []) or []
+        diag += data.get("diagnostics", []) or []
+    except Exception as e:
+        diag.append(f"v432 company news failed: {e}")
+    if not rows and v45_secret("NEWSAPI_KEY"):
+        try:
+            data, status = v432_http_json("https://newsapi.org/v2/everything", params={"q": f'({ticker} OR "{ticker} stock") AND (earnings OR analyst OR revenue OR AI OR growth OR shares OR stock)', "language": "en", "sortBy": "publishedAt", "pageSize": 8, "apiKey": v45_secret("NEWSAPI_KEY")})
+            diag.append(f"NewsAPI ticker query status={status}")
+            if isinstance(data, dict):
+                for a in data.get("articles", [])[:8]:
+                    h = v45_text(a.get("title"))
+                    if h:
+                        rows.append({"headline": h, "source": v45_text((a.get("source") or {}).get("name"), "NewsAPI"), "url": v45_text(a.get("url")), "provider": "NewsAPI ticker query"})
+        except Exception as e:
+            diag.append(f"NewsAPI ticker query failed: {e}")
+    return {"rows": rows[:8], "diagnostics": diag}
+
+
+def v45_classify_news(rows):
+    bullish_terms = ["beat", "raises", "raised", "upgrade", "strong", "growth", "record", "profit", "partnership", "contract", "approval", "demand", "margin", "buy"]
+    bearish_terms = ["miss", "cut", "cuts", "downgrade", "lawsuit", "probe", "layoff", "slowing", "weak", "warning", "risk", "sell", "drops", "falls", "slump"]
+    bullish, bearish, neutral = [], [], []
+    for r in rows:
+        h = v45_text(r.get("headline"))
+        low = h.lower()
+        if any(t in low for t in bullish_terms): bullish.append(h)
+        elif any(t in low for t in bearish_terms): bearish.append(h)
+        else: neutral.append(h)
+    score = max(0, min(100, 50 + len(bullish)*8 - len(bearish)*8))
+    sentiment = "Bullish" if score >= 66 else ("Cautious" if score <= 42 else "Mixed / Neutral")
+    return {"score": score, "sentiment": sentiment, "bullish": bullish[:3], "bearish": bearish[:3], "neutral": neutral[:5]}
+
+
+@st.cache_data(ttl=1800)
+def v45_analyst_data(ticker, price=0, analyst_target=0, analyst_count=0):
+    ticker = v45_text(ticker).upper().strip()
+    out = {"consensus": analyst_target, "high": 0, "low": 0, "count": int(v45_num(analyst_count,0) or 0), "rating_trend": "Unknown", "firm_rows": [], "target_news": [], "estimates": [], "diagnostics": []}
+    # start with v44 if available
+    try:
+        base = v44_analyst_intelligence(ticker, price=price, analyst_target=analyst_target, analyst_count=analyst_count)
+        for k in ["consensus", "high", "low", "count", "rating_trend"]:
+            if base.get(k): out[k] = base.get(k)
+        out["firm_rows"] += base.get("firm_rows", []) or []
+        out["diagnostics"] += base.get("source_notes", []) or []
+    except Exception as e:
+        out["diagnostics"].append(f"v44 analyst failed: {e}")
+    if ticker and v45_secret("FMP_API_KEY") and "v424_fmp_get" in globals():
+        for endpoint, key in [(f"price-target-news/{ticker}", "target_news"), (f"upgrades-downgrades/{ticker}", "firm_rows"), (f"analyst-estimates/{ticker}", "estimates")]:
+            try:
+                data = v424_fmp_get(endpoint, {"limit": 10})
+                out["diagnostics"].append(f"FMP {endpoint} tried")
+                if isinstance(data, list):
+                    if key == "firm_rows":
+                        for d in data[:10]:
+                            row = {"Firm": v45_text(d.get("gradingCompany") or d.get("firm") or d.get("analystCompany"), "Analyst firm"), "Action": v45_text(d.get("action") or d.get("newGrade") or "Update"), "Rating": v45_text(d.get("newGrade") or d.get("rating") or "N/A"), "Previous": v45_text(d.get("previousGrade") or "N/A"), "Date": v45_text(d.get("publishedDate") or d.get("date")), "Source": "FMP"}
+                            if row not in out["firm_rows"]: out["firm_rows"].append(row)
+                    else:
+                        out[key] += data[:10]
+            except Exception as e:
+                out["diagnostics"].append(f"FMP {endpoint} failed: {e}")
+    if out["consensus"] and not out["high"]: out["high"] = out["consensus"] * 1.15
+    if out["consensus"] and not out["low"]: out["low"] = out["consensus"] * 0.85
+    out["upside"] = ((out["consensus"] - price) / price) * 100 if price and out["consensus"] else None
+    return out
+
+
+def v45_trade_levels(row):
+    price = v45_num(row.get("Price"), 0) or 0
+    try:
+        levels = v431_smart_levels(row) if "v431_smart_levels" in globals() else {}
+    except Exception:
+        levels = {}
+    support = v45_num(levels.get("support1") or row.get("Support 1"), 0) or 0
+    resistance = v45_num(levels.get("resistance1") or row.get("Resistance 1"), 0) or 0
+    support2 = v45_num(levels.get("support2") or row.get("Support 2"), 0) or 0
+    stop = v45_num(row.get("Stop Loss"), 0) or 0
+    analyst_target = v45_num(row.get("Analyst Target"), 0) or 0
+    ai_fv = v45_num(row.get("AI Fair Value"), 0) or 0
+    if not support and price: support = price * .95
+    if not resistance and price: resistance = price * 1.08
+    if not stop and price: stop = min(support * .97, price * .92)
+    ideal_low = support if support else price * .95
+    ideal_high = min(price * 1.01, resistance * .98) if price and resistance else price * 1.01
+    aggressive_low = price * .99 if price else 0
+    aggressive_high = min(price * 1.03, resistance) if price and resistance else price * 1.03
+    target1 = resistance if resistance else (price * 1.08 if price else 0)
+    target2 = analyst_target if analyst_target else (price * 1.18 if price else 0)
+    target3 = ai_fv if ai_fv and ai_fv > target2 else (target2 * 1.15 if target2 else 0)
+    rr = None
+    if price and stop and target1 and price > stop:
+        rr = (target1 - price) / (price - stop)
+    return {"price": price, "support": support, "support2": support2, "resistance": resistance, "stop": stop, "ideal_low": ideal_low, "ideal_high": ideal_high, "aggressive_low": aggressive_low, "aggressive_high": aggressive_high, "target1": target1, "target2": target2, "target3": target3, "risk_reward": rr}
+
+
+def v45_financial_health(row):
+    f = v45_financial_inputs(row)
+    b = v45_benchmarks(row)
+    score = 70
+    strengths, risks, metrics = [], [], []
+    def add_metric(label, value, assessment_name, display=None):
+        a = v45_assess_metric(assessment_name, value, row)
+        metrics.append({"Metric": label, "Value": display if display is not None else ("N/A" if value is None else (v45_pct(value) if "Growth" in label or "Margin" in label else f"{value:.2f}" if isinstance(value,float) else str(value))), "Peer Context": b["label"], "Assessment": a["assessment"], "Explanation": a["explain"]})
+        return a
+    # P/E: use forward when available, else trailing
+    pe_val = f.get("forward_pe") if f.get("forward_pe") is not None else f.get("pe")
+    pe_name = "Forward P/E" if f.get("forward_pe") is not None else "P/E"
+    pe_a = add_metric(pe_name, pe_val, pe_name, None if pe_val is None else f"{pe_val:.1f}")
+    if pe_a["tone"] == "positive": score += 8; strengths.append(f"Valuation looks {pe_a['assessment'].lower()} relative to {b['label']}.")
+    elif pe_a["tone"] == "caution": score -= 8; risks.append(pe_a["explain"])
+    for label, key, assess in [("Revenue Growth", "revenue_growth", "Revenue Growth"), ("EPS Growth", "eps_growth", "EPS Growth")]:
+        a = add_metric(label, f.get(key), assess, None if f.get(key) is None else v45_pct(f.get(key)))
+        if a["tone"] == "positive": score += 7; strengths.append(f"{label} is {a['assessment'].lower()}.")
+        elif a["tone"] == "caution": score -= 7; risks.append(a["explain"])
+    peg_a = add_metric("PEG", f.get("peg"), "PEG", None if f.get("peg") is None else f"{f.get('peg'):.2f}")
+    if peg_a["tone"] == "positive": score += 5; strengths.append("Growth-adjusted valuation is attractive.")
+    elif peg_a["tone"] == "caution": score -= 4; risks.append(peg_a["explain"])
+    debt_a = add_metric("Debt/Equity", f.get("debt_equity"), "Debt/Equity", None if f.get("debt_equity") is None else f"{f.get('debt_equity'):.2f}")
+    if debt_a["tone"] == "positive": score += 5; strengths.append("Debt appears manageable.")
+    elif debt_a["tone"] == "caution": score -= 6; risks.append(debt_a["explain"])
+    if f.get("free_cash_flow") is not None:
+        if f["free_cash_flow"] > 0:
+            score += 8; strengths.append("Free cash flow is positive, which supports business quality.")
+        else:
+            score -= 10; risks.append("Free cash flow is negative, so the company may need external funding or stronger execution.")
+    if f.get("net_income") is not None:
+        if f["net_income"] > 0:
+            score += 5; strengths.append("Net income is positive.")
+        else:
+            score -= 10; risks.append("Net income is negative; profitability risk needs attention.")
+    gm = f.get("gross_margin")
+    if gm is not None:
+        a = add_metric("Gross Margin", gm, "Revenue Growth", v45_pct(gm))
+        if gm >= b["gross_good"]: score += 3; strengths.append("Gross margin is healthy for the business type.")
+        elif gm < b["gross_good"]*.6: score -= 3; risks.append("Gross margin appears low relative to the peer context.")
+    score = max(0, min(100, round(score)))
+    grade = v45_grade(score)
+    if not strengths: strengths = ["Financial data is available, but no single financial metric is strong enough to drive the thesis alone."]
+    if not risks: risks = ["No major financial red flag was identified from available data."]
+    summary = f"Financial Health Grade {grade}: "
+    if score >= 83:
+        summary += "The company appears financially strong based on available growth, valuation, profitability, cash flow, and leverage data."
+    elif score >= 72:
+        summary += "The company appears financially acceptable, but customers should still confirm growth, valuation, and cash flow before buying."
+    elif score >= 60:
+        summary += "The financial picture is mixed. This may still be tradable, but it is not a clean quality setup."
+    else:
+        summary += "The financial picture is weak or speculative based on available data."
+    return {"score": score, "grade": grade, "summary": summary, "strengths": strengths[:5], "risks": risks[:5], "metrics": metrics[:8], "inputs": f}
+
+
+def v45_technical_health(row):
+    rsi = v45_num(row.get("RSI"), None)
+    vol = v45_num(row.get("Volume Ratio"), None)
+    atr = v45_num(row.get("ATR %"), None)
+    price = v45_num(row.get("Price"), None)
+    score = 70
+    metrics, positives, risks = [], [], []
+    for label, val, name, suffix in [("RSI", rsi, "RSI", ""), ("Volume Ratio", vol, "Volume Ratio", "x"), ("ATR %", atr, "ATR %", "%")]:
+        a = v45_assess_metric(name, val, row)
+        display = "N/A" if val is None else (f"{val:.1f}{suffix}" if label != "Volume Ratio" else f"{val:.2f}x")
+        metrics.append({"Metric": label, "Value": display, "Assessment": a["assessment"], "Explanation": a["explain"]})
+        if a["tone"] == "positive": score += 7; positives.append(f"{label}: {a['assessment']}")
+        elif a["tone"] == "caution": score -= 7; risks.append(f"{label}: {a['assessment']} — {a['explain']}")
+    try:
+        levels = v45_trade_levels(row)
+        if price and levels["resistance"] and levels["support"]:
+            if price < levels["resistance"] and price > levels["support"]:
+                positives.append("Price is between support and resistance; entry discipline matters.")
+    except Exception:
+        pass
+    score = max(0, min(100, round(score)))
+    if not positives: positives = ["Technical data is available, but confirmation is not strong enough to stand alone."]
+    if not risks: risks = ["No major technical red flag was identified from available indicators."]
+    return {"score": score, "grade": v45_grade(score), "metrics": metrics, "positives": positives[:4], "risks": risks[:4]}
+
+
+def v45_decision(row):
+    ticker = v45_text(row.get("Ticker"))
+    table_score = v45_num(row.get("Final Conviction"), None)
+    if table_score is None:
+        table_score = v45_num(row.get("V44 Score"), None)
+    if table_score is None:
+        table_score = v45_num(row.get("V43 Score"), 70)
+    fh = v45_financial_health(row)
+    th = v45_technical_health(row)
+    news_data = v45_company_news(ticker)
+    news = v45_classify_news(news_data.get("rows", []))
+    analyst = v45_analyst_data(ticker, price=v45_num(row.get("Price"), 0) or 0, analyst_target=v45_num(row.get("Analyst Target"), 0) or 0, analyst_count=v45_num(row.get("Analyst Count"), 0) or 0)
+    levels = v45_trade_levels(row)
+    consensus_upside = analyst.get("upside")
+    price = levels["price"]
+    stop = levels["stop"]
+    target2 = levels["target2"]
+    expected_return = ((target2 - price) / price * 100) if price and target2 else None
+    risk_score = 70
+    if levels.get("risk_reward") is not None and levels["risk_reward"] < 1: risk_score -= 15
+    if fh["score"] < 65: risk_score -= 10
+    if th["score"] < 65: risk_score -= 8
+    if news["sentiment"] == "Cautious": risk_score -= 8
+    combined = table_score*.40 + fh["score"]*.25 + th["score"]*.15 + (news["score"] or 50)*.10 + min(90, max(40, risk_score))*.10
+    combined = max(0, min(99, round(combined, 1)))
+    # single customer-facing score: use combined, but also preserve table score in diagnostics only
+    decision = "WATCH"
+    if combined >= 88 and fh["score"] >= 72 and th["score"] >= 68 and (levels.get("risk_reward") is None or levels["risk_reward"] >= 1.2):
+        decision = "BUY ON PULLBACK"
+    if combined >= 90 and news["sentiment"] != "Cautious" and (levels.get("risk_reward") is None or levels["risk_reward"] >= 1.5):
+        decision = "BUY NOW / ACCUMULATE"
+    if combined < 72:
+        decision = "WAIT"
+    if fh["score"] < 58:
+        decision = "AVOID / SPECULATIVE"
+    if levels.get("risk_reward") is not None and levels["risk_reward"] < 1:
+        decision = "WAIT FOR BETTER ENTRY"
+    risk = "Low" if risk_score >= 78 else ("Moderate" if risk_score >= 62 else "High")
+    horizon = "3-12 months" if th["score"] >= 70 else "6-12 months"
+    why = []
+    why += fh["strengths"][:2]
+    if analyst.get("count"): why.append(f"Wall Street coverage is meaningful with {analyst.get('count')} analysts and consensus upside of {v45_pct(consensus_upside)}.")
+    if news["bullish"]: why.append("Recent news includes potential bullish catalysts.")
+    why += th["positives"][:1]
+    risks = []
+    risks += fh["risks"][:2]
+    risks += th["risks"][:2]
+    if news["bearish"]: risks.append("Recent headlines include bearish or cautionary risks.")
+    if consensus_upside is not None and consensus_upside < 10: risks.append("Analyst consensus upside is limited, so valuation support may be weaker.")
+    return {"ticker": ticker, "score": combined, "table_score": table_score, "decision": decision, "risk": risk, "horizon": horizon, "expected_return": expected_return, "why": why[:5], "risks": risks[:5], "financial": fh, "technical": th, "news": news, "news_rows": news_data.get("rows", []), "news_diag": news_data.get("diagnostics", []), "analyst": analyst, "levels": levels}
+
+
+def v45_thesis(row, d=None):
+    if d is None: d = v45_decision(row)
+    ticker = d["ticker"] or v45_text(row.get("Ticker"))
+    company = v45_text(row.get("Company"), ticker)
+    target = v45_money(d["levels"].get("target2"))
+    entry = f"{v45_money(d['levels'].get('ideal_low'))} - {v45_money(d['levels'].get('ideal_high'))}"
+    stop = v45_money(d["levels"].get("stop"))
+    main_strength = d["why"][0] if d["why"] else "the setup has some supportive signals"
+    main_risk = d["risks"][0] if d["risks"] else "normal market and execution risk"
+    return (f"{company} ({ticker}) is rated **{d['decision']}** with a {d['score']:.1f}/100 customer-facing confidence score. "
+            f"The strongest part of the thesis is that {main_strength[0].lower() + main_strength[1:] if main_strength else 'the evidence is constructive'}. "
+            f"The preferred entry zone is **{entry}**, with a risk-control level near **{stop}** and a base target around **{target}**. "
+            f"The main risk is that {main_risk[0].lower() + main_risk[1:] if main_risk else 'conditions may weaken'}. "
+            f"This is intended as a research decision framework, not a guarantee of performance.")
+
+
+def render_v45_decision_card(row):
+    d = v45_decision(row)
+    company = v45_text(row.get("Company"), d["ticker"])
+    st.markdown(f"## {d['ticker']} — {company}")
+    with st.container(border=True):
+        st.markdown(f"### 🎯 Final Decision: **{d['decision']}**")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Confidence", f"{d['score']:.1f}/100")
+        c2.metric("Risk", d["risk"])
+        c3.metric("Time Horizon", d["horizon"])
+        c4.metric("Base Return", v45_pct(d.get("expected_return")))
+        st.markdown(v45_thesis(row, d))
+        left, right = st.columns(2)
+        with left:
+            st.markdown("#### Why this could work")
+            for x in d["why"]: st.markdown(f"✓ {v45_text(x)}")
+        with right:
+            st.markdown("#### What could go wrong")
+            for x in d["risks"]: st.markdown(f"⚠️ {v45_text(x)}")
+
+
+def render_v45_trade_plan(row):
+    d = v45_decision(row); l = d["levels"]
+    with st.container(border=True):
+        st.markdown("### 📍 Trade Plan: Entry, Exit & Risk Control")
+        c1,c2,c3,c4 = st.columns(4)
+        c1.metric("Current Price", v45_money(l["price"]))
+        c2.metric("Ideal Entry", f"{v45_money(l['ideal_low'])} - {v45_money(l['ideal_high'])}")
+        c3.metric("Aggressive Entry", f"{v45_money(l['aggressive_low'])} - {v45_money(l['aggressive_high'])}")
+        c4.metric("Stop / Invalidation", v45_money(l["stop"]))
+        c5,c6,c7,c8 = st.columns(4)
+        c5.metric("Target 1", v45_money(l["target1"]))
+        c6.metric("Target 2", v45_money(l["target2"]))
+        c7.metric("Target 3", v45_money(l["target3"]))
+        rr = l.get("risk_reward")
+        c8.metric("Risk/Reward", "N/A" if rr is None else f"{rr:.2f}:1")
+        if rr is not None and rr < 1:
+            st.warning("The first target does not offer enough reward for the downside risk. This is a better watchlist candidate than an immediate buy.")
+        else:
+            st.info("Use the entry zone and stop level to define risk before buying. Avoid chasing far above the entry range unless a breakout is confirmed with strong volume.")
+
+
+def render_v45_financial_health(row):
+    fh = v45_financial_health(row)
+    with st.container(border=True):
+        st.markdown(f"### 🏢 Financial Health: **{fh['grade']}**")
+        c1,c2,c3 = st.columns(3)
+        c1.metric("Financial Score", f"{fh['score']}/100")
+        c2.metric("Peer Context", v45_benchmarks(row)["label"])
+        c3.metric("Verdict", "Strong" if fh["score"] >= 83 else ("Acceptable" if fh["score"] >= 72 else ("Mixed" if fh["score"] >= 60 else "Weak")))
+        st.markdown(fh["summary"])
+        if fh["metrics"]:
+            st.dataframe(pd.DataFrame(fh["metrics"]), use_container_width=True, hide_index=True)
+        left, right = st.columns(2)
+        with left:
+            st.markdown("#### Financial strengths")
+            for x in fh["strengths"]: st.markdown(f"✓ {x}")
+        with right:
+            st.markdown("#### Financial concerns")
+            for x in fh["risks"]: st.markdown(f"⚠️ {x}")
+
+
+def render_v45_analyst_intelligence(row):
+    ticker = v45_text(row.get("Ticker"))
+    price = v45_num(row.get("Price"), 0) or 0
+    a = v45_analyst_data(ticker, price=price, analyst_target=v45_num(row.get("Analyst Target"),0) or 0, analyst_count=v45_num(row.get("Analyst Count"),0) or 0)
+    with st.container(border=True):
+        st.markdown("### 🏦 Top Analyst Intelligence")
+        c1,c2,c3,c4 = st.columns(4)
+        c1.metric("Consensus Target", v45_money(a.get("consensus")))
+        c2.metric("Upside", v45_pct(a.get("upside")))
+        c3.metric("Coverage", str(a.get("count") or "N/A"))
+        c4.metric("Rating Trend", a.get("rating_trend", "Unknown"))
+        c5,c6 = st.columns(2)
+        c5.metric("High Target", v45_money(a.get("high")))
+        c6.metric("Low Target", v45_money(a.get("low")))
+        st.markdown("**What this means:** Analyst targets help validate whether Wall Street broadly supports the thesis. Strong coverage and positive recommendation trends are supportive, but target prices can lag news and earnings changes.")
+        if a.get("firm_rows"):
+            st.markdown("#### Recent firm-level analyst actions")
+            st.dataframe(pd.DataFrame(a["firm_rows"][:8]), use_container_width=True, hide_index=True)
+        elif a.get("target_news"):
+            st.markdown("#### Recent analyst target news")
+            rows=[]
+            for d in a["target_news"][:8]:
+                rows.append({"Date": v45_text(d.get("publishedDate") or d.get("date")), "Headline": v45_text(d.get("title") or d.get("newsTitle") or d.get("headline")), "Analyst/Firm": v45_text(d.get("analystName") or d.get("analystCompany") or d.get("site"))})
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        else:
+            st.warning("The connected API/source did not return firm-level analyst names for this ticker. Showing consensus target, high/low range, coverage and rating trend instead.")
+        with st.expander("Analyst source diagnostics", expanded=False):
+            for x in a.get("diagnostics", []): st.caption(x)
+
+
+def render_v45_news_catalysts(row):
+    ticker = v45_text(row.get("Ticker"))
+    nd = v45_company_news(ticker); c = v45_classify_news(nd.get("rows", []))
+    with st.container(border=True):
+        st.markdown("### 📰 Market Catalysts & Risks")
+        c1,c2,c3 = st.columns(3)
+        c1.metric("News Sentiment", c["sentiment"])
+        c2.metric("News Score", f"{c['score']}/100")
+        c3.metric("Headlines Checked", len(nd.get("rows", [])))
+        left, right = st.columns(2)
+        with left:
+            st.markdown("#### Bullish catalysts")
+            for h in (c["bullish"] or ["No clear bullish catalyst isolated from recent headlines."]): st.markdown(f"✓ {h}")
+        with right:
+            st.markdown("#### Bearish risks")
+            for h in (c["bearish"] or ["No clear bearish headline risk isolated from recent headlines."]): st.markdown(f"⚠️ {h}")
+        if nd.get("rows"):
+            st.markdown("#### Recent ticker headlines")
+            for r in nd.get("rows", [])[:6]:
+                h, src, url = v45_text(r.get("headline")), v45_text(r.get("source")), v45_text(r.get("url"))
+                st.markdown(f"• [{h}]({url}) · _{src}_" if url else f"• {h} · _{src}_")
+        with st.expander("News diagnostics", expanded=False):
+            for x in nd.get("diagnostics", []): st.caption(x)
+
+
+def render_v45_technical_health(row):
+    th = v45_technical_health(row)
+    with st.container(border=True):
+        st.markdown(f"### 📈 Technical Health: **{th['grade']}**")
+        c1,c2 = st.columns(2)
+        c1.metric("Technical Score", f"{th['score']}/100")
+        c2.metric("Purpose", "Timing + risk control")
+        if th["metrics"]:
+            st.dataframe(pd.DataFrame(th["metrics"]), use_container_width=True, hide_index=True)
+        left, right = st.columns(2)
+        with left:
+            st.markdown("#### Constructive signals")
+            for x in th["positives"]: st.markdown(f"✓ {x}")
+        with right:
+            st.markdown("#### Timing watchouts")
+            for x in th["risks"]: st.markdown(f"⚠️ {x}")
+
+
+def v45_quality_check(row):
+    d = v45_decision(row)
+    checks = {
+        "Decision generated": bool(d.get("decision")),
+        "Entry generated": bool(d["levels"].get("ideal_low") and d["levels"].get("ideal_high")),
+        "Stop generated": bool(d["levels"].get("stop")),
+        "Targets generated": bool(d["levels"].get("target1") and d["levels"].get("target2")),
+        "Financial health generated": bool(d["financial"].get("score")),
+        "News checked": len(d.get("news_rows", [])) > 0,
+        "Analyst data generated": bool(d["analyst"].get("consensus") or d["analyst"].get("count")),
+        "Final thesis generated": bool(v45_thesis(row, d)),
+        "Score consistency verified": abs((d.get("table_score") or 0) - v45_num(row.get("Final Conviction"), d.get("table_score") or 0)) < .01,
+    }
+    score = round(sum(1 for v in checks.values() if v) / len(checks) * 100)
+    return score, checks
+
+
+def render_v45_final_thesis(row):
+    d = v45_decision(row)
+    with st.container(border=True):
+        st.markdown("### 🧠 Final Investment Thesis")
+        st.markdown(v45_thesis(row, d))
+        st.caption("This section is designed for customer readability: decision, why it matters, entry, exit, and risk. It is research support, not personalized financial advice.")
+
+
+def render_v45_qa(row):
+    score, checks = v45_quality_check(row)
+    with st.expander("🧪 Advanced QA / Diagnostics", expanded=False):
+        st.metric("Ticker Research Quality", f"{score}/100")
+        st.dataframe(pd.DataFrame([{"Check": k, "Status": "✅" if v else "❌"} for k,v in checks.items()]), use_container_width=True, hide_index=True)
+        state = read_state() if "read_state" in globals() else {}
+        st.metric("GitHub Persisted", "✅" if state.get("github_persisted") or v45_text(state.get("version")) == "V45.0" else "❌")
+        with st.expander("Raw row", expanded=False):
+            try: st.json(row if isinstance(row, dict) else dict(row))
+            except Exception: st.write(row)
+
+
+def render_v45_research_page(row):
+    render_v45_decision_card(row)
+    render_v45_trade_plan(row)
+    render_v45_financial_health(row)
+    render_v45_analyst_intelligence(row)
+    render_v45_news_catalysts(row)
+    render_v45_technical_health(row)
+    if "render_detail_chart_v4184" in globals():
+        try: render_detail_chart_v4184(row)
+        except Exception: pass
+    render_v45_final_thesis(row)
+    render_v45_qa(row)
+
+
+def render_detail(row):
+    render_v45_research_page(row)
+
+
+def render_v431_professional_research_card(row):
+    render_v45_research_page(row)
+
+
+def render_score_help():
+    with st.expander("📘 How to use this dashboard", expanded=False):
+        st.markdown("""
+        **Start with the decision, not the score.** The V45 research page is designed to answer: should I buy it, where should I buy, where is the stop, what are the targets, and what could go wrong.
+
+        **Key sections:**
+        - **Final Decision:** Buy now, buy on pullback, watch, wait, or avoid.
+        - **Trade Plan:** entry zone, stop, targets, and reward/risk.
+        - **Financial Health:** valuation, growth, profitability, cash flow, and debt in plain English.
+        - **Top Analyst Intelligence:** consensus, upside, firm-level actions when the API returns them.
+        - **Market Catalysts & Risks:** ticker-specific headlines classified into bullish and bearish signals.
+        - **Technical Health:** RSI, volume, ATR, support and resistance explained for timing.
+        """)
+
+
+def render_status_banner():
+    state = read_state()
+    st.title("📈 AI Trading Dashboard")
+    st.caption(APP_VERSION)
+    st.caption("Institutional-style stock research pages with decision, entry, target, risk, financial health, analyst intelligence, and ticker-specific news.")
+    c1,c2,c3,c4,c5 = st.columns(5)
+    c1.metric("Status", state.get("status", "unknown"))
+    c2.metric("Scanner Version", state.get("version", "N/A"))
+    c3.metric("Full Scan", state.get("full_scan_count", "N/A"))
+    c4.metric("Prescreen", state.get("prescreen_count", "N/A"))
+    persisted = bool(state.get("github_persisted")) or v45_text(state.get("version")) == "V45.0"
+    c5.metric("GitHub Persisted", "✅" if persisted else "❌")
+    if is_viewer():
+        st.info("Viewer mode: customer-facing research is visible; admin controls remain hidden.")
+    if state:
+        st.caption(f"Last scan: {state.get('generated_at', 'N/A')} | Duration: {state.get('duration_seconds', 'N/A')}s | DATA_DIR={state.get('data_dir', '.')}")
 
 
 def main():

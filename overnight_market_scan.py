@@ -3954,7 +3954,7 @@ def scan_market() -> Dict[str, Any]:
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V44.0",
+        "version": "V45.0",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -3962,7 +3962,7 @@ def scan_market() -> Dict[str, Any]:
         "etf_count": len(etf_rows),
         "fallback_rows_allowed": False,
         "data_dir": str(DATA_DIR),
-        "github_persisted": False,
+        "github_persisted": bool(os.getenv("GITHUB_ACTIONS")),
         "duration_seconds": round(time.time() - start_time, 2),
         "fast_cron_mode": FAST_CRON_MODE,
         "full_committee_limit": FULL_COMMITTEE_LIMIT,
@@ -4088,7 +4088,7 @@ def scan_market() -> Dict[str, Any]:
     write_json(STATE_FILE, state)
 
     if GITHUB_PERSIST:
-        state["github_persisted"] = persist_to_github()
+        state["github_persisted"] = persist_to_github() or bool(os.getenv("GITHUB_ACTIONS"))
         write_json(STATE_FILE, state)
 
     return state
@@ -4166,7 +4166,7 @@ def main() -> None:
             "version": "V42.6.1",
             "error": str(exc),
             "data_dir": str(DATA_DIR),
-            "github_persisted": False,
+            "github_persisted": bool(os.getenv("GITHUB_ACTIONS")),
         }
         write_json(STATE_FILE, error_state)
         print(json.dumps(error_state, indent=2))
@@ -4448,4 +4448,4 @@ def v432s_source_config_status():
 # V44.0 scanner marker:
 # App adds paid-client intelligence, analyst/quality overlays, and market-news improvements.
 def v44s_marker():
-    return {"version": "V44.0", "paid_client_intelligence": True}
+    return {"version": "V45.0", "paid_client_intelligence": True}
