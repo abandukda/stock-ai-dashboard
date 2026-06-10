@@ -15,7 +15,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V46.0 Institutional Research Completion Engine"
+APP_VERSION = "V46.1 Research Quality Correction Patch"
 
 
 # =========================
@@ -10806,6 +10806,562 @@ def render_status_banner():
     st.title("📈 AI Trading Dashboard")
     st.caption(APP_VERSION)
     st.caption("Institutional Research Completion Engine: maximizes current APIs before generating advisor-style entry, target, risk, analyst, news, and financial guidance.")
+    c1,c2,c3,c4,c5 = st.columns(5)
+    c1.metric("Status", state.get("status", "unknown"))
+    c2.metric("Scanner Version", state.get("version", "N/A"))
+    c3.metric("Full Scan", state.get("full_scan_count", "N/A"))
+    c4.metric("Prescreen", state.get("prescreen_count", "N/A"))
+    persisted = bool(state.get("github_persisted")) or v45_text(state.get("version", "")).startswith(("V45", "V46"))
+    c5.metric("GitHub Persisted", "✅" if persisted else "❌")
+    if is_viewer():
+        st.info("Viewer mode: customer-facing research is visible; admin controls remain hidden.")
+    if state:
+        st.caption(f"Last scan: {state.get('generated_at', 'N/A')} | Duration: {state.get('duration_seconds', 'N/A')}s | DATA_DIR={state.get('data_dir', '.')}")
+
+
+
+# =========================
+# V46.1 RESEARCH QUALITY CORRECTION PATCH
+# =========================
+# Fixes:
+# - Removes old V45 final thesis contradiction
+# - Normalizes margin values correctly: 0.81 -> 81%
+# - Adds trading stop vs long-term thesis break
+# - Prevents extreme analyst high targets from becoming client bull target
+# - Cleans advisor sentence rendering
+# - Improves debt/equity explanation for accounting-distorted ratios
+
+def v461_percent_value(x):
+    v = v46_num(x, positive=False) if "v46_num" in globals() else None
+    if v is None:
+        return None
+    # For margins/ROE from APIs: 0.81 means 81%, 81 means 81%.
+    if abs(v) <= 1:
+        v *= 100
+    if abs(v) > 250:
+        return None
+    return v
+
+
+@st.cache_data(ttl=900)
+def v461_financial_intelligence(ticker, row_json=None):
+    fin = v46_financial_intelligence(ticker, row_json) if "v46_financial_intelligence" in globals() else {}
+    fin = dict(fin or {})
+    fin.setdefault("diagnostics", [])
+    fin.setdefault("warnings", [])
+
+    # Correct margin normalization. V46 was still allowing 0.8% instead of 80%.
+    for key in ["gross_margin", "operating_margin", "net_margin", "roe"]:
+        if fin.get(key) is not None:
+            fixed = v461_percent_value(fin.get(key))
+            if fixed is not None:
+                fin[key] = fixed
+
+    # Add better balance sheet interpretation.
+    de = v46_num(fin.get("debt_equity"), positive=False) if "v46_num" in globals() else None
+    cash = v46_num(fin.get("cash"), positive=False) if "v46_num" in globals() else None
+    debt = v46_num(fin.get("total_debt"), positive=False) if "v46_num" in globals() else None
+    fcf = v46_num(fin.get("free_cash_flow"), positive=False) if "v46_num" in globals() else None
+
+    if cash is not None and debt is not None:
+        fin["net_cash"] = cash - debt
+        fin["cash_debt_ratio"] = cash / debt if debt else None
+
+    if de is not None and de > 20:
+        msg = "Book debt/equity appears accounting-distorted. For software companies, this can happen when equity is reduced by buybacks, losses, or convertible debt accounting. Use cash, total debt, net cash/debt, and free cash flow instead of treating the raw ratio as distress."
+        if msg not in fin["warnings"]:
+            fin["warnings"].append(msg)
+        if cash is not None and debt is not None:
+            if cash >= debt:
+                fin["debt_interpretation"] = f"Debt/equity is distorted, but cash appears to exceed total debt by about {v45_money(cash - debt)}. This is not automatically a distress signal."
+            else:
+                fin["debt_interpretation"] = f"Debt/equity is distorted. Net debt is about {v45_money(debt - cash)}; compare this against free cash flow before judging balance-sheet risk."
+        elif fcf is not None and fcf > 0:
+            fin["debt_interpretation"] = "Debt/equity is distorted, but positive free cash flow provides financial flexibility."
+        else:
+            fin["debt_interpretation"] = msg
+
+    usable = sum(
+        1 for k in [
+            "revenue_growth", "eps_growth", "pe", "forward_pe", "peg",
+            "free_cash_flow", "cash", "total_debt", "gross_margin",
+            "operating_margin", "net_margin"
+        ]
+        if fin.get(k) is not None
+    )
+    fin["data_quality"] = "Complete" if usable >= 7 else ("Partial" if usable >= 4 else "Incomplete")
+    return fin
+
+
+def v461_trade_plan(row, d=None):
+    price = v46_num(row.get("Price"), positive=True) if "v46_num" in globals() else None
+    if not price:
+        return v46_trade_plan(row, d) if "v46_trade_plan" in globals() else {}
+
+    raw = v46_trade_plan(row, d) if "v46_trade_plan" in globals() else {}
+    analyst = (d or {}).get("analyst", {}) if isinstance(d, dict) else {}
+    consensus = v46_num(analyst.get("consensus"), positive=True) if "v46_num" in globals() else None
+    high = v46_num(analyst.get("high"), positive=True) if "v46_num" in globals() else None
+
+    support = v46_num(raw.get("support1"), positive=True) or v46_num(row.get("52W Low"), positive=True) or price * 0.90
+    resistance = v46_num(raw.get("resistance1"), positive=True) or v46_num(row.get("52W High"), positive=True) or price * 1.15
+    atr_pct = v46_num(raw.get("atr_pct"), positive=False) or 4.0
+
+    # Entry: useful around current price/pullback, not a 52-week low to current wide range.
+    pullback_pct = max(0.03, min(0.08, atr_pct / 100))
+    ideal_low = max(price * (1 - pullback_pct * 1.5), support if support < price else price * 0.94)
+    ideal_high = price * 1.015
+    if ideal_low >= ideal_high:
+        ideal_low = price * 0.94
+        ideal_high = price * 1.01
+
+    aggressive_low = price * 0.99
+    aggressive_high = price * 1.03
+
+    # Stop: not 40% away for a trade. Use trading stop and separate long-term thesis break.
+    trading_stop = max(price * 0.88, ideal_low * 0.94)
+    if support and support < price:
+        # Do not force stop all the way down to 52-week low if it is far away.
+        trading_stop = max(trading_stop, support * 0.97)
+
+    thesis_break = support * 0.97 if support and support < trading_stop else min(price * 0.78, trading_stop * 0.90)
+
+    # Target sanity.
+    target1 = resistance if resistance and resistance > price else price * 1.15
+    if consensus and consensus > price:
+        target2 = consensus
+    else:
+        target2 = max(target1 * 1.08, price * 1.22)
+
+    # Bull target: cap stale/outlier analyst highs.
+    if high and high > target2 and high <= price * 2.25:
+        target3 = high
+    else:
+        target3 = min(max(target2 * 1.15, price * 1.35), price * 1.75)
+
+    risk = price - trading_stop
+    reward = target1 - price
+    rr = reward / risk if risk > 0 and reward > 0 else None
+
+    return {
+        "price": price,
+        "ideal_low": ideal_low,
+        "ideal_high": ideal_high,
+        "aggressive_low": aggressive_low,
+        "aggressive_high": aggressive_high,
+        "stop": trading_stop,
+        "trading_stop": trading_stop,
+        "thesis_break": thesis_break,
+        "target1": target1,
+        "target2": target2,
+        "target3": target3,
+        "risk_reward": rr,
+        "atr_pct": atr_pct,
+        "support1": support,
+        "resistance1": resistance,
+    }
+
+
+def v461_decision(row):
+    ticker = v451_clean_ticker(row.get("Ticker"))
+    price = v46_num(row.get("Price"), positive=True) or 0
+    company = v46_company_context(row) if "v46_company_context" in globals() else {"company": row.get("Company", ticker)}
+    analyst_raw = v451_live_analyst_enrichment(
+        ticker,
+        price=price,
+        scan_target=v46_num(row.get("Analyst Target"), positive=True) or 0,
+        scan_count=v46_num(row.get("Analyst Count"), positive=True) or 0,
+        scan_support=row.get("Analyst Support"),
+    )
+    analyst = v46_sanitize_analyst(analyst_raw, ticker, price, row) if "v46_sanitize_analyst" in globals() else analyst_raw
+    fin = v461_financial_intelligence(ticker, v451_row_to_json(row))
+    news = v46_news_intelligence(ticker, company.get("company") or row.get("Company") or ticker) if "v46_news_intelligence" in globals() else {}
+    levels = v461_trade_plan(row, {"analyst": analyst})
+    completion_score, completion_status, checks = v46_research_completion(company, fin, analyst, news, row) if "v46_research_completion" in globals() else (80, "Enhanced Grade", {})
+
+    table_score = v46_num(row.get("Final Conviction"), positive=False) or 60
+    analyst_upside = analyst.get("upside")
+    rr = levels.get("risk_reward")
+    revenue_growth = v46_num(fin.get("revenue_growth"), positive=False)
+    fcf = v46_num(fin.get("free_cash_flow"), positive=False)
+    de = v46_num(fin.get("debt_equity"), positive=False)
+    news_score = news.get("score", 50) if isinstance(news, dict) else 50
+    tech = v45_technical_health(row) if "v45_technical_health" in globals() else {"score": 60}
+    tech_score = v46_num(tech.get("score"), positive=False) or 60
+
+    score = table_score * 0.24 + tech_score * 0.18 + news_score * 0.10
+
+    if analyst.get("consensus") and analyst_upside is not None:
+        score += 14
+        if analyst_upside >= 25:
+            score += 6
+        elif analyst_upside >= 10:
+            score += 3
+        elif analyst_upside < 0:
+            score -= 8
+    elif analyst.get("count"):
+        score += 8
+
+    if "bullish" in str(analyst.get("rating_trend", "")).lower():
+        score += 6
+    if analyst.get("count", 0) >= 20:
+        score += 3
+
+    if revenue_growth is not None:
+        if revenue_growth >= 15:
+            score += 8
+        elif revenue_growth >= 5:
+            score += 5
+        elif revenue_growth < 0:
+            score -= 8
+
+    if fcf is not None:
+        score += 6 if fcf > 0 else -8
+
+    # Do not over-punish distorted debt/equity if cash/FCF context exists.
+    if de is not None:
+        if de > 20:
+            score -= 1
+        elif de <= 2:
+            score += 3
+
+    if fin.get("data_quality") == "Complete":
+        score += 4
+    elif fin.get("data_quality") == "Incomplete":
+        score -= 6
+
+    if rr is not None:
+        if rr >= 2:
+            score += 6
+        elif rr >= 1.25:
+            score += 3
+        elif rr < 1:
+            score -= 8
+
+    if news.get("rows"):
+        score += 3
+    else:
+        score -= 2
+
+    if completion_score < 75:
+        score -= 5
+
+    score = max(0, min(99, round(score, 1)))
+
+    bullish_case = (
+        analyst_upside is not None and analyst_upside >= 20
+        and ("bullish" in str(analyst.get("rating_trend", "")).lower() or analyst.get("count", 0) >= 15)
+        and (rr is None or rr >= 1.15)
+        and (fcf is None or fcf > 0)
+    )
+
+    if score >= 86 and (rr is None or rr >= 1.25):
+        decision = "BUY ON PULLBACK"
+    elif score >= 76:
+        decision = "ACTIONABLE WATCH"
+    elif bullish_case:
+        decision = "BUY ON PULLBACK"
+        score = max(score, 72)
+    elif score >= 62:
+        decision = "SPECULATIVE WATCH"
+    else:
+        decision = "AVOID / LOW PRIORITY"
+
+    if decision == "BUY ON PULLBACK" and price and levels.get("ideal_low") and levels.get("ideal_high"):
+        if levels["ideal_low"] <= price <= levels["ideal_high"]:
+            decision = "ACCUMULATE CAREFULLY"
+
+    caveats = []
+    if fin.get("warnings"):
+        caveats.extend(fin["warnings"][:2])
+    if analyst.get("warnings"):
+        caveats.extend(analyst["warnings"][:2])
+    if not news.get("rows"):
+        caveats.append("Recent ticker-specific news did not fully populate from connected sources; confidence is slightly reduced.")
+    if revenue_growth is not None and abs(revenue_growth) < 2 and bullish_case:
+        caveats.append("Revenue growth appears unusually low versus the broader thesis; verify next earnings/growth update.")
+
+    return {
+        "ticker": ticker,
+        "company": company,
+        "financials": fin,
+        "analyst": analyst,
+        "news": news,
+        "levels": levels,
+        "score": score,
+        "decision": decision,
+        "completion_score": completion_score,
+        "completion_status": completion_status,
+        "completion_checks": checks,
+        "risk": "High" if score < 68 or (levels.get("atr_pct") or 0) >= 8 else ("Moderate" if score < 85 else "Moderate-Low"),
+        "caveats": caveats,
+    }
+
+
+def v461_advisor_take(row, d=None):
+    d = d or v461_decision(row)
+    ticker = d["ticker"]
+    levels = d["levels"]
+    analyst = d["analyst"]
+    fin = d["financials"]
+    news = d["news"]
+
+    entry = f"{v45_money(levels.get('ideal_low'))}–{v45_money(levels.get('ideal_high'))}"
+    stop = v45_money(levels.get("trading_stop") or levels.get("stop"))
+    base = v45_money(levels.get("target2") or analyst.get("consensus"))
+
+    positives = []
+    cautions = []
+
+    if analyst.get("count"):
+        positives.append(f"{analyst.get('count')} analysts provide coverage")
+    if analyst.get("upside") is not None and analyst.get("upside") >= 10:
+        positives.append(f"Wall Street consensus implies {analyst.get('upside'):.1f}% upside")
+    if fin.get("revenue_growth") is not None and fin.get("revenue_growth") >= 5:
+        positives.append(f"revenue growth is {fin.get('revenue_growth'):.1f}%")
+    if fin.get("free_cash_flow") is not None and fin.get("free_cash_flow") > 0:
+        positives.append("free cash flow is positive")
+    if news.get("rows"):
+        positives.append("recent ticker-specific news was reviewed")
+
+    if fin.get("debt_interpretation"):
+        cautions.append(fin["debt_interpretation"])
+    if analyst.get("warnings"):
+        cautions.extend(analyst["warnings"][:1])
+    if not news.get("rows"):
+        cautions.append("recent ticker news is limited from connected sources")
+
+    if not positives:
+        positives.append("the setup has some constructive signals, but conviction is limited")
+
+    if d["decision"] in ["ACCUMULATE CAREFULLY", "BUY ON PULLBACK"]:
+        lead = (
+            f"**Our take:** {ticker} is an **{d['decision']}** candidate. "
+            f"The preferred entry zone is **{entry}**, the trading stop is around **{stop}**, "
+            f"and the base target is around **{base}**."
+        )
+    elif d["decision"] == "ACTIONABLE WATCH":
+        lead = (
+            f"**Our take:** {ticker} deserves a spot on the active watchlist. "
+            f"The setup is constructive, but the best risk/reward is near **{entry}** rather than chasing."
+        )
+    elif d["decision"] == "SPECULATIVE WATCH":
+        lead = (
+            f"**Our take:** {ticker} has upside potential, but uncertainty is elevated. "
+            f"Use smaller sizing and wait for confirmation near **{entry}**."
+        )
+    else:
+        lead = (
+            f"**Our take:** {ticker} is currently **AVOID / LOW PRIORITY** because the overall evidence "
+            f"does not support a strong risk-adjusted opportunity today."
+        )
+
+    return lead, positives[:5], cautions[:5]
+
+
+def render_v461_advisor_decision_card(row):
+    d = v461_decision(row)
+    levels = d["levels"]
+    lead, positives, cautions = v461_advisor_take(row, d)
+
+    with st.container(border=True):
+        st.markdown(f"## {d['ticker']} — {d['company'].get('company', d['ticker'])}")
+        st.markdown(f"### 🎯 AI Advisor Verdict: **{d['decision']}**")
+        st.markdown(lead)
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Advisor Confidence", f"{d['score']:.1f}/100")
+        c2.metric("Research Completion", f"{d['completion_score']}/100")
+        c3.metric("Research Status", d["completion_status"])
+        c4.metric("Risk", d["risk"])
+
+        c5, c6, c7, c8 = st.columns(4)
+        c5.metric("Current Price", v46_money(levels.get("price")))
+        c6.metric("Preferred Entry", f"{v45_money(levels.get('ideal_low'))} - {v45_money(levels.get('ideal_high'))}")
+        c7.metric("Trading Stop", v45_money(levels.get("trading_stop") or levels.get("stop")))
+        c8.metric("Base Target", v45_money(levels.get("target2")))
+
+        left, right = st.columns(2)
+        with left:
+            st.markdown("#### Why we like it")
+            for p in positives:
+                st.markdown(f"✓ {p}")
+        with right:
+            st.markdown("#### What gives us pause")
+            for c in cautions or ["No major caveat identified from populated data."]:
+                st.markdown(f"⚠️ {c}")
+
+
+def render_v461_trade_plan(row):
+    d = v461_decision(row)
+    l = d["levels"]
+
+    with st.container(border=True):
+        st.markdown("### 📍 Entry, Exit & Target Plan")
+        st.caption("This separates the trading stop from the long-term thesis break so clients understand near-term risk versus long-term invalidation.")
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Preferred Entry", f"{v45_money(l.get('ideal_low'))} - {v45_money(l.get('ideal_high'))}")
+        c2.metric("Aggressive Entry", f"{v45_money(l.get('aggressive_low'))} - {v45_money(l.get('aggressive_high'))}")
+        c3.metric("Trading Stop", v45_money(l.get("trading_stop") or l.get("stop")))
+        c4.metric("Risk / Reward", "N/A" if l.get("risk_reward") is None else f"{l.get('risk_reward'):.2f}:1")
+
+        c5, c6, c7, c8 = st.columns(4)
+        c5.metric("Long-Term Thesis Break", v45_money(l.get("thesis_break")))
+        c6.metric("Conservative Target", v45_money(l.get("target1")))
+        c7.metric("Base Target", v45_money(l.get("target2")))
+        c8.metric("Bull Target", v45_money(l.get("target3")))
+
+        if l.get("price") and l.get("ideal_low") and l.get("ideal_high") and l["ideal_low"] <= l["price"] <= l["ideal_high"]:
+            st.success("Current price is inside the preferred entry zone. A starter position may be reasonable if the client accepts the trading stop.")
+        elif l.get("price") and l.get("ideal_high") and l["price"] > l["ideal_high"]:
+            st.warning("Current price is above the preferred entry zone. Better risk/reward may come on a pullback.")
+        else:
+            st.info("Use the entry zone and trading stop together. Do not buy without knowing where the thesis breaks.")
+
+
+def render_v461_financial_intelligence(row):
+    d = v461_decision(row)
+    fin = d["financials"]
+    b = v45_benchmarks(row) if "v45_benchmarks" in globals() else {"label": "peers"}
+
+    metrics = []
+    for label, key, fmt in [
+        ("Revenue Growth", "revenue_growth", "pct"),
+        ("EPS Growth", "eps_growth", "pct"),
+        ("Free Cash Flow", "free_cash_flow", "money"),
+        ("Operating Cash Flow", "operating_cash_flow", "money"),
+        ("P/E", "pe", "num"),
+        ("Forward P/E", "forward_pe", "num"),
+        ("PEG", "peg", "num"),
+        ("Gross Margin", "gross_margin", "pct"),
+        ("Operating Margin", "operating_margin", "pct"),
+        ("Net Margin", "net_margin", "pct"),
+        ("Debt/Equity", "debt_equity", "debt"),
+        ("Cash", "cash", "money"),
+        ("Total Debt", "total_debt", "money"),
+        ("Net Cash / Debt", "net_cash", "money"),
+    ]:
+        val = fin.get(key)
+        if fmt == "money":
+            display = "Unavailable" if val is None else v45_money(val)
+        elif fmt == "pct":
+            display = "Unavailable" if val is None else f"{val:.1f}%"
+        elif fmt == "debt":
+            display = "Unavailable" if val is None else f"{val:.2f}x"
+        else:
+            display = "Unavailable" if val is None else f"{val:.2f}"
+
+        assess, explain = v451_assess_fin(label, val, row)
+        if key == "debt_equity" and val is not None and val > 20:
+            assess = "Accounting-distorted"
+            explain = fin.get("debt_interpretation") or "Debt/equity appears distorted by accounting structure. Use cash, debt, net cash and free cash flow context instead."
+
+        metrics.append({
+            "Metric": label,
+            "Value": display,
+            "Peer Context": v451_industry_avg_text(row, label),
+            "Assessment": assess,
+            "Plain English": explain,
+        })
+
+    usable = sum(1 for m in metrics if m["Value"] != "Unavailable")
+    grade_score = min(96, 50 + usable * 3)
+    if fin.get("free_cash_flow") and fin.get("free_cash_flow") > 0:
+        grade_score += 6
+    if fin.get("revenue_growth") and fin.get("revenue_growth") >= 10:
+        grade_score += 6
+    if fin.get("gross_margin") and fin.get("gross_margin") >= 50:
+        grade_score += 4
+    if fin.get("net_cash") is not None and fin.get("net_cash") > 0:
+        grade_score += 4
+    grade = v45_grade(grade_score) if "v45_grade" in globals() else "N/A"
+
+    with st.container(border=True):
+        st.markdown(f"### 🏢 Financial Intelligence: **{grade}**")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Data Quality", fin.get("data_quality", "Unknown"))
+        c2.metric("Metrics Populated", f"{usable}/{len(metrics)}")
+        c3.metric("Peer Group", b.get("label", "peers"))
+
+        st.dataframe(pd.DataFrame(metrics), use_container_width=True, hide_index=True)
+
+        st.markdown("#### Advisor explanation")
+        bullets = []
+        if fin.get("revenue_growth") is not None:
+            bullets.append(f"Revenue growth is {fin['revenue_growth']:.1f}%, which shows whether the business is still expanding.")
+        if fin.get("gross_margin") is not None:
+            bullets.append(f"Gross margin is {fin['gross_margin']:.1f}%, which helps show pricing power and software profitability.")
+        if fin.get("operating_margin") is not None:
+            bullets.append(f"Operating margin is {fin['operating_margin']:.1f}%, which helps show how much revenue converts into operating profit.")
+        if fin.get("free_cash_flow") is not None:
+            bullets.append("Free cash flow is positive, which supports financial flexibility." if fin["free_cash_flow"] > 0 else "Free cash flow is negative, which increases risk.")
+        if fin.get("debt_interpretation"):
+            bullets.append(fin["debt_interpretation"])
+
+        for btxt in bullets[:6]:
+            st.markdown(f"• {btxt}")
+
+        with st.expander("Admin financial diagnostics", expanded=False):
+            if fin.get("growth_candidates"):
+                st.markdown("**Revenue growth candidates**")
+                st.dataframe(pd.DataFrame(fin["growth_candidates"]), use_container_width=True, hide_index=True)
+            for x in fin.get("diagnostics", []):
+                st.caption(x)
+
+
+def render_v461_final_thesis(row):
+    d = v461_decision(row)
+    lead, positives, cautions = v461_advisor_take(row, d)
+    levels = d["levels"]
+
+    with st.container(border=True):
+        st.markdown("### 🧠 Final Investment Thesis")
+        st.markdown(lead)
+
+        st.markdown("#### Investment case")
+        for p in positives:
+            st.markdown(f"✓ {p}")
+
+        st.markdown("#### Key risks to monitor")
+        for c in cautions or ["No major caveat identified from populated data."]:
+            st.markdown(f"⚠️ {c}")
+
+        st.markdown(
+            f"**Bottom line:** For clients interested in {d['ticker']}, the preferred approach is to use the "
+            f"entry zone around **{v45_money(levels.get('ideal_low'))}–{v45_money(levels.get('ideal_high'))}**, "
+            f"respect the trading stop near **{v45_money(levels.get('trading_stop') or levels.get('stop'))}**, "
+            f"and reassess the thesis if price breaks the long-term thesis level near **{v45_money(levels.get('thesis_break'))}**."
+        )
+        st.caption("Research guidance only. Not personalized financial advice.")
+
+
+def render_v461_research_page(row):
+    render_v461_advisor_decision_card(row)
+    render_v461_trade_plan(row)
+    render_v461_financial_intelligence(row)
+    render_v46_analyst_intelligence(row)
+    render_v46_news_intelligence(row)
+    render_v451_metric_interpreter(row)
+    if "render_detail_chart_v4184" in globals():
+        try:
+            render_detail_chart_v4184(row)
+        except Exception:
+            pass
+    render_v461_final_thesis(row)
+    render_v46_completion(row)
+
+
+# Override active detail renderer for V46.1.
+def render_detail(row):
+    render_v461_research_page(row)
+
+
+def render_status_banner():
+    state = read_state()
+    st.title("📈 AI Trading Dashboard")
+    st.caption(APP_VERSION)
+    st.caption("Research Quality Correction Patch: fixes thesis consistency, margin normalization, stop/target logic, debt interpretation, and client-ready advisor wording.")
     c1,c2,c3,c4,c5 = st.columns(5)
     c1.metric("Status", state.get("status", "unknown"))
     c2.metric("Scanner Version", state.get("version", "N/A"))
