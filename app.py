@@ -15,7 +15,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V45.1 Advisor-Style Decision Engine"
+APP_VERSION = "V45.1.1 Advisor Engine Serialization Fix"
 
 
 # =========================
@@ -9680,6 +9680,48 @@ def v451_research_completeness(row, analyst=None, fin=None, news=None):
     return score, status, checks
 
 
+
+def v451_json_safe_value(x):
+    """Convert pandas/numpy/scalar objects into JSON-safe Python values."""
+    try:
+        if pd.isna(x):
+            return None
+    except Exception:
+        pass
+    try:
+        # numpy scalars such as int64/float64
+        if hasattr(x, "item"):
+            return x.item()
+    except Exception:
+        pass
+    try:
+        if isinstance(x, (dt.datetime, dt.date)):
+            return x.isoformat()
+    except Exception:
+        pass
+    if isinstance(x, (str, int, float, bool)) or x is None:
+        return x
+    try:
+        return str(x)
+    except Exception:
+        return None
+
+
+def v451_row_to_json(row):
+    """Safely serialize a Streamlit table row for cached enrichment functions."""
+    try:
+        d = dict(row)
+    except Exception:
+        d = row if isinstance(row, dict) else {}
+    safe = {}
+    try:
+        for k, v in d.items():
+            safe[str(k)] = v451_json_safe_value(v)
+    except Exception:
+        safe = {}
+    return json.dumps(safe, default=str)
+
+
 def v451_decision(row):
     ticker = v45_text(row.get("Ticker"), "") if "v45_text" in globals() else str(row.get("Ticker", ""))
     company = v45_text(row.get("Company"), ticker) if "v45_text" in globals() else ticker
@@ -9687,7 +9729,7 @@ def v451_decision(row):
     table_score = v451_valid_number(row.get("Final Conviction"), positive=False) or 0
     levels = v45_trade_levels(row) if "v45_trade_levels" in globals() else {}
     analyst = v451_live_analyst_enrichment(ticker, price=price, scan_target=v451_valid_number(row.get("Analyst Target"), positive=True) or 0, scan_count=v451_valid_number(row.get("Analyst Count"), positive=True) or 0, scan_support=row.get("Analyst Support"))
-    fin = v451_live_financial_enrichment(ticker, json.dumps(dict(row)) if not isinstance(row, dict) else json.dumps(row))
+    fin = v451_live_financial_enrichment(ticker, v451_row_to_json(row))
     news = v451_live_news_enrichment(ticker, company)
     completeness_score, completeness_status, completeness_checks = v451_research_completeness(row, analyst, fin, news)
 
