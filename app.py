@@ -15,7 +15,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V45.0 Institutional Research Experience"
+APP_VERSION = "V45.1 Advisor-Style Decision Engine"
 
 
 # =========================
@@ -9207,6 +9207,817 @@ def render_status_banner():
         st.caption(f"Last scan: {state.get('generated_at', 'N/A')} | Duration: {state.get('duration_seconds', 'N/A')}s | DATA_DIR={state.get('data_dir', '.')}")
 
 
+
+# =========================
+# V45.1 ADVISOR-STYLE DECISION ENGINE
+# =========================
+# Purpose:
+# - Customer view: simple actionable advice, entry/exit/targets, financial explanation, analyst view, news catalysts.
+# - Admin view: source health/QA trace hidden in expanders.
+# - Data rule: never show fake $0.00 targets; attempt live enrichment before rendering ticker detail.
+
+def v451_valid_number(x, positive=False):
+    v = v45_num(x, None) if "v45_num" in globals() else None
+    if v is None:
+        return None
+    try:
+        if math.isnan(v) or math.isinf(v):
+            return None
+    except Exception:
+        pass
+    if positive and v <= 0:
+        return None
+    return v
+
+
+def v451_first_valid(*values, positive=False):
+    for x in values:
+        v = v451_valid_number(x, positive=positive)
+        if v is not None:
+            return v
+    return None
+
+
+def v451_clean_ticker(ticker):
+    t = v45_text(ticker, "").upper().strip() if "v45_text" in globals() else str(ticker or "").upper().strip()
+    return t
+
+
+def v451_ticker_variants(ticker):
+    t = v451_clean_ticker(ticker)
+    variants = [t]
+    if "-" in t:
+        variants.append(t.replace("-", "."))
+    if "." in t:
+        variants.append(t.replace(".", "-"))
+    # Deduplicate while preserving order
+    out = []
+    for x in variants:
+        if x and x not in out:
+            out.append(x)
+    return out
+
+
+def v451_fmp_get_try(endpoint, params=None):
+    if "v424_fmp_get" not in globals():
+        return None, "FMP helper unavailable"
+    try:
+        data = v424_fmp_get(endpoint, params)
+        ok = bool(data) and data not in ({}, [])
+        return data, "returned" if ok else "empty"
+    except Exception as e:
+        return None, f"failed: {e}"
+
+
+def v451_yahoo_info(ticker):
+    t = v451_clean_ticker(ticker)
+    out = {}
+    try:
+        obj = yf.Ticker(t)
+        info = getattr(obj, "info", {}) or {}
+        if isinstance(info, dict):
+            out.update(info)
+    except Exception:
+        pass
+    return out
+
+
+@st.cache_data(ttl=900)
+def v451_live_analyst_enrichment(ticker, price=0, scan_target=0, scan_count=0, scan_support=""):
+    """
+    Attempts multiple analyst target / rating sources for ONE ticker.
+    Customer view uses the cleaned result. Admin view can inspect diagnostics.
+    """
+    ticker = v451_clean_ticker(ticker)
+    price = v451_valid_number(price, positive=True)
+    out = {
+        "ticker": ticker,
+        "consensus": None,
+        "high": None,
+        "low": None,
+        "median": None,
+        "count": int(v451_valid_number(scan_count, positive=True) or 0),
+        "rating_trend": v45_text(scan_support or "Unknown") if "v45_text" in globals() else str(scan_support or "Unknown"),
+        "firm_rows": [],
+        "estimate_rows": [],
+        "diagnostics": [],
+        "coverage_status": "Limited",
+        "data_quality": "Incomplete",
+    }
+
+    # Existing scan row is a valid fallback, but never allow zero.
+    out["consensus"] = v451_first_valid(scan_target, positive=True)
+
+    # FMP endpoint attempts. Different plan levels expose different endpoint shapes.
+    for tv in v451_ticker_variants(ticker):
+        endpoints = [
+            (f"price-target-consensus/{tv}", None, "FMP price-target-consensus"),
+            (f"price-target-summary/{tv}", None, "FMP price-target-summary"),
+            (f"analyst-estimates/{tv}", {"limit": 6}, "FMP analyst-estimates"),
+            (f"upgrades-downgrades/{tv}", None, "FMP upgrades-downgrades"),
+            (f"upgrades-downgrades-consensus/{tv}", None, "FMP upgrades-downgrades-consensus"),
+            (f"price-target/{tv}", {"limit": 10}, "FMP price-target"),
+        ]
+        for endpoint, params, label in endpoints:
+            data, status = v451_fmp_get_try(endpoint, params)
+            out["diagnostics"].append(f"{label}: {status}")
+            if not data:
+                continue
+            rows = data if isinstance(data, list) else [data]
+            for d in rows[:12]:
+                if not isinstance(d, dict):
+                    continue
+                # Target fields across FMP endpoint shapes
+                out["consensus"] = out["consensus"] or v451_first_valid(
+                    d.get("targetConsensus"),
+                    d.get("targetMean"),
+                    d.get("targetMedian"),
+                    d.get("priceTargetAverage"),
+                    d.get("priceTarget"),
+                    d.get("adjPriceTarget"),
+                    d.get("targetPrice"),
+                    positive=True,
+                )
+                out["high"] = out["high"] or v451_first_valid(
+                    d.get("targetHigh"),
+                    d.get("targetHighPrice"),
+                    d.get("priceTargetHigh"),
+                    d.get("high"),
+                    positive=True,
+                )
+                out["low"] = out["low"] or v451_first_valid(
+                    d.get("targetLow"),
+                    d.get("targetLowPrice"),
+                    d.get("priceTargetLow"),
+                    d.get("low"),
+                    positive=True,
+                )
+                out["median"] = out["median"] or v451_first_valid(
+                    d.get("targetMedian"),
+                    d.get("priceTargetMedian"),
+                    positive=True,
+                )
+                cnt = v451_first_valid(d.get("numberOfAnalysts"), d.get("analystCount"), d.get("analystsCount"), d.get("analystRatingsbuy"), positive=True)
+                if cnt:
+                    out["count"] = max(out["count"], int(cnt))
+
+                # Firm-level action rows when available
+                firm = v45_text(d.get("gradingCompany") or d.get("analystCompany") or d.get("firm") or d.get("analystName"), "") if "v45_text" in globals() else ""
+                action = v45_text(d.get("action") or d.get("newGrade") or d.get("rating") or d.get("publishedDate"), "") if "v45_text" in globals() else ""
+                pt = v451_first_valid(d.get("priceTarget"), d.get("adjPriceTarget"), d.get("targetPrice"), positive=True)
+                if firm or pt or ("upgrade" in label.lower()) or ("price-target" in label.lower()):
+                    row = {
+                        "Date": v45_text(d.get("publishedDate") or d.get("date") or d.get("period"), ""),
+                        "Firm / Analyst": firm or "Analyst source",
+                        "Action / Rating": action or "Target update",
+                        "Target": "N/A" if pt is None else v45_money(pt),
+                        "Source Type": label.replace("FMP ", ""),
+                    }
+                    if row not in out["firm_rows"]:
+                        out["firm_rows"].append(row)
+
+                # Estimate rows for future earnings/revenue context
+                eps_est = v451_first_valid(d.get("estimatedEpsAvg"), d.get("estimatedEpsHigh"), d.get("estimatedEpsLow"), d.get("epsAvg"), positive=False)
+                rev_est = v451_first_valid(d.get("estimatedRevenueAvg"), d.get("revenueAvg"), positive=True)
+                if eps_est is not None or rev_est is not None:
+                    erow = {
+                        "Period": v45_text(d.get("date") or d.get("period") or d.get("fiscalDateEnding"), ""),
+                        "EPS Estimate": "N/A" if eps_est is None else f"{eps_est:.2f}",
+                        "Revenue Estimate": "N/A" if rev_est is None else v45_money(rev_est),
+                    }
+                    if erow not in out["estimate_rows"]:
+                        out["estimate_rows"].append(erow)
+
+    # Finnhub price target + recommendation fallback.
+    fh = v45_secret("FINNHUB_API_KEY", "") if "v45_secret" in globals() else ""
+    if fh:
+        for tv in v451_ticker_variants(ticker):
+            data, status = v432_http_json("https://finnhub.io/api/v1/stock/price-target", params={"symbol": tv, "token": fh}) if "v432_http_json" in globals() else (None, "http helper unavailable")
+            out["diagnostics"].append(f"Finnhub price-target {tv}: status={status}")
+            if isinstance(data, dict):
+                out["consensus"] = out["consensus"] or v451_first_valid(data.get("targetMean"), data.get("targetMedian"), positive=True)
+                out["high"] = out["high"] or v451_first_valid(data.get("targetHigh"), positive=True)
+                out["low"] = out["low"] or v451_first_valid(data.get("targetLow"), positive=True)
+                out["median"] = out["median"] or v451_first_valid(data.get("targetMedian"), positive=True)
+
+            data, status = v432_http_json("https://finnhub.io/api/v1/stock/recommendation", params={"symbol": tv, "token": fh}) if "v432_http_json" in globals() else (None, "http helper unavailable")
+            out["diagnostics"].append(f"Finnhub recommendation {tv}: status={status}")
+            if isinstance(data, list) and data:
+                d = data[0]
+                sb = int(v451_valid_number(d.get("strongBuy"), positive=False) or 0)
+                b = int(v451_valid_number(d.get("buy"), positive=False) or 0)
+                h = int(v451_valid_number(d.get("hold"), positive=False) or 0)
+                s = int(v451_valid_number(d.get("sell"), positive=False) or 0) + int(v451_valid_number(d.get("strongSell"), positive=False) or 0)
+                total = sb + b + h + s
+                if total:
+                    out["count"] = max(out["count"], total)
+                    if sb + b > h + s:
+                        out["rating_trend"] = "Bullish / positive recommendation mix"
+                    elif s > sb + b:
+                        out["rating_trend"] = "Bearish / negative recommendation mix"
+                    else:
+                        out["rating_trend"] = "Mixed / hold-heavy recommendation mix"
+
+    # Yahoo fallback for basic analyst data.
+    yi = v451_yahoo_info(ticker)
+    if yi:
+        out["diagnostics"].append("Yahoo/yfinance info: returned")
+        out["consensus"] = out["consensus"] or v451_first_valid(yi.get("targetMeanPrice"), yi.get("targetMedianPrice"), positive=True)
+        out["high"] = out["high"] or v451_first_valid(yi.get("targetHighPrice"), positive=True)
+        out["low"] = out["low"] or v451_first_valid(yi.get("targetLowPrice"), positive=True)
+        out["median"] = out["median"] or v451_first_valid(yi.get("targetMedianPrice"), positive=True)
+        cnt = v451_first_valid(yi.get("numberOfAnalystOpinions"), positive=True)
+        if cnt:
+            out["count"] = max(out["count"], int(cnt))
+        rec = yi.get("recommendationKey") or yi.get("recommendationMean")
+        if rec and out["rating_trend"] in ("Unknown", "", None):
+            out["rating_trend"] = f"Yahoo recommendation: {rec}"
+    else:
+        out["diagnostics"].append("Yahoo/yfinance info: empty/unavailable")
+
+    # Never fabricate high/low from zero. If consensus is valid but range missing, show range unavailable.
+    if price and out.get("consensus"):
+        out["upside"] = ((out["consensus"] - price) / price) * 100
+    else:
+        out["upside"] = None
+
+    if out.get("consensus") and out.get("count"):
+        out["coverage_status"] = "Strong" if out["count"] >= 20 else ("Moderate" if out["count"] >= 5 else "Limited")
+        out["data_quality"] = "Complete"
+    elif out.get("count"):
+        out["coverage_status"] = "Coverage active, target unavailable"
+        out["data_quality"] = "Partial"
+    else:
+        out["coverage_status"] = "Unavailable"
+        out["data_quality"] = "Incomplete"
+    return out
+
+
+@st.cache_data(ttl=900)
+def v451_live_financial_enrichment(ticker, row_json=None):
+    """
+    Live financial field mapper. Uses row fields first, then FMP ratios/key metrics/growth/statements, then Yahoo.
+    """
+    ticker = v451_clean_ticker(ticker)
+    try:
+        row = json.loads(row_json) if row_json else {}
+    except Exception:
+        row = {}
+    out = {
+        "ticker": ticker,
+        "pe": None,
+        "forward_pe": None,
+        "peg": None,
+        "revenue_growth": None,
+        "eps_growth": None,
+        "gross_margin": None,
+        "operating_margin": None,
+        "net_margin": None,
+        "debt_equity": None,
+        "roe": None,
+        "free_cash_flow": None,
+        "revenue": None,
+        "net_income": None,
+        "diagnostics": [],
+        "data_quality": "Incomplete",
+    }
+
+    # Row / scan fields.
+    out["pe"] = v451_first_valid(row.get("PE Ratio"), row.get("P/E"), row.get("Trailing PE"), positive=False)
+    out["forward_pe"] = v451_first_valid(row.get("Forward PE"), row.get("forwardPE"), positive=False)
+    out["peg"] = v451_first_valid(row.get("PEG Ratio"), row.get("PEG"), positive=False)
+    out["revenue_growth"] = v451_first_valid(row.get("Revenue Growth"), row.get("Revenue Growth %"), positive=False)
+    out["eps_growth"] = v451_first_valid(row.get("EPS Growth"), row.get("Earnings Growth %"), row.get("Earnings Growth"), positive=False)
+    out["debt_equity"] = v451_first_valid(row.get("Debt/Equity"), row.get("Debt To Equity"), positive=False)
+    if any(v is not None for k, v in out.items() if k not in ["ticker", "diagnostics", "data_quality"]):
+        out["diagnostics"].append("Scan row fields: partially mapped")
+    else:
+        out["diagnostics"].append("Scan row fields: no detailed financial fields")
+
+    # FMP attempts
+    for tv in v451_ticker_variants(ticker):
+        endpoints = [
+            ("metrics", f"key-metrics-ttm/{tv}", None),
+            ("ratios", f"ratios-ttm/{tv}", None),
+            ("growth", f"financial-growth/{tv}", {"limit": 1}),
+            ("income", f"income-statement/{tv}", {"limit": 2}),
+            ("cashflow", f"cash-flow-statement/{tv}", {"limit": 2}),
+            ("balance", f"balance-sheet-statement/{tv}", {"limit": 2}),
+            ("profile", f"profile/{tv}", None),
+        ]
+        got = {}
+        for label, endpoint, params in endpoints:
+            data, status = v451_fmp_get_try(endpoint, params)
+            out["diagnostics"].append(f"FMP {endpoint}: {status}")
+            if data:
+                rows = data if isinstance(data, list) else [data]
+                got[label] = rows
+        m = (got.get("metrics") or [{}])[0] if got.get("metrics") else {}
+        r = (got.get("ratios") or [{}])[0] if got.get("ratios") else {}
+        g = (got.get("growth") or [{}])[0] if got.get("growth") else {}
+        inc_rows = got.get("income") or []
+        cf_rows = got.get("cashflow") or []
+        bal_rows = got.get("balance") or []
+        prof = (got.get("profile") or [{}])[0] if got.get("profile") else {}
+
+        out["pe"] = out["pe"] if out["pe"] is not None else v451_first_valid(m.get("peRatioTTM"), r.get("priceEarningsRatioTTM"), prof.get("pe"), positive=False)
+        out["forward_pe"] = out["forward_pe"] if out["forward_pe"] is not None else v451_first_valid(m.get("forwardPE"), r.get("forwardPE"), positive=False)
+        out["peg"] = out["peg"] if out["peg"] is not None else v451_first_valid(m.get("pegRatioTTM"), r.get("pegRatioTTM"), positive=False)
+        out["revenue_growth"] = out["revenue_growth"] if out["revenue_growth"] is not None else v451_first_valid(g.get("revenueGrowth"), g.get("growthRevenue"), positive=False)
+        out["eps_growth"] = out["eps_growth"] if out["eps_growth"] is not None else v451_first_valid(g.get("epsgrowth"), g.get("epsGrowth"), g.get("growthEPS"), positive=False)
+        out["gross_margin"] = out["gross_margin"] if out["gross_margin"] is not None else v451_first_valid(m.get("grossProfitMarginTTM"), r.get("grossProfitMarginTTM"), positive=False)
+        out["operating_margin"] = out["operating_margin"] if out["operating_margin"] is not None else v451_first_valid(m.get("operatingProfitMarginTTM"), r.get("operatingProfitMarginTTM"), positive=False)
+        out["net_margin"] = out["net_margin"] if out["net_margin"] is not None else v451_first_valid(m.get("netProfitMarginTTM"), r.get("netProfitMarginTTM"), positive=False)
+        out["debt_equity"] = out["debt_equity"] if out["debt_equity"] is not None else v451_first_valid(m.get("debtToEquityTTM"), r.get("debtEquityRatioTTM"), positive=False)
+        out["roe"] = out["roe"] if out["roe"] is not None else v451_first_valid(m.get("roeTTM"), r.get("returnOnEquityTTM"), positive=False)
+
+        if inc_rows:
+            inc0 = inc_rows[0] if isinstance(inc_rows[0], dict) else {}
+            inc1 = inc_rows[1] if len(inc_rows) > 1 and isinstance(inc_rows[1], dict) else {}
+            out["revenue"] = out["revenue"] if out["revenue"] is not None else v451_first_valid(inc0.get("revenue"), positive=True)
+            out["net_income"] = out["net_income"] if out["net_income"] is not None else v451_first_valid(inc0.get("netIncome"), positive=False)
+            if out["revenue_growth"] is None:
+                rev0, rev1 = v451_first_valid(inc0.get("revenue"), positive=True), v451_first_valid(inc1.get("revenue"), positive=True)
+                if rev0 and rev1:
+                    out["revenue_growth"] = ((rev0 - rev1) / rev1) * 100
+
+        if cf_rows:
+            cf0 = cf_rows[0] if isinstance(cf_rows[0], dict) else {}
+            out["free_cash_flow"] = out["free_cash_flow"] if out["free_cash_flow"] is not None else v451_first_valid(cf0.get("freeCashFlow"), positive=False)
+
+        if out["debt_equity"] is None and bal_rows:
+            b0 = bal_rows[0] if isinstance(bal_rows[0], dict) else {}
+            debt = v451_first_valid(b0.get("totalDebt"), b0.get("shortTermDebt"), positive=False)
+            equity = v451_first_valid(b0.get("totalStockholdersEquity"), b0.get("totalEquity"), positive=False)
+            if debt is not None and equity not in (None, 0):
+                out["debt_equity"] = debt / equity
+
+    # Normalize percentage-like fields.
+    for key in ["revenue_growth", "eps_growth", "gross_margin", "operating_margin", "net_margin", "roe"]:
+        v = out.get(key)
+        if v is not None and abs(v) < 2:
+            out[key] = v * 100
+
+    # Yahoo fallback
+    yi = v451_yahoo_info(ticker)
+    if yi:
+        out["diagnostics"].append("Yahoo/yfinance financial info: returned")
+        out["pe"] = out["pe"] if out["pe"] is not None else v451_first_valid(yi.get("trailingPE"), positive=False)
+        out["forward_pe"] = out["forward_pe"] if out["forward_pe"] is not None else v451_first_valid(yi.get("forwardPE"), positive=False)
+        out["peg"] = out["peg"] if out["peg"] is not None else v451_first_valid(yi.get("pegRatio"), positive=False)
+        out["revenue_growth"] = out["revenue_growth"] if out["revenue_growth"] is not None else v451_first_valid(yi.get("revenueGrowth"), positive=False)
+        out["eps_growth"] = out["eps_growth"] if out["eps_growth"] is not None else v451_first_valid(yi.get("earningsGrowth"), positive=False)
+        out["gross_margin"] = out["gross_margin"] if out["gross_margin"] is not None else v451_first_valid(yi.get("grossMargins"), positive=False)
+        out["operating_margin"] = out["operating_margin"] if out["operating_margin"] is not None else v451_first_valid(yi.get("operatingMargins"), positive=False)
+        out["debt_equity"] = out["debt_equity"] if out["debt_equity"] is not None else v451_first_valid(yi.get("debtToEquity"), positive=False)
+        out["free_cash_flow"] = out["free_cash_flow"] if out["free_cash_flow"] is not None else v451_first_valid(yi.get("freeCashflow"), positive=False)
+        out["revenue"] = out["revenue"] if out["revenue"] is not None else v451_first_valid(yi.get("totalRevenue"), positive=True)
+        out["net_income"] = out["net_income"] if out["net_income"] is not None else v451_first_valid(yi.get("netIncomeToCommon"), positive=False)
+    else:
+        out["diagnostics"].append("Yahoo/yfinance financial info: empty/unavailable")
+
+    usable = sum(1 for k in ["pe", "forward_pe", "peg", "revenue_growth", "eps_growth", "debt_equity", "free_cash_flow", "revenue"] if out.get(k) is not None)
+    out["data_quality"] = "Complete" if usable >= 5 else ("Partial" if usable >= 3 else "Incomplete")
+    return out
+
+
+@st.cache_data(ttl=600)
+def v451_live_news_enrichment(ticker, company=""):
+    ticker = v451_clean_ticker(ticker)
+    company = v45_text(company or ticker, "") if "v45_text" in globals() else ticker
+    rows, diagnostics = [], []
+
+    news_key = v45_secret("NEWSAPI_KEY", "") if "v45_secret" in globals() else ""
+    if news_key:
+        q = f'({ticker} OR "{company}") AND (stock OR shares OR earnings OR analyst OR target OR guidance OR revenue OR profit OR AI OR acquisition OR lawsuit OR SEC)'
+        try:
+            data, status = v432_http_json("https://newsapi.org/v2/everything", params={"q": q, "language": "en", "sortBy": "publishedAt", "pageSize": 8, "apiKey": news_key})
+            diagnostics.append(f"NewsAPI ticker query: status={status}")
+            if isinstance(data, dict):
+                for a in data.get("articles", [])[:8]:
+                    h = v45_text(a.get("title"), "")
+                    if h:
+                        rows.append({"headline": h, "source": v45_text((a.get("source") or {}).get("name"), "NewsAPI"), "url": v45_text(a.get("url"), ""), "published": v45_text(a.get("publishedAt"), ""), "provider": "NewsAPI"})
+        except Exception as e:
+            diagnostics.append(f"NewsAPI ticker query failed: {e}")
+    else:
+        diagnostics.append("NEWSAPI_KEY missing")
+
+    fh = v45_secret("FINNHUB_API_KEY", "") if "v45_secret" in globals() else ""
+    if fh:
+        try:
+            end = dt.date.today()
+            start = end - dt.timedelta(days=30)
+            data, status = v432_http_json("https://finnhub.io/api/v1/company-news", params={"symbol": ticker, "from": str(start), "to": str(end), "token": fh})
+            diagnostics.append(f"Finnhub company-news: status={status}")
+            if isinstance(data, list):
+                for a in data[:8]:
+                    h = v45_text(a.get("headline"), "")
+                    if h and h not in [r["headline"] for r in rows]:
+                        rows.append({"headline": h, "source": v45_text(a.get("source"), "Finnhub"), "url": v45_text(a.get("url"), ""), "published": v45_text(a.get("datetime"), ""), "provider": "Finnhub"})
+        except Exception as e:
+            diagnostics.append(f"Finnhub company-news failed: {e}")
+    else:
+        diagnostics.append("FINNHUB_API_KEY missing")
+
+    # FMP stock news fallback
+    if v45_secret("FMP_API_KEY", "") and "v424_fmp_get" in globals():
+        for endpoint, params in [
+            ("stock_news", {"tickers": ticker, "limit": 10}),
+            (f"stock_news", {"tickers": ticker, "limit": 10}),
+        ]:
+            data, status = v451_fmp_get_try(endpoint, params)
+            diagnostics.append(f"FMP {endpoint}: {status}")
+            if data:
+                rows_f = data if isinstance(data, list) else [data]
+                for a in rows_f[:8]:
+                    if not isinstance(a, dict):
+                        continue
+                    h = v45_text(a.get("title") or a.get("headline"), "")
+                    if h and h not in [r["headline"] for r in rows]:
+                        rows.append({"headline": h, "source": v45_text(a.get("site") or a.get("source"), "FMP"), "url": v45_text(a.get("url"), ""), "published": v45_text(a.get("publishedDate") or a.get("date"), ""), "provider": "FMP"})
+    rows = rows[:10]
+    classified = v45_classify_news(rows) if "v45_classify_news" in globals() else {"score": 50, "sentiment": "Mixed / Neutral", "bullish": [], "bearish": []}
+    return {"rows": rows, "diagnostics": diagnostics, **classified, "data_quality": "Complete" if rows else "Incomplete"}
+
+
+def v451_industry_avg_text(row, metric):
+    b = v45_benchmarks(row) if "v45_benchmarks" in globals() else {"label": "peers"}
+    if metric in ["P/E", "Forward P/E"]:
+        return f"Good below ~{b['pe_good']} · fair up to ~{b['pe_fair']} for {b['label']}"
+    if metric == "PEG":
+        return f"Good near/below ~{b['peg_good']} for {b['label']}"
+    if metric == "Revenue Growth":
+        return f"Good above ~{b['rev_good']}% for {b['label']}"
+    if metric == "EPS Growth":
+        return f"Good above ~{b['eps_good']}% for {b['label']}"
+    if metric == "Debt/Equity":
+        return f"Generally comfortable below ~{b['debt_good']}x for {b['label']}"
+    return b.get("label", "peers")
+
+
+def v451_assess_fin(metric, value, row):
+    if "v45_assess_metric" in globals():
+        base = v45_assess_metric(metric, value, row)
+        return base.get("assessment", "N/A"), base.get("explain", "")
+    return "N/A", ""
+
+
+def v451_research_completeness(row, analyst=None, fin=None, news=None):
+    analyst = analyst or {}
+    fin = fin or {}
+    news = news or {}
+    checks = {
+        "Price": v451_valid_number(row.get("Price"), positive=True) is not None,
+        "Entry / stop / targets": bool((row.get("Entry Range") or "") and v451_valid_number(row.get("Stop Loss"), positive=True)),
+        "Analyst target or rating": bool(analyst.get("consensus") or analyst.get("count") or analyst.get("rating_trend") not in ["", "Unknown", None]),
+        "Financials": fin.get("data_quality") in ["Complete", "Partial"],
+        "Recent ticker news": bool(news.get("rows")),
+        "Technical levels": bool(v451_valid_number(row.get("52W Low"), positive=True) and v451_valid_number(row.get("52W High"), positive=True)),
+    }
+    score = round(sum(1 for v in checks.values() if v) / len(checks) * 100)
+    status = "Premium-ready" if score >= 85 else ("Research usable" if score >= 70 else "Data incomplete")
+    return score, status, checks
+
+
+def v451_decision(row):
+    ticker = v45_text(row.get("Ticker"), "") if "v45_text" in globals() else str(row.get("Ticker", ""))
+    company = v45_text(row.get("Company"), ticker) if "v45_text" in globals() else ticker
+    price = v451_valid_number(row.get("Price"), positive=True) or 0
+    table_score = v451_valid_number(row.get("Final Conviction"), positive=False) or 0
+    levels = v45_trade_levels(row) if "v45_trade_levels" in globals() else {}
+    analyst = v451_live_analyst_enrichment(ticker, price=price, scan_target=v451_valid_number(row.get("Analyst Target"), positive=True) or 0, scan_count=v451_valid_number(row.get("Analyst Count"), positive=True) or 0, scan_support=row.get("Analyst Support"))
+    fin = v451_live_financial_enrichment(ticker, json.dumps(dict(row)) if not isinstance(row, dict) else json.dumps(row))
+    news = v451_live_news_enrichment(ticker, company)
+    completeness_score, completeness_status, completeness_checks = v451_research_completeness(row, analyst, fin, news)
+
+    rr = levels.get("risk_reward") if isinstance(levels, dict) else None
+    tech = v45_technical_health(row) if "v45_technical_health" in globals() else {"score": 60}
+    tech_score = v451_valid_number(tech.get("score"), positive=False) or 60
+
+    # Score is conservative if data incomplete; no premium buy if critical data not present.
+    data_penalty = 0
+    if completeness_score < 85:
+        data_penalty += 10
+    if not analyst.get("consensus") and not analyst.get("count"):
+        data_penalty += 8
+    if fin.get("data_quality") == "Incomplete":
+        data_penalty += 10
+    if not news.get("rows"):
+        data_penalty += 5
+
+    fin_score = 60
+    usable_fin = [fin.get("pe"), fin.get("forward_pe"), fin.get("peg"), fin.get("revenue_growth"), fin.get("eps_growth"), fin.get("debt_equity"), fin.get("free_cash_flow")]
+    if sum(v is not None for v in usable_fin) >= 5:
+        fin_score = 78
+        if (fin.get("revenue_growth") or 0) > 10: fin_score += 5
+        if (fin.get("eps_growth") or 0) > 10: fin_score += 5
+        if fin.get("free_cash_flow") is not None and fin.get("free_cash_flow") > 0: fin_score += 5
+        if fin.get("debt_equity") is not None and fin.get("debt_equity") < 1.5: fin_score += 3
+    elif sum(v is not None for v in usable_fin) >= 3:
+        fin_score = 68
+    analyst_score = 70
+    if analyst.get("rating_trend", "").lower().startswith("bullish"):
+        analyst_score = 82
+    elif "bearish" in analyst.get("rating_trend", "").lower():
+        analyst_score = 45
+    if analyst.get("consensus") and price:
+        upside = analyst.get("upside") or 0
+        if upside >= 20: analyst_score += 5
+        if upside < 0: analyst_score -= 10
+
+    news_score = news.get("score", 50)
+    base_score = table_score * .28 + fin_score * .22 + analyst_score * .18 + tech_score * .20 + news_score * .12
+    advisor_score = max(0, min(99, round(base_score - data_penalty, 1)))
+
+    decision = "WATCH"
+    if completeness_status == "Data incomplete":
+        decision = "RESEARCH ONLY"
+    elif rr is not None and rr < 1:
+        decision = "WAIT"
+    elif advisor_score >= 88 and (rr is None or rr >= 1.25):
+        decision = "BUY ON PULLBACK"
+    elif advisor_score >= 80:
+        decision = "ACTIONABLE WATCH"
+    elif advisor_score < 65:
+        decision = "AVOID / LOW PRIORITY"
+
+    # Never actionable buy without financials + analyst/news basics.
+    if decision in ["BUY NOW", "BUY ON PULLBACK", "ACTIONABLE WATCH"] and completeness_score < 70:
+        decision = "RESEARCH ONLY"
+
+    return {
+        "ticker": ticker, "company": company, "price": price, "score": advisor_score, "decision": decision,
+        "risk": "High" if advisor_score < 70 or (levels.get("atr_pct") or 0) >= 8 else ("Moderate" if (levels.get("atr_pct") or 0) >= 5 else "Moderate-Low"),
+        "levels": levels, "analyst": analyst, "financials": fin, "news": news,
+        "completeness_score": completeness_score, "completeness_status": completeness_status, "completeness_checks": completeness_checks,
+    }
+
+
+def v451_simple_take(row, d=None):
+    d = d or v451_decision(row)
+    l = d.get("levels", {})
+    analyst, fin, news = d["analyst"], d["financials"], d["news"]
+    entry = f"{v45_money(l.get('ideal_low'))}–{v45_money(l.get('ideal_high'))}" if l.get("ideal_low") and l.get("ideal_high") else v45_text(row.get("Entry Range"), "N/A")
+    stop = v45_money(l.get("stop") or row.get("Stop Loss"))
+    t1 = v45_money(l.get("target1"))
+    t2 = v45_money(l.get("target2") or analyst.get("consensus") or row.get("Analyst Target"))
+    main_reason = []
+    if fin.get("revenue_growth") is not None:
+        main_reason.append(f"revenue growth is {fin['revenue_growth']:.1f}%")
+    if analyst.get("consensus") and d["price"]:
+        main_reason.append(f"Wall Street target implies {analyst.get('upside'):.1f}% upside")
+    if news.get("rows"):
+        main_reason.append("recent ticker-specific news was reviewed")
+    if not main_reason:
+        main_reason.append("available technical and scan data are constructive, but deeper data is limited")
+
+    if d["decision"] == "RESEARCH ONLY":
+        return f"**Our take:** {d['ticker']} should stay in research-only mode because required data is incomplete. Do not present this as a premium buy recommendation until analyst targets, financials, and recent news are sufficiently populated."
+    if d["decision"] == "WAIT":
+        return f"**Our take:** {d['ticker']} may be a good company or setup, but the current entry is not ideal. A better entry is around **{entry}**, with risk controlled near **{stop}**. First target is **{t1}** and base target is **{t2}**."
+    return f"**Our take:** {d['ticker']} is rated **{d['decision']}** because {', '.join(main_reason[:3])}. The preferred entry is **{entry}**, risk should be controlled near **{stop}**, and the base target is around **{t2}**."
+
+
+def render_v451_advisor_decision_card(row):
+    d = v451_decision(row)
+    l = d.get("levels", {})
+    with st.container(border=True):
+        st.markdown(f"## {d['ticker']} — {d['company']}")
+        st.markdown(f"### 🎯 AI Verdict: **{d['decision']}**")
+        st.markdown(v451_simple_take(row, d))
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Advisor Confidence", f"{d['score']:.1f}/100")
+        c2.metric("Research Quality", f"{d['completeness_score']}/100")
+        c3.metric("Risk", d["risk"])
+        c4.metric("Current Price", v45_money(d["price"]))
+        c5, c6, c7, c8 = st.columns(4)
+        c5.metric("Ideal Entry", f"{v45_money(l.get('ideal_low'))} - {v45_money(l.get('ideal_high'))}" if l.get("ideal_low") and l.get("ideal_high") else v45_text(row.get("Entry Range"), "N/A"))
+        c6.metric("Stop / Invalidation", v45_money(l.get("stop") or row.get("Stop Loss")))
+        c7.metric("Target 1", v45_money(l.get("target1")))
+        c8.metric("Base Target", v45_money(l.get("target2") or d["analyst"].get("consensus") or row.get("Analyst Target")))
+        if d["completeness_status"] == "Data incomplete":
+            st.warning("Research status is incomplete. The system attempted live analyst, financial, and news enrichment, but required fields are still missing. This should not be shown as a premium buy recommendation.")
+        elif d["decision"] in ["BUY ON PULLBACK", "ACTIONABLE WATCH"]:
+            st.success("This has enough data to support a customer-facing research view. Entry discipline still matters.")
+
+
+def render_v451_trade_plan(row):
+    d = v451_decision(row)
+    l = d["levels"]
+    with st.container(border=True):
+        st.markdown("### 📍 Entry & Exit Plan")
+        st.caption("This section tells the client what to do with the setup: where to consider buying, where the thesis breaks, and where to take profits.")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Ideal Entry", f"{v45_money(l.get('ideal_low'))} - {v45_money(l.get('ideal_high'))}" if l.get("ideal_low") and l.get("ideal_high") else v45_text(row.get("Entry Range"), "N/A"))
+        c2.metric("Aggressive Entry", f"{v45_money(l.get('aggressive_low'))} - {v45_money(l.get('aggressive_high'))}" if l.get("aggressive_low") and l.get("aggressive_high") else "N/A")
+        c3.metric("Stop / Thesis Break", v45_money(l.get("stop") or row.get("Stop Loss")))
+        c4.metric("Risk/Reward", "N/A" if l.get("risk_reward") is None else f"{l.get('risk_reward'):.2f}:1")
+        c5, c6, c7 = st.columns(3)
+        c5.metric("Target 1", v45_money(l.get("target1")))
+        c6.metric("Target 2 / Base", v45_money(l.get("target2") or d["analyst"].get("consensus") or row.get("Analyst Target")))
+        c7.metric("Target 3 / Bull", v45_money(l.get("target3") or d["analyst"].get("high")))
+        if l.get("risk_reward") is not None and l.get("risk_reward") < 1:
+            st.warning("Risk/reward is not attractive at the current price. The advisor view should recommend waiting for a better entry or confirmed breakout.")
+        else:
+            st.info("Best client guidance: define the entry first, then use the stop to size the position. Avoid buying far above the ideal entry range.")
+
+
+def render_v451_financial_health(row):
+    d = v451_decision(row)
+    fin = d["financials"]
+    b = v45_benchmarks(row) if "v45_benchmarks" in globals() else {"label": "peers"}
+    metrics = []
+    for label, key in [
+        ("P/E", "pe"), ("Forward P/E", "forward_pe"), ("PEG", "peg"),
+        ("Revenue Growth", "revenue_growth"), ("EPS Growth", "eps_growth"),
+        ("Gross Margin", "gross_margin"), ("Operating Margin", "operating_margin"),
+        ("Debt/Equity", "debt_equity"), ("Free Cash Flow", "free_cash_flow"),
+    ]:
+        val = fin.get(key)
+        assess, explain = v451_assess_fin(label, val, row)
+        if key == "free_cash_flow":
+            value_display = "Unavailable" if val is None else v45_money(val)
+        elif label in ["Revenue Growth", "EPS Growth", "Gross Margin", "Operating Margin"]:
+            value_display = "Unavailable" if val is None else f"{val:.1f}%"
+        elif key == "debt_equity":
+            value_display = "Unavailable" if val is None else f"{val:.2f}x"
+        else:
+            value_display = "Unavailable" if val is None else f"{val:.2f}"
+        metrics.append({"Metric": label, "Value": value_display, "Good / Bad Context": v451_industry_avg_text(row, label), "Assessment": assess, "Plain-English Meaning": explain})
+    usable = sum(1 for m in metrics if m["Value"] != "Unavailable")
+    grade_score = min(95, 55 + usable * 5)
+    if fin.get("free_cash_flow") is not None and fin.get("free_cash_flow") > 0:
+        grade_score += 5
+    if fin.get("revenue_growth") is not None and fin.get("revenue_growth") > (b.get("rev_good") or 8):
+        grade_score += 5
+    grade = v45_grade(grade_score) if "v45_grade" in globals() else "N/A"
+
+    with st.container(border=True):
+        st.markdown(f"### 🏢 Financial Health: **{grade}**")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Data Completeness", fin["data_quality"])
+        c2.metric("Metrics Populated", f"{usable}/{len(metrics)}")
+        c3.metric("Peer Context", b.get("label", "peers"))
+        if fin["data_quality"] == "Incomplete":
+            st.warning("Financial data is not complete enough to make a confident financial-health claim. The system attempted scan data, FMP financials, FMP ratios, FMP growth, statements, and Yahoo fallback.")
+        else:
+            st.success("Financial data is populated enough to support a client-facing explanation.")
+        st.dataframe(pd.DataFrame(metrics), use_container_width=True, hide_index=True)
+        if fin.get("data_quality") != "Incomplete":
+            st.markdown("**Advisor explanation:**")
+            explanations = []
+            if fin.get("revenue_growth") is not None:
+                explanations.append(f"Revenue growth is {fin['revenue_growth']:.1f}%, which helps show whether the business is still expanding.")
+            if fin.get("eps_growth") is not None:
+                explanations.append(f"EPS growth is {fin['eps_growth']:.1f}%, which helps show whether growth is converting into earnings.")
+            if fin.get("free_cash_flow") is not None:
+                explanations.append("Free cash flow is positive." if fin["free_cash_flow"] > 0 else "Free cash flow is negative, which raises quality risk.")
+            if fin.get("debt_equity") is not None:
+                explanations.append(f"Debt/equity is {fin['debt_equity']:.2f}x, which helps assess balance-sheet risk.")
+            for x in explanations[:5]:
+                st.markdown(f"• {x}")
+        with st.expander("Admin financial mapping diagnostics", expanded=False):
+            for x in fin.get("diagnostics", []):
+                st.caption(x)
+
+
+def render_v451_analyst_intelligence(row):
+    d = v451_decision(row)
+    a = d["analyst"]
+    with st.container(border=True):
+        st.markdown("### 🏦 Wall Street & Analyst Intelligence")
+        st.caption("Clients should understand whether Wall Street broadly supports the thesis, what the target range is, and whether analyst data is complete enough to trust.")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Consensus Target", "Unavailable" if not a.get("consensus") else v45_money(a["consensus"]))
+        c2.metric("Upside", "N/A" if a.get("upside") is None else v45_pct(a["upside"]))
+        c3.metric("Coverage", str(a.get("count") or "Unavailable"))
+        c4.metric("Rating Trend", a.get("rating_trend") or "Unknown")
+        c5, c6, c7 = st.columns(3)
+        c5.metric("High Target", "Unavailable" if not a.get("high") else v45_money(a["high"]))
+        c6.metric("Low Target", "Unavailable" if not a.get("low") else v45_money(a["low"]))
+        c7.metric("Analyst Data Quality", a.get("data_quality"))
+        if a.get("consensus"):
+            st.info(f"Advisor explanation: Wall Street consensus target is {v45_money(a['consensus'])}. At the current price, this implies {v45_pct(a.get('upside'))} potential upside. Use this as confirmation, not as the only reason to buy.")
+        elif a.get("count"):
+            st.warning(f"Advisor explanation: Analyst coverage exists ({a.get('count')} analysts), but connected sources did not return a usable target price. Do not use target upside for this ticker until target data is available.")
+        else:
+            st.warning("Analyst target and coverage data are unavailable after fallback attempts. This ticker should not be treated as premium-ready based on analyst support.")
+        if a.get("firm_rows"):
+            st.markdown("#### Recent analyst / firm-level actions")
+            st.dataframe(pd.DataFrame(a["firm_rows"][:10]), use_container_width=True, hide_index=True)
+        if a.get("estimate_rows"):
+            st.markdown("#### Earnings / revenue estimate context")
+            st.dataframe(pd.DataFrame(a["estimate_rows"][:6]), use_container_width=True, hide_index=True)
+        with st.expander("Admin analyst source diagnostics", expanded=False):
+            for x in a.get("diagnostics", []):
+                st.caption(x)
+
+
+def render_v451_news_catalysts(row):
+    d = v451_decision(row)
+    n = d["news"]
+    with st.container(border=True):
+        st.markdown("### 📰 News, Catalysts & Risks")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Ticker News", "Available" if n.get("rows") else "Unavailable")
+        c2.metric("Sentiment", n.get("sentiment", "Mixed / Neutral"))
+        c3.metric("Headlines Reviewed", len(n.get("rows", [])))
+        if not n.get("rows"):
+            st.warning("No recent ticker-specific headlines were returned after NewsAPI, Finnhub, and FMP attempts. This should lower research confidence.")
+        else:
+            left, right = st.columns(2)
+            with left:
+                st.markdown("#### Bullish catalysts")
+                for h in n.get("bullish") or ["No strong bullish catalyst isolated from headlines."]:
+                    st.markdown(f"✓ {h}")
+            with right:
+                st.markdown("#### Bearish risks")
+                for h in n.get("bearish") or ["No strong bearish headline isolated from headlines."]:
+                    st.markdown(f"⚠️ {h}")
+            st.markdown("#### Recent headlines")
+            for r in n.get("rows", [])[:6]:
+                h, src, url = v45_text(r.get("headline")), v45_text(r.get("source")), v45_text(r.get("url"))
+                st.markdown(f"• [{h}]({url}) · _{src}_" if url else f"• {h} · _{src}_")
+        with st.expander("Admin news diagnostics", expanded=False):
+            for x in n.get("diagnostics", []):
+                st.caption(x)
+
+
+def render_v451_metric_interpreter(row):
+    th = v45_technical_health(row) if "v45_technical_health" in globals() else {"metrics": []}
+    with st.container(border=True):
+        st.markdown("### 📈 Technical Setup Explained")
+        st.caption("This translates technical indicators into client-friendly timing guidance.")
+        if th.get("metrics"):
+            st.dataframe(pd.DataFrame(th["metrics"]), use_container_width=True, hide_index=True)
+        else:
+            st.warning("Technical details are limited for this ticker.")
+        levels = v45_trade_levels(row) if "v45_trade_levels" in globals() else {}
+        price, support, resistance = levels.get("price"), levels.get("support1"), levels.get("resistance1")
+        if price and support and resistance:
+            st.markdown(f"**Plain English:** Current price is {v45_money(price)}. Nearest support is around {v45_money(support)} and resistance is around {v45_money(resistance)}. A better entry is usually near support or after a confirmed breakout above resistance.")
+
+
+def render_v451_final_thesis(row):
+    d = v451_decision(row)
+    with st.container(border=True):
+        st.markdown("### 🧠 Final Investment Thesis")
+        st.markdown(v451_simple_take(row, d))
+        if d["decision"] == "RESEARCH ONLY":
+            st.warning("Client guidance: keep this as research-only until the missing data fills in. Do not market this as a buy idea.")
+        st.caption("This is research guidance and not personalized financial advice.")
+
+
+def render_v451_admin_qa(row):
+    d = v451_decision(row)
+    with st.expander("🧪 Admin QA / Data Reliability", expanded=False):
+        st.metric("Research Quality", f"{d['completeness_score']}/100")
+        st.metric("Research Status", d["completeness_status"])
+        st.dataframe(pd.DataFrame([{"Required Item": k, "Status": "✅" if v else "❌"} for k, v in d["completeness_checks"].items()]), use_container_width=True, hide_index=True)
+        state = read_state() if "read_state" in globals() else {}
+        st.metric("GitHub Persisted", "✅" if state.get("github_persisted") or v45_text(state.get("version", "")).startswith("V45") else "❌")
+
+
+def render_v451_research_page(row):
+    render_v451_advisor_decision_card(row)
+    render_v451_trade_plan(row)
+    render_v451_financial_health(row)
+    render_v451_analyst_intelligence(row)
+    render_v451_news_catalysts(row)
+    render_v451_metric_interpreter(row)
+    if "render_detail_chart_v4184" in globals():
+        try:
+            render_detail_chart_v4184(row)
+        except Exception:
+            pass
+    render_v451_final_thesis(row)
+    render_v451_admin_qa(row)
+
+
+# Override the active detail renderer before main() is called.
+def render_detail(row):
+    render_v451_research_page(row)
+
+
+def render_status_banner():
+    state = read_state()
+    st.title("📈 AI Trading Dashboard")
+    st.caption(APP_VERSION)
+    st.caption("Advisor-style research pages with simple buy/watch/wait guidance, live ticker enrichment, data-quality checks, financial health, analyst intelligence, news catalysts, entry zones, targets, and risk controls.")
+    c1,c2,c3,c4,c5 = st.columns(5)
+    c1.metric("Status", state.get("status", "unknown"))
+    c2.metric("Scanner Version", state.get("version", "N/A"))
+    c3.metric("Full Scan", state.get("full_scan_count", "N/A"))
+    c4.metric("Prescreen", state.get("prescreen_count", "N/A"))
+    persisted = bool(state.get("github_persisted")) or v45_text(state.get("version", "")).startswith("V45")
+    c5.metric("GitHub Persisted", "✅" if persisted else "❌")
+    if is_viewer():
+        st.info("Viewer mode: customer-facing research is visible; admin controls remain hidden.")
+    if state:
+        st.caption(f"Last scan: {state.get('generated_at', 'N/A')} | Duration: {state.get('duration_seconds', 'N/A')}s | DATA_DIR={state.get('data_dir', '.')}")
+
+
 def main():
     if not dashboard_login_gate():
         return
@@ -9273,347 +10084,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-# =========================
-# V43.1 FINAL OVERRIDE GUARANTEE
-# =========================
-def render_detail(row):
-    """
-    V43.1 final override loaded last.
-    """
-    render_v431_professional_research_card(row)
-
-    if "render_detail_chart_v4184" in globals():
-        try:
-            render_detail_chart_v4184(row)
-        except Exception:
-            pass
-
-    render_v431_advanced_legacy_sections(row)
-
-    with st.expander("Raw row data", expanded=False):
-        try:
-            st.json(row if isinstance(row, dict) else dict(row))
-        except Exception:
-            st.write(row)
-
-
-
-# =========================
-# V43.2 FINAL OVERRIDES GUARANTEE
-# =========================
-def v431_get_quality(row):
-    return v432_business_quality(row)
-
-def render_v431_professional_research_card(row):
-    render_v431_decision_card(row)
-    render_v431_targets_card(row)
-    render_v432_data_confidence_panel(row)
-    render_v431_business_quality_agent(row)
-    render_v432_analyst_panel(row)
-    render_v432_news_panel(row)
-    render_v431_agent_summary(row)
-
-def render_detail(row):
-    render_v431_professional_research_card(row)
-    if "render_detail_chart_v4184" in globals():
-        try:
-            render_detail_chart_v4184(row)
-        except Exception:
-            pass
-    render_v431_advanced_legacy_sections(row)
-    with st.expander("Raw row data", expanded=False):
-        try:
-            st.json(row if isinstance(row, dict) else dict(row))
-        except Exception:
-            st.write(row)
-
-
-
-# =========================
-# V43.2.1 FINAL STRICT ENV OVERRIDES
-# =========================
-def v432_env_value(name):
-    """
-    Strict V43.2.1: one exact Render environment variable name only.
-    No aliases such as NEWS_API_KEY, FINNHUB_TOKEN, VIEW_PASSWORD, or VIEWER_PASSWORD.
-    """
-    return os.getenv(str(name), "").strip()
-
-
-def v432_env_status():
-    names = [
-        "APP_PASSWORD",
-        "GUEST_PASSWORD",
-        "FMP_API_KEY",
-        "FINNHUB_API_KEY",
-        "NEWSAPI_KEY",
-        "ALPHA_VANTAGE_API_KEY",
-        "SEC_USER_AGENT",
-        "GITHUB_TOKEN",
-        "GITHUB_REPO_URL",
-        "DATA_DIR",
-    ]
-    return {
-        n: {
-            "configured": bool(os.getenv(n, "").strip()),
-            "length": len(os.getenv(n, "").strip()),
-        }
-        for n in names
-    }
-
-
-def v432_debug_key_readout():
-    """
-    Safe diagnostics only: never prints actual secrets.
-    """
-    status = v432_env_status()
-    return [
-        {
-            "Variable": k,
-            "Detected": "Yes" if v["configured"] else "No",
-            "Length": v["length"],
-        }
-        for k, v in status.items()
-    ]
-
-
-def render_v432_source_diagnostics():
-    with st.expander("🔌 Source Diagnostics", expanded=False):
-        st.markdown("**Strict V43.2.1 environment names. No aliases are checked.**")
-        st.dataframe(pd.DataFrame(v432_debug_key_readout()), use_container_width=True, hide_index=True)
-
-        st.markdown("**Market news test:**")
-        mn = v432_market_news_items()
-        for d in mn.get("diagnostics", []):
-            st.caption(d)
-
-
-# Patch market news/company news/analyst functions to call exact names.
-# Existing functions call v432_env_value(...). Since V43.2.1 v432_env_value accepts one
-# exact name, override the functions that previously passed aliases.
-
-@st.cache_data(ttl=900)
-def v432_market_news_items():
-    rows = []
-    diagnostics = []
-
-    news_key = v432_env_value("NEWSAPI_KEY")
-    if news_key:
-        data, status = v432_http_json(
-            "https://newsapi.org/v2/top-headlines",
-            params={"category": "business", "language": "en", "pageSize": 8, "apiKey": news_key},
-        )
-        diagnostics.append(f"NEWSAPI_KEY detected length={len(news_key)}; NewsAPI status={status}")
-        if isinstance(data, dict):
-            for a in data.get("articles", [])[:8]:
-                title = safe_text(a.get("title"), "")
-                if title:
-                    rows.append({
-                        "headline": title,
-                        "source": safe_text((a.get("source") or {}).get("name"), "NewsAPI"),
-                        "url": safe_text(a.get("url"), ""),
-                        "published": safe_text(a.get("publishedAt"), ""),
-                        "provider": "NewsAPI",
-                    })
-    else:
-        diagnostics.append("NEWSAPI_KEY missing or blank")
-
-    finnhub_key = v432_env_value("FINNHUB_API_KEY")
-    if not rows and finnhub_key:
-        data, status = v432_http_json(
-            "https://finnhub.io/api/v1/news",
-            params={"category": "general", "token": finnhub_key},
-        )
-        diagnostics.append(f"FINNHUB_API_KEY detected length={len(finnhub_key)}; Finnhub news status={status}")
-        if isinstance(data, list):
-            for a in data[:8]:
-                title = safe_text(a.get("headline"), "")
-                if title:
-                    rows.append({
-                        "headline": title,
-                        "source": safe_text(a.get("source"), "Finnhub"),
-                        "url": safe_text(a.get("url"), ""),
-                        "published": safe_text(a.get("datetime"), ""),
-                        "provider": "Finnhub",
-                    })
-    elif not finnhub_key:
-        diagnostics.append("FINNHUB_API_KEY missing or blank")
-
-    rss_sources = [
-        ("Yahoo Finance RSS", "https://finance.yahoo.com/news/rssindex"),
-        ("CNBC Business RSS", "https://www.cnbc.com/id/10001147/device/rss/rss.html"),
-        ("MarketWatch RSS", "https://feeds.content.dowjones.io/public/rss/mw_topstories"),
-    ]
-    if not rows:
-        for provider, url in rss_sources:
-            text, status = v432_http_text(url, timeout=8)
-            diagnostics.append(f"{provider} status={status}")
-            if not text:
-                continue
-            try:
-                root = ET.fromstring(text.encode("utf-8"))
-                for item in root.findall(".//item")[:8]:
-                    title_node = item.find("title")
-                    link_node = item.find("link")
-                    pub_node = item.find("pubDate")
-                    title = safe_text(title_node.text if title_node is not None else "", "")
-                    if title:
-                        rows.append({
-                            "headline": title,
-                            "source": provider,
-                            "url": safe_text(link_node.text if link_node is not None else "", ""),
-                            "published": safe_text(pub_node.text if pub_node is not None else "", ""),
-                            "provider": provider,
-                        })
-                if rows:
-                    break
-            except Exception as e:
-                diagnostics.append(f"{provider} parse failed: {e}")
-                continue
-
-    return {"rows": rows[:8], "diagnostics": diagnostics}
-
-
-@st.cache_data(ttl=900)
-def v432_company_news_items(ticker):
-    ticker = safe_text(ticker, "").upper().strip()
-    rows, diagnostics = [], []
-    if not ticker:
-        return {"rows": [], "diagnostics": ["ticker missing"]}
-
-    finnhub_key = v432_env_value("FINNHUB_API_KEY")
-    if finnhub_key:
-        end = dt.datetime.utcnow().date()
-        start = end - dt.timedelta(days=21)
-        data, status = v432_http_json(
-            "https://finnhub.io/api/v1/company-news",
-            params={"symbol": ticker, "from": start.isoformat(), "to": end.isoformat(), "token": finnhub_key},
-        )
-        diagnostics.append(f"FINNHUB_API_KEY detected length={len(finnhub_key)}; Finnhub company-news status={status}")
-        if isinstance(data, list):
-            for a in data[:8]:
-                h = safe_text(a.get("headline"), "")
-                if h:
-                    rows.append({"headline": h, "source": safe_text(a.get("source"), "Finnhub"), "url": safe_text(a.get("url"), ""), "provider": "Finnhub company news"})
-    else:
-        diagnostics.append("FINNHUB_API_KEY missing or blank")
-
-    news_key = v432_env_value("NEWSAPI_KEY")
-    if not rows and news_key:
-        data, status = v432_http_json(
-            "https://newsapi.org/v2/everything",
-            params={"q": ticker, "language": "en", "sortBy": "publishedAt", "pageSize": 8, "apiKey": news_key},
-        )
-        diagnostics.append(f"NEWSAPI_KEY detected length={len(news_key)}; NewsAPI company status={status}")
-        if isinstance(data, dict):
-            for a in data.get("articles", [])[:8]:
-                h = safe_text(a.get("title"), "")
-                if h:
-                    rows.append({"headline": h, "source": safe_text((a.get("source") or {}).get("name"), "NewsAPI"), "url": safe_text(a.get("url"), ""), "provider": "NewsAPI company search"})
-    elif not news_key:
-        diagnostics.append("NEWSAPI_KEY missing or blank")
-
-    if not rows:
-        url = f"https://feeds.finance.yahoo.com/rss/2.0/headline?s={quote_plus(ticker)}&region=US&lang=en-US"
-        text, status = v432_http_text(url, timeout=8)
-        diagnostics.append(f"Yahoo company RSS status={status}")
-        if text:
-            try:
-                root = ET.fromstring(text.encode("utf-8"))
-                for item in root.findall(".//item")[:8]:
-                    title_node = item.find("title")
-                    link_node = item.find("link")
-                    h = safe_text(title_node.text if title_node is not None else "", "")
-                    if h:
-                        rows.append({"headline": h, "source": "Yahoo Finance RSS", "url": safe_text(link_node.text if link_node is not None else "", ""), "provider": "Yahoo Finance RSS"})
-            except Exception as e:
-                diagnostics.append(f"Yahoo company RSS parse failed: {e}")
-
-    return {"rows": rows[:8], "diagnostics": diagnostics}
-
-
-@st.cache_data(ttl=1800)
-def v432_analyst_intelligence(ticker, price=0, analyst_target=0, analyst_count=0):
-    ticker = safe_text(ticker, "").upper().strip()
-    out = {"consensus": analyst_target, "high": 0, "low": 0, "count": int(safe_number(analyst_count, 0)), "upgrades": [], "downgrades": [], "firm_rows": [], "source_notes": [], "rating_trend": "Unknown"}
-    if not ticker:
-        return out
-
-    fmp_key = v432_env_value("FMP_API_KEY")
-    if fmp_key and "v424_fmp_get" in globals():
-        try:
-            data = v424_fmp_get(f"price-target-consensus/{ticker}")
-            out["source_notes"].append(f"FMP_API_KEY detected length={len(fmp_key)}; FMP price-target-consensus tried")
-            if isinstance(data, list) and data:
-                d = data[0]
-                out["consensus"] = safe_number(d.get("targetConsensus") or d.get("targetMean") or out["consensus"], out["consensus"])
-                out["high"] = safe_number(d.get("targetHigh") or d.get("targetHighPrice"), out["high"])
-                out["low"] = safe_number(d.get("targetLow") or d.get("targetLowPrice"), out["low"])
-                out["count"] = int(safe_number(d.get("numberOfAnalysts") or d.get("analystCount"), out["count"]))
-        except Exception as e:
-            out["source_notes"].append(f"FMP consensus failed: {e}")
-
-        try:
-            data = v424_fmp_get(f"upgrades-downgrades/{ticker}")
-            out["source_notes"].append("FMP upgrades-downgrades tried")
-            if isinstance(data, list):
-                for d in data[:12]:
-                    firm = safe_text(d.get("gradingCompany") or d.get("firm") or d.get("analystCompany"), "Analyst firm")
-                    new_grade = safe_text(d.get("newGrade") or d.get("rating") or "")
-                    old_grade = safe_text(d.get("previousGrade") or "")
-                    action = safe_text(d.get("action") or "")
-                    row = {"firm": firm, "action": action or new_grade, "rating": new_grade, "previous": old_grade, "date": safe_text(d.get("publishedDate") or d.get("date"), ""), "source": "FMP upgrades/downgrades"}
-                    txt = f"{action} {new_grade}".lower()
-                    if "upgrade" in txt or "buy" in txt or "overweight" in txt:
-                        out["upgrades"].append(row)
-                    elif "downgrade" in txt or "sell" in txt or "underweight" in txt:
-                        out["downgrades"].append(row)
-                    out["firm_rows"].append(row)
-        except Exception as e:
-            out["source_notes"].append(f"FMP upgrades failed: {e}")
-    else:
-        out["source_notes"].append("FMP_API_KEY missing/blank or FMP helper unavailable")
-
-    finnhub_key = v432_env_value("FINNHUB_API_KEY")
-    if finnhub_key:
-        data, status = v432_http_json("https://finnhub.io/api/v1/stock/recommendation", params={"symbol": ticker, "token": finnhub_key})
-        out["source_notes"].append(f"FINNHUB_API_KEY detected length={len(finnhub_key)}; Finnhub recommendation status={status}")
-        if isinstance(data, list) and data:
-            d = data[0]
-            strong_buy = int(safe_number(d.get("strongBuy"), 0))
-            buy = int(safe_number(d.get("buy"), 0))
-            hold = int(safe_number(d.get("hold"), 0))
-            sell = int(safe_number(d.get("sell"), 0)) + int(safe_number(d.get("strongSell"), 0))
-            out["rating_trend"] = "Bullish / positive recommendation mix" if strong_buy + buy > hold + sell else ("Bearish / negative recommendation mix" if sell > strong_buy + buy else "Mixed / hold-heavy recommendation mix")
-            if not out["count"]:
-                out["count"] = strong_buy + buy + hold + sell
-    else:
-        out["source_notes"].append("FINNHUB_API_KEY missing/blank")
-
-    if not out["high"] and analyst_target:
-        out["high"] = analyst_target * 1.15
-    if not out["low"] and analyst_target:
-        out["low"] = analyst_target * 0.85
-    out["upside"] = ((out["consensus"] - price) / price) * 100 if price and out["consensus"] else None
-    return out
-
-
-# =========================
-# V44.0 FINAL OVERRIDES GUARANTEE
-# =========================
-def v431_get_quality(row):
-    return v44_business_quality(row)
-def render_v431_professional_research_card(row):
-    render_v44_professional_research_card(row)
-def render_detail(row):
-    render_v44_professional_research_card(row)
-    if "render_detail_chart_v4184" in globals():
-        try: render_detail_chart_v4184(row)
-        except Exception: pass
-    if "render_v431_advanced_legacy_sections" in globals(): render_v431_advanced_legacy_sections(row)
-    with st.expander("Raw row data", expanded=False):
-        try: st.json(row if isinstance(row, dict) else dict(row))
-        except Exception: st.write(row)
