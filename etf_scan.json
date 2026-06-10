@@ -52,7 +52,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-10T00:28:28.316730+00:00",
+    "scan_time": "2026-06-10T02:40:32.610771+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 292.88,
@@ -82,23 +82,19 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 82,
-        "status": "Positive",
-        "impact": "Positive",
-        "data_used": "NewsAPI, Finnhub company news",
+        "score": 61,
+        "status": "Mixed",
+        "impact": "Neutral",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Daily ETF Flows: NVDL In Demand",
-          "Bears load up bets against small-cap stocks ahead of economic data releases",
-          "Investors hunt for AI winners in small-cap tech stocks as overlooked ETF sees major inflows",
-          "Daily ETF Flows: SMH Takes No. 1 Spot",
           "Systemic Risk: Why We All Bleed If The Mega-IPOs Fail",
           "Breadth Rebounds, But Damage Is Not Fully Repaired"
         ],
         "risks": [
           "Systemic Risk: Why We All Bleed If The Mega-IPOs Fail"
         ],
-        "bottom_line": "News flow supports the thesis."
+        "bottom_line": "News is mixed or insufficient."
       },
       "Finance Agent": {
         "score": 50,
@@ -232,13 +228,9 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 82,
-    "v42_news_summary": "News flow supports the thesis.",
+    "v42_news_score": 61,
+    "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "Daily ETF Flows: NVDL In Demand",
-      "Bears load up bets against small-cap stocks ahead of economic data releases",
-      "Investors hunt for AI winners in small-cap tech stocks as overlooked ETF sees major inflows",
-      "Daily ETF Flows: SMH Takes No. 1 Spot",
       "Systemic Risk: Why We All Bleed If The Mega-IPOs Fail",
       "Breadth Rebounds, But Damage Is Not Fully Repaired"
     ],
@@ -246,7 +238,6 @@
       "Systemic Risk: Why We All Bleed If The Mega-IPOs Fail"
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -258,7 +249,7 @@
     "v42_breakout_level": 295.81,
     "v42_pullback_zone": "$270.63 - $279.32",
     "v42_chart_guidance": "Between support and resistance. Prefer pullback entry or confirmed breakout.",
-    "v42_committee_positive_agents": 2,
+    "v42_committee_positive_agents": 1,
     "v42_committee_total_agents": 10
   },
   {
@@ -313,7 +304,7 @@
       "RSI is constructive"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-10T00:33:53.193350+00:00",
+    "scan_time": "2026-06-10T02:48:25.395882+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 642.77,
@@ -536,7 +527,7 @@
       "RSI is constructive"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-10T00:34:07.479030+00:00",
+    "scan_time": "2026-06-10T02:48:38.220149+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 618.84,
@@ -759,7 +750,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-10T00:27:55.038265+00:00",
+    "scan_time": "2026-06-10T02:39:42.446877+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 79.95,
@@ -789,13 +780,12 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 69,
+        "score": 62,
         "status": "Mixed",
         "impact": "Neutral",
-        "data_used": "NewsAPI, Finnhub company news",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Accelerating vaccine research and development for skin neglected tropical diseases: A case for leishmaniasis, leprosy, and Buruli ulcer",
           "BANX: 9%+ Distribution Yield With Monthly Pay (Upgrade)"
         ],
         "risks": [
@@ -935,17 +925,15 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 69,
+    "v42_news_score": 62,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "Accelerating vaccine research and development for skin neglected tropical diseases: A case for leishmaniasis, leprosy, and Buruli ulcer",
       "BANX: 9%+ Distribution Yield With Monthly Pay (Upgrade)"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -957,7 +945,7 @@
     "v42_breakout_level": 80.75,
     "v42_pullback_zone": "$78.83 - $78.83",
     "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
-    "v42_committee_positive_agents": 2,
+    "v42_committee_positive_agents": 1,
     "v42_committee_total_agents": 10
   },
   {
@@ -1014,7 +1002,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-10T00:25:12.396011+00:00",
+    "scan_time": "2026-06-10T02:35:40.159434+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 517.75,
@@ -1047,7 +1035,7 @@
         "score": 61,
         "status": "Mixed",
         "impact": "Neutral",
-        "data_used": "NewsAPI, Finnhub company news",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
           "The 'Real Economy' Remains Troubled",
@@ -1202,7 +1190,6 @@
       "Systemic Risk: Why We All Bleed If The Mega-IPOs Fail"
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": true,
@@ -1270,7 +1257,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-10T00:36:52.384157+00:00",
+    "scan_time": "2026-06-10T02:52:25.701238+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 159.93,
@@ -1493,7 +1480,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-10T00:36:50.871968+00:00",
+    "scan_time": "2026-06-10T02:52:23.314935+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 178.81,
@@ -1718,7 +1705,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-10T00:33:30.059517+00:00",
+    "scan_time": "2026-06-10T02:47:48.874673+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 32.91,
@@ -1942,7 +1929,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-10T00:36:51.812103+00:00",
+    "scan_time": "2026-06-10T02:52:24.775314+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 45.19,
@@ -2168,7 +2155,7 @@
     "risk_tags": [
       "RSI is overheated"
     ],
-    "scan_time": "2026-06-10T00:33:21.834728+00:00",
+    "scan_time": "2026-06-10T02:47:36.692357+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 15.82,
@@ -2393,7 +2380,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-10T00:36:51.180095+00:00",
+    "scan_time": "2026-06-10T02:52:23.780412+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 198.73,
@@ -2618,7 +2605,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-10T00:34:11.345474+00:00",
+    "scan_time": "2026-06-10T02:48:44.088476+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 760.4,
@@ -2843,7 +2830,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-10T00:32:40.203670+00:00",
+    "scan_time": "2026-06-10T02:46:33.920466+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 748.65,
@@ -3105,7 +3092,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-10T00:36:13.393051+00:00",
+    "scan_time": "2026-06-10T02:51:27.036627+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 699.15,
@@ -3327,7 +3314,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-10T00:29:33.599511+00:00",
+    "scan_time": "2026-06-10T02:42:02.367217+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 110.24,
@@ -3357,21 +3344,18 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 83,
-        "status": "Positive",
-        "impact": "Positive",
-        "data_used": "NewsAPI, Finnhub company news",
+        "score": 62,
+        "status": "Mixed",
+        "impact": "Neutral",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Daily ETF Flows: LQD Infows Nearly $1B",
-          "Daily ETF Flows: TLT, MUU Picks Up Assets",
-          "The Future of Core Bonds with BlackRock\u2019s Steve Laipply",
           "Single Stock Volatility Jumps To A Record Vs. The VIX Index"
         ],
         "risks": [
           "No negative high-confidence headline detected."
         ],
-        "bottom_line": "News flow supports the thesis."
+        "bottom_line": "News is mixed or insufficient."
       },
       "Finance Agent": {
         "score": 50,
@@ -3505,19 +3489,15 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 83,
-    "v42_news_summary": "News flow supports the thesis.",
+    "v42_news_score": 62,
+    "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "Daily ETF Flows: LQD Infows Nearly $1B",
-      "Daily ETF Flows: TLT, MUU Picks Up Assets",
-      "The Future of Core Bonds with BlackRock\u2019s Steve Laipply",
       "Single Stock Volatility Jumps To A Record Vs. The VIX Index"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -3529,7 +3509,7 @@
     "v42_breakout_level": 110.28,
     "v42_pullback_zone": "$106.53 - $106.53",
     "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
-    "v42_committee_positive_agents": 2,
+    "v42_committee_positive_agents": 1,
     "v42_committee_total_agents": 10
   },
   {
@@ -3586,7 +3566,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-10T00:36:20.292495+00:00",
+    "scan_time": "2026-06-10T02:51:37.317887+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 374.7,
@@ -3808,7 +3788,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-10T00:36:51.517266+00:00",
+    "scan_time": "2026-06-10T02:52:24.312362+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.64,
@@ -4033,7 +4013,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-10T00:28:36.169063+00:00",
+    "scan_time": "2026-06-10T02:40:41.483699+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 60.97,
@@ -4063,21 +4043,20 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 39,
-        "status": "Negative",
-        "impact": "Negative",
-        "data_used": "NewsAPI, Finnhub company news",
+        "score": 47,
+        "status": "Mixed",
+        "impact": "Neutral",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "How a 54-Year-Old Engineer Built a $1.6 Million Income Portfolio That Pays $9,500 a Month Through 67",
-          "4 Dividend ETFs That Could Fund an $1,800-a-Month Golf Habit",
-          "JEPQ\u2019s Distribution Looks Like Income Until You See the ELN Counterparty Risk Behind It",
-          "QQQI\u2019s 14 Percent Yield Was 98 Percent Return of Capital in a Recent Distribution, And That\u2019s the Real Story",
-          "JPMorgan Announces Cash Distributions for the JPMorgan ETFs",
-          "How $300,000 in JEPQ and JEPI Quietly Pays $24,000 a Year Without the MLP K-1 Headache"
+          "Model Portfolio For Income, June 2026",
+          "My Income Portfolio - Looking For Dividends",
+          "I Wouldn't Dare Buy These 3 Popular Retirement-Wrecker Yield Traps",
+          "JEPI ETF Inflows Are Surging In 2026: Is the 9.78% Yield Worth It?",
+          "QDVO: This Tactical Covered Call ETF Continues Delivering Double Digit Yields",
+          "Important Warning For Dividend Investors: 4 Dangerous Misconceptions Quietly Sabotaging Your Portfolio"
         ],
         "risks": [
-          "JEPQ\u2019s Distribution Looks Like Income Until You See the ELN Counterparty Risk Behind It",
           "Important Warning For Dividend Investors: 4 Dangerous Misconceptions Quietly Sabotaging Your Portfolio"
         ],
         "bottom_line": "News is mixed or insufficient."
@@ -4214,22 +4193,20 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 39,
+    "v42_news_score": 47,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "How a 54-Year-Old Engineer Built a $1.6 Million Income Portfolio That Pays $9,500 a Month Through 67",
-      "4 Dividend ETFs That Could Fund an $1,800-a-Month Golf Habit",
-      "JEPQ\u2019s Distribution Looks Like Income Until You See the ELN Counterparty Risk Behind It",
-      "QQQI\u2019s 14 Percent Yield Was 98 Percent Return of Capital in a Recent Distribution, And That\u2019s the Real Story",
-      "JPMorgan Announces Cash Distributions for the JPMorgan ETFs",
-      "How $300,000 in JEPQ and JEPI Quietly Pays $24,000 a Year Without the MLP K-1 Headache"
+      "Model Portfolio For Income, June 2026",
+      "My Income Portfolio - Looking For Dividends",
+      "I Wouldn't Dare Buy These 3 Popular Retirement-Wrecker Yield Traps",
+      "JEPI ETF Inflows Are Surging In 2026: Is the 9.78% Yield Worth It?",
+      "QDVO: This Tactical Covered Call ETF Continues Delivering Double Digit Yields",
+      "Important Warning For Dividend Investors: 4 Dangerous Misconceptions Quietly Sabotaging Your Portfolio"
     ],
     "v42_news_risks": [
-      "JEPQ\u2019s Distribution Looks Like Income Until You See the ELN Counterparty Risk Behind It",
       "Important Warning For Dividend Investors: 4 Dangerous Misconceptions Quietly Sabotaging Your Portfolio"
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -4298,7 +4275,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-10T00:32:44.003450+00:00",
+    "scan_time": "2026-06-10T02:46:39.668719+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 18.15,
@@ -4522,7 +4499,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-10T00:34:41.943057+00:00",
+    "scan_time": "2026-06-10T02:49:21.273717+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 75.6,
@@ -4747,7 +4724,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-10T00:37:00.959275+00:00",
+    "scan_time": "2026-06-10T02:52:37.725672+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 40.83,
@@ -4972,7 +4949,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-10T00:32:41.552954+00:00",
+    "scan_time": "2026-06-10T02:46:35.428836+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 24.81,
@@ -5223,7 +5200,7 @@
     "risk_tags": [
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-10T00:28:33.359842+00:00",
+    "scan_time": "2026-06-10T02:40:40.245408+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 58.27,
@@ -5256,7 +5233,7 @@
         "score": 69,
         "status": "Mixed",
         "impact": "Neutral",
-        "data_used": "NewsAPI, Finnhub company news",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
           "How a 48-Year-Old Engineer Could Replace a $150,000 Salary With Dividend Growth Plus Covered Calls",
@@ -5409,7 +5386,6 @@
       "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -5476,7 +5452,7 @@
     "risk_tags": [
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-10T00:35:09.957479+00:00",
+    "scan_time": "2026-06-10T02:49:55.064847+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.51,
@@ -5701,7 +5677,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-10T00:36:56.591414+00:00",
+    "scan_time": "2026-06-10T02:52:31.504851+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 124.76,
@@ -5926,7 +5902,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-10T00:36:50.030170+00:00",
+    "scan_time": "2026-06-10T02:52:21.758428+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 53.9,
@@ -6150,7 +6126,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-10T00:36:52.106068+00:00",
+    "scan_time": "2026-06-10T02:52:25.236299+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 47.71,
@@ -6376,7 +6352,7 @@
       "price is below 50-day trend",
       "20-day ETF trend is weak"
     ],
-    "scan_time": "2026-06-10T00:21:48.674838+00:00",
+    "scan_time": "2026-06-10T02:30:53.455186+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 92.65,
@@ -6406,24 +6382,20 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 74,
-        "status": "Positive",
-        "impact": "Positive",
-        "data_used": "NewsAPI, Finnhub company news",
+        "score": 53,
+        "status": "Mixed",
+        "impact": "Neutral",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Cathie Wood\u2019s ARK Buys Coinbase and Circle While Trimming Archer and Baidu",
-          "Cathie Wood\u2019s Ark Invest buys 82,779 shares of Cerebras in latest AI hardware bet",
-          "Daily ETF Flows: SOXL Rebounds",
-          "Daily ETF Flows: TLT, MUU Picks Up Assets",
-          "Daily ETF Flows: ARKK Takes No. 1 Spot",
-          "AI Investor Optimism Appears Intact Despite Recent Market Jitters"
+          "AI Investor Optimism Appears Intact Despite Recent Market Jitters",
+          "Cathie Wood Sells $12.7 Million Worth Of Archer Aviation Stock, Ark Invest Picks Up DoorDash And Pony AI Amid Robotaxi Push"
         ],
         "risks": [
           "SPX 500 Weak Market Breadth And Fed Rate Hike Fears Signal Further Downside Risk",
           "Downside Risks Rise As Tech Volatility Spikes"
         ],
-        "bottom_line": "News flow supports the thesis."
+        "bottom_line": "News is mixed or insufficient."
       },
       "Finance Agent": {
         "score": 50,
@@ -6557,22 +6529,17 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 74,
-    "v42_news_summary": "News flow supports the thesis.",
+    "v42_news_score": 53,
+    "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "Cathie Wood\u2019s ARK Buys Coinbase and Circle While Trimming Archer and Baidu",
-      "Cathie Wood\u2019s Ark Invest buys 82,779 shares of Cerebras in latest AI hardware bet",
-      "Daily ETF Flows: SOXL Rebounds",
-      "Daily ETF Flows: TLT, MUU Picks Up Assets",
-      "Daily ETF Flows: ARKK Takes No. 1 Spot",
-      "AI Investor Optimism Appears Intact Despite Recent Market Jitters"
+      "AI Investor Optimism Appears Intact Despite Recent Market Jitters",
+      "Cathie Wood Sells $12.7 Million Worth Of Archer Aviation Stock, Ark Invest Picks Up DoorDash And Pony AI Amid Robotaxi Push"
     ],
     "v42_news_risks": [
       "SPX 500 Weak Market Breadth And Fed Rate Hike Fears Signal Further Downside Risk",
       "Downside Risks Rise As Tech Volatility Spikes"
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -6584,7 +6551,7 @@
     "v42_breakout_level": 83.27,
     "v42_pullback_zone": "$72.10 - $73.50",
     "v42_chart_guidance": "Between support and resistance. Prefer pullback entry or confirmed breakout.",
-    "v42_committee_positive_agents": 1,
+    "v42_committee_positive_agents": 0,
     "v42_committee_total_agents": 10
   },
   {
@@ -6640,7 +6607,7 @@
       "price is below 50-day trend",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-10T00:36:50.301690+00:00",
+    "scan_time": "2026-06-10T02:52:22.267449+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 63.46,
@@ -6865,7 +6832,7 @@
       "price is below 50-day trend",
       "20-day ETF trend is weak"
     ],
-    "scan_time": "2026-06-10T00:23:08.531688+00:00",
+    "scan_time": "2026-06-10T02:32:34.711742+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 41.71,
@@ -6898,15 +6865,15 @@
         "score": 90,
         "status": "Positive",
         "impact": "Positive",
-        "data_used": "NewsAPI, Finnhub company news",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Three Humanoid Robotics ETFs Built for the Tesla Optimus and Figure AI Era Most Investors Have Never Heard Of",
-          "Why Advisors Are Betting on AI Infrastructure Over Apps",
           "AI Investor Optimism Appears Intact Despite Recent Market Jitters",
           "This Week's Market Wrap: AI Ups And Downs, Oil Roars Back, And Strong Data",
           "Funding As The New AI Bottleneck: What Alphabet's Move Reveals",
-          "AI News You Need To Know - June Edition: Capex, Inference, And Beyond"
+          "AI News You Need To Know - June Edition: Capex, Inference, And Beyond",
+          "Chart Of The Day: AI. AI. AI. (And A Handful Of Other Stocks, Too)",
+          "The Multi-Trillion AI Tsunami Sweeping The Market"
         ],
         "risks": [
           "No negative high-confidence headline detected."
@@ -7048,18 +7015,17 @@
     "v42_news_score": 90,
     "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
-      "Three Humanoid Robotics ETFs Built for the Tesla Optimus and Figure AI Era Most Investors Have Never Heard Of",
-      "Why Advisors Are Betting on AI Infrastructure Over Apps",
       "AI Investor Optimism Appears Intact Despite Recent Market Jitters",
       "This Week's Market Wrap: AI Ups And Downs, Oil Roars Back, And Strong Data",
       "Funding As The New AI Bottleneck: What Alphabet's Move Reveals",
-      "AI News You Need To Know - June Edition: Capex, Inference, And Beyond"
+      "AI News You Need To Know - June Edition: Capex, Inference, And Beyond",
+      "Chart Of The Day: AI. AI. AI. (And A Handful Of Other Stocks, Too)",
+      "The Multi-Trillion AI Tsunami Sweeping The Market"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -7127,7 +7093,7 @@
       "20-day ETF trend is weak",
       "60-day ETF trend is weak"
     ],
-    "scan_time": "2026-06-10T00:35:50.827079+00:00",
+    "scan_time": "2026-06-10T02:50:56.140497+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 62.28,

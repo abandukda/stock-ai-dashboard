@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-06-10T00:37:10.214940+00:00",
+  "generated_at": "2026-06-10T02:52:50.953916+00:00",
   "status": "success",
-  "version": "V45.0",
+  "version": "V45.1",
   "universe_count": 2609,
   "prescreen_count": 650,
   "full_scan_count": 150,
@@ -10,7 +10,7 @@
   "fallback_rows_allowed": false,
   "data_dir": ".",
   "github_persisted": true,
-  "duration_seconds": 1001.55,
+  "duration_seconds": 1448.26,
   "fast_cron_mode": true,
   "full_committee_limit": 15,
   "pre_rank_deep_apis_skipped": true,
