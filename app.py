@@ -15,7 +15,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V46.1 Research Quality Correction Patch"
+APP_VERSION = "V47.0 Client-Friendly Advisor Language"
 
 
 # =========================
@@ -11368,6 +11368,240 @@ def render_status_banner():
     c3.metric("Full Scan", state.get("full_scan_count", "N/A"))
     c4.metric("Prescreen", state.get("prescreen_count", "N/A"))
     persisted = bool(state.get("github_persisted")) or v45_text(state.get("version", "")).startswith(("V45", "V46"))
+    c5.metric("GitHub Persisted", "✅" if persisted else "❌")
+    if is_viewer():
+        st.info("Viewer mode: customer-facing research is visible; admin controls remain hidden.")
+    if state:
+        st.caption(f"Last scan: {state.get('generated_at', 'N/A')} | Duration: {state.get('duration_seconds', 'N/A')}s | DATA_DIR={state.get('data_dir', '.')}")
+
+
+
+# =========================
+# V47.0 CLIENT-FRIENDLY ADVISOR LANGUAGE PATCH
+# =========================
+# Fixes:
+# - Broken markdown sentence rendering in advisor output
+# - Replaces "ACCUMULATE CAREFULLY" with "BUY GRADUALLY"
+# - Shows a clean action plan with Preferred Entry / Trading Stop / Base Target
+# - Keeps V46.1 financial/data-quality fixes intact
+
+def v47_client_decision_label(decision):
+    raw = v45_text(decision, "")
+    mapping = {
+        "ACCUMULATE CAREFULLY": "BUY GRADUALLY",
+        "BUY ON PULLBACK": "BUY ON PULLBACK",
+        "ACTIONABLE WATCH": "WATCH CLOSELY",
+        "SPECULATIVE WATCH": "SPECULATIVE WATCH",
+        "AVOID / LOW PRIORITY": "AVOID",
+    }
+    return mapping.get(raw, raw or "WATCH")
+
+
+def v47_action_phrase(label):
+    if label == "BUY GRADUALLY":
+        return "The stock looks attractive, but clients should build the position in stages rather than buying all at once."
+    if label == "BUY ON PULLBACK":
+        return "The stock looks attractive, but the best risk/reward comes if price pulls back into the preferred entry zone."
+    if label == "WATCH CLOSELY":
+        return "The setup is constructive, but clients should wait for a cleaner entry or stronger confirmation."
+    if label == "SPECULATIVE WATCH":
+        return "There is upside potential, but uncertainty is higher, so position sizing should be smaller."
+    if label == "AVOID":
+        return "The risk/reward does not look attractive enough today."
+    return "Monitor the setup and use the entry/stop plan before acting."
+
+
+def v47_decision(row):
+    d = v461_decision(row) if "v461_decision" in globals() else v46_decision(row)
+    d = dict(d)
+    d["raw_decision"] = d.get("decision")
+    d["client_decision"] = v47_client_decision_label(d.get("decision"))
+    d["decision"] = d["client_decision"]
+    return d
+
+
+def v47_advisor_take(row, d=None):
+    d = d or v47_decision(row)
+    ticker = d["ticker"]
+    levels = d["levels"]
+    analyst = d["analyst"]
+    fin = d["financials"]
+    news = d["news"]
+    label = d.get("client_decision") or d.get("decision")
+
+    entry_low = v45_money(levels.get("ideal_low"))
+    entry_high = v45_money(levels.get("ideal_high"))
+    stop = v45_money(levels.get("trading_stop") or levels.get("stop"))
+    target = v45_money(levels.get("target2") or analyst.get("consensus"))
+
+    positives = []
+    cautions = []
+
+    if analyst.get("count"):
+        positives.append(f"{analyst.get('count')} analysts provide coverage")
+    if analyst.get("upside") is not None and analyst.get("upside") >= 10:
+        positives.append(f"Wall Street consensus implies {analyst.get('upside'):.1f}% upside")
+    if fin.get("revenue_growth") is not None and fin.get("revenue_growth") >= 5:
+        positives.append(f"revenue growth is {fin.get('revenue_growth'):.1f}%")
+    if fin.get("gross_margin") is not None and fin.get("gross_margin") >= 40:
+        positives.append(f"gross margin is strong at {fin.get('gross_margin'):.1f}%")
+    if fin.get("free_cash_flow") is not None and fin.get("free_cash_flow") > 0:
+        positives.append("free cash flow is positive")
+    if news.get("rows"):
+        positives.append("recent ticker-specific news was reviewed")
+
+    if fin.get("debt_interpretation"):
+        cautions.append(fin["debt_interpretation"])
+    if analyst.get("warnings"):
+        cautions.extend(analyst["warnings"][:1])
+    if not news.get("rows"):
+        cautions.append("recent ticker news is limited from connected sources")
+    if not positives:
+        positives.append("the setup has some constructive signals, but conviction is limited")
+
+    # Avoid inline markdown artifacts by keeping the main view structured.
+    lead = f"**Our take:** {ticker} is a **{label}** candidate."
+    action = v47_action_phrase(label)
+
+    plan_lines = [
+        f"**Preferred Entry:** {entry_low}–{entry_high}",
+        f"**Trading Stop:** {stop}",
+        f"**Base Target:** {target}",
+    ]
+
+    return lead, action, plan_lines, positives[:6], cautions[:5]
+
+
+def render_v47_advisor_decision_card(row):
+    d = v47_decision(row)
+    levels = d["levels"]
+    lead, action, plan_lines, positives, cautions = v47_advisor_take(row, d)
+
+    with st.container(border=True):
+        st.markdown(f"## {d['ticker']} — {d['company'].get('company', d['ticker'])}")
+        st.markdown(f"### 🎯 AI Advisor Verdict: **{d['decision']}**")
+        st.markdown(lead)
+        st.info(action)
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Advisor Confidence", f"{d['score']:.1f}/100")
+        c2.metric("Research Completion", f"{d['completion_score']}/100")
+        c3.metric("Research Status", d["completion_status"])
+        c4.metric("Risk", d["risk"])
+
+        c5, c6, c7, c8 = st.columns(4)
+        c5.metric("Current Price", v46_money(levels.get("price")))
+        c6.metric("Preferred Entry", f"{v45_money(levels.get('ideal_low'))} - {v45_money(levels.get('ideal_high'))}")
+        c7.metric("Trading Stop", v45_money(levels.get("trading_stop") or levels.get("stop")))
+        c8.metric("Base Target", v45_money(levels.get("target2")))
+
+        st.markdown("#### Action Plan")
+        for line in plan_lines:
+            st.markdown(f"• {line}")
+
+        left, right = st.columns(2)
+        with left:
+            st.markdown("#### Why we like it")
+            for p in positives:
+                st.markdown(f"✓ {p}")
+        with right:
+            st.markdown("#### What gives us pause")
+            for c in cautions or ["No major caveat identified from populated data."]:
+                st.markdown(f"⚠️ {c}")
+
+
+def render_v47_trade_plan(row):
+    # Same V46.1 trade logic, but clearer wording.
+    d = v47_decision(row)
+    l = d["levels"]
+
+    with st.container(border=True):
+        st.markdown("### 📍 Entry, Stop & Target Plan")
+        st.caption("This gives clients the exact price plan: where to buy, where to control risk, and where the base upside target sits.")
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Preferred Entry", f"{v45_money(l.get('ideal_low'))} - {v45_money(l.get('ideal_high'))}")
+        c2.metric("Aggressive Entry", f"{v45_money(l.get('aggressive_low'))} - {v45_money(l.get('aggressive_high'))}")
+        c3.metric("Trading Stop", v45_money(l.get("trading_stop") or l.get("stop")))
+        c4.metric("Risk / Reward", "N/A" if l.get("risk_reward") is None else f"{l.get('risk_reward'):.2f}:1")
+
+        c5, c6, c7, c8 = st.columns(4)
+        c5.metric("Long-Term Thesis Break", v45_money(l.get("thesis_break")))
+        c6.metric("Conservative Target", v45_money(l.get("target1")))
+        c7.metric("Base Target", v45_money(l.get("target2")))
+        c8.metric("Bull Target", v45_money(l.get("target3")))
+
+        if l.get("price") and l.get("ideal_low") and l.get("ideal_high") and l["ideal_low"] <= l["price"] <= l["ideal_high"]:
+            st.success("Current price is inside the preferred entry zone. A starter position may be reasonable if the client accepts the trading stop.")
+        elif l.get("price") and l.get("ideal_high") and l["price"] > l["ideal_high"]:
+            st.warning("Current price is above the preferred entry zone. Better risk/reward may come on a pullback.")
+        else:
+            st.info("Use the entry zone and trading stop together. Do not buy without knowing where the thesis breaks.")
+
+
+def render_v47_final_thesis(row):
+    d = v47_decision(row)
+    levels = d["levels"]
+    lead, action, plan_lines, positives, cautions = v47_advisor_take(row, d)
+
+    with st.container(border=True):
+        st.markdown("### 🧠 Final Investment Thesis")
+        st.markdown(lead)
+        st.info(action)
+
+        st.markdown("#### Action Plan")
+        for line in plan_lines:
+            st.markdown(f"• {line}")
+
+        st.markdown("#### Investment case")
+        for p in positives:
+            st.markdown(f"✓ {p}")
+
+        st.markdown("#### Key risks to monitor")
+        for c in cautions or ["No major caveat identified from populated data."]:
+            st.markdown(f"⚠️ {c}")
+
+        st.markdown(
+            f"**Bottom line:** For clients interested in {d['ticker']}, the preferred approach is to use the "
+            f"entry zone around **{v45_money(levels.get('ideal_low'))}–{v45_money(levels.get('ideal_high'))}**, "
+            f"respect the trading stop near **{v45_money(levels.get('trading_stop') or levels.get('stop'))}**, "
+            f"and reassess the thesis if price breaks the long-term thesis level near **{v45_money(levels.get('thesis_break'))}**."
+        )
+        st.caption("Research guidance only. Not personalized financial advice.")
+
+
+def render_v47_research_page(row):
+    render_v47_advisor_decision_card(row)
+    render_v47_trade_plan(row)
+    render_v461_financial_intelligence(row)
+    render_v46_analyst_intelligence(row)
+    render_v46_news_intelligence(row)
+    render_v451_metric_interpreter(row)
+    if "render_detail_chart_v4184" in globals():
+        try:
+            render_detail_chart_v4184(row)
+        except Exception:
+            pass
+    render_v47_final_thesis(row)
+    render_v46_completion(row)
+
+
+# Override active detail renderer for V47.
+def render_detail(row):
+    render_v47_research_page(row)
+
+
+def render_status_banner():
+    state = read_state()
+    st.title("📈 AI Trading Dashboard")
+    st.caption(APP_VERSION)
+    st.caption("Client-friendly advisor language: clean verdicts, structured action plan, preferred entry, trading stop, base target, and no broken markdown output.")
+    c1,c2,c3,c4,c5 = st.columns(5)
+    c1.metric("Status", state.get("status", "unknown"))
+    c2.metric("Scanner Version", state.get("version", "N/A"))
+    c3.metric("Full Scan", state.get("full_scan_count", "N/A"))
+    c4.metric("Prescreen", state.get("prescreen_count", "N/A"))
+    persisted = bool(state.get("github_persisted")) or v45_text(state.get("version", "")).startswith(("V45", "V46", "V47"))
     c5.metric("GitHub Persisted", "✅" if persisted else "❌")
     if is_viewer():
         st.info("Viewer mode: customer-facing research is visible; admin controls remain hidden.")

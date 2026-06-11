@@ -3954,7 +3954,7 @@ def scan_market() -> Dict[str, Any]:
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V46.1",
+        "version": "V47.0",
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -4448,13 +4448,16 @@ def v432s_source_config_status():
 # V44.0 scanner marker:
 # App adds paid-client intelligence, analyst/quality overlays, and market-news improvements.
 def v44s_marker():
-    return {"version": "V46.1", "paid_client_intelligence": True}
+    return {"version": "V47.0", "paid_client_intelligence": True}
 
 
-# V46.1 marker: Advisor-Style Decision Engine with GitHub Actions persistence compatibility.
+# V47.0 marker: Advisor-Style Decision Engine with GitHub Actions persistence compatibility.
 
 
-# V46.1 marker: Institutional Research Completion Engine compatibility.
+# V47.0 marker: Institutional Research Completion Engine compatibility.
 
 
-# V46.1 marker: Research Quality Correction Patch.
+# V47.0 marker: Research Quality Correction Patch.
+
+
+# V47.0 marker: Client-Friendly Advisor Language Patch.
