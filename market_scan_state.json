@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-11T06:45:10.504366+00:00",
+  "generated_at": "2026-06-11T09:19:15.610882+00:00",
   "status": "success",
   "version": "V47.0",
   "universe_count": 2660,
@@ -9,8 +9,8 @@
   "etf_count": 31,
   "fallback_rows_allowed": false,
   "data_dir": ".",
-  "github_persisted": false,
-  "duration_seconds": 892.16,
+  "github_persisted": true,
+  "duration_seconds": 1365.4,
   "fast_cron_mode": true,
   "full_committee_limit": 15,
   "pre_rank_deep_apis_skipped": true,
