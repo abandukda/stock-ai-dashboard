@@ -15,7 +15,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V47.0 Client-Friendly Advisor Language"
+APP_VERSION = "V48.0 Execution Readiness Engine"
 
 
 # =========================
@@ -11607,6 +11607,632 @@ def render_status_banner():
         st.info("Viewer mode: customer-facing research is visible; admin controls remain hidden.")
     if state:
         st.caption(f"Last scan: {state.get('generated_at', 'N/A')} | Duration: {state.get('duration_seconds', 'N/A')}s | DATA_DIR={state.get('data_dir', '.')}")
+
+
+
+# =========================
+# V48.0 EXECUTION READINESS ENGINE
+# =========================
+# Adds:
+# - BUY NOW / READY TODAY logic separate from quality ranking
+# - Financial completion boost for EPS growth, OCF, FCF, PE, PEG, net margin
+# - Ready-to-execute table section
+# - Clear distinction: great company vs executable entry today
+
+def v48_safe_get(d, *keys):
+    if not isinstance(d, dict):
+        return None
+    for k in keys:
+        if k in d and d.get(k) not in [None, "", "N/A", "nan"]:
+            return d.get(k)
+    return None
+
+
+def v48_growth_pct(x):
+    v = v46_num(x, positive=False) if "v46_num" in globals() else None
+    if v is None:
+        return None
+    if abs(v) <= 1:
+        v *= 100
+    if abs(v) > 250:
+        return None
+    return v
+
+
+def v48_latest_rows(data):
+    if isinstance(data, list):
+        return [x for x in data if isinstance(x, dict)]
+    if isinstance(data, dict):
+        return [data]
+    return []
+
+
+@st.cache_data(ttl=900)
+def v48_financial_completion(ticker, row_json=None):
+    """
+    V48 aggressively fills missing financial fields from all existing current sources:
+    - V46.1 financial intelligence
+    - FMP ratios/key metrics/growth/income/cashflow/balance
+    - Yahoo info fallback
+    """
+    ticker = v451_clean_ticker(ticker)
+    fin = v461_financial_intelligence(ticker, row_json) if "v461_financial_intelligence" in globals() else (v46_financial_intelligence(ticker, row_json) if "v46_financial_intelligence" in globals() else {})
+    fin = dict(fin or {})
+    fin.setdefault("diagnostics", [])
+    fin.setdefault("warnings", [])
+    fin.setdefault("completion_sources", {})
+
+    try:
+        row = json.loads(row_json) if row_json else {}
+    except Exception:
+        row = {}
+
+    # Row fallback first
+    row_map = {
+        "pe": ["P/E", "PE", "PE Ratio", "Trailing PE", "trailingPE"],
+        "forward_pe": ["Forward PE", "forwardPE"],
+        "peg": ["PEG", "PEG Ratio", "pegRatio"],
+        "eps_growth": ["EPS Growth", "Earnings Growth", "Earnings Growth %", "epsGrowth"],
+        "free_cash_flow": ["Free Cash Flow", "FCF", "freeCashFlow"],
+        "operating_cash_flow": ["Operating Cash Flow", "OCF", "operatingCashFlow"],
+        "net_margin": ["Net Margin", "netProfitMargin", "net_margin"],
+    }
+    for out_key, keys in row_map.items():
+        if fin.get(out_key) is None:
+            val = v48_safe_get(row, *keys)
+            if val is not None:
+                if out_key in ["eps_growth", "net_margin"]:
+                    fin[out_key] = v48_growth_pct(val)
+                else:
+                    fin[out_key] = v46_num(val, positive=False)
+                fin["completion_sources"][out_key] = "scan row"
+
+    for tv in v451_ticker_variants(ticker):
+        # Ratios TTM
+        for endpoint, label in [
+            (f"ratios-ttm/{tv}", "FMP ratios TTM"),
+            (f"key-metrics-ttm/{tv}", "FMP key metrics TTM"),
+        ]:
+            data, status = v451_fmp_get_try(endpoint, None)
+            fin["diagnostics"].append(f"V48 {endpoint}: {status}")
+            for d in v48_latest_rows(data)[:1]:
+                if fin.get("pe") is None:
+                    fin["pe"] = v46_num(v48_safe_get(d, "priceEarningsRatioTTM", "peRatioTTM", "peRatio"), positive=False)
+                    if fin.get("pe") is not None: fin["completion_sources"]["pe"] = label
+                if fin.get("forward_pe") is None:
+                    fin["forward_pe"] = v46_num(v48_safe_get(d, "forwardPE", "forwardPe"), positive=False)
+                    if fin.get("forward_pe") is not None: fin["completion_sources"]["forward_pe"] = label
+                if fin.get("peg") is None:
+                    fin["peg"] = v46_num(v48_safe_get(d, "pegRatioTTM", "pegRatio"), positive=False)
+                    if fin.get("peg") is not None: fin["completion_sources"]["peg"] = label
+                if fin.get("net_margin") is None:
+                    fin["net_margin"] = v48_growth_pct(v48_safe_get(d, "netProfitMarginTTM", "netProfitMargin", "netIncomePerShareTTM"))
+                    if fin.get("net_margin") is not None: fin["completion_sources"]["net_margin"] = label
+                if fin.get("operating_margin") is None:
+                    fin["operating_margin"] = v48_growth_pct(v48_safe_get(d, "operatingProfitMarginTTM", "operatingProfitMargin"))
+                    if fin.get("operating_margin") is not None: fin["completion_sources"]["operating_margin"] = label
+                if fin.get("gross_margin") is None:
+                    fin["gross_margin"] = v48_growth_pct(v48_safe_get(d, "grossProfitMarginTTM", "grossProfitMargin"))
+                    if fin.get("gross_margin") is not None: fin["completion_sources"]["gross_margin"] = label
+
+        # Growth
+        data, status = v451_fmp_get_try(f"financial-growth/{tv}", {"limit": 2})
+        fin["diagnostics"].append(f"V48 financial-growth/{tv}: {status}")
+        for d in v48_latest_rows(data)[:1]:
+            if fin.get("eps_growth") is None:
+                fin["eps_growth"] = v48_growth_pct(v48_safe_get(d, "epsgrowth", "epsGrowth", "growthEPS", "netIncomeGrowth"))
+                if fin.get("eps_growth") is not None: fin["completion_sources"]["eps_growth"] = "FMP financial growth"
+            if fin.get("revenue_growth") is None:
+                fin["revenue_growth"] = v48_growth_pct(v48_safe_get(d, "revenueGrowth", "growthRevenue"))
+                if fin.get("revenue_growth") is not None: fin["completion_sources"]["revenue_growth"] = "FMP financial growth"
+            if fin.get("free_cash_flow_growth") is None:
+                fin["free_cash_flow_growth"] = v48_growth_pct(v48_safe_get(d, "freeCashFlowGrowth", "growthFreeCashFlow"))
+                if fin.get("free_cash_flow_growth") is not None: fin["completion_sources"]["free_cash_flow_growth"] = "FMP financial growth"
+
+        # Statements
+        income, s1 = v451_fmp_get_try(f"income-statement/{tv}", {"limit": 3})
+        cashflow, s2 = v451_fmp_get_try(f"cash-flow-statement/{tv}", {"limit": 3})
+        fin["diagnostics"].append(f"V48 income-statement/{tv}: {s1}")
+        fin["diagnostics"].append(f"V48 cash-flow-statement/{tv}: {s2}")
+        inc_rows = v48_latest_rows(income)
+        cf_rows = v48_latest_rows(cashflow)
+
+        if inc_rows:
+            cur = inc_rows[0]
+            rev = v46_num(cur.get("revenue"), positive=True)
+            net_income = v46_num(cur.get("netIncome"), positive=False)
+            gross_profit = v46_num(cur.get("grossProfit"), positive=False)
+            operating_income = v46_num(cur.get("operatingIncome"), positive=False)
+            eps = v46_num(cur.get("eps") or cur.get("epsdiluted"), positive=False)
+
+            if rev and net_income is not None and fin.get("net_margin") is None:
+                fin["net_margin"] = (net_income / rev) * 100
+                fin["completion_sources"]["net_margin"] = "FMP income statement derived"
+            if rev and gross_profit is not None and fin.get("gross_margin") is None:
+                fin["gross_margin"] = (gross_profit / rev) * 100
+                fin["completion_sources"]["gross_margin"] = "FMP income statement derived"
+            if rev and operating_income is not None and fin.get("operating_margin") is None:
+                fin["operating_margin"] = (operating_income / rev) * 100
+                fin["completion_sources"]["operating_margin"] = "FMP income statement derived"
+            if fin.get("eps_growth") is None and len(inc_rows) >= 2:
+                prev = v46_num(inc_rows[1].get("eps") or inc_rows[1].get("epsdiluted"), positive=False)
+                if eps is not None and prev not in [None, 0]:
+                    fin["eps_growth"] = ((eps - prev) / abs(prev)) * 100
+                    fin["completion_sources"]["eps_growth"] = "FMP income statement derived"
+
+            if fin.get("pe") is None and eps and eps > 0:
+                # Use current price from row if possible
+                try:
+                    price = v46_num(json.loads(row_json).get("Price"), positive=True) if row_json else None
+                except Exception:
+                    price = None
+                if price:
+                    fin["pe"] = price / eps
+                    fin["completion_sources"]["pe"] = "derived from price / EPS"
+
+        if cf_rows:
+            cur = cf_rows[0]
+            if fin.get("operating_cash_flow") is None:
+                fin["operating_cash_flow"] = v46_num(v48_safe_get(cur, "operatingCashFlow", "netCashProvidedByOperatingActivities"), positive=False)
+                if fin.get("operating_cash_flow") is not None: fin["completion_sources"]["operating_cash_flow"] = "FMP cash flow statement"
+            if fin.get("free_cash_flow") is None:
+                ocf = v46_num(v48_safe_get(cur, "operatingCashFlow", "netCashProvidedByOperatingActivities"), positive=False)
+                capex = v46_num(v48_safe_get(cur, "capitalExpenditure", "capitalExpenditures"), positive=False)
+                fcf = v46_num(cur.get("freeCashFlow"), positive=False)
+                if fcf is None and ocf is not None and capex is not None:
+                    # capex may be negative, so add it to OCF
+                    fcf = ocf + capex
+                fin["free_cash_flow"] = fcf
+                if fin.get("free_cash_flow") is not None: fin["completion_sources"]["free_cash_flow"] = "FMP cash flow statement"
+
+    # Yahoo final fallback
+    yi = v451_yahoo_info(ticker)
+    if yi:
+        fin["diagnostics"].append("V48 Yahoo fallback: returned")
+        yahoo_map = [
+            ("pe", "trailingPE", False),
+            ("forward_pe", "forwardPE", False),
+            ("peg", "pegRatio", False),
+            ("eps_growth", "earningsGrowth", True),
+            ("revenue_growth", "revenueGrowth", True),
+            ("net_margin", "profitMargins", True),
+            ("gross_margin", "grossMargins", True),
+            ("operating_margin", "operatingMargins", True),
+            ("operating_cash_flow", "operatingCashflow", False),
+            ("free_cash_flow", "freeCashflow", False),
+        ]
+        for out_key, ykey, is_pct in yahoo_map:
+            if fin.get(out_key) is None and yi.get(ykey) is not None:
+                fin[out_key] = v48_growth_pct(yi.get(ykey)) if is_pct else v46_num(yi.get(ykey), positive=False)
+                if fin.get(out_key) is not None:
+                    fin["completion_sources"][out_key] = "Yahoo fallback"
+
+    # Normalize percentage fields again
+    for key in ["gross_margin", "operating_margin", "net_margin", "roe", "eps_growth", "revenue_growth", "free_cash_flow_growth"]:
+        if fin.get(key) is not None:
+            fin[key] = v48_growth_pct(fin.get(key))
+
+    usable = sum(1 for k in ["revenue_growth", "eps_growth", "pe", "forward_pe", "peg", "free_cash_flow", "operating_cash_flow", "gross_margin", "operating_margin", "net_margin", "cash", "total_debt"] if fin.get(k) is not None)
+    fin["data_quality"] = "Complete" if usable >= 9 else ("Partial" if usable >= 6 else "Incomplete")
+    fin["financial_completion_count"] = usable
+    fin["financial_completion_total"] = 12
+    return fin
+
+
+def v48_execution_score(row, d=None):
+    d = d or v47_decision(row) if "v47_decision" in globals() else v461_decision(row)
+    levels = d.get("levels", {})
+    fin = d.get("financials", {})
+    analyst = d.get("analyst", {})
+    news = d.get("news", {})
+    price = v46_num(levels.get("price") or row.get("Price"), positive=True)
+    ideal_low = v46_num(levels.get("ideal_low"), positive=True)
+    ideal_high = v46_num(levels.get("ideal_high"), positive=True)
+    trading_stop = v46_num(levels.get("trading_stop") or levels.get("stop"), positive=True)
+    target1 = v46_num(levels.get("target1"), positive=True)
+    rr = v46_num(levels.get("risk_reward"), positive=False)
+    rsi = v46_num(row.get("RSI"), positive=False)
+    volume_ratio = v46_num(row.get("Volume Ratio"), positive=False)
+
+    score = 50
+    reasons = []
+    blockers = []
+
+    if price and ideal_low and ideal_high and ideal_low <= price <= ideal_high:
+        score += 18
+        reasons.append("Current price is inside the preferred entry zone")
+    elif price and ideal_high and price <= ideal_high * 1.03:
+        score += 10
+        reasons.append("Current price is close to the preferred entry zone")
+    else:
+        blockers.append("Price is not in the preferred entry zone")
+
+    if rr is not None and rr >= 1.5:
+        score += 14
+        reasons.append(f"Risk/reward is attractive at {rr:.2f}:1")
+    elif rr is not None and rr >= 1.0:
+        score += 6
+        reasons.append(f"Risk/reward is acceptable at {rr:.2f}:1")
+    else:
+        blockers.append("Risk/reward is not attractive enough yet")
+
+    if trading_stop and price:
+        stop_risk = (price - trading_stop) / price * 100
+        if 5 <= stop_risk <= 18:
+            score += 10
+            reasons.append(f"Trading stop risk is reasonable at about {stop_risk:.1f}%")
+        elif stop_risk > 25:
+            blockers.append("Trading stop is too far below current price")
+        elif stop_risk < 3:
+            blockers.append("Trading stop may be too tight/noisy")
+
+    if rsi is not None:
+        if 40 <= rsi <= 65:
+            score += 10
+            reasons.append("RSI is healthy and not overbought")
+        elif rsi > 70:
+            score -= 12
+            blockers.append("RSI is overbought")
+        elif rsi < 30:
+            score += 3
+            reasons.append("RSI is oversold; possible reversal setup but higher risk")
+
+    if fin.get("data_quality") == "Complete":
+        score += 8
+        reasons.append("Financial data is sufficiently populated")
+    elif fin.get("data_quality") == "Partial":
+        score += 3
+        blockers.append("Some financial fields are still partial")
+    else:
+        score -= 8
+        blockers.append("Financial data is incomplete")
+
+    if analyst.get("upside") is not None and analyst.get("upside") >= 10:
+        score += 8
+        reasons.append(f"Analyst consensus implies {analyst.get('upside'):.1f}% upside")
+    elif analyst.get("consensus"):
+        score += 3
+    else:
+        blockers.append("Analyst target data is limited")
+
+    if news.get("rows"):
+        score += 4
+        reasons.append("Recent ticker news was reviewed")
+    else:
+        score -= 2
+        blockers.append("Ticker-specific news is limited")
+
+    if volume_ratio is not None and volume_ratio >= 1.1:
+        score += 4
+        reasons.append("Volume confirmation is above normal")
+    elif volume_ratio is not None and volume_ratio < 0.75:
+        score -= 2
+        blockers.append("Volume confirmation is light")
+
+    score = max(0, min(100, round(score, 1)))
+    if score >= 82 and not any("overbought" in b.lower() for b in blockers):
+        label = "BUY NOW"
+    elif score >= 72:
+        label = "READY / BUY GRADUALLY"
+    elif score >= 60:
+        label = "WAIT FOR BETTER ENTRY"
+    else:
+        label = "NOT READY"
+
+    return {"execution_score": score, "execution_label": label, "execution_reasons": reasons[:6], "execution_blockers": blockers[:6]}
+
+
+def v48_decision(row):
+    # Use V47 then enrich financials and override execution-specific label when appropriate.
+    d = v47_decision(row) if "v47_decision" in globals() else (v461_decision(row) if "v461_decision" in globals() else {})
+    d = dict(d)
+    ticker = d.get("ticker") or v451_clean_ticker(row.get("Ticker"))
+    fin = v48_financial_completion(ticker, v451_row_to_json(row))
+    d["financials"] = fin
+    # Rebuild levels using improved data if possible
+    levels = v461_trade_plan(row, {"analyst": d.get("analyst", {})}) if "v461_trade_plan" in globals() else d.get("levels", {})
+    d["levels"] = levels
+    ex = v48_execution_score(row, d)
+    d.update(ex)
+
+    # Client-facing decision should separate research quality from executable timing.
+    base_label = d.get("decision", "WATCH")
+    if ex["execution_label"] == "BUY NOW":
+        d["decision"] = "BUY NOW"
+    elif ex["execution_label"] == "READY / BUY GRADUALLY":
+        d["decision"] = "BUY GRADUALLY"
+    elif "BUY" in str(base_label).upper() and ex["execution_label"] == "WAIT FOR BETTER ENTRY":
+        d["decision"] = "WAIT FOR BETTER ENTRY"
+    elif ex["execution_label"] == "NOT READY":
+        d["decision"] = "NOT READY"
+    else:
+        d["decision"] = base_label
+
+    return d
+
+
+def v48_advisor_take(row, d=None):
+    d = d or v48_decision(row)
+    ticker = d["ticker"]
+    levels = d["levels"]
+    analyst = d["analyst"]
+    fin = d["financials"]
+    news = d["news"]
+
+    entry = f"{v45_money(levels.get('ideal_low'))}–{v45_money(levels.get('ideal_high'))}"
+    stop = v45_money(levels.get("trading_stop") or levels.get("stop"))
+    target = v45_money(levels.get("target2") or analyst.get("consensus"))
+    decision = d.get("decision", "WATCH")
+
+    if decision == "BUY NOW":
+        lead = f"**Our take:** {ticker} is **BUY NOW** because the current price is inside the execution zone and the risk/reward setup is actionable today."
+        action = "This is the type of setup the scanner should surface as ready to execute, assuming the client accepts the trading stop."
+    elif decision == "BUY GRADUALLY":
+        lead = f"**Our take:** {ticker} is a **BUY GRADUALLY** candidate."
+        action = "The setup is actionable, but clients should build the position in stages rather than buying all at once."
+    elif decision == "WAIT FOR BETTER ENTRY":
+        lead = f"**Our take:** {ticker} is a quality idea, but it is **WAIT FOR BETTER ENTRY** today."
+        action = "The business may be attractive, but the price/technical setup is not ideal enough for immediate execution."
+    elif decision == "NOT READY":
+        lead = f"**Our take:** {ticker} is **NOT READY** for execution today."
+        action = "The setup does not yet meet enough execution criteria for a new position."
+    else:
+        lead = f"**Our take:** {ticker} is a **{decision}** candidate."
+        action = "Use the entry, stop, and target plan before acting."
+
+    plan_lines = [
+        f"**Preferred Entry:** {entry}",
+        f"**Trading Stop:** {stop}",
+        f"**Base Target:** {target}",
+        f"**Execution Score:** {d.get('execution_score', 'N/A')}/100",
+    ]
+
+    positives = []
+    if fin.get("revenue_growth") is not None and fin.get("revenue_growth") >= 5:
+        positives.append(f"revenue growth is {fin.get('revenue_growth'):.1f}%")
+    if fin.get("gross_margin") is not None and fin.get("gross_margin") >= 40:
+        positives.append(f"gross margin is strong at {fin.get('gross_margin'):.1f}%")
+    if fin.get("free_cash_flow") is not None and fin.get("free_cash_flow") > 0:
+        positives.append("free cash flow is positive")
+    if analyst.get("upside") is not None and analyst.get("upside") >= 10:
+        positives.append(f"Wall Street consensus implies {analyst.get('upside'):.1f}% upside")
+    positives.extend(d.get("execution_reasons", []))
+    # dedupe
+    positives = list(dict.fromkeys([p for p in positives if p]))[:7]
+
+    cautions = []
+    if fin.get("debt_interpretation"):
+        cautions.append(fin["debt_interpretation"])
+    cautions.extend(d.get("execution_blockers", []))
+    if not news.get("rows"):
+        cautions.append("recent ticker news is limited from connected sources")
+    cautions = list(dict.fromkeys([c for c in cautions if c]))[:7]
+    return lead, action, plan_lines, positives, cautions
+
+
+def render_v48_advisor_decision_card(row):
+    d = v48_decision(row)
+    levels = d["levels"]
+    lead, action, plan_lines, positives, cautions = v48_advisor_take(row, d)
+
+    with st.container(border=True):
+        st.markdown(f"## {d['ticker']} — {d['company'].get('company', d['ticker'])}")
+        st.markdown(f"### 🎯 AI Advisor Verdict: **{d['decision']}**")
+        st.markdown(lead)
+        st.info(action)
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Advisor Confidence", f"{d['score']:.1f}/100")
+        c2.metric("Execution Score", f"{d.get('execution_score', 0):.1f}/100")
+        c3.metric("Research Completion", f"{d['completion_score']}/100")
+        c4.metric("Risk", d["risk"])
+
+        c5, c6, c7, c8 = st.columns(4)
+        c5.metric("Current Price", v46_money(levels.get("price")))
+        c6.metric("Preferred Entry", f"{v45_money(levels.get('ideal_low'))} - {v45_money(levels.get('ideal_high'))}")
+        c7.metric("Trading Stop", v45_money(levels.get("trading_stop") or levels.get("stop")))
+        c8.metric("Base Target", v45_money(levels.get("target2")))
+
+        st.markdown("#### Action Plan")
+        for line in plan_lines:
+            st.markdown(f"• {line}")
+
+        left, right = st.columns(2)
+        with left:
+            st.markdown("#### Why we like it")
+            for p in positives or ["No strong positive driver isolated."]:
+                st.markdown(f"✓ {p}")
+        with right:
+            st.markdown("#### What gives us pause")
+            for c in cautions or ["No major caveat identified from populated data."]:
+                st.markdown(f"⚠️ {c}")
+
+
+def render_v48_execution_readiness_panel(row):
+    d = v48_decision(row)
+    with st.container(border=True):
+        st.markdown("### 🔥 Execution Readiness")
+        st.caption("This separates a good stock from a stock that is ready to buy today.")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Execution Status", d.get("execution_label"))
+        c2.metric("Execution Score", f"{d.get('execution_score', 0):.1f}/100")
+        c3.metric("Advisor Verdict", d.get("decision"))
+        left, right = st.columns(2)
+        with left:
+            st.markdown("#### Ready factors")
+            for r in d.get("execution_reasons", []) or ["No ready factors found yet."]:
+                st.markdown(f"✓ {r}")
+        with right:
+            st.markdown("#### Waiting factors")
+            for b in d.get("execution_blockers", []) or ["No major blockers identified."]:
+                st.markdown(f"⚠️ {b}")
+
+
+def render_v48_financial_intelligence(row):
+    d = v48_decision(row)
+    fin = d["financials"]
+    b = v45_benchmarks(row) if "v45_benchmarks" in globals() else {"label": "peers"}
+
+    metrics = []
+    for label, key, fmt in [
+        ("Revenue Growth", "revenue_growth", "pct"),
+        ("EPS Growth", "eps_growth", "pct"),
+        ("Free Cash Flow", "free_cash_flow", "money"),
+        ("Operating Cash Flow", "operating_cash_flow", "money"),
+        ("P/E", "pe", "num"),
+        ("Forward P/E", "forward_pe", "num"),
+        ("PEG", "peg", "num"),
+        ("Gross Margin", "gross_margin", "pct"),
+        ("Operating Margin", "operating_margin", "pct"),
+        ("Net Margin", "net_margin", "pct"),
+        ("Cash", "cash", "money"),
+        ("Total Debt", "total_debt", "money"),
+        ("Net Cash / Debt", "net_cash", "money"),
+    ]:
+        val = fin.get(key)
+        if fmt == "money":
+            display = "Unavailable" if val is None else v45_money(val)
+        elif fmt == "pct":
+            display = "Unavailable" if val is None else f"{val:.1f}%"
+        else:
+            display = "Unavailable" if val is None else f"{val:.2f}"
+        assess, explain = v451_assess_fin(label, val, row)
+        metrics.append({"Metric": label, "Value": display, "Peer Context": v451_industry_avg_text(row, label), "Assessment": assess, "Plain English": explain})
+
+    usable = sum(1 for m in metrics if m["Value"] != "Unavailable")
+    grade_score = min(98, 48 + usable * 3.5)
+    if fin.get("free_cash_flow") and fin.get("free_cash_flow") > 0: grade_score += 5
+    if fin.get("operating_cash_flow") and fin.get("operating_cash_flow") > 0: grade_score += 3
+    if fin.get("revenue_growth") and fin.get("revenue_growth") >= 10: grade_score += 5
+    if fin.get("gross_margin") and fin.get("gross_margin") >= 50: grade_score += 4
+    grade = v45_grade(grade_score) if "v45_grade" in globals() else "N/A"
+
+    with st.container(border=True):
+        st.markdown(f"### 🏢 Financial Intelligence: **{grade}**")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Data Quality", fin.get("data_quality", "Unknown"))
+        c2.metric("Metrics Populated", f"{usable}/{len(metrics)}")
+        c3.metric("Peer Group", b.get("label", "peers"))
+        st.dataframe(pd.DataFrame(metrics), use_container_width=True, hide_index=True)
+
+        st.markdown("#### Advisor explanation")
+        bullets = []
+        if fin.get("revenue_growth") is not None:
+            bullets.append(f"Revenue growth is {fin['revenue_growth']:.1f}%, showing whether the business is expanding.")
+        if fin.get("eps_growth") is not None:
+            bullets.append(f"EPS growth is {fin['eps_growth']:.1f}%, showing whether growth is converting into earnings.")
+        if fin.get("operating_cash_flow") is not None:
+            bullets.append("Operating cash flow is positive, which supports business quality." if fin["operating_cash_flow"] > 0 else "Operating cash flow is negative, which raises quality risk.")
+        if fin.get("free_cash_flow") is not None:
+            bullets.append("Free cash flow is positive, which supports financial flexibility." if fin["free_cash_flow"] > 0 else "Free cash flow is negative, which increases risk.")
+        if fin.get("net_margin") is not None:
+            bullets.append(f"Net margin is {fin['net_margin']:.1f}%, showing how much revenue converts into bottom-line profit.")
+        if fin.get("debt_interpretation"):
+            bullets.append(fin["debt_interpretation"])
+        for btxt in bullets[:7]:
+            st.markdown(f"• {btxt}")
+
+        with st.expander("Admin financial completion diagnostics", expanded=False):
+            if fin.get("completion_sources"):
+                st.markdown("**Field completion sources**")
+                st.dataframe(pd.DataFrame([{"Field": k, "Source": v} for k, v in fin["completion_sources"].items()]), use_container_width=True, hide_index=True)
+            for x in fin.get("diagnostics", []):
+                st.caption(x)
+
+
+def render_v48_ready_to_buy_table(df, title="🔥 Ready to Buy Today"):
+    if df is None or df.empty:
+        return
+    rows = []
+    for _, row in df.head(80).iterrows():
+        try:
+            d = v48_decision(row)
+            if d.get("execution_label") in ["BUY NOW", "READY / BUY GRADUALLY"]:
+                levels = d.get("levels", {})
+                rows.append({
+                    "Ticker": d.get("ticker"),
+                    "Decision": d.get("decision"),
+                    "Execution Score": d.get("execution_score"),
+                    "Price": v45_money(levels.get("price")),
+                    "Preferred Entry": f"{v45_money(levels.get('ideal_low'))} - {v45_money(levels.get('ideal_high'))}",
+                    "Stop": v45_money(levels.get("trading_stop") or levels.get("stop")),
+                    "Base Target": v45_money(levels.get("target2")),
+                    "Why Now": "; ".join(d.get("execution_reasons", [])[:2]),
+                })
+        except Exception:
+            continue
+    if rows:
+        with st.container(border=True):
+            st.markdown(f"### {title}")
+            st.caption("These are the names where the research and entry setup are closest to executable today.")
+            st.dataframe(pd.DataFrame(rows).sort_values("Execution Score", ascending=False), use_container_width=True, hide_index=True)
+    else:
+        with st.container(border=True):
+            st.markdown(f"### {title}")
+            st.info("No stock currently meets the execution-ready threshold. This means the scanner found quality ideas, but none have a clean enough entry/risk setup right now.")
+
+
+def render_v48_final_thesis(row):
+    d = v48_decision(row)
+    lead, action, plan_lines, positives, cautions = v48_advisor_take(row, d)
+
+    with st.container(border=True):
+        st.markdown("### 🧠 Final Investment Thesis")
+        st.markdown(lead)
+        st.info(action)
+        st.markdown("#### Action Plan")
+        for line in plan_lines:
+            st.markdown(f"• {line}")
+        st.markdown("#### Investment case")
+        for p in positives:
+            st.markdown(f"✓ {p}")
+        st.markdown("#### Key risks to monitor")
+        for c in cautions or ["No major caveat identified from populated data."]:
+            st.markdown(f"⚠️ {c}")
+        st.caption("Research guidance only. Not personalized financial advice.")
+
+
+def render_v48_research_page(row):
+    render_v48_advisor_decision_card(row)
+    render_v48_execution_readiness_panel(row)
+    render_v47_trade_plan(row)
+    render_v48_financial_intelligence(row)
+    render_v46_analyst_intelligence(row)
+    render_v46_news_intelligence(row)
+    render_v451_metric_interpreter(row)
+    if "render_detail_chart_v4184" in globals():
+        try:
+            render_detail_chart_v4184(row)
+        except Exception:
+            pass
+    render_v48_final_thesis(row)
+    render_v46_completion(row)
+
+
+def render_detail(row):
+    render_v48_research_page(row)
+
+
+def render_status_banner():
+    state = read_state()
+    st.title("📈 AI Trading Dashboard")
+    st.caption(APP_VERSION)
+    st.caption("Execution Readiness Engine: separates top-ranked quality stocks from stocks that are actually ready to buy today.")
+    c1,c2,c3,c4,c5 = st.columns(5)
+    c1.metric("Status", state.get("status", "unknown"))
+    c2.metric("Scanner Version", state.get("version", "N/A"))
+    c3.metric("Full Scan", state.get("full_scan_count", "N/A"))
+    c4.metric("Prescreen", state.get("prescreen_count", "N/A"))
+    persisted = bool(state.get("github_persisted")) or v45_text(state.get("version", "")).startswith(("V45", "V46", "V47", "V48"))
+    c5.metric("GitHub Persisted", "✅" if persisted else "❌")
+    if is_viewer():
+        st.info("Viewer mode: customer-facing research is visible; admin controls remain hidden.")
+    if state:
+        st.caption(f"Last scan: {state.get('generated_at', 'N/A')} | Duration: {state.get('duration_seconds', 'N/A')}s | DATA_DIR={state.get('data_dir', '.')}")
+
+
+# Optional override: enhance main page if render_table calls are not modified.
+# V48 ready-to-buy section can be manually called near scanner tables in future UI cleanup.
 
 
 def main():
