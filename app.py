@@ -15,7 +15,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V49.0 Clean Trust Engine"
+APP_VERSION = "V49.1 Trust UX + Analyst Targets"
 
 
 # =========================
@@ -13005,6 +13005,363 @@ def render_status_banner():
     st.title("📈 AI Trading Dashboard")
     st.caption(APP_VERSION)
     st.caption("Clean Trust Engine: one score, one verdict, one trade plan, and a clear BUY NOW checklist.")
+    c1,c2,c3,c4,c5 = st.columns(5)
+    c1.metric("Status", state.get("status", "unknown"))
+    c2.metric("Scanner Version", state.get("version", "N/A"))
+    c3.metric("Full Scan", state.get("full_scan_count", "N/A"))
+    c4.metric("Prescreen", state.get("prescreen_count", "N/A"))
+    persisted = bool(state.get("github_persisted")) or v45_text(state.get("version", "")).startswith(("V45", "V46", "V47", "V48", "V49"))
+    c5.metric("GitHub Persisted", "✅" if persisted else "❌")
+    if is_viewer():
+        st.info("Viewer mode: admin diagnostics are hidden.")
+    if state:
+        st.caption(f"Last scan: {state.get('generated_at', 'N/A')} | Duration: {state.get('duration_seconds', 'N/A')}s | DATA_DIR={state.get('data_dir', '.')}")
+
+
+
+# =========================
+# V49.1 TRUST UX + ANALYST TARGETS
+# =========================
+# Fixes:
+# - Final Recommendation markdown corruption by replacing long inline sentence with structured bullets
+# - Improves Financial Health table interpretation
+# - Adds Top Analyst / Price Target Detail section when available
+# - Keeps V49 one-score / one-verdict / one-trade-plan model
+
+def v491_metric_assessment(label, value, row=None):
+    v = v49_num(value, positive=False)
+    sector = ""
+    industry = ""
+    try:
+        sector = v49_text(row.get("Sector") or row.get("sector"), "").lower() if row is not None else ""
+        industry = v49_text(row.get("Industry") or row.get("industry"), "").lower() if row is not None else ""
+    except Exception:
+        pass
+    peer = "software/technology" if ("software" in industry or "technology" in sector or "tech" in sector) else "peers"
+
+    if v is None:
+        return "Not scored", "This metric did not populate, so it is not counted in the client-facing score."
+
+    label_l = label.lower()
+
+    if "revenue growth" in label_l:
+        if v >= 20:
+            return "Excellent", f"{v:.1f}% revenue growth is strong and suggests the business is expanding faster than many {peer}."
+        if v >= 10:
+            return "Good", f"{v:.1f}% revenue growth is healthy and supports the growth thesis."
+        if v >= 3:
+            return "Moderate", f"{v:.1f}% revenue growth is positive but not especially strong."
+        if v >= 0:
+            return "Weak", f"{v:.1f}% revenue growth is slow; upside depends more on margins, valuation, or catalysts."
+        return "Negative", f"{v:.1f}% revenue growth means sales are shrinking, which raises thesis risk."
+
+    if "eps growth" in label_l:
+        if v >= 20:
+            return "Excellent", f"{v:.1f}% EPS growth shows earnings are scaling strongly."
+        if v >= 8:
+            return "Good", f"{v:.1f}% EPS growth shows profit is moving in the right direction."
+        if v >= 0:
+            return "Moderate", f"{v:.1f}% EPS growth is positive but not a major driver."
+        return "Negative", f"{v:.1f}% EPS growth means earnings are declining."
+
+    if "free cash flow" in label_l:
+        if v > 1_000_000_000:
+            return "Excellent", f"Positive free cash flow of {v49_money(v)} gives the company meaningful flexibility for reinvestment, debt reduction, or buybacks."
+        if v > 0:
+            return "Good", f"Positive free cash flow of {v49_money(v)} means the business is generating cash after reinvestment."
+        return "Weak", f"Negative free cash flow of {v49_money(v)} means the company is consuming cash."
+
+    if "operating cash flow" in label_l:
+        if abs(v) < 1:
+            return "Not useful", "Operating cash flow came through as $0.00, which is likely missing or stale source data rather than a useful business signal."
+        if v > 0:
+            return "Good", f"Positive operating cash flow of {v49_money(v)} supports core business quality."
+        return "Weak", f"Negative operating cash flow of {v49_money(v)} means core operations are consuming cash."
+
+    if label_l == "p/e":
+        if v <= 0:
+            return "Not useful", "A non-positive P/E usually means earnings are negative or the data is not meaningful."
+        if v <= 20:
+            return "Attractive", f"A P/E of {v:.1f} is reasonable if growth is stable."
+        if v <= 45:
+            return "Fair", f"A P/E of {v:.1f} can be acceptable for a growth company, but earnings must keep improving."
+        return "Expensive", f"A P/E of {v:.1f} is elevated; the stock needs strong growth to justify the valuation."
+
+    if "forward p/e" in label_l:
+        if v <= 0:
+            return "Not useful", "A non-positive forward P/E is not useful for valuation."
+        if v <= 25:
+            return "Attractive", f"A forward P/E of {v:.1f} looks reasonable for many growth companies."
+        if v <= 45:
+            return "Fair", f"A forward P/E of {v:.1f} is acceptable if growth and margins remain strong."
+        return "Expensive", f"A forward P/E of {v:.1f} is high; execution risk is elevated."
+
+    if "peg" in label_l:
+        if v <= 0:
+            return "Not useful", "PEG is not useful when earnings growth is negative or unavailable."
+        if v <= 1:
+            return "Excellent", f"A PEG of {v:.2f} suggests valuation is attractive relative to growth."
+        if v <= 1.8:
+            return "Good", f"A PEG of {v:.2f} is reasonable for a growth stock."
+        if v <= 3:
+            return "Fair", f"A PEG of {v:.2f} is acceptable but not cheap."
+        return "Expensive", f"A PEG of {v:.2f} suggests the stock may be expensive relative to growth."
+
+    if "gross margin" in label_l:
+        if v >= 70:
+            return "Excellent", f"{v:.1f}% gross margin is very strong and suggests high pricing power or a software-like business model."
+        if v >= 45:
+            return "Good", f"{v:.1f}% gross margin is healthy and supports quality."
+        if v >= 25:
+            return "Moderate", f"{v:.1f}% gross margin is acceptable but not elite."
+        return "Weak", f"{v:.1f}% gross margin is low and may limit profitability."
+
+    if "operating margin" in label_l:
+        if v >= 25:
+            return "Excellent", f"{v:.1f}% operating margin shows strong operating leverage."
+        if v >= 10:
+            return "Good", f"{v:.1f}% operating margin shows the business is profitable at the operating level."
+        if v >= 0:
+            return "Thin", f"{v:.1f}% operating margin is positive but thin."
+        return "Negative", f"{v:.1f}% operating margin means the company is not profitable at the operating level."
+
+    if "net margin" in label_l:
+        if abs(v) < 0.1:
+            return "Not useful", "Net margin came through as 0.0%, which may be missing/stale data or a break-even period."
+        if v >= 20:
+            return "Excellent", f"{v:.1f}% net margin shows strong bottom-line profitability."
+        if v >= 8:
+            return "Good", f"{v:.1f}% net margin means the company converts a healthy amount of revenue into profit."
+        if v >= 0:
+            return "Thin", f"{v:.1f}% net margin is positive but thin."
+        return "Negative", f"{v:.1f}% net margin means the company is losing money on a bottom-line basis."
+
+    if "cash" in label_l and "debt" not in label_l:
+        return "Available", f"Cash of {v49_money(v)} supports liquidity and financial flexibility."
+
+    if "total debt" in label_l:
+        return "Context needed", f"Total debt is {v49_money(v)}. This should be compared with cash and cash flow before judging risk."
+
+    if "net cash" in label_l or "net debt" in label_l:
+        if v >= 0:
+            return "Strong", f"Net cash of {v49_money(v)} means cash exceeds debt."
+        return "Leveraged", f"Net debt of {v49_money(abs(v))} means debt exceeds cash."
+
+    return "Available", "This metric is available and contributes context to the research view."
+
+
+def v491_value_display(label, val, fmt):
+    if val is None:
+        return "Unavailable"
+    if fmt == "money":
+        if abs(v49_num(val) or 0) < 1:
+            return "Unavailable"
+        return v49_money(val)
+    if fmt == "pct":
+        return f"{val:.1f}%"
+    return f"{val:.2f}"
+
+
+def v491_top_analyst_rows(analyst, price=None):
+    rows = []
+    raw = analyst.get("firm_rows") or analyst.get("analyst_rows") or analyst.get("price_target_rows") or []
+    if isinstance(raw, list):
+        for item in raw[:12]:
+            if not isinstance(item, dict):
+                continue
+            firm = (
+                item.get("firm") or item.get("analystCompany") or item.get("analyst") or
+                item.get("company") or item.get("source") or item.get("brokerage") or "Analyst/Firm"
+            )
+            rating = item.get("rating") or item.get("newGrade") or item.get("action") or item.get("recommendation") or ""
+            target = (
+                item.get("priceTarget") or item.get("targetPrice") or item.get("target") or
+                item.get("newPriceTarget") or item.get("priceTargetNew")
+            )
+            date = item.get("date") or item.get("publishedDate") or item.get("updated") or ""
+            target_v = v49_num(target, positive=True)
+            if target_v:
+                rows.append({
+                    "Firm / Analyst": v49_text(firm, "Analyst/Firm"),
+                    "Rating / Action": v49_text(rating, "N/A"),
+                    "Target": v49_money(target_v),
+                    "Upside": "N/A" if not price else v49_pct(((target_v - price) / price) * 100),
+                    "Date": v49_text(date, ""),
+                })
+    # Fallback consensus range if no firm-level rows.
+    if not rows:
+        consensus = v49_num(analyst.get("consensus"), positive=True)
+        high = v49_num(analyst.get("high"), positive=True)
+        low = v49_num(analyst.get("low"), positive=True)
+        count = analyst.get("count")
+        if consensus:
+            rows.append({
+                "Firm / Analyst": "Wall Street Consensus",
+                "Rating / Action": analyst.get("rating_trend") or "Consensus",
+                "Target": v49_money(consensus),
+                "Upside": "N/A" if not price else v49_pct(((consensus - price) / price) * 100),
+                "Date": f"{count} analysts" if count else "",
+            })
+        if high:
+            rows.append({
+                "Firm / Analyst": "Highest target in range",
+                "Rating / Action": "Bull case",
+                "Target": v49_money(high),
+                "Upside": "N/A" if not price else v49_pct(((high - price) / price) * 100),
+                "Date": "",
+            })
+        if low:
+            rows.append({
+                "Firm / Analyst": "Lowest target in range",
+                "Rating / Action": "Bear case",
+                "Target": v49_money(low),
+                "Upside": "N/A" if not price else v49_pct(((low - price) / price) * 100),
+                "Date": "",
+            })
+    return rows[:5]
+
+
+def render_v491_financials(row):
+    r = v49_build_research_report(row)
+    fin = r["financials"]
+    rows = []
+    metric_defs = [
+        ("Revenue Growth", "revenue_growth", "pct"),
+        ("EPS Growth", "eps_growth", "pct"),
+        ("Free Cash Flow", "free_cash_flow", "money"),
+        ("Operating Cash Flow", "operating_cash_flow", "money"),
+        ("Forward P/E", "forward_pe", "num"),
+        ("P/E", "pe", "num"),
+        ("PEG", "peg", "num"),
+        ("Gross Margin", "gross_margin", "pct"),
+        ("Operating Margin", "operating_margin", "pct"),
+        ("Net Margin", "net_margin", "pct"),
+        ("Cash", "cash", "money"),
+        ("Total Debt", "total_debt", "money"),
+        ("Net Cash / Debt", "net_cash", "money"),
+    ]
+    for label, key, fmt in metric_defs:
+        val = fin.get(key)
+        # Hide unusable zero values for cash flow/margins rather than making the page look fake.
+        if val is None:
+            continue
+        assessment, meaning = v491_metric_assessment(label, val, row)
+        display = v491_value_display(label, val, fmt)
+        if display == "Unavailable":
+            continue
+        rows.append({
+            "Metric": label,
+            "Value": display,
+            "Assessment": assessment,
+            "What it means for investors": meaning,
+        })
+
+    with st.container(border=True):
+        st.markdown("### 🏢 Financial Health")
+        st.metric("Data Coverage", f"{fin.get('coverage_label')} ({fin.get('coverage_count')}/{fin.get('coverage_total')})")
+        if rows:
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        else:
+            st.info("Financial metrics did not populate enough for a useful client-facing table.")
+
+        summary = []
+        for m in rows:
+            if m["Metric"] in ["Revenue Growth", "Gross Margin", "Free Cash Flow", "Forward P/E", "PEG", "Net Cash / Debt"]:
+                summary.append(f"**{m['Metric']}**: {m['Assessment']} — {m['What it means for investors']}")
+        if summary:
+            st.markdown("#### Plain-English financial readout")
+            for s in summary[:6]:
+                st.markdown(f"• {s}")
+
+        if not is_viewer():
+            with st.expander("Admin financial diagnostics", expanded=False):
+                if fin.get("completion_sources"):
+                    st.dataframe(pd.DataFrame([{"Field": k, "Source": v} for k, v in fin["completion_sources"].items()]), use_container_width=True, hide_index=True)
+                for x in fin.get("diagnostics", [])[:80]:
+                    st.caption(x)
+
+
+def render_v491_analysts(row):
+    r = v49_build_research_report(row)
+    a = r["analyst"]
+    price = r.get("price")
+    with st.container(border=True):
+        st.markdown("### 🏦 Wall Street View")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Consensus Target", v49_money(a.get("consensus")))
+        c2.metric("Upside", v49_pct(a.get("upside")))
+        c3.metric("Coverage", str(a.get("count") or "N/A"))
+        c4.metric("Sentiment", a.get("rating_trend") or "N/A")
+
+        target_rows = v491_top_analyst_rows(a, price=price)
+        if target_rows:
+            st.markdown("#### Top Analyst / Price Target Detail")
+            st.dataframe(pd.DataFrame(target_rows), use_container_width=True, hide_index=True)
+            st.caption("If firm-level targets are not returned by the connected API tier, the dashboard shows the consensus/high/low range instead.")
+
+        if a.get("consensus"):
+            st.info(
+                f"Analyst consensus supports a base target near {v49_money(a.get('consensus'))}. "
+                "This helps validate upside, but the trade still needs a clean entry and risk/reward setup."
+            )
+
+        if not is_viewer():
+            with st.expander("Admin analyst diagnostics", expanded=False):
+                for x in a.get("diagnostics", [])[:80]:
+                    st.caption(x)
+
+
+def render_v491_final(row):
+    r = v49_build_research_report(row)
+    p = r["plan"]
+
+    with st.container(border=True):
+        st.markdown("### 🧠 Final Recommendation")
+        st.markdown(f"**Verdict:** {r['verdict']}")
+        st.info(v49_verdict_explanation(r["verdict"]))
+
+        st.markdown("#### Action Plan")
+        st.markdown(f"• **Ideal Entry:** Below {v49_money(p.get('ideal_entry'))}")
+        st.markdown(f"• **Aggressive Entry:** {v49_money(p.get('aggressive_low'))} – {v49_money(p.get('aggressive_high'))}")
+        st.markdown(f"• **Trading Stop:** {v49_money(p.get('stop'))}")
+        st.markdown(f"• **Base Target:** {v49_money(p.get('base_target'))}")
+        st.markdown(f"• **Bull Target:** {v49_money(p.get('bull_target'))}")
+        st.markdown("#### Bottom Line")
+        if r["verdict"] == "BUY NOW":
+            st.success("This setup is actionable today if the investor accepts the trading stop and position sizing discipline.")
+        elif r["verdict"] == "BUY GRADUALLY":
+            st.info("This setup is attractive, but the better approach is to build the position in stages instead of buying all at once.")
+        elif r["verdict"] == "WATCH":
+            st.warning("This is worth monitoring, but the entry or risk/reward setup is not strong enough yet.")
+        else:
+            st.error("This does not currently meet the dashboard's standards for a new position.")
+        st.caption("Research guidance only. Not personalized financial advice.")
+
+
+def render_v491_research_page(row):
+    render_v49_research_summary(row)
+    render_v49_trade_plan(row)
+    render_v491_financials(row)
+    render_v491_analysts(row)
+    render_v49_news(row)
+    render_v451_metric_interpreter(row)
+    if "render_detail_chart_v4184" in globals():
+        try:
+            render_detail_chart_v4184(row)
+        except Exception:
+            pass
+    render_v491_final(row)
+
+
+def render_detail(row):
+    render_v491_research_page(row)
+
+
+def render_status_banner():
+    state = read_state()
+    st.title("📈 AI Trading Dashboard")
+    st.caption(APP_VERSION)
+    st.caption("Trust UX patch: clearer financial explanations, structured final recommendation, and top analyst/price target detail.")
     c1,c2,c3,c4,c5 = st.columns(5)
     c1.metric("Status", state.get("status", "unknown"))
     c2.metric("Scanner Version", state.get("version", "N/A"))
