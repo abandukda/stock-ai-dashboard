@@ -15,7 +15,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V48.0 Execution Readiness Engine"
+APP_VERSION = "V49.0 Clean Trust Engine"
 
 
 # =========================
@@ -12233,6 +12233,789 @@ def render_status_banner():
 
 # Optional override: enhance main page if render_table calls are not modified.
 # V48 ready-to-buy section can be manually called near scanner tables in future UI cleanup.
+
+
+
+# =========================
+# V49.0 CLEAN TRUST ENGINE
+# =========================
+# One score. One verdict. One trade plan. One research report.
+# This does not display legacy V42-V48 report sections to clients.
+
+def v49_num(x, positive=False):
+    try:
+        v = v46_num(x, positive=positive)
+    except Exception:
+        try:
+            if x in (None, "", "N/A", "None"):
+                return None
+            if isinstance(x, str):
+                x = x.replace("$", "").replace(",", "").replace("%", "").strip()
+            v = float(x)
+        except Exception:
+            return None
+    if v is None:
+        return None
+    try:
+        if positive and v <= 0:
+            return None
+    except Exception:
+        return None
+    return v
+
+
+def v49_money(x):
+    v = v49_num(x, positive=False)
+    return "N/A" if v is None else v45_money(v)
+
+
+def v49_pct(x):
+    v = v49_num(x, positive=False)
+    return "N/A" if v is None else v45_pct(v)
+
+
+def v49_percent(x):
+    v = v49_num(x, positive=False)
+    if v is None:
+        return None
+    if abs(v) <= 1:
+        v *= 100
+    if abs(v) > 500:
+        return None
+    return v
+
+
+def v49_text(x, default=""):
+    try:
+        return v45_text(x, default)
+    except Exception:
+        return default if x in [None, ""] else str(x)
+
+
+@st.cache_data(ttl=900)
+def v49_financials(ticker, row_json=None):
+    # Use the best available V48/V46 completion functions, but the visible report below is V49-only.
+    try:
+        fin = v48_financial_completion(ticker, row_json)
+    except Exception:
+        try:
+            fin = v461_financial_intelligence(ticker, row_json)
+        except Exception:
+            try:
+                fin = v46_financial_intelligence(ticker, row_json)
+            except Exception:
+                fin = {}
+    fin = dict(fin or {})
+    fin.setdefault("diagnostics", [])
+    fin.setdefault("completion_sources", {})
+    fin.setdefault("warnings", [])
+
+    for key in ["revenue_growth", "eps_growth", "gross_margin", "operating_margin", "net_margin", "roe"]:
+        if fin.get(key) is not None:
+            fixed = v49_percent(fin.get(key))
+            if fixed is not None:
+                fin[key] = fixed
+
+    # Coverage count
+    core = ["revenue_growth", "eps_growth", "free_cash_flow", "operating_cash_flow", "pe", "forward_pe", "peg", "gross_margin", "operating_margin", "net_margin", "cash", "total_debt"]
+    populated = sum(1 for k in core if fin.get(k) is not None)
+    fin["coverage_count"] = populated
+    fin["coverage_total"] = len(core)
+    if populated >= 9:
+        fin["coverage_label"] = "Excellent"
+    elif populated >= 6:
+        fin["coverage_label"] = "Good"
+    elif populated >= 4:
+        fin["coverage_label"] = "Partial"
+    else:
+        fin["coverage_label"] = "Limited"
+
+    cash = v49_num(fin.get("cash"), positive=False)
+    debt = v49_num(fin.get("total_debt"), positive=False)
+    if cash is not None and debt is not None:
+        fin["net_cash"] = cash - debt
+        if debt:
+            fin["cash_debt_ratio"] = cash / debt
+
+    de = v49_num(fin.get("debt_equity"), positive=False)
+    if de is not None and de > 20:
+        if cash is not None and debt is not None:
+            if cash >= debt:
+                fin["balance_sheet_plain"] = f"Debt/equity is accounting-distorted, but cash exceeds total debt by about {v49_money(cash - debt)}."
+            else:
+                fin["balance_sheet_plain"] = f"Debt/equity is accounting-distorted; net debt is about {v49_money(debt - cash)}. Use cash flow to judge risk."
+        elif fin.get("free_cash_flow") and fin.get("free_cash_flow") > 0:
+            fin["balance_sheet_plain"] = "Debt/equity is accounting-distorted, but positive free cash flow supports flexibility."
+        else:
+            fin["balance_sheet_plain"] = "Debt/equity appears accounting-distorted; do not judge balance-sheet risk from this ratio alone."
+    elif de is not None:
+        fin["balance_sheet_plain"] = f"Debt/equity is {de:.2f}x."
+
+    return fin
+
+
+@st.cache_data(ttl=600)
+def v49_news(ticker, company=""):
+    try:
+        return v46_news_intelligence(ticker, company)
+    except Exception:
+        try:
+            return v451_live_news_enrichment(ticker, company)
+        except Exception:
+            return {"rows": [], "bullish": [], "bearish": [], "sentiment": "N/A", "score": 50, "diagnostics": []}
+
+
+@st.cache_data(ttl=900)
+def v49_analyst(ticker, price=0, scan_target=0, scan_count=0, scan_support=""):
+    try:
+        a = v451_live_analyst_enrichment(ticker, price=price, scan_target=scan_target, scan_count=scan_count, scan_support=scan_support)
+    except Exception:
+        a = {}
+    a = dict(a or {})
+    price = v49_num(price, positive=True)
+    consensus = v49_num(a.get("consensus"), positive=True) or v49_num(scan_target, positive=True)
+    high = v49_num(a.get("high"), positive=True)
+    low = v49_num(a.get("low"), positive=True)
+    if price and high and high > price * 3:
+        a["high_unfiltered"] = high
+        high = None
+    if price and low and low < price * 0.25:
+        a["low_unfiltered"] = low
+        low = None
+    a["consensus"] = consensus
+    a["high"] = high
+    a["low"] = low
+    if price and consensus:
+        a["upside"] = ((consensus - price) / price) * 100
+    else:
+        a["upside"] = None
+    a["count"] = int(v49_num(a.get("count"), positive=True) or v49_num(scan_count, positive=True) or 0)
+    if not a.get("rating_trend"):
+        a["rating_trend"] = v49_text(scan_support, "N/A")
+    return a
+
+
+def v49_technical(row):
+    price = v49_num(row.get("Price"), positive=True) or 0
+    rsi = v49_num(row.get("RSI"), positive=False)
+    atr_pct = v49_num(row.get("ATR %"), positive=False)
+    if atr_pct is None:
+        atr_pct = v49_num(row.get("ATR Percent"), positive=False)
+    if atr_pct is None:
+        atr_pct = 4.0
+
+    try:
+        old_levels = v45_trade_levels(row)
+    except Exception:
+        old_levels = {}
+
+    support = v49_num(old_levels.get("support1"), positive=True) or v49_num(row.get("Support"), positive=True)
+    resistance = v49_num(old_levels.get("resistance1"), positive=True) or v49_num(row.get("Resistance"), positive=True)
+
+    low_52 = v49_num(row.get("52W Low"), positive=True)
+    high_52 = v49_num(row.get("52W High"), positive=True)
+
+    # Do not use 52w low as near-term support if it is too far away.
+    if support is None and low_52 and price and low_52 >= price * 0.82:
+        support = low_52
+    if resistance is None and high_52 and price and high_52 > price:
+        resistance = high_52
+
+    volume_ratio = v49_num(row.get("Volume Ratio"), positive=False)
+    return {
+        "price": price,
+        "rsi": rsi,
+        "atr_pct": atr_pct,
+        "support": support,
+        "resistance": resistance,
+        "volume_ratio": volume_ratio,
+        "low_52": low_52,
+        "high_52": high_52,
+    }
+
+
+def v49_trade_plan(row, analyst=None):
+    t = v49_technical(row)
+    price = t["price"]
+    if not price:
+        return {"price": None}
+
+    atr_pct = t["atr_pct"] or 4.0
+    pullback_pct = max(0.03, min(0.08, atr_pct / 100 * 1.25))
+    support = t["support"]
+
+    if support and price * 0.85 <= support <= price * 1.02:
+        ideal_entry = min(price * 0.99, support * 1.03)
+    else:
+        ideal_entry = price * (1 - pullback_pct)
+
+    # Entry should not extend above current price. Aggressive entry handles current-price buying.
+    ideal_entry = min(ideal_entry, price * 0.99)
+    aggressive_low = price * 0.99
+    aggressive_high = price * 1.01
+
+    atr_stop_pct = max(0.06, min(0.14, atr_pct / 100 * 1.8))
+    stop = ideal_entry * (1 - atr_stop_pct)
+    # avoid absurdly wide trade stops
+    stop = max(stop, price * 0.82)
+    stop = min(stop, price * 0.94)
+
+    thesis_break = stop * 0.92
+
+    analyst_target = v49_num((analyst or {}).get("consensus"), positive=True)
+    analyst_high = v49_num((analyst or {}).get("high"), positive=True)
+    resistance = t["resistance"]
+
+    target1 = resistance if resistance and resistance > price * 1.04 else price * 1.12
+    if analyst_target and analyst_target > price * 1.05 and analyst_target < price * 2.5:
+        base_target = analyst_target
+    else:
+        base_target = max(price * 1.18, target1 * 1.05)
+    if analyst_high and analyst_high > base_target and analyst_high <= price * 2.5:
+        bull_target = analyst_high
+    else:
+        bull_target = min(max(base_target * 1.15, price * 1.30), price * 1.75)
+
+    risk = price - stop
+    reward = base_target - price
+    rr = reward / risk if risk > 0 and reward > 0 else None
+
+    return {
+        "price": price,
+        "ideal_entry": ideal_entry,
+        "aggressive_low": aggressive_low,
+        "aggressive_high": aggressive_high,
+        "stop": stop,
+        "thesis_break": thesis_break,
+        "target1": target1,
+        "base_target": base_target,
+        "bull_target": bull_target,
+        "risk_reward": rr,
+        "atr_pct": atr_pct,
+        "support": support,
+        "resistance": resistance,
+    }
+
+
+def v49_checklist(row, plan, analyst, fin, news):
+    price = v49_num(plan.get("price"), positive=True)
+    ideal = v49_num(plan.get("ideal_entry"), positive=True)
+    rr = v49_num(plan.get("risk_reward"), positive=False)
+    rsi = v49_technical(row).get("rsi")
+    analyst_upside = v49_num(analyst.get("upside"), positive=False)
+    volume_ratio = v49_technical(row).get("volume_ratio")
+
+    near_entry = bool(price and ideal and price <= ideal * 1.03)
+    rr_ok = bool(rr is not None and rr >= 1.5)
+    rsi_ok = bool(rsi is None or rsi < 72)
+    analyst_ok = bool(analyst_upside is not None and analyst_upside >= 10)
+    data_ok = bool(fin.get("coverage_count", 0) >= 6)
+
+    checks = [
+        ("Price near support/entry", near_entry),
+        ("Risk/reward ≥ 1.5:1", rr_ok),
+        ("RSI not overbought", rsi_ok),
+        ("Analyst upside ≥ 10%", analyst_ok),
+    ]
+    passed = sum(1 for _, ok in checks if ok)
+
+    if passed == 4 and data_ok:
+        verdict = "BUY NOW"
+    elif passed >= 3 and data_ok:
+        verdict = "BUY GRADUALLY"
+    elif passed >= 2:
+        verdict = "WATCH"
+    else:
+        verdict = "AVOID"
+
+    reasons = []
+    blockers = []
+    for label, ok in checks:
+        (reasons if ok else blockers).append(label)
+    if not data_ok:
+        blockers.append("Financial data coverage below preferred threshold")
+    if volume_ratio is not None and volume_ratio < 0.75:
+        blockers.append("Volume confirmation is light")
+    return {
+        "checks": checks,
+        "passed": passed,
+        "verdict": verdict,
+        "reasons": reasons,
+        "blockers": blockers,
+        "data_ok": data_ok,
+    }
+
+
+def v49_opportunity_score(row, plan, analyst, fin, news, checklist):
+    # One score only. Designed to align with the verdict and trade plan.
+    score = 0
+
+    # Fundamentals 40
+    f_score = 0
+    if fin.get("revenue_growth") is not None:
+        rg = fin["revenue_growth"]
+        f_score += 10 if rg >= 15 else (7 if rg >= 5 else (3 if rg >= 0 else 0))
+    if fin.get("gross_margin") is not None:
+        gm = fin["gross_margin"]
+        f_score += 8 if gm >= 50 else (5 if gm >= 30 else 2)
+    if fin.get("free_cash_flow") is not None:
+        f_score += 8 if fin["free_cash_flow"] > 0 else 0
+    if fin.get("forward_pe") is not None or fin.get("peg") is not None:
+        peg = v49_num(fin.get("peg"), positive=False)
+        fpe = v49_num(fin.get("forward_pe"), positive=False)
+        if peg is not None and peg <= 1.5:
+            f_score += 8
+        elif fpe is not None and fpe <= 35:
+            f_score += 6
+        else:
+            f_score += 3
+    if fin.get("coverage_count", 0) >= 8:
+        f_score += 6
+    score += min(40, f_score)
+
+    # Technical/execution 25
+    t_score = 0
+    if checklist["checks"][0][1]:
+        t_score += 8
+    if checklist["checks"][1][1]:
+        t_score += 9
+    if checklist["checks"][2][1]:
+        t_score += 5
+    rr = v49_num(plan.get("risk_reward"), positive=False)
+    if rr is not None and rr >= 2:
+        t_score += 3
+    score += min(25, t_score)
+
+    # Analysts 20
+    a_score = 0
+    up = v49_num(analyst.get("upside"), positive=False)
+    if up is not None:
+        a_score += 10 if up >= 20 else (7 if up >= 10 else (3 if up > 0 else 0))
+    if analyst.get("count", 0) >= 20:
+        a_score += 5
+    elif analyst.get("count", 0) >= 5:
+        a_score += 3
+    if "bullish" in str(analyst.get("rating_trend", "")).lower():
+        a_score += 5
+    score += min(20, a_score)
+
+    # News/risk 15
+    n_score = 8
+    if news.get("rows"):
+        n_score += 4
+    if news.get("bullish"):
+        n_score += 2
+    if news.get("bearish"):
+        n_score -= 2
+    if fin.get("balance_sheet_plain") and "distorted" in fin.get("balance_sheet_plain", "").lower():
+        n_score -= 1
+    score += max(0, min(15, n_score))
+
+    return max(0, min(100, round(score, 1)))
+
+
+def v49_build_research_report(row):
+    ticker = v451_clean_ticker(row.get("Ticker"))
+    company = v49_text(row.get("Company"), ticker)
+    price = v49_num(row.get("Price"), positive=True) or 0
+    scan_target = v49_num(row.get("Analyst Target"), positive=True) or 0
+    scan_count = v49_num(row.get("Analyst Count"), positive=True) or 0
+    scan_support = row.get("Analyst Support")
+
+    analyst = v49_analyst(ticker, price=price, scan_target=scan_target, scan_count=scan_count, scan_support=scan_support)
+    fin = v49_financials(ticker, v451_row_to_json(row))
+    news = v49_news(ticker, company)
+    plan = v49_trade_plan(row, analyst)
+    checklist = v49_checklist(row, plan, analyst, fin, news)
+    score = v49_opportunity_score(row, plan, analyst, fin, news, checklist)
+
+    # Align verdict with score if severe mismatch.
+    verdict = checklist["verdict"]
+    if score >= 85 and checklist["passed"] >= 3 and fin.get("coverage_count", 0) >= 6:
+        verdict = "BUY GRADUALLY" if verdict == "WATCH" else verdict
+    if score < 45:
+        verdict = "AVOID"
+
+    return {
+        "ticker": ticker,
+        "company": company,
+        "price": price,
+        "analyst": analyst,
+        "financials": fin,
+        "news": news,
+        "plan": plan,
+        "checklist": checklist,
+        "opportunity_score": score,
+        "verdict": verdict,
+    }
+
+
+def v49_verdict_explanation(verdict):
+    if verdict == "BUY NOW":
+        return "The setup is actionable today because price, risk/reward, momentum, and analyst upside are aligned."
+    if verdict == "BUY GRADUALLY":
+        return "The stock is attractive, but clients should build the position in stages rather than buying all at once."
+    if verdict == "WATCH":
+        return "The company or thesis may be interesting, but the entry/risk setup is not strong enough yet."
+    return "The current risk/reward or data setup does not justify a new position today."
+
+
+def render_v49_research_summary(row):
+    r = v49_build_research_report(row)
+    p = r["plan"]
+    with st.container(border=True):
+        st.markdown(f"## {r['ticker']} — {r['company']}")
+        st.markdown(f"### 🎯 Verdict: **{r['verdict']}**")
+        st.info(v49_verdict_explanation(r["verdict"]))
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Opportunity Score", f"{r['opportunity_score']:.1f}/100")
+        c2.metric("Current Price", v49_money(p.get("price")))
+        c3.metric("Ideal Entry", f"Below {v49_money(p.get('ideal_entry'))}")
+        c4.metric("Base Target", v49_money(p.get("base_target")))
+
+        c5, c6, c7, c8 = st.columns(4)
+        c5.metric("Aggressive Entry", f"{v49_money(p.get('aggressive_low'))} - {v49_money(p.get('aggressive_high'))}")
+        c6.metric("Trading Stop", v49_money(p.get("stop")))
+        c7.metric("Risk/Reward", "N/A" if p.get("risk_reward") is None else f"{p.get('risk_reward'):.2f}:1")
+        c8.metric("Data Coverage", f"{r['financials'].get('coverage_label')} ({r['financials'].get('coverage_count')}/{r['financials'].get('coverage_total')})")
+
+        st.markdown("#### BUY NOW checklist")
+        cols = st.columns(4)
+        for i, (label, ok) in enumerate(r["checklist"]["checks"]):
+            cols[i].metric(label, "✅" if ok else "❌")
+
+        left, right = st.columns(2)
+        with left:
+            st.markdown("#### Why we like it")
+            positives = []
+            fin = r["financials"]
+            analyst = r["analyst"]
+            news = r["news"]
+            if fin.get("revenue_growth") is not None:
+                positives.append(f"Revenue growth is {fin['revenue_growth']:.1f}%")
+            if fin.get("gross_margin") is not None:
+                positives.append(f"Gross margin is {fin['gross_margin']:.1f}%")
+            if fin.get("free_cash_flow") is not None and fin["free_cash_flow"] > 0:
+                positives.append("Free cash flow is positive")
+            if analyst.get("upside") is not None:
+                positives.append(f"Wall Street target implies {analyst['upside']:.1f}% upside")
+            if news.get("rows"):
+                positives.append("Recent ticker-specific news was reviewed")
+            for x in positives[:6] or ["No major positive driver isolated."]:
+                st.markdown(f"✓ {x}")
+        with right:
+            st.markdown("#### What gives us pause")
+            blockers = list(r["checklist"]["blockers"])
+            if r["financials"].get("balance_sheet_plain"):
+                blockers.append(r["financials"]["balance_sheet_plain"])
+            if not r["news"].get("rows"):
+                blockers.append("Recent ticker news is limited")
+            for x in blockers[:6] or ["No major blocker identified."]:
+                st.markdown(f"⚠️ {x}")
+
+
+def render_v49_trade_plan(row):
+    r = v49_build_research_report(row)
+    p = r["plan"]
+    with st.container(border=True):
+        st.markdown("### 📍 Trade Plan")
+        st.caption("This is the only trade plan shown to clients. It separates ideal entry, aggressive entry, stop, and targets.")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Ideal Entry", f"Below {v49_money(p.get('ideal_entry'))}")
+        c2.metric("Aggressive Entry", f"{v49_money(p.get('aggressive_low'))} - {v49_money(p.get('aggressive_high'))}")
+        c3.metric("Trading Stop", v49_money(p.get("stop")))
+        c4.metric("Risk/Reward", "N/A" if p.get("risk_reward") is None else f"{p.get('risk_reward'):.2f}:1")
+        c5, c6, c7 = st.columns(3)
+        c5.metric("Conservative Target", v49_money(p.get("target1")))
+        c6.metric("Base Target", v49_money(p.get("base_target")))
+        c7.metric("Bull Target", v49_money(p.get("bull_target")))
+
+        if r["verdict"] == "BUY NOW":
+            st.success("Actionable today: the checklist and risk/reward support a new starter position.")
+        elif r["verdict"] == "BUY GRADUALLY":
+            st.info("Actionable in stages: consider partial sizing rather than a full position.")
+        elif r["verdict"] == "WATCH":
+            st.warning("Wait for a cleaner entry, better risk/reward, or stronger technical confirmation.")
+        else:
+            st.error("Avoid new position for now.")
+
+
+def render_v49_financials(row):
+    r = v49_build_research_report(row)
+    fin = r["financials"]
+    rows = []
+    metric_defs = [
+        ("Revenue Growth", "revenue_growth", "pct", "Shows whether the business is expanding."),
+        ("EPS Growth", "eps_growth", "pct", "Shows whether growth is converting into earnings."),
+        ("Free Cash Flow", "free_cash_flow", "money", "Shows whether the business generates cash after reinvestment."),
+        ("Operating Cash Flow", "operating_cash_flow", "money", "Shows cash generated from core operations."),
+        ("Forward P/E", "forward_pe", "num", "Valuation based on expected earnings."),
+        ("P/E", "pe", "num", "Valuation based on trailing earnings."),
+        ("PEG", "peg", "num", "Valuation adjusted for growth."),
+        ("Gross Margin", "gross_margin", "pct", "Pricing power and business model quality."),
+        ("Operating Margin", "operating_margin", "pct", "Operating profitability."),
+        ("Net Margin", "net_margin", "pct", "Bottom-line profitability."),
+        ("Cash", "cash", "money", "Liquidity available."),
+        ("Total Debt", "total_debt", "money", "Debt obligations."),
+        ("Net Cash / Debt", "net_cash", "money", "Cash minus debt."),
+    ]
+    for label, key, fmt, meaning in metric_defs:
+        val = fin.get(key)
+        if val is None:
+            continue
+        if fmt == "money":
+            display = v49_money(val)
+        elif fmt == "pct":
+            display = f"{val:.1f}%"
+        else:
+            display = f"{val:.2f}"
+        rows.append({"Metric": label, "Value": display, "Meaning": meaning})
+
+    with st.container(border=True):
+        st.markdown("### 🏢 Financial Health")
+        st.metric("Data Coverage", f"{fin.get('coverage_label')} ({fin.get('coverage_count')}/{fin.get('coverage_total')})")
+        if rows:
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        else:
+            st.info("Financial metrics did not populate enough for a useful client-facing table.")
+
+        bullets = []
+        if fin.get("revenue_growth") is not None:
+            bullets.append(f"Revenue growth is {fin['revenue_growth']:.1f}%.")
+        if fin.get("gross_margin") is not None:
+            bullets.append(f"Gross margin is {fin['gross_margin']:.1f}%, which helps show pricing power.")
+        if fin.get("free_cash_flow") is not None:
+            bullets.append("Free cash flow is positive." if fin["free_cash_flow"] > 0 else "Free cash flow is negative.")
+        if fin.get("balance_sheet_plain"):
+            bullets.append(fin["balance_sheet_plain"])
+        if bullets:
+            st.markdown("#### Plain-English readout")
+            for b in bullets:
+                st.markdown(f"• {b}")
+
+        if not is_viewer():
+            with st.expander("Admin financial diagnostics", expanded=False):
+                if fin.get("completion_sources"):
+                    st.dataframe(pd.DataFrame([{"Field": k, "Source": v} for k, v in fin["completion_sources"].items()]), use_container_width=True, hide_index=True)
+                for x in fin.get("diagnostics", [])[:80]:
+                    st.caption(x)
+
+
+def render_v49_analysts(row):
+    r = v49_build_research_report(row)
+    a = r["analyst"]
+    with st.container(border=True):
+        st.markdown("### 🏦 Wall Street View")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Consensus Target", v49_money(a.get("consensus")))
+        c2.metric("Upside", v49_pct(a.get("upside")))
+        c3.metric("Coverage", str(a.get("count") or "N/A"))
+        c4.metric("Sentiment", a.get("rating_trend") or "N/A")
+        if a.get("consensus"):
+            st.info(f"Analyst consensus supports a base target near {v49_money(a.get('consensus'))}. Use this as confirmation, not as the only reason to buy.")
+        if a.get("firm_rows"):
+            st.markdown("#### Recent analyst activity")
+            st.dataframe(pd.DataFrame(a["firm_rows"][:8]), use_container_width=True, hide_index=True)
+        if not is_viewer():
+            with st.expander("Admin analyst diagnostics", expanded=False):
+                for x in a.get("diagnostics", [])[:80]:
+                    st.caption(x)
+
+
+def render_v49_news(row):
+    r = v49_build_research_report(row)
+    news = r["news"]
+    if not news.get("rows"):
+        if not is_viewer():
+            with st.expander("Admin news diagnostics — no client news shown", expanded=False):
+                for x in news.get("diagnostics", [])[:80]:
+                    st.caption(x)
+        return
+
+    with st.container(border=True):
+        st.markdown("### 📰 Catalysts & Risks")
+        c1, c2 = st.columns(2)
+        c1.metric("News Sentiment", news.get("sentiment", "N/A"))
+        c2.metric("Headlines Reviewed", len(news.get("rows", [])))
+        left, right = st.columns(2)
+        with left:
+            st.markdown("#### Bullish catalysts")
+            for h in news.get("bullish") or ["No strong bullish catalyst isolated."]:
+                st.markdown(f"✓ {h}")
+        with right:
+            st.markdown("#### Bearish risks")
+            for h in news.get("bearish") or ["No strong bearish risk isolated."]:
+                st.markdown(f"⚠️ {h}")
+
+        st.markdown("#### Recent headlines")
+        for item in news.get("rows", [])[:6]:
+            h = v49_text(item.get("headline"), "")
+            url = v49_text(item.get("url"), "")
+            src = v49_text(item.get("source"), "")
+            if url:
+                st.markdown(f"• [{h}]({url}) · _{src}_")
+            else:
+                st.markdown(f"• {h} · _{src}_")
+
+        if not is_viewer():
+            with st.expander("Admin news diagnostics", expanded=False):
+                for x in news.get("diagnostics", [])[:80]:
+                    st.caption(x)
+
+
+def render_v49_final(row):
+    r = v49_build_research_report(row)
+    p = r["plan"]
+    with st.container(border=True):
+        st.markdown("### 🧠 Final Recommendation")
+        st.markdown(f"**{r['ticker']} is rated: {r['verdict']}**")
+        st.info(v49_verdict_explanation(r["verdict"]))
+        st.markdown(
+            f"**Action plan:** Ideal entry is below **{v49_money(p.get('ideal_entry'))}**. "
+            f"Aggressive entry is **{v49_money(p.get('aggressive_low'))}–{v49_money(p.get('aggressive_high'))}**. "
+            f"Use a trading stop near **{v49_money(p.get('stop'))}** and a base target around **{v49_money(p.get('base_target'))}**."
+        )
+        st.caption("Research guidance only. Not personalized financial advice.")
+
+
+def render_v49_research_page(row):
+    render_v49_research_summary(row)
+    render_v49_trade_plan(row)
+    render_v49_financials(row)
+    render_v49_analysts(row)
+    render_v49_news(row)
+    render_v451_metric_interpreter(row)
+    if "render_detail_chart_v4184" in globals():
+        try:
+            render_detail_chart_v4184(row)
+        except Exception:
+            pass
+    render_v49_final(row)
+
+
+def render_detail(row):
+    render_v49_research_page(row)
+
+
+def v49_table_rows(df, limit=60):
+    out = []
+    if df is None or df.empty:
+        return out
+    for _, row in df.head(limit).iterrows():
+        try:
+            r = v49_build_research_report(row)
+            p = r["plan"]
+            out.append({
+                "Ticker": r["ticker"],
+                "Company": r["company"],
+                "Verdict": r["verdict"],
+                "Opportunity Score": r["opportunity_score"],
+                "Price": v49_money(p.get("price")),
+                "Ideal Entry": f"Below {v49_money(p.get('ideal_entry'))}",
+                "Stop": v49_money(p.get("stop")),
+                "Base Target": v49_money(p.get("base_target")),
+                "R/R": "N/A" if p.get("risk_reward") is None else f"{p.get('risk_reward'):.2f}:1",
+                "Data": f"{r['financials'].get('coverage_label')} ({r['financials'].get('coverage_count')}/{r['financials'].get('coverage_total')})",
+            })
+        except Exception:
+            continue
+    return out
+
+
+def render_v49_ready_section(df):
+    rows = v49_table_rows(df, limit=50)
+    ready = [x for x in rows if x["Verdict"] in ["BUY NOW", "BUY GRADUALLY"]]
+    with st.container(border=True):
+        st.markdown("### 🔥 Ready to Execute")
+        st.caption("This separates stocks that are high quality from stocks that are actionable today.")
+        if ready:
+            st.dataframe(pd.DataFrame(ready).sort_values("Opportunity Score", ascending=False), use_container_width=True, hide_index=True)
+        else:
+            st.info("No stock currently meets BUY NOW / BUY GRADUALLY thresholds. The scanner found research ideas, but not a clean execution setup yet.")
+
+
+def render_table(df, title, key_prefix, min_score_default=35):
+    st.subheader(title)
+    if df is None or df.empty:
+        st.info("No rows available yet.")
+        return
+
+    if key_prefix in ["top_table", "full_table"]:
+        render_v49_ready_section(df)
+
+    controls = st.columns([1, 1, 2])
+    with controls[0]:
+        min_score = st.slider("Minimum table score", 0, 100, min_score_default, key=f"{key_prefix}_score")
+    with controls[1]:
+        max_price = st.number_input("Max price", min_value=0.0, value=0.0, step=5.0, key=f"{key_prefix}_max_price")
+    with controls[2]:
+        search = st.text_input("Search ticker/company", key=f"{key_prefix}_search")
+
+    filtered = df.copy()
+    if "Final Conviction" in filtered.columns:
+        filtered = filtered[filtered["Final Conviction"] >= min_score]
+    if max_price > 0 and "Price" in filtered.columns:
+        filtered = filtered[filtered["Price"].fillna(999999) <= max_price]
+    if search:
+        s = search.strip().lower()
+        filtered = filtered[
+            filtered["Ticker"].astype(str).str.lower().str.contains(s, na=False)
+            | filtered["Company"].astype(str).str.lower().str.contains(s, na=False)
+        ]
+
+    if filtered.empty:
+        st.warning("No rows match filters.")
+        return
+
+    st.markdown("### 🔎 Research Report")
+    tickers = filtered["Ticker"].dropna().unique().tolist()
+    selected = st.selectbox("Choose a ticker", tickers, key=f"{key_prefix}_select")
+    if selected:
+        row = filtered[filtered["Ticker"].eq(selected)].iloc[0]
+        render_detail(row)
+
+    st.markdown("### 📋 Ranked Ideas")
+    rows = v49_table_rows(filtered, limit=60)
+    if rows:
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    else:
+        st.info("No display rows generated.")
+
+
+def render_score_help():
+    with st.expander("Quick guide: how to use the dashboard", expanded=True):
+        st.markdown(
+            """
+            **Opportunity Score** is the only score to use. It combines fundamentals, technical setup, analyst upside, and news/risk.
+
+            **Verdicts**
+            - 🟢 **BUY NOW**: Entry, risk/reward, RSI, and analyst upside are aligned.
+            - 🟡 **BUY GRADUALLY**: Attractive setup, but build in stages.
+            - ⚪ **WATCH**: Good idea, but entry or risk/reward is not ready.
+            - 🔴 **AVOID**: Risk/reward or data quality is not strong enough today.
+
+            The dashboard separates **good companies** from **stocks that are actually ready to buy today**.
+            """
+        )
+
+
+def render_status_banner():
+    state = read_state()
+    st.title("📈 AI Trading Dashboard")
+    st.caption(APP_VERSION)
+    st.caption("Clean Trust Engine: one score, one verdict, one trade plan, and a clear BUY NOW checklist.")
+    c1,c2,c3,c4,c5 = st.columns(5)
+    c1.metric("Status", state.get("status", "unknown"))
+    c2.metric("Scanner Version", state.get("version", "N/A"))
+    c3.metric("Full Scan", state.get("full_scan_count", "N/A"))
+    c4.metric("Prescreen", state.get("prescreen_count", "N/A"))
+    persisted = bool(state.get("github_persisted")) or v45_text(state.get("version", "")).startswith(("V45", "V46", "V47", "V48", "V49"))
+    c5.metric("GitHub Persisted", "✅" if persisted else "❌")
+    if is_viewer():
+        st.info("Viewer mode: admin diagnostics are hidden.")
+    if state:
+        st.caption(f"Last scan: {state.get('generated_at', 'N/A')} | Duration: {state.get('duration_seconds', 'N/A')}s | DATA_DIR={state.get('data_dir', '.')}")
 
 
 def main():
