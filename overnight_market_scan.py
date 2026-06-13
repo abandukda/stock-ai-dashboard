@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-V41.0 AI Committee Scanner - Exclusions + Insider Intelligence
+V49.2 AI Committee Scanner - Exclusions + Insider Intelligence
 - Render Cron compatible
 - DATA_DIR defaults to "."
 - Preserves dashboard output files:
@@ -50,6 +50,26 @@ FULL_SCAN_FILE = DATA_DIR / "market_full_scan.json"
 PRESCREEN_FILE = DATA_DIR / "market_prescreen.json"
 STATE_FILE = DATA_DIR / "market_scan_state.json"
 UNIVERSE_FILE = DATA_DIR / "total_market_universe.json"
+
+# =========================
+# V49.2 SCANNER STATE VERSION LOCK
+# =========================
+SCANNER_VERSION = "V49.2"
+SCANNER_VERSION_LABEL = "V49.2 Scanner State Sync Fix"
+
+def scanner_version_value() -> str:
+    return SCANNER_VERSION
+
+def apply_scanner_version(state):
+    """
+    Force every persisted scanner state to use the active scanner version.
+    This prevents old V41/V42/V47 fallback state from leaking into the dashboard.
+    """
+    if isinstance(state, dict):
+        state["version"] = SCANNER_VERSION
+        state["scanner_version"] = SCANNER_VERSION
+        state["scanner_version_label"] = SCANNER_VERSION_LABEL
+    return state
 WATCHLIST_FILE = DATA_DIR / "watchlist.json"
 RECOVERY_SCAN_FILE = DATA_DIR / "recovery_scan.json"
 ETF_SCAN_FILE = DATA_DIR / "etf_scan.json"
@@ -129,6 +149,8 @@ def pct_change(new: Optional[float], old: Optional[float]) -> Optional[float]:
 
 
 def write_json(path: Path, data: Any) -> None:
+    if path == STATE_FILE and isinstance(data, dict):
+        data = apply_scanner_version(data)
     tmp = path.with_suffix(path.suffix + ".tmp")
     with tmp.open("w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, default=str)
@@ -2850,7 +2872,7 @@ def enhance_ai_committee(row: Dict[str, Any], meta: Dict[str, Any], ind: Dict[st
 
 def build_price_history_intelligence(df: pd.DataFrame, ind: Dict[str, Any]) -> Dict[str, Any]:
     """
-    V42.5.3 Official Economic Calendar Fallback.
+    V49.2.3 Official Economic Calendar Fallback.
     Adds 52-week low/high, current position in range, 6M/1Y/3Y/5Y returns when available.
     Uses available downloaded history, so it does not add extra API calls.
     """
@@ -3442,7 +3464,7 @@ def v42_apply_investor_translations(row: Dict[str, Any]) -> Dict[str, Any]:
 
 def v42_apply_investor_translations_safe(row: Dict[str, Any]) -> Dict[str, Any]:
     """
-    V42.0.7 safety wrapper.
+    V49.2.7 safety wrapper.
     Investor translation is a display enhancement. It must never crash the overnight scan.
     If anything goes wrong, keep the existing committee and add a diagnostic note.
     """
@@ -3468,7 +3490,7 @@ def v42_apply_investor_translations_safe(row: Dict[str, Any]) -> Dict[str, Any]:
 
 def v42_build_committee_safe(symbol: str, row: Dict[str, Any], meta: Dict[str, Any], ind: Dict[str, Any], hist: pd.DataFrame) -> Dict[str, Any]:
     """
-    V42.0.7 safety wrapper around V42 committee creation.
+    V49.2.7 safety wrapper around V42 committee creation.
     The scanner should continue even if a live API source is rate-limited or one ticker has malformed data.
     """
     try:
@@ -3498,9 +3520,9 @@ def v42_build_committee_safe(symbol: str, row: Dict[str, Any], meta: Dict[str, A
 
 
 # =========================
-# V42.1 FAST TIERED SCAN
+# V49.2 FAST TIERED SCAN
 # =========================
-# V42.6.1 hard cron controls
+# V49.2.1 hard cron controls
 FAST_CRON_MODE = os.getenv("FAST_CRON_MODE", "true").strip().lower() not in {"0", "false", "no", "off"}
 FULL_COMMITTEE_LIMIT = int(os.getenv("FULL_COMMITTEE_LIMIT", "15"))
 RECOVERY_FULL_COMMITTEE_LIMIT = int(os.getenv("RECOVERY_FULL_COMMITTEE_LIMIT", "10"))
@@ -3517,7 +3539,7 @@ HTTP_TIMEOUT_FAST = float(os.getenv("HTTP_TIMEOUT_FAST", "6"))
 
 
 
-# V42.6.1 safety timeout patch: prevents one slow endpoint from dragging cron.
+# V49.2.1 safety timeout patch: prevents one slow endpoint from dragging cron.
 def v4261_patch_requests_timeouts():
     try:
         if getattr(requests, "_v4261_patched", False):
@@ -3572,7 +3594,7 @@ def v421_watchlist_symbols() -> set:
 
 def v421_should_run_full_research(symbol: str, row: Dict[str, Any]) -> bool:
     """
-    V42.6.1 hard cap: scheduled cron full committee is only for the very best names.
+    V49.2.1 hard cap: scheduled cron full committee is only for the very best names.
     This prevents 150 rows from running expensive News/SEC/FMP/Finnhub/competitor calls.
     """
     if not FAST_CRON_MODE:
@@ -3742,7 +3764,7 @@ def v421_build_light_committee(symbol: str, row: Dict[str, Any], meta: Dict[str,
 
 def v421_apply_tiered_committee(symbol: str, row: Dict[str, Any], meta: Dict[str, Any], ind: Dict[str, Any], hist: pd.DataFrame) -> Dict[str, Any]:
     """
-    V42.1 tiered scheduled scan:
+    V49.2 tiered scheduled scan:
       - Full committee for priority names.
       - Lightweight committee for the remaining Top 150.
       - Live lookup remains full research on demand.
@@ -3851,7 +3873,7 @@ def scan_market() -> Dict[str, Any]:
                     metadata_cache[symbol] = meta
                     continue
 
-                # V42.6.1: skip expensive deep APIs during pre-rank pass.
+                # V49.2.1: skip expensive deep APIs during pre-rank pass.
                 # Full/deep enrichment should happen only for selected top names or live ticker research.
                 if not FAST_CRON_SKIP_PRE_RANK_DEEP_APIS:
                     finance_meta = get_fmp_financial_intelligence(symbol)
@@ -3954,7 +3976,7 @@ def scan_market() -> Dict[str, Any]:
     state = {
         "generated_at": now_iso(),
         "status": "success",
-        "version": "V49.1",
+        "version": SCANNER_VERSION,
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
@@ -4163,7 +4185,7 @@ def main() -> None:
         error_state = {
             "generated_at": now_iso(),
             "status": "error",
-            "version": "V42.6.1",
+            "version": SCANNER_VERSION,
             "error": str(exc),
             "data_dir": str(DATA_DIR),
             "github_persisted": bool(os.getenv("GITHUB_ACTIONS")),
@@ -4321,9 +4343,10 @@ def v43s_apply_quality_overlay(rows):
 
 
 if __name__ == "__main__":
+    print(f"Scanner Version: {SCANNER_VERSION}")
     main()
 
-# V42.6 changes:
+# V49.2 changes:
 # - paid_client_verdict_first_layout
 # - agent_scorecard_condensed
 # - earnings_sources_fmp_finnhub_nasdaq_alpha_yahoo
@@ -4445,28 +4468,28 @@ def v432s_source_config_status():
 # - source diagnostics report detected length safely without exposing secrets
 
 
-# V44.0 scanner marker:
+# V49.2 scanner marker:
 # App adds paid-client intelligence, analyst/quality overlays, and market-news improvements.
 def v44s_marker():
-    return {"version": "V49.1", "paid_client_intelligence": True}
+    return {"version": SCANNER_VERSION, "paid_client_intelligence": True}
 
 
-# V49.1 marker: Advisor-Style Decision Engine with GitHub Actions persistence compatibility.
+# V49.2 marker: Advisor-Style Decision Engine with GitHub Actions persistence compatibility.
 
 
-# V49.1 marker: Institutional Research Completion Engine compatibility.
+# V49.2 marker: Institutional Research Completion Engine compatibility.
 
 
-# V49.1 marker: Research Quality Correction Patch.
+# V49.2 marker: Research Quality Correction Patch.
 
 
-# V49.1 marker: Client-Friendly Advisor Language Patch.
+# V49.2 marker: Client-Friendly Advisor Language Patch.
 
 
-# V49.1 marker: Execution Readiness Engine.
+# V49.2 marker: Execution Readiness Engine.
 
 
-# V49.1 marker: Clean Trust Engine.
+# V49.2 marker: Clean Trust Engine.
 
 
-# V49.1 marker: Trust UX + Analyst Targets.
+# V49.2 marker: Trust UX + Analyst Targets.

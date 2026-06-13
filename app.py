@@ -15,7 +15,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V49.1 Trust UX + Analyst Targets"
+APP_VERSION = "V49.2 Scanner State Sync Fix"
 
 
 # =========================
@@ -13020,7 +13020,7 @@ def render_status_banner():
 
 
 # =========================
-# V49.1 TRUST UX + ANALYST TARGETS
+# V49.2 TRUST UX + ANALYST TARGETS
 # =========================
 # Fixes:
 # - Final Recommendation markdown corruption by replacing long inline sentence with structured bullets
@@ -13361,7 +13361,7 @@ def render_status_banner():
     state = read_state()
     st.title("📈 AI Trading Dashboard")
     st.caption(APP_VERSION)
-    st.caption("Trust UX patch: clearer financial explanations, structured final recommendation, and top analyst/price target detail.")
+    st.caption("Scanner State Sync Fix: ensures the app and overnight scanner state report the same active version.")
     c1,c2,c3,c4,c5 = st.columns(5)
     c1.metric("Status", state.get("status", "unknown"))
     c2.metric("Scanner Version", state.get("version", "N/A"))
