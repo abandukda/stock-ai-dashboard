@@ -1,16 +1,16 @@
 {
-  "generated_at": "2026-06-13T05:23:25.533542+00:00",
+  "generated_at": "2026-06-13T06:14:33.956358+00:00",
   "status": "success",
-  "version": "V49.1",
+  "version": "V49.2",
   "universe_count": 2731,
   "prescreen_count": 650,
   "full_scan_count": 150,
   "recovery_count": 100,
-  "etf_count": 7,
+  "etf_count": 31,
   "fallback_rows_allowed": false,
   "data_dir": ".",
   "github_persisted": true,
-  "duration_seconds": 668.74,
+  "duration_seconds": 901.89,
   "fast_cron_mode": true,
   "full_committee_limit": 15,
   "pre_rank_deep_apis_skipped": true,
@@ -125,5 +125,7 @@
     "finnhub_insider_agent": true,
     "valuation_reconciliation": true,
     "thesis_strength_and_confidence": true
-  }
+  },
+  "scanner_version": "V49.2",
+  "scanner_version_label": "V49.2 Scanner State Sync Fix"
 }
