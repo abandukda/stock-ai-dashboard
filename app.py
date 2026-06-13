@@ -1,4 +1,5 @@
 import os
+import re
 import xml.etree.ElementTree as ET
 import math
 import datetime as dt
@@ -15,7 +16,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V49.2 Scanner State Sync Fix"
+APP_VERSION = "V49.3 Performance Stability Fix"
 
 
 # =========================
@@ -57,6 +58,19 @@ FMP_API_KEY = os.getenv("FMP_API_KEY", "").strip()
 FINNHUB_API_KEY = (os.getenv("FINNHUB_API_KEY") or os.getenv("FINNHUB_TOKEN") or "").strip()
 NEWSAPI_KEY = (os.getenv("NEWSAPI_KEY") or os.getenv("NEWS_API_KEY") or "").strip()
 ALPHA_VANTAGE_API_KEY = (os.getenv("ALPHA_VANTAGE_API_KEY") or os.getenv("ALPHAVANTAGE_API_KEY") or "").strip()
+
+# =========================
+# V49.3 SECRET / ENV RECONCILIATION
+# =========================
+# Lets Streamlit secrets override environment variables when present,
+# while keeping Render env vars working normally.
+try:
+    if hasattr(st, "secrets"):
+        for _k in ["FMP_API_KEY", "FINNHUB_API_KEY", "NEWSAPI_KEY", "ALPHA_VANTAGE_API_KEY", "SEC_USER_AGENT"]:
+            if _k in st.secrets and str(st.secrets[_k]).strip():
+                globals()[_k] = str(st.secrets[_k]).strip()
+except Exception:
+    pass
 
 FULL_SCAN_FILE = DATA_DIR / "market_full_scan.json"
 PRESCREEN_FILE = DATA_DIR / "market_prescreen.json"
@@ -13362,6 +13376,225 @@ def render_status_banner():
     st.title("📈 AI Trading Dashboard")
     st.caption(APP_VERSION)
     st.caption("Scanner State Sync Fix: ensures the app and overnight scanner state report the same active version.")
+    c1,c2,c3,c4,c5 = st.columns(5)
+    c1.metric("Status", state.get("status", "unknown"))
+    c2.metric("Scanner Version", state.get("version", "N/A"))
+    c3.metric("Full Scan", state.get("full_scan_count", "N/A"))
+    c4.metric("Prescreen", state.get("prescreen_count", "N/A"))
+    persisted = bool(state.get("github_persisted")) or v45_text(state.get("version", "")).startswith(("V45", "V46", "V47", "V48", "V49"))
+    c5.metric("GitHub Persisted", "✅" if persisted else "❌")
+    if is_viewer():
+        st.info("Viewer mode: admin diagnostics are hidden.")
+    if state:
+        st.caption(f"Last scan: {state.get('generated_at', 'N/A')} | Duration: {state.get('duration_seconds', 'N/A')}s | DATA_DIR={state.get('data_dir', '.')}")
+
+
+
+# =========================
+# V49.3 PERFORMANCE STABILITY FIX
+# =========================
+# Fixes:
+# - No live API calls while rendering tables
+# - Live research is reserved for selected ticker detail page
+# - Faster Ready to Execute section based on persisted scan fields
+# - Stronger percent normalization for high-growth metrics
+# - Keeps V49 one-score / one-verdict visible report model
+
+def v493_percent(x):
+    v = v49_num(x, positive=False) if "v49_num" in globals() else None
+    if v is None:
+        return None
+    # Most API ratios/growth values between -2 and 2 are decimal form.
+    # Values outside this range are usually already percentage points.
+    if -2 < v < 2:
+        v *= 100
+    if abs(v) > 500:
+        return None
+    return v
+
+
+def v49_percent(x):
+    return v493_percent(x)
+
+
+def v493_fast_money(x):
+    try:
+        return v49_money(x)
+    except Exception:
+        try:
+            return fmt_money(x)
+        except Exception:
+            return "N/A"
+
+
+def v493_fast_pct(x):
+    try:
+        v = safe_number(x, None)
+        if v is None:
+            return "N/A"
+        return f"{v:.1f}%"
+    except Exception:
+        return "N/A"
+
+
+def v493_fast_rr(row):
+    rr = safe_number(row.get("Risk/Reward"), 0)
+    if rr and rr > 0:
+        return f"{rr:.2f}:1"
+    price = safe_number(row.get("Price"), 0)
+    target = safe_number(row.get("AI Fair Value") or row.get("Analyst Target"), 0)
+    stop = safe_number(row.get("Stop Loss"), 0)
+    if price and target and stop and price > stop:
+        calc = (target - price) / (price - stop)
+        if calc > 0:
+            return f"{calc:.2f}:1"
+    return "N/A"
+
+
+def v493_fast_verdict(row):
+    """
+    Fast verdict based only on persisted scan fields.
+    This is intentionally not as deep as v49_build_research_report().
+    It prevents table rendering from causing hundreds of live API calls.
+    """
+    score = safe_number(row.get("Final Conviction"), 0)
+    price = safe_number(row.get("Price"), 0)
+    upside = safe_number(row.get("Target Upside %"), 0)
+    rsi = safe_number(row.get("RSI"), 50)
+    rr = safe_number(row.get("Risk/Reward"), 0)
+    analyst_count = safe_number(row.get("Analyst Count"), 0)
+    analyst_target = safe_number(row.get("Analyst Target"), 0)
+
+    analyst_upside = 0
+    if price and analyst_target:
+        analyst_upside = ((analyst_target - price) / price) * 100
+
+    rr_ok = rr >= 1.5 if rr else upside >= 15
+    analyst_ok = analyst_upside >= 10 or analyst_count >= 5
+    rsi_ok = rsi < 72 if rsi else True
+
+    if score >= 85 and upside >= 15 and rr_ok and analyst_ok and rsi_ok:
+        return "BUY NOW"
+    if score >= 78 and upside >= 10 and rsi_ok:
+        return "BUY GRADUALLY"
+    if score >= 60:
+        return "WATCH"
+    return "AVOID"
+
+
+def v493_table_rows_fast(df, limit=60):
+    rows = []
+    if df is None or df.empty:
+        return rows
+
+    for _, row in df.head(limit).iterrows():
+        price = safe_number(row.get("Price"), 0)
+        target = safe_number(row.get("AI Fair Value") or row.get("Analyst Target"), 0)
+        upside = safe_number(row.get("Target Upside %"), 0)
+        stop = safe_number(row.get("Stop Loss"), 0)
+        verdict = v493_fast_verdict(row)
+
+        rows.append({
+            "Ticker": safe_text(row.get("Ticker"), ""),
+            "Company": safe_text(row.get("Company"), ""),
+            "Verdict": verdict,
+            "Score": int(safe_number(row.get("Final Conviction"), 0)),
+            "Price": v493_fast_money(price),
+            "AI / Analyst Target": v493_fast_money(target),
+            "Upside": v493_fast_pct(upside),
+            "Entry": safe_text(row.get("Entry Range"), "N/A"),
+            "Stop": v493_fast_money(stop) if stop else "N/A",
+            "R/R": v493_fast_rr(row),
+            "Analyst Support": safe_text(row.get("Analyst Support"), "N/A"),
+            "News": safe_text(row.get("News Sentiment"), "N/A"),
+        })
+    return rows
+
+
+def v49_table_rows(df, limit=60):
+    """
+    V49.3 override:
+    table rows must be scan-data only.
+    Do NOT call v49_build_research_report() here.
+    """
+    return v493_table_rows_fast(df, limit=limit)
+
+
+def render_v49_ready_section(df):
+    """
+    V49.3 override:
+    Ready to Execute is fast and based on persisted scan fields only.
+    The detailed live research still happens after user selects one ticker.
+    """
+    rows = v493_table_rows_fast(df, limit=80)
+    ready = [x for x in rows if x["Verdict"] in ["BUY NOW", "BUY GRADUALLY"]]
+
+    with st.container(border=True):
+        st.markdown("### 🔥 Ready to Execute")
+        st.caption("Fast scan-only view. Detailed live API research loads only after selecting one ticker.")
+        if ready:
+            st.dataframe(pd.DataFrame(ready).sort_values("Score", ascending=False), use_container_width=True, hide_index=True)
+        else:
+            st.info("No stock currently meets BUY NOW / BUY GRADUALLY thresholds from the persisted scan data.")
+
+
+def render_table(df, title, key_prefix, min_score_default=35):
+    """
+    V49.3 override:
+    Fast table render. Only selected ticker opens live V49 research report.
+    """
+    st.subheader(title)
+    if df is None or df.empty:
+        st.info("No rows available yet.")
+        return
+
+    if key_prefix in ["top_table", "full_table"]:
+        render_v49_ready_section(df)
+
+    controls = st.columns([1, 1, 2])
+    with controls[0]:
+        min_score = st.slider("Minimum table score", 0, 100, min_score_default, key=f"{key_prefix}_score")
+    with controls[1]:
+        max_price = st.number_input("Max price", min_value=0.0, value=0.0, step=5.0, key=f"{key_prefix}_max_price")
+    with controls[2]:
+        search = st.text_input("Search ticker/company", key=f"{key_prefix}_search")
+
+    filtered = df.copy()
+    if "Final Conviction" in filtered.columns:
+        filtered = filtered[filtered["Final Conviction"] >= min_score]
+    if max_price > 0 and "Price" in filtered.columns:
+        filtered = filtered[filtered["Price"].fillna(999999) <= max_price]
+    if search:
+        s = search.strip().lower()
+        filtered = filtered[
+            filtered["Ticker"].astype(str).str.lower().str.contains(s, na=False)
+            | filtered["Company"].astype(str).str.lower().str.contains(s, na=False)
+        ]
+
+    if filtered.empty:
+        st.warning("No rows match filters.")
+        return
+
+    st.markdown("### 🔎 Research Report")
+    tickers = filtered["Ticker"].dropna().unique().tolist()
+    selected = st.selectbox("Choose a ticker", tickers, key=f"{key_prefix}_select")
+    if selected:
+        row = filtered[filtered["Ticker"].eq(selected)].iloc[0]
+        render_detail(row)
+
+    st.markdown("### 📋 Ranked Ideas")
+    rows = v493_table_rows_fast(filtered, limit=80)
+    if rows:
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    else:
+        st.info("No display rows generated.")
+
+
+def render_status_banner():
+    state = read_state()
+    st.title("📈 AI Trading Dashboard")
+    st.caption(APP_VERSION)
+    st.caption("Performance Stability Fix: tables use persisted scan data only; live APIs load only for selected ticker research.")
     c1,c2,c3,c4,c5 = st.columns(5)
     c1.metric("Status", state.get("status", "unknown"))
     c2.metric("Scanner Version", state.get("version", "N/A"))
