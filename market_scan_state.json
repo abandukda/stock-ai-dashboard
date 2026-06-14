@@ -1,16 +1,16 @@
 {
-  "generated_at": "2026-06-13T06:14:33.956358+00:00",
+  "generated_at": "2026-06-14T05:11:57.889523+00:00",
   "status": "success",
-  "version": "V49.2",
+  "version": "V49.3",
   "universe_count": 2731,
   "prescreen_count": 650,
   "full_scan_count": 150,
   "recovery_count": 100,
-  "etf_count": 31,
+  "etf_count": 11,
   "fallback_rows_allowed": false,
   "data_dir": ".",
   "github_persisted": true,
-  "duration_seconds": 901.89,
+  "duration_seconds": 1132.51,
   "fast_cron_mode": true,
   "full_committee_limit": 15,
   "pre_rank_deep_apis_skipped": true,
@@ -126,6 +126,6 @@
     "valuation_reconciliation": true,
     "thesis_strength_and_confidence": true
   },
-  "scanner_version": "V49.2",
-  "scanner_version_label": "V49.2 Scanner State Sync Fix"
+  "scanner_version": "V49.3",
+  "scanner_version_label": "V49.3 Performance Stability Fix"
 }
