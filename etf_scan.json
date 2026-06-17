@@ -53,7 +53,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-16T22:07:04.024187+00:00",
+    "scan_time": "2026-06-17T00:46:52.125735+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 760.4,
@@ -278,7 +278,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-16T22:04:36.708636+00:00",
+    "scan_time": "2026-06-17T00:44:40.436480+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 748.65,
@@ -308,18 +308,16 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 52,
+        "score": 53,
         "status": "Mixed",
         "impact": "Neutral",
         "data_used": "NewsAPI, Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
           "Forget Buying Nvidia. This Overlooked ETF Beat the Nasdaq by Owning the AI Stocks You Can\u2019t",
-          "Markets cheer U.S.-Iran Breakthrough though Middle East risks, Fed remain in focus",
           "Dow Jones Hit Record Highs As Oil Drops To $77: Stock Market Today"
         ],
         "risks": [
-          "Markets cheer U.S.-Iran Breakthrough though Middle East risks, Fed remain in focus",
           "A 2021 Signal That Preceded The S&P 500 Decline In 2022 Has Reappeared",
           "Cross-Asset Volatilities Normalize As Geopolitical Risk Premia Dissipates"
         ],
@@ -459,15 +457,13 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 52,
+    "v42_news_score": 53,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
       "Forget Buying Nvidia. This Overlooked ETF Beat the Nasdaq by Owning the AI Stocks You Can\u2019t",
-      "Markets cheer U.S.-Iran Breakthrough though Middle East risks, Fed remain in focus",
       "Dow Jones Hit Record Highs As Oil Drops To $77: Stock Market Today"
     ],
     "v42_news_risks": [
-      "Markets cheer U.S.-Iran Breakthrough though Middle East risks, Fed remain in focus",
       "A 2021 Signal That Preceded The S&P 500 Decline In 2022 Has Reappeared",
       "Cross-Asset Volatilities Normalize As Geopolitical Risk Premia Dissipates"
     ],
@@ -541,7 +537,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-16T21:57:36.331585+00:00",
+    "scan_time": "2026-06-17T00:38:24.650334+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 297.91,
@@ -804,7 +800,7 @@
       "RSI is constructive"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-16T22:06:34.977883+00:00",
+    "scan_time": "2026-06-17T00:46:33.470035+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 649.24,
@@ -1029,7 +1025,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-16T22:10:08.244771+00:00",
+    "scan_time": "2026-06-17T00:49:37.551251+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 699.15,
@@ -1254,7 +1250,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-16T21:52:03.849760+00:00",
+    "scan_time": "2026-06-17T00:33:19.560851+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 523.3,
@@ -1290,9 +1286,9 @@
         "data_used": "NewsAPI, Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
+          "Secretary for Internal Affairs: In defence of the DIA managing NZ\u2019s age verification plans - Paul James",
           "Dialogica Emerges from Stealth to Empower Lawyers to Reclaim Their Time",
           "Unique liaison programme set to reinforce close collaboration between MHRA and FDA",
-          "Dia Mirza's environmental remark on patriarchy sparks backlash; internet says 'Aadmi hona paap ho gaya hai'. Here's what she said",
           "Dow Jones Hit Record Highs As Oil Drops To $77: Stock Market Today",
           "A 6% Yield, Aggressive Growth Retirement Income Portfolio"
         ],
@@ -1439,9 +1435,9 @@
     "v42_news_score": 74,
     "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
+      "Secretary for Internal Affairs: In defence of the DIA managing NZ\u2019s age verification plans - Paul James",
       "Dialogica Emerges from Stealth to Empower Lawyers to Reclaim Their Time",
       "Unique liaison programme set to reinforce close collaboration between MHRA and FDA",
-      "Dia Mirza's environmental remark on patriarchy sparks backlash; internet says 'Aadmi hona paap ho gaya hai'. Here's what she said",
       "Dow Jones Hit Record Highs As Oil Drops To $77: Stock Market Today",
       "A 6% Yield, Aggressive Growth Retirement Income Portfolio"
     ],
@@ -1518,7 +1514,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-16T22:11:19.584540+00:00",
+    "scan_time": "2026-06-17T00:50:50.516055+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 198.73,
@@ -1742,7 +1738,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-16T21:59:18.769413+00:00",
+    "scan_time": "2026-06-17T00:39:56.873178+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 110.24,
@@ -1994,7 +1990,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-16T21:56:40.316408+00:00",
+    "scan_time": "2026-06-17T00:37:34.728496+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 80.17,
@@ -2256,7 +2252,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-16T22:08:26.631194+00:00",
+    "scan_time": "2026-06-17T00:48:07.295782+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.51,
@@ -2481,7 +2477,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-16T22:11:21.884922+00:00",
+    "scan_time": "2026-06-17T00:50:52.581171+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 159.93,
@@ -2706,7 +2702,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-16T22:11:19.049303+00:00",
+    "scan_time": "2026-06-17T00:50:50.070729+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 181.09,
@@ -2931,7 +2927,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-16T22:10:19.272843+00:00",
+    "scan_time": "2026-06-17T00:49:53.986187+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 374.7,
@@ -3155,7 +3151,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-16T22:11:20.373483+00:00",
+    "scan_time": "2026-06-17T00:50:50.965191+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.64,
@@ -3379,7 +3375,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-16T22:11:22.393889+00:00",
+    "scan_time": "2026-06-17T00:50:53.048701+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 124.76,
@@ -3604,7 +3600,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-16T22:06:05.297989+00:00",
+    "scan_time": "2026-06-17T00:45:58.000273+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 32.92,
@@ -3829,7 +3825,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-16T22:11:17.428088+00:00",
+    "scan_time": "2026-06-17T00:50:48.575749+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 53.9,
@@ -4054,7 +4050,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-16T21:46:43.397975+00:00",
+    "scan_time": "2026-06-17T00:28:14.754009+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 92.65,
@@ -4084,12 +4080,13 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 54,
+        "score": 61,
         "status": "Mixed",
         "impact": "Neutral",
-        "data_used": "Finnhub company news",
+        "data_used": "NewsAPI, Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
+          "Daily ETF Flows: ARKK In the Top 10",
           "Michael Lee On Palantir, Marvell, And The 3 'Hockey Sticks' Of AI Growth"
         ],
         "risks": [
@@ -4229,15 +4226,17 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 54,
+    "v42_news_score": 61,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
+      "Daily ETF Flows: ARKK In the Top 10",
       "Michael Lee On Palantir, Marvell, And The 3 'Hockey Sticks' Of AI Growth"
     ],
     "v42_news_risks": [
       "Cross-Asset Volatilities Normalize As Geopolitical Risk Premia Dissipates"
     ],
     "v42_news_sources": [
+      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -4306,7 +4305,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-16T21:57:45.527939+00:00",
+    "scan_time": "2026-06-17T00:38:33.097296+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 61.51,
@@ -4563,7 +4562,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-16T21:57:44.419669+00:00",
+    "scan_time": "2026-06-17T00:38:31.992447+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 58.27,
@@ -4820,7 +4819,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-16T22:11:20.887882+00:00",
+    "scan_time": "2026-06-17T00:50:51.500296+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 45.65,
@@ -5045,7 +5044,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-16T22:04:42.198842+00:00",
+    "scan_time": "2026-06-17T00:44:46.084855+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 18.23,
@@ -5270,7 +5269,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-16T22:11:30.896810+00:00",
+    "scan_time": "2026-06-17T00:50:59.443292+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 40.96,
@@ -5495,7 +5494,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-16T22:05:40.110767+00:00",
+    "scan_time": "2026-06-17T00:45:37.882351+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 15.93,
@@ -5720,7 +5719,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-16T22:04:38.050826+00:00",
+    "scan_time": "2026-06-17T00:44:42.024797+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 24.67,
@@ -5969,7 +5968,7 @@
       "RSI is constructive"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-16T22:06:57.193967+00:00",
+    "scan_time": "2026-06-17T00:46:46.132305+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 629.72,
@@ -6194,7 +6193,7 @@
     "risk_tags": [
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-16T22:11:21.394132+00:00",
+    "scan_time": "2026-06-17T00:50:52.101929+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 47.71,
@@ -6417,7 +6416,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-16T22:09:33.987441+00:00",
+    "scan_time": "2026-06-17T00:49:13.582084+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 62.28,
@@ -6589,6 +6588,230 @@
     "v42_chart_guidance": "Between support and resistance. Prefer pullback entry or confirmed breakout."
   },
   {
+    "symbol": "TAN",
+    "ticker": "TAN",
+    "company": "Invesco Solar ETF",
+    "company_name": "Invesco Solar ETF",
+    "sector": "ETF",
+    "industry": "Invesco",
+    "quote_type": "ETF",
+    "price": 60.58,
+    "current_price": 60.58,
+    "dollar_volume": 115466001.45,
+    "avg_volume_20d": 1906008,
+    "volume_ratio": 1.34,
+    "conviction": 51,
+    "conviction_score": 51,
+    "score": 51,
+    "ai_score": 51,
+    "ai_confidence": 51,
+    "confidence": 51,
+    "rsi": 31.7,
+    "atr_pct": 5.32,
+    "sma20": 66.07,
+    "sma50": 61.44,
+    "twenty_day_pct": -3.24,
+    "sixty_day_pct": 9.85,
+    "entry_range": "$58.96 - $61.39",
+    "entry_low": 58.96,
+    "entry_high": 61.39,
+    "stop_loss": 56.06,
+    "target": 76.36,
+    "target_2": 72.79,
+    "risk_reward": 3.49,
+    "expected_upside_pct": 26.0,
+    "upside": 26.0,
+    "ai_base_target": 76.36,
+    "ai_bull_target": 72.79,
+    "ai_bear_target": 56.06,
+    "etf_preference_screen": "Passed non-financial / non-Israel / non-excluded-theme screen",
+    "what_looks_good": "strong ETF liquidity; positive 60-day ETF trend",
+    "what_could_go_wrong": "price is below 20-day trend; price is below 50-day trend; RSI is weak",
+    "investment_thesis": "Invesco Solar ETF (TAN) is an ETF candidate that passed your preference screen. Score 51/100. Positive factors: strong ETF liquidity; positive 60-day ETF trend. Risks: price is below 20-day trend; price is below 50-day trend; RSI is weak.",
+    "guidance": "TAN ETF score is 51/100. Preferred entry is $58.96 - $61.39. Use stop around $56.06 and first target near $76.36.",
+    "action_note": "ETF idea only. Review holdings/exposure before buying to ensure it aligns with your preferences.",
+    "summary": "TAN: ETF candidate, score 51/100, estimated trade upside 26.0%.",
+    "setup_tags": [
+      "strong ETF liquidity",
+      "positive 60-day ETF trend"
+    ],
+    "risk_tags": [
+      "price is below 20-day trend",
+      "price is below 50-day trend",
+      "RSI is weak"
+    ],
+    "scan_time": "2026-06-17T00:47:32.518055+00:00",
+    "history_days_available": 251,
+    "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
+    "high_52w": 75.6,
+    "low_52w": 31.4,
+    "all_period_high": 75.6,
+    "all_period_low": 31.4,
+    "range_position_pct": 66.0,
+    "range_position_label": "Upper-middle range",
+    "distance_from_52w_high_pct": -19.9,
+    "distance_from_52w_low_pct": 92.9,
+    "drawdown_from_period_high_pct": -19.9,
+    "drawdown_label": "Moderate drawdown",
+    "return_1m_pct": -6.7,
+    "return_3m_pct": 4.9,
+    "return_6m_pct": 26.6,
+    "return_1y_pct": null,
+    "return_3y_pct": null,
+    "return_5y_pct": null,
+    "analyst_support_score": 46.5,
+    "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
+    "analyst_support_label": "Constructive (46/100)",
+    "news_sentiment_source": "No recent NewsAPI headline returned; defaulted to neutral",
+    "top_news_headline": "No recent high-confidence company headline returned by NewsAPI",
+    "news_sentiment_label": "Neutral",
+    "news_sentiment_score": 0,
+    "thesis_strength": "Developing Thesis",
+    "evidence_confidence": "Low-Medium",
+    "ai_committee": {
+      "Technical Agent": {
+        "score": 51,
+        "status": "Mixed",
+        "impact": "Neutral",
+        "data_used": "Price history, RSI, ATR, volume, SMA, support/resistance",
+        "summary": "Lightweight scheduled scan: evaluates trend, momentum, volatility, support/resistance and entry quality.",
+        "findings": [
+          "Support 1: 59.12 \u00b7 Resistance 1: 75.6.",
+          "RSI: 31.7."
+        ],
+        "risks": [
+          "Latest news/SEC/competitor checks are deferred to full committee or live lookup."
+        ],
+        "bottom_line": "Near support. Better risk/reward if support holds."
+      },
+      "Finance Agent": {
+        "score": 50,
+        "status": "Mixed",
+        "impact": "Neutral",
+        "data_used": "Existing scan fundamentals only",
+        "summary": "Lightweight scheduled scan: uses already-fetched financial fields to avoid extra API calls.",
+        "findings": [
+          "Basic financial score available from scan."
+        ],
+        "risks": [
+          "Deep financial detail available in full committee or live research."
+        ],
+        "bottom_line": "Financial profile requires full research for deeper detail."
+      },
+      "Analyst Agent": {
+        "score": 46,
+        "status": "Mixed",
+        "impact": "Neutral",
+        "data_used": "Existing analyst target/count/recommendation fields",
+        "summary": "Lightweight scheduled scan: checks analyst target and support using existing scan fields.",
+        "findings": [
+          "Analyst target: N/A."
+        ],
+        "risks": [
+          "Recent target revisions are checked in full committee or live research."
+        ],
+        "bottom_line": "Analyst support is directional in lightweight mode."
+      },
+      "News Agent": {
+        "score": null,
+        "status": "Deferred to full/live research",
+        "impact": "Not scored",
+        "available": false,
+        "data_used": "Skipped in lightweight scheduled scan",
+        "summary": "News was not pulled for this lower-tier row to keep the scheduled scan fast.",
+        "findings": [
+          "Use Live Research or wait for this ticker to rank into the full committee tier."
+        ],
+        "risks": [
+          "Do not assume no news; news was intentionally deferred."
+        ],
+        "bottom_line": "News Agent deferred to full committee/live lookup."
+      },
+      "Insider Agent": {
+        "score": null,
+        "status": "Deferred to full/live research",
+        "impact": "Not scored",
+        "data_used": "SEC skipped in lightweight scheduled scan",
+        "summary": "Insider/SEC data is only run for priority tickers during cron.",
+        "findings": [],
+        "risks": [
+          "Use Live Research for immediate insider/SEC check."
+        ],
+        "bottom_line": "Insider Agent deferred."
+      },
+      "Institutional Agent": {
+        "score": null,
+        "status": "Deferred to full/live research",
+        "impact": "Not scored",
+        "data_used": "SEC/FMP ownership skipped in lightweight scheduled scan",
+        "summary": "Institutional data is not run for every row during cron.",
+        "findings": [],
+        "risks": [
+          "Use Live Research for immediate ownership check."
+        ],
+        "bottom_line": "Institutional Agent deferred."
+      },
+      "Competitor Agent": {
+        "score": null,
+        "status": "Deferred to full/live research",
+        "impact": "Not scored",
+        "data_used": "Peer comparison skipped in lightweight scheduled scan",
+        "summary": "Competitor comparison is deferred for lower-tier rows to reduce API calls.",
+        "findings": [],
+        "risks": [
+          "Use full committee/live lookup for peer analysis."
+        ],
+        "bottom_line": "Competitor Agent deferred."
+      },
+      "Recovery Agent": {
+        "score": 50,
+        "status": "Limited",
+        "impact": "Neutral",
+        "data_used": "Existing drawdown/recovery fields",
+        "summary": "Lightweight recovery check from scan data.",
+        "findings": [
+          "Recovery scan field available if present."
+        ],
+        "risks": [
+          "Full recovery explanation available in full committee/live research."
+        ],
+        "bottom_line": "Recovery signal is directional in lightweight mode."
+      },
+      "ETF / Ownership Agent": {
+        "score": null,
+        "status": "Deferred to full/live research",
+        "impact": "Not scored",
+        "data_used": "ETF/ownership checks skipped in lightweight scheduled scan",
+        "summary": "ETF ownership data is deferred unless this is a priority ETF/watchlist row.",
+        "findings": [],
+        "risks": [
+          "Use ETF tab/detail or live lookup for deeper ETF/ownership context."
+        ],
+        "bottom_line": "ETF/Ownership Agent deferred."
+      },
+      "Political Agent": {
+        "score": null,
+        "status": "Not connected yet",
+        "impact": "Not scored",
+        "data_used": "Capitol Trades planned",
+        "summary": "Political trading feed is not enabled yet.",
+        "findings": [],
+        "risks": [
+          "No political score applied."
+        ],
+        "bottom_line": "Political Agent not scored."
+      }
+    },
+    "v42_tier": "light",
+    "v42_support_1": 59.12,
+    "v42_support_2": 31.4,
+    "v42_resistance_1": 75.6,
+    "v42_resistance_2": 75.6,
+    "v42_breakout_level": 76.36,
+    "v42_pullback_zone": "$59.12 - $59.37",
+    "v42_chart_guidance": "Near support. Better risk/reward if support holds."
+  },
+  {
     "symbol": "BOTZ",
     "ticker": "BOTZ",
     "company": "Global X Robotics & Artificial ",
@@ -6642,7 +6865,7 @@
       "price is below 50-day trend",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-16T21:48:33.153223+00:00",
+    "scan_time": "2026-06-17T00:29:54.179966+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 41.71,
@@ -6904,7 +7127,7 @@
       "price is below 50-day trend",
       "20-day ETF trend is weak"
     ],
-    "scan_time": "2026-06-16T22:11:17.930859+00:00",
+    "scan_time": "2026-06-17T00:50:49.044218+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 63.46,
@@ -7073,231 +7296,6 @@
     "v42_resistance_2": 63.46,
     "v42_breakout_level": 62.32,
     "v42_pullback_zone": "$54.96 - $54.96",
-    "v42_chart_guidance": "Near support. Better risk/reward if support holds."
-  },
-  {
-    "symbol": "TAN",
-    "ticker": "TAN",
-    "company": "Invesco Solar ETF",
-    "company_name": "Invesco Solar ETF",
-    "sector": "ETF",
-    "industry": "Invesco",
-    "quote_type": "ETF",
-    "price": 60.58,
-    "current_price": 60.58,
-    "dollar_volume": 117867695.62,
-    "avg_volume_20d": 1945653,
-    "volume_ratio": 1.31,
-    "conviction": 43,
-    "conviction_score": 43,
-    "score": 43,
-    "ai_score": 43,
-    "ai_confidence": 43,
-    "confidence": 43,
-    "rsi": 35.4,
-    "atr_pct": 5.39,
-    "sma20": 66.07,
-    "sma50": 61.27,
-    "twenty_day_pct": -6.74,
-    "sixty_day_pct": 6.37,
-    "entry_range": "$58.95 - $61.40",
-    "entry_low": 58.95,
-    "entry_high": 61.4,
-    "stop_loss": 56.0,
-    "target": 76.36,
-    "target_2": 72.94,
-    "risk_reward": 3.45,
-    "expected_upside_pct": 26.0,
-    "upside": 26.0,
-    "ai_base_target": 76.36,
-    "ai_bull_target": 72.94,
-    "ai_bear_target": 56.0,
-    "etf_preference_screen": "Passed non-financial / non-Israel / non-excluded-theme screen",
-    "what_looks_good": "strong ETF liquidity; positive 60-day ETF trend",
-    "what_could_go_wrong": "price is below 20-day trend; price is below 50-day trend; 20-day ETF trend is weak; RSI is weak",
-    "investment_thesis": "Invesco Solar ETF (TAN) is an ETF candidate that passed your preference screen. Score 43/100. Positive factors: strong ETF liquidity; positive 60-day ETF trend. Risks: price is below 20-day trend; price is below 50-day trend; 20-day ETF trend is weak; RSI is weak.",
-    "guidance": "TAN ETF score is 43/100. Preferred entry is $58.95 - $61.40. Use stop around $56.0 and first target near $76.36.",
-    "action_note": "ETF idea only. Review holdings/exposure before buying to ensure it aligns with your preferences.",
-    "summary": "TAN: ETF candidate, score 43/100, estimated trade upside 26.0%.",
-    "setup_tags": [
-      "strong ETF liquidity",
-      "positive 60-day ETF trend"
-    ],
-    "risk_tags": [
-      "price is below 20-day trend",
-      "price is below 50-day trend",
-      "20-day ETF trend is weak",
-      "RSI is weak"
-    ],
-    "scan_time": "2026-06-16T22:07:45.424345+00:00",
-    "history_days_available": 250,
-    "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
-    "high_52w": 75.6,
-    "low_52w": 31.4,
-    "all_period_high": 75.6,
-    "all_period_low": 31.4,
-    "range_position_pct": 66.0,
-    "range_position_label": "Upper-middle range",
-    "distance_from_52w_high_pct": -19.9,
-    "distance_from_52w_low_pct": 92.9,
-    "drawdown_from_period_high_pct": -19.9,
-    "drawdown_label": "Moderate drawdown",
-    "return_1m_pct": -6.7,
-    "return_3m_pct": 6.7,
-    "return_6m_pct": 23.0,
-    "return_1y_pct": null,
-    "return_3y_pct": null,
-    "return_5y_pct": null,
-    "analyst_support_score": 46.5,
-    "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
-    "analyst_support_label": "Constructive (46/100)",
-    "news_sentiment_source": "No recent NewsAPI headline returned; defaulted to neutral",
-    "top_news_headline": "No recent high-confidence company headline returned by NewsAPI",
-    "news_sentiment_label": "Neutral",
-    "news_sentiment_score": 0,
-    "thesis_strength": "Developing Thesis",
-    "evidence_confidence": "Low-Medium",
-    "ai_committee": {
-      "Technical Agent": {
-        "score": 43,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Price history, RSI, ATR, volume, SMA, support/resistance",
-        "summary": "Lightweight scheduled scan: evaluates trend, momentum, volatility, support/resistance and entry quality.",
-        "findings": [
-          "Support 1: 59.12 \u00b7 Resistance 1: 75.6.",
-          "RSI: 35.4."
-        ],
-        "risks": [
-          "Latest news/SEC/competitor checks are deferred to full committee or live lookup."
-        ],
-        "bottom_line": "Near support. Better risk/reward if support holds."
-      },
-      "Finance Agent": {
-        "score": 50,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Existing scan fundamentals only",
-        "summary": "Lightweight scheduled scan: uses already-fetched financial fields to avoid extra API calls.",
-        "findings": [
-          "Basic financial score available from scan."
-        ],
-        "risks": [
-          "Deep financial detail available in full committee or live research."
-        ],
-        "bottom_line": "Financial profile requires full research for deeper detail."
-      },
-      "Analyst Agent": {
-        "score": 46,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Existing analyst target/count/recommendation fields",
-        "summary": "Lightweight scheduled scan: checks analyst target and support using existing scan fields.",
-        "findings": [
-          "Analyst target: N/A."
-        ],
-        "risks": [
-          "Recent target revisions are checked in full committee or live research."
-        ],
-        "bottom_line": "Analyst support is directional in lightweight mode."
-      },
-      "News Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "available": false,
-        "data_used": "Skipped in lightweight scheduled scan",
-        "summary": "News was not pulled for this lower-tier row to keep the scheduled scan fast.",
-        "findings": [
-          "Use Live Research or wait for this ticker to rank into the full committee tier."
-        ],
-        "risks": [
-          "Do not assume no news; news was intentionally deferred."
-        ],
-        "bottom_line": "News Agent deferred to full committee/live lookup."
-      },
-      "Insider Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "SEC skipped in lightweight scheduled scan",
-        "summary": "Insider/SEC data is only run for priority tickers during cron.",
-        "findings": [],
-        "risks": [
-          "Use Live Research for immediate insider/SEC check."
-        ],
-        "bottom_line": "Insider Agent deferred."
-      },
-      "Institutional Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "SEC/FMP ownership skipped in lightweight scheduled scan",
-        "summary": "Institutional data is not run for every row during cron.",
-        "findings": [],
-        "risks": [
-          "Use Live Research for immediate ownership check."
-        ],
-        "bottom_line": "Institutional Agent deferred."
-      },
-      "Competitor Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "Peer comparison skipped in lightweight scheduled scan",
-        "summary": "Competitor comparison is deferred for lower-tier rows to reduce API calls.",
-        "findings": [],
-        "risks": [
-          "Use full committee/live lookup for peer analysis."
-        ],
-        "bottom_line": "Competitor Agent deferred."
-      },
-      "Recovery Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "Existing drawdown/recovery fields",
-        "summary": "Lightweight recovery check from scan data.",
-        "findings": [
-          "Recovery scan field available if present."
-        ],
-        "risks": [
-          "Full recovery explanation available in full committee/live research."
-        ],
-        "bottom_line": "Recovery signal is directional in lightweight mode."
-      },
-      "ETF / Ownership Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "ETF/ownership checks skipped in lightweight scheduled scan",
-        "summary": "ETF ownership data is deferred unless this is a priority ETF/watchlist row.",
-        "findings": [],
-        "risks": [
-          "Use ETF tab/detail or live lookup for deeper ETF/ownership context."
-        ],
-        "bottom_line": "ETF/Ownership Agent deferred."
-      },
-      "Political Agent": {
-        "score": null,
-        "status": "Not connected yet",
-        "impact": "Not scored",
-        "data_used": "Capitol Trades planned",
-        "summary": "Political trading feed is not enabled yet.",
-        "findings": [],
-        "risks": [
-          "No political score applied."
-        ],
-        "bottom_line": "Political Agent not scored."
-      }
-    },
-    "v42_tier": "light",
-    "v42_support_1": 59.12,
-    "v42_support_2": 31.4,
-    "v42_resistance_1": 75.6,
-    "v42_resistance_2": 75.6,
-    "v42_breakout_level": 76.36,
-    "v42_pullback_zone": "$59.12 - $59.37",
     "v42_chart_guidance": "Near support. Better risk/reward if support holds."
   }
 ]
