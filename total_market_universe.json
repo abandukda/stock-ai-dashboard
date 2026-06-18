@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-06-18T00:20:32.518326+00:00",
-  "count": 2843,
+  "generated_at": "2026-06-18T08:57:08.439329+00:00",
+  "count": 2846,
   "symbols": [
     "A",
     "AA",
@@ -1466,6 +1466,7 @@
     "LEN",
     "LEN-B",
     "LENZ",
+    "LEO",
     "LESL",
     "LEU",
     "LEVI",
@@ -1964,6 +1965,7 @@
     "PFS",
     "PFSI",
     "PG",
+    "PGC",
     "PGEN",
     "PGNY",
     "PGR",
@@ -2298,6 +2300,7 @@
     "SNDK",
     "SNDR",
     "SNEX",
+    "SNK",
     "SNN",
     "SNOW",
     "SNPS",
