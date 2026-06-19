@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-06-19T09:16:15.341402+00:00",
-  "count": 2898,
+  "generated_at": "2026-06-19T13:58:20.427770+00:00",
+  "count": 2900,
   "symbols": [
     "A",
     "AA",
@@ -29,6 +29,7 @@
     "ACAD",
     "ACDC",
     "ACGL",
+    "ACGLN",
     "ACH",
     "ACHC",
     "ACHR",
@@ -385,6 +386,7 @@
     "BMEA",
     "BMI",
     "BMNR",
+    "BMRC",
     "BMRN",
     "BMY",
     "BN",
