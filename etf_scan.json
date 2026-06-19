@@ -54,7 +54,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-19T14:15:19.659498+00:00",
+    "scan_time": "2026-06-19T18:08:30.546227+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 748.65,
@@ -84,7 +84,7 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 75,
+        "score": 74,
         "status": "Positive",
         "impact": "Positive",
         "data_used": "NewsAPI, Finnhub company news",
@@ -93,9 +93,11 @@
           "I Asked ChatGPT and Gemini How To Invest My Roth IRA Money in 2026: Here\u2019s What They Each Said",
           "Bitcoin just holds $64K after Fed revives hike risk, but one level still decides whether repair is real",
           "Retail hype for SpaceX stock shows no sign of waning days after the IPO",
-          "ETF Fund Flows: Profit-Taking Hits ARKK VO Nets $4.8B"
+          "ETF Fund Flows: Profit-Taking Hits ARKK VO Nets $4.8B",
+          "Breadth Repairs Wednesday\u2019s Damage as Growth Leads Again"
         ],
         "risks": [
+          "Stocks Supported as Geopolitical Risks Recede",
           "Bitcoin just holds $64K after Fed revives hike risk, but one level still decides whether repair is real"
         ],
         "bottom_line": "News flow supports the thesis."
@@ -234,15 +236,17 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 75,
+    "v42_news_score": 74,
     "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
       "I Asked ChatGPT and Gemini How To Invest My Roth IRA Money in 2026: Here\u2019s What They Each Said",
       "Bitcoin just holds $64K after Fed revives hike risk, but one level still decides whether repair is real",
       "Retail hype for SpaceX stock shows no sign of waning days after the IPO",
-      "ETF Fund Flows: Profit-Taking Hits ARKK VO Nets $4.8B"
+      "ETF Fund Flows: Profit-Taking Hits ARKK VO Nets $4.8B",
+      "Breadth Repairs Wednesday\u2019s Damage as Growth Leads Again"
     ],
     "v42_news_risks": [
+      "Stocks Supported as Geopolitical Risks Recede",
       "Bitcoin just holds $64K after Fed revives hike risk, but one level still decides whether repair is real"
     ],
     "v42_news_sources": [
@@ -315,7 +319,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-19T14:09:24.128769+00:00",
+    "scan_time": "2026-06-19T18:02:27.549455+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 297.91,
@@ -345,16 +349,18 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 83,
+        "score": 90,
         "status": "Positive",
         "impact": "Positive",
         "data_used": "NewsAPI, Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
+          "Eldora Opens 280+ Tokenized US Stocks to 85+ Countries, Launches $20,000 Campaign",
           "ETF Fund Flows: Profit-Taking Hits ARKK VO Nets $4.8B",
           "Daily ETF Flows: SOXL Pulls In $1.1B",
           "Daily ETF Flows: PULS Grabs Big Inflows",
-          "Daily ETF Flows: GLD Loses $702M"
+          "Daily ETF Flows: GLD Loses $702M",
+          "Breadth Repairs Wednesday\u2019s Damage as Growth Leads Again"
         ],
         "risks": [
           "No negative high-confidence headline detected."
@@ -493,13 +499,15 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 83,
+    "v42_news_score": 90,
     "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
+      "Eldora Opens 280+ Tokenized US Stocks to 85+ Countries, Launches $20,000 Campaign",
       "ETF Fund Flows: Profit-Taking Hits ARKK VO Nets $4.8B",
       "Daily ETF Flows: SOXL Pulls In $1.1B",
       "Daily ETF Flows: PULS Grabs Big Inflows",
-      "Daily ETF Flows: GLD Loses $702M"
+      "Daily ETF Flows: GLD Loses $702M",
+      "Breadth Repairs Wednesday\u2019s Damage as Growth Leads Again"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
@@ -572,7 +580,7 @@
       "RSI is constructive"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-19T14:16:58.636863+00:00",
+    "scan_time": "2026-06-19T18:10:15.096762+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 649.24,
@@ -797,7 +805,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-19T14:04:37.582384+00:00",
+    "scan_time": "2026-06-19T17:57:37.524393+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 522.74,
@@ -827,17 +835,16 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 69,
+        "score": 54,
         "status": "Mixed",
         "impact": "Neutral",
         "data_used": "NewsAPI, Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Niecy Nash & Daughter Dia Launch True-Crime Video Podcast With Pave Studios",
-          "AAII Sentiment Survey: Pessimism Draws Back"
+          "Niecy Nash & Daughter Dia Launch True-Crime Video Podcast With Pave Studios"
         ],
         "risks": [
-          "No negative high-confidence headline detected."
+          "Stocks Supported as Geopolitical Risks Recede"
         ],
         "bottom_line": "News is mixed or insufficient."
       },
@@ -975,14 +982,13 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 69,
+    "v42_news_score": 54,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "Niecy Nash & Daughter Dia Launch True-Crime Video Podcast With Pave Studios",
-      "AAII Sentiment Survey: Pessimism Draws Back"
+      "Niecy Nash & Daughter Dia Launch True-Crime Video Podcast With Pave Studios"
     ],
     "v42_news_risks": [
-      "No negative high-confidence headline detected."
+      "Stocks Supported as Geopolitical Risks Recede"
     ],
     "v42_news_sources": [
       "NewsAPI",
@@ -997,7 +1003,7 @@
     "v42_breakout_level": 527.97,
     "v42_pullback_zone": "$491.15 - $504.60",
     "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
-    "v42_committee_positive_agents": 2,
+    "v42_committee_positive_agents": 1,
     "v42_committee_total_agents": 10
   },
   {
@@ -1053,7 +1059,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-19T14:10:55.004844+00:00",
+    "scan_time": "2026-06-19T18:03:59.878411+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 110.24,
@@ -1305,7 +1311,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-19T14:18:58.653731+00:00",
+    "scan_time": "2026-06-19T18:11:51.226425+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.51,
@@ -1531,7 +1537,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-19T14:21:41.552788+00:00",
+    "scan_time": "2026-06-19T18:14:29.101457+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 159.93,
@@ -1756,7 +1762,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-19T14:21:39.230896+00:00",
+    "scan_time": "2026-06-19T18:14:26.756187+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 182.33,
@@ -1981,7 +1987,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-19T14:21:37.575676+00:00",
+    "scan_time": "2026-06-19T18:14:25.230048+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 53.9,
@@ -2205,7 +2211,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-19T13:59:59.727007+00:00",
+    "scan_time": "2026-06-19T17:53:04.760721+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 92.65,
@@ -2235,14 +2241,13 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 69,
+        "score": 62,
         "status": "Mixed",
         "impact": "Neutral",
         "data_used": "NewsAPI, Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "ETF Fund Flows: Profit-Taking Hits ARKK VO Nets $4.8B",
-          "This Week's Market Wrap: Oil Collapse, Fed Reset, And AI's Growing Reach"
+          "ETF Fund Flows: Profit-Taking Hits ARKK VO Nets $4.8B"
         ],
         "risks": [
           "No negative high-confidence headline detected."
@@ -2381,11 +2386,10 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 69,
+    "v42_news_score": 62,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "ETF Fund Flows: Profit-Taking Hits ARKK VO Nets $4.8B",
-      "This Week's Market Wrap: Oil Collapse, Fed Reset, And AI's Growing Reach"
+      "ETF Fund Flows: Profit-Taking Hits ARKK VO Nets $4.8B"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
@@ -2403,7 +2407,7 @@
     "v42_breakout_level": 83.27,
     "v42_pullback_zone": "$72.10 - $76.92",
     "v42_chart_guidance": "Between support and resistance. Prefer pullback entry or confirmed breakout.",
-    "v42_committee_positive_agents": 2,
+    "v42_committee_positive_agents": 1,
     "v42_committee_total_agents": 10
   },
   {
@@ -2460,7 +2464,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-19T14:09:37.702308+00:00",
+    "scan_time": "2026-06-19T18:02:41.266630+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 61.51,
@@ -2715,7 +2719,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-19T14:15:24.741306+00:00",
+    "scan_time": "2026-06-19T18:08:35.883122+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 18.29,
@@ -2940,7 +2944,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-19T14:21:48.122000+00:00",
+    "scan_time": "2026-06-19T18:14:36.152726+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 40.98,
@@ -3165,7 +3169,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-19T14:16:12.756849+00:00",
+    "scan_time": "2026-06-19T18:09:25.418249+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 15.93,
@@ -3387,7 +3391,7 @@
       "RSI is constructive"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-19T14:17:16.069220+00:00",
+    "scan_time": "2026-06-19T18:10:32.652392+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 629.72,
@@ -3612,7 +3616,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-19T14:20:36.611315+00:00",
+    "scan_time": "2026-06-19T18:13:30.727676+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 699.15,
@@ -3837,7 +3841,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-19T14:21:39.680279+00:00",
+    "scan_time": "2026-06-19T18:14:27.205549+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 198.73,
@@ -4062,7 +4066,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-19T14:20:47.632184+00:00",
+    "scan_time": "2026-06-19T18:13:41.832682+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 374.7,
@@ -4287,7 +4291,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-19T14:21:40.176519+00:00",
+    "scan_time": "2026-06-19T18:14:27.653256+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.64,
@@ -4512,7 +4516,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-19T14:15:20.927486+00:00",
+    "scan_time": "2026-06-19T18:08:31.892451+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 24.53,
@@ -4763,7 +4767,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-19T14:17:22.799817+00:00",
+    "scan_time": "2026-06-19T18:10:38.993173+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 758.45,
@@ -4987,7 +4991,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-19T14:08:37.623300+00:00",
+    "scan_time": "2026-06-19T18:01:36.083805+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 80.17,
@@ -5249,7 +5253,7 @@
     "risk_tags": [
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-19T14:21:41.099392+00:00",
+    "scan_time": "2026-06-19T18:14:28.666357+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 47.71,
@@ -5473,7 +5477,7 @@
     "risk_tags": [
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-19T14:09:36.563882+00:00",
+    "scan_time": "2026-06-19T18:02:40.220068+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 58.27,
@@ -5730,7 +5734,7 @@
       "price is below 20-day trend",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-19T14:16:30.646594+00:00",
+    "scan_time": "2026-06-19T18:09:46.272770+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 32.92,
@@ -5954,7 +5958,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-19T14:17:23.237395+00:00",
+    "scan_time": "2026-06-19T18:10:39.457689+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 17.87,
@@ -6179,7 +6183,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-19T14:21:40.607997+00:00",
+    "scan_time": "2026-06-19T18:14:28.163616+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 45.65,
@@ -6404,7 +6408,7 @@
       "price is below 50-day trend",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-19T14:21:42.000977+00:00",
+    "scan_time": "2026-06-19T18:14:29.562044+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 124.76,
@@ -6628,7 +6632,7 @@
       "price is below 50-day trend",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-19T14:18:23.701025+00:00",
+    "scan_time": "2026-06-19T18:11:18.453173+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 75.6,
@@ -6853,7 +6857,7 @@
       "price is below 50-day trend",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-19T14:01:41.601452+00:00",
+    "scan_time": "2026-06-19T17:54:41.334419+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 41.71,
@@ -7111,7 +7115,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-19T14:20:04.241616+00:00",
+    "scan_time": "2026-06-19T18:12:57.904071+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 62.28,
@@ -7335,7 +7339,7 @@
       "price is below 50-day trend",
       "20-day ETF trend is weak"
     ],
-    "scan_time": "2026-06-19T14:21:38.130240+00:00",
+    "scan_time": "2026-06-19T18:14:25.738980+00:00",
     "history_days_available": 250,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 63.46,
