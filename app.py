@@ -16,7 +16,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V49.3 Performance Stability Fix"
+APP_VERSION = "V50.0 Smart Money + Analyst Revision Upgrade"
 
 
 # =========================
@@ -13601,6 +13601,417 @@ def render_status_banner():
     c3.metric("Full Scan", state.get("full_scan_count", "N/A"))
     c4.metric("Prescreen", state.get("prescreen_count", "N/A"))
     persisted = bool(state.get("github_persisted")) or v45_text(state.get("version", "")).startswith(("V45", "V46", "V47", "V48", "V49"))
+    c5.metric("GitHub Persisted", "✅" if persisted else "❌")
+    if is_viewer():
+        st.info("Viewer mode: admin diagnostics are hidden.")
+    if state:
+        st.caption(f"Last scan: {state.get('generated_at', 'N/A')} | Duration: {state.get('duration_seconds', 'N/A')}s | DATA_DIR={state.get('data_dir', '.')}")
+
+
+
+# =========================
+# V50.0 SMART MONEY + ANALYST REVISION UPGRADE
+# =========================
+# Adds institutional/insider context, analyst revisions, stronger execution checks,
+# data quality badge, and a client summary section.
+
+@st.cache_data(ttl=3600)
+def v50_fmp_json(endpoint, params=None):
+    key = v45_secret("FMP_API_KEY") if "v45_secret" in globals() else FMP_API_KEY
+    if not key:
+        return None, "missing FMP key"
+    try:
+        url = f"https://financialmodelingprep.com/api/v3/{endpoint.lstrip('/')}"
+        p = dict(params or {})
+        p["apikey"] = key
+        r = requests.get(url, params=p, timeout=12)
+        if r.status_code != 200:
+            return None, f"HTTP {r.status_code}"
+        return r.json(), "ok"
+    except Exception as exc:
+        return None, f"error: {exc}"
+
+
+@st.cache_data(ttl=3600)
+def v50_finnhub_json(endpoint, params=None):
+    key = v45_secret("FINNHUB_API_KEY") if "v45_secret" in globals() else FINNHUB_API_KEY
+    if not key:
+        return None, "missing Finnhub key"
+    try:
+        url = f"https://finnhub.io/api/v1/{endpoint.lstrip('/')}"
+        p = dict(params or {})
+        p["token"] = key
+        r = requests.get(url, params=p, timeout=12)
+        if r.status_code != 200:
+            return None, f"HTTP {r.status_code}"
+        return r.json()
+    except Exception as exc:
+        return None
+
+
+def v50_quality_badge(report):
+    fin = report.get("financials", {})
+    analyst = report.get("analyst", {})
+    news = report.get("news", {})
+    tech = report.get("plan", {})
+    checks = 0
+    total = 8
+
+    if fin.get("coverage_count", 0) >= 6:
+        checks += 1
+    if fin.get("revenue_growth") is not None:
+        checks += 1
+    if fin.get("free_cash_flow") is not None or fin.get("operating_cash_flow") is not None:
+        checks += 1
+    if analyst.get("consensus"):
+        checks += 1
+    if analyst.get("count", 0) >= 3:
+        checks += 1
+    if news.get("rows"):
+        checks += 1
+    if tech.get("risk_reward") is not None:
+        checks += 1
+    if tech.get("stop") and tech.get("base_target"):
+        checks += 1
+
+    pct = checks / total
+    if pct >= 0.80:
+        label = "Excellent"
+    elif pct >= 0.62:
+        label = "Good"
+    elif pct >= 0.45:
+        label = "Limited"
+    else:
+        label = "Weak"
+    return {"label": label, "checks": checks, "total": total, "pct": pct}
+
+
+@st.cache_data(ttl=3600)
+def v50_smart_money(ticker):
+    ticker = v451_clean_ticker(ticker)
+    out = {"holders": [], "insiders": {}, "diagnostics": []}
+
+    holder_rows = []
+    for endpoint, params, label in [
+        (f"institutional-holder/{ticker}", {"limit": 10}, "FMP institutional holders"),
+        (f"mutual-fund-holder/{ticker}", {"limit": 10}, "FMP mutual fund holders"),
+    ]:
+        data, status = v50_fmp_json(endpoint, params)
+        out["diagnostics"].append(f"{label}: {status}")
+        if isinstance(data, list):
+            for item in data[:10]:
+                if not isinstance(item, dict):
+                    continue
+                holder = item.get("holder") or item.get("name") or item.get("investorName") or item.get("companyName")
+                shares = item.get("shares") or item.get("sharesNumber") or item.get("change")
+                value = item.get("value") or item.get("marketValue")
+                date = item.get("date") or item.get("reportDate") or item.get("fillingDate")
+                if holder:
+                    holder_rows.append({
+                        "Holder": v49_text(holder, "Holder"),
+                        "Shares": "N/A" if v49_num(shares, positive=False) is None else f"{v49_num(shares, positive=False):,.0f}",
+                        "Value": v49_money(value),
+                        "Report Date": v49_text(date, ""),
+                    })
+    out["holders"] = holder_rows[:10]
+
+    end = dt.datetime.now(dt.timezone.utc).date()
+    start = end - dt.timedelta(days=180)
+    tx = v50_finnhub_json("stock/insider-transactions", {"symbol": ticker, "from": str(start), "to": str(end)})
+    out["diagnostics"].append("Finnhub insider transactions attempted")
+
+    buys = sells = 0
+    buy_value = sell_value = 0.0
+    if isinstance(tx, dict):
+        tx_rows = tx.get("data") or []
+    elif isinstance(tx, list):
+        tx_rows = tx
+    else:
+        tx_rows = []
+
+    for item in tx_rows[:80]:
+        if not isinstance(item, dict):
+            continue
+        shares = v49_num(item.get("share") or item.get("change") or item.get("shares"), positive=False) or 0
+        price = v49_num(item.get("transactionPrice") or item.get("price"), positive=False) or 0
+        code = v49_text(item.get("transactionCode") or item.get("code"), "").upper()
+        value = abs(shares * price)
+        if code == "P" or shares > 0:
+            buys += 1
+            buy_value += value
+        elif code == "S" or shares < 0:
+            sells += 1
+            sell_value += value
+
+    label = "Neutral/Mixed"
+    if buy_value > sell_value * 1.5 and buys > 0:
+        label = "Positive"
+    elif sell_value > buy_value * 2 and sells > 0:
+        label = "Negative"
+
+    out["insiders"] = {
+        "label": label,
+        "buy_count": buys,
+        "sell_count": sells,
+        "buy_value": buy_value,
+        "sell_value": sell_value,
+    }
+    return out
+
+
+@st.cache_data(ttl=3600)
+def v50_analyst_revisions(ticker, price=0):
+    ticker = v451_clean_ticker(ticker)
+    out = {"rows": [], "diagnostics": []}
+
+    data, status = v50_fmp_json(f"upgrades-downgrades/{ticker}", {"limit": 10})
+    out["diagnostics"].append(f"FMP upgrades/downgrades: {status}")
+    if isinstance(data, list):
+        for item in data[:10]:
+            if not isinstance(item, dict):
+                continue
+            firm = item.get("gradingCompany") or item.get("analystCompany") or item.get("firm") or item.get("company")
+            action = item.get("newGrade") or item.get("action") or item.get("publishedGrade") or item.get("rating") or item.get("recommendation")
+            old = item.get("previousGrade") or item.get("oldGrade")
+            target = item.get("priceTarget") or item.get("targetPrice") or item.get("target")
+            date = item.get("publishedDate") or item.get("date")
+            if firm or action or target:
+                tv = v49_num(target, positive=True)
+                out["rows"].append({
+                    "Firm / Source": v49_text(firm, "Analyst"),
+                    "Action / Rating": v49_text(action, "N/A"),
+                    "Prior": v49_text(old, ""),
+                    "Target": v49_money(tv) if tv else "N/A",
+                    "Upside": "N/A" if not (price and tv) else v49_pct(((tv - price) / price) * 100),
+                    "Date": v49_text(date, ""),
+                })
+
+    consensus, status2 = v50_fmp_json(f"price-target-consensus/{ticker}", {})
+    out["diagnostics"].append(f"FMP price target consensus: {status2}")
+    if isinstance(consensus, dict):
+        for name, val in [
+            ("Consensus", consensus.get("targetConsensus") or consensus.get("targetMean") or consensus.get("consensus")),
+            ("High target", consensus.get("targetHigh")),
+            ("Low target", consensus.get("targetLow")),
+        ]:
+            tv = v49_num(val, positive=True)
+            if tv:
+                out["rows"].append({
+                    "Firm / Source": f"Wall Street {name}",
+                    "Action / Rating": "Price Target",
+                    "Prior": "",
+                    "Target": v49_money(tv),
+                    "Upside": "N/A" if not price else v49_pct(((tv - price) / price) * 100),
+                    "Date": "",
+                })
+
+    seen = set()
+    clean = []
+    for row in out["rows"]:
+        key = tuple(row.items())
+        if key not in seen:
+            seen.add(key)
+            clean.append(row)
+    out["rows"] = clean[:8]
+    return out
+
+
+def v50_ready_verdict(row):
+    score = safe_number(row.get("Final Conviction"), 0)
+    price = safe_number(row.get("Price"), 0)
+    upside = safe_number(row.get("Target Upside %"), 0)
+    rsi = safe_number(row.get("RSI"), 50)
+    rr = safe_number(row.get("Risk/Reward"), 0)
+    stop = safe_number(row.get("Stop Loss"), 0)
+    analyst_target = safe_number(row.get("Analyst Target"), 0)
+    analyst_count = safe_number(row.get("Analyst Count"), 0)
+    news = safe_text(row.get("News Sentiment"), "").lower()
+
+    analyst_upside = ((analyst_target - price) / price) * 100 if price and analyst_target else 0
+    stop_risk = ((price - stop) / price) * 100 if price and stop and price > stop else None
+
+    checks = {
+        "score": score >= 78,
+        "upside": upside >= 12 or analyst_upside >= 10,
+        "risk_reward": rr >= 1.5 if rr else upside >= 15,
+        "rsi": rsi < 72 if rsi else True,
+        "stop": stop_risk is not None and 4 <= stop_risk <= 22,
+        "analyst": analyst_count >= 3 or analyst_upside >= 10,
+        "news": "negative" not in news,
+    }
+    passed = sum(1 for v in checks.values() if v)
+
+    if passed >= 6 and score >= 82:
+        verdict = "BUY NOW"
+    elif passed >= 5 and score >= 75:
+        verdict = "BUY GRADUALLY"
+    elif passed >= 3:
+        verdict = "WATCH"
+    else:
+        verdict = "AVOID"
+    return verdict, checks, passed
+
+
+def v493_fast_verdict(row):
+    return v50_ready_verdict(row)[0]
+
+
+def v493_table_rows_fast(df, limit=60):
+    rows = []
+    if df is None or df.empty:
+        return rows
+
+    for _, row in df.head(limit).iterrows():
+        price = safe_number(row.get("Price"), 0)
+        target = safe_number(row.get("AI Fair Value") or row.get("Analyst Target"), 0)
+        upside = safe_number(row.get("Target Upside %"), 0)
+        stop = safe_number(row.get("Stop Loss"), 0)
+        verdict, checks, passed = v50_ready_verdict(row)
+
+        rows.append({
+            "Ticker": safe_text(row.get("Ticker"), ""),
+            "Company": safe_text(row.get("Company"), ""),
+            "Verdict": verdict,
+            "Execution Checks": f"{passed}/7",
+            "Score": int(safe_number(row.get("Final Conviction"), 0)),
+            "Price": v493_fast_money(price),
+            "AI / Analyst Target": v493_fast_money(target),
+            "Upside": v493_fast_pct(upside),
+            "Entry": safe_text(row.get("Entry Range"), "N/A"),
+            "Stop": v493_fast_money(stop) if stop else "N/A",
+            "R/R": v493_fast_rr(row),
+            "Analyst Support": safe_text(row.get("Analyst Support"), "N/A"),
+            "News": safe_text(row.get("News Sentiment"), "N/A"),
+        })
+    return rows
+
+
+def render_v50_smart_money(row):
+    r = v49_build_research_report(row)
+    sm = v50_smart_money(r["ticker"])
+    with st.container(border=True):
+        st.markdown("### 🧠 Smart Money Activity")
+        st.caption("Institutional holders and insider activity help clients understand whether sophisticated investors or insiders are aligned with the thesis.")
+
+        insiders = sm.get("insiders", {})
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Insider Tone", insiders.get("label", "N/A"))
+        c2.metric("Insider Buys", str(insiders.get("buy_count", 0)))
+        c3.metric("Insider Sells", str(insiders.get("sell_count", 0)))
+        net = (insiders.get("buy_value", 0) or 0) - (insiders.get("sell_value", 0) or 0)
+        c4.metric("Net Insider Value", v49_money(net))
+
+        holders = sm.get("holders", [])
+        if holders:
+            st.markdown("#### Top Institutional / Fund Holders")
+            st.dataframe(pd.DataFrame(holders[:8]), use_container_width=True, hide_index=True)
+        else:
+            st.info("Institutional holder detail was not returned by the connected API tier for this ticker.")
+
+        if not is_viewer():
+            with st.expander("Admin smart money diagnostics", expanded=False):
+                for x in sm.get("diagnostics", [])[:50]:
+                    st.caption(x)
+
+
+def render_v50_analyst_revisions(row):
+    r = v49_build_research_report(row)
+    revisions = v50_analyst_revisions(r["ticker"], price=r.get("price"))
+    with st.container(border=True):
+        st.markdown("### 📈 Analyst Revision Intelligence")
+        st.caption("Recent analyst actions and target updates help show whether Wall Street sentiment is improving, deteriorating, or stable.")
+
+        rows = revisions.get("rows", [])
+        if rows:
+            st.dataframe(pd.DataFrame(rows[:8]), use_container_width=True, hide_index=True)
+        else:
+            st.info("Recent firm-level analyst revisions were not returned by the connected API tier. Consensus target data is still shown in Wall Street View.")
+
+        if not is_viewer():
+            with st.expander("Admin analyst revision diagnostics", expanded=False):
+                for x in revisions.get("diagnostics", [])[:50]:
+                    st.caption(x)
+
+
+def render_v50_client_summary(row):
+    r = v49_build_research_report(row)
+    q = v50_quality_badge(r)
+    p = r["plan"]
+    with st.container(border=True):
+        st.markdown("### 🧾 Client Summary")
+        st.caption("One-page decision summary clients can read quickly before opening the deeper research sections.")
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Verdict", r["verdict"])
+        c2.metric("Opportunity Score", f"{r['opportunity_score']:.1f}/100")
+        c3.metric("Data Quality", f"{q['label']} ({q['checks']}/{q['total']})")
+        c4.metric("Risk/Reward", "N/A" if p.get("risk_reward") is None else f"{p.get('risk_reward'):.2f}:1")
+
+        st.markdown("#### Action Plan")
+        st.markdown(f"• **Ideal Entry:** Below {v49_money(p.get('ideal_entry'))}")
+        st.markdown(f"• **Aggressive Entry:** {v49_money(p.get('aggressive_low'))} – {v49_money(p.get('aggressive_high'))}")
+        st.markdown(f"• **Trading Stop:** {v49_money(p.get('stop'))}")
+        st.markdown(f"• **Base Target:** {v49_money(p.get('base_target'))}")
+
+        positives = []
+        risks = []
+        fin = r["financials"]
+        analyst = r["analyst"]
+        if fin.get("revenue_growth") is not None:
+            positives.append(f"Revenue growth: {fin['revenue_growth']:.1f}%")
+        if fin.get("free_cash_flow") and fin.get("free_cash_flow") > 0:
+            positives.append("Free cash flow is positive")
+        if analyst.get("upside") is not None:
+            positives.append(f"Analyst upside: {analyst['upside']:.1f}%")
+        if not r["news"].get("rows"):
+            risks.append("Recent ticker-specific news is limited")
+        if fin.get("balance_sheet_plain"):
+            risks.append(fin["balance_sheet_plain"])
+
+        left, right = st.columns(2)
+        with left:
+            st.markdown("#### Why it may work")
+            for x in positives[:5] or ["The opportunity is mainly supported by technical/valuation setup."]:
+                st.markdown(f"✓ {x}")
+        with right:
+            st.markdown("#### Main risks")
+            for x in risks[:5] or ["Normal market and execution risk."]:
+                st.markdown(f"⚠️ {x}")
+
+
+def render_v50_research_page(row):
+    render_v49_research_summary(row)
+    render_v50_client_summary(row)
+    render_v49_trade_plan(row)
+    render_v491_financials(row)
+    render_v491_analysts(row)
+    render_v50_analyst_revisions(row)
+    render_v50_smart_money(row)
+    render_v49_news(row)
+    render_v451_metric_interpreter(row)
+    if "render_detail_chart_v4184" in globals():
+        try:
+            render_detail_chart_v4184(row)
+        except Exception:
+            pass
+    render_v491_final(row)
+
+
+def render_detail(row):
+    render_v50_research_page(row)
+
+
+def render_status_banner():
+    state = read_state()
+    st.title("📈 AI Trading Dashboard")
+    st.caption(APP_VERSION)
+    st.caption("Smart Money + Analyst Revision Upgrade: adds institutional/insider context, analyst revision detail, stronger execution checks, and client summary.")
+    c1,c2,c3,c4,c5 = st.columns(5)
+    c1.metric("Status", state.get("status", "unknown"))
+    c2.metric("Scanner Version", state.get("version", "N/A"))
+    c3.metric("Full Scan", state.get("full_scan_count", "N/A"))
+    c4.metric("Prescreen", state.get("prescreen_count", "N/A"))
+    persisted = bool(state.get("github_persisted")) or v45_text(state.get("version", "")).startswith(("V45", "V46", "V47", "V48", "V49", "V50"))
     c5.metric("GitHub Persisted", "✅" if persisted else "❌")
     if is_viewer():
         st.info("Viewer mode: admin diagnostics are hidden.")
