@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-19T21:04:59.043850+00:00",
+  "generated_at": "2026-06-20T00:32:19.311872+00:00",
   "status": "success",
   "version": "V49.3",
   "universe_count": 2900,
@@ -10,7 +10,7 @@
   "fallback_rows_allowed": false,
   "data_dir": ".",
   "github_persisted": true,
-  "duration_seconds": 1411.07,
+  "duration_seconds": 994.59,
   "fast_cron_mode": true,
   "full_committee_limit": 15,
   "pre_rank_deep_apis_skipped": true,
