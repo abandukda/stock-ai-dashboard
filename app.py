@@ -16,7 +16,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V50.1 Research Confidence Engine"
+APP_VERSION = "V50.2 Financial Health Completion Engine"
 
 
 # =========================
@@ -14350,6 +14350,397 @@ def render_status_banner():
     st.title("📈 AI Trading Dashboard")
     st.caption(APP_VERSION)
     st.caption("Research Confidence Engine: separates opportunity from confidence, fixes target hierarchy, filters irrelevant news, and avoids false AVOID calls.")
+    c1,c2,c3,c4,c5 = st.columns(5)
+    c1.metric("Status", state.get("status", "unknown"))
+    c2.metric("Scanner Version", state.get("version", "N/A"))
+    c3.metric("Full Scan", state.get("full_scan_count", "N/A"))
+    c4.metric("Prescreen", state.get("prescreen_count", "N/A"))
+    persisted = bool(state.get("github_persisted")) or v45_text(state.get("version", "")).startswith(("V45", "V46", "V47", "V48", "V49", "V50"))
+    c5.metric("GitHub Persisted", "✅" if persisted else "❌")
+    if is_viewer():
+        st.info("Viewer mode: admin diagnostics are hidden.")
+    if state:
+        st.caption(f"Last scan: {state.get('generated_at', 'N/A')} | Duration: {state.get('duration_seconds', 'N/A')}s | DATA_DIR={state.get('data_dir','.')}")
+
+
+
+# =========================
+# V50.2 FINANCIAL HEALTH COMPLETION ENGINE
+# =========================
+# Green/yellow/red financial metric scoring with fallback calculations.
+
+@st.cache_data(ttl=3600)
+def v502_fmp_v3(endpoint, params=None):
+    key = v45_secret("FMP_API_KEY") if "v45_secret" in globals() else FMP_API_KEY
+    if not key:
+        return None
+    try:
+        url = f"https://financialmodelingprep.com/api/v3/{endpoint.lstrip('/')}"
+        p = dict(params or {})
+        p["apikey"] = key
+        r = requests.get(url, params=p, timeout=12)
+        if r.status_code != 200:
+            return None
+        return r.json()
+    except Exception:
+        return None
+
+
+@st.cache_data(ttl=3600)
+def v502_yahoo_info(ticker):
+    try:
+        info = yf.Ticker(ticker).info or {}
+        return info if isinstance(info, dict) else {}
+    except Exception:
+        return {}
+
+
+def v502_pct(x):
+    v = v49_num(x, positive=False)
+    if v is None:
+        return None
+    if -2 < v < 2:
+        v *= 100
+    if abs(v) > 500:
+        return None
+    return v
+
+
+def v502_first(*vals):
+    for v in vals:
+        n = v49_num(v, positive=False)
+        if n is not None:
+            return n
+    return None
+
+
+def v502_complete_financials(ticker, base_fin=None):
+    ticker = v451_clean_ticker(ticker)
+    fin = dict(base_fin or {})
+    sources = dict(fin.get("completion_sources", {}) or {})
+    diagnostics = list(fin.get("diagnostics", []) or [])
+
+    ratios = v502_fmp_v3(f"ratios-ttm/{ticker}", {"limit": 1})
+    metrics = v502_fmp_v3(f"key-metrics-ttm/{ticker}", {"limit": 1})
+    income = v502_fmp_v3(f"income-statement/{ticker}", {"limit": 2})
+    cashflow = v502_fmp_v3(f"cash-flow-statement/{ticker}", {"limit": 2})
+    balance = v502_fmp_v3(f"balance-sheet-statement/{ticker}", {"limit": 2})
+    growth = v502_fmp_v3(f"financial-growth/{ticker}", {"limit": 2})
+    yahoo = v502_yahoo_info(ticker)
+
+    r0 = ratios[0] if isinstance(ratios, list) and ratios and isinstance(ratios[0], dict) else {}
+    m0 = metrics[0] if isinstance(metrics, list) and metrics and isinstance(metrics[0], dict) else {}
+    i0 = income[0] if isinstance(income, list) and income and isinstance(income[0], dict) else {}
+    i1 = income[1] if isinstance(income, list) and len(income) > 1 and isinstance(income[1], dict) else {}
+    c0 = cashflow[0] if isinstance(cashflow, list) and cashflow and isinstance(cashflow[0], dict) else {}
+    b0 = balance[0] if isinstance(balance, list) and balance and isinstance(balance[0], dict) else {}
+    g0 = growth[0] if isinstance(growth, list) and growth and isinstance(growth[0], dict) else {}
+
+    revenue = v502_first(i0.get("revenue"), yahoo.get("totalRevenue"))
+    prev_revenue = v502_first(i1.get("revenue"))
+    gross_profit = v502_first(i0.get("grossProfit"))
+    operating_income = v502_first(i0.get("operatingIncome"))
+    net_income = v502_first(i0.get("netIncome"), yahoo.get("netIncomeToCommon"))
+    equity = v502_first(b0.get("totalStockholdersEquity"), b0.get("totalEquity"))
+    assets = v502_first(b0.get("totalAssets"))
+    current_assets = v502_first(b0.get("totalCurrentAssets"))
+    current_liabilities = v502_first(b0.get("totalCurrentLiabilities"))
+    cash = v502_first(fin.get("cash"), b0.get("cashAndCashEquivalents"), b0.get("cashAndShortTermInvestments"), yahoo.get("totalCash"))
+    debt = v502_first(fin.get("total_debt"), b0.get("totalDebt"), yahoo.get("totalDebt"))
+
+    if fin.get("revenue_growth") is None:
+        val = v502_pct(g0.get("revenueGrowth") or yahoo.get("revenueGrowth"))
+        if val is None and revenue and prev_revenue:
+            val = ((revenue - prev_revenue) / abs(prev_revenue)) * 100
+            sources["revenue_growth"] = "Derived from income statements"
+        if val is not None:
+            fin["revenue_growth"] = val
+            sources.setdefault("revenue_growth", "FMP/Yahoo fallback")
+
+    if fin.get("eps_growth") is None:
+        val = v502_pct(g0.get("epsgrowth") or g0.get("epsGrowth") or yahoo.get("earningsGrowth"))
+        if val is not None:
+            fin["eps_growth"] = val
+            sources["eps_growth"] = "FMP/Yahoo fallback"
+
+    if fin.get("gross_margin") is None:
+        val = v502_pct(r0.get("grossProfitMarginTTM") or yahoo.get("grossMargins"))
+        if val is None and revenue and gross_profit is not None:
+            val = gross_profit / revenue * 100
+            sources["gross_margin"] = "Derived: gross profit / revenue"
+        if val is not None:
+            fin["gross_margin"] = val
+            sources.setdefault("gross_margin", "FMP/Yahoo fallback")
+
+    if fin.get("operating_margin") is None:
+        val = v502_pct(r0.get("operatingProfitMarginTTM") or yahoo.get("operatingMargins"))
+        if val is None and revenue and operating_income is not None:
+            val = operating_income / revenue * 100
+            sources["operating_margin"] = "Derived: operating income / revenue"
+        if val is not None:
+            fin["operating_margin"] = val
+            sources.setdefault("operating_margin", "FMP/Yahoo fallback")
+
+    if fin.get("net_margin") is None:
+        val = v502_pct(r0.get("netProfitMarginTTM") or yahoo.get("profitMargins"))
+        if val is None and revenue and net_income is not None:
+            val = net_income / revenue * 100
+            sources["net_margin"] = "Derived: net income / revenue"
+        if val is not None:
+            fin["net_margin"] = val
+            sources.setdefault("net_margin", "FMP/Yahoo fallback")
+
+    ocf = v502_first(fin.get("operating_cash_flow"), c0.get("operatingCashFlow"), yahoo.get("operatingCashflow"))
+    capex = v502_first(c0.get("capitalExpenditure"), c0.get("capitalExpenditures"))
+    fcf = v502_first(fin.get("free_cash_flow"), c0.get("freeCashFlow"), yahoo.get("freeCashflow"))
+    if fcf is None and ocf is not None and capex is not None:
+        fcf = ocf + capex
+        sources["free_cash_flow"] = "Derived: operating cash flow minus capex"
+    if ocf is not None:
+        fin["operating_cash_flow"] = ocf
+        sources.setdefault("operating_cash_flow", "FMP/Yahoo fallback")
+    if fcf is not None:
+        fin["free_cash_flow"] = fcf
+        sources.setdefault("free_cash_flow", "FMP/Yahoo fallback")
+
+    if cash is not None:
+        fin["cash"] = cash
+        sources.setdefault("cash", "FMP/Yahoo fallback")
+    if debt is not None:
+        fin["total_debt"] = debt
+        sources.setdefault("total_debt", "FMP/Yahoo fallback")
+    if cash is not None and debt is not None:
+        fin["net_cash"] = cash - debt
+        sources["net_cash"] = "Derived: cash - debt"
+
+    if fin.get("debt_equity") is None and debt is not None and equity not in (None, 0):
+        fin["debt_equity"] = debt / abs(equity)
+        sources["debt_equity"] = "Derived: total debt / equity"
+
+    if fin.get("current_ratio") is None:
+        val = v502_first(r0.get("currentRatioTTM"), yahoo.get("currentRatio"))
+        if val is None and current_assets is not None and current_liabilities not in (None, 0):
+            val = current_assets / current_liabilities
+            sources["current_ratio"] = "Derived: current assets / current liabilities"
+        if val is not None:
+            fin["current_ratio"] = val
+            sources.setdefault("current_ratio", "FMP/Yahoo fallback")
+
+    if fin.get("roe") is None:
+        val = v502_pct(r0.get("returnOnEquityTTM") or m0.get("roe") or yahoo.get("returnOnEquity"))
+        if val is None and net_income is not None and equity not in (None, 0):
+            val = net_income / abs(equity) * 100
+            sources["roe"] = "Derived: net income / equity"
+        if val is not None:
+            fin["roe"] = val
+            sources.setdefault("roe", "FMP/Yahoo fallback")
+
+    if fin.get("roa") is None:
+        val = v502_pct(r0.get("returnOnAssetsTTM") or yahoo.get("returnOnAssets"))
+        if val is None and net_income is not None and assets not in (None, 0):
+            val = net_income / assets * 100
+            sources["roa"] = "Derived: net income / assets"
+        if val is not None:
+            fin["roa"] = val
+            sources.setdefault("roa", "FMP/Yahoo fallback")
+
+    for key, val in {
+        "pe": v502_first(r0.get("priceEarningsRatioTTM"), yahoo.get("trailingPE")),
+        "forward_pe": v502_first(yahoo.get("forwardPE")),
+        "peg": v502_first(r0.get("priceEarningsToGrowthRatioTTM"), yahoo.get("pegRatio"), yahoo.get("trailingPegRatio")),
+    }.items():
+        if fin.get(key) is None and val is not None:
+            fin[key] = val
+            sources[key] = "FMP/Yahoo fallback"
+
+    core = ["revenue_growth", "eps_growth", "gross_margin", "operating_margin", "net_margin",
+            "free_cash_flow", "operating_cash_flow", "cash", "total_debt", "debt_equity",
+            "current_ratio", "roe"]
+    populated = sum(1 for k in core if fin.get(k) is not None)
+    fin["coverage_count"] = populated
+    fin["coverage_total"] = len(core)
+    fin["coverage_label"] = "Excellent" if populated >= 10 else ("Good" if populated >= 8 else ("Partial" if populated >= 6 else "Limited"))
+    fin["completion_sources"] = sources
+    fin["diagnostics"] = diagnostics
+    return fin
+
+
+def v502_rating(label, value):
+    v = v49_num(value, positive=False)
+    if v is None:
+        return "⚪ Missing", 0, "Unavailable"
+    key = label.lower()
+    if key == "revenue growth":
+        return ("🟢 Excellent", 100, "Sales growth is strong.") if v >= 15 else (("🟡 Average", 60, "Sales growth is positive but moderate.") if v >= 5 else ("🔴 Weak", 25, "Sales growth is weak or declining."))
+    if key == "eps growth":
+        return ("🟢 Excellent", 100, "Earnings growth is strong.") if v >= 15 else (("🟡 Average", 60, "Earnings growth is positive but modest.") if v >= 0 else ("🔴 Weak", 20, "Earnings are declining."))
+    if key == "gross margin":
+        return ("🟢 Excellent", 100, "Strong pricing power / premium margin profile.") if v >= 50 else (("🟡 Average", 60, "Acceptable margin profile.") if v >= 30 else ("🔴 Weak", 25, "Low gross margin limits profitability."))
+    if key == "operating margin":
+        return ("🟢 Excellent", 100, "Strong operating leverage.") if v >= 20 else (("🟡 Average", 60, "Profitable but not elite.") if v >= 10 else ("🔴 Weak", 25, "Thin or negative operating profitability."))
+    if key == "net margin":
+        return ("🟢 Excellent", 100, "Strong bottom-line profitability.") if v >= 15 else (("🟡 Average", 60, "Profitable but not highly profitable.") if v >= 5 else ("🔴 Weak", 25, "Low or negative bottom-line profitability."))
+    if key == "free cash flow":
+        return ("🟢 Strong", 100, "Business generates cash after reinvestment.") if v > 0 else ("🔴 Weak", 20, "Business is consuming cash.")
+    if key == "debt / equity":
+        return ("🟢 Healthy", 100, "Debt load appears manageable.") if v < 0.5 else (("🟡 Average", 60, "Debt is moderate.") if v <= 1.0 else ("🔴 High Risk", 25, "Debt load is elevated."))
+    if key == "current ratio":
+        return ("🟢 Healthy", 100, "Short-term liquidity is strong.") if v > 1.5 else (("🟡 Average", 60, "Liquidity is adequate.") if v >= 1.0 else ("🔴 Weak", 25, "Short-term liquidity is tight."))
+    if key == "roe":
+        return ("🟢 Elite", 100, "Very strong return on equity.") if v >= 20 else (("🟡 Average", 60, "Acceptable return on equity.") if v >= 10 else ("🔴 Weak", 25, "Weak return on equity."))
+    if key == "cash position":
+        return ("🟢 Strong", 100, "Company has meaningful liquidity.") if v > 0 else ("🔴 Weak", 20, "Cash position is weak.")
+    return "⚪ Available", 50, "Metric available."
+
+
+def v502_financial_score(fin):
+    weights = {
+        "Revenue Growth": 15, "EPS Growth": 15, "Gross Margin": 10,
+        "Operating Margin": 10, "Net Margin": 10, "Free Cash Flow": 15,
+        "Debt / Equity": 10, "ROE": 10, "Current Ratio": 5,
+    }
+    values = {
+        "Revenue Growth": fin.get("revenue_growth"),
+        "EPS Growth": fin.get("eps_growth"),
+        "Gross Margin": fin.get("gross_margin"),
+        "Operating Margin": fin.get("operating_margin"),
+        "Net Margin": fin.get("net_margin"),
+        "Free Cash Flow": fin.get("free_cash_flow"),
+        "Debt / Equity": fin.get("debt_equity"),
+        "ROE": fin.get("roe"),
+        "Current Ratio": fin.get("current_ratio"),
+    }
+    total = weighted = 0
+    for label, weight in weights.items():
+        if values[label] is None:
+            continue
+        _, s, _ = v502_rating(label, values[label])
+        total += weight
+        weighted += s * weight
+    if total == 0:
+        return 0, "Unavailable"
+    score = round(weighted / total)
+    rating = "Excellent" if score >= 90 else ("Strong" if score >= 75 else ("Average" if score >= 60 else ("Weak" if score >= 40 else "Poor")))
+    return score, rating
+
+
+v502_original_build_research_report = v49_build_research_report
+
+def v49_build_research_report(row):
+    r = dict(v502_original_build_research_report(row))
+    fin = v502_complete_financials(r.get("ticker"), r.get("financials", {}))
+    r["financials"] = fin
+    score, label = v502_financial_score(fin)
+    r["financial_health_score"] = score
+    r["financial_health_label"] = label
+    if "v501_research_confidence" in globals():
+        r["research_confidence"] = v501_research_confidence(r)
+    return r
+
+
+def render_v491_financials(row):
+    r = v49_build_research_report(row)
+    fin = r["financials"]
+    score = r.get("financial_health_score", 0)
+    rating_label = r.get("financial_health_label", "Unavailable")
+    with st.container(border=True):
+        st.markdown("### 🏢 Financial Health")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Financial Health Score", f"{score}/100")
+        c2.metric("Rating", rating_label)
+        c3.metric("Data Coverage", f"{fin.get('coverage_label')} ({fin.get('coverage_count')}/{fin.get('coverage_total')})")
+
+        source_map = {
+            "Revenue Growth": "revenue_growth", "EPS Growth": "eps_growth",
+            "Gross Margin": "gross_margin", "Operating Margin": "operating_margin",
+            "Net Margin": "net_margin", "Free Cash Flow": "free_cash_flow",
+            "Operating Cash Flow": "operating_cash_flow", "Cash Position": "cash",
+            "Total Debt": "total_debt", "Debt / Equity": "debt_equity",
+            "Current Ratio": "current_ratio", "ROE": "roe", "ROA": "roa",
+        }
+        rows = []
+        metric_defs = [
+            ("Revenue Growth", fin.get("revenue_growth"), "pct"),
+            ("EPS Growth", fin.get("eps_growth"), "pct"),
+            ("Gross Margin", fin.get("gross_margin"), "pct"),
+            ("Operating Margin", fin.get("operating_margin"), "pct"),
+            ("Net Margin", fin.get("net_margin"), "pct"),
+            ("Free Cash Flow", fin.get("free_cash_flow"), "money"),
+            ("Operating Cash Flow", fin.get("operating_cash_flow"), "money"),
+            ("Cash Position", fin.get("cash"), "money"),
+            ("Total Debt", fin.get("total_debt"), "money"),
+            ("Debt / Equity", fin.get("debt_equity"), "num"),
+            ("Current Ratio", fin.get("current_ratio"), "num"),
+            ("ROE", fin.get("roe"), "pct"),
+            ("ROA", fin.get("roa"), "pct"),
+        ]
+        for metric, val, fmt in metric_defs:
+            if val is None:
+                continue
+            tl, _, meaning = v502_rating(metric, val)
+            if fmt == "money":
+                display = v49_money(val)
+            elif fmt == "pct":
+                display = f"{v49_num(val):.1f}%"
+            else:
+                display = f"{v49_num(val):.2f}"
+            rows.append({
+                "Metric": metric,
+                "Value": display,
+                "Traffic Light": tl,
+                "What it means": meaning,
+                "Source": fin.get("completion_sources", {}).get(source_map.get(metric, ""), "API / derived fallback"),
+            })
+
+        if rows:
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        else:
+            st.info("Financial metrics did not populate enough for scoring.")
+
+        st.markdown("#### Financial readout")
+        if score >= 90:
+            st.success("Financial health looks excellent. Growth, profitability, and/or cash generation strongly support the thesis.")
+        elif score >= 75:
+            st.success("Financial health looks strong, though a few metrics may need monitoring.")
+        elif score >= 60:
+            st.warning("Financial health looks average. The investment case may depend more on valuation, technicals, or catalysts.")
+        elif score > 0:
+            st.error("Financial health is weak. Treat the setup as higher risk unless other evidence is very strong.")
+        else:
+            st.info("Financial health could not be scored due to insufficient financial data.")
+
+        if not is_viewer():
+            with st.expander("Admin financial diagnostics", expanded=False):
+                st.write(fin.get("completion_sources", {}))
+                for x in fin.get("diagnostics", [])[:80]:
+                    st.caption(x)
+
+
+def render_v50_client_summary(row):
+    r = v49_build_research_report(row)
+    q = r.get("research_confidence", {"label": "N/A", "score": 0})
+    p = r["plan"]
+    with st.container(border=True):
+        st.markdown("### 🧾 Client Summary")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Verdict", r["verdict"])
+        c2.metric("Investment Score", f"{r.get('investment_score', r.get('opportunity_score', 0)):.1f}/100")
+        c3.metric("Research Confidence", f"{q['label']} ({q['score']:.0f}/100)")
+        c4.metric("Financial Health", f"{r.get('financial_health_label', 'N/A')} ({r.get('financial_health_score', 0)}/100)")
+        st.markdown("#### Action Plan")
+        st.markdown(f"• **Ideal Entry:** Below {v49_money(p.get('ideal_entry'))}")
+        st.markdown(f"• **Aggressive Entry:** {v49_money(p.get('aggressive_low'))} – {v49_money(p.get('aggressive_high'))}")
+        st.markdown(f"• **Trading Stop:** {v49_money(p.get('stop'))}")
+        st.markdown(f"• **Conservative Target:** {v49_money(p.get('target1'))}")
+        st.markdown(f"• **Base Target:** {v49_money(p.get('base_target'))}")
+        st.markdown(f"• **Bull Target:** {v49_money(p.get('bull_target'))}")
+
+
+def render_status_banner():
+    state = read_state()
+    st.title("📈 AI Trading Dashboard")
+    st.caption(APP_VERSION)
+    st.caption("Financial Health Completion Engine: green/yellow/red metric scoring with derived fallback calculations for margins, cash flow, debt, liquidity, and returns.")
     c1,c2,c3,c4,c5 = st.columns(5)
     c1.metric("Status", state.get("status", "unknown"))
     c2.metric("Scanner Version", state.get("version", "N/A"))
