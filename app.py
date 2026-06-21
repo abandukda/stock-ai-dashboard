@@ -16,7 +16,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V50.0 Smart Money + Analyst Revision Upgrade"
+APP_VERSION = "V50.1 Research Confidence Engine"
 
 
 # =========================
@@ -14017,6 +14017,350 @@ def render_status_banner():
         st.info("Viewer mode: admin diagnostics are hidden.")
     if state:
         st.caption(f"Last scan: {state.get('generated_at', 'N/A')} | Duration: {state.get('duration_seconds', 'N/A')}s | DATA_DIR={state.get('data_dir', '.')}")
+
+
+
+# =========================
+# V50.1 RESEARCH CONFIDENCE ENGINE
+# =========================
+# Separates investment opportunity from research confidence, adds INSUFFICIENT DATA,
+# fixes target hierarchy, and filters unrelated news.
+
+v501_original_build_research_report = v49_build_research_report
+
+def v501_company_terms(ticker, company):
+    ticker = v451_clean_ticker(ticker)
+    company = v49_text(company, ticker)
+    terms = {ticker.lower()}
+    for part in re.split(r"[^A-Za-z0-9\.]+", company.lower()):
+        p = part.strip(".")
+        if len(p) >= 3 and p not in {"inc", "corp", "corporation", "company", "limited", "ltd", "plc", "class", "holdings"}:
+            terms.add(p)
+    if ticker.upper() == "ELF":
+        terms.update(["e.l.f", "e.l.f.", "elf beauty", "e.l.f. beauty"])
+    return terms
+
+def v501_filter_relevant_news(news, ticker, company):
+    news = dict(news or {})
+    terms = v501_company_terms(ticker, company)
+    rows = []
+    for item in news.get("rows", []) or []:
+        if not isinstance(item, dict):
+            continue
+        headline = v49_text(item.get("headline") or item.get("title"), "")
+        source = v49_text(item.get("source"), "")
+        text = f"{headline} {source}".lower()
+        if any(term in text for term in terms):
+            rows.append(item)
+    news["rows"] = rows[:8]
+    if not rows:
+        news["bullish"] = []
+        news["bearish"] = []
+        news["sentiment"] = "Unavailable / not ticker-specific"
+        news["score"] = 50
+    return news
+
+def v501_analyst_target_fallback(analyst, row):
+    a = dict(analyst or {})
+    price = safe_number(row.get("Price"), 0)
+    row_target = safe_number(row.get("Analyst Target"), 0)
+    ai_target = safe_number(row.get("AI Fair Value"), 0)
+    count = int(safe_number(a.get("count") or row.get("Analyst Count"), 0))
+    if not a.get("consensus"):
+        if row_target:
+            a["consensus"] = row_target
+        elif ai_target and count >= 3:
+            a["consensus"] = ai_target
+            a["target_source_note"] = "AI fair value used as fallback because analyst consensus target was unavailable."
+    if not a.get("count"):
+        a["count"] = count
+    if price and a.get("consensus"):
+        a["upside"] = ((a["consensus"] - price) / price) * 100
+    return a
+
+def v501_fix_targets(plan, analyst=None):
+    p = dict(plan or {})
+    price = v49_num(p.get("price"), positive=True)
+    if not price:
+        return p
+    conservative = v49_num(p.get("target1"), positive=True)
+    base = v49_num(p.get("base_target"), positive=True)
+    bull = v49_num(p.get("bull_target"), positive=True)
+    consensus = v49_num((analyst or {}).get("consensus"), positive=True)
+    high = v49_num((analyst or {}).get("high"), positive=True)
+
+    if conservative is None or conservative <= price:
+        conservative = price * 1.12
+    if consensus and price * 1.03 < consensus < price * 3.5:
+        base = consensus
+    if base is None or base <= conservative:
+        base = max(conservative * 1.08, price * 1.20)
+    if high and high > base and high < price * 4:
+        bull = high
+    if bull is None or bull <= base:
+        bull = max(base * 1.15, conservative * 1.25)
+
+    base = max(base, conservative * 1.05)
+    bull = max(bull, base * 1.12)
+
+    p["target1"] = round(conservative, 2)
+    p["base_target"] = round(base, 2)
+    p["bull_target"] = round(bull, 2)
+
+    stop = v49_num(p.get("stop"), positive=True)
+    if stop and price > stop and base > price:
+        p["risk_reward"] = round((base - price) / (price - stop), 2)
+    return p
+
+def v501_research_confidence(report):
+    fin = report.get("financials", {})
+    analyst = report.get("analyst", {})
+    news = report.get("news", {})
+    plan = report.get("plan", {})
+    score = 0
+    if fin.get("coverage_count", 0) >= 9:
+        score += 30
+    elif fin.get("coverage_count", 0) >= 6:
+        score += 22
+    elif fin.get("coverage_count", 0) >= 4:
+        score += 12
+    else:
+        score += 5
+    if analyst.get("consensus"):
+        score += 22
+    elif analyst.get("count", 0) >= 5:
+        score += 10
+    if analyst.get("count", 0) >= 10:
+        score += 10
+    elif analyst.get("count", 0) >= 3:
+        score += 5
+    if news.get("rows"):
+        score += 15
+    else:
+        score += 4
+    if plan.get("risk_reward") is not None and plan.get("stop") and plan.get("base_target"):
+        score += 15
+    if plan.get("price") and plan.get("ideal_entry"):
+        score += 10
+    score = max(0, min(100, round(score, 1)))
+    label = "High" if score >= 80 else ("Good" if score >= 62 else ("Limited" if score >= 45 else "Low"))
+    return {"score": score, "label": label}
+
+def v501_investment_score(report):
+    fin = report.get("financials", {})
+    analyst = report.get("analyst", {})
+    plan = report.get("plan", {})
+    news = report.get("news", {})
+    score = 50
+    rr = v49_num(plan.get("risk_reward"), positive=False)
+    price = v49_num(plan.get("price"), positive=True)
+    ideal = v49_num(plan.get("ideal_entry"), positive=True)
+    upside = v49_num(analyst.get("upside"), positive=False)
+
+    if rr is not None:
+        score += 20 if rr >= 3 else (12 if rr >= 1.5 else (-10 if rr < 1 else 0))
+    if price and ideal:
+        score += 12 if price <= ideal * 1.03 else (4 if price <= ideal * 1.10 else -5)
+    if upside is not None:
+        score += 12 if upside >= 25 else (7 if upside >= 10 else (-10 if upside < 0 else 0))
+    if fin.get("free_cash_flow") is not None and fin.get("free_cash_flow") > 0:
+        score += 6
+    if fin.get("revenue_growth") is not None and fin.get("revenue_growth") > 5:
+        score += 6
+    if news.get("bearish"):
+        score -= 5
+    if news.get("bullish"):
+        score += 3
+    return max(0, min(100, round(score, 1)))
+
+def v49_build_research_report(row):
+    r = dict(v501_original_build_research_report(row))
+    r["analyst"] = v501_analyst_target_fallback(r.get("analyst", {}), row)
+    r["news"] = v501_filter_relevant_news(r.get("news", {}), r.get("ticker"), r.get("company"))
+    r["plan"] = v501_fix_targets(r.get("plan", {}), r.get("analyst", {}))
+    r["research_confidence"] = v501_research_confidence(r)
+    r["investment_score"] = v501_investment_score(r)
+    r["opportunity_score"] = r["investment_score"]
+
+    conf = r["research_confidence"]["score"]
+    inv = r["investment_score"]
+    passed = r.get("checklist", {}).get("passed", 0) if isinstance(r.get("checklist"), dict) else 0
+
+    if conf < 45:
+        r["verdict"] = "INSUFFICIENT DATA"
+    elif inv >= 80 and passed >= 3:
+        r["verdict"] = "BUY NOW"
+    elif inv >= 68:
+        r["verdict"] = "BUY ON WEAKNESS"
+    elif inv >= 52:
+        r["verdict"] = "WATCHLIST"
+    else:
+        r["verdict"] = "AVOID"
+    return r
+
+def v501_verdict_explanation(verdict):
+    if verdict == "BUY NOW":
+        return "The setup is actionable today because opportunity, risk/reward, and research confidence are aligned."
+    if verdict == "BUY ON WEAKNESS":
+        return "The opportunity is attractive, but the preferred approach is to buy on pullbacks or build slowly."
+    if verdict == "WATCHLIST":
+        return "The stock has some attractive traits, but the setup is not clean enough for immediate action."
+    if verdict == "INSUFFICIENT DATA":
+        return "The system does not have enough reliable data to issue a confident buy or avoid verdict."
+    return "The reviewed setup does not justify a new position today."
+
+def render_v49_research_summary(row):
+    r = v49_build_research_report(row)
+    p = r["plan"]
+    conf = r.get("research_confidence", {"label": "N/A", "score": 0})
+    with st.container(border=True):
+        st.markdown(f"## {r['ticker']} — {r['company']}")
+        st.markdown(f"### 🎯 Verdict: **{r['verdict']}**")
+        st.info(v501_verdict_explanation(r["verdict"]))
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Investment Opportunity", f"{r['investment_score']:.1f}/100")
+        c2.metric("Research Confidence", f"{conf['label']} ({conf['score']:.0f}/100)")
+        c3.metric("Current Price", v49_money(p.get("price")))
+        c4.metric("Base Target", v49_money(p.get("base_target")))
+
+        c5, c6, c7, c8 = st.columns(4)
+        c5.metric("Ideal Entry", f"Below {v49_money(p.get('ideal_entry'))}")
+        c6.metric("Aggressive Entry", f"{v49_money(p.get('aggressive_low'))} - {v49_money(p.get('aggressive_high'))}")
+        c7.metric("Trading Stop", v49_money(p.get("stop")))
+        c8.metric("Risk/Reward", "N/A" if p.get("risk_reward") is None else f"{p.get('risk_reward'):.2f}:1")
+
+        st.markdown("#### BUY NOW checklist")
+        cols = st.columns(4)
+        for i, (label, ok) in enumerate(r["checklist"]["checks"]):
+            cols[i].metric(label, "✅" if ok else "❌")
+
+        left, right = st.columns(2)
+        with left:
+            st.markdown("#### Why it may work")
+            positives = []
+            fin = r["financials"]
+            analyst = r["analyst"]
+            if fin.get("revenue_growth") is not None:
+                positives.append(f"Revenue growth is {fin['revenue_growth']:.1f}%")
+            if fin.get("free_cash_flow") is not None and fin["free_cash_flow"] > 0:
+                positives.append("Free cash flow is positive")
+            if analyst.get("upside") is not None:
+                positives.append(f"Target implies {analyst['upside']:.1f}% upside")
+            if r["news"].get("rows"):
+                positives.append("Relevant ticker-specific news was reviewed")
+            for x in positives[:6] or ["The setup is mainly supported by price/valuation structure."]:
+                st.markdown(f"✓ {x}")
+        with right:
+            st.markdown("#### What gives us pause")
+            blockers = []
+            if r["verdict"] == "INSUFFICIENT DATA":
+                blockers.append("Research confidence is too low for a firm verdict")
+            blockers.extend(r.get("checklist", {}).get("blockers", []))
+            if not r["news"].get("rows"):
+                blockers.append("Ticker-specific news is limited or unrelated headlines were filtered out")
+            for x in blockers[:6] or ["No major blocker identified."]:
+                st.markdown(f"⚠️ {x}")
+
+def render_v49_trade_plan(row):
+    r = v49_build_research_report(row)
+    p = r["plan"]
+    with st.container(border=True):
+        st.markdown("### 📍 Trade Plan")
+        st.caption("Targets are forced into a logical hierarchy: Bull Target > Base Target > Conservative Target.")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Ideal Entry", f"Below {v49_money(p.get('ideal_entry'))}")
+        c2.metric("Aggressive Entry", f"{v49_money(p.get('aggressive_low'))} - {v49_money(p.get('aggressive_high'))}")
+        c3.metric("Trading Stop", v49_money(p.get("stop")))
+        c4.metric("Risk/Reward", "N/A" if p.get("risk_reward") is None else f"{p.get('risk_reward'):.2f}:1")
+        c5, c6, c7 = st.columns(3)
+        c5.metric("Conservative Target", v49_money(p.get("target1")))
+        c6.metric("Base Target", v49_money(p.get("base_target")))
+        c7.metric("Bull Target", v49_money(p.get("bull_target")))
+
+        if r["verdict"] == "BUY NOW":
+            st.success("Actionable today if the investor accepts the stop and position sizing.")
+        elif r["verdict"] == "BUY ON WEAKNESS":
+            st.info("Attractive, but better bought gradually or on pullbacks.")
+        elif r["verdict"] == "WATCHLIST":
+            st.warning("Monitor for a cleaner entry, stronger data, or better confirmation.")
+        elif r["verdict"] == "INSUFFICIENT DATA":
+            st.warning("Research confidence is too low for a firm buy/avoid call.")
+        else:
+            st.error("Avoid new position for now.")
+
+def render_v50_client_summary(row):
+    r = v49_build_research_report(row)
+    q = r.get("research_confidence", {"label": "N/A", "score": 0})
+    p = r["plan"]
+    with st.container(border=True):
+        st.markdown("### 🧾 Client Summary")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Verdict", r["verdict"])
+        c2.metric("Investment Score", f"{r['investment_score']:.1f}/100")
+        c3.metric("Research Confidence", f"{q['label']} ({q['score']:.0f}/100)")
+        c4.metric("Risk/Reward", "N/A" if p.get("risk_reward") is None else f"{p.get('risk_reward'):.2f}:1")
+        st.markdown("#### Action Plan")
+        st.markdown(f"• **Ideal Entry:** Below {v49_money(p.get('ideal_entry'))}")
+        st.markdown(f"• **Aggressive Entry:** {v49_money(p.get('aggressive_low'))} – {v49_money(p.get('aggressive_high'))}")
+        st.markdown(f"• **Trading Stop:** {v49_money(p.get('stop'))}")
+        st.markdown(f"• **Conservative Target:** {v49_money(p.get('target1'))}")
+        st.markdown(f"• **Base Target:** {v49_money(p.get('base_target'))}")
+        st.markdown(f"• **Bull Target:** {v49_money(p.get('bull_target'))}")
+
+def render_v49_news(row):
+    r = v49_build_research_report(row)
+    news = r["news"]
+    if not news.get("rows"):
+        st.info("No relevant ticker-specific headlines were found after filtering unrelated news.")
+        return
+    with st.container(border=True):
+        st.markdown("### 📰 Catalysts & Risks")
+        c1, c2 = st.columns(2)
+        c1.metric("News Sentiment", news.get("sentiment", "N/A"))
+        c2.metric("Relevant Headlines", len(news.get("rows", [])))
+        st.markdown("#### Recent relevant headlines")
+        for item in news.get("rows", [])[:6]:
+            h = v49_text(item.get("headline") or item.get("title"), "")
+            url = v49_text(item.get("url"), "")
+            src = v49_text(item.get("source"), "")
+            if url:
+                st.markdown(f"• [{h}]({url}) · _{src}_")
+            else:
+                st.markdown(f"• {h} · _{src}_")
+
+def render_v491_final(row):
+    r = v49_build_research_report(row)
+    p = r["plan"]
+    with st.container(border=True):
+        st.markdown("### 🧠 Final Recommendation")
+        st.markdown(f"**Verdict:** {r['verdict']}")
+        st.info(v501_verdict_explanation(r["verdict"]))
+        st.markdown("#### Action Plan")
+        st.markdown(f"• **Ideal Entry:** Below {v49_money(p.get('ideal_entry'))}")
+        st.markdown(f"• **Aggressive Entry:** {v49_money(p.get('aggressive_low'))} – {v49_money(p.get('aggressive_high'))}")
+        st.markdown(f"• **Trading Stop:** {v49_money(p.get('stop'))}")
+        st.markdown(f"• **Conservative Target:** {v49_money(p.get('target1'))}")
+        st.markdown(f"• **Base Target:** {v49_money(p.get('base_target'))}")
+        st.markdown(f"• **Bull Target:** {v49_money(p.get('bull_target'))}")
+        st.caption("Research guidance only. Not personalized financial advice.")
+
+def render_status_banner():
+    state = read_state()
+    st.title("📈 AI Trading Dashboard")
+    st.caption(APP_VERSION)
+    st.caption("Research Confidence Engine: separates opportunity from confidence, fixes target hierarchy, filters irrelevant news, and avoids false AVOID calls.")
+    c1,c2,c3,c4,c5 = st.columns(5)
+    c1.metric("Status", state.get("status", "unknown"))
+    c2.metric("Scanner Version", state.get("version", "N/A"))
+    c3.metric("Full Scan", state.get("full_scan_count", "N/A"))
+    c4.metric("Prescreen", state.get("prescreen_count", "N/A"))
+    persisted = bool(state.get("github_persisted")) or v45_text(state.get("version", "")).startswith(("V45", "V46", "V47", "V48", "V49", "V50"))
+    c5.metric("GitHub Persisted", "✅" if persisted else "❌")
+    if is_viewer():
+        st.info("Viewer mode: admin diagnostics are hidden.")
+    if state:
+        st.caption(f"Last scan: {state.get('generated_at', 'N/A')} | Duration: {state.get('duration_seconds', 'N/A')}s | DATA_DIR={state.get('data_dir','.')}")
 
 
 def main():
