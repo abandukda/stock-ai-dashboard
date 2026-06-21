@@ -16,7 +16,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V50.4 Analyst + Smart Money Reliability Patch"
+APP_VERSION = "V50.5 Portfolio Intelligence"
 
 
 # =========================
@@ -15289,6 +15289,451 @@ def main():
 
     with tabs[8]:
         render_chat_helper(full_df)
+
+
+
+# =========================
+# V50.5 PORTFOLIO INTELLIGENCE
+# =========================
+# Adds:
+# - Portfolio Analyzer page
+# - Portfolio score, risk grade, diversification grade
+# - Best holding, weakest holding, trim candidates
+# - Replacement ideas from scanner
+# - Suggested allocation model
+
+def v505_parse_portfolio_text(text):
+    rows = []
+    for raw in (text or "").replace(",", "\n").splitlines():
+        line = raw.strip().upper()
+        if not line:
+            continue
+        parts = re.split(r"\s+", line)
+        ticker = v451_clean_ticker(parts[0])
+        weight = None
+        shares = None
+        for p in parts[1:]:
+            clean = p.replace("%", "")
+            try:
+                val = float(clean)
+                if "%" in p or val <= 100:
+                    weight = val
+                else:
+                    shares = val
+            except Exception:
+                pass
+        if ticker:
+            rows.append({"Ticker": ticker, "User Weight %": weight, "Shares": shares})
+    # de-dupe preserve order
+    seen = set()
+    out = []
+    for r in rows:
+        if r["Ticker"] not in seen:
+            seen.add(r["Ticker"])
+            out.append(r)
+    return out
+
+
+def v505_find_row_for_ticker(ticker, dfs):
+    ticker = v451_clean_ticker(ticker)
+    for df in dfs:
+        try:
+            if df is not None and not df.empty and "Ticker" in df.columns:
+                matches = df[df["Ticker"].astype(str).str.upper().eq(ticker)]
+                if not matches.empty:
+                    return matches.iloc[0]
+        except Exception:
+            pass
+    return None
+
+
+def v505_sector_bucket(row):
+    for k in ["Sector", "sector", "Industry", "industry"]:
+        val = safe_text(row.get(k), "")
+        if val:
+            low = val.lower()
+            if "semiconductor" in low or "chip" in low:
+                return "Semiconductors"
+            if "software" in low:
+                return "Software"
+            if "technology" in low or "tech" in low:
+                return "Technology"
+            if "health" in low or "biotech" in low or "pharma" in low:
+                return "Healthcare"
+            if "consumer" in low or "retail" in low:
+                return "Consumer"
+            if "industrial" in low:
+                return "Industrials"
+            if "energy" in low:
+                return "Energy"
+            return val[:28]
+    ticker = safe_text(row.get("Ticker"), "").upper()
+    if ticker in {"NVDA", "AMD", "AVGO", "TSM", "ASML", "MU", "ARM"}:
+        return "Semiconductors"
+    if ticker in {"MSFT", "CRM", "NOW", "SNOW", "CRWD", "PANW", "ADBE", "TEAM", "PLTR"}:
+        return "Software"
+    if ticker in {"AMZN", "MELI", "SHOP", "ELF", "COST"}:
+        return "Consumer"
+    return "Unknown"
+
+
+def v505_portfolio_row_score(row):
+    report = v49_build_research_report(row)
+    inv = v49_num(report.get("investment_score") or report.get("opportunity_score"), positive=False) or 50
+    fin = v49_num(report.get("financial_health_score"), positive=False) or 50
+    conf = v49_num(report.get("research_confidence", {}).get("score"), positive=False) or 50
+    rr = v49_num(report.get("plan", {}).get("risk_reward"), positive=False) or 0
+    verdict = report.get("verdict", "WATCHLIST")
+    verdict_bonus = {
+        "BUY NOW": 10,
+        "BUY ON WEAKNESS": 5,
+        "WATCHLIST": 0,
+        "INSUFFICIENT DATA": -8,
+        "AVOID": -15,
+    }.get(verdict, 0)
+    rr_bonus = 8 if rr >= 3 else (4 if rr >= 1.5 else (-5 if rr and rr < 1 else 0))
+    score = round(max(0, min(100, inv * 0.45 + fin * 0.25 + conf * 0.20 + verdict_bonus + rr_bonus)))
+    return score, report
+
+
+def v505_grade(score):
+    if score >= 90:
+        return "A"
+    if score >= 80:
+        return "B"
+    if score >= 70:
+        return "C"
+    if score >= 60:
+        return "D"
+    return "F"
+
+
+def v505_risk_grade(avg_score, concentration, weak_count, unknown_count):
+    risk_points = 0
+    if avg_score < 70:
+        risk_points += 2
+    elif avg_score < 80:
+        risk_points += 1
+    if concentration >= 45:
+        risk_points += 2
+    elif concentration >= 30:
+        risk_points += 1
+    if weak_count >= 2:
+        risk_points += 2
+    elif weak_count == 1:
+        risk_points += 1
+    if unknown_count >= 2:
+        risk_points += 1
+    if risk_points >= 5:
+        return "High"
+    if risk_points >= 3:
+        return "Medium"
+    return "Low"
+
+
+def v505_recommended_weight(score, report):
+    verdict = report.get("verdict", "")
+    if verdict in ["AVOID", "INSUFFICIENT DATA"]:
+        return 0
+    if score >= 90:
+        return 10
+    if score >= 82:
+        return 8
+    if score >= 75:
+        return 6
+    if score >= 68:
+        return 4
+    if score >= 60:
+        return 2
+    return 0
+
+
+def v505_analyze_portfolio(portfolio_rows, full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df):
+    dfs = [full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df]
+    analyzed = []
+    unknown = []
+
+    equal_weight = 100 / len(portfolio_rows) if portfolio_rows else 0
+    for item in portfolio_rows:
+        ticker = item["Ticker"]
+        row = v505_find_row_for_ticker(ticker, dfs)
+        if row is None:
+            unknown.append(ticker)
+            analyzed.append({
+                "Ticker": ticker,
+                "Company": "",
+                "Portfolio Weight %": item.get("User Weight %") or equal_weight,
+                "Score": 0,
+                "Verdict": "UNKNOWN",
+                "Financial Health": "N/A",
+                "Research Confidence": "N/A",
+                "Sector": "Unknown",
+                "Suggested Weight %": 0,
+                "Action": "Research Needed",
+                "Reason": "Ticker not found in current scan data.",
+            })
+            continue
+
+        score, report = v505_portfolio_row_score(row)
+        weight = item.get("User Weight %")
+        if weight is None:
+            weight = equal_weight
+
+        fin_label = f"{report.get('financial_health_label', 'N/A')} ({report.get('financial_health_score', 0)}/100)"
+        conf = report.get("research_confidence", {})
+        conf_label = f"{conf.get('label', 'N/A')} ({conf.get('score', 0):.0f}/100)"
+        sector = v505_sector_bucket(row)
+        suggested = v505_recommended_weight(score, report)
+
+        if report.get("verdict") in ["AVOID", "INSUFFICIENT DATA"]:
+            action = "Trim / Avoid Adding"
+            reason = "Verdict does not support new capital."
+        elif score >= 85:
+            action = "Core / Add on Pullbacks"
+            reason = "High portfolio quality score."
+        elif score >= 70:
+            action = "Hold / Monitor"
+            reason = "Acceptable quality, but not a top add."
+        else:
+            action = "Review / Trim"
+            reason = "Lower score or incomplete setup."
+
+        analyzed.append({
+            "Ticker": ticker,
+            "Company": report.get("company", safe_text(row.get("Company"), "")),
+            "Portfolio Weight %": round(weight, 2),
+            "Score": score,
+            "Verdict": report.get("verdict", "WATCHLIST"),
+            "Financial Health": fin_label,
+            "Research Confidence": conf_label,
+            "Sector": sector,
+            "Suggested Weight %": suggested,
+            "Action": action,
+            "Reason": reason,
+        })
+
+    total_weight = sum(v49_num(x.get("Portfolio Weight %"), positive=False) or 0 for x in analyzed) or 100
+    weighted_score = 0
+    for x in analyzed:
+        w = (v49_num(x.get("Portfolio Weight %"), positive=False) or 0) / total_weight
+        weighted_score += (v49_num(x.get("Score"), positive=False) or 0) * w
+
+    sector_weights = {}
+    for x in analyzed:
+        sector = x.get("Sector", "Unknown")
+        sector_weights[sector] = sector_weights.get(sector, 0) + (v49_num(x.get("Portfolio Weight %"), positive=False) or 0)
+    if total_weight:
+        sector_weights = {k: round(v / total_weight * 100, 1) for k, v in sector_weights.items()}
+    max_concentration = max(sector_weights.values()) if sector_weights else 0
+    weak_count = len([x for x in analyzed if (v49_num(x.get("Score"), positive=False) or 0) < 60])
+    risk = v505_risk_grade(weighted_score, max_concentration, weak_count, len(unknown))
+    diversification_score = max(0, min(100, 100 - max(0, max_concentration - 25) * 2 - max(0, len(analyzed) - len(sector_weights) - 2) * 3))
+    diversification_grade = v505_grade(diversification_score)
+
+    sorted_holdings = sorted(analyzed, key=lambda x: v49_num(x.get("Score"), positive=False) or 0, reverse=True)
+    best = sorted_holdings[0] if sorted_holdings else None
+    weakest = sorted_holdings[-1] if sorted_holdings else None
+    trims = [x for x in analyzed if x.get("Action") in ["Trim / Avoid Adding", "Review / Trim"]][:5]
+
+    return {
+        "holdings": analyzed,
+        "portfolio_score": round(weighted_score),
+        "portfolio_grade": v505_grade(weighted_score),
+        "risk": risk,
+        "diversification_score": round(diversification_score),
+        "diversification_grade": diversification_grade,
+        "sector_weights": sector_weights,
+        "max_concentration": max_concentration,
+        "best": best,
+        "weakest": weakest,
+        "trims": trims,
+        "unknown": unknown,
+    }
+
+
+def v505_replacement_candidates(full_df, current_tickers, limit=8):
+    if full_df is None or full_df.empty:
+        return []
+    rows = []
+    current = set([v451_clean_ticker(x) for x in current_tickers])
+    for _, row in full_df.head(120).iterrows():
+        ticker = v451_clean_ticker(row.get("Ticker"))
+        if ticker in current:
+            continue
+        try:
+            report = v49_build_research_report(row)
+            score = v49_num(report.get("investment_score") or report.get("opportunity_score"), positive=False) or 0
+            fin = v49_num(report.get("financial_health_score"), positive=False) or 0
+            conf = v49_num(report.get("research_confidence", {}).get("score"), positive=False) or 0
+            if report.get("verdict") in ["BUY NOW", "BUY ON WEAKNESS", "WATCHLIST"] and score >= 65:
+                rows.append({
+                    "Ticker": ticker,
+                    "Company": report.get("company", safe_text(row.get("Company"), "")),
+                    "Verdict": report.get("verdict"),
+                    "Investment Score": round(score),
+                    "Financial Health": f"{report.get('financial_health_label', 'N/A')} ({fin:.0f}/100)",
+                    "Research Confidence": f"{report.get('research_confidence', {}).get('label', 'N/A')} ({conf:.0f}/100)",
+                    "Base Target": v49_money(report.get("plan", {}).get("base_target")),
+                    "Expected Return": "N/A" if v503_pct_return(report.get("plan", {}).get("price"), report.get("plan", {}).get("base_target")) is None else f"{v503_pct_return(report.get('plan', {}).get('price'), report.get('plan', {}).get('base_target')):.1f}%",
+                })
+        except Exception:
+            continue
+        if len(rows) >= limit:
+            break
+    return rows
+
+
+def render_v505_portfolio_analyzer(full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df):
+    st.subheader("📂 Portfolio Intelligence")
+    st.caption("Analyze your holdings for portfolio quality, risk, diversification, trim candidates, and replacement ideas.")
+
+    default_text = "NVDA\nMSFT\nAVGO\nAMZN\nCRWD"
+    text = st.text_area(
+        "Enter tickers, one per line. Optional: add target weight like `NVDA 10%`.",
+        value=st.session_state.get("v505_portfolio_text", default_text),
+        height=150,
+        key="v505_portfolio_text_area",
+    )
+    st.session_state["v505_portfolio_text"] = text
+
+    if st.button("Analyze Portfolio", key="v505_analyze_btn"):
+        st.session_state["v505_run"] = True
+
+    if not st.session_state.get("v505_run"):
+        st.info("Enter your tickers and click Analyze Portfolio.")
+        return
+
+    portfolio_rows = v505_parse_portfolio_text(text)
+    if not portfolio_rows:
+        st.warning("Enter at least one ticker.")
+        return
+
+    with st.spinner("Analyzing portfolio..."):
+        result = v505_analyze_portfolio(portfolio_rows, full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Portfolio Score", f"{result['portfolio_score']}/100", result["portfolio_grade"])
+    c2.metric("Risk Level", result["risk"])
+    c3.metric("Diversification", result["diversification_grade"], f"{result['diversification_score']}/100")
+    c4.metric("Largest Sector", f"{result['max_concentration']:.1f}%")
+
+    best = result.get("best")
+    weakest = result.get("weakest")
+    left, right = st.columns(2)
+    with left:
+        st.markdown("### 🏆 Best Holding")
+        if best:
+            st.success(f"{best['Ticker']} — {best.get('Company','')}")
+            st.write(f"Score: **{best['Score']}/100** | Verdict: **{best['Verdict']}**")
+            st.caption(best.get("Reason", ""))
+    with right:
+        st.markdown("### ⚠️ Weakest Holding")
+        if weakest:
+            st.warning(f"{weakest['Ticker']} — {weakest.get('Company','')}")
+            st.write(f"Score: **{weakest['Score']}/100** | Action: **{weakest['Action']}**")
+            st.caption(weakest.get("Reason", ""))
+
+    st.markdown("### Portfolio Holdings Review")
+    st.dataframe(pd.DataFrame(result["holdings"]), use_container_width=True, hide_index=True)
+
+    st.markdown("### Sector / Theme Exposure")
+    if result["sector_weights"]:
+        sector_df = pd.DataFrame(
+            [{"Sector": k, "Weight %": v} for k, v in sorted(result["sector_weights"].items(), key=lambda kv: kv[1], reverse=True)]
+        )
+        st.dataframe(sector_df, use_container_width=True, hide_index=True)
+        if result["max_concentration"] >= 45:
+            st.error("High concentration risk: one sector/theme dominates the portfolio.")
+        elif result["max_concentration"] >= 30:
+            st.warning("Moderate concentration risk: one sector/theme is meaningfully overweight.")
+        else:
+            st.success("Diversification looks reasonable based on available sector data.")
+
+    st.markdown("### Potential Trim / Review Candidates")
+    if result["trims"]:
+        st.dataframe(pd.DataFrame(result["trims"]), use_container_width=True, hide_index=True)
+    else:
+        st.success("No obvious trim candidates from the current scan logic.")
+
+    replacements = v505_replacement_candidates(full_df, [x["Ticker"] for x in portfolio_rows], limit=8)
+    st.markdown("### Replacement / Add Ideas From Scanner")
+    if replacements:
+        st.dataframe(pd.DataFrame(replacements), use_container_width=True, hide_index=True)
+    else:
+        st.info("No replacement candidates found from current scan filters.")
+
+    if result["unknown"]:
+        st.warning(f"These tickers were not found in the current scan: {', '.join(result['unknown'])}")
+
+
+# Override main to add Portfolio Intelligence tab while preserving existing pages.
+def main():
+    if not dashboard_login_gate():
+        return
+    render_v423_command_center()
+    render_status_banner()
+    render_score_help()
+
+    full_df = load_full_scan()
+    top_df = latest_top_ideas()
+    recovery_df = latest_recovery()
+    watch_df = latest_watchlist_scan()
+    prescreen_df = load_file(PRESCREEN_FILE)
+    etf_df = load_file(ETF_SCAN_FILE)
+
+    tabs = st.tabs(
+        [
+            "Top AI Ideas",
+            "Full Ranked Scan",
+            "Portfolio Intelligence",
+            "Recovery",
+            "ETFs",
+            "Watchlist",
+            "Prescreen",
+            "Summary",
+            "Research Any Ticker",
+            "Ask AI",
+        ]
+    )
+
+    with tabs[0]:
+        render_table(top_df if not top_df.empty else full_df.head(25), "Top AI Ideas", "top_table", min_score_default=45)
+    with tabs[1]:
+        render_table(full_df, "Full Ranked AI Scan", "full_table", min_score_default=35)
+    with tabs[2]:
+        render_v505_portfolio_analyzer(full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
+    with tabs[3]:
+        render_table(recovery_df, "Recovery Intelligence: Dropped Stocks With Forward Upside", "recovery_table", min_score_default=35)
+    with tabs[4]:
+        render_table(etf_df, "ETF Intelligence: Non-Financial / Non-Israel Screen", "etf_table", min_score_default=35)
+    with tabs[5]:
+        render_table(watch_df, "Watchlist Scan", "watch_table", min_score_default=0)
+    with tabs[6]:
+        render_table(prescreen_df, "Prescreen Candidates", "prescreen_table", min_score_default=35)
+    with tabs[7]:
+        render_market_summary(full_df)
+    with tabs[8]:
+        render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df)
+    with tabs[9]:
+        render_chat_helper(full_df)
+
+
+def render_status_banner():
+    state = read_state()
+    st.title("📈 AI Trading Dashboard")
+    st.caption(APP_VERSION)
+    st.caption("Portfolio Intelligence: portfolio score, risk grade, diversification, best/weakest holdings, trim candidates, and replacement ideas.")
+    c1,c2,c3,c4,c5 = st.columns(5)
+    c1.metric("Status", state.get("status", "unknown"))
+    c2.metric("Scanner Version", state.get("version", "N/A"))
+    c3.metric("Full Scan", state.get("full_scan_count", "N/A"))
+    c4.metric("Prescreen", state.get("prescreen_count", "N/A"))
+    persisted = bool(state.get("github_persisted")) or v45_text(state.get("version", "")).startswith(("V45", "V46", "V47", "V48", "V49", "V50"))
+    c5.metric("GitHub Persisted", "✅" if persisted else "❌")
+    if is_viewer():
+        st.info("Viewer mode: admin diagnostics are hidden.")
+    if state:
+        st.caption(f"Last scan: {state.get('generated_at', 'N/A')} | Duration: {state.get('duration_seconds', 'N/A')}s | DATA_DIR={state.get('data_dir','.')}")
 
 
 if __name__ == "__main__":
