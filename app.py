@@ -16,7 +16,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V50.2 Financial Health Completion Engine"
+APP_VERSION = "V50.3 Paid Client Experience Upgrade"
 
 
 # =========================
@@ -14741,6 +14741,283 @@ def render_status_banner():
     st.title("📈 AI Trading Dashboard")
     st.caption(APP_VERSION)
     st.caption("Financial Health Completion Engine: green/yellow/red metric scoring with derived fallback calculations for margins, cash flow, debt, liquidity, and returns.")
+    c1,c2,c3,c4,c5 = st.columns(5)
+    c1.metric("Status", state.get("status", "unknown"))
+    c2.metric("Scanner Version", state.get("version", "N/A"))
+    c3.metric("Full Scan", state.get("full_scan_count", "N/A"))
+    c4.metric("Prescreen", state.get("prescreen_count", "N/A"))
+    persisted = bool(state.get("github_persisted")) or v45_text(state.get("version", "")).startswith(("V45", "V46", "V47", "V48", "V49", "V50"))
+    c5.metric("GitHub Persisted", "✅" if persisted else "❌")
+    if is_viewer():
+        st.info("Viewer mode: admin diagnostics are hidden.")
+    if state:
+        st.caption(f"Last scan: {state.get('generated_at', 'N/A')} | Duration: {state.get('duration_seconds', 'N/A')}s | DATA_DIR={state.get('data_dir','.')}")
+
+
+
+# =========================
+# V50.3 PAID CLIENT EXPERIENCE UPGRADE
+# =========================
+# Executive summary, expected return, position sizing, financial heatmap, and overview-first tabs.
+
+def v503_pct_return(price, target):
+    p = v49_num(price, positive=True)
+    t = v49_num(target, positive=True)
+    if not p or not t:
+        return None
+    return ((t - p) / p) * 100
+
+
+def v503_expected_value(investment, price, target):
+    r = v503_pct_return(price, target)
+    if r is None:
+        return None
+    return investment * (1 + r / 100)
+
+
+def v503_allocation(report):
+    verdict = report.get("verdict", "")
+    financial_score = v49_num(report.get("financial_health_score"), positive=False) or 0
+    conf = report.get("research_confidence", {}).get("score", 0)
+    rr = v49_num(report.get("plan", {}).get("risk_reward"), positive=False) or 0
+    price = v49_num(report.get("plan", {}).get("price"), positive=True) or 0
+    stop = v49_num(report.get("plan", {}).get("stop"), positive=True) or 0
+    stop_risk = ((price - stop) / price) * 100 if price and stop and price > stop else 20
+
+    if verdict in ["AVOID", "INSUFFICIENT DATA"]:
+        return {"conservative": "0%", "moderate": "0%", "aggressive": "0%", "suggested": "0%", "note": "No new allocation suggested until the setup improves."}
+
+    base = 3
+    if verdict == "BUY NOW":
+        base += 2
+    elif verdict == "BUY ON WEAKNESS":
+        base += 1
+
+    if financial_score >= 90:
+        base += 1
+    elif financial_score < 60:
+        base -= 1
+
+    if conf >= 80:
+        base += 1
+    elif conf < 55:
+        base -= 1
+
+    if rr >= 3:
+        base += 1
+    elif rr < 1.5:
+        base -= 1
+
+    if stop_risk > 18:
+        base -= 1
+
+    moderate = max(1, min(8, base))
+    conservative = max(1, min(5, moderate - 2))
+    aggressive = max(moderate + 1, min(10, moderate + 3))
+
+    if verdict == "WATCHLIST":
+        conservative = 0
+        moderate = max(1, min(2, moderate))
+        aggressive = max(2, min(4, aggressive))
+
+    return {
+        "conservative": f"{conservative}%",
+        "moderate": f"{moderate}%",
+        "aggressive": f"{aggressive}%",
+        "suggested": f"{moderate}%",
+        "note": "Suggested allocation is a model guide, not personalized financial advice.",
+    }
+
+
+def v503_time_horizon(report):
+    verdict = report.get("verdict", "")
+    rr = v49_num(report.get("plan", {}).get("risk_reward"), positive=False) or 0
+    if verdict == "BUY NOW" and rr >= 2:
+        return "3–12 months"
+    if verdict == "BUY ON WEAKNESS":
+        return "6–18 months"
+    if verdict == "WATCHLIST":
+        return "Monitor weekly"
+    return "No active holding-period guidance"
+
+
+def v503_financial_heatmap_items(fin):
+    items = [
+        ("Revenue Growth", fin.get("revenue_growth")),
+        ("EPS Growth", fin.get("eps_growth")),
+        ("Gross Margin", fin.get("gross_margin")),
+        ("Operating Margin", fin.get("operating_margin")),
+        ("Net Margin", fin.get("net_margin")),
+        ("Free Cash Flow", fin.get("free_cash_flow")),
+        ("Debt / Equity", fin.get("debt_equity")),
+        ("ROE", fin.get("roe")),
+        ("Current Ratio", fin.get("current_ratio")),
+    ]
+    out = []
+    for label, val in items:
+        if val is None:
+            out.append((label, "⚪ Missing"))
+        else:
+            rating, _, _ = v502_rating(label, val) if "v502_rating" in globals() else ("⚪ Available", 50, "")
+            out.append((label, rating))
+    return out
+
+
+def render_v503_executive_summary(row):
+    r = v49_build_research_report(row)
+    p = r["plan"]
+    price = p.get("price")
+    target = p.get("base_target")
+    allocation = v503_allocation(r)
+    base_return = v503_pct_return(price, target)
+    holding = v503_time_horizon(r)
+
+    with st.container(border=True):
+        st.markdown(f"## {r['ticker']} — {r['company']}")
+        st.markdown(f"### Bottom Line: **{r['verdict']}**")
+        if "v501_verdict_explanation" in globals():
+            st.info(v501_verdict_explanation(r["verdict"]))
+        else:
+            st.info(v49_verdict_explanation(r["verdict"]))
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Investment Score", f"{r.get('investment_score', r.get('opportunity_score', 0)):.1f}/100")
+        conf = r.get("research_confidence", {"label": "N/A", "score": 0})
+        c2.metric("Research Confidence", f"{conf.get('label', 'N/A')} ({conf.get('score', 0):.0f}/100)")
+        c3.metric("Financial Health", f"{r.get('financial_health_label', 'N/A')} ({r.get('financial_health_score', 0)}/100)")
+        c4.metric("Suggested Allocation", allocation["suggested"])
+
+        c5, c6, c7, c8 = st.columns(4)
+        c5.metric("Buy Zone", f"{v49_money(p.get('aggressive_low'))}–{v49_money(p.get('aggressive_high'))}")
+        c6.metric("Base Target", v49_money(target))
+        c7.metric("Expected Return", "N/A" if base_return is None else f"{base_return:.1f}%")
+        c8.metric("Holding Period", holding)
+
+        c9, c10, c11 = st.columns(3)
+        c9.metric("Stop", v49_money(p.get("stop")))
+        c10.metric("Conservative Target", v49_money(p.get("target1")))
+        c11.metric("Bull Target", v49_money(p.get("bull_target")))
+
+        positives, risks = [], []
+        fin = r.get("financials", {})
+        analyst = r.get("analyst", {})
+        news = r.get("news", {})
+
+        if r.get("financial_health_score", 0) >= 75:
+            positives.append(f"Financial health is {r.get('financial_health_label')} ({r.get('financial_health_score')}/100)")
+        if analyst.get("upside") is not None and analyst.get("upside") >= 10:
+            positives.append(f"Analyst/base target implies {analyst.get('upside'):.1f}% upside")
+        if fin.get("revenue_growth") is not None and fin.get("revenue_growth") >= 10:
+            positives.append(f"Revenue growth is strong at {fin.get('revenue_growth'):.1f}%")
+        if fin.get("free_cash_flow") is not None and fin.get("free_cash_flow") > 0:
+            positives.append("Free cash flow is positive")
+        if news.get("rows"):
+            positives.append("Relevant ticker-specific news was reviewed")
+
+        if r.get("research_confidence", {}).get("score", 0) < 60:
+            risks.append("Research confidence is limited")
+        if p.get("risk_reward") is not None and p.get("risk_reward") < 1.5:
+            risks.append("Risk/reward is below preferred threshold")
+        if price and p.get("ideal_entry") and price > p.get("ideal_entry") * 1.08:
+            risks.append("Price is above the ideal entry zone")
+        if not news.get("rows"):
+            risks.append("Recent relevant news is limited")
+        if r.get("financial_health_score", 0) and r.get("financial_health_score", 0) < 60:
+            risks.append("Financial health is weak")
+
+        left, right = st.columns(2)
+        with left:
+            st.markdown("#### Why We Like It")
+            for x in positives[:5] or ["Setup is mainly supported by price/valuation structure."]:
+                st.markdown(f"✓ {x}")
+        with right:
+            st.markdown("#### Main Risks")
+            for x in risks[:5] or ["Normal market and execution risk."]:
+                st.markdown(f"⚠️ {x}")
+
+
+def render_v503_expected_return(row):
+    r = v49_build_research_report(row)
+    p = r["plan"]
+    investment = 10000
+    price = p.get("price")
+    with st.container(border=True):
+        st.markdown("### 💰 Expected Return Snapshot")
+        st.caption("Illustrative outcome for a $10,000 position based on the dashboard's stop and target levels.")
+        c1, c2, c3, c4 = st.columns(4)
+        for col, label, target in [
+            (c1, "Risk Case", p.get("stop")),
+            (c2, "Conservative Case", p.get("target1")),
+            (c3, "Base Case", p.get("base_target")),
+            (c4, "Bull Case", p.get("bull_target")),
+        ]:
+            val = v503_expected_value(investment, price, target)
+            col.metric(label, "N/A" if val is None else v49_money(val))
+
+
+def render_v503_position_sizing(row):
+    r = v49_build_research_report(row)
+    allocation = v503_allocation(r)
+    with st.container(border=True):
+        st.markdown("### 🎚️ Suggested Position Sizing")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Conservative", allocation["conservative"])
+        c2.metric("Moderate", allocation["moderate"])
+        c3.metric("Aggressive", allocation["aggressive"])
+        st.info(allocation["note"])
+
+
+def render_v503_financial_heatmap(row):
+    r = v49_build_research_report(row)
+    items = v503_financial_heatmap_items(r.get("financials", {}))
+    with st.container(border=True):
+        st.markdown("### 🚦 Financial Health Heatmap")
+        cols = st.columns(3)
+        for i, (label, rating) in enumerate(items):
+            cols[i % 3].markdown(f"**{rating}**  \n{label}")
+
+
+def render_v50_client_summary(row):
+    render_v503_executive_summary(row)
+    render_v503_expected_return(row)
+    render_v503_position_sizing(row)
+    render_v503_financial_heatmap(row)
+
+
+def render_v50_research_page(row):
+    render_v50_client_summary(row)
+    tabs = st.tabs(["Overview", "Financials", "Wall Street", "Smart Money", "News", "Technicals", "Final"])
+    with tabs[0]:
+        render_v49_trade_plan(row)
+    with tabs[1]:
+        render_v491_financials(row)
+    with tabs[2]:
+        render_v491_analysts(row)
+        render_v50_analyst_revisions(row)
+    with tabs[3]:
+        render_v50_smart_money(row)
+    with tabs[4]:
+        render_v49_news(row)
+    with tabs[5]:
+        render_v451_metric_interpreter(row)
+        if "render_detail_chart_v4184" in globals():
+            try:
+                render_detail_chart_v4184(row)
+            except Exception:
+                pass
+    with tabs[6]:
+        render_v491_final(row)
+
+
+def render_detail(row):
+    render_v50_research_page(row)
+
+
+def render_status_banner():
+    state = read_state()
+    st.title("📈 AI Trading Dashboard")
+    st.caption(APP_VERSION)
+    st.caption("Paid Client Experience Upgrade: executive summary, expected return, position sizing, financial heatmap, and overview-first tabs.")
     c1,c2,c3,c4,c5 = st.columns(5)
     c1.metric("Status", state.get("status", "unknown"))
     c2.metric("Scanner Version", state.get("version", "N/A"))
