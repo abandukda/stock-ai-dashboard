@@ -16,7 +16,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V50.3 Paid Client Experience Upgrade"
+APP_VERSION = "V50.4 Analyst + Smart Money Reliability Patch"
 
 
 # =========================
@@ -15018,6 +15018,202 @@ def render_status_banner():
     st.title("📈 AI Trading Dashboard")
     st.caption(APP_VERSION)
     st.caption("Paid Client Experience Upgrade: executive summary, expected return, position sizing, financial heatmap, and overview-first tabs.")
+    c1,c2,c3,c4,c5 = st.columns(5)
+    c1.metric("Status", state.get("status", "unknown"))
+    c2.metric("Scanner Version", state.get("version", "N/A"))
+    c3.metric("Full Scan", state.get("full_scan_count", "N/A"))
+    c4.metric("Prescreen", state.get("prescreen_count", "N/A"))
+    persisted = bool(state.get("github_persisted")) or v45_text(state.get("version", "")).startswith(("V45", "V46", "V47", "V48", "V49", "V50"))
+    c5.metric("GitHub Persisted", "✅" if persisted else "❌")
+    if is_viewer():
+        st.info("Viewer mode: admin diagnostics are hidden.")
+    if state:
+        st.caption(f"Last scan: {state.get('generated_at', 'N/A')} | Duration: {state.get('duration_seconds', 'N/A')}s | DATA_DIR={state.get('data_dir','.')}")
+
+
+
+# =========================
+# V50.4 ANALYST + SMART MONEY RELIABILITY PATCH
+# =========================
+# Fixes:
+# - Hide raw API errors like HTTP 403 from client-facing views
+# - Replace missing analyst/ownership data with professional fallback language
+# - Improve analyst confidence labels
+# - Improve insider activity interpretation
+# - Keep diagnostics admin-only
+
+def v504_clean_diag_text(x):
+    text = v49_text(x, "")
+    if not text:
+        return ""
+    # Keep raw diagnostics only for admin expanders.
+    return text
+
+
+def v504_api_unavailable_message(feature):
+    return f"{feature} is not available under the current connected data tier. The dashboard is using available consensus, financial, technical, and news data instead."
+
+
+def v504_analyst_confidence(analyst):
+    count = int(v49_num(analyst.get("count"), positive=False) or 0)
+    consensus = v49_num(analyst.get("consensus"), positive=True)
+    high = v49_num(analyst.get("high"), positive=True)
+    low = v49_num(analyst.get("low"), positive=True)
+    trend = v49_text(analyst.get("rating_trend"), "").lower()
+
+    score = 0
+    if consensus:
+        score += 40
+    if high and low:
+        score += 20
+    if count >= 20:
+        score += 25
+    elif count >= 8:
+        score += 18
+    elif count >= 3:
+        score += 10
+    if "bull" in trend or "positive" in trend:
+        score += 15
+    elif "mixed" in trend:
+        score += 5
+
+    if score >= 75:
+        return "High", score
+    if score >= 50:
+        return "Medium", score
+    if score >= 25:
+        return "Limited", score
+    return "Low", score
+
+
+def v504_insider_interpretation(insiders):
+    buys = int(v49_num(insiders.get("buy_count"), positive=False) or 0)
+    sells = int(v49_num(insiders.get("sell_count"), positive=False) or 0)
+    buy_value = v49_num(insiders.get("buy_value"), positive=False) or 0
+    sell_value = v49_num(insiders.get("sell_value"), positive=False) or 0
+    net = buy_value - sell_value
+
+    # Prevent absurd-looking false precision from noisy insider feeds.
+    if buys == 0 and sells == 0:
+        return "No recent signal", "No recent insider transaction signal was returned.", net
+    if net > 0 and buys >= max(2, sells):
+        return "Positive", "Recent insider activity leans positive based on net buying activity.", net
+    if net < 0 and sells > buys:
+        return "Negative", "Recent insider activity leans negative based on net selling activity.", net
+    return "Mixed / Neutral", "Insider activity is mixed and should not drive the investment decision by itself.", net
+
+
+def render_v491_analysts(row):
+    r = v49_build_research_report(row)
+    a = r["analyst"]
+    price = r.get("price")
+    confidence, confidence_score = v504_analyst_confidence(a)
+
+    with st.container(border=True):
+        st.markdown("### 🏦 Wall Street View")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Consensus Target", v49_money(a.get("consensus")) if a.get("consensus") else "N/A")
+        c2.metric("Upside", v49_pct(a.get("upside")) if a.get("upside") is not None else "N/A")
+        c3.metric("Coverage", str(a.get("count") or "N/A"))
+        c4.metric("Analyst Confidence", f"{confidence} ({confidence_score}/100)")
+
+        c5, c6, c7 = st.columns(3)
+        c5.metric("High Target", v49_money(a.get("high")) if a.get("high") else "N/A")
+        c6.metric("Low Target", v49_money(a.get("low")) if a.get("low") else "N/A")
+        c7.metric("Sentiment", a.get("rating_trend") or "N/A")
+
+        target_rows = v491_top_analyst_rows(a, price=price) if "v491_top_analyst_rows" in globals() else []
+        if target_rows:
+            st.markdown("#### Price Target Detail")
+            st.dataframe(pd.DataFrame(target_rows), use_container_width=True, hide_index=True)
+        elif a.get("consensus"):
+            st.info("Firm-level analyst targets were not returned by the connected data tier. Consensus target data is available and shown above.")
+        else:
+            st.warning("Analyst target data is limited for this ticker. Use financial health, technicals, and price action as the primary evidence.")
+
+        if a.get("target_source_note"):
+            st.caption(a.get("target_source_note"))
+
+        if a.get("consensus"):
+            st.info(
+                f"Wall Street/consensus target support is available near {v49_money(a.get('consensus'))}. "
+                "Use this as confirmation, not as the only reason to buy."
+            )
+
+        if not is_viewer():
+            with st.expander("Admin analyst diagnostics", expanded=False):
+                for x in a.get("diagnostics", [])[:80]:
+                    st.caption(v504_clean_diag_text(x))
+
+
+def render_v50_analyst_revisions(row):
+    r = v49_build_research_report(row)
+    revisions = v50_analyst_revisions(r["ticker"], price=r.get("price")) if "v50_analyst_revisions" in globals() else {"rows": [], "diagnostics": []}
+
+    with st.container(border=True):
+        st.markdown("### 📈 Analyst Revision Intelligence")
+        st.caption("Recent analyst actions help show whether Wall Street sentiment is improving, deteriorating, or stable.")
+
+        rows = revisions.get("rows", [])
+        # Remove empty/noisy rows.
+        clean_rows = []
+        for item in rows:
+            if not isinstance(item, dict):
+                continue
+            target = v49_text(item.get("Target"), "N/A")
+            action = v49_text(item.get("Action / Rating"), "N/A")
+            firm = v49_text(item.get("Firm / Source"), "Analyst")
+            if target == "N/A" and action == "N/A":
+                continue
+            clean_rows.append(item)
+
+        if clean_rows:
+            st.dataframe(pd.DataFrame(clean_rows[:8]), use_container_width=True, hide_index=True)
+        else:
+            st.info(v504_api_unavailable_message("Firm-level analyst revision detail"))
+
+        if not is_viewer():
+            with st.expander("Admin analyst revision diagnostics", expanded=False):
+                for x in revisions.get("diagnostics", [])[:80]:
+                    st.caption(v504_clean_diag_text(x))
+
+
+def render_v50_smart_money(row):
+    r = v49_build_research_report(row)
+    sm = v50_smart_money(r["ticker"]) if "v50_smart_money" in globals() else {"holders": [], "insiders": {}, "diagnostics": []}
+    insiders = sm.get("insiders", {})
+    tone, explanation, net = v504_insider_interpretation(insiders)
+
+    with st.container(border=True):
+        st.markdown("### 🧠 Smart Money Activity")
+        st.caption("Smart-money context is helpful, but it should confirm the thesis rather than replace financial, analyst, and technical evidence.")
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Insider Tone", tone)
+        c2.metric("Insider Buys", str(insiders.get("buy_count", 0)))
+        c3.metric("Insider Sells", str(insiders.get("sell_count", 0)))
+        c4.metric("Net Insider Value", v49_money(net))
+
+        st.info(explanation)
+
+        holders = sm.get("holders", [])
+        if holders:
+            st.markdown("#### Top Institutional / Fund Holders")
+            st.dataframe(pd.DataFrame(holders[:8]), use_container_width=True, hide_index=True)
+        else:
+            st.info(v504_api_unavailable_message("Institutional holder detail"))
+
+        if not is_viewer():
+            with st.expander("Admin smart money diagnostics", expanded=False):
+                for x in sm.get("diagnostics", [])[:80]:
+                    st.caption(v504_clean_diag_text(x))
+
+
+def render_status_banner():
+    state = read_state()
+    st.title("📈 AI Trading Dashboard")
+    st.caption(APP_VERSION)
+    st.caption("Reliability Patch: cleaner analyst and smart-money fallbacks, no raw API errors for clients, and admin-only diagnostics.")
     c1,c2,c3,c4,c5 = st.columns(5)
     c1.metric("Status", state.get("status", "unknown"))
     c2.metric("Scanner Version", state.get("version", "N/A"))
