@@ -16,7 +16,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V50.5 Portfolio Intelligence"
+APP_VERSION = "V50.6 Watchlist Intelligence"
 
 
 # =========================
@@ -15723,6 +15723,387 @@ def render_status_banner():
     st.title("📈 AI Trading Dashboard")
     st.caption(APP_VERSION)
     st.caption("Portfolio Intelligence: portfolio score, risk grade, diversification, best/weakest holdings, trim candidates, and replacement ideas.")
+    c1,c2,c3,c4,c5 = st.columns(5)
+    c1.metric("Status", state.get("status", "unknown"))
+    c2.metric("Scanner Version", state.get("version", "N/A"))
+    c3.metric("Full Scan", state.get("full_scan_count", "N/A"))
+    c4.metric("Prescreen", state.get("prescreen_count", "N/A"))
+    persisted = bool(state.get("github_persisted")) or v45_text(state.get("version", "")).startswith(("V45", "V46", "V47", "V48", "V49", "V50"))
+    c5.metric("GitHub Persisted", "✅" if persisted else "❌")
+    if is_viewer():
+        st.info("Viewer mode: admin diagnostics are hidden.")
+    if state:
+        st.caption(f"Last scan: {state.get('generated_at', 'N/A')} | Duration: {state.get('duration_seconds', 'N/A')}s | DATA_DIR={state.get('data_dir','.')}")
+
+
+
+# =========================
+# V50.6 WATCHLIST INTELLIGENCE
+# =========================
+# Adds:
+# - Watchlist Intelligence tab
+# - Watchlist quality score
+# - Newly actionable / entry-zone alerts
+# - Upgrade/downgrade style labels
+# - What changed since last scan, using local watchlist snapshots
+# - Replacement/add ideas from scanner
+
+WATCHLIST_INTEL_STATE_FILE = DATA_DIR / "watchlist_intelligence_state.json"
+
+
+def v506_read_watchlist_intel_state():
+    try:
+        data = read_json_file(WATCHLIST_INTEL_STATE_FILE)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def v506_write_watchlist_intel_state(data):
+    try:
+        write_json_file(WATCHLIST_INTEL_STATE_FILE, data)
+    except Exception:
+        try:
+            with open(WATCHLIST_INTEL_STATE_FILE, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, default=str)
+        except Exception:
+            pass
+
+
+def v506_parse_watchlist_text(text):
+    rows = []
+    for raw in (text or "").replace(",", "\n").splitlines():
+        ticker = v451_clean_ticker(raw.strip().split()[0] if raw.strip() else "")
+        if ticker:
+            rows.append(ticker)
+    seen = set()
+    out = []
+    for t in rows:
+        if t not in seen:
+            seen.add(t)
+            out.append(t)
+    return out
+
+
+def v506_find_scan_row(ticker, dfs):
+    ticker = v451_clean_ticker(ticker)
+    for df in dfs:
+        try:
+            if df is not None and not df.empty and "Ticker" in df.columns:
+                m = df[df["Ticker"].astype(str).str.upper().eq(ticker)]
+                if not m.empty:
+                    return m.iloc[0]
+        except Exception:
+            pass
+    return None
+
+
+def v506_entry_status(report):
+    p = report.get("plan", {})
+    price = v49_num(p.get("price"), positive=True)
+    ideal = v49_num(p.get("ideal_entry"), positive=True)
+    low = v49_num(p.get("aggressive_low"), positive=True)
+    high = v49_num(p.get("aggressive_high"), positive=True)
+    if not price:
+        return "Unknown", "No price data"
+    if ideal and price <= ideal:
+        return "In Ideal Entry", "Price is at or below the preferred entry."
+    if low and high and low <= price <= high:
+        return "In Aggressive Entry", "Price is inside the aggressive buy zone."
+    if ideal and price <= ideal * 1.05:
+        return "Near Ideal Entry", "Price is close to the preferred entry."
+    if high and price > high:
+        return "Above Buy Zone", "Price is above the preferred entry range."
+    return "Watch", "Entry setup is not clearly actionable."
+
+
+def v506_watchlist_score(report):
+    inv = v49_num(report.get("investment_score") or report.get("opportunity_score"), positive=False) or 50
+    fin = v49_num(report.get("financial_health_score"), positive=False) or 50
+    conf = v49_num(report.get("research_confidence", {}).get("score"), positive=False) or 50
+    rr = v49_num(report.get("plan", {}).get("risk_reward"), positive=False) or 0
+    verdict = report.get("verdict", "WATCHLIST")
+    entry_status, _ = v506_entry_status(report)
+
+    score = inv * 0.40 + fin * 0.20 + conf * 0.20
+    if rr >= 3:
+        score += 10
+    elif rr >= 1.5:
+        score += 5
+    elif rr and rr < 1:
+        score -= 8
+
+    if verdict == "BUY NOW":
+        score += 12
+    elif verdict == "BUY ON WEAKNESS":
+        score += 7
+    elif verdict == "WATCHLIST":
+        score += 2
+    elif verdict in ["AVOID", "INSUFFICIENT DATA"]:
+        score -= 15
+
+    if entry_status in ["In Ideal Entry", "In Aggressive Entry"]:
+        score += 8
+    elif entry_status == "Near Ideal Entry":
+        score += 4
+    elif entry_status == "Above Buy Zone":
+        score -= 5
+
+    return round(max(0, min(100, score)))
+
+
+def v506_action_label(report, score):
+    verdict = report.get("verdict", "")
+    entry_status, _ = v506_entry_status(report)
+    if verdict == "BUY NOW" and entry_status in ["In Ideal Entry", "In Aggressive Entry", "Near Ideal Entry"]:
+        return "Newly Actionable"
+    if verdict == "BUY ON WEAKNESS" and entry_status in ["In Ideal Entry", "Near Ideal Entry"]:
+        return "Buy on Weakness"
+    if verdict in ["AVOID", "INSUFFICIENT DATA"]:
+        return "Do Not Add"
+    if score >= 75:
+        return "High Priority Watch"
+    if score >= 60:
+        return "Monitor"
+    return "Low Priority"
+
+
+def v506_build_watchlist_rows(tickers, full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df):
+    dfs = [full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df]
+    prior = v506_read_watchlist_intel_state()
+    prior_rows = prior.get("tickers", {}) if isinstance(prior.get("tickers"), dict) else {}
+
+    rows = []
+    snapshots = {}
+
+    for ticker in tickers:
+        scan_row = v506_find_scan_row(ticker, dfs)
+        if scan_row is None:
+            rows.append({
+                "Ticker": ticker,
+                "Company": "",
+                "Action": "Research Needed",
+                "Watchlist Score": 0,
+                "Verdict": "UNKNOWN",
+                "Entry Status": "Unknown",
+                "Price": "N/A",
+                "Buy Zone": "N/A",
+                "Base Target": "N/A",
+                "Expected Return": "N/A",
+                "Financial Health": "N/A",
+                "Research Confidence": "N/A",
+                "What Changed": "Ticker was not found in current scan data.",
+            })
+            snapshots[ticker] = {"score": 0, "verdict": "UNKNOWN", "action": "Research Needed"}
+            continue
+
+        try:
+            report = v49_build_research_report(scan_row)
+            score = v506_watchlist_score(report)
+            action = v506_action_label(report, score)
+            entry_status, entry_note = v506_entry_status(report)
+            p = report.get("plan", {})
+            price = p.get("price")
+            expected = v503_pct_return(price, p.get("base_target")) if "v503_pct_return" in globals() else None
+            prior_t = prior_rows.get(ticker, {})
+            prev_action = prior_t.get("action")
+            prev_score = prior_t.get("score")
+            prev_verdict = prior_t.get("verdict")
+
+            changes = []
+            if prev_action and prev_action != action:
+                changes.append(f"Action changed from {prev_action} to {action}")
+            if prev_verdict and prev_verdict != report.get("verdict"):
+                changes.append(f"Verdict changed from {prev_verdict} to {report.get('verdict')}")
+            if isinstance(prev_score, (int, float)):
+                diff = score - prev_score
+                if abs(diff) >= 5:
+                    changes.append(f"Watchlist score changed {diff:+.0f} pts")
+            if not changes:
+                changes.append("No major change vs last saved watchlist snapshot.")
+
+            fin = f"{report.get('financial_health_label', 'N/A')} ({report.get('financial_health_score', 0)}/100)"
+            conf_obj = report.get("research_confidence", {})
+            conf = f"{conf_obj.get('label', 'N/A')} ({conf_obj.get('score', 0):.0f}/100)"
+
+            rows.append({
+                "Ticker": ticker,
+                "Company": report.get("company", safe_text(scan_row.get("Company"), "")),
+                "Action": action,
+                "Watchlist Score": score,
+                "Verdict": report.get("verdict", "WATCHLIST"),
+                "Entry Status": entry_status,
+                "Price": v49_money(price),
+                "Buy Zone": f"{v49_money(p.get('aggressive_low'))}–{v49_money(p.get('aggressive_high'))}",
+                "Base Target": v49_money(p.get("base_target")),
+                "Expected Return": "N/A" if expected is None else f"{expected:.1f}%",
+                "Financial Health": fin,
+                "Research Confidence": conf,
+                "What Changed": "; ".join(changes),
+            })
+            snapshots[ticker] = {"score": score, "verdict": report.get("verdict"), "action": action}
+        except Exception as exc:
+            rows.append({
+                "Ticker": ticker,
+                "Company": "",
+                "Action": "Error",
+                "Watchlist Score": 0,
+                "Verdict": "ERROR",
+                "Entry Status": "Unknown",
+                "Price": "N/A",
+                "Buy Zone": "N/A",
+                "Base Target": "N/A",
+                "Expected Return": "N/A",
+                "Financial Health": "N/A",
+                "Research Confidence": "N/A",
+                "What Changed": f"Watchlist analysis error: {exc}",
+            })
+            snapshots[ticker] = {"score": 0, "verdict": "ERROR", "action": "Error"}
+
+    return rows, snapshots
+
+
+def render_v506_watchlist_intelligence(full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df):
+    st.subheader("👀 Watchlist Intelligence")
+    st.caption("Track when your watchlist names become actionable, move into entry zones, or deserve a lower priority.")
+
+    existing = []
+    try:
+        if watch_df is not None and not watch_df.empty and "Ticker" in watch_df.columns:
+            existing = watch_df["Ticker"].dropna().astype(str).str.upper().unique().tolist()
+    except Exception:
+        existing = []
+
+    default_text = "\n".join(existing[:20]) if existing else "NVDA\nMSFT\nCRWD\nELF\nTEAM"
+    text = st.text_area(
+        "Enter watchlist tickers, one per line.",
+        value=st.session_state.get("v506_watchlist_text", default_text),
+        height=160,
+        key="v506_watchlist_text_area",
+    )
+    st.session_state["v506_watchlist_text"] = text
+
+    col_a, col_b = st.columns([1, 1])
+    with col_a:
+        analyze = st.button("Analyze Watchlist", key="v506_analyze_watchlist")
+    with col_b:
+        save_snapshot = st.button("Save Snapshot", key="v506_save_watchlist_snapshot")
+
+    if analyze:
+        st.session_state["v506_run"] = True
+
+    tickers = v506_parse_watchlist_text(text)
+    if not tickers:
+        st.info("Enter at least one ticker.")
+        return
+
+    if not st.session_state.get("v506_run") and not save_snapshot:
+        st.info("Click Analyze Watchlist to score your watchlist.")
+        return
+
+    with st.spinner("Analyzing watchlist..."):
+        rows, snapshots = v506_build_watchlist_rows(tickers, full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
+
+    if save_snapshot:
+        v506_write_watchlist_intel_state({
+            "saved_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+            "tickers": snapshots,
+        })
+        st.success("Watchlist snapshot saved. Future scans can show what changed.")
+
+    actionable = [r for r in rows if r.get("Action") in ["Newly Actionable", "Buy on Weakness"]]
+    high_priority = [r for r in rows if r.get("Action") == "High Priority Watch"]
+    do_not_add = [r for r in rows if r.get("Action") == "Do Not Add"]
+
+    avg_score = round(sum(v49_num(r.get("Watchlist Score"), positive=False) or 0 for r in rows) / len(rows)) if rows else 0
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Watchlist Score", f"{avg_score}/100")
+    c2.metric("Actionable", len(actionable))
+    c3.metric("High Priority", len(high_priority))
+    c4.metric("Do Not Add", len(do_not_add))
+
+    if actionable:
+        st.markdown("### 🔥 Newly Actionable / Buyable")
+        st.dataframe(pd.DataFrame(actionable), use_container_width=True, hide_index=True)
+    else:
+        st.info("No watchlist names are newly actionable right now.")
+
+    st.markdown("### Full Watchlist Review")
+    st.dataframe(pd.DataFrame(rows).sort_values("Watchlist Score", ascending=False), use_container_width=True, hide_index=True)
+
+    st.markdown("### Alerts Summary")
+    for r in rows:
+        if r.get("Action") in ["Newly Actionable", "Buy on Weakness", "Do Not Add"]:
+            st.markdown(f"• **{r['Ticker']}** — {r['Action']}: {r['What Changed']}")
+
+    replacements = v505_replacement_candidates(full_df, tickers, limit=8) if "v505_replacement_candidates" in globals() else []
+    st.markdown("### Better Ideas From Current Scanner")
+    if replacements:
+        st.dataframe(pd.DataFrame(replacements), use_container_width=True, hide_index=True)
+    else:
+        st.info("No better replacement ideas found from current scanner filters.")
+
+
+# Override main to add Watchlist Intelligence tab.
+def main():
+    if not dashboard_login_gate():
+        return
+    render_v423_command_center()
+    render_status_banner()
+    render_score_help()
+
+    full_df = load_full_scan()
+    top_df = latest_top_ideas()
+    recovery_df = latest_recovery()
+    watch_df = latest_watchlist_scan()
+    prescreen_df = load_file(PRESCREEN_FILE)
+    etf_df = load_file(ETF_SCAN_FILE)
+
+    tabs = st.tabs(
+        [
+            "Top AI Ideas",
+            "Full Ranked Scan",
+            "Portfolio Intelligence",
+            "Watchlist Intelligence",
+            "Recovery",
+            "ETFs",
+            "Watchlist",
+            "Prescreen",
+            "Summary",
+            "Research Any Ticker",
+            "Ask AI",
+        ]
+    )
+
+    with tabs[0]:
+        render_table(top_df if not top_df.empty else full_df.head(25), "Top AI Ideas", "top_table", min_score_default=45)
+    with tabs[1]:
+        render_table(full_df, "Full Ranked AI Scan", "full_table", min_score_default=35)
+    with tabs[2]:
+        render_v505_portfolio_analyzer(full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
+    with tabs[3]:
+        render_v506_watchlist_intelligence(full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
+    with tabs[4]:
+        render_table(recovery_df, "Recovery Intelligence: Dropped Stocks With Forward Upside", "recovery_table", min_score_default=35)
+    with tabs[5]:
+        render_table(etf_df, "ETF Intelligence: Non-Financial / Non-Israel Screen", "etf_table", min_score_default=35)
+    with tabs[6]:
+        render_table(watch_df, "Watchlist Scan", "watch_table", min_score_default=0)
+    with tabs[7]:
+        render_table(prescreen_df, "Prescreen Candidates", "prescreen_table", min_score_default=35)
+    with tabs[8]:
+        render_market_summary(full_df)
+    with tabs[9]:
+        render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df)
+    with tabs[10]:
+        render_chat_helper(full_df)
+
+
+def render_status_banner():
+    state = read_state()
+    st.title("📈 AI Trading Dashboard")
+    st.caption(APP_VERSION)
+    st.caption("Watchlist Intelligence: actionable alerts, entry-zone checks, watchlist score, what changed, and better ideas from the scanner.")
     c1,c2,c3,c4,c5 = st.columns(5)
     c1.metric("Status", state.get("status", "unknown"))
     c2.metric("Scanner Version", state.get("version", "N/A"))
