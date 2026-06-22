@@ -16,7 +16,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V50.6 Watchlist Intelligence"
+APP_VERSION = "V50.7 Performance Tracking"
 
 
 # =========================
@@ -16104,6 +16104,293 @@ def render_status_banner():
     st.title("📈 AI Trading Dashboard")
     st.caption(APP_VERSION)
     st.caption("Watchlist Intelligence: actionable alerts, entry-zone checks, watchlist score, what changed, and better ideas from the scanner.")
+    c1,c2,c3,c4,c5 = st.columns(5)
+    c1.metric("Status", state.get("status", "unknown"))
+    c2.metric("Scanner Version", state.get("version", "N/A"))
+    c3.metric("Full Scan", state.get("full_scan_count", "N/A"))
+    c4.metric("Prescreen", state.get("prescreen_count", "N/A"))
+    persisted = bool(state.get("github_persisted")) or v45_text(state.get("version", "")).startswith(("V45", "V46", "V47", "V48", "V49", "V50"))
+    c5.metric("GitHub Persisted", "✅" if persisted else "❌")
+    if is_viewer():
+        st.info("Viewer mode: admin diagnostics are hidden.")
+    if state:
+        st.caption(f"Last scan: {state.get('generated_at', 'N/A')} | Duration: {state.get('duration_seconds', 'N/A')}s | DATA_DIR={state.get('data_dir','.')}")
+
+
+
+# =========================
+# V50.7 PERFORMANCE TRACKING
+# =========================
+# Tracks BUY NOW / BUY ON WEAKNESS calls, returns, win rate, best/worst calls.
+
+PERFORMANCE_LOG_FILE = DATA_DIR / "performance_log.json"
+
+def v507_read_performance_log():
+    try:
+        data = read_json_file(PERFORMANCE_LOG_FILE)
+        return data if isinstance(data, dict) else {"signals": {}, "snapshots": []}
+    except Exception:
+        return {"signals": {}, "snapshots": []}
+
+def v507_write_performance_log(data):
+    try:
+        write_json_file(PERFORMANCE_LOG_FILE, data)
+    except Exception:
+        try:
+            with open(PERFORMANCE_LOG_FILE, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, default=str)
+        except Exception:
+            pass
+
+def v507_today_key():
+    return dt.datetime.now(dt.timezone.utc).date().isoformat()
+
+def v507_signal_key(ticker, verdict, date_key):
+    return f"{v451_clean_ticker(ticker)}|{verdict}|{date_key}"
+
+def v507_current_price_lookup(ticker, full_df):
+    ticker = v451_clean_ticker(ticker)
+    try:
+        if full_df is not None and not full_df.empty and "Ticker" in full_df.columns:
+            m = full_df[full_df["Ticker"].astype(str).str.upper().eq(ticker)]
+            if not m.empty:
+                return safe_number(m.iloc[0].get("Price"), None)
+    except Exception:
+        pass
+    try:
+        hist = yf.download(ticker, period="5d", interval="1d", progress=False, auto_adjust=True)
+        if hist is not None and not hist.empty:
+            return float(hist["Close"].dropna().iloc[-1])
+    except Exception:
+        pass
+    return None
+
+def v507_collect_current_signals(full_df, max_rows=150):
+    signals = []
+    if full_df is None or full_df.empty:
+        return signals
+    for _, row in full_df.head(max_rows).iterrows():
+        try:
+            report = v49_build_research_report(row)
+            verdict = report.get("verdict", "")
+            if verdict not in ["BUY NOW", "BUY ON WEAKNESS"]:
+                continue
+            p = report.get("plan", {})
+            ticker = v451_clean_ticker(report.get("ticker") or row.get("Ticker"))
+            price = v49_num(p.get("price"), positive=True) or safe_number(row.get("Price"), None)
+            if not ticker or not price:
+                continue
+            signals.append({
+                "ticker": ticker,
+                "company": report.get("company", safe_text(row.get("Company"), "")),
+                "verdict": verdict,
+                "signal_price": price,
+                "current_price": price,
+                "base_target": v49_num(p.get("base_target"), positive=True),
+                "stop": v49_num(p.get("stop"), positive=True),
+                "investment_score": v49_num(report.get("investment_score") or report.get("opportunity_score"), positive=False),
+                "financial_health_score": v49_num(report.get("financial_health_score"), positive=False),
+                "research_confidence": v49_num(report.get("research_confidence", {}).get("score"), positive=False),
+                "risk_reward": v49_num(p.get("risk_reward"), positive=False),
+                "date": v507_today_key(),
+            })
+        except Exception:
+            continue
+    return signals
+
+def v507_update_log_with_signals(full_df):
+    log = v507_read_performance_log()
+    signals = log.get("signals", {})
+    if not isinstance(signals, dict):
+        signals = {}
+    today = v507_today_key()
+    current = v507_collect_current_signals(full_df)
+    added = 0
+    for sig in current:
+        key = v507_signal_key(sig["ticker"], sig["verdict"], today)
+        if key not in signals:
+            signals[key] = {
+                **sig,
+                "created_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+                "status": "open",
+            }
+            added += 1
+    log["signals"] = signals
+    snaps = log.get("snapshots", [])
+    if not isinstance(snaps, list):
+        snaps = []
+    snaps.append({
+        "date": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "signals_found": len(current),
+        "new_signals_added": added,
+    })
+    log["snapshots"] = snaps[-50:]
+    v507_write_performance_log(log)
+    return added, len(current)
+
+def v507_evaluate_signals(full_df):
+    log = v507_read_performance_log()
+    signals = log.get("signals", {})
+    if not isinstance(signals, dict):
+        return []
+    rows = []
+    for key, sig in signals.items():
+        ticker = v451_clean_ticker(sig.get("ticker"))
+        signal_price = v49_num(sig.get("signal_price"), positive=True)
+        if not ticker or not signal_price:
+            continue
+        current_price = v507_current_price_lookup(ticker, full_df) or v49_num(sig.get("current_price"), positive=True)
+        ret = ((current_price - signal_price) / signal_price) * 100 if current_price and signal_price else None
+        target = v49_num(sig.get("base_target"), positive=True)
+        stop = v49_num(sig.get("stop"), positive=True)
+        status = "open"
+        if current_price and target and current_price >= target:
+            status = "target hit"
+        elif current_price and stop and current_price <= stop:
+            status = "stop hit"
+        sig["current_price"] = current_price
+        sig["last_return_pct"] = ret
+        sig["status"] = status
+        sig["last_checked_at"] = dt.datetime.now(dt.timezone.utc).isoformat()
+        rows.append({
+            "Ticker": ticker,
+            "Company": sig.get("company", ""),
+            "Signal": sig.get("verdict", ""),
+            "Signal Date": safe_text(sig.get("date") or sig.get("created_at"), "")[:10],
+            "Signal Price": v49_money(signal_price),
+            "Current Price": v49_money(current_price),
+            "Return": "N/A" if ret is None else f"{ret:.1f}%",
+            "Status": status,
+            "Base Target": v49_money(target),
+            "Stop": v49_money(stop),
+            "Investment Score": "" if sig.get("investment_score") is None else round(sig.get("investment_score")),
+            "Risk/Reward": "" if sig.get("risk_reward") is None else round(sig.get("risk_reward"), 2),
+        })
+    log["signals"] = signals
+    v507_write_performance_log(log)
+    return sorted(rows, key=lambda x: (x["Signal Date"], x["Ticker"]), reverse=True)
+
+def v507_performance_summary(rows):
+    returns = []
+    target_hits = 0
+    stop_hits = 0
+    for r in rows:
+        try:
+            returns.append(float(safe_text(r.get("Return"), "0").replace("%", "")))
+        except Exception:
+            pass
+        status = safe_text(r.get("Status"), "").lower()
+        if "target" in status:
+            target_hits += 1
+        if "stop" in status:
+            stop_hits += 1
+    count = len(returns)
+    wins = len([x for x in returns if x > 0])
+    avg = sum(returns) / count if count else 0
+    win_rate = wins / count * 100 if count else 0
+    return {
+        "tracked": len(rows),
+        "avg_return": avg,
+        "win_rate": win_rate,
+        "best": max(returns) if returns else 0,
+        "worst": min(returns) if returns else 0,
+        "target_hits": target_hits,
+        "stop_hits": stop_hits,
+    }
+
+def render_v507_performance_tracking(full_df):
+    st.subheader("📊 Performance Tracking")
+    st.caption("Track BUY NOW and BUY ON WEAKNESS calls over time to prove signal quality.")
+
+    cta1, cta2, cta3 = st.columns([1, 1, 2])
+    with cta1:
+        if st.button("Capture Today's Signals", key="v507_capture"):
+            added, total = v507_update_log_with_signals(full_df)
+            st.success(f"Captured {total} actionable signals. Added {added} new signals.")
+    with cta2:
+        if st.button("Refresh Performance", key="v507_refresh"):
+            st.session_state["v507_refreshed"] = True
+    with cta3:
+        st.info("Capture after each overnight scan. This creates the evidence base for paid users.")
+
+    rows = v507_evaluate_signals(full_df)
+    summary = v507_performance_summary(rows)
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Tracked Signals", summary["tracked"])
+    m2.metric("Average Return", f"{summary['avg_return']:.1f}%")
+    m3.metric("Win Rate", f"{summary['win_rate']:.1f}%")
+    m4.metric("Target / Stop Hits", f"{summary['target_hits']} / {summary['stop_hits']}")
+
+    m5, m6 = st.columns(2)
+    m5.metric("Best Signal", f"{summary['best']:.1f}%")
+    m6.metric("Worst Signal", f"{summary['worst']:.1f}%")
+
+    if rows:
+        st.markdown("### Signal Performance Log")
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    else:
+        st.info("No signals tracked yet. Click Capture Today's Signals after a scan completes.")
+
+    if not is_viewer():
+        with st.expander("Admin performance log diagnostics", expanded=False):
+            log = v507_read_performance_log()
+            st.write({
+                "signals": len(log.get("signals", {})) if isinstance(log.get("signals"), dict) else 0,
+                "snapshots": len(log.get("snapshots", [])) if isinstance(log.get("snapshots"), list) else 0,
+                "file": str(PERFORMANCE_LOG_FILE),
+            })
+
+def main():
+    if not dashboard_login_gate():
+        return
+    render_v423_command_center()
+    render_status_banner()
+    render_score_help()
+
+    full_df = load_full_scan()
+    top_df = latest_top_ideas()
+    recovery_df = latest_recovery()
+    watch_df = latest_watchlist_scan()
+    prescreen_df = load_file(PRESCREEN_FILE)
+    etf_df = load_file(ETF_SCAN_FILE)
+
+    tabs = st.tabs([
+        "Top AI Ideas", "Full Ranked Scan", "Portfolio Intelligence",
+        "Watchlist Intelligence", "Performance", "Recovery", "ETFs",
+        "Watchlist", "Prescreen", "Summary", "Research Any Ticker", "Ask AI"
+    ])
+
+    with tabs[0]:
+        render_table(top_df if not top_df.empty else full_df.head(25), "Top AI Ideas", "top_table", min_score_default=45)
+    with tabs[1]:
+        render_table(full_df, "Full Ranked AI Scan", "full_table", min_score_default=35)
+    with tabs[2]:
+        render_v505_portfolio_analyzer(full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
+    with tabs[3]:
+        render_v506_watchlist_intelligence(full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
+    with tabs[4]:
+        render_v507_performance_tracking(full_df)
+    with tabs[5]:
+        render_table(recovery_df, "Recovery Intelligence: Dropped Stocks With Forward Upside", "recovery_table", min_score_default=35)
+    with tabs[6]:
+        render_table(etf_df, "ETF Intelligence: Non-Financial / Non-Israel Screen", "etf_table", min_score_default=35)
+    with tabs[7]:
+        render_table(watch_df, "Watchlist Scan", "watch_table", min_score_default=0)
+    with tabs[8]:
+        render_table(prescreen_df, "Prescreen Candidates", "prescreen_table", min_score_default=35)
+    with tabs[9]:
+        render_market_summary(full_df)
+    with tabs[10]:
+        render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df)
+    with tabs[11]:
+        render_chat_helper(full_df)
+
+def render_status_banner():
+    state = read_state()
+    st.title("📈 AI Trading Dashboard")
+    st.caption(APP_VERSION)
+    st.caption("Performance Tracking: capture actionable signals, track returns, win rate, target hits, and stop hits over time.")
     c1,c2,c3,c4,c5 = st.columns(5)
     c1.metric("Status", state.get("status", "unknown"))
     c2.metric("Scanner Version", state.get("version", "N/A"))
