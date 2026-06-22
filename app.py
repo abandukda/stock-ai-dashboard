@@ -16,7 +16,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V50.7.1 Financial Heatmap Data Fix"
+APP_VERSION = "V50.7.1a Financial Fallback Restore"
 
 
 # =========================
@@ -16560,6 +16560,343 @@ def render_status_banner():
     st.title("📈 AI Trading Dashboard")
     st.caption(APP_VERSION)
     st.caption("Financial Heatmap Data Fix: normalized field mapping prevents false Missing metrics and aligns heatmap with Financial Health Score.")
+    c1,c2,c3,c4,c5 = st.columns(5)
+    c1.metric("Status", state.get("status", "unknown"))
+    c2.metric("Scanner Version", state.get("version", "N/A"))
+    c3.metric("Full Scan", state.get("full_scan_count", "N/A"))
+    c4.metric("Prescreen", state.get("prescreen_count", "N/A"))
+    persisted = bool(state.get("github_persisted")) or v45_text(state.get("version", "")).startswith(("V45", "V46", "V47", "V48", "V49", "V50"))
+    c5.metric("GitHub Persisted", "✅" if persisted else "❌")
+    if is_viewer():
+        st.info("Viewer mode: admin diagnostics are hidden.")
+    if state:
+        st.caption(f"Last scan: {state.get('generated_at', 'N/A')} | Duration: {state.get('duration_seconds', 'N/A')}s | DATA_DIR={state.get('data_dir','.')}")
+
+
+
+# =========================
+# V50.7.1a FINANCIAL FALLBACK RESTORE
+# =========================
+# Targeted safe patch:
+# - Keeps V50.7.1 heatmap structure
+# - Restores missing metrics using yfinance financial statements when .info is empty
+# - Does NOT overwrite good non-zero metrics with zero/null values
+
+@st.cache_data(ttl=3600)
+def v5071a_yahoo_statement_bundle(ticker):
+    ticker = v451_clean_ticker(ticker)
+    out = {"info": {}, "income": {}, "cashflow": {}, "balance": {}, "diagnostics": []}
+    try:
+        t = yf.Ticker(ticker)
+    except Exception as exc:
+        out["diagnostics"].append(f"Yahoo ticker init error: {exc}")
+        return out
+
+    try:
+        info = t.info or {}
+        out["info"] = info if isinstance(info, dict) else {}
+        out["diagnostics"].append("Yahoo info returned" if out["info"] else "Yahoo info empty")
+    except Exception as exc:
+        out["diagnostics"].append(f"Yahoo info error: {exc}")
+
+    def latest_statement_dict(df):
+        try:
+            if df is None or getattr(df, "empty", True):
+                return {}
+            col = df.columns[0]
+            return {str(idx): val for idx, val in df[col].items()}
+        except Exception:
+            return {}
+
+    try:
+        income = latest_statement_dict(getattr(t, "income_stmt", None))
+        if not income:
+            income = latest_statement_dict(getattr(t, "financials", None))
+        out["income"] = income
+        out["diagnostics"].append("Yahoo income statement returned" if income else "Yahoo income statement empty")
+    except Exception as exc:
+        out["diagnostics"].append(f"Yahoo income statement error: {exc}")
+
+    try:
+        cf = latest_statement_dict(getattr(t, "cashflow", None))
+        out["cashflow"] = cf
+        out["diagnostics"].append("Yahoo cashflow returned" if cf else "Yahoo cashflow empty")
+    except Exception as exc:
+        out["diagnostics"].append(f"Yahoo cashflow error: {exc}")
+
+    try:
+        bs = latest_statement_dict(getattr(t, "balance_sheet", None))
+        out["balance"] = bs
+        out["diagnostics"].append("Yahoo balance sheet returned" if bs else "Yahoo balance sheet empty")
+    except Exception as exc:
+        out["diagnostics"].append(f"Yahoo balance sheet error: {exc}")
+
+    return out
+
+
+def v5071a_num(x):
+    try:
+        if x is None:
+            return None
+        n = float(x)
+        if pd.isna(n):
+            return None
+        return n
+    except Exception:
+        return None
+
+
+def v5071a_first(*vals):
+    for v in vals:
+        n = v5071a_num(v)
+        if n is not None:
+            return n
+    return None
+
+
+def v5071a_pct(v):
+    n = v5071a_num(v)
+    if n is None:
+        return None
+    if -5 < n < 5:
+        n *= 100
+    if abs(n) > 1000:
+        return None
+    return n
+
+
+def v5071a_nonzero_existing(fin, key):
+    n = v5071a_num((fin or {}).get(key))
+    if n is None:
+        return None
+    if abs(n) < 1e-12:
+        return None
+    return n
+
+
+def v5071a_fix_financials(fin, ticker):
+    fin = dict(fin or {})
+    ticker = v451_clean_ticker(ticker)
+    bundle = v5071a_yahoo_statement_bundle(ticker)
+    info = bundle.get("info", {}) or {}
+    inc = bundle.get("income", {}) or {}
+    cf = bundle.get("cashflow", {}) or {}
+    bs = bundle.get("balance", {}) or {}
+
+    sources = dict(fin.get("completion_sources", {}) or {})
+    diagnostics = list(fin.get("diagnostics", []) or [])
+    diagnostics.extend([f"V50.7.1a {x}" for x in bundle.get("diagnostics", [])])
+
+    revenue = v5071a_first(v5071a_nonzero_existing(fin, "revenue"), inc.get("Total Revenue"), inc.get("Operating Revenue"), info.get("totalRevenue"))
+    net_income = v5071a_first(v5071a_nonzero_existing(fin, "net_income"), inc.get("Net Income"), inc.get("Net Income Common Stockholders"), info.get("netIncomeToCommon"))
+    gross_profit = v5071a_first(inc.get("Gross Profit"))
+    operating_income = v5071a_first(inc.get("Operating Income"), inc.get("EBIT"))
+
+    ocf = v5071a_first(v5071a_nonzero_existing(fin, "operating_cash_flow"), cf.get("Operating Cash Flow"), cf.get("Cash Flow From Continuing Operating Activities"), info.get("operatingCashflow"))
+    capex = v5071a_first(cf.get("Capital Expenditure"), cf.get("Capital Expenditures"))
+    fcf = v5071a_first(v5071a_nonzero_existing(fin, "free_cash_flow"), cf.get("Free Cash Flow"), info.get("freeCashflow"))
+    if fcf is None and ocf is not None and capex is not None:
+        fcf = ocf + capex
+        sources["free_cash_flow"] = "V50.7.1a derived: operating cash flow - capex"
+
+    cash = v5071a_first(v5071a_nonzero_existing(fin, "cash"), bs.get("Cash And Cash Equivalents"), bs.get("Cash Cash Equivalents And Short Term Investments"), info.get("totalCash"))
+    debt = v5071a_first(v5071a_nonzero_existing(fin, "total_debt"), bs.get("Total Debt"), info.get("totalDebt"))
+    equity = v5071a_first(bs.get("Stockholders Equity"), bs.get("Total Equity Gross Minority Interest"), bs.get("Common Stock Equity"))
+    current_assets = v5071a_first(bs.get("Current Assets"), bs.get("Total Current Assets"))
+    current_liabilities = v5071a_first(bs.get("Current Liabilities"), bs.get("Total Current Liabilities"))
+
+    if revenue is not None:
+        fin["revenue"] = revenue
+    if net_income is not None:
+        fin["net_income"] = net_income
+    if ocf is not None:
+        fin["operating_cash_flow"] = ocf
+        sources.setdefault("operating_cash_flow", "V50.7.1a Yahoo statement fallback")
+    if fcf is not None:
+        fin["free_cash_flow"] = fcf
+        sources.setdefault("free_cash_flow", "V50.7.1a Yahoo statement fallback")
+    if cash is not None:
+        fin["cash"] = cash
+        sources.setdefault("cash", "V50.7.1a Yahoo balance sheet fallback")
+    if debt is not None:
+        fin["total_debt"] = debt
+        sources.setdefault("total_debt", "V50.7.1a Yahoo balance sheet fallback")
+
+    revenue_growth = v5071a_nonzero_existing(fin, "revenue_growth")
+    if revenue_growth is None:
+        revenue_growth = v5071a_pct(info.get("revenueGrowth"))
+    if revenue_growth is not None:
+        fin["revenue_growth"] = revenue_growth
+        sources.setdefault("revenue_growth", "V50.7.1a Yahoo info fallback")
+
+    eps_growth = v5071a_nonzero_existing(fin, "eps_growth")
+    if eps_growth is None:
+        eps_growth = v5071a_pct(info.get("earningsGrowth"))
+    if eps_growth is not None:
+        fin["eps_growth"] = eps_growth
+        sources.setdefault("eps_growth", "V50.7.1a Yahoo info fallback")
+
+    gross_margin = v5071a_nonzero_existing(fin, "gross_margin")
+    if gross_margin is None:
+        gross_margin = v5071a_pct(info.get("grossMargins"))
+    if gross_margin is None and revenue and gross_profit is not None:
+        gross_margin = gross_profit / revenue * 100
+    if gross_margin is not None:
+        fin["gross_margin"] = gross_margin
+        sources.setdefault("gross_margin", "V50.7.1a Yahoo/derived fallback")
+
+    operating_margin = v5071a_nonzero_existing(fin, "operating_margin")
+    if operating_margin is None:
+        operating_margin = v5071a_pct(info.get("operatingMargins"))
+    if operating_margin is None and revenue and operating_income is not None:
+        operating_margin = operating_income / revenue * 100
+    if operating_margin is not None:
+        fin["operating_margin"] = operating_margin
+        sources.setdefault("operating_margin", "V50.7.1a Yahoo/derived fallback")
+
+    net_margin = v5071a_nonzero_existing(fin, "net_margin")
+    if net_margin is None:
+        net_margin = v5071a_pct(info.get("profitMargins"))
+    if net_margin is None and revenue and net_income is not None:
+        net_margin = net_income / revenue * 100
+    if net_margin is not None:
+        fin["net_margin"] = net_margin
+        sources.setdefault("net_margin", "V50.7.1a Yahoo/derived fallback")
+
+    debt_equity = v5071a_nonzero_existing(fin, "debt_equity")
+    yahoo_de = v5071a_num(info.get("debtToEquity"))
+    if yahoo_de is not None:
+        debt_equity = yahoo_de / 100 if yahoo_de > 50 else yahoo_de
+    elif debt_equity is None and debt is not None and equity not in (None, 0):
+        debt_equity = debt / abs(equity)
+    if debt_equity is not None:
+        fin["debt_equity"] = debt_equity
+        sources.setdefault("debt_equity", "V50.7.1a Yahoo/derived fallback")
+
+    roe = v5071a_nonzero_existing(fin, "roe")
+    if roe is None:
+        roe = v5071a_pct(info.get("returnOnEquity"))
+    if roe is None and net_income is not None and equity not in (None, 0):
+        roe = net_income / abs(equity) * 100
+    if roe is not None:
+        fin["roe"] = roe
+        sources.setdefault("roe", "V50.7.1a Yahoo/derived fallback")
+
+    current_ratio = v5071a_nonzero_existing(fin, "current_ratio")
+    if current_ratio is None:
+        current_ratio = v5071a_num(info.get("currentRatio"))
+    if current_ratio is None and current_assets is not None and current_liabilities not in (None, 0):
+        current_ratio = current_assets / current_liabilities
+    if current_ratio is not None:
+        fin["current_ratio"] = current_ratio
+        sources.setdefault("current_ratio", "V50.7.1a Yahoo/derived fallback")
+
+    if cash is not None and debt is not None:
+        fin["net_cash"] = cash - debt
+        fin["cash_debt_ratio"] = cash / debt if debt else None
+        if debt and cash / debt >= 2:
+            fin["balance_sheet_plain"] = f"Cash exceeds debt by {cash / debt:.1f}x; liquidity appears strong."
+        elif debt_equity is not None:
+            fin["balance_sheet_plain"] = f"Debt/equity is {debt_equity:.2f}x."
+
+    core = ["revenue_growth", "eps_growth", "gross_margin", "operating_margin", "net_margin", "free_cash_flow", "operating_cash_flow", "cash", "total_debt", "debt_equity", "current_ratio", "roe"]
+    populated = sum(1 for k in core if fin.get(k) is not None and not (isinstance(fin.get(k), (int, float)) and abs(fin.get(k)) < 1e-12 and k not in {"debt_equity"}))
+    fin["coverage_count"] = populated
+    fin["coverage_total"] = len(core)
+    fin["coverage_label"] = "Excellent" if populated >= 10 else ("Good" if populated >= 8 else ("Partial" if populated >= 6 else "Limited"))
+    fin["completion_sources"] = sources
+    diagnostics.append("V50.7.1a targeted fallback completed without overwriting good non-zero values.")
+    fin["diagnostics"] = diagnostics
+    return fin
+
+
+v5071a_original_build_research_report = v49_build_research_report
+
+def v49_build_research_report(row):
+    r = dict(v5071a_original_build_research_report(row))
+    fixed_fin = v5071a_fix_financials(r.get("financials", {}), r.get("ticker") or row.get("Ticker"))
+    r["financials"] = fixed_fin
+    if "v502_financial_score" in globals():
+        score, label = v502_financial_score(fixed_fin)
+        r["financial_health_score"] = score
+        r["financial_health_label"] = label
+    if "v501_research_confidence" in globals():
+        r["research_confidence"] = v501_research_confidence(r)
+    return r
+
+
+def v503_financial_heatmap_items(fin, row=None):
+    row = row if isinstance(row, dict) else {}
+    raw = row.get("Raw", {}) if isinstance(row.get("Raw", {}), dict) else {}
+    def first(*keys):
+        for space in [fin if isinstance(fin, dict) else {}, row, raw]:
+            if not isinstance(space, dict):
+                continue
+            for k in keys:
+                n = v5071a_num(space.get(k))
+                if n is not None and not (abs(n) < 1e-12 and k not in {"debt_equity", "Debt / Equity", "Debt to Equity"}):
+                    return n
+        return None
+    values = {
+        "Revenue Growth": first("revenue_growth", "Revenue Growth", "revenueGrowth"),
+        "EPS Growth": first("eps_growth", "EPS Growth", "earningsGrowth"),
+        "Gross Margin": first("gross_margin", "Gross Margin", "gross_profit_margin", "grossMargins"),
+        "Operating Margin": first("operating_margin", "Operating Margin", "operating_profit_margin", "operatingMargins"),
+        "Net Margin": first("net_margin", "Net Margin", "net_profit_margin", "profitMargins"),
+        "Free Cash Flow": first("free_cash_flow", "Free Cash Flow", "freeCashflow"),
+        "Debt / Equity": first("debt_equity", "Debt / Equity", "Debt to Equity", "debtToEquity"),
+        "ROE": first("roe", "ROE", "returnOnEquity"),
+        "Current Ratio": first("current_ratio", "Current Ratio", "currentRatio"),
+    }
+    out = []
+    for label, val in values.items():
+        if val is None:
+            out.append((label, "⚪ Missing", "N/A"))
+            continue
+        try:
+            rating, _, _ = v502_rating(label, val)
+        except Exception:
+            rating = "⚪ Available"
+        if label == "Free Cash Flow":
+            display = v49_money(val) if "v49_money" in globals() else fmt_money(val)
+        elif label in {"Debt / Equity", "Current Ratio"}:
+            display = f"{val:.2f}"
+        else:
+            display = f"{val:.1f}%"
+        out.append((label, rating, display))
+    return out
+
+
+def render_v503_financial_heatmap(row):
+    r = v49_build_research_report(row)
+    items = v503_financial_heatmap_items(r.get("financials", {}), row)
+    with st.container(border=True):
+        st.markdown("### 🚦 Financial Health Heatmap")
+        st.caption("Traffic-light view using scanner data plus Yahoo statement fallback when API fields are missing.")
+        cols = st.columns(3)
+        for i, (label, rating, display) in enumerate(items):
+            if display and display != "N/A":
+                cols[i % 3].markdown(f"**{rating}**  \n{label}: **{display}**")
+            else:
+                cols[i % 3].markdown(f"**{rating}**  \n{label}")
+        missing_count = sum(1 for _, rating, _ in items if "Missing" in rating)
+        if missing_count >= 5:
+            st.warning("Several financial metrics are still missing. Check Admin heatmap diagnostics.")
+        elif missing_count:
+            st.info("Some financial metrics are unavailable, but statement-level fallback was applied.")
+        if not is_viewer():
+            with st.expander("Admin heatmap diagnostics", expanded=False):
+                st.markdown("**Normalized heatmap values**")
+                st.json({label: {"rating": rating, "display": display} for label, rating, display in items})
+                st.markdown("**Financials object**")
+                st.json(r.get("financials", {}))
+
+
+def render_status_banner():
+    state = read_state()
+    st.title("📈 AI Trading Dashboard")
+    st.caption(APP_VERSION)
+    st.caption("Financial Fallback Restore: keeps V50.7.1 stable logic and restores missing metrics using Yahoo financial statements.")
     c1,c2,c3,c4,c5 = st.columns(5)
     c1.metric("Status", state.get("status", "unknown"))
     c2.metric("Scanner Version", state.get("version", "N/A"))
