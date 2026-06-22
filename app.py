@@ -16,7 +16,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V50.7 Performance Tracking"
+APP_VERSION = "V50.7.1 Financial Heatmap Data Fix"
 
 
 # =========================
@@ -16391,6 +16391,175 @@ def render_status_banner():
     st.title("📈 AI Trading Dashboard")
     st.caption(APP_VERSION)
     st.caption("Performance Tracking: capture actionable signals, track returns, win rate, target hits, and stop hits over time.")
+    c1,c2,c3,c4,c5 = st.columns(5)
+    c1.metric("Status", state.get("status", "unknown"))
+    c2.metric("Scanner Version", state.get("version", "N/A"))
+    c3.metric("Full Scan", state.get("full_scan_count", "N/A"))
+    c4.metric("Prescreen", state.get("prescreen_count", "N/A"))
+    persisted = bool(state.get("github_persisted")) or v45_text(state.get("version", "")).startswith(("V45", "V46", "V47", "V48", "V49", "V50"))
+    c5.metric("GitHub Persisted", "✅" if persisted else "❌")
+    if is_viewer():
+        st.info("Viewer mode: admin diagnostics are hidden.")
+    if state:
+        st.caption(f"Last scan: {state.get('generated_at', 'N/A')} | Duration: {state.get('duration_seconds', 'N/A')}s | DATA_DIR={state.get('data_dir','.')}")
+
+
+
+# =========================
+# V50.7.1 FINANCIAL HEATMAP DATA FIX
+# =========================
+# Fixes false "Missing" heatmap metrics by normalizing multiple field names
+# from scanner rows, FMP/Yahoo fallback financials, and display-layer rows.
+
+def v5071_financial_value(fin, row=None, *keys):
+    row = row if isinstance(row, dict) else {}
+    raw = row.get("Raw", {}) if isinstance(row.get("Raw", {}), dict) else {}
+
+    search_spaces = [fin if isinstance(fin, dict) else {}, row, raw]
+
+    for key in keys:
+        for space in search_spaces:
+            if not isinstance(space, dict):
+                continue
+            value = space.get(key)
+            if value is None or value == "" or str(value).lower() in {"nan", "none", "null", "n/a"}:
+                continue
+            n = v49_num(value, positive=False) if "v49_num" in globals() else safe_number(value, None)
+            if n is not None:
+                return n
+            return value
+    return None
+
+
+def v5071_pct_normalize(value):
+    v = v49_num(value, positive=False) if "v49_num" in globals() else safe_number(value, None)
+    if v is None:
+        return None
+    if -2 < v < 2:
+        v *= 100
+    if abs(v) > 500:
+        return None
+    return v
+
+
+def v5071_money_or_num(value):
+    v = v49_num(value, positive=False) if "v49_num" in globals() else safe_number(value, None)
+    return v
+
+
+def v503_financial_heatmap_items(fin, row=None):
+    # Normalize from all known field names used across scanner, app, FMP, Yahoo, and prior versions.
+    normalized = {
+        "Revenue Growth": v5071_pct_normalize(v5071_financial_value(
+            fin, row,
+            "revenue_growth", "Revenue Growth", "Revenue Growth %", "revenueGrowth",
+            "Revenue QoQ %", "revenue_qoq_pct", "revenueGrowthTTM", "growthRevenue"
+        )),
+        "EPS Growth": v5071_pct_normalize(v5071_financial_value(
+            fin, row,
+            "eps_growth", "EPS Growth", "earnings_growth", "Earnings Growth",
+            "epsGrowth", "epsgrowth", "earningsGrowth"
+        )),
+        "Gross Margin": v5071_pct_normalize(v5071_financial_value(
+            fin, row,
+            "gross_margin", "Gross Margin", "Gross Margin %", "gross_profit_margin",
+            "grossProfitMargin", "grossProfitMarginTTM", "grossMargins"
+        )),
+        "Operating Margin": v5071_pct_normalize(v5071_financial_value(
+            fin, row,
+            "operating_margin", "Operating Margin", "Operating Margin %", "operating_profit_margin",
+            "operatingProfitMargin", "operatingProfitMarginTTM", "operatingMargins"
+        )),
+        "Net Margin": v5071_pct_normalize(v5071_financial_value(
+            fin, row,
+            "net_margin", "Net Margin", "Net Margin %", "net_profit_margin",
+            "netProfitMargin", "netProfitMarginTTM", "profitMargins"
+        )),
+        "Free Cash Flow": v5071_money_or_num(v5071_financial_value(
+            fin, row,
+            "free_cash_flow", "Free Cash Flow", "Free Cash Flow $", "fcf",
+            "freeCashFlow", "freeCashflow"
+        )),
+        "Debt / Equity": v5071_money_or_num(v5071_financial_value(
+            fin, row,
+            "debt_equity", "Debt / Equity", "Debt to Equity", "debt_to_equity",
+            "debtToEquity", "debtEquityRatio"
+        )),
+        "ROE": v5071_pct_normalize(v5071_financial_value(
+            fin, row,
+            "roe", "ROE", "returnOnEquity", "returnOnEquityTTM"
+        )),
+        "Current Ratio": v5071_money_or_num(v5071_financial_value(
+            fin, row,
+            "current_ratio", "Current Ratio", "currentRatio", "currentRatioTTM"
+        )),
+    }
+
+    out = []
+    for label, val in normalized.items():
+        if val is None:
+            out.append((label, "⚪ Missing", "N/A"))
+            continue
+        try:
+            rating, _, _ = v502_rating(label, val)
+        except Exception:
+            rating = "⚪ Available"
+
+        if label in {"Free Cash Flow"}:
+            display = v49_money(val) if "v49_money" in globals() else fmt_money(val)
+        elif label in {"Debt / Equity", "Current Ratio"}:
+            display = f"{val:.2f}" if isinstance(val, (int, float)) else str(val)
+        else:
+            display = f"{val:.1f}%" if isinstance(val, (int, float)) else str(val)
+
+        out.append((label, rating, display))
+    return out
+
+
+def render_v503_financial_heatmap(row):
+    r = v49_build_research_report(row)
+    items = v503_financial_heatmap_items(r.get("financials", {}), row)
+
+    with st.container(border=True):
+        st.markdown("### 🚦 Financial Health Heatmap")
+        st.caption("Traffic-light view using normalized financial fields from scanner, FMP/Yahoo fallbacks, and derived metrics.")
+        cols = st.columns(3)
+
+        for i, item in enumerate(items):
+            if len(item) == 3:
+                label, rating, display = item
+            else:
+                label, rating = item
+                display = ""
+            if display and display != "N/A":
+                cols[i % 3].markdown(f"**{rating}**  \n{label}: **{display}**")
+            else:
+                cols[i % 3].markdown(f"**{rating}**  \n{label}")
+
+        missing_count = sum(1 for item in items if "Missing" in item[1])
+        if missing_count >= 5:
+            st.warning("Several financial metrics are still missing. Check Admin heatmap diagnostics to see available field names.")
+        elif missing_count:
+            st.info("Some financial metrics are unavailable, but the heatmap is using all known fallback field names.")
+
+        if not is_viewer():
+            with st.expander("Admin heatmap diagnostics", expanded=False):
+                st.markdown("**Normalized heatmap values**")
+                st.json({label: {"rating": rating, "display": display} for label, rating, display in items})
+                st.markdown("**Financials object**")
+                st.json(r.get("financials", {}))
+                st.markdown("**Row keys available**")
+                st.write(sorted([str(k) for k in row.keys()]))
+                raw = row.get("Raw", {}) if isinstance(row.get("Raw", {}), dict) else {}
+                st.markdown("**Raw keys available**")
+                st.write(sorted([str(k) for k in raw.keys()])[:300])
+
+
+def render_status_banner():
+    state = read_state()
+    st.title("📈 AI Trading Dashboard")
+    st.caption(APP_VERSION)
+    st.caption("Financial Heatmap Data Fix: normalized field mapping prevents false Missing metrics and aligns heatmap with Financial Health Score.")
     c1,c2,c3,c4,c5 = st.columns(5)
     c1.metric("Status", state.get("status", "unknown"))
     c2.metric("Scanner Version", state.get("version", "N/A"))
