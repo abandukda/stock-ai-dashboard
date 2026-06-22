@@ -1,16 +1,16 @@
 {
-  "generated_at": "2026-06-21T06:58:42.298408+00:00",
+  "generated_at": "2026-06-22T01:10:42.628179+00:00",
   "status": "success",
-  "version": "V50.3",
+  "version": "V50.6",
   "universe_count": 2904,
   "prescreen_count": 650,
   "full_scan_count": 150,
   "recovery_count": 100,
-  "etf_count": 13,
+  "etf_count": 32,
   "fallback_rows_allowed": false,
   "data_dir": ".",
   "github_persisted": true,
-  "duration_seconds": 653.61,
+  "duration_seconds": 949.43,
   "fast_cron_mode": true,
   "full_committee_limit": 15,
   "pre_rank_deep_apis_skipped": true,
@@ -126,7 +126,7 @@
     "valuation_reconciliation": true,
     "thesis_strength_and_confidence": true
   },
-  "scanner_version": "V50.3",
-  "scanner_version_label": "V50.3 Paid Client Experience Upgrade",
+  "scanner_version": "V50.6",
+  "scanner_version_label": "V50.6 Watchlist Intelligence",
   "v50_smart_money_analyst_revision_upgrade": true
 }
