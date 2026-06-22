@@ -16,7 +16,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V50.7.1 Financial Heatmap Data Fix"
+APP_VERSION = "V50.7.2 Financial Metric Sanity Fix"
 
 
 # =========================
@@ -16560,6 +16560,278 @@ def render_status_banner():
     st.title("📈 AI Trading Dashboard")
     st.caption(APP_VERSION)
     st.caption("Financial Heatmap Data Fix: normalized field mapping prevents false Missing metrics and aligns heatmap with Financial Health Score.")
+    c1,c2,c3,c4,c5 = st.columns(5)
+    c1.metric("Status", state.get("status", "unknown"))
+    c2.metric("Scanner Version", state.get("version", "N/A"))
+    c3.metric("Full Scan", state.get("full_scan_count", "N/A"))
+    c4.metric("Prescreen", state.get("prescreen_count", "N/A"))
+    persisted = bool(state.get("github_persisted")) or v45_text(state.get("version", "")).startswith(("V45", "V46", "V47", "V48", "V49", "V50"))
+    c5.metric("GitHub Persisted", "✅" if persisted else "❌")
+    if is_viewer():
+        st.info("Viewer mode: admin diagnostics are hidden.")
+    if state:
+        st.caption(f"Last scan: {state.get('generated_at', 'N/A')} | Duration: {state.get('duration_seconds', 'N/A')}s | DATA_DIR={state.get('data_dir','.')}")
+
+
+
+# =========================
+# V50.7.2 FINANCIAL METRIC SANITY FIX
+# =========================
+# Fixes diagnostics observed on NVDA:
+# - Net margin showing 0.0% even though revenue and net income are populated
+# - Debt/equity showing 6.55 when Yahoo debtToEquity is actually percent-style 655.5
+# - ROE missing when net income/equity or Yahoo returnOnEquity can be used
+# - Current ratio missing when Yahoo currentRatio exists
+# - EPS growth showing 2.1% when Yahoo earningsGrowth can represent 214.5%
+
+@st.cache_data(ttl=3600)
+def v5072_yahoo_info(ticker):
+    try:
+        info = yf.Ticker(v451_clean_ticker(ticker)).info or {}
+        return info if isinstance(info, dict) else {}
+    except Exception:
+        return {}
+
+
+def v5072_pick_num(*vals):
+    for v in vals:
+        n = v49_num(v, positive=False) if "v49_num" in globals() else safe_number(v, None)
+        if n is not None:
+            return n
+    return None
+
+
+def v5072_pct_from_api(value):
+    n = v49_num(value, positive=False) if "v49_num" in globals() else safe_number(value, None)
+    if n is None:
+        return None
+    # Yahoo margins/growth commonly return decimals; FMP may return decimals too.
+    if -5 < n < 5:
+        n *= 100
+    if abs(n) > 1000:
+        return None
+    return n
+
+
+def v5072_debt_equity_from_api(value):
+    n = v49_num(value, positive=False) if "v49_num" in globals() else safe_number(value, None)
+    if n is None:
+        return None
+    # Yahoo debtToEquity commonly returns percent-style value, e.g. 655.5 = 6.555x.
+    if n > 50:
+        return n / 100
+    return n
+
+
+def v5072_fix_financials(fin, ticker):
+    fin = dict(fin or {})
+    ticker = v451_clean_ticker(ticker)
+    y = v5072_yahoo_info(ticker)
+
+    revenue = v5072_pick_num(fin.get("revenue"), y.get("totalRevenue"))
+    net_income = v5072_pick_num(fin.get("net_income"), y.get("netIncomeToCommon"))
+    cash = v5072_pick_num(fin.get("cash"), y.get("totalCash"))
+    debt = v5072_pick_num(fin.get("total_debt"), y.get("totalDebt"))
+
+    # EPS growth: prefer Yahoo earningsGrowth, but normalize correctly.
+    eps_candidates = [
+        y.get("earningsGrowth"),
+        fin.get("eps_growth"),
+        y.get("earningsQuarterlyGrowth"),
+    ]
+    eps = None
+    for v in eps_candidates:
+        eps = v5072_pct_from_api(v)
+        if eps is not None and abs(eps) > 5:
+            break
+    if eps is not None:
+        fin["eps_growth"] = eps
+
+    # Net margin: never trust a zero net margin if revenue and net income are available.
+    net_margin = v5072_pct_from_api(y.get("profitMargins"))
+    if (net_margin is None or abs(net_margin) < 0.01) and revenue and net_income is not None:
+        net_margin = net_income / revenue * 100
+    if net_margin is not None:
+        fin["net_margin"] = net_margin
+
+    # Debt/equity: Yahoo value may be percent-style. Prefer direct Yahoo normalized value.
+    de = v5072_debt_equity_from_api(y.get("debtToEquity"))
+    if de is None:
+        de = v5072_debt_equity_from_api(fin.get("debt_equity"))
+    # If debt/equity is high but cash/debt is strong, avoid scary interpretation from stale/mis-scaled fields.
+    if de is not None:
+        fin["debt_equity"] = de
+
+    # ROE: prefer Yahoo returnOnEquity, otherwise derive only if equity exists in financials.
+    roe = v5072_pct_from_api(y.get("returnOnEquity"))
+    equity = v5072_pick_num(fin.get("total_equity"), fin.get("equity"), y.get("bookValue"))
+    # Do not derive ROE from bookValue because bookValue is per-share. Only use if total equity exists.
+    total_equity = v5072_pick_num(fin.get("total_equity"), fin.get("stockholders_equity"), fin.get("shareholder_equity"))
+    if roe is None and net_income is not None and total_equity not in (None, 0):
+        roe = net_income / abs(total_equity) * 100
+    if roe is not None:
+        fin["roe"] = roe
+
+    # Current ratio.
+    cr = v5072_pick_num(y.get("currentRatio"), fin.get("current_ratio"))
+    if cr is not None:
+        fin["current_ratio"] = cr
+
+    # Cash/debt ratio and safer debt interpretation.
+    if cash is not None:
+        fin["cash"] = cash
+    if debt is not None:
+        fin["total_debt"] = debt
+    if cash is not None and debt is not None:
+        fin["net_cash"] = cash - debt
+        fin["cash_debt_ratio"] = cash / debt if debt else None
+
+    if fin.get("cash_debt_ratio") and fin.get("cash_debt_ratio") >= 2:
+        fin["debt_interpretation"] = f"Cash exceeds debt by {fin.get('cash_debt_ratio'):.1f}x; balance sheet liquidity appears strong."
+        fin["balance_sheet_plain"] = fin["debt_interpretation"]
+    elif fin.get("debt_equity") is not None:
+        fin["debt_interpretation"] = f"Debt/equity is {fin.get('debt_equity'):.2f}x."
+        fin["balance_sheet_plain"] = fin["debt_interpretation"]
+
+    # Recompute coverage after fixes.
+    core = [
+        "revenue_growth", "eps_growth", "gross_margin", "operating_margin", "net_margin",
+        "free_cash_flow", "operating_cash_flow", "cash", "total_debt", "debt_equity",
+        "current_ratio", "roe"
+    ]
+    populated = sum(1 for k in core if fin.get(k) is not None)
+    fin["coverage_count"] = populated
+    fin["coverage_total"] = len(core)
+    fin["coverage_label"] = "Excellent" if populated >= 10 else ("Good" if populated >= 8 else ("Partial" if populated >= 6 else "Limited"))
+
+    sources = dict(fin.get("completion_sources", {}) or {})
+    for k in ["eps_growth", "net_margin", "debt_equity", "roe", "current_ratio"]:
+        if fin.get(k) is not None:
+            sources.setdefault(k, "V50.7.2 Yahoo sanity fallback / derived fix")
+    fin["completion_sources"] = sources
+
+    diagnostics = list(fin.get("diagnostics", []) or [])
+    diagnostics.append("V50.7.2 sanity fix applied: net margin, EPS growth, debt/equity, ROE, current ratio.")
+    fin["diagnostics"] = diagnostics
+
+    return fin
+
+
+v5072_original_build_research_report = v49_build_research_report
+
+def v49_build_research_report(row):
+    r = dict(v5072_original_build_research_report(row))
+    fin = v5072_fix_financials(r.get("financials", {}), r.get("ticker") or row.get("Ticker"))
+    r["financials"] = fin
+
+    if "v502_financial_score" in globals():
+        score, label = v502_financial_score(fin)
+        r["financial_health_score"] = score
+        r["financial_health_label"] = label
+
+    if "v501_research_confidence" in globals():
+        r["research_confidence"] = v501_research_confidence(r)
+
+    return r
+
+
+def v503_financial_heatmap_items(fin, row=None):
+    # Use fixed financial object first, then row/raw fallback.
+    row = row if isinstance(row, dict) else {}
+    raw = row.get("Raw", {}) if isinstance(row.get("Raw", {}), dict) else {}
+
+    def getval(*keys):
+        for space in [fin if isinstance(fin, dict) else {}, row, raw]:
+            if not isinstance(space, dict):
+                continue
+            for key in keys:
+                val = space.get(key)
+                if val is None or val == "" or str(val).lower() in {"nan", "none", "null", "n/a"}:
+                    continue
+                n = v49_num(val, positive=False) if "v49_num" in globals() else safe_number(val, None)
+                return n if n is not None else val
+        return None
+
+    items = [
+        ("Revenue Growth", getval("revenue_growth", "Revenue Growth", "revenueGrowth")),
+        ("EPS Growth", getval("eps_growth", "EPS Growth", "earningsGrowth")),
+        ("Gross Margin", getval("gross_margin", "Gross Margin", "gross_profit_margin", "grossMargins")),
+        ("Operating Margin", getval("operating_margin", "Operating Margin", "operating_profit_margin", "operatingMargins")),
+        ("Net Margin", getval("net_margin", "Net Margin", "net_profit_margin", "profitMargins")),
+        ("Free Cash Flow", getval("free_cash_flow", "Free Cash Flow", "freeCashflow")),
+        ("Debt / Equity", getval("debt_equity", "Debt to Equity", "debtToEquity")),
+        ("ROE", getval("roe", "ROE", "returnOnEquity")),
+        ("Current Ratio", getval("current_ratio", "Current Ratio", "currentRatio")),
+    ]
+
+    out = []
+    for label, val in items:
+        if val is None:
+            out.append((label, "⚪ Missing", "N/A"))
+            continue
+
+        # Normalize display-only values.
+        display_val = val
+        if label in {"Revenue Growth", "EPS Growth", "Gross Margin", "Operating Margin", "Net Margin", "ROE"}:
+            display_val = v5072_pct_from_api(val)
+        elif label == "Debt / Equity":
+            display_val = v5072_debt_equity_from_api(val)
+        else:
+            display_val = val
+
+        if display_val is None:
+            out.append((label, "⚪ Missing", "N/A"))
+            continue
+
+        try:
+            rating, _, _ = v502_rating(label, display_val)
+        except Exception:
+            rating = "⚪ Available"
+
+        if label == "Free Cash Flow":
+            display = v49_money(display_val) if "v49_money" in globals() else fmt_money(display_val)
+        elif label in {"Debt / Equity", "Current Ratio"}:
+            display = f"{display_val:.2f}" if isinstance(display_val, (int, float)) else str(display_val)
+        else:
+            display = f"{display_val:.1f}%" if isinstance(display_val, (int, float)) else str(display_val)
+
+        out.append((label, rating, display))
+    return out
+
+
+def render_v503_financial_heatmap(row):
+    r = v49_build_research_report(row)
+    items = v503_financial_heatmap_items(r.get("financials", {}), row)
+
+    with st.container(border=True):
+        st.markdown("### 🚦 Financial Health Heatmap")
+        st.caption("Traffic-light view using normalized and sanity-checked financial metrics.")
+        cols = st.columns(3)
+        for i, (label, rating, display) in enumerate(items):
+            if display and display != "N/A":
+                cols[i % 3].markdown(f"**{rating}**  \n{label}: **{display}**")
+            else:
+                cols[i % 3].markdown(f"**{rating}**  \n{label}")
+
+        missing_count = sum(1 for _, rating, _ in items if "Missing" in rating)
+        if missing_count >= 5:
+            st.warning("Several financial metrics are still missing. Check Admin heatmap diagnostics.")
+        elif missing_count:
+            st.info("Some financial metrics are unavailable, but sanity fallbacks were applied.")
+
+        if not is_viewer():
+            with st.expander("Admin heatmap diagnostics", expanded=False):
+                st.markdown("**Normalized heatmap values**")
+                st.json({label: {"rating": rating, "display": display} for label, rating, display in items})
+                st.markdown("**Financials object**")
+                st.json(r.get("financials", {}))
+
+
+def render_status_banner():
+    state = read_state()
+    st.title("📈 AI Trading Dashboard")
+    st.caption(APP_VERSION)
+    st.caption("Financial Metric Sanity Fix: corrects Yahoo/FMP scaling for EPS growth, net margin, debt/equity, ROE, and current ratio.")
     c1,c2,c3,c4,c5 = st.columns(5)
     c1.metric("Status", state.get("status", "unknown"))
     c2.metric("Scanner Version", state.get("version", "N/A"))
