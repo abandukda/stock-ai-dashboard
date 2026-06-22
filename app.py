@@ -16,7 +16,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V50.7.1a Financial Fallback Restore"
+APP_VERSION = "V50.8 Auto Track Record Engine"
 
 
 # =========================
@@ -16897,6 +16897,197 @@ def render_status_banner():
     st.title("📈 AI Trading Dashboard")
     st.caption(APP_VERSION)
     st.caption("Financial Fallback Restore: keeps V50.7.1 stable logic and restores missing metrics using Yahoo financial statements.")
+    c1,c2,c3,c4,c5 = st.columns(5)
+    c1.metric("Status", state.get("status", "unknown"))
+    c2.metric("Scanner Version", state.get("version", "N/A"))
+    c3.metric("Full Scan", state.get("full_scan_count", "N/A"))
+    c4.metric("Prescreen", state.get("prescreen_count", "N/A"))
+    persisted = bool(state.get("github_persisted")) or v45_text(state.get("version", "")).startswith(("V45", "V46", "V47", "V48", "V49", "V50"))
+    c5.metric("GitHub Persisted", "✅" if persisted else "❌")
+    if is_viewer():
+        st.info("Viewer mode: admin diagnostics are hidden.")
+    if state:
+        st.caption(f"Last scan: {state.get('generated_at', 'N/A')} | Duration: {state.get('duration_seconds', 'N/A')}s | DATA_DIR={state.get('data_dir','.')}")
+
+
+
+# =========================
+# V50.8 AUTO TRACK RECORD ENGINE
+# =========================
+# Fixes empty Performance tab by automatically seeding actionable signals from the current scan.
+# Uses current full scan as the evidence source and avoids duplicate same-day signals.
+
+def v508_signal_log_ready():
+    try:
+        log = v507_read_performance_log() if "v507_read_performance_log" in globals() else {"signals": {}}
+        return isinstance(log, dict) and isinstance(log.get("signals", {}), dict)
+    except Exception:
+        return False
+
+
+def v508_signal_count():
+    try:
+        log = v507_read_performance_log()
+        sigs = log.get("signals", {})
+        return len(sigs) if isinstance(sigs, dict) else 0
+    except Exception:
+        return 0
+
+
+def v508_auto_seed_signals(full_df, force=False):
+    """
+    Auto-captures BUY NOW / BUY ON WEAKNESS signals once per scan day.
+    This makes Performance Tracking useful without requiring a manual button.
+    """
+    if full_df is None or getattr(full_df, "empty", True):
+        return {"added": 0, "total": 0, "reason": "No scan data loaded."}
+
+    if "v507_update_log_with_signals" not in globals():
+        return {"added": 0, "total": 0, "reason": "Performance tracking functions unavailable."}
+
+    state = read_state()
+    scan_time = safe_text(state.get("generated_at"), "")
+    scan_key = scan_time[:10] if scan_time else v507_today_key()
+    session_key = f"v508_seeded_{scan_key}"
+
+    if not force and st.session_state.get(session_key):
+        return {"added": 0, "total": v508_signal_count(), "reason": "Already seeded this session."}
+
+    log = v507_read_performance_log()
+    last_seed = safe_text(log.get("last_auto_seed_scan_key"), "")
+
+    if not force and last_seed == scan_key and v508_signal_count() > 0:
+        st.session_state[session_key] = True
+        return {"added": 0, "total": v508_signal_count(), "reason": "Already seeded for latest scan."}
+
+    added, total_found = v507_update_log_with_signals(full_df)
+
+    log = v507_read_performance_log()
+    log["last_auto_seed_scan_key"] = scan_key
+    log["last_auto_seed_at"] = dt.datetime.now(dt.timezone.utc).isoformat()
+    log["last_auto_seed_found"] = total_found
+    log["last_auto_seed_added"] = added
+    v507_write_performance_log(log)
+
+    st.session_state[session_key] = True
+    return {"added": added, "total": total_found, "reason": "Auto-seeded from latest scan."}
+
+
+def v508_signal_buckets(rows):
+    buckets = {
+        "BUY NOW": {"count": 0, "returns": []},
+        "BUY ON WEAKNESS": {"count": 0, "returns": []},
+        "Other": {"count": 0, "returns": []},
+    }
+    for r in rows:
+        sig = safe_text(r.get("Signal"), "Other")
+        key = sig if sig in buckets else "Other"
+        buckets[key]["count"] += 1
+        try:
+            buckets[key]["returns"].append(float(safe_text(r.get("Return"), "0").replace("%", "")))
+        except Exception:
+            pass
+
+    out = []
+    for key, data in buckets.items():
+        if data["count"] == 0:
+            continue
+        vals = data["returns"]
+        avg = sum(vals) / len(vals) if vals else 0
+        wins = len([x for x in vals if x > 0])
+        win_rate = wins / len(vals) * 100 if vals else 0
+        out.append({
+            "Signal Type": key,
+            "Tracked": data["count"],
+            "Average Return": f"{avg:.1f}%",
+            "Win Rate": f"{win_rate:.1f}%",
+        })
+    return out
+
+
+def render_v507_performance_tracking(full_df):
+    st.subheader("📊 Performance Tracking")
+    st.caption("Track BUY NOW and BUY ON WEAKNESS calls over time to prove signal quality.")
+
+    seed_result = v508_auto_seed_signals(full_df, force=False)
+    if seed_result.get("reason") == "Auto-seeded from latest scan.":
+        st.success(f"Auto-captured {seed_result.get('total', 0)} actionable signals. Added {seed_result.get('added', 0)} new signals.")
+    else:
+        st.caption(f"Auto tracking status: {seed_result.get('reason')}")
+
+    cta1, cta2, cta3 = st.columns([1, 1, 2])
+    with cta1:
+        if st.button("Capture Today's Signals", key="v507_capture"):
+            result = v508_auto_seed_signals(full_df, force=True)
+            st.success(f"Captured {result.get('total', 0)} actionable signals. Added {result.get('added', 0)} new signals.")
+    with cta2:
+        if st.button("Refresh Performance", key="v507_refresh"):
+            st.session_state["v507_refreshed"] = True
+    with cta3:
+        st.info("Signals are now auto-captured from the latest scan. Use manual capture only if you rerun a scan or want to force refresh.")
+
+    rows = v507_evaluate_signals(full_df) if "v507_evaluate_signals" in globals() else []
+    summary = v507_performance_summary(rows) if "v507_performance_summary" in globals() else {
+        "tracked": 0, "avg_return": 0, "win_rate": 0, "best": 0, "worst": 0, "target_hits": 0, "stop_hits": 0
+    }
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Tracked Signals", summary["tracked"])
+    m2.metric("Average Return", f"{summary['avg_return']:.1f}%")
+    m3.metric("Win Rate", f"{summary['win_rate']:.1f}%")
+    m4.metric("Target / Stop Hits", f"{summary['target_hits']} / {summary['stop_hits']}")
+
+    m5, m6 = st.columns(2)
+    m5.metric("Best Signal", f"{summary['best']:.1f}%")
+    m6.metric("Worst Signal", f"{summary['worst']:.1f}%")
+
+    if rows:
+        bucket_rows = v508_signal_buckets(rows)
+        if bucket_rows:
+            st.markdown("### Signal Quality by Verdict")
+            st.dataframe(pd.DataFrame(bucket_rows), use_container_width=True, hide_index=True)
+
+        st.markdown("### Signal Performance Log")
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+        try:
+            scored = []
+            for r in rows:
+                ret = float(safe_text(r.get("Return"), "0").replace("%", ""))
+                scored.append((ret, r))
+            best = [x[1] for x in sorted(scored, key=lambda x: x[0], reverse=True)[:10]]
+            worst = [x[1] for x in sorted(scored, key=lambda x: x[0])[:10]]
+
+            left, right = st.columns(2)
+            with left:
+                st.markdown("### Best Calls")
+                st.dataframe(pd.DataFrame(best), use_container_width=True, hide_index=True)
+            with right:
+                st.markdown("### Worst / Watch Closely")
+                st.dataframe(pd.DataFrame(worst), use_container_width=True, hide_index=True)
+        except Exception:
+            pass
+    else:
+        st.info("No signals tracked yet. If this remains zero, check whether the current scan has BUY NOW or BUY ON WEAKNESS names.")
+
+    if not is_viewer():
+        with st.expander("Admin performance log diagnostics", expanded=False):
+            log = v507_read_performance_log() if "v507_read_performance_log" in globals() else {}
+            st.write({
+                "signals": len(log.get("signals", {})) if isinstance(log.get("signals"), dict) else 0,
+                "snapshots": len(log.get("snapshots", [])) if isinstance(log.get("snapshots"), list) else 0,
+                "last_auto_seed_scan_key": log.get("last_auto_seed_scan_key"),
+                "last_auto_seed_found": log.get("last_auto_seed_found"),
+                "last_auto_seed_added": log.get("last_auto_seed_added"),
+                "file": str(PERFORMANCE_LOG_FILE) if "PERFORMANCE_LOG_FILE" in globals() else "N/A",
+            })
+
+
+def render_status_banner():
+    state = read_state()
+    st.title("📈 AI Trading Dashboard")
+    st.caption(APP_VERSION)
+    st.caption("Auto Track Record Engine: actionable signals are automatically captured from each scan so performance history starts building.")
     c1,c2,c3,c4,c5 = st.columns(5)
     c1.metric("Status", state.get("status", "unknown"))
     c2.metric("Scanner Version", state.get("version", "N/A"))
