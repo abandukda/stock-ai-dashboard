@@ -53,7 +53,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-22T01:08:01.002708+00:00",
+    "scan_time": "2026-06-22T01:38:38.597041+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 758.45,
@@ -278,7 +278,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-22T01:06:42.237590+00:00",
+    "scan_time": "2026-06-22T01:36:35.325416+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 748.65,
@@ -308,24 +308,19 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 74,
-        "status": "Positive",
-        "impact": "Positive",
-        "data_used": "NewsAPI, Finnhub company news",
+        "score": 61,
+        "status": "Mixed",
+        "impact": "Neutral",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "You\u2019re Watching AI Headlines Daily. Here\u2019s How to Own the Whole Trend at Once",
-          "The Global X Robotics & AI ETF (BOTZ): A Solid Way to Play Robotics",
-          "3 Tech ETFs That Could Bounce Back After the AI Selloff",
-          "SQQQ\u2019s Silent Killer: How Daily Resets Have Erased 99.97% Since Launch",
-          "Why TQQQ\u2019s 112% Gain Masks a Structural Cost That Compounds Every Single Day",
-          "Kevin Warsh And The End Of The Fed's 'Forward Guidance'"
+          "Kevin Warsh And The End Of The Fed's 'Forward Guidance'",
+          "Don't Freak Out Over Fed Chair Kevin Warsh's 'New' Regime"
         ],
         "risks": [
-          "Crash Warning: Barchart\u2019s Ultimate Trader Cheat Sheet Alerted Me That Even Mega-Cap Tech Stocks Are Starting to Deteriorate",
           "Weekly Indicators: Points Of Weakness - Just Static?"
         ],
-        "bottom_line": "News flow supports the thesis."
+        "bottom_line": "News is mixed or insufficient."
       },
       "Finance Agent": {
         "score": 50,
@@ -461,22 +456,16 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 74,
-    "v42_news_summary": "News flow supports the thesis.",
+    "v42_news_score": 61,
+    "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "You\u2019re Watching AI Headlines Daily. Here\u2019s How to Own the Whole Trend at Once",
-      "The Global X Robotics & AI ETF (BOTZ): A Solid Way to Play Robotics",
-      "3 Tech ETFs That Could Bounce Back After the AI Selloff",
-      "SQQQ\u2019s Silent Killer: How Daily Resets Have Erased 99.97% Since Launch",
-      "Why TQQQ\u2019s 112% Gain Masks a Structural Cost That Compounds Every Single Day",
-      "Kevin Warsh And The End Of The Fed's 'Forward Guidance'"
+      "Kevin Warsh And The End Of The Fed's 'Forward Guidance'",
+      "Don't Freak Out Over Fed Chair Kevin Warsh's 'New' Regime"
     ],
     "v42_news_risks": [
-      "Crash Warning: Barchart\u2019s Ultimate Trader Cheat Sheet Alerted Me That Even Mega-Cap Tech Stocks Are Starting to Deteriorate",
       "Weekly Indicators: Points Of Weakness - Just Static?"
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": true,
@@ -488,7 +477,7 @@
     "v42_breakout_level": 756.14,
     "v42_pullback_zone": "$686.37 - $725.81",
     "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
-    "v42_committee_positive_agents": 2,
+    "v42_committee_positive_agents": 1,
     "v42_committee_total_agents": 10
   },
   {
@@ -545,7 +534,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-22T01:02:28.572230+00:00",
+    "scan_time": "2026-06-22T01:30:33.174442+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 297.91,
@@ -575,24 +564,20 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 74,
-        "status": "Positive",
-        "impact": "Positive",
-        "data_used": "NewsAPI, Finnhub company news",
+        "score": 68,
+        "status": "Mixed",
+        "impact": "Neutral",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Cutting Jobs and Chasing AI: How to Play the Rackspace Stock Transformation Story Here",
-          "Eldora Opens 280+ Tokenized US Stocks to 85+ Countries, Launches $20,000 Campaign",
-          "ETF Fund Flows: Profit-Taking Hits ARKK VO Nets $4.8B",
-          "Daily ETF Flows: SOXL Pulls In $1.1B",
           "Kevin Warsh And The End Of The Fed's 'Forward Guidance'",
-          "Don't Freak Out Over Fed Chair Kevin Warsh's 'New' Regime"
+          "Don't Freak Out Over Fed Chair Kevin Warsh's 'New' Regime",
+          "New Fed Chair Changes The Conversation"
         ],
         "risks": [
-          "Cutting Jobs and Chasing AI: How to Play the Rackspace Stock Transformation Story Here",
           "Weekly Indicators: Points Of Weakness - Just Static?"
         ],
-        "bottom_line": "News flow supports the thesis."
+        "bottom_line": "News is mixed or insufficient."
       },
       "Finance Agent": {
         "score": 50,
@@ -726,22 +711,17 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 74,
-    "v42_news_summary": "News flow supports the thesis.",
+    "v42_news_score": 68,
+    "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "Cutting Jobs and Chasing AI: How to Play the Rackspace Stock Transformation Story Here",
-      "Eldora Opens 280+ Tokenized US Stocks to 85+ Countries, Launches $20,000 Campaign",
-      "ETF Fund Flows: Profit-Taking Hits ARKK VO Nets $4.8B",
-      "Daily ETF Flows: SOXL Pulls In $1.1B",
       "Kevin Warsh And The End Of The Fed's 'Forward Guidance'",
-      "Don't Freak Out Over Fed Chair Kevin Warsh's 'New' Regime"
+      "Don't Freak Out Over Fed Chair Kevin Warsh's 'New' Regime",
+      "New Fed Chair Changes The Conversation"
     ],
     "v42_news_risks": [
-      "Cutting Jobs and Chasing AI: How to Play the Rackspace Stock Transformation Story Here",
       "Weekly Indicators: Points Of Weakness - Just Static?"
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -808,7 +788,7 @@
       "RSI is constructive"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-22T01:07:50.523607+00:00",
+    "scan_time": "2026-06-22T01:38:19.689251+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 663.8,
@@ -1032,7 +1012,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-22T01:09:52.091556+00:00",
+    "scan_time": "2026-06-22T01:41:27.582220+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 699.15,
@@ -1256,7 +1236,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-22T01:10:27.744903+00:00",
+    "scan_time": "2026-06-22T01:42:39.947111+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 198.73,
@@ -1481,7 +1461,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-22T00:58:57.130131+00:00",
+    "scan_time": "2026-06-22T01:25:49.655575+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 522.74,
@@ -1739,7 +1719,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-22T01:03:29.049085+00:00",
+    "scan_time": "2026-06-22T01:32:10.601702+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 110.24,
@@ -1769,13 +1749,18 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 62,
+        "score": 55,
         "status": "Mixed",
         "impact": "Neutral",
-        "data_used": "NewsAPI, Finnhub company news",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Daily ETF Flows: LQD Infows Nearly $1B"
+          "Opportunities Emerge In A Higher-Yield World",
+          "Midyear Fixed Income Outlook: Tighter Spreads, Wider Opportunities",
+          "The Need For A New Portfolio Approach",
+          "Our June Perspective",
+          "VGLT vs. LQD: How Much Are You Willing to Pay for Safety in Today's Bond Market?",
+          "LQD vs. SCHQ: Why the \"Safer\" Bond Fund Has Not Always Been the Better Choice"
         ],
         "risks": [
           "No negative high-confidence headline detected."
@@ -1914,16 +1899,20 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 62,
+    "v42_news_score": 55,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "Daily ETF Flows: LQD Infows Nearly $1B"
+      "Opportunities Emerge In A Higher-Yield World",
+      "Midyear Fixed Income Outlook: Tighter Spreads, Wider Opportunities",
+      "The Need For A New Portfolio Approach",
+      "Our June Perspective",
+      "VGLT vs. LQD: How Much Are You Willing to Pay for Safety in Today's Bond Market?",
+      "LQD vs. SCHQ: Why the \"Safer\" Bond Fund Has Not Always Been the Better Choice"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -1990,7 +1979,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-22T01:01:33.934455+00:00",
+    "scan_time": "2026-06-22T01:29:45.074394+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 80.17,
@@ -2020,13 +2009,18 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 62,
+        "score": 55,
         "status": "Mixed",
         "impact": "Neutral",
-        "data_used": "NewsAPI, Finnhub company news",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Bears step up bets against high-yield sector, shaking up bond traders"
+          "BRHY: BlackRock Enters The Active High Yield ETF Arena",
+          "Aligned Incentives: Our Key To Navigating The Diverse High Yield Market",
+          "Columbia Threadneedle Fixed-Income Monitor: June 2026",
+          "Now Is Not The Time To Own Junk",
+          "Opportunities Emerge In A Higher-Yield World",
+          "Rupture And Resilience"
         ],
         "risks": [
           "No negative high-confidence headline detected."
@@ -2165,16 +2159,20 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 62,
+    "v42_news_score": 55,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "Bears step up bets against high-yield sector, shaking up bond traders"
+      "BRHY: BlackRock Enters The Active High Yield ETF Arena",
+      "Aligned Incentives: Our Key To Navigating The Diverse High Yield Market",
+      "Columbia Threadneedle Fixed-Income Monitor: June 2026",
+      "Now Is Not The Time To Own Junk",
+      "Opportunities Emerge In A Higher-Yield World",
+      "Rupture And Resilience"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -2242,7 +2240,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-22T01:08:47.680340+00:00",
+    "scan_time": "2026-06-22T01:39:50.304938+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.51,
@@ -2468,7 +2466,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-22T01:10:28.640795+00:00",
+    "scan_time": "2026-06-22T01:42:41.798696+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 159.93,
@@ -2693,7 +2691,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-22T01:10:27.496149+00:00",
+    "scan_time": "2026-06-22T01:42:39.495750+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 182.92,
@@ -2918,7 +2916,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-22T01:09:58.054597+00:00",
+    "scan_time": "2026-06-22T01:41:53.399824+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 374.7,
@@ -3143,7 +3141,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-22T01:10:26.580775+00:00",
+    "scan_time": "2026-06-22T01:42:38.129548+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 53.9,
@@ -3368,7 +3366,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-22T00:56:07.510511+00:00",
+    "scan_time": "2026-06-22T01:21:18.037805+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 92.65,
@@ -3625,7 +3623,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-22T01:02:39.442925+00:00",
+    "scan_time": "2026-06-22T01:30:46.998196+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 61.51,
@@ -3658,7 +3656,7 @@
         "score": 69,
         "status": "Mixed",
         "impact": "Neutral",
-        "data_used": "NewsAPI, Finnhub company news",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
           "A 6% Yield, Aggressive Growth Retirement Income Portfolio",
@@ -3811,7 +3809,6 @@
       "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -3878,7 +3875,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-22T01:02:38.733902+00:00",
+    "scan_time": "2026-06-22T01:30:45.899118+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 58.27,
@@ -3908,20 +3905,19 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 76,
-        "status": "Positive",
-        "impact": "Positive",
-        "data_used": "NewsAPI, Finnhub company news",
+        "score": 69,
+        "status": "Mixed",
+        "impact": "Neutral",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Why JEPI Investors Gave Up $3,379 in Five-Year Gains",
           "ULTY: Loses Out To The Steady JEPI Despite 100% Trailing Yield",
           "RSPA: A 9% Yield For Investors Wary Of The AI-Led Market"
         ],
         "risks": [
           "No negative high-confidence headline detected."
         ],
-        "bottom_line": "News flow supports the thesis."
+        "bottom_line": "News is mixed or insufficient."
       },
       "Finance Agent": {
         "score": 50,
@@ -4055,10 +4051,9 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 76,
-    "v42_news_summary": "News flow supports the thesis.",
+    "v42_news_score": 69,
+    "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "Why JEPI Investors Gave Up $3,379 in Five-Year Gains",
       "ULTY: Loses Out To The Steady JEPI Despite 100% Trailing Yield",
       "RSPA: A 9% Yield For Investors Wary Of The AI-Led Market"
     ],
@@ -4066,7 +4061,6 @@
       "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -4135,7 +4129,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-22T01:06:45.695625+00:00",
+    "scan_time": "2026-06-22T01:36:40.557440+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 18.54,
@@ -4360,7 +4354,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-22T01:10:32.364127+00:00",
+    "scan_time": "2026-06-22T01:42:48.873201+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 41.06,
@@ -4585,7 +4579,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-22T01:07:15.491349+00:00",
+    "scan_time": "2026-06-22T01:37:27.965192+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 16.01,
@@ -4810,7 +4804,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-22T01:06:43.139980+00:00",
+    "scan_time": "2026-06-22T01:36:36.530078+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 24.53,
@@ -5059,7 +5053,7 @@
       "RSI is constructive"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-22T01:07:57.544786+00:00",
+    "scan_time": "2026-06-22T01:38:32.520905+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 644.43,
@@ -5282,7 +5276,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-22T01:08:01.237023+00:00",
+    "scan_time": "2026-06-22T01:38:39.050567+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 17.87,
@@ -5506,7 +5500,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-22T01:07:28.431635+00:00",
+    "scan_time": "2026-06-22T01:37:45.898763+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 32.92,
@@ -5730,7 +5724,7 @@
     "risk_tags": [
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-22T01:10:28.416255+00:00",
+    "scan_time": "2026-06-22T01:42:41.340483+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 47.71,
@@ -5955,7 +5949,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-22T01:10:28.194844+00:00",
+    "scan_time": "2026-06-22T01:42:40.874106+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 45.65,
@@ -6179,7 +6173,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-22T01:10:27.971067+00:00",
+    "scan_time": "2026-06-22T01:42:40.397082+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.64,
@@ -6403,7 +6397,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-22T01:10:28.872166+00:00",
+    "scan_time": "2026-06-22T01:42:42.268137+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 124.76,
@@ -6627,7 +6621,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-22T00:57:05.986366+00:00",
+    "scan_time": "2026-06-22T01:22:53.351033+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 41.71,
@@ -6889,7 +6883,7 @@
       "price is below 50-day trend",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-22T01:08:27.873940+00:00",
+    "scan_time": "2026-06-22T01:39:18.074039+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 75.6,
@@ -7111,7 +7105,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-22T01:09:31.936139+00:00",
+    "scan_time": "2026-06-22T01:40:56.376766+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 62.28,
@@ -7336,7 +7330,7 @@
       "20-day ETF trend is weak",
       "60-day ETF trend is weak"
     ],
-    "scan_time": "2026-06-22T01:10:26.901226+00:00",
+    "scan_time": "2026-06-22T01:42:38.592932+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 63.46,

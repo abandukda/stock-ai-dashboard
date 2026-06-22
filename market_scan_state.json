@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-06-22T01:10:42.628179+00:00",
+  "generated_at": "2026-06-22T01:43:06.600748+00:00",
   "status": "success",
-  "version": "V50.6",
+  "version": "V50.7.1",
   "universe_count": 2904,
   "prescreen_count": 650,
   "full_scan_count": 150,
@@ -10,7 +10,7 @@
   "fallback_rows_allowed": false,
   "data_dir": ".",
   "github_persisted": true,
-  "duration_seconds": 949.43,
+  "duration_seconds": 1420.84,
   "fast_cron_mode": true,
   "full_committee_limit": 15,
   "pre_rank_deep_apis_skipped": true,
@@ -126,7 +126,7 @@
     "valuation_reconciliation": true,
     "thesis_strength_and_confidence": true
   },
-  "scanner_version": "V50.6",
-  "scanner_version_label": "V50.6 Watchlist Intelligence",
+  "scanner_version": "V50.7.1",
+  "scanner_version_label": "V50.7.1 Financial Heatmap Data Fix",
   "v50_smart_money_analyst_revision_upgrade": true
 }
