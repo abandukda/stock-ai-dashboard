@@ -16,7 +16,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V50.8 Auto Track Record Engine"
+APP_VERSION = "V50.8.1 FMP Ultimate Migration"
 
 
 # =========================
@@ -17088,6 +17088,367 @@ def render_status_banner():
     st.title("📈 AI Trading Dashboard")
     st.caption(APP_VERSION)
     st.caption("Auto Track Record Engine: actionable signals are automatically captured from each scan so performance history starts building.")
+    c1,c2,c3,c4,c5 = st.columns(5)
+    c1.metric("Status", state.get("status", "unknown"))
+    c2.metric("Scanner Version", state.get("version", "N/A"))
+    c3.metric("Full Scan", state.get("full_scan_count", "N/A"))
+    c4.metric("Prescreen", state.get("prescreen_count", "N/A"))
+    persisted = bool(state.get("github_persisted")) or v45_text(state.get("version", "")).startswith(("V45", "V46", "V47", "V48", "V49", "V50"))
+    c5.metric("GitHub Persisted", "✅" if persisted else "❌")
+    if is_viewer():
+        st.info("Viewer mode: admin diagnostics are hidden.")
+    if state:
+        st.caption(f"Last scan: {state.get('generated_at', 'N/A')} | Duration: {state.get('duration_seconds', 'N/A')}s | DATA_DIR={state.get('data_dir','.')}")
+
+
+
+# =========================
+# V50.8.1 FMP ULTIMATE MIGRATION
+# =========================
+# Migrates retired/legacy analyst + institutional endpoints to current /stable endpoints.
+
+def v5081_secret(name, default=""):
+    try:
+        if "v45_secret" in globals():
+            val = v45_secret(name, default)
+            if val:
+                return str(val).strip()
+    except Exception:
+        pass
+    return str(os.getenv(name, default) or default).strip()
+
+
+def v5081_year_quarter():
+    now = dt.datetime.now(dt.timezone.utc)
+    q = ((now.month - 1) // 3) + 1
+    q -= 1
+    year = now.year
+    if q <= 0:
+        q = 4
+        year -= 1
+    return year, q
+
+
+@st.cache_data(ttl=1800)
+def v5081_fmp_stable(path, params_json="{}"):
+    key = v5081_secret("FMP_API_KEY")
+    diagnostics = []
+    if not key:
+        return None, "missing FMP_API_KEY", diagnostics
+    try:
+        params = json.loads(params_json) if isinstance(params_json, str) else {}
+    except Exception:
+        params = {}
+    url = f"https://financialmodelingprep.com/stable/{path.lstrip('/')}"
+    params = dict(params or {})
+    params["apikey"] = key
+    try:
+        r = requests.get(url, params=params, timeout=15)
+        status = f"HTTP {r.status_code}"
+        diagnostics.append(f"FMP stable {path}: {status}")
+        if r.status_code != 200:
+            diagnostics.append(r.text[:500])
+            return None, status, diagnostics
+        data = r.json()
+        if isinstance(data, dict) and data.get("Error Message"):
+            diagnostics.append(str(data.get("Error Message"))[:500])
+            return None, "FMP error", diagnostics
+        if isinstance(data, list):
+            diagnostics.append(f"rows={len(data)}")
+        elif isinstance(data, dict):
+            diagnostics.append(f"keys={list(data.keys())[:12]}")
+        return data, status, diagnostics
+    except Exception as exc:
+        diagnostics.append(f"request error: {exc}")
+        return None, f"request error: {exc}", diagnostics
+
+
+def v5081_as_list(data):
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        for k in ["data", "results", "items"]:
+            if isinstance(data.get(k), list):
+                return data.get(k)
+        return [data]
+    return []
+
+
+def v5081_num_any(row, keys, default=None):
+    if not isinstance(row, dict):
+        return default
+    for k in keys:
+        val = row.get(k)
+        try:
+            if val is not None and val != "":
+                return float(val)
+        except Exception:
+            pass
+    return default
+
+
+def v5081_text_any(row, keys, default=""):
+    if not isinstance(row, dict):
+        return default
+    for k in keys:
+        val = row.get(k)
+        if val not in [None, ""]:
+            return str(val)
+    return default
+
+
+def v5081_fmt_date(x):
+    return safe_text(x, "")[:10] if x else ""
+
+
+def v5081_price_target_summary(ticker):
+    data, status, diag = v5081_fmp_stable("price-target-summary", json.dumps({"symbol": v451_clean_ticker(ticker)}))
+    rows = v5081_as_list(data)
+    row = rows[0] if rows else {}
+    return {
+        "raw": rows,
+        "status": status,
+        "diagnostics": diag,
+        "last_month_avg": v5081_num_any(row, ["lastMonthAvgPriceTarget"]),
+        "last_quarter_avg": v5081_num_any(row, ["lastQuarterAvgPriceTarget"]),
+        "last_year_avg": v5081_num_any(row, ["lastYearAvgPriceTarget"]),
+        "all_time_avg": v5081_num_any(row, ["allTimeAvgPriceTarget"]),
+        "publishers": v5081_num_any(row, ["publishers", "analystCount", "numberOfAnalysts"]),
+    }
+
+
+def v5081_analyst_estimates(ticker):
+    data, status, diag = v5081_fmp_stable("analyst-estimates", json.dumps({
+        "symbol": v451_clean_ticker(ticker),
+        "period": "annual",
+        "page": 0,
+        "limit": 10,
+    }))
+    rows = v5081_as_list(data)
+    out = []
+    for r in rows[:6]:
+        out.append({
+            "Date/Fiscal": v5081_text_any(r, ["date", "fiscalDateEnding", "period"], "N/A"),
+            "Revenue Avg": v49_money(v5081_num_any(r, ["estimatedRevenueAvg", "revenueAvg", "revenueEstimatedAvg"])) if "v49_money" in globals() and v5081_num_any(r, ["estimatedRevenueAvg", "revenueAvg", "revenueEstimatedAvg"]) is not None else "N/A",
+            "EPS Avg": v5081_num_any(r, ["estimatedEpsAvg", "epsAvg", "epsEstimatedAvg"]),
+            "EPS High": v5081_num_any(r, ["estimatedEpsHigh", "epsHigh"]),
+            "EPS Low": v5081_num_any(r, ["estimatedEpsLow", "epsLow"]),
+            "Revenue Analysts": v5081_num_any(r, ["numAnalystsRevenue", "numberAnalystEstimatedRevenue", "numAnalysts"]),
+            "EPS Analysts": v5081_num_any(r, ["numAnalystsEps", "numberAnalystsEstimatedEps"]),
+        })
+    return {"rows": out, "raw": rows, "status": status, "diagnostics": diag}
+
+
+def v5081_ratings_snapshot(ticker):
+    data, status, diag = v5081_fmp_stable("ratings-historical", json.dumps({"symbol": v451_clean_ticker(ticker)}))
+    rows = v5081_as_list(data)
+    latest = rows[0] if rows else {}
+    return {
+        "status": status,
+        "diagnostics": diag,
+        "raw": rows[:10],
+        "date": v5081_text_any(latest, ["date"]),
+        "rating": v5081_text_any(latest, ["rating", "overallRating", "ratingRecommendation"], "N/A"),
+        "score": v5081_num_any(latest, ["ratingScore", "overallScore", "score"]),
+    }
+
+
+def v5081_grades_historical(ticker):
+    data, status, diag = v5081_fmp_stable("grades-historical", json.dumps({"symbol": v451_clean_ticker(ticker)}))
+    rows = v5081_as_list(data)
+    out = []
+    for r in rows[:10]:
+        out.append({
+            "Date": v5081_fmt_date(v5081_text_any(r, ["date", "publishedDate"])),
+            "Firm": v5081_text_any(r, ["gradingCompany", "firm", "analystCompany"], "N/A"),
+            "Previous": v5081_text_any(r, ["previousGrade", "previousRating"], "N/A"),
+            "New": v5081_text_any(r, ["newGrade", "newRating", "grade"], "N/A"),
+            "Action": v5081_text_any(r, ["action", "gradingAction"], "N/A"),
+        })
+    return {"rows": out, "raw": rows, "status": status, "diagnostics": diag}
+
+
+def v5081_institutional_summary(ticker):
+    year, quarter = v5081_year_quarter()
+    all_diag, rows, status = [], [], "not tried"
+    used_yq = (year, quarter)
+    for _ in range(6):
+        data, status, diag = v5081_fmp_stable("institutional-ownership/symbol-positions-summary", json.dumps({
+            "symbol": v451_clean_ticker(ticker),
+            "year": year,
+            "quarter": quarter,
+        }))
+        all_diag.extend(diag)
+        rows = v5081_as_list(data)
+        if rows:
+            used_yq = (year, quarter)
+            break
+        quarter -= 1
+        if quarter <= 0:
+            quarter = 4
+            year -= 1
+    row = rows[0] if rows else {}
+    return {
+        "raw": rows,
+        "status": status,
+        "diagnostics": all_diag,
+        "year": used_yq[0],
+        "quarter": used_yq[1],
+        "investors": v5081_num_any(row, ["investorsHolding", "numberOfInvestors", "investorCount"]),
+        "ownership_pct": v5081_num_any(row, ["ownershipPercent", "ownershipPercentage", "lastOwnershipPercent"]),
+        "ownership_change_pct": v5081_num_any(row, ["ownershipPercentChange", "changeInOwnershipPercentage"]),
+        "shares": v5081_num_any(row, ["sharesNumber", "lastSharesNumber", "shares"]),
+        "shares_change": v5081_num_any(row, ["changeInSharesNumber", "changeInShares"]),
+        "market_value": v5081_num_any(row, ["marketValue", "lastMarketValue", "value"]),
+    }
+
+
+def v5081_etf_exposure(ticker):
+    data, status, diag = v5081_fmp_stable("etf/asset-exposure", json.dumps({"symbol": v451_clean_ticker(ticker)}))
+    rows = v5081_as_list(data)
+    out = []
+    for r in rows[:10]:
+        out.append({
+            "ETF": v5081_text_any(r, ["etfSymbol", "symbol", "fundSymbol"], "N/A"),
+            "Name": v5081_text_any(r, ["etfName", "name", "fundName"], ""),
+            "Shares": v5081_num_any(r, ["sharesNumber", "shares"]),
+            "Weight": (f"{v5081_num_any(r, ['weightPercentage', 'weightPercent', 'weight'], 0):.2f}%" if v5081_num_any(r, ["weightPercentage", "weightPercent", "weight"]) is not None else "N/A"),
+            "Market Value": v49_money(v5081_num_any(r, ["marketValue", "value"])) if "v49_money" in globals() and v5081_num_any(r, ["marketValue", "value"]) is not None else "N/A",
+        })
+    return {"rows": out, "raw": rows, "status": status, "diagnostics": diag}
+
+
+def v5081_fund_disclosure_holders(ticker):
+    data, status, diag = v5081_fmp_stable("funds/disclosure-holders-latest", json.dumps({"symbol": v451_clean_ticker(ticker)}))
+    rows = v5081_as_list(data)
+    out = []
+    for r in rows[:10]:
+        out.append({
+            "Holder/Fund": v5081_text_any(r, ["holder", "name", "fundName", "entityName"], "N/A"),
+            "Date": v5081_fmt_date(v5081_text_any(r, ["date", "filingDate", "acceptedDate"])),
+            "Shares": v5081_num_any(r, ["shares", "sharesNumber"]),
+            "Change": v5081_num_any(r, ["change", "changeInShares"]),
+            "Market Value": v49_money(v5081_num_any(r, ["marketValue", "value"])) if "v49_money" in globals() and v5081_num_any(r, ["marketValue", "value"]) is not None else "N/A",
+            "Weight": v5081_num_any(r, ["weight", "weightPercentage"]),
+        })
+    return {"rows": out, "raw": rows, "status": status, "diagnostics": diag}
+
+
+def render_v50_analyst_revisions(row):
+    r = v49_build_research_report(row)
+    ticker = r.get("ticker") or row.get("Ticker")
+    grades = v5081_grades_historical(ticker)
+    estimates = v5081_analyst_estimates(ticker)
+    pt = v5081_price_target_summary(ticker)
+    rating = v5081_ratings_snapshot(ticker)
+
+    with st.container(border=True):
+        st.markdown("### 📈 Analyst Intelligence")
+        st.caption("Uses current FMP /stable analyst endpoints instead of retired legacy endpoints.")
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Rating", rating.get("rating") or "N/A")
+        c2.metric("Rating Score", "N/A" if rating.get("score") is None else f"{rating.get('score'):.1f}")
+        c3.metric("Last Month Avg Target", v49_money(pt.get("last_month_avg")) if pt.get("last_month_avg") else "N/A")
+        c4.metric("Last Quarter Avg Target", v49_money(pt.get("last_quarter_avg")) if pt.get("last_quarter_avg") else "N/A")
+
+        c5, c6, c7 = st.columns(3)
+        c5.metric("Last Year Avg Target", v49_money(pt.get("last_year_avg")) if pt.get("last_year_avg") else "N/A")
+        c6.metric("All-Time Avg Target", v49_money(pt.get("all_time_avg")) if pt.get("all_time_avg") else "N/A")
+        c7.metric("Publishers / Analysts", "N/A" if pt.get("publishers") is None else int(pt.get("publishers")))
+
+        if grades.get("rows"):
+            st.markdown("#### Recent Analyst Grade Changes")
+            st.dataframe(pd.DataFrame(grades["rows"]), use_container_width=True, hide_index=True)
+        else:
+            st.info("No recent analyst grade changes returned from the current FMP stable endpoint.")
+
+        if estimates.get("rows"):
+            st.markdown("#### Analyst Financial Estimates")
+            st.dataframe(pd.DataFrame(estimates["rows"]), use_container_width=True, hide_index=True)
+        else:
+            st.info("No analyst estimate rows returned from the current FMP stable endpoint.")
+
+        if not is_viewer():
+            with st.expander("Admin FMP Ultimate analyst diagnostics", expanded=False):
+                st.write({
+                    "price_target_summary": pt.get("diagnostics"),
+                    "ratings_historical": rating.get("diagnostics"),
+                    "grades_historical": grades.get("diagnostics"),
+                    "analyst_estimates": estimates.get("diagnostics"),
+                })
+                st.markdown("**Raw Price Target Summary**")
+                st.json(pt.get("raw", [])[:3])
+                st.markdown("**Raw Grades**")
+                st.json(grades.get("raw", [])[:3])
+                st.markdown("**Raw Estimates**")
+                st.json(estimates.get("raw", [])[:3])
+
+
+def render_v50_smart_money(row):
+    r = v49_build_research_report(row)
+    ticker = r.get("ticker") or row.get("Ticker")
+    sm = v50_smart_money(ticker) if "v50_smart_money" in globals() else {"holders": [], "insiders": {}, "diagnostics": []}
+    inst = v5081_institutional_summary(ticker)
+    etf = v5081_etf_exposure(ticker)
+    funds = v5081_fund_disclosure_holders(ticker)
+    insiders = sm.get("insiders", {})
+    tone, explanation, net = v504_insider_interpretation(insiders) if "v504_insider_interpretation" in globals() else ("N/A", "", 0)
+
+    with st.container(border=True):
+        st.markdown("### 🧠 Smart Money Activity")
+        st.caption("Combines insider activity with current FMP Ultimate institutional, 13F, ETF, and fund exposure endpoints.")
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Institutional Investors", "N/A" if inst.get("investors") is None else int(inst.get("investors")))
+        c2.metric("Ownership %", "N/A" if inst.get("ownership_pct") is None else f"{inst.get('ownership_pct'):.2f}%")
+        c3.metric("Ownership Change", "N/A" if inst.get("ownership_change_pct") is None else f"{inst.get('ownership_change_pct'):.2f}%")
+        c4.metric("Market Value", v49_money(inst.get("market_value")) if inst.get("market_value") else "N/A")
+
+        c5, c6, c7, c8 = st.columns(4)
+        c5.metric("13F Period", f"{inst.get('year')} Q{inst.get('quarter')}" if inst.get("year") else "N/A")
+        c6.metric("Insider Tone", tone)
+        c7.metric("Insider Buys", str(insiders.get("buy_count", 0)))
+        c8.metric("Insider Sells", str(insiders.get("sell_count", 0)))
+
+        if inst.get("raw"):
+            st.success("Institutional ownership summary returned from FMP Ultimate stable endpoint.")
+        else:
+            st.info("Institutional position summary did not return rows for this ticker/period.")
+
+        if etf.get("rows"):
+            st.markdown("#### ETFs Holding This Stock")
+            st.dataframe(pd.DataFrame(etf["rows"]), use_container_width=True, hide_index=True)
+        else:
+            st.info("ETF asset exposure did not return rows for this ticker.")
+
+        if funds.get("rows"):
+            st.markdown("#### Fund / ETF Disclosure Holders")
+            st.dataframe(pd.DataFrame(funds["rows"]), use_container_width=True, hide_index=True)
+        else:
+            st.info("Fund disclosure holders did not return rows for this ticker.")
+
+        if not is_viewer():
+            with st.expander("Admin FMP Ultimate smart money diagnostics", expanded=False):
+                st.write({
+                    "institutional_summary": inst.get("diagnostics"),
+                    "etf_exposure": etf.get("diagnostics"),
+                    "fund_disclosure_holders": funds.get("diagnostics"),
+                    "legacy_smart_money": sm.get("diagnostics", []),
+                })
+                st.markdown("**Raw Institutional Summary**")
+                st.json(inst.get("raw", [])[:3])
+                st.markdown("**Raw ETF Exposure**")
+                st.json(etf.get("raw", [])[:3])
+                st.markdown("**Raw Fund Holders**")
+                st.json(funds.get("raw", [])[:3])
+
+
+def render_status_banner():
+    state = read_state()
+    st.title("📈 AI Trading Dashboard")
+    st.caption(APP_VERSION)
+    st.caption("FMP Ultimate Migration: analyst, price target, institutional, ETF, and 13F sections now use current /stable endpoints.")
     c1,c2,c3,c4,c5 = st.columns(5)
     c1.metric("Status", state.get("status", "unknown"))
     c2.metric("Scanner Version", state.get("version", "N/A"))
