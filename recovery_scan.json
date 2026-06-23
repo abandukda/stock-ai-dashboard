@@ -128,7 +128,7 @@
     "risk_tags": [
       "Price is below or near the 50-day trend"
     ],
-    "scan_time": "2026-06-23T05:18:02.901104+00:00",
+    "scan_time": "2026-06-23T08:14:46.375739+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 87,
@@ -503,7 +503,7 @@
       "Price is below or near the 50-day trend",
       "RSI is warm; avoid chasing"
     ],
-    "scan_time": "2026-06-23T05:04:57.082621+00:00",
+    "scan_time": "2026-06-23T08:02:00.703326+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 86,
@@ -883,24 +883,24 @@
       "Price is below or near the 50-day trend",
       "RSI is not yet showing strong momentum"
     ],
-    "scan_time": "2026-06-23T05:18:28.714897+00:00",
+    "scan_time": "2026-06-23T08:15:11.414576+00:00",
     "ai_committee": {
       "News Agent": {
-        "score": 60,
-        "status": "Mixed",
-        "impact": "Neutral",
+        "score": 75,
+        "status": "Positive",
+        "impact": "Positive",
         "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "2 Wide-Moat Stocks That Are Drop-Dead Bargains Right Now",
-          "SMCI Stock Gains Most In Nearly 2 Months On New Vera Rubin Racks, Analyst Upgrade",
-          "Could Investing $10,000 in SpaceX Make You a Millionaire?"
+          "1 Screaming Buy Value Stock Hiding in Plain Sight",
+          "This Is the Top Artificial Intelligence (AI) Chip Stock to Buy Right Now, According to Jim Cramer (Hint: It's Not Nvidia)",
+          "1 Massively Undervalued Artificial Intelligence (AI) Stock That Could Be Worth More Than SpaceX Within 12 Months",
+          "SpaceX's Fundraising Is Not Over With a $20 Billion New Bond Offering"
         ],
         "risks": [
-          "FIDI\u2019s 4.1% Yield Holds Firm as Dollar Weakness Boosts International Dividends",
-          "Monthly Gold Income of $4.43 Appeals to Retirees; Volatility Decline Threatens The Flow"
+          "2 Underrated Weight Loss Stocks to Buy and Hold"
         ],
-        "bottom_line": "News is mixed or insufficient.",
+        "bottom_line": "News flow supports the thesis.",
         "what_it_means": "The News Agent checks whether recent headlines provide a positive catalyst, negative risk, or mixed backdrop.",
         "why_it_matters": "Fresh news can explain why a stock is moving and whether the move is supported by a real catalyst.",
         "investor_action": "Use direct company headlines as decision support. Treat indirect ecosystem mentions as weaker evidence.",
@@ -1089,8 +1089,8 @@
         "red_flag": "Low ownership support or removal from key indexes/ETFs."
       }
     },
-    "thesis_strength": "Moderate Thesis",
-    "evidence_confidence": "Medium",
+    "thesis_strength": "Strong Thesis",
+    "evidence_confidence": "Medium-High",
     "positive_agent_count": 4,
     "caution_agent_count": 0,
     "valuation_reconciliation": "AI is 37.7% more optimistic than analyst consensus, mainly due to growth/trend/valuation adjustments.",
@@ -1135,16 +1135,16 @@
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
     "analyst_support_label": "Bullish (88/100)",
     "news_sentiment_source": "No recent NewsAPI headline returned; defaulted to neutral",
-    "v42_news_score": 60,
-    "v42_news_summary": "News is mixed or insufficient.",
+    "v42_news_score": 75,
+    "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
-      "2 Wide-Moat Stocks That Are Drop-Dead Bargains Right Now",
-      "SMCI Stock Gains Most In Nearly 2 Months On New Vera Rubin Racks, Analyst Upgrade",
-      "Could Investing $10,000 in SpaceX Make You a Millionaire?"
+      "1 Screaming Buy Value Stock Hiding in Plain Sight",
+      "This Is the Top Artificial Intelligence (AI) Chip Stock to Buy Right Now, According to Jim Cramer (Hint: It's Not Nvidia)",
+      "1 Massively Undervalued Artificial Intelligence (AI) Stock That Could Be Worth More Than SpaceX Within 12 Months",
+      "SpaceX's Fundraising Is Not Over With a $20 Billion New Bond Offering"
     ],
     "v42_news_risks": [
-      "FIDI\u2019s 4.1% Yield Holds Firm as Dollar Weakness Boosts International Dividends",
-      "Monthly Gold Income of $4.43 Appeals to Retirees; Volatility Decline Threatens The Flow"
+      "2 Underrated Weight Loss Stocks to Buy and Hold"
     ],
     "v42_news_sources": [
       "Finnhub company news"
@@ -1158,7 +1158,7 @@
     "v42_breakout_level": 234.33,
     "v42_pullback_zone": "$199.34 - $204.48",
     "v42_chart_guidance": "Between support and resistance. Prefer pullback entry or confirmed breakout.",
-    "v42_committee_positive_agents": 5,
+    "v42_committee_positive_agents": 6,
     "v42_committee_total_agents": 10,
     "v42_tier": "full",
     "raw_conviction_before_normalization": 89,
@@ -1302,7 +1302,7 @@
       "Recent momentum is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-23T05:12:10.107491+00:00",
+    "scan_time": "2026-06-23T08:09:00.405113+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 90,
@@ -1681,7 +1681,7 @@
       "Price is below or near the 50-day trend",
       "earnings growth is negative"
     ],
-    "scan_time": "2026-06-23T05:23:58.687843+00:00",
+    "scan_time": "2026-06-23T08:20:36.766698+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -2058,7 +2058,7 @@
       "Sharp down day needs confirmation",
       "PEG ratio suggests valuation risk"
     ],
-    "scan_time": "2026-06-23T05:20:46.980787+00:00",
+    "scan_time": "2026-06-23T08:17:28.336443+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 83,
@@ -2434,7 +2434,7 @@
       "RSI is not yet showing strong momentum",
       "Still far from recent highs"
     ],
-    "scan_time": "2026-06-23T05:05:14.020500+00:00",
+    "scan_time": "2026-06-23T08:02:16.394041+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 84,
@@ -2815,7 +2815,7 @@
       "Price is below or near the 50-day trend",
       "RSI is not yet showing strong momentum"
     ],
-    "scan_time": "2026-06-23T05:20:53.355358+00:00",
+    "scan_time": "2026-06-23T08:17:35.143379+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 87,
@@ -3195,7 +3195,7 @@
       "Price is below or near the 50-day trend",
       "earnings growth is negative"
     ],
-    "scan_time": "2026-06-23T05:07:08.517754+00:00",
+    "scan_time": "2026-06-23T08:04:06.986054+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 87,
@@ -3572,7 +3572,7 @@
     "risk_tags": [
       "RSI is not yet showing strong momentum"
     ],
-    "scan_time": "2026-06-23T05:04:31.083995+00:00",
+    "scan_time": "2026-06-23T08:01:35.800385+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -3945,7 +3945,7 @@
     "risk_tags": [
       "Price is below or near the 50-day trend"
     ],
-    "scan_time": "2026-06-23T05:20:49.708723+00:00",
+    "scan_time": "2026-06-23T08:17:31.093693+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 84,
@@ -4321,7 +4321,7 @@
     "risk_tags": [
       "Price is below or near the 50-day trend"
     ],
-    "scan_time": "2026-06-23T05:21:27.975468+00:00",
+    "scan_time": "2026-06-23T08:18:08.369882+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 88,
@@ -4701,7 +4701,7 @@
       "Price is below or near the 50-day trend",
       "earnings growth is negative"
     ],
-    "scan_time": "2026-06-23T05:12:24.843572+00:00",
+    "scan_time": "2026-06-23T08:09:16.697664+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 84,
@@ -5078,7 +5078,7 @@
       "Price is below or near the 50-day trend",
       "Volume confirmation is light"
     ],
-    "scan_time": "2026-06-23T05:07:33.051937+00:00",
+    "scan_time": "2026-06-23T08:04:30.188942+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 84,
@@ -5457,7 +5457,7 @@
       "Price is below or near the 50-day trend",
       "PEG ratio suggests valuation risk"
     ],
-    "scan_time": "2026-06-23T05:23:48.843972+00:00",
+    "scan_time": "2026-06-23T08:20:26.902307+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 85,
@@ -5770,24 +5770,24 @@
     "entry_low": 223.69,
     "entry_high": 230.16,
     "stop_loss": 215.92,
-    "target": 311.79,
-    "target_2": 348.47,
-    "ai_base_target": 311.79,
-    "ai_bull_target": 348.47,
+    "target": 311.55,
+    "target_2": 348.19,
+    "ai_base_target": 311.55,
+    "ai_bull_target": 348.19,
     "ai_bear_target": 209.76,
-    "analyst_target_mean": 292.05,
-    "analyst_target_high": 348.47,
-    "analyst_target_low": 248.48,
+    "analyst_target_mean": 291.81,
+    "analyst_target_high": 348.19,
+    "analyst_target_low": 248.29,
     "analyst_count": 18,
-    "analyst_upside_pct": 28.1,
-    "analyst_high_upside_pct": 52.8,
-    "expected_upside_pct": 36.8,
-    "upside": 36.8,
+    "analyst_upside_pct": 28.0,
+    "analyst_high_upside_pct": 52.7,
+    "expected_upside_pct": 36.6,
+    "upside": 36.6,
     "ai_confidence": 85,
     "confidence": 85,
     "ai_fair_value_adjustment_pct": 35.0,
     "target_source": "Multi-factor AI fair value using analyst consensus, growth, valuation, trend, volume, and risk",
-    "target_confidence_note": "AI blended 18 analyst opinions with growth, valuation, momentum, volume, and risk. Consensus target $292.05; AI adjustment 35.0%.",
+    "target_confidence_note": "AI blended 18 analyst opinions with growth, valuation, momentum, volume, and risk. Consensus target $291.81; AI adjustment 35.0%.",
     "recommendation_key": "strong_buy",
     "recommendation_mean": 1.22,
     "analyst_support_score": 77.6,
@@ -5810,29 +5810,29 @@
     "risk_reward": 2.02,
     "risk_reward_explanation": "Approximate first target offers about 2.0:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure.",
     "why_ranked_high": "High conviction because multiple signals align across trend, liquidity, momentum, valuation/growth context, and risk control.",
-    "what_looks_good": "Strong liquidity; Price is above the 20-day trend; Healthy 5-day momentum; RSI is constructive without looking overheated; Volatility is tradable; analyst consensus implies strong upside of 28.1%; revenue growth is strong at 144.3%; forward valuation is not excessive",
+    "what_looks_good": "Strong liquidity; Price is above the 20-day trend; Healthy 5-day momentum; RSI is constructive without looking overheated; Volatility is tradable; analyst consensus implies strong upside of 28.0%; revenue growth is strong at 144.3%; forward valuation is not excessive",
     "what_could_go_wrong": "Price is below or near the 50-day trend",
-    "investment_thesis": "Ascendis Pharma A/S screens as a potential opportunity because strong liquidity; price is above the 20-day trend; healthy 5-day momentum; rsi is constructive without looking overheated; volatility is tradable; analyst consensus implies strong upside of 28.1%; revenue growth is strong at 144.3%; forward valuation is not excessive. AI target is $311.79 with expected upside of 36.8%, using Multi-factor AI fair value using analyst consensus, growth, valuation, trend, volume, and risk. Analyst support score: N/A. News flow: N/A. Key risk: price is below or near the 50-day trend.",
-    "table_reason": "AI target $311.79 / upside 36.8%. High conviction because multiple signals align across trend, liquidity, momentum, valuation/growth context, and risk control. Watch entry $223.69 - $230.16 with stop near $215.92.",
-    "opportunity_reason": "AI fair-value upside: 36.8%. AI blended 18 analyst opinions with growth, valuation, momentum, volume, and risk. Consensus target $292.05; AI adjustment 35.0%. Analyst support score: N/A. Latest news: N/A",
-    "guidance": "Ascendis Pharma A/S (ASND) is scoring 85/100. Preferred entry is $223.69 - $230.16. Use a stop around $215.92 and first target near $252.46. Approximate first target offers about 2.0:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure. Analyst/AI target view: AI blended 18 analyst opinions with growth, valuation, momentum, volume, and risk. Consensus target $292.05; AI adjustment 35.0%. AI base target $311.79, bull case $348.47, bear case $209.76.",
+    "investment_thesis": "Ascendis Pharma A/S screens as a potential opportunity because strong liquidity; price is above the 20-day trend; healthy 5-day momentum; rsi is constructive without looking overheated; volatility is tradable; analyst consensus implies strong upside of 28.0%; revenue growth is strong at 144.3%; forward valuation is not excessive. AI target is $311.55 with expected upside of 36.6%, using Multi-factor AI fair value using analyst consensus, growth, valuation, trend, volume, and risk. Analyst support score: N/A. News flow: N/A. Key risk: price is below or near the 50-day trend.",
+    "table_reason": "AI target $311.55 / upside 36.6%. High conviction because multiple signals align across trend, liquidity, momentum, valuation/growth context, and risk control. Watch entry $223.69 - $230.16 with stop near $215.92.",
+    "opportunity_reason": "AI fair-value upside: 36.6%. AI blended 18 analyst opinions with growth, valuation, momentum, volume, and risk. Consensus target $291.81; AI adjustment 35.0%. Analyst support score: N/A. Latest news: N/A",
+    "guidance": "Ascendis Pharma A/S (ASND) is scoring 85/100. Preferred entry is $223.69 - $230.16. Use a stop around $215.92 and first target near $252.46. Approximate first target offers about 2.0:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure. Analyst/AI target view: AI blended 18 analyst opinions with growth, valuation, momentum, volume, and risk. Consensus target $291.81; AI adjustment 35.0%. AI base target $311.55, bull case $348.19, bear case $209.76.",
     "action_note": "Do not chase a gap-up open. Best setup is either a controlled pullback into the entry range or a breakout that holds above prior resistance with volume.",
     "ai_guidance": "Ascendis Pharma A/S (ASND) is scoring 85/100. Preferred entry is $223.69 - $230.16. Use a stop around $215.92 and first target near $252.46. Approximate first target offers about 2.0:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure.",
-    "summary": "Ascendis Pharma A/S: normalized conviction 85/100, AI target $311.79 with 36.8% upside.",
+    "summary": "Ascendis Pharma A/S: normalized conviction 85/100, AI target $311.55 with 36.6% upside.",
     "setup_tags": [
       "Strong liquidity",
       "Price is above the 20-day trend",
       "Healthy 5-day momentum",
       "RSI is constructive without looking overheated",
       "Volatility is tradable",
-      "analyst consensus implies strong upside of 28.1%",
+      "analyst consensus implies strong upside of 28.0%",
       "revenue growth is strong at 144.3%",
       "forward valuation is not excessive"
     ],
     "risk_tags": [
       "Price is below or near the 50-day trend"
     ],
-    "scan_time": "2026-06-23T05:04:52.806451+00:00",
+    "scan_time": "2026-06-23T08:01:56.485466+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 85,
@@ -5881,7 +5881,7 @@
         "data_used": "Existing analyst target/count/recommendation fields",
         "summary": "Lightweight scheduled scan: checks analyst target and support using existing scan fields.",
         "findings": [
-          "Analyst target: 292.05."
+          "Analyst target: 291.81."
         ],
         "risks": [
           "Recent target revisions are checked in full committee or live research."
@@ -6071,13 +6071,13 @@
     "v42_pullback_zone": "$203.80 - $223.44",
     "v42_chart_guidance": "Between support and resistance. Prefer pullback entry or confirmed breakout.",
     "raw_conviction_before_normalization": 85,
-    "relative_rank_score": 103.51,
+    "relative_rank_score": 103.47,
     "recovery_score": 69,
     "recovery_label": "\ud83d\udfe1 Recovery Watchlist",
     "recovery_drop_reason": "20-day move is down -7.9%",
-    "recovery_rebound_reason": "AI fair value still implies 36.8% upside; analyst target implies 28.1% upside; analyst support remains 78/100; news flow is not strongly negative",
+    "recovery_rebound_reason": "AI fair value still implies 36.6% upside; analyst target implies 28.0% upside; analyst support remains 78/100; news flow is not strongly negative",
     "recovery_risk": "Main risk is that the selloff continues if news, earnings, or market sentiment worsens.",
-    "recovery_thesis": "Ascendis Pharma A/S is a Recovery Watchlist. Drop reason: 20-day move is down -7.9% Rebound case: AI fair value still implies 36.8% upside; analyst target implies 28.1% upside; analyst support remains 78/100; news flow is not strongly negative Risk: Main risk is that the selloff continues if news, earnings, or market sentiment worsens."
+    "recovery_thesis": "Ascendis Pharma A/S is a Recovery Watchlist. Drop reason: 20-day move is down -7.9% Rebound case: AI fair value still implies 36.6% upside; analyst target implies 28.0% upside; analyst support remains 78/100; news flow is not strongly negative Risk: Main risk is that the selloff continues if news, earnings, or market sentiment worsens."
   },
   {
     "symbol": "SE",
@@ -6209,7 +6209,7 @@
     "risk_tags": [
       "RSI is not yet showing strong momentum"
     ],
-    "scan_time": "2026-06-23T05:21:52.950227+00:00",
+    "scan_time": "2026-06-23T08:18:33.143555+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -6586,7 +6586,7 @@
     "risk_tags": [
       "RSI is not yet showing strong momentum"
     ],
-    "scan_time": "2026-06-23T05:16:17.345342+00:00",
+    "scan_time": "2026-06-23T08:13:04.933504+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 94,
@@ -6967,7 +6967,7 @@
       "Recent momentum is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-23T05:03:37.068557+00:00",
+    "scan_time": "2026-06-23T08:00:40.013970+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 84,
@@ -7342,7 +7342,7 @@
       "Price is below the 20-day trend",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-23T05:10:45.799565+00:00",
+    "scan_time": "2026-06-23T08:07:45.381541+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 85,
@@ -7717,7 +7717,7 @@
       "Recent momentum is weak",
       "Volume confirmation is light"
     ],
-    "scan_time": "2026-06-23T05:17:03.133200+00:00",
+    "scan_time": "2026-06-23T08:13:47.782496+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 84,
@@ -8093,7 +8093,7 @@
       "Recent momentum is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-23T05:11:42.596403+00:00",
+    "scan_time": "2026-06-23T08:08:34.261256+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -8473,7 +8473,7 @@
       "Recent momentum is weak",
       "RSI is not yet showing strong momentum"
     ],
-    "scan_time": "2026-06-23T05:19:20.735337+00:00",
+    "scan_time": "2026-06-23T08:16:03.755590+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 83,
@@ -8853,7 +8853,7 @@
       "Price is below the 20-day trend",
       "RSI is not yet showing strong momentum"
     ],
-    "scan_time": "2026-06-23T05:10:01.804289+00:00",
+    "scan_time": "2026-06-23T08:07:01.034440+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 94,
@@ -9232,7 +9232,7 @@
       "Still far from recent highs",
       "forward valuation is elevated"
     ],
-    "scan_time": "2026-06-23T05:20:47.437254+00:00",
+    "scan_time": "2026-06-23T08:17:28.778324+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -9607,25 +9607,23 @@
       "Price is below the 20-day trend",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-23T05:02:57.820476+00:00",
+    "scan_time": "2026-06-23T07:59:59.497065+00:00",
     "ai_committee": {
       "News Agent": {
-        "score": 67,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "NewsAPI, Finnhub company news",
+        "score": 76,
+        "status": "Positive",
+        "impact": "Positive",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Designing AI-Native Internal Developer Platforms with .NET Aspire",
           "Agilent Technologies (A) Stock Could Be 23% Undervalued After Earnings Beat And Guidance Raise",
           "How Investors May Respond To Agilent Technologies (A) Upgraded Outlook And Push Into AI-Powered Diagnostics",
           "Global Automated Liquid Handling Systems Market Size/Share Worth USD 6.9 Billion by 2035 at a 9.8% CAGR: Healthcare Foresights (Analysis, Outlook, Leaders, Report, Trends, Forecast, Segmentation, Growth Rate, Value, SWOT Analysis)"
         ],
         "risks": [
-          "Mississippi Insurance Department Fires Examiner After Credit Union Scandal",
-          "Qatar Domestic Gas Plant Malfunction Blast Leaves 18 Missing"
+          "No negative high-confidence headline detected."
         ],
-        "bottom_line": "News is mixed or insufficient.",
+        "bottom_line": "News flow supports the thesis.",
         "what_it_means": "The News Agent checks whether recent headlines provide a positive catalyst, negative risk, or mixed backdrop.",
         "why_it_matters": "Fresh news can explain why a stock is moving and whether the move is supported by a real catalyst.",
         "investor_action": "Use direct company headlines as decision support. Treat indirect ecosystem mentions as weaker evidence.",
@@ -9858,20 +9856,17 @@
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
     "analyst_support_label": "Bullish (77/100)",
     "news_sentiment_source": "No recent NewsAPI headline returned; defaulted to neutral",
-    "v42_news_score": 67,
-    "v42_news_summary": "News is mixed or insufficient.",
+    "v42_news_score": 76,
+    "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
-      "Designing AI-Native Internal Developer Platforms with .NET Aspire",
       "Agilent Technologies (A) Stock Could Be 23% Undervalued After Earnings Beat And Guidance Raise",
       "How Investors May Respond To Agilent Technologies (A) Upgraded Outlook And Push Into AI-Powered Diagnostics",
       "Global Automated Liquid Handling Systems Market Size/Share Worth USD 6.9 Billion by 2035 at a 9.8% CAGR: Healthcare Foresights (Analysis, Outlook, Leaders, Report, Trends, Forecast, Segmentation, Growth Rate, Value, SWOT Analysis)"
     ],
     "v42_news_risks": [
-      "Mississippi Insurance Department Fires Examiner After Credit Union Scandal",
-      "Qatar Domestic Gas Plant Malfunction Blast Leaves 18 Missing"
+      "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": true,
@@ -10023,7 +10018,7 @@
       "earnings growth is positive at 460.6%"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:08:02.751310+00:00",
+    "scan_time": "2026-06-23T08:04:59.753059+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 94,
@@ -10401,7 +10396,7 @@
     "risk_tags": [
       "Recent momentum is weak"
     ],
-    "scan_time": "2026-06-23T05:17:54.186562+00:00",
+    "scan_time": "2026-06-23T08:14:37.882763+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -10779,7 +10774,7 @@
     "risk_tags": [
       "Price is below or near the 50-day trend"
     ],
-    "scan_time": "2026-06-23T05:16:44.025686+00:00",
+    "scan_time": "2026-06-23T08:13:29.016410+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 85,
@@ -11156,7 +11151,7 @@
       "Price is below or near the 50-day trend",
       "revenue growth is negative"
     ],
-    "scan_time": "2026-06-23T05:06:16.711805+00:00",
+    "scan_time": "2026-06-23T08:03:17.728563+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -11529,7 +11524,7 @@
       "PEG ratio looks reasonable versus growth"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:08:20.952538+00:00",
+    "scan_time": "2026-06-23T08:05:23.498960+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -11905,7 +11900,7 @@
       "Price is below the 20-day trend",
       "RSI is not yet showing strong momentum"
     ],
-    "scan_time": "2026-06-23T05:14:35.585013+00:00",
+    "scan_time": "2026-06-23T08:11:27.083064+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -12281,7 +12276,7 @@
     "risk_tags": [
       "RSI is not yet showing strong momentum"
     ],
-    "scan_time": "2026-06-23T05:20:00.165877+00:00",
+    "scan_time": "2026-06-23T08:16:43.031208+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -12655,7 +12650,7 @@
     "risk_tags": [
       "RSI is not yet showing strong momentum"
     ],
-    "scan_time": "2026-06-23T05:25:01.840502+00:00",
+    "scan_time": "2026-06-23T08:21:37.748048+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 88,
@@ -13032,7 +13027,7 @@
       "Price is below or near the 50-day trend",
       "RSI is not yet showing strong momentum"
     ],
-    "scan_time": "2026-06-23T05:12:40.489641+00:00",
+    "scan_time": "2026-06-23T08:09:32.184562+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 83,
@@ -13406,7 +13401,7 @@
       "Price is below or near the 50-day trend",
       "RSI is not yet showing strong momentum"
     ],
-    "scan_time": "2026-06-23T05:08:47.291523+00:00",
+    "scan_time": "2026-06-23T08:05:47.969152+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -13781,7 +13776,7 @@
     "risk_tags": [
       "RSI is not yet showing strong momentum"
     ],
-    "scan_time": "2026-06-23T05:19:03.652501+00:00",
+    "scan_time": "2026-06-23T08:15:47.064566+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 94,
@@ -14160,7 +14155,7 @@
     "risk_tags": [
       "RSI is not yet showing strong momentum"
     ],
-    "scan_time": "2026-06-23T05:14:20.230383+00:00",
+    "scan_time": "2026-06-23T08:11:12.749958+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -14532,7 +14527,7 @@
       "Price is below or near the 50-day trend",
       "RSI is not yet showing strong momentum"
     ],
-    "scan_time": "2026-06-23T05:09:02.716159+00:00",
+    "scan_time": "2026-06-23T08:06:02.084893+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 84,
@@ -14909,7 +14904,7 @@
       "RSI is not yet showing strong momentum",
       "PEG ratio suggests valuation risk"
     ],
-    "scan_time": "2026-06-23T05:10:14.189733+00:00",
+    "scan_time": "2026-06-23T08:07:14.460226+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 87,
@@ -15289,7 +15284,7 @@
       "RSI is not yet showing strong momentum",
       "Volume confirmation is light"
     ],
-    "scan_time": "2026-06-23T05:07:35.786385+00:00",
+    "scan_time": "2026-06-23T08:04:32.918794+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -15668,7 +15663,7 @@
       "Price is below or near the 50-day trend",
       "RSI is not yet showing strong momentum"
     ],
-    "scan_time": "2026-06-23T05:09:31.095408+00:00",
+    "scan_time": "2026-06-23T08:06:28.569281+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -16045,7 +16040,7 @@
     "risk_tags": [
       "RSI is not yet showing strong momentum"
     ],
-    "scan_time": "2026-06-23T05:26:54.235058+00:00",
+    "scan_time": "2026-06-23T08:23:29.432491+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -16360,27 +16355,27 @@
     "entry_low": 120.16,
     "entry_high": 122.27,
     "stop_loss": 117.64,
-    "target": 175.1,
-    "target_2": 200.73,
-    "ai_base_target": 175.1,
-    "ai_bull_target": 200.73,
+    "target": 174.92,
+    "target_2": 200.52,
+    "ai_base_target": 174.92,
+    "ai_bull_target": 200.52,
     "ai_bear_target": 111.84,
-    "analyst_target_mean": 161.3,
-    "analyst_target_high": 200.73,
-    "analyst_target_low": 132.3,
+    "analyst_target_mean": 161.14,
+    "analyst_target_high": 200.52,
+    "analyst_target_low": 132.17,
     "analyst_count": 31,
-    "analyst_upside_pct": 32.7,
-    "analyst_high_upside_pct": 65.1,
-    "expected_upside_pct": 44.0,
-    "upside": 44.0,
+    "analyst_upside_pct": 32.5,
+    "analyst_high_upside_pct": 64.9,
+    "expected_upside_pct": 43.9,
+    "upside": 43.9,
     "ai_confidence": 94,
     "confidence": 94,
     "ai_fair_value_adjustment_pct": 35.0,
     "target_source": "Multi-factor AI fair value using analyst consensus, growth, valuation, trend, volume, and risk",
-    "target_confidence_note": "AI blended 31 analyst opinions with growth, valuation, momentum, volume, and risk. Consensus target $161.30; AI adjustment 35.0%.",
+    "target_confidence_note": "AI blended 31 analyst opinions with growth, valuation, momentum, volume, and risk. Consensus target $161.14; AI adjustment 35.0%.",
     "recommendation_key": "strong_buy",
     "recommendation_mean": 1.23,
-    "analyst_support_score": 82.7,
+    "analyst_support_score": 82.6,
     "finnhub_analyst_total": null,
     "strong_buy": null,
     "buy": null,
@@ -16400,15 +16395,15 @@
     "risk_reward": 1.94,
     "risk_reward_explanation": "Approximate first target offers about 1.9:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure.",
     "why_ranked_high": "High conviction because multiple signals align across trend, liquidity, momentum, valuation/growth context, and risk control.",
-    "what_looks_good": "Strong liquidity; Price is above the 50-day trend; Short-term trend is above intermediate trend; Positive 20-day momentum; Trading near recent highs without being at the absolute top; Volatility is tradable; analyst consensus implies strong upside of 32.7%; PEG ratio looks reasonable versus growth; forward valuation is not excessive",
+    "what_looks_good": "Strong liquidity; Price is above the 50-day trend; Short-term trend is above intermediate trend; Positive 20-day momentum; Trading near recent highs without being at the absolute top; Volatility is tradable; analyst consensus implies strong upside of 32.5%; PEG ratio looks reasonable versus growth; forward valuation is not excessive",
     "what_could_go_wrong": "Price is below the 20-day trend; RSI is not yet showing strong momentum; Volume confirmation is light",
-    "investment_thesis": "NetEase, Inc. screens as a potential opportunity because strong liquidity; price is above the 50-day trend; short-term trend is above intermediate trend; positive 20-day momentum; trading near recent highs without being at the absolute top; volatility is tradable; analyst consensus implies strong upside of 32.7%; peg ratio looks reasonable versus growth; forward valuation is not excessive. AI target is $175.1 with expected upside of 44.0%, using Multi-factor AI fair value using analyst consensus, growth, valuation, trend, volume, and risk. Analyst support score: N/A. News flow: N/A. Key risk: price is below the 20-day trend; rsi is not yet showing strong momentum; volume confirmation is light.",
-    "table_reason": "AI target $175.1 / upside 44.0%. High conviction because multiple signals align across trend, liquidity, momentum, valuation/growth context, and risk control. Watch entry $120.16 - $122.27 with stop near $117.64.",
-    "opportunity_reason": "AI fair-value upside: 44.0%. AI blended 31 analyst opinions with growth, valuation, momentum, volume, and risk. Consensus target $161.30; AI adjustment 35.0%. Analyst support score: N/A. Latest news: N/A",
-    "guidance": "NetEase, Inc. (NTES) is scoring 89/100. Preferred entry is $120.16 - $122.27. Use a stop around $117.64 and first target near $129.22. Approximate first target offers about 1.9:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure. Analyst/AI target view: AI blended 31 analyst opinions with growth, valuation, momentum, volume, and risk. Consensus target $161.30; AI adjustment 35.0%. AI base target $175.1, bull case $200.73, bear case $111.84.",
+    "investment_thesis": "NetEase, Inc. screens as a potential opportunity because strong liquidity; price is above the 50-day trend; short-term trend is above intermediate trend; positive 20-day momentum; trading near recent highs without being at the absolute top; volatility is tradable; analyst consensus implies strong upside of 32.5%; peg ratio looks reasonable versus growth; forward valuation is not excessive. AI target is $174.92 with expected upside of 43.9%, using Multi-factor AI fair value using analyst consensus, growth, valuation, trend, volume, and risk. Analyst support score: N/A. News flow: N/A. Key risk: price is below the 20-day trend; rsi is not yet showing strong momentum; volume confirmation is light.",
+    "table_reason": "AI target $174.92 / upside 43.9%. High conviction because multiple signals align across trend, liquidity, momentum, valuation/growth context, and risk control. Watch entry $120.16 - $122.27 with stop near $117.64.",
+    "opportunity_reason": "AI fair-value upside: 43.9%. AI blended 31 analyst opinions with growth, valuation, momentum, volume, and risk. Consensus target $161.14; AI adjustment 35.0%. Analyst support score: N/A. Latest news: N/A",
+    "guidance": "NetEase, Inc. (NTES) is scoring 89/100. Preferred entry is $120.16 - $122.27. Use a stop around $117.64 and first target near $129.22. Approximate first target offers about 1.9:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure. Analyst/AI target view: AI blended 31 analyst opinions with growth, valuation, momentum, volume, and risk. Consensus target $161.14; AI adjustment 35.0%. AI base target $174.92, bull case $200.52, bear case $111.84.",
     "action_note": "Do not chase a gap-up open. Best setup is either a controlled pullback into the entry range or a breakout that holds above prior resistance with volume.",
     "ai_guidance": "NetEase, Inc. (NTES) is scoring 89/100. Preferred entry is $120.16 - $122.27. Use a stop around $117.64 and first target near $129.22. Approximate first target offers about 1.9:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure.",
-    "summary": "NetEase, Inc.: normalized conviction 94/100, AI target $175.1 with 44.0% upside.",
+    "summary": "NetEase, Inc.: normalized conviction 94/100, AI target $174.92 with 43.9% upside.",
     "setup_tags": [
       "Strong liquidity",
       "Price is above the 50-day trend",
@@ -16416,7 +16411,7 @@
       "Positive 20-day momentum",
       "Trading near recent highs without being at the absolute top",
       "Volatility is tradable",
-      "analyst consensus implies strong upside of 32.7%",
+      "analyst consensus implies strong upside of 32.5%",
       "PEG ratio looks reasonable versus growth",
       "forward valuation is not excessive"
     ],
@@ -16425,7 +16420,7 @@
       "RSI is not yet showing strong momentum",
       "Volume confirmation is light"
     ],
-    "scan_time": "2026-06-23T05:18:17.757410+00:00",
+    "scan_time": "2026-06-23T08:15:00.001083+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -16473,7 +16468,7 @@
         "data_used": "Existing analyst target/count/recommendation fields",
         "summary": "Lightweight scheduled scan: checks analyst target and support using existing scan fields.",
         "findings": [
-          "Analyst target: 161.3."
+          "Analyst target: 161.14."
         ],
         "risks": [
           "Recent target revisions are checked in full committee or live research."
@@ -16662,13 +16657,13 @@
     "v42_pullback_zone": "$113.05 - $119.14",
     "v42_chart_guidance": "Between support and resistance. Prefer pullback entry or confirmed breakout.",
     "raw_conviction_before_normalization": 89,
-    "relative_rank_score": 110.4,
+    "relative_rank_score": 110.36,
     "recovery_score": 57,
     "recovery_label": "\ud83d\udd35 Early Recovery Setup",
     "recovery_drop_reason": "RSI is depressed at 47.5",
-    "recovery_rebound_reason": "AI fair value still implies 44.0% upside; analyst target implies 32.7% upside; analyst support remains 83/100; news flow is not strongly negative",
+    "recovery_rebound_reason": "AI fair value still implies 43.9% upside; analyst target implies 32.5% upside; analyst support remains 83/100; news flow is not strongly negative",
     "recovery_risk": "Main risk is that the selloff continues if news, earnings, or market sentiment worsens.",
-    "recovery_thesis": "NetEase, Inc. is a Early Recovery Setup. Drop reason: RSI is depressed at 47.5 Rebound case: AI fair value still implies 44.0% upside; analyst target implies 32.7% upside; analyst support remains 83/100; news flow is not strongly negative Risk: Main risk is that the selloff continues if news, earnings, or market sentiment worsens."
+    "recovery_thesis": "NetEase, Inc. is a Early Recovery Setup. Drop reason: RSI is depressed at 47.5 Rebound case: AI fair value still implies 43.9% upside; analyst target implies 32.5% upside; analyst support remains 83/100; news flow is not strongly negative Risk: Main risk is that the selloff continues if news, earnings, or market sentiment worsens."
   },
   {
     "symbol": "OMDA",
@@ -16799,7 +16794,7 @@
     "risk_tags": [
       "RSI is not yet showing strong momentum"
     ],
-    "scan_time": "2026-06-23T05:18:53.269711+00:00",
+    "scan_time": "2026-06-23T08:15:35.234688+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -17174,7 +17169,7 @@
     "risk_tags": [
       "RSI is not yet showing strong momentum"
     ],
-    "scan_time": "2026-06-23T05:26:47.150990+00:00",
+    "scan_time": "2026-06-23T08:23:23.086747+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -17552,7 +17547,7 @@
       "Recent momentum is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-23T05:26:50.678753+00:00",
+    "scan_time": "2026-06-23T08:23:26.231095+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 88,
@@ -17931,7 +17926,7 @@
       "RSI is not yet showing strong momentum",
       "Volume confirmation is light"
     ],
-    "scan_time": "2026-06-23T05:12:55.927055+00:00",
+    "scan_time": "2026-06-23T08:09:47.838065+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 94,
@@ -18311,7 +18306,7 @@
       "Recent momentum is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-23T05:18:18.672120+00:00",
+    "scan_time": "2026-06-23T08:15:00.922625+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 90,
@@ -18688,7 +18683,7 @@
       "forward valuation is not excessive"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:10:18.369382+00:00",
+    "scan_time": "2026-06-23T08:07:18.491475+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 94,
@@ -19063,7 +19058,7 @@
     "risk_tags": [
       "RSI is not yet showing strong momentum"
     ],
-    "scan_time": "2026-06-23T05:19:16.173980+00:00",
+    "scan_time": "2026-06-23T08:15:59.064968+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -19440,7 +19435,7 @@
       "revenue growth is negative",
       "earnings growth is negative"
     ],
-    "scan_time": "2026-06-23T05:04:26.109528+00:00",
+    "scan_time": "2026-06-23T08:01:30.468927+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 87,
@@ -19814,7 +19809,7 @@
       "revenue growth is strong at 68.6%"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:08:44.498452+00:00",
+    "scan_time": "2026-06-23T08:05:44.811811+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -20186,7 +20181,7 @@
       "analyst consensus implies strong upside of 186.0%"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:25:29.404277+00:00",
+    "scan_time": "2026-06-23T08:22:05.822252+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -20558,7 +20553,7 @@
       "analyst consensus implies strong upside of 169.9%"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:18:41.909393+00:00",
+    "scan_time": "2026-06-23T08:15:24.612805+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -20929,7 +20924,7 @@
     "risk_tags": [
       "Short-term move may be extended"
     ],
-    "scan_time": "2026-06-23T05:21:42.714399+00:00",
+    "scan_time": "2026-06-23T08:18:22.292059+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 85,
@@ -21301,7 +21296,7 @@
       "revenue growth is strong at 37.2%"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:03:17.689031+00:00",
+    "scan_time": "2026-06-23T08:00:20.208759+00:00",
     "ai_committee": {
       "News Agent": {
         "score": 55,
@@ -21706,7 +21701,7 @@
       "revenue growth is strong at 2598.7%"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:18:26.907098+00:00",
+    "scan_time": "2026-06-23T08:15:09.105014+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -22078,7 +22073,7 @@
       "earnings growth is positive at 150.0%"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:13:59.762602+00:00",
+    "scan_time": "2026-06-23T08:10:52.906400+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -22455,7 +22450,7 @@
     "risk_tags": [
       "PEG ratio suggests valuation risk"
     ],
-    "scan_time": "2026-06-23T05:05:40.900622+00:00",
+    "scan_time": "2026-06-23T08:02:42.817852+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -22826,7 +22821,7 @@
       "analyst consensus implies strong upside of 125.2%"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:25:27.105037+00:00",
+    "scan_time": "2026-06-23T08:22:03.313814+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -23201,7 +23196,7 @@
       "Volume confirmation is light",
       "PEG ratio suggests valuation risk"
     ],
-    "scan_time": "2026-06-23T05:26:59.774990+00:00",
+    "scan_time": "2026-06-23T08:23:34.957990+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -23577,7 +23572,7 @@
     "risk_tags": [
       "RSI is not yet showing strong momentum"
     ],
-    "scan_time": "2026-06-23T05:19:21.648839+00:00",
+    "scan_time": "2026-06-23T08:16:05.037394+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -23952,7 +23947,7 @@
       "analyst consensus implies strong upside of 103.0%"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:25:16.877740+00:00",
+    "scan_time": "2026-06-23T08:21:52.282897+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -24325,7 +24320,7 @@
     "risk_tags": [
       "RSI is warm; avoid chasing"
     ],
-    "scan_time": "2026-06-23T05:23:12.100666+00:00",
+    "scan_time": "2026-06-23T08:19:49.337122+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -24694,7 +24689,7 @@
       "analyst consensus implies strong upside of 87.3%"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:24:23.848715+00:00",
+    "scan_time": "2026-06-23T08:21:00.824368+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -25067,7 +25062,7 @@
       "revenue growth is strong at 124.7%"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:13:20.290521+00:00",
+    "scan_time": "2026-06-23T08:10:11.972643+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 94,
@@ -25442,7 +25437,7 @@
       "analyst consensus implies strong upside of 83.3%"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:10:02.350360+00:00",
+    "scan_time": "2026-06-23T08:07:01.660419+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -25817,7 +25812,7 @@
     "risk_tags": [
       "revenue growth is negative"
     ],
-    "scan_time": "2026-06-23T05:05:36.609416+00:00",
+    "scan_time": "2026-06-23T08:02:37.942130+00:00",
     "ai_committee": {
       "News Agent": {
         "score": 90,
@@ -26235,7 +26230,7 @@
     "risk_tags": [
       "RSI is overbought"
     ],
-    "scan_time": "2026-06-23T05:26:30.855220+00:00",
+    "scan_time": "2026-06-23T08:23:08.014639+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -26610,7 +26605,7 @@
       "PEG ratio looks reasonable versus growth"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:21:16.541801+00:00",
+    "scan_time": "2026-06-23T08:17:57.257616+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -26989,7 +26984,7 @@
     "risk_tags": [
       "revenue growth is negative"
     ],
-    "scan_time": "2026-06-23T05:07:57.472664+00:00",
+    "scan_time": "2026-06-23T08:04:54.724080+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -27364,7 +27359,7 @@
     "risk_tags": [
       "earnings growth is negative"
     ],
-    "scan_time": "2026-06-23T05:06:22.292010+00:00",
+    "scan_time": "2026-06-23T08:03:23.205410+00:00",
     "ai_committee": {
       "News Agent": {
         "score": 75,
@@ -27778,7 +27773,7 @@
       "Short-term move may be extended",
       "RSI is warm; avoid chasing"
     ],
-    "scan_time": "2026-06-23T05:10:38.719752+00:00",
+    "scan_time": "2026-06-23T08:07:38.373792+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 85,
@@ -28150,7 +28145,7 @@
       "revenue growth is strong at 57.5%"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:16:52.611822+00:00",
+    "scan_time": "2026-06-23T08:13:37.300179+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 94,
@@ -28524,7 +28519,7 @@
     "risk_tags": [
       "Short-term move may be extended"
     ],
-    "scan_time": "2026-06-23T05:05:43.697868+00:00",
+    "scan_time": "2026-06-23T08:02:45.876860+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -28897,7 +28892,7 @@
       "revenue growth is strong at 43.4%"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:25:45.301102+00:00",
+    "scan_time": "2026-06-23T08:22:22.197637+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 94,
@@ -29272,7 +29267,7 @@
       "forward valuation is not excessive"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:23:12.569901+00:00",
+    "scan_time": "2026-06-23T08:19:49.798237+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -29649,7 +29644,7 @@
     "risk_tags": [
       "earnings growth is negative"
     ],
-    "scan_time": "2026-06-23T05:09:18.607457+00:00",
+    "scan_time": "2026-06-23T08:06:16.746774+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 94,
@@ -30025,7 +30020,7 @@
       "forward valuation is not excessive"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:16:52.161364+00:00",
+    "scan_time": "2026-06-23T08:13:36.858994+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -30400,7 +30395,7 @@
       "Price is below or near the 50-day trend",
       "Volume confirmation is light"
     ],
-    "scan_time": "2026-06-23T05:08:31.424858+00:00",
+    "scan_time": "2026-06-23T08:05:33.316659+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 85,
@@ -30773,7 +30768,7 @@
     "risk_tags": [
       "Short-term move may be extended"
     ],
-    "scan_time": "2026-06-23T05:13:54.705718+00:00",
+    "scan_time": "2026-06-23T08:10:46.993473+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -31148,7 +31143,7 @@
     "risk_tags": [
       "Recent momentum is weak"
     ],
-    "scan_time": "2026-06-23T05:17:58.584775+00:00",
+    "scan_time": "2026-06-23T08:14:42.020861+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -31521,7 +31516,7 @@
       "analyst consensus implies strong upside of 38.2%"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:04:47.877102+00:00",
+    "scan_time": "2026-06-23T08:01:52.360970+00:00",
     "ai_committee": {
       "News Agent": {
         "score": 55,
@@ -31933,7 +31928,7 @@
       "RSI is overbought",
       "earnings growth is negative"
     ],
-    "scan_time": "2026-06-23T05:21:07.462870+00:00",
+    "scan_time": "2026-06-23T08:17:48.469242+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 86,
@@ -32309,7 +32304,7 @@
       "Price is below or near the 50-day trend",
       "forward valuation is elevated"
     ],
-    "scan_time": "2026-06-23T05:05:35.610566+00:00",
+    "scan_time": "2026-06-23T08:02:37.010807+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 84,
@@ -32683,7 +32678,7 @@
     "risk_tags": [
       "RSI is warm; avoid chasing"
     ],
-    "scan_time": "2026-06-23T05:04:18.787207+00:00",
+    "scan_time": "2026-06-23T08:01:20.841478+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -33055,7 +33050,7 @@
       "analyst consensus implies strong upside of 51.4%"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:08:15.482907+00:00",
+    "scan_time": "2026-06-23T08:05:16.670864+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -33430,7 +33425,7 @@
     "risk_tags": [
       "RSI is not yet showing strong momentum"
     ],
-    "scan_time": "2026-06-23T05:20:49.249410+00:00",
+    "scan_time": "2026-06-23T08:17:30.653242+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 94,
@@ -33804,7 +33799,7 @@
       "analyst consensus implies strong upside of 43.7%"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:04:07.410422+00:00",
+    "scan_time": "2026-06-23T08:01:09.481993+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -34181,7 +34176,7 @@
       "Volume confirmation is light",
       "revenue growth is negative"
     ],
-    "scan_time": "2026-06-23T05:08:31.898566+00:00",
+    "scan_time": "2026-06-23T08:05:33.765069+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -34558,7 +34553,7 @@
     "risk_tags": [
       "Price is below or near the 50-day trend"
     ],
-    "scan_time": "2026-06-23T05:06:11.628330+00:00",
+    "scan_time": "2026-06-23T08:03:12.630946+00:00",
     "ai_committee": {
       "News Agent": {
         "score": 69,
@@ -34969,7 +34964,7 @@
       "forward valuation is not excessive"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:16:32.854606+00:00",
+    "scan_time": "2026-06-23T08:13:19.435696+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 94,
@@ -35347,7 +35342,7 @@
       "Price is below or near the 50-day trend",
       "earnings growth is negative"
     ],
-    "scan_time": "2026-06-23T05:18:12.504761+00:00",
+    "scan_time": "2026-06-23T08:14:54.912998+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 93,
@@ -35726,7 +35721,7 @@
       "Volume confirmation is light",
       "earnings growth is negative"
     ],
-    "scan_time": "2026-06-23T05:03:30.492869+00:00",
+    "scan_time": "2026-06-23T08:00:33.377180+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -36100,7 +36095,7 @@
       "forward valuation is not excessive"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:12:43.371531+00:00",
+    "scan_time": "2026-06-23T08:09:35.046535+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 94,
@@ -36477,7 +36472,7 @@
     "risk_tags": [
       "RSI is warm; avoid chasing"
     ],
-    "scan_time": "2026-06-23T05:18:44.882168+00:00",
+    "scan_time": "2026-06-23T08:15:27.351553+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 89,
@@ -36851,7 +36846,7 @@
     "risk_tags": [
       "Price is below or near the 50-day trend"
     ],
-    "scan_time": "2026-06-23T05:12:50.864631+00:00",
+    "scan_time": "2026-06-23T08:09:42.696689+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 86,
@@ -37226,7 +37221,7 @@
       "earnings growth is positive at 47.9%"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:21:03.158057+00:00",
+    "scan_time": "2026-06-23T08:17:44.318725+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 97,
@@ -37600,7 +37595,7 @@
     "risk_tags": [
       "earnings growth is negative"
     ],
-    "scan_time": "2026-06-23T05:26:09.562499+00:00",
+    "scan_time": "2026-06-23T08:22:46.446532+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 87,

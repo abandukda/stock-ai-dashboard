@@ -53,7 +53,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:20:37.996645+00:00",
+    "scan_time": "2026-06-23T08:17:19.550046+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 747.83,
@@ -307,7 +307,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:14:32.420321+00:00",
+    "scan_time": "2026-06-23T08:11:24.262010+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 299.49,
@@ -557,7 +557,7 @@
       "RSI is constructive"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:22:22.562299+00:00",
+    "scan_time": "2026-06-23T08:19:03.088674+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 671.83,
@@ -781,7 +781,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:26:34.429831+00:00",
+    "scan_time": "2026-06-23T08:23:11.192214+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 198.49,
@@ -1006,7 +1006,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:09:32.019258+00:00",
+    "scan_time": "2026-06-23T08:06:29.473689+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 522.74,
@@ -1260,7 +1260,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:16:08.337246+00:00",
+    "scan_time": "2026-06-23T08:12:54.370061+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 110.24,
@@ -1520,7 +1520,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:13:40.051357+00:00",
+    "scan_time": "2026-06-23T08:10:32.014585+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 80.17,
@@ -1781,7 +1781,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:23:56.676473+00:00",
+    "scan_time": "2026-06-23T08:20:34.903662+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.51,
@@ -2007,7 +2007,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-23T05:26:36.323709+00:00",
+    "scan_time": "2026-06-23T08:23:12.961946+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 159.23,
@@ -2232,7 +2232,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:26:33.976006+00:00",
+    "scan_time": "2026-06-23T08:23:10.733616+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 182.47,
@@ -2457,7 +2457,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:25:47.217953+00:00",
+    "scan_time": "2026-06-23T08:22:24.062083+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 374.7,
@@ -2682,7 +2682,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:26:32.213289+00:00",
+    "scan_time": "2026-06-23T08:23:09.353177+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 53.7,
@@ -2906,7 +2906,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:04:42.094007+00:00",
+    "scan_time": "2026-06-23T08:01:46.542743+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 92.65,
@@ -3158,7 +3158,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:14:41.933623+00:00",
+    "scan_time": "2026-06-23T08:11:33.547952+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 61.72,
@@ -3410,7 +3410,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:14:40.831175+00:00",
+    "scan_time": "2026-06-23T08:11:32.469158+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 58.27,
@@ -3664,7 +3664,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:20:43.663916+00:00",
+    "scan_time": "2026-06-23T08:17:25.068544+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 18.41,
@@ -3889,7 +3889,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:26:46.691051+00:00",
+    "scan_time": "2026-06-23T08:23:22.647618+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 40.72,
@@ -4114,7 +4114,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:21:32.311812+00:00",
+    "scan_time": "2026-06-23T08:18:12.506051+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 15.87,
@@ -4339,7 +4339,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:20:39.298261+00:00",
+    "scan_time": "2026-06-23T08:17:20.835884+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 24.53,
@@ -4588,7 +4588,7 @@
       "RSI is constructive"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-23T05:22:35.380427+00:00",
+    "scan_time": "2026-06-23T08:19:16.059447+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 655.95,
@@ -4813,7 +4813,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-23T05:26:35.354005+00:00",
+    "scan_time": "2026-06-23T08:23:12.066395+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 45.25,
@@ -5037,7 +5037,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-23T05:22:47.778571+00:00",
+    "scan_time": "2026-06-23T08:19:27.312101+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 758.45,
@@ -5261,7 +5261,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-23T05:25:35.841222+00:00",
+    "scan_time": "2026-06-23T08:22:12.953997+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 699.15,
@@ -5485,7 +5485,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-23T05:21:50.215541+00:00",
+    "scan_time": "2026-06-23T08:18:30.445326+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 32.92,
@@ -5709,7 +5709,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-23T05:22:48.277183+00:00",
+    "scan_time": "2026-06-23T08:19:27.758193+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 17.87,
@@ -5932,7 +5932,7 @@
     "risk_tags": [
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-23T05:26:35.811698+00:00",
+    "scan_time": "2026-06-23T08:23:12.524411+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 47.41,
@@ -6156,7 +6156,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-23T05:26:34.893036+00:00",
+    "scan_time": "2026-06-23T08:23:11.634219+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.02,
@@ -6380,7 +6380,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-23T05:26:36.773316+00:00",
+    "scan_time": "2026-06-23T08:23:13.396808+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 124.51,
@@ -6604,7 +6604,7 @@
       "price is below 50-day trend",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-23T05:23:27.948137+00:00",
+    "scan_time": "2026-06-23T08:20:04.741670+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 75.6,
@@ -6829,7 +6829,7 @@
       "price is below 50-day trend",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-23T05:06:33.536253+00:00",
+    "scan_time": "2026-06-23T08:03:34.610990+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 41.71,
@@ -7086,7 +7086,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-23T05:25:03.727167+00:00",
+    "scan_time": "2026-06-23T08:21:40.048210+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 62.28,
@@ -7312,7 +7312,7 @@
       "60-day ETF trend is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-23T05:26:32.734738+00:00",
+    "scan_time": "2026-06-23T08:23:09.853257+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 63.01,
