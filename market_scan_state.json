@@ -1,16 +1,16 @@
 {
-  "generated_at": "2026-06-23T00:27:16.862984+00:00",
+  "generated_at": "2026-06-23T05:27:01.297323+00:00",
   "status": "success",
-  "version": "V50.8",
+  "version": "V50.8.1",
   "universe_count": 2927,
   "prescreen_count": 650,
   "full_scan_count": 150,
   "recovery_count": 100,
-  "etf_count": 18,
+  "etf_count": 32,
   "fallback_rows_allowed": false,
   "data_dir": ".",
   "github_persisted": true,
-  "duration_seconds": 758.21,
+  "duration_seconds": 1450.72,
   "fast_cron_mode": true,
   "full_committee_limit": 15,
   "pre_rank_deep_apis_skipped": true,
@@ -126,7 +126,7 @@
     "valuation_reconciliation": true,
     "thesis_strength_and_confidence": true
   },
-  "scanner_version": "V50.8",
-  "scanner_version_label": "V50.8 Auto Track Record Engine",
+  "scanner_version": "V50.8.1",
+  "scanner_version_label": "V50.8.1 FMP Ultimate Migration",
   "v50_smart_money_analyst_revision_upgrade": true
 }
