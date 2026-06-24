@@ -16,7 +16,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V50.8.2 Data Reliability Patch"
+APP_VERSION = "V50.8.3 Customer Trust UI"
 
 
 # =========================
@@ -17723,6 +17723,273 @@ def render_status_banner():
         st.warning("Scanner data is older than the app. Run GitHub Actions → Overnight Market Scan to refresh V50.8.2 data.")
     if is_viewer():
         st.info("Viewer mode: admin diagnostics are hidden.")
+
+
+
+# =========================
+# V50.8.3 CUSTOMER TRUST UI
+# =========================
+# Adds stricter Top Choice rules, cleaner analyst cards, earnings/macro calendar,
+# ticker-specific news, and customer-facing ranking commentary.
+
+def v5083_num(x, default=None):
+    try:
+        if x is None or x == "":
+            return default
+        n = float(x)
+        if pd.isna(n):
+            return default
+        return n
+    except Exception:
+        return default
+
+
+def v5083_top_choice_status(report):
+    fin = v5083_num(report.get("financial_health_score"), 0) or 0
+    conf_obj = report.get("research_confidence", {}) if isinstance(report.get("research_confidence"), dict) else {}
+    conf = v5083_num(conf_obj.get("score"), 0) or 0
+    inv = v5083_num(report.get("investment_score") or report.get("opportunity_score"), 0) or 0
+    rr = v5083_num((report.get("plan") or {}).get("risk_reward"), 0) or 0
+    verdict = safe_text(report.get("verdict"), "WATCHLIST")
+    blocks = []
+    if fin < 70: blocks.append("Financial Health below Good")
+    if conf < 75: blocks.append("Research Confidence below 75")
+    if rr < 1.5: blocks.append("Risk/reward below 1.5:1")
+    if verdict in {"AVOID", "INSUFFICIENT DATA"}: blocks.append(f"Verdict is {verdict}")
+    if inv < 75: blocks.append("Investment score below 75")
+    if not blocks and verdict == "BUY NOW" and inv >= 80:
+        return "🏆 Top Choice", "This idea meets the quality, confidence, and risk/reward thresholds for a flagship recommendation.", []
+    if verdict in {"BUY NOW", "BUY ON WEAKNESS"} and inv >= 70:
+        return "⚡ Actionable but Not Top Choice", "This idea may be actionable, but it does not meet every Top Choice quality gate.", blocks
+    if inv >= 70:
+        return "👀 High Priority Watch", "This idea has attractive elements but needs a cleaner setup before being showcased.", blocks
+    return "📌 Monitor Only", "This idea is not strong enough to showcase as a primary recommendation today.", blocks
+
+
+def v5083_customer_commentary(report):
+    status, explanation, blocks = v5083_top_choice_status(report)
+    fin = v5083_num(report.get("financial_health_score"), 0) or 0
+    conf_obj = report.get("research_confidence", {}) if isinstance(report.get("research_confidence"), dict) else {}
+    conf = v5083_num(conf_obj.get("score"), 0) or 0
+    inv = v5083_num(report.get("investment_score") or report.get("opportunity_score"), 0) or 0
+    rr = v5083_num((report.get("plan") or {}).get("risk_reward"), 0) or 0
+    verdict = safe_text(report.get("verdict"), "WATCHLIST")
+    positives, cautions = [], []
+    if inv >= 80: positives.append("High investment score")
+    elif inv >= 70: positives.append("Decent investment setup")
+    if fin >= 80: positives.append("Strong financial health")
+    elif fin < 70: cautions.append("Financial health is not strong enough for a flagship idea")
+    if conf >= 75: positives.append("Good research confidence")
+    else: cautions.append("Research confidence is below preferred level")
+    if rr >= 1.5: positives.append("Risk/reward clears the minimum threshold")
+    else: cautions.append("Risk/reward is not attractive enough")
+    if verdict == "BUY NOW": positives.append("Dashboard verdict is BUY NOW")
+    elif verdict == "BUY ON WEAKNESS": positives.append("Better suited for pullbacks than chasing")
+    elif verdict in {"AVOID", "INSUFFICIENT DATA"}: cautions.append(f"Dashboard verdict is {verdict}")
+    return {"status": status, "explanation": explanation, "blocks": blocks, "positives": positives[:5], "cautions": cautions[:5]}
+
+
+def render_v5083_customer_trust_card(row):
+    r = v49_build_research_report(row)
+    comment = v5083_customer_commentary(r)
+    with st.container(border=True):
+        st.markdown("### 🧭 Customer Trust Summary")
+        st.markdown(f"#### {comment['status']}")
+        st.write(comment["explanation"])
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Investment Score", f"{v5083_num(r.get('investment_score') or r.get('opportunity_score'), 0):.0f}/100")
+        c2.metric("Financial Health", f"{v5083_num(r.get('financial_health_score'), 0):.0f}/100")
+        conf = r.get("research_confidence", {}) if isinstance(r.get("research_confidence"), dict) else {}
+        c3.metric("Research Confidence", f"{v5083_num(conf.get('score'), 0):.0f}/100")
+        c4.metric("Risk/Reward", f"{v5083_num((r.get('plan') or {}).get('risk_reward'), 0):.2f}:1")
+        if comment["positives"]:
+            st.markdown("**Why this is ranked:**")
+            for p in comment["positives"]: st.markdown(f"✓ {p}")
+        if comment["blocks"] or comment["cautions"]:
+            st.markdown("**Why this may not be Top Choice:**")
+            for b in (comment["blocks"] or comment["cautions"]): st.markdown(f"⚠️ {b}")
+        if comment["status"] != "🏆 Top Choice":
+            st.caption("This prevents weak-financial-health or low-confidence names from being promoted as the flagship pick.")
+
+
+def v5083_grades_consensus(ticker):
+    rows, status, diag = v5082_stable_rows("grades-consensus", {"symbol": v451_clean_ticker(ticker)}) if "v5082_stable_rows" in globals() else ([], "unavailable", [])
+    row = rows[0] if rows else {}
+    return {
+        "raw": rows, "status": status, "diagnostics": diag,
+        "strong_buy": v5083_num(row.get("strongBuy"), 0), "buy": v5083_num(row.get("buy"), 0),
+        "hold": v5083_num(row.get("hold"), 0), "sell": v5083_num(row.get("sell"), 0),
+        "strong_sell": v5083_num(row.get("strongSell"), 0),
+        "consensus": safe_text(row.get("consensus") or row.get("rating") or row.get("grade"), "N/A"),
+    }
+
+
+def v5083_price_target_consensus(ticker):
+    rows, status, diag = v5082_stable_rows("price-target-consensus", {"symbol": v451_clean_ticker(ticker)}) if "v5082_stable_rows" in globals() else ([], "unavailable", [])
+    row = rows[0] if rows else {}
+    return {"raw": rows, "status": status, "diagnostics": diag,
+            "target_high": v5083_num(row.get("targetHigh") or row.get("high") or row.get("priceTargetHigh")),
+            "target_low": v5083_num(row.get("targetLow") or row.get("low") or row.get("priceTargetLow")),
+            "target_consensus": v5083_num(row.get("targetConsensus") or row.get("consensus") or row.get("priceTargetConsensus")),
+            "target_median": v5083_num(row.get("targetMedian") or row.get("median"))}
+
+
+def v5083_grades_latest(ticker):
+    rows, status, diag = v5082_stable_rows("grades", {"symbol": v451_clean_ticker(ticker), "limit": 20}) if "v5082_stable_rows" in globals() else ([], "unavailable", [])
+    out = []
+    for r in rows[:10]:
+        out.append({"Date": v5081_fmt_date(v5081_text_any(r, ["date", "publishedDate"])),
+                    "Firm": v5081_text_any(r, ["gradingCompany", "firm", "analystCompany", "company"], "N/A"),
+                    "Action": v5081_text_any(r, ["action", "gradingAction"], "N/A"),
+                    "Previous": v5081_text_any(r, ["previousGrade", "previousRating"], "N/A"),
+                    "New": v5081_text_any(r, ["newGrade", "newRating", "grade"], "N/A")})
+    return {"rows": out, "raw": rows, "status": status, "diagnostics": diag}
+
+
+def render_v50_analyst_revisions(row):
+    r = v49_build_research_report(row)
+    ticker = r.get("ticker") or row.get("Ticker")
+    consensus = v5083_grades_consensus(ticker)
+    ptc = v5083_price_target_consensus(ticker)
+    grades = v5083_grades_latest(ticker)
+    estimates = v5081_analyst_estimates(ticker) if "v5081_analyst_estimates" in globals() else {"rows": [], "diagnostics": []}
+    pts = v5081_price_target_summary(ticker) if "v5081_price_target_summary" in globals() else {"diagnostics": []}
+    with st.container(border=True):
+        st.markdown("### 📈 Analyst Intelligence")
+        st.caption("Customer view of Wall Street sentiment, consensus, price targets, and recent analyst grade actions.")
+        c1, c2, c3, c4 = st.columns(4)
+        total_bull = (consensus.get("strong_buy") or 0) + (consensus.get("buy") or 0)
+        total_bear = (consensus.get("sell") or 0) + (consensus.get("strong_sell") or 0)
+        c1.metric("Consensus", consensus.get("consensus") or "N/A")
+        c2.metric("Bullish Ratings", int(total_bull))
+        c3.metric("Hold Ratings", int(consensus.get("hold") or 0))
+        c4.metric("Bearish Ratings", int(total_bear))
+        c5, c6, c7, c8 = st.columns(4)
+        c5.metric("Consensus Target", v49_money(ptc.get("target_consensus")) if ptc.get("target_consensus") else "N/A")
+        c6.metric("High Target", v49_money(ptc.get("target_high")) if ptc.get("target_high") else "N/A")
+        c7.metric("Low Target", v49_money(ptc.get("target_low")) if ptc.get("target_low") else "N/A")
+        c8.metric("Median Target", v49_money(ptc.get("target_median")) if ptc.get("target_median") else "N/A")
+        if grades.get("rows"):
+            st.markdown("#### Recent Analyst Actions")
+            st.dataframe(pd.DataFrame(grades["rows"]), use_container_width=True, hide_index=True)
+        else:
+            st.info("No firm-level analyst grade actions returned from FMP stable grades endpoint.")
+        if estimates.get("rows"):
+            st.markdown("#### Analyst Financial Estimates")
+            st.dataframe(pd.DataFrame(estimates["rows"]), use_container_width=True, hide_index=True)
+        if not is_viewer():
+            with st.expander("Admin FMP analyst diagnostics", expanded=False):
+                st.write({"grades_consensus": consensus.get("diagnostics"), "price_target_consensus": ptc.get("diagnostics"), "grades": grades.get("diagnostics"), "price_target_summary": pts.get("diagnostics"), "analyst_estimates": estimates.get("diagnostics")})
+                st.json({"raw_grades_consensus": consensus.get("raw", [])[:3], "raw_price_target_consensus": ptc.get("raw", [])[:3], "raw_grades": grades.get("raw", [])[:3]})
+
+
+def v5083_economic_calendar(days=7):
+    today = dt.date.today(); end = today + dt.timedelta(days=days)
+    rows, status, diag = v5082_stable_rows("economic-calendar", {"from": today.isoformat(), "to": end.isoformat(), "limit": 100}) if "v5082_stable_rows" in globals() else ([], "unavailable", [])
+    important_terms = ["CPI", "PPI", "FOMC", "FED", "NONFARM", "PAYROLL", "UNEMPLOYMENT", "GDP", "PCE", "ISM", "RETAIL SALES", "JOBLESS"]
+    out = []
+    for r in rows:
+        event = v5081_text_any(r, ["event", "name", "title"], "")
+        country = v5081_text_any(r, ["country"], "")
+        text = f"{event} {country}".upper()
+        if any(t in text for t in important_terms) or len(out) < 10:
+            out.append({"Date": v5081_fmt_date(v5081_text_any(r, ["date"], "")), "Country": country, "Event": event,
+                        "Actual": v5081_text_any(r, ["actual"], ""), "Estimate": v5081_text_any(r, ["estimate", "consensus"], ""),
+                        "Impact": "High" if any(t in text for t in important_terms) else "Normal"})
+        if len(out) >= 20: break
+    return {"rows": out, "status": status, "diagnostics": diag}
+
+
+def render_v5083_macro_earnings_card():
+    earnings = v5082_earnings_today() if "v5082_earnings_today" in globals() else {"rows": [], "diagnostics": []}
+    econ = v5083_economic_calendar(days=7)
+    with st.container(border=True):
+        st.markdown("### 🗓️ Earnings & Market Calendar")
+        st.caption("Shows earnings today and high-impact economic events that may affect stock setups.")
+        st.markdown("#### Earnings Today")
+        if earnings.get("rows"): st.dataframe(pd.DataFrame(earnings["rows"]), use_container_width=True, hide_index=True)
+        else: st.info("No earnings rows returned for today. This may be normal if there are no scheduled earnings or if FMP returns no data for today's date.")
+        st.markdown("#### This Week's Key Market Events")
+        if econ.get("rows"):
+            st.dataframe(pd.DataFrame(econ["rows"]), use_container_width=True, hide_index=True)
+            st.markdown("**AI Market Impact Note:** High-impact macro events can raise volatility and reduce reliability of short-term technical entries. Prefer smaller sizing before CPI, PPI, Fed, GDP, or jobs data.")
+        else: st.info("No economic calendar rows returned from FMP stable endpoint.")
+        if not is_viewer():
+            with st.expander("Admin calendar diagnostics", expanded=False): st.write({"earnings": earnings.get("diagnostics"), "economic": econ.get("diagnostics")})
+
+
+def v5083_stock_news(ticker):
+    rows, status, diag = v5082_stable_rows("news/stock", {"symbols": v451_clean_ticker(ticker), "limit": 10}) if "v5082_stable_rows" in globals() else ([], "unavailable", [])
+    press, pstatus, pdiag = v5082_stable_rows("news/press-releases", {"symbols": v451_clean_ticker(ticker), "limit": 5}) if "v5082_stable_rows" in globals() else ([], "unavailable", [])
+    out, seen = [], set()
+    for r in list(rows or []) + list(press or []):
+        title = v5081_text_any(r, ["title", "headline"], "")
+        if not title: continue
+        key = title.lower().strip()
+        if key in seen: continue
+        seen.add(key)
+        out.append({"Date": v5081_fmt_date(v5081_text_any(r, ["publishedDate", "date"], "")), "Headline": title,
+                    "Source": v5081_text_any(r, ["site", "publisher", "source"], ""), "URL": v5081_text_any(r, ["url"], "")})
+        if len(out) >= 10: break
+    return {"rows": out, "diagnostics": diag + pdiag, "status": status}
+
+
+def render_v5083_news_quality_card(row):
+    r = v49_build_research_report(row); ticker = r.get("ticker") or row.get("Ticker")
+    news = v5083_stock_news(ticker)
+    with st.container(border=True):
+        st.markdown("### 📰 Ticker-Specific News")
+        st.caption("Prioritizes stock-specific FMP news and company press releases before generic market headlines.")
+        if news.get("rows"):
+            for n in news["rows"][:7]: st.markdown(f"• **{n['Headline']}** — {n.get('Source','')}")
+        else: st.info("No ticker-specific news returned from FMP stable news endpoint.")
+        if not is_viewer():
+            with st.expander("Admin news quality diagnostics", expanded=False): st.write(news.get("diagnostics"))
+
+
+def render_market_summary(df):
+    st.subheader("📌 Market Summary")
+    state = read_state()
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Scanner Version", state.get("version", "N/A")); c2.metric("Full Scan", state.get("full_scan_count", "N/A")); c3.metric("Prescreen", state.get("prescreen_count", "N/A")); c4.metric("Last Scan", safe_text(state.get("generated_at", "N/A"))[:19])
+    render_v5083_macro_earnings_card()
+    try:
+        if df is not None and not df.empty:
+            st.markdown("### Safer Showcase Candidates")
+            keep_rows = []
+            for _, rr in df.head(80).iterrows():
+                try:
+                    rep = v49_build_research_report(rr)
+                    status, explanation, blocks = v5083_top_choice_status(rep)
+                    if status in {"🏆 Top Choice", "⚡ Actionable but Not Top Choice"}: keep_rows.append(rr)
+                except Exception: continue
+                if len(keep_rows) >= 15: break
+            if keep_rows: st.dataframe(pd.DataFrame(keep_rows), use_container_width=True, hide_index=True)
+            else: st.info("No stocks currently pass the safer showcase rules.")
+    except Exception: pass
+
+
+def render_status_banner():
+    state = read_state()
+    st.title("📈 AI Trading Dashboard")
+    st.caption(APP_VERSION)
+    st.caption("Customer Trust UI: stricter showcase rules, cleaner analyst cards, earnings/macro calendar, ticker-specific news, and customer-facing commentary.")
+    c1,c2,c3,c4,c5 = st.columns(5)
+    c1.metric("Status", state.get("status", "unknown")); c2.metric("Scanner Version", state.get("version", "N/A")); c3.metric("Full Scan", state.get("full_scan_count", "N/A")); c4.metric("Prescreen", state.get("prescreen_count", "N/A"))
+    persisted = bool(state.get("github_persisted")) or v45_text(state.get("version", "")).startswith(("V45", "V46", "V47", "V48", "V49", "V50"))
+    c5.metric("GitHub Persisted", "✅" if persisted else "❌")
+    st.caption(f"Last scan: {safe_text(state.get('generated_at', 'N/A'))} | Duration: {state.get('duration_seconds', 'N/A')}s | DATA_DIR={state.get('data_dir','.')}")
+    if safe_text(state.get("version", "")) != "V50.8.3": st.warning("Scanner data is older than the app. Run GitHub Actions → Overnight Market Scan to refresh V50.8.3 data.")
+    if is_viewer(): st.info("Viewer mode: admin diagnostics are hidden.")
+
+
+v5083_original_render_detail = render_detail if "render_detail" in globals() else None
+
+def render_detail(row):
+    if v5083_original_render_detail:
+        v5083_original_render_detail(row)
+    render_v5083_customer_trust_card(row)
+    render_v5083_news_quality_card(row)
 
 
 if __name__ == "__main__":
