@@ -53,7 +53,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-24T04:28:30.663705+00:00",
+    "scan_time": "2026-06-24T05:20:15.131116+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 299.49,
@@ -305,7 +305,7 @@
       "RSI is constructive"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-24T04:36:59.619383+00:00",
+    "scan_time": "2026-06-24T05:28:41.335601+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 671.83,
@@ -528,7 +528,7 @@
       "RSI is constructive"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-24T04:37:14.018781+00:00",
+    "scan_time": "2026-06-24T05:28:54.910476+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 655.95,
@@ -753,7 +753,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-24T04:23:17.396626+00:00",
+    "scan_time": "2026-06-24T05:14:58.966857+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 522.74,
@@ -783,16 +783,17 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 62,
+        "score": 61,
         "status": "Mixed",
         "impact": "Neutral",
-        "data_used": "Finnhub company news",
+        "data_used": "NewsAPI, Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
+          "2 men acquitted of drugging and robbing autorickshaw drivers in Mumbai",
           "This Could Break AI"
         ],
         "risks": [
-          "No negative high-confidence headline detected."
+          "Stocks Mostly Lower on Weakness in Megacap Tech and Software Stocks"
         ],
         "bottom_line": "News is mixed or insufficient."
       },
@@ -930,15 +931,17 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 62,
+    "v42_news_score": 61,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
+      "2 men acquitted of drugging and robbing autorickshaw drivers in Mumbai",
       "This Could Break AI"
     ],
     "v42_news_risks": [
-      "No negative high-confidence headline detected."
+      "Stocks Mostly Lower on Weakness in Megacap Tech and Software Stocks"
     ],
     "v42_news_sources": [
+      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": true,
@@ -1005,7 +1008,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-24T04:30:10.133501+00:00",
+    "scan_time": "2026-06-24T05:21:50.941899+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 110.24,
@@ -1265,7 +1268,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-24T04:27:39.707282+00:00",
+    "scan_time": "2026-06-24T05:19:23.786164+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 80.17,
@@ -1526,7 +1529,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-24T04:38:47.978386+00:00",
+    "scan_time": "2026-06-24T05:30:29.225442+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.51,
@@ -1751,7 +1754,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-24T04:41:41.263609+00:00",
+    "scan_time": "2026-06-24T05:33:19.753197+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 159.23,
@@ -1976,7 +1979,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-24T04:41:38.727555+00:00",
+    "scan_time": "2026-06-24T05:33:17.324008+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 182.47,
@@ -2200,7 +2203,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-24T04:41:39.685907+00:00",
+    "scan_time": "2026-06-24T05:33:18.242017+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.02,
@@ -2423,7 +2426,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-24T04:41:40.698312+00:00",
+    "scan_time": "2026-06-24T05:33:19.204135+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 47.41,
@@ -2648,7 +2651,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-24T04:41:40.236733+00:00",
+    "scan_time": "2026-06-24T05:33:18.733615+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 45.25,
@@ -2873,7 +2876,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-24T04:35:12.039167+00:00",
+    "scan_time": "2026-06-24T05:26:54.591134+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 18.41,
@@ -3098,7 +3101,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-24T04:36:10.421492+00:00",
+    "scan_time": "2026-06-24T05:27:50.999662+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 15.87,
@@ -3323,7 +3326,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-24T04:28:40.914064+00:00",
+    "scan_time": "2026-06-24T05:20:25.363503+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 61.72,
@@ -3576,7 +3579,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-24T04:41:39.191530+00:00",
+    "scan_time": "2026-06-24T05:33:17.771404+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 198.49,
@@ -3801,7 +3804,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-24T04:41:48.700831+00:00",
+    "scan_time": "2026-06-24T05:33:27.227798+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 40.72,
@@ -4025,7 +4028,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-24T04:37:27.069547+00:00",
+    "scan_time": "2026-06-24T05:29:09.047868+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 758.45,
@@ -4249,7 +4252,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-24T04:35:05.682838+00:00",
+    "scan_time": "2026-06-24T05:26:48.378746+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 747.83,
@@ -4279,7 +4282,7 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 61,
+        "score": 69,
         "status": "Mixed",
         "impact": "Neutral",
         "data_used": "Finnhub company news",
@@ -4289,7 +4292,7 @@
           "Semi Mania Gets A Reality Check From South Korea; Investors Should Pay Attention To Shift In AI Tokens"
         ],
         "risks": [
-          "S&P 500: The War Ends And The Risk Rotates"
+          "No negative high-confidence headline detected."
         ],
         "bottom_line": "News is mixed or insufficient."
       },
@@ -4427,14 +4430,14 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 61,
+    "v42_news_score": 69,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
       "Flash PMIs Signal Diverging Growth Trends Among The Major Developed Economies",
       "Semi Mania Gets A Reality Check From South Korea; Investors Should Pay Attention To Shift In AI Tokens"
     ],
     "v42_news_risks": [
-      "S&P 500: The War Ends And The Risk Rotates"
+      "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
       "Finnhub company news"
@@ -4448,7 +4451,7 @@
     "v42_breakout_level": 755.31,
     "v42_pullback_zone": "$685.62 - $699.38",
     "v42_chart_guidance": "Between support and resistance. Prefer pullback entry or confirmed breakout.",
-    "v42_committee_positive_agents": 1,
+    "v42_committee_positive_agents": 2,
     "v42_committee_total_agents": 10
   },
   {
@@ -4504,7 +4507,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-24T04:40:29.112291+00:00",
+    "scan_time": "2026-06-24T05:32:09.433798+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 699.15,
@@ -4728,7 +4731,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-24T04:40:42.708027+00:00",
+    "scan_time": "2026-06-24T05:32:21.223415+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 374.7,
@@ -4952,7 +4955,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-24T04:36:24.088192+00:00",
+    "scan_time": "2026-06-24T05:28:05.575915+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 32.92,
@@ -5178,7 +5181,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-24T04:41:37.321717+00:00",
+    "scan_time": "2026-06-24T05:33:15.849902+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 53.7,
@@ -5402,7 +5405,7 @@
     "risk_tags": [
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-24T04:28:39.659530+00:00",
+    "scan_time": "2026-06-24T05:20:23.454457+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 58.27,
@@ -5655,7 +5658,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-24T04:35:07.493044+00:00",
+    "scan_time": "2026-06-24T05:26:49.973471+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 24.53,
@@ -5906,7 +5909,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-24T04:37:27.560578+00:00",
+    "scan_time": "2026-06-24T05:29:09.516201+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 17.87,
@@ -6130,7 +6133,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-24T04:41:41.735727+00:00",
+    "scan_time": "2026-06-24T05:33:20.282605+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 124.51,
@@ -6353,7 +6356,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-24T04:18:01.293512+00:00",
+    "scan_time": "2026-06-24T05:10:00.719453+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 92.65,
@@ -6383,12 +6386,13 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 61,
+        "score": 68,
         "status": "Mixed",
         "impact": "Neutral",
-        "data_used": "Finnhub company news",
+        "data_used": "NewsAPI, Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
+          "ETF Fund Flows: Profit-Taking Hits ARKK VO Nets $4.8B",
           "Flash PMIs Signal Diverging Growth Trends Among The Major Developed Economies",
           "The AI Infrastructure Supply Chain: AI Enablers Growing Alongside Hyperscalers"
         ],
@@ -6529,9 +6533,10 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 61,
+    "v42_news_score": 68,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
+      "ETF Fund Flows: Profit-Taking Hits ARKK VO Nets $4.8B",
       "Flash PMIs Signal Diverging Growth Trends Among The Major Developed Economies",
       "The AI Infrastructure Supply Chain: AI Enablers Growing Alongside Hyperscalers"
     ],
@@ -6539,6 +6544,7 @@
       "S&P 500: The War Ends And The Risk Rotates"
     ],
     "v42_news_sources": [
+      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -6550,7 +6556,7 @@
     "v42_breakout_level": 83.27,
     "v42_pullback_zone": "$72.10 - $75.15",
     "v42_chart_guidance": "Between support and resistance. Prefer pullback entry or confirmed breakout.",
-    "v42_committee_positive_agents": 0,
+    "v42_committee_positive_agents": 1,
     "v42_committee_total_agents": 10
   },
   {
@@ -6607,7 +6613,7 @@
       "20-day ETF trend is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-24T04:38:12.207739+00:00",
+    "scan_time": "2026-06-24T05:29:51.403007+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 75.6,
@@ -6833,7 +6839,7 @@
       "20-day ETF trend is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-24T04:19:59.836810+00:00",
+    "scan_time": "2026-06-24T05:11:54.527766+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 41.71,
@@ -6866,14 +6872,15 @@
         "score": 90,
         "status": "Positive",
         "impact": "Positive",
-        "data_used": "Finnhub company news",
+        "data_used": "NewsAPI, Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
+          "The Global X Robotics & AI ETF (BOTZ): A Solid Way to Play Robotics",
+          "Three Humanoid Robotics ETFs Built for the Tesla Optimus and Figure AI Era Most Investors Have Never Heard Of",
           "The AI Infrastructure Supply Chain: AI Enablers Growing Alongside Hyperscalers",
           "Armani On Why The AI Boom Is Different",
           "3 Stocks To Play The AI And Data Center Boom",
-          "This Week's Market Wrap: Oil Collapse, Fed Reset, And AI's Growing Reach",
-          "Michael Lee On Palantir, Marvell, And The 3 'Hockey Sticks' Of AI Growth"
+          "This Week's Market Wrap: Oil Collapse, Fed Reset, And AI's Growing Reach"
         ],
         "risks": [
           "No negative high-confidence headline detected."
@@ -7015,16 +7022,18 @@
     "v42_news_score": 90,
     "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
+      "The Global X Robotics & AI ETF (BOTZ): A Solid Way to Play Robotics",
+      "Three Humanoid Robotics ETFs Built for the Tesla Optimus and Figure AI Era Most Investors Have Never Heard Of",
       "The AI Infrastructure Supply Chain: AI Enablers Growing Alongside Hyperscalers",
       "Armani On Why The AI Boom Is Different",
       "3 Stocks To Play The AI And Data Center Boom",
-      "This Week's Market Wrap: Oil Collapse, Fed Reset, And AI's Growing Reach",
-      "Michael Lee On Palantir, Marvell, And The 3 'Hockey Sticks' Of AI Growth"
+      "This Week's Market Wrap: Oil Collapse, Fed Reset, And AI's Growing Reach"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
+      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -7092,7 +7101,7 @@
       "20-day ETF trend is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-24T04:39:53.943457+00:00",
+    "scan_time": "2026-06-24T05:31:33.917185+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 62.28,
@@ -7318,7 +7327,7 @@
       "60-day ETF trend is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-24T04:41:37.761033+00:00",
+    "scan_time": "2026-06-24T05:33:16.384916+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 63.01,
