@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-06-24T00:28:41.657088+00:00",
+  "generated_at": "2026-06-24T04:42:03.718313+00:00",
   "status": "success",
-  "version": "V50.8.1",
+  "version": "V50.8.2",
   "universe_count": 2950,
   "prescreen_count": 650,
   "full_scan_count": 150,
@@ -10,7 +10,7 @@
   "fallback_rows_allowed": false,
   "data_dir": ".",
   "github_persisted": true,
-  "duration_seconds": 1496.78,
+  "duration_seconds": 1563.43,
   "fast_cron_mode": true,
   "full_committee_limit": 15,
   "pre_rank_deep_apis_skipped": true,
@@ -126,7 +126,7 @@
     "valuation_reconciliation": true,
     "thesis_strength_and_confidence": true
   },
-  "scanner_version": "V50.8.1",
-  "scanner_version_label": "V50.8.1 FMP Ultimate Migration",
+  "scanner_version": "V50.8.2",
+  "scanner_version_label": "V50.8.2 Data Reliability Patch",
   "v50_smart_money_analyst_revision_upgrade": true
 }
