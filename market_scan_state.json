@@ -1,16 +1,16 @@
 {
-  "generated_at": "2026-06-24T05:33:42.378598+00:00",
+  "generated_at": "2026-06-24T05:49:22.387971+00:00",
   "status": "success",
-  "version": "V50.8.2",
+  "version": "V50.8.3",
   "universe_count": 2950,
   "prescreen_count": 650,
   "full_scan_count": 150,
   "recovery_count": 100,
-  "etf_count": 32,
+  "etf_count": 8,
   "fallback_rows_allowed": false,
   "data_dir": ".",
   "github_persisted": true,
-  "duration_seconds": 1546.56,
+  "duration_seconds": 588.31,
   "fast_cron_mode": true,
   "full_committee_limit": 15,
   "pre_rank_deep_apis_skipped": true,
@@ -126,7 +126,7 @@
     "valuation_reconciliation": true,
     "thesis_strength_and_confidence": true
   },
-  "scanner_version": "V50.8.2",
-  "scanner_version_label": "V50.8.2 Data Reliability Patch",
+  "scanner_version": "V50.8.3",
+  "scanner_version_label": "V50.8.3 Customer Trust UI",
   "v50_smart_money_analyst_revision_upgrade": true
 }
