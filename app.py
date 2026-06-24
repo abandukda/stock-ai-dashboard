@@ -16,7 +16,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V50.8.1 FMP Ultimate Migration"
+APP_VERSION = "V50.8.2 Data Reliability Patch"
 
 
 # =========================
@@ -17460,6 +17460,269 @@ def render_status_banner():
         st.info("Viewer mode: admin diagnostics are hidden.")
     if state:
         st.caption(f"Last scan: {state.get('generated_at', 'N/A')} | Duration: {state.get('duration_seconds', 'N/A')}s | DATA_DIR={state.get('data_dir','.')}")
+
+
+
+# =========================
+# V50.8.2 DATA RELIABILITY PATCH
+# =========================
+# Migrates financial health and earnings today to current FMP /stable endpoints.
+
+def v5082_stable_rows(path, params):
+    if "v5081_fmp_stable" in globals():
+        data, status, diag = v5081_fmp_stable(path, json.dumps(params or {}))
+        rows = v5081_as_list(data) if "v5081_as_list" in globals() else (data if isinstance(data, list) else [])
+        return rows, status, diag
+    return [], "v5081_fmp_stable unavailable", []
+
+
+def v5082_latest_row(rows):
+    return rows[0] if isinstance(rows, list) and rows else {}
+
+
+@st.cache_data(ttl=3600)
+def v5082_fmp_financial_bundle(ticker):
+    ticker = v451_clean_ticker(ticker)
+    bundle = {"diagnostics": []}
+    calls = {
+        "income": ("income-statement", {"symbol": ticker, "limit": 5}),
+        "balance": ("balance-sheet-statement", {"symbol": ticker, "limit": 5}),
+        "cashflow": ("cash-flow-statement", {"symbol": ticker, "limit": 5}),
+        "growth": ("financial-growth", {"symbol": ticker, "limit": 5}),
+        "key_metrics": ("key-metrics", {"symbol": ticker, "limit": 5}),
+        "ratios": ("ratios", {"symbol": ticker, "limit": 5}),
+        "earnings": ("earnings", {"symbol": ticker, "limit": 10}),
+        "news": ("news/stock", {"symbols": ticker, "limit": 10}),
+        "press": ("news/press-releases", {"symbols": ticker, "limit": 10}),
+        "transcript_dates": ("earning-call-transcript-dates", {"symbol": ticker}),
+    }
+    for name, (path, params) in calls.items():
+        rows, status, diag = v5082_stable_rows(path, params)
+        bundle[name] = rows
+        bundle["diagnostics"].append(f"V50.8.2 stable {path}: {status}; rows={len(rows)}")
+        bundle["diagnostics"].extend(diag[:2])
+    return bundle
+
+
+def v5082_num(row, keys):
+    if not isinstance(row, dict):
+        return None
+    for k in keys:
+        try:
+            val = row.get(k)
+            if val is not None and val != "":
+                n = float(val)
+                if pd.isna(n):
+                    continue
+                return n
+        except Exception:
+            pass
+    return None
+
+
+def v5082_pct(x):
+    try:
+        if x is None:
+            return None
+        n = float(x)
+        if pd.isna(n):
+            return None
+        if -5 < n < 5:
+            n *= 100
+        if abs(n) > 1000:
+            return None
+        return n
+    except Exception:
+        return None
+
+
+def v5082_existing(fin, key):
+    try:
+        val = fin.get(key)
+        if val is None or val == "":
+            return None
+        n = float(val)
+        if pd.isna(n):
+            return None
+        if abs(n) < 1e-12 and key not in {"debt_equity"}:
+            return None
+        return n
+    except Exception:
+        return None
+
+
+def v5082_restore_financials(fin, ticker):
+    fin = dict(fin or {})
+    ticker = v451_clean_ticker(ticker)
+    bundle = v5082_fmp_financial_bundle(ticker)
+
+    inc = v5082_latest_row(bundle.get("income"))
+    bs = v5082_latest_row(bundle.get("balance"))
+    cf = v5082_latest_row(bundle.get("cashflow"))
+    gr = v5082_latest_row(bundle.get("growth"))
+    km = v5082_latest_row(bundle.get("key_metrics"))
+    ra = v5082_latest_row(bundle.get("ratios"))
+
+    diagnostics = list(fin.get("diagnostics", []) or []) + bundle.get("diagnostics", [])
+    sources = dict(fin.get("completion_sources", {}) or {})
+
+    revenue = v5082_existing(fin, "revenue") or v5082_num(inc, ["revenue", "totalRevenue"])
+    net_income = v5082_existing(fin, "net_income") or v5082_num(inc, ["netIncome", "netIncomeCommonStockholders"])
+    gross_profit = v5082_num(inc, ["grossProfit"])
+    operating_income = v5082_num(inc, ["operatingIncome"])
+
+    ocf = v5082_existing(fin, "operating_cash_flow") or v5082_num(cf, ["operatingCashFlow", "netCashProvidedByOperatingActivities"])
+    capex = v5082_num(cf, ["capitalExpenditure", "capitalExpenditures"])
+    fcf = v5082_existing(fin, "free_cash_flow") or v5082_num(cf, ["freeCashFlow"])
+    if fcf is None and ocf is not None and capex is not None:
+        fcf = ocf + capex
+
+    cash = v5082_existing(fin, "cash") or v5082_num(bs, ["cashAndCashEquivalents", "cashAndShortTermInvestments"])
+    debt = v5082_existing(fin, "total_debt") or v5082_num(bs, ["totalDebt", "shortTermDebt", "longTermDebt"])
+    equity = v5082_num(bs, ["totalStockholdersEquity", "totalEquity", "totalEquityGrossMinorityInterest"])
+    current_assets = v5082_num(bs, ["totalCurrentAssets"])
+    current_liabilities = v5082_num(bs, ["totalCurrentLiabilities"])
+
+    revenue_growth = v5082_existing(fin, "revenue_growth") or v5082_pct(v5082_num(gr, ["revenueGrowth", "growthRevenue", "growthRevenueTTM"]))
+    eps_growth = v5082_existing(fin, "eps_growth") or v5082_pct(v5082_num(gr, ["epsgrowth", "epsGrowth", "growthEPS", "epsdilutedGrowth"]))
+
+    gross_margin = v5082_existing(fin, "gross_margin") or v5082_pct(v5082_num(ra, ["grossProfitMargin", "grossProfitMarginTTM"]))
+    if gross_margin is None and revenue and gross_profit is not None:
+        gross_margin = gross_profit / revenue * 100
+
+    operating_margin = v5082_existing(fin, "operating_margin") or v5082_pct(v5082_num(ra, ["operatingProfitMargin", "operatingProfitMarginTTM"]))
+    if operating_margin is None and revenue and operating_income is not None:
+        operating_margin = operating_income / revenue * 100
+
+    net_margin = v5082_existing(fin, "net_margin") or v5082_pct(v5082_num(ra, ["netProfitMargin", "netProfitMarginTTM"]))
+    if net_margin is None and revenue and net_income is not None:
+        net_margin = net_income / revenue * 100
+
+    debt_equity = v5082_existing(fin, "debt_equity") or v5082_num(ra, ["debtEquityRatio", "debtToEquity"]) or v5082_num(km, ["debtToEquity"])
+    if debt_equity is None and debt is not None and equity not in (None, 0):
+        debt_equity = debt / abs(equity)
+
+    roe = v5082_existing(fin, "roe") or v5082_pct(v5082_num(ra, ["returnOnEquity", "returnOnEquityTTM"])) or v5082_pct(v5082_num(km, ["roe", "returnOnEquity"]))
+    if roe is None and net_income is not None and equity not in (None, 0):
+        roe = net_income / abs(equity) * 100
+
+    current_ratio = v5082_existing(fin, "current_ratio") or v5082_num(ra, ["currentRatio", "currentRatioTTM"]) or v5082_num(km, ["currentRatio"])
+    if current_ratio is None and current_assets is not None and current_liabilities not in (None, 0):
+        current_ratio = current_assets / current_liabilities
+
+    updates = {
+        "revenue": revenue, "net_income": net_income, "operating_cash_flow": ocf,
+        "free_cash_flow": fcf, "cash": cash, "total_debt": debt,
+        "revenue_growth": revenue_growth, "eps_growth": eps_growth,
+        "gross_margin": gross_margin, "operating_margin": operating_margin,
+        "net_margin": net_margin, "debt_equity": debt_equity,
+        "roe": roe, "current_ratio": current_ratio,
+    }
+
+    for k, v in updates.items():
+        if v is not None:
+            fin[k] = v
+            sources.setdefault(k, "V50.8.2 FMP stable financial fallback")
+
+    if cash is not None and debt is not None:
+        fin["net_cash"] = cash - debt
+        fin["cash_debt_ratio"] = cash / debt if debt else None
+        if debt and cash / debt >= 2:
+            fin["balance_sheet_plain"] = f"Cash exceeds debt by {cash / debt:.1f}x; liquidity appears strong."
+        elif debt_equity is not None:
+            fin["balance_sheet_plain"] = f"Debt/equity is {debt_equity:.2f}x."
+
+    core = ["revenue_growth", "eps_growth", "gross_margin", "operating_margin", "net_margin", "free_cash_flow", "operating_cash_flow", "cash", "total_debt", "debt_equity", "current_ratio", "roe"]
+    populated = sum(1 for k in core if fin.get(k) is not None and not (isinstance(fin.get(k), (int, float)) and abs(fin.get(k)) < 1e-12 and k not in {"debt_equity"}))
+    fin["coverage_count"] = populated
+    fin["coverage_total"] = len(core)
+    fin["coverage_label"] = "Excellent" if populated >= 10 else ("Good" if populated >= 8 else ("Partial" if populated >= 6 else "Limited"))
+    fin["completion_sources"] = sources
+    fin["diagnostics"] = diagnostics + ["V50.8.2 stable financial restore completed."]
+    return fin
+
+
+v5082_original_build_research_report = v49_build_research_report
+
+def v49_build_research_report(row):
+    r = dict(v5082_original_build_research_report(row))
+    fixed_fin = v5082_restore_financials(r.get("financials", {}), r.get("ticker") or row.get("Ticker"))
+    r["financials"] = fixed_fin
+    if "v502_financial_score" in globals():
+        score, label = v502_financial_score(fixed_fin)
+        r["financial_health_score"] = score
+        r["financial_health_label"] = label
+    if "v501_research_confidence" in globals():
+        r["research_confidence"] = v501_research_confidence(r)
+    return r
+
+
+def v5082_earnings_today():
+    today = dt.date.today()
+    rows, status, diag = v5082_stable_rows("earnings-calendar", {"from": today.isoformat(), "to": today.isoformat(), "limit": 200})
+    out = []
+    for r in rows[:200]:
+        out.append({
+            "Ticker": v5081_text_any(r, ["symbol"], ""),
+            "Date": v5081_text_any(r, ["date"], today.isoformat()),
+            "Time": v5081_text_any(r, ["time", "hour", "when"], ""),
+            "EPS Estimate": v5082_num(r, ["epsEstimated", "epsEstimate", "estimatedEps"]),
+            "EPS Actual": v5082_num(r, ["eps", "epsActual", "actualEps"]),
+            "Revenue Estimate": v49_money(v5082_num(r, ["revenueEstimated", "revenueEstimate"])) if "v49_money" in globals() and v5082_num(r, ["revenueEstimated", "revenueEstimate"]) is not None else "N/A",
+            "Revenue Actual": v49_money(v5082_num(r, ["revenue", "revenueActual"])) if "v49_money" in globals() and v5082_num(r, ["revenue", "revenueActual"]) is not None else "N/A",
+        })
+    return {"rows": out, "status": status, "diagnostics": diag}
+
+
+def render_v5082_earnings_today_card():
+    data = v5082_earnings_today()
+    with st.container(border=True):
+        st.markdown("### 🗓️ Earnings Today")
+        if data.get("rows"):
+            st.dataframe(pd.DataFrame(data["rows"]), use_container_width=True, hide_index=True)
+        else:
+            st.info("No earnings calendar rows returned for today from FMP stable endpoint.")
+        if not is_viewer():
+            with st.expander("Admin earnings diagnostics", expanded=False):
+                st.write(data.get("diagnostics"))
+
+
+def render_market_summary(df):
+    st.subheader("📌 Market Summary")
+    state = read_state()
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Scanner Version", state.get("version", "N/A"))
+    c2.metric("Full Scan", state.get("full_scan_count", "N/A"))
+    c3.metric("Prescreen", state.get("prescreen_count", "N/A"))
+    c4.metric("Last Scan", safe_text(state.get("generated_at", "N/A"))[:19])
+    render_v5082_earnings_today_card()
+    try:
+        if df is not None and not df.empty:
+            st.markdown("### Top Current Ideas")
+            st.dataframe(df.head(15), use_container_width=True, hide_index=True)
+    except Exception:
+        pass
+
+
+def render_status_banner():
+    state = read_state()
+    st.title("📈 AI Trading Dashboard")
+    st.caption(APP_VERSION)
+    st.caption("Data Reliability Patch: financials, earnings calendar, news, and header now use current FMP stable endpoints first.")
+    c1,c2,c3,c4,c5 = st.columns(5)
+    c1.metric("Status", state.get("status", "unknown"))
+    c2.metric("Scanner Version", state.get("version", "N/A"))
+    c3.metric("Full Scan", state.get("full_scan_count", "N/A"))
+    c4.metric("Prescreen", state.get("prescreen_count", "N/A"))
+    persisted = bool(state.get("github_persisted")) or v45_text(state.get("version", "")).startswith(("V45", "V46", "V47", "V48", "V49", "V50"))
+    c5.metric("GitHub Persisted", "✅" if persisted else "❌")
+    last = safe_text(state.get("generated_at", "N/A"))
+    dur = state.get("duration_seconds", "N/A")
+    st.caption(f"Last scan: {last} | Duration: {dur}s | DATA_DIR={state.get('data_dir','.')}")
+    if safe_text(state.get("version", "")) != "V50.8.2":
+        st.warning("Scanner data is older than the app. Run GitHub Actions → Overnight Market Scan to refresh V50.8.2 data.")
+    if is_viewer():
+        st.info("Viewer mode: admin diagnostics are hidden.")
 
 
 if __name__ == "__main__":
