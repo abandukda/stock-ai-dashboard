@@ -18269,3 +18269,511 @@ def render_v5083_macro_earnings_card():
 
 if __name__ == "__main__":
     main()
+
+
+# =========================
+# V50.9 AI INVESTMENT BRIEFING ENGINE
+# =========================
+# Product goal: paid-customer guidance. AI explains first; raw data supports second.
+# Adds executive summary, section-level AI readouts, target sanity checks,
+# investment committee, and stricter Top Choice/Flagship framing.
+
+APP_VERSION = "V50.9 AI Investment Briefing Engine"
+
+
+def v509_safe_num(x, default=None):
+    try:
+        if x is None or x == "" or str(x).strip().upper() in {"N/A", "NONE", "NULL", "NAN"}:
+            return default
+        if isinstance(x, str):
+            x = x.replace("$", "").replace(",", "").replace("%", "").strip()
+        n = float(x)
+        if pd.isna(n):
+            return default
+        return n
+    except Exception:
+        return default
+
+
+def v509_text(x, default=""):
+    try:
+        if x is None:
+            return default
+        s = str(x).strip()
+        return s if s else default
+    except Exception:
+        return default
+
+
+def v509_money(x):
+    n = v509_safe_num(x)
+    if n is None:
+        return "N/A"
+    try:
+        return v49_money(n) if "v49_money" in globals() else f"${n:,.2f}"
+    except Exception:
+        return f"${n:,.2f}"
+
+
+def v509_pct(x, signed=False):
+    n = v509_safe_num(x)
+    if n is None:
+        return "N/A"
+    if abs(n) <= 3:
+        n *= 100
+    return f"{n:+.1f}%" if signed else f"{n:.1f}%"
+
+
+def v509_get_any(obj, names, default=None):
+    """Case-insensitive key lookup across report dict and nested shallow dicts."""
+    if not isinstance(obj, dict):
+        return default
+    wanted = {str(n).lower().replace(" ", "_") for n in names}
+    for k, v in obj.items():
+        kk = str(k).lower().replace(" ", "_")
+        if kk in wanted:
+            return v
+    # shallow nested search
+    for v in obj.values():
+        if isinstance(v, dict):
+            for k2, v2 in v.items():
+                kk = str(k2).lower().replace(" ", "_")
+                if kk in wanted:
+                    return v2
+    return default
+
+
+def v509_report(row):
+    try:
+        return v49_build_research_report(row) if "v49_build_research_report" in globals() else dict(row)
+    except Exception:
+        try:
+            return dict(row)
+        except Exception:
+            return {}
+
+
+def v509_score_pack(report):
+    fin = v509_safe_num(report.get("financial_health_score"), 0) or 0
+    conf_obj = report.get("research_confidence", {}) if isinstance(report.get("research_confidence"), dict) else {}
+    conf = v509_safe_num(conf_obj.get("score"), 0) or 0
+    inv_raw = v509_safe_num(report.get("investment_score") or report.get("opportunity_score"), 0) or 0
+    rr = v509_safe_num((report.get("plan") or {}).get("risk_reward"), 0) or 0
+    verdict = v509_text(report.get("verdict"), "WATCHLIST").upper()
+    # Paid-customer trust guardrail: weak financials cannot display a perfect score.
+    inv = inv_raw
+    if fin < 60:
+        inv = min(inv, 79)
+    elif fin < 70:
+        inv = min(inv, 89)
+    return {"financial": fin, "confidence": conf, "investment_raw": inv_raw, "investment": inv, "risk_reward": rr, "verdict": verdict}
+
+
+def v509_wallstreet_pack(ticker):
+    pack = {"consensus": {}, "targets": {}, "grades": {"rows": []}, "estimates": {"rows": []}, "diagnostics": []}
+    try:
+        if "v5083_grades_consensus" in globals():
+            pack["consensus"] = v5083_grades_consensus(ticker) or {}
+        if "v5083_price_target_consensus" in globals():
+            pack["targets"] = v5083_price_target_consensus(ticker) or {}
+        if "v5083_grades_latest" in globals():
+            pack["grades"] = v5083_grades_latest(ticker) or {"rows": []}
+        if "v5081_analyst_estimates" in globals():
+            pack["estimates"] = v5081_analyst_estimates(ticker) or {"rows": []}
+        for k in ["consensus", "targets", "grades", "estimates"]:
+            d = pack.get(k) or {}
+            pack["diagnostics"].extend(d.get("diagnostics") or [])
+    except Exception as e:
+        pack["diagnostics"].append(f"v509 wallstreet error: {e}")
+    return pack
+
+
+def v509_target_analysis(report, wallstreet):
+    price = v509_safe_num(report.get("price") or report.get("current_price") or report.get("Price"))
+    plan = report.get("plan") or {}
+    model_target = v509_safe_num(plan.get("target") or report.get("target") or report.get("Target"))
+    targets = wallstreet.get("targets") or {}
+    consensus = v509_safe_num(targets.get("target_consensus")) or v509_safe_num(report.get("analyst_target") or report.get("consensus_target"))
+    high = v509_safe_num(targets.get("target_high"))
+    low = v509_safe_num(targets.get("target_low"))
+    median = v509_safe_num(targets.get("target_median"))
+
+    # Fallback target if FMP has no target: use model target, but keep it modest.
+    if consensus is None and model_target is not None:
+        consensus = model_target
+    if consensus is None and price is not None:
+        consensus = price * 1.10
+    if high is None and consensus is not None:
+        high = consensus * 1.25
+    if low is None and consensus is not None:
+        low = consensus * 0.80
+
+    if consensus is None:
+        return {"available": False, "summary": "No reliable analyst target data is available yet."}
+
+    # Guardrail: AI fair value cannot become wildly disconnected from Wall Street without explicit reason.
+    max_reasonable = consensus * 1.35
+    if high:
+        max_reasonable = min(max_reasonable, high * 1.10)
+    if model_target and model_target > 0:
+        ai_anchor = min(model_target, max_reasonable)
+    else:
+        ai_anchor = consensus
+
+    fair_low = max(low or consensus * 0.8, consensus * 0.85)
+    fair_high = max(consensus, min(ai_anchor, max_reasonable))
+    most_likely = (fair_low * 0.35) + (fair_high * 0.65)
+    bull = min(high * 1.10 if high else consensus * 1.35, consensus * 1.50)
+    bear = low if low else consensus * 0.75
+    upside = ((consensus / price) - 1) * 100 if price and price > 0 else None
+
+    capped = bool(model_target and model_target > max_reasonable * 1.05)
+    return {
+        "available": True,
+        "price": price,
+        "consensus": consensus,
+        "high": high,
+        "low": low,
+        "median": median,
+        "fair_low": fair_low,
+        "fair_high": fair_high,
+        "most_likely": most_likely,
+        "bull": bull,
+        "bear": bear,
+        "upside": upside,
+        "model_target": model_target,
+        "capped": capped,
+    }
+
+
+def v509_verdict(report, wallstreet=None):
+    s = v509_score_pack(report)
+    ticker = v509_text(report.get("ticker") or report.get("Ticker"), "")
+    ws = wallstreet or (v509_wallstreet_pack(ticker) if ticker else {})
+    cons = ws.get("consensus") or {}
+    targets = ws.get("targets") or {}
+    buy = (v509_safe_num(cons.get("strong_buy"), 0) or 0) + (v509_safe_num(cons.get("buy"), 0) or 0)
+    hold = v509_safe_num(cons.get("hold"), 0) or 0
+    sell = (v509_safe_num(cons.get("sell"), 0) or 0) + (v509_safe_num(cons.get("strong_sell"), 0) or 0)
+    total = buy + hold + sell
+    analyst_conf = 50 if total <= 0 else min(100, max(0, (buy / total) * 100 - (sell / total) * 40))
+
+    blocks = []
+    if s["financial"] < 75: blocks.append("Financial Health below flagship threshold")
+    if s["confidence"] < 80: blocks.append("Research Confidence below flagship threshold")
+    if analyst_conf < 70: blocks.append("Wall Street support below flagship threshold")
+    if s["risk_reward"] < 2.0: blocks.append("Risk/reward below 2.0:1")
+    if s["investment"] < 85: blocks.append("Investment score below Top Choice level")
+
+    base_verdict = s["verdict"]
+    buy_like = base_verdict in {"BUY NOW", "BUY ON WEAKNESS", "STRONG BUY"} or s["investment"] >= 70
+    if buy_like and not blocks and s["investment"] >= 92:
+        label = "🏆 FLAGSHIP IDEA"
+    elif buy_like and not blocks:
+        label = "⭐ TOP CHOICE BUY"
+    elif buy_like and s["investment"] >= 75:
+        label = "✅ BUY NOW"
+    elif buy_like and s["investment"] >= 65:
+        label = "🟡 BUY ON WEAKNESS"
+    elif base_verdict in {"AVOID", "INSUFFICIENT DATA"}:
+        label = "🔴 AVOID"
+    else:
+        label = "⚪ HOLD / MONITOR"
+    return {"label": label, "blocks": blocks, "analyst_confidence": analyst_conf, **s}
+
+
+def v509_financial_summary(report):
+    score = v509_score_pack(report)["financial"]
+    rev = v509_safe_num(v509_get_any(report, ["revenue_growth", "Revenue Growth", "revenueGrowth"], None))
+    eps = v509_safe_num(v509_get_any(report, ["eps_growth", "EPS Growth", "epsGrowth"], None))
+    gm = v509_safe_num(v509_get_any(report, ["gross_margin", "Gross Margin", "grossMargin"], None))
+    roe = v509_safe_num(v509_get_any(report, ["roe", "ROE", "returnOnEquity"], None))
+    cr = v509_safe_num(v509_get_any(report, ["current_ratio", "Current Ratio", "currentRatio"], None))
+    fcf = v509_safe_num(v509_get_any(report, ["free_cash_flow", "Free Cash Flow", "freeCashFlow"], None))
+
+    strengths, weaknesses = [], []
+    if score >= 75: strengths.append("Financial health is strong enough for premium-quality consideration.")
+    elif score >= 60: strengths.append("Financial health is acceptable, but not elite.")
+    else: weaknesses.append("Financial health is below the preferred threshold for a flagship idea.")
+    if rev is not None and rev > 0: strengths.append(f"Revenue growth is positive ({v509_pct(rev)}), supporting the growth thesis.")
+    if eps is not None and eps < 0: weaknesses.append(f"EPS growth is negative ({v509_pct(eps, signed=True)}), which means profitability is not keeping up yet.")
+    elif eps is not None and eps > 0: strengths.append(f"EPS growth is positive ({v509_pct(eps)}), showing earnings momentum.")
+    if gm is not None and gm > 0.35: strengths.append(f"Gross margin appears healthy at {v509_pct(gm)}.")
+    if roe is not None and roe < 0: weaknesses.append("ROE is negative, suggesting shareholder capital is not yet producing strong returns.")
+    if cr is not None and cr >= 1.5: strengths.append(f"Liquidity looks comfortable with a current ratio near {cr:.2f}.")
+    elif cr is not None and cr < 1: weaknesses.append("Liquidity may be tight because current liabilities exceed current assets.")
+    if fcf is not None and fcf > 0: strengths.append("Free cash flow is positive, which supports financial flexibility.")
+    elif fcf is not None and fcf < 0: weaknesses.append("Free cash flow is negative, which increases funding or execution risk.")
+
+    if not strengths: strengths.append("The company has some investable qualities, but the strongest support is coming from non-financial factors.")
+    if not weaknesses: weaknesses.append("No major financial red flag was detected from the currently available metrics.")
+    outlook = "Positive" if score >= 75 else "Mixed but acceptable" if score >= 60 else "Speculative / below preferred quality"
+    bottom = "This can qualify as a higher-quality setup." if score >= 75 else "This may be actionable, but financial quality should limit position sizing and prevent flagship promotion." if score >= 60 else "This should not be treated as a Top Choice until profitability, cash flow, or balance-sheet quality improves."
+    return {"score": score, "strengths": strengths[:4], "weaknesses": weaknesses[:4], "outlook": outlook, "bottom": bottom}
+
+
+def v509_wallstreet_summary(report, wallstreet):
+    cons = wallstreet.get("consensus") or {}
+    tgt = wallstreet.get("targets") or {}
+    buy = (v509_safe_num(cons.get("strong_buy"), 0) or 0) + (v509_safe_num(cons.get("buy"), 0) or 0)
+    hold = v509_safe_num(cons.get("hold"), 0) or 0
+    sell = (v509_safe_num(cons.get("sell"), 0) or 0) + (v509_safe_num(cons.get("strong_sell"), 0) or 0)
+    total = buy + hold + sell
+    consensus_target = v509_safe_num(tgt.get("target_consensus"))
+    price = v509_safe_num(report.get("price") or report.get("current_price") or report.get("Price"))
+    upside = ((consensus_target / price) - 1) * 100 if price and consensus_target else None
+    rows = wallstreet.get("grades", {}).get("rows", []) or []
+
+    if total > 0:
+        tone = "strongly bullish" if buy / total >= 0.70 else "moderately positive" if buy / total >= 0.45 else "mixed"
+        lead = f"Wall Street sentiment is {tone}: {int(buy)} Buy, {int(hold)} Hold, and {int(sell)} Sell ratings."
+    else:
+        lead = "Wall Street coverage is limited or not currently available from the connected data source."
+    target_line = f"The consensus target is {v509_money(consensus_target)}" + (f", implying {upside:.1f}% upside." if upside is not None else ".") if consensus_target else "Reliable consensus target data is not available yet."
+    action_line = "Recent analyst actions are available and should be reviewed for changes in sentiment." if rows else "No recent firm-level analyst actions were returned."
+    bottom = "Analyst support is strong enough to support the investment case." if total and buy / max(total, 1) >= 0.60 else "Analyst support is not strong enough by itself; the setup needs support from financials, technicals, or smart money."
+    return {"lead": lead, "target_line": target_line, "action_line": action_line, "bottom": bottom, "buy": buy, "hold": hold, "sell": sell, "total": total}
+
+
+def v509_smart_money_summary(report):
+    inst = v509_safe_num(v509_get_any(report, ["institutional_ownership", "Institutional Ownership", "inst_ownership"], None))
+    change = v509_safe_num(v509_get_any(report, ["institutional_ownership_change", "Ownership Change", "inst_change"], None))
+    smart = v509_safe_num(v509_get_any(report, ["smart_money_score", "Smart Money Score"], None))
+    insider = v509_safe_num(v509_get_any(report, ["insider_score", "Insider Score", "insider_activity_score"], None))
+    lines = []
+    if smart is not None:
+        lines.append(f"Smart Money Score is {smart:.0f}/100, which is {'bullish' if smart >= 70 else 'neutral' if smart >= 50 else 'weak'}.")
+    if inst is not None:
+        lines.append(f"Institutional ownership is {v509_pct(inst)}. High ownership can support confidence, but values above 100% may reflect reporting methodology or float effects.")
+    if change is not None:
+        lines.append(f"Institutional ownership change is {v509_pct(change, signed=True)}, suggesting {'accumulation' if change > 0 else 'distribution' if change < 0 else 'stable positioning'}." )
+    if insider is not None:
+        lines.append(f"Insider signal is {insider:.0f}/100.")
+    if not lines:
+        lines.append("Smart money data is limited. Use this section as supporting evidence rather than the primary reason to buy.")
+    bottom = "Professional investor behavior supports the thesis." if (smart or 0) >= 70 or (change or 0) > 0 else "Smart money data is not decisive enough to drive the recommendation alone."
+    return {"lines": lines[:5], "bottom": bottom}
+
+
+def v509_technical_summary(report):
+    rsi = v509_safe_num(v509_get_any(report, ["rsi", "RSI"], None))
+    vol = v509_safe_num(v509_get_any(report, ["volume_ratio", "Volume Ratio", "relative_volume"], None))
+    atr = v509_safe_num(v509_get_any(report, ["atr_pct", "ATR %", "atr_percent", "volatility"], None))
+    lines = []
+    if rsi is not None:
+        if rsi >= 70: lines.append("The stock appears overbought, so chasing aggressively may carry timing risk.")
+        elif rsi <= 30: lines.append("The stock appears oversold, which may create a rebound opportunity but also signals stress.")
+        else: lines.append("The stock is trading in a healthy technical range and is neither overbought nor oversold.")
+    if vol is not None:
+        if vol >= 1.25: lines.append("Volume is above normal, which adds conviction to the current move.")
+        elif vol <= 0.8: lines.append("Volume is below normal, so buyer conviction is not fully confirmed yet.")
+        else: lines.append("Volume is close to normal, suggesting average participation.")
+    if atr is not None:
+        atr_display = atr * 100 if atr <= 1 else atr
+        if atr_display >= 6: lines.append("Volatility is elevated, so position sizing should be more conservative.")
+        else: lines.append("Volatility is manageable relative to normal trading conditions.")
+    if not lines: lines.append("Technical data is limited, so timing should be confirmed with price action before execution.")
+    bottom = "Technical setup supports accumulation, but entry discipline still matters."
+    return {"lines": lines, "bottom": bottom}
+
+
+def v509_news_digest(report, ticker):
+    company = v509_text(report.get("company") or report.get("Company") or report.get("name") or report.get("Name"), "")
+    tokens = {ticker.upper()} if ticker else set()
+    for t in company.replace(".", " ").replace(",", " ").split():
+        if len(t) >= 4:
+            tokens.add(t.upper())
+    bad_generic = {"BITCOIN", "CRYPTO", "TERRA", "LUNA", "MARKET TODAY", "DOW JONES"}
+    rows = []
+    diag = []
+    try:
+        n = v5083_stock_news(ticker) if "v5083_stock_news" in globals() else {"rows": []}
+        diag = n.get("diagnostics") or []
+        raw_rows = n.get("rows") or []
+        for row in raw_rows:
+            title = v509_text(row.get("Headline") or row.get("title") or row.get("headline"), "")
+            up = title.upper()
+            relevant = any(tok and tok in up for tok in tokens)
+            generic_bad = any(b in up for b in bad_generic) and not relevant
+            if title and relevant and not generic_bad:
+                rows.append(row)
+            if len(rows) >= 5: break
+    except Exception as e:
+        diag.append(f"v509 news digest error: {e}")
+
+    if rows:
+        lead = f"Recent ticker-specific news was found for {ticker}. The most relevant headlines should be reviewed as potential catalysts or sentiment drivers."
+        themes = [v509_text(r.get("Headline"), "") for r in rows[:3]]
+        impact = "Short-term impact depends on whether these headlines change revenue, guidance, analyst estimates, or institutional positioning."
+    else:
+        lead = f"No highly relevant ticker-specific headlines passed the stricter news-quality filter for {ticker}."
+        themes = ["Generic or unrelated headlines are intentionally filtered out to avoid confusing paid users."]
+        impact = "No clear news-driven catalyst is visible from the connected news feed right now."
+    return {"lead": lead, "themes": themes, "impact": impact, "rows": rows, "diagnostics": diag}
+
+
+def v509_bull_bear(report, wallstreet, target):
+    s = v509_score_pack(report)
+    fin = v509_financial_summary(report)
+    ws = v509_wallstreet_summary(report, wallstreet)
+    smart = v509_smart_money_summary(report)
+    bull, bear = [], []
+    if s["investment"] >= 80: bull.append("High overall investment score after quality guardrails.")
+    if s["financial"] >= 75: bull.append("Financial health clears premium-quality threshold.")
+    else: bear.append("Financial health does not clear Top Choice threshold.")
+    if ws["total"] and ws["buy"] / max(ws["total"], 1) >= 0.60: bull.append("Wall Street sentiment is supportive.")
+    if target.get("available") and target.get("upside") is not None and target["upside"] > 15: bull.append("Analyst consensus suggests meaningful upside.")
+    if any("accumulation" in x.lower() or "supports" in x.lower() for x in smart["lines"] + [smart["bottom"]]): bull.append("Smart money evidence is constructive.")
+    if s["risk_reward"] >= 2: bull.append("Risk/reward clears the minimum quality threshold.")
+    if s["risk_reward"] < 2: bear.append("Risk/reward is not strong enough for premium promotion.")
+    if s["confidence"] < 75: bear.append("Research confidence is below preferred level.")
+    if not bull: bull.append("The setup has some positive traits, but no single factor is dominant yet.")
+    if not bear: bear.append("No major disqualifying risk was detected from the current dashboard inputs.")
+    conclusion = "Bull arguments outweigh bear arguments." if len(bull) > len(bear) else "The opportunity is balanced and requires disciplined execution."
+    return {"bull": bull[:5], "bear": bear[:5], "conclusion": conclusion}
+
+
+def render_v509_ai_text_block(title, lines=None, bottom=None, tone=None):
+    with st.container(border=True):
+        st.markdown(f"### {title}")
+        if tone:
+            st.markdown(f"**Overall Assessment:** {tone}")
+        for line in (lines or []):
+            st.markdown(f"• {line}")
+        if bottom:
+            st.markdown(f"**Bottom Line:** {bottom}")
+
+
+def render_v509_executive_summary(row):
+    report = v509_report(row)
+    ticker = v509_text(report.get("ticker") or report.get("Ticker"), "")
+    wallstreet = v509_wallstreet_pack(ticker) if ticker else {}
+    verdict = v509_verdict(report, wallstreet)
+    fin = v509_financial_summary(report)
+    target = v509_target_analysis(report, wallstreet)
+    debate = v509_bull_bear(report, wallstreet, target)
+
+    with st.container(border=True):
+        st.markdown("## 🧠 AI Investment Briefing")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("AI Verdict", verdict["label"])
+        c2.metric("Confidence", f"{verdict['confidence']:.0f}/100")
+        c3.metric("Investment Score", f"{verdict['investment']:.0f}/100")
+        c4.metric("Financial Health", f"{verdict['financial']:.0f}/100")
+        st.markdown("**Why we are interested:**")
+        for b in debate["bull"][:4]: st.markdown(f"✓ {b}")
+        st.markdown("**Primary concerns:**")
+        for b in (verdict["blocks"] or debate["bear"][:3]): st.markdown(f"⚠️ {b}")
+        if target.get("available"):
+            st.markdown(f"**Target Reality Check:** Analyst consensus is {v509_money(target['consensus'])}; AI fair value range is {v509_money(target['fair_low'])}–{v509_money(target['fair_high'])}." + (" The old model target was capped because it was too disconnected from analyst targets." if target.get("capped") else ""))
+        st.markdown(f"**Bottom Line:** {debate['conclusion']} {fin['bottom']}")
+
+
+def render_v509_financial_assessment(row):
+    report = v509_report(row)
+    fin = v509_financial_summary(report)
+    render_v509_ai_text_block("💰 AI Financial Assessment", fin["strengths"] + [f"Weakness: {x}" for x in fin["weaknesses"]], fin["bottom"], fin["outlook"])
+
+
+def render_v509_wallstreet_assessment(row):
+    report = v509_report(row); ticker = v509_text(report.get("ticker") or report.get("Ticker"), "")
+    ws = v509_wallstreet_pack(ticker)
+    summ = v509_wallstreet_summary(report, ws)
+    render_v509_ai_text_block("🏦 AI Wall Street Assessment", [summ["lead"], summ["target_line"], summ["action_line"]], summ["bottom"])
+    with st.expander("View Supporting Wall Street Data", expanded=False):
+        cons, tgt = ws.get("consensus", {}), ws.get("targets", {})
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Buy Ratings", int(summ["buy"]))
+        c2.metric("Hold Ratings", int(summ["hold"]))
+        c3.metric("Sell Ratings", int(summ["sell"]))
+        c4.metric("Consensus Target", v509_money(tgt.get("target_consensus")))
+        if ws.get("grades", {}).get("rows"):
+            st.dataframe(pd.DataFrame(ws["grades"]["rows"]), use_container_width=True, hide_index=True)
+        if ws.get("estimates", {}).get("rows"):
+            st.dataframe(pd.DataFrame(ws["estimates"]["rows"]), use_container_width=True, hide_index=True)
+
+
+def render_v509_smart_money_assessment(row):
+    report = v509_report(row)
+    smart = v509_smart_money_summary(report)
+    render_v509_ai_text_block("🏛️ AI Smart Money Assessment", smart["lines"], smart["bottom"])
+
+
+def render_v509_technical_assessment(row):
+    report = v509_report(row)
+    tech = v509_technical_summary(report)
+    render_v509_ai_text_block("📈 AI Technical Assessment", tech["lines"], tech["bottom"])
+
+
+def render_v509_news_digest(row):
+    report = v509_report(row); ticker = v509_text(report.get("ticker") or report.get("Ticker"), "")
+    news = v509_news_digest(report, ticker)
+    with st.container(border=True):
+        st.markdown("📰 AI News Digest")
+        st.write(news["lead"])
+        st.markdown("**Key themes/headlines:**")
+        for t in news["themes"]: st.markdown(f"• {t}")
+        st.markdown(f"**Impact Assessment:** {news['impact']}")
+        if not is_viewer():
+            with st.expander("Admin news digest diagnostics", expanded=False): st.write(news.get("diagnostics"))
+
+
+def render_v509_target_analysis(row):
+    report = v509_report(row); ticker = v509_text(report.get("ticker") or report.get("Ticker"), "")
+    ws = v509_wallstreet_pack(ticker)
+    t = v509_target_analysis(report, ws)
+    with st.container(border=True):
+        st.markdown("🎯 AI Target Analysis")
+        if not t.get("available"):
+            st.info(t.get("summary", "Target data unavailable.")); return
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Analyst Consensus", v509_money(t["consensus"]))
+        c2.metric("AI Fair Value", f"{v509_money(t['fair_low'])}–{v509_money(t['fair_high'])}")
+        c3.metric("Bull Scenario", v509_money(t["bull"]))
+        c4.metric("Bear Scenario", v509_money(t["bear"]))
+        lines = [
+            "The AI target is now anchored to analyst consensus and high/low targets so it does not create unrealistic upside expectations.",
+            f"Most likely fair value estimate is {v509_money(t['most_likely'])}.",
+        ]
+        if t.get("upside") is not None: lines.append(f"Consensus target implies {t['upside']:.1f}% upside from the current price.")
+        if t.get("capped"): lines.append("The prior model target was materially above Wall Street's range, so it was capped for paid-customer trust and target discipline.")
+        for line in lines: st.markdown(f"• {line}")
+
+
+def render_v509_investment_committee(row):
+    report = v509_report(row); ticker = v509_text(report.get("ticker") or report.get("Ticker"), "")
+    ws = v509_wallstreet_pack(ticker)
+    verdict = v509_verdict(report, ws)
+    target = v509_target_analysis(report, ws)
+    debate = v509_bull_bear(report, ws, target)
+    with st.container(border=True):
+        st.markdown("⚖️ AI Investment Committee")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Decision", verdict["label"])
+        c2.metric("Confidence", f"{verdict['confidence']:.0f}/100")
+        c3.metric("Risk/Reward", f"{verdict['risk_reward']:.2f}:1")
+        st.markdown("**Bull Case**")
+        for x in debate["bull"]: st.markdown(f"✓ {x}")
+        st.markdown("**Bear Case**")
+        for x in debate["bear"]: st.markdown(f"⚠️ {x}")
+        st.markdown("**What would change our mind?**")
+        for x in ["Financial Health falls further or free cash flow deteriorates.", "Analyst sentiment shifts from Buy toward Hold/Sell.", "Institutional ownership begins declining materially.", "Price breaks below key support while volume expands."]:
+            st.markdown(f"• {x}")
+        st.markdown(f"**Committee View:** {debate['conclusion']}")
+
+
+# Keep the existing page, but add the paid-customer briefing layer at the top and section summaries below.
+v509_original_render_detail = render_detail if "render_detail" in globals() else None
+
+def render_detail(row):
+    render_v509_executive_summary(row)
+    render_v509_financial_assessment(row)
+    render_v509_wallstreet_assessment(row)
+    render_v509_smart_money_assessment(row)
+    render_v509_technical_assessment(row)
+    render_v509_news_digest(row)
+    render_v509_target_analysis(row)
+    render_v509_investment_committee(row)
+    if v509_original_render_detail:
+        with st.expander("View Full Supporting Dashboard", expanded=False):
+            v509_original_render_detail(row)
