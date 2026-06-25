@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-06-25T00:18:54.289873+00:00",
-  "count": 2979,
+  "generated_at": "2026-06-25T04:22:09.339585+00:00",
+  "count": 2981,
   "symbols": [
     "A",
     "AA",
@@ -1841,6 +1841,7 @@
     "NKTR",
     "NKTX",
     "NL",
+    "NLOP",
     "NLY",
     "NMAX",
     "NMG",
@@ -2490,6 +2491,7 @@
     "STOK",
     "STRC",
     "STRD",
+    "STRF",
     "STRK",
     "STRL",
     "STRR",

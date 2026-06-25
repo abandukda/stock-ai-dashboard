@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-06-25T00:43:14.096208+00:00",
+  "generated_at": "2026-06-25T04:45:43.297888+00:00",
   "status": "success",
-  "version": "V50.8.3",
-  "universe_count": 2979,
+  "version": "V50.8.4",
+  "universe_count": 2981,
   "prescreen_count": 650,
   "full_scan_count": 150,
   "recovery_count": 100,
@@ -10,7 +10,7 @@
   "fallback_rows_allowed": false,
   "data_dir": ".",
   "github_persisted": true,
-  "duration_seconds": 1462.65,
+  "duration_seconds": 1416.57,
   "fast_cron_mode": true,
   "full_committee_limit": 15,
   "pre_rank_deep_apis_skipped": true,
@@ -126,7 +126,8 @@
     "valuation_reconciliation": true,
     "thesis_strength_and_confidence": true
   },
-  "scanner_version": "V50.8.3",
-  "scanner_version_label": "V50.8.3 Customer Trust UI",
-  "v50_smart_money_analyst_revision_upgrade": true
+  "scanner_version": "V50.8.4",
+  "scanner_version_label": "V50.8.4 Analyst + Calendar Hotfix",
+  "v50_smart_money_analyst_revision_upgrade": true,
+  "v5084_app_hotfix_sync": true
 }
