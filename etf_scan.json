@@ -53,7 +53,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-25T04:33:27.615067+00:00",
+    "scan_time": "2026-06-25T08:03:56.411718+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 299.69,
@@ -83,18 +83,24 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 62,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Finnhub company news",
+        "score": 74,
+        "status": "Positive",
+        "impact": "Positive",
+        "data_used": "NewsAPI, Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "The American Retail Investor - Why The World's Most Active Retail Market Demands A Different Kind Of Company Communication"
+          "Two Catalysts Could Trigger Massive IWM Gains Before Year-End, or Signal a Sharp Reversal",
+          "Centrus Agreement Strengthens Oklo Stock\u2019s Nuclear AI Power Thesis",
+          "Cutting Jobs and Chasing AI: How to Play the Rackspace Stock Transformation Story Here",
+          "Eldora Opens 280+ Tokenized US Stocks to 85+ Countries, Launches $20,000 Campaign",
+          "ETF Fund Flows: Profit-Taking Hits ARKK VO Nets $4.8B",
+          "Will Greater Monetary Policy Uncertainty Lead To Tighter Financial Conditions?"
         ],
         "risks": [
-          "No negative high-confidence headline detected."
+          "Cutting Jobs and Chasing AI: How to Play the Rackspace Stock Transformation Story Here",
+          "Reiterating Our 3 Rate Cut Forecast"
         ],
-        "bottom_line": "News is mixed or insufficient."
+        "bottom_line": "News flow supports the thesis."
       },
       "Finance Agent": {
         "score": 50,
@@ -228,15 +234,22 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 62,
-    "v42_news_summary": "News is mixed or insufficient.",
+    "v42_news_score": 74,
+    "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
-      "The American Retail Investor - Why The World's Most Active Retail Market Demands A Different Kind Of Company Communication"
+      "Two Catalysts Could Trigger Massive IWM Gains Before Year-End, or Signal a Sharp Reversal",
+      "Centrus Agreement Strengthens Oklo Stock\u2019s Nuclear AI Power Thesis",
+      "Cutting Jobs and Chasing AI: How to Play the Rackspace Stock Transformation Story Here",
+      "Eldora Opens 280+ Tokenized US Stocks to 85+ Countries, Launches $20,000 Campaign",
+      "ETF Fund Flows: Profit-Taking Hits ARKK VO Nets $4.8B",
+      "Will Greater Monetary Policy Uncertainty Lead To Tighter Financial Conditions?"
     ],
     "v42_news_risks": [
-      "No negative high-confidence headline detected."
+      "Cutting Jobs and Chasing AI: How to Play the Rackspace Stock Transformation Story Here",
+      "Reiterating Our 3 Rate Cut Forecast"
     ],
     "v42_news_sources": [
+      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -248,7 +261,7 @@
     "v42_breakout_level": 302.69,
     "v42_pullback_zone": "$276.96 - $290.76",
     "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
-    "v42_committee_positive_agents": 1,
+    "v42_committee_positive_agents": 2,
     "v42_committee_total_agents": 10
   },
   {
@@ -303,7 +316,7 @@
       "RSI is constructive"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-25T04:41:06.980514+00:00",
+    "scan_time": "2026-06-25T08:09:37.677705+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 671.83,
@@ -526,7 +539,7 @@
       "RSI is constructive"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-25T04:41:25.531676+00:00",
+    "scan_time": "2026-06-25T08:09:51.062906+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 655.95,
@@ -751,7 +764,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-25T04:28:36.430076+00:00",
+    "scan_time": "2026-06-25T08:00:28.861838+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 522.74,
@@ -781,16 +794,18 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 62,
+        "score": 68,
         "status": "Mixed",
         "impact": "Neutral",
-        "data_used": "Finnhub company news",
+        "data_used": "NewsAPI, Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
+          "In 1977, a Hawaii guru named Chris Butler broke from the Hare Krishna movement and built a parallel sect whose members were instructed to enter politics under their own names",
+          "Watch: DIA\u2019s Ki Huihyeon And Lee Sang Yoon From \u201cHeart Pairing\u201d Reveal That They\u2019re Dating",
           "The American Retail Investor - Why The World's Most Active Retail Market Demands A Different Kind Of Company Communication"
         ],
         "risks": [
-          "No negative high-confidence headline detected."
+          "Reiterating Our 3 Rate Cut Forecast"
         ],
         "bottom_line": "News is mixed or insufficient."
       },
@@ -928,15 +943,18 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 62,
+    "v42_news_score": 68,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
+      "In 1977, a Hawaii guru named Chris Butler broke from the Hare Krishna movement and built a parallel sect whose members were instructed to enter politics under their own names",
+      "Watch: DIA\u2019s Ki Huihyeon And Lee Sang Yoon From \u201cHeart Pairing\u201d Reveal That They\u2019re Dating",
       "The American Retail Investor - Why The World's Most Active Retail Market Demands A Different Kind Of Company Communication"
     ],
     "v42_news_risks": [
-      "No negative high-confidence headline detected."
+      "Reiterating Our 3 Rate Cut Forecast"
     ],
     "v42_news_sources": [
+      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": true,
@@ -948,7 +966,7 @@
     "v42_breakout_level": 527.97,
     "v42_pullback_zone": "$498.74 - $508.15",
     "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
-    "v42_committee_positive_agents": 1,
+    "v42_committee_positive_agents": 2,
     "v42_committee_total_agents": 10
   },
   {
@@ -1003,7 +1021,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-25T04:34:55.095163+00:00",
+    "scan_time": "2026-06-25T08:05:13.476209+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 110.24,
@@ -1033,15 +1051,17 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 54,
+        "score": 53,
         "status": "Mixed",
         "impact": "Neutral",
-        "data_used": "Finnhub company news",
+        "data_used": "NewsAPI, Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
+          "Circle Your Calendars for July 29. JPMorgan Executive Says Fed Chair Kevin Warsh Could Raise Rates in As Little as Six Weeks.",
           "LQDH: It May Be Time To Hedge Interest Rate Risk (Rating Upgrade)"
         ],
         "risks": [
+          "Circle Your Calendars for July 29. JPMorgan Executive Says Fed Chair Kevin Warsh Could Raise Rates in As Little as Six Weeks.",
           "LQDH: It May Be Time To Hedge Interest Rate Risk (Rating Upgrade)"
         ],
         "bottom_line": "News is mixed or insufficient."
@@ -1178,15 +1198,18 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 54,
+    "v42_news_score": 53,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
+      "Circle Your Calendars for July 29. JPMorgan Executive Says Fed Chair Kevin Warsh Could Raise Rates in As Little as Six Weeks.",
       "LQDH: It May Be Time To Hedge Interest Rate Risk (Rating Upgrade)"
     ],
     "v42_news_risks": [
+      "Circle Your Calendars for July 29. JPMorgan Executive Says Fed Chair Kevin Warsh Could Raise Rates in As Little as Six Weeks.",
       "LQDH: It May Be Time To Hedge Interest Rate Risk (Rating Upgrade)"
     ],
     "v42_news_sources": [
+      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -1253,7 +1276,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-25T04:32:40.921363+00:00",
+    "scan_time": "2026-06-25T08:03:24.466952+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 80.17,
@@ -1283,18 +1306,13 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 55,
+        "score": 62,
         "status": "Mixed",
         "impact": "Neutral",
-        "data_used": "Finnhub company news",
+        "data_used": "NewsAPI, Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "BRHY: BlackRock Enters The Active High Yield ETF Arena",
-          "Aligned Incentives: Our Key To Navigating The Diverse High Yield Market",
-          "Columbia Threadneedle Fixed-Income Monitor: June 2026",
-          "Now Is Not The Time To Own Junk",
-          "Opportunities Emerge In A Higher-Yield World",
-          "Rupture And Resilience"
+          "Bears step up bets against high-yield sector, shaking up bond traders"
         ],
         "risks": [
           "No negative high-confidence headline detected."
@@ -1433,20 +1451,16 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 55,
+    "v42_news_score": 62,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "BRHY: BlackRock Enters The Active High Yield ETF Arena",
-      "Aligned Incentives: Our Key To Navigating The Diverse High Yield Market",
-      "Columbia Threadneedle Fixed-Income Monitor: June 2026",
-      "Now Is Not The Time To Own Junk",
-      "Opportunities Emerge In A Higher-Yield World",
-      "Rupture And Resilience"
+      "Bears step up bets against high-yield sector, shaking up bond traders"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
+      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -1515,7 +1529,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-25T04:42:43.511080+00:00",
+    "scan_time": "2026-06-25T08:10:48.755869+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.51,
@@ -1740,7 +1754,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-25T04:45:20.121225+00:00",
+    "scan_time": "2026-06-25T08:12:40.213086+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 159.23,
@@ -1965,7 +1979,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-25T04:45:17.811963+00:00",
+    "scan_time": "2026-06-25T08:12:38.675193+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 182.47,
@@ -2190,7 +2204,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-25T04:45:18.760954+00:00",
+    "scan_time": "2026-06-25T08:12:39.398741+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.02,
@@ -2413,7 +2427,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-25T04:45:19.675056+00:00",
+    "scan_time": "2026-06-25T08:12:39.933340+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 47.41,
@@ -2637,7 +2651,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-25T04:33:35.093870+00:00",
+    "scan_time": "2026-06-25T08:04:02.602541+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 58.27,
@@ -2667,19 +2681,20 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 69,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Finnhub company news",
+        "score": 76,
+        "status": "Positive",
+        "impact": "Positive",
+        "data_used": "NewsAPI, Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
+          "Why JEPI Investors Gave Up $3,379 in Five-Year Gains",
           "BALI: Balanced Buy-Write ETF Offering Income And Growth",
           "ULTY: Loses Out To The Steady JEPI Despite 100% Trailing Yield"
         ],
         "risks": [
           "No negative high-confidence headline detected."
         ],
-        "bottom_line": "News is mixed or insufficient."
+        "bottom_line": "News flow supports the thesis."
       },
       "Finance Agent": {
         "score": 50,
@@ -2813,9 +2828,10 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 69,
-    "v42_news_summary": "News is mixed or insufficient.",
+    "v42_news_score": 76,
+    "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
+      "Why JEPI Investors Gave Up $3,379 in Five-Year Gains",
       "BALI: Balanced Buy-Write ETF Offering Income And Growth",
       "ULTY: Loses Out To The Steady JEPI Despite 100% Trailing Yield"
     ],
@@ -2823,6 +2839,7 @@
       "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
+      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -2890,7 +2907,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-25T04:45:19.214470+00:00",
+    "scan_time": "2026-06-25T08:12:39.658019+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 45.25,
@@ -3115,7 +3132,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-25T04:40:20.335340+00:00",
+    "scan_time": "2026-06-25T08:09:05.262294+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 15.88,
@@ -3340,7 +3357,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-25T04:45:16.475821+00:00",
+    "scan_time": "2026-06-25T08:12:37.506060+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 53.7,
@@ -3565,7 +3582,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-25T04:39:32.524024+00:00",
+    "scan_time": "2026-06-25T08:08:32.414258+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 18.41,
@@ -3790,7 +3807,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-25T04:45:27.206921+00:00",
+    "scan_time": "2026-06-25T08:12:44.495919+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 40.72,
@@ -4014,7 +4031,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-25T04:41:31.729366+00:00",
+    "scan_time": "2026-06-25T08:09:54.897720+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 758.45,
@@ -4238,7 +4255,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-25T04:39:26.400871+00:00",
+    "scan_time": "2026-06-25T08:08:28.914085+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 747.83,
@@ -4268,20 +4285,25 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 76,
-        "status": "Positive",
-        "impact": "Positive",
-        "data_used": "Finnhub company news",
+        "score": 66,
+        "status": "Mixed",
+        "impact": "Neutral",
+        "data_used": "NewsAPI, Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
+          "US leveraged ETFs reach record $198B in assets as TQQQ and SOXL lead the charge",
+          "AI stock slump raises the question if investors are just taking profits or getting very nervous",
+          "AI stock slump raises question if investors are taking profits or getting nervous",
+          "Will Greater Monetary Policy Uncertainty Lead To Tighter Financial Conditions?",
           "The American Retail Investor - Why The World's Most Active Retail Market Demands A Different Kind Of Company Communication",
-          "Cathie Wood Is Rebuilding The Magnificent 7 Trade: ARK ETFs Buy Amazon, Alphabet, Tesla During AI Pullback",
-          "Micron Earnings Reaction To Test AI Trade; SK Hynix US Listing Is Bad News For MU"
+          "Cathie Wood Is Rebuilding The Magnificent 7 Trade: ARK ETFs Buy Amazon, Alphabet, Tesla During AI Pullback"
         ],
         "risks": [
-          "No negative high-confidence headline detected."
+          "AI stock slump raises the question if investors are just taking profits or getting very nervous",
+          "AI stock slump raises question if investors are taking profits or getting nervous",
+          "Reiterating Our 3 Rate Cut Forecast"
         ],
-        "bottom_line": "News flow supports the thesis."
+        "bottom_line": "News is mixed or insufficient."
       },
       "Finance Agent": {
         "score": 50,
@@ -4417,17 +4439,23 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 76,
-    "v42_news_summary": "News flow supports the thesis.",
+    "v42_news_score": 66,
+    "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
+      "US leveraged ETFs reach record $198B in assets as TQQQ and SOXL lead the charge",
+      "AI stock slump raises the question if investors are just taking profits or getting very nervous",
+      "AI stock slump raises question if investors are taking profits or getting nervous",
+      "Will Greater Monetary Policy Uncertainty Lead To Tighter Financial Conditions?",
       "The American Retail Investor - Why The World's Most Active Retail Market Demands A Different Kind Of Company Communication",
-      "Cathie Wood Is Rebuilding The Magnificent 7 Trade: ARK ETFs Buy Amazon, Alphabet, Tesla During AI Pullback",
-      "Micron Earnings Reaction To Test AI Trade; SK Hynix US Listing Is Bad News For MU"
+      "Cathie Wood Is Rebuilding The Magnificent 7 Trade: ARK ETFs Buy Amazon, Alphabet, Tesla During AI Pullback"
     ],
     "v42_news_risks": [
-      "No negative high-confidence headline detected."
+      "AI stock slump raises the question if investors are just taking profits or getting very nervous",
+      "AI stock slump raises question if investors are taking profits or getting nervous",
+      "Reiterating Our 3 Rate Cut Forecast"
     ],
     "v42_news_sources": [
+      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": true,
@@ -4495,7 +4523,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-25T04:44:15.167835+00:00",
+    "scan_time": "2026-06-25T08:11:52.230426+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 699.15,
@@ -4719,7 +4747,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-25T04:44:30.531032+00:00",
+    "scan_time": "2026-06-25T08:12:06.457572+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 374.7,
@@ -4943,7 +4971,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-25T04:40:34.160802+00:00",
+    "scan_time": "2026-06-25T08:09:14.208767+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 32.66,
@@ -5167,7 +5195,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-25T04:33:36.127169+00:00",
+    "scan_time": "2026-06-25T08:04:03.664393+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 61.72,
@@ -5200,15 +5228,15 @@
         "score": 55,
         "status": "Mixed",
         "impact": "Neutral",
-        "data_used": "Finnhub company news",
+        "data_used": "NewsAPI, Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Undercovered Dozen: Blue Owl, IBM, Quantum Computing, Fiserv And More",
           "JEPQ\u2019s 0.35% Fee Hides a 9-Point Performance Gap: What Monthly Income Really Costs",
-          "GPIQ: Still The Best Nasdaq Income Play, But Watch The Throne",
-          "GPIQ: The Ultimate 9%+ Covered Call Choice For Long-Term Compounding",
-          "How We Would Invest $100,000 Today: Our Two Best Strategies, One Yields 7.75%",
-          "A $850,000 Portfolio That Quietly Pays You $51,000 a Year Without Touching Principal"
+          "How to Build $5,000 a Month in Dividend Income From a $1 Million Portfolio",
+          "Can Retirees Count on JEPQ\u2019s 10.3 Percent Dividend and Monthly Payments?",
+          "Want $15,000 a Year on $100K? This Nasdaq Income ETF Out-Pays JEPQ",
+          "Frankly, JEPI Has Been Mid In 2026. Is It Time For Investors To Move On?",
+          "JEPI vs. JEPQ: Which High-Yield Income ETF Deserves Your Cash?"
         ],
         "risks": [
           "No negative high-confidence headline detected."
@@ -5350,17 +5378,18 @@
     "v42_news_score": 55,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "Undercovered Dozen: Blue Owl, IBM, Quantum Computing, Fiserv And More",
       "JEPQ\u2019s 0.35% Fee Hides a 9-Point Performance Gap: What Monthly Income Really Costs",
-      "GPIQ: Still The Best Nasdaq Income Play, But Watch The Throne",
-      "GPIQ: The Ultimate 9%+ Covered Call Choice For Long-Term Compounding",
-      "How We Would Invest $100,000 Today: Our Two Best Strategies, One Yields 7.75%",
-      "A $850,000 Portfolio That Quietly Pays You $51,000 a Year Without Touching Principal"
+      "How to Build $5,000 a Month in Dividend Income From a $1 Million Portfolio",
+      "Can Retirees Count on JEPQ\u2019s 10.3 Percent Dividend and Monthly Payments?",
+      "Want $15,000 a Year on $100K? This Nasdaq Income ETF Out-Pays JEPQ",
+      "Frankly, JEPI Has Been Mid In 2026. Is It Time For Investors To Move On?",
+      "JEPI vs. JEPQ: Which High-Yield Income ETF Deserves Your Cash?"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
+      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -5428,7 +5457,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-25T04:39:27.785084+00:00",
+    "scan_time": "2026-06-25T08:08:29.868963+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 24.53,
@@ -5679,7 +5708,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-25T04:41:32.170557+00:00",
+    "scan_time": "2026-06-25T08:09:55.162013+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 17.87,
@@ -5902,7 +5931,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-25T04:45:18.266949+00:00",
+    "scan_time": "2026-06-25T08:12:39.149331+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 198.49,
@@ -6127,7 +6156,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-25T04:45:20.582221+00:00",
+    "scan_time": "2026-06-25T08:12:40.454294+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 124.51,
@@ -6351,7 +6380,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-25T04:23:55.360115+00:00",
+    "scan_time": "2026-06-25T07:57:14.357658+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 92.65,
@@ -6381,20 +6410,24 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 68,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Finnhub company news",
+        "score": 74,
+        "status": "Positive",
+        "impact": "Positive",
+        "data_used": "NewsAPI, Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
+          "Show HN: Daily ETF holdings for 2,200+ ETFs as one API",
+          "Why ARKK Investors Paid Premium Fees for a 37.88% Loss Over Five Years",
+          "ETF Fund Flows: Profit-Taking Hits ARKK VO Nets $4.8B",
+          "Will Greater Monetary Policy Uncertainty Lead To Tighter Financial Conditions?",
           "The American Retail Investor - Why The World's Most Active Retail Market Demands A Different Kind Of Company Communication",
-          "Cathie Wood Is Rebuilding The Magnificent 7 Trade: ARK ETFs Buy Amazon, Alphabet, Tesla During AI Pullback",
-          "Above The Noise: AI, Markets, And Momentum"
+          "Cathie Wood Is Rebuilding The Magnificent 7 Trade: ARK ETFs Buy Amazon, Alphabet, Tesla During AI Pullback"
         ],
         "risks": [
-          "Risk-Off, Or A Market Positioning Reset?"
+          "Why ARKK Investors Paid Premium Fees for a 37.88% Loss Over Five Years",
+          "Reiterating Our 3 Rate Cut Forecast"
         ],
-        "bottom_line": "News is mixed or insufficient."
+        "bottom_line": "News flow supports the thesis."
       },
       "Finance Agent": {
         "score": 50,
@@ -6528,17 +6561,22 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 68,
-    "v42_news_summary": "News is mixed or insufficient.",
+    "v42_news_score": 74,
+    "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
+      "Show HN: Daily ETF holdings for 2,200+ ETFs as one API",
+      "Why ARKK Investors Paid Premium Fees for a 37.88% Loss Over Five Years",
+      "ETF Fund Flows: Profit-Taking Hits ARKK VO Nets $4.8B",
+      "Will Greater Monetary Policy Uncertainty Lead To Tighter Financial Conditions?",
       "The American Retail Investor - Why The World's Most Active Retail Market Demands A Different Kind Of Company Communication",
-      "Cathie Wood Is Rebuilding The Magnificent 7 Trade: ARK ETFs Buy Amazon, Alphabet, Tesla During AI Pullback",
-      "Above The Noise: AI, Markets, And Momentum"
+      "Cathie Wood Is Rebuilding The Magnificent 7 Trade: ARK ETFs Buy Amazon, Alphabet, Tesla During AI Pullback"
     ],
     "v42_news_risks": [
-      "Risk-Off, Or A Market Positioning Reset?"
+      "Why ARKK Investors Paid Premium Fees for a 37.88% Loss Over Five Years",
+      "Reiterating Our 3 Rate Cut Forecast"
     ],
     "v42_news_sources": [
+      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -6607,7 +6645,7 @@
       "20-day ETF trend is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-25T04:42:10.737919+00:00",
+    "scan_time": "2026-06-25T08:10:23.686049+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 75.6,
@@ -6833,7 +6871,7 @@
       "20-day ETF trend is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-25T04:25:44.888580+00:00",
+    "scan_time": "2026-06-25T07:58:28.084274+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 41.71,
@@ -6866,14 +6904,15 @@
         "score": 90,
         "status": "Positive",
         "impact": "Positive",
-        "data_used": "Finnhub company news",
+        "data_used": "NewsAPI, Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
+          "The Global X Robotics & AI ETF (BOTZ): A Solid Way to Play Robotics",
+          "Three Humanoid Robotics ETFs Built for the Tesla Optimus and Figure AI Era Most Investors Have Never Heard Of",
           "Reported Earlier, 'Hyundai workers in South Korea vote to strike over fears of robots replacing them' - Financial Times",
           "Above The Noise: AI, Markets, And Momentum",
           "The AI Infrastructure Supply Chain: AI Enablers Growing Alongside Hyperscalers",
-          "Armani On Why The AI Boom Is Different",
-          "3 Stocks To Play The AI And Data Center Boom"
+          "Armani On Why The AI Boom Is Different"
         ],
         "risks": [
           "No negative high-confidence headline detected."
@@ -7015,16 +7054,18 @@
     "v42_news_score": 90,
     "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
+      "The Global X Robotics & AI ETF (BOTZ): A Solid Way to Play Robotics",
+      "Three Humanoid Robotics ETFs Built for the Tesla Optimus and Figure AI Era Most Investors Have Never Heard Of",
       "Reported Earlier, 'Hyundai workers in South Korea vote to strike over fears of robots replacing them' - Financial Times",
       "Above The Noise: AI, Markets, And Momentum",
       "The AI Infrastructure Supply Chain: AI Enablers Growing Alongside Hyperscalers",
-      "Armani On Why The AI Boom Is Different",
-      "3 Stocks To Play The AI And Data Center Boom"
+      "Armani On Why The AI Boom Is Different"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
+      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -7092,7 +7133,7 @@
       "20-day ETF trend is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-25T04:43:47.173080+00:00",
+    "scan_time": "2026-06-25T08:11:35.586122+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 62.28,
@@ -7318,7 +7359,7 @@
       "60-day ETF trend is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-25T04:45:16.936032+00:00",
+    "scan_time": "2026-06-25T08:12:38.115747+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 63.01,
