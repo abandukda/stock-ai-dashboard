@@ -18001,7 +18001,7 @@ def render_detail(row):
 # - Add richer diagnostics so Streamlit Cloud failures are visible to admin.
 # - Prevent weak/empty analyst, macro, and earnings cards from silently looking broken.
 
-APP_VERSION = "V50.8.4.1 Analyst + Calendar Hotfix"
+APP_VERSION = "V50.9 AI Investment Briefing Engine"
 
 
 def v5084_first_num(row, keys, default=None):
