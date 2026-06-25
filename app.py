@@ -17979,7 +17979,7 @@ def render_status_banner():
     persisted = bool(state.get("github_persisted")) or v45_text(state.get("version", "")).startswith(("V45", "V46", "V47", "V48", "V49", "V50"))
     c5.metric("GitHub Persisted", "✅" if persisted else "❌")
     st.caption(f"Last scan: {safe_text(state.get('generated_at', 'N/A'))} | Duration: {state.get('duration_seconds', 'N/A')}s | DATA_DIR={state.get('data_dir','.')}")
-    if safe_text(state.get("version", "")) != "V50.8.3": st.warning("Scanner data is older than the app. Run GitHub Actions → Overnight Market Scan to refresh V50.8.3 data.")
+    if safe_text(state.get("version", "")) != "V50.8.4": st.warning("Scanner data is older than the app. Run GitHub Actions → Overnight Market Scan to refresh V50.8.4 data.")
     if is_viewer(): st.info("Viewer mode: admin diagnostics are hidden.")
 
 
@@ -17991,6 +17991,281 @@ def render_detail(row):
     render_v5083_customer_trust_card(row)
     render_v5083_news_quality_card(row)
 
+
+
+# =========================
+# V50.8.4 HOTFIX - Analyst / Earnings / Economic Calendar Audit Fix
+# =========================
+# Purpose:
+# - Keep V50.8.3 UI, but harden FMP Stable endpoint parsing.
+# - Add richer diagnostics so Streamlit Cloud failures are visible to admin.
+# - Prevent weak/empty analyst, macro, and earnings cards from silently looking broken.
+
+APP_VERSION = "V50.8.4.1 Analyst + Calendar Hotfix"
+
+
+def v5084_first_num(row, keys, default=None):
+    for k in keys:
+        try:
+            v = row.get(k) if isinstance(row, dict) else None
+            n = v5083_num(v, None) if "v5083_num" in globals() else None
+            if n is not None:
+                return n
+        except Exception:
+            pass
+    return default
+
+
+def v5084_first_text(row, keys, default=""):
+    for k in keys:
+        try:
+            v = row.get(k) if isinstance(row, dict) else None
+            if v not in (None, "", "N/A"):
+                return safe_text(v, default) if "safe_text" in globals() else str(v)
+        except Exception:
+            pass
+    return default
+
+
+def v5084_stable_rows(path, params=None, label=None):
+    """Small wrapper around the existing FMP Stable helper with admin-friendly diagnostics."""
+    params = dict(params or {})
+    if "v5081_fmp_stable" not in globals():
+        return [], "unavailable", [f"{label or path}: v5081_fmp_stable unavailable"]
+    try:
+        data, status, diag = v5081_fmp_stable(path, json.dumps(params))
+        rows = v5081_as_list(data) if "v5081_as_list" in globals() else (data if isinstance(data, list) else ([data] if isinstance(data, dict) else []))
+        diagnostics = list(diag or [])
+        diagnostics.append(f"{label or path}: status={status}; rows={len(rows)}; params={params}")
+        return rows, status, diagnostics
+    except Exception as e:
+        return [], f"exception: {e}", [f"{label or path}: exception={e}; params={params}"]
+
+
+def v5084_grades_consensus(ticker):
+    symbol = v451_clean_ticker(ticker)
+    rows, status, diag = v5084_stable_rows("grades-consensus", {"symbol": symbol}, "grades-consensus")
+    row = rows[0] if rows else {}
+    return {
+        "raw": rows, "status": status, "diagnostics": diag,
+        "strong_buy": v5084_first_num(row, ["strongBuy", "strong_buy", "analystRatingsStrongBuy"], 0) or 0,
+        "buy": v5084_first_num(row, ["buy", "analystRatingsBuy"], 0) or 0,
+        "hold": v5084_first_num(row, ["hold", "analystRatingsHold"], 0) or 0,
+        "sell": v5084_first_num(row, ["sell", "analystRatingsSell"], 0) or 0,
+        "strong_sell": v5084_first_num(row, ["strongSell", "strong_sell", "analystRatingsStrongSell"], 0) or 0,
+        "consensus": v5084_first_text(row, ["consensus", "rating", "grade", "recommendation", "overallRating"], "N/A"),
+    }
+
+
+def v5084_price_target_consensus(ticker):
+    symbol = v451_clean_ticker(ticker)
+    rows, status, diag = v5084_stable_rows("price-target-consensus", {"symbol": symbol}, "price-target-consensus")
+    row = rows[0] if rows else {}
+    # FMP Stable has used multiple shapes across plan/endpoints. Keep all known aliases.
+    return {
+        "raw": rows, "status": status, "diagnostics": diag,
+        "target_high": v5084_first_num(row, ["targetHigh", "targetHighPrice", "priceTargetHigh", "high", "highTarget", "priceTargetHighPrice"]),
+        "target_low": v5084_first_num(row, ["targetLow", "targetLowPrice", "priceTargetLow", "low", "lowTarget", "priceTargetLowPrice"]),
+        "target_consensus": v5084_first_num(row, ["targetConsensus", "targetMean", "targetAverage", "priceTargetConsensus", "priceTargetAverage", "consensus", "average", "avgTarget", "priceTarget"]),
+        "target_median": v5084_first_num(row, ["targetMedian", "priceTargetMedian", "median", "medianTarget"]),
+        "analyst_count": v5084_first_num(row, ["numberOfAnalysts", "analystCount", "analystsCount", "publishers", "count"]),
+    }
+
+
+def v5084_price_target_summary(ticker):
+    symbol = v451_clean_ticker(ticker)
+    rows, status, diag = v5084_stable_rows("price-target-summary", {"symbol": symbol}, "price-target-summary")
+    row = rows[0] if rows else {}
+    return {
+        "raw": rows, "status": status, "diagnostics": diag,
+        "last_month_avg": v5084_first_num(row, ["lastMonthAvgPriceTarget", "lastMonthAvg", "lastMonthAverage"]),
+        "last_quarter_avg": v5084_first_num(row, ["lastQuarterAvgPriceTarget", "lastQuarterAvg", "lastQuarterAverage"]),
+        "last_year_avg": v5084_first_num(row, ["lastYearAvgPriceTarget", "lastYearAvg", "lastYearAverage"]),
+        "all_time_avg": v5084_first_num(row, ["allTimeAvgPriceTarget", "allTimeAvg", "allTimeAverage"]),
+        "publishers": v5084_first_num(row, ["publishers", "analystCount", "numberOfAnalysts", "count"]),
+    }
+
+
+def v5084_grades_latest(ticker):
+    symbol = v451_clean_ticker(ticker)
+    rows, status, diag = v5084_stable_rows("grades", {"symbol": symbol, "limit": 25}, "grades")
+    if not rows:
+        hist, hstatus, hdiag = v5084_stable_rows("grades-historical", {"symbol": symbol, "limit": 25}, "grades-historical fallback")
+        rows, status, diag = hist, hstatus, diag + hdiag
+    out = []
+    for r in rows[:15]:
+        firm = v5084_first_text(r, ["gradingCompany", "firm", "analystCompany", "company", "analyst", "analystName"], "N/A")
+        new_grade = v5084_first_text(r, ["newGrade", "newRating", "grade", "rating", "toGrade", "toRating"], "N/A")
+        old_grade = v5084_first_text(r, ["previousGrade", "previousRating", "fromGrade", "fromRating"], "N/A")
+        action = v5084_first_text(r, ["action", "gradingAction", "change", "type"], "")
+        if not action and old_grade != "N/A" and new_grade != "N/A":
+            action = f"{old_grade} → {new_grade}"
+        out.append({
+            "Date": v5081_fmt_date(v5084_first_text(r, ["publishedDate", "date", "updatedAt"], "")),
+            "Firm": firm,
+            "Action": action or "N/A",
+            "Previous": old_grade,
+            "New": new_grade,
+        })
+    return {"rows": out, "raw": rows, "status": status, "diagnostics": diag}
+
+
+def v5084_analyst_estimates(ticker):
+    symbol = v451_clean_ticker(ticker)
+    rows, status, diag = v5084_stable_rows("analyst-estimates", {"symbol": symbol, "period": "annual", "limit": 12}, "analyst-estimates annual")
+    out = []
+    for r in rows[:8]:
+        rev_avg = v5084_first_num(r, ["estimatedRevenueAvg", "revenueAvg", "revenueEstimatedAvg", "revenueEstimate", "estimatedRevenue"])
+        out.append({
+            "Fiscal Date": v5084_first_text(r, ["date", "fiscalDateEnding", "period"], "N/A"),
+            "Revenue Avg": v49_money(rev_avg) if "v49_money" in globals() and rev_avg is not None else "N/A",
+            "EPS Avg": v5084_first_num(r, ["estimatedEpsAvg", "epsAvg", "epsEstimatedAvg", "epsEstimate"]),
+            "EPS High": v5084_first_num(r, ["estimatedEpsHigh", "epsHigh"]),
+            "EPS Low": v5084_first_num(r, ["estimatedEpsLow", "epsLow"]),
+            "Revenue Analysts": v5084_first_num(r, ["numberAnalystEstimatedRevenue", "numAnalystsRevenue", "revenueAnalysts", "numAnalysts"]),
+            "EPS Analysts": v5084_first_num(r, ["numberAnalystsEstimatedEps", "numAnalystsEps", "epsAnalysts"]),
+        })
+    return {"rows": out, "raw": rows, "status": status, "diagnostics": diag}
+
+
+def render_v50_analyst_revisions(row):
+    r = v49_build_research_report(row)
+    ticker = r.get("ticker") or row.get("Ticker") or row.get("Symbol")
+    consensus = v5084_grades_consensus(ticker)
+    ptc = v5084_price_target_consensus(ticker)
+    pts = v5084_price_target_summary(ticker)
+    grades = v5084_grades_latest(ticker)
+    estimates = v5084_analyst_estimates(ticker)
+    with st.container(border=True):
+        st.markdown("### 📈 Analyst Intelligence")
+        st.caption("Wall Street view using FMP Stable: consensus, price targets, firm actions, and estimates.")
+        c1, c2, c3, c4 = st.columns(4)
+        total_bull = (consensus.get("strong_buy") or 0) + (consensus.get("buy") or 0)
+        total_bear = (consensus.get("sell") or 0) + (consensus.get("strong_sell") or 0)
+        c1.metric("Consensus", consensus.get("consensus") or "N/A")
+        c2.metric("Bullish Ratings", int(total_bull or 0))
+        c3.metric("Hold Ratings", int(consensus.get("hold") or 0))
+        c4.metric("Bearish Ratings", int(total_bear or 0))
+        c5, c6, c7, c8 = st.columns(4)
+        c5.metric("Consensus Target", v49_money(ptc.get("target_consensus")) if ptc.get("target_consensus") else "N/A")
+        c6.metric("High Target", v49_money(ptc.get("target_high")) if ptc.get("target_high") else "N/A")
+        c7.metric("Low Target", v49_money(ptc.get("target_low")) if ptc.get("target_low") else "N/A")
+        median_or_summary = ptc.get("target_median") or pts.get("last_quarter_avg") or pts.get("last_month_avg")
+        c8.metric("Median / Recent Avg", v49_money(median_or_summary) if median_or_summary else "N/A")
+        if grades.get("rows"):
+            st.markdown("#### Recent Analyst Actions")
+            st.dataframe(pd.DataFrame(grades["rows"]), use_container_width=True, hide_index=True)
+        else:
+            st.info("No recent firm-level analyst actions returned from FMP Stable grades endpoints.")
+        if estimates.get("rows"):
+            st.markdown("#### Analyst Financial Estimates")
+            st.dataframe(pd.DataFrame(estimates["rows"]), use_container_width=True, hide_index=True)
+        if not is_viewer():
+            with st.expander("Admin FMP analyst diagnostics", expanded=False):
+                st.write({
+                    "grades_consensus": consensus.get("diagnostics"),
+                    "price_target_consensus": ptc.get("diagnostics"),
+                    "price_target_summary": pts.get("diagnostics"),
+                    "grades": grades.get("diagnostics"),
+                    "analyst_estimates": estimates.get("diagnostics"),
+                })
+                st.json({
+                    "raw_grades_consensus": consensus.get("raw", [])[:2],
+                    "raw_price_target_consensus": ptc.get("raw", [])[:2],
+                    "raw_price_target_summary": pts.get("raw", [])[:2],
+                    "raw_grades": grades.get("raw", [])[:3],
+                    "raw_analyst_estimates": estimates.get("raw", [])[:2],
+                })
+
+
+def v5082_earnings_today():
+    today = dt.date.today()
+    # Primary: today only. Fallback: next 7 days so the card does not look broken on quiet earnings days.
+    rows, status, diag = v5084_stable_rows("earnings-calendar", {"from": today.isoformat(), "to": today.isoformat(), "limit": 250}, "earnings-calendar today")
+    mode = "today"
+    if not rows:
+        end = today + dt.timedelta(days=7)
+        rows, status2, diag2 = v5084_stable_rows("earnings-calendar", {"from": today.isoformat(), "to": end.isoformat(), "limit": 250}, "earnings-calendar next 7 days fallback")
+        status = status2
+        diag += diag2
+        mode = "next_7_days_fallback"
+    out = []
+    for r in rows[:250]:
+        sym = v5084_first_text(r, ["symbol", "ticker"], "")
+        if not sym:
+            continue
+        rev_est = v5084_first_num(r, ["revenueEstimated", "revenueEstimate", "estimatedRevenue"])
+        rev_act = v5084_first_num(r, ["revenue", "revenueActual", "actualRevenue"])
+        out.append({
+            "Ticker": sym,
+            "Date": v5081_fmt_date(v5084_first_text(r, ["date", "fiscalDateEnding"], today.isoformat())),
+            "Time": v5084_first_text(r, ["time", "hour", "when", "timeOfDay"], ""),
+            "EPS Estimate": v5084_first_num(r, ["epsEstimated", "epsEstimate", "estimatedEps"]),
+            "EPS Actual": v5084_first_num(r, ["eps", "epsActual", "actualEps"]),
+            "Revenue Estimate": v49_money(rev_est) if "v49_money" in globals() and rev_est is not None else "N/A",
+            "Revenue Actual": v49_money(rev_act) if "v49_money" in globals() and rev_act is not None else "N/A",
+        })
+    diag.append(f"earnings parser mode={mode}; displayed_rows={len(out)}")
+    return {"rows": out, "status": status, "diagnostics": diag, "mode": mode}
+
+
+def v5083_economic_calendar(days=10):
+    today = dt.date.today()
+    end = today + dt.timedelta(days=days)
+    rows, status, diag = v5084_stable_rows("economic-calendar", {"from": today.isoformat(), "to": end.isoformat(), "limit": 250}, "economic-calendar")
+    important_terms = ["CPI", "CONSUMER PRICE", "PPI", "PRODUCER PRICE", "FOMC", "FED", "FEDERAL RESERVE", "GDP", "NONFARM", "PAYROLL", "UNEMPLOYMENT", "JOBS", "PCE", "ISM", "RETAIL SALES", "JOBLESS"]
+    out, seen = [], set()
+    for r in rows:
+        event = v5084_first_text(r, ["event", "name", "title"], "")
+        country = v5084_first_text(r, ["country"], "")
+        date = v5081_fmt_date(v5084_first_text(r, ["date"], ""))
+        text = f"{event} {country}".upper()
+        if "UNITED STATES" not in text and " US" not in f" {text}" and country.upper() not in {"US", "USA", "UNITED STATES"}:
+            continue
+        if not any(t in text for t in important_terms):
+            continue
+        key = (date, event.lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        impact = "Very High" if any(t in text for t in ["CPI", "FOMC", "FED", "NONFARM", "PAYROLL", "GDP"]) else "High"
+        out.append({
+            "Date": date,
+            "Country": country or "US",
+            "Event": event,
+            "Actual": v5084_first_text(r, ["actual"], ""),
+            "Estimate": v5084_first_text(r, ["estimate", "consensus"], ""),
+            "Previous": v5084_first_text(r, ["previous"], ""),
+            "Impact": impact,
+        })
+        if len(out) >= 20:
+            break
+    diag.append(f"economic parser input_rows={len(rows)}; high_impact_us_rows={len(out)}")
+    return {"rows": out, "status": status, "diagnostics": diag}
+
+
+def render_v5083_macro_earnings_card():
+    earnings = v5082_earnings_today()
+    econ = v5083_economic_calendar(days=10)
+    with st.container(border=True):
+        st.markdown("### 🗓️ Earnings & Market Calendar")
+        st.caption("Premium trust card: near-term earnings catalysts and US high-impact macro events only.")
+        st.markdown("#### Earnings")
+        if earnings.get("rows"):
+            if earnings.get("mode") == "next_7_days_fallback":
+                st.caption("No rows returned for today; showing next 7 days instead.")
+            st.dataframe(pd.DataFrame(earnings["rows"]), use_container_width=True, hide_index=True)
+        else:
+            st.info("No earnings rows returned from FMP Stable earnings-calendar.")
+        st.markdown("#### This Week's Key Market Events")
+        if econ.get("rows"):
+            st.dataframe(pd.DataFrame(econ["rows"]), use_container_width=True, hide_index=True)
+            st.markdown("**AI Market Impact Note:** CPI, PPI, Fed, GDP, and jobs data can increase volatility. Reduce confidence in short-term entries before very high-impact events.")
+        else:
+            st.info("No US high-impact macro events found in the FMP Stable economic calendar window.")
+        if not is_viewer():
+            with st.expander("Admin calendar diagnostics", expanded=False):
+                st.write({"earnings": earnings.get("diagnostics"), "economic": econ.get("diagnostics")})
 
 if __name__ == "__main__":
     main()

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-V50.8.3.3.2.1a AI Committee Scanner - Exclusions + Insider Intelligence
+V50.8.4 AI Committee Scanner - Analyst + Calendar Hotfix Sync
 - Render Cron compatible
 - DATA_DIR defaults to "."
 - Preserves dashboard output files:
@@ -52,10 +52,10 @@ STATE_FILE = DATA_DIR / "market_scan_state.json"
 UNIVERSE_FILE = DATA_DIR / "total_market_universe.json"
 
 # =========================
-# V50.8.3.3.2.1a SCANNER STATE VERSION LOCK
+# V50.8.4 SCANNER STATE VERSION LOCK
 # =========================
-SCANNER_VERSION = "V50.8.3"
-SCANNER_VERSION_LABEL = "V50.8.3 Customer Trust UI"
+SCANNER_VERSION = "V50.8.4"
+SCANNER_VERSION_LABEL = "V50.8.4 Analyst + Calendar Hotfix"
 
 def scanner_version_value() -> str:
     return SCANNER_VERSION
@@ -70,6 +70,7 @@ def apply_scanner_version(state):
         state["scanner_version"] = SCANNER_VERSION
         state["scanner_version_label"] = SCANNER_VERSION_LABEL
         state["v50_smart_money_analyst_revision_upgrade"] = True
+        state["v5084_app_hotfix_sync"] = True
     return state
 WATCHLIST_FILE = DATA_DIR / "watchlist.json"
 RECOVERY_SCAN_FILE = DATA_DIR / "recovery_scan.json"
