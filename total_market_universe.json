@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-06-25T18:06:07.356504+00:00",
-  "count": 2996,
+  "generated_at": "2026-06-25T21:01:48.476508+00:00",
+  "count": 2999,
   "symbols": [
     "A",
     "AA",
@@ -793,6 +793,7 @@
     "DH",
     "DHC",
     "DHI",
+    "DHLGY",
     "DHR",
     "DHT",
     "DHX",
@@ -1892,6 +1893,7 @@
     "NTR",
     "NTRA",
     "NTSK",
+    "NTST",
     "NTZ",
     "NU",
     "NUE",
@@ -2101,6 +2103,7 @@
     "PLD",
     "PLMR",
     "PLNT",
+    "PLOW",
     "PLPC",
     "PLTK",
     "PLTR",
