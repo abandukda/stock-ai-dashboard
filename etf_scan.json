@@ -53,7 +53,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-25T21:14:37.257376+00:00",
+    "scan_time": "2026-06-26T00:27:21.239435+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 301.47,
@@ -83,19 +83,20 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 69,
-        "status": "Mixed",
-        "impact": "Neutral",
+        "score": 76,
+        "status": "Positive",
+        "impact": "Positive",
         "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
+          "U.S. PCE Inflation Remains Sticky In May As Consumer Spending Accelerates; EUR/USD Reacts",
           "Initial Unemployment Claims Down 12K, Lower Than Expected",
           "AAII Sentiment Survey: Optimism Leaps"
         ],
         "risks": [
           "No negative high-confidence headline detected."
         ],
-        "bottom_line": "News is mixed or insufficient."
+        "bottom_line": "News flow supports the thesis."
       },
       "Finance Agent": {
         "score": 50,
@@ -229,9 +230,10 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 69,
-    "v42_news_summary": "News is mixed or insufficient.",
+    "v42_news_score": 76,
+    "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
+      "U.S. PCE Inflation Remains Sticky In May As Consumer Spending Accelerates; EUR/USD Reacts",
       "Initial Unemployment Claims Down 12K, Lower Than Expected",
       "AAII Sentiment Survey: Optimism Leaps"
     ],
@@ -305,7 +307,7 @@
       "RSI is constructive"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-25T21:23:21.422274+00:00",
+    "scan_time": "2026-06-26T00:35:06.047640+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 671.83,
@@ -528,7 +530,7 @@
       "RSI is constructive"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-25T21:23:34.730494+00:00",
+    "scan_time": "2026-06-26T00:35:18.835974+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 655.95,
@@ -751,7 +753,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-25T21:16:15.367451+00:00",
+    "scan_time": "2026-06-26T00:28:51.389850+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 110.24,
@@ -1003,7 +1005,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-25T21:09:07.595183+00:00",
+    "scan_time": "2026-06-26T00:22:32.927978+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 526.57,
@@ -1033,19 +1035,20 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 69,
-        "status": "Mixed",
-        "impact": "Neutral",
+        "score": 76,
+        "status": "Positive",
+        "impact": "Positive",
         "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
+          "U.S. PCE Inflation Remains Sticky In May As Consumer Spending Accelerates; EUR/USD Reacts",
           "Initial Unemployment Claims Down 12K, Lower Than Expected",
           "AAII Sentiment Survey: Optimism Leaps"
         ],
         "risks": [
           "No negative high-confidence headline detected."
         ],
-        "bottom_line": "News is mixed or insufficient."
+        "bottom_line": "News flow supports the thesis."
       },
       "Finance Agent": {
         "score": 50,
@@ -1181,9 +1184,10 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 69,
-    "v42_news_summary": "News is mixed or insufficient.",
+    "v42_news_score": 76,
+    "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
+      "U.S. PCE Inflation Remains Sticky In May As Consumer Spending Accelerates; EUR/USD Reacts",
       "Initial Unemployment Claims Down 12K, Lower Than Expected",
       "AAII Sentiment Survey: Optimism Leaps"
     ],
@@ -1257,7 +1261,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-25T21:13:45.952178+00:00",
+    "scan_time": "2026-06-26T00:26:32.994197+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 80.17,
@@ -1518,7 +1522,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-25T21:25:04.087911+00:00",
+    "scan_time": "2026-06-26T00:36:35.961080+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.51,
@@ -1743,7 +1747,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-25T21:28:03.194599+00:00",
+    "scan_time": "2026-06-26T00:39:10.664811+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 159.23,
@@ -1968,7 +1972,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-25T21:28:00.468603+00:00",
+    "scan_time": "2026-06-26T00:39:08.372306+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 186.09,
@@ -2192,7 +2196,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-25T21:28:01.712428+00:00",
+    "scan_time": "2026-06-26T00:39:09.359492+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.02,
@@ -2415,7 +2419,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-25T21:28:02.687194+00:00",
+    "scan_time": "2026-06-26T00:39:10.238814+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 47.41,
@@ -2640,7 +2644,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-25T21:27:58.742017+00:00",
+    "scan_time": "2026-06-26T00:39:06.850295+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 53.7,
@@ -2864,7 +2868,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-25T21:14:45.622813+00:00",
+    "scan_time": "2026-06-26T00:27:29.403727+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 58.27,
@@ -3117,7 +3121,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-25T21:28:02.177103+00:00",
+    "scan_time": "2026-06-26T00:39:09.811566+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 45.25,
@@ -3342,7 +3346,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-25T21:21:29.401675+00:00",
+    "scan_time": "2026-06-26T00:33:26.652778+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 18.41,
@@ -3567,7 +3571,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-25T21:22:24.010680+00:00",
+    "scan_time": "2026-06-26T00:34:14.837682+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 15.91,
@@ -3792,7 +3796,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-25T21:14:46.910369+00:00",
+    "scan_time": "2026-06-26T00:27:30.421672+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 61.72,
@@ -4054,7 +4058,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-25T21:28:14.713050+00:00",
+    "scan_time": "2026-06-26T00:39:20.338980+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 40.72,
@@ -4278,7 +4282,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-25T21:23:41.432582+00:00",
+    "scan_time": "2026-06-26T00:35:24.806337+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 758.45,
@@ -4502,7 +4506,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-25T21:21:23.257859+00:00",
+    "scan_time": "2026-06-26T00:33:20.807422+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 747.83,
@@ -4532,19 +4536,20 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 69,
-        "status": "Mixed",
-        "impact": "Neutral",
+        "score": 76,
+        "status": "Positive",
+        "impact": "Positive",
         "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
+          "U.S. PCE Inflation Remains Sticky In May As Consumer Spending Accelerates; EUR/USD Reacts",
           "Initial Unemployment Claims Down 12K, Lower Than Expected",
           "AAII Sentiment Survey: Optimism Leaps"
         ],
         "risks": [
           "No negative high-confidence headline detected."
         ],
-        "bottom_line": "News is mixed or insufficient."
+        "bottom_line": "News flow supports the thesis."
       },
       "Finance Agent": {
         "score": 50,
@@ -4680,9 +4685,10 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 69,
-    "v42_news_summary": "News is mixed or insufficient.",
+    "v42_news_score": 76,
+    "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
+      "U.S. PCE Inflation Remains Sticky In May As Consumer Spending Accelerates; EUR/USD Reacts",
       "Initial Unemployment Claims Down 12K, Lower Than Expected",
       "AAII Sentiment Survey: Optimism Leaps"
     ],
@@ -4757,7 +4763,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-25T21:26:53.916922+00:00",
+    "scan_time": "2026-06-26T00:38:10.748290+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 699.15,
@@ -4981,7 +4987,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-25T21:27:06.976023+00:00",
+    "scan_time": "2026-06-26T00:38:21.720780+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 374.7,
@@ -5205,7 +5211,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-25T21:22:44.524474+00:00",
+    "scan_time": "2026-06-26T00:34:32.027021+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 32.66,
@@ -5429,7 +5435,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-25T21:21:24.890587+00:00",
+    "scan_time": "2026-06-26T00:33:22.405554+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 24.53,
@@ -5679,7 +5685,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-25T21:28:00.913357+00:00",
+    "scan_time": "2026-06-26T00:39:08.885598+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 198.49,
@@ -5903,7 +5909,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-25T21:03:47.439605+00:00",
+    "scan_time": "2026-06-26T00:17:53.900429+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 92.65,
@@ -6155,7 +6161,7 @@
       "price is below 50-day trend",
       "20-day ETF trend is weak"
     ],
-    "scan_time": "2026-06-25T21:28:03.727566+00:00",
+    "scan_time": "2026-06-26T00:39:11.125416+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 124.51,
@@ -6380,7 +6386,7 @@
       "20-day ETF trend is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-25T21:24:26.815086+00:00",
+    "scan_time": "2026-06-26T00:36:03.495629+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 75.6,
@@ -6606,7 +6612,7 @@
       "20-day ETF trend is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-25T21:05:54.025542+00:00",
+    "scan_time": "2026-06-26T00:19:40.007003+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 41.71,
@@ -6862,7 +6868,7 @@
       "60-day ETF trend is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-25T21:27:59.469342+00:00",
+    "scan_time": "2026-06-26T00:39:07.306910+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 63.01,
@@ -7086,7 +7092,7 @@
       "20-day ETF trend is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-25T21:26:18.250981+00:00",
+    "scan_time": "2026-06-26T00:37:39.116942+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 62.28,
