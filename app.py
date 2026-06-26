@@ -19835,7 +19835,7 @@ def v511_earnings_rows(days=14):
 
 
 # =========================
-# V54 CLIENT DEMO POLISH
+# V55 CLIENT DEMO POLISH
 # =========================
 # Fixes customer-facing clipping and improves ranked table trust:
 # - Final recommendation no longer clips "Buy Now" on wide/desktop view.
@@ -19843,7 +19843,7 @@ def v511_earnings_rows(days=14):
 # - Adds Classification and Why Ranked so equal scores still make sense.
 # - Removes confusing Execution Checks and repeated raw score language from client table.
 
-APP_VERSION = "V54 Client Demo Polish"
+APP_VERSION = "V55 Client Demo Polish"
 
 
 def v54_num(x, default=0.0):
@@ -19878,6 +19878,23 @@ def v54_pct(x):
     if n is None:
         return "N/A"
     return f"{n:.1f}%"
+
+
+def v55_is_admin():
+    return (st.session_state.get("role") == "admin") or (st.session_state.get("user_role") == "admin")
+
+
+def v55_sources_reviewed_card():
+    """Client-safe source summary. Avoids exposing provider names/endpoints in viewer mode."""
+    st.markdown("### Sources Reviewed")
+    st.markdown(
+        "✓ Financial statements  \n"
+        "✓ Analyst estimates and ratings  \n"
+        "✓ Institutional and insider activity  \n"
+        "✓ News and catalyst signals  \n"
+        "✓ Technical indicators and risk/reward"
+    )
+    st.caption("Data Confidence: High when multiple independent signals support the thesis. Provider diagnostics remain admin-only.")
 
 
 def v54_clean_verdict(verdict):
@@ -19934,16 +19951,16 @@ def v54_classification(row, opportunity=None, quality=None):
 
     if verdict in {"AVOID", "WATCH"}:
         return "👀 Watchlist"
-    if quality >= 82 and opportunity >= 88:
-        return "🏆 Top Choice Quality"
-    if quality >= 72 and opportunity >= 82:
+    if quality >= 85 and opportunity >= 88:
+        return "🏆 Top Choice"
+    if quality >= 75 and opportunity >= 82:
         return "✅ Quality Growth"
     if upside >= 100 and quality < 70:
-        return "🚀 Speculative Upside"
+        return "🚀 Speculative Growth"
     if "bullish" in analyst and opportunity >= 80:
         return "📈 Analyst Favorite"
     if opportunity >= 80:
-        return "⚡ Actionable Opportunity"
+        return "⚡ Opportunity"
     return "👀 Research Candidate"
 
 
@@ -19988,33 +20005,32 @@ def v54_news_view(raw):
 
 
 def v54_why_ranked(row, opportunity=None, quality=None):
+    """Plain-English reason designed for customer-facing ranked tables.
+    Avoids repeated generic phrasing and explains the tradeoff behind the rank.
+    """
     opportunity = v54_opportunity_from_row(row) if opportunity is None else opportunity
     quality = v54_quality_from_row(row) if quality is None else quality
     upside = v54_num(row.get("Target Upside %"), 0) if hasattr(row, 'get') else 0
-    analyst = v54_analyst_view(row.get("Analyst Support", "") if hasattr(row, 'get') else "")
-    news = v54_news_view(row.get("News Sentiment", "") if hasattr(row, 'get') else "")
+    analyst_raw = row.get("Analyst Support", "") if hasattr(row, 'get') else ""
+    analyst_view = v54_analyst_view(analyst_raw)
 
-    reasons = []
+    if quality >= 82 and opportunity >= 88 and upside >= 40:
+        return "Strong quality with attractive upside"
+    if quality >= 75 and opportunity >= 85:
+        return "Quality growth setup with favorable entry"
+    if quality < 65 and upside >= 100:
+        return "Large upside, but weaker financial quality"
+    if quality < 65 and opportunity >= 90:
+        return "High-opportunity setup with elevated quality risk"
+    if "Strong" in analyst_view and upside >= 50:
+        return "Analyst-backed upside setup"
+    if upside >= 75:
+        return "Attractive upside with actionable setup"
     if opportunity >= 90:
-        reasons.append("high opportunity")
-    elif opportunity >= 80:
-        reasons.append("actionable setup")
+        return "High-opportunity setup with favorable risk/reward"
     if quality >= 80:
-        reasons.append("strong quality")
-    elif quality < 60:
-        reasons.append("weaker quality")
-    if upside >= 100:
-        reasons.append("large upside")
-    elif upside >= 50:
-        reasons.append("solid upside")
-    if "Strong" in analyst:
-        reasons.append("analyst support")
-    if "Positive" in news:
-        reasons.append("positive news")
-
-    if not reasons:
-        reasons = ["balanced setup"]
-    return ", ".join(reasons[:4]).capitalize()
+        return "Quality profile supports the ranking"
+    return "Actionable setup; review full report first"
 
 
 def v493_table_rows_fast(df, limit=60):
@@ -20045,7 +20061,6 @@ def v493_table_rows_fast(df, limit=60):
                 "Stop": v54_money(stop) if stop else "N/A",
                 "Target": v54_money(target),
                 "Analyst View": v54_analyst_view(row.get("Analyst Support", "")),
-                "News": v54_news_view(row.get("News Sentiment", "")),
                 "Why Ranked": v54_why_ranked(row, opportunity, quality),
             })
         except Exception:
@@ -20059,12 +20074,17 @@ def render_v49_ready_section(df):
 
     with st.container(border=True):
         st.markdown("### 🔥 Ready to Execute")
-        st.caption("Fast scan-only view. The table separates opportunity from business quality so customers understand why a stock is ranked.")
+        st.caption("Fast scan-only view. News is kept inside each detailed report; this table focuses on opportunity, quality, analyst view, entry discipline, and why the idea ranked.")
         if ready:
             out = pd.DataFrame(ready)
             if {"Opportunity", "Quality"}.issubset(out.columns):
                 out = out.sort_values(["Opportunity", "Quality"], ascending=False)
-            st.dataframe(out.head(25), use_container_width=True, hide_index=True)
+            preferred_cols = [
+                "Ticker", "Company", "Verdict", "Classification", "Opportunity", "Quality",
+                "Upside", "Price", "Entry", "Stop", "Target", "Analyst View", "Why Ranked"
+            ]
+            cols = [c for c in preferred_cols if c in out.columns] + [c for c in out.columns if c not in preferred_cols]
+            st.dataframe(out[cols].head(25), use_container_width=True, hide_index=True)
         else:
             st.info("No stock currently meets BUY NOW / BUY GRADUALLY thresholds from the persisted scan data.")
 
@@ -20122,6 +20142,8 @@ The **Quality Score** is **{quality}/100**, which measures the strength and dura
 The **Confidence Score** is **{confidence}/100**, which reflects how much supporting evidence the dashboard has behind the recommendation.
 """
         )
+
+        v55_sources_reviewed_card()
 
         if status.get("blocks"):
             st.markdown("### Why This Is Not A Top Choice")
