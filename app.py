@@ -19669,6 +19669,148 @@ def render_v511_top_command_center(full_df=None):
             st.write({"economic_diagnostics": econ_diag, "earnings_diagnostics": earn_diag})
 
 
+
+
+# =========================
+# V52.1 EARNINGS WATCH CLEANUP
+# =========================
+# Purpose: keep the top Earnings Watch customer-friendly by removing OTC,
+# foreign ordinary, preferred, warrant, rights, and obscure rows that make
+# the dashboard look noisy or broken. If no recognizable U.S.-listed rows
+# remain, show a clean fallback risk-check instead of bad data.
+
+APP_VERSION = "V52.1 Clean Earnings Watch"
+
+
+def v521_clean_earnings_symbol(sym):
+    sym = str(sym or "").upper().strip()
+    if not sym:
+        return ""
+    return sym
+
+
+def v521_is_customer_friendly_us_ticker(sym, company=""):
+    import re
+    sym = v521_clean_earnings_symbol(sym)
+    company = str(company or "").strip()
+    upper_company = company.upper()
+
+    if not sym:
+        return False
+
+    # Remove exchange-suffixed international listings and non-common-share formats.
+    if "." in sym or "/" in sym or " " in sym:
+        return False
+    if "-" in sym:
+        return False
+
+    # Only plain alphabetic U.S.-style symbols in the default paid-customer view.
+    if not re.match(r"^[A-Z]{1,5}$", sym):
+        return False
+
+    # Remove most OTC / foreign ordinary / ADR-like obscure endings when 5 letters.
+    # Examples caught: DIGBF, TGVSF, MTYFF, RYKKY, EMSHF, JNDOF, MHGUP.
+    if len(sym) == 5 and sym[-1] in {"F", "Y", "P", "Q", "W", "R", "U"}:
+        return False
+
+    # Remove empty company rows. Blank company fields look broken to customers.
+    if not company or company in {"-", "N/A", "NONE", "NULL"}:
+        return False
+
+    # Remove security types that are not useful for a retail earnings watch.
+    blocked_company_terms = [
+        "PREFERRED", "PREF", "WARRANT", "RIGHT", "UNIT", "UNITS",
+        "DEPOSITARY", "NOTE", "BOND", "ETF", "FUND", "TRUST SERIES"
+    ]
+    if any(term in upper_company for term in blocked_company_terms):
+        return False
+
+    return True
+
+
+def v521_clean_earnings_rows(raw_rows, max_rows=15):
+    out = []
+    seen = set()
+    for r in raw_rows or []:
+        if not isinstance(r, dict):
+            continue
+        sym = v521_clean_earnings_symbol(r.get("symbol") or r.get("ticker") or r.get("Ticker"))
+        company = v51_text(r.get("company") or r.get("companyName") or r.get("name") or r.get("Company"), "") if "v51_text" in globals() else str(r.get("company") or r.get("companyName") or r.get("name") or r.get("Company") or "")
+        if not v521_is_customer_friendly_us_ticker(sym, company):
+            continue
+        if sym in seen:
+            continue
+        seen.add(sym)
+        out.append({
+            "Date": v51_text(r.get("date") or r.get("Date"), "")[:10] if "v51_text" in globals() else str(r.get("date") or r.get("Date") or "")[:10],
+            "Ticker": sym,
+            "Company": company,
+            "Time": v51_text(r.get("time") or r.get("hour") or r.get("when") or r.get("Time"), "") if "v51_text" in globals() else str(r.get("time") or r.get("hour") or r.get("when") or r.get("Time") or ""),
+            "EPS Est": v51_num(r.get("epsEstimated") or r.get("epsEstimate") or r.get("estimatedEps") or r.get("EPS Est")) if "v51_num" in globals() else r.get("epsEstimated") or r.get("epsEstimate") or r.get("estimatedEps") or r.get("EPS Est") or "",
+            "Revenue Est": v51_money(r.get("revenueEstimated") or r.get("revenueEstimate")) if ("v51_money" in globals() and (r.get("revenueEstimated") or r.get("revenueEstimate"))) else (r.get("Revenue Est") or "N/A"),
+        })
+        if len(out) >= max_rows:
+            break
+    return out
+
+
+def v521_fallback_earnings_rows(days=14):
+    today = dt.date.today()
+    return [
+        {
+            "Date": str(today),
+            "Focus": "No major recognizable U.S. earnings confirmed today",
+            "Why It Matters": "The connected source did not return clean, customer-relevant U.S. company rows. This is better than showing obscure OTC or foreign securities."
+        },
+        {
+            "Date": str(today + dt.timedelta(days=3)),
+            "Focus": "Upcoming U.S. earnings window",
+            "Why It Matters": "Before entering a position, check whether the company reports soon because earnings can override technical signals and analyst targets."
+        },
+        {
+            "Date": str(today + dt.timedelta(days=7)),
+            "Focus": "7-day earnings risk check",
+            "Why It Matters": "If earnings are close, consider smaller sizing or waiting for results unless the thesis is long term."
+        },
+    ]
+
+
+def v51_earnings_calendar(days=14):
+    today = dt.date.today()
+    end = today + dt.timedelta(days=days)
+    rows, status, diag = ([], "unavailable", [])
+    try:
+        if "v5082_stable_rows" in globals():
+            rows, status, diag = v5082_stable_rows(
+                "earnings-calendar",
+                {"from": today.isoformat(), "to": end.isoformat(), "limit": 750},
+            )
+    except Exception as e:
+        diag = [f"earnings calendar error: {e}"]
+
+    cleaned = v521_clean_earnings_rows(rows, max_rows=15)
+    fallback = False
+    if not cleaned:
+        fallback = True
+        cleaned = v521_fallback_earnings_rows(days=days)
+
+    try:
+        diag = list(diag or [])
+        diag.append(f"V52.1 earnings cleanup: raw_rows={len(rows or [])}; displayed_rows={len(cleaned)}; fallback={fallback}")
+    except Exception:
+        pass
+
+    return {"rows": cleaned, "status": status, "diagnostics": diag, "fallback": fallback}
+
+
+def v511_earnings_rows(days=14):
+    try:
+        data = v51_earnings_calendar(days=days)
+        return data.get("rows") or [], data.get("diagnostics") or [], bool(data.get("fallback"))
+    except Exception as e:
+        return v521_fallback_earnings_rows(days=days), [f"V52.1 earnings wrapper error: {e}"], True
+
+
 # Final active main override for V51.1. This prevents older main() definitions from
 # calling render_v423_command_center()/render_v424_market_command_center() at the top.
 def main():
