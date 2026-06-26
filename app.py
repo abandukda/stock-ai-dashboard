@@ -19832,6 +19832,320 @@ def v511_earnings_rows(days=14):
         return v521_fallback_earnings_rows(days=days), [f"V52.1 earnings wrapper error: {e}"], True
 
 
+
+
+# =========================
+# V54 CLIENT DEMO POLISH
+# =========================
+# Fixes customer-facing clipping and improves ranked table trust:
+# - Final recommendation no longer clips "Buy Now" on wide/desktop view.
+# - Ranked Ideas now separates Opportunity from Quality.
+# - Adds Classification and Why Ranked so equal scores still make sense.
+# - Removes confusing Execution Checks and repeated raw score language from client table.
+
+APP_VERSION = "V54 Client Demo Polish"
+
+
+def v54_num(x, default=0.0):
+    try:
+        if x is None:
+            return default
+        if isinstance(x, str):
+            x = x.replace('$', '').replace(',', '').replace('%', '').strip()
+            if x in {'', 'N/A', 'None', 'nan'}:
+                return default
+        return float(x)
+    except Exception:
+        return default
+
+
+def v54_int(x, default=0):
+    try:
+        return int(round(v54_num(x, default)))
+    except Exception:
+        return default
+
+
+def v54_money(x):
+    n = v54_num(x, None)
+    if n is None or n == 0:
+        return "N/A"
+    return f"${n:,.2f}"
+
+
+def v54_pct(x):
+    n = v54_num(x, None)
+    if n is None:
+        return "N/A"
+    return f"{n:.1f}%"
+
+
+def v54_clean_verdict(verdict):
+    v = str(verdict or "Review").replace("✅", "").replace("🟢", "").strip()
+    u = v.upper()
+    if "BUY" in u:
+        return "BUY NOW" if "NOW" in u else "BUY"
+    if "HOLD" in u:
+        return "HOLD"
+    if "AVOID" in u or "SELL" in u:
+        return "AVOID"
+    if "WATCH" in u:
+        return "WATCH"
+    return v[:24] or "Review"
+
+
+def v54_quality_from_row(row):
+    # Prefer V51 quality logic when available; otherwise use financial health fallback.
+    try:
+        rep = v51_report(row)
+        status = v51_top_choice_status(rep)
+        q = v54_num(status.get("quality"), None)
+        if q is not None:
+            return max(0, min(100, q))
+    except Exception:
+        pass
+    for key in ["Quality Score", "Financial Health Score", "Financial Health", "fundamental_score", "Fundamental Score"]:
+        try:
+            if key in row and row.get(key) is not None:
+                q = v54_num(row.get(key), None)
+                if q is not None:
+                    return max(0, min(100, q))
+        except Exception:
+            pass
+    return 50
+
+
+def v54_opportunity_from_row(row):
+    for key in ["Opportunity Score", "Final Conviction", "Investment Score", "Score"]:
+        try:
+            if key in row and row.get(key) is not None:
+                return max(0, min(100, v54_num(row.get(key), 0)))
+        except Exception:
+            pass
+    return 0
+
+
+def v54_classification(row, opportunity=None, quality=None):
+    opportunity = v54_opportunity_from_row(row) if opportunity is None else opportunity
+    quality = v54_quality_from_row(row) if quality is None else quality
+    upside = v54_num(row.get("Target Upside %"), 0) if hasattr(row, 'get') else 0
+    analyst = str(row.get("Analyst Support", "") if hasattr(row, 'get') else "").lower()
+    verdict = v54_clean_verdict(row.get("Verdict", row.get("Agent Verdict", "")) if hasattr(row, 'get') else "")
+
+    if verdict in {"AVOID", "WATCH"}:
+        return "👀 Watchlist"
+    if quality >= 82 and opportunity >= 88:
+        return "🏆 Top Choice Quality"
+    if quality >= 72 and opportunity >= 82:
+        return "✅ Quality Growth"
+    if upside >= 100 and quality < 70:
+        return "🚀 Speculative Upside"
+    if "bullish" in analyst and opportunity >= 80:
+        return "📈 Analyst Favorite"
+    if opportunity >= 80:
+        return "⚡ Actionable Opportunity"
+    return "👀 Research Candidate"
+
+
+def v54_analyst_view(raw):
+    txt = str(raw or "").strip()
+    score = None
+    import re
+    m = re.search(r"(\d{1,3})\s*/\s*100", txt)
+    if m:
+        score = int(m.group(1))
+    elif "(" in txt and "/100" in txt:
+        try:
+            score = int(txt.split("(")[-1].split("/")[0])
+        except Exception:
+            score = None
+
+    low = txt.lower()
+    if score is not None:
+        if score >= 80:
+            return "🔥 Strong"
+        if score >= 65:
+            return "✅ Positive"
+        if score >= 50:
+            return "⚪ Mixed"
+        return "🔴 Weak"
+    if "bullish" in low:
+        return "🔥 Strong"
+    if "constructive" in low or "positive" in low:
+        return "✅ Positive"
+    if "weak" in low or "bear" in low:
+        return "🔴 Weak"
+    return "⚪ Mixed"
+
+
+def v54_news_view(raw):
+    low = str(raw or "").lower()
+    if any(x in low for x in ["bullish", "positive", "strong"]):
+        return "🟢 Positive"
+    if any(x in low for x in ["bearish", "negative", "weak"]):
+        return "🔴 Negative"
+    return "⚪ Neutral"
+
+
+def v54_why_ranked(row, opportunity=None, quality=None):
+    opportunity = v54_opportunity_from_row(row) if opportunity is None else opportunity
+    quality = v54_quality_from_row(row) if quality is None else quality
+    upside = v54_num(row.get("Target Upside %"), 0) if hasattr(row, 'get') else 0
+    analyst = v54_analyst_view(row.get("Analyst Support", "") if hasattr(row, 'get') else "")
+    news = v54_news_view(row.get("News Sentiment", "") if hasattr(row, 'get') else "")
+
+    reasons = []
+    if opportunity >= 90:
+        reasons.append("high opportunity")
+    elif opportunity >= 80:
+        reasons.append("actionable setup")
+    if quality >= 80:
+        reasons.append("strong quality")
+    elif quality < 60:
+        reasons.append("weaker quality")
+    if upside >= 100:
+        reasons.append("large upside")
+    elif upside >= 50:
+        reasons.append("solid upside")
+    if "Strong" in analyst:
+        reasons.append("analyst support")
+    if "Positive" in news:
+        reasons.append("positive news")
+
+    if not reasons:
+        reasons = ["balanced setup"]
+    return ", ".join(reasons[:4]).capitalize()
+
+
+def v493_table_rows_fast(df, limit=60):
+    rows = []
+    if df is None or df.empty:
+        return rows
+
+    for _, row in df.head(limit).iterrows():
+        try:
+            price = v54_num(row.get("Price"), 0)
+            target = v54_num(row.get("AI Fair Value") or row.get("Analyst Target"), 0)
+            upside = v54_num(row.get("Target Upside %"), 0)
+            stop = v54_num(row.get("Stop Loss"), 0)
+            verdict, checks, passed = v50_ready_verdict(row)
+            opportunity = v54_opportunity_from_row(row)
+            quality = v54_quality_from_row(row)
+
+            rows.append({
+                "Ticker": str(row.get("Ticker", "")).strip(),
+                "Company": str(row.get("Company", "")).strip(),
+                "Verdict": v54_clean_verdict(verdict),
+                "Classification": v54_classification(row, opportunity, quality),
+                "Opportunity": v54_int(opportunity),
+                "Quality": v54_int(quality),
+                "Upside": v54_pct(upside),
+                "Price": v54_money(price),
+                "Entry": str(row.get("Entry Range", "N/A")),
+                "Stop": v54_money(stop) if stop else "N/A",
+                "Target": v54_money(target),
+                "Analyst View": v54_analyst_view(row.get("Analyst Support", "")),
+                "News": v54_news_view(row.get("News Sentiment", "")),
+                "Why Ranked": v54_why_ranked(row, opportunity, quality),
+            })
+        except Exception:
+            continue
+    return rows
+
+
+def render_v49_ready_section(df):
+    rows = v493_table_rows_fast(df, limit=80)
+    ready = [x for x in rows if x.get("Verdict") in ["BUY NOW", "BUY", "BUY GRADUALLY"]]
+
+    with st.container(border=True):
+        st.markdown("### 🔥 Ready to Execute")
+        st.caption("Fast scan-only view. The table separates opportunity from business quality so customers understand why a stock is ranked.")
+        if ready:
+            out = pd.DataFrame(ready)
+            if {"Opportunity", "Quality"}.issubset(out.columns):
+                out = out.sort_values(["Opportunity", "Quality"], ascending=False)
+            st.dataframe(out.head(25), use_container_width=True, hide_index=True)
+        else:
+            st.info("No stock currently meets BUY NOW / BUY GRADUALLY thresholds from the persisted scan data.")
+
+
+def render_v51_final_recommendation(row):
+    report = v51_report(row)
+    ticker = v51_text(report.get("ticker") or report.get("Ticker"), "")
+    ws = v51_wallstreet_pack(ticker) if ticker else {}
+    target = v51_target_pack(report, ws)
+    status = v51_top_choice_status(report, ws)
+    thesis = v51_investment_thesis(report, ws, target)
+
+    verdict_display = v54_clean_verdict(status.get("label", "Review"))
+    opportunity = v54_int(status.get("opportunity", 0))
+    quality = v54_int(status.get("quality", 0))
+    confidence = v54_int(status.get("confidence", 0))
+
+    with st.container(border=True):
+        st.markdown("## 🧠 Final Recommendation")
+
+        c1, c2, c3, c4 = st.columns([1.5, 1, 1, 1])
+        with c1:
+            st.markdown("**Recommendation**")
+            if "BUY" in verdict_display.upper():
+                st.markdown("## ✅ Buy Now")
+            elif "HOLD" in verdict_display.upper():
+                st.markdown("## ⚪ Hold")
+            elif "AVOID" in verdict_display.upper() or "SELL" in verdict_display.upper():
+                st.markdown("## 🔴 Avoid")
+            elif "WATCH" in verdict_display.upper():
+                st.markdown("## 👀 Watch")
+            else:
+                st.markdown(f"## {verdict_display}")
+        with c2:
+            st.markdown("**Opportunity**")
+            st.markdown(f"## {opportunity}/100")
+        with c3:
+            st.markdown("**Quality**")
+            st.markdown(f"## {quality}/100")
+        with c4:
+            st.markdown("**Confidence**")
+            st.markdown(f"## {confidence}/100")
+
+        st.markdown(f"**Classification:** {status['classification']}")
+
+        st.info(
+            f"""
+### Customer Summary
+This stock is currently rated **{verdict_display}**.
+
+The **Opportunity Score** is **{opportunity}/100**, which measures upside potential, setup strength, analyst support, and risk/reward.
+
+The **Quality Score** is **{quality}/100**, which measures the strength and durability of the underlying business. A stock can have high opportunity but still fail Top Choice status if financial quality is not strong enough.
+
+The **Confidence Score** is **{confidence}/100**, which reflects how much supporting evidence the dashboard has behind the recommendation.
+"""
+        )
+
+        if status.get("blocks"):
+            st.markdown("### Why This Is Not A Top Choice")
+            st.warning(
+                f"""
+Although this stock may show attractive upside, its **Quality Score ({quality}/100)** or supporting checks are below the dashboard's Top Choice threshold.
+
+This means the idea may still be investable, but it is not currently considered a flagship-quality opportunity. Customers should treat it as an opportunity that requires more attention to position sizing, execution risk, and financial durability.
+"""
+            )
+            for b in status["blocks"]:
+                st.markdown(f"⚠️ {b}")
+
+        st.markdown("## 🎯 Investment Thesis")
+        for line in thesis:
+            st.markdown(f"• {line}")
+
+        if target.get("available"):
+            st.markdown(
+                f"**Target Discipline:** Consensus target is {v51_money(target.get('consensus'))}; "
+                f"AI fair value range is {v51_money(target.get('fair_low'))}–{v51_money(target.get('fair_high'))}; "
+                f"bull case is {v51_money(target.get('bull'))}; bear case is {v51_money(target.get('bear'))}."
+            )
+
 # Final active main override for V51.1. This prevents older main() definitions from
 # calling render_v423_command_center()/render_v424_market_command_center() at the top.
 def main():
