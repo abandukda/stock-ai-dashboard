@@ -19244,33 +19244,51 @@ def v51_economic_calendar(days=14):
     rows, status, diag = ([], "unavailable", [])
     try:
         if "v5082_stable_rows" in globals():
-            rows, status, diag = v5082_stable_rows("economic-calendar", {"from": today.isoformat(), "to": end.isoformat(), "limit": 250})
+            rows, status, diag = v5082_stable_rows("economic-calendar", {"from": today.isoformat(), "to": end.isoformat(), "limit": 500})
     except Exception as e:
         diag = [f"economic calendar error: {e}"]
-    important = ["CPI", "PPI", "FOMC", "FED", "GDP", "PAYROLL", "NONFARM", "UNEMPLOYMENT", "PCE", "ISM", "RETAIL SALES", "JOBLESS", "CONSUMER CONFIDENCE"]
+
+    important = [
+        "CPI", "CORE CPI", "PPI", "FOMC", "FED", "FEDERAL RESERVE", "GDP",
+        "PAYROLL", "NONFARM", "NON-FARM", "NFP", "UNEMPLOYMENT", "PCE",
+        "ISM", "RETAIL SALES", "JOBLESS", "CONSUMER CONFIDENCE", "JOLTS",
+        "PMI", "DURABLE GOODS"
+    ]
+    us_codes = {"US", "USA", "UNITED STATES", "UNITED STATES OF AMERICA", "U.S.", "U.S.A."}
     out = []
     for r in rows or []:
         event = v51_text(r.get("event") or r.get("name") or r.get("title"), "")
-        country = v51_text(r.get("country"), "")
+        country = v51_text(r.get("country") or r.get("countryCode") or r.get("currency"), "")
+        country_norm = country.upper().strip()
         text = f"{event} {country}".upper()
-        if any(x in text for x in important):
-            out.append({
-                "Date": v51_text(r.get("date"), "")[:10],
-                "Event": event,
-                "Country": country or "US/Global",
-                "Actual": v51_text(r.get("actual"), ""),
-                "Estimate": v51_text(r.get("estimate") or r.get("consensus"), ""),
-                "Impact": "High",
-            })
+
+        # Paid-user default: keep only U.S. macro events that usually move U.S. equities.
+        if country_norm and country_norm not in us_codes and country_norm != "USD":
+            continue
+        if not any(x in text for x in important):
+            continue
+
+        impact = "Very High" if any(x in text for x in ["FOMC", "FED", "CPI", "PCE", "PAYROLL", "NONFARM", "NFP"]) else "High"
+        out.append({
+            "Date": v51_text(r.get("date"), "")[:10],
+            "Event": event,
+            "Country": "US",
+            "Actual": v51_text(r.get("actual"), ""),
+            "Estimate": v51_text(r.get("estimate") or r.get("consensus"), ""),
+            "Impact": impact,
+        })
+
     fallback = False
     if not out:
         fallback = True
         out = [
-            {"Date": "Check official calendar", "Event": "CPI / Inflation Report", "Country": "US", "Actual": "", "Estimate": "", "Impact": "High"},
-            {"Date": "Check official calendar", "Event": "PPI / Producer Inflation", "Country": "US", "Actual": "", "Estimate": "", "Impact": "High"},
-            {"Date": "Check official calendar", "Event": "FOMC / Fed Decision or Minutes", "Country": "US", "Actual": "", "Estimate": "", "Impact": "Very High"},
-            {"Date": "Check official calendar", "Event": "GDP Growth", "Country": "US", "Actual": "", "Estimate": "", "Impact": "High"},
-            {"Date": "Check official calendar", "Event": "Jobs Report / Payrolls", "Country": "US", "Actual": "", "Estimate": "", "Impact": "High"},
+            {"Date": "Upcoming", "Event": "CPI / Core CPI Inflation", "Country": "US", "Actual": "", "Estimate": "", "Impact": "Very High"},
+            {"Date": "Upcoming", "Event": "PCE Inflation", "Country": "US", "Actual": "", "Estimate": "", "Impact": "Very High"},
+            {"Date": "Upcoming", "Event": "FOMC / Fed Decision or Minutes", "Country": "US", "Actual": "", "Estimate": "", "Impact": "Very High"},
+            {"Date": "Upcoming", "Event": "Jobs Report / Non-Farm Payrolls", "Country": "US", "Actual": "", "Estimate": "", "Impact": "Very High"},
+            {"Date": "Upcoming", "Event": "GDP Growth", "Country": "US", "Actual": "", "Estimate": "", "Impact": "High"},
+            {"Date": "Upcoming", "Event": "Retail Sales / Consumer Spending", "Country": "US", "Actual": "", "Estimate": "", "Impact": "High"},
+            {"Date": "Upcoming", "Event": "ISM Manufacturing / Services", "Country": "US", "Actual": "", "Estimate": "", "Impact": "High"},
         ]
     return {"rows": out[:12], "status": status, "diagnostics": diag, "fallback": fallback}
 
@@ -19281,22 +19299,41 @@ def v51_earnings_calendar(days=14):
     rows, status, diag = ([], "unavailable", [])
     try:
         if "v5082_stable_rows" in globals():
-            rows, status, diag = v5082_stable_rows("earnings-calendar", {"from": today.isoformat(), "to": end.isoformat(), "limit": 300})
+            rows, status, diag = v5082_stable_rows("earnings-calendar", {"from": today.isoformat(), "to": end.isoformat(), "limit": 500})
     except Exception as e:
         diag = [f"earnings calendar error: {e}"]
+
+    foreign_suffixes = (".T", ".ST", ".L", ".DE", ".PA", ".SW", ".TO", ".V", ".HK", ".AX", ".KS", ".KQ", ".SS", ".SZ", ".MI", ".AS", ".BR", ".CO", ".OL", ".HE", ".IR", ".MX")
     out = []
     for r in rows or []:
-        sym = v51_text(r.get("symbol"), "")
+        sym = v51_text(r.get("symbol"), "").upper().strip()
         if not sym:
             continue
+        # Paid-user default: hide foreign listings and OTC-style symbols from the main earnings watch.
+        if any(sym.endswith(suf) for suf in foreign_suffixes):
+            continue
+        if "." in sym or "-PREF" in sym or len(sym) > 6:
+            continue
+
+        company = v51_text(r.get("company") or r.get("companyName") or r.get("name"), "")
         out.append({
             "Date": v51_text(r.get("date"), "")[:10],
             "Ticker": sym,
+            "Company": company,
             "Time": v51_text(r.get("time") or r.get("hour") or r.get("when"), ""),
             "EPS Est": v51_num(r.get("epsEstimated") or r.get("epsEstimate") or r.get("estimatedEps")),
             "Revenue Est": v51_money(r.get("revenueEstimated") or r.get("revenueEstimate")) if (r.get("revenueEstimated") or r.get("revenueEstimate")) else "N/A",
         })
-    return {"rows": out[:40], "status": status, "diagnostics": diag, "fallback": not bool(out)}
+
+    fallback = False
+    if not out:
+        fallback = True
+        out = [
+            {"Date": str(today), "Ticker": "No major U.S. earnings confirmed", "Company": "", "Time": "", "EPS Est": "", "Revenue Est": ""},
+            {"Date": str(today + dt.timedelta(days=3)), "Ticker": "Upcoming U.S. earnings window", "Company": "Check holdings before entry", "Time": "", "EPS Est": "", "Revenue Est": ""},
+            {"Date": str(today + dt.timedelta(days=7)), "Ticker": "Next 7-day earnings risk check", "Company": "Avoid oversized positions before reports", "Time": "", "EPS Est": "", "Revenue Est": ""},
+        ]
+    return {"rows": out[:20], "status": status, "diagnostics": diag, "fallback": fallback}
 
 
 def render_v51_macro_earnings_card():
@@ -19473,7 +19510,7 @@ def render_detail(row):
 # research platform intact while making the top page useful even when providers
 # return no rows.
 
-APP_VERSION = "V51.1 AI Investment Research Platform"
+APP_VERSION = "V52 U.S. Market Command Center Cleanup"
 
 
 def v511_state_value(key, default="N/A"):
@@ -19606,14 +19643,14 @@ def render_v511_top_command_center(full_df=None):
     col1, col2 = st.columns(2)
     with col1:
         with st.container(border=True):
-            st.markdown("### 🗓 This Week's Market Events")
+            st.markdown("### 🗓 U.S. Market Movers This Week")
             if econ_fallback:
                 st.caption("Fallback macro watchlist shown because the connected source did not return high-priority event rows.")
             st.dataframe(pd.DataFrame(econ_rows), use_container_width=True, hide_index=True)
             st.markdown("#### AI Assessment")
             st.write(
-                "Macro events such as inflation, Fed decisions, GDP, and jobs data can change market direction quickly. "
-                "Before these events, customers should avoid oversized positions and rely more heavily on quality, risk/reward, and position sizing."
+                "U.S. inflation reports, Federal Reserve decisions, jobs data, GDP, and consumer spending reports can move the entire market. "
+                "These events matter because they shape interest-rate expectations and investor risk appetite. During heavy macro weeks, customers should prioritize higher-quality setups and avoid oversized short-term positions."
             )
 
     with col2:
@@ -19624,7 +19661,7 @@ def render_v511_top_command_center(full_df=None):
             st.dataframe(pd.DataFrame(earn_rows), use_container_width=True, hide_index=True)
             st.markdown("#### AI Assessment")
             st.write(
-                "Earnings can override technical setups and analyst targets. Before entering a stock, customers should check whether an earnings report is near, because guidance, margins, and management commentary can quickly change the thesis."
+                "This watchlist is focused on U.S.-listed earnings that are more relevant for most customers. Earnings can override technical setups and analyst targets because guidance, margins, and management commentary can quickly change the thesis. Before entering a position, customers should check whether earnings are close and size positions accordingly."
             )
 
     if not is_viewer():
