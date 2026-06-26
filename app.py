@@ -19656,12 +19656,33 @@ def render_v511_top_command_center(full_df=None):
     with col2:
         with st.container(border=True):
             st.markdown("### 💼 Earnings Watch")
+
             if earn_fallback:
-                st.caption("Fallback earnings watch shown because no confirmed earnings rows were returned from the connected source.")
-            st.dataframe(pd.DataFrame(earn_rows), use_container_width=True, hide_index=True)
+                # V53: Do not show a fake fallback table. A clean customer-facing
+                # earnings brief is more trustworthy than displaying placeholder rows.
+                st.success(
+                    """
+                    #### No Major U.S. Earnings Scheduled Today
+
+                    The connected source did not return any major, recognizable U.S.-listed companies with confirmed earnings today.
+
+                    **What this means:**
+
+                    ✅ Lower probability of earnings-driven volatility today
+
+                    ✅ Technical setups and analyst targets may be more useful when no immediate earnings event is pending
+
+                    ✅ Focus can remain on trend, valuation, financial quality, and risk/reward
+
+                    ✅ Still check each individual stock page before entering a position
+                    """
+                )
+            else:
+                st.dataframe(pd.DataFrame(earn_rows), use_container_width=True, hide_index=True)
+
             st.markdown("#### AI Assessment")
             st.write(
-                "This watchlist is focused on U.S.-listed earnings that are more relevant for most customers. Earnings can override technical setups and analyst targets because guidance, margins, and management commentary can quickly change the thesis. Before entering a position, customers should check whether earnings are close and size positions accordingly."
+                "Earnings season is one of the most important drivers of stock performance. Strong earnings can accelerate gains, while weak earnings or cautious guidance can quickly invalidate an otherwise attractive setup. When no major U.S. earnings are scheduled, customers can place greater emphasis on fundamentals, analyst support, technical strength, and risk/reward. When earnings are approaching, position sizing should generally be more conservative because volatility can increase sharply."
             )
 
     if not is_viewer():
@@ -19679,7 +19700,7 @@ def render_v511_top_command_center(full_df=None):
 # the dashboard look noisy or broken. If no recognizable U.S.-listed rows
 # remain, show a clean fallback risk-check instead of bad data.
 
-APP_VERSION = "V52.1 Clean Earnings Watch"
+APP_VERSION = "V53 Client Earnings Brief"
 
 
 def v521_clean_earnings_symbol(sym):
