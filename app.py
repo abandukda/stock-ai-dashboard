@@ -19465,5 +19465,221 @@ def render_detail(row):
             v51_original_render_detail(row)
 
 
+# =========================
+# V51.1 TOP COMMAND CENTER FIX
+# =========================
+# This override replaces the old pre-status "Market Command Center" that displayed
+# "Market data loading from connected sources". It keeps the V51 stock-detail
+# research platform intact while making the top page useful even when providers
+# return no rows.
+
+APP_VERSION = "V51.1 AI Investment Research Platform"
+
+
+def v511_state_value(key, default="N/A"):
+    try:
+        state = read_state() if "read_state" in globals() else {}
+        return state.get(key, default) if isinstance(state, dict) else default
+    except Exception:
+        return default
+
+
+def v511_market_tone(full_df=None):
+    """Simple, safe market tone derived from scan health and current opportunities."""
+    try:
+        status = str(v511_state_value("status", "success")).lower()
+        if status not in {"success", "ok", "completed"}:
+            return "Cautious", "Latest scan status needs review"
+    except Exception:
+        pass
+
+    try:
+        if full_df is not None and not full_df.empty:
+            score_cols = [c for c in ["Investment Score", "Score", "Final Conviction", "Opportunity Score"] if c in full_df.columns]
+            verdict_cols = [c for c in ["Verdict", "Agent Verdict", "Action"] if c in full_df.columns]
+            high_score_count = 0
+            buy_count = 0
+            if score_cols:
+                s = pd.to_numeric(full_df[score_cols[0]], errors="coerce")
+                high_score_count = int((s >= 80).sum())
+            if verdict_cols:
+                v = full_df[verdict_cols[0]].astype(str).str.upper()
+                buy_count = int(v.str.contains("BUY", na=False).sum())
+            if high_score_count >= 10 or buy_count >= 10:
+                return "Constructive", "Scanner is finding a healthy number of actionable ideas"
+            if high_score_count <= 2 and buy_count <= 2:
+                return "Selective", "Few ideas are clearing high-conviction thresholds"
+    except Exception:
+        pass
+
+    return "Balanced", "Use stock-level pages to separate quality ideas from higher-risk opportunities"
+
+
+def v511_market_brief(full_df=None):
+    tone, driver = v511_market_tone(full_df)
+    scan_time = v51_text(v511_state_value("generated_at", "N/A"), "N/A") if "v51_text" in globals() else str(v511_state_value("generated_at", "N/A"))
+    version = v51_text(v511_state_value("version", "N/A"), "N/A") if "v51_text" in globals() else str(v511_state_value("version", "N/A"))
+
+    if tone == "Constructive":
+        summary = (
+            "The current scan environment looks constructive because the system is finding multiple actionable setups. "
+            "This does not mean every BUY-rated stock is equal. The most important distinction is whether an idea is an elite-quality business or a higher-risk opportunity driven by upside, analyst support, or technical strength."
+        )
+    elif tone == "Selective":
+        summary = (
+            "The current scan environment looks selective. Fewer stocks are clearing high-conviction thresholds, so users should be more patient, avoid chasing weak setups, and focus on names where quality, confidence, and risk/reward all align."
+        )
+    elif tone == "Cautious":
+        summary = (
+            "The latest scan status needs review. Treat rankings as informational until the next successful refresh completes. In this environment, smaller position sizing and additional confirmation are preferred."
+        )
+    else:
+        summary = (
+            "The current market backdrop is balanced. There are opportunities available, but users should rely on the individual stock research pages to understand whether the setup is high quality, speculative, or best kept on watchlist."
+        )
+
+    return {"tone": tone, "driver": driver, "scan_time": scan_time, "scanner_version": version, "summary": summary}
+
+
+def v511_economic_rows(days=14):
+    rows, diagnostics, fallback = [], [], False
+    try:
+        if "v51_economic_calendar" in globals():
+            data = v51_economic_calendar(days=days)
+            rows = data.get("rows") or []
+            diagnostics = data.get("diagnostics") or []
+            fallback = bool(data.get("fallback"))
+    except Exception as e:
+        diagnostics = [f"v51 economic calendar error: {e}"]
+
+    if not rows:
+        fallback = True
+        rows = [
+            {"Date": "Upcoming", "Event": "CPI / Inflation Report", "Why It Matters": "Inflation can change rate-cut expectations and quickly move growth stocks."},
+            {"Date": "Upcoming", "Event": "PPI / Producer Inflation", "Why It Matters": "Producer inflation can signal future margin pressure and pricing risk."},
+            {"Date": "Upcoming", "Event": "FOMC / Fed Decision or Minutes", "Why It Matters": "Fed guidance affects valuation multiples across the market."},
+            {"Date": "Upcoming", "Event": "Jobs Report / Payrolls", "Why It Matters": "Labor data affects recession risk, rates, and consumer demand expectations."},
+            {"Date": "Upcoming", "Event": "GDP / Economic Growth", "Why It Matters": "Growth data helps investors judge whether the economy is expanding or slowing."},
+        ]
+    return rows[:12], diagnostics, fallback
+
+
+def v511_earnings_rows(days=14):
+    rows, diagnostics, fallback = [], [], False
+    try:
+        if "v51_earnings_calendar" in globals():
+            data = v51_earnings_calendar(days=days)
+            rows = data.get("rows") or []
+            diagnostics = data.get("diagnostics") or []
+            fallback = bool(data.get("fallback"))
+    except Exception as e:
+        diagnostics = [f"v51 earnings calendar error: {e}"]
+
+    if not rows:
+        fallback = True
+        today = dt.date.today()
+        rows = [
+            {"Date": str(today), "Focus": "No major earnings confirmed today", "Why It Matters": "If no major reports are scheduled today, stock-specific thesis and technical setup matter more."},
+            {"Date": str(today + dt.timedelta(days=3)), "Focus": "Next earnings window", "Why It Matters": "Stocks reporting soon can become volatile before and after results."},
+            {"Date": str(today + dt.timedelta(days=7)), "Focus": "7-day earnings risk check", "Why It Matters": "Before entering a position, check whether earnings are close enough to change risk."},
+        ]
+    return rows[:15], diagnostics, fallback
+
+
+def render_v511_top_command_center(full_df=None):
+    brief = v511_market_brief(full_df)
+
+    with st.container(border=True):
+        st.markdown("## 🚨 AI Market Brief")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Market Tone", brief["tone"])
+        c2.metric("Scanner Version", brief["scanner_version"])
+        c3.metric("Latest Scan", brief["scan_time"][:19] if brief["scan_time"] else "N/A")
+
+        st.markdown("### What This Means")
+        st.write(brief["summary"])
+        st.caption(f"Primary driver: {brief['driver']}")
+
+    econ_rows, econ_diag, econ_fallback = v511_economic_rows(days=14)
+    earn_rows, earn_diag, earn_fallback = v511_earnings_rows(days=14)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        with st.container(border=True):
+            st.markdown("### 🗓 This Week's Market Events")
+            if econ_fallback:
+                st.caption("Fallback macro watchlist shown because the connected source did not return high-priority event rows.")
+            st.dataframe(pd.DataFrame(econ_rows), use_container_width=True, hide_index=True)
+            st.markdown("#### AI Assessment")
+            st.write(
+                "Macro events such as inflation, Fed decisions, GDP, and jobs data can change market direction quickly. "
+                "Before these events, customers should avoid oversized positions and rely more heavily on quality, risk/reward, and position sizing."
+            )
+
+    with col2:
+        with st.container(border=True):
+            st.markdown("### 💼 Earnings Watch")
+            if earn_fallback:
+                st.caption("Fallback earnings watch shown because no confirmed earnings rows were returned from the connected source.")
+            st.dataframe(pd.DataFrame(earn_rows), use_container_width=True, hide_index=True)
+            st.markdown("#### AI Assessment")
+            st.write(
+                "Earnings can override technical setups and analyst targets. Before entering a stock, customers should check whether an earnings report is near, because guidance, margins, and management commentary can quickly change the thesis."
+            )
+
+    if not is_viewer():
+        with st.expander("Admin top command center diagnostics", expanded=False):
+            st.write({"economic_diagnostics": econ_diag, "earnings_diagnostics": earn_diag})
+
+
+# Final active main override for V51.1. This prevents older main() definitions from
+# calling render_v423_command_center()/render_v424_market_command_center() at the top.
+def main():
+    if not dashboard_login_gate():
+        return
+
+    full_df = load_full_scan()
+    top_df = latest_top_ideas()
+    recovery_df = latest_recovery()
+    watch_df = latest_watchlist_scan()
+    prescreen_df = load_file(PRESCREEN_FILE)
+    etf_df = load_file(ETF_SCAN_FILE)
+
+    render_status_banner()
+    render_v511_top_command_center(full_df)
+    render_score_help()
+
+    tabs = st.tabs([
+        "Top AI Ideas", "Full Ranked Scan", "Portfolio Intelligence",
+        "Watchlist Intelligence", "Performance", "Recovery", "ETFs",
+        "Watchlist", "Prescreen", "Summary", "Research Any Ticker", "Ask AI"
+    ])
+
+    with tabs[0]:
+        render_table(top_df if not top_df.empty else full_df.head(25), "Top AI Ideas", "top_table", min_score_default=45)
+    with tabs[1]:
+        render_table(full_df, "Full Ranked AI Scan", "full_table", min_score_default=35)
+    with tabs[2]:
+        render_v505_portfolio_analyzer(full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
+    with tabs[3]:
+        render_v506_watchlist_intelligence(full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
+    with tabs[4]:
+        render_v507_performance_tracking(full_df)
+    with tabs[5]:
+        render_table(recovery_df, "Recovery Intelligence: Dropped Stocks With Forward Upside", "recovery_table", min_score_default=35)
+    with tabs[6]:
+        render_table(etf_df, "ETF Intelligence: Non-Financial / Non-Israel Screen", "etf_table", min_score_default=35)
+    with tabs[7]:
+        render_table(watch_df, "Watchlist Scan", "watch_table", min_score_default=0)
+    with tabs[8]:
+        render_table(prescreen_df, "Prescreen Candidates", "prescreen_table", min_score_default=35)
+    with tabs[9]:
+        render_market_summary(full_df)
+    with tabs[10]:
+        render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df)
+    with tabs[11]:
+        render_chat_helper(full_df)
+
+
 if __name__ == "__main__":
     main()
