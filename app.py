@@ -20227,7 +20227,7 @@ def main():
 # - Show exactly one default stock report from the top-ranked idea using scan data only.
 # - Deep live research remains available only after the user explicitly selects Research Any Ticker.
 
-APP_VERSION = "V56.1 Fast Top Ideas Selector"
+APP_VERSION = "V56.2 Fast Navigation + Top Ideas Selector"
 
 
 def v56_scan_num(x, default=0.0):
@@ -20598,19 +20598,50 @@ def main():
     with st.expander("Quick guide: how to use the dashboard", expanded=False):
         render_score_help()
 
-    tabs = st.tabs([
+    # ============================================================
+    # V56.2 LAZY CLIENT NAVIGATION
+    # Streamlit tabs execute every tab on each page run, which can make
+    # Watchlist / Recovery / Research feel stuck. This navigation renders
+    # only the selected section, so Top AI Ideas remains fast and the
+    # restored dropdown still works instantly from saved scan data.
+    # ============================================================
+    nav_options = [
         "Top AI Ideas", "Full Ranked Scan", "Portfolio Intelligence",
         "Watchlist Intelligence", "Performance", "Recovery", "ETFs",
         "Watchlist", "Prescreen", "Summary", "Research Any Ticker", "Ask AI"
-    ])
+    ]
 
+    selected_section = st.session_state.get("v562_active_section", "Top AI Ideas")
+    if selected_section not in nav_options:
+        selected_section = "Top AI Ideas"
+
+    if hasattr(st, "segmented_control"):
+        selected_section = st.segmented_control(
+            "Dashboard section",
+            nav_options,
+            selection_mode="single",
+            default=selected_section,
+            label_visibility="collapsed",
+            key="v562_nav_segmented",
+        ) or selected_section
+    else:
+        selected_section = st.radio(
+            "Dashboard section",
+            nav_options,
+            index=nav_options.index(selected_section),
+            horizontal=True,
+            label_visibility="collapsed",
+            key="v562_nav_radio",
+        )
+
+    st.session_state["v562_active_section"] = selected_section
     source_df = top_df if top_df is not None and not top_df.empty else full_df.head(25)
 
-    with tabs[0]:
+    if selected_section == "Top AI Ideas":
         fast_sorted = render_v56_ranked_table(source_df, title="Top AI Ideas", max_rows=10, show_filters=False)
 
-        # V56.1: Restore fast dropdown access for Top AI Ideas.
-        # This uses the already-loaded scan dataframe only. It does NOT call live FMP/news/analyst APIs.
+        # V56.1/V56.2: Restore fast dropdown access for Top AI Ideas.
+        # Uses already-loaded scan dataframe only. No live FMP/news/analyst APIs.
         selector_df = fast_sorted if fast_sorted is not None and not fast_sorted.empty else source_df
 
         if selector_df is None or selector_df.empty:
@@ -20618,7 +20649,7 @@ def main():
         else:
             selector_df = selector_df.head(10).copy()
 
-            def _v561_option_label(r):
+            def _v562_option_label(r):
                 ticker = str(v56_row_get(r, ["Ticker", "ticker"], "")).strip().upper()
                 company = str(v56_row_get(r, ["Company", "company", "Name"], "")).strip()
                 classification = v56_classification(r)
@@ -20631,46 +20662,55 @@ def main():
             option_map = {}
             options = []
             for idx, rr in selector_df.iterrows():
-                label = _v561_option_label(rr)
+                label = _v562_option_label(rr)
                 option_map[label] = idx
                 options.append(label)
 
             st.markdown("### 🔎 Select Fast Research Report")
-            st.caption("Switch between the Top AI Ideas instantly. The report below uses saved scan data only; full live research loads only if you click the live research button.")
+            st.caption("Switch between Top AI Ideas instantly. This uses saved scan data only. Full live research loads only from the Research Any Ticker section.")
 
             selected_label = st.selectbox(
                 "Choose Top AI Idea",
                 options,
                 index=0,
-                key="v561_top_ai_fast_selector",
+                key="v562_top_ai_fast_selector",
             )
 
             selected_row = selector_df.loc[option_map[selected_label]]
             render_v56_default_scan_report(selected_row)
 
-    with tabs[1]:
+    elif selected_section == "Full Ranked Scan":
         render_v56_ranked_table(full_df, title="Full Ranked AI Scan", max_rows=75, show_filters=True)
 
-    with tabs[2]:
+    elif selected_section == "Portfolio Intelligence":
         render_v505_portfolio_analyzer(full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
-    with tabs[3]:
+
+    elif selected_section == "Watchlist Intelligence":
         render_v506_watchlist_intelligence(full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
-    with tabs[4]:
+
+    elif selected_section == "Performance":
         render_v507_performance_tracking(full_df)
-    with tabs[5]:
+
+    elif selected_section == "Recovery":
         render_v56_ranked_table(recovery_df, title="Recovery Intelligence", max_rows=50, show_filters=True)
-    with tabs[6]:
+
+    elif selected_section == "ETFs":
         render_v56_ranked_table(etf_df, title="ETF Intelligence", max_rows=50, show_filters=True)
-    with tabs[7]:
+
+    elif selected_section == "Watchlist":
         render_v56_ranked_table(watch_df, title="Watchlist Scan", max_rows=50, show_filters=True)
-    with tabs[8]:
+
+    elif selected_section == "Prescreen":
         render_v56_ranked_table(prescreen_df, title="Prescreen Candidates", max_rows=75, show_filters=True)
-    with tabs[9]:
+
+    elif selected_section == "Summary":
         render_market_summary(full_df)
-    with tabs[10]:
+
+    elif selected_section == "Research Any Ticker":
         st.info("Full live research runs only after you select a ticker here. This keeps the main dashboard fast for clients.")
         render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df)
-    with tabs[11]:
+
+    elif selected_section == "Ask AI":
         render_chat_helper(full_df)
 
 
