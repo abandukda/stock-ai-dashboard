@@ -20217,5 +20217,425 @@ def main():
         render_chat_helper(full_df)
 
 
+
+# =========================
+# V56 FAST LOAD ARCHITECTURE
+# =========================
+# Goal:
+# - Home / Top Ideas loads instantly from persisted scan JSON only.
+# - No live FMP / analyst / financial bundle calls on initial page load.
+# - Show exactly one default stock report from the top-ranked idea using scan data only.
+# - Deep live research remains available only after the user explicitly selects Research Any Ticker.
+
+APP_VERSION = "V56 Fast Client Load + One Default Report"
+
+
+def v56_scan_num(x, default=0.0):
+    try:
+        if x is None:
+            return default
+        if isinstance(x, str):
+            x = x.replace('$', '').replace(',', '').replace('%', '').strip()
+            if x in {'', 'N/A', 'None', 'nan'}:
+                return default
+        return float(x)
+    except Exception:
+        return default
+
+
+def v56_money(x):
+    n = v56_scan_num(x, None)
+    if n is None or n == 0:
+        return "N/A"
+    return f"${n:,.2f}"
+
+
+def v56_pct(x):
+    n = v56_scan_num(x, None)
+    if n is None:
+        return "N/A"
+    return f"{n:.1f}%"
+
+
+def v56_clean_verdict(row):
+    raw = ""
+    try:
+        if isinstance(row, dict):
+            raw = row.get("Verdict") or row.get("Agent Verdict") or row.get("Action") or ""
+        else:
+            raw = row.get("Verdict", row.get("Agent Verdict", row.get("Action", "")))
+    except Exception:
+        raw = ""
+    txt = str(raw or "").replace("✅", "").replace("🟢", "").strip().upper()
+    if "BUY" in txt and "NOW" in txt:
+        return "BUY NOW"
+    if "BUY" in txt:
+        return "BUY"
+    if "HOLD" in txt:
+        return "HOLD"
+    if "WATCH" in txt:
+        return "WATCH"
+    if "AVOID" in txt or "SELL" in txt:
+        return "AVOID"
+    return "REVIEW"
+
+
+def v56_row_get(row, keys, default=None):
+    for k in keys:
+        try:
+            if hasattr(row, 'get') and row.get(k) not in [None, "", "N/A"]:
+                return row.get(k)
+        except Exception:
+            pass
+    return default
+
+
+def v56_opportunity(row):
+    return max(0, min(100, v56_scan_num(v56_row_get(row, ["Opportunity", "Opportunity Score", "Final Conviction", "Investment Score", "Score"], 0), 0)))
+
+
+def v56_quality(row):
+    # Use already persisted score fields only; do not call v51_report or live functions.
+    q = v56_row_get(row, ["Quality", "Quality Score", "Financial Health Score", "Financial Health", "Fundamental Score", "fundamental_score"], None)
+    if q is not None:
+        return max(0, min(100, v56_scan_num(q, 50)))
+    # Conservative fallback from persisted financial health labels if present.
+    label = str(v56_row_get(row, ["Financial Health Rating", "Financial Health Label", "Rating"], "")).lower()
+    if "excellent" in label or "strong" in label:
+        return 85
+    if "good" in label or "healthy" in label:
+        return 75
+    if "average" in label or "developing" in label:
+        return 60
+    if "weak" in label:
+        return 45
+    if "poor" in label:
+        return 35
+    return 60
+
+
+def v56_analyst_score(row):
+    raw = str(v56_row_get(row, ["Analyst Support", "Analyst View", "Wall Street View"], ""))
+    import re
+    m = re.search(r"(\d{1,3})\s*/\s*100", raw)
+    if m:
+        return int(m.group(1))
+    low = raw.lower()
+    if "strong" in low or "bullish" in low:
+        return 85
+    if "positive" in low or "constructive" in low:
+        return 70
+    if "mixed" in low:
+        return 55
+    if "weak" in low or "bear" in low:
+        return 35
+    return 50
+
+
+def v56_analyst_view(row):
+    score = v56_analyst_score(row)
+    if score >= 80:
+        return "🔥 Strong"
+    if score >= 65:
+        return "✅ Positive"
+    if score >= 50:
+        return "⚪ Mixed"
+    return "🔴 Weak"
+
+
+def v56_classification(row):
+    opp = v56_opportunity(row)
+    q = v56_quality(row)
+    upside = v56_scan_num(v56_row_get(row, ["Target Upside %", "Upside"], 0), 0)
+    analyst = v56_analyst_score(row)
+    verdict = v56_clean_verdict(row)
+    if verdict in {"AVOID", "WATCH"}:
+        return "👀 Watchlist"
+    if q >= 85 and opp >= 88:
+        return "🏆 Top Choice"
+    if q >= 75 and opp >= 82:
+        return "✅ Quality Growth"
+    if upside >= 100 and q < 70:
+        return "🚀 Speculative Growth"
+    if analyst >= 80 and opp >= 80:
+        return "📈 Analyst Favorite"
+    if opp >= 80:
+        return "⚡ Opportunity"
+    return "👀 Research Candidate"
+
+
+def v56_why_ranked(row):
+    opp = v56_opportunity(row)
+    q = v56_quality(row)
+    upside = v56_scan_num(v56_row_get(row, ["Target Upside %", "Upside"], 0), 0)
+    analyst = v56_analyst_score(row)
+    if q >= 82 and opp >= 88 and upside >= 40:
+        return "Strong quality with attractive upside"
+    if q >= 75 and opp >= 85:
+        return "Quality growth setup with favorable entry"
+    if q < 65 and upside >= 100:
+        return "Large upside, but weaker financial quality"
+    if q < 65 and opp >= 90:
+        return "High-opportunity setup with elevated quality risk"
+    if analyst >= 80 and upside >= 50:
+        return "Analyst-backed upside setup"
+    if upside >= 75:
+        return "Attractive upside with actionable setup"
+    if opp >= 90:
+        return "High-opportunity setup with favorable risk/reward"
+    if q >= 80:
+        return "Quality profile supports the ranking"
+    return "Actionable setup; review full report first"
+
+
+def v56_entry(row):
+    val = v56_row_get(row, ["Entry Range", "Entry", "Buy Zone"], None)
+    if val not in [None, "", "N/A"]:
+        return str(val)
+    price = v56_scan_num(v56_row_get(row, ["Price"], 0), 0)
+    if price:
+        return f"${price*0.98:,.2f} - ${price*1.01:,.2f}"
+    return "N/A"
+
+
+def v56_target(row):
+    return v56_money(v56_row_get(row, ["AI Fair Value", "Analyst Target", "Base Target", "Target"], 0))
+
+
+def v56_stop(row):
+    return v56_money(v56_row_get(row, ["Stop Loss", "Stop"], 0))
+
+
+def v56_fast_table_rows(df, limit=50):
+    rows = []
+    if df is None or getattr(df, "empty", True):
+        return rows
+    for _, row in df.head(limit).iterrows():
+        try:
+            ticker = str(v56_row_get(row, ["Ticker", "ticker"], "")).strip().upper()
+            if not ticker:
+                continue
+            rows.append({
+                "Ticker": ticker,
+                "Company": str(v56_row_get(row, ["Company", "company", "Name"], "")).strip(),
+                "Verdict": v56_clean_verdict(row),
+                "Classification": v56_classification(row),
+                "Opportunity": int(round(v56_opportunity(row))),
+                "Quality": int(round(v56_quality(row))),
+                "Upside": v56_pct(v56_row_get(row, ["Target Upside %", "Upside"], 0)),
+                "Price": v56_money(v56_row_get(row, ["Price"], 0)),
+                "Entry": v56_entry(row),
+                "Stop": v56_stop(row),
+                "Target": v56_target(row),
+                "Analyst View": v56_analyst_view(row),
+                "Why Ranked": v56_why_ranked(row),
+            })
+        except Exception:
+            continue
+    return rows
+
+
+def render_v56_ranked_table(df, title="Ranked Ideas", max_rows=25, show_filters=True):
+    st.markdown(f"## 📋 {title}")
+    if df is None or getattr(df, "empty", True):
+        st.info("No ranked ideas available yet. Run the overnight scan to refresh results.")
+        return pd.DataFrame()
+
+    filtered = df.copy()
+    if show_filters:
+        c1, c2, c3 = st.columns([1, 1, 2])
+        with c1:
+            min_opp = st.slider("Minimum opportunity", 0, 100, 45, key=f"v56_{title}_opp")
+        with c2:
+            min_quality = st.slider("Minimum quality", 0, 100, 0, key=f"v56_{title}_quality")
+        with c3:
+            search = st.text_input("Search ticker/company", key=f"v56_{title}_search")
+        # Use persisted fields only.
+        filtered["__opp"] = filtered.apply(v56_opportunity, axis=1)
+        filtered["__quality"] = filtered.apply(v56_quality, axis=1)
+        filtered = filtered[(filtered["__opp"] >= min_opp) & (filtered["__quality"] >= min_quality)]
+        if search:
+            s = search.strip().lower()
+            filtered = filtered[
+                filtered.get("Ticker", "").astype(str).str.lower().str.contains(s, na=False)
+                | filtered.get("Company", "").astype(str).str.lower().str.contains(s, na=False)
+            ]
+
+    if filtered.empty:
+        st.warning("No rows match filters.")
+        return pd.DataFrame()
+
+    filtered["__opp"] = filtered.apply(v56_opportunity, axis=1)
+    filtered["__quality"] = filtered.apply(v56_quality, axis=1)
+    filtered = filtered.sort_values(["__opp", "__quality"], ascending=False)
+    rows = v56_fast_table_rows(filtered, limit=max_rows)
+    out = pd.DataFrame(rows)
+    if not out.empty:
+        st.caption("Fast scan-only view. No live API calls are made to build this table, so the dashboard loads quickly for clients.")
+        st.dataframe(out, use_container_width=True, hide_index=True)
+    return filtered
+
+
+def v56_pick_default_stock(df):
+    if df is None or getattr(df, "empty", True):
+        return None
+    work = df.copy()
+    work["__opp"] = work.apply(v56_opportunity, axis=1)
+    work["__quality"] = work.apply(v56_quality, axis=1)
+    work["__class"] = work.apply(v56_classification, axis=1)
+    # Prefer true Top Choice; otherwise highest opportunity + quality.
+    top_choice = work[work["__class"].astype(str).str.contains("Top Choice", na=False)]
+    if not top_choice.empty:
+        return top_choice.sort_values(["__opp", "__quality"], ascending=False).iloc[0]
+    return work.sort_values(["__opp", "__quality"], ascending=False).iloc[0]
+
+
+def render_v56_default_scan_report(row):
+    if row is None:
+        return
+    ticker = str(v56_row_get(row, ["Ticker", "ticker"], "")).strip().upper()
+    company = str(v56_row_get(row, ["Company", "company", "Name"], ticker)).strip()
+    verdict = v56_clean_verdict(row)
+    opp = int(round(v56_opportunity(row)))
+    q = int(round(v56_quality(row)))
+    conf = int(round(v56_scan_num(v56_row_get(row, ["Research Confidence", "Confidence", "Confidence Score"], 80), 80)))
+    classification = v56_classification(row)
+    upside = v56_pct(v56_row_get(row, ["Target Upside %", "Upside"], 0))
+
+    st.markdown("## 🔎 Default Research Report")
+    st.caption("This report loads from the overnight scan first. Use the Research Any Ticker tab for full live research.")
+    with st.container(border=True):
+        st.markdown(f"## {ticker} — {company}")
+        c1, c2, c3, c4 = st.columns([1.4, 1, 1, 1])
+        with c1:
+            st.markdown("**Recommendation**")
+            if "BUY" in verdict:
+                st.markdown("## ✅ Buy Now")
+            elif "WATCH" in verdict:
+                st.markdown("## 👀 Watch")
+            elif "AVOID" in verdict:
+                st.markdown("## 🔴 Avoid")
+            else:
+                st.markdown(f"## {verdict.title()}")
+        with c2:
+            st.markdown("**Opportunity**")
+            st.markdown(f"## {opp}/100")
+        with c3:
+            st.markdown("**Quality**")
+            st.markdown(f"## {q}/100")
+        with c4:
+            st.markdown("**Confidence**")
+            st.markdown(f"## {conf}/100")
+
+        st.markdown(f"**Classification:** {classification}")
+        st.info(
+            f"""
+### Customer Summary
+{ticker} is ranked highly because the dashboard sees **{v56_why_ranked(row).lower()}**.
+
+The setup currently shows **{upside} upside to the dashboard target**, with an entry zone near **{v56_entry(row)}**, a stop near **{v56_stop(row)}**, and a target near **{v56_target(row)}**.
+
+The key distinction is **opportunity versus quality**. A stock can have attractive upside and still fail Top Choice status if its financial quality score is not strong enough.
+"""
+        )
+
+        if q < 70:
+            st.warning(
+                "This idea may be actionable, but it is not a flagship Top Choice because quality is below the preferred threshold. Treat position sizing and execution risk carefully."
+            )
+
+        st.markdown("### 🎯 Investment Thesis")
+        thesis_lines = []
+        if opp >= 85:
+            thesis_lines.append("The scanner identifies this as a high-opportunity setup based on upside, timing, and supporting signals.")
+        if q >= 75:
+            thesis_lines.append("Business quality is strong enough to support a more durable investment thesis.")
+        else:
+            thesis_lines.append("Financial quality is not yet elite, so the thesis depends more on execution, analyst support, and risk/reward.")
+        if v56_analyst_score(row) >= 75:
+            thesis_lines.append("Analyst support appears favorable and helps validate the upside case.")
+        thesis_lines.append("Use the full research tab for live analyst actions, news, ownership data, and deeper financial detail before making a final decision.")
+        for line in thesis_lines:
+            st.markdown(f"• {line}")
+
+        st.markdown("### 📌 Action Plan")
+        st.markdown(f"• **Entry Zone:** {v56_entry(row)}")
+        st.markdown(f"• **Stop:** {v56_stop(row)}")
+        st.markdown(f"• **Target:** {v56_target(row)}")
+        st.markdown("• **Next Step:** Review the full live report only if this idea fits your risk tolerance and time horizon.")
+
+        with st.expander("Load Full Live Research", expanded=False):
+            st.caption("Full live research may take longer because it checks analyst, financial, news, and ownership data for this ticker only.")
+            if st.button(f"Run full live research for {ticker}", key=f"v56_live_{ticker}"):
+                try:
+                    render_detail(row)
+                except Exception as e:
+                    st.warning(f"Full live research is temporarily unavailable for {ticker}. Showing scan-based report instead.")
+                    if v55_is_admin():
+                        st.exception(e)
+
+
+def render_table(df, title, key_prefix, min_score_default=35):
+    # V56 override: table is scan-only and never opens a full research card automatically.
+    max_rows = 25 if "Top" in str(title) else 75
+    render_v56_ranked_table(df, title=title, max_rows=max_rows, show_filters=True)
+
+
+def main():
+    if not dashboard_login_gate():
+        return
+
+    full_df = load_full_scan()
+    top_df = latest_top_ideas()
+    recovery_df = latest_recovery()
+    watch_df = latest_watchlist_scan()
+    prescreen_df = load_file(PRESCREEN_FILE)
+    etf_df = load_file(ETF_SCAN_FILE)
+
+    render_status_banner()
+    render_v511_top_command_center(full_df)
+
+    with st.expander("Quick guide: how to use the dashboard", expanded=False):
+        render_score_help()
+
+    tabs = st.tabs([
+        "Top AI Ideas", "Full Ranked Scan", "Portfolio Intelligence",
+        "Watchlist Intelligence", "Performance", "Recovery", "ETFs",
+        "Watchlist", "Prescreen", "Summary", "Research Any Ticker", "Ask AI"
+    ])
+
+    source_df = top_df if top_df is not None and not top_df.empty else full_df.head(25)
+
+    with tabs[0]:
+        fast_sorted = render_v56_ranked_table(source_df, title="Top AI Ideas", max_rows=10, show_filters=False)
+        default_row = v56_pick_default_stock(fast_sorted if fast_sorted is not None and not fast_sorted.empty else source_df)
+        render_v56_default_scan_report(default_row)
+
+    with tabs[1]:
+        render_v56_ranked_table(full_df, title="Full Ranked AI Scan", max_rows=75, show_filters=True)
+
+    with tabs[2]:
+        render_v505_portfolio_analyzer(full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
+    with tabs[3]:
+        render_v506_watchlist_intelligence(full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
+    with tabs[4]:
+        render_v507_performance_tracking(full_df)
+    with tabs[5]:
+        render_v56_ranked_table(recovery_df, title="Recovery Intelligence", max_rows=50, show_filters=True)
+    with tabs[6]:
+        render_v56_ranked_table(etf_df, title="ETF Intelligence", max_rows=50, show_filters=True)
+    with tabs[7]:
+        render_v56_ranked_table(watch_df, title="Watchlist Scan", max_rows=50, show_filters=True)
+    with tabs[8]:
+        render_v56_ranked_table(prescreen_df, title="Prescreen Candidates", max_rows=75, show_filters=True)
+    with tabs[9]:
+        render_market_summary(full_df)
+    with tabs[10]:
+        st.info("Full live research runs only after you select a ticker here. This keeps the main dashboard fast for clients.")
+        render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df)
+    with tabs[11]:
+        render_chat_helper(full_df)
+
+
 if __name__ == "__main__":
     main()
