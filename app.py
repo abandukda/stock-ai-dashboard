@@ -15227,6 +15227,256 @@ def render_status_banner():
         st.caption(f"Last scan: {state.get('generated_at', 'N/A')} | Duration: {state.get('duration_seconds', 'N/A')}s | DATA_DIR={state.get('data_dir','.')}")
 
 
+
+# =========================
+# V58 POLITICAL INTELLIGENCE ENGINE
+# =========================
+APP_VERSION = "V58 Political Intelligence Engine"
+
+
+def v58_fmp_get(endpoint, params=None):
+    """Small cached FMP helper for political disclosure endpoints."""
+    params = dict(params or {})
+    if FMP_API_KEY:
+        params["apikey"] = FMP_API_KEY
+    try:
+        url = f"https://financialmodelingprep.com/stable/{endpoint.lstrip('/')}"
+        r = requests.get(url, params=params, timeout=20)
+        if r.status_code != 200:
+            return []
+        data = r.json()
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict):
+            return data.get("data") or data.get("results") or data.get("rows") or []
+        return []
+    except Exception:
+        return []
+
+
+@st.cache_data(ttl=60 * 60, show_spinner=False)
+def v58_fetch_latest_political(limit=100):
+    house = v58_fmp_get("house-latest", {"page": 0, "limit": limit})
+    senate = v58_fmp_get("senate-latest", {"page": 0, "limit": limit})
+    rows = []
+    for chamber, data in [("House", house), ("Senate", senate)]:
+        for r in data or []:
+            if isinstance(r, dict):
+                x = dict(r)
+                x["Chamber"] = chamber
+                rows.append(x)
+    return rows
+
+
+@st.cache_data(ttl=60 * 60, show_spinner=False)
+def v58_fetch_symbol_political(ticker):
+    ticker = safe_text(ticker, "").upper().strip()
+    if not ticker:
+        return []
+    house = v58_fmp_get("house-trades", {"symbol": ticker})
+    senate = v58_fmp_get("senate-trades", {"symbol": ticker})
+    rows = []
+    for chamber, data in [("House", house), ("Senate", senate)]:
+        for r in data or []:
+            if isinstance(r, dict):
+                x = dict(r)
+                x["Chamber"] = chamber
+                rows.append(x)
+    return rows
+
+
+def v58_first_value(row, *keys, default=""):
+    if not isinstance(row, dict):
+        return default
+    for k in keys:
+        if k in row and row.get(k) not in (None, "", "N/A", "nan"):
+            return row.get(k)
+    # fallback: case-insensitive
+    lower = {str(k).lower(): k for k in row.keys()}
+    for k in keys:
+        real = lower.get(str(k).lower())
+        if real and row.get(real) not in (None, "", "N/A", "nan"):
+            return row.get(real)
+    return default
+
+
+def v58_normalize_transaction(text):
+    t = safe_text(text, "").lower()
+    if any(x in t for x in ["purchase", "buy", "add"]):
+        return "Buy"
+    if any(x in t for x in ["sale", "sell", "sold", "dispose"]):
+        return "Sell"
+    if "exchange" in t:
+        return "Exchange"
+    return safe_text(text, "Other") or "Other"
+
+
+def v58_symbol_from_row(row):
+    val = v58_first_value(row, "symbol", "ticker", "Ticker", "assetTicker", "asset", "securityTicker", default="")
+    val = safe_text(val, "").upper().strip()
+    # Some FMP rows put the ticker in assetDescription/securityName; do not guess if not clean.
+    if re.match(r"^[A-Z]{1,5}$", val):
+        return val
+    return ""
+
+
+def v58_company_from_row(row, ticker=""):
+    return safe_text(v58_first_value(row, "companyName", "company", "issuer", "assetDescription", "securityName", "asset", default=ticker), ticker)
+
+
+def v58_politician_from_row(row):
+    first = safe_text(v58_first_value(row, "firstName", "representative", "senator", "name", "disclosureOwner", default=""), "")
+    last = safe_text(v58_first_value(row, "lastName", default=""), "")
+    if first and last and last.lower() not in first.lower():
+        return f"{first} {last}".strip()
+    return first or "Not provided"
+
+
+def v58_amount_from_row(row):
+    return safe_text(v58_first_value(row, "amount", "amountRange", "value", "transactionAmount", "range", default="Not disclosed"), "Not disclosed")
+
+
+def v58_date_from_row(row, disclosure=False):
+    keys = ("disclosureDate", "disclosure_date", "filingDate", "reportedDate") if disclosure else ("transactionDate", "transaction_date", "tradeDate", "date")
+    return safe_text(v58_first_value(row, *keys, default=""), "")
+
+
+def v58_political_dataframe(rows):
+    normalized = []
+    for row in rows or []:
+        ticker = v58_symbol_from_row(row)
+        if not ticker:
+            continue
+        tx = v58_normalize_transaction(v58_first_value(row, "transaction", "transactionType", "type", default=""))
+        normalized.append({
+            "Ticker": ticker,
+            "Company": v58_company_from_row(row, ticker),
+            "Politician": v58_politician_from_row(row),
+            "Chamber": safe_text(row.get("Chamber"), ""),
+            "Transaction": tx,
+            "Amount": v58_amount_from_row(row),
+            "Trade Date": v58_date_from_row(row, disclosure=False),
+            "Disclosure Date": v58_date_from_row(row, disclosure=True),
+        })
+    return pd.DataFrame(normalized)
+
+
+def v58_signal_from_counts(buys, sells):
+    buys = int(buys or 0)
+    sells = int(sells or 0)
+    if buys > 0 and sells == 0:
+        return "🟢 Buy Activity"
+    if sells > 0 and buys == 0:
+        return "🔴 Sell Activity"
+    if buys > sells:
+        return "🟢 Net Buying"
+    if sells > buys:
+        return "🔴 Net Selling"
+    if buys or sells:
+        return "🟡 Mixed"
+    return "⚪ None Found"
+
+
+def v58_build_political_summary(df):
+    if df is None or df.empty:
+        return pd.DataFrame()
+    work = df.copy()
+    work["BuyFlag"] = work["Transaction"].astype(str).str.lower().eq("buy").astype(int)
+    work["SellFlag"] = work["Transaction"].astype(str).str.lower().eq("sell").astype(int)
+    grouped = work.groupby("Ticker", as_index=False).agg(
+        Company=("Company", "first"),
+        Buy_Count=("BuyFlag", "sum"),
+        Sell_Count=("SellFlag", "sum"),
+        Politicians=("Politician", pd.Series.nunique),
+        Last_Trade=("Trade Date", "max"),
+        Last_Disclosure=("Disclosure Date", "max"),
+        Chamber=("Chamber", lambda x: " + ".join(sorted(set([safe_text(v) for v in x if safe_text(v)])))[:30]),
+    )
+    grouped["Net Score"] = grouped["Buy_Count"] - grouped["Sell_Count"]
+    grouped["Political Signal"] = grouped.apply(lambda r: v58_signal_from_counts(r["Buy_Count"], r["Sell_Count"]), axis=1)
+    grouped = grouped.rename(columns={"Buy_Count": "Buys", "Sell_Count": "Sells"})
+    return grouped.sort_values(["Net Score", "Buys", "Politicians"], ascending=[False, False, False])
+
+
+def render_v58_political_intelligence(full_df=None):
+    st.markdown("## 🏛️ Political Intelligence")
+    st.caption("Tracks recent U.S. House and Senate financial disclosures. This is a supporting research signal, not a standalone buy recommendation.")
+
+    rows = v58_fetch_latest_political(limit=100)
+    df = v58_political_dataframe(rows)
+
+    if df.empty:
+        st.warning("Political disclosure data is temporarily unavailable or no clean ticker-level disclosures were returned.")
+        if v55_is_admin() if "v55_is_admin" in globals() else False:
+            st.caption("Check FMP endpoints: /stable/house-latest and /stable/senate-latest.")
+        return
+
+    summary = v58_build_political_summary(df)
+    buys = int((df["Transaction"] == "Buy").sum())
+    sells = int((df["Transaction"] == "Sell").sum())
+    most_bought = summary.iloc[0]["Ticker"] if not summary.empty else "N/A"
+    active_count = int(summary["Ticker"].nunique()) if not summary.empty else 0
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Stocks With Activity", active_count)
+    c2.metric("Recent Buys", buys)
+    c3.metric("Recent Sells", sells)
+    c4.metric("Most Bought", most_bought)
+
+    st.info(
+        "Political disclosures can reveal what lawmakers or their families recently reported buying or selling. "
+        "Because disclosures can be delayed, this should be used as a supporting signal alongside financial quality, analyst views, risk/reward, and technical setup."
+    )
+
+    st.markdown("### 🟢 Political Buy Radar")
+    buy_radar = summary[summary["Buys"] > summary["Sells"]].copy() if not summary.empty else summary
+    cols = ["Ticker", "Company", "Political Signal", "Buys", "Sells", "Net Score", "Politicians", "Last_Trade", "Last_Disclosure", "Chamber"]
+    cols = [c for c in cols if c in buy_radar.columns]
+    st.dataframe(buy_radar[cols].head(50), use_container_width=True, hide_index=True)
+
+    selected = None
+    tickers = buy_radar["Ticker"].astype(str).tolist() if not buy_radar.empty and "Ticker" in buy_radar.columns else []
+    if tickers:
+        selected = st.selectbox("Run fast ticker reading from Political Buy Radar", tickers, index=0, key="v58_political_ticker_select")
+        if selected and full_df is not None and not full_df.empty and "Ticker" in full_df.columns:
+            matches = full_df[full_df["Ticker"].astype(str).str.upper() == selected.upper()]
+            if not matches.empty:
+                render_v574_scan_report(matches.iloc[0], title=f"Fast Ticker Reading: {selected}")
+            else:
+                st.info("This ticker is not in the latest scan file. Use Research Any Ticker for a live report.")
+
+    st.markdown("### 🧾 Most Recent Political Trades")
+    recent_cols = ["Ticker", "Company", "Politician", "Chamber", "Transaction", "Amount", "Trade Date", "Disclosure Date"]
+    st.dataframe(df[recent_cols].head(75), use_container_width=True, hide_index=True)
+
+
+# Optional ticker-level political card for research reports.
+def render_v58_political_card(ticker):
+    ticker = safe_text(ticker, "").upper().strip()
+    if not ticker:
+        return
+    with st.expander("🏛️ Political Trading Intelligence", expanded=False):
+        st.caption("Optional supporting signal from recent House/Senate disclosures.")
+        if st.button(f"Load political activity for {ticker}", key=f"v58_load_political_{ticker}"):
+            rows = v58_fetch_symbol_political(ticker)
+            df = v58_political_dataframe(rows)
+            if df.empty:
+                st.info("No recent House/Senate trading disclosures found for this ticker.")
+                return
+            buys = int((df["Transaction"] == "Buy").sum())
+            sells = int((df["Transaction"] == "Sell").sum())
+            signal = v58_signal_from_counts(buys, sells)
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Political Signal", signal)
+            c2.metric("Buys", buys)
+            c3.metric("Sells", sells)
+            st.write(
+                "AI Interpretation: Political trading activity is a supporting signal only. "
+                "A recent purchase may be constructive, but disclosures are delayed and should not replace financial, analyst, and risk analysis."
+            )
+            st.dataframe(df[["Politician", "Chamber", "Transaction", "Amount", "Trade Date", "Disclosure Date"]].head(30), use_container_width=True, hide_index=True)
+
+
 def main():
     if not dashboard_login_gate():
         return
@@ -21065,6 +21315,7 @@ def main():
         "Prescreen",
         "Summary",
         "Research Any Ticker",
+        "Political Intelligence",
         "Ask AI",
     ]
 
@@ -21094,6 +21345,8 @@ def main():
     elif selected_page == "Research Any Ticker":
         st.info("Full live research runs only after you select a ticker here. This keeps the main dashboard fast for clients.")
         render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df)
+    elif selected_page == "Political Intelligence":
+        render_v58_political_intelligence(full_df)
     elif selected_page == "Ask AI":
         render_chat_helper(full_df)
 
