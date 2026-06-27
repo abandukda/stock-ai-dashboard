@@ -20227,7 +20227,7 @@ def main():
 # - Show exactly one default stock report from the top-ranked idea using scan data only.
 # - Deep live research remains available only after the user explicitly selects Research Any Ticker.
 
-APP_VERSION = "V56.3 Fast Live Research Loader"
+APP_VERSION = "V57.1 Stable Fast Navigation"
 
 
 def v56_scan_num(x, default=0.0):
@@ -20564,44 +20564,60 @@ The key distinction is **opportunity versus quality**. A stock can have attracti
         st.markdown(f"• **Target:** {v56_target(row)}")
         st.markdown("• **Next Step:** Review the full live report only if this idea fits your risk tolerance and time horizon.")
 
+        run_live = False
+        with st.expander("🔬 Load Full Live Research", expanded=False):
+            st.caption(
+                "Optional deeper research. This checks live analyst, financial, news, ownership, and chart data for this selected ticker only. "
+                "It does not run unless you click the button below."
+            )
+            run_live = st.button(f"Run full live research for {ticker}", key=f"v571_live_{ticker}")
 
-    # V56.3: Keep the fast scan report separate from the live research loader.
-    # The expander contains only lightweight text + a button. The full live report
-    # is rendered only after the button is clicked, preventing the expander itself
-    # from feeling like it is loading the entire research report.
-    run_live_key = f"v563_run_live_{ticker}"
-    run_live = False
-
-    with st.expander("🔬 Load Full Live Research", expanded=False):
-        st.caption(
-            "Optional deeper research. This checks live analyst, financial, news, and ownership data for the selected ticker only. "
-            "The fast report above remains scan-based and should load quickly."
-        )
-        run_live = st.button(
-            f"Run full live research for {ticker}",
-            key=f"v563_live_button_{ticker}",
-            type="secondary",
-        )
-
-    if run_live:
-        st.session_state[run_live_key] = True
-
-    if st.session_state.get(run_live_key, False):
-        st.markdown("## 🔬 Full Live Research")
-        st.caption("Live report is loaded only for the selected ticker. Switch tickers or refresh to reset if needed.")
-        with st.spinner(f"Building full live research report for {ticker}..."):
-            try:
-                render_detail(row)
-            except Exception as e:
-                st.warning(f"Full live research is temporarily unavailable for {ticker}. Showing scan-based report instead.")
-                if v55_is_admin():
-                    st.exception(e)
+        if run_live:
+            with st.spinner(f"Building full live research report for {ticker}..."):
+                try:
+                    render_detail(row)
+                except Exception as e:
+                    st.warning(f"Full live research is temporarily unavailable for {ticker}. Showing scan-based report instead.")
+                    if v55_is_admin():
+                        st.exception(e)
 
 
 def render_table(df, title, key_prefix, min_score_default=35):
     # V56 override: table is scan-only and never opens a full research card automatically.
     max_rows = 25 if "Top" in str(title) else 75
     render_v56_ranked_table(df, title=title, max_rows=max_rows, show_filters=True)
+
+
+
+def v571_top_ideas_page(source_df):
+    fast_sorted = render_v56_ranked_table(source_df, title="Top AI Ideas", max_rows=10, show_filters=False)
+    use_df = fast_sorted if fast_sorted is not None and not fast_sorted.empty else source_df
+
+    if use_df is None or getattr(use_df, "empty", True):
+        st.info("No Top AI Ideas available from the latest scan.")
+        return
+
+    # Fast dropdown: uses scan JSON only. No live API calls on selection change.
+    ticker_options = use_df["Ticker"].astype(str).str.upper().tolist() if "Ticker" in use_df.columns else []
+    if not ticker_options:
+        default_row = v56_pick_default_stock(use_df)
+        render_v56_default_scan_report(default_row)
+        return
+
+    selected = st.selectbox(
+        "Select Top AI Idea report",
+        ticker_options,
+        index=0,
+        key="v571_top_ai_fast_selector"
+    )
+
+    selected_rows = use_df[use_df["Ticker"].astype(str).str.upper() == selected]
+    if selected_rows.empty:
+        default_row = v56_pick_default_stock(use_df)
+    else:
+        default_row = selected_rows.iloc[0]
+
+    render_v56_default_scan_report(default_row)
 
 
 def main():
@@ -20621,524 +20637,46 @@ def main():
     with st.expander("Quick guide: how to use the dashboard", expanded=False):
         render_score_help()
 
-    # ============================================================
-    # V56.2 LAZY CLIENT NAVIGATION
-    # Streamlit tabs execute every tab on each page run, which can make
-    # Watchlist / Recovery / Research feel stuck. This navigation renders
-    # only the selected section, so Top AI Ideas remains fast and the
-    # restored dropdown still works instantly from saved scan data.
-    # ============================================================
-    nav_options = [
-        "Top AI Ideas", "Full Ranked Scan", "Portfolio Intelligence",
-        "Watchlist Intelligence", "Performance", "Recovery", "ETFs",
-        "Watchlist", "Prescreen", "Summary", "Research Any Ticker", "Ask AI"
-    ]
-
-    selected_section = st.session_state.get("v562_active_section", "Top AI Ideas")
-    if selected_section not in nav_options:
-        selected_section = "Top AI Ideas"
-
-    if hasattr(st, "segmented_control"):
-        selected_section = st.segmented_control(
-            "Dashboard section",
-            nav_options,
-            selection_mode="single",
-            default=selected_section,
-            label_visibility="collapsed",
-            key="v562_nav_segmented",
-        ) or selected_section
-    else:
-        selected_section = st.radio(
-            "Dashboard section",
-            nav_options,
-            index=nav_options.index(selected_section),
-            horizontal=True,
-            label_visibility="collapsed",
-            key="v562_nav_radio",
-        )
-
-    st.session_state["v562_active_section"] = selected_section
     source_df = top_df if top_df is not None and not top_df.empty else full_df.head(25)
 
-    if selected_section == "Top AI Ideas":
-        fast_sorted = render_v56_ranked_table(source_df, title="Top AI Ideas", max_rows=10, show_filters=False)
+    # V57.1: Lazy navigation. Streamlit tabs render every tab at once, which slows the app.
+    # This radio/select navigation renders only the selected page.
+    page = st.radio(
+        "Dashboard section",
+        [
+            "Top AI Ideas", "Full Ranked Scan", "Portfolio Intelligence",
+            "Watchlist Intelligence", "Performance", "Recovery", "ETFs",
+            "Watchlist", "Prescreen", "Summary", "Research Any Ticker", "Ask AI"
+        ],
+        horizontal=True,
+        key="v571_lazy_nav"
+    )
 
-        # V56.1/V56.2: Restore fast dropdown access for Top AI Ideas.
-        # Uses already-loaded scan dataframe only. No live FMP/news/analyst APIs.
-        selector_df = fast_sorted if fast_sorted is not None and not fast_sorted.empty else source_df
-
-        if selector_df is None or selector_df.empty:
-            st.warning("No Top AI Ideas available from the latest scan.")
-        else:
-            selector_df = selector_df.head(10).copy()
-
-            def _v562_option_label(r):
-                ticker = str(v56_row_get(r, ["Ticker", "ticker"], "")).strip().upper()
-                company = str(v56_row_get(r, ["Company", "company", "Name"], "")).strip()
-                classification = v56_classification(r)
-                opp = int(round(v56_opportunity(r)))
-                q = int(round(v56_quality(r)))
-                if company and company.upper() != ticker:
-                    return f"{ticker} — {company} | {classification} | Opp {opp}/100 | Quality {q}/100"
-                return f"{ticker} | {classification} | Opp {opp}/100 | Quality {q}/100"
-
-            option_map = {}
-            options = []
-            for idx, rr in selector_df.iterrows():
-                label = _v562_option_label(rr)
-                option_map[label] = idx
-                options.append(label)
-
-            st.markdown("### 🔎 Select Fast Research Report")
-            st.caption("Switch between Top AI Ideas instantly. This uses saved scan data only. Full live research loads only from the Research Any Ticker section.")
-
-            selected_label = st.selectbox(
-                "Choose Top AI Idea",
-                options,
-                index=0,
-                key="v562_top_ai_fast_selector",
-            )
-
-            selected_row = selector_df.loc[option_map[selected_label]]
-            render_v56_default_scan_report(selected_row)
-
-    elif selected_section == "Full Ranked Scan":
+    if page == "Top AI Ideas":
+        v571_top_ideas_page(source_df)
+    elif page == "Full Ranked Scan":
         render_v56_ranked_table(full_df, title="Full Ranked AI Scan", max_rows=75, show_filters=True)
-
-    elif selected_section == "Portfolio Intelligence":
+    elif page == "Portfolio Intelligence":
         render_v505_portfolio_analyzer(full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
-
-    elif selected_section == "Watchlist Intelligence":
+    elif page == "Watchlist Intelligence":
         render_v506_watchlist_intelligence(full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
-
-    elif selected_section == "Performance":
+    elif page == "Performance":
         render_v507_performance_tracking(full_df)
-
-    elif selected_section == "Recovery":
+    elif page == "Recovery":
         render_v56_ranked_table(recovery_df, title="Recovery Intelligence", max_rows=50, show_filters=True)
-
-    elif selected_section == "ETFs":
+    elif page == "ETFs":
         render_v56_ranked_table(etf_df, title="ETF Intelligence", max_rows=50, show_filters=True)
-
-    elif selected_section == "Watchlist":
+    elif page == "Watchlist":
         render_v56_ranked_table(watch_df, title="Watchlist Scan", max_rows=50, show_filters=True)
-
-    elif selected_section == "Prescreen":
+    elif page == "Prescreen":
         render_v56_ranked_table(prescreen_df, title="Prescreen Candidates", max_rows=75, show_filters=True)
-
-    elif selected_section == "Summary":
+    elif page == "Summary":
         render_market_summary(full_df)
-
-    elif selected_section == "Research Any Ticker":
+    elif page == "Research Any Ticker":
         st.info("Full live research runs only after you select a ticker here. This keeps the main dashboard fast for clients.")
         render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df)
-
-    elif selected_section == "Ask AI":
+    elif page == "Ask AI":
         render_chat_helper(full_df)
-
-
-# ============================================================
-# V57 PROFESSIONAL CLIENT THESIS + FAST REPORT POLISH
-# Keeps V56.3 fast architecture. Replaces robotic/concatenated thesis
-# language with clean client-facing sections.
-# ============================================================
-
-APP_VERSION = "V57 Professional Research Narrative"
-
-
-def v57_safe_float(x, default=0.0):
-    try:
-        if x is None:
-            return default
-        s = str(x).replace("$", "").replace(",", "").replace("%", "").strip()
-        if s.lower() in {"", "none", "nan", "n/a"}:
-            return default
-        return float(s)
-    except Exception:
-        return default
-
-
-def v57_money(x):
-    try:
-        val = v57_safe_float(x, None)
-        if val is None:
-            return "N/A"
-        return f"${val:,.2f}"
-    except Exception:
-        return "N/A"
-
-
-def v57_pct(x):
-    try:
-        val = v57_safe_float(x, None)
-        if val is None:
-            return "N/A"
-        return f"{val:.1f}%"
-    except Exception:
-        return "N/A"
-
-
-def v57_quality_label(q):
-    q = v57_safe_float(q)
-    if q >= 85:
-        return "Elite"
-    if q >= 75:
-        return "Strong"
-    if q >= 65:
-        return "Moderate"
-    if q >= 50:
-        return "Weak"
-    return "High Risk"
-
-
-def v57_risk_label(q, upside=0):
-    q = v57_safe_float(q)
-    upside = v57_safe_float(upside)
-    if q >= 80:
-        return "Moderate"
-    if q >= 65:
-        return "Balanced"
-    if upside >= 80:
-        return "Elevated"
-    return "High"
-
-
-def v57_clean_classification(classification, q=None, upside=None, analyst=None):
-    """Turn internal labels into customer-friendly labels."""
-    q = v57_safe_float(q)
-    upside = v57_safe_float(upside)
-    analyst = v57_safe_float(analyst)
-    raw = str(classification or "").replace("🏆", "").replace("⭐", "").replace("✅", "").replace("🚀", "").replace("📈", "").replace("⚡", "").strip()
-    if q >= 85:
-        return "Elite Quality"
-    if q >= 75:
-        return "Quality Growth"
-    if upside >= 100:
-        return "High-Upside Opportunity"
-    if analyst >= 80:
-        return "Analyst-Supported Opportunity"
-    if raw:
-        return raw
-    return "Actionable Opportunity"
-
-
-def v57_report_metrics_from_row(row):
-    try:
-        ticker = str(v56_row_get(row, ["Ticker", "ticker", "Symbol"], "")).strip().upper()
-        company = str(v56_row_get(row, ["Company", "company", "Name"], ticker)).strip()
-        verdict = v56_clean_verdict(row)
-        opp = int(round(v56_opportunity(row)))
-        q = int(round(v56_quality(row)))
-        conf = int(round(v56_scan_num(v56_row_get(row, ["Research Confidence", "Confidence", "Confidence Score"], 80), 80)))
-        upside = v56_scan_num(v56_row_get(row, ["Target Upside %", "Upside", "Upside %"], 0), 0)
-        target = v56_target(row)
-        entry = v56_entry(row)
-        stop = v56_stop(row)
-        analyst_score = int(round(v56_analyst_score(row)))
-        classification = v57_clean_classification(v56_classification(row), q, upside, analyst_score)
-    except Exception:
-        ticker = str(row.get("Ticker", "")).upper() if hasattr(row, "get") else ""
-        company = str(row.get("Company", ticker)) if hasattr(row, "get") else ticker
-        verdict, opp, q, conf, upside, target, entry, stop, analyst_score, classification = "REVIEW", 0, 0, 0, 0, "Review", "Review", "Review", 0, "Actionable Opportunity"
-    return {
-        "ticker": ticker,
-        "company": company,
-        "verdict": verdict,
-        "opportunity": opp,
-        "quality": q,
-        "confidence": conf,
-        "upside": upside,
-        "target": target,
-        "entry": entry,
-        "stop": stop,
-        "analyst_score": analyst_score,
-        "classification": classification,
-    }
-
-
-def v57_build_client_narrative(ticker, metrics, ws=None, target=None, status=None):
-    """Create clean, non-robotic client-facing narrative text."""
-    q = v57_safe_float(metrics.get("quality"))
-    opp = v57_safe_float(metrics.get("opportunity"))
-    conf = v57_safe_float(metrics.get("confidence"))
-    upside = v57_safe_float(metrics.get("upside"))
-    classification = metrics.get("classification") or v57_clean_classification("", q, upside, metrics.get("analyst_score"))
-    quality_label = v57_quality_label(q)
-    risk_label = v57_risk_label(q, upside)
-    verdict = str(metrics.get("verdict") or "Review").replace("BUY NOW", "Buy Now").title()
-
-    bullish = hold = bearish = None
-    consensus = high = low = None
-    try:
-        if ws:
-            bullish = ws.get("buy") or ws.get("bullish") or ws.get("buy_ratings") or ws.get("strong_buy")
-            hold = ws.get("hold") or ws.get("neutral") or ws.get("hold_ratings")
-            bearish = ws.get("sell") or ws.get("bearish") or ws.get("sell_ratings")
-    except Exception:
-        pass
-    try:
-        if target:
-            consensus = target.get("consensus") or target.get("base")
-            high = target.get("bull") or target.get("high")
-            low = target.get("bear") or target.get("low")
-    except Exception:
-        pass
-
-    summary = []
-    summary.append(
-        f"{ticker} is currently rated **{verdict}** because the model sees a strong opportunity score, supportive evidence, and a setup that may be actionable at current levels."
-    )
-    summary.append(
-        f"The stock is classified as **{classification}**, with a **{quality_label}** quality profile and a **{risk_label}** risk profile."
-    )
-    if upside:
-        summary.append(
-            f"The dashboard estimates approximately **{upside:.1f}%** upside to the current base target, but that upside should be weighed against business quality, earnings risk, and position sizing."
-        )
-    else:
-        summary.append(
-            "The dashboard is emphasizing setup quality and supporting evidence more than a single target-price estimate."
-        )
-
-    likes = []
-    if opp >= 85:
-        likes.append("The opportunity score is high, which means upside, timing, analyst support, and risk/reward are generally aligned.")
-    if q >= 80:
-        likes.append("The financial quality score is strong, so the company does not appear to be a weak-balance-sheet idea based on the available scan data.")
-    elif q >= 65:
-        likes.append("The business quality profile is acceptable, but it is not strong enough to treat the idea as a no-question flagship holding.")
-    else:
-        likes.append("The upside is attractive, but weaker financial quality means the idea requires tighter risk control.")
-    if metrics.get("analyst_score", 0) >= 75:
-        likes.append("Wall Street support appears constructive and helps validate the upside case.")
-    if upside >= 50:
-        likes.append("The modeled target offers meaningful upside compared with the current price.")
-    likes = likes[:4]
-
-    risks = []
-    if q < 70:
-        risks.append("Financial quality is below the preferred threshold, so the position should be sized more carefully.")
-    if upside >= 100:
-        risks.append("Very large upside estimates can be less reliable and often depend on execution, sentiment, or future earnings improvement.")
-    risks.append("Upcoming earnings, guidance, analyst revisions, or company-specific news can quickly change the thesis.")
-    risks.append("A break below the modeled stop level would weaken the setup and should trigger a reassessment.")
-    risks = risks[:4]
-
-    analyst_view = "Analyst detail is available in the supporting data section."
-    if consensus:
-        analyst_view = f"The consensus target is near **{v57_money(consensus)}**."
-        if high and low:
-            analyst_view += f" The current target range runs from about **{v57_money(low)}** on the risk case to **{v57_money(high)}** on the bull case."
-    if bullish is not None or hold is not None or bearish is not None:
-        parts = []
-        if bullish is not None: parts.append(f"{int(v57_safe_float(bullish))} Buy")
-        if hold is not None: parts.append(f"{int(v57_safe_float(hold))} Hold")
-        if bearish is not None: parts.append(f"{int(v57_safe_float(bearish))} Sell")
-        if parts:
-            analyst_view += " Current rating mix: **" + ", ".join(parts) + "**."
-
-    bottom_line = (
-        f"Bottom line: {ticker} looks actionable, but it should be treated as a position that still needs disciplined entry, stop-loss control, and earnings/news monitoring."
-    )
-    if q >= 85 and opp >= 85:
-        bottom_line = f"Bottom line: {ticker} has one of the cleaner profiles in the scan because opportunity and quality are both strong. It can be considered a higher-conviction idea, while still respecting entry and stop discipline."
-    elif q < 70 and opp >= 85:
-        bottom_line = f"Bottom line: {ticker} is more of an upside opportunity than a quality compounder. The setup may be attractive, but risk control matters more because financial quality is not elite."
-
-    return {
-        "summary": summary,
-        "likes": likes,
-        "risks": risks,
-        "analyst_view": analyst_view,
-        "bottom_line": bottom_line,
-        "quality_label": quality_label,
-        "risk_label": risk_label,
-    }
-
-
-def v57_render_client_narrative(ticker, metrics, ws=None, target=None, status=None):
-    narrative = v57_build_client_narrative(ticker, metrics, ws=ws, target=target, status=status)
-
-    st.markdown("## 🎯 Investment Thesis")
-
-    st.markdown("### Executive Summary")
-    for sentence in narrative["summary"]:
-        st.markdown(f"- {sentence}")
-
-    c1, c2 = st.columns(2)
-    with c1:
-        st.markdown("### Why We Like It")
-        for item in narrative["likes"]:
-            st.markdown(f"- {item}")
-    with c2:
-        st.markdown("### Key Risks")
-        for item in narrative["risks"]:
-            st.markdown(f"- {item}")
-
-    st.markdown("### Analyst View")
-    st.info(narrative["analyst_view"])
-
-    st.markdown("### Bottom Line")
-    st.success(narrative["bottom_line"])
-
-
-def render_v51_final_recommendation(row):
-    """V57 override for the live detail page Final Recommendation."""
-    report = v51_report(row)
-    ticker = v51_text(report.get("ticker") or report.get("Ticker"), "")
-    ws = v51_wallstreet_pack(ticker) if ticker else {}
-    target = v51_target_pack(report, ws)
-    status = v51_top_choice_status(report, ws)
-
-    verdict_display = v54_clean_verdict(status.get("label", "Review")) if "v54_clean_verdict" in globals() else str(status.get("label", "Review"))
-    opportunity = int(round(v57_safe_float(status.get("opportunity", 0))))
-    quality = int(round(v57_safe_float(status.get("quality", 0))))
-    confidence = int(round(v57_safe_float(status.get("confidence", 0))))
-    upside = 0
-    try:
-        if target.get("available") and target.get("consensus") and report.get("price"):
-            price = v57_safe_float(report.get("price"))
-            if price:
-                upside = ((v57_safe_float(target.get("consensus")) - price) / price) * 100
-    except Exception:
-        upside = 0
-
-    metrics = {
-        "ticker": ticker,
-        "verdict": verdict_display,
-        "opportunity": opportunity,
-        "quality": quality,
-        "confidence": confidence,
-        "upside": upside,
-        "analyst_score": confidence,
-        "classification": v57_clean_classification(status.get("classification"), quality, upside, confidence),
-    }
-
-    with st.container(border=True):
-        st.markdown("## 🧠 Final Recommendation")
-        c1, c2, c3, c4 = st.columns([1.5, 1, 1, 1])
-        with c1:
-            st.markdown("**Recommendation**")
-            if "BUY" in verdict_display.upper():
-                st.markdown("## ✅ Buy Now")
-            elif "WATCH" in verdict_display.upper():
-                st.markdown("## 👀 Watch")
-            elif "AVOID" in verdict_display.upper() or "SELL" in verdict_display.upper():
-                st.markdown("## 🔴 Avoid")
-            else:
-                st.markdown(f"## {verdict_display}")
-        with c2:
-            st.markdown("**Opportunity**")
-            st.markdown(f"## {opportunity}/100")
-        with c3:
-            st.markdown("**Quality**")
-            st.markdown(f"## {quality}/100")
-        with c4:
-            st.markdown("**Confidence**")
-            st.markdown(f"## {confidence}/100")
-
-        st.markdown(f"**Classification:** {metrics['classification']}")
-        st.caption(f"Quality Rating: {v57_quality_label(quality)} | Risk Level: {v57_risk_label(quality, upside)}")
-
-        if status.get("blocks"):
-            st.warning(
-                "This idea is not currently a flagship Top Choice. It may still be actionable, but one or more quality, confidence, or risk controls are below the preferred threshold."
-            )
-
-        v57_render_client_narrative(ticker, metrics, ws=ws, target=target, status=status)
-
-
-def render_v56_default_scan_report(row):
-    """V57 override for fast scan-based default report."""
-    if row is None:
-        return
-    metrics = v57_report_metrics_from_row(row)
-    ticker = metrics["ticker"]
-    company = metrics["company"]
-    verdict = metrics["verdict"]
-    opp = metrics["opportunity"]
-    q = metrics["quality"]
-    conf = metrics["confidence"]
-    classification = metrics["classification"]
-
-    st.markdown("## 🔎 Fast Research Report")
-    st.caption("Loads from saved scan data first. Switching tickers in the dropdown should be fast and should not call live APIs.")
-
-    with st.container(border=True):
-        st.markdown(f"## {ticker} — {company}")
-        c1, c2, c3, c4 = st.columns([1.4, 1, 1, 1])
-        with c1:
-            st.markdown("**Recommendation**")
-            if "BUY" in str(verdict).upper():
-                st.markdown("## ✅ Buy Now")
-            elif "WATCH" in str(verdict).upper():
-                st.markdown("## 👀 Watch")
-            elif "AVOID" in str(verdict).upper() or "SELL" in str(verdict).upper():
-                st.markdown("## 🔴 Avoid")
-            else:
-                st.markdown(f"## {str(verdict).title()}")
-        with c2:
-            st.markdown("**Opportunity**")
-            st.markdown(f"## {opp}/100")
-        with c3:
-            st.markdown("**Quality**")
-            st.markdown(f"## {q}/100")
-        with c4:
-            st.markdown("**Confidence**")
-            st.markdown(f"## {conf}/100")
-
-        st.markdown(f"**Classification:** {classification}")
-        st.caption(f"Quality Rating: {v57_quality_label(q)} | Risk Level: {v57_risk_label(q, metrics.get('upside'))}")
-
-        st.info(
-            f"""
-### Customer Summary
-{ticker} is ranked highly because the dashboard sees **{v56_why_ranked(row).lower()}**.
-
-The setup shows a base target near **{metrics['target']}**, an entry zone near **{metrics['entry']}**, and a stop near **{metrics['stop']}**.
-
-This is a fast scan-based report. Use full live research only when you want deeper analyst actions, ownership data, news, and financial detail for this ticker.
-"""
-        )
-
-        if q < 70:
-            st.warning(
-                "This idea may be actionable, but it is not a flagship-quality idea because the quality score is below the preferred threshold. Treat position sizing and stop discipline carefully."
-            )
-
-        v57_render_client_narrative(ticker, metrics, ws=None, target={"consensus": metrics.get("target")}, status=None)
-
-        st.markdown("### 📌 Action Plan")
-        c5, c6, c7 = st.columns(3)
-        c5.metric("Entry Zone", str(metrics["entry"]))
-        c6.metric("Stop", str(metrics["stop"]))
-        c7.metric("Base Target", str(metrics["target"]))
-        st.caption("Research guidance only. Not personalized financial advice.")
-
-    run_live_key = f"v57_run_live_{ticker}"
-    run_live = False
-    with st.expander("🔬 Load Full Live Research", expanded=False):
-        st.caption(
-            "Optional deeper research. This checks live analyst, financial, news, and ownership data for the selected ticker only. The expander itself does not load live APIs."
-        )
-        run_live = st.button(
-            f"Run full live research for {ticker}",
-            key=f"v57_live_button_{ticker}",
-            type="secondary",
-        )
-
-    if run_live:
-        st.session_state[run_live_key] = True
-
-    if st.session_state.get(run_live_key, False):
-        st.markdown("## 🔬 Full Live Research")
-        with st.spinner(f"Building full live research report for {ticker}..."):
-            try:
-                render_detail(row)
-            except Exception as e:
-                st.warning(f"Full live research is temporarily unavailable for {ticker}. The scan-based report remains available above.")
-                if 'v55_is_admin' in globals() and v55_is_admin():
-                    st.exception(e)
 
 
 if __name__ == "__main__":
