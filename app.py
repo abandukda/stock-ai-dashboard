@@ -20737,5 +20737,409 @@ def main():
         render_chat_helper(full_df)
 
 
+# ============================================================
+# V57 PROFESSIONAL CLIENT THESIS + FAST REPORT POLISH
+# Keeps V56.3 fast architecture. Replaces robotic/concatenated thesis
+# language with clean client-facing sections.
+# ============================================================
+
+APP_VERSION = "V57 Professional Research Narrative"
+
+
+def v57_safe_float(x, default=0.0):
+    try:
+        if x is None:
+            return default
+        s = str(x).replace("$", "").replace(",", "").replace("%", "").strip()
+        if s.lower() in {"", "none", "nan", "n/a"}:
+            return default
+        return float(s)
+    except Exception:
+        return default
+
+
+def v57_money(x):
+    try:
+        val = v57_safe_float(x, None)
+        if val is None:
+            return "N/A"
+        return f"${val:,.2f}"
+    except Exception:
+        return "N/A"
+
+
+def v57_pct(x):
+    try:
+        val = v57_safe_float(x, None)
+        if val is None:
+            return "N/A"
+        return f"{val:.1f}%"
+    except Exception:
+        return "N/A"
+
+
+def v57_quality_label(q):
+    q = v57_safe_float(q)
+    if q >= 85:
+        return "Elite"
+    if q >= 75:
+        return "Strong"
+    if q >= 65:
+        return "Moderate"
+    if q >= 50:
+        return "Weak"
+    return "High Risk"
+
+
+def v57_risk_label(q, upside=0):
+    q = v57_safe_float(q)
+    upside = v57_safe_float(upside)
+    if q >= 80:
+        return "Moderate"
+    if q >= 65:
+        return "Balanced"
+    if upside >= 80:
+        return "Elevated"
+    return "High"
+
+
+def v57_clean_classification(classification, q=None, upside=None, analyst=None):
+    """Turn internal labels into customer-friendly labels."""
+    q = v57_safe_float(q)
+    upside = v57_safe_float(upside)
+    analyst = v57_safe_float(analyst)
+    raw = str(classification or "").replace("🏆", "").replace("⭐", "").replace("✅", "").replace("🚀", "").replace("📈", "").replace("⚡", "").strip()
+    if q >= 85:
+        return "Elite Quality"
+    if q >= 75:
+        return "Quality Growth"
+    if upside >= 100:
+        return "High-Upside Opportunity"
+    if analyst >= 80:
+        return "Analyst-Supported Opportunity"
+    if raw:
+        return raw
+    return "Actionable Opportunity"
+
+
+def v57_report_metrics_from_row(row):
+    try:
+        ticker = str(v56_row_get(row, ["Ticker", "ticker", "Symbol"], "")).strip().upper()
+        company = str(v56_row_get(row, ["Company", "company", "Name"], ticker)).strip()
+        verdict = v56_clean_verdict(row)
+        opp = int(round(v56_opportunity(row)))
+        q = int(round(v56_quality(row)))
+        conf = int(round(v56_scan_num(v56_row_get(row, ["Research Confidence", "Confidence", "Confidence Score"], 80), 80)))
+        upside = v56_scan_num(v56_row_get(row, ["Target Upside %", "Upside", "Upside %"], 0), 0)
+        target = v56_target(row)
+        entry = v56_entry(row)
+        stop = v56_stop(row)
+        analyst_score = int(round(v56_analyst_score(row)))
+        classification = v57_clean_classification(v56_classification(row), q, upside, analyst_score)
+    except Exception:
+        ticker = str(row.get("Ticker", "")).upper() if hasattr(row, "get") else ""
+        company = str(row.get("Company", ticker)) if hasattr(row, "get") else ticker
+        verdict, opp, q, conf, upside, target, entry, stop, analyst_score, classification = "REVIEW", 0, 0, 0, 0, "Review", "Review", "Review", 0, "Actionable Opportunity"
+    return {
+        "ticker": ticker,
+        "company": company,
+        "verdict": verdict,
+        "opportunity": opp,
+        "quality": q,
+        "confidence": conf,
+        "upside": upside,
+        "target": target,
+        "entry": entry,
+        "stop": stop,
+        "analyst_score": analyst_score,
+        "classification": classification,
+    }
+
+
+def v57_build_client_narrative(ticker, metrics, ws=None, target=None, status=None):
+    """Create clean, non-robotic client-facing narrative text."""
+    q = v57_safe_float(metrics.get("quality"))
+    opp = v57_safe_float(metrics.get("opportunity"))
+    conf = v57_safe_float(metrics.get("confidence"))
+    upside = v57_safe_float(metrics.get("upside"))
+    classification = metrics.get("classification") or v57_clean_classification("", q, upside, metrics.get("analyst_score"))
+    quality_label = v57_quality_label(q)
+    risk_label = v57_risk_label(q, upside)
+    verdict = str(metrics.get("verdict") or "Review").replace("BUY NOW", "Buy Now").title()
+
+    bullish = hold = bearish = None
+    consensus = high = low = None
+    try:
+        if ws:
+            bullish = ws.get("buy") or ws.get("bullish") or ws.get("buy_ratings") or ws.get("strong_buy")
+            hold = ws.get("hold") or ws.get("neutral") or ws.get("hold_ratings")
+            bearish = ws.get("sell") or ws.get("bearish") or ws.get("sell_ratings")
+    except Exception:
+        pass
+    try:
+        if target:
+            consensus = target.get("consensus") or target.get("base")
+            high = target.get("bull") or target.get("high")
+            low = target.get("bear") or target.get("low")
+    except Exception:
+        pass
+
+    summary = []
+    summary.append(
+        f"{ticker} is currently rated **{verdict}** because the model sees a strong opportunity score, supportive evidence, and a setup that may be actionable at current levels."
+    )
+    summary.append(
+        f"The stock is classified as **{classification}**, with a **{quality_label}** quality profile and a **{risk_label}** risk profile."
+    )
+    if upside:
+        summary.append(
+            f"The dashboard estimates approximately **{upside:.1f}%** upside to the current base target, but that upside should be weighed against business quality, earnings risk, and position sizing."
+        )
+    else:
+        summary.append(
+            "The dashboard is emphasizing setup quality and supporting evidence more than a single target-price estimate."
+        )
+
+    likes = []
+    if opp >= 85:
+        likes.append("The opportunity score is high, which means upside, timing, analyst support, and risk/reward are generally aligned.")
+    if q >= 80:
+        likes.append("The financial quality score is strong, so the company does not appear to be a weak-balance-sheet idea based on the available scan data.")
+    elif q >= 65:
+        likes.append("The business quality profile is acceptable, but it is not strong enough to treat the idea as a no-question flagship holding.")
+    else:
+        likes.append("The upside is attractive, but weaker financial quality means the idea requires tighter risk control.")
+    if metrics.get("analyst_score", 0) >= 75:
+        likes.append("Wall Street support appears constructive and helps validate the upside case.")
+    if upside >= 50:
+        likes.append("The modeled target offers meaningful upside compared with the current price.")
+    likes = likes[:4]
+
+    risks = []
+    if q < 70:
+        risks.append("Financial quality is below the preferred threshold, so the position should be sized more carefully.")
+    if upside >= 100:
+        risks.append("Very large upside estimates can be less reliable and often depend on execution, sentiment, or future earnings improvement.")
+    risks.append("Upcoming earnings, guidance, analyst revisions, or company-specific news can quickly change the thesis.")
+    risks.append("A break below the modeled stop level would weaken the setup and should trigger a reassessment.")
+    risks = risks[:4]
+
+    analyst_view = "Analyst detail is available in the supporting data section."
+    if consensus:
+        analyst_view = f"The consensus target is near **{v57_money(consensus)}**."
+        if high and low:
+            analyst_view += f" The current target range runs from about **{v57_money(low)}** on the risk case to **{v57_money(high)}** on the bull case."
+    if bullish is not None or hold is not None or bearish is not None:
+        parts = []
+        if bullish is not None: parts.append(f"{int(v57_safe_float(bullish))} Buy")
+        if hold is not None: parts.append(f"{int(v57_safe_float(hold))} Hold")
+        if bearish is not None: parts.append(f"{int(v57_safe_float(bearish))} Sell")
+        if parts:
+            analyst_view += " Current rating mix: **" + ", ".join(parts) + "**."
+
+    bottom_line = (
+        f"Bottom line: {ticker} looks actionable, but it should be treated as a position that still needs disciplined entry, stop-loss control, and earnings/news monitoring."
+    )
+    if q >= 85 and opp >= 85:
+        bottom_line = f"Bottom line: {ticker} has one of the cleaner profiles in the scan because opportunity and quality are both strong. It can be considered a higher-conviction idea, while still respecting entry and stop discipline."
+    elif q < 70 and opp >= 85:
+        bottom_line = f"Bottom line: {ticker} is more of an upside opportunity than a quality compounder. The setup may be attractive, but risk control matters more because financial quality is not elite."
+
+    return {
+        "summary": summary,
+        "likes": likes,
+        "risks": risks,
+        "analyst_view": analyst_view,
+        "bottom_line": bottom_line,
+        "quality_label": quality_label,
+        "risk_label": risk_label,
+    }
+
+
+def v57_render_client_narrative(ticker, metrics, ws=None, target=None, status=None):
+    narrative = v57_build_client_narrative(ticker, metrics, ws=ws, target=target, status=status)
+
+    st.markdown("## 🎯 Investment Thesis")
+
+    st.markdown("### Executive Summary")
+    for sentence in narrative["summary"]:
+        st.markdown(f"- {sentence}")
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("### Why We Like It")
+        for item in narrative["likes"]:
+            st.markdown(f"- {item}")
+    with c2:
+        st.markdown("### Key Risks")
+        for item in narrative["risks"]:
+            st.markdown(f"- {item}")
+
+    st.markdown("### Analyst View")
+    st.info(narrative["analyst_view"])
+
+    st.markdown("### Bottom Line")
+    st.success(narrative["bottom_line"])
+
+
+def render_v51_final_recommendation(row):
+    """V57 override for the live detail page Final Recommendation."""
+    report = v51_report(row)
+    ticker = v51_text(report.get("ticker") or report.get("Ticker"), "")
+    ws = v51_wallstreet_pack(ticker) if ticker else {}
+    target = v51_target_pack(report, ws)
+    status = v51_top_choice_status(report, ws)
+
+    verdict_display = v54_clean_verdict(status.get("label", "Review")) if "v54_clean_verdict" in globals() else str(status.get("label", "Review"))
+    opportunity = int(round(v57_safe_float(status.get("opportunity", 0))))
+    quality = int(round(v57_safe_float(status.get("quality", 0))))
+    confidence = int(round(v57_safe_float(status.get("confidence", 0))))
+    upside = 0
+    try:
+        if target.get("available") and target.get("consensus") and report.get("price"):
+            price = v57_safe_float(report.get("price"))
+            if price:
+                upside = ((v57_safe_float(target.get("consensus")) - price) / price) * 100
+    except Exception:
+        upside = 0
+
+    metrics = {
+        "ticker": ticker,
+        "verdict": verdict_display,
+        "opportunity": opportunity,
+        "quality": quality,
+        "confidence": confidence,
+        "upside": upside,
+        "analyst_score": confidence,
+        "classification": v57_clean_classification(status.get("classification"), quality, upside, confidence),
+    }
+
+    with st.container(border=True):
+        st.markdown("## 🧠 Final Recommendation")
+        c1, c2, c3, c4 = st.columns([1.5, 1, 1, 1])
+        with c1:
+            st.markdown("**Recommendation**")
+            if "BUY" in verdict_display.upper():
+                st.markdown("## ✅ Buy Now")
+            elif "WATCH" in verdict_display.upper():
+                st.markdown("## 👀 Watch")
+            elif "AVOID" in verdict_display.upper() or "SELL" in verdict_display.upper():
+                st.markdown("## 🔴 Avoid")
+            else:
+                st.markdown(f"## {verdict_display}")
+        with c2:
+            st.markdown("**Opportunity**")
+            st.markdown(f"## {opportunity}/100")
+        with c3:
+            st.markdown("**Quality**")
+            st.markdown(f"## {quality}/100")
+        with c4:
+            st.markdown("**Confidence**")
+            st.markdown(f"## {confidence}/100")
+
+        st.markdown(f"**Classification:** {metrics['classification']}")
+        st.caption(f"Quality Rating: {v57_quality_label(quality)} | Risk Level: {v57_risk_label(quality, upside)}")
+
+        if status.get("blocks"):
+            st.warning(
+                "This idea is not currently a flagship Top Choice. It may still be actionable, but one or more quality, confidence, or risk controls are below the preferred threshold."
+            )
+
+        v57_render_client_narrative(ticker, metrics, ws=ws, target=target, status=status)
+
+
+def render_v56_default_scan_report(row):
+    """V57 override for fast scan-based default report."""
+    if row is None:
+        return
+    metrics = v57_report_metrics_from_row(row)
+    ticker = metrics["ticker"]
+    company = metrics["company"]
+    verdict = metrics["verdict"]
+    opp = metrics["opportunity"]
+    q = metrics["quality"]
+    conf = metrics["confidence"]
+    classification = metrics["classification"]
+
+    st.markdown("## 🔎 Fast Research Report")
+    st.caption("Loads from saved scan data first. Switching tickers in the dropdown should be fast and should not call live APIs.")
+
+    with st.container(border=True):
+        st.markdown(f"## {ticker} — {company}")
+        c1, c2, c3, c4 = st.columns([1.4, 1, 1, 1])
+        with c1:
+            st.markdown("**Recommendation**")
+            if "BUY" in str(verdict).upper():
+                st.markdown("## ✅ Buy Now")
+            elif "WATCH" in str(verdict).upper():
+                st.markdown("## 👀 Watch")
+            elif "AVOID" in str(verdict).upper() or "SELL" in str(verdict).upper():
+                st.markdown("## 🔴 Avoid")
+            else:
+                st.markdown(f"## {str(verdict).title()}")
+        with c2:
+            st.markdown("**Opportunity**")
+            st.markdown(f"## {opp}/100")
+        with c3:
+            st.markdown("**Quality**")
+            st.markdown(f"## {q}/100")
+        with c4:
+            st.markdown("**Confidence**")
+            st.markdown(f"## {conf}/100")
+
+        st.markdown(f"**Classification:** {classification}")
+        st.caption(f"Quality Rating: {v57_quality_label(q)} | Risk Level: {v57_risk_label(q, metrics.get('upside'))}")
+
+        st.info(
+            f"""
+### Customer Summary
+{ticker} is ranked highly because the dashboard sees **{v56_why_ranked(row).lower()}**.
+
+The setup shows a base target near **{metrics['target']}**, an entry zone near **{metrics['entry']}**, and a stop near **{metrics['stop']}**.
+
+This is a fast scan-based report. Use full live research only when you want deeper analyst actions, ownership data, news, and financial detail for this ticker.
+"""
+        )
+
+        if q < 70:
+            st.warning(
+                "This idea may be actionable, but it is not a flagship-quality idea because the quality score is below the preferred threshold. Treat position sizing and stop discipline carefully."
+            )
+
+        v57_render_client_narrative(ticker, metrics, ws=None, target={"consensus": metrics.get("target")}, status=None)
+
+        st.markdown("### 📌 Action Plan")
+        c5, c6, c7 = st.columns(3)
+        c5.metric("Entry Zone", str(metrics["entry"]))
+        c6.metric("Stop", str(metrics["stop"]))
+        c7.metric("Base Target", str(metrics["target"]))
+        st.caption("Research guidance only. Not personalized financial advice.")
+
+    run_live_key = f"v57_run_live_{ticker}"
+    run_live = False
+    with st.expander("🔬 Load Full Live Research", expanded=False):
+        st.caption(
+            "Optional deeper research. This checks live analyst, financial, news, and ownership data for the selected ticker only. The expander itself does not load live APIs."
+        )
+        run_live = st.button(
+            f"Run full live research for {ticker}",
+            key=f"v57_live_button_{ticker}",
+            type="secondary",
+        )
+
+    if run_live:
+        st.session_state[run_live_key] = True
+
+    if st.session_state.get(run_live_key, False):
+        st.markdown("## 🔬 Full Live Research")
+        with st.spinner(f"Building full live research report for {ticker}..."):
+            try:
+                render_detail(row)
+            except Exception as e:
+                st.warning(f"Full live research is temporarily unavailable for {ticker}. The scan-based report remains available above.")
+                if 'v55_is_admin' in globals() and v55_is_admin():
+                    st.exception(e)
+
+
 if __name__ == "__main__":
     main()
