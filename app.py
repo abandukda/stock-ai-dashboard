@@ -20681,12 +20681,12 @@ def main():
 
 
 # ============================================================
-# V57.2 PROFESSIONAL RESEARCH NARRATIVE + COMPACT REPORT
+# V57.3 PROFESSIONAL RESEARCH NARRATIVE + COMPACT REPORT
 # Fixes broken thesis wording, removes internal language, shortens
 # client-facing report, and moves deeper sections into expanders.
 # ============================================================
 
-APP_VERSION = "V57.2 Professional Research Narrative"
+APP_VERSION = "V57.3 Professional Research Narrative"
 
 
 def v572_plain(value, default=""):
@@ -20771,7 +20771,7 @@ def v572_build_summary(report, ws, target, status):
 
 
 def v51_investment_thesis(report, ws, target):
-    """V57.2 replacement: clean, client-ready thesis bullets. No concatenated AI jargon."""
+    """V57.3 replacement: clean, client-ready thesis bullets. No concatenated AI jargon."""
     status = v51_top_choice_status(report, ws)
     summary = v572_build_summary(report, ws, target, status)
     return summary
@@ -20799,19 +20799,65 @@ def v51_wallstreet_narrative(report, ws):
 
 
 def v51_financial_narrative(report):
-    old = globals().get("_v572_original_financial_narrative")
-    if old is None:
-        return {"verdict": "Review", "what": ["Financial data is available for review."], "meaning": "Use financial quality as a position-sizing input.", "bottom": "Review financial quality before acting."}
-    n = old(report)
-    # Remove internal Top Choice language from client wording.
-    bottom = v572_plain(n.get("bottom"), "")
-    bottom = bottom.replace("does not block Top Choice eligibility", "supports the current rating")
-    bottom = bottom.replace("blocks this from becoming a Top Choice", "reduces confidence and should lower position size")
-    n["bottom"] = bottom
-    meaning = v572_plain(n.get("meaning"), "")
-    meaning = meaning.replace("sleep-well-at-night compounder", "high-quality compounder")
-    n["meaning"] = meaning
-    return n
+    """V57.3 safe financial narrative. Never calls a prior wrapper, preventing recursion."""
+    quality = v51_num(report.get("financial_health_score") or report.get("Financial Health") or report.get("quality") or report.get("Quality"), 0)
+    rev_growth = v51_num(report.get("revenue_growth") or report.get("Revenue Growth"), None)
+    eps_growth = v51_num(report.get("eps_growth") or report.get("EPS Growth"), None)
+    gross_margin = v51_num(report.get("gross_margin") or report.get("Gross Margin"), None)
+    current_ratio = v51_num(report.get("current_ratio") or report.get("Current Ratio"), None)
+    debt_equity = v51_num(report.get("debt_to_equity") or report.get("Debt / Equity") or report.get("debt_equity"), None)
+    fcf = v51_num(report.get("free_cash_flow") or report.get("Free Cash Flow"), None)
+
+    if quality >= 80:
+        verdict = "Strong Financial Quality"
+        meaning = "The company appears financially healthy enough to support the investment case, but earnings and guidance still need to be monitored."
+        bottom = "Financial strength is supportive."
+    elif quality >= 65:
+        verdict = "Acceptable Financial Quality"
+        meaning = "The financial profile is usable, but not strong enough to be the only reason to buy the stock."
+        bottom = "Financial quality is acceptable but should be paired with analyst, technical, and risk/reward support."
+    elif quality > 0:
+        verdict = "Weak Financial Quality"
+        meaning = "The financial profile adds risk. Position sizing should be more conservative unless other evidence is very strong."
+        bottom = "Financial quality is a risk factor and should reduce conviction."
+    else:
+        verdict = "Financial Data Limited"
+        meaning = "Financial data is limited, so this signal should not be over-weighted."
+        bottom = "Review financials before acting."
+
+    what = []
+    if rev_growth is not None:
+        if rev_growth >= 15:
+            what.append(f"Revenue growth is strong at {rev_growth:.1f}%, which suggests the business is expanding quickly.")
+        elif rev_growth >= 0:
+            what.append(f"Revenue growth is positive at {rev_growth:.1f}%, which supports the stability case.")
+        else:
+            what.append(f"Revenue growth is negative at {rev_growth:.1f}%, which is a risk to monitor.")
+    if eps_growth is not None:
+        if eps_growth >= 20:
+            what.append(f"EPS growth is strong at {eps_growth:.1f}%, supporting the profit improvement case.")
+        elif eps_growth >= 0:
+            what.append(f"EPS growth is positive at {eps_growth:.1f}%, which is supportive.")
+        else:
+            what.append(f"EPS growth is negative at {eps_growth:.1f}%, which weakens the earnings profile.")
+    if gross_margin is not None:
+        what.append(f"Gross margin is {gross_margin:.1f}%, which helps frame business quality and pricing power.")
+    if current_ratio is not None and current_ratio > 0:
+        what.append(f"Liquidity looks {'healthy' if current_ratio >= 1.5 else 'tight'} with a current ratio of {current_ratio:.2f}.")
+    if debt_equity is not None and debt_equity > 0:
+        if debt_equity > 3:
+            what.append(f"Debt/equity is elevated at {debt_equity:.2f}, so leverage risk should be monitored.")
+        else:
+            what.append(f"Debt/equity is manageable at {debt_equity:.2f}.")
+    if fcf is not None:
+        if fcf > 0:
+            what.append("Free cash flow is positive, which supports financial flexibility.")
+        elif fcf < 0:
+            what.append("Free cash flow is negative, which increases execution risk.")
+    if not what:
+        what = ["Financial data is available for review, but no single financial metric should drive the decision by itself."]
+
+    return {"verdict": verdict, "what": what[:5], "meaning": meaning, "bottom": bottom}
 
 
 # Preserve original narrative once, then override financial wrapper safely.
@@ -20830,7 +20876,7 @@ def v572_client_bullets(title, items, icon="✓"):
 
 
 def v51_render_verdict_card(title, narrative, positive_items=None, risk_items=None):
-    """V57.2: compact professional card used inside expanders."""
+    """V57.3: compact professional card used inside expanders."""
     with st.container(border=True):
         st.markdown(f"### {title}")
         st.markdown(f"**Verdict:** {v572_plain(narrative.get('verdict'), 'Review')}")
@@ -21004,7 +21050,7 @@ def render_v51_investment_committee(row):
 
 
 def render_detail(row):
-    """V57.2 compact detail page: summary first, deep evidence collapsed."""
+    """V57.3 compact detail page: summary first, deep evidence collapsed."""
     report = v51_report(row)
     ticker = v572_plain(report.get("ticker") or report.get("Ticker"), "")
     ws = v51_wallstreet_pack(ticker) if ticker else {}
@@ -21032,8 +21078,9 @@ def render_detail(row):
 
     if globals().get("v51_original_render_detail"):
         with st.expander("🔬 Advanced Research & Supporting Data", expanded=False):
-            st.caption("Detailed raw tables and legacy diagnostics are kept here for users who want supporting evidence.")
-            v51_original_render_detail(row)
+            st.caption("Optional deeper legacy tables. This does not load unless the button is clicked.")
+            if st.button(f"Load supporting data for {ticker or 'selected ticker'}", key=f"v573_supporting_{ticker}"):
+                v51_original_render_detail(row)
 
 
 if __name__ == "__main__":
