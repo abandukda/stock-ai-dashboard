@@ -20227,7 +20227,7 @@ def main():
 # - Show exactly one default stock report from the top-ranked idea using scan data only.
 # - Deep live research remains available only after the user explicitly selects Research Any Ticker.
 
-APP_VERSION = "V56 Fast Client Load + One Default Report"
+APP_VERSION = "V56.1 Fast Top Ideas Selector"
 
 
 def v56_scan_num(x, default=0.0):
@@ -20608,8 +20608,45 @@ def main():
 
     with tabs[0]:
         fast_sorted = render_v56_ranked_table(source_df, title="Top AI Ideas", max_rows=10, show_filters=False)
-        default_row = v56_pick_default_stock(fast_sorted if fast_sorted is not None and not fast_sorted.empty else source_df)
-        render_v56_default_scan_report(default_row)
+
+        # V56.1: Restore fast dropdown access for Top AI Ideas.
+        # This uses the already-loaded scan dataframe only. It does NOT call live FMP/news/analyst APIs.
+        selector_df = fast_sorted if fast_sorted is not None and not fast_sorted.empty else source_df
+
+        if selector_df is None or selector_df.empty:
+            st.warning("No Top AI Ideas available from the latest scan.")
+        else:
+            selector_df = selector_df.head(10).copy()
+
+            def _v561_option_label(r):
+                ticker = str(v56_row_get(r, ["Ticker", "ticker"], "")).strip().upper()
+                company = str(v56_row_get(r, ["Company", "company", "Name"], "")).strip()
+                classification = v56_classification(r)
+                opp = int(round(v56_opportunity(r)))
+                q = int(round(v56_quality(r)))
+                if company and company.upper() != ticker:
+                    return f"{ticker} — {company} | {classification} | Opp {opp}/100 | Quality {q}/100"
+                return f"{ticker} | {classification} | Opp {opp}/100 | Quality {q}/100"
+
+            option_map = {}
+            options = []
+            for idx, rr in selector_df.iterrows():
+                label = _v561_option_label(rr)
+                option_map[label] = idx
+                options.append(label)
+
+            st.markdown("### 🔎 Select Fast Research Report")
+            st.caption("Switch between the Top AI Ideas instantly. The report below uses saved scan data only; full live research loads only if you click the live research button.")
+
+            selected_label = st.selectbox(
+                "Choose Top AI Idea",
+                options,
+                index=0,
+                key="v561_top_ai_fast_selector",
+            )
+
+            selected_row = selector_df.loc[option_map[selected_label]]
+            render_v56_default_scan_report(selected_row)
 
     with tabs[1]:
         render_v56_ranked_table(full_df, title="Full Ranked AI Scan", max_rows=75, show_filters=True)
