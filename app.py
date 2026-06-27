@@ -20227,7 +20227,7 @@ def main():
 # - Show exactly one default stock report from the top-ranked idea using scan data only.
 # - Deep live research remains available only after the user explicitly selects Research Any Ticker.
 
-APP_VERSION = "V56.2 Fast Navigation + Top Ideas Selector"
+APP_VERSION = "V56.3 Fast Live Research Loader"
 
 
 def v56_scan_num(x, default=0.0):
@@ -20564,15 +20564,38 @@ The key distinction is **opportunity versus quality**. A stock can have attracti
         st.markdown(f"• **Target:** {v56_target(row)}")
         st.markdown("• **Next Step:** Review the full live report only if this idea fits your risk tolerance and time horizon.")
 
-        with st.expander("Load Full Live Research", expanded=False):
-            st.caption("Full live research may take longer because it checks analyst, financial, news, and ownership data for this ticker only.")
-            if st.button(f"Run full live research for {ticker}", key=f"v56_live_{ticker}"):
-                try:
-                    render_detail(row)
-                except Exception as e:
-                    st.warning(f"Full live research is temporarily unavailable for {ticker}. Showing scan-based report instead.")
-                    if v55_is_admin():
-                        st.exception(e)
+
+    # V56.3: Keep the fast scan report separate from the live research loader.
+    # The expander contains only lightweight text + a button. The full live report
+    # is rendered only after the button is clicked, preventing the expander itself
+    # from feeling like it is loading the entire research report.
+    run_live_key = f"v563_run_live_{ticker}"
+    run_live = False
+
+    with st.expander("🔬 Load Full Live Research", expanded=False):
+        st.caption(
+            "Optional deeper research. This checks live analyst, financial, news, and ownership data for the selected ticker only. "
+            "The fast report above remains scan-based and should load quickly."
+        )
+        run_live = st.button(
+            f"Run full live research for {ticker}",
+            key=f"v563_live_button_{ticker}",
+            type="secondary",
+        )
+
+    if run_live:
+        st.session_state[run_live_key] = True
+
+    if st.session_state.get(run_live_key, False):
+        st.markdown("## 🔬 Full Live Research")
+        st.caption("Live report is loaded only for the selected ticker. Switch tickers or refresh to reset if needed.")
+        with st.spinner(f"Building full live research report for {ticker}..."):
+            try:
+                render_detail(row)
+            except Exception as e:
+                st.warning(f"Full live research is temporarily unavailable for {ticker}. Showing scan-based report instead.")
+                if v55_is_admin():
+                    st.exception(e)
 
 
 def render_table(df, title, key_prefix, min_score_default=35):
