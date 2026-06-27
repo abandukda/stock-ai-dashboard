@@ -20679,5 +20679,362 @@ def main():
         render_chat_helper(full_df)
 
 
+
+# ============================================================
+# V57.2 PROFESSIONAL RESEARCH NARRATIVE + COMPACT REPORT
+# Fixes broken thesis wording, removes internal language, shortens
+# client-facing report, and moves deeper sections into expanders.
+# ============================================================
+
+APP_VERSION = "V57.2 Professional Research Narrative"
+
+
+def v572_plain(value, default=""):
+    try:
+        s = str(value if value is not None else default).strip()
+        if s.lower() in {"nan", "none", "null"}:
+            return default
+        return s
+    except Exception:
+        return default
+
+
+def v572_money(x):
+    try:
+        n = v51_num(x)
+        if n is None:
+            return "N/A"
+        return f"${n:,.2f}"
+    except Exception:
+        return "N/A"
+
+
+def v572_pct(x):
+    try:
+        n = v51_num(x)
+        if n is None:
+            return "N/A"
+        if abs(n) <= 1:
+            n *= 100
+        return f"{n:.1f}%"
+    except Exception:
+        return "N/A"
+
+
+def v572_wallstreet_strength(ws):
+    wss = v51_wallstreet_score(ws)
+    buy, hold, sell, total = wss.get("buy", 0), wss.get("hold", 0), wss.get("sell", 0), wss.get("total", 0)
+    buy_ratio = (buy / total) if total else 0
+    if total <= 0:
+        return "Limited", "Analyst coverage data is limited."
+    if buy_ratio >= 0.75 and sell <= max(1, total * 0.05):
+        return "Very Bullish", f"Analyst coverage is very supportive, with {int(buy)} Buy, {int(hold)} Hold, and {int(sell)} Sell ratings."
+    if buy_ratio >= 0.60:
+        return "Bullish", f"Analyst coverage is supportive, with {int(buy)} Buy, {int(hold)} Hold, and {int(sell)} Sell ratings."
+    if buy_ratio >= 0.45:
+        return "Constructive", f"Analyst coverage is constructive but not overwhelming, with {int(buy)} Buy, {int(hold)} Hold, and {int(sell)} Sell ratings."
+    return "Mixed", f"Analyst coverage is mixed, with {int(buy)} Buy, {int(hold)} Hold, and {int(sell)} Sell ratings."
+
+
+def v572_quality_rating(score):
+    score = v51_num(score, 0) or 0
+    if score >= 85:
+        return "Elite"
+    if score >= 75:
+        return "Strong"
+    if score >= 65:
+        return "Good"
+    if score >= 50:
+        return "Developing"
+    return "Weak"
+
+
+def v572_build_summary(report, ws, target, status):
+    ticker = v572_plain(report.get("ticker") or report.get("Ticker"), "This stock")
+    quality = v51_num(status.get("quality"), 0) or 0
+    opportunity = v51_num(status.get("opportunity"), 0) or 0
+    rr = v51_num(status.get("risk_reward"), 0) or 0
+    analyst_label, analyst_sentence = v572_wallstreet_strength(ws)
+    target_available = bool(target.get("available"))
+    consensus = target.get("consensus")
+    upside = target.get("upside")
+
+    summary = []
+    summary.append(f"{ticker} is rated as an actionable opportunity because the scan shows a strong opportunity score and supportive evidence across multiple research checks.")
+    if target_available and upside is not None:
+        summary.append(f"The current analyst consensus target is {v572_money(consensus)}, which implies roughly {upside:.1f}% upside from the current price.")
+    summary.append(analyst_sentence)
+    summary.append(f"Financial quality is rated {v572_quality_rating(quality)} at {quality:.0f}/100, while opportunity is rated {opportunity:.0f}/100.")
+    if rr:
+        summary.append(f"The modeled reward-to-risk profile is {rr:.2f}:1, so potential upside appears larger than modeled downside if the thesis plays out.")
+    return summary[:5]
+
+
+def v51_investment_thesis(report, ws, target):
+    """V57.2 replacement: clean, client-ready thesis bullets. No concatenated AI jargon."""
+    status = v51_top_choice_status(report, ws)
+    summary = v572_build_summary(report, ws, target, status)
+    return summary
+
+
+def v51_wallstreet_narrative(report, ws):
+    wss = v51_wallstreet_score(ws)
+    label, sentence = v572_wallstreet_strength(ws)
+    target = v51_target_pack(report, ws)
+    grades = (ws.get("grades") or {}).get("rows") or []
+
+    what = [sentence]
+    if target.get("available"):
+        if target.get("upside") is not None:
+            what.append(f"The consensus target is {v572_money(target.get('consensus'))}, implying approximately {target.get('upside'):.1f}% upside from the current price.")
+        else:
+            what.append(f"The consensus target is {v572_money(target.get('consensus'))}.")
+        what.append(f"The bull/base/bear range is {v572_money(target.get('bull'))}, {v572_money(target.get('consensus'))}, and {v572_money(target.get('bear'))}. This keeps the target framework easy to understand and avoids unrealistic AI-only targets.")
+    if grades:
+        what.append(f"There are {len(grades)} recent analyst actions available as backup detail for users who want to inspect the evidence.")
+
+    meaning = "Analyst targets are not guarantees, but they are useful directional evidence when combined with financial quality, valuation, technical setup, and risk controls."
+    bottom = "Wall Street support is meaningfully supportive." if wss.get("score", 0) >= 70 else "Wall Street support is mixed and should not carry the thesis by itself."
+    return {"verdict": label, "what": what[:5], "meaning": meaning, "bottom": bottom}
+
+
+def v51_financial_narrative(report):
+    old = globals().get("_v572_original_financial_narrative")
+    if old is None:
+        return {"verdict": "Review", "what": ["Financial data is available for review."], "meaning": "Use financial quality as a position-sizing input.", "bottom": "Review financial quality before acting."}
+    n = old(report)
+    # Remove internal Top Choice language from client wording.
+    bottom = v572_plain(n.get("bottom"), "")
+    bottom = bottom.replace("does not block Top Choice eligibility", "supports the current rating")
+    bottom = bottom.replace("blocks this from becoming a Top Choice", "reduces confidence and should lower position size")
+    n["bottom"] = bottom
+    meaning = v572_plain(n.get("meaning"), "")
+    meaning = meaning.replace("sleep-well-at-night compounder", "high-quality compounder")
+    n["meaning"] = meaning
+    return n
+
+
+# Preserve original narrative once, then override financial wrapper safely.
+try:
+    _v572_original_financial_narrative
+except NameError:
+    _v572_original_financial_narrative = globals().get("v51_financial_narrative")
+
+
+def v572_client_bullets(title, items, icon="✓"):
+    st.markdown(f"**{title}**")
+    for item in items:
+        item = v572_plain(item)
+        if item:
+            st.markdown(f"{icon} {item}")
+
+
+def v51_render_verdict_card(title, narrative, positive_items=None, risk_items=None):
+    """V57.2: compact professional card used inside expanders."""
+    with st.container(border=True):
+        st.markdown(f"### {title}")
+        st.markdown(f"**Verdict:** {v572_plain(narrative.get('verdict'), 'Review')}")
+        what = narrative.get("what") or []
+        if what:
+            v572_client_bullets("What We See", what[:4], "•")
+        if positive_items:
+            v572_client_bullets("Positive Catalysts", positive_items[:4], "✓")
+        if risk_items:
+            v572_client_bullets("Risks Being Monitored", risk_items[:4], "⚠️")
+        meaning = v572_plain(narrative.get("meaning"), "")
+        bottom = v572_plain(narrative.get("bottom"), "")
+        if meaning:
+            st.markdown(f"**What This Means:** {meaning}")
+        if bottom:
+            st.markdown(f"**Bottom Line:** {bottom}")
+
+
+def v572_scorecard(report, ws, status, target):
+    analyst_label, _ = v572_wallstreet_strength(ws)
+    tech = v51_technical_narrative(report)
+    news = v51_news_narrative(report, v572_plain(report.get("ticker") or report.get("Ticker"), ""))
+    data = {
+        "Category": ["Opportunity", "Quality", "Confidence", "Analyst View", "Technical Setup", "News Flow"],
+        "Readout": [
+            f"{v51_num(status.get('opportunity'), 0):.0f}/100",
+            f"{v51_num(status.get('quality'), 0):.0f}/100",
+            f"{v51_num(status.get('confidence'), 0):.0f}/100",
+            analyst_label,
+            v572_plain(tech.get("verdict"), "Review"),
+            v572_plain(news.get("verdict"), "Review"),
+        ],
+        "Use": [
+            "Upside and setup strength",
+            "Business durability",
+            "Data support behind the call",
+            "Wall Street sentiment",
+            "Timing and volatility",
+            "Catalysts and risk headlines",
+        ],
+    }
+    st.dataframe(pd.DataFrame(data), use_container_width=True, hide_index=True)
+
+
+def render_v51_final_recommendation(row):
+    report = v51_report(row)
+    ticker = v572_plain(report.get("ticker") or report.get("Ticker"), "This stock")
+    ws = v51_wallstreet_pack(ticker) if ticker else {}
+    target = v51_target_pack(report, ws)
+    status = v51_top_choice_status(report, ws)
+
+    verdict_display = v54_clean_verdict(status.get("label", "Review")) if "v54_clean_verdict" in globals() else v572_plain(status.get("label"), "Review")
+    opportunity = v51_num(status.get("opportunity"), 0) or 0
+    quality = v51_num(status.get("quality"), 0) or 0
+    confidence = v51_num(status.get("confidence"), 0) or 0
+    quality_rating = v572_quality_rating(quality)
+    summary = v572_build_summary(report, ws, target, status)
+
+    with st.container(border=True):
+        st.markdown("## 🧠 Final Recommendation")
+        c1, c2, c3, c4 = st.columns([1.4, 1, 1, 1])
+        with c1:
+            st.markdown("**Recommendation**")
+            if "BUY" in verdict_display.upper():
+                st.markdown("## ✅ Buy Now")
+            elif "WATCH" in verdict_display.upper():
+                st.markdown("## 👀 Watch")
+            elif "AVOID" in verdict_display.upper() or "SELL" in verdict_display.upper():
+                st.markdown("## 🔴 Avoid")
+            else:
+                st.markdown(f"## {verdict_display}")
+        c2.metric("Opportunity", f"{opportunity:.0f}/100")
+        c3.metric("Quality", f"{quality:.0f}/100")
+        c4.metric("Confidence", f"{confidence:.0f}/100")
+
+        st.markdown(f"**Quality Rating:** {quality_rating}")
+        st.markdown("### Customer Summary")
+        for s in summary:
+            st.markdown(f"• {s}")
+
+        if status.get("blocks"):
+            st.warning(
+                "This idea may still be actionable, but it is not the cleanest flagship setup. "
+                "Use smaller position sizing and review the risks before acting."
+            )
+
+        st.markdown("### Investment Scorecard")
+        v572_scorecard(report, ws, status, target)
+
+        st.markdown("### Why We Like It")
+        likes = []
+        if opportunity >= 80:
+            likes.append("High opportunity score indicates attractive upside and setup strength.")
+        if quality >= 75:
+            likes.append("Financial quality is strong enough to support the investment case.")
+        analyst_label, analyst_sentence = v572_wallstreet_strength(ws)
+        if analyst_label in {"Very Bullish", "Bullish", "Constructive"}:
+            likes.append(analyst_sentence)
+        if v51_num(status.get("risk_reward"), 0) and v51_num(status.get("risk_reward"), 0) >= 2:
+            likes.append(f"Reward-to-risk is attractive at {v51_num(status.get('risk_reward'), 0):.2f}:1.")
+        for x in likes[:4] or ["The setup has enough supporting evidence to remain on the active research list."]:
+            st.markdown(f"✓ {x}")
+
+        st.markdown("### Key Risks")
+        risks = []
+        if quality < 70:
+            risks.append("Financial quality is below the preferred threshold, so execution risk is higher.")
+        risks.append("Earnings, guidance, or analyst sentiment could change the thesis quickly.")
+        risks.append("A break below the stop or support zone would weaken the technical setup.")
+        for x in risks[:3]:
+            st.markdown(f"⚠️ {x}")
+
+        if target.get("available"):
+            st.markdown("### Price Target Framework")
+            c5, c6, c7 = st.columns(3)
+            c5.metric("Bull Case", v572_money(target.get("bull")))
+            c6.metric("Base / Consensus", v572_money(target.get("consensus")))
+            c7.metric("Risk Case", v572_money(target.get("bear")))
+            st.caption("Targets are scenario estimates, not guarantees. Use them with position sizing and risk controls.")
+
+
+def render_v51_bull_base_bear(row):
+    report = v51_report(row)
+    ticker = v572_plain(report.get("ticker") or report.get("Ticker"), "")
+    ws = v51_wallstreet_pack(ticker) if ticker else {}
+    target = v51_target_pack(report, ws)
+    if not target.get("available"):
+        return
+    with st.expander("🔮 Bull / Base / Risk Scenario", expanded=False):
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.markdown("#### Bull Case")
+            st.write("Execution improves, analyst confidence remains supportive, and earnings expectations move higher.")
+            st.metric("Bull Scenario", v572_money(target.get("bull")))
+        with c2:
+            st.markdown("#### Base Case")
+            st.write("The company delivers steady progress without a major upside or downside surprise.")
+            st.metric("Base / Consensus", v572_money(target.get("consensus")))
+        with c3:
+            st.markdown("#### Risk Case")
+            st.write("Execution disappoints, sentiment weakens, or the stock loses technical support.")
+            st.metric("Risk Scenario", v572_money(target.get("bear")))
+
+
+def render_v51_investment_committee(row):
+    report = v51_report(row)
+    ticker = v572_plain(report.get("ticker") or report.get("Ticker"), "")
+    ws = v51_wallstreet_pack(ticker) if ticker else {}
+    status = v51_top_choice_status(report, ws)
+    with st.expander("⚖️ AI Investment Committee", expanded=False):
+        st.markdown("**Evidence Reviewed:** financial quality, analyst support, technical setup, news/catalysts, risk/reward, and target discipline.")
+        st.markdown("**Committee View**")
+        st.write(
+            "The stock is actionable only when the opportunity, quality, confidence, and risk framework are aligned. "
+            "A strong single signal is not enough by itself."
+        )
+        st.markdown("**Current Decision**")
+        st.success(f"{v572_plain(status.get('label'), 'Review')} — Quality Rating: {v572_quality_rating(status.get('quality'))}")
+        if status.get("blocks"):
+            st.markdown("**Why this is not a clean flagship setup:**")
+            for b in status.get("blocks", [])[:4]:
+                st.markdown(f"⚠️ {b}")
+        st.markdown("**What Would Change The View**")
+        for x in [
+            "Financial quality improves or deteriorates materially.",
+            "Analysts revise targets or earnings estimates.",
+            "The stock breaks below support or clears resistance with strong volume.",
+            "New company-specific news changes the earnings outlook.",
+        ]:
+            st.markdown(f"• {x}")
+
+
+def render_detail(row):
+    """V57.2 compact detail page: summary first, deep evidence collapsed."""
+    report = v51_report(row)
+    ticker = v572_plain(report.get("ticker") or report.get("Ticker"), "")
+    ws = v51_wallstreet_pack(ticker) if ticker else {}
+
+    render_v51_final_recommendation(row)
+    render_v51_bull_base_bear(row)
+
+    with st.expander("💰 Financial Strength", expanded=False):
+        v51_render_verdict_card("💰 Financial Strength", v51_financial_narrative(report))
+
+    with st.expander("📈 Analyst Intelligence", expanded=False):
+        v51_render_verdict_card("📈 Analyst Intelligence", v51_wallstreet_narrative(report, ws))
+
+    with st.expander("🏦 Smart Money View", expanded=False):
+        v51_render_verdict_card("🏦 Smart Money View", v51_smart_money_narrative(report))
+
+    with st.expander("📊 Technical Setup", expanded=False):
+        v51_render_verdict_card("📊 Technical Setup", v51_technical_narrative(report))
+
+    with st.expander("📰 News & Catalysts", expanded=False):
+        news = v51_news_narrative(report, ticker)
+        v51_render_verdict_card("📰 News & Catalysts", news, news.get("positives"), news.get("risks"))
+
+    render_v51_investment_committee(row)
+
+    if globals().get("v51_original_render_detail"):
+        with st.expander("🔬 Advanced Research & Supporting Data", expanded=False):
+            st.caption("Detailed raw tables and legacy diagnostics are kept here for users who want supporting evidence.")
+            v51_original_render_detail(row)
+
+
 if __name__ == "__main__":
     main()
