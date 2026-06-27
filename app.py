@@ -20227,7 +20227,7 @@ def main():
 # - Show exactly one default stock report from the top-ranked idea using scan data only.
 # - Deep live research remains available only after the user explicitly selects Research Any Ticker.
 
-APP_VERSION = "V57.1 Stable Fast Navigation"
+APP_VERSION = "V56 Fast Client Load + One Default Report"
 
 
 def v56_scan_num(x, default=0.0):
@@ -20564,16 +20564,9 @@ The key distinction is **opportunity versus quality**. A stock can have attracti
         st.markdown(f"• **Target:** {v56_target(row)}")
         st.markdown("• **Next Step:** Review the full live report only if this idea fits your risk tolerance and time horizon.")
 
-        run_live = False
-        with st.expander("🔬 Load Full Live Research", expanded=False):
-            st.caption(
-                "Optional deeper research. This checks live analyst, financial, news, ownership, and chart data for this selected ticker only. "
-                "It does not run unless you click the button below."
-            )
-            run_live = st.button(f"Run full live research for {ticker}", key=f"v571_live_{ticker}")
-
-        if run_live:
-            with st.spinner(f"Building full live research report for {ticker}..."):
+        with st.expander("Load Full Live Research", expanded=False):
+            st.caption("Full live research may take longer because it checks analyst, financial, news, and ownership data for this ticker only.")
+            if st.button(f"Run full live research for {ticker}", key=f"v56_live_{ticker}"):
                 try:
                     render_detail(row)
                 except Exception as e:
@@ -20586,38 +20579,6 @@ def render_table(df, title, key_prefix, min_score_default=35):
     # V56 override: table is scan-only and never opens a full research card automatically.
     max_rows = 25 if "Top" in str(title) else 75
     render_v56_ranked_table(df, title=title, max_rows=max_rows, show_filters=True)
-
-
-
-def v571_top_ideas_page(source_df):
-    fast_sorted = render_v56_ranked_table(source_df, title="Top AI Ideas", max_rows=10, show_filters=False)
-    use_df = fast_sorted if fast_sorted is not None and not fast_sorted.empty else source_df
-
-    if use_df is None or getattr(use_df, "empty", True):
-        st.info("No Top AI Ideas available from the latest scan.")
-        return
-
-    # Fast dropdown: uses scan JSON only. No live API calls on selection change.
-    ticker_options = use_df["Ticker"].astype(str).str.upper().tolist() if "Ticker" in use_df.columns else []
-    if not ticker_options:
-        default_row = v56_pick_default_stock(use_df)
-        render_v56_default_scan_report(default_row)
-        return
-
-    selected = st.selectbox(
-        "Select Top AI Idea report",
-        ticker_options,
-        index=0,
-        key="v571_top_ai_fast_selector"
-    )
-
-    selected_rows = use_df[use_df["Ticker"].astype(str).str.upper() == selected]
-    if selected_rows.empty:
-        default_row = v56_pick_default_stock(use_df)
-    else:
-        default_row = selected_rows.iloc[0]
-
-    render_v56_default_scan_report(default_row)
 
 
 def main():
@@ -20637,450 +20598,504 @@ def main():
     with st.expander("Quick guide: how to use the dashboard", expanded=False):
         render_score_help()
 
+    tabs = st.tabs([
+        "Top AI Ideas", "Full Ranked Scan", "Portfolio Intelligence",
+        "Watchlist Intelligence", "Performance", "Recovery", "ETFs",
+        "Watchlist", "Prescreen", "Summary", "Research Any Ticker", "Ask AI"
+    ])
+
     source_df = top_df if top_df is not None and not top_df.empty else full_df.head(25)
 
-    # V57.1: Lazy navigation. Streamlit tabs render every tab at once, which slows the app.
-    # This radio/select navigation renders only the selected page.
-    page = st.radio(
-        "Dashboard section",
-        [
-            "Top AI Ideas", "Full Ranked Scan", "Portfolio Intelligence",
-            "Watchlist Intelligence", "Performance", "Recovery", "ETFs",
-            "Watchlist", "Prescreen", "Summary", "Research Any Ticker", "Ask AI"
-        ],
-        horizontal=True,
-        key="v571_lazy_nav"
-    )
+    with tabs[0]:
+        fast_sorted = render_v56_ranked_table(source_df, title="Top AI Ideas", max_rows=10, show_filters=False)
+        default_row = v56_pick_default_stock(fast_sorted if fast_sorted is not None and not fast_sorted.empty else source_df)
+        render_v56_default_scan_report(default_row)
 
-    if page == "Top AI Ideas":
-        v571_top_ideas_page(source_df)
-    elif page == "Full Ranked Scan":
+    with tabs[1]:
         render_v56_ranked_table(full_df, title="Full Ranked AI Scan", max_rows=75, show_filters=True)
-    elif page == "Portfolio Intelligence":
+
+    with tabs[2]:
         render_v505_portfolio_analyzer(full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
-    elif page == "Watchlist Intelligence":
+    with tabs[3]:
         render_v506_watchlist_intelligence(full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
-    elif page == "Performance":
+    with tabs[4]:
         render_v507_performance_tracking(full_df)
-    elif page == "Recovery":
+    with tabs[5]:
         render_v56_ranked_table(recovery_df, title="Recovery Intelligence", max_rows=50, show_filters=True)
-    elif page == "ETFs":
+    with tabs[6]:
         render_v56_ranked_table(etf_df, title="ETF Intelligence", max_rows=50, show_filters=True)
-    elif page == "Watchlist":
+    with tabs[7]:
         render_v56_ranked_table(watch_df, title="Watchlist Scan", max_rows=50, show_filters=True)
-    elif page == "Prescreen":
+    with tabs[8]:
         render_v56_ranked_table(prescreen_df, title="Prescreen Candidates", max_rows=75, show_filters=True)
-    elif page == "Summary":
+    with tabs[9]:
         render_market_summary(full_df)
-    elif page == "Research Any Ticker":
+    with tabs[10]:
         st.info("Full live research runs only after you select a ticker here. This keeps the main dashboard fast for clients.")
         render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df)
-    elif page == "Ask AI":
+    with tabs[11]:
         render_chat_helper(full_df)
 
 
 
 # ============================================================
-# V57.3 PROFESSIONAL RESEARCH NARRATIVE + COMPACT REPORT
-# Fixes broken thesis wording, removes internal language, shortens
-# client-facing report, and moves deeper sections into expanders.
+# V57.4 CUSTOMER TRUST + FAST NAVIGATION RELEASE
+# ------------------------------------------------------------
+# Purpose:
+# - Recommendation and Classification no longer contradict each other.
+# - Removes "Not Top Choice" / flagship-threshold language from customer views.
+# - Keeps Top AI Ideas fast using saved scan JSON only.
+# - Restores fast dropdown access for the Top AI Ideas report.
+# - Uses lazy navigation instead of st.tabs() so inactive pages do not load.
 # ============================================================
 
-APP_VERSION = "V57.3 Professional Research Narrative"
+APP_VERSION = "V57.4 Customer Trust Release"
 
 
-def v572_plain(value, default=""):
+def v574_num(x, default=0.0):
     try:
-        s = str(value if value is not None else default).strip()
-        if s.lower() in {"nan", "none", "null"}:
+        if x is None:
+            return default
+        s = str(x).replace("%", "").replace("$", "").replace(",", "").strip()
+        if s.lower() in {"", "nan", "none", "null", "n/a"}:
+            return default
+        return float(s)
+    except Exception:
+        return default
+
+
+def v574_text(x, default=""):
+    try:
+        if x is None:
+            return default
+        s = str(x).strip()
+        if s.lower() in {"", "nan", "none", "null", "n/a"}:
             return default
         return s
     except Exception:
         return default
 
 
-def v572_money(x):
-    try:
-        n = v51_num(x)
-        if n is None:
-            return "N/A"
-        return f"${n:,.2f}"
-    except Exception:
-        return "N/A"
+def v574_recommendation(row):
+    raw = v574_text(
+        v56_row_get(row, ["Verdict", "Final Verdict", "Recommendation", "Action"], ""),
+        ""
+    ).upper()
+
+    score = v574_num(v56_row_get(row, ["Final Conviction", "Opportunity", "Opportunity Score", "Score", "Investment Score"], 0), 0)
+    upside = v574_num(v56_row_get(row, ["Target Upside %", "Upside", "Upside %"], 0), 0)
+
+    if "AVOID" in raw or "SELL" in raw:
+        return "🔴 AVOID"
+    if "WATCH" in raw:
+        return "👀 WATCH"
+    if "GRADUAL" in raw or "WEAKNESS" in raw:
+        return "🟡 BUY GRADUALLY"
+    if "BUY" in raw:
+        return "✅ BUY NOW"
+
+    if score >= 85 and upside >= 10:
+        return "✅ BUY NOW"
+    if score >= 70:
+        return "🟡 BUY GRADUALLY"
+    if score >= 55:
+        return "👀 WATCH"
+    return "🔴 AVOID"
 
 
-def v572_pct(x):
-    try:
-        n = v51_num(x)
-        if n is None:
-            return "N/A"
-        if abs(n) <= 1:
-            n *= 100
-        return f"{n:.1f}%"
-    except Exception:
-        return "N/A"
+def v574_classification(row):
+    q = v574_num(v56_row_get(row, ["Quality", "Quality Score", "Financial Health", "Financial Health Score"], 0), 0)
+    opp = v574_num(v56_row_get(row, ["Opportunity", "Opportunity Score", "Final Conviction", "Score", "Investment Score"], 0), 0)
+    upside = v574_num(v56_row_get(row, ["Target Upside %", "Upside", "Upside %"], 0), 0)
+    analyst = v574_num(v56_row_get(row, ["Analyst Score", "Analyst Confidence", "Wall Street Score"], 0), 0)
+    recovery = v574_num(v56_row_get(row, ["Recovery Score"], 0), 0)
+
+    # Classification is opportunity type, not a second verdict.
+    if q >= 85:
+        return "🏆 Elite Quality"
+    if q >= 75:
+        return "✅ Quality Growth"
+    if recovery >= 75:
+        return "🔄 Recovery Candidate"
+    if upside >= 100:
+        return "🚀 High Upside"
+    if analyst >= 80:
+        return "📈 Analyst Favorite"
+    if opp >= 90:
+        return "⚡ High Opportunity"
+    return "📌 Actionable Idea"
 
 
-def v572_wallstreet_strength(ws):
-    wss = v51_wallstreet_score(ws)
-    buy, hold, sell, total = wss.get("buy", 0), wss.get("hold", 0), wss.get("sell", 0), wss.get("total", 0)
-    buy_ratio = (buy / total) if total else 0
-    if total <= 0:
-        return "Limited", "Analyst coverage data is limited."
-    if buy_ratio >= 0.75 and sell <= max(1, total * 0.05):
-        return "Very Bullish", f"Analyst coverage is very supportive, with {int(buy)} Buy, {int(hold)} Hold, and {int(sell)} Sell ratings."
-    if buy_ratio >= 0.60:
-        return "Bullish", f"Analyst coverage is supportive, with {int(buy)} Buy, {int(hold)} Hold, and {int(sell)} Sell ratings."
-    if buy_ratio >= 0.45:
-        return "Constructive", f"Analyst coverage is constructive but not overwhelming, with {int(buy)} Buy, {int(hold)} Hold, and {int(sell)} Sell ratings."
-    return "Mixed", f"Analyst coverage is mixed, with {int(buy)} Buy, {int(hold)} Hold, and {int(sell)} Sell ratings."
-
-
-def v572_quality_rating(score):
-    score = v51_num(score, 0) or 0
-    if score >= 85:
+def v574_quality_rating(row):
+    q = v574_num(v56_row_get(row, ["Quality", "Quality Score", "Financial Health", "Financial Health Score"], 0), 0)
+    if q >= 85:
         return "Elite"
-    if score >= 75:
+    if q >= 75:
         return "Strong"
-    if score >= 65:
-        return "Good"
-    if score >= 50:
+    if q >= 60:
         return "Developing"
-    return "Weak"
+    return "Speculative"
 
 
-def v572_build_summary(report, ws, target, status):
-    ticker = v572_plain(report.get("ticker") or report.get("Ticker"), "This stock")
-    quality = v51_num(status.get("quality"), 0) or 0
-    opportunity = v51_num(status.get("opportunity"), 0) or 0
-    rr = v51_num(status.get("risk_reward"), 0) or 0
-    analyst_label, analyst_sentence = v572_wallstreet_strength(ws)
-    target_available = bool(target.get("available"))
-    consensus = target.get("consensus")
-    upside = target.get("upside")
+def v574_analyst_summary(row):
+    support = v574_text(v56_row_get(row, ["Analyst Support", "Analyst View"], ""), "")
+    score = v574_num(v56_row_get(row, ["Analyst Score", "Analyst Confidence", "Wall Street Score"], 0), 0)
+    target = v574_num(v56_row_get(row, ["Analyst Target"], 0), 0)
 
-    summary = []
-    summary.append(f"{ticker} is rated as an actionable opportunity because the scan shows a strong opportunity score and supportive evidence across multiple research checks.")
-    if target_available and upside is not None:
-        summary.append(f"The current analyst consensus target is {v572_money(consensus)}, which implies roughly {upside:.1f}% upside from the current price.")
-    summary.append(analyst_sentence)
-    summary.append(f"Financial quality is rated {v572_quality_rating(quality)} at {quality:.0f}/100, while opportunity is rated {opportunity:.0f}/100.")
-    if rr:
-        summary.append(f"The modeled reward-to-risk profile is {rr:.2f}:1, so potential upside appears larger than modeled downside if the thesis plays out.")
-    return summary[:5]
-
-
-def v51_investment_thesis(report, ws, target):
-    """V57.3 replacement: clean, client-ready thesis bullets. No concatenated AI jargon."""
-    status = v51_top_choice_status(report, ws)
-    summary = v572_build_summary(report, ws, target, status)
-    return summary
-
-
-def v51_wallstreet_narrative(report, ws):
-    wss = v51_wallstreet_score(ws)
-    label, sentence = v572_wallstreet_strength(ws)
-    target = v51_target_pack(report, ws)
-    grades = (ws.get("grades") or {}).get("rows") or []
-
-    what = [sentence]
-    if target.get("available"):
-        if target.get("upside") is not None:
-            what.append(f"The consensus target is {v572_money(target.get('consensus'))}, implying approximately {target.get('upside'):.1f}% upside from the current price.")
-        else:
-            what.append(f"The consensus target is {v572_money(target.get('consensus'))}.")
-        what.append(f"The bull/base/bear range is {v572_money(target.get('bull'))}, {v572_money(target.get('consensus'))}, and {v572_money(target.get('bear'))}. This keeps the target framework easy to understand and avoids unrealistic AI-only targets.")
-    if grades:
-        what.append(f"There are {len(grades)} recent analyst actions available as backup detail for users who want to inspect the evidence.")
-
-    meaning = "Analyst targets are not guarantees, but they are useful directional evidence when combined with financial quality, valuation, technical setup, and risk controls."
-    bottom = "Wall Street support is meaningfully supportive." if wss.get("score", 0) >= 70 else "Wall Street support is mixed and should not carry the thesis by itself."
-    return {"verdict": label, "what": what[:5], "meaning": meaning, "bottom": bottom}
-
-
-def v51_financial_narrative(report):
-    """V57.3 safe financial narrative. Never calls a prior wrapper, preventing recursion."""
-    quality = v51_num(report.get("financial_health_score") or report.get("Financial Health") or report.get("quality") or report.get("Quality"), 0)
-    rev_growth = v51_num(report.get("revenue_growth") or report.get("Revenue Growth"), None)
-    eps_growth = v51_num(report.get("eps_growth") or report.get("EPS Growth"), None)
-    gross_margin = v51_num(report.get("gross_margin") or report.get("Gross Margin"), None)
-    current_ratio = v51_num(report.get("current_ratio") or report.get("Current Ratio"), None)
-    debt_equity = v51_num(report.get("debt_to_equity") or report.get("Debt / Equity") or report.get("debt_equity"), None)
-    fcf = v51_num(report.get("free_cash_flow") or report.get("Free Cash Flow"), None)
-
-    if quality >= 80:
-        verdict = "Strong Financial Quality"
-        meaning = "The company appears financially healthy enough to support the investment case, but earnings and guidance still need to be monitored."
-        bottom = "Financial strength is supportive."
-    elif quality >= 65:
-        verdict = "Acceptable Financial Quality"
-        meaning = "The financial profile is usable, but not strong enough to be the only reason to buy the stock."
-        bottom = "Financial quality is acceptable but should be paired with analyst, technical, and risk/reward support."
-    elif quality > 0:
-        verdict = "Weak Financial Quality"
-        meaning = "The financial profile adds risk. Position sizing should be more conservative unless other evidence is very strong."
-        bottom = "Financial quality is a risk factor and should reduce conviction."
+    if score >= 80 or "bullish" in support.lower():
+        view = "Wall Street sentiment appears supportive."
+    elif score >= 60 or "constructive" in support.lower():
+        view = "Wall Street sentiment appears constructive."
+    elif score > 0:
+        view = "Wall Street sentiment appears mixed."
     else:
-        verdict = "Financial Data Limited"
-        meaning = "Financial data is limited, so this signal should not be over-weighted."
-        bottom = "Review financials before acting."
+        view = "Wall Street coverage is limited in the saved scan data."
 
-    what = []
-    if rev_growth is not None:
-        if rev_growth >= 15:
-            what.append(f"Revenue growth is strong at {rev_growth:.1f}%, which suggests the business is expanding quickly.")
-        elif rev_growth >= 0:
-            what.append(f"Revenue growth is positive at {rev_growth:.1f}%, which supports the stability case.")
-        else:
-            what.append(f"Revenue growth is negative at {rev_growth:.1f}%, which is a risk to monitor.")
-    if eps_growth is not None:
-        if eps_growth >= 20:
-            what.append(f"EPS growth is strong at {eps_growth:.1f}%, supporting the profit improvement case.")
-        elif eps_growth >= 0:
-            what.append(f"EPS growth is positive at {eps_growth:.1f}%, which is supportive.")
-        else:
-            what.append(f"EPS growth is negative at {eps_growth:.1f}%, which weakens the earnings profile.")
-    if gross_margin is not None:
-        what.append(f"Gross margin is {gross_margin:.1f}%, which helps frame business quality and pricing power.")
-    if current_ratio is not None and current_ratio > 0:
-        what.append(f"Liquidity looks {'healthy' if current_ratio >= 1.5 else 'tight'} with a current ratio of {current_ratio:.2f}.")
-    if debt_equity is not None and debt_equity > 0:
-        if debt_equity > 3:
-            what.append(f"Debt/equity is elevated at {debt_equity:.2f}, so leverage risk should be monitored.")
-        else:
-            what.append(f"Debt/equity is manageable at {debt_equity:.2f}.")
-    if fcf is not None:
-        if fcf > 0:
-            what.append("Free cash flow is positive, which supports financial flexibility.")
-        elif fcf < 0:
-            what.append("Free cash flow is negative, which increases execution risk.")
-    if not what:
-        what = ["Financial data is available for review, but no single financial metric should drive the decision by itself."]
-
-    return {"verdict": verdict, "what": what[:5], "meaning": meaning, "bottom": bottom}
+    if target:
+        view += f" The analyst target is approximately {v56_money(target)}."
+    return view
 
 
-# Preserve original narrative once, then override financial wrapper safely.
-try:
-    _v572_original_financial_narrative
-except NameError:
-    _v572_original_financial_narrative = globals().get("v51_financial_narrative")
+def v574_why_like(row):
+    bullets = []
+    opp = v574_num(v56_row_get(row, ["Opportunity", "Opportunity Score", "Final Conviction", "Score", "Investment Score"], 0), 0)
+    q = v574_num(v56_row_get(row, ["Quality", "Quality Score", "Financial Health", "Financial Health Score"], 0), 0)
+    upside = v574_num(v56_row_get(row, ["Target Upside %", "Upside", "Upside %"], 0), 0)
+    rr = v574_num(v56_row_get(row, ["Risk/Reward", "Risk Reward"], 0), 0)
+    analyst = v574_num(v56_row_get(row, ["Analyst Score", "Analyst Confidence", "Wall Street Score"], 0), 0)
+    rsi = v574_num(v56_row_get(row, ["RSI"], 0), 0)
+    vol = v574_num(v56_row_get(row, ["Volume Ratio"], 0), 0)
+
+    if opp >= 85:
+        bullets.append("The opportunity score is strong, which means the saved scan sees a favorable setup.")
+    if q >= 75:
+        bullets.append("Business quality is supportive, which helps strengthen confidence in the idea.")
+    if upside >= 25:
+        bullets.append("Modeled upside is meaningful relative to the current price.")
+    if rr >= 2:
+        bullets.append("Risk/reward appears favorable based on the current entry, stop, and target range.")
+    if analyst >= 75:
+        bullets.append("Analyst sentiment is supportive and helps validate the upside case.")
+    if 45 <= rsi <= 70:
+        bullets.append("Momentum is healthy without looking excessively overbought.")
+    if vol >= 1.2:
+        bullets.append("Recent volume suggests stronger-than-normal market participation.")
+
+    if not bullets:
+        bullets.append("The setup has enough positive signals to justify further review.")
+    return bullets[:5]
 
 
-def v572_client_bullets(title, items, icon="✓"):
-    st.markdown(f"**{title}**")
-    for item in items:
-        item = v572_plain(item)
-        if item:
-            st.markdown(f"{icon} {item}")
+def v574_key_risks(row):
+    risks = []
+    q = v574_num(v56_row_get(row, ["Quality", "Quality Score", "Financial Health", "Financial Health Score"], 0), 0)
+    upside = v574_num(v56_row_get(row, ["Target Upside %", "Upside", "Upside %"], 0), 0)
+    rr = v574_num(v56_row_get(row, ["Risk/Reward", "Risk Reward"], 0), 0)
+    atr = v574_num(v56_row_get(row, ["ATR %"], 0), 0)
+    rsi = v574_num(v56_row_get(row, ["RSI"], 0), 0)
+    primary = v574_text(v56_row_get(row, ["Primary Risk"], ""), "")
+
+    if primary:
+        risks.append(primary)
+    if q < 65:
+        risks.append("Financial quality is still developing, so execution and position sizing matter.")
+    if upside >= 75:
+        risks.append("Very high upside usually comes with higher uncertainty and a wider range of outcomes.")
+    if rr and rr < 1.5:
+        risks.append("Risk/reward is less attractive than preferred and should be reviewed carefully.")
+    if atr >= 6:
+        risks.append("Volatility is elevated, so short-term price swings may be larger than normal.")
+    if rsi >= 70:
+        risks.append("Momentum may be stretched in the short term.")
+
+    if not risks:
+        risks.append("Earnings execution, valuation, and broader market sentiment should continue to be monitored.")
+    return risks[:4]
 
 
-def v51_render_verdict_card(title, narrative, positive_items=None, risk_items=None):
-    """V57.3: compact professional card used inside expanders."""
+def v574_why_ranked(row):
+    q = v574_num(v56_row_get(row, ["Quality", "Quality Score", "Financial Health", "Financial Health Score"], 0), 0)
+    opp = v574_num(v56_row_get(row, ["Opportunity", "Opportunity Score", "Final Conviction", "Score", "Investment Score"], 0), 0)
+    upside = v574_num(v56_row_get(row, ["Target Upside %", "Upside", "Upside %"], 0), 0)
+    analyst = v574_num(v56_row_get(row, ["Analyst Score", "Analyst Confidence", "Wall Street Score"], 0), 0)
+    rr = v574_num(v56_row_get(row, ["Risk/Reward", "Risk Reward"], 0), 0)
+
+    if q >= 80 and upside >= 25:
+        return "Strong quality with attractive upside"
+    if analyst >= 80 and upside >= 25:
+        return "Analyst-backed upside setup"
+    if upside >= 100:
+        return "Large upside opportunity"
+    if rr >= 2 and opp >= 85:
+        return "Favorable risk/reward setup"
+    if opp >= 90:
+        return "High-conviction scan result"
+    if q >= 75:
+        return "Quality profile supports the ranking"
+    return "Actionable setup worth reviewing"
+
+
+def v574_fast_table_rows(df, limit=50):
+    rows = []
+    if df is None or getattr(df, "empty", True):
+        return rows
+
+    for _, row in df.head(limit).iterrows():
+        try:
+            ticker = str(v56_row_get(row, ["Ticker", "ticker"], "")).strip().upper()
+            if not ticker:
+                continue
+            rows.append({
+                "Ticker": ticker,
+                "Company": str(v56_row_get(row, ["Company", "company", "Name"], "")).strip(),
+                "Recommendation": v574_recommendation(row),
+                "Classification": v574_classification(row),
+                "Opportunity": int(round(v56_opportunity(row))),
+                "Quality": int(round(v56_quality(row))),
+                "Upside": v56_pct(v56_row_get(row, ["Target Upside %", "Upside"], 0)),
+                "Entry": v56_entry(row),
+                "Stop": v56_stop(row),
+                "Target": v56_target(row),
+                "Analyst View": v56_analyst_view(row),
+                "Why Ranked": v574_why_ranked(row),
+            })
+        except Exception:
+            continue
+    return rows
+
+
+def render_v56_ranked_table(df, title="Ranked Ideas", max_rows=25, show_filters=True):
+    st.markdown(f"## 📋 {title}")
+    if df is None or getattr(df, "empty", True):
+        st.info("No ranked ideas available yet. Run the overnight scan to refresh results.")
+        return pd.DataFrame()
+
+    filtered = df.copy()
+
+    if show_filters:
+        c1, c2, c3 = st.columns([1, 1, 2])
+        with c1:
+            min_opp = st.slider("Minimum opportunity", 0, 100, 45, key=f"v574_{title}_opp")
+        with c2:
+            min_quality = st.slider("Minimum quality", 0, 100, 0, key=f"v574_{title}_quality")
+        with c3:
+            search = st.text_input("Search ticker/company", key=f"v574_{title}_search")
+
+        filtered["__opp"] = filtered.apply(v56_opportunity, axis=1)
+        filtered["__quality"] = filtered.apply(v56_quality, axis=1)
+        filtered = filtered[(filtered["__opp"] >= min_opp) & (filtered["__quality"] >= min_quality)]
+
+        if search:
+            s = search.strip().lower()
+            filtered = filtered[
+                filtered.get("Ticker", "").astype(str).str.lower().str.contains(s, na=False)
+                | filtered.get("Company", "").astype(str).str.lower().str.contains(s, na=False)
+            ]
+
+    if filtered.empty:
+        st.warning("No rows match filters.")
+        return pd.DataFrame()
+
+    filtered["__opp"] = filtered.apply(v56_opportunity, axis=1)
+    filtered["__quality"] = filtered.apply(v56_quality, axis=1)
+    filtered = filtered.sort_values(["__opp", "__quality"], ascending=False)
+
+    out = pd.DataFrame(v574_fast_table_rows(filtered, limit=max_rows))
+    if not out.empty:
+        st.caption("Fast scan-only view. Recommendation is the action; Classification explains the type of opportunity.")
+        st.dataframe(out, use_container_width=True, hide_index=True)
+
+    return filtered
+
+
+def render_v574_scan_report(row, title="Research Report"):
+    if row is None:
+        st.info("No stock selected.")
+        return
+
+    ticker = str(v56_row_get(row, ["Ticker", "ticker"], "")).strip().upper()
+    company = str(v56_row_get(row, ["Company", "company", "Name"], ticker)).strip()
+    rec = v574_recommendation(row)
+    classification = v574_classification(row)
+    opp = int(round(v56_opportunity(row)))
+    q = int(round(v56_quality(row)))
+    conf = int(round(v574_num(v56_row_get(row, ["Research Confidence", "Confidence", "Confidence Score"], opp), opp)))
+    upside = v56_pct(v56_row_get(row, ["Target Upside %", "Upside"], 0))
+
+    st.markdown(f"## 🔎 {title}")
+    st.caption("Fast report powered by the latest saved scan. Live analyst/news/ownership calls run only when requested.")
+
     with st.container(border=True):
-        st.markdown(f"### {title}")
-        st.markdown(f"**Verdict:** {v572_plain(narrative.get('verdict'), 'Review')}")
-        what = narrative.get("what") or []
-        if what:
-            v572_client_bullets("What We See", what[:4], "•")
-        if positive_items:
-            v572_client_bullets("Positive Catalysts", positive_items[:4], "✓")
-        if risk_items:
-            v572_client_bullets("Risks Being Monitored", risk_items[:4], "⚠️")
-        meaning = v572_plain(narrative.get("meaning"), "")
-        bottom = v572_plain(narrative.get("bottom"), "")
-        if meaning:
-            st.markdown(f"**What This Means:** {meaning}")
-        if bottom:
-            st.markdown(f"**Bottom Line:** {bottom}")
+        st.markdown(f"## {ticker} — {company}")
 
-
-def v572_scorecard(report, ws, status, target):
-    analyst_label, _ = v572_wallstreet_strength(ws)
-    tech = v51_technical_narrative(report)
-    news = v51_news_narrative(report, v572_plain(report.get("ticker") or report.get("Ticker"), ""))
-    data = {
-        "Category": ["Opportunity", "Quality", "Confidence", "Analyst View", "Technical Setup", "News Flow"],
-        "Readout": [
-            f"{v51_num(status.get('opportunity'), 0):.0f}/100",
-            f"{v51_num(status.get('quality'), 0):.0f}/100",
-            f"{v51_num(status.get('confidence'), 0):.0f}/100",
-            analyst_label,
-            v572_plain(tech.get("verdict"), "Review"),
-            v572_plain(news.get("verdict"), "Review"),
-        ],
-        "Use": [
-            "Upside and setup strength",
-            "Business durability",
-            "Data support behind the call",
-            "Wall Street sentiment",
-            "Timing and volatility",
-            "Catalysts and risk headlines",
-        ],
-    }
-    st.dataframe(pd.DataFrame(data), use_container_width=True, hide_index=True)
-
-
-def render_v51_final_recommendation(row):
-    report = v51_report(row)
-    ticker = v572_plain(report.get("ticker") or report.get("Ticker"), "This stock")
-    ws = v51_wallstreet_pack(ticker) if ticker else {}
-    target = v51_target_pack(report, ws)
-    status = v51_top_choice_status(report, ws)
-
-    verdict_display = v54_clean_verdict(status.get("label", "Review")) if "v54_clean_verdict" in globals() else v572_plain(status.get("label"), "Review")
-    opportunity = v51_num(status.get("opportunity"), 0) or 0
-    quality = v51_num(status.get("quality"), 0) or 0
-    confidence = v51_num(status.get("confidence"), 0) or 0
-    quality_rating = v572_quality_rating(quality)
-    summary = v572_build_summary(report, ws, target, status)
-
-    with st.container(border=True):
-        st.markdown("## 🧠 Final Recommendation")
-        c1, c2, c3, c4 = st.columns([1.4, 1, 1, 1])
+        c1, c2, c3, c4 = st.columns([1.35, 1, 1, 1])
         with c1:
             st.markdown("**Recommendation**")
-            if "BUY" in verdict_display.upper():
-                st.markdown("## ✅ Buy Now")
-            elif "WATCH" in verdict_display.upper():
-                st.markdown("## 👀 Watch")
-            elif "AVOID" in verdict_display.upper() or "SELL" in verdict_display.upper():
-                st.markdown("## 🔴 Avoid")
-            else:
-                st.markdown(f"## {verdict_display}")
-        c2.metric("Opportunity", f"{opportunity:.0f}/100")
-        c3.metric("Quality", f"{quality:.0f}/100")
-        c4.metric("Confidence", f"{confidence:.0f}/100")
-
-        st.markdown(f"**Quality Rating:** {quality_rating}")
-        st.markdown("### Customer Summary")
-        for s in summary:
-            st.markdown(f"• {s}")
-
-        if status.get("blocks"):
-            st.warning(
-                "This idea may still be actionable, but it is not the cleanest flagship setup. "
-                "Use smaller position sizing and review the risks before acting."
-            )
-
-        st.markdown("### Investment Scorecard")
-        v572_scorecard(report, ws, status, target)
-
-        st.markdown("### Why We Like It")
-        likes = []
-        if opportunity >= 80:
-            likes.append("High opportunity score indicates attractive upside and setup strength.")
-        if quality >= 75:
-            likes.append("Financial quality is strong enough to support the investment case.")
-        analyst_label, analyst_sentence = v572_wallstreet_strength(ws)
-        if analyst_label in {"Very Bullish", "Bullish", "Constructive"}:
-            likes.append(analyst_sentence)
-        if v51_num(status.get("risk_reward"), 0) and v51_num(status.get("risk_reward"), 0) >= 2:
-            likes.append(f"Reward-to-risk is attractive at {v51_num(status.get('risk_reward'), 0):.2f}:1.")
-        for x in likes[:4] or ["The setup has enough supporting evidence to remain on the active research list."]:
-            st.markdown(f"✓ {x}")
-
-        st.markdown("### Key Risks")
-        risks = []
-        if quality < 70:
-            risks.append("Financial quality is below the preferred threshold, so execution risk is higher.")
-        risks.append("Earnings, guidance, or analyst sentiment could change the thesis quickly.")
-        risks.append("A break below the stop or support zone would weaken the technical setup.")
-        for x in risks[:3]:
-            st.markdown(f"⚠️ {x}")
-
-        if target.get("available"):
-            st.markdown("### Price Target Framework")
-            c5, c6, c7 = st.columns(3)
-            c5.metric("Bull Case", v572_money(target.get("bull")))
-            c6.metric("Base / Consensus", v572_money(target.get("consensus")))
-            c7.metric("Risk Case", v572_money(target.get("bear")))
-            st.caption("Targets are scenario estimates, not guarantees. Use them with position sizing and risk controls.")
-
-
-def render_v51_bull_base_bear(row):
-    report = v51_report(row)
-    ticker = v572_plain(report.get("ticker") or report.get("Ticker"), "")
-    ws = v51_wallstreet_pack(ticker) if ticker else {}
-    target = v51_target_pack(report, ws)
-    if not target.get("available"):
-        return
-    with st.expander("🔮 Bull / Base / Risk Scenario", expanded=False):
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.markdown("#### Bull Case")
-            st.write("Execution improves, analyst confidence remains supportive, and earnings expectations move higher.")
-            st.metric("Bull Scenario", v572_money(target.get("bull")))
+            st.markdown(f"## {rec}")
         with c2:
-            st.markdown("#### Base Case")
-            st.write("The company delivers steady progress without a major upside or downside surprise.")
-            st.metric("Base / Consensus", v572_money(target.get("consensus")))
+            st.markdown("**Opportunity**")
+            st.markdown(f"## {opp}/100")
         with c3:
-            st.markdown("#### Risk Case")
-            st.write("Execution disappoints, sentiment weakens, or the stock loses technical support.")
-            st.metric("Risk Scenario", v572_money(target.get("bear")))
+            st.markdown("**Quality**")
+            st.markdown(f"## {q}/100")
+        with c4:
+            st.markdown("**Confidence**")
+            st.markdown(f"## {conf}/100")
 
+        st.markdown(f"### Classification: {classification}")
 
-def render_v51_investment_committee(row):
-    report = v51_report(row)
-    ticker = v572_plain(report.get("ticker") or report.get("Ticker"), "")
-    ws = v51_wallstreet_pack(ticker) if ticker else {}
-    status = v51_top_choice_status(report, ws)
-    with st.expander("⚖️ AI Investment Committee", expanded=False):
-        st.markdown("**Evidence Reviewed:** financial quality, analyst support, technical setup, news/catalysts, risk/reward, and target discipline.")
-        st.markdown("**Committee View**")
-        st.write(
-            "The stock is actionable only when the opportunity, quality, confidence, and risk framework are aligned. "
-            "A strong single signal is not enough by itself."
+        st.info(
+            f"""
+### Customer Summary
+
+{ticker} is currently rated **{rec}** and classified as **{classification}**.
+
+The model sees **{upside} upside** to the dashboard target, with an entry zone near **{v56_entry(row)}**, a stop near **{v56_stop(row)}**, and a target near **{v56_target(row)}**.
+
+This section avoids conflicting labels. The recommendation tells you the action; the classification explains what type of opportunity it is.
+"""
         )
-        st.markdown("**Current Decision**")
-        st.success(f"{v572_plain(status.get('label'), 'Review')} — Quality Rating: {v572_quality_rating(status.get('quality'))}")
-        if status.get("blocks"):
-            st.markdown("**Why this is not a clean flagship setup:**")
-            for b in status.get("blocks", [])[:4]:
-                st.markdown(f"⚠️ {b}")
-        st.markdown("**What Would Change The View**")
-        for x in [
-            "Financial quality improves or deteriorates materially.",
-            "Analysts revise targets or earnings estimates.",
-            "The stock breaks below support or clears resistance with strong volume.",
-            "New company-specific news changes the earnings outlook.",
-        ]:
-            st.markdown(f"• {x}")
+
+        score_rows = pd.DataFrame([
+            {"Category": "Opportunity", "Score": f"{opp}/100", "Interpretation": "How attractive the setup looks right now."},
+            {"Category": "Quality", "Score": f"{q}/100", "Interpretation": f"Business quality rating: {v574_quality_rating(row)}."},
+            {"Category": "Confidence", "Score": f"{conf}/100", "Interpretation": "How strongly the available scan evidence supports the view."},
+            {"Category": "Analyst View", "Score": v56_analyst_view(row), "Interpretation": "Wall Street support based on saved scan data."},
+        ])
+        st.markdown("### 📊 Investment Scorecard")
+        st.dataframe(score_rows, use_container_width=True, hide_index=True)
+
+        st.markdown("### ✅ Why We Like It")
+        for item in v574_why_like(row):
+            st.markdown(f"• {item}")
+
+        st.markdown("### ⚠️ Key Risks")
+        for item in v574_key_risks(row):
+            st.markdown(f"• {item}")
+
+        st.markdown("### 🎯 Action Plan")
+        c5, c6, c7, c8 = st.columns(4)
+        c5.metric("Entry Zone", v56_entry(row))
+        c6.metric("Stop", v56_stop(row))
+        c7.metric("Target", v56_target(row))
+        c8.metric("Modeled Upside", upside)
+
+        st.markdown("### 🧠 Bottom Line")
+        st.success(
+            f"{ticker} remains a **{rec.replace('✅ ', '').replace('🟡 ', '').replace('👀 ', '').replace('🔴 ', '')}** based on the current scan. "
+            f"The main reasons are: {v574_why_ranked(row).lower()}. "
+            "Use the full live research button only when you want fresh analyst, news, ownership, and financial detail."
+        )
+
+    run_live = False
+    with st.expander("🔬 Load Full Live Research", expanded=False):
+        st.caption("Optional. This may take longer because it checks live analyst, financial, news, and ownership data for this ticker only.")
+        run_live = st.button(f"Run full live research for {ticker}", key=f"v574_live_{ticker}")
+
+    if run_live:
+        with st.spinner(f"Building full live research report for {ticker}..."):
+            try:
+                render_detail(row)
+            except Exception as e:
+                st.warning(f"Full live research is temporarily unavailable for {ticker}. The fast scan report remains available above.")
+                if "v55_is_admin" in globals() and v55_is_admin():
+                    st.exception(e)
 
 
-def render_detail(row):
-    """V57.3 compact detail page: summary first, deep evidence collapsed."""
-    report = v51_report(row)
-    ticker = v572_plain(report.get("ticker") or report.get("Ticker"), "")
-    ws = v51_wallstreet_pack(ticker) if ticker else {}
+def render_v56_default_scan_report(row):
+    render_v574_scan_report(row, title="Default Research Report")
 
-    render_v51_final_recommendation(row)
-    render_v51_bull_base_bear(row)
 
-    with st.expander("💰 Financial Strength", expanded=False):
-        v51_render_verdict_card("💰 Financial Strength", v51_financial_narrative(report))
+def render_v574_top_ideas(source_df):
+    fast_sorted = render_v56_ranked_table(source_df, title="Top AI Ideas", max_rows=10, show_filters=False)
+    if fast_sorted is None or getattr(fast_sorted, "empty", True):
+        st.info("No Top AI Ideas available.")
+        return
 
-    with st.expander("📈 Analyst Intelligence", expanded=False):
-        v51_render_verdict_card("📈 Analyst Intelligence", v51_wallstreet_narrative(report, ws))
+    top10 = fast_sorted.head(10).copy()
+    ticker_options = top10["Ticker"].astype(str).str.upper().tolist() if "Ticker" in top10.columns else []
+    if not ticker_options:
+        default_row = v56_pick_default_stock(top10)
+        render_v574_scan_report(default_row, title="Default Research Report")
+        return
 
-    with st.expander("🏦 Smart Money View", expanded=False):
-        v51_render_verdict_card("🏦 Smart Money View", v51_smart_money_narrative(report))
+    selected = st.selectbox(
+        "Select Top AI Idea",
+        ticker_options,
+        index=0,
+        key="v574_top_ai_selector"
+    )
 
-    with st.expander("📊 Technical Setup", expanded=False):
-        v51_render_verdict_card("📊 Technical Setup", v51_technical_narrative(report))
+    selected_rows = top10[top10["Ticker"].astype(str).str.upper() == selected]
+    selected_row = selected_rows.iloc[0] if not selected_rows.empty else v56_pick_default_stock(top10)
+    render_v574_scan_report(selected_row, title=f"Fast Research Report: {selected}")
 
-    with st.expander("📰 News & Catalysts", expanded=False):
-        news = v51_news_narrative(report, ticker)
-        v51_render_verdict_card("📰 News & Catalysts", news, news.get("positives"), news.get("risks"))
 
-    render_v51_investment_committee(row)
+def render_table(df, title, key_prefix, min_score_default=35):
+    max_rows = 25 if "Top" in str(title) else 75
+    return render_v56_ranked_table(df, title=title, max_rows=max_rows, show_filters=True)
 
-    if globals().get("v51_original_render_detail"):
-        with st.expander("🔬 Advanced Research & Supporting Data", expanded=False):
-            st.caption("Optional deeper legacy tables. This does not load unless the button is clicked.")
-            if st.button(f"Load supporting data for {ticker or 'selected ticker'}", key=f"v573_supporting_{ticker}"):
-                v51_original_render_detail(row)
+
+def main():
+    if not dashboard_login_gate():
+        return
+
+    full_df = load_full_scan()
+    top_df = latest_top_ideas()
+    recovery_df = latest_recovery()
+    watch_df = latest_watchlist_scan()
+    prescreen_df = load_file(PRESCREEN_FILE)
+    etf_df = load_file(ETF_SCAN_FILE)
+
+    render_status_banner()
+    render_v511_top_command_center(full_df)
+
+    with st.expander("Quick guide: how to use the dashboard", expanded=False):
+        render_score_help()
+
+    pages = [
+        "Top AI Ideas",
+        "Full Ranked Scan",
+        "Portfolio Intelligence",
+        "Watchlist Intelligence",
+        "Performance",
+        "Recovery",
+        "ETFs",
+        "Watchlist",
+        "Prescreen",
+        "Summary",
+        "Research Any Ticker",
+        "Ask AI",
+    ]
+
+    selected_page = st.sidebar.radio("Navigate", pages, index=0, key="v574_lazy_nav")
+    source_df = top_df if top_df is not None and not top_df.empty else full_df.head(25)
+
+    if selected_page == "Top AI Ideas":
+        render_v574_top_ideas(source_df)
+    elif selected_page == "Full Ranked Scan":
+        render_v56_ranked_table(full_df, title="Full Ranked AI Scan", max_rows=75, show_filters=True)
+    elif selected_page == "Portfolio Intelligence":
+        render_v505_portfolio_analyzer(full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
+    elif selected_page == "Watchlist Intelligence":
+        render_v506_watchlist_intelligence(full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
+    elif selected_page == "Performance":
+        render_v507_performance_tracking(full_df)
+    elif selected_page == "Recovery":
+        render_v56_ranked_table(recovery_df, title="Recovery Intelligence", max_rows=50, show_filters=True)
+    elif selected_page == "ETFs":
+        render_v56_ranked_table(etf_df, title="ETF Intelligence", max_rows=50, show_filters=True)
+    elif selected_page == "Watchlist":
+        render_v56_ranked_table(watch_df, title="Watchlist Scan", max_rows=50, show_filters=True)
+    elif selected_page == "Prescreen":
+        render_v56_ranked_table(prescreen_df, title="Prescreen Candidates", max_rows=75, show_filters=True)
+    elif selected_page == "Summary":
+        render_market_summary(full_df)
+    elif selected_page == "Research Any Ticker":
+        st.info("Full live research runs only after you select a ticker here. This keeps the main dashboard fast for clients.")
+        render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df)
+    elif selected_page == "Ask AI":
+        render_chat_helper(full_df)
 
 
 if __name__ == "__main__":
