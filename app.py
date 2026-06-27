@@ -20424,6 +20424,8 @@ def main():
     if not dashboard_login_gate():
         return
 
+    render_v59_design_system()
+
     full_df = load_full_scan()
     top_df = latest_top_ideas()
     recovery_df = latest_recovery()
@@ -20835,6 +20837,8 @@ def main():
     if not dashboard_login_gate():
         return
 
+    render_v59_design_system()
+
     full_df = load_full_scan()
     top_df = latest_top_ideas()
     recovery_df = latest_recovery()
@@ -20899,7 +20903,7 @@ def main():
 # - Uses lazy navigation instead of st.tabs() so inactive pages do not load.
 # ============================================================
 
-APP_VERSION = "V57.4 Customer Trust Release"
+APP_VERSION = "V59 Professional Client Experience"
 
 
 def v574_num(x, default=0.0):
@@ -21158,6 +21162,71 @@ def render_v56_ranked_table(df, title="Ranked Ideas", max_rows=25, show_filters=
     return filtered
 
 
+def v59_is_admin_user():
+    try:
+        if "v55_is_admin" in globals():
+            return bool(v55_is_admin())
+    except Exception:
+        pass
+    try:
+        return str(get_user_role()).lower() == "admin"
+    except Exception:
+        return False
+
+
+def render_v59_design_system():
+    st.markdown(
+        """
+<style>
+.block-container {padding-top: 1.2rem; padding-bottom: 2rem;}
+.v59-hero {
+  border: 1px solid rgba(148,163,184,.22);
+  border-radius: 18px;
+  padding: 22px 24px;
+  background: linear-gradient(135deg, rgba(15,23,42,.96), rgba(30,41,59,.92));
+  color: white;
+  box-shadow: 0 10px 30px rgba(15,23,42,.18);
+  margin-bottom: 14px;
+}
+.v59-kicker {font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color: #93c5fd; font-weight: 700;}
+.v59-title {font-size: 1.75rem; font-weight: 800; margin: 4px 0 2px 0;}
+.v59-subtitle {color: #cbd5e1; margin: 0;}
+.v59-badge {
+  display: inline-block; padding: 6px 10px; border-radius: 999px;
+  background: rgba(255,255,255,.10); border: 1px solid rgba(255,255,255,.16);
+  margin: 4px 6px 4px 0; font-weight: 700;
+}
+.v59-card {
+  border: 1px solid rgba(148,163,184,.20); border-radius: 16px; padding: 16px 18px;
+  background: rgba(255,255,255,.035); margin-bottom: 12px;
+}
+.v59-section-title {font-size: 1.05rem; font-weight: 800; margin-bottom: 6px;}
+.v59-muted {color: #64748b; font-size: .92rem;}
+.v59-bullet {margin: 0 0 5px 0;}
+</style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def v59_plain_action(rec):
+    text = str(rec or "Review")
+    for token in ["✅", "🟡", "👀", "🔴"]:
+        text = text.replace(token, "")
+    return text.strip() or "Review"
+
+
+def v59_scorecard_rows(row, opp, q, conf):
+    return pd.DataFrame([
+        {"Category": "Opportunity", "Score": f"{opp}/100", "Meaning": "How attractive the setup looks right now."},
+        {"Category": "Quality", "Score": f"{q}/100", "Meaning": f"Business quality rating: {v574_quality_rating(row)}."},
+        {"Category": "Confidence", "Score": f"{conf}/100", "Meaning": "How strongly the available evidence supports the view."},
+        {"Category": "Analyst View", "Score": v56_analyst_view(row), "Meaning": "Wall Street support based on the latest scan."},
+        {"Category": "Technical Setup", "Score": setup_label(v56_opportunity(row)), "Meaning": "Timing and momentum context from scan signals."},
+        {"Category": "Political Signal", "Score": str(v56_row_get(row, ["Political Signal", "political_signal"], "Coming V58 / Not detected")), "Meaning": "Supporting signal only; never the primary reason to buy."},
+    ])
+
+
 def render_v574_scan_report(row, title="Research Report"):
     if row is None:
         st.info("No stock selected.")
@@ -21171,84 +21240,127 @@ def render_v574_scan_report(row, title="Research Report"):
     q = int(round(v56_quality(row)))
     conf = int(round(v574_num(v56_row_get(row, ["Research Confidence", "Confidence", "Confidence Score"], opp), opp)))
     upside = v56_pct(v56_row_get(row, ["Target Upside %", "Upside"], 0))
+    last_updated = "Latest completed AI market scan"
+    action = v59_plain_action(rec)
 
     st.markdown(f"## 🔎 {title}")
-    st.caption("Fast report powered by the latest saved scan. Live analyst/news/ownership calls run only when requested.")
 
-    with st.container(border=True):
-        st.markdown(f"## {ticker} — {company}")
+    st.markdown(
+        f"""
+<div class="v59-hero">
+  <div class="v59-kicker">Premium AI Research Report</div>
+  <div class="v59-title">{ticker} — {company}</div>
+  <p class="v59-subtitle">Report generated from the latest completed scan. No extra generation step required for clients.</p>
+  <div style="margin-top:12px;">
+    <span class="v59-badge">{rec}</span>
+    <span class="v59-badge">{classification}</span>
+    <span class="v59-badge">Confidence {conf}/100</span>
+    <span class="v59-badge">Updated: {last_updated}</span>
+  </div>
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-        c1, c2, c3, c4 = st.columns([1.35, 1, 1, 1])
-        with c1:
-            st.markdown("**Recommendation**")
-            st.markdown(f"## {rec}")
-        with c2:
-            st.markdown("**Opportunity**")
-            st.markdown(f"## {opp}/100")
-        with c3:
-            st.markdown("**Quality**")
-            st.markdown(f"## {q}/100")
-        with c4:
-            st.markdown("**Confidence**")
-            st.markdown(f"## {conf}/100")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Recommendation", action)
+    c2.metric("Opportunity", f"{opp}/100")
+    c3.metric("Quality", f"{q}/100")
+    c4.metric("Modeled Upside", upside)
 
-        st.markdown(f"### Classification: {classification}")
+    st.markdown("### Executive Summary")
+    st.info(
+        f"{ticker} is rated **{rec}** and classified as **{classification}**. "
+        f"The model highlights {v574_why_ranked(row).lower()} with a target near **{v56_target(row)}** and an entry zone around **{v56_entry(row)}**. "
+        "The report below is already prepared from the latest scan so clients can review the thesis immediately without clicking a separate generate button."
+    )
 
-        st.info(
-            f"""
-### Customer Summary
-
-{ticker} is currently rated **{rec}** and classified as **{classification}**.
-
-The model sees **{upside} upside** to the dashboard target, with an entry zone near **{v56_entry(row)}**, a stop near **{v56_stop(row)}**, and a target near **{v56_target(row)}**.
-
-This section avoids conflicting labels. The recommendation tells you the action; the classification explains what type of opportunity it is.
-"""
-        )
-
-        score_rows = pd.DataFrame([
-            {"Category": "Opportunity", "Score": f"{opp}/100", "Interpretation": "How attractive the setup looks right now."},
-            {"Category": "Quality", "Score": f"{q}/100", "Interpretation": f"Business quality rating: {v574_quality_rating(row)}."},
-            {"Category": "Confidence", "Score": f"{conf}/100", "Interpretation": "How strongly the available scan evidence supports the view."},
-            {"Category": "Analyst View", "Score": v56_analyst_view(row), "Interpretation": "Wall Street support based on saved scan data."},
-        ])
-        st.markdown("### 📊 Investment Scorecard")
-        st.dataframe(score_rows, use_container_width=True, hide_index=True)
-
+    left, right = st.columns(2)
+    with left:
         st.markdown("### ✅ Why We Like It")
         for item in v574_why_like(row):
-            st.markdown(f"• {item}")
-
+            st.markdown(f"<p class='v59-bullet'>• {item}</p>", unsafe_allow_html=True)
+    with right:
         st.markdown("### ⚠️ Key Risks")
         for item in v574_key_risks(row):
-            st.markdown(f"• {item}")
+            st.markdown(f"<p class='v59-bullet'>• {item}</p>", unsafe_allow_html=True)
 
-        st.markdown("### 🎯 Action Plan")
-        c5, c6, c7, c8 = st.columns(4)
-        c5.metric("Entry Zone", v56_entry(row))
-        c6.metric("Stop", v56_stop(row))
-        c7.metric("Target", v56_target(row))
-        c8.metric("Modeled Upside", upside)
+    st.markdown("### 📊 Investment Scorecard")
+    st.dataframe(v59_scorecard_rows(row, opp, q, conf), use_container_width=True, hide_index=True)
 
-        st.markdown("### 🧠 Bottom Line")
-        st.success(
-            f"{ticker} remains a **{rec.replace('✅ ', '').replace('🟡 ', '').replace('👀 ', '').replace('🔴 ', '')}** based on the current scan. "
-            f"The main reasons are: {v574_why_ranked(row).lower()}. "
-            "Use the full live research button only when you want fresh analyst, news, ownership, and financial detail."
+    st.markdown("### 🎯 Entry Plan")
+    e1, e2, e3, e4 = st.columns(4)
+    e1.metric("Entry Zone", v56_entry(row))
+    e2.metric("Stop", v56_stop(row))
+    e3.metric("Target", v56_target(row))
+    e4.metric("Risk / Reward", str(v56_row_get(row, ["Risk/Reward", "risk_reward"], "Review")))
+
+    with st.expander("💰 Financial Strength", expanded=False):
+        st.write(
+            f"Quality score is **{q}/100**. "
+            f"This indicates a **{v574_quality_rating(row)}** financial profile based on the latest scan data. "
+            "Use this section to understand whether the idea is supported by business durability, profitability, liquidity, and execution quality."
+        )
+        try:
+            render_deep_finance_agent(row)
+        except Exception:
+            st.caption("Detailed financial agent data is not available in the current scan view.")
+
+    with st.expander("📈 Analyst Intelligence", expanded=False):
+        st.write(
+            f"Analyst view: **{v56_analyst_view(row)}**. "
+            "Analyst targets and ratings are supporting evidence, not guarantees. The key question is whether analyst sentiment, upside, and execution risk are aligned."
+        )
+        st.markdown(f"**Analyst Target:** {fmt_money(v56_row_get(row, ['Analyst Target'], 0))}")
+        st.markdown(f"**Analyst High:** {fmt_money(v56_row_get(row, ['Analyst High'], 0))}")
+        st.markdown(f"**Analyst Low:** {fmt_money(v56_row_get(row, ['Analyst Low'], 0))}")
+
+    with st.expander("📊 Technical Setup", expanded=False):
+        st.write(
+            "Technical setup reviews timing, momentum, volatility, and downside control. "
+            "It helps decide whether the stock is actionable now or better suited for a pullback."
+        )
+        c5, c6, c7 = st.columns(3)
+        c5.metric("RSI", f"{v574_num(v56_row_get(row, ['RSI'], 0), 0):.1f}")
+        c6.metric("Volume Ratio", f"{v574_num(v56_row_get(row, ['Volume Ratio'], 0), 0):.2f}x")
+        c7.metric("ATR %", f"{v574_num(v56_row_get(row, ['ATR %'], 0), 0):.1f}%")
+
+    with st.expander("📰 News & Catalysts", expanded=False):
+        headline = str(v56_row_get(row, ["Top News", "top_news_headline"], "")).strip()
+        if headline:
+            st.markdown(f"**Latest headline:** {headline}")
+        else:
+            st.caption("No major ticker-specific headline was included in the latest scan.")
+        st.write(
+            "News and catalysts are treated as supporting context. A positive headline can support momentum, while negative developments can quickly change the risk profile."
         )
 
-    run_live = False
-    with st.expander("🔬 Load Full Live Research", expanded=False):
-        st.caption("Optional. This may take longer because it checks live analyst, financial, news, and ownership data for this ticker only.")
-        run_live = st.button(f"Run full live research for {ticker}", key=f"v574_live_{ticker}")
+    with st.expander("🏛️ Political Intelligence", expanded=False):
+        political = str(v56_row_get(row, ["Political Signal", "political_signal"], "Not detected in current scan")).strip()
+        st.markdown(f"**Political Signal:** {political}")
+        st.write(
+            "Political trading disclosures are delayed and should be used only as a supporting signal. "
+            "They should not replace financial quality, analyst support, valuation, or risk management."
+        )
 
-    if run_live:
-        with st.spinner(f"Building full live research report for {ticker}..."):
-            try:
-                render_detail(row)
-            except Exception as e:
-                st.warning(f"Full live research is temporarily unavailable for {ticker}. The fast scan report remains available above.")
-                if "v55_is_admin" in globals() and v55_is_admin():
+    st.markdown("### 🧠 Bottom Line")
+    st.success(
+        f"{ticker} is currently a **{action}** because the latest scan shows {v574_why_ranked(row).lower()}. "
+        f"The main risk factors should be monitored, but the current evidence supports the recommendation and classification shown above."
+    )
+
+    if v59_is_admin_user():
+        run_live = False
+        with st.expander("Admin: Refresh / Full Live Research", expanded=False):
+            st.caption("Admin-only. Runs live analyst, financial, news, and ownership calls for this ticker.")
+            run_live = st.button(f"Run full live research for {ticker}", key=f"v59_live_{ticker}")
+
+        if run_live:
+            with st.spinner(f"Building full live research report for {ticker}..."):
+                try:
+                    render_detail(row)
+                except Exception as e:
+                    st.warning(f"Full live research is temporarily unavailable for {ticker}. The prepared scan report remains available above.")
                     st.exception(e)
 
 
@@ -21289,6 +21401,8 @@ def render_table(df, title, key_prefix, min_score_default=35):
 def main():
     if not dashboard_login_gate():
         return
+
+    render_v59_design_system()
 
     full_df = load_full_scan()
     top_df = latest_top_ideas()
