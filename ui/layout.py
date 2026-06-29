@@ -1,6 +1,5 @@
-
 """
-Atlas Global Layout CSS — Sprint 3.1
+Atlas V60.0 Global CSS.
 """
 
 from __future__ import annotations
@@ -26,7 +25,7 @@ def inject_css() -> None:
             }}
 
             .block-container {{
-                padding-top: 2rem !important;
+                padding-top: 1.75rem !important;
                 padding-bottom: 4rem !important;
                 max-width: 1480px !important;
             }}
@@ -53,7 +52,7 @@ def inject_css() -> None:
             div[data-testid="stExpander"] {{
                 border: 1px solid {ATLAS_BORDER} !important;
                 border-radius: 18px !important;
-                background: rgba(15, 23, 42, 0.76) !important;
+                background: rgba(15, 23, 42, 0.78) !important;
                 box-shadow: 0 10px 28px rgba(0,0,0,0.22);
                 overflow: hidden;
             }}
