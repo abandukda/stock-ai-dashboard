@@ -11,7 +11,6 @@ from io import StringIO
 from ui.layout import inject_css
 import pandas as pd
 import streamlit as st
-from ui.atlas_dashboard import render_professional_home_header
 import requests
 import yfinance as yf
 import plotly.graph_objects as go
