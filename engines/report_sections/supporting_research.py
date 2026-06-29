@@ -31,23 +31,48 @@ def _has(value) -> bool:
     return str(value).strip().lower() not in {"", "nan", "none", "null", "n/a", "na"}
 
 
-def _fmt_ratio(value) -> str:
-    return "Unavailable" if not _has(value) else f"{safe_num(value):.2f}"
 
+def _clean_number(value):
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value).strip()
+    if text.lower() in {"", "na", "n/a", "none", "null", "unavailable"}:
+        return None
+    mult = 1
+    text = text.replace("$","").replace(",","").replace("%","").replace("x","")
+    if text.endswith("B"):
+        mult=1_000_000_000
+        text=text[:-1]
+    elif text.endswith("M"):
+        mult=1_000_000
+        text=text[:-1]
+    elif text.endswith("K"):
+        mult=1_000
+        text=text[:-1]
+    try:
+        return float(text)*mult
+    except Exception:
+        return None
+
+def _fmt_ratio(value) -> str:
+    n=_clean_number(value)
+    return "—" if n is None else f"{n:.2f}"
 
 def _fmt_pct(value) -> str:
-    return "Unavailable" if not _has(value) else f"{safe_num(value):.1f}%"
-
+    n=_clean_number(value)
+    return "—" if n is None else f"{n:.1f}%"
 
 def _fmt_money(value) -> str:
-    if not _has(value):
-        return "Unavailable"
-    n = safe_num(value)
-    if abs(n) >= 1_000_000_000:
+    n=_clean_number(value)
+    if n is None:
+        return "—"
+    if abs(n)>=1_000_000_000:
         return f"${n/1_000_000_000:.2f}B"
-    if abs(n) >= 1_000_000:
+    if abs(n)>=1_000_000:
         return f"${n/1_000_000:.2f}M"
-    if abs(n) >= 1_000:
+    if abs(n)>=1_000:
         return f"${n/1_000:.1f}K"
     return f"${n:,.2f}"
 
@@ -111,7 +136,7 @@ def _render_finance_agent(row: dict[str, Any]) -> None:
     with c2:
         metric_card("Revenue Growth", _fmt_pct(rev), "QoQ or latest scan growth field")
     with c3:
-        metric_card("Latest EPS", safe_text(eps, "Unavailable"), "Latest reported EPS when available")
+        metric_card("Latest EPS", "—" if not _has(eps) else str(eps), "Latest reported EPS when available")
 
     c4, c5, c6 = st.columns(3)
     with c4:
