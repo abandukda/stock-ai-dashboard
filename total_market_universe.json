@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-06-27T00:14:59.589282+00:00",
-  "count": 3046,
+  "generated_at": "2026-06-29T09:11:56.573736+00:00",
+  "count": 3048,
   "symbols": [
     "A",
     "AA",
@@ -963,6 +963,7 @@
     "ESTC",
     "ET",
     "ETD",
+    "ETG",
     "ETN",
     "ETOR",
     "ETR",
@@ -1262,6 +1263,7 @@
     "HIMX",
     "HIPO",
     "HIW",
+    "HIX",
     "HKD",
     "HL",
     "HL-PB",
