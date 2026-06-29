@@ -8,9 +8,10 @@ import csv
 from pathlib import Path
 from urllib.parse import quote_plus
 from io import StringIO
-
+from ui.layout import inject_css
 import pandas as pd
 import streamlit as st
+from ui.atlas_dashboard import render_professional_home_header
 import requests
 import yfinance as yf
 import plotly.graph_objects as go
@@ -53,7 +54,7 @@ st.set_page_config(
     page_icon="📈",
     layout="wide",
 )
-
+inject_css()
 DATA_DIR = Path(os.getenv("DATA_DIR", "."))
 FMP_API_KEY = os.getenv("FMP_API_KEY", "").strip()
 FINNHUB_API_KEY = (os.getenv("FINNHUB_API_KEY") or os.getenv("FINNHUB_TOKEN") or "").strip()
