@@ -1,0 +1,34 @@
+
+'''Recalibrate top_ai_ideas.json scores in place.'''
+
+from pathlib import Path
+import json
+
+from services.scoring_calibration import calibrate_json_records
+
+p = Path('top_ai_ideas.json')
+if not p.exists():
+    raise SystemExit('top_ai_ideas.json not found')
+
+backup = Path('top_ai_ideas.json.v60_3_backup')
+if not backup.exists():
+    backup.write_text(p.read_text())
+
+data = json.loads(p.read_text())
+
+if isinstance(data, dict):
+    rows = data.get('rows') or data.get('data') or data.get('results') or []
+    new_rows = calibrate_json_records(rows)
+    if 'rows' in data:
+        data['rows'] = new_rows
+    elif 'data' in data:
+        data['data'] = new_rows
+    elif 'results' in data:
+        data['results'] = new_rows
+    else:
+        data['rows'] = new_rows
+else:
+    data = calibrate_json_records(data)
+
+p.write_text(json.dumps(data, indent=2))
+print('Recalibrated top_ai_ideas.json')

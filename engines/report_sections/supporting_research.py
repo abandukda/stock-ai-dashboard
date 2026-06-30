@@ -93,6 +93,26 @@ def _finance_label(score) -> str:
 
 
 def _render_finance_agent(row: dict[str, Any]) -> None:
+    st.error("🔥 SUPPORTING_RESEARCH.PY IS RUNNING")
+    st.write("### DEBUG ROW")
+
+    st.json(
+    {
+        "latest_eps": row.get("latest_eps"),
+        "revenue_growth": row.get("revenue_growth"),
+        "revenue_qoq_pct": row.get("revenue_qoq_pct"),
+        "gross_margin": row.get("gross_margin"),
+        "gross_profit_margin": row.get("gross_profit_margin"),
+        "operating_margin": row.get("operating_margin"),
+        "profit_margin": row.get("profit_margin"),
+        "free_cashflow": row.get("free_cashflow"),
+        "operating_cashflow": row.get("operating_cashflow"),
+        "current_ratio": row.get("current_ratio"),
+        "debt_to_equity": row.get("debt_to_equity"),
+        "ev_to_sales": row.get("ev_to_sales"),
+        "roic": row.get("roic"),
+    }
+)
     section_header(
         "💰",
         "Finance Agent — Deep Financial Execution",

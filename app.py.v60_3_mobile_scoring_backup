@@ -11,9 +11,6 @@ from io import StringIO
 from ui.layout import inject_css
 import pandas as pd
 import streamlit as st
-from services.scoring_calibration import calibrate_top_ai_dataframe
-from ui.mobile_cards import render_mobile_top_ai_cards
-
 import requests
 import yfinance as yf
 import plotly.graph_objects as go
@@ -20865,7 +20862,7 @@ def main():
     source_df = top_df if top_df is not None and not top_df.empty else full_df.head(25)
 
     with tabs[0]:
-        fast_sorted = render_v60_3_top_ai_experience(source_df, title="Top AI Ideas", max_rows=10, show_filters=False)
+        fast_sorted = render_v56_ranked_table(source_df, title="Top AI Ideas", max_rows=10, show_filters=False)
         default_row = v56_pick_default_stock(fast_sorted if fast_sorted is not None and not fast_sorted.empty else source_df)
         render_stock_report(default_row, source="Top AI Ideas")
     with tabs[1]:
@@ -21372,7 +21369,7 @@ def render_v56_default_scan_report(row):
 
 
 def render_v574_top_ideas(source_df):
-    fast_sorted = render_v60_3_top_ai_experience(source_df, title="Top AI Ideas", max_rows=10, show_filters=False)
+    fast_sorted = render_v56_ranked_table(source_df, title="Top AI Ideas", max_rows=10, show_filters=False)
     if fast_sorted is None or getattr(fast_sorted, "empty", True):
         st.info("No Top AI Ideas available.")
         return
@@ -21470,35 +21467,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-# ==============================
-# Atlas V60.3 Top AI Experience
-# ==============================
-def render_v60_3_top_ai_experience(source_df, title="Top AI Ideas", max_rows=10, show_filters=False):
-    # Calibrated scoring + optional mobile cards + existing ranked table.
-    try:
-        calibrated_df = calibrate_top_ai_dataframe(source_df)
-    except Exception:
-        calibrated_df = source_df
-
-    try:
-        mobile_view = st.toggle("📱 Mobile card view", value=False, key=f"mobile_cards_{title}")
-    except Exception:
-        mobile_view = False
-
-    if mobile_view:
-        try:
-            render_mobile_top_ai_cards(calibrated_df, max_rows=max_rows)
-            return calibrated_df
-        except Exception:
-            pass
-
-    return render_v56_ranked_table(
-        calibrated_df,
-        title=title,
-        max_rows=max_rows,
-        show_filters=show_filters,
-    )
-
