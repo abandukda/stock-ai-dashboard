@@ -15481,6 +15481,36 @@ def render_v58_political_card(ticker):
             st.dataframe(df[["Politician", "Chamber", "Transaction", "Amount", "Trade Date", "Disclosure Date"]].head(30), use_container_width=True, hide_index=True)
 
 
+# ==============================
+# Atlas V60.3 Top AI Experience
+# ==============================
+def render_v60_3_top_ai_experience(source_df, title="Top AI Ideas", max_rows=10, show_filters=False):
+    # Calibrated scoring + optional mobile cards + existing ranked table.
+    try:
+        calibrated_df = calibrate_top_ai_dataframe(source_df)
+    except Exception:
+        calibrated_df = source_df
+
+    try:
+        mobile_view = st.toggle("📱 Mobile card view", value=False, key=f"mobile_cards_{title}")
+    except Exception:
+        mobile_view = False
+
+    if mobile_view:
+        try:
+            render_mobile_top_ai_cards(calibrated_df, max_rows=max_rows)
+            return calibrated_df
+        except Exception:
+            pass
+
+    return render_v56_ranked_table(
+        calibrated_df,
+        title=title,
+        max_rows=max_rows,
+        show_filters=show_filters,
+    )
+
+
 def main():
     if not dashboard_login_gate():
         return
@@ -21400,7 +21430,6 @@ def render_table(df, title, key_prefix, min_score_default=35):
     max_rows = 25 if "Top" in str(title) else 75
     return render_v56_ranked_table(df, title=title, max_rows=max_rows, show_filters=True)
 
-
 def main():
     if not dashboard_login_gate():
         return
@@ -21470,35 +21499,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-# ==============================
-# Atlas V60.3 Top AI Experience
-# ==============================
-def render_v60_3_top_ai_experience(source_df, title="Top AI Ideas", max_rows=10, show_filters=False):
-    # Calibrated scoring + optional mobile cards + existing ranked table.
-    try:
-        calibrated_df = calibrate_top_ai_dataframe(source_df)
-    except Exception:
-        calibrated_df = source_df
-
-    try:
-        mobile_view = st.toggle("📱 Mobile card view", value=False, key=f"mobile_cards_{title}")
-    except Exception:
-        mobile_view = False
-
-    if mobile_view:
-        try:
-            render_mobile_top_ai_cards(calibrated_df, max_rows=max_rows)
-            return calibrated_df
-        except Exception:
-            pass
-
-    return render_v56_ranked_table(
-        calibrated_df,
-        title=title,
-        max_rows=max_rows,
-        show_filters=show_filters,
-    )
-
