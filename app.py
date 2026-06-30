@@ -111,12 +111,45 @@ def is_viewer():
 # =========================
 
 def safe_number(value, default=0.0):
+    """Robust numeric parser for raw scan values.
+
+    Handles floats/ints plus strings such as:
+    33.9%, $5.2B, 1.4x, 1,234, N/A.
+    """
     try:
         if value is None:
             return default
-        if value == "":
+        if isinstance(value, (int, float)):
+            if pd.isna(value):
+                return default
+            return float(value)
+
+        text = str(value).strip()
+        if text.lower() in {"", "nan", "none", "null", "n/a", "na", "unavailable"}:
             return default
-        value = float(value)
+
+        text = (
+            text.replace("%", "")
+            .replace("$", "")
+            .replace(",", "")
+            .replace("x", "")
+            .replace("X", "")
+            .strip()
+        )
+
+        multiplier = 1.0
+        upper = text.upper()
+        if upper.endswith("B"):
+            multiplier = 1_000_000_000.0
+            text = text[:-1]
+        elif upper.endswith("M"):
+            multiplier = 1_000_000.0
+            text = text[:-1]
+        elif upper.endswith("K"):
+            multiplier = 1_000.0
+            text = text[:-1]
+
+        value = float(text.strip()) * multiplier
         if pd.isna(value):
             return default
         return value
@@ -639,20 +672,20 @@ def normalize_scan_row(raw):
         "Finance Agent Findings": pick(raw, "finance_agent_findings", default=[]),
         "Finance Agent Risks": pick(raw, "finance_agent_risks", default=[]),
         "Thesis Strength": safe_text(pick(raw, "thesis_strength", default=""), ""),
-        "Latest EPS": safe_number(pick(raw, "latest_eps", default=0), 0),
-        "Revenue QoQ %": safe_number(pick(raw, "revenue_qoq_pct", default=0), 0),
+        "Latest EPS": safe_number(pick(raw, "latest_eps", "Latest EPS", default=0), 0),
+        "Revenue QoQ %": safe_number(pick(raw, "revenue_qoq_pct", "revenue_growth", "Revenue Growth", "Revenue QoQ", default=0), 0),
         "EPS Beats Last 4": int(safe_number(pick(raw, "eps_beats_last4", default=0), 0)),
         "EPS Misses Last 4": int(safe_number(pick(raw, "eps_misses_last4", default=0), 0)),
-        "Debt to Equity": safe_number(pick(raw, "debt_to_equity", default=0), 0),
+        "Debt to Equity": safe_number(pick(raw, "debt_to_equity", "Debt/Equity", "Debt to Equity", default=0), 0),
         "Debt to Assets": safe_number(pick(raw, "debt_to_assets", default=0), 0),
-        "Current Ratio": safe_number(pick(raw, "current_ratio", default=0), 0),
-        "Gross Margin": safe_number(pick(raw, "gross_profit_margin", default=0), 0),
-        "Operating Margin": safe_number(pick(raw, "operating_profit_margin", default=0), 0),
-        "Net Margin": safe_number(pick(raw, "net_profit_margin", default=0), 0),
-        "Free Cash Flow": safe_number(pick(raw, "free_cash_flow", default=0), 0),
-        "Operating Cash Flow": safe_number(pick(raw, "operating_cash_flow", default=0), 0),
-        "ROIC": safe_number(pick(raw, "roic", default=0), 0),
-        "EV/Sales": safe_number(pick(raw, "ev_to_sales", default=0), 0),
+        "Current Ratio": safe_number(pick(raw, "current_ratio", "Current Ratio", default=0), 0),
+        "Gross Margin": safe_number(pick(raw, "gross_profit_margin", "gross_margin", "Gross Margin", default=0), 0),
+        "Operating Margin": safe_number(pick(raw, "operating_profit_margin", "operating_margin", "Operating Margin", default=0), 0),
+        "Net Margin": safe_number(pick(raw, "net_profit_margin", "profit_margin", "Net Margin", default=0), 0),
+        "Free Cash Flow": safe_number(pick(raw, "free_cash_flow", "free_cashflow", "Free Cash Flow", "FCF", default=0), 0),
+        "Operating Cash Flow": safe_number(pick(raw, "operating_cash_flow", "operating_cashflow", "Operating Cash Flow", default=0), 0),
+        "ROIC": safe_number(pick(raw, "roic", "ROIC", default=0), 0),
+        "EV/Sales": safe_number(pick(raw, "ev_to_sales", "price_to_sales", "EV/Sales", default=0), 0),
         "Peers": pick(raw, "peer_symbols", default=[]),
         "52W High": safe_number(pick(raw, "high_52w", "52W High", default=0), 0),
         "52W Low": safe_number(pick(raw, "low_52w", "52W Low", default=0), 0),
@@ -925,8 +958,8 @@ def render_deep_finance_agent(row):
         st.caption("Cross-checks EPS, revenue execution, debt, liquidity, margins, cash flow, valuation, and peer context.")
 
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Latest EPS", f"{safe_number(row.get('Latest EPS'), 0):.2f}" if safe_number(row.get("Latest EPS"), 0) else "N/A")
-        c2.metric("Revenue QoQ", fmt_pct(row.get("Revenue QoQ %")) if safe_number(row.get("Revenue QoQ %"), 0) else "N/A")
+        c1.metric("Latest EPS", f"{safe_number(row.get('Latest EPS'), 0):.2f}" if safe_number(row.get("Latest EPS"), 0) else "—")
+        c2.metric("Revenue Growth", fmt_pct(row.get("Revenue QoQ %")) if safe_number(row.get("Revenue QoQ %"), 0) else "—")
         c3.metric("Debt/Equity", fmt_ratio(row.get("Debt to Equity")))
         c4.metric("Current Ratio", fmt_ratio(row.get("Current Ratio")))
 
@@ -938,8 +971,8 @@ def render_deep_finance_agent(row):
 
         c9, c10, c11, c12 = st.columns(4)
         c9.metric("EPS Beats/Misses", f"{row.get('EPS Beats Last 4', 0)}/{row.get('EPS Misses Last 4', 0)}")
-        c10.metric("FCF", fmt_money(row.get("Free Cash Flow")) if safe_number(row.get("Free Cash Flow"), 0) else "N/A")
-        c11.metric("Op. Cash Flow", fmt_money(row.get("Operating Cash Flow")) if safe_number(row.get("Operating Cash Flow"), 0) else "N/A")
+        c10.metric("FCF", fmt_money(row.get("Free Cash Flow")) if safe_number(row.get("Free Cash Flow"), 0) else "—")
+        c11.metric("Op. Cash Flow", fmt_money(row.get("Operating Cash Flow")) if safe_number(row.get("Operating Cash Flow"), 0) else "—")
         c12.metric("EV/Sales", fmt_ratio(row.get("EV/Sales")))
 
         st.markdown("**What AI cross-checked:**")
@@ -15481,36 +15514,6 @@ def render_v58_political_card(ticker):
             st.dataframe(df[["Politician", "Chamber", "Transaction", "Amount", "Trade Date", "Disclosure Date"]].head(30), use_container_width=True, hide_index=True)
 
 
-# ==============================
-# Atlas V60.3 Top AI Experience
-# ==============================
-def render_v60_3_top_ai_experience(source_df, title="Top AI Ideas", max_rows=10, show_filters=False):
-    # Calibrated scoring + optional mobile cards + existing ranked table.
-    try:
-        calibrated_df = calibrate_top_ai_dataframe(source_df)
-    except Exception:
-        calibrated_df = source_df
-
-    try:
-        mobile_view = st.toggle("📱 Mobile card view", value=False, key=f"mobile_cards_{title}")
-    except Exception:
-        mobile_view = False
-
-    if mobile_view:
-        try:
-            render_mobile_top_ai_cards(calibrated_df, max_rows=max_rows)
-            return calibrated_df
-        except Exception:
-            pass
-
-    return render_v56_ranked_table(
-        calibrated_df,
-        title=title,
-        max_rows=max_rows,
-        show_filters=show_filters,
-    )
-
-
 def main():
     if not dashboard_login_gate():
         return
@@ -21400,6 +21403,37 @@ def render_v574_scan_report(row, title="Research Report"):
 def render_v56_default_scan_report(row):
     render_v574_scan_report(row, title="Default Research Report")
 
+
+
+
+# ==============================
+# Atlas V60.3 Top AI Experience
+# ==============================
+def render_v60_3_top_ai_experience(source_df, title="Top AI Ideas", max_rows=10, show_filters=False):
+    # Calibrated scoring + optional mobile cards + existing ranked table.
+    try:
+        calibrated_df = calibrate_top_ai_dataframe(source_df)
+    except Exception:
+        calibrated_df = source_df
+
+    try:
+        mobile_view = st.toggle("📱 Mobile card view", value=False, key=f"mobile_cards_{title}")
+    except Exception:
+        mobile_view = False
+
+    if mobile_view:
+        try:
+            render_mobile_top_ai_cards(calibrated_df, max_rows=max_rows)
+            return calibrated_df
+        except Exception:
+            pass
+
+    return render_v56_ranked_table(
+        calibrated_df,
+        title=title,
+        max_rows=max_rows,
+        show_filters=show_filters,
+    )
 
 def render_v574_top_ideas(source_df):
     fast_sorted = render_v60_3_top_ai_experience(source_df, title="Top AI Ideas", max_rows=10, show_filters=False)
