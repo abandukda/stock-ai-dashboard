@@ -21,6 +21,7 @@ import plotly.graph_objects as go
 from engines.report_engine import render_stock_report
 
 APP_VERSION = "V50.8.3 Customer Trust UI"
+V61_FINANCE_FIX_VERIFIED = True
 
 
 # =========================
@@ -633,26 +634,26 @@ def normalize_scan_row(raw):
         "Recovery Rebound Reason": safe_text(pick(raw, "recovery_rebound_reason", default=""), ""),
         "Recovery Risk": safe_text(pick(raw, "recovery_risk", default=""), ""),
         "AI Committee": pick(raw, "ai_committee", "AI Committee", default={}),
-        "Finance Agent Score": safe_number(pick(raw, "finance_agent_score", default=0), 0),
+        "Finance Agent Score": safe_number(pick(raw, "finance_agent_score", "financial_score", "fundamentals_agent_score", default=0), 0),
         "Finance Agent Status": safe_text(pick(raw, "finance_agent_status", default=""), ""),
         "Finance Agent Bottom Line": safe_text(pick(raw, "finance_agent_bottom_line", default=""), ""),
         "Finance Agent Findings": pick(raw, "finance_agent_findings", default=[]),
         "Finance Agent Risks": pick(raw, "finance_agent_risks", default=[]),
         "Thesis Strength": safe_text(pick(raw, "thesis_strength", default=""), ""),
-        "Latest EPS": safe_number(pick(raw, "latest_eps", default=0), 0),
-        "Revenue QoQ %": safe_number(pick(raw, "revenue_qoq_pct", default=0), 0),
+        "Latest EPS": safe_number(pick(raw, "latest_eps", "eps", "Latest EPS", default=0), 0),
+        "Revenue QoQ %": safe_number(pick(raw, "revenue_qoq_pct", "revenue_growth", "Revenue Growth", "Revenue Growth %", default=0), 0),
         "EPS Beats Last 4": int(safe_number(pick(raw, "eps_beats_last4", default=0), 0)),
         "EPS Misses Last 4": int(safe_number(pick(raw, "eps_misses_last4", default=0), 0)),
         "Debt to Equity": safe_number(pick(raw, "debt_to_equity", default=0), 0),
         "Debt to Assets": safe_number(pick(raw, "debt_to_assets", default=0), 0),
         "Current Ratio": safe_number(pick(raw, "current_ratio", default=0), 0),
-        "Gross Margin": safe_number(pick(raw, "gross_profit_margin", default=0), 0),
-        "Operating Margin": safe_number(pick(raw, "operating_profit_margin", default=0), 0),
-        "Net Margin": safe_number(pick(raw, "net_profit_margin", default=0), 0),
-        "Free Cash Flow": safe_number(pick(raw, "free_cash_flow", default=0), 0),
-        "Operating Cash Flow": safe_number(pick(raw, "operating_cash_flow", default=0), 0),
-        "ROIC": safe_number(pick(raw, "roic", default=0), 0),
-        "EV/Sales": safe_number(pick(raw, "ev_to_sales", default=0), 0),
+        "Gross Margin": safe_number(pick(raw, "gross_profit_margin", "gross_margin", "grossMargins", "grossProfitMarginTTM", default=0), 0),
+        "Operating Margin": safe_number(pick(raw, "operating_profit_margin", "operating_margin", "operatingMargins", "operatingProfitMarginTTM", default=0), 0),
+        "Net Margin": safe_number(pick(raw, "net_profit_margin", "profit_margin", "profitMargins", "netProfitMarginTTM", default=0), 0),
+        "Free Cash Flow": safe_number(pick(raw, "free_cash_flow", "free_cashflow", "freeCashflow", "freeCashFlow", default=0), 0),
+        "Operating Cash Flow": safe_number(pick(raw, "operating_cash_flow", "operating_cashflow", "operatingCashflow", "operatingCashFlow", default=0), 0),
+        "ROIC": safe_number(pick(raw, "roic", "return_on_invested_capital", "ROIC", default=0), 0),
+        "EV/Sales": safe_number(pick(raw, "ev_to_sales", "price_to_sales", "enterpriseToRevenue", "EV/Sales", default=0), 0),
         "Peers": pick(raw, "peer_symbols", default=[]),
         "52W High": safe_number(pick(raw, "high_52w", "52W High", default=0), 0),
         "52W Low": safe_number(pick(raw, "low_52w", "52W Low", default=0), 0),
@@ -708,6 +709,23 @@ def normalize_scan_row(raw):
         "V42 Tier Warning": safe_text(pick(raw, "v42_tier_warning", default=""), ""),
         "Raw": raw,
     }
+
+    # V61_FINANCE_FIX_VERIFIED: normalize finance fields from both legacy and Top AI schemas.
+    # Top AI JSON uses names like gross_margin/free_cashflow/operating_cashflow,
+    # while older app sections expected gross_profit_margin/free_cash_flow/operating_cash_flow.
+    row["Revenue Growth"] = row.get("Revenue QoQ %", 0)
+    row["revenue_growth"] = row.get("Revenue QoQ %", 0)
+    row["gross_margin"] = row.get("Gross Margin", 0)
+    row["operating_margin"] = row.get("Operating Margin", 0)
+    row["profit_margin"] = row.get("Net Margin", 0)
+    row["free_cashflow"] = row.get("Free Cash Flow", 0)
+    row["free_cash_flow"] = row.get("Free Cash Flow", 0)
+    row["operating_cashflow"] = row.get("Operating Cash Flow", 0)
+    row["operating_cash_flow"] = row.get("Operating Cash Flow", 0)
+    row["current_ratio"] = row.get("Current Ratio", 0)
+    row["debt_to_equity"] = row.get("Debt to Equity", 0)
+    row["ev_to_sales"] = row.get("EV/Sales", 0)
+    row["price_to_sales"] = row.get("EV/Sales", 0)
 
     row["Opportunity Bucket"] = safe_text(pick(raw, "Opportunity Bucket", default=""), "")
     if not row["Opportunity Bucket"]:
@@ -782,9 +800,14 @@ def actionable(df, min_score=35, require_upside=True):
 
 def latest_top_ideas():
     """
-    V40.4: use fresh market_full_scan.json as source of truth.
-    Avoid stale top_ai_ideas.json showing old scores/upside.
+    V61_FINANCE_FIX_VERIFIED: prefer top_ai_ideas.json when present.
+    That file already carries the finance fields used by the Finance Agent.
+    Fall back to full scan only if Top AI is empty.
     """
+    top = load_file(TOP_IDEAS_FILE)
+    if top is not None and not top.empty:
+        return top.head(25)
+
     full = actionable(load_full_scan(), min_score=45, require_upside=True)
     return full.head(25)
 
@@ -15485,11 +15508,9 @@ def render_v58_political_card(ticker):
 # Atlas V60.3 Top AI Experience
 # ==============================
 def render_v60_3_top_ai_experience(source_df, title="Top AI Ideas", max_rows=10, show_filters=False):
-    # Calibrated scoring + optional mobile cards + existing ranked table.
-    try:
-        calibrated_df = calibrate_top_ai_dataframe(source_df)
-    except Exception:
-        calibrated_df = source_df
+    # V61_FINANCE_FIX_VERIFIED: preserve scanner recommendations instead of recalibrating
+    # display rows into AVOID. Scoring engine work should happen upstream, not inside UI render.
+    calibrated_df = source_df.copy() if hasattr(source_df, "copy") else source_df
 
     try:
         mobile_view = st.toggle("📱 Mobile card view", value=False, key=f"mobile_cards_{title}")
