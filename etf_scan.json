@@ -9,8 +9,8 @@
     "quote_type": "ETF",
     "price": 724.08,
     "current_price": 724.08,
-    "dollar_volume": 38157237148.16,
-    "avg_volume_20d": 52697542,
+    "dollar_volume": 38162465005.88,
+    "avg_volume_20d": 52704762,
     "volume_ratio": 0.79,
     "conviction": 95,
     "conviction_score": 95,
@@ -52,7 +52,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-29T21:05:31.121625+00:00",
+    "scan_time": "2026-06-30T00:30:29.443325+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 747.83,
@@ -82,14 +82,13 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 69,
+        "score": 62,
         "status": "Mixed",
         "impact": "Neutral",
         "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "SFY: Strong GARP And Quality Features For This Low-Cost Growth ETF",
-          "The Lag 7: Why I'm Stepping Back And Rethinking The AI Trade"
+          "Key Indicators Point To A Strong Rally"
         ],
         "risks": [
           "No negative high-confidence headline detected."
@@ -230,11 +229,10 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 69,
+    "v42_news_score": 62,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "SFY: Strong GARP And Quality Features For This Low-Cost Growth ETF",
-      "The Lag 7: Why I'm Stepping Back And Rethinking The AI Trade"
+      "Key Indicators Point To A Strong Rally"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
@@ -251,7 +249,7 @@
     "v42_breakout_level": 755.31,
     "v42_pullback_zone": "$685.62 - $709.60",
     "v42_chart_guidance": "Between support and resistance. Prefer pullback entry or confirmed breakout.",
-    "v42_committee_positive_agents": 2,
+    "v42_committee_positive_agents": 1,
     "v42_committee_total_agents": 10
   },
   {
@@ -307,7 +305,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-29T21:01:14.524017+00:00",
+    "scan_time": "2026-06-30T00:24:18.412195+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 301.5,
@@ -343,7 +341,7 @@
         "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "The Lag 7: Why I'm Stepping Back And Rethinking The AI Trade"
+          "Key Indicators Point To A Strong Rally"
         ],
         "risks": [
           "No negative high-confidence headline detected."
@@ -485,7 +483,7 @@
     "v42_news_score": 62,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "The Lag 7: Why I'm Stepping Back And Rethinking The AI Trade"
+      "Key Indicators Point To A Strong Rally"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
@@ -515,8 +513,8 @@
     "quote_type": "ETF",
     "price": 631.98,
     "current_price": 631.98,
-    "dollar_volume": 7798082915.21,
-    "avg_volume_20d": 12339129,
+    "dollar_volume": 7798904489.18,
+    "avg_volume_20d": 12340429,
     "volume_ratio": 0.83,
     "conviction": 95,
     "conviction_score": 95,
@@ -557,7 +555,7 @@
       "RSI is constructive"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-29T21:06:53.112724+00:00",
+    "scan_time": "2026-06-30T00:32:18.374966+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 671.83,
@@ -738,9 +736,9 @@
     "quote_type": "ETF",
     "price": 614.35,
     "current_price": 614.35,
-    "dollar_volume": 7223242108.14,
-    "avg_volume_20d": 11757536,
-    "volume_ratio": 0.91,
+    "dollar_volume": 7225966750.28,
+    "avg_volume_20d": 11761971,
+    "volume_ratio": 0.9,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -780,7 +778,7 @@
       "RSI is constructive"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-29T21:07:08.989314+00:00",
+    "scan_time": "2026-06-30T00:32:36.362199+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 655.95,
@@ -1005,7 +1003,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-29T20:57:53.988257+00:00",
+    "scan_time": "2026-06-30T00:19:11.817359+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 526.57,
@@ -1035,20 +1033,19 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 76,
-        "status": "Positive",
-        "impact": "Positive",
+        "score": 69,
+        "status": "Mixed",
+        "impact": "Neutral",
         "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "The Lag 7: Why I'm Stepping Back And Rethinking The AI Trade",
-          "Stocks On Comeback Trail; Oil Rises Again",
-          "H2 2026 S&P 500: The Bull Is Naked, And AI Must Pay"
+          "Key Indicators Point To A Strong Rally",
+          "The Lag 7: Why I'm Stepping Back And Rethinking The AI Trade"
         ],
         "risks": [
           "No negative high-confidence headline detected."
         ],
-        "bottom_line": "News flow supports the thesis."
+        "bottom_line": "News is mixed or insufficient."
       },
       "Finance Agent": {
         "score": 50,
@@ -1184,12 +1181,11 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 76,
-    "v42_news_summary": "News flow supports the thesis.",
+    "v42_news_score": 69,
+    "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "The Lag 7: Why I'm Stepping Back And Rethinking The AI Trade",
-      "Stocks On Comeback Trail; Oil Rises Again",
-      "H2 2026 S&P 500: The Bull Is Naked, And AI Must Pay"
+      "Key Indicators Point To A Strong Rally",
+      "The Lag 7: Why I'm Stepping Back And Rethinking The AI Trade"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
@@ -1261,7 +1257,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-29T21:00:36.364939+00:00",
+    "scan_time": "2026-06-30T00:23:20.313844+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 80.17,
@@ -1479,8 +1475,8 @@
     "quote_type": "ETF",
     "price": 160.74,
     "current_price": 160.74,
-    "dollar_volume": 1876558703.87,
-    "avg_volume_20d": 11674496,
+    "dollar_volume": 1876614159.17,
+    "avg_volume_20d": 11674841,
     "volume_ratio": 1.02,
     "conviction": 95,
     "conviction_score": 95,
@@ -1522,7 +1518,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-29T21:10:02.151189+00:00",
+    "scan_time": "2026-06-30T00:36:45.729237+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 161.09,
@@ -1703,8 +1699,8 @@
     "quote_type": "ETF",
     "price": 182.76,
     "current_price": 182.76,
-    "dollar_volume": 1543033285.45,
-    "avg_volume_20d": 8442948,
+    "dollar_volume": 1543042423.45,
+    "avg_volume_20d": 8442998,
     "volume_ratio": 0.92,
     "conviction": 95,
     "conviction_score": 95,
@@ -1747,7 +1743,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-29T21:10:00.064352+00:00",
+    "scan_time": "2026-06-30T00:36:43.404822+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 186.09,
@@ -1928,8 +1924,8 @@
     "quote_type": "ETF",
     "price": 367.12,
     "current_price": 367.12,
-    "dollar_volume": 1384210430.77,
-    "avg_volume_20d": 3770457,
+    "dollar_volume": 1384256320.77,
+    "avg_volume_20d": 3770582,
     "volume_ratio": 1.01,
     "conviction": 95,
     "conviction_score": 95,
@@ -1971,7 +1967,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-29T21:09:28.729021+00:00",
+    "scan_time": "2026-06-30T00:35:54.961415+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 373.63,
@@ -2152,8 +2148,8 @@
     "quote_type": "ETF",
     "price": 84.37,
     "current_price": 84.37,
-    "dollar_volume": 1106491767.72,
-    "avg_volume_20d": 13114753,
+    "dollar_volume": 1106506954.32,
+    "avg_volume_20d": 13114933,
     "volume_ratio": 0.77,
     "conviction": 95,
     "conviction_score": 95,
@@ -2196,7 +2192,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-29T21:10:01.013630+00:00",
+    "scan_time": "2026-06-30T00:36:44.346120+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.02,
@@ -2420,7 +2416,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-29T20:54:30.224702+00:00",
+    "scan_time": "2026-06-30T00:14:17.333275+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 92.65,
@@ -2675,7 +2671,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-29T21:01:20.399295+00:00",
+    "scan_time": "2026-06-30T00:24:27.484511+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 61.72,
@@ -2926,7 +2922,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-29T21:01:19.706907+00:00",
+    "scan_time": "2026-06-30T00:24:26.374098+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 58.27,
@@ -3178,7 +3174,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-29T21:10:01.278393+00:00",
+    "scan_time": "2026-06-30T00:36:44.781262+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 45.29,
@@ -3403,7 +3399,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-29T21:05:40.309821+00:00",
+    "scan_time": "2026-06-30T00:30:40.033227+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 18.41,
@@ -3627,7 +3623,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-29T21:10:06.774195+00:00",
+    "scan_time": "2026-06-30T00:36:53.442529+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 40.72,
@@ -3851,7 +3847,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-29T21:05:32.074569+00:00",
+    "scan_time": "2026-06-30T00:30:30.963720+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 24.38,
@@ -4102,7 +4098,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-29T21:07:12.973112+00:00",
+    "scan_time": "2026-06-30T00:32:42.943019+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 17.87,
@@ -4328,7 +4324,7 @@
     "risk_tags": [
       "RSI is overheated"
     ],
-    "scan_time": "2026-06-29T21:06:15.832181+00:00",
+    "scan_time": "2026-06-30T00:31:30.126732+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 15.94,
@@ -4509,8 +4505,8 @@
     "quote_type": "ETF",
     "price": 87.45,
     "current_price": 87.45,
-    "dollar_volume": 2183726169.26,
-    "avg_volume_20d": 24971140,
+    "dollar_volume": 2183762898.26,
+    "avg_volume_20d": 24971560,
     "volume_ratio": 0.78,
     "conviction": 92,
     "conviction_score": 92,
@@ -4553,7 +4549,7 @@
     "risk_tags": [
       "RSI is overheated"
     ],
-    "scan_time": "2026-06-29T21:08:13.439483+00:00",
+    "scan_time": "2026-06-30T00:33:59.975872+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.51,
@@ -4734,8 +4730,8 @@
     "quote_type": "ETF",
     "price": 46.02,
     "current_price": 46.02,
-    "dollar_volume": 988231055.37,
-    "avg_volume_20d": 21473947,
+    "dollar_volume": 988244861.37,
+    "avg_volume_20d": 21474247,
     "volume_ratio": 0.82,
     "conviction": 92,
     "conviction_score": 92,
@@ -4778,7 +4774,7 @@
     "risk_tags": [
       "RSI is overheated"
     ],
-    "scan_time": "2026-06-29T21:10:01.655502+00:00",
+    "scan_time": "2026-06-30T00:36:45.229124+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 47.41,
@@ -4959,8 +4955,8 @@
     "quote_type": "ETF",
     "price": 741.0,
     "current_price": 741.0,
-    "dollar_volume": 46606850245.8,
-    "avg_volume_20d": 62897233,
+    "dollar_volume": 46610599705.8,
+    "avg_volume_20d": 62902293,
     "volume_ratio": 0.9,
     "conviction": 90,
     "conviction_score": 90,
@@ -5003,7 +4999,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-29T21:07:12.715263+00:00",
+    "scan_time": "2026-06-30T00:32:42.501045+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 758.45,
@@ -5184,8 +5180,8 @@
     "quote_type": "ETF",
     "price": 681.01,
     "current_price": 681.01,
-    "dollar_volume": 8306555715.38,
-    "avg_volume_20d": 12197406,
+    "dollar_volume": 8307066472.88,
+    "avg_volume_20d": 12198156,
     "volume_ratio": 0.39,
     "conviction": 90,
     "conviction_score": 90,
@@ -5228,7 +5224,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-29T21:09:16.282200+00:00",
+    "scan_time": "2026-06-30T00:35:38.197253+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 697.12,
@@ -5450,7 +5446,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-29T21:02:14.128156+00:00",
+    "scan_time": "2026-06-30T00:25:47.471610+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 110.24,
@@ -5658,8 +5654,8 @@
     "quote_type": "ETF",
     "price": 31.93,
     "current_price": 31.93,
-    "dollar_volume": 694880163.1,
-    "avg_volume_20d": 21762610,
+    "dollar_volume": 694960307.4,
+    "avg_volume_20d": 21765120,
     "volume_ratio": 1.25,
     "conviction": 90,
     "conviction_score": 90,
@@ -5702,7 +5698,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-29T21:06:24.958981+00:00",
+    "scan_time": "2026-06-30T00:31:44.090688+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 32.66,
@@ -5927,7 +5923,7 @@
     "risk_tags": [
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-29T21:10:02.432697+00:00",
+    "scan_time": "2026-06-30T00:36:46.169074+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 124.51,
@@ -6108,8 +6104,8 @@
     "quote_type": "ETF",
     "price": 185.41,
     "current_price": 185.41,
-    "dollar_volume": 2827313771.38,
-    "avg_volume_20d": 15248981,
+    "dollar_volume": 2827388862.43,
+    "avg_volume_20d": 15249386,
     "volume_ratio": 0.78,
     "conviction": 82,
     "conviction_score": 82,
@@ -6151,7 +6147,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-29T21:10:00.688712+00:00",
+    "scan_time": "2026-06-30T00:36:43.905641+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 198.49,
@@ -6375,7 +6371,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-29T21:09:59.265063+00:00",
+    "scan_time": "2026-06-30T00:36:42.014857+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 53.7,
@@ -6556,8 +6552,8 @@
     "quote_type": "ETF",
     "price": 53.58,
     "current_price": 53.58,
-    "dollar_volume": 1886073684.39,
-    "avg_volume_20d": 35201075,
+    "dollar_volume": 1886192096.19,
+    "avg_volume_20d": 35203285,
     "volume_ratio": 0.58,
     "conviction": 49,
     "conviction_score": 49,
@@ -6599,7 +6595,7 @@
       "price is below 50-day trend",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-29T21:09:59.506087+00:00",
+    "scan_time": "2026-06-30T00:36:42.480501+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 63.01,
@@ -6824,7 +6820,7 @@
       "price is below 50-day trend",
       "20-day ETF trend is weak"
     ],
-    "scan_time": "2026-06-29T20:55:42.405957+00:00",
+    "scan_time": "2026-06-30T00:16:04.346028+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 41.71,
@@ -7083,7 +7079,7 @@
       "20-day ETF trend is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-29T21:07:41.887550+00:00",
+    "scan_time": "2026-06-30T00:33:26.556376+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 75.6,
@@ -7264,8 +7260,8 @@
     "quote_type": "ETF",
     "price": 43.93,
     "current_price": 43.93,
-    "dollar_volume": 175699999.89,
-    "avg_volume_20d": 3999544,
+    "dollar_volume": 175701976.74,
+    "avg_volume_20d": 3999589,
     "volume_ratio": 0.63,
     "conviction": 32,
     "conviction_score": 32,
@@ -7307,7 +7303,7 @@
       "20-day ETF trend is weak",
       "60-day ETF trend is weak"
     ],
-    "scan_time": "2026-06-29T21:08:58.161925+00:00",
+    "scan_time": "2026-06-30T00:35:10.646303+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 62.28,
