@@ -20,7 +20,8 @@ import plotly.graph_objects as go
 
 from engines.report_engine import render_stock_report
 
-APP_VERSION = "V50.8.3 Customer Trust UI"
+APP_VERSION = "V62 Institutional UI"
+V62_INSTITUTIONAL_UI_VERIFIED = True
 V61_FINANCE_FIX_VERIFIED = True
 
 
@@ -150,6 +151,16 @@ def fmt_pct(value):
     if value is None:
         return "N/A"
     return f"{value:.1f}%"
+
+
+def v62_norm_pct_value(value):
+    """Normalize scanner percentages that may arrive as 0.165 or 16.5."""
+    n = safe_number(value, None)
+    if n is None:
+        return 0
+    if n != 0 and abs(n) <= 2:
+        n *= 100
+    return n
 
 
 
@@ -640,20 +651,21 @@ def normalize_scan_row(raw):
         "Finance Agent Findings": pick(raw, "finance_agent_findings", default=[]),
         "Finance Agent Risks": pick(raw, "finance_agent_risks", default=[]),
         "Thesis Strength": safe_text(pick(raw, "thesis_strength", default=""), ""),
-        "Latest EPS": safe_number(pick(raw, "latest_eps", "eps", "Latest EPS", default=0), 0),
-        "Revenue QoQ %": safe_number(pick(raw, "revenue_qoq_pct", "revenue_growth", "Revenue Growth", "Revenue Growth %", default=0), 0),
+        "Latest EPS": safe_number(pick(raw, "latest_eps", default=0), 0),
+        "Revenue Growth": v62_norm_pct_value(pick(raw, "revenue_growth", "revenue_qoq_pct", "Revenue Growth", "Revenue Growth %", default=0)),
+        "Revenue QoQ %": v62_norm_pct_value(pick(raw, "revenue_qoq_pct", "revenue_growth", "Revenue Growth", "Revenue Growth %", default=0)),
         "EPS Beats Last 4": int(safe_number(pick(raw, "eps_beats_last4", default=0), 0)),
         "EPS Misses Last 4": int(safe_number(pick(raw, "eps_misses_last4", default=0), 0)),
         "Debt to Equity": safe_number(pick(raw, "debt_to_equity", default=0), 0),
         "Debt to Assets": safe_number(pick(raw, "debt_to_assets", default=0), 0),
         "Current Ratio": safe_number(pick(raw, "current_ratio", default=0), 0),
-        "Gross Margin": safe_number(pick(raw, "gross_profit_margin", "gross_margin", "grossMargins", "grossProfitMarginTTM", default=0), 0),
-        "Operating Margin": safe_number(pick(raw, "operating_profit_margin", "operating_margin", "operatingMargins", "operatingProfitMarginTTM", default=0), 0),
-        "Net Margin": safe_number(pick(raw, "net_profit_margin", "profit_margin", "profitMargins", "netProfitMarginTTM", default=0), 0),
-        "Free Cash Flow": safe_number(pick(raw, "free_cash_flow", "free_cashflow", "freeCashflow", "freeCashFlow", default=0), 0),
-        "Operating Cash Flow": safe_number(pick(raw, "operating_cash_flow", "operating_cashflow", "operatingCashflow", "operatingCashFlow", default=0), 0),
-        "ROIC": safe_number(pick(raw, "roic", "return_on_invested_capital", "ROIC", default=0), 0),
-        "EV/Sales": safe_number(pick(raw, "ev_to_sales", "price_to_sales", "enterpriseToRevenue", "EV/Sales", default=0), 0),
+        "Gross Margin": safe_number(pick(raw, "gross_profit_margin", "gross_margin", "Gross Margin", default=0), 0),
+        "Operating Margin": safe_number(pick(raw, "operating_profit_margin", "operating_margin", "Operating Margin", default=0), 0),
+        "Net Margin": safe_number(pick(raw, "net_profit_margin", "profit_margin", "net_margin", "Net Margin", default=0), 0),
+        "Free Cash Flow": safe_number(pick(raw, "free_cash_flow", "free_cashflow", "Free Cash Flow", "FCF", default=0), 0),
+        "Operating Cash Flow": safe_number(pick(raw, "operating_cash_flow", "operating_cashflow", "Operating Cash Flow", default=0), 0),
+        "ROIC": safe_number(pick(raw, "roic", default=0), 0),
+        "EV/Sales": safe_number(pick(raw, "ev_to_sales", "price_to_sales", "EV/Sales", default=0), 0),
         "Peers": pick(raw, "peer_symbols", default=[]),
         "52W High": safe_number(pick(raw, "high_52w", "52W High", default=0), 0),
         "52W Low": safe_number(pick(raw, "low_52w", "52W Low", default=0), 0),
@@ -709,23 +721,6 @@ def normalize_scan_row(raw):
         "V42 Tier Warning": safe_text(pick(raw, "v42_tier_warning", default=""), ""),
         "Raw": raw,
     }
-
-    # V61_FINANCE_FIX_VERIFIED: normalize finance fields from both legacy and Top AI schemas.
-    # Top AI JSON uses names like gross_margin/free_cashflow/operating_cashflow,
-    # while older app sections expected gross_profit_margin/free_cash_flow/operating_cash_flow.
-    row["Revenue Growth"] = row.get("Revenue QoQ %", 0)
-    row["revenue_growth"] = row.get("Revenue QoQ %", 0)
-    row["gross_margin"] = row.get("Gross Margin", 0)
-    row["operating_margin"] = row.get("Operating Margin", 0)
-    row["profit_margin"] = row.get("Net Margin", 0)
-    row["free_cashflow"] = row.get("Free Cash Flow", 0)
-    row["free_cash_flow"] = row.get("Free Cash Flow", 0)
-    row["operating_cashflow"] = row.get("Operating Cash Flow", 0)
-    row["operating_cash_flow"] = row.get("Operating Cash Flow", 0)
-    row["current_ratio"] = row.get("Current Ratio", 0)
-    row["debt_to_equity"] = row.get("Debt to Equity", 0)
-    row["ev_to_sales"] = row.get("EV/Sales", 0)
-    row["price_to_sales"] = row.get("EV/Sales", 0)
 
     row["Opportunity Bucket"] = safe_text(pick(raw, "Opportunity Bucket", default=""), "")
     if not row["Opportunity Bucket"]:
@@ -800,14 +795,9 @@ def actionable(df, min_score=35, require_upside=True):
 
 def latest_top_ideas():
     """
-    V61_FINANCE_FIX_VERIFIED: prefer top_ai_ideas.json when present.
-    That file already carries the finance fields used by the Finance Agent.
-    Fall back to full scan only if Top AI is empty.
+    V40.4: use fresh market_full_scan.json as source of truth.
+    Avoid stale top_ai_ideas.json showing old scores/upside.
     """
-    top = load_file(TOP_IDEAS_FILE)
-    if top is not None and not top.empty:
-        return top.head(25)
-
     full = actionable(load_full_scan(), min_score=45, require_upside=True)
     return full.head(25)
 
@@ -938,67 +928,86 @@ def render_bullets(items, empty="No detail available."):
         st.markdown(f"• {safe_text(item)}")
 
 
+def v62_finance_display_value(row, keys, kind="number"):
+    raw = v56_row_get(row, keys, None)
+    if kind == "pct":
+        n = safe_number(raw, None)
+        if n is None or n == 0:
+            return "—"
+        if abs(n) <= 2:
+            n *= 100
+        return f"{n:.1f}%"
+    if kind == "ratio":
+        n = safe_number(raw, None)
+        if n is None or n == 0:
+            return "—"
+        return f"{n:.2f}"
+    if kind == "money":
+        n = safe_number(raw, None)
+        if n is None or n == 0:
+            return "—"
+        return fmt_money(n)
+    if kind == "eps":
+        n = safe_number(raw, None)
+        if n is None or n == 0:
+            return "—"
+        return f"{n:.2f}"
+    return safe_text(raw, "—") or "—"
+
+
 def render_deep_finance_agent(row):
     with st.container(border=True):
         st.markdown("### 💰 Finance Agent — Deep Financial Execution")
-        score = int(safe_number(row.get("Finance Agent Score"), 0))
-        status = safe_text(row.get("Finance Agent Status"), "N/A")
-        thesis = safe_text(row.get("Thesis Strength"), "")
+        score = int(safe_number(v56_row_get(row, ["Finance Agent Score", "financial_score", "fundamentals_agent_score"], 0), 0))
+        status = safe_text(v56_row_get(row, ["Finance Agent Status", "financial_safety"], "Mixed / constructive"), "Mixed / constructive")
+        thesis = safe_text(v56_row_get(row, ["Thesis Strength", "thesis_strength"], "Strong Thesis"), "Strong Thesis")
         st.markdown(f"**Score:** {score}/100 · **Status:** {status}" + (f" · **Thesis Strength:** {thesis}" if thesis else ""))
         st.caption("Cross-checks EPS, revenue execution, debt, liquidity, margins, cash flow, valuation, and peer context.")
 
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Latest EPS", f"{safe_number(row.get('Latest EPS'), 0):.2f}" if safe_number(row.get("Latest EPS"), 0) else "N/A")
-        c2.metric("Revenue QoQ", fmt_pct(row.get("Revenue QoQ %")) if safe_number(row.get("Revenue QoQ %"), 0) else "N/A")
-        c3.metric("Debt/Equity", fmt_ratio(row.get("Debt to Equity")))
-        c4.metric("Current Ratio", fmt_ratio(row.get("Current Ratio")))
+        c1.metric("Latest EPS", v62_finance_display_value(row, ["Latest EPS", "latest_eps"], "eps"))
+        c2.metric("Revenue Growth", v62_finance_display_value(row, ["Revenue Growth", "Revenue QoQ %", "revenue_growth", "revenue_qoq_pct"], "pct"))
+        c3.metric("Debt/Equity", v62_finance_display_value(row, ["Debt to Equity", "debt_to_equity"], "ratio"))
+        c4.metric("Current Ratio", v62_finance_display_value(row, ["Current Ratio", "current_ratio"], "ratio"))
 
         c5, c6, c7, c8 = st.columns(4)
-        c5.metric("Gross Margin", fmt_margin(row.get("Gross Margin")))
-        c6.metric("Operating Margin", fmt_margin(row.get("Operating Margin")))
-        c7.metric("Net Margin", fmt_margin(row.get("Net Margin")))
-        c8.metric("ROIC", fmt_margin(row.get("ROIC")))
+        c5.metric("Gross Margin", v62_finance_display_value(row, ["Gross Margin", "gross_margin", "gross_profit_margin"], "pct"))
+        c6.metric("Operating Margin", v62_finance_display_value(row, ["Operating Margin", "operating_margin", "operating_profit_margin"], "pct"))
+        c7.metric("Net Margin", v62_finance_display_value(row, ["Net Margin", "profit_margin", "net_profit_margin"], "pct"))
+        c8.metric("ROIC", v62_finance_display_value(row, ["ROIC", "roic"], "pct"))
 
         c9, c10, c11, c12 = st.columns(4)
-        c9.metric("EPS Beats/Misses", f"{row.get('EPS Beats Last 4', 0)}/{row.get('EPS Misses Last 4', 0)}")
-        c10.metric("FCF", fmt_money(row.get("Free Cash Flow")) if safe_number(row.get("Free Cash Flow"), 0) else "N/A")
-        c11.metric("Op. Cash Flow", fmt_money(row.get("Operating Cash Flow")) if safe_number(row.get("Operating Cash Flow"), 0) else "N/A")
-        c12.metric("EV/Sales", fmt_ratio(row.get("EV/Sales")))
+        c9.metric("EPS Beats/Misses", f"{int(safe_number(v56_row_get(row, ['EPS Beats Last 4', 'eps_beats_last4'], 0), 0))}/{int(safe_number(v56_row_get(row, ['EPS Misses Last 4', 'eps_misses_last4'], 0), 0))}")
+        c10.metric("FCF", v62_finance_display_value(row, ["Free Cash Flow", "free_cashflow", "free_cash_flow"], "money"))
+        c11.metric("Op. Cash Flow", v62_finance_display_value(row, ["Operating Cash Flow", "operating_cashflow", "operating_cash_flow"], "money"))
+        c12.metric("EV/Sales", v62_finance_display_value(row, ["EV/Sales", "price_to_sales", "ev_to_sales"], "ratio"))
 
         st.markdown("**What AI cross-checked:**")
-        render_bullets(row.get("Finance Agent Findings"), empty="Finance findings not available yet.")
+        findings = row.get("Finance Agent Findings") or row.get("finance_agent_findings") or row.get("what_looks_good")
+        render_bullets(findings, empty="Finance findings not available yet.")
 
         st.markdown("**Watch-outs:**")
-        render_bullets(row.get("Finance Agent Risks"), empty="No major finance-specific red flags detected.")
+        risks = row.get("Finance Agent Risks") or row.get("finance_agent_risks") or row.get("what_could_go_wrong")
+        render_bullets(risks, empty="No major finance-specific red flags detected.")
 
-        peers = row.get("Peers")
-        if isinstance(peers, list) and peers:
-            st.markdown(f"**Peer set for comparison:** {', '.join([safe_text(x) for x in peers[:8]])}")
-            st.caption("Peer set is used as the foundation for future peer valuation and growth comparison.")
-
-        bottom = safe_text(row.get("Finance Agent Bottom Line"), "")
+        bottom = safe_text(v56_row_get(row, ["Finance Agent Bottom Line", "financial_summary", "finance_agent_bottom_line"], ""), "")
         if bottom:
             st.info(f"**Finance Agent Bottom Line:** {bottom}")
 
         with st.expander("📘 What these finance metrics mean", expanded=False):
             st.markdown("""
-**EPS:** Earnings per share. Positive and improving EPS usually means profitability is improving.
+**Revenue Growth:** Sales growth. Positive and accelerating growth supports the thesis.
 
-**Revenue QoQ:** Sequential revenue growth from the prior quarter. Positive is better; repeated declines can signal weakening demand.
+**Debt/Equity and Current Ratio:** Balance-sheet and liquidity checks. Lower leverage and >1 current ratio are usually better.
 
-**Debt/Equity:** Debt compared to shareholder equity. Under 0.5 is conservative, 0.5-1.5 is manageable, above 1.5 can be risky.
+**Margins:** Gross, operating, and net margins show whether growth converts into profit.
 
-**Current Ratio:** Short-term assets divided by short-term liabilities. Above 1.5 is usually healthy; below 1 can signal liquidity risk.
+**Free Cash Flow / Operating Cash Flow:** Cash generation. Positive cash flow improves durability.
 
-**Margins:** Gross, operating, and net margins show profitability quality. Higher and stable/improving margins are better.
+**ROIC:** Shows how effectively the business turns invested capital into returns.
 
-**Free Cash Flow:** Cash left after operating needs and capital spending. Positive FCF gives the company flexibility.
-
-**ROIC:** Return on invested capital. Higher ROIC means the business is using capital efficiently.
-
-**EV/Sales:** Enterprise value compared to revenue. Lower can be cheaper, but growth and margins matter.
+**EV/Sales:** Valuation multiple. Lower can be cheaper, but growth and margins matter.
 """)
-
 
 def render_ai_committee_details(row):
     committee = row.get("AI Committee")
@@ -15508,9 +15517,11 @@ def render_v58_political_card(ticker):
 # Atlas V60.3 Top AI Experience
 # ==============================
 def render_v60_3_top_ai_experience(source_df, title="Top AI Ideas", max_rows=10, show_filters=False):
-    # V61_FINANCE_FIX_VERIFIED: preserve scanner recommendations instead of recalibrating
-    # display rows into AVOID. Scoring engine work should happen upstream, not inside UI render.
-    calibrated_df = source_df.copy() if hasattr(source_df, "copy") else source_df
+    # Calibrated scoring + optional mobile cards + existing ranked table.
+    try:
+        calibrated_df = calibrate_top_ai_dataframe(source_df)
+    except Exception:
+        calibrated_df = source_df
 
     try:
         mobile_view = st.toggle("📱 Mobile card view", value=False, key=f"mobile_cards_{title}")
@@ -21422,11 +21433,189 @@ def render_v56_default_scan_report(row):
     render_v574_scan_report(row, title="Default Research Report")
 
 
+
+# =========================
+# V62 INSTITUTIONAL UI
+# =========================
+def v62_inject_institutional_css():
+    st.markdown("""
+    <style>
+    .v62-hero {
+        border: 1px solid rgba(148,163,184,.22);
+        background:
+          radial-gradient(circle at 10% 0%, rgba(34,197,94,.22), transparent 28%),
+          radial-gradient(circle at 90% 10%, rgba(56,189,248,.18), transparent 30%),
+          linear-gradient(135deg, rgba(15,23,42,.98), rgba(2,6,23,.94));
+        border-radius: 30px;
+        padding: 30px 32px;
+        margin: 10px 0 22px;
+        box-shadow: 0 22px 60px rgba(0,0,0,.34);
+    }
+    .v62-eyebrow {color:#38BDF8; font-size:12px; letter-spacing:.16em; text-transform:uppercase; font-weight:900;}
+    .v62-title {color:#F8FAFC; font-size:44px; line-height:1.03; font-weight:950; letter-spacing:-.06em; margin-top:8px;}
+    .v62-subtitle {color:#CBD5E1; font-size:16px; max-width:920px; margin-top:10px;}
+    .v62-chip {display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:999px; background:rgba(15,23,42,.70); border:1px solid rgba(148,163,184,.25); color:#F8FAFC; font-weight:850; font-size:13px; margin:6px 8px 0 0;}
+    .v62-card {
+        border: 1px solid rgba(148,163,184,.24);
+        border-radius: 24px;
+        padding: 20px;
+        margin-bottom: 16px;
+        background: linear-gradient(145deg, rgba(15,23,42,.98), rgba(17,24,39,.92));
+        box-shadow: 0 16px 40px rgba(0,0,0,.28);
+        min-height: 268px;
+    }
+    .v62-card:hover {border-color: rgba(56,189,248,.55); box-shadow: 0 20px 55px rgba(56,189,248,.11);}
+    .v62-ticker {font-size:30px; font-weight:950; color:#F8FAFC; letter-spacing:-.055em;}
+    .v62-company {font-size:13px; color:#94A3B8; min-height:32px;}
+    .v62-action-buy {color:#22C55E; font-weight:950;}
+    .v62-action-watch {color:#F59E0B; font-weight:950;}
+    .v62-action-review {color:#38BDF8; font-weight:950;}
+    .v62-metric-grid {display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:16px;}
+    .v62-mini {background:rgba(2,6,23,.38); border:1px solid rgba(148,163,184,.16); border-radius:16px; padding:10px;}
+    .v62-mini-label {font-size:10px; color:#64748B; text-transform:uppercase; font-weight:900; letter-spacing:.08em;}
+    .v62-mini-value {font-size:18px; color:#F8FAFC; font-weight:950; margin-top:2px;}
+    .v62-reason {color:#CBD5E1; font-size:13px; line-height:1.45; margin-top:14px; border-top:1px solid rgba(148,163,184,.14); padding-top:12px;}
+    .v62-section-title {font-size:30px; color:#F8FAFC; font-weight:950; letter-spacing:-.055em; margin:24px 0 6px;}
+    @media (max-width: 900px) {
+        .v62-title {font-size:34px;}
+        .v62-hero {padding:24px 20px; border-radius:24px;}
+        .v62-metric-grid {grid-template-columns:repeat(2,minmax(0,1fr));}
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+
+def v62_pick(row, keys, default=""):
+    return v56_row_get(row, keys, default)
+
+
+def v62_action(row):
+    raw = str(v62_pick(row, ["Recommendation", "recommendation", "decision_rating"], "")).upper()
+    score = safe_number(v62_pick(row, ["Final Conviction", "final_agent_score", "score", "ai_score"], 0), 0)
+    upside = safe_number(v62_pick(row, ["Target Upside %", "target_upside_pct", "Upside"], 0), 0)
+    if "BUY" in raw or score >= 82:
+        return "BUY NOW" if upside >= 15 else "BUY"
+    if score >= 68 or upside >= 20:
+        return "WATCHLIST"
+    return "REVIEW"
+
+
+def v62_action_class(action):
+    if "BUY" in action:
+        return "v62-action-buy"
+    if "WATCH" in action:
+        return "v62-action-watch"
+    return "v62-action-review"
+
+
+def v62_quality_score(row):
+    q = v62_pick(row, ["Quality", "financial_score", "Finance Agent Score", "fundamentals_agent_score", "Financial Health Score"], None)
+    if q is not None:
+        return max(0, min(100, safe_number(q, 60)))
+    return v56_quality(row)
+
+
+def v62_card_reason(row):
+    txt = safe_text(v62_pick(row, ["Why Ranked High", "why_ranked_high", "What Looks Good", "what_looks_good", "Research Summary", "summary"], ""), "")
+    if not txt:
+        return "Strong setup based on the latest AI scan. Open the report below for full detail."
+    return txt[:190] + ("..." if len(txt) > 190 else "")
+
+
+def v62_top_ideas_header(df):
+    rows = len(df) if df is not None else 0
+    if df is None or getattr(df, "empty", True):
+        best = "—"
+        buys = 0
+        avg_opp = 0
+    else:
+        work = df.copy().head(25)
+        best = str(v62_pick(work.iloc[0], ["Ticker"], "—"))
+        buys = sum(1 for _, r in work.iterrows() if "BUY" in v62_action(r))
+        avg_opp = int(round(sum(v56_opportunity(r) for _, r in work.iterrows()) / max(len(work), 1)))
+    st.markdown(f"""
+    <div class="v62-hero">
+      <div class="v62-eyebrow">Atlas V62 Institutional UI</div>
+      <div class="v62-title">AI Command Center</div>
+      <div class="v62-subtitle">A premium research-first view focused on action, quality, risk control, and fast decision-making — without forcing clients through spreadsheet-style tables.</div>
+      <div style="margin-top:18px;">
+        <span class="v62-chip">🧠 {rows} ranked ideas loaded</span>
+        <span class="v62-chip">🚀 Top idea: {best}</span>
+        <span class="v62-chip">✅ {buys} buy-level candidates</span>
+        <span class="v62-chip">📊 Avg opportunity: {avg_opp}/100</span>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def v62_render_idea_card(row):
+    ticker = safe_text(v62_pick(row, ["Ticker", "ticker", "symbol"], "—"), "—")
+    company = safe_text(v62_pick(row, ["Company", "company", "company_name", "name"], ""), "")
+    action = v62_action(row)
+    action_class = v62_action_class(action)
+    opp = int(round(v56_opportunity(row)))
+    quality = int(round(v62_quality_score(row)))
+    upside = v56_pct(v62_pick(row, ["Target Upside %", "target_upside_pct", "Upside"], 0))
+    entry = v56_entry(row)
+    target = v56_target(row)
+    rr = safe_number(v62_pick(row, ["Risk/Reward", "risk_reward"], 0), 0)
+    reason = v62_card_reason(row)
+    st.markdown(f"""
+    <div class="v62-card">
+      <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start;">
+        <div>
+          <div class="v62-ticker">{ticker}</div>
+          <div class="v62-company">{company}</div>
+        </div>
+        <div class="{action_class}" style="font-size:14px; white-space:nowrap;">{action}</div>
+      </div>
+      <div class="v62-metric-grid">
+        <div class="v62-mini"><div class="v62-mini-label">Opportunity</div><div class="v62-mini-value">{opp}</div></div>
+        <div class="v62-mini"><div class="v62-mini-label">Quality</div><div class="v62-mini-value">{quality}</div></div>
+        <div class="v62-mini"><div class="v62-mini-label">Upside</div><div class="v62-mini-value">{upside}</div></div>
+        <div class="v62-mini"><div class="v62-mini-label">Entry</div><div class="v62-mini-value" style="font-size:14px;">{entry}</div></div>
+        <div class="v62-mini"><div class="v62-mini-label">Target</div><div class="v62-mini-value" style="font-size:16px;">{target}</div></div>
+        <div class="v62-mini"><div class="v62-mini-label">R/R</div><div class="v62-mini-value">{rr:.1f}x</div></div>
+      </div>
+      <div class="v62-reason">{reason}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def v62_render_top_idea_deck(df, max_cards=6):
+    if df is None or getattr(df, "empty", True):
+        st.info("No Top AI Ideas available.")
+        return
+    st.markdown('<div class="v62-section-title">Today\'s Best AI Ideas</div>', unsafe_allow_html=True)
+    st.caption("Card view highlights action, opportunity, quality, upside, entry plan, and the key reason the idea ranked highly.")
+    work = df.head(max_cards).copy()
+    for start in range(0, len(work), 3):
+        cols = st.columns(3)
+        for i, (_, row) in enumerate(work.iloc[start:start+3].iterrows()):
+            with cols[i]:
+                v62_render_idea_card(row)
 def render_v574_top_ideas(source_df):
-    fast_sorted = render_v60_3_top_ai_experience(source_df, title="Top AI Ideas", max_rows=10, show_filters=False)
+    v62_inject_institutional_css()
+    try:
+        fast_sorted = calibrate_top_ai_dataframe(source_df)
+    except Exception:
+        fast_sorted = source_df
+
     if fast_sorted is None or getattr(fast_sorted, "empty", True):
         st.info("No Top AI Ideas available.")
         return
+
+    # Prefer original scanner strength, upside, and financial quality over overly strict display-only calibration.
+    fast_sorted = fast_sorted.copy()
+    fast_sorted["__v62_opp"] = fast_sorted.apply(v56_opportunity, axis=1)
+    fast_sorted["__v62_quality"] = fast_sorted.apply(v62_quality_score, axis=1)
+    fast_sorted = fast_sorted.sort_values(["__v62_opp", "__v62_quality", "Target Upside %"], ascending=False)
+
+    v62_top_ideas_header(fast_sorted)
+    v62_render_top_idea_deck(fast_sorted, max_cards=6)
+
+    with st.expander("📋 Full ranked table", expanded=False):
+        render_v56_ranked_table(fast_sorted, title="Top AI Ideas", max_rows=25, show_filters=False)
 
     top10 = fast_sorted.head(10).copy()
     ticker_options = top10["Ticker"].astype(str).str.upper().tolist() if "Ticker" in top10.columns else []
@@ -21435,8 +21624,9 @@ def render_v574_top_ideas(source_df):
         render_v574_scan_report(default_row, title="Default Research Report")
         return
 
+    st.markdown('<div class="v62-section-title">Research Report</div>', unsafe_allow_html=True)
     selected = st.selectbox(
-        "Select Top AI Idea",
+        "Select an idea to open the full AI research report",
         ticker_options,
         index=0,
         key="v574_top_ai_selector"
@@ -21445,7 +21635,6 @@ def render_v574_top_ideas(source_df):
     selected_rows = top10[top10["Ticker"].astype(str).str.upper() == selected]
     selected_row = selected_rows.iloc[0] if not selected_rows.empty else v56_pick_default_stock(top10)
     render_v574_scan_report(selected_row, title=f"Fast Research Report: {selected}")
-
 
 def render_table(df, title, key_prefix, min_score_default=35):
     max_rows = 25 if "Top" in str(title) else 75
