@@ -1,3 +1,4 @@
+V643_NARRATIVE_NEWS_POLITICAL_CALIBRATION_VERIFIED = True
 """
 Atlas V63 scoring calibration.
 Normalizes Top AI Ideas display fields so opportunity, quality, upside, and recommendations

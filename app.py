@@ -22497,6 +22497,353 @@ def render_table(df, title, key_prefix, min_score_default=35):
     max_rows = 25 if "Top" in str(title) else 75
     return render_v56_ranked_table(df, title=title, max_rows=max_rows, show_filters=True)
 
+
+# ============================================================
+# V64.3 NARRATIVE + NEWS + POLITICAL + RESEARCH FIX
+# ============================================================
+V643_NARRATIVE_NEWS_POLITICAL_VERIFIED = True
+
+
+def v643_clean_text(value, max_len=None):
+    """Clean AI/report text before display so Markdown cannot create weird italics/merged words."""
+    import re, html
+    if value is None:
+        return ""
+    text = str(value)
+    replacements = {
+        "whiletheAI": "while the AI",
+        "fairvaluerange": "fair value range",
+        "bullcaseis": "bull case is",
+        "bearcaseis": "bear case is",
+        "doesnot": "does not",
+        "becomeunrealistic": "become unrealistic",
+        "targetdiscipline": "target discipline",
+    }
+    for old, new in replacements.items():
+        text = text.replace(old, new).replace(old.lower(), new)
+    # Remove markdown emphasis that was causing serif/italic rendering in generated text.
+    text = text.replace("**", "").replace("__", "").replace("*", "")
+    text = re.sub(r"(?<=[a-z])(?=AI )", " ", text)
+    text = re.sub(r"(?<=[a-z])(?=[A-Z][a-z])", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    if max_len and len(text) > max_len:
+        text = text[: max_len - 1].rstrip() + "…"
+    return html.escape(text)
+
+
+def v643_write_bullet(text):
+    st.markdown(f"• {v643_clean_text(text)}")
+
+
+def v643_money(x, default="—"):
+    try:
+        return v642_money(x) if "v642_money" in globals() else v63_fmt_money(x, default)
+    except Exception:
+        try:
+            return v63_fmt_money(x, default)
+        except Exception:
+            return default
+
+
+def v643_wallstreet_label(row):
+    try:
+        ticker = v51_text((dict(row) if not isinstance(row, dict) else row).get("Ticker") or (dict(row) if not isinstance(row, dict) else row).get("ticker"), "")
+        ws = v509_wallstreet_pack(ticker) if ticker and "v509_wallstreet_pack" in globals() else {}
+        cons = ws.get("consensus", {}) or {}
+        buy = int((v574_num(cons.get("strong_buy"),0) or 0) + (v574_num(cons.get("buy"),0) or 0))
+        hold = int(v574_num(cons.get("hold"),0) or 0)
+        sell = int((v574_num(cons.get("sell"),0) or 0) + (v574_num(cons.get("strong_sell"),0) or 0))
+        total = buy + hold + sell
+        if total > 0:
+            ratio = buy / max(total, 1)
+            if ratio >= .70: return f"🟢 Strong Buy · {buy}B/{hold}H/{sell}S"
+            if ratio >= .55: return f"🟢 Bullish · {buy}B/{hold}H/{sell}S"
+            if ratio >= .40: return f"🟡 Mixed · {buy}B/{hold}H/{sell}S"
+            return f"🔴 Cautious · {buy}B/{hold}H/{sell}S"
+    except Exception:
+        pass
+    return v641_wall_street_view(row) if "v641_wall_street_view" in globals() else "⚪ Limited analyst data"
+
+
+def v64_wall_street_view(row):
+    return v643_wallstreet_label(row)
+
+
+def v643_political_narrative(row):
+    report = v51_report(row) if "v51_report" in globals() else (dict(row) if not isinstance(row, dict) else row)
+    signal = v51_text(v51_get(report, ["political_signal", "Political Signal", "political_activity", "Political Activity"], ""), "") if "v51_get" in globals() else ""
+    buys = v574_num(v56_row_get(row, ["Political Buys", "political_buys", "Buy_Count", "buys"], 0), 0)
+    sells = v574_num(v56_row_get(row, ["Political Sells", "political_sells", "Sell_Count", "sells"], 0), 0)
+    names = v56_row_get(row, ["Politicians", "politicians", "politician_names"], "")
+    last_trade = v56_row_get(row, ["Last Political Trade", "Last_Trade", "last_trade"], "")
+    lines = []
+    if signal and signal.lower() not in {"not detected", "none", "n/a", "coming v58 / not detected"}:
+        lines.append(f"Political signal detected: {signal}.")
+        if buys or sells:
+            lines.append(f"Recent disclosure balance: {int(buys)} reported buys and {int(sells)} reported sells.")
+        if names:
+            lines.append(f"Reported names/entities: {v643_clean_text(names, 120)}.")
+        if last_trade:
+            lines.append(f"Most recent political trade date in saved data: {last_trade}.")
+        bottom = "Political activity is a supporting signal and should be reviewed before acting, but it should not override fundamentals, valuation, or risk management."
+        tone = "Signal Detected"
+    else:
+        lines.append("No recent congressional trading signal was detected for this ticker in the latest saved scan.")
+        lines.append("Political intelligence is neutral and does not currently increase or reduce confidence in the thesis.")
+        bottom = "Political data is treated as a supporting evidence layer only, never the primary reason to buy or sell."
+        tone = "Neutral"
+    return {"verdict": tone, "what": lines, "bottom": bottom, "meaning": bottom}
+
+
+def v642_political_narrative(report):
+    return v643_political_narrative(report)
+
+
+def v643_render_political_assessment(row):
+    pol = v643_political_narrative(row)
+    with st.container(border=True):
+        st.markdown("### 🏛️ AI Political Intelligence")
+        st.markdown(f"**Status:** {v643_clean_text(pol.get('verdict'))}")
+        for line in pol.get("what", []):
+            v643_write_bullet(line)
+        st.markdown(f"**Bottom Line:** {v643_clean_text(pol.get('bottom'))}")
+
+
+def v643_smart_money_summary(row):
+    report = v51_report(row) if "v51_report" in globals() else (dict(row) if not isinstance(row, dict) else row)
+    smart = v63_clean_num(v56_row_get(row, ["Smart Money Score", "smart_money_score", "institutional_score"], None), None)
+    inst = v63_clean_num(v56_row_get(row, ["Institutional Ownership", "institutional_ownership", "inst_ownership"], None), None)
+    insider = v63_clean_num(v56_row_get(row, ["Insider Score", "insider_score", "insider_activity_score"], None), None)
+    change = v63_clean_num(v56_row_get(row, ["Institutional Ownership Change", "institutional_ownership_change", "inst_change"], None), None)
+    lines=[]
+    if smart is not None:
+        lines.append(f"Smart Money Score is {smart:.0f}/100, which is {'constructive' if smart>=70 else 'neutral' if smart>=50 else 'weak'}.")
+    if inst is not None:
+        val = inst*100 if abs(inst)<=1 else inst
+        lines.append(f"Institutional ownership is approximately {val:.1f}% in the saved data.")
+    if change is not None:
+        val = change*100 if abs(change)<=1 else change
+        lines.append(f"Institutional ownership change is {val:+.1f}%, suggesting {'accumulation' if val>0 else 'distribution' if val<0 else 'no clear change'}.")
+    if insider is not None:
+        lines.append(f"Insider activity score is {insider:.0f}/100.")
+    if not lines:
+        lines.append("No reliable smart-money signal was included in the latest saved scan for this ticker.")
+        lines.append("Treat this section as neutral until institutional ownership, insider activity, or accumulation/distribution data is populated.")
+    bottom = "Smart money evidence supports the thesis." if any("constructive" in x or "accumulation" in x for x in lines) else "Smart money data is not decisive enough to drive the recommendation alone."
+    return lines, bottom
+
+
+def render_v509_smart_money_assessment(row):
+    lines, bottom = v643_smart_money_summary(row)
+    with st.container(border=True):
+        st.markdown("### 🏛️ AI Smart Money Assessment")
+        for line in lines:
+            v643_write_bullet(line)
+        st.markdown(f"**Bottom Line:** {v643_clean_text(bottom)}")
+
+
+def v643_technical_summary(row):
+    rsi = v63_clean_num(v56_row_get(row, ["RSI", "rsi"], None), None)
+    vol = v63_clean_num(v56_row_get(row, ["Volume Ratio", "volume_ratio", "relative_volume"], None), None)
+    atr = v63_clean_num(v56_row_get(row, ["ATR %", "atr_pct", "atr_percent", "volatility"], None), None)
+    price_vs_200 = v63_clean_num(v56_row_get(row, ["Price vs 200DMA %", "price_vs_200dma", "above_200dma"], None), None)
+    lines=[]
+    if rsi is not None:
+        if rsi >= 70: lines.append(f"RSI is {rsi:.1f}, suggesting the stock may be extended in the short term.")
+        elif rsi <= 30: lines.append(f"RSI is {rsi:.1f}, suggesting oversold conditions but also elevated stress.")
+        else: lines.append(f"RSI is {rsi:.1f}, which is a balanced momentum reading.")
+    if vol is not None:
+        lines.append(f"Relative volume is {vol:.2f}x, indicating {'above-normal participation' if vol>=1.2 else 'normal participation' if vol>=0.8 else 'lighter-than-normal participation'}.")
+    if atr is not None:
+        val = atr*100 if abs(atr)<=1 else atr
+        lines.append(f"ATR volatility is approximately {val:.1f}%, which should guide position sizing.")
+    if price_vs_200 is not None:
+        val = price_vs_200*100 if abs(price_vs_200)<=1 else price_vs_200
+        lines.append(f"Price is {val:+.1f}% versus the 200-day trend reference.")
+    if not lines:
+        lines.append("No reliable technical detail was included in the latest saved scan. Confirm trend, support, resistance, RSI, and volume before entering.")
+    return lines, "Technical evidence should support timing and position sizing, but it should not override financial quality or risk controls."
+
+
+def render_v509_technical_assessment(row):
+    lines, bottom = v643_technical_summary(row)
+    with st.container(border=True):
+        st.markdown("### 📈 AI Technical Assessment")
+        for line in lines:
+            v643_write_bullet(line)
+        st.markdown(f"**Bottom Line:** {v643_clean_text(bottom)}")
+
+
+def v643_news_rows(row, ticker):
+    rows=[]
+    # Prefer saved rows if present.
+    maybe = v56_row_get(row, ["news_rows", "News Rows", "articles", "Articles"], None)
+    if isinstance(maybe, list):
+        rows.extend(maybe)
+    # Then attempt existing live news helper.
+    try:
+        if ticker and "v5083_stock_news" in globals():
+            n = v5083_stock_news(ticker)
+            rows.extend(n.get("rows") or [])
+    except Exception:
+        pass
+    # Deduplicate by headline/title.
+    out=[]; seen=set()
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        title = v51_text(r.get("Headline") or r.get("headline") or r.get("title") or r.get("Title"), "")
+        if not title or title.lower() in seen:
+            continue
+        seen.add(title.lower())
+        out.append(r)
+        if len(out)>=5: break
+    return out
+
+
+def v643_render_news_link(row):
+    title = v51_text(row.get("Headline") or row.get("headline") or row.get("title") or row.get("Title"), "")
+    url = v51_text(row.get("url") or row.get("URL") or row.get("link") or row.get("Link"), "")
+    source = v51_text(row.get("source") or row.get("Source") or row.get("site") or row.get("publisher"), "News source")
+    date = v51_text(row.get("datetime") or row.get("publishedAt") or row.get("date") or row.get("Date"), "")
+    title_clean = v643_clean_text(title, 180)
+    source_clean = v643_clean_text(source, 60)
+    date_clean = v643_clean_text(date, 40)
+    if url.startswith("http"):
+        st.markdown(f'<div class="v642-news-card"><a href="{url}" target="_blank">{title_clean}</a><br><small>{source_clean}{(" · " + date_clean) if date_clean else ""}</small></div>', unsafe_allow_html=True)
+    else:
+        st.markdown(f'<div class="v642-news-card"><b>{title_clean}</b><br><small>{source_clean}{(" · " + date_clean) if date_clean else ""}</small></div>', unsafe_allow_html=True)
+
+
+def render_v509_news_digest(row):
+    report = v509_report(row) if "v509_report" in globals() else (dict(row) if not isinstance(row, dict) else row)
+    ticker = v509_text(report.get("ticker") or report.get("Ticker"), "") if "v509_text" in globals() else str(v56_row_get(row,["Ticker"],""))
+    rows = v643_news_rows(row, ticker)
+    with st.container(border=True):
+        st.markdown("### 📰 AI News Digest")
+        if rows:
+            st.write(f"Recent ticker-specific news was found for {ticker}. Review these headlines as potential catalysts or sentiment drivers.")
+            st.markdown("**Clickable headlines:**")
+            for r in rows[:5]:
+                v643_render_news_link(r)
+            st.markdown("**Impact Assessment:** News is a catalyst layer. A positive article can support confidence, while negative developments can quickly change risk.")
+        else:
+            st.info("No company-specific catalyst was detected in the latest saved scan. This is neutral: the thesis is unchanged, but there is no fresh news boost.")
+            st.write("News is treated as a catalyst layer, not the primary reason to buy or sell.")
+
+
+def v643_earnings_assessment(row):
+    keys = lambda names, default="": v56_row_get(row, names, default)
+    eps = keys(["EPS Surprise", "eps_surprise", "Latest EPS", "latest_eps"], "")
+    rev = keys(["Revenue Surprise", "revenue_surprise", "Revenue Growth", "revenue_growth"], "")
+    date = keys(["Earnings Date", "earnings_date", "Next Earnings", "next_earnings_date"], "")
+    tone = keys(["Management Tone", "management_tone", "guidance_tone"], "")
+    transcript = keys(["Transcript URL", "transcript_url", "earnings_transcript_url", "call_transcript_url"], "")
+    summary = keys(["Earnings Summary", "earnings_summary", "earnings_ai_summary"], "")
+    with st.container(border=True):
+        st.markdown("### 📞 Earnings Intelligence")
+        cols = st.columns(4)
+        cols[0].metric("EPS", v643_clean_text(eps) if str(eps).strip() else "Unavailable")
+        cols[1].metric("Revenue / Growth", v643_clean_text(rev) if str(rev).strip() else "Unavailable")
+        cols[2].metric("Next / Latest Date", v643_clean_text(date) if str(date).strip() else "Unavailable")
+        cols[3].metric("Tone", v643_clean_text(tone) if str(tone).strip() else "Not scored")
+        if summary:
+            st.write(v643_clean_text(summary))
+        else:
+            st.info("No earnings transcript summary was included in the latest saved scan. Add transcript/feed links upstream to populate management tone, guidance, and key call takeaways.")
+        if str(transcript).startswith("http"):
+            st.markdown(f"[Open earnings transcript]({transcript})")
+
+
+def v51_investment_thesis(report, ws, target):
+    s = v51_score_pack(report)
+    ticker = v51_text(report.get("ticker") or report.get("Ticker"), "This company")
+    ws_score = v51_wallstreet_score(ws)
+    fin = v51_financial_narrative(report)
+    lines = []
+    lines.append(f"{ticker} is classified as {s['classification']}. This describes the investment style, not an automatic buy decision.")
+    if ws_score.get("total", 0) > 0:
+        lines.append(f"Wall Street support includes {int(ws_score['buy'])} Buy, {int(ws_score['hold'])} Hold, and {int(ws_score['sell'])} Sell ratings in the connected data.")
+    if target.get("available"):
+        lines.append(f"Analyst consensus is {v643_money(target.get('consensus'))}. Atlas constrains the fair value range to {v643_money(target.get('fair_low'))}–{v643_money(target.get('fair_high'))} so the target remains realistic.")
+    if s["quality"] < 70:
+        lines.append("Financial quality is the main gating item. Upside may exist, but the company does not yet clear the preferred quality threshold for a flagship recommendation.")
+    else:
+        lines.append("Financial quality is strong enough to support the thesis and does not currently block Top Choice eligibility.")
+    if s["risk_reward"] >= 2:
+        lines.append(f"Risk/reward is attractive at {s['risk_reward']:.2f}:1, meaning modeled upside appears meaningfully larger than downside risk.")
+    lines.append("The opportunity still depends on execution, earnings delivery, valuation discipline, and sentiment remaining supportive.")
+    lines.append(f"Financial interpretation: {v643_clean_text(fin.get('bottom',''))}")
+    return lines
+
+
+def render_v51_final_recommendation(row):
+    report = v51_report(row)
+    ticker = v51_text(report.get("ticker") or report.get("Ticker"), "")
+    ws = v51_wallstreet_pack(ticker) if ticker else {}
+    target = v51_target_pack(report, ws)
+    status = v51_top_choice_status(report, ws)
+    thesis = v51_investment_thesis(report, ws, target)
+    with st.container(border=True):
+        st.markdown("## 🎯 Investment Thesis")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Recommendation", status["label"])
+        c2.metric("Opportunity", f"{status['opportunity']:.0f}/100")
+        c3.metric("Quality", f"{status['quality']:.0f}/100")
+        c4.metric("Confidence", f"{status['confidence']:.0f}/100")
+        st.markdown(f"**Classification:** {v643_clean_text(status['classification'])}")
+        if status.get("blocks"):
+            st.markdown("**Why this is not a Top Choice:**")
+            for b in status["blocks"]:
+                v643_write_bullet(b)
+        st.markdown("### Why This Stock Ranks")
+        for line in thesis:
+            v643_write_bullet(line)
+
+
+def render_detail(row):
+    """V64.3 full supporting dashboard first for any selected/searched ticker."""
+    render_v509_executive_summary(row)
+    render_v51_final_recommendation(row)
+    render_v509_wallstreet_assessment(row)
+    v643_earnings_assessment(row)
+    render_v509_financial_assessment(row)
+    render_v509_smart_money_assessment(row)
+    render_v509_technical_assessment(row)
+    render_v509_news_digest(row)
+    render_v509_target_analysis(row)
+    v643_render_political_assessment(row)
+    render_v509_investment_committee(row)
+    try:
+        if v509_original_render_detail:
+            with st.expander("🔬 Advanced Supporting Dashboard", expanded=False):
+                v509_original_render_detail(row)
+    except Exception:
+        pass
+
+
+def render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df=None):
+    st.subheader("🔍 Research Any Ticker")
+    st.caption("Search a ticker to open the full supporting dashboard: executive summary, Wall Street, earnings, finance, smart money, technicals, news, targets, and political intelligence.")
+    ticker = st.text_input("Enter ticker", placeholder="NVDA, MSFT, PLTR, ELF, ZS", key="research_any_ticker_v643").upper().strip()
+    if not ticker:
+        st.info("Enter a ticker to load the full supporting dashboard.")
+        return
+    row = find_ticker_row(ticker, full_df, recovery_df, watch_df, prescreen_df, etf_df)
+    if row is not None:
+        render_detail(row)
+        return
+    with st.spinner(f"Running live AI research for {ticker}..."):
+        live_row = build_live_research_row(ticker)
+    if isinstance(live_row, dict) and not live_row.get("error"):
+        render_detail(pd.Series(live_row))
+    else:
+        st.warning(f"Could not build full live research for {ticker}. Showing rate-limit-safe fallback if available.")
+        fallback = build_price_only_live_row(ticker, reason=(live_row or {}).get("error") if isinstance(live_row, dict) else "live data unavailable")
+        if fallback:
+            render_detail(pd.Series(fallback))
+
+
 def main():
     if not dashboard_login_gate():
         return
