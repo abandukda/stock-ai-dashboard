@@ -52,7 +52,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-30T21:16:51.928436+00:00",
+    "scan_time": "2026-07-01T00:35:22.414984+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 758.45,
@@ -276,7 +276,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-30T21:15:10.862733+00:00",
+    "scan_time": "2026-07-01T00:33:00.246473+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 747.83,
@@ -306,17 +306,15 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 90,
+        "score": 76,
         "status": "Positive",
         "impact": "Positive",
-        "data_used": "NewsAPI, Finnhub company news",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "SpaceX secures fastest Nasdaq 100 entry on record",
-          "Northside Hospital expands cardiac safety at iconic race",
-          "SpaceX joins Nasdaq-100 index weeks after record-breaking SPCX IPO",
-          "AI Chips Power Wall Street Higher, Dow Eyes Records: Stock Market Today",
-          "AI Should Bring A Positive Deflationary Effect, But This Negative Effect Was Not Expected"
+          "FTQI: AI Volatility Makes This 11% Yielding Fund A Defensive Play",
+          "Inside The S&P 500's June Swoon And AI Boom, July Fireworks Possible",
+          "AI Chips Power Wall Street Higher, Dow Eyes Records: Stock Market Today"
         ],
         "risks": [
           "No negative high-confidence headline detected."
@@ -457,20 +455,17 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 90,
+    "v42_news_score": 76,
     "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
-      "SpaceX secures fastest Nasdaq 100 entry on record",
-      "Northside Hospital expands cardiac safety at iconic race",
-      "SpaceX joins Nasdaq-100 index weeks after record-breaking SPCX IPO",
-      "AI Chips Power Wall Street Higher, Dow Eyes Records: Stock Market Today",
-      "AI Should Bring A Positive Deflationary Effect, But This Negative Effect Was Not Expected"
+      "FTQI: AI Volatility Makes This 11% Yielding Fund A Defensive Play",
+      "Inside The S&P 500's June Swoon And AI Boom, July Fireworks Possible",
+      "AI Chips Power Wall Street Higher, Dow Eyes Records: Stock Market Today"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": true,
@@ -538,7 +533,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-30T21:10:34.066745+00:00",
+    "scan_time": "2026-07-01T00:26:32.136379+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 301.5,
@@ -568,20 +563,18 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 82,
+        "score": 76,
         "status": "Positive",
         "impact": "Positive",
-        "data_used": "NewsAPI, Finnhub company news",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Two Catalysts Could Trigger Massive IWM Gains Before Year-End, or Signal a Sharp Reversal",
+          "Inside The S&P 500's June Swoon And AI Boom, July Fireworks Possible",
           "AI Chips Power Wall Street Higher, Dow Eyes Records: Stock Market Today",
-          "AI Should Bring A Positive Deflationary Effect, But This Negative Effect Was Not Expected",
-          "Breadth Confirms the Bounce, But Leadership Remains Uneven",
-          "Grantham Warns Of Biggest Bubble In History, Again"
+          "AI Should Bring A Positive Deflationary Effect, But This Negative Effect Was Not Expected"
         ],
         "risks": [
-          "Show HN: Openfactor \u2013 A multi factor risk model"
+          "No negative high-confidence headline detected."
         ],
         "bottom_line": "News flow supports the thesis."
       },
@@ -717,20 +710,17 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 82,
+    "v42_news_score": 76,
     "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
-      "Two Catalysts Could Trigger Massive IWM Gains Before Year-End, or Signal a Sharp Reversal",
+      "Inside The S&P 500's June Swoon And AI Boom, July Fireworks Possible",
       "AI Chips Power Wall Street Higher, Dow Eyes Records: Stock Market Today",
-      "AI Should Bring A Positive Deflationary Effect, But This Negative Effect Was Not Expected",
-      "Breadth Confirms the Bounce, But Leadership Remains Uneven",
-      "Grantham Warns Of Biggest Bubble In History, Again"
+      "AI Should Bring A Positive Deflationary Effect, But This Negative Effect Was Not Expected"
     ],
     "v42_news_risks": [
-      "Show HN: Openfactor \u2013 A multi factor risk model"
+      "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -798,7 +788,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-30T21:19:05.850467+00:00",
+    "scan_time": "2026-07-01T00:38:21.445830+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 697.12,
@@ -1021,7 +1011,7 @@
       "RSI is constructive"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-30T21:16:39.114570+00:00",
+    "scan_time": "2026-07-01T00:35:01.284932+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 671.83,
@@ -1244,7 +1234,7 @@
       "RSI is constructive"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-30T21:16:47.894545+00:00",
+    "scan_time": "2026-07-01T00:35:16.069230+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 655.95,
@@ -1467,7 +1457,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-30T21:11:39.552889+00:00",
+    "scan_time": "2026-07-01T00:28:02.760994+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 110.24,
@@ -1497,17 +1487,15 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 45,
+        "score": 46,
         "status": "Mixed",
         "impact": "Neutral",
-        "data_used": "NewsAPI, Finnhub company news",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Circle Your Calendars for July 29. JPMorgan Executive Says Fed Chair Kevin Warsh Could Raise Rates in As Little as Six Weeks.",
           "LQDH: It May Be Time To Hedge Interest Rate Risk (Rating Upgrade)"
         ],
         "risks": [
-          "Circle Your Calendars for July 29. JPMorgan Executive Says Fed Chair Kevin Warsh Could Raise Rates in As Little as Six Weeks.",
           "Warsh's Dot-Plot Pivot Recalibrates Duration Risk In Investment-Grade Bonds",
           "LQDH: It May Be Time To Hedge Interest Rate Risk (Rating Upgrade)"
         ],
@@ -1645,19 +1633,16 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 45,
+    "v42_news_score": 46,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "Circle Your Calendars for July 29. JPMorgan Executive Says Fed Chair Kevin Warsh Could Raise Rates in As Little as Six Weeks.",
       "LQDH: It May Be Time To Hedge Interest Rate Risk (Rating Upgrade)"
     ],
     "v42_news_risks": [
-      "Circle Your Calendars for July 29. JPMorgan Executive Says Fed Chair Kevin Warsh Could Raise Rates in As Little as Six Weeks.",
       "Warsh's Dot-Plot Pivot Recalibrates Duration Risk In Investment-Grade Bonds",
       "LQDH: It May Be Time To Hedge Interest Rate Risk (Rating Upgrade)"
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -1726,7 +1711,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-30T21:06:45.586866+00:00",
+    "scan_time": "2026-07-01T00:21:32.508422+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 526.57,
@@ -1756,17 +1741,15 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 90,
+        "score": 76,
         "status": "Positive",
         "impact": "Positive",
-        "data_used": "NewsAPI, Finnhub company news",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Ancelotti explains decision to leave Neymar on the bench in Brazil\u2019s win over Japan: \u2018I didn\u2019t want to change the structure\u2019",
-          "Video: \"Ikka\" - Official Trailer - Netflix",
+          "Inside The S&P 500's June Swoon And AI Boom, July Fireworks Possible",
           "AI Chips Power Wall Street Higher, Dow Eyes Records: Stock Market Today",
-          "AI Should Bring A Positive Deflationary Effect, But This Negative Effect Was Not Expected",
-          "Grantham Warns Of Biggest Bubble In History, Again"
+          "AI Should Bring A Positive Deflationary Effect, But This Negative Effect Was Not Expected"
         ],
         "risks": [
           "No negative high-confidence headline detected."
@@ -1907,20 +1890,17 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 90,
+    "v42_news_score": 76,
     "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
-      "Ancelotti explains decision to leave Neymar on the bench in Brazil\u2019s win over Japan: \u2018I didn\u2019t want to change the structure\u2019",
-      "Video: \"Ikka\" - Official Trailer - Netflix",
+      "Inside The S&P 500's June Swoon And AI Boom, July Fireworks Possible",
       "AI Chips Power Wall Street Higher, Dow Eyes Records: Stock Market Today",
-      "AI Should Bring A Positive Deflationary Effect, But This Negative Effect Was Not Expected",
-      "Grantham Warns Of Biggest Bubble In History, Again"
+      "AI Should Bring A Positive Deflationary Effect, But This Negative Effect Was Not Expected"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": true,
@@ -1987,7 +1967,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-30T21:19:48.727792+00:00",
+    "scan_time": "2026-07-01T00:39:21.270350+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 198.49,
@@ -2210,7 +2190,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-30T21:09:47.994436+00:00",
+    "scan_time": "2026-07-01T00:25:36.524219+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 80.17,
@@ -2240,14 +2220,18 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 61,
+        "score": 47,
         "status": "Mixed",
         "impact": "Neutral",
-        "data_used": "NewsAPI, Finnhub company news",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Antibiotics and priority effects on colonizing resistant Escherichia coli strain assemblages in a community setting",
-          "Bears step up bets against high-yield sector, shaking up bond traders"
+          "Warsh's Dot-Plot Pivot Recalibrates Duration Risk In Investment-Grade Bonds",
+          "Forget Bonds: Build A Rock-Solid 6.5% Yield From Investment Grade Preferreds",
+          "Forget The Macro Narrative, Look At The Cross-Section",
+          "BRHY: BlackRock Enters The Active High Yield ETF Arena",
+          "Aligned Incentives: Our Key To Navigating The Diverse High Yield Market",
+          "Columbia Threadneedle Fixed-Income Monitor: June 2026"
         ],
         "risks": [
           "Warsh's Dot-Plot Pivot Recalibrates Duration Risk In Investment-Grade Bonds"
@@ -2386,17 +2370,20 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 61,
+    "v42_news_score": 47,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "Antibiotics and priority effects on colonizing resistant Escherichia coli strain assemblages in a community setting",
-      "Bears step up bets against high-yield sector, shaking up bond traders"
+      "Warsh's Dot-Plot Pivot Recalibrates Duration Risk In Investment-Grade Bonds",
+      "Forget Bonds: Build A Rock-Solid 6.5% Yield From Investment Grade Preferreds",
+      "Forget The Macro Narrative, Look At The Cross-Section",
+      "BRHY: BlackRock Enters The Active High Yield ETF Arena",
+      "Aligned Incentives: Our Key To Navigating The Diverse High Yield Market",
+      "Columbia Threadneedle Fixed-Income Monitor: June 2026"
     ],
     "v42_news_risks": [
       "Warsh's Dot-Plot Pivot Recalibrates Duration Risk In Investment-Grade Bonds"
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -2464,7 +2451,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-30T21:17:50.601541+00:00",
+    "scan_time": "2026-07-01T00:36:38.075398+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.51,
@@ -2689,7 +2676,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-30T21:19:49.991979+00:00",
+    "scan_time": "2026-07-01T00:39:23.137161+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 161.23,
@@ -2914,7 +2901,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-30T21:19:48.410449+00:00",
+    "scan_time": "2026-07-01T00:39:20.783000+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 186.09,
@@ -3138,7 +3125,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-30T21:19:13.528218+00:00",
+    "scan_time": "2026-07-01T00:38:32.902283+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 373.63,
@@ -3362,7 +3349,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-30T21:19:49.655258+00:00",
+    "scan_time": "2026-07-01T00:39:22.685379+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 47.41,
@@ -3586,7 +3573,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-30T21:02:53.525495+00:00",
+    "scan_time": "2026-07-01T00:16:14.919926+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 92.65,
@@ -3616,20 +3603,18 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 76,
-        "status": "Positive",
-        "impact": "Positive",
-        "data_used": "NewsAPI, Finnhub company news",
+        "score": 62,
+        "status": "Mixed",
+        "impact": "Neutral",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "SpaceX\u2019s Move Into Neocloud Operations Is Raising Expectations for Its Valuation and Partners Like Nvidia and Intel.",
-          "Show HN: Daily ETF holdings for 2,200+ ETFs as one API",
           "Cathie Wood Loads Up On Amazon Stock After Record $26.4 Billion Prime Day, Bets Big On Palantir's AI Push \u2014 Keeps Dumping Alibaba"
         ],
         "risks": [
           "No negative high-confidence headline detected."
         ],
-        "bottom_line": "News flow supports the thesis."
+        "bottom_line": "News is mixed or insufficient."
       },
       "Finance Agent": {
         "score": 50,
@@ -3763,18 +3748,15 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 76,
-    "v42_news_summary": "News flow supports the thesis.",
+    "v42_news_score": 62,
+    "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "SpaceX\u2019s Move Into Neocloud Operations Is Raising Expectations for Its Valuation and Partners Like Nvidia and Intel.",
-      "Show HN: Daily ETF holdings for 2,200+ ETFs as one API",
       "Cathie Wood Loads Up On Amazon Stock After Record $26.4 Billion Prime Day, Bets Big On Palantir's AI Push \u2014 Keeps Dumping Alibaba"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -3786,7 +3768,7 @@
     "v42_breakout_level": 82.04,
     "v42_pullback_zone": "$72.10 - $79.20",
     "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
-    "v42_committee_positive_agents": 2,
+    "v42_committee_positive_agents": 1,
     "v42_committee_total_agents": 10
   },
   {
@@ -3843,7 +3825,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-30T21:10:40.249263+00:00",
+    "scan_time": "2026-07-01T00:26:41.589408+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 61.72,
@@ -3873,12 +3855,13 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 54,
+        "score": 61,
         "status": "Mixed",
         "impact": "Neutral",
-        "data_used": "NewsAPI, Finnhub company news",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
+          "Prediction Market ETFs Prompt SEC Review Of Fund Rules As Innovation Accelerates",
           "A Near-Perfect And Simple Retirement Dividend Growth Portfolio"
         ],
         "risks": [
@@ -4018,16 +4001,16 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 54,
+    "v42_news_score": 61,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
+      "Prediction Market ETFs Prompt SEC Review Of Fund Rules As Innovation Accelerates",
       "A Near-Perfect And Simple Retirement Dividend Growth Portfolio"
     ],
     "v42_news_risks": [
       "Think Your Covered Call ETF Income Is Safe? 2 Risks That Should Keep You Up At Night"
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -4095,7 +4078,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-30T21:10:39.470286+00:00",
+    "scan_time": "2026-07-01T00:26:40.437090+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 58.27,
@@ -4125,12 +4108,13 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 54,
+        "score": 61,
         "status": "Mixed",
         "impact": "Neutral",
-        "data_used": "NewsAPI, Finnhub company news",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
+          "Prediction Market ETFs Prompt SEC Review Of Fund Rules As Innovation Accelerates",
           "BALI: Balanced Buy-Write ETF Offering Income And Growth"
         ],
         "risks": [
@@ -4270,16 +4254,16 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 54,
+    "v42_news_score": 61,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
+      "Prediction Market ETFs Prompt SEC Review Of Fund Rules As Innovation Accelerates",
       "BALI: Balanced Buy-Write ETF Offering Income And Growth"
     ],
     "v42_news_risks": [
       "Think Your Covered Call ETF Income Is Safe? 2 Risks That Should Keep You Up At Night"
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -4349,7 +4333,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-06-30T21:19:49.379960+00:00",
+    "scan_time": "2026-07-01T00:39:22.177699+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 45.29,
@@ -4574,7 +4558,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-30T21:15:15.176522+00:00",
+    "scan_time": "2026-07-01T00:33:06.069934+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 18.44,
@@ -4798,7 +4782,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-30T21:19:58.136997+00:00",
+    "scan_time": "2026-07-01T00:39:33.302274+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 40.83,
@@ -5022,7 +5006,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-30T21:15:12.137414+00:00",
+    "scan_time": "2026-07-01T00:33:01.643167+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 24.38,
@@ -5273,7 +5257,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-06-30T21:16:52.268624+00:00",
+    "scan_time": "2026-07-01T00:35:22.937339+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 17.87,
@@ -5499,7 +5483,7 @@
     "risk_tags": [
       "RSI is overheated"
     ],
-    "scan_time": "2026-06-30T21:15:54.411357+00:00",
+    "scan_time": "2026-07-01T00:33:55.977515+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 15.99,
@@ -5724,7 +5708,7 @@
     "risk_tags": [
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-30T21:19:50.292002+00:00",
+    "scan_time": "2026-07-01T00:39:23.610864+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 124.51,
@@ -5949,7 +5933,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-30T21:19:49.044030+00:00",
+    "scan_time": "2026-07-01T00:39:21.720617+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.02,
@@ -6175,7 +6159,7 @@
       "price is below 50-day trend",
       "20-day ETF trend is weak"
     ],
-    "scan_time": "2026-06-30T21:04:18.850950+00:00",
+    "scan_time": "2026-07-01T00:18:10.446791+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 41.69,
@@ -6208,15 +6192,14 @@
         "score": 90,
         "status": "Positive",
         "impact": "Positive",
-        "data_used": "NewsAPI, Finnhub company news",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Best AI ETFs Compared: CHAT vs BOTZ vs AIS (2026)",
-          "The Global X Robotics & AI ETF (BOTZ): A Solid Way to Play Robotics",
           "This Week's Market Wrap: AI Memory Shock, Crude Cracks, And Data Boxes In The Fed",
           "Best-Performing ETFs Of June Have Nothing To Do With AI",
           "Is The AI / Semiconductor Rally Repeating The Dotcom Bubble?",
-          "A Sturdier Foundation For Uncertain Markets"
+          "A Sturdier Foundation For Uncertain Markets",
+          "Beyond Hype: AI Benefits Taking Shape"
         ],
         "risks": [
           "No negative high-confidence headline detected."
@@ -6358,18 +6341,16 @@
     "v42_news_score": 90,
     "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
-      "Best AI ETFs Compared: CHAT vs BOTZ vs AIS (2026)",
-      "The Global X Robotics & AI ETF (BOTZ): A Solid Way to Play Robotics",
       "This Week's Market Wrap: AI Memory Shock, Crude Cracks, And Data Boxes In The Fed",
       "Best-Performing ETFs Of June Have Nothing To Do With AI",
       "Is The AI / Semiconductor Rally Repeating The Dotcom Bubble?",
-      "A Sturdier Foundation For Uncertain Markets"
+      "A Sturdier Foundation For Uncertain Markets",
+      "Beyond Hype: AI Benefits Taking Shape"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -6437,7 +6418,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-30T21:16:05.555326+00:00",
+    "scan_time": "2026-07-01T00:34:13.604774+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 32.66,
@@ -6661,7 +6642,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-06-30T21:19:47.493345+00:00",
+    "scan_time": "2026-07-01T00:39:19.456893+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 53.7,
@@ -6886,7 +6867,7 @@
       "price is below 50-day trend",
       "20-day ETF trend is weak"
     ],
-    "scan_time": "2026-06-30T21:17:23.413222+00:00",
+    "scan_time": "2026-07-01T00:36:04.305223+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 75.6,
@@ -7111,7 +7092,7 @@
       "20-day ETF trend is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-06-30T21:19:47.768950+00:00",
+    "scan_time": "2026-07-01T00:39:19.894972+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 63.01,
@@ -7336,7 +7317,7 @@
       "20-day ETF trend is weak",
       "60-day ETF trend is weak"
     ],
-    "scan_time": "2026-06-30T21:18:40.009745+00:00",
+    "scan_time": "2026-07-01T00:37:46.462098+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 62.28,
