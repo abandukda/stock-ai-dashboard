@@ -24,6 +24,7 @@ APP_VERSION = "V63.0 Institutional Scoring + Finance UI"
 V63_REAL_SCORING_AND_FINANCE_VERIFIED = True
 V631_DEDUPED_SCORING_AND_UPSIDE_VERIFIED = True
 V64_PREMIUM_REASONING_UI_VERIFIED = True
+V641_UI_DATA_TRUST_VERIFIED = True
 
 
 # =========================
@@ -58,6 +59,7 @@ st.set_page_config(
     page_title="AI Trading Dashboard",
     page_icon="📈",
     layout="wide",
+    initial_sidebar_state="expanded",
 )
 inject_css()
 DATA_DIR = Path(os.getenv("DATA_DIR", "."))
@@ -504,18 +506,39 @@ def v63_clean_num(value, default=None):
 
 
 def v63_pick(row, *keys, default=None):
+    """V64.1: read normalized row first, then Raw payload fallback.
+    This prevents blank finance cards when the saved scan keeps values only in Raw.
+    """
     if not hasattr(row, "get"):
         return default
+
+    def _valid(value):
+        if value is None:
+            return False
+        if isinstance(value, str) and value.strip().lower() in {"", "nan", "none", "null", "n/a", "na", "—", "-"}:
+            return False
+        return True
+
+    # 1) normalized dataframe fields
     for key in keys:
         try:
             value = row.get(key)
         except Exception:
             value = None
-        if value is None:
-            continue
-        if isinstance(value, str) and value.strip().lower() in {"", "nan", "none", "null", "n/a", "na", "—", "-"}:
-            continue
-        return value
+        if _valid(value):
+            return value
+
+    # 2) original raw JSON payload retained by normalize_scan_row
+    try:
+        raw = row.get("Raw")
+    except Exception:
+        raw = None
+    if isinstance(raw, dict):
+        for key in keys:
+            value = raw.get(key)
+            if _valid(value):
+                return value
+
     return default
 
 
@@ -21639,6 +21662,23 @@ def render_v59_design_system():
 .v59-section-title {font-size: 1.05rem; font-weight: 800; margin-bottom: 6px;}
 .v59-muted {color: #64748b; font-size: .92rem;}
 .v59-bullet {margin: 0 0 5px 0;}
+
+section[data-testid="stSidebar"] {
+  min-width: 292px !important;
+  background: linear-gradient(180deg, rgba(2,6,23,.98), rgba(15,23,42,.96)) !important;
+  border-right: 1px solid rgba(148,163,184,.22);
+}
+section[data-testid="stSidebar"] [data-testid="stRadio"] label {font-weight: 850 !important;}
+.v641-side-brand {display:flex; align-items:center; gap:12px; padding:14px 8px 8px 8px;}
+.v641-side-logo {width:42px; height:42px; border-radius:14px; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,rgba(34,197,94,.25),rgba(56,189,248,.18)); border:1px solid rgba(148,163,184,.28); font-size:22px;}
+.v641-side-title {color:#F8FAFC; font-weight:950; font-size:21px; letter-spacing:-.04em;}
+.v641-side-subtitle {color:#94A3B8; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.11em;}
+.v641-side-note {margin:8px 8px 18px 8px; padding:12px 13px; border-radius:16px; background:rgba(30,41,59,.72); border:1px solid rgba(148,163,184,.20); color:#CBD5E1; font-size:12px; line-height:1.45;}
+.v641-hero-stat {background:rgba(15,23,42,.72); border:1px solid rgba(148,163,184,.22); border-radius:18px; padding:14px 16px;}
+.v641-hero-stat span {display:block; color:#94A3B8; font-size:11px; text-transform:uppercase; letter-spacing:.10em; font-weight:850;}
+.v641-hero-stat b {display:block; color:#F8FAFC; font-size:18px; margin-top:4px;}
+@media (max-width: 900px) {.v641-hero-stat {padding:12px;} .v59-hero div[style*="grid-template-columns"] {grid-template-columns: repeat(2, minmax(0,1fr)) !important;}}
+
 </style>
         """,
         unsafe_allow_html=True,
@@ -21764,11 +21804,12 @@ def render_v574_scan_report(row, title="Research Report"):
     with st.expander("📰 News & Catalysts", expanded=False):
         headline = str(v56_row_get(row, ["Top News", "top_news_headline"], "")).strip()
         if headline:
-            st.markdown(f"**Latest headline:** {headline}")
+            st.markdown(f"**Latest catalyst:** {headline}")
+            st.caption("This headline is supporting context; it should confirm or challenge the thesis, not replace the financial and technical evidence.")
         else:
-            st.info("No material company-specific headline was included in the latest scan. This is neutral context: no major positive or negative catalyst was detected by the saved news scan.")
+            st.info("No company-specific catalyst was detected in the latest saved scan. This is neutral: the thesis is unchanged, but there is no fresh news boost.")
         st.write(
-            "News and catalysts are treated as supporting context. A positive headline can support momentum, while negative developments can quickly change the risk profile."
+            "News is treated as a catalyst layer. A confirmed positive headline can increase confidence, while negative news can quickly change the risk profile."
         )
 
     with st.expander("🏛️ Political Intelligence", expanded=False):
@@ -21802,6 +21843,297 @@ def render_v574_scan_report(row, title="Research Report"):
 
 def render_v56_default_scan_report(row):
     render_v574_scan_report(row, title="Default Research Report")
+
+
+
+
+# ============================================================
+# V64.1 UI + DATA TRUST POLISH
+# ============================================================
+
+def v641_label(score):
+    score = int(round(v574_num(score, 0)))
+    if score >= 90:
+        return "Exceptional"
+    if score >= 82:
+        return "Excellent"
+    if score >= 74:
+        return "Strong"
+    if score >= 64:
+        return "Constructive"
+    if score >= 54:
+        return "Developing"
+    return "Speculative"
+
+
+def v641_wall_street_view(row):
+    strong_buy = int(v574_num(v56_row_get(row, ["strong_buy", "Strong Buy", "strongBuy"], 0), 0))
+    buy = int(v574_num(v56_row_get(row, ["buy", "Buy"], 0), 0))
+    hold = int(v574_num(v56_row_get(row, ["hold", "Hold"], 0), 0))
+    sell = int(v574_num(v56_row_get(row, ["sell", "Sell"], 0), 0))
+    strong_sell = int(v574_num(v56_row_get(row, ["strong_sell", "Strong Sell", "strongSell"], 0), 0))
+    total = strong_buy + buy + hold + sell + strong_sell
+    target_upside = v63_target_upside(row)
+    analyst_count = int(v574_num(v56_row_get(row, ["Analyst Count", "analyst_count", "finnhub_analyst_total"], 0), 0))
+    support = v574_text(v56_row_get(row, ["Analyst Support", "analyst_support_label", "recommendation_key"], ""), "")
+    score = v56_analyst_score(row)
+
+    if total > 0:
+        bullish = strong_buy + buy
+        bearish = sell + strong_sell
+        bull_ratio = bullish / max(total, 1)
+        if bull_ratio >= 0.70 and bearish == 0:
+            return f"🟢 Bullish · {bullish} Buy / {hold} Hold / {bearish} Sell"
+        if bull_ratio >= 0.55:
+            return f"🟢 Mostly Bullish · {bullish} Buy / {hold} Hold"
+        if hold >= bullish and bearish <= bullish:
+            return f"🟡 Neutral · {bullish} Buy / {hold} Hold"
+        if bearish > bullish:
+            return f"🔴 Bearish Tilt · {bearish} Sell"
+        return f"⚪ Balanced · {bullish} Buy / {hold} Hold / {bearish} Sell"
+
+    # Avoid repeating "Cautious Street View" when no real analyst distribution is available.
+    if analyst_count > 0:
+        if target_upside >= 15:
+            return f"🟡 Limited detail · {analyst_count} analysts · target +{target_upside:.0f}%"
+        return f"⚪ Limited detail · {analyst_count} analysts"
+    if score >= 75:
+        return "🟢 Supportive, limited detail"
+    if score >= 60:
+        return "🟡 Constructive, limited detail"
+    if support:
+        return v64_short_text(support, 44)
+    return "⚪ Limited analyst data"
+
+
+def v64_wall_street_view(row):
+    return v641_wall_street_view(row)
+
+
+def v641_company_context(row):
+    sector = str(v56_row_get(row, ["Sector", "sector"], "")).strip()
+    industry = str(v56_row_get(row, ["Industry", "industry"], "")).strip()
+    if industry and industry.lower() not in {"unknown", "n/a"}:
+        return industry
+    if sector and sector.lower() not in {"unknown", "n/a"}:
+        return sector
+    return "business"
+
+
+def v641_ai_thesis(row):
+    ticker = str(v56_row_get(row, ["Ticker", "ticker"], "")).upper()
+    context = v641_company_context(row).lower()
+    q = v63_quality_score(row)
+    opp = v63_opportunity_score(row)
+    upside = v63_target_upside(row)
+    rr = v574_num(v56_row_get(row, ["Risk/Reward", "risk_reward", "Risk Reward"], 0), 0)
+    rev = v63_pct_value(v63_finance_metric(row, "revenue_growth"), None, cap_abs=300)
+    gross = v63_pct_value(v63_finance_metric(row, "gross_margin"), None, cap_abs=300)
+    opm = v63_pct_value(v63_finance_metric(row, "operating_margin"), None, cap_abs=300)
+    fcf = v63_clean_num(v63_finance_metric(row, "free_cash_flow"), None)
+    cr = v63_clean_num(v63_finance_metric(row, "current_ratio"), None)
+    debt_eq = v63_clean_num(v63_finance_metric(row, "debt_to_equity"), None)
+    rsi = v574_num(v56_row_get(row, ["RSI", "rsi"], 0), 0)
+
+    # Use saved thesis only if it is truly stock-specific and not a generic agent template.
+    for key in ["Why Ranked High", "why_ranked_high", "Investment Thesis", "investment_thesis", "Research Summary", "summary"]:
+        val = v56_row_get(row, [key], "")
+        if isinstance(val, str):
+            clean = v64_short_text(val, 135)
+            low = clean.lower()
+            banned = ["ai agent team ranks", "technical score", "fundamentals score", "quality profile supports", "multiple signals align"]
+            if clean and len(clean) > 45 and not any(b in low for b in banned):
+                return clean
+
+    parts = []
+    if q >= 90:
+        parts.append("exceptional quality")
+    elif q >= 78:
+        parts.append("strong quality")
+    elif q >= 65:
+        parts.append("constructive fundamentals")
+    if rev is not None and rev >= 20:
+        parts.append(f"revenue growth near {rev:.0f}%")
+    if gross is not None and gross >= 55:
+        parts.append(f"gross margin near {gross:.0f}%")
+    if opm is not None and opm >= 15:
+        parts.append("solid operating margins")
+    if fcf is not None and fcf > 0:
+        parts.append("positive free cash flow")
+    if cr is not None and cr >= 1.5:
+        parts.append("healthy liquidity")
+    if debt_eq is not None and debt_eq <= 1.5:
+        parts.append("manageable leverage")
+    if 45 <= rsi <= 68:
+        parts.append("healthy momentum")
+    if upside >= 20:
+        parts.append(f"modeled upside around {upside:.0f}%")
+    if rr >= 2:
+        parts.append("favorable risk/reward")
+
+    if len(parts) >= 3:
+        return f"{ticker} ranks well on {parts[0]}, {parts[1]}, and {parts[2]}."
+    if len(parts) == 2:
+        return f"{ticker} screens well on {parts[0]} and {parts[1]}."
+    if parts:
+        return f"{ticker} remains on the list because {parts[0]} supports the current {context} setup."
+    return f"{ticker} remains a research candidate; review financial quality, catalysts, and entry discipline before acting."
+
+
+def v64_ai_thesis(row):
+    return v641_ai_thesis(row)
+
+
+def v641_finance_health_note(row):
+    rev = v63_pct_value(v63_finance_metric(row, "revenue_growth"), None, cap_abs=300)
+    gross = v63_pct_value(v63_finance_metric(row, "gross_margin"), None, cap_abs=300)
+    net = v63_pct_value(v63_finance_metric(row, "net_margin"), None, cap_abs=300)
+    fcf = v63_clean_num(v63_finance_metric(row, "free_cash_flow"), None)
+    cr = v63_clean_num(v63_finance_metric(row, "current_ratio"), None)
+    positives = []
+    watch = []
+    if rev is not None:
+        positives.append(f"Revenue growth is {rev:.1f}%" if rev >= 0 else f"Revenue is declining {abs(rev):.1f}%")
+    if gross is not None and gross >= 40:
+        positives.append(f"gross margin is strong at {gross:.1f}%")
+    if net is not None and net > 0:
+        positives.append(f"net margin is positive at {net:.1f}%")
+    if fcf is not None and fcf > 0:
+        positives.append("free cash flow is positive")
+    if cr is not None and cr >= 1.2:
+        positives.append(f"liquidity is healthy with current ratio {cr:.2f}")
+    if not positives:
+        positives.append("financial data is limited in the saved scan")
+    if fcf is None:
+        watch.append("free cash flow detail is missing")
+    if cr is None:
+        watch.append("liquidity detail is missing")
+    return positives[:4], watch[:3]
+
+
+def v641_metric_table_rows(row):
+    def item(label, value, formatter, note):
+        raw = value
+        missing = raw is None or raw == "" or str(raw).strip().lower() in {"n/a", "nan", "none", "null", "—", "-"}
+        display = "Unavailable" if missing else formatter(raw)
+        return {"Metric": label, "Value": display, "Interpretation": note if not missing else "Not included in latest saved scan."}
+    return [
+        item("Revenue Growth", v63_finance_metric(row, "revenue_growth"), lambda x: v63_fmt_pct(v63_pct_value(x, None, cap_abs=300)), "Growth engine / demand signal."),
+        item("Gross Margin", v63_finance_metric(row, "gross_margin"), lambda x: v63_fmt_pct(v63_pct_value(x, None, cap_abs=300)), "Profitability before operating costs."),
+        item("Operating Margin", v63_finance_metric(row, "operating_margin"), lambda x: v63_fmt_pct(v63_pct_value(x, None, cap_abs=300)), "Execution quality after operating costs."),
+        item("Net Margin", v63_finance_metric(row, "net_margin"), lambda x: v63_fmt_pct(v63_pct_value(x, None, cap_abs=300)), "Bottom-line profitability."),
+        item("Free Cash Flow", v63_finance_metric(row, "free_cash_flow"), v63_fmt_money, "Cash left after reinvestment."),
+        item("Operating Cash Flow", v63_finance_metric(row, "operating_cash_flow"), v63_fmt_money, "Cash generated by operations."),
+        item("Current Ratio", v63_finance_metric(row, "current_ratio"), lambda x: f"{v63_clean_num(x,0):.2f}", "Short-term liquidity."),
+        item("Debt / Equity", v63_finance_metric(row, "debt_to_equity"), lambda x: f"{v63_clean_num(x,0):.2f}", "Balance-sheet leverage."),
+        item("Cash", v63_finance_metric(row, "cash"), v63_fmt_money, "Balance-sheet flexibility."),
+        item("Debt", v63_finance_metric(row, "total_debt"), v63_fmt_money, "Total debt load."),
+        item("Forward PE", v63_finance_metric(row, "forward_pe"), lambda x: f"{v63_clean_num(x,0):.1f}x", "Forward valuation multiple."),
+        item("EV/Sales", v63_finance_metric(row, "ev_sales"), lambda x: f"{v63_clean_num(x,0):.2f}x", "Revenue valuation multiple."),
+    ]
+
+
+def render_deep_finance_agent(row):
+    with st.container(border=True):
+        st.markdown("### 💰 Finance Agent — Financial Health Intelligence")
+        q = v63_quality_score(row)
+        positives, watch = v641_finance_health_note(row)
+        st.markdown(f"**Overall Financial Health:** {q}/100 · **{v641_label(q)}**")
+        st.progress(min(max(q/100, 0), 1))
+        st.caption("Composite view of growth, profitability, cash generation, liquidity, leverage, and valuation from the latest saved scan.")
+
+        c1, c2, c3, c4 = st.columns(4)
+        rev = v63_pct_value(v63_finance_metric(row, "revenue_growth"), None, cap_abs=300)
+        gross = v63_pct_value(v63_finance_metric(row, "gross_margin"), None, cap_abs=300)
+        fcf = v63_finance_metric(row, "free_cash_flow")
+        cr = v63_finance_metric(row, "current_ratio")
+        c1.metric("Growth", "Unavailable" if rev is None else f"{rev:.1f}%")
+        c2.metric("Gross Margin", "Unavailable" if gross is None else f"{gross:.1f}%")
+        c3.metric("Free Cash Flow", v63_fmt_money(fcf, "Unavailable"))
+        c4.metric("Liquidity", "Unavailable" if v63_clean_num(cr, None) is None else f"{v63_clean_num(cr,0):.2f}")
+
+        st.markdown("#### AI Financial Readout")
+        for p in positives:
+            st.markdown(f"✓ {p}.")
+        for w in watch:
+            st.markdown(f"⚠️ {w}.")
+
+        st.markdown("#### Key Financial Metrics")
+        st.dataframe(pd.DataFrame(v641_metric_table_rows(row)), use_container_width=True, hide_index=True)
+
+        findings = row.get("Finance Agent Findings")
+        if findings:
+            st.markdown("#### Original Agent Notes")
+            render_bullets(findings, empty="")
+
+
+def v574_fast_table_rows(df, limit=50):
+    rows = []
+    if df is None or getattr(df, "empty", True):
+        return rows
+    for rank, (_, row) in enumerate(df.head(limit).iterrows(), start=1):
+        try:
+            ticker = str(v56_row_get(row, ["Ticker", "ticker"], "")).strip().upper()
+            if not ticker:
+                continue
+            opp = int(round(v63_opportunity_score(row)))
+            q = int(round(v63_quality_score(row)))
+            conf = v64_confidence_score(row)
+            rows.append({
+                "Rank": f"#{rank}",
+                "Ticker": ticker,
+                "Action": v64_recommendation(row),
+                "Type": v64_investment_archetype(row),
+                "Opportunity": v64_score_display(opp),
+                "Quality": v64_score_display(q),
+                "Confidence": v64_score_display(conf),
+                "Upside": v63_fmt_pct(v63_target_upside(row)),
+                "Target": v56_target(row),
+                "Wall Street": v64_wall_street_view(row),
+                "AI Thesis": v64_ai_thesis(row),
+            })
+        except Exception:
+            continue
+    return rows
+
+
+def render_status_banner():
+    state = read_state()
+    status = str(state.get("status", "latest scan")).replace("_", " ").title() if isinstance(state, dict) else "Latest Scan"
+    scan_count = state.get("full_scan_count", "N/A") if isinstance(state, dict) else "N/A"
+    prescreen = state.get("prescreen_count", "N/A") if isinstance(state, dict) else "N/A"
+    generated = state.get("generated_at", "Latest completed scan") if isinstance(state, dict) else "Latest completed scan"
+    st.markdown(
+        f"""
+<div class="v59-hero" style="padding:30px 34px; border-radius:28px; margin-bottom:20px;">
+  <div class="v59-kicker">Atlas AI Investment Terminal</div>
+  <div class="v59-title" style="font-size:2.15rem;">Turn market noise into actionable investment decisions.</div>
+  <p class="v59-subtitle" style="font-size:1.02rem; max-width:980px;">
+    Atlas combines technicals, financial quality, valuation, risk/reward, Wall Street context, catalysts, and portfolio intelligence into one decision workflow.
+  </p>
+  <div style="display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:14px; margin-top:20px;">
+    <div class="v641-hero-stat"><span>Status</span><b>{status}</b></div>
+    <div class="v641-hero-stat"><span>Full Scan</span><b>{scan_count}</b></div>
+    <div class="v641-hero-stat"><span>Prescreen</span><b>{prescreen}</b></div>
+    <div class="v641-hero-stat"><span>Last Scan</span><b>{v64_short_text(generated, 24)}</b></div>
+  </div>
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_v641_sidebar_header():
+    st.sidebar.markdown("""
+<div class="v641-side-brand">
+  <div class="v641-side-logo">🧠</div>
+  <div>
+    <div class="v641-side-title">ATLAS</div>
+    <div class="v641-side-subtitle">AI Investment Terminal</div>
+  </div>
+</div>
+<div class="v641-side-note">Research workflow: scan, compare, validate, then act with entry discipline.</div>
+""", unsafe_allow_html=True)
 
 
 def render_v574_top_ideas(source_df):
@@ -21868,6 +22200,7 @@ def main():
         "Ask AI",
     ]
 
+    render_v641_sidebar_header()
     selected_page = st.sidebar.radio("Navigate", pages, index=0, key="v574_lazy_nav")
     source_df = top_df if top_df is not None and not top_df.empty else full_df.head(25)
 
