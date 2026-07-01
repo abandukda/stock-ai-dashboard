@@ -23,6 +23,7 @@ from engines.report_engine import render_stock_report
 APP_VERSION = "V63.0 Institutional Scoring + Finance UI"
 V63_REAL_SCORING_AND_FINANCE_VERIFIED = True
 V631_DEDUPED_SCORING_AND_UPSIDE_VERIFIED = True
+V64_PREMIUM_REASONING_UI_VERIFIED = True
 
 
 # =========================
@@ -20886,14 +20887,7 @@ def v56_analyst_score(row):
 
 
 def v56_analyst_view(row):
-    score = v56_analyst_score(row)
-    if score >= 80:
-        return "🔥 Strong"
-    if score >= 65:
-        return "✅ Positive"
-    if score >= 50:
-        return "⚪ Mixed"
-    return "🔴 Weak"
+    return v64_wall_street_view(row)
 
 
 def v56_classification(row):
@@ -20989,7 +20983,7 @@ def v56_fast_table_rows(df, limit=50):
 
 
 def render_v56_ranked_table(df, title="Ranked Ideas", max_rows=25, show_filters=True):
-    st.markdown(f"## 📋 {title}")
+    st.markdown(f"## 🧠 Today's Highest Conviction Ideas" if str(title).lower().startswith("top ai") else f"## 📋 {title}")
     if df is None or getattr(df, "empty", True):
         st.info("No ranked ideas available yet. Run the overnight scan to refresh results.")
         return pd.DataFrame()
@@ -21235,26 +21229,7 @@ def v574_recommendation(row):
 
 
 def v574_classification(row):
-    q = v63_quality_score(row)
-    opp = v63_opportunity_score(row)
-    upside = v63_target_upside(row)
-    analyst = v574_num(v56_row_get(row, ["Analyst Score", "Analyst Confidence", "Wall Street Score"], 0), 0)
-    recovery = v574_num(v56_row_get(row, ["Recovery Score"], 0), 0)
-
-    # Classification is opportunity type, not a second verdict.
-    if q >= 85:
-        return "🏆 Elite Quality"
-    if q >= 75:
-        return "✅ Quality Growth"
-    if recovery >= 75:
-        return "🔄 Recovery Candidate"
-    if upside >= 100:
-        return "🚀 High Upside"
-    if analyst >= 80:
-        return "📈 Analyst Favorite"
-    if opp >= 90:
-        return "⚡ High Opportunity"
-    return "📌 Actionable Idea"
+    return v64_investment_archetype(row)
 
 
 def v574_quality_rating(row):
@@ -21344,26 +21319,206 @@ def v574_key_risks(row):
     return risks[:4]
 
 
-def v574_why_ranked(row):
+
+# ============================================================
+# V64 PREMIUM REASONING + WALL STREET LANGUAGE
+# ------------------------------------------------------------
+# Purpose:
+# - Replace generic Analyst View / Why Ranked language with richer user-facing wording.
+# - Add stock-specific AI thesis generation for the Top AI table.
+# - Improve investment archetype labels so Classification feels like a research desk.
+# ============================================================
+
+def v64_short_text(value, max_len=118):
+    text = v574_text(value, "")
+    if not text:
+        return ""
+    text = " ".join(text.replace("\n", " ").split())
+    if len(text) <= max_len:
+        return text
+    return text[: max_len - 1].rstrip() + "…"
+
+
+def v64_score_word(score):
+    score = int(round(v574_num(score, 0)))
+    if score >= 90:
+        return "Exceptional"
+    if score >= 82:
+        return "Excellent"
+    if score >= 74:
+        return "Strong"
+    if score >= 64:
+        return "Constructive"
+    if score >= 54:
+        return "Developing"
+    return "Speculative"
+
+
+def v64_confidence_score(row):
+    opp = v63_opportunity_score(row)
+    q = v63_quality_score(row)
+    upside = v63_target_upside(row)
+    rr = v574_num(v56_row_get(row, ["Risk/Reward", "risk_reward", "Risk Reward"], 0), 0)
+    analyst = v56_analyst_score(row)
+    evidence = 0
+    for key in ["Why Ranked High", "Research Summary", "What Looks Good", "Finance Agent Findings", "Top News", "Investment Thesis"]:
+        val = v56_row_get(row, [key], "")
+        if isinstance(val, list) and val:
+            evidence += 1
+        elif v574_text(val, ""):
+            evidence += 1
+    score = opp * 0.34 + q * 0.28 + analyst * 0.16 + min(max(upside, 0), 80) * 0.10 + min(rr * 12, 18) + min(evidence * 2.5, 10)
+    return int(round(max(35, min(98, score))))
+
+
+def v64_wall_street_view(row):
+    strong_buy = int(v574_num(v56_row_get(row, ["strong_buy", "Strong Buy", "strongBuy"], 0), 0))
+    buy = int(v574_num(v56_row_get(row, ["buy", "Buy"], 0), 0))
+    hold = int(v574_num(v56_row_get(row, ["hold", "Hold"], 0), 0))
+    sell = int(v574_num(v56_row_get(row, ["sell", "Sell"], 0), 0))
+    strong_sell = int(v574_num(v56_row_get(row, ["strong_sell", "Strong Sell", "strongSell"], 0), 0))
+    total = strong_buy + buy + hold + sell + strong_sell
+    analyst_count = int(v574_num(v56_row_get(row, ["Analyst Count", "analyst_count", "finnhub_analyst_total"], 0), 0))
+    target_upside = v63_target_upside(row)
+    support_text = v574_text(v56_row_get(row, ["Analyst Support", "analyst_support_label", "Analyst View", "recommendation_key"], ""), "")
+    score = v56_analyst_score(row)
+
+    if total > 0:
+        bullish = strong_buy + buy
+        bearish = sell + strong_sell
+        bull_ratio = bullish / total
+        if bull_ratio >= 0.70 and bearish == 0:
+            label = "🟢 Bullish"
+        elif bull_ratio >= 0.55:
+            label = "🟢 Mostly Bullish"
+        elif bearish >= bullish and bearish > 0:
+            label = "🔴 Bearish Tilt"
+        elif hold >= bullish:
+            label = "🟡 Neutral"
+        else:
+            label = "⚪ Balanced"
+        return f"{label} · {bullish}B/{hold}H/{bearish}S"
+
+    if score >= 80:
+        return "🟢 Bullish Street View"
+    if score >= 68:
+        return "🟢 Constructive Street View"
+    if score >= 55:
+        if target_upside >= 20:
+            return f"🟡 Mixed, target +{target_upside:.0f}%"
+        return "🟡 Neutral / Mixed"
+    if score > 0:
+        return "🟠 Cautious Street View"
+    if analyst_count > 0:
+        return f"⚪ Limited detail · {analyst_count} analysts"
+    if support_text:
+        return v64_short_text(support_text, 36)
+    return "⚪ Limited coverage"
+
+
+def v64_investment_archetype(row):
+    ticker = str(v56_row_get(row, ["Ticker", "ticker"], "")).upper()
+    sector = str(v56_row_get(row, ["Sector", "sector"], "")).lower()
+    industry = str(v56_row_get(row, ["Industry", "industry"], "")).lower()
     q = v63_quality_score(row)
     opp = v63_opportunity_score(row)
     upside = v63_target_upside(row)
-    analyst = v574_num(v56_row_get(row, ["Analyst Score", "Analyst Confidence", "Wall Street Score"], 0), 0)
-    rr = v574_num(v56_row_get(row, ["Risk/Reward", "Risk Reward"], 0), 0)
+    rev = v63_pct_value(v63_finance_metric(row, "revenue_growth"), None, cap_abs=300)
+    gross = v63_pct_value(v63_finance_metric(row, "gross_margin"), None, cap_abs=300)
+    fcf = v63_clean_num(v63_finance_metric(row, "free_cash_flow"), None)
 
-    if q >= 80 and upside >= 25:
-        return "Strong quality with attractive upside"
-    if analyst >= 80 and upside >= 25:
-        return "Analyst-backed upside setup"
-    if upside >= 100:
-        return "Large upside opportunity"
-    if rr >= 2 and opp >= 85:
-        return "Favorable risk/reward setup"
-    if opp >= 90:
-        return "High-conviction scan result"
-    if q >= 75:
-        return "Quality profile supports the ranking"
-    return "Actionable setup worth reviewing"
+    if any(x in sector + industry for x in ["semiconductor", "chip", "electronic", "foundry"]):
+        return "🏭 Semiconductor Leader"
+    if any(x in sector + industry for x in ["health", "biotech", "medical", "pharma", "diagnostic"]):
+        return "🧬 Healthcare Growth"
+    if any(x in sector + industry for x in ["software", "cloud", "internet", "saas", "application"]):
+        return "☁️ Software Compounder"
+    if q >= 90 and fcf is not None and fcf > 0:
+        return "💵 Cash Flow Compounder"
+    if q >= 88:
+        return "🏆 Elite Compounder"
+    if rev is not None and rev >= 25 and gross is not None and gross >= 50:
+        return "🚀 High Growth Leader"
+    if upside >= 35 and q >= 70:
+        return "📈 Value Re-rating"
+    if upside >= 60:
+        return "🚀 High Upside Setup"
+    if opp >= 82:
+        return "⚡ Tactical Opportunity"
+    return "📌 Research Candidate"
+
+
+def v64_ai_thesis(row):
+    # Prefer real saved thesis text when available, but avoid short template phrases.
+    for key in ["Why Ranked High", "why_ranked_high", "Investment Thesis", "investment_thesis", "Research Summary", "summary", "financial_summary", "top_ai_bucket_note"]:
+        val = v56_row_get(row, [key], "")
+        if isinstance(val, str):
+            clean = v64_short_text(val, 145)
+            low = clean.lower()
+            if clean and len(clean) > 38 and "multiple signals align" not in low and "quality profile supports" not in low:
+                return clean
+
+    q = v63_quality_score(row)
+    opp = v63_opportunity_score(row)
+    upside = v63_target_upside(row)
+    rr = v574_num(v56_row_get(row, ["Risk/Reward", "risk_reward", "Risk Reward"], 0), 0)
+    rsi = v574_num(v56_row_get(row, ["RSI", "rsi"], 0), 0)
+    rev = v63_pct_value(v63_finance_metric(row, "revenue_growth"), None, cap_abs=300)
+    gross = v63_pct_value(v63_finance_metric(row, "gross_margin"), None, cap_abs=300)
+    fcf = v63_clean_num(v63_finance_metric(row, "free_cash_flow"), None)
+    analyst = v56_analyst_score(row)
+
+    strengths = []
+    if q >= 88:
+        strengths.append("elite business quality")
+    elif q >= 76:
+        strengths.append("solid quality fundamentals")
+    if rev is not None and rev >= 20:
+        strengths.append(f"revenue growth near {rev:.0f}%")
+    if gross is not None and gross >= 55:
+        strengths.append("high gross margins")
+    if fcf is not None and fcf > 0:
+        strengths.append("positive free cash flow")
+    if upside >= 25:
+        strengths.append(f"modeled upside of {upside:.0f}%")
+    if rr >= 2:
+        strengths.append("favorable risk/reward")
+    if analyst >= 70:
+        strengths.append("supportive Wall Street context")
+    if 45 <= rsi <= 68:
+        strengths.append("healthy momentum")
+
+    if len(strengths) >= 3:
+        return f"Ranks highly due to {strengths[0]}, {strengths[1]}, and {strengths[2]}."
+    if len(strengths) == 2:
+        return f"Ranks highly due to {strengths[0]} and {strengths[1]}."
+    if strengths:
+        return f"Ranks well because {strengths[0]} supports the current setup."
+    return "Ranks as a review candidate based on the latest combined technical, quality, upside, and risk signals."
+
+
+def v64_recommendation(row):
+    opp = v63_opportunity_score(row)
+    q = v63_quality_score(row)
+    upside = v63_target_upside(row)
+    rr = v574_num(v56_row_get(row, ["Risk/Reward", "risk_reward", "Risk Reward"], 0), 0)
+    if opp >= 86 and q >= 78 and upside >= 15 and (rr == 0 or rr >= 1.6):
+        return "✅ Buy Today"
+    if opp >= 78 and q >= 65 and upside >= 8:
+        return "🔵 Accumulate"
+    if opp >= 70 and upside >= 5:
+        return "🟡 Wait / Watch"
+    if q < 55 or upside < 0:
+        return "🔴 Avoid"
+    return "⚪ Monitor"
+
+
+def v64_score_display(score):
+    score = int(round(v574_num(score, 0)))
+    return f"{score} · {v64_score_word(score)}"
+
+def v574_why_ranked(row):
+    return v64_ai_thesis(row)
 
 
 def v574_fast_table_rows(df, limit=50):
@@ -21371,24 +21526,28 @@ def v574_fast_table_rows(df, limit=50):
     if df is None or getattr(df, "empty", True):
         return rows
 
-    for _, row in df.head(limit).iterrows():
+    for rank, (_, row) in enumerate(df.head(limit).iterrows(), start=1):
         try:
             ticker = str(v56_row_get(row, ["Ticker", "ticker"], "")).strip().upper()
             if not ticker:
                 continue
+            opp = int(round(v63_opportunity_score(row)))
+            q = int(round(v63_quality_score(row)))
+            conf = v64_confidence_score(row)
             rows.append({
+                "Rank": f"#{rank}",
                 "Ticker": ticker,
                 "Company": str(v56_row_get(row, ["Company", "company", "Name"], "")).strip(),
-                "Recommendation": v574_recommendation(row),
-                "Classification": v574_classification(row),
-                "Opportunity": int(round(v56_opportunity(row))),
-                "Quality": int(round(v56_quality(row))),
+                "Action": v64_recommendation(row),
+                "Archetype": v64_investment_archetype(row),
+                "Opportunity": v64_score_display(opp),
+                "Quality": v64_score_display(q),
+                "Confidence": v64_score_display(conf),
                 "Upside": v63_fmt_pct(v63_target_upside(row)),
                 "Entry": v56_entry(row),
-                "Stop": v56_stop(row),
                 "Target": v56_target(row),
-                "Analyst View": v56_analyst_view(row),
-                "Why Ranked": v574_why_ranked(row),
+                "Wall Street": v64_wall_street_view(row),
+                "AI Thesis": v64_ai_thesis(row),
             })
         except Exception:
             continue
@@ -21396,7 +21555,7 @@ def v574_fast_table_rows(df, limit=50):
 
 
 def render_v56_ranked_table(df, title="Ranked Ideas", max_rows=25, show_filters=True):
-    st.markdown(f"## 📋 {title}")
+    st.markdown(f"## 🧠 Today's Highest Conviction Ideas" if str(title).lower().startswith("top ai") else f"## 📋 {title}")
     if df is None or getattr(df, "empty", True):
         st.info("No ranked ideas available yet. Run the overnight scan to refresh results.")
         return pd.DataFrame()
@@ -21433,7 +21592,7 @@ def render_v56_ranked_table(df, title="Ranked Ideas", max_rows=25, show_filters=
 
     out = pd.DataFrame(v574_fast_table_rows(filtered, limit=max_rows))
     if not out.empty:
-        st.caption("Fast scan-only view. Recommendation is the action; Classification explains the type of opportunity.")
+        st.caption("Premium scan view. Action is the model decision; Archetype explains the investment style; AI Thesis explains why the idea ranked.")
         st.dataframe(out, use_container_width=True, hide_index=True)
 
     return filtered
@@ -21498,7 +21657,7 @@ def v59_scorecard_rows(row, opp, q, conf):
         {"Category": "Opportunity", "Score": f"{opp}/100", "Meaning": "How attractive the setup looks right now."},
         {"Category": "Quality", "Score": f"{q}/100", "Meaning": f"Business quality rating: {v574_quality_rating(row)}."},
         {"Category": "Confidence", "Score": f"{conf}/100", "Meaning": "How strongly the available evidence supports the view."},
-        {"Category": "Analyst View", "Score": v56_analyst_view(row), "Meaning": "Wall Street support based on the latest scan."},
+        {"Category": "Wall Street", "Score": v64_wall_street_view(row), "Meaning": "Consensus and target context from the latest saved scan."},
         {"Category": "Technical Setup", "Score": setup_label(v56_opportunity(row)), "Meaning": "Timing and momentum context from scan signals."},
         {"Category": "Political Signal", "Score": str(v56_row_get(row, ["Political Signal", "political_signal"], "Coming V58 / Not detected")), "Meaning": "Supporting signal only; never the primary reason to buy."},
     ])

@@ -12,6 +12,7 @@ import pandas as pd
 
 V63_SCORING_CALIBRATION_VERIFIED = True
 V631_DEDUPED_SCORING_CALIBRATION_VERIFIED = True
+V64_PREMIUM_REASONING_CALIBRATION_VERIFIED = True
 
 _MISSING = {"", "nan", "none", "null", "n/a", "na", "—", "-"}
 
@@ -190,6 +191,93 @@ def _classification(opp: int, quality: int, upside: float) -> str:
     return "📌 Actionable Idea"
 
 
+
+def _score_word(score: int) -> str:
+    if score >= 90: return "Exceptional"
+    if score >= 82: return "Excellent"
+    if score >= 74: return "Strong"
+    if score >= 64: return "Constructive"
+    if score >= 54: return "Developing"
+    return "Speculative"
+
+
+def _wall_street(row: dict[str, Any]) -> str:
+    strong_buy = int(_num(_pick(row, "strong_buy", "Strong Buy", "strongBuy"), 0) or 0)
+    buy = int(_num(_pick(row, "buy", "Buy"), 0) or 0)
+    hold = int(_num(_pick(row, "hold", "Hold"), 0) or 0)
+    sell = int(_num(_pick(row, "sell", "Sell"), 0) or 0)
+    strong_sell = int(_num(_pick(row, "strong_sell", "Strong Sell", "strongSell"), 0) or 0)
+    total = strong_buy + buy + hold + sell + strong_sell
+    if total > 0:
+        bullish = strong_buy + buy
+        bearish = sell + strong_sell
+        if bullish / total >= .70 and bearish == 0:
+            label = "🟢 Bullish"
+        elif bullish / total >= .55:
+            label = "🟢 Mostly Bullish"
+        elif bearish >= bullish and bearish > 0:
+            label = "🔴 Bearish Tilt"
+        elif hold >= bullish:
+            label = "🟡 Neutral"
+        else:
+            label = "⚪ Balanced"
+        return f"{label} · {bullish}B/{hold}H/{bearish}S"
+    score = _analyst_score(row)
+    upside = _target_upside(row)
+    if score >= 80: return "🟢 Bullish Street View"
+    if score >= 68: return "🟢 Constructive Street View"
+    if score >= 55 and upside >= 20: return f"🟡 Mixed, target +{upside:.0f}%"
+    if score >= 55: return "🟡 Neutral / Mixed"
+    if score > 0: return "🟠 Cautious Street View"
+    return "⚪ Limited coverage"
+
+
+def _archetype(row: dict[str, Any], quality: int, opp: int, upside: float) -> str:
+    sector = str(_pick(row, "Sector", "sector", default="") or "").lower()
+    industry = str(_pick(row, "Industry", "industry", default="") or "").lower()
+    combo = sector + " " + industry
+    rev = _pct(_finance_metric(row, "revenue_growth"), None)
+    gross = _pct(_finance_metric(row, "gross_margin"), None)
+    fcf = _num(_finance_metric(row, "free_cash_flow"), None)
+    if any(x in combo for x in ["semiconductor", "chip", "electronic", "foundry"]): return "🏭 Semiconductor Leader"
+    if any(x in combo for x in ["health", "biotech", "medical", "pharma", "diagnostic"]): return "🧬 Healthcare Growth"
+    if any(x in combo for x in ["software", "cloud", "internet", "saas", "application"]): return "☁️ Software Compounder"
+    if quality >= 90 and fcf is not None and fcf > 0: return "💵 Cash Flow Compounder"
+    if quality >= 88: return "🏆 Elite Compounder"
+    if rev is not None and rev >= 25 and gross is not None and gross >= 50: return "🚀 High Growth Leader"
+    if upside >= 35 and quality >= 70: return "📈 Value Re-rating"
+    if upside >= 60: return "🚀 High Upside Setup"
+    if opp >= 82: return "⚡ Tactical Opportunity"
+    return "📌 Research Candidate"
+
+
+def _ai_thesis(row: dict[str, Any], quality: int, opp: int, upside: float) -> str:
+    for key in ["Why Ranked High", "why_ranked_high", "Investment Thesis", "investment_thesis", "Research Summary", "summary", "financial_summary", "top_ai_bucket_note"]:
+        val = _pick(row, key)
+        if isinstance(val, str):
+            clean = " ".join(val.replace("\n", " ").split())
+            low = clean.lower()
+            if clean and len(clean) > 38 and "multiple signals align" not in low and "quality profile supports" not in low:
+                return clean[:145] + ("…" if len(clean) > 145 else "")
+    rr = _num(_pick(row, "Risk/Reward", "risk_reward"), 0) or 0
+    rev = _pct(_finance_metric(row, "revenue_growth"), None)
+    gross = _pct(_finance_metric(row, "gross_margin"), None)
+    fcf = _num(_finance_metric(row, "free_cash_flow"), None)
+    analyst = _analyst_score(row)
+    strengths = []
+    if quality >= 88: strengths.append("elite business quality")
+    elif quality >= 76: strengths.append("solid quality fundamentals")
+    if rev is not None and rev >= 20: strengths.append(f"revenue growth near {rev:.0f}%")
+    if gross is not None and gross >= 55: strengths.append("high gross margins")
+    if fcf is not None and fcf > 0: strengths.append("positive free cash flow")
+    if upside >= 25: strengths.append(f"modeled upside of {upside:.0f}%")
+    if rr >= 2: strengths.append("favorable risk/reward")
+    if analyst >= 70: strengths.append("supportive Wall Street context")
+    if len(strengths) >= 3: return f"Ranks highly due to {strengths[0]}, {strengths[1]}, and {strengths[2]}."
+    if len(strengths) == 2: return f"Ranks highly due to {strengths[0]} and {strengths[1]}."
+    if strengths: return f"Ranks well because {strengths[0]} supports the current setup."
+    return "Ranks as a review candidate based on the latest combined technical, quality, upside, and risk signals."
+
 def calibrate_top_ai_dataframe(df: pd.DataFrame | None) -> pd.DataFrame:
     if df is None or df.empty:
         return df if df is not None else pd.DataFrame()
@@ -206,7 +294,12 @@ def calibrate_top_ai_dataframe(df: pd.DataFrame | None) -> pd.DataFrame:
         row["Target Upside %"] = round(upside, 1)
         row["Upside"] = round(upside, 1)
         row["Recommendation"] = _recommendation(opp, quality, upside, rr)
-        row["Classification"] = _classification(opp, quality, upside)
+        row["Classification"] = _archetype(row, quality, opp, upside)
+        row["Archetype"] = row["Classification"]
+        row["Wall Street"] = _wall_street(row)
+        row["AI Thesis"] = _ai_thesis(row, quality, opp, upside)
+        row["Opportunity Label"] = _score_word(opp)
+        row["Quality Label"] = _score_word(quality)
         records.append(row)
 
     calibrated = pd.DataFrame(records)
