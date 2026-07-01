@@ -11,6 +11,7 @@ import math
 import pandas as pd
 
 V63_SCORING_CALIBRATION_VERIFIED = True
+V631_DEDUPED_SCORING_CALIBRATION_VERIFIED = True
 
 _MISSING = {"", "nan", "none", "null", "n/a", "na", "—", "-"}
 
@@ -58,16 +59,24 @@ def _pct(value: Any, default: float | None = None, cap_abs: float | None = 500) 
 
 def _target_upside(row: dict[str, Any]) -> float:
     price = _num(_pick(row, "Price", "price", "current_price", "last_price"), 0) or 0
-    target = _num(_pick(row, "Target", "AI Fair Value", "target", "target_mean_price", "analyst_target_mean", "target_high_price"), 0) or 0
+    scanner_target = _num(_pick(row, "Target", "AI Fair Value", "target", "ai_base_target"), 0) or 0
+    analyst_target = _num(_pick(row, "Analyst Target", "target_mean_price", "analyst_target_mean"), 0) or 0
     raw = _pct(_pick(row, "Target Upside %", "target_upside_pct", "expected_upside_pct", "upside", "analyst_upside_pct"), None, cap_abs=500)
-    if price > 0 and target > 0:
-        calc = ((target - price) / price) * 100
-        if -90 <= calc <= 300 and (raw is None or abs(raw - 30.0) < 0.01):
-            return calc
-    if raw is not None:
+
+    scanner_calc = ((scanner_target - price) / price) * 100 if price > 0 and scanner_target > 0 else None
+    analyst_calc = ((analyst_target - price) / price) * 100 if price > 0 and analyst_target > 0 else None
+    placeholder_30 = (raw is not None and abs(raw - 30.0) < 0.05) or (scanner_calc is not None and abs(scanner_calc - 30.0) < 0.15)
+
+    if placeholder_30 and analyst_calc is not None and -80 <= analyst_calc <= 250:
+        return analyst_calc
+    if raw is not None and not placeholder_30:
         return raw
-    if price > 0 and target > 0:
-        return ((target - price) / price) * 100
+    if scanner_calc is not None and -90 <= scanner_calc <= 300 and not placeholder_30:
+        return scanner_calc
+    if analyst_calc is not None and -80 <= analyst_calc <= 250:
+        return analyst_calc
+    if scanner_calc is not None:
+        return scanner_calc
     return 0.0
 
 
@@ -102,19 +111,23 @@ def _quality_score(row: dict[str, Any]) -> int:
     cash = _num(_finance_metric(row, "cash"), None)
     debt = _num(_finance_metric(row, "debt"), None)
 
-    score = 48.0
+    calculated = 50.0
+    if rev is not None: calculated += 9 if rev >= 30 else 7 if rev >= 15 else 4 if rev >= 5 else 1 if rev >= 0 else -8
+    if gross is not None: calculated += 9 if gross >= 70 else 7 if gross >= 55 else 4 if gross >= 35 else 1 if gross >= 20 else -5
+    if opm is not None: calculated += 8 if opm >= 25 else 6 if opm >= 15 else 3 if opm >= 5 else -7 if opm < 0 else 0
+    if net is not None: calculated += 8 if net >= 25 else 6 if net >= 15 else 3 if net >= 5 else -7 if net < 0 else 0
+    if fcf is not None: calculated += 6 if fcf > 0 else -7
+    if ocf is not None: calculated += 5 if ocf > 0 else -5
+    if current is not None: calculated += 4 if current >= 1.8 else 2 if current >= 1.1 else -5
+    if debt_eq is not None: calculated += 4 if debt_eq <= 40 else 2 if debt_eq <= 100 else -6 if debt_eq > 180 else 0
+    if cash is not None and debt is not None: calculated += 3 if cash >= debt else -3
+
+    calculated = max(25, min(95, calculated))
     if existing is not None and existing > 0:
-        score = score * 0.55 + existing * 0.45
-    if rev is not None: score += 10 if rev >= 20 else 7 if rev >= 10 else 3 if rev >= 0 else -8
-    if gross is not None: score += 10 if gross >= 60 else 7 if gross >= 40 else 4 if gross >= 25 else -4
-    if opm is not None: score += 8 if opm >= 20 else 5 if opm >= 10 else 2 if opm >= 0 else -6
-    if net is not None: score += 8 if net >= 15 else 5 if net >= 8 else 2 if net >= 0 else -6
-    if fcf is not None: score += 7 if fcf > 0 else -7
-    if ocf is not None: score += 5 if ocf > 0 else -5
-    if current is not None: score += 5 if current >= 1.5 else 2 if current >= 1 else -6
-    if debt_eq is not None: score += 5 if debt_eq <= 50 else 2 if debt_eq <= 150 else -6
-    if cash is not None and debt is not None: score += 4 if cash >= debt else -3
-    return int(round(max(20, min(100, score))))
+        score = existing * 0.60 + calculated * 0.40
+    else:
+        score = calculated
+    return int(round(max(20, min(97, score))))
 
 
 def _analyst_score(row: dict[str, Any]) -> int:
@@ -143,20 +156,20 @@ def _opportunity_score(row: dict[str, Any], quality: int) -> int:
     volume = _num(_pick(row, "Volume Ratio", "volume_ratio"), 1) or 1
     analyst = _analyst_score(row)
 
-    upside_score = max(0, min(100, 45 + upside * 0.9))
-    rr_score = 50 + min(rr, 6) * 8 if rr else 50
+    upside_score = max(0, min(100, 45 + upside * 1.15))
+    rr_score = 48 + min(rr, 7) * 7 if rr else 50
     momentum = 50
-    momentum += 20 if trend20 > 15 else 12 if trend20 > 5 else 5 if trend20 > 0 else -12 if trend20 < -10 else 0
-    momentum += 8 if trend5 > 5 else 0
-    momentum += 8 if 45 <= rsi <= 68 else -12 if rsi > 75 else 0
-    momentum += 6 if volume >= 1.2 else 0
+    momentum += 22 if trend20 > 20 else 15 if trend20 > 10 else 7 if trend20 > 3 else -14 if trend20 < -10 else 0
+    momentum += 8 if trend5 > 7 else -5 if trend5 < -5 else 0
+    momentum += 7 if 45 <= rsi <= 68 else -12 if rsi > 75 else -6 if rsi < 35 else 0
+    momentum += 5 if volume >= 1.3 else 0
 
-    score = base * 0.23 + upside_score * 0.27 + rr_score * 0.17 + momentum * 0.18 + analyst * 0.10 + quality * 0.05
-    return int(round(max(20, min(100, score))))
+    score = base * 0.20 + upside_score * 0.30 + rr_score * 0.18 + momentum * 0.17 + analyst * 0.08 + quality * 0.07
+    return int(round(max(20, min(98, score))))
 
 
 def _recommendation(opp: int, quality: int, upside: float, rr: float) -> str:
-    if opp >= 84 and quality >= 68 and upside >= 12 and (rr == 0 or rr >= 1.4):
+    if opp >= 84 and quality >= 72 and upside >= 12 and (rr == 0 or rr >= 1.5):
         return "✅ BUY NOW"
     if opp >= 76 and upside >= 8:
         return "🟡 WATCHLIST"

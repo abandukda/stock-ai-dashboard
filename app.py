@@ -22,6 +22,7 @@ from engines.report_engine import render_stock_report
 
 APP_VERSION = "V63.0 Institutional Scoring + Finance UI"
 V63_REAL_SCORING_AND_FINANCE_VERIFIED = True
+V631_DEDUPED_SCORING_AND_UPSIDE_VERIFIED = True
 
 
 # =========================
@@ -583,7 +584,8 @@ def v63_finance_metric(row, name):
 
 
 def v63_finance_score(row):
-    existing = v63_clean_num(v63_pick(row, "Finance Agent Score", "financial_score", "fundamentals_agent_score", "Quality", "Quality Score"), None)
+    """V63.1 quality score: varied business quality, not a 100-point clone."""
+    existing = v63_clean_num(v63_pick(row, "financial_score", "fundamentals_agent_score", "Finance Agent Score", "Quality", "Quality Score"), None)
     rev = v63_pct_value(v63_finance_metric(row, "revenue_growth"), None)
     gross = v63_pct_value(v63_finance_metric(row, "gross_margin"), None)
     net = v63_pct_value(v63_finance_metric(row, "net_margin"), None)
@@ -591,19 +593,28 @@ def v63_finance_score(row):
     fcf = v63_clean_num(v63_finance_metric(row, "free_cash_flow"), None)
     ocf = v63_clean_num(v63_finance_metric(row, "operating_cash_flow"), None)
     cr = v63_clean_num(v63_finance_metric(row, "current_ratio"), None)
-    debt = v63_clean_num(v63_finance_metric(row, "debt_to_equity"), None)
-    score = 50.0
+    debt_eq = v63_clean_num(v63_finance_metric(row, "debt_to_equity"), None)
+    cash = v63_clean_num(v63_finance_metric(row, "cash"), None)
+    debt = v63_clean_num(v63_finance_metric(row, "total_debt"), None)
+
+    calculated = 50.0
+    if rev is not None: calculated += 9 if rev >= 30 else 7 if rev >= 15 else 4 if rev >= 5 else 1 if rev >= 0 else -8
+    if gross is not None: calculated += 9 if gross >= 70 else 7 if gross >= 55 else 4 if gross >= 35 else 1 if gross >= 20 else -5
+    if opm is not None: calculated += 8 if opm >= 25 else 6 if opm >= 15 else 3 if opm >= 5 else -7 if opm < 0 else 0
+    if net is not None: calculated += 8 if net >= 25 else 6 if net >= 15 else 3 if net >= 5 else -7 if net < 0 else 0
+    if fcf is not None: calculated += 6 if fcf > 0 else -7
+    if ocf is not None: calculated += 5 if ocf > 0 else -5
+    if cr is not None: calculated += 4 if cr >= 1.8 else 2 if cr >= 1.1 else -5
+    if debt_eq is not None: calculated += 4 if debt_eq <= 40 else 2 if debt_eq <= 100 else -6 if debt_eq > 180 else 0
+    if cash is not None and debt is not None: calculated += 3 if cash >= debt else -3
+
+    calculated = max(25, min(95, calculated))
     if existing is not None and existing > 0:
-        score = existing * 0.45 + score * 0.55
-    if rev is not None: score += 10 if rev >= 20 else 7 if rev >= 10 else 3 if rev >= 0 else -8
-    if gross is not None: score += 10 if gross >= 60 else 7 if gross >= 40 else 4 if gross >= 25 else -4
-    if opm is not None: score += 8 if opm >= 20 else 5 if opm >= 10 else 2 if opm >= 0 else -6
-    if net is not None: score += 8 if net >= 15 else 5 if net >= 8 else 2 if net >= 0 else -6
-    if fcf is not None: score += 7 if fcf > 0 else -7
-    if ocf is not None: score += 5 if ocf > 0 else -5
-    if cr is not None: score += 5 if cr >= 1.5 else 2 if cr >= 1 else -6
-    if debt is not None: score += 5 if debt <= 50 else 2 if debt <= 150 else -6
-    return int(round(max(20, min(100, score))))
+        # Keep scanner fundamentals signal, but do not let it force every quality score to 100.
+        score = existing * 0.60 + calculated * 0.40
+    else:
+        score = calculated
+    return int(round(max(20, min(97, score))))
 
 
 def v63_quality_score(row):
@@ -612,17 +623,29 @@ def v63_quality_score(row):
 
 def v63_target_upside(row):
     price = v63_clean_num(v63_pick(row, "Price", "price", "current_price", "last_price"), 0) or 0
-    target = v63_clean_num(v63_pick(row, "Target", "AI Fair Value", "target", "target_mean_price", "analyst_target_mean", "target_high_price"), 0) or 0
+    scanner_target = v63_clean_num(v63_pick(row, "Target", "AI Fair Value", "target", "ai_base_target"), 0) or 0
+    analyst_target = v63_clean_num(v63_pick(row, "Analyst Target", "target_mean_price", "analyst_target_mean"), 0) or 0
     raw = v63_pct_value(v63_pick(row, "Target Upside %", "target_upside_pct", "expected_upside_pct", "upside", "analyst_upside_pct"), None, cap_abs=500)
-    # If scanner used a generic 30% placeholder, prefer actual target-vs-price when possible.
-    if price > 0 and target > 0:
-        calc = ((target - price) / price) * 100
-        if -90 <= calc <= 300 and (raw is None or abs(raw - 30.0) < 0.01):
-            return calc
-    if raw is not None:
+
+    scanner_calc = None
+    if price > 0 and scanner_target > 0:
+        scanner_calc = ((scanner_target - price) / price) * 100
+    analyst_calc = None
+    if price > 0 and analyst_target > 0:
+        analyst_calc = ((analyst_target - price) / price) * 100
+
+    # A repeated exact 30.0% usually means the scanner defaulted to price * 1.30.
+    placeholder_30 = (raw is not None and abs(raw - 30.0) < 0.05) or (scanner_calc is not None and abs(scanner_calc - 30.0) < 0.15)
+    if placeholder_30 and analyst_calc is not None and -80 <= analyst_calc <= 250:
+        return analyst_calc
+    if raw is not None and not placeholder_30:
         return raw
-    if price > 0 and target > 0:
-        return ((target - price) / price) * 100
+    if scanner_calc is not None and -90 <= scanner_calc <= 300 and not placeholder_30:
+        return scanner_calc
+    if analyst_calc is not None and -80 <= analyst_calc <= 250:
+        return analyst_calc
+    if scanner_calc is not None:
+        return scanner_calc
     return 0.0
 
 
@@ -637,20 +660,22 @@ def v63_opportunity_score(row):
     analyst = v56_analyst_score(row) if "v56_analyst_score" in globals() else 50
     quality = v63_quality_score(row)
 
-    upside_score = max(0, min(100, 45 + upside * 0.9))
-    rr_score = 50 + min(rr, 6) * 8 if rr else 50
+    upside_score = max(0, min(100, 45 + upside * 1.15))
+    rr_score = 48 + min(rr, 7) * 7 if rr else 50
     momentum_score = 50
-    if trend20 > 15: momentum_score += 20
-    elif trend20 > 5: momentum_score += 12
-    elif trend20 > 0: momentum_score += 5
-    elif trend20 < -10: momentum_score -= 12
-    if trend5 > 5: momentum_score += 8
-    if 45 <= rsi <= 68: momentum_score += 8
+    if trend20 > 20: momentum_score += 22
+    elif trend20 > 10: momentum_score += 15
+    elif trend20 > 3: momentum_score += 7
+    elif trend20 < -10: momentum_score -= 14
+    if trend5 > 7: momentum_score += 8
+    elif trend5 < -5: momentum_score -= 5
+    if 45 <= rsi <= 68: momentum_score += 7
     elif rsi > 75: momentum_score -= 12
-    if volume >= 1.2: momentum_score += 6
+    elif rsi < 35: momentum_score -= 6
+    if volume >= 1.3: momentum_score += 5
 
-    score = base * 0.25 + upside_score * 0.25 + rr_score * 0.18 + momentum_score * 0.17 + analyst * 0.10 + quality * 0.05
-    return int(round(max(20, min(100, score))))
+    score = base * 0.20 + upside_score * 0.30 + rr_score * 0.18 + momentum_score * 0.17 + analyst * 0.08 + quality * 0.07
+    return int(round(max(20, min(98, score))))
 
 
 def v63_recommendation(row):
@@ -661,9 +686,9 @@ def v63_recommendation(row):
     rr = v63_clean_num(v63_pick(row, "Risk/Reward", "risk_reward"), 0) or 0
     if "AVOID" in raw or "SELL" in raw:
         return "🔴 AVOID"
-    if opp >= 82 and q >= 65 and upside >= 12 and (rr == 0 or rr >= 1.4):
+    if opp >= 84 and q >= 72 and upside >= 12 and (rr == 0 or rr >= 1.5):
         return "✅ BUY NOW"
-    if opp >= 76 and upside >= 8:
+    if opp >= 75 and upside >= 6:
         return "🟡 WATCHLIST"
     if opp >= 65:
         return "👀 MONITOR"
@@ -807,9 +832,9 @@ def normalize_scan_row(raw):
         "AI Bull Case": bull,
         "AI Bear Case": bear,
         "Target Upside %": expected_upside if expected_upside is not None else 0,
-        "Analyst Target": safe_number(pick(raw, "Analyst Target", "analyst_target_mean", default=0), 0),
-        "Analyst High": safe_number(pick(raw, "Analyst High", "analyst_target_high", default=0), 0),
-        "Analyst Low": safe_number(pick(raw, "Analyst Low", "analyst_target_low", default=0), 0),
+        "Analyst Target": safe_number(pick(raw, "Analyst Target", "analyst_target_mean", "target_mean_price", default=0), 0),
+        "Analyst High": safe_number(pick(raw, "Analyst High", "analyst_target_high", "target_high_price", default=0), 0),
+        "Analyst Low": safe_number(pick(raw, "Analyst Low", "analyst_target_low", "target_low_price", default=0), 0),
         "Analyst Count": int(safe_number(pick(raw, "Analyst Count", "analyst_count", default=0), 0)),
         "Recommendation": safe_text(pick(raw, "Recommendation", "recommendation_key", default="N/A"), "N/A"),
         "Analyst Support": safe_text(pick(raw, "analyst_support_label", default=""), "") or analyst_support_label(pick(raw, "analyst_support_score", "Analyst Support", default=None)),
