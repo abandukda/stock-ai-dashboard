@@ -25,6 +25,7 @@ V63_REAL_SCORING_AND_FINANCE_VERIFIED = True
 V631_DEDUPED_SCORING_AND_UPSIDE_VERIFIED = True
 V64_PREMIUM_REASONING_UI_VERIFIED = True
 V641_UI_DATA_TRUST_VERIFIED = True
+V642_REPORT_POLISH_VERIFIED = True
 
 
 # =========================
@@ -3217,6 +3218,313 @@ def render_score_help():
             "Use the research card above each table to see the full thesis, why AI likes the stock, valuation, risks, and action plan."
         )
 
+
+
+# ============================================================
+# V64.2 REPORT POLISH / DATA TRUST FIXES
+# ============================================================
+
+V642_REPORT_POLISH_RUNTIME = True
+
+
+def v642_clean_text(value, default=""):
+    try:
+        if value is None:
+            return default
+        text = str(value).strip()
+        if text.lower() in {"", "nan", "none", "null", "n/a", "—", "-"}:
+            return default
+        return text
+    except Exception:
+        return default
+
+
+def v642_dt_label(value):
+    text = v642_clean_text(value, "Latest completed scan")
+    try:
+        clean = text.replace("Z", "+00:00")
+        if "T" in clean:
+            dt_obj = dt.datetime.fromisoformat(clean[:26])
+            return dt_obj.strftime("%b %d, %Y • %I:%M %p")
+    except Exception:
+        pass
+    return v64_short_text(text, 30) if "v64_short_text" in globals() else text[:30]
+
+
+def v642_money(value, default="N/A"):
+    try:
+        n = v63_clean_num(value, None) if "v63_clean_num" in globals() else safe_number(value, None)
+    except Exception:
+        n = None
+    if n is None or str(n).lower() in {"nan", "none"}:
+        return default
+    try:
+        n = float(n)
+    except Exception:
+        return default
+    sign = "-" if n < 0 else ""
+    n_abs = abs(n)
+    if n_abs >= 1_000_000_000_000:
+        return f"{sign}${n_abs/1_000_000_000_000:.2f}T"
+    if n_abs >= 1_000_000_000:
+        return f"{sign}${n_abs/1_000_000_000:.1f}B"
+    if n_abs >= 1_000_000:
+        return f"{sign}${n_abs/1_000_000:.1f}M"
+    if n_abs >= 1_000:
+        return f"{sign}${n_abs/1_000:.1f}K"
+    return f"{sign}${n_abs:,.2f}"
+
+
+def v642_md_money(value, default="N/A"):
+    return v642_money(value, default).replace("$", "\\$")
+
+
+def v51_money(x):
+    return v642_money(x)
+
+
+def v509_money(x):
+    return v642_money(x)
+
+
+def v642_news_url(row):
+    if not isinstance(row, dict):
+        return ""
+    for key in ["URL", "url", "link", "article_url", "source_url"]:
+        val = v642_clean_text(row.get(key), "")
+        if val.startswith("http"):
+            return val
+    return ""
+
+
+def v642_news_title(row):
+    if not isinstance(row, dict):
+        return ""
+    return v642_clean_text(row.get("Headline") or row.get("title") or row.get("headline") or row.get("Top News"), "")
+
+
+def v642_news_source(row):
+    if not isinstance(row, dict):
+        return ""
+    return v642_clean_text(row.get("Source") or row.get("source") or row.get("publisher"), "")
+
+
+def v642_render_news_link(row):
+    title = v642_news_title(row)
+    if not title:
+        return
+    url = v642_news_url(row)
+    source = v642_news_source(row)
+    if url:
+        st.markdown(f"<div class='v642-news-card'><a href='{url}' target='_blank'>{title}</a>" + (f"<br><small>{source}</small>" if source else "") + "</div>", unsafe_allow_html=True)
+    else:
+        st.markdown(f"<div class='v642-news-card'><b>{title}</b>" + (f"<br><small>{source}</small>" if source else "") + "</div>", unsafe_allow_html=True)
+
+
+def v51_financial_narrative(report):
+    s = v51_score_pack(report)
+    rev = v51_field_metric(report, ["revenue_growth", "Revenue Growth", "revenueGrowth"])
+    eps = v51_field_metric(report, ["eps_growth", "EPS Growth", "epsGrowth", "earnings_growth"])
+    gm = v51_field_metric(report, ["gross_margin", "Gross Margin", "grossMargin"])
+    opm = v51_field_metric(report, ["operating_margin", "Operating Margin", "operatingMargin"])
+    netm = v51_field_metric(report, ["net_margin", "Net Margin", "netMargin", "profit_margin"])
+    cr = v51_field_metric(report, ["current_ratio", "Current Ratio", "currentRatio"])
+    fcf = v51_field_metric(report, ["free_cash_flow", "Free Cash Flow", "free_cashflow", "freeCashFlow"])
+
+    if s["quality"] >= 85:
+        verdict = "Excellent Financial Quality"
+    elif s["quality"] >= 72:
+        verdict = "Strong Financial Quality"
+    elif s["quality"] >= 55:
+        verdict = "Developing Financial Quality"
+    else:
+        verdict = "Below Preferred Quality Threshold"
+
+    what = []
+    if rev is not None:
+        what.append(f"Revenue growth is {v51_pct(rev)}, which supports the growth profile." if rev >= 0 else f"Revenue growth is negative at {v51_pct(rev)}, which lowers confidence.")
+    if eps is not None:
+        what.append(f"EPS growth is {v51_pct(eps)}, which supports the profit trend." if eps >= 0 else f"EPS growth is negative at {v51_pct(eps)}, which needs monitoring.")
+    margin_bits = []
+    if gm is not None: margin_bits.append(f"gross margin {v51_pct(gm)}")
+    if opm is not None: margin_bits.append(f"operating margin {v51_pct(opm)}")
+    if netm is not None: margin_bits.append(f"net margin {v51_pct(netm)}")
+    if margin_bits:
+        what.append("Profitability profile: " + ", ".join(margin_bits) + ".")
+    if cr is not None:
+        what.append(f"Liquidity looks {'healthy' if cr >= 1.5 else 'acceptable' if cr >= 1.0 else 'tight'} with a current ratio of {cr:.2f}.")
+    if fcf is not None:
+        what.append(f"Free cash flow is {'positive' if fcf >= 0 else 'negative'} at {v642_money(fcf)} based on the latest connected field; confirm whether the source is TTM, annual, or latest quarter.")
+    if not what:
+        what.append("Financial data is limited in the saved scan, so the score should be treated as lower-confidence until more fields populate.")
+    meaning = "The company has enough financial support to remain investable, but position sizing should still reflect valuation and execution risk."
+    bottom = "Financial quality supports the thesis." if s["quality"] >= 70 else "Financial quality is not strong enough to carry the thesis by itself."
+    return {"verdict": verdict, "what": what[:6], "meaning": meaning, "bottom": bottom}
+
+
+def v51_smart_money_narrative(report):
+    inst_pct = v51_get(report, ["institutional_ownership_pct", "Institutional Ownership", "ownership_pct", "Ownership %"], None)
+    inst_change = v51_get(report, ["institutional_ownership_change_pct", "Ownership Change", "ownership_change_pct"], None)
+    insider = v51_get(report, ["insider_tone", "Insider Tone", "insider_activity", "Insider Activity"], None)
+    what = []
+    if inst_pct is not None:
+        what.append(f"Institutional participation is shown as {v51_safe_institutional_pct(inst_pct)}. Treat this as context, not a buy signal by itself.")
+    else:
+        what.append("Institutional ownership detail was not included in the latest saved scan, so smart-money confidence is limited.")
+    chg = v51_num(inst_change)
+    if chg is not None:
+        direction = "adding exposure" if chg > 0 else "reducing exposure" if chg < 0 else "stable"
+        what.append(f"Ownership trend appears {direction} at {v51_pct(chg, signed=True)}.")
+    else:
+        what.append("Ownership trend data is unavailable; no accumulation or distribution conclusion should be inferred.")
+    if insider:
+        what.append(f"Insider activity is classified as {v51_text(insider)} and should be reviewed as a supporting signal.")
+    else:
+        what.append("No decisive insider activity signal was included in the current scan.")
+    verdict = "Limited / Supporting Evidence" if inst_pct is None and insider is None else "Contextual Support"
+    return {"verdict": verdict, "what": what[:5], "meaning": "Smart-money data helps validate or challenge the thesis, but it should not override fundamentals, valuation, or risk control.", "bottom": "Smart-money evidence is useful context, not the primary driver of the recommendation."}
+
+
+def v642_political_narrative(report):
+    ticker = v51_text(report.get("ticker") or report.get("Ticker"), "This ticker")
+    signal = v51_text(v51_get(report, ["political_signal", "Political Signal", "political_activity", "Political Activity"], None), "")
+    trades = v51_get(report, ["political_trades", "Political Trades", "congress_trades"], None)
+    what = []
+    if signal:
+        what.append(f"Political signal is currently classified as: {signal}.")
+    else:
+        what.append(f"No material political trading signal was included for {ticker} in the latest saved scan.")
+    if isinstance(trades, list) and trades:
+        what.append(f"{len(trades)} political disclosure item(s) were detected and should be reviewed as delayed supporting evidence.")
+    else:
+        what.append("Congressional and political disclosures are delayed, so absence of a signal should be treated as neutral rather than bullish or bearish.")
+    return {"verdict": "Neutral / No Material Signal" if not signal else "Political Signal Detected", "what": what, "meaning": "Political intelligence is a supporting evidence layer only. It should never be the primary reason to buy or sell.", "bottom": "Political data does not currently change the investment thesis." if not signal else "Political activity should be reviewed before acting."}
+
+
+def v51_investment_thesis(report, ws, target):
+    s = v51_score_pack(report)
+    ticker = v51_text(report.get("ticker") or report.get("Ticker"), "This company")
+    ws_score = v51_wallstreet_score(ws)
+    fin = v51_financial_narrative(report)
+    lines = []
+    lines.append(f"{ticker} is being classified as a **{s['classification']}**, which describes the investment style rather than an automatic buy decision.")
+    if ws_score["total"] > 0:
+        lines.append(f"Wall Street support is part of the thesis: {int(ws_score['buy'])} Buy, {int(ws_score['hold'])} Hold, and {int(ws_score['sell'])} Sell ratings are reflected in the connected data.")
+    if target.get("available"):
+        lines.append(f"Analyst consensus is {v642_md_money(target.get('consensus'))}; the AI fair value range is constrained to {v642_md_money(target.get('fair_low'))}–{v642_md_money(target.get('fair_high'))} so target discipline remains realistic.")
+    if s["quality"] < 70:
+        lines.append("Financial quality is the main gating item. Upside may exist, but the company does not yet clear the preferred quality threshold for a flagship recommendation.")
+    else:
+        lines.append("Financial quality is strong enough to support the thesis and does not currently block Top Choice eligibility.")
+    if s["risk_reward"] >= 2:
+        lines.append(f"Risk/reward is attractive at {s['risk_reward']:.2f}:1, meaning modeled upside appears meaningfully larger than downside risk.")
+    lines.append("The opportunity depends on earnings execution, sentiment staying supportive, and valuation remaining disciplined.")
+    lines.append(f"Financial interpretation: {fin['bottom']}")
+    return lines
+
+
+def render_v509_news_digest(row):
+    report = v509_report(row); ticker = v509_text(report.get("ticker") or report.get("Ticker"), "")
+    news = v509_news_digest(report, ticker)
+    with st.container(border=True):
+        st.markdown("### 📰 AI News Digest")
+        st.write(news["lead"])
+        rows = news.get("rows") or []
+        if rows:
+            st.markdown("**Clickable headlines:**")
+            for r in rows[:5]:
+                v642_render_news_link(r)
+        else:
+            st.info("No high-confidence ticker-specific article link was included in the current saved scan. This is neutral; the thesis is unchanged.")
+        st.markdown(f"**Impact Assessment:** {news['impact']}")
+        if not is_viewer():
+            with st.expander("Admin news digest diagnostics", expanded=False): st.write(news.get("diagnostics"))
+
+
+def render_v509_target_analysis(row):
+    report = v509_report(row); ticker = v509_text(report.get("ticker") or report.get("Ticker"), "")
+    ws = v509_wallstreet_pack(ticker)
+    t = v509_target_analysis(report, ws)
+    with st.container(border=True):
+        st.markdown("### 🎯 AI Target Analysis")
+        if not t.get("available"):
+            st.info(t.get("summary", "Target data unavailable.")); return
+        st.markdown(f"""
+<div class="v642-target-grid">
+  <div class="v642-target-card"><span>Analyst Consensus</span><b>{v642_money(t.get('consensus'))}</b><small>Mean Wall Street target</small></div>
+  <div class="v642-target-card"><span>AI Fair Value Range</span><b>{v642_money(t.get('fair_low'))}–{v642_money(t.get('fair_high'))}</b><small>Anchored to analyst range</small></div>
+  <div class="v642-target-card"><span>Bull Scenario</span><b>{v642_money(t.get('bull'))}</b><small>Upside scenario</small></div>
+  <div class="v642-target-card"><span>Bear Scenario</span><b>{v642_money(t.get('bear'))}</b><small>Downside guardrail</small></div>
+</div>
+""", unsafe_allow_html=True)
+        lines = ["The AI target is anchored to analyst consensus and high/low targets so it avoids unrealistic upside expectations.", f"Most likely fair value estimate is {v642_md_money(t.get('most_likely'))}."]
+        if t.get("upside") is not None:
+            lines.append(f"Consensus target implies {t['upside']:.1f}% upside from the current price.")
+        if t.get("capped"):
+            lines.append("The prior model target was capped because it was too disconnected from Wall Street's range.")
+        for line in lines:
+            st.markdown(f"• {line}")
+
+
+def render_detail(row):
+    report = v51_report(row)
+    ticker = v51_text(report.get("ticker") or report.get("Ticker"), "")
+    ws = v51_wallstreet_pack(ticker) if ticker else {}
+    render_v51_final_recommendation(row)
+    render_v51_bull_base_bear(row)
+    render_v51_verdict_card = v51_render_verdict_card
+    render_v51_verdict_card("💰 Financial Strength", v51_financial_narrative(report))
+    render_v51_verdict_card("📈 Analyst Intelligence", v51_wallstreet_narrative(report, ws))
+    render_v51_verdict_card("🏦 Smart Money View", v51_smart_money_narrative(report))
+    render_v51_verdict_card("📊 Technical Setup", v51_technical_narrative(report))
+    news = v51_news_narrative(report, ticker)
+    render_v51_verdict_card("📰 Catalysts & News Digest", news, news.get("positives"), news.get("risks"))
+    render_v51_verdict_card("🏛️ Political Intelligence", v642_political_narrative(report))
+    render_v51_investment_committee(row)
+    if v51_original_render_detail:
+        with st.expander("🔬 Advanced Research & Supporting Data", expanded=False):
+            st.caption("Detailed analyst tables, targets, estimates, institutional data, technical tables, diagnostics, and legacy dashboard views are kept here for users who want proof behind the AI conclusions.")
+            v51_original_render_detail(row)
+
+
+def render_status_banner():
+    state = read_state()
+    status = str(state.get("status", "latest scan")).replace("_", " ").title() if isinstance(state, dict) else "Latest Scan"
+    scan_count = state.get("full_scan_count", "N/A") if isinstance(state, dict) else "N/A"
+    prescreen = state.get("prescreen_count", "N/A") if isinstance(state, dict) else "N/A"
+    generated = state.get("generated_at", "Latest completed scan") if isinstance(state, dict) else "Latest completed scan"
+    st.markdown(f"""
+<div class="v59-hero" style="padding:34px 38px; border-radius:30px; margin-bottom:22px;">
+  <div class="v59-kicker">Atlas AI Investment Terminal</div>
+  <div class="v59-title" style="font-size:clamp(2.0rem,4vw,3.25rem); line-height:1.02; max-width:1180px;">Turn market noise into actionable investment decisions.</div>
+  <p class="v59-subtitle" style="font-size:1.06rem; max-width:1050px; margin-top:14px;">
+    Atlas combines technicals, financial quality, valuation, risk/reward, Wall Street context, catalysts, political intelligence, and portfolio context into one decision workflow.
+  </p>
+  <div style="display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:14px; margin-top:24px;">
+    <div class="v641-hero-stat"><span>Status</span><b>{status}</b></div>
+    <div class="v641-hero-stat"><span>Full Scan</span><b>{scan_count}</b></div>
+    <div class="v641-hero-stat"><span>Prescreen</span><b>{prescreen}</b></div>
+    <div class="v641-hero-stat"><span>Last Scan</span><b>{v642_dt_label(generated)}</b></div>
+  </div>
+</div>
+        """, unsafe_allow_html=True)
+
+
+def render_v641_sidebar_header():
+    st.sidebar.markdown("""
+<div class="v641-side-brand">
+  <div class="v641-side-logo">🧠</div>
+  <div>
+    <div class="v641-side-title">ATLAS</div>
+    <div class="v641-side-subtitle">AI Investment Terminal</div>
+  </div>
+</div>
+<div class="v642-sidebar-about">
+  <b>Mission</b>
+  Turn technicals, fundamentals, valuation, catalysts, risk, and portfolio context into clear investment decisions.
+</div>
+<div class="v641-side-note">Workflow: scan → compare → validate → size positions with entry discipline.</div>
+""", unsafe_allow_html=True)
 
 def render_table(df, title, key_prefix, min_score_default=35):
     st.subheader(title)
@@ -21678,6 +21986,30 @@ section[data-testid="stSidebar"] [data-testid="stRadio"] label {font-weight: 850
 .v641-hero-stat span {display:block; color:#94A3B8; font-size:11px; text-transform:uppercase; letter-spacing:.10em; font-weight:850;}
 .v641-hero-stat b {display:block; color:#F8FAFC; font-size:18px; margin-top:4px;}
 @media (max-width: 900px) {.v641-hero-stat {padding:12px;} .v59-hero div[style*="grid-template-columns"] {grid-template-columns: repeat(2, minmax(0,1fr)) !important;}}
+
+/* V64.2: responsive metric/font overflow fixes */
+[data-testid="stMetricValue"] {
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  font-size: clamp(1.25rem, 2.0vw, 2.15rem) !important;
+  line-height: 1.08 !important;
+  letter-spacing: -0.045em !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+}
+[data-testid="stMetricLabel"] {font-size:.88rem !important; color:#CBD5E1 !important;}
+.v642-target-grid {display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:16px; margin:16px 0 18px 0;}
+.v642-target-card {border:1px solid rgba(148,163,184,.24); background:rgba(15,23,42,.70); border-radius:18px; padding:18px 18px;}
+.v642-target-card span {display:block; color:#CBD5E1; font-size:.88rem; font-weight:800; margin-bottom:8px;}
+.v642-target-card b {display:block; color:#F8FAFC; font-size:clamp(1.45rem,2.1vw,2.25rem); line-height:1.05; letter-spacing:-.04em; overflow-wrap:anywhere;}
+.v642-target-card small {display:block; color:#94A3B8; margin-top:8px; line-height:1.35;}
+.v642-news-card {padding:14px 16px; border-radius:16px; border:1px solid rgba(148,163,184,.20); background:rgba(15,23,42,.55); margin:10px 0;}
+.v642-news-card a {color:#93C5FD !important; font-weight:800; text-decoration:none;}
+.v642-news-card small {color:#94A3B8;}
+.v642-sidebar-about {margin:14px 8px 18px 8px; padding:14px 14px; border-radius:16px; border:1px solid rgba(56,189,248,.20); background:linear-gradient(135deg, rgba(14,165,233,.12), rgba(34,197,94,.08)); color:#CBD5E1; font-size:12px; line-height:1.45;}
+.v642-sidebar-about b {display:block; color:#F8FAFC; margin-bottom:6px; font-size:13px;}
+@media (max-width: 1100px) {.v642-target-grid {grid-template-columns: repeat(2, minmax(0,1fr));}}
+@media (max-width: 700px) {.v642-target-grid {grid-template-columns: 1fr;}}
 
 </style>
         """,
