@@ -20,10 +20,8 @@ import plotly.graph_objects as go
 
 from engines.report_engine import render_stock_report
 
-APP_VERSION = "V62 Institutional UI"
-V62_INSTITUTIONAL_UI_VERIFIED = True
-V61_FINANCE_FIX_VERIFIED = True
-V625_FINANCE_AND_SCORING_VERIFIED = True
+APP_VERSION = "V63.0 Institutional Scoring + Finance UI"
+V63_REAL_SCORING_AND_FINANCE_VERIFIED = True
 
 
 # =========================
@@ -152,39 +150,6 @@ def fmt_pct(value):
     if value is None:
         return "N/A"
     return f"{value:.1f}%"
-
-
-def v62_norm_pct_value(value):
-    """
-    Normalize scanner percentages safely.
-    Accepts 0.165, 16.5, "16.5%", and blocks obviously bad values caused by double scaling.
-    Returns None when unavailable/invalid instead of forcing 0.
-    """
-    if value is None:
-        return None
-    try:
-        if isinstance(value, str):
-            clean = value.strip().replace("%", "").replace(",", "")
-            if clean.lower() in {"", "nan", "none", "null", "n/a", "na", "—", "-"}:
-                return None
-            n = float(clean)
-        else:
-            n = float(value)
-        if pd.isna(n):
-            return None
-    except Exception:
-        return None
-
-    # Most APIs store margins/growth as decimals; UI wants percent.
-    if n != 0 and abs(n) <= 2:
-        n *= 100
-
-    # Guardrail: accidental double scaling can create values like 12,716%.
-    # Keep realistic hyper-growth values, but suppress broken ones.
-    if abs(n) > 500:
-        return None
-
-    return n
 
 
 
@@ -514,6 +479,222 @@ def pick(raw, *keys, default=None):
     return default
 
 
+
+
+# =========================
+# V63 REAL SCORING + FINANCE NORMALIZATION
+# =========================
+def v63_clean_num(value, default=None):
+    try:
+        if value is None:
+            return default
+        if isinstance(value, str):
+            text = value.replace("$", "").replace(",", "").replace("%", "").strip()
+            if text.lower() in {"", "nan", "none", "null", "n/a", "na", "—", "-"}:
+                return default
+            value = text
+        n = float(value)
+        if pd.isna(n):
+            return default
+        return n
+    except Exception:
+        return default
+
+
+def v63_pick(row, *keys, default=None):
+    if not hasattr(row, "get"):
+        return default
+    for key in keys:
+        try:
+            value = row.get(key)
+        except Exception:
+            value = None
+        if value is None:
+            continue
+        if isinstance(value, str) and value.strip().lower() in {"", "nan", "none", "null", "n/a", "na", "—", "-"}:
+            continue
+        return value
+    return default
+
+
+def v63_pct_value(value, default=None, cap_abs=300):
+    n = v63_clean_num(value, default)
+    if n is None:
+        return default
+    # Many providers store percentages as decimals: 0.165 -> 16.5%.
+    if abs(n) <= 2:
+        n *= 100
+    # Some previous app layers double-multiplied percentages: 12716 -> 127.16.
+    if abs(n) > 500:
+        n /= 100
+    # Extremely large values are usually bad source scaling, not useful finance info.
+    if cap_abs is not None and abs(n) > cap_abs:
+        return default
+    return n
+
+
+def v63_fmt_pct(value, default="—"):
+    n = v63_pct_value(value, None)
+    if n is None:
+        return default
+    return f"{n:.1f}%"
+
+
+def v63_fmt_num(value, default="—"):
+    n = v63_clean_num(value, None)
+    if n is None or n == 0:
+        return default
+    return f"{n:.2f}"
+
+
+def v63_fmt_money(value, default="—"):
+    n = v63_clean_num(value, None)
+    if n is None or n == 0:
+        return default
+    if abs(n) >= 1_000_000_000:
+        return f"${n/1_000_000_000:.1f}B"
+    if abs(n) >= 1_000_000:
+        return f"${n/1_000_000:.1f}M"
+    if abs(n) >= 1_000:
+        return f"${n/1_000:.1f}K"
+    return f"${n:,.2f}"
+
+
+def v63_finance_metric(row, name):
+    mapping = {
+        "revenue_growth": ["Revenue Growth", "Revenue Growth %", "Revenue QoQ %", "revenue_growth", "revenue_qoq_pct", "scan_revenue_growth_pct"],
+        "earnings_growth": ["Earnings Growth", "EPS Growth", "earnings_growth", "eps_growth"],
+        "gross_margin": ["Gross Margin", "gross_margin", "grossMargins", "gross_profit_margin", "grossProfitMarginTTM"],
+        "operating_margin": ["Operating Margin", "operating_margin", "operatingMargins", "operating_profit_margin", "operatingProfitMarginTTM"],
+        "net_margin": ["Net Margin", "profit_margin", "net_margin", "net_profit_margin", "profitMargins", "netProfitMarginTTM"],
+        "free_cash_flow": ["Free Cash Flow", "free_cashflow", "free_cash_flow", "FCF"],
+        "operating_cash_flow": ["Operating Cash Flow", "operating_cashflow", "operating_cash_flow", "Op. Cash Flow"],
+        "current_ratio": ["Current Ratio", "current_ratio"],
+        "debt_to_equity": ["Debt to Equity", "debt_to_equity", "Debt/Equity"],
+        "total_debt": ["Total Debt", "total_debt"],
+        "cash": ["Cash", "cash_and_equivalents", "total_cash"],
+        "ev_sales": ["EV/Sales", "ev_to_sales", "price_to_sales", "Price/Sales"],
+        "pe": ["P/E", "pe_ratio", "PE"],
+        "forward_pe": ["Forward PE", "forward_pe"],
+        "roic": ["ROIC", "roic", "roe"],
+        "latest_eps": ["Latest EPS", "latest_eps"],
+    }
+    return v63_pick(row, *mapping.get(name, [name]), default=None)
+
+
+def v63_finance_score(row):
+    existing = v63_clean_num(v63_pick(row, "Finance Agent Score", "financial_score", "fundamentals_agent_score", "Quality", "Quality Score"), None)
+    rev = v63_pct_value(v63_finance_metric(row, "revenue_growth"), None)
+    gross = v63_pct_value(v63_finance_metric(row, "gross_margin"), None)
+    net = v63_pct_value(v63_finance_metric(row, "net_margin"), None)
+    opm = v63_pct_value(v63_finance_metric(row, "operating_margin"), None)
+    fcf = v63_clean_num(v63_finance_metric(row, "free_cash_flow"), None)
+    ocf = v63_clean_num(v63_finance_metric(row, "operating_cash_flow"), None)
+    cr = v63_clean_num(v63_finance_metric(row, "current_ratio"), None)
+    debt = v63_clean_num(v63_finance_metric(row, "debt_to_equity"), None)
+    score = 50.0
+    if existing is not None and existing > 0:
+        score = existing * 0.45 + score * 0.55
+    if rev is not None: score += 10 if rev >= 20 else 7 if rev >= 10 else 3 if rev >= 0 else -8
+    if gross is not None: score += 10 if gross >= 60 else 7 if gross >= 40 else 4 if gross >= 25 else -4
+    if opm is not None: score += 8 if opm >= 20 else 5 if opm >= 10 else 2 if opm >= 0 else -6
+    if net is not None: score += 8 if net >= 15 else 5 if net >= 8 else 2 if net >= 0 else -6
+    if fcf is not None: score += 7 if fcf > 0 else -7
+    if ocf is not None: score += 5 if ocf > 0 else -5
+    if cr is not None: score += 5 if cr >= 1.5 else 2 if cr >= 1 else -6
+    if debt is not None: score += 5 if debt <= 50 else 2 if debt <= 150 else -6
+    return int(round(max(20, min(100, score))))
+
+
+def v63_quality_score(row):
+    return v63_finance_score(row)
+
+
+def v63_target_upside(row):
+    price = v63_clean_num(v63_pick(row, "Price", "price", "current_price", "last_price"), 0) or 0
+    target = v63_clean_num(v63_pick(row, "Target", "AI Fair Value", "target", "target_mean_price", "analyst_target_mean", "target_high_price"), 0) or 0
+    raw = v63_pct_value(v63_pick(row, "Target Upside %", "target_upside_pct", "expected_upside_pct", "upside", "analyst_upside_pct"), None, cap_abs=500)
+    # If scanner used a generic 30% placeholder, prefer actual target-vs-price when possible.
+    if price > 0 and target > 0:
+        calc = ((target - price) / price) * 100
+        if -90 <= calc <= 300 and (raw is None or abs(raw - 30.0) < 0.01):
+            return calc
+    if raw is not None:
+        return raw
+    if price > 0 and target > 0:
+        return ((target - price) / price) * 100
+    return 0.0
+
+
+def v63_opportunity_score(row):
+    base = v63_clean_num(v63_pick(row, "Final Conviction", "conviction", "conviction_score", "ai_score", "Score", "score"), 60) or 60
+    upside = v63_target_upside(row)
+    rr = v63_clean_num(v63_pick(row, "Risk/Reward", "risk_reward"), 0) or 0
+    rsi = v63_clean_num(v63_pick(row, "RSI", "rsi"), 50) or 50
+    trend20 = v63_clean_num(v63_pick(row, "20D %", "twenty_day_pct", "return_1m_pct"), 0) or 0
+    trend5 = v63_clean_num(v63_pick(row, "5D %", "five_day_pct"), 0) or 0
+    volume = v63_clean_num(v63_pick(row, "Volume Ratio", "volume_ratio"), 1) or 1
+    analyst = v56_analyst_score(row) if "v56_analyst_score" in globals() else 50
+    quality = v63_quality_score(row)
+
+    upside_score = max(0, min(100, 45 + upside * 0.9))
+    rr_score = 50 + min(rr, 6) * 8 if rr else 50
+    momentum_score = 50
+    if trend20 > 15: momentum_score += 20
+    elif trend20 > 5: momentum_score += 12
+    elif trend20 > 0: momentum_score += 5
+    elif trend20 < -10: momentum_score -= 12
+    if trend5 > 5: momentum_score += 8
+    if 45 <= rsi <= 68: momentum_score += 8
+    elif rsi > 75: momentum_score -= 12
+    if volume >= 1.2: momentum_score += 6
+
+    score = base * 0.25 + upside_score * 0.25 + rr_score * 0.18 + momentum_score * 0.17 + analyst * 0.10 + quality * 0.05
+    return int(round(max(20, min(100, score))))
+
+
+def v63_recommendation(row):
+    raw = str(v63_pick(row, "Verdict", "Final Verdict", "Recommendation", "Action", default="") or "").upper()
+    opp = v63_opportunity_score(row)
+    q = v63_quality_score(row)
+    upside = v63_target_upside(row)
+    rr = v63_clean_num(v63_pick(row, "Risk/Reward", "risk_reward"), 0) or 0
+    if "AVOID" in raw or "SELL" in raw:
+        return "🔴 AVOID"
+    if opp >= 82 and q >= 65 and upside >= 12 and (rr == 0 or rr >= 1.4):
+        return "✅ BUY NOW"
+    if opp >= 76 and upside >= 8:
+        return "🟡 WATCHLIST"
+    if opp >= 65:
+        return "👀 MONITOR"
+    return "🔴 AVOID"
+
+
+def v63_score_label(score):
+    score = int(round(v63_clean_num(score, 0) or 0))
+    if score >= 85: return "Excellent"
+    if score >= 75: return "Strong"
+    if score >= 65: return "Good"
+    if score >= 55: return "Developing"
+    return "Speculative"
+
+
+def v63_progress_html(label, score, subtitle=""):
+    score = int(round(v63_clean_num(score, 0) or 0))
+    pct = max(0, min(100, score))
+    color = "#22C55E" if pct >= 80 else "#38BDF8" if pct >= 70 else "#F59E0B" if pct >= 55 else "#EF4444"
+    return f"""
+    <div style='margin:10px 0 14px 0;'>
+      <div style='display:flex;justify-content:space-between;gap:12px;font-weight:850;color:#F8FAFC;'>
+        <span>{label}</span><span>{pct}/100 · {v63_score_label(pct)}</span>
+      </div>
+      <div style='height:10px;border-radius:99px;background:rgba(148,163,184,.18);margin-top:7px;overflow:hidden;'>
+        <div style='height:10px;width:{pct}%;background:{color};border-radius:99px;'></div>
+      </div>
+      <div style='color:#94A3B8;font-size:12px;margin-top:4px;'>{subtitle}</div>
+    </div>
+    """
+
 def read_json_file(path: Path):
     if not path.exists():
         return []
@@ -670,25 +851,25 @@ def normalize_scan_row(raw):
         "Recovery Risk": safe_text(pick(raw, "recovery_risk", default=""), ""),
         "AI Committee": pick(raw, "ai_committee", "AI Committee", default={}),
         "Finance Agent Score": safe_number(pick(raw, "finance_agent_score", "financial_score", "fundamentals_agent_score", default=0), 0),
-        "Finance Agent Status": safe_text(pick(raw, "finance_agent_status", default=""), ""),
-        "Finance Agent Bottom Line": safe_text(pick(raw, "finance_agent_bottom_line", default=""), ""),
-        "Finance Agent Findings": pick(raw, "finance_agent_findings", default=[]),
-        "Finance Agent Risks": pick(raw, "finance_agent_risks", default=[]),
-        "Thesis Strength": safe_text(pick(raw, "thesis_strength", default=""), ""),
+        "Finance Agent Status": safe_text(pick(raw, "finance_agent_status", "financial_safety", default=""), ""),
+        "Finance Agent Bottom Line": safe_text(pick(raw, "finance_agent_bottom_line", "financial_summary", default=""), ""),
+        "Finance Agent Findings": pick(raw, "finance_agent_findings", "what_looks_good", default=[]),
+        "Finance Agent Risks": pick(raw, "finance_agent_risks", "what_could_go_wrong", default=[]),
+        "Thesis Strength": safe_text(pick(raw, "thesis_strength", "decision_rating", default=""), ""),
         "Latest EPS": safe_number(pick(raw, "latest_eps", default=0), 0),
-        "Revenue Growth": v62_norm_pct_value(pick(raw, "revenue_growth", "revenue_qoq_pct", "Revenue Growth", "Revenue Growth %", default=0)),
-        "Revenue QoQ %": v62_norm_pct_value(pick(raw, "revenue_qoq_pct", "revenue_growth", "Revenue Growth", "Revenue Growth %", default=0)),
+        "Revenue Growth": v63_pct_value(pick(raw, "revenue_growth", "Revenue Growth", "Revenue Growth %", "revenue_qoq_pct", default=None), 0, cap_abs=300),
+        "Revenue QoQ %": v63_pct_value(pick(raw, "revenue_qoq_pct", "revenue_growth", "Revenue Growth", default=None), 0, cap_abs=300),
         "EPS Beats Last 4": int(safe_number(pick(raw, "eps_beats_last4", default=0), 0)),
         "EPS Misses Last 4": int(safe_number(pick(raw, "eps_misses_last4", default=0), 0)),
-        "Debt to Equity": safe_number(pick(raw, "debt_to_equity", default=0), 0),
+        "Debt to Equity": safe_number(pick(raw, "debt_to_equity", "Debt/Equity", default=0), 0),
         "Debt to Assets": safe_number(pick(raw, "debt_to_assets", default=0), 0),
-        "Current Ratio": safe_number(pick(raw, "current_ratio", default=0), 0),
-        "Gross Margin": safe_number(pick(raw, "gross_profit_margin", "gross_margin", "Gross Margin", default=0), 0),
-        "Operating Margin": safe_number(pick(raw, "operating_profit_margin", "operating_margin", "Operating Margin", default=0), 0),
-        "Net Margin": safe_number(pick(raw, "net_profit_margin", "profit_margin", "net_margin", "Net Margin", default=0), 0),
-        "Free Cash Flow": safe_number(pick(raw, "free_cash_flow", "free_cashflow", "Free Cash Flow", "FCF", default=0), 0),
-        "Operating Cash Flow": safe_number(pick(raw, "operating_cash_flow", "operating_cashflow", "Operating Cash Flow", default=0), 0),
-        "ROIC": safe_number(pick(raw, "roic", default=0), 0),
+        "Current Ratio": safe_number(pick(raw, "current_ratio", "Current Ratio", default=0), 0),
+        "Gross Margin": v63_pct_value(pick(raw, "gross_margin", "gross_profit_margin", "grossMargins", "grossProfitMarginTTM", default=None), 0, cap_abs=100),
+        "Operating Margin": v63_pct_value(pick(raw, "operating_margin", "operating_profit_margin", "operatingMargins", "operatingProfitMarginTTM", default=None), 0, cap_abs=100),
+        "Net Margin": v63_pct_value(pick(raw, "profit_margin", "net_margin", "net_profit_margin", "profitMargins", default=None), 0, cap_abs=100),
+        "Free Cash Flow": safe_number(pick(raw, "free_cashflow", "free_cash_flow", "Free Cash Flow", default=0), 0),
+        "Operating Cash Flow": safe_number(pick(raw, "operating_cashflow", "operating_cash_flow", "Operating Cash Flow", default=0), 0),
+        "ROIC": v63_pct_value(pick(raw, "roic", "ROIC", "roe", default=None), 0, cap_abs=100),
         "EV/Sales": safe_number(pick(raw, "ev_to_sales", "price_to_sales", "EV/Sales", default=0), 0),
         "Peers": pick(raw, "peer_symbols", default=[]),
         "52W High": safe_number(pick(raw, "high_52w", "52W High", default=0), 0),
@@ -818,16 +999,21 @@ def actionable(df, min_score=35, require_upside=True):
 
 
 def latest_top_ideas():
-    """
-    V62.5: prefer top_ai_ideas.json for the client-facing Top AI deck because it carries
-    the richer agent outputs and finance fields. Fall back to full scan if unavailable.
-    """
-    top = actionable(load_file(TOP_IDEAS_FILE), min_score=45, require_upside=False)
+    """V63: prefer curated top_ai_ideas.json, then fall back to full scan."""
+    top = load_file(TOP_IDEAS_FILE)
     if top is not None and not top.empty:
+        top = top.copy()
+        try:
+            top["__opp"] = top.apply(v56_opportunity, axis=1)
+            top["__quality"] = top.apply(v56_quality, axis=1)
+            top["__upside"] = top.apply(v63_target_upside, axis=1)
+            top = top.sort_values(["__opp", "__quality", "__upside"], ascending=False)
+        except Exception:
+            pass
         return top.head(25)
-
     full = actionable(load_full_scan(), min_score=45, require_upside=True)
     return full.head(25)
+
 
 def latest_recovery():
     recovery = actionable(load_file(RECOVERY_SCAN_FILE), min_score=35, require_upside=True)
@@ -955,196 +1141,99 @@ def render_bullets(items, empty="No detail available."):
         st.markdown(f"• {safe_text(item)}")
 
 
-def v625_pick(row, *keys, default=None):
-    """
-    V62.5 unified row lookup.
-    Checks normalized title-case fields first, then raw JSON fields stored under Raw.
-    Treats 0 as a valid value only when explicitly present, but skips blanks/N/A.
-    """
-    def _valid(v):
-        if v is None:
-            return False
-        try:
-            if pd.isna(v):
-                return False
-        except Exception:
-            pass
-        if isinstance(v, str) and v.strip().lower() in {"", "nan", "none", "null", "n/a", "na", "—", "-"}:
-            return False
-        return True
-
-    sources = []
-    if hasattr(row, "get"):
-        sources.append(row)
-        try:
-            raw = row.get("Raw")
-            if isinstance(raw, dict):
-                sources.append(raw)
-        except Exception:
-            pass
-
-    for source in sources:
-        for key in keys:
-            try:
-                value = source.get(key)
-                if _valid(value):
-                    return value
-            except Exception:
-                pass
-
-    return default
-
-
-def v625_score_label(score):
-    score = safe_number(score, 0)
-    if score >= 85:
-        return "Excellent"
-    if score >= 75:
-        return "Strong"
-    if score >= 65:
-        return "Constructive"
-    if score >= 50:
-        return "Speculative"
-    return "Weak"
-
-
-def v625_money_or_unavailable(value):
-    n = safe_number(value, None)
-    if n is None or n == 0:
-        return "Unavailable"
-    return fmt_money(n)
-
-
-def v62_finance_display_value(row, keys, kind="number"):
-    raw = v625_pick(row, *keys, default=None)
-
-    if kind == "pct":
-        n = v62_norm_pct_value(raw)
-        if n is None:
-            return "Unavailable"
-        return f"{n:.1f}%"
-
-    if kind == "ratio":
-        n = safe_number(raw, None)
-        if n is None or n == 0:
-            return "Unavailable"
-        return f"{n:.2f}"
-
-    if kind == "money":
-        n = safe_number(raw, None)
-        if n is None or n == 0:
-            return "Unavailable"
-        return fmt_money(n)
-
-    if kind == "eps":
-        n = safe_number(raw, None)
-        if n is None or n == 0:
-            return "Unavailable"
-        return f"{n:.2f}"
-
-    return safe_text(raw, "Unavailable") or "Unavailable"
-
 def render_deep_finance_agent(row):
     with st.container(border=True):
-        st.markdown("### 💰 Finance Agent — Deep Financial Execution")
+        st.markdown("### 💰 Finance Agent — Institutional Financial Health")
+        score = v63_finance_score(row)
+        status = v63_score_label(score)
+        thesis = safe_text(v63_pick(row, "Thesis Strength", "decision_rating", default=""), "")
+        st.markdown(f"**Financial Grade:** {score}/100 · **Status:** {status}" + (f" · **Thesis Strength:** {thesis}" if thesis else ""))
+        st.caption("Normalizes growth, profitability, liquidity, debt, cash flow, and valuation from the saved scan data.")
 
-        score = int(safe_number(v625_pick(row, "Finance Agent Score", "financial_score", "fundamentals_agent_score", default=0), 0))
-        status = safe_text(v625_pick(row, "Finance Agent Status", "financial_safety", default="Mixed / constructive"), "Mixed / constructive")
-        thesis = safe_text(v625_pick(row, "Thesis Strength", "thesis_strength", default="Strong Thesis"), "Strong Thesis")
+        rev = v63_finance_metric(row, "revenue_growth")
+        gross = v63_finance_metric(row, "gross_margin")
+        opm = v63_finance_metric(row, "operating_margin")
+        net = v63_finance_metric(row, "net_margin")
+        fcf = v63_finance_metric(row, "free_cash_flow")
+        ocf = v63_finance_metric(row, "operating_cash_flow")
+        cr = v63_finance_metric(row, "current_ratio")
+        debt = v63_finance_metric(row, "debt_to_equity")
+        cash = v63_finance_metric(row, "cash")
+        total_debt = v63_finance_metric(row, "total_debt")
+        evs = v63_finance_metric(row, "ev_sales")
+        fpe = v63_finance_metric(row, "forward_pe")
 
-        rev = v62_norm_pct_value(v625_pick(row, "Revenue Growth", "Revenue QoQ %", "revenue_growth", "revenue_qoq_pct"))
-        gross = v62_norm_pct_value(v625_pick(row, "Gross Margin", "gross_margin", "gross_profit_margin"))
-        operating = v62_norm_pct_value(v625_pick(row, "Operating Margin", "operating_margin", "operating_profit_margin"))
-        net = v62_norm_pct_value(v625_pick(row, "Net Margin", "profit_margin", "net_profit_margin"))
-        fcf = v625_pick(row, "Free Cash Flow", "free_cashflow", "free_cash_flow")
-        ocf = v625_pick(row, "Operating Cash Flow", "operating_cashflow", "operating_cash_flow")
-        debt_eq = v625_pick(row, "Debt to Equity", "debt_to_equity")
-        current = v625_pick(row, "Current Ratio", "current_ratio")
-        ev_sales = v625_pick(row, "EV/Sales", "price_to_sales", "ev_to_sales")
-        fwd_pe = v625_pick(row, "Forward PE", "forward_pe")
-        pe = v625_pick(row, "PE", "pe_ratio")
+        growth_score = 50
+        rv = v63_pct_value(rev, None)
+        if rv is not None:
+            growth_score = 90 if rv >= 25 else 80 if rv >= 15 else 68 if rv >= 5 else 45 if rv >= 0 else 30
+        profitability_score = v63_quality_score({**(row.to_dict() if hasattr(row, 'to_dict') else dict(row))}) if hasattr(row, 'get') else score
+        liquidity_score = 50
+        crn = v63_clean_num(cr, None)
+        if crn is not None:
+            liquidity_score = 90 if crn >= 2 else 75 if crn >= 1.2 else 45 if crn >= 1 else 30
+        valuation_score = 60
+        fpen = v63_clean_num(fpe, None)
+        if fpen is not None and fpen > 0:
+            valuation_score = 85 if fpen <= 15 else 72 if fpen <= 25 else 55 if fpen <= 40 else 35
 
-        st.markdown(
-            f"**Score:** {score}/100 · **Status:** {status} · **Thesis Strength:** {thesis}"
-        )
-        st.caption("AI reviews growth, profitability, balance sheet strength, cash generation, and valuation. Unavailable means the scan source did not provide that metric.")
+        st.markdown(v63_progress_html("Overall Financial Health", score, "Composite view of growth, margins, cash flow, balance sheet, and valuation."), unsafe_allow_html=True)
+        p1, p2 = st.columns(2)
+        with p1:
+            st.markdown(v63_progress_html("Growth", growth_score, f"Revenue growth: {v63_fmt_pct(rev)}"), unsafe_allow_html=True)
+            st.markdown(v63_progress_html("Profitability", min(100, max(20, v63_quality_score(row))), f"Gross margin: {v63_fmt_pct(gross)} · Net margin: {v63_fmt_pct(net)}"), unsafe_allow_html=True)
+        with p2:
+            st.markdown(v63_progress_html("Liquidity", liquidity_score, f"Current ratio: {v63_fmt_num(cr)}"), unsafe_allow_html=True)
+            st.markdown(v63_progress_html("Valuation", valuation_score, f"Forward PE: {v63_fmt_num(fpe)} · EV/Sales: {v63_fmt_num(evs)}"), unsafe_allow_html=True)
 
-        growth_score = 50 + (15 if rev is not None and rev > 10 else 0) + (10 if rev is not None and rev > 25 else 0)
-        profit_score = 50 + (15 if gross is not None and gross > 40 else 0) + (15 if net is not None and net > 10 else 0) + (10 if operating is not None and operating > 10 else 0)
-        cash_score = 50 + (15 if safe_number(fcf, 0) > 0 else 0) + (15 if safe_number(ocf, 0) > 0 else 0)
-        balance_score = 55 + (10 if safe_number(current, 0) >= 1 else -8) + (10 if safe_number(debt_eq, 999) and safe_number(debt_eq, 999) < 100 else 0)
-
-        c0, c00, c000, c0000 = st.columns(4)
-        c0.metric("Growth", f"{max(0,min(100,int(growth_score)))}/100", v625_score_label(growth_score))
-        c00.metric("Profitability", f"{max(0,min(100,int(profit_score)))}/100", v625_score_label(profit_score))
-        c000.metric("Cash Quality", f"{max(0,min(100,int(cash_score)))}/100", v625_score_label(cash_score))
-        c0000.metric("Balance Sheet", f"{max(0,min(100,int(balance_score)))}/100", v625_score_label(balance_score))
-
-        st.markdown("#### Core financial metrics")
+        st.markdown("#### Key Financial Metrics")
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Revenue Growth", "Unavailable" if rev is None else f"{rev:.1f}%")
-        c2.metric("Gross Margin", "Unavailable" if gross is None else f"{gross:.1f}%")
-        c3.metric("Operating Margin", "Unavailable" if operating is None else f"{operating:.1f}%")
-        c4.metric("Net Margin", "Unavailable" if net is None else f"{net:.1f}%")
+        c1.metric("Revenue Growth", v63_fmt_pct(rev))
+        c2.metric("Gross Margin", v63_fmt_pct(gross))
+        c3.metric("Operating Margin", v63_fmt_pct(opm))
+        c4.metric("Net Margin", v63_fmt_pct(net))
 
         c5, c6, c7, c8 = st.columns(4)
-        c5.metric("FCF", v625_money_or_unavailable(fcf))
-        c6.metric("Op. Cash Flow", v625_money_or_unavailable(ocf))
-        c7.metric("Debt/Equity", v62_finance_display_value(row, ["Debt to Equity", "debt_to_equity"], "ratio"))
-        c8.metric("Current Ratio", v62_finance_display_value(row, ["Current Ratio", "current_ratio"], "ratio"))
+        c5.metric("Free Cash Flow", v63_fmt_money(fcf))
+        c6.metric("Op. Cash Flow", v63_fmt_money(ocf))
+        c7.metric("Current Ratio", v63_fmt_num(cr))
+        c8.metric("Debt/Equity", v63_fmt_num(debt))
 
         c9, c10, c11, c12 = st.columns(4)
-        c9.metric("Latest EPS", v62_finance_display_value(row, ["Latest EPS", "latest_eps"], "eps"))
-        c10.metric("P/E", v62_finance_display_value(row, ["PE", "pe_ratio"], "ratio"))
-        c11.metric("Forward P/E", v62_finance_display_value(row, ["Forward PE", "forward_pe"], "ratio"))
-        c12.metric("EV/Sales", v62_finance_display_value(row, ["EV/Sales", "price_to_sales", "ev_to_sales"], "ratio"))
+        c9.metric("Cash", v63_fmt_money(cash))
+        c10.metric("Debt", v63_fmt_money(total_debt))
+        c11.metric("Forward PE", v63_fmt_num(fpe))
+        c12.metric("EV/Sales", v63_fmt_num(evs))
 
-        positives = []
-        risks = []
-        if rev is not None:
-            positives.append(f"Revenue growth is {rev:.1f}%, which is {'strong' if rev >= 20 else 'positive' if rev > 0 else 'weak'}.")
-        if gross is not None:
-            positives.append(f"Gross margin is {gross:.1f}%, showing {'excellent' if gross >= 50 else 'solid' if gross >= 30 else 'thin'} profitability structure.")
-        if safe_number(fcf, 0) > 0:
-            positives.append(f"Free cash flow is positive at {fmt_money(fcf)}.")
-        if safe_number(ocf, 0) > 0:
-            positives.append(f"Operating cash flow is positive at {fmt_money(ocf)}.")
-        if safe_number(current, 0) and safe_number(current, 0) < 1:
-            risks.append(f"Current ratio is below 1.0 at {safe_number(current, 0):.2f}.")
-        if safe_number(debt_eq, 0) and safe_number(debt_eq, 0) > 100:
-            risks.append(f"Debt/equity is elevated at {safe_number(debt_eq, 0):.1f}.")
-        if safe_number(fwd_pe, 0) > 35:
-            risks.append(f"Forward P/E is elevated at {safe_number(fwd_pe, 0):.1f}.")
+        st.markdown("#### AI Financial Interpretation")
+        positives, risks = [], []
+        if rv is not None:
+            if rv >= 15: positives.append(f"Revenue growth is strong at {rv:.1f}%.")
+            elif rv >= 0: positives.append(f"Revenue is growing at {rv:.1f}%, but growth is not exceptional.")
+            else: risks.append(f"Revenue growth is negative at {rv:.1f}%.")
+        gm = v63_pct_value(gross, None)
+        if gm is not None:
+            if gm >= 50: positives.append(f"Gross margin is strong at {gm:.1f}%.")
+            elif gm < 25: risks.append(f"Gross margin is thin at {gm:.1f}%.")
+        if v63_clean_num(fcf, 0) and v63_clean_num(fcf, 0) > 0: positives.append(f"Free cash flow is positive at {v63_fmt_money(fcf)}.")
+        if crn is not None and crn < 1: risks.append(f"Current ratio is below 1.0 at {crn:.2f}, which can signal liquidity pressure.")
+        dn = v63_clean_num(debt, None)
+        if dn is not None and dn > 150: risks.append(f"Debt/equity is elevated at {dn:.1f}.")
+        if not positives: positives.append("Financial data is limited, so the quality score should be treated with caution.")
+        if not risks: risks.append("No major finance-specific red flag was detected in the saved metrics.")
 
-        if not positives:
-            fallback = v625_pick(row, "Finance Agent Findings", "finance_agent_findings", "what_looks_good", default=[])
-            positives = compact_reason_list(fallback, max_items=4) if isinstance(fallback, str) else (fallback if isinstance(fallback, list) else [])
-        if not risks:
-            fallback_risk = v625_pick(row, "Finance Agent Risks", "finance_agent_risks", "what_could_go_wrong", default=[])
-            risks = compact_reason_list(fallback_risk, max_items=4) if isinstance(fallback_risk, str) else (fallback_risk if isinstance(fallback_risk, list) else [])
+        left, right = st.columns(2)
+        with left:
+            st.markdown("**Strengths**")
+            render_bullets(positives)
+        with right:
+            st.markdown("**Watch-outs**")
+            render_bullets(risks)
 
-        st.markdown("**What AI cross-checked:**")
-        render_bullets(positives, empty="No major finance-specific positives were available in this scan.")
+        peers = row.get("Peers") if hasattr(row, 'get') else None
+        if isinstance(peers, list) and peers:
+            st.caption(f"Peer set: {', '.join([safe_text(x) for x in peers[:8]])}")
 
-        st.markdown("**Watch-outs:**")
-        render_bullets(risks, empty="No major finance-specific red flags detected.")
-
-        bottom = safe_text(v625_pick(row, "Finance Agent Bottom Line", "financial_summary", "finance_agent_bottom_line", default=""), "")
-        if bottom:
-            st.info(f"**Finance Agent Bottom Line:** {bottom}")
-
-        with st.expander("📘 What these finance metrics mean", expanded=False):
-            st.markdown("""
-**Growth:** Revenue and earnings growth. Higher is better when supported by cash flow.
-
-**Profitability:** Gross, operating, and net margins. Strong margins mean the business converts revenue into profit.
-
-**Cash Quality:** Free cash flow and operating cash flow. Positive cash generation improves durability.
-
-**Balance Sheet:** Debt/equity and current ratio. Lower leverage and current ratio above 1.0 are generally healthier.
-
-**Valuation:** P/E, forward P/E, and EV/Sales. Valuation should be judged against growth and quality.
-""")
 
 def render_ai_committee_details(row):
     committee = row.get("AI Committee")
@@ -20629,10 +20718,6 @@ def main():
 
     render_v59_design_system()
 
-    st.sidebar.markdown("## 🧭 Atlas AI")
-    st.sidebar.caption("Institutional research command center")
-    st.sidebar.markdown("---")
-
     full_df = load_full_scan()
     top_df = latest_top_ideas()
     recovery_df = latest_recovery()
@@ -20750,74 +20835,12 @@ def v56_row_get(row, keys, default=None):
 
 
 def v56_opportunity(row):
-    return max(0, min(100, v56_scan_num(v56_row_get(row, ["Opportunity", "Opportunity Score", "Final Conviction", "Investment Score", "Score"], 0), 0)))
+    return v63_opportunity_score(row)
 
 
 def v56_quality(row):
-    """
-    V62.5: Quality is business durability, not price opportunity.
-    Prefer finance/fundamental scores and real financial metrics over the display-only Quality column.
-    """
-    q = v56_row_get(
-        row,
-        [
-            "Finance Agent Score",
-            "financial_score",
-            "fundamentals_agent_score",
-            "Fundamentals Score",
-            "Financial Health Score",
-            "Financial Health",
-            "Quality Score",
-            "Quality",
-        ],
-        None,
-    )
-    if q is not None:
-        return max(0, min(100, v56_scan_num(q, 50)))
+    return v63_quality_score(row)
 
-    raw = row.get("Raw", {}) if hasattr(row, "get") else {}
-    if not isinstance(raw, dict):
-        raw = {}
-
-    def _n(*keys):
-        return safe_number(v625_pick(row, *keys), None)
-
-    score = 50
-    rev = v62_norm_pct_value(_n("Revenue Growth", "revenue_growth", "Revenue QoQ %", "revenue_qoq_pct"))
-    gm = v62_norm_pct_value(_n("Gross Margin", "gross_margin", "gross_profit_margin"))
-    nm = v62_norm_pct_value(_n("Net Margin", "profit_margin", "net_profit_margin"))
-    fcf = _n("Free Cash Flow", "free_cashflow", "free_cash_flow")
-    ocf = _n("Operating Cash Flow", "operating_cashflow", "operating_cash_flow")
-    cash = _n("Cash", "cash_and_equivalents", "total_cash")
-    debt = _n("Total Debt", "total_debt")
-    current = _n("Current Ratio", "current_ratio")
-
-    if rev is not None and rev > 10:
-        score += 8
-    if gm is not None and gm > 40:
-        score += 8
-    if nm is not None and nm > 10:
-        score += 8
-    if fcf is not None and fcf > 0:
-        score += 8
-    if ocf is not None and ocf > 0:
-        score += 6
-    if current is not None and current >= 1:
-        score += 5
-    if cash is not None and debt is not None and cash >= debt:
-        score += 7
-    if debt is not None and cash is not None and debt > cash * 3:
-        score -= 12
-
-    label = str(v56_row_get(row, ["financial_safety", "Financial Health Rating", "Financial Health Label", "Rating"], "")).lower()
-    if "elite" in label:
-        score = max(score, 86)
-    elif "strong" in label:
-        score = max(score, 76)
-    elif "weak" in label or "poor" in label:
-        score = min(score, 45)
-
-    return max(0, min(100, score))
 
 def v56_analyst_score(row):
     raw = str(v56_row_get(row, ["Analyst Support", "Analyst View", "Wall Street View"], ""))
@@ -20927,7 +20950,7 @@ def v56_fast_table_rows(df, limit=50):
                 "Classification": v56_classification(row),
                 "Opportunity": int(round(v56_opportunity(row))),
                 "Quality": int(round(v56_quality(row))),
-                "Upside": v56_pct(v56_row_get(row, ["Target Upside %", "Upside"], 0)),
+                "Upside": v63_fmt_pct(v63_target_upside(row)),
                 "Price": v56_money(v56_row_get(row, ["Price"], 0)),
                 "Entry": v56_entry(row),
                 "Stop": v56_stop(row),
@@ -21183,35 +21206,13 @@ def v574_text(x, default=""):
 
 
 def v574_recommendation(row):
-    """
-    V62.5: research recommendation must respect quality.
-    Strong upside + weak quality becomes a watchlist idea, not an automatic BUY NOW.
-    """
-    raw = v574_text(v56_row_get(row, ["Verdict", "Final Verdict", "Recommendation", "Action"], ""), "").upper()
-    opp = v56_opportunity(row)
-    q = v62_quality_score(row) if "v62_quality_score" in globals() else v56_quality(row)
-    upside = v62_norm_pct_value(v56_row_get(row, ["Target Upside %", "Upside", "Upside %"], 0)) or 0
-    rr = v574_num(v56_row_get(row, ["Risk/Reward", "risk_reward"], 0), 0)
+    return v63_recommendation(row)
 
-    if "AVOID" in raw or "SELL" in raw:
-        return "🔴 AVOID"
-
-    if q < 45:
-        return "⚪ REVIEW"
-    if opp >= 86 and q >= 72 and upside >= 15 and rr >= 1.2:
-        return "✅ BUY NOW"
-    if opp >= 80 and q >= 60 and upside >= 20:
-        return "🟢 BUY"
-    if opp >= 78 and upside >= 60 and q >= 50:
-        return "🟡 HIGH UPSIDE WATCH"
-    if opp >= 68 or upside >= 20 or "WATCH" in raw:
-        return "👀 WATCH"
-    return "⚪ REVIEW"
 
 def v574_classification(row):
-    q = v574_num(v56_row_get(row, ["Quality", "Quality Score", "Financial Health", "Financial Health Score"], 0), 0)
-    opp = v574_num(v56_row_get(row, ["Opportunity", "Opportunity Score", "Final Conviction", "Score", "Investment Score"], 0), 0)
-    upside = v574_num(v56_row_get(row, ["Target Upside %", "Upside", "Upside %"], 0), 0)
+    q = v63_quality_score(row)
+    opp = v63_opportunity_score(row)
+    upside = v63_target_upside(row)
     analyst = v574_num(v56_row_get(row, ["Analyst Score", "Analyst Confidence", "Wall Street Score"], 0), 0)
     recovery = v574_num(v56_row_get(row, ["Recovery Score"], 0), 0)
 
@@ -21232,7 +21233,7 @@ def v574_classification(row):
 
 
 def v574_quality_rating(row):
-    q = v574_num(v56_row_get(row, ["Quality", "Quality Score", "Financial Health", "Financial Health Score"], 0), 0)
+    q = v63_quality_score(row)
     if q >= 85:
         return "Elite"
     if q >= 75:
@@ -21263,9 +21264,9 @@ def v574_analyst_summary(row):
 
 def v574_why_like(row):
     bullets = []
-    opp = v574_num(v56_row_get(row, ["Opportunity", "Opportunity Score", "Final Conviction", "Score", "Investment Score"], 0), 0)
-    q = v574_num(v56_row_get(row, ["Quality", "Quality Score", "Financial Health", "Financial Health Score"], 0), 0)
-    upside = v574_num(v56_row_get(row, ["Target Upside %", "Upside", "Upside %"], 0), 0)
+    opp = v63_opportunity_score(row)
+    q = v63_quality_score(row)
+    upside = v63_target_upside(row)
     rr = v574_num(v56_row_get(row, ["Risk/Reward", "Risk Reward"], 0), 0)
     analyst = v574_num(v56_row_get(row, ["Analyst Score", "Analyst Confidence", "Wall Street Score"], 0), 0)
     rsi = v574_num(v56_row_get(row, ["RSI"], 0), 0)
@@ -21293,8 +21294,8 @@ def v574_why_like(row):
 
 def v574_key_risks(row):
     risks = []
-    q = v574_num(v56_row_get(row, ["Quality", "Quality Score", "Financial Health", "Financial Health Score"], 0), 0)
-    upside = v574_num(v56_row_get(row, ["Target Upside %", "Upside", "Upside %"], 0), 0)
+    q = v63_quality_score(row)
+    upside = v63_target_upside(row)
     rr = v574_num(v56_row_get(row, ["Risk/Reward", "Risk Reward"], 0), 0)
     atr = v574_num(v56_row_get(row, ["ATR %"], 0), 0)
     rsi = v574_num(v56_row_get(row, ["RSI"], 0), 0)
@@ -21319,9 +21320,9 @@ def v574_key_risks(row):
 
 
 def v574_why_ranked(row):
-    q = v574_num(v56_row_get(row, ["Quality", "Quality Score", "Financial Health", "Financial Health Score"], 0), 0)
-    opp = v574_num(v56_row_get(row, ["Opportunity", "Opportunity Score", "Final Conviction", "Score", "Investment Score"], 0), 0)
-    upside = v574_num(v56_row_get(row, ["Target Upside %", "Upside", "Upside %"], 0), 0)
+    q = v63_quality_score(row)
+    opp = v63_opportunity_score(row)
+    upside = v63_target_upside(row)
     analyst = v574_num(v56_row_get(row, ["Analyst Score", "Analyst Confidence", "Wall Street Score"], 0), 0)
     rr = v574_num(v56_row_get(row, ["Risk/Reward", "Risk Reward"], 0), 0)
 
@@ -21357,7 +21358,7 @@ def v574_fast_table_rows(df, limit=50):
                 "Classification": v574_classification(row),
                 "Opportunity": int(round(v56_opportunity(row))),
                 "Quality": int(round(v56_quality(row))),
-                "Upside": v56_pct(v56_row_get(row, ["Target Upside %", "Upside"], 0)),
+                "Upside": v63_fmt_pct(v63_target_upside(row)),
                 "Entry": v56_entry(row),
                 "Stop": v56_stop(row),
                 "Target": v56_target(row),
@@ -21469,13 +21470,14 @@ def v59_plain_action(rec):
 
 def v59_scorecard_rows(row, opp, q, conf):
     return pd.DataFrame([
-        {"Category": "🔥 Opportunity", "Score": f"{opp}/100 · {v625_score_label(opp)}", "Meaning": "How attractive the setup looks right now."},
-        {"Category": "🏢 Quality", "Score": f"{q}/100 · {v625_score_label(q)}", "Meaning": f"Business quality rating: {v574_quality_rating(row)}."},
-        {"Category": "🧠 Confidence", "Score": f"{conf}/100 · {v625_score_label(conf)}", "Meaning": "How strongly the available evidence supports the view."},
-        {"Category": "📈 Analyst View", "Score": v56_analyst_view(row), "Meaning": "Wall Street support based on the latest scan."},
-        {"Category": "⚙️ Technical Setup", "Score": setup_label(v56_opportunity(row)), "Meaning": "Timing and momentum context from scan signals."},
-        {"Category": "🏛 Political Signal", "Score": str(v56_row_get(row, ["Political Signal", "political_signal"], "Coming V58 / Not detected")), "Meaning": "Supporting signal only; never the primary reason to buy."},
+        {"Category": "Opportunity", "Score": f"{opp}/100", "Meaning": "How attractive the setup looks right now."},
+        {"Category": "Quality", "Score": f"{q}/100", "Meaning": f"Business quality rating: {v574_quality_rating(row)}."},
+        {"Category": "Confidence", "Score": f"{conf}/100", "Meaning": "How strongly the available evidence supports the view."},
+        {"Category": "Analyst View", "Score": v56_analyst_view(row), "Meaning": "Wall Street support based on the latest scan."},
+        {"Category": "Technical Setup", "Score": setup_label(v56_opportunity(row)), "Meaning": "Timing and momentum context from scan signals."},
+        {"Category": "Political Signal", "Score": str(v56_row_get(row, ["Political Signal", "political_signal"], "Coming V58 / Not detected")), "Meaning": "Supporting signal only; never the primary reason to buy."},
     ])
+
 
 def render_v574_scan_report(row, title="Research Report"):
     if row is None:
@@ -21514,9 +21516,9 @@ def render_v574_scan_report(row, title="Research Report"):
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Recommendation", action)
-    c2.metric("Opportunity", f"{opp}/100")
-    c3.metric("Quality", f"{q}/100")
-    c4.metric("Modeled Upside", upside)
+    c2.metric("Opportunity", f"{opp}/100", v63_score_label(opp))
+    c3.metric("Quality", f"{q}/100", v63_score_label(q))
+    c4.metric("Modeled Upside", v63_fmt_pct(v63_target_upside(row)))
 
     st.markdown("### Executive Summary")
     st.info(
@@ -21580,7 +21582,7 @@ def render_v574_scan_report(row, title="Research Report"):
         if headline:
             st.markdown(f"**Latest headline:** {headline}")
         else:
-            st.info("No material company-specific headline was included in the latest scan. That is neutral context: no major positive or negative catalyst was detected by the saved news scan.")
+            st.info("No material company-specific headline was included in the latest scan. This is neutral context: no major positive or negative catalyst was detected by the saved news scan.")
         st.write(
             "News and catalysts are treated as supporting context. A positive headline can support momentum, while negative developments can quickly change the risk profile."
         )
@@ -21618,217 +21620,11 @@ def render_v56_default_scan_report(row):
     render_v574_scan_report(row, title="Default Research Report")
 
 
-
-# =========================
-# V62 INSTITUTIONAL UI
-# =========================
-def v62_inject_institutional_css():
-    st.markdown("""
-    <style>
-    .v62-hero {
-        border: 1px solid rgba(148,163,184,.22);
-        background:
-          radial-gradient(circle at 10% 0%, rgba(34,197,94,.22), transparent 28%),
-          radial-gradient(circle at 90% 10%, rgba(56,189,248,.18), transparent 30%),
-          linear-gradient(135deg, rgba(15,23,42,.98), rgba(2,6,23,.94));
-        border-radius: 30px;
-        padding: 30px 32px;
-        margin: 10px 0 22px;
-        box-shadow: 0 22px 60px rgba(0,0,0,.34);
-    }
-    .v62-eyebrow {color:#38BDF8; font-size:12px; letter-spacing:.16em; text-transform:uppercase; font-weight:900;}
-    .v62-title {color:#F8FAFC; font-size:44px; line-height:1.03; font-weight:950; letter-spacing:-.06em; margin-top:8px;}
-    .v62-subtitle {color:#CBD5E1; font-size:16px; max-width:920px; margin-top:10px;}
-    .v62-chip {display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:999px; background:rgba(15,23,42,.70); border:1px solid rgba(148,163,184,.25); color:#F8FAFC; font-weight:850; font-size:13px; margin:6px 8px 0 0;}
-    .v62-card {
-        border: 1px solid rgba(148,163,184,.24);
-        border-radius: 24px;
-        padding: 20px;
-        margin-bottom: 16px;
-        background: linear-gradient(145deg, rgba(15,23,42,.98), rgba(17,24,39,.92));
-        box-shadow: 0 16px 40px rgba(0,0,0,.28);
-        min-height: 268px;
-    }
-    .v62-card:hover {border-color: rgba(56,189,248,.55); box-shadow: 0 20px 55px rgba(56,189,248,.11);}
-    .v62-ticker {font-size:30px; font-weight:950; color:#F8FAFC; letter-spacing:-.055em;}
-    .v62-company {font-size:13px; color:#94A3B8; min-height:32px;}
-    .v62-action-buy {color:#22C55E; font-weight:950;}
-    .v62-action-watch {color:#F59E0B; font-weight:950;}
-    .v62-action-review {color:#38BDF8; font-weight:950;}
-    .v62-metric-grid {display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:16px;}
-    .v62-mini {background:rgba(2,6,23,.38); border:1px solid rgba(148,163,184,.16); border-radius:16px; padding:10px;}
-    .v62-mini-label {font-size:10px; color:#64748B; text-transform:uppercase; font-weight:900; letter-spacing:.08em;}
-    .v62-mini-value {font-size:18px; color:#F8FAFC; font-weight:950; margin-top:2px;}
-    .v62-reason {color:#CBD5E1; font-size:13px; line-height:1.45; margin-top:14px; border-top:1px solid rgba(148,163,184,.14); padding-top:12px;}
-    .v62-section-title {font-size:30px; color:#F8FAFC; font-weight:950; letter-spacing:-.055em; margin:24px 0 6px;}
-    @media (max-width: 900px) {
-        .v62-title {font-size:34px;}
-        .v62-hero {padding:24px 20px; border-radius:24px;}
-        .v62-metric-grid {grid-template-columns:repeat(2,minmax(0,1fr));}
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-
-def v62_pick(row, keys, default=""):
-    return v56_row_get(row, keys, default)
-
-
-def v62_action(row):
-    """
-    V62.5: Recommendation is gated by quality and risk.
-    High upside alone should not become BUY NOW when business quality is speculative.
-    """
-    raw = str(v62_pick(row, ["Recommendation", "recommendation", "decision_rating"], "")).upper()
-    opp = v56_opportunity(row)
-    quality = v62_quality_score(row)
-    upside = v62_norm_pct_value(v62_pick(row, ["Target Upside %", "target_upside_pct", "Upside"], 0)) or 0
-    rr = safe_number(v62_pick(row, ["Risk/Reward", "risk_reward"], 0), 0)
-
-    if "AVOID" in raw or "SELL" in raw:
-        return "AVOID"
-
-    if quality < 45:
-        return "REVIEW"
-    if opp >= 86 and quality >= 72 and upside >= 15 and rr >= 1.2:
-        return "BUY NOW"
-    if opp >= 80 and quality >= 60 and upside >= 20:
-        return "BUY"
-    if opp >= 78 and upside >= 60 and quality >= 50:
-        return "HIGH UPSIDE WATCH"
-    if opp >= 68 or upside >= 20:
-        return "WATCHLIST"
-    return "REVIEW"
-
-def v62_action_class(action):
-    if "BUY" in action:
-        return "v62-action-buy"
-    if "WATCH" in action:
-        return "v62-action-watch"
-    return "v62-action-review"
-
-
-def v62_quality_score(row):
-    # Prefer actual finance/fundamentals over the generic display-only Quality column.
-    q = v62_pick(
-        row,
-        [
-            "Finance Agent Score",
-            "financial_score",
-            "fundamentals_agent_score",
-            "Fundamentals Score",
-            "Financial Health Score",
-            "Financial Health",
-            "Quality Score",
-            "Quality",
-        ],
-        None,
-    )
-    if q is not None:
-        return max(0, min(100, safe_number(q, 60)))
-    return v56_quality(row)
-
-def v62_card_reason(row):
-    txt = safe_text(v62_pick(row, ["Why Ranked High", "why_ranked_high", "What Looks Good", "what_looks_good", "Research Summary", "summary"], ""), "")
-    if not txt:
-        return "Strong setup based on the latest AI scan. Open the report below for full detail."
-    return txt[:190] + ("..." if len(txt) > 190 else "")
-
-
-def v62_top_ideas_header(df):
-    rows = len(df) if df is not None else 0
-    if df is None or getattr(df, "empty", True):
-        best = "—"
-        buys = 0
-        avg_opp = 0
-    else:
-        work = df.copy().head(25)
-        best = str(v62_pick(work.iloc[0], ["Ticker"], "—"))
-        buys = sum(1 for _, r in work.iterrows() if "BUY" in v62_action(r))
-        avg_opp = int(round(sum(v56_opportunity(r) for _, r in work.iterrows()) / max(len(work), 1)))
-    st.markdown(f"""
-    <div class="v62-hero">
-      <div class="v62-eyebrow">Atlas V62 Institutional UI</div>
-      <div class="v62-title">AI Command Center</div>
-      <div class="v62-subtitle">A premium research-first view focused on action, quality, risk control, and fast decision-making — without forcing clients through spreadsheet-style tables.</div>
-      <div style="margin-top:18px;">
-        <span class="v62-chip">🧠 {rows} ranked ideas loaded</span>
-        <span class="v62-chip">🚀 Top idea: {best}</span>
-        <span class="v62-chip">✅ {buys} buy-level candidates</span>
-        <span class="v62-chip">📊 Avg opportunity: {avg_opp}/100</span>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-
-def v62_render_idea_card(row):
-    ticker = safe_text(v62_pick(row, ["Ticker", "ticker", "symbol"], "—"), "—")
-    company = safe_text(v62_pick(row, ["Company", "company", "company_name", "name"], ""), "")
-    action = v62_action(row)
-    action_class = v62_action_class(action)
-    opp = int(round(v56_opportunity(row)))
-    quality = int(round(v62_quality_score(row)))
-    upside = v56_pct(v62_pick(row, ["Target Upside %", "target_upside_pct", "Upside"], 0))
-    entry = v56_entry(row)
-    target = v56_target(row)
-    rr = safe_number(v62_pick(row, ["Risk/Reward", "risk_reward"], 0), 0)
-    reason = v62_card_reason(row)
-    st.markdown(f"""
-    <div class="v62-card">
-      <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start;">
-        <div>
-          <div class="v62-ticker">{ticker}</div>
-          <div class="v62-company">{company}</div>
-        </div>
-        <div class="{action_class}" style="font-size:14px; white-space:nowrap;">{action}</div>
-      </div>
-      <div class="v62-metric-grid">
-        <div class="v62-mini"><div class="v62-mini-label">Opportunity</div><div class="v62-mini-value">{opp}</div></div>
-        <div class="v62-mini"><div class="v62-mini-label">Quality</div><div class="v62-mini-value">{quality}</div></div>
-        <div class="v62-mini"><div class="v62-mini-label">Upside</div><div class="v62-mini-value">{upside}</div></div>
-        <div class="v62-mini"><div class="v62-mini-label">Entry</div><div class="v62-mini-value" style="font-size:14px;">{entry}</div></div>
-        <div class="v62-mini"><div class="v62-mini-label">Target</div><div class="v62-mini-value" style="font-size:16px;">{target}</div></div>
-        <div class="v62-mini"><div class="v62-mini-label">R/R</div><div class="v62-mini-value">{rr:.1f}x</div></div>
-      </div>
-      <div class="v62-reason">{reason}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-
-def v62_render_top_idea_deck(df, max_cards=6):
-    if df is None or getattr(df, "empty", True):
-        st.info("No Top AI Ideas available.")
-        return
-    st.markdown('<div class="v62-section-title">Today\'s Best AI Ideas</div>', unsafe_allow_html=True)
-    st.caption("Card view highlights action, opportunity, quality, upside, entry plan, and the key reason the idea ranked highly.")
-    work = df.head(max_cards).copy()
-    for start in range(0, len(work), 3):
-        cols = st.columns(3)
-        for i, (_, row) in enumerate(work.iloc[start:start+3].iterrows()):
-            with cols[i]:
-                v62_render_idea_card(row)
 def render_v574_top_ideas(source_df):
-    v62_inject_institutional_css()
-    try:
-        fast_sorted = calibrate_top_ai_dataframe(source_df)
-    except Exception:
-        fast_sorted = source_df
-
+    fast_sorted = render_v60_3_top_ai_experience(source_df, title="Top AI Ideas", max_rows=10, show_filters=False)
     if fast_sorted is None or getattr(fast_sorted, "empty", True):
         st.info("No Top AI Ideas available.")
         return
-
-    # Prefer original scanner strength, upside, and financial quality over overly strict display-only calibration.
-    fast_sorted = fast_sorted.copy()
-    fast_sorted["__v62_opp"] = fast_sorted.apply(v56_opportunity, axis=1)
-    fast_sorted["__v62_quality"] = fast_sorted.apply(v62_quality_score, axis=1)
-    fast_sorted = fast_sorted.sort_values(["__v62_opp", "__v62_quality", "Target Upside %"], ascending=False)
-
-    v62_top_ideas_header(fast_sorted)
-    v62_render_top_idea_deck(fast_sorted, max_cards=6)
-
-    with st.expander("📋 Full ranked table", expanded=False):
-        render_v56_ranked_table(fast_sorted, title="Top AI Ideas", max_rows=25, show_filters=False)
 
     top10 = fast_sorted.head(10).copy()
     ticker_options = top10["Ticker"].astype(str).str.upper().tolist() if "Ticker" in top10.columns else []
@@ -21837,9 +21633,8 @@ def render_v574_top_ideas(source_df):
         render_v574_scan_report(default_row, title="Default Research Report")
         return
 
-    st.markdown('<div class="v62-section-title">Research Report</div>', unsafe_allow_html=True)
     selected = st.selectbox(
-        "Select an idea to open the full AI research report",
+        "Select Top AI Idea",
         ticker_options,
         index=0,
         key="v574_top_ai_selector"
@@ -21848,6 +21643,7 @@ def render_v574_top_ideas(source_df):
     selected_rows = top10[top10["Ticker"].astype(str).str.upper() == selected]
     selected_row = selected_rows.iloc[0] if not selected_rows.empty else v56_pick_default_stock(top10)
     render_v574_scan_report(selected_row, title=f"Fast Research Report: {selected}")
+
 
 def render_table(df, title, key_prefix, min_score_default=35):
     max_rows = 25 if "Top" in str(title) else 75

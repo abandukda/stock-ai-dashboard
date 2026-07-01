@@ -1,47 +1,33 @@
 """
-Atlas V60.4 Scoring Calibration.
-
-Fixes the V60.3 issue where Top AI Ideas became too conservative and many
-high-upside setups showed as AVOID.
-
-Opportunity = setup/upside/timing/risk-reward.
-Quality = business/financial strength.
-Confidence = evidence/agent agreement/data support.
+Atlas V63 scoring calibration.
+Normalizes Top AI Ideas display fields so opportunity, quality, upside, and recommendations
+are stock-specific instead of repeated placeholders.
 """
 
 from __future__ import annotations
 
 from typing import Any
+import math
 import pandas as pd
 
-_EMPTY = {"", "nan", "none", "null", "n/a", "na", "unavailable"}
+V63_SCORING_CALIBRATION_VERIFIED = True
+
+_MISSING = {"", "nan", "none", "null", "n/a", "na", "—", "-"}
 
 
-def _num(value: Any, default: float = 0.0) -> float:
-    if value is None:
-        return default
-    if isinstance(value, (int, float)):
-        return float(value)
-
-    text = str(value).strip()
-    if text.lower() in _EMPTY:
-        return default
-
-    text = text.replace("%", "").replace("$", "").replace(",", "").replace("x", "").replace("X", "").strip()
-    mult = 1.0
-    upper = text.upper()
-    if upper.endswith("B"):
-        mult = 1_000_000_000.0
-        text = text[:-1]
-    elif upper.endswith("M"):
-        mult = 1_000_000.0
-        text = text[:-1]
-    elif upper.endswith("K"):
-        mult = 1_000.0
-        text = text[:-1]
-
+def _num(value: Any, default: float | None = None) -> float | None:
     try:
-        return float(text) * mult
+        if value is None:
+            return default
+        if isinstance(value, str):
+            text = value.replace("$", "").replace(",", "").replace("%", "").strip()
+            if text.lower() in _MISSING:
+                return default
+            value = text
+        n = float(value)
+        if math.isnan(n):
+            return default
+        return n
     except Exception:
         return default
 
@@ -51,269 +37,167 @@ def _pick(row: dict[str, Any], *keys: str, default: Any = None) -> Any:
         value = row.get(key)
         if value is None:
             continue
-        if str(value).strip().lower() not in _EMPTY:
-            return value
+        if isinstance(value, str) and value.strip().lower() in _MISSING:
+            continue
+        return value
     return default
 
 
-def _clip(value: float, low: float = 0, high: float = 100) -> int:
-    return int(round(max(low, min(high, value))))
-
-
-def _score_revenue_growth(value: Any) -> float:
-    n = _num(value, default=None)
+def _pct(value: Any, default: float | None = None, cap_abs: float | None = 500) -> float | None:
+    n = _num(value, default)
     if n is None:
-        return 58
-    if n >= 50:
-        return 100
-    if n >= 30:
-        return 92
-    if n >= 20:
-        return 84
-    if n >= 10:
-        return 74
-    if n >= 0:
-        return 58
-    return 38
+        return default
+    if abs(n) <= 2:
+        n *= 100
+    if abs(n) > 500:
+        n /= 100
+    if cap_abs is not None and abs(n) > cap_abs:
+        return default
+    return n
 
 
-def _score_margin(value: Any) -> float:
-    n = _num(value, default=None)
-    if n is None:
-        return 58
-    if n >= 70:
-        return 96
-    if n >= 55:
-        return 88
-    if n >= 40:
-        return 78
-    if n >= 25:
-        return 66
-    if n > 0:
-        return 52
-    return 38
+def _target_upside(row: dict[str, Any]) -> float:
+    price = _num(_pick(row, "Price", "price", "current_price", "last_price"), 0) or 0
+    target = _num(_pick(row, "Target", "AI Fair Value", "target", "target_mean_price", "analyst_target_mean", "target_high_price"), 0) or 0
+    raw = _pct(_pick(row, "Target Upside %", "target_upside_pct", "expected_upside_pct", "upside", "analyst_upside_pct"), None, cap_abs=500)
+    if price > 0 and target > 0:
+        calc = ((target - price) / price) * 100
+        if -90 <= calc <= 300 and (raw is None or abs(raw - 30.0) < 0.01):
+            return calc
+    if raw is not None:
+        return raw
+    if price > 0 and target > 0:
+        return ((target - price) / price) * 100
+    return 0.0
 
 
-def _score_debt_to_equity(value: Any) -> float:
-    n = _num(value, default=None)
-    if n is None:
-        return 58
-    if n <= 0.25:
-        return 95
-    if n <= 0.75:
-        return 85
-    if n <= 1.5:
-        return 72
-    if n <= 3:
-        return 55
-    return 38
+def _finance_metric(row: dict[str, Any], name: str) -> Any:
+    mapping = {
+        "revenue_growth": ["Revenue Growth", "Revenue Growth %", "Revenue QoQ %", "revenue_growth", "revenue_qoq_pct", "scan_revenue_growth_pct"],
+        "gross_margin": ["Gross Margin", "gross_margin", "grossMargins", "gross_profit_margin", "grossProfitMarginTTM"],
+        "operating_margin": ["Operating Margin", "operating_margin", "operatingMargins", "operating_profit_margin", "operatingProfitMarginTTM"],
+        "net_margin": ["Net Margin", "profit_margin", "net_margin", "net_profit_margin", "profitMargins", "netProfitMarginTTM"],
+        "free_cash_flow": ["Free Cash Flow", "free_cashflow", "free_cash_flow", "FCF"],
+        "operating_cash_flow": ["Operating Cash Flow", "operating_cashflow", "operating_cash_flow", "Op. Cash Flow"],
+        "current_ratio": ["Current Ratio", "current_ratio"],
+        "debt_to_equity": ["Debt to Equity", "debt_to_equity", "Debt/Equity"],
+        "cash": ["Cash", "cash_and_equivalents", "total_cash"],
+        "debt": ["Total Debt", "total_debt"],
+        "pe": ["P/E", "pe_ratio", "PE"],
+        "forward_pe": ["Forward PE", "forward_pe"],
+    }
+    return _pick(row, *mapping.get(name, [name]), default=None)
 
 
-def _score_current_ratio(value: Any) -> float:
-    n = _num(value, default=None)
-    if n is None:
-        return 58
-    if n >= 2.0:
-        return 90
-    if n >= 1.3:
-        return 78
-    if n >= 1.0:
-        return 64
-    if n > 0:
-        return 45
-    return 58
+def _quality_score(row: dict[str, Any]) -> int:
+    existing = _num(_pick(row, "Quality", "Quality Score", "financial_score", "fundamentals_agent_score", "Finance Agent Score"), None)
+    rev = _pct(_finance_metric(row, "revenue_growth"), None)
+    gross = _pct(_finance_metric(row, "gross_margin"), None)
+    opm = _pct(_finance_metric(row, "operating_margin"), None)
+    net = _pct(_finance_metric(row, "net_margin"), None)
+    fcf = _num(_finance_metric(row, "free_cash_flow"), None)
+    ocf = _num(_finance_metric(row, "operating_cash_flow"), None)
+    current = _num(_finance_metric(row, "current_ratio"), None)
+    debt_eq = _num(_finance_metric(row, "debt_to_equity"), None)
+    cash = _num(_finance_metric(row, "cash"), None)
+    debt = _num(_finance_metric(row, "debt"), None)
+
+    score = 48.0
+    if existing is not None and existing > 0:
+        score = score * 0.55 + existing * 0.45
+    if rev is not None: score += 10 if rev >= 20 else 7 if rev >= 10 else 3 if rev >= 0 else -8
+    if gross is not None: score += 10 if gross >= 60 else 7 if gross >= 40 else 4 if gross >= 25 else -4
+    if opm is not None: score += 8 if opm >= 20 else 5 if opm >= 10 else 2 if opm >= 0 else -6
+    if net is not None: score += 8 if net >= 15 else 5 if net >= 8 else 2 if net >= 0 else -6
+    if fcf is not None: score += 7 if fcf > 0 else -7
+    if ocf is not None: score += 5 if ocf > 0 else -5
+    if current is not None: score += 5 if current >= 1.5 else 2 if current >= 1 else -6
+    if debt_eq is not None: score += 5 if debt_eq <= 50 else 2 if debt_eq <= 150 else -6
+    if cash is not None and debt is not None: score += 4 if cash >= debt else -3
+    return int(round(max(20, min(100, score))))
 
 
-def _score_cashflow(value: Any) -> float:
-    n = _num(value, default=None)
-    if n is None:
-        return 58
-    if n > 1_000_000_000:
-        return 94
-    if n > 100_000_000:
-        return 84
-    if n > 0:
+def _analyst_score(row: dict[str, Any]) -> int:
+    text = str(_pick(row, "Analyst Support", "Analyst View", "analyst_support_label", "recommendation", default="")).lower()
+    explicit = _num(_pick(row, "analyst_support_score"), None)
+    if explicit is not None:
+        return int(max(0, min(100, explicit)))
+    if "strong" in text or "bull" in text or "buy" in text:
+        return 82
+    if "positive" in text or "constructive" in text:
         return 70
-    if n == 0:
+    if "mixed" in text or "hold" in text:
         return 55
-    return 38
+    if "weak" in text or "sell" in text:
+        return 35
+    return 50
 
 
-def calculate_quality_score(row: dict[str, Any]) -> int:
-    revenue_growth = _pick(row, "revenue_growth", "revenue_qoq_pct", "Revenue Growth", "Revenue QoQ %")
-    gross_margin = _pick(row, "gross_margin", "gross_profit_margin", "Gross Margin")
-    operating_margin = _pick(row, "operating_margin", "operating_profit_margin", "Operating Margin")
-    profit_margin = _pick(row, "profit_margin", "net_profit_margin", "Net Margin")
-    debt_to_equity = _pick(row, "debt_to_equity", "Debt/Equity", "Debt / Equity", "Debt to Equity")
-    current_ratio = _pick(row, "current_ratio", "Current Ratio")
-    fcf = _pick(row, "free_cashflow", "free_cash_flow", "Free Cash Flow", "FCF")
-    roic = _pick(row, "roic", "ROIC")
+def _opportunity_score(row: dict[str, Any], quality: int) -> int:
+    base = _num(_pick(row, "Final Conviction", "conviction", "conviction_score", "ai_score", "Score", "score"), 60) or 60
+    upside = _target_upside(row)
+    rr = _num(_pick(row, "Risk/Reward", "risk_reward"), 0) or 0
+    rsi = _num(_pick(row, "RSI", "rsi"), 50) or 50
+    trend20 = _pct(_pick(row, "20D %", "twenty_day_pct", "return_1m_pct"), 0, cap_abs=300) or 0
+    trend5 = _pct(_pick(row, "5D %", "five_day_pct"), 0, cap_abs=300) or 0
+    volume = _num(_pick(row, "Volume Ratio", "volume_ratio"), 1) or 1
+    analyst = _analyst_score(row)
 
-    score = (
-        0.20 * _score_revenue_growth(revenue_growth)
-        + 0.18 * _score_margin(gross_margin)
-        + 0.14 * _score_margin(operating_margin)
-        + 0.12 * _score_margin(profit_margin)
-        + 0.12 * _score_debt_to_equity(debt_to_equity)
-        + 0.10 * _score_current_ratio(current_ratio)
-        + 0.09 * _score_cashflow(fcf)
-        + 0.05 * _score_margin(roic)
-    )
+    upside_score = max(0, min(100, 45 + upside * 0.9))
+    rr_score = 50 + min(rr, 6) * 8 if rr else 50
+    momentum = 50
+    momentum += 20 if trend20 > 15 else 12 if trend20 > 5 else 5 if trend20 > 0 else -12 if trend20 < -10 else 0
+    momentum += 8 if trend5 > 5 else 0
+    momentum += 8 if 45 <= rsi <= 68 else -12 if rsi > 75 else 0
+    momentum += 6 if volume >= 1.2 else 0
 
-    available = sum(v is not None and str(v).strip().lower() not in _EMPTY for v in [
-        revenue_growth, gross_margin, operating_margin, profit_margin,
-        debt_to_equity, current_ratio, fcf, roic
-    ])
-
-    # If financial coverage is thin, cap quality but do not crush it to 42 for every stock.
-    if available <= 2:
-        score = min(score, 62)
-    elif available <= 4:
-        score = min(score, 76)
-
-    return _clip(score, 35, 98)
+    score = base * 0.23 + upside_score * 0.27 + rr_score * 0.17 + momentum * 0.18 + analyst * 0.10 + quality * 0.05
+    return int(round(max(20, min(100, score))))
 
 
-def calculate_opportunity_score(row: dict[str, Any]) -> int:
-    upside = _num(_pick(row, "target_upside_pct", "expected_upside_pct", "analyst_upside_pct", "Target Upside %", "upside", "Upside"), 0)
-    risk_reward = _num(_pick(row, "risk_reward", "Risk/Reward"), 1.4)
-    rsi = _num(_pick(row, "rsi", "RSI"), 55)
-    volume_ratio = _num(_pick(row, "volume_ratio", "Volume Ratio"), 1.0)
-    analyst_score = _num(_pick(row, "analyst_support_score", "Analyst Score"), 65)
-    technical_score = _num(_pick(row, "technical_agent_score", "setup_score", "Technical Score"), 65)
-
-    if upside >= 100:
-        upside_score = 96
-    elif upside >= 75:
-        upside_score = 92
-    elif upside >= 50:
-        upside_score = 86
-    elif upside >= 30:
-        upside_score = 78
-    elif upside >= 15:
-        upside_score = 68
-    elif upside >= 5:
-        upside_score = 58
-    else:
-        upside_score = 45
-
-    rr_score = min(95, max(45, 55 + risk_reward * 14))
-
-    if 45 <= rsi <= 68:
-        rsi_score = 86
-    elif 35 <= rsi < 45 or 68 < rsi <= 75:
-        rsi_score = 72
-    elif rsi > 75:
-        rsi_score = 58
-    else:
-        rsi_score = 52
-
-    volume_score = min(90, max(50, 58 + (volume_ratio - 1) * 14))
-
-    score = (
-        0.42 * upside_score
-        + 0.18 * rr_score
-        + 0.13 * rsi_score
-        + 0.10 * volume_score
-        + 0.09 * analyst_score
-        + 0.08 * technical_score
-    )
-
-    return _clip(score, 35, 98)
+def _recommendation(opp: int, quality: int, upside: float, rr: float) -> str:
+    if opp >= 84 and quality >= 68 and upside >= 12 and (rr == 0 or rr >= 1.4):
+        return "✅ BUY NOW"
+    if opp >= 76 and upside >= 8:
+        return "🟡 WATCHLIST"
+    if opp >= 65:
+        return "👀 MONITOR"
+    return "🔴 AVOID"
 
 
-def calculate_confidence_score(row: dict[str, Any], opportunity: int, quality: int) -> int:
-    evidence = _num(_pick(row, "evidence_confidence", "ai_confidence", "confidence", "AI Confidence"), 72)
-    analyst_count = _num(_pick(row, "analyst_count", "finnhub_analyst_total", "Analyst Count"), 0)
-    positive_agents = _num(_pick(row, "positive_agent_count"), 0)
-    caution_agents = _num(_pick(row, "caution_agent_count"), 0)
-
-    analyst_component = min(92, 58 + analyst_count * 2.5)
-    agent_component = 68 + positive_agents * 4 - caution_agents * 5
-
-    score = (
-        0.30 * evidence
-        + 0.22 * analyst_component
-        + 0.18 * agent_component
-        + 0.18 * opportunity
-        + 0.12 * quality
-    )
-
-    return _clip(score, 50, 98)
-
-
-def classification_from_scores(opportunity: int, quality: int) -> str:
-    if opportunity >= 85 and quality >= 75:
-        return "🚀 High Upside / Quality"
-    if opportunity >= 85 and quality < 60:
-        return "⚡ High Opportunity / Speculative"
-    if opportunity >= 75:
+def _classification(opp: int, quality: int, upside: float) -> str:
+    if quality >= 88:
+        return "🏆 Elite Quality"
+    if quality >= 78:
+        return "✅ Quality Growth"
+    if upside >= 75:
+        return "🚀 High Upside"
+    if opp >= 85:
         return "⚡ High Opportunity"
-    if quality >= 85:
-        return "🏆 Quality Compounder"
-    if quality < 50:
-        return "🧪 Speculative Setup"
-    return "📌 Balanced Setup"
-
-
-def rating_from_scores(opportunity: int, quality: int, confidence: int) -> str:
-    final = round(0.45 * opportunity + 0.30 * quality + 0.25 * confidence)
-    if final >= 88 and quality >= 70:
-        return "🟢 Elite Buy"
-    if final >= 82:
-        return "🟢 High Conviction"
-    if final >= 74:
-        return "🔵 Buy"
-    if final >= 66:
-        return "🟡 Watchlist"
-    if final >= 56:
-        return "🟠 Speculative"
-    return "🔴 Avoid"
-
-
-def recommendation_from_scores(opportunity: int, quality: int, confidence: int) -> str:
-    final = round(0.45 * opportunity + 0.30 * quality + 0.25 * confidence)
-    if opportunity >= 82 and confidence >= 62:
-        return "BUY NOW"
-    if final >= 74:
-        return "BUY NOW"
-    if final >= 64 or opportunity >= 72:
-        return "WATCHLIST"
-    return "AVOID"
-
-
-def recalibrate_row(row: dict[str, Any]) -> dict[str, Any]:
-    out = dict(row)
-
-    opportunity = calculate_opportunity_score(out)
-    quality = calculate_quality_score(out)
-    confidence = calculate_confidence_score(out, opportunity, quality)
-    final = _clip(0.45 * opportunity + 0.30 * quality + 0.25 * confidence)
-
-    out["Opportunity"] = opportunity
-    out["Quality"] = quality
-    out["Confidence"] = confidence
-    out["Final Conviction"] = final
-    out["classification"] = classification_from_scores(opportunity, quality)
-    out["Classification"] = out["classification"]
-    out["decision_rating"] = rating_from_scores(opportunity, quality, confidence)
-    out["recommendation"] = recommendation_from_scores(opportunity, quality, confidence)
-    out["Recommendation"] = out["recommendation"]
-
-    return out
+    return "📌 Actionable Idea"
 
 
 def calibrate_top_ai_dataframe(df: pd.DataFrame | None) -> pd.DataFrame:
     if df is None or df.empty:
-        return df
+        return df if df is not None else pd.DataFrame()
 
-    rows = [recalibrate_row(row) for row in df.to_dict("records")]
-    out = pd.DataFrame(rows)
-    sort_cols = [c for c in ["Final Conviction", "Opportunity", "Target Upside %"] if c in out.columns]
+    out = df.copy()
+    records = []
+    for row in out.to_dict("records"):
+        quality = _quality_score(row)
+        opp = _opportunity_score(row, quality)
+        upside = _target_upside(row)
+        rr = _num(_pick(row, "Risk/Reward", "risk_reward"), 0) or 0
+        row["Opportunity"] = opp
+        row["Quality"] = quality
+        row["Target Upside %"] = round(upside, 1)
+        row["Upside"] = round(upside, 1)
+        row["Recommendation"] = _recommendation(opp, quality, upside, rr)
+        row["Classification"] = _classification(opp, quality, upside)
+        records.append(row)
+
+    calibrated = pd.DataFrame(records)
+    sort_cols = [c for c in ["Opportunity", "Quality", "Target Upside %"] if c in calibrated.columns]
     if sort_cols:
-        out = out.sort_values(sort_cols, ascending=[False] * len(sort_cols))
-    return out
-
-
-def calibrate_json_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [recalibrate_row(r) for r in records]
+        calibrated = calibrated.sort_values(sort_cols, ascending=[False] * len(sort_cols))
+    return calibrated.reset_index(drop=True)
