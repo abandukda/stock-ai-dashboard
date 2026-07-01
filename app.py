@@ -22912,5 +22912,287 @@ def main():
         render_chat_helper(full_df)
 
 
+
+# ============================================================
+# V65 AI INVESTMENT RESEARCH PLATFORM DESIGN UPDATE
+# ============================================================
+V65_RESEARCH_PLATFORM_DESIGN_VERIFIED = True
+
+
+def v65_row_dict(row):
+    try:
+        return row if isinstance(row, dict) else dict(row)
+    except Exception:
+        return {}
+
+
+def v65_pick(row, keys, default=None):
+    d = v65_row_dict(row)
+    for k in keys:
+        if k in d:
+            v = d.get(k)
+            if v is not None and str(v).strip().lower() not in {"", "nan", "none", "null", "n/a", "na", "—"}:
+                return v
+    return default
+
+
+def v65_num(value, default=None):
+    try:
+        if value is None: return default
+        txt = str(value).replace("$", "").replace(",", "").replace("%", "").strip()
+        if txt.lower() in {"", "nan", "none", "null", "n/a", "na", "—"}: return default
+        return float(txt)
+    except Exception:
+        return default
+
+
+def v65_pct(value, default="—"):
+    n = v65_num(value, None)
+    if n is None: return default
+    if abs(n) <= 1: n *= 100
+    if abs(n) > 500: return default
+    return f"{n:.1f}%"
+
+
+def v65_money(value, default="—"):
+    n = v65_num(value, None)
+    if n is None: return default
+    sign = "-" if n < 0 else ""; n = abs(n)
+    if n >= 1_000_000_000_000: return f"{sign}${n/1_000_000_000_000:.2f}T"
+    if n >= 1_000_000_000: return f"{sign}${n/1_000_000_000:.1f}B"
+    if n >= 1_000_000: return f"{sign}${n/1_000_000:.1f}M"
+    if n >= 1_000: return f"{sign}${n/1_000:.1f}K"
+    return f"{sign}${n:,.2f}"
+
+
+def v65_score_label(score):
+    n = v65_num(score, 0) or 0
+    if n >= 90: return "Exceptional"
+    if n >= 80: return "Excellent"
+    if n >= 70: return "Strong"
+    if n >= 60: return "Constructive"
+    if n >= 45: return "Speculative"
+    return "Weak"
+
+
+def v65_clean_text(value, max_len=None):
+    import re, html
+    if value is None: return ""
+    text = str(value)
+    replacements = {"whiletheAI":"while the AI", "fairvaluerange":"fair value range", "bullcaseis":"bull case is", "bearcaseis":"bear case is", "doesnot":"does not", "becomeunrealistic":"become unrealistic", "targetdiscipline":"target discipline", "AIfairvalue":"AI fair value"}
+    for old,new in replacements.items(): text = text.replace(old,new).replace(old.lower(),new)
+    text = text.replace("**", "").replace("__", "").replace("*", "")
+    text = re.sub(r"\s+", " ", text).strip()
+    if max_len and len(text) > max_len: text = text[:max_len-1].rstrip()+"…"
+    return html.escape(text)
+
+
+def v643_clean_text(value, max_len=None):
+    return v65_clean_text(value, max_len)
+
+
+def v65_ticker(row): return str(v65_pick(row, ["Ticker","ticker","symbol","Symbol"], "")).upper().strip()
+def v65_company(row): return str(v65_pick(row, ["Company","company","Name","name","company_name"], v65_ticker(row))).strip()
+def v65_opportunity(row): return v65_num(v65_pick(row, ["Opportunity","opportunity","opportunity_score","Opportunity Score","ai_opportunity_score"], 0), 0) or 0
+def v65_quality(row): return v65_num(v65_pick(row, ["Quality","quality","quality_score","Quality Score","financial_quality_score","finance_agent_score"], 0), 0) or 0
+
+def v65_confidence(row):
+    val = v65_num(v65_pick(row, ["Confidence","confidence","confidence_score","AI Confidence"], None), None)
+    if val is not None: return val
+    return round(v65_opportunity(row)*.45 + v65_quality(row)*.35 + (v65_num(v65_pick(row,["technical_score","Technical Score"],70),70)*.20),0)
+
+
+def v65_upside(row):
+    pct = v65_pct(v65_pick(row,["Upside","upside","Upside %","upside_pct","target_upside","Target Upside"],None), None)
+    if pct is not None: return pct
+    price = v65_num(v65_pick(row,["Price","price","current_price","Current Price"],None), None)
+    target = v65_num(v65_pick(row,["Target","target","price_target","consensus_target","Analyst Consensus"],None), None)
+    return v65_pct((target-price)/price) if price and target else "—"
+
+
+def v65_target(row): return v65_money(v65_pick(row,["Target","target","price_target","consensus_target","Analyst Consensus"],None))
+
+
+def v65_wallstreet_label(row):
+    buy = v65_num(v65_pick(row,["analyst_buy_count","buy_count","Buy","buy","strong_buy_count"],None), None)
+    hold = v65_num(v65_pick(row,["analyst_hold_count","hold_count","Hold","hold"],None), None)
+    sell = v65_num(v65_pick(row,["analyst_sell_count","sell_count","Sell","sell","strong_sell_count"],None), None)
+    if buy is None or hold is None or sell is None:
+        try:
+            ticker=v65_ticker(row); ws=v509_wallstreet_pack(ticker) if ticker and "v509_wallstreet_pack" in globals() else {}; cons=ws.get("consensus",{}) or {}
+            buy=(v65_num(cons.get("strong_buy"),0) or 0)+(v65_num(cons.get("buy"),0) or 0); hold=v65_num(cons.get("hold"),0) or 0; sell=(v65_num(cons.get("sell"),0) or 0)+(v65_num(cons.get("strong_sell"),0) or 0)
+        except Exception: buy=hold=sell=None
+    if buy is not None and hold is not None and sell is not None:
+        total=max(int(buy+hold+sell),0)
+        if total>0:
+            ratio=buy/max(total,1)
+            tone="🟢 Strong Buy" if ratio>=.70 else "🟢 Bullish" if ratio>=.55 else "🟡 Mixed" if ratio>=.40 else "🔴 Cautious"
+            return f"{tone}<br><small>{int(buy)} Buy · {int(hold)} Hold · {int(sell)} Sell</small>"
+    return "⚪ Limited Analyst Data"
+
+
+def v64_wall_street_view(row):
+    return v65_wallstreet_label(row).replace("<br>"," · ").replace("<small>","").replace("</small>","")
+
+
+def v65_political_label(row):
+    signal=str(v65_pick(row,["Political Signal","political_signal","political_activity","Political Activity"],"")).strip()
+    buys=v65_num(v65_pick(row,["Political Buys","political_buys","congress_buys"],0),0) or 0; sells=v65_num(v65_pick(row,["Political Sells","political_sells","congress_sells"],0),0) or 0
+    if signal and signal.lower() not in {"none","not detected","coming v58 / not detected","n/a","nan"}: return f"🏛️ Signal<br><small>{v65_clean_text(signal,50)}</small>"
+    if buys or sells: return f"🏛️ Activity<br><small>{int(buys)}B · {int(sells)}S</small>"
+    return "⚪ Neutral<br><small>No recent signal</small>"
+
+
+def v65_earnings_label(row):
+    date=v65_pick(row,["next_earnings_date","Next Earnings","earnings_date","Earnings Date","latest_earnings_date"],None); summary=v65_pick(row,["earnings_summary","Earnings Summary","earnings_tone","Management Tone"],None); link=v65_pick(row,["transcript_url","Transcript URL","earnings_transcript_url","Earnings Transcript URL"],None)
+    if summary: return f"📞 {'Available' if link else 'Summary'}<br><small>{v65_clean_text(summary,48)}</small>"
+    if date: return f"📅 Earnings<br><small>{v65_clean_text(date,32)}</small>"
+    return "⚪ No transcript<br><small>Not in saved scan</small>"
+
+
+def v65_ai_thesis(row, max_len=220):
+    ticker=v65_ticker(row); q=v65_quality(row); opp=v65_opportunity(row); rev=v65_pct(v65_pick(row,["revenue_growth","Revenue Growth","Revenue Growth %","revenue_growth_pct"],None),None); gm=v65_pct(v65_pick(row,["gross_margin","Gross Margin","gross_profit_margin","grossProfitMarginTTM"],None),None); fcf=v65_money(v65_pick(row,["free_cashflow","free_cash_flow","Free Cash Flow","fcf"],None),None); tech=v65_num(v65_pick(row,["technical_score","Technical Score"],None),None)
+    parts=[]
+    if q>=90: parts.append("exceptional business quality")
+    elif q>=75: parts.append("strong quality profile")
+    elif q>=60: parts.append("constructive fundamentals")
+    if rev: parts.append(f"revenue growth near {rev}")
+    if gm: parts.append(f"gross margin near {gm}")
+    if fcf and fcf!="—": parts.append(f"positive free cash flow of {fcf}")
+    if tech is not None and tech>=80: parts.append("favorable technical momentum")
+    if opp>=80: parts.append("attractive current setup")
+    if not parts: parts.append("a balanced mix of valuation, quality, momentum, and risk controls")
+    return v65_clean_text(f"{ticker} ranks well because of "+", ".join(parts[:4])+".", max_len)
+
+
+def render_v65_design_system():
+    st.markdown('''<style>
+section[data-testid="stSidebar"]{min-width:280px!important;width:280px!important;} [data-testid="collapsedControl"]{display:none!important;}
+.v65-hero{border:1px solid rgba(148,163,184,.24);border-radius:28px;padding:30px 34px;margin:8px 0 28px;background:linear-gradient(135deg,rgba(15,23,42,.95),rgba(12,48,58,.72));box-shadow:0 18px 50px rgba(0,0,0,.22)}
+.v65-kicker{color:#93C5FD;font-size:.82rem;font-weight:900;letter-spacing:.16em;text-transform:uppercase;margin-bottom:14px}.v65-hero h1{font-size:clamp(2.1rem,4vw,4rem);line-height:1.02;letter-spacing:-.055em;margin:0 0 14px;color:#F8FAFC}.v65-hero p{font-size:clamp(1rem,1.45vw,1.22rem);color:#CBD5E1;max-width:1100px;line-height:1.55;margin:0}
+.v65-stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-top:26px}.v65-stat{border:1px solid rgba(148,163,184,.22);border-radius:18px;padding:18px;background:rgba(15,23,42,.70)}.v65-stat span{display:block;color:#94A3B8;font-size:.75rem;font-weight:900;letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px}.v65-stat b{display:block;color:#F8FAFC;font-size:clamp(1.15rem,2vw,2rem);line-height:1.1;overflow-wrap:anywhere}
+.v65-section-title{font-size:clamp(1.7rem,3vw,2.8rem);color:#F8FAFC;font-weight:900;letter-spacing:-.05em;margin:30px 0 8px}.v65-subtitle{color:#94A3B8;margin-bottom:18px;font-size:1rem}.v65-table-wrap{overflow-x:auto;border:1px solid rgba(148,163,184,.24);border-radius:22px;background:rgba(15,23,42,.64)}table.v65-table{width:100%;border-collapse:collapse;table-layout:fixed;color:#F8FAFC;font-size:.94rem}.v65-table th{text-align:left;color:#A1A1AA;background:rgba(30,41,59,.68);padding:13px 14px;border-bottom:1px solid rgba(148,163,184,.18);font-weight:800}.v65-table td{vertical-align:top;padding:13px 14px;border-bottom:1px solid rgba(148,163,184,.12);white-space:normal!important;overflow-wrap:anywhere;line-height:1.38}.v65-table tr:hover td{background:rgba(30,64,175,.16)}.v65-table small{color:#94A3B8;font-size:.78rem;line-height:1.25}
+.v65-card-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:16px 0 26px}.v65-card{border:1px solid rgba(148,163,184,.22);border-radius:22px;padding:18px;background:rgba(15,23,42,.68)}.v65-card h3{margin:0 0 8px;font-size:1.15rem;color:#F8FAFC}.v65-card p{color:#CBD5E1;margin:0;line-height:1.5}.v65-news-card{padding:14px 16px;border-radius:16px;border:1px solid rgba(148,163,184,.20);background:rgba(15,23,42,.55);margin:10px 0}.v65-news-card a{color:#93C5FD!important;font-weight:800;text-decoration:none}.v65-news-card small{color:#94A3B8}
+[data-testid="stMetricValue"]{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important;font-size:clamp(1.35rem,2vw,2.25rem)!important;line-height:1.08!important;letter-spacing:-.045em!important;white-space:normal!important;overflow-wrap:anywhere!important}
+@media(max-width:1100px){.v65-stat-grid,.v65-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:700px){.v65-stat-grid,.v65-card-grid{grid-template-columns:1fr}table.v65-table{font-size:.86rem}}
+</style>''', unsafe_allow_html=True)
+
+
+def v65_table_html(rows, widths=None):
+    headers=list(rows[0].keys()) if rows else []; colgroup=""
+    if widths: colgroup="<colgroup>"+"".join(f'<col style="width:{w}">' for w in widths)+"</colgroup>"
+    html=[f'<div class="v65-table-wrap"><table class="v65-table">{colgroup}<thead><tr>']
+    for h in headers: html.append(f"<th>{v65_clean_text(h)}</th>")
+    html.append("</tr></thead><tbody>")
+    for r in rows:
+        html.append("<tr>")
+        for h in headers: html.append(f"<td>{r.get(h,'')}</td>")
+        html.append("</tr>")
+    html.append("</tbody></table></div>")
+    return "".join(html)
+
+
+def render_v65_idea_table(df, title="🧠 Today's Highest Conviction Ideas"):
+    if df is None or getattr(df,"empty",True): st.info("No ideas available in the latest saved scan."); return
+    try:
+        if "calibrate_top_ai_dataframe" in globals(): df=calibrate_top_ai_dataframe(df)
+    except Exception: pass
+    rows=[]
+    for idx,(_,row) in enumerate(df.head(12).iterrows(),start=1):
+        rows.append({"Rank":f"#{idx}<br><b>{v65_ticker(row)}</b><br><small>{v65_clean_text(v65_company(row),38)}</small>","Decision":v65_clean_text(v65_pick(row,["Recommendation","recommendation","Action","action"],"Watch"),50),"Quality":f"{v65_quality(row):.0f}<br><small>{v65_score_label(v65_quality(row))}</small>","Confidence":f"{v65_confidence(row):.0f}<br><small>{v65_score_label(v65_confidence(row))}</small>","Upside":f"<b>{v65_upside(row)}</b><br><small>Target {v65_target(row)}</small>","Wall Street":v65_wallstreet_label(row),"Earnings":v65_earnings_label(row),"Political":v65_political_label(row),"AI Thesis":v65_ai_thesis(row,220)})
+    if title:
+        st.markdown(f'<div class="v65-section-title">{v65_clean_text(title)}</div>', unsafe_allow_html=True)
+        st.markdown('<div class="v65-subtitle">Executive scan view. Decision, quality, upside, analyst support, earnings context, political signal, and AI thesis in one place.</div>', unsafe_allow_html=True)
+    st.markdown(v65_table_html(rows,["12%","10%","9%","10%","10%","15%","13%","11%","20%"]), unsafe_allow_html=True)
+
+
+def render_v65_home_dashboard(full_df=None, top_df=None, recovery_df=None):
+    full_count=0 if full_df is None or getattr(full_df,"empty",True) else len(full_df); top_count=0 if top_df is None or getattr(top_df,"empty",True) else len(top_df); rec_count=0 if recovery_df is None or getattr(recovery_df,"empty",True) else len(recovery_df)
+    generated="Latest saved scan"
+    try: generated=v65_clean_text(v65_pick(full_df.iloc[0],["generated_at","scan_time","Last Scan","last_scan"],"Latest saved scan"),32) if full_count else generated
+    except Exception: pass
+    st.markdown(f'''<div class="v65-hero"><div class="v65-kicker">Atlas AI Investment Terminal</div><h1>Turn market noise into actionable investment decisions.</h1><p>Atlas researches companies through financial quality, valuation, risk/reward, Wall Street context, earnings, political intelligence, smart money, technicals, and catalysts — then converts the evidence into one decision workflow.</p><div class="v65-stat-grid"><div class="v65-stat"><span>Mission</span><b>Decision Support</b></div><div class="v65-stat"><span>Full Scan</span><b>{full_count}</b></div><div class="v65-stat"><span>Top Ideas</span><b>{top_count}</b></div><div class="v65-stat"><span>Latest Scan</span><b>{generated}</b></div></div></div>''', unsafe_allow_html=True)
+    st.markdown('<div class="v65-section-title">🧠 Morning Investment Brief</div>', unsafe_allow_html=True)
+    st.markdown(f'''<div class="v65-card-grid"><div class="v65-card"><h3>Today\'s Highest Conviction</h3><p>{v65_ticker(top_df.iloc[0]) if top_count else 'No top idea available'} — open Top AI Ideas for thesis, Wall Street, earnings, political, and risk context.</p></div><div class="v65-card"><h3>Recovery Watch</h3><p>{rec_count} recovery candidates are available. Recovery ideas require extra discipline because upside alone is not enough.</p></div><div class="v65-card"><h3>Research Workflow</h3><p>Screen → validate executive summary → review earnings/news/political context → size only after risk checks.</p></div></div>''', unsafe_allow_html=True)
+    if top_count: render_v65_idea_table(top_df.head(5), title="Top Opportunities Today")
+
+
+def render_v574_top_ideas(source_df):
+    render_v65_idea_table(source_df, title="🧠 Today's Highest Conviction Ideas")
+    if source_df is not None and not getattr(source_df,"empty",True) and "Ticker" in source_df.columns:
+        top_df=source_df.head(12).copy(); tickers=top_df["Ticker"].astype(str).str.upper().tolist(); selected=st.selectbox("Select Top AI Idea",tickers,index=0,key="v65_top_ai_selector")
+        selected_rows=top_df[top_df["Ticker"].astype(str).str.upper()==selected]; render_detail(selected_rows.iloc[0] if not selected_rows.empty else top_df.iloc[0])
+
+
+def render_v65_earnings_intelligence(row):
+    eps=v65_pick(row,["latest_eps","Latest EPS","eps","EPS"],None); rev=v65_pick(row,["revenue_growth","Revenue Growth","Revenue Growth %","Revenue / Growth"],None); date=v65_pick(row,["next_earnings_date","Next Earnings","earnings_date","Earnings Date","latest_earnings_date"],None); summary=v65_pick(row,["earnings_summary","Earnings Summary","earnings_tone","Management Tone"],None); transcript=v65_pick(row,["transcript_url","Transcript URL","earnings_transcript_url","Earnings Transcript URL","transcript_link"],None)
+    with st.container(border=True):
+        st.markdown("### 📞 Earnings Intelligence"); c1,c2,c3,c4=st.columns(4); c1.metric("Latest EPS",v65_clean_text(eps,20) if eps is not None else "Unavailable"); c2.metric("Revenue Growth",v65_pct(rev)); c3.metric("Earnings Date",v65_clean_text(date,24) if date else "Unavailable"); c4.metric("Transcript","Available" if transcript else "Not linked")
+        st.markdown(f"**AI Earnings Read-through:** {v65_clean_text(summary,260) if summary else 'No transcript summary was included in the latest saved scan. This should be populated for top ideas and searched tickers when transcript data is available.'}")
+        if transcript: st.markdown(f"[Open earnings transcript]({transcript})")
+
+
+def v643_earnings_assessment(row): return render_v65_earnings_intelligence(row)
+
+
+def render_v509_news_digest(row):
+    ticker=v65_ticker(row); rows=[]
+    try: rows=v643_news_rows(row,ticker) if "v643_news_rows" in globals() else []
+    except Exception: rows=[]
+    with st.container(border=True):
+        st.markdown("### 📰 News & Catalysts")
+        if rows:
+            st.markdown(f"Recent ticker-specific news was found for **{ticker}**. Review headlines as possible catalyst or sentiment drivers.")
+            for r in rows[:5]:
+                title=v65_clean_text((r.get("title") or r.get("headline") or "News article") if isinstance(r,dict) else r,180); url=(r.get("url") or r.get("link") or r.get("article_url")) if isinstance(r,dict) else None; source=v65_clean_text((r.get("source") or r.get("publisher") or "News source") if isinstance(r,dict) else "News source",60); date=v65_clean_text((r.get("date") or r.get("publishedAt") or r.get("published") or "") if isinstance(r,dict) else "",40)
+                st.markdown(f'<div class="v65-news-card">{f"<a href=\"{url}\" target=\"_blank\">{title}</a>" if url else f"<b>{title}</b>"}<br><small>{source}{(" · "+date) if date else ""}</small></div>', unsafe_allow_html=True)
+            st.markdown("**Impact Assessment:** News is a catalyst layer. Confirm whether headlines affect revenue, guidance, analyst estimates, regulation, or institutional positioning.")
+        else:
+            st.info("No company-specific catalyst was detected in the latest saved scan. This is neutral: the thesis is unchanged, but there is no fresh news boost.")
+            st.markdown("News is treated as a catalyst layer. A confirmed positive headline can increase confidence, while negative news can quickly change the risk profile.")
+
+
+def render_v65_recovery_intelligence(recovery_df):
+    st.markdown('<div class="v65-section-title">📋 Recovery Intelligence</div>', unsafe_allow_html=True)
+    st.markdown('<div class="v65-subtitle">Recovery ideas require a different lens: why it fell, whether damage is temporary or structural, and what catalyst is needed.</div>', unsafe_allow_html=True)
+    if recovery_df is None or getattr(recovery_df,"empty",True): st.info("No recovery candidates available."); return
+    rows=[]
+    for idx,(_,row) in enumerate(recovery_df.head(20).iterrows(),start=1):
+        ticker=v65_ticker(row); q=v65_quality(row); opp=v65_opportunity(row); thesis=f"{ticker} requires validation. Recovery case depends on balance-sheet risk, analyst revisions, technical stabilization, and a clear catalyst rather than upside alone."
+        if q>=75: thesis=f"{ticker} has enough quality support to monitor for recovery if price stabilizes and catalysts improve."
+        elif q<50: thesis=f"{ticker} screens as higher risk; recovery should not be trusted until financial stress and trend damage are reviewed."
+        rows.append({"Rank":f"#{idx}<br><b>{ticker}</b><br><small>{v65_clean_text(v65_company(row),34)}</small>","Recovery Setup":f"{opp:.0f}<br><small>{v65_score_label(opp)}</small>","Quality Guardrail":f"{q:.0f}<br><small>{v65_score_label(q)}</small>","Upside":f"<b>{v65_upside(row)}</b><br><small>Target {v65_target(row)}</small>","Wall Street":v65_wallstreet_label(row),"Recovery Thesis":v65_clean_text(thesis,220)})
+    st.markdown(v65_table_html(rows,["13%","12%","12%","12%","18%","33%"]), unsafe_allow_html=True)
+
+
+def render_detail(row):
+    render_v509_executive_summary(row); render_v51_final_recommendation(row); render_v509_wallstreet_assessment(row); render_v65_earnings_intelligence(row); render_v509_financial_assessment(row); render_v509_smart_money_assessment(row); render_v509_technical_assessment(row); render_v509_news_digest(row); render_v509_target_analysis(row); v643_render_political_assessment(row); render_v509_investment_committee(row)
+    try:
+        if v509_original_render_detail:
+            with st.expander("🔬 Advanced Supporting Dashboard", expanded=False): v509_original_render_detail(row)
+    except Exception: pass
+
+
+def main():
+    if not dashboard_login_gate(): return
+    render_v59_design_system(); render_v65_design_system()
+    full_df=load_full_scan(); top_df=latest_top_ideas(); recovery_df=latest_recovery(); watch_df=latest_watchlist_scan(); prescreen_df=load_file(PRESCREEN_FILE); etf_df=load_file(ETF_SCAN_FILE)
+    pages=["Home","Top AI Ideas","Full Ranked Scan","Portfolio Intelligence","Watchlist Intelligence","Performance","Recovery","ETFs","Watchlist","Prescreen","Summary","Research Any Ticker","Political Intelligence","Ask AI"]
+    render_v641_sidebar_header(); selected_page=st.sidebar.radio("Navigate",pages,index=0,key="v65_platform_nav"); source_df=top_df if top_df is not None and not top_df.empty else full_df.head(25)
+    if selected_page=="Home": render_v65_home_dashboard(full_df,source_df,recovery_df)
+    elif selected_page=="Top AI Ideas": render_v574_top_ideas(source_df)
+    elif selected_page=="Full Ranked Scan": render_v56_ranked_table(full_df,title="Full Ranked AI Scan",max_rows=75,show_filters=True)
+    elif selected_page=="Portfolio Intelligence": render_v505_portfolio_analyzer(full_df,top_df,recovery_df,watch_df,prescreen_df,etf_df)
+    elif selected_page=="Watchlist Intelligence": render_v506_watchlist_intelligence(full_df,top_df,recovery_df,watch_df,prescreen_df,etf_df)
+    elif selected_page=="Performance": render_v507_performance_tracking(full_df)
+    elif selected_page=="Recovery": render_v65_recovery_intelligence(recovery_df)
+    elif selected_page=="ETFs": render_v56_ranked_table(etf_df,title="ETF Intelligence",max_rows=50,show_filters=True)
+    elif selected_page=="Watchlist": render_v56_ranked_table(watch_df,title="Watchlist Scan",max_rows=50,show_filters=True)
+    elif selected_page=="Prescreen": render_v56_ranked_table(prescreen_df,title="Prescreen Candidates",max_rows=75,show_filters=True)
+    elif selected_page=="Summary": render_market_summary(full_df)
+    elif selected_page=="Research Any Ticker": render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df)
+    elif selected_page=="Political Intelligence": render_v58_political_intelligence(full_df)
+    elif selected_page=="Ask AI": render_chat_helper(full_df)
+
 if __name__ == "__main__":
     main()
