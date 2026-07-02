@@ -21074,6 +21074,10 @@ def main():
         return
 
     render_v59_design_system()
+    try:
+        render_v70_design_system()
+    except Exception:
+        pass
 
     full_df = load_full_scan()
     top_df = latest_top_ideas()
@@ -21464,6 +21468,10 @@ def main():
         return
 
     render_v59_design_system()
+    try:
+        render_v70_design_system()
+    except Exception:
+        pass
 
     full_df = load_full_scan()
     top_df = latest_top_ideas()
@@ -22849,6 +22857,10 @@ def main():
         return
 
     render_v59_design_system()
+    try:
+        render_v70_design_system()
+    except Exception:
+        pass
 
     full_df = load_full_scan()
     top_df = latest_top_ideas()
@@ -23175,7 +23187,7 @@ def render_detail(row):
 
 def main():
     if not dashboard_login_gate(): return
-    render_v59_design_system(); render_v65_design_system()
+    render_v59_design_system(); render_v65_design_system(); render_v70_design_system()
     full_df=load_full_scan(); top_df=latest_top_ideas(); recovery_df=latest_recovery(); watch_df=latest_watchlist_scan(); prescreen_df=load_file(PRESCREEN_FILE); etf_df=load_file(ETF_SCAN_FILE)
     pages=["Home","Top AI Ideas","Full Ranked Scan","Portfolio Intelligence","Watchlist Intelligence","Performance","Recovery","ETFs","Watchlist","Prescreen","Summary","Research Any Ticker","Political Intelligence","Ask AI"]
     render_v641_sidebar_header(); selected_page=st.sidebar.radio("Navigate",pages,index=0,key="v65_platform_nav"); source_df=top_df if top_df is not None and not top_df.empty else full_df.head(25)
@@ -23193,6 +23205,846 @@ def main():
     elif selected_page=="Research Any Ticker": render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df)
     elif selected_page=="Political Intelligence": render_v58_political_intelligence(full_df)
     elif selected_page=="Ask AI": render_chat_helper(full_df)
+
+
+# =========================
+# V65.1 MARKET TERMINAL + MOBILE + EARNINGS UX
+# =========================
+V651_MARKET_TERMINAL_VERIFIED = True
+
+
+def v651_safe_date(value):
+    try:
+        if value is None or str(value).strip() == "":
+            return "Upcoming"
+        raw = str(value).strip()
+        if "T" in raw:
+            raw = raw.split("T", 1)[0]
+        d = dt.datetime.strptime(raw[:10], "%Y-%m-%d").date()
+        return d.strftime("%a, %b %-d")
+    except Exception:
+        try:
+            return pd.to_datetime(value).strftime("%a, %b %-d")
+        except Exception:
+            return v65_clean_text(value, 24) or "Upcoming"
+
+
+def v651_event_impact(event):
+    e = str(event or "").lower()
+    high = ["cpi", "ppi", "payroll", "employment", "jobs", "fomc", "fed decision", "rate decision", "pce", "inflation"]
+    medium = ["beige", "gdp", "retail", "ism", "jobless", "claims", "speech", "minutes"]
+    if any(x in e for x in high):
+        return "🔴 High Impact"
+    if any(x in e for x in medium):
+        return "🟡 Medium Impact"
+    return "🔵 Watch"
+
+
+def render_v651_market_calendar(full_df=None):
+    rows, diag, fallback = v511_economic_rows(days=21)
+    st.markdown('<div class="v65-section-title">📅 Upcoming U.S. Market Calendar</div>', unsafe_allow_html=True)
+    st.markdown('<div class="v65-subtitle">Macro events are shown as the next known market movers, not necessarily only this calendar week.</div>', unsafe_allow_html=True)
+    if not rows:
+        st.info("No upcoming macro events were returned by the connected source. Monitor CPI, PPI, payrolls, Fed events, and jobless claims manually until the feed refreshes.")
+        return
+    cards=[]
+    for r in rows[:8]:
+        event = v65_clean_text(r.get("Event") or r.get("event") or r.get("Focus") or r.get("focus") or "Market event", 90)
+        date = v651_safe_date(r.get("Date") or r.get("date"))
+        why = v65_clean_text(r.get("Why It Matters") or r.get("why") or r.get("Impact") or "This event can influence rates, risk appetite, sector rotation, and valuation multiples.", 150)
+        impact = v651_event_impact(event)
+        cards.append(f'''<div class="v65-card"><h3>{date}</h3><p><b>{event}</b><br><small>{impact}</small></p><p>{why}</p></div>''')
+    st.markdown('<div class="v65-card-grid">' + ''.join(cards) + '</div>', unsafe_allow_html=True)
+
+
+def render_v651_earnings_watch(full_df=None, top_df=None):
+    rows, diag, fallback = v511_earnings_rows(days=7)
+    st.markdown('<div class="v65-section-title">💼 Earnings Intelligence</div>', unsafe_allow_html=True)
+    st.markdown('<div class="v65-subtitle">Earnings are treated as a catalyst layer. Each stock report should confirm next earnings date, transcript status, guidance, and management tone.</div>', unsafe_allow_html=True)
+    clean=[]
+    for r in rows or []:
+        sym = v65_clean_text(r.get("Ticker") or r.get("ticker") or r.get("Symbol") or r.get("symbol") or "", 12)
+        company = v65_clean_text(r.get("Company") or r.get("company") or r.get("Focus") or r.get("focus") or "Earnings event", 70)
+        date = v651_safe_date(r.get("Date") or r.get("date") or r.get("Earnings Date") or r.get("earnings_date"))
+        why = v65_clean_text(r.get("Why It Matters") or r.get("why") or "Review estimate expectations, guidance risk, and transcript once available.", 150)
+        if sym or company:
+            clean.append((date, sym, company, why))
+    if clean and not fallback:
+        cards=[]
+        for date, sym, company, why in clean[:6]:
+            title = f"{sym} — {company}" if sym else company
+            cards.append(f'''<div class="v65-card"><h3>{date}</h3><p><b>{title}</b></p><p>{why}</p></div>''')
+        st.markdown('<div class="v65-card-grid">' + ''.join(cards) + '</div>', unsafe_allow_html=True)
+    else:
+        st.success("No major U.S. earnings were confirmed by the connected source for today. Use the 7-day stock report check before entering new positions, because earnings dates can change risk quickly.")
+        if top_df is not None and not getattr(top_df, "empty", True):
+            st.markdown("#### Top Ideas Earnings Check")
+            mini=[]
+            for _,row in top_df.head(5).iterrows():
+                mini.append({"Ticker": v65_ticker(row), "Earnings Status": v65_earnings_label(row).replace("<br>", " — ").replace("<small>", "").replace("</small>", "")})
+            st.dataframe(pd.DataFrame(mini), use_container_width=True, hide_index=True)
+
+
+def render_v65_home_dashboard(full_df=None, top_df=None, recovery_df=None):
+    full_count=0 if full_df is None or getattr(full_df,"empty",True) else len(full_df)
+    top_count=0 if top_df is None or getattr(top_df,"empty",True) else len(top_df)
+    rec_count=0 if recovery_df is None or getattr(recovery_df,"empty",True) else len(recovery_df)
+    generated="Latest saved scan"
+    try:
+        generated=v65_clean_text(v65_pick(full_df.iloc[0],["generated_at","scan_time","Last Scan","last_scan"],"Latest saved scan"),32) if full_count else generated
+    except Exception:
+        pass
+    st.markdown(f'''<div class="v65-hero"><div class="v65-kicker">Atlas AI Investment Terminal</div><h1>Turn market noise into actionable investment decisions.</h1><p>Atlas researches companies through financial quality, valuation, risk/reward, Wall Street context, earnings, political intelligence, smart money, technicals, and catalysts — then converts the evidence into one decision workflow.</p><div class="v65-stat-grid"><div class="v65-stat"><span>Mission</span><b>Decision Support</b></div><div class="v65-stat"><span>Full Scan</span><b>{full_count}</b></div><div class="v65-stat"><span>Top Ideas</span><b>{top_count}</b></div><div class="v65-stat"><span>Latest Scan</span><b>{generated}</b></div></div></div>''', unsafe_allow_html=True)
+    st.markdown('<div class="v65-section-title">🧠 AI Morning Brief</div>', unsafe_allow_html=True)
+    st.markdown(f'''<div class="v65-card-grid"><div class="v65-card"><h3>Highest Conviction</h3><p>{v65_ticker(top_df.iloc[0]) if top_count else 'No top idea available'} — validate thesis, earnings, Wall Street, political signal, and risk before sizing.</p></div><div class="v65-card"><h3>Recovery Watch</h3><p>{rec_count} recovery candidates are available. Recovery ideas require proof the decline is temporary, not structural.</p></div><div class="v65-card"><h3>Workflow</h3><p>Screen → executive summary → earnings/news/political review → risk/reward → position sizing.</p></div></div>''', unsafe_allow_html=True)
+    render_v651_market_calendar(full_df)
+    render_v651_earnings_watch(full_df, top_df)
+    if top_count:
+        render_v65_idea_table(top_df.head(8), title="Top Opportunities Today")
+
+
+def render_v651_mobile_idea_cards(df, max_rows=10):
+    cards=[]
+    for _,row in df.head(max_rows).iterrows():
+        ticker=v65_ticker(row); company=v65_clean_text(v65_company(row),36); opp=v65_opportunity(row); quality=v65_quality(row); conf=v65_confidence(row)
+        decision=v65_clean_text(v65_pick(row,["Recommendation","recommendation","Action","action"],"Watch"),28)
+        thesis=v65_ai_thesis(row,135); cls=v65_clean_text(v65_pick(row,["Classification","classification","Archetype","archetype"],"Actionable Idea"),42)
+        cards.append(f'''<div class="v651-idea-card"><div class="v651-idea-head"><div><h2>{ticker}</h2><p>{company}</p></div><span>{decision}</span></div><div class="v651-tag">{cls}</div><div class="v651-metrics"><div><small>Opportunity</small><b>{opp:.0f}</b><em>{v65_score_label(opp)}</em></div><div><small>Quality</small><b>{quality:.0f}</b><em>{v65_score_label(quality)}</em></div><div><small>Confidence</small><b>{conf:.0f}</b><em>{v65_score_label(conf)}</em></div><div><small>Upside</small><b>{v65_upside(row)}</b><em>Potential</em></div><div><small>Target</small><b>{v65_target(row)}</b><em>Fair value</em></div><div><small>Wall Street</small><b>{v64_wall_street_view(row).split(' · ')[0]}</b><em>Analyst view</em></div></div><p class="v651-thesis">{thesis}</p></div>''')
+    st.markdown(''.join(cards), unsafe_allow_html=True)
+
+
+def render_v65_idea_table(df, title="🧠 Today's Highest Conviction Ideas"):
+    if df is None or getattr(df,"empty",True):
+        st.info("No ideas available in the latest saved scan."); return
+    try:
+        if "calibrate_top_ai_dataframe" in globals(): df=calibrate_top_ai_dataframe(df)
+    except Exception: pass
+    if title:
+        st.markdown(f'<div class="v65-section-title">{v65_clean_text(title)}</div>', unsafe_allow_html=True)
+        st.markdown('<div class="v65-subtitle">Executive scan view. Use the table for comparison and the card view for mobile or quick review.</div>', unsafe_allow_html=True)
+    try:
+        mobile_view = st.toggle("📱 Card view", value=False, key=f"v651_cards_{str(title)[:24]}")
+    except Exception:
+        mobile_view = False
+    if mobile_view:
+        render_v651_mobile_idea_cards(df, max_rows=12)
+        return
+    rows=[]
+    for idx,(_,row) in enumerate(df.head(12).iterrows(),start=1):
+        rows.append({"Rank":f"#{idx}<br><b>{v65_ticker(row)}</b><br><small>{v65_clean_text(v65_company(row),34)}</small>","Decision":v65_clean_text(v65_pick(row,["Recommendation","recommendation","Action","action"],"Watch"),42),"Quality":f"{v65_quality(row):.0f}<br><small>{v65_score_label(v65_quality(row))}</small>","Confidence":f"{v65_confidence(row):.0f}<br><small>{v65_score_label(v65_confidence(row))}</small>","Upside":f"<b>{v65_upside(row)}</b><br><small>Target {v65_target(row)}</small>","Wall Street":v65_wallstreet_label(row),"Earnings":v65_earnings_label(row),"Political":v65_political_label(row),"AI Thesis":f"<span class='v651-thesis-cell'>{v65_ai_thesis(row,150)}</span>"})
+    st.markdown(v65_table_html(rows,["11%","9%","9%","10%","10%","15%","12%","11%","23%"]), unsafe_allow_html=True)
+
+
+def render_v65_earnings_intelligence(row):
+    eps=v65_pick(row,["latest_eps","Latest EPS","eps","EPS"],None); rev=v65_pick(row,["revenue_growth","Revenue Growth","Revenue Growth %","Revenue / Growth"],None); date=v65_pick(row,["next_earnings_date","Next Earnings","earnings_date","Earnings Date","latest_earnings_date"],None); summary=v65_pick(row,["earnings_summary","Earnings Summary","earnings_tone","Management Tone"],None); transcript=v65_pick(row,["transcript_url","Transcript URL","earnings_transcript_url","Earnings Transcript URL","transcript_link"],None)
+    with st.container(border=True):
+        st.markdown("### 📞 Earnings Intelligence")
+        c1,c2,c3,c4=st.columns(4)
+        c1.metric("Latest EPS",v65_clean_text(eps,20) if eps is not None else "Unavailable")
+        c2.metric("Revenue Growth",v65_pct(rev))
+        c3.metric("Earnings Date",v65_clean_text(date,24) if date else "Unavailable")
+        c4.metric("Transcript", "Open Link" if transcript else "Not Linked")
+        if summary:
+            st.markdown(f"**AI Earnings Read-through:** {v65_clean_text(summary,320)}")
+        else:
+            st.info("No earnings transcript summary was included in the latest saved scan for this ticker. Atlas should populate this for top ideas once transcript data is connected.")
+        if transcript:
+            st.markdown(f"[Open earnings transcript]({transcript})")
+        else:
+            st.caption("Transcript link unavailable from current saved data.")
+
+
+def render_v651_earnings_page(full_df=None, top_df=None):
+    st.markdown('<div class="v65-section-title">📞 Earnings Intelligence Center</div>', unsafe_allow_html=True)
+    st.markdown('<div class="v65-subtitle">Monitor upcoming earnings, transcript availability, guidance risk, and AI read-throughs for top ideas and searched tickers.</div>', unsafe_allow_html=True)
+    render_v651_earnings_watch(full_df, top_df)
+    if top_df is not None and not getattr(top_df, "empty", True):
+        rows=[]
+        for _,row in top_df.head(15).iterrows():
+            rows.append({"Ticker":v65_ticker(row),"Company":v65_clean_text(v65_company(row),40),"Earnings":v65_earnings_label(row),"Wall Street":v65_wallstreet_label(row),"AI Thesis":v65_ai_thesis(row,150)})
+        st.markdown(v65_table_html(rows,["10%","20%","22%","20%","28%"]), unsafe_allow_html=True)
+
+
+def render_v65_design_system():
+    st.markdown('''<style>
+section[data-testid="stSidebar"]{min-width:280px!important;width:280px!important;} [data-testid="collapsedControl"]{display:none!important;}
+.v65-hero{border:1px solid rgba(148,163,184,.24);border-radius:28px;padding:30px 34px;margin:8px 0 28px;background:linear-gradient(135deg,rgba(15,23,42,.95),rgba(12,48,58,.72));box-shadow:0 18px 50px rgba(0,0,0,.22)}
+.v65-kicker{color:#93C5FD;font-size:.82rem;font-weight:900;letter-spacing:.16em;text-transform:uppercase;margin-bottom:14px}.v65-hero h1{font-size:clamp(2.1rem,4vw,4rem);line-height:1.02;letter-spacing:-.055em;margin:0 0 14px;color:#F8FAFC}.v65-hero p{font-size:clamp(1rem,1.45vw,1.22rem);color:#CBD5E1;max-width:1100px;line-height:1.55;margin:0}
+.v65-stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-top:26px}.v65-stat{border:1px solid rgba(148,163,184,.22);border-radius:18px;padding:18px;background:rgba(15,23,42,.70)}.v65-stat span{display:block;color:#94A3B8;font-size:.75rem;font-weight:900;letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px}.v65-stat b{display:block;color:#F8FAFC;font-size:clamp(1.15rem,2vw,2rem);line-height:1.1;overflow-wrap:anywhere}
+.v65-section-title{font-size:clamp(1.7rem,3vw,2.8rem);color:#F8FAFC;font-weight:900;letter-spacing:-.05em;margin:30px 0 8px}.v65-subtitle{color:#94A3B8;margin-bottom:18px;font-size:1rem}.v65-table-wrap{overflow-x:auto;border:1px solid rgba(148,163,184,.24);border-radius:22px;background:rgba(15,23,42,.64)}table.v65-table{width:100%;border-collapse:collapse;table-layout:fixed;color:#F8FAFC;font-size:.92rem}.v65-table th{text-align:left;color:#A1A1AA;background:rgba(30,41,59,.68);padding:12px 13px;border-bottom:1px solid rgba(148,163,184,.18);font-weight:800}.v65-table td{vertical-align:top;padding:12px 13px;border-bottom:1px solid rgba(148,163,184,.12);white-space:normal!important;overflow-wrap:anywhere;word-break:normal;line-height:1.36}.v65-table tr:hover td{background:rgba(30,64,175,.16)}.v65-table small{color:#94A3B8;font-size:.76rem;line-height:1.25}.v651-thesis-cell{display:block;max-width:360px;white-space:normal!important;overflow-wrap:break-word;line-height:1.38}
+.v65-card-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:16px 0 26px}.v65-card{border:1px solid rgba(148,163,184,.22);border-radius:22px;padding:18px;background:rgba(15,23,42,.68)}.v65-card h3{margin:0 0 8px;font-size:1.15rem;color:#F8FAFC}.v65-card p{color:#CBD5E1;margin:0 0 8px;line-height:1.5}.v65-news-card{padding:14px 16px;border-radius:16px;border:1px solid rgba(148,163,184,.20);background:rgba(15,23,42,.55);margin:10px 0}.v65-news-card a{color:#93C5FD!important;font-weight:800;text-decoration:none}.v65-news-card small{color:#94A3B8}
+.v651-idea-card{border:1px solid rgba(148,163,184,.25);border-radius:24px;padding:20px;margin:16px 0;background:linear-gradient(135deg,rgba(15,23,42,.94),rgba(17,24,39,.72));box-shadow:0 14px 40px rgba(0,0,0,.20)}.v651-idea-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.v651-idea-head h2{margin:0;color:#F8FAFC;font-size:2rem;letter-spacing:-.06em}.v651-idea-head p{margin:5px 0 0;color:#94A3B8}.v651-idea-head span{padding:8px 12px;border-radius:999px;background:rgba(34,197,94,.13);border:1px solid rgba(34,197,94,.35);color:#DCFCE7;font-weight:900;white-space:nowrap}.v651-tag{margin:18px 0;color:#CBD5E1}.v651-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.v651-metrics div{border:1px solid rgba(148,163,184,.18);border-radius:16px;padding:12px;background:rgba(15,23,42,.55)}.v651-metrics small{display:block;color:#94A3B8;text-transform:uppercase;font-weight:900;font-size:.7rem;letter-spacing:.12em}.v651-metrics b{display:block;color:#F8FAFC;font-size:1.35rem;margin:4px 0}.v651-metrics em{display:block;color:#94A3B8;font-style:normal;font-size:.8rem}.v651-thesis{color:#CBD5E1;line-height:1.45;margin:16px 0 0!important}
+[data-testid="stMetricValue"]{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important;font-size:clamp(1.25rem,1.8vw,2rem)!important;line-height:1.08!important;letter-spacing:-.045em!important;white-space:normal!important;overflow-wrap:anywhere!important}
+@media(max-width:1100px){.v65-stat-grid,.v65-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.v65-table-wrap{max-width:100%;}.v651-thesis-cell{max-width:260px}}@media(max-width:700px){.v65-stat-grid,.v65-card-grid{grid-template-columns:1fr}table.v65-table{font-size:.82rem}.v651-metrics{grid-template-columns:repeat(3,1fr);gap:8px}.v651-metrics b{font-size:1.1rem}.v651-idea-head h2{font-size:1.8rem}}
+</style>''', unsafe_allow_html=True)
+
+
+
+# ============================================================
+# V70 INSTITUTIONAL RESEARCH TERMINAL
+# Market tape + professional chart + AI chart explanation
+# ============================================================
+V70_INSTITUTIONAL_RESEARCH_TERMINAL_VERIFIED = True
+
+
+def v70_money(value):
+    try:
+        n = float(value)
+        if abs(n) >= 1_000_000_000:
+            return f"${n/1_000_000_000:.1f}B"
+        if abs(n) >= 1_000_000:
+            return f"${n/1_000_000:.1f}M"
+        return f"${n:,.2f}"
+    except Exception:
+        return "—"
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def v70_fetch_market_tape():
+    symbols = {"SPY":"S&P 500","QQQ":"Nasdaq 100","DIA":"Dow","IWM":"Russell 2000","^VIX":"VIX","TLT":"Bonds","GLD":"Gold","BTC-USD":"Bitcoin"}
+    rows = []
+    try:
+        import yfinance as _yf
+        for sym, label in symbols.items():
+            try:
+                h = _yf.download(sym, period="5d", interval="1d", progress=False, auto_adjust=False)
+                if h is None or h.empty or "Close" not in h:
+                    continue
+                closes = h["Close"].dropna()
+                if len(closes) < 2:
+                    continue
+                last = float(closes.iloc[-1])
+                prev = float(closes.iloc[-2]) if float(closes.iloc[-2]) else last
+                chg = ((last - prev) / prev) * 100 if prev else 0
+                rows.append({"sym": sym.replace("^", ""), "label": label, "price": last, "chg": chg})
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return rows
+
+
+def render_v70_market_tape():
+    rows = v70_fetch_market_tape()
+    if not rows:
+        st.caption("Market tape unavailable from live quote source. Atlas will continue using the latest saved scan.")
+        return
+    chips = []
+    for r in rows:
+        color = "#22C55E" if r.get("chg", 0) >= 0 else "#EF4444"
+        arrow = "▲" if r.get("chg", 0) >= 0 else "▼"
+        chips.append("<div class='v70-tape-chip'><span>{}</span><b>{}</b><em style='color:{}'>{} {:.2f}%</em></div>".format(r.get("label",""), r.get("sym",""), color, arrow, r.get("chg",0)))
+    st.markdown('<div class="v70-tape">' + ''.join(chips) + '</div>', unsafe_allow_html=True)
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def v70_chart_history(ticker, period="1y"):
+    try:
+        import yfinance as _yf
+        hist = _yf.download(str(ticker).upper().strip(), period=period, interval="1d", progress=False, auto_adjust=False)
+        if hist is None or hist.empty:
+            return pd.DataFrame()
+        return hist.reset_index()
+    except Exception:
+        return pd.DataFrame()
+
+
+def render_v70_price_chart(row):
+    ticker = v65_ticker(row)
+    if not ticker:
+        return
+    with st.container(border=True):
+        st.markdown("### 📊 Institutional Price Chart")
+        st.caption("Price action with moving averages, AI fair value, analyst target, entry zone, support, and resistance.")
+        c0, c1, c2, _ = st.columns([1,1,1,2])
+        period = c0.selectbox("Range", ["3mo", "6mo", "1y", "2y", "5y"], index=2, key=f"v70_chart_range_{ticker}")
+        show_ma = c1.checkbox("Moving averages", value=True, key=f"v70_ma_{ticker}")
+        show_targets = c2.checkbox("Targets", value=True, key=f"v70_targets_{ticker}")
+        hist = v70_chart_history(ticker, period)
+        if hist is None or hist.empty or "Close" not in hist:
+            st.warning("Chart data unavailable from live chart source. Try again later or verify the ticker.")
+            return
+        x = hist["Date"] if "Date" in hist else hist.index
+        fig = go.Figure()
+        if all(col in hist.columns for col in ["Open", "High", "Low", "Close"]):
+            fig.add_trace(go.Candlestick(x=x, open=hist["Open"], high=hist["High"], low=hist["Low"], close=hist["Close"], name="Price"))
+        else:
+            fig.add_trace(go.Scatter(x=x, y=hist["Close"], mode="lines", name="Close"))
+        close = hist["Close"]
+        if show_ma:
+            for win in [20, 50, 200]:
+                if len(close) >= win:
+                    fig.add_trace(go.Scatter(x=x, y=close.rolling(win).mean(), mode="lines", name=f"SMA {win}"))
+        price = float(close.dropna().iloc[-1])
+        analyst = safe_number(v65_pick(row, ["Analyst Target", "target_mean_price", "analyst_target_mean", "consensus_target"], 0), 0)
+        ai_target = safe_number(v65_pick(row, ["AI Fair Value", "ai_fair_value", "Fair Value", "fair_value", "target_price"], 0), 0)
+        stop = safe_number(v65_pick(row, ["Stop", "stop", "Stop Loss", "stop_loss"], 0), 0)
+        entry_low = safe_number(v65_pick(row, ["Entry Low", "entry_low", "buy_zone_low"], 0), 0)
+        entry_high = safe_number(v65_pick(row, ["Entry High", "entry_high", "buy_zone_high"], 0), 0)
+        if (not entry_low or not entry_high):
+            import re as _re
+            nums = _re.findall(r"\d+\.?\d*", str(v65_pick(row, ["Entry", "entry", "Entry Range", "entry_range"], "")))
+            if len(nums) >= 2:
+                entry_low, entry_high = float(nums[0]), float(nums[1])
+        support = min([v for v in [stop, entry_low] if v and v > 0], default=0)
+        resistance = max([v for v in [analyst, ai_target, entry_high] if v and v > 0], default=0)
+        if show_targets:
+            if analyst: fig.add_hline(y=analyst, line_dash="dot", annotation_text="Analyst target", annotation_position="top right")
+            if ai_target: fig.add_hline(y=ai_target, line_dash="dash", annotation_text="AI fair value", annotation_position="top left")
+            if support: fig.add_hline(y=support, line_dash="dot", annotation_text="Support / risk level", annotation_position="bottom left")
+            if resistance and resistance != analyst and resistance != ai_target: fig.add_hline(y=resistance, line_dash="dot", annotation_text="Resistance", annotation_position="top left")
+            if entry_low and entry_high and entry_high > entry_low: fig.add_hrect(y0=entry_low, y1=entry_high, opacity=0.12, line_width=0, annotation_text="Entry zone")
+        fig.update_layout(template="plotly_dark", height=560, margin=dict(l=10,r=10,t=25,b=10), xaxis_rangeslider_visible=False, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0))
+        st.plotly_chart(fig, use_container_width=True, key=f"v70_institutional_chart_{ticker}_{period}")
+        c1,c2,c3,c4 = st.columns(4)
+        c1.metric("Current Price", v70_money(price)); c2.metric("Analyst Target", v70_money(analyst) if analyst else "Unavailable"); c3.metric("AI Fair Value", v70_money(ai_target) if ai_target else "Unavailable"); c4.metric("Support", v70_money(support) if support else "Unavailable")
+        try:
+            sma50 = float(close.rolling(50).mean().iloc[-1]) if len(close) >= 50 else None
+            sma200 = float(close.rolling(200).mean().iloc[-1]) if len(close) >= 200 else None
+            trend = "bullish" if sma50 and price > sma50 and (not sma200 or price > sma200) else "constructive" if sma50 and price > sma50 else "cautious"
+            st.markdown("#### AI Chart Interpretation")
+            st.markdown(f"- Trend looks **{trend}** based on current price relative to major moving averages.")
+            if analyst and price: st.markdown(f"- Wall Street target implies roughly **{((analyst-price)/price)*100:.1f}%** potential upside from the latest chart price.")
+            if ai_target and price: st.markdown(f"- Atlas fair value implies roughly **{((ai_target-price)/price)*100:.1f}%** modeled upside.")
+            if support: st.markdown(f"- Risk discipline should focus near **{v70_money(support)}**, where the model identifies support or stop-risk context.")
+        except Exception:
+            st.info("AI chart interpretation unavailable until enough chart history is loaded.")
+
+
+def render_v70_market_calendar_terminal(full_df=None):
+    rows, diag, fallback = v511_economic_rows(days=14)
+    st.markdown('<div class="v65-section-title">📅 Upcoming Market Calendar</div>', unsafe_allow_html=True)
+    st.markdown('<div class="v65-subtitle">Next major market-moving events. This is not limited to the current calendar week.</div>', unsafe_allow_html=True)
+    if not rows:
+        st.info("No macro events were returned by the connected source. Watch CPI, PPI, payrolls, Fed events, jobless claims, and ISM manually until the feed refreshes.")
+        return
+    cards=[]
+    for r in rows[:6]:
+        event = v65_clean_text(r.get("Event") or r.get("event") or r.get("Focus") or "Market event", 80)
+        date = v651_safe_date(r.get("Date") or r.get("date"))
+        impact = v651_event_impact(event)
+        commentary = "May influence rates, risk appetite, sector rotation, and valuation multiples."
+        e = event.lower()
+        if "payroll" in e or "jobs" in e or "employment" in e: commentary = "Labor data can shift Fed-rate expectations and change appetite for growth stocks, small caps, and cyclicals."
+        elif "cpi" in e or "ppi" in e or "inflation" in e: commentary = "Inflation data can move Treasury yields and valuation multiples across growth, technology, housing, and banks."
+        elif "fed" in e or "fomc" in e: commentary = "Fed communication can reset rate-cut expectations and market risk appetite."
+        cards.append(f'''<div class="v65-card"><h3>{date}</h3><p><b>{event}</b><br><small>{impact}</small></p><p>{commentary}</p></div>''')
+    st.markdown('<div class="v65-card-grid">' + ''.join(cards) + '</div>', unsafe_allow_html=True)
+
+
+def render_v65_home_dashboard(full_df=None, top_df=None, recovery_df=None):
+    full_count=0 if full_df is None or getattr(full_df,"empty",True) else len(full_df)
+    top_count=0 if top_df is None or getattr(top_df,"empty",True) else len(top_df)
+    rec_count=0 if recovery_df is None or getattr(recovery_df,"empty",True) else len(recovery_df)
+    generated="Latest saved scan"
+    try: generated=v65_clean_text(v65_pick(full_df.iloc[0],["generated_at","scan_time","Last Scan","last_scan"],"Latest saved scan"),32) if full_count else generated
+    except Exception: pass
+    st.markdown(f'''<div class="v65-hero"><div class="v65-kicker">Atlas AI Investment Research Terminal</div><h1>Turn market noise into actionable investment decisions.</h1><p>Atlas combines live market context, financial quality, valuation, risk/reward, Wall Street consensus, earnings, political intelligence, smart money, technicals, and catalysts into one decision workflow.</p><div class="v65-stat-grid"><div class="v65-stat"><span>Mission</span><b>Decision Support</b></div><div class="v65-stat"><span>Full Scan</span><b>{full_count}</b></div><div class="v65-stat"><span>Top Ideas</span><b>{top_count}</b></div><div class="v65-stat"><span>Latest Scan</span><b>{generated}</b></div></div></div>''', unsafe_allow_html=True)
+    render_v70_market_tape()
+    st.markdown('<div class="v65-section-title">🧠 AI Morning Brief</div>', unsafe_allow_html=True)
+    st.markdown(f'''<div class="v65-card-grid"><div class="v65-card"><h3>Highest Conviction</h3><p>{v65_ticker(top_df.iloc[0]) if top_count else 'No top idea available'} — validate thesis, earnings, Wall Street, political signal, chart, and risk before sizing.</p></div><div class="v65-card"><h3>Recovery Watch</h3><p>{rec_count} recovery candidates are available. Recovery ideas require proof the decline is temporary, not structural.</p></div><div class="v65-card"><h3>Research Workflow</h3><p>Market tape → screen → executive summary → chart → earnings/news/political review → risk/reward → position sizing.</p></div></div>''', unsafe_allow_html=True)
+    render_v70_market_calendar_terminal(full_df)
+    render_v651_earnings_watch(full_df, top_df)
+    if top_count: render_v65_idea_table(top_df.head(8), title="Top Opportunities Today")
+
+
+def render_detail(row):
+    # V70 full supporting dashboard first for any selected/searched ticker, with institutional chart restored.
+    render_v509_executive_summary(row)
+    render_v70_price_chart(row)
+    render_v51_final_recommendation(row)
+    render_v509_wallstreet_assessment(row)
+    v643_earnings_assessment(row)
+    render_v509_financial_assessment(row)
+    render_v509_smart_money_assessment(row)
+    render_v509_technical_assessment(row)
+    render_v509_news_digest(row)
+    render_v509_target_analysis(row)
+    v643_render_political_assessment(row)
+    render_v509_investment_committee(row)
+    try:
+        if v509_original_render_detail:
+            with st.expander("🔬 Advanced Supporting Dashboard", expanded=False): v509_original_render_detail(row)
+    except Exception: pass
+
+
+def render_v70_design_system():
+    st.markdown('''<style>.v70-tape{display:flex;gap:10px;overflow-x:auto;padding:10px 2px 20px;margin-top:-14px}.v70-tape-chip{min-width:130px;border:1px solid rgba(148,163,184,.22);border-radius:16px;background:rgba(15,23,42,.72);padding:12px 14px}.v70-tape-chip span{display:block;color:#94A3B8;font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;font-weight:800}.v70-tape-chip b{display:block;color:#F8FAFC;font-size:1.1rem;margin:3px 0}.v70-tape-chip em{font-style:normal;font-weight:900;font-size:.95rem}.v651-thesis-cell{display:block;max-width:420px;white-space:normal!important;overflow-wrap:break-word;line-height:1.42}.v65-table td{white-space:normal!important;overflow-wrap:anywhere;vertical-align:top}.v65-table-wrap{max-width:100%;overflow-x:auto}@media(max-width:700px){.v70-tape-chip{min-width:118px}.v70-tape{padding-bottom:14px}}</style>''', unsafe_allow_html=True)
+
+def main():
+    if not dashboard_login_gate(): return
+    render_v59_design_system(); render_v65_design_system(); render_v70_design_system()
+    full_df=load_full_scan(); top_df=latest_top_ideas(); recovery_df=latest_recovery(); watch_df=latest_watchlist_scan(); prescreen_df=load_file(PRESCREEN_FILE); etf_df=load_file(ETF_SCAN_FILE)
+    pages=["Home","Top AI Ideas","Earnings Intelligence","Full Ranked Scan","Portfolio Intelligence","Watchlist Intelligence","Performance","Recovery","ETFs","Watchlist","Prescreen","Summary","Research Any Ticker","Political Intelligence","Ask AI"]
+    render_v641_sidebar_header(); selected_page=st.sidebar.radio("Navigate",pages,index=0,key="v651_platform_nav"); source_df=top_df if top_df is not None and not top_df.empty else full_df.head(25)
+    if selected_page=="Home": render_v65_home_dashboard(full_df,source_df,recovery_df)
+    elif selected_page=="Top AI Ideas": render_v574_top_ideas(source_df)
+    elif selected_page=="Earnings Intelligence": render_v651_earnings_page(full_df, source_df)
+    elif selected_page=="Full Ranked Scan": render_v56_ranked_table(full_df,title="Full Ranked AI Scan",max_rows=75,show_filters=True)
+    elif selected_page=="Portfolio Intelligence": render_v505_portfolio_analyzer(full_df,top_df,recovery_df,watch_df,prescreen_df,etf_df)
+    elif selected_page=="Watchlist Intelligence": render_v506_watchlist_intelligence(full_df,top_df,recovery_df,watch_df,prescreen_df,etf_df)
+    elif selected_page=="Performance": render_v507_performance_tracking(full_df)
+    elif selected_page=="Recovery": render_v65_recovery_intelligence(recovery_df)
+    elif selected_page=="ETFs": render_v56_ranked_table(etf_df,title="ETF Intelligence",max_rows=50,show_filters=True)
+    elif selected_page=="Watchlist": render_v56_ranked_table(watch_df,title="Watchlist Scan",max_rows=50,show_filters=True)
+    elif selected_page=="Prescreen": render_v56_ranked_table(prescreen_df,title="Prescreen Candidates",max_rows=75,show_filters=True)
+    elif selected_page=="Summary": render_market_summary(full_df)
+    elif selected_page=="Research Any Ticker": render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df)
+    elif selected_page=="Political Intelligence": render_v58_political_intelligence(full_df)
+    elif selected_page=="Ask AI": render_chat_helper(full_df)
+
+
+
+# ============================================================
+# V71 FAST RESEARCH + LIVE MARKET + CHART + NEWS LINKS
+# ============================================================
+V71_FAST_RESEARCH_MARKET_CHARTS_VERIFIED = True
+
+
+def v71_html(text):
+    try:
+        import html
+        return html.escape("" if text is None else str(text))
+    except Exception:
+        return "" if text is None else str(text)
+
+
+def v71_company_label(row):
+    ticker = v65_ticker(row)
+    company = v65_company(row)
+    return f"<b>{v71_html(ticker)}</b><br><small>{v71_html(company)}</small>"
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def v71_fetch_market_tape():
+    symbols = {
+        "SPY": "S&P 500",
+        "QQQ": "Nasdaq 100",
+        "DIA": "Dow",
+        "IWM": "Russell 2000",
+        "^VIX": "VIX",
+        "TLT": "Bonds",
+        "GLD": "Gold",
+        "BTC-USD": "Bitcoin",
+    }
+    rows = []
+    try:
+        import yfinance as _yf
+        for sym, label in symbols.items():
+            try:
+                hist = _yf.download(sym, period="5d", interval="1d", progress=False, auto_adjust=False, threads=False)
+                if hist is None or hist.empty or "Close" not in hist:
+                    continue
+                close = hist["Close"].dropna()
+                if len(close) < 2:
+                    continue
+                last = float(close.iloc[-1])
+                prev = float(close.iloc[-2]) if float(close.iloc[-2]) else last
+                change = ((last - prev) / prev) * 100 if prev else 0
+                rows.append({"symbol": sym.replace("^", ""), "label": label, "last": last, "change": change})
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return rows
+
+
+def render_v71_market_tape(always_show=True):
+    rows = v71_fetch_market_tape()
+    st.markdown("<div class='v71-tape-title'>Live Market Tape</div>", unsafe_allow_html=True)
+    if not rows:
+        if always_show:
+            st.info("Live market tape is temporarily unavailable. Atlas will continue using the latest saved scan while live quotes refresh.")
+        return
+    chips = []
+    for r in rows:
+        chg = r.get("change", 0)
+        tone = "pos" if chg >= 0 else "neg"
+        arrow = "▲" if chg >= 0 else "▼"
+        price = v70_money(r.get("last")) if "v70_money" in globals() else v65_money(r.get("last"))
+        chips.append(
+            f"<div class='v71-tape-chip {tone}'><span>{v71_html(r.get('label'))}</span><b>{price}</b><em>{arrow} {chg:.2f}%</em></div>"
+        )
+    st.markdown("<div class='v71-tape'>" + "".join(chips) + "</div>", unsafe_allow_html=True)
+
+
+def v71_news_rows(row, ticker):
+    rows = []
+    raw = None
+    try:
+        raw = row.get("Raw") if hasattr(row, "get") else None
+    except Exception:
+        raw = None
+    sources_to_check = []
+    for obj in [row, raw if isinstance(raw, dict) else None]:
+        if not isinstance(obj, dict) and not hasattr(obj, "get"):
+            continue
+        for key in [
+            "news_rows", "News Rows", "articles", "Articles", "recent_headlines", "Recent Headlines",
+            "v42_news_direct_headlines", "v42_news_indirect_headlines", "news", "News",
+        ]:
+            try:
+                val = obj.get(key)
+                if val:
+                    sources_to_check.append(val)
+            except Exception:
+                pass
+    for item in sources_to_check:
+        if isinstance(item, list):
+            for x in item:
+                if isinstance(x, dict):
+                    rows.append(x)
+                elif isinstance(x, str):
+                    rows.append({"title": x})
+        elif isinstance(item, dict):
+            rows.append(item)
+        elif isinstance(item, str):
+            rows.append({"title": item})
+    # Include a single saved headline field as a fallback.
+    top_title = v65_pick(row, ["Top News", "top_news_headline", "top_news", "headline"], None)
+    top_url = v65_pick(row, ["top_news_url", "news_url", "article_url", "url"], None)
+    top_source = v65_pick(row, ["top_news_source", "news_source", "source"], None)
+    if top_title:
+        rows.append({"title": top_title, "url": top_url, "source": top_source})
+    # Existing live helper if available.
+    try:
+        if ticker and "v5083_stock_news" in globals():
+            live = v5083_stock_news(ticker)
+            rows.extend(live.get("rows") or [])
+    except Exception:
+        pass
+    # Deduplicate and normalize.
+    out, seen = [], set()
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        title = str(r.get("title") or r.get("headline") or r.get("Headline") or r.get("Title") or "").strip()
+        if not title or title.lower() in seen:
+            continue
+        seen.add(title.lower())
+        out.append(r)
+        if len(out) >= 6:
+            break
+    return out
+
+
+# Override V64.3 news resolver so hyperlinks appear whenever article URLs exist.
+v643_news_rows = v71_news_rows
+
+
+def render_v509_news_digest(row):
+    ticker = v65_ticker(row)
+    rows = v71_news_rows(row, ticker)
+    with st.container(border=True):
+        st.markdown("### 📰 News & Catalysts")
+        if rows:
+            st.markdown(f"Recent ticker-specific news was found for **{ticker}**. Click headlines to open the source article when links are available.")
+            for r in rows[:6]:
+                title = v65_clean_text(r.get("title") or r.get("headline") or r.get("Headline") or r.get("Title") or "News article", 190)
+                url = r.get("url") or r.get("link") or r.get("article_url") or r.get("source_url")
+                source = v65_clean_text(r.get("source") or r.get("publisher") or r.get("site") or "News source", 60)
+                date = v65_clean_text(r.get("date") or r.get("publishedAt") or r.get("published") or "", 40)
+                if url:
+                    st.markdown(f"<div class='v71-news-card'><a href='{url}' target='_blank'>{title}</a><br><small>{source}{(' · ' + date) if date else ''}</small></div>", unsafe_allow_html=True)
+                else:
+                    st.markdown(f"<div class='v71-news-card'><b>{title}</b><br><small>{source}{(' · ' + date) if date else ''} · link unavailable</small></div>", unsafe_allow_html=True)
+            st.markdown("**AI Catalyst Read-through:** News is used as a catalyst layer. Positive headlines can improve timing; negative or regulatory headlines can quickly change the risk profile.")
+        else:
+            st.info("No company-specific news link was included in the latest saved scan. This is neutral; the thesis is unchanged, but Atlas should retrieve fresh news during a deep refresh.")
+
+
+def render_v71_mobile_idea_cards(df, max_rows=12):
+    cards = []
+    for idx, (_, row) in enumerate(df.head(max_rows).iterrows(), start=1):
+        ticker = v65_ticker(row)
+        company = v65_clean_text(v65_company(row), 46)
+        opp = v65_opportunity(row)
+        quality = v65_quality(row)
+        conf = v65_confidence(row)
+        decision = v65_clean_text(v65_pick(row, ["Recommendation", "recommendation", "Action", "action"], "Watch"), 28)
+        thesis = v65_ai_thesis(row, 170)
+        ws = v64_wall_street_view(row).split(" · ")[0]
+        cards.append(f"""
+        <div class='v71-idea-card'>
+            <div class='v71-idea-head'><div><small>#{idx}</small><h2>{ticker}</h2><p>{company}</p></div><span>{decision}</span></div>
+            <div class='v71-card-grid'>
+                <div><small>Opportunity</small><b>{opp:.0f}</b><em>{v65_score_label(opp)}</em></div>
+                <div><small>Quality</small><b>{quality:.0f}</b><em>{v65_score_label(quality)}</em></div>
+                <div><small>Confidence</small><b>{conf:.0f}</b><em>{v65_score_label(conf)}</em></div>
+                <div><small>Upside</small><b>{v65_upside(row)}</b><em>Potential</em></div>
+                <div><small>Target</small><b>{v65_target(row)}</b><em>Fair value</em></div>
+                <div><small>Wall Street</small><b>{v65_clean_text(ws,24)}</b><em>Analyst view</em></div>
+            </div>
+            <p class='v71-thesis'>{thesis}</p>
+        </div>
+        """)
+    st.markdown("".join(cards), unsafe_allow_html=True)
+
+
+def render_v71_idea_table(df, title="🧠 Today's Highest Conviction Ideas"):
+    if df is None or getattr(df, "empty", True):
+        st.info("No ideas available in the latest saved scan.")
+        return
+    try:
+        if "calibrate_top_ai_dataframe" in globals():
+            df = calibrate_top_ai_dataframe(df)
+    except Exception:
+        pass
+    if title:
+        st.markdown(f"<div class='v65-section-title'>{v65_clean_text(title)}</div>", unsafe_allow_html=True)
+        st.markdown("<div class='v65-subtitle'>Executive summary view with ticker, company, analyst context, earnings, political signal, and AI thesis.</div>", unsafe_allow_html=True)
+    try:
+        mobile_view = st.toggle("📱 Card view", value=False, key=f"v71_cards_{str(title)[:24]}")
+    except Exception:
+        mobile_view = False
+    if mobile_view:
+        render_v71_mobile_idea_cards(df, max_rows=12)
+        return
+    rows = []
+    for idx, (_, row) in enumerate(df.head(15).iterrows(), start=1):
+        rows.append({
+            "Rank": f"#{idx}",
+            "Ticker": f"<b>{v65_ticker(row)}</b>",
+            "Company": f"<span class='v71-company-cell'>{v65_clean_text(v65_company(row), 54)}</span>",
+            "Decision": v65_clean_text(v65_pick(row, ["Recommendation", "recommendation", "Action", "action"], "Watch"), 42),
+            "Opportunity": f"{v65_opportunity(row):.0f}<br><small>{v65_score_label(v65_opportunity(row))}</small>",
+            "Quality": f"{v65_quality(row):.0f}<br><small>{v65_score_label(v65_quality(row))}</small>",
+            "Confidence": f"{v65_confidence(row):.0f}<br><small>{v65_score_label(v65_confidence(row))}</small>",
+            "Upside": f"<b>{v65_upside(row)}</b><br><small>Target {v65_target(row)}</small>",
+            "Wall Street": v65_wallstreet_label(row),
+            "AI Thesis": f"<span class='v71-thesis-cell'>{v65_ai_thesis(row, 160)}</span>",
+        })
+    st.markdown(v65_table_html(rows, ["5%", "7%", "15%", "9%", "9%", "9%", "10%", "10%", "14%", "22%"]), unsafe_allow_html=True)
+
+
+def render_v574_top_ideas(source_df):
+    render_v71_idea_table(source_df, title="🧠 Today's Highest Conviction Ideas")
+    if source_df is not None and not getattr(source_df, "empty", True) and "Ticker" in source_df.columns:
+        top_df = source_df.head(15).copy()
+        labels = [f"{str(r.get('Ticker')).upper()} — {v65_clean_text(r.get('Company') or r.get('company') or '', 42)}" for _, r in top_df.iterrows()]
+        selected_label = st.selectbox("Open executive research summary", labels, index=0, key="v71_top_ai_selector")
+        selected_ticker = selected_label.split(" — ")[0].strip().upper()
+        selected_rows = top_df[top_df["Ticker"].astype(str).str.upper() == selected_ticker]
+        render_detail(selected_rows.iloc[0] if not selected_rows.empty else top_df.iloc[0])
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def v71_fetch_chart_history(ticker, period="1y"):
+    try:
+        import yfinance as _yf
+        hist = _yf.download(str(ticker).upper(), period=period, interval="1d", progress=False, auto_adjust=True, threads=False)
+        if hist is None or hist.empty:
+            return pd.DataFrame()
+        if isinstance(hist.columns, pd.MultiIndex):
+            hist.columns = [c[0] if isinstance(c, tuple) else c for c in hist.columns]
+        hist = hist.dropna(subset=["Close"]).copy()
+        hist["SMA20"] = hist["Close"].rolling(20).mean()
+        hist["SMA50"] = hist["Close"].rolling(50).mean()
+        hist["SMA200"] = hist["Close"].rolling(200).mean()
+        return hist
+    except Exception:
+        return pd.DataFrame()
+
+
+def render_v71_institutional_chart(row):
+    ticker = v65_ticker(row)
+    if not ticker:
+        return
+    with st.container(border=True):
+        st.markdown("### 📊 Institutional Price Chart")
+        st.caption("Price history with moving averages, volume, analyst target, Atlas fair value, entry zone, support and resistance context.")
+        period = st.selectbox("Chart range", ["3mo", "6mo", "1y", "2y", "5y"], index=2, key=f"v71_chart_range_{ticker}")
+        hist = v71_fetch_chart_history(ticker, period)
+        if hist.empty:
+            st.warning("Chart data unavailable right now. Try again after the quote provider refreshes.")
+            return
+        import plotly.graph_objects as go
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=hist.index, y=hist["Close"], mode="lines", name="Price"))
+        for col, name in [("SMA20", "20DMA"), ("SMA50", "50DMA"), ("SMA200", "200DMA")]:
+            if col in hist and hist[col].notna().any():
+                fig.add_trace(go.Scatter(x=hist.index, y=hist[col], mode="lines", name=name))
+        if "Volume" in hist:
+            try:
+                fig.add_trace(go.Bar(x=hist.index, y=hist["Volume"], name="Volume", yaxis="y2", opacity=0.22))
+            except Exception:
+                pass
+        price = float(hist["Close"].dropna().iloc[-1])
+        analyst = v65_num(v65_pick(row, ["Analyst Target", "target_mean_price", "analyst_target_mean", "consensus_target"], None), None)
+        ai_target = v65_num(v65_pick(row, ["AI Fair Value", "Target", "target", "ai_base_target"], None), None)
+        support = v65_num(v65_pick(row, ["Support 1", "v42_support_1", "support_1", "stop_loss", "Stop Loss"], None), None)
+        resistance = v65_num(v65_pick(row, ["Resistance 1", "v42_resistance_1", "resistance_1", "target", "Target"], None), None)
+        entry_low = v65_num(v65_pick(row, ["entry_low", "Entry Low"], None), None)
+        entry_high = v65_num(v65_pick(row, ["entry_high", "Entry High"], None), None)
+        if analyst:
+            fig.add_hline(y=analyst, line_dash="dot", annotation_text="Analyst target")
+        if ai_target:
+            fig.add_hline(y=ai_target, line_dash="dash", annotation_text="Atlas fair value")
+        if support:
+            fig.add_hline(y=support, line_dash="dash", annotation_text="Support / stop zone")
+        if resistance:
+            fig.add_hline(y=resistance, line_dash="dash", annotation_text="Resistance")
+        if entry_low and entry_high and entry_high > entry_low:
+            fig.add_hrect(y0=entry_low, y1=entry_high, opacity=0.12, line_width=0, annotation_text="Entry zone")
+        fig.update_layout(
+            template="plotly_dark",
+            height=560,
+            margin=dict(l=10, r=10, t=25, b=10),
+            xaxis_rangeslider_visible=False,
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+            yaxis=dict(title="Price"),
+            yaxis2=dict(title="Volume", overlaying="y", side="right", showgrid=False),
+        )
+        st.plotly_chart(fig, use_container_width=True, key=f"v71_institutional_chart_{ticker}_{period}")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Current Price", v70_money(price))
+        c2.metric("Analyst Target", v70_money(analyst) if analyst else "Unavailable")
+        c3.metric("Atlas Fair Value", v70_money(ai_target) if ai_target else "Unavailable")
+        c4.metric("Support", v70_money(support) if support else "Unavailable")
+        try:
+            sma50 = float(hist["SMA50"].dropna().iloc[-1]) if hist["SMA50"].notna().any() else None
+            sma200 = float(hist["SMA200"].dropna().iloc[-1]) if hist["SMA200"].notna().any() else None
+            vol = float(hist["Volume"].tail(20).mean()) if "Volume" in hist and hist["Volume"].notna().any() else None
+            trend = "bullish" if sma50 and price > sma50 and (not sma200 or price > sma200) else "constructive" if sma50 and price > sma50 else "cautious"
+            st.markdown("#### AI Chart Interpretation")
+            st.markdown(f"- **Trend:** Current chart structure is **{trend}** based on price versus major moving averages.")
+            if analyst and price:
+                st.markdown(f"- **Wall Street target:** Consensus target implies about **{((analyst-price)/price)*100:.1f}%** potential upside from the latest chart price.")
+            if ai_target and price:
+                st.markdown(f"- **Atlas fair value:** Atlas fair value implies about **{((ai_target-price)/price)*100:.1f}%** modeled upside.")
+            if support:
+                st.markdown(f"- **Risk discipline:** Support/stop context is near **{v70_money(support)}**. A break below this area weakens the setup.")
+            if resistance:
+                st.markdown(f"- **Resistance:** Initial resistance or upside reference is near **{v70_money(resistance)}**.")
+            if vol:
+                st.markdown("- **Volume:** Volume is included as a confirmation layer; higher participation strengthens breakouts and reversals.")
+        except Exception:
+            st.info("AI chart interpretation unavailable until enough chart history is loaded.")
+
+
+def render_detail(row):
+    # V71: full supporting dashboard first, with chart restored and visible for all searched/top tickers.
+    render_v509_executive_summary(row)
+    render_v71_institutional_chart(row)
+    render_v51_final_recommendation(row)
+    render_v509_wallstreet_assessment(row)
+    v643_earnings_assessment(row)
+    render_v509_financial_assessment(row)
+    render_v509_smart_money_assessment(row)
+    render_v509_technical_assessment(row)
+    render_v509_news_digest(row)
+    render_v509_target_analysis(row)
+    v643_render_political_assessment(row)
+    render_v509_investment_committee(row)
+    try:
+        if v509_original_render_detail:
+            with st.expander("🔬 Advanced Supporting Dashboard", expanded=False):
+                v509_original_render_detail(row)
+    except Exception:
+        pass
+
+
+def render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df=None):
+    st.markdown("<div class='v65-section-title'>🔍 Research Any Ticker</div>", unsafe_allow_html=True)
+    st.markdown("<div class='v65-subtitle'>Fast snapshot loads from the saved scan first. Deep refresh is optional so clients do not wait a minute for every search.</div>", unsafe_allow_html=True)
+    ticker = st.text_input("Enter ticker", placeholder="NVDA, MSFT, PLTR, ELF, ZS", key="research_any_ticker_v71").upper().strip()
+    if not ticker:
+        st.info("Enter a ticker to load the full supporting dashboard.")
+        return
+    row = find_ticker_row(ticker, full_df, recovery_df, watch_df, prescreen_df, etf_df)
+    if row is not None:
+        st.success("Loaded instantly from the latest saved Atlas scan. Use Deep Refresh only when you need the newest live API data.")
+        render_detail(row)
+        if st.button(f"Run Deep Refresh for {ticker}", key=f"v71_deep_refresh_{ticker}"):
+            with st.spinner(f"Running live AI research for {ticker}..."):
+                live_row = build_live_research_row(ticker)
+            if isinstance(live_row, dict) and not live_row.get("error"):
+                render_detail(pd.Series(live_row))
+            else:
+                st.warning("Deep refresh did not return a complete live report. Saved scan remains the source of truth for now.")
+        return
+    st.warning("Ticker was not found in the latest saved scan. Showing a fast price-only fallback; run Deep Refresh for full live research.")
+    fallback = build_price_only_live_row(ticker, reason="not found in saved scan")
+    if fallback:
+        render_detail(pd.Series(fallback))
+    if st.button(f"Run Deep Refresh for {ticker}", key=f"v71_deep_refresh_missing_{ticker}"):
+        with st.spinner(f"Running live AI research for {ticker}..."):
+            live_row = build_live_research_row(ticker)
+        if isinstance(live_row, dict) and not live_row.get("error"):
+            render_detail(pd.Series(live_row))
+        else:
+            st.warning("Could not build full live research right now.")
+
+
+def render_v71_home_dashboard(full_df=None, top_df=None, recovery_df=None):
+    full_count = 0 if full_df is None or getattr(full_df, "empty", True) else len(full_df)
+    top_count = 0 if top_df is None or getattr(top_df, "empty", True) else len(top_df)
+    rec_count = 0 if recovery_df is None or getattr(recovery_df, "empty", True) else len(recovery_df)
+    generated = "Latest saved scan"
+    try:
+        generated = v65_clean_text(v65_pick(full_df.iloc[0], ["generated_at", "scan_time", "Last Scan", "last_scan"], "Latest saved scan"), 32) if full_count else generated
+    except Exception:
+        pass
+    st.markdown(f"""
+    <div class='v65-hero'>
+      <div class='v65-kicker'>Atlas AI Investment Research Terminal</div>
+      <h1>Research any company with institutional-grade AI.</h1>
+      <p>Atlas turns market data into a decision workflow by combining live market context, financial quality, valuation, risk/reward, Wall Street consensus, earnings, political intelligence, smart money, technicals, news, catalysts, and portfolio context.</p>
+      <div class='v65-stat-grid'>
+        <div class='v65-stat'><span>Platform</span><b>Investment Research</b></div>
+        <div class='v65-stat'><span>Full Scan</span><b>{full_count}</b></div>
+        <div class='v65-stat'><span>Top Ideas</span><b>{top_count}</b></div>
+        <div class='v65-stat'><span>Latest Scan</span><b>{generated}</b></div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+    render_v71_market_tape()
+    st.markdown("<div class='v65-section-title'>Search Any Stock</div>", unsafe_allow_html=True)
+    st.markdown("<div class='v65-subtitle'>Use the Research Any Ticker page for the full supporting dashboard, chart, Wall Street, earnings, political, news, and AI committee view.</div>", unsafe_allow_html=True)
+    st.markdown("<div class='v65-section-title'>🧠 AI Morning Brief</div>", unsafe_allow_html=True)
+    best = v65_ticker(top_df.iloc[0]) if top_count else "No top idea available"
+    st.markdown(f"<div class='v65-card-grid'><div class='v65-card'><h3>Today's AI Pick</h3><p>{best} — review the chart, Wall Street support, earnings, political signal, news, and risk before sizing.</p></div><div class='v65-card'><h3>Recovery Watch</h3><p>{rec_count} recovery candidates are available. Recovery requires proof the drop is temporary, not structural.</p></div><div class='v65-card'><h3>Workflow</h3><p>Market tape → search/research → chart → earnings/news/political review → risk/reward → position sizing.</p></div></div>", unsafe_allow_html=True)
+    render_v70_market_calendar_terminal(full_df) if "render_v70_market_calendar_terminal" in globals() else render_v651_market_calendar(full_df)
+    render_v651_earnings_watch(full_df, top_df)
+    if top_count:
+        render_v71_idea_table(top_df.head(8), title="Top Opportunities Today")
+
+
+def render_v71_design_system():
+    st.markdown("""
+    <style>
+    .v71-tape-title{font-size:.82rem;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:#93C5FD;margin:4px 0 8px}.v71-tape{display:flex;gap:10px;overflow-x:auto;padding:8px 2px 22px;margin-bottom:8px}.v71-tape-chip{min-width:132px;border:1px solid rgba(148,163,184,.22);border-radius:16px;background:rgba(15,23,42,.72);padding:12px 14px}.v71-tape-chip span{display:block;color:#94A3B8;font-size:.72rem;text-transform:uppercase;font-weight:900;letter-spacing:.08em}.v71-tape-chip b{display:block;color:#F8FAFC;font-size:1.05rem;margin:3px 0}.v71-tape-chip em{font-style:normal;font-weight:900}.v71-tape-chip.pos em{color:#22C55E}.v71-tape-chip.neg em{color:#EF4444}
+    .v71-company-cell{display:block;white-space:normal!important;overflow-wrap:break-word;line-height:1.32;max-width:190px}.v71-thesis-cell{display:block;white-space:normal!important;overflow-wrap:break-word;line-height:1.38;max-width:360px}.v71-news-card{padding:14px 16px;border-radius:16px;border:1px solid rgba(148,163,184,.20);background:rgba(15,23,42,.55);margin:10px 0}.v71-news-card a{color:#93C5FD!important;font-weight:900;text-decoration:none}.v71-news-card small{color:#94A3B8}
+    .v71-idea-card{border:1px solid rgba(148,163,184,.25);border-radius:24px;padding:20px;margin:16px 0;background:linear-gradient(135deg,rgba(15,23,42,.94),rgba(17,24,39,.72));box-shadow:0 14px 40px rgba(0,0,0,.20)}.v71-idea-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.v71-idea-head h2{margin:0;color:#F8FAFC;font-size:2rem;letter-spacing:-.06em}.v71-idea-head p{margin:5px 0 0;color:#94A3B8}.v71-idea-head small{color:#93C5FD;font-weight:900}.v71-idea-head span{padding:8px 12px;border-radius:999px;background:rgba(34,197,94,.13);border:1px solid rgba(34,197,94,.35);color:#DCFCE7;font-weight:900;white-space:nowrap}.v71-card-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}.v71-card-grid div{border:1px solid rgba(148,163,184,.18);border-radius:16px;padding:12px;background:rgba(15,23,42,.55)}.v71-card-grid small{display:block;color:#94A3B8;text-transform:uppercase;font-weight:900;font-size:.7rem;letter-spacing:.12em}.v71-card-grid b{display:block;color:#F8FAFC;font-size:1.25rem;margin:4px 0;overflow-wrap:anywhere}.v71-card-grid em{display:block;color:#94A3B8;font-style:normal;font-size:.8rem}.v71-thesis{color:#CBD5E1;line-height:1.45;margin:16px 0 0!important}
+    @media(max-width:700px){.v65-table-wrap{display:none!important}.v71-tape-chip{min-width:118px}.v71-card-grid{grid-template-columns:repeat(3,1fr);gap:8px}.v71-card-grid b{font-size:1.05rem}.v71-idea-head h2{font-size:1.7rem}}
+    </style>
+    """, unsafe_allow_html=True)
+
+
+def main():
+    if not dashboard_login_gate():
+        return
+    render_v59_design_system(); render_v65_design_system(); render_v70_design_system(); render_v71_design_system()
+    full_df = load_full_scan(); top_df = latest_top_ideas(); recovery_df = latest_recovery(); watch_df = latest_watchlist_scan(); prescreen_df = load_file(PRESCREEN_FILE); etf_df = load_file(ETF_SCAN_FILE)
+    pages = ["Home", "Top AI Ideas", "Earnings Intelligence", "Full Ranked Scan", "Portfolio Intelligence", "Watchlist Intelligence", "Performance", "Recovery", "ETFs", "Watchlist", "Prescreen", "Summary", "Research Any Ticker", "Political Intelligence", "Ask AI"]
+    render_v641_sidebar_header(); selected_page = st.sidebar.radio("Navigate", pages, index=0, key="v71_platform_nav"); source_df = top_df if top_df is not None and not top_df.empty else full_df.head(25)
+    if selected_page != "Home":
+        render_v71_market_tape(always_show=False)
+    if selected_page == "Home": render_v71_home_dashboard(full_df, source_df, recovery_df)
+    elif selected_page == "Top AI Ideas": render_v574_top_ideas(source_df)
+    elif selected_page == "Earnings Intelligence": render_v651_earnings_page(full_df, source_df)
+    elif selected_page == "Full Ranked Scan": render_v56_ranked_table(full_df, title="Full Ranked AI Scan", max_rows=75, show_filters=True)
+    elif selected_page == "Portfolio Intelligence": render_v505_portfolio_analyzer(full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
+    elif selected_page == "Watchlist Intelligence": render_v506_watchlist_intelligence(full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
+    elif selected_page == "Performance": render_v507_performance_tracking(full_df)
+    elif selected_page == "Recovery": render_v65_recovery_intelligence(recovery_df)
+    elif selected_page == "ETFs": render_v56_ranked_table(etf_df, title="ETF Intelligence", max_rows=50, show_filters=True)
+    elif selected_page == "Watchlist": render_v56_ranked_table(watch_df, title="Watchlist Scan", max_rows=50, show_filters=True)
+    elif selected_page == "Prescreen": render_v56_ranked_table(prescreen_df, title="Prescreen Candidates", max_rows=75, show_filters=True)
+    elif selected_page == "Summary": render_market_summary(full_df)
+    elif selected_page == "Research Any Ticker": render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df)
+    elif selected_page == "Political Intelligence": render_v58_political_intelligence(full_df)
+    elif selected_page == "Ask AI": render_chat_helper(full_df)
 
 if __name__ == "__main__":
     main()

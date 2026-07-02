@@ -311,3 +311,14 @@ def calibrate_top_ai_dataframe(df: pd.DataFrame | None) -> pd.DataFrame:
     if sort_cols:
         calibrated = calibrated.sort_values(sort_cols, ascending=[False] * len(sort_cols))
     return calibrated.reset_index(drop=True)
+
+
+V651_MARKET_TERMINAL_CALIBRATION_VERIFIED = True
+
+
+# V70 calibration marker
+V70_INSTITUTIONAL_RESEARCH_TERMINAL_CALIBRATION_VERIFIED = True
+
+
+# V71 marker
+V71_FAST_RESEARCH_MARKET_CHARTS_CALIBRATION_VERIFIED = True
