@@ -23599,6 +23599,7 @@ def main():
 # V71 FAST RESEARCH + LIVE MARKET + CHART + NEWS LINKS
 # ============================================================
 V71_FAST_RESEARCH_MARKET_CHARTS_VERIFIED = True
+V711_REPORT_POLISH_VERIFIED = True
 
 
 def v71_html(text):
@@ -23794,7 +23795,7 @@ def render_v71_idea_table(df, title="🧠 Today's Highest Conviction Ideas"):
         st.markdown(f"<div class='v65-section-title'>{v65_clean_text(title)}</div>", unsafe_allow_html=True)
         st.markdown("<div class='v65-subtitle'>Executive summary view with ticker, company, analyst context, earnings, political signal, and AI thesis.</div>", unsafe_allow_html=True)
     try:
-        mobile_view = st.toggle("📱 Card view", value=False, key=f"v71_cards_{str(title)[:24]}")
+        mobile_view = st.toggle("📱 Card view", value=True, key=f"v71_cards_{str(title)[:24]}")
     except Exception:
         mobile_view = False
     if mobile_view:
@@ -23822,7 +23823,9 @@ def render_v574_top_ideas(source_df):
     if source_df is not None and not getattr(source_df, "empty", True) and "Ticker" in source_df.columns:
         top_df = source_df.head(15).copy()
         labels = [f"{str(r.get('Ticker')).upper()} — {v65_clean_text(r.get('Company') or r.get('company') or '', 42)}" for _, r in top_df.iterrows()]
-        selected_label = st.selectbox("Open executive research summary", labels, index=0, key="v71_top_ai_selector")
+        st.markdown("### Open full research report")
+        st.caption("Select a ticker to load the executive briefing, chart, Wall Street, earnings, political, news, and AI committee view.")
+        selected_label = st.selectbox("Open full research report", labels, index=0, key="v71_top_ai_selector", label_visibility="collapsed")
         selected_ticker = selected_label.split(" — ")[0].strip().upper()
         selected_rows = top_df[top_df["Ticker"].astype(str).str.upper() == selected_ticker]
         render_detail(selected_rows.iloc[0] if not selected_rows.empty else top_df.iloc[0])
@@ -23922,8 +23925,98 @@ def render_v71_institutional_chart(row):
             st.info("AI chart interpretation unavailable until enough chart history is loaded.")
 
 
+
+# ============================================================
+# V71.1 REPORT POLISH: clean narratives + readable selector + mobile cards
+# ============================================================
+V711_REPORT_POLISH_VERIFIED = True
+
+
+def v711_safe_report_text(value, max_len=None):
+    """Plain-language sanitizer for report narrative fields.
+    Prevents Markdown/HTML font glitches and repairs common concatenated phrases.
+    """
+    import re, html
+    if value is None:
+        return ""
+    text = str(value)
+    replacements = {
+        "AIfairvaluerangeis": "AI fair value range is",
+        "AIfairvaluerange": "AI fair value range",
+        "AI fairvaluerangeis": "AI fair value range is",
+        "AI fairvaluerange": "AI fair value range",
+        "fairvaluerangeis": "fair value range is",
+        "fairvaluerange": "fair value range",
+        "whiletheAI": "while the AI",
+        "bullcaseis": "bull case is",
+        "bearcaseis": "bear case is",
+        "doesnot": "does not",
+        "becomeunrealistic": "become unrealistic",
+        "targetdiscipline": "target discipline",
+    }
+    for old, new in replacements.items():
+        text = text.replace(old, new).replace(old.lower(), new)
+    # Remove markdown emphasis / odd markup that caused italic serif fragments.
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = text.replace("**", "").replace("__", "").replace("*", "")
+    text = re.sub(r"(?<=[a-z])(?=AI fair value)", " ", text)
+    text = re.sub(r"(?<=\d);(?=AI)", "; ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    if max_len and len(text) > max_len:
+        text = text[:max_len-1].rstrip() + "…"
+    return html.escape(text)
+
+
+def v711_markdown_line(text, bullet=False):
+    safe = v711_safe_report_text(text)
+    st.markdown(("• " if bullet else "") + safe)
+
+
+# Override the older report text renderer so every supporting section uses safe text.
+def render_v509_ai_text_block(title, lines=None, bottom=None, tone=None):
+    with st.container(border=True):
+        st.markdown(f"### {v711_safe_report_text(title)}")
+        if tone:
+            st.markdown(f"**Overall Assessment:** {v711_safe_report_text(tone)}")
+        for line in (lines or []):
+            v711_markdown_line(line, bullet=True)
+        if bottom:
+            st.markdown(f"**Bottom Line:** {v711_safe_report_text(bottom)}")
+
+
+# Override executive summary to avoid malformed Markdown/italic fragments in target discipline text.
+def render_v509_executive_summary(row):
+    report = v509_report(row)
+    ticker = v509_text(report.get("ticker") or report.get("Ticker"), "")
+    wallstreet = v509_wallstreet_pack(ticker) if ticker else {}
+    verdict = v509_verdict(report, wallstreet)
+    fin = v509_financial_summary(report)
+    target = v509_target_analysis(report, wallstreet)
+    debate = v509_bull_bear(report, wallstreet, target)
+    with st.container(border=True):
+        st.markdown("## 🧠 AI Investment Briefing")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("AI Verdict", v711_safe_report_text(verdict.get("label"), 18))
+        c2.metric("Confidence", f"{float(verdict.get('confidence',0)):.0f}/100")
+        c3.metric("Investment Score", f"{float(verdict.get('investment',0)):.0f}/100")
+        c4.metric("Financial Health", f"{float(verdict.get('financial',0)):.0f}/100")
+        st.markdown("**Why we are interested:**")
+        for b in debate.get("bull", [])[:4]:
+            st.markdown(f"✓ {v711_safe_report_text(b)}")
+        st.markdown("**Primary concerns:**")
+        for b in (verdict.get("blocks") or debate.get("bear", [])[:3]):
+            st.markdown(f"⚠️ {v711_safe_report_text(b)}")
+        if target.get("available"):
+            consensus = v509_money(target.get("consensus"))
+            fair_low = v509_money(target.get("fair_low"))
+            fair_high = v509_money(target.get("fair_high"))
+            extra = " The old model target was capped because it was too disconnected from analyst targets." if target.get("capped") else ""
+            st.markdown(f"**Target Reality Check:** Analyst consensus is {consensus}. Atlas fair value range is {fair_low}–{fair_high}.{extra}")
+        st.markdown(f"**Bottom Line:** {v711_safe_report_text(debate.get('conclusion'))} {v711_safe_report_text(fin.get('bottom'))}")
+
+
 def render_detail(row):
-    # V71: full supporting dashboard first, with chart restored and visible for all searched/top tickers.
+    # V71.1: full supporting dashboard first, with cleaned narratives and institutional chart.
     render_v509_executive_summary(row)
     render_v71_institutional_chart(row)
     render_v51_final_recommendation(row)
@@ -24017,6 +24110,10 @@ def render_v71_design_system():
     .v71-company-cell{display:block;white-space:normal!important;overflow-wrap:break-word;line-height:1.32;max-width:190px}.v71-thesis-cell{display:block;white-space:normal!important;overflow-wrap:break-word;line-height:1.38;max-width:360px}.v71-news-card{padding:14px 16px;border-radius:16px;border:1px solid rgba(148,163,184,.20);background:rgba(15,23,42,.55);margin:10px 0}.v71-news-card a{color:#93C5FD!important;font-weight:900;text-decoration:none}.v71-news-card small{color:#94A3B8}
     .v71-idea-card{border:1px solid rgba(148,163,184,.25);border-radius:24px;padding:20px;margin:16px 0;background:linear-gradient(135deg,rgba(15,23,42,.94),rgba(17,24,39,.72));box-shadow:0 14px 40px rgba(0,0,0,.20)}.v71-idea-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.v71-idea-head h2{margin:0;color:#F8FAFC;font-size:2rem;letter-spacing:-.06em}.v71-idea-head p{margin:5px 0 0;color:#94A3B8}.v71-idea-head small{color:#93C5FD;font-weight:900}.v71-idea-head span{padding:8px 12px;border-radius:999px;background:rgba(34,197,94,.13);border:1px solid rgba(34,197,94,.35);color:#DCFCE7;font-weight:900;white-space:nowrap}.v71-card-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}.v71-card-grid div{border:1px solid rgba(148,163,184,.18);border-radius:16px;padding:12px;background:rgba(15,23,42,.55)}.v71-card-grid small{display:block;color:#94A3B8;text-transform:uppercase;font-weight:900;font-size:.7rem;letter-spacing:.12em}.v71-card-grid b{display:block;color:#F8FAFC;font-size:1.25rem;margin:4px 0;overflow-wrap:anywhere}.v71-card-grid em{display:block;color:#94A3B8;font-style:normal;font-size:.8rem}.v71-thesis{color:#CBD5E1;line-height:1.45;margin:16px 0 0!important}
     @media(max-width:700px){.v65-table-wrap{display:none!important}.v71-tape-chip{min-width:118px}.v71-card-grid{grid-template-columns:repeat(3,1fr);gap:8px}.v71-card-grid b{font-size:1.05rem}.v71-idea-head h2{font-size:1.7rem}}
+
+    .stMarkdown, .stMarkdown p, .stMarkdown li, .stMarkdown span{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important;letter-spacing:normal!important;word-spacing:normal!important;white-space:normal!important;overflow-wrap:break-word!important}
+    div[data-testid="stSelectbox"] label{color:#F8FAFC!important;font-weight:900!important;font-size:1rem!important}
+    @media(max-width:700px){.v65-table-wrap{display:none!important}.v71-idea-card{margin:14px 0;padding:18px}.v65-section-title{font-size:2rem!important}.v65-subtitle{font-size:1rem!important}.v71-card-grid{grid-template-columns:repeat(2,1fr)!important}.v71-thesis{font-size:.95rem}}
     </style>
     """, unsafe_allow_html=True)
 
