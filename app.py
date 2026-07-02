@@ -24383,3 +24383,553 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# ============================================================
+# V73 ENTERPRISE: Institutional UX, fast research, top nav, links
+# ============================================================
+V73_ENTERPRISE_RESEARCH_TERMINAL_VERIFIED = True
+
+import html as _v73_html
+from urllib.parse import quote_plus as _v73_quote_plus
+
+# Keep the prior full report renderer so V73 can place an executive/supporting dashboard first.
+try:
+    _v73_prior_render_detail = render_detail
+except Exception:
+    _v73_prior_render_detail = None
+
+
+def v73_clean_text(value, default="", max_len=None):
+    """Clean every user-facing narrative so markdown/HTML does not create serif/italic glitches."""
+    try:
+        if value is None:
+            return default
+        s = str(value)
+        if s.strip().lower() in {"", "nan", "none", "null", "n/a", "na", "—"}:
+            return default
+        fixes = {
+            "AIfairvaluerangeis": "AI fair value range is",
+            "AIfairvaluerange": "AI fair value range",
+            "AI fairvaluerangeis": "AI fair value range is",
+            "AI fairvaluerange": "AI fair value range",
+            "fairvaluerangeis": "fair value range is",
+            "fairvaluerange": "fair value range",
+            "Atlasconstrainsthe": "Atlas constrains the",
+            "AIconstrainsthe": "AI constrains the",
+            "whiletheAI": "while the AI",
+            "bullcaseis": "bull case is",
+            "bearcaseis": "bear case is",
+            "doesnot": "does not",
+            "becomeunrealistic": "become unrealistic",
+            "targetdiscipline": "target discipline",
+            ";AI": "; AI",
+            ".AI": ". AI",
+            "targetis": "target is",
+            "rangeis": "range is",
+        }
+        for old, new in fixes.items():
+            s = s.replace(old, new).replace(old.lower(), new)
+        s = re.sub(r"<[^>]+>", " ", s)
+        s = s.replace("**", "").replace("__", "").replace("*", "")
+        s = re.sub(r"(?<=\d);(?=AI|Atlas)", "; ", s)
+        s = re.sub(r"(?<=[a-z])(?=AI fair value)", " ", s)
+        s = re.sub(r"(?<=[a-z])(?=Atlas fair value)", " ", s)
+        s = re.sub(r"\s+", " ", s).strip()
+        if max_len and len(s) > max_len:
+            s = s[: max_len - 1].rsplit(" ", 1)[0] + "…"
+        return s or default
+    except Exception:
+        return default
+
+
+def v73_esc(value, default="", max_len=None):
+    return _v73_html.escape(v73_clean_text(value, default=default, max_len=max_len))
+
+
+def v73_num(value, default=None):
+    try:
+        if value is None or str(value).strip() == "":
+            return default
+        x = float(value)
+        if pd.isna(x):
+            return default
+        return x
+    except Exception:
+        return default
+
+
+def v73_get(row, keys, default=None):
+    try:
+        raw = row.to_dict() if hasattr(row, "to_dict") else dict(row)
+    except Exception:
+        raw = row if isinstance(row, dict) else {}
+    lowered = {str(k).lower(): k for k in raw.keys()} if isinstance(raw, dict) else {}
+    for k in keys:
+        for candidate in [k, str(k).lower(), str(k).replace(" ", "_"), str(k).replace("_", " ")]:
+            real_key = candidate if candidate in raw else lowered.get(str(candidate).lower())
+            if real_key in raw:
+                val = raw.get(real_key)
+                if val not in (None, "", "N/A", "n/a", "nan", "None", "—"):
+                    return val
+    nested = raw.get("Raw") if isinstance(raw, dict) else None
+    if isinstance(nested, dict):
+        for k in keys:
+            if k in nested and nested.get(k) not in (None, "", "N/A", "n/a", "nan", "None", "—"):
+                return nested.get(k)
+    return default
+
+
+def v73_money(value, default="Unavailable"):
+    x = v73_num(value, None)
+    if x is None:
+        return default
+    if abs(x) >= 1_000_000_000:
+        return f"${x/1_000_000_000:.1f}B"
+    if abs(x) >= 1_000_000:
+        return f"${x/1_000_000:.1f}M"
+    return f"${x:,.2f}"
+
+
+def v73_pct(value, default="Unavailable"):
+    x = v73_num(value, None)
+    if x is None:
+        return default
+    if abs(x) <= 2:
+        x *= 100
+    if abs(x) > 500:
+        return default
+    return f"{x:.1f}%"
+
+
+def v73_score_label(score):
+    x = v73_num(score, 0) or 0
+    if x >= 90: return "Exceptional"
+    if x >= 80: return "Excellent"
+    if x >= 70: return "Strong"
+    if x >= 60: return "Constructive"
+    if x >= 50: return "Speculative"
+    return "Weak"
+
+
+def v73_ticker(row):
+    return v73_clean_text(v73_get(row, ["Ticker", "ticker", "symbol", "Symbol"], ""), "").upper()
+
+
+def v73_company(row):
+    ticker = v73_ticker(row)
+    return v73_clean_text(v73_get(row, ["Company", "company", "company_name", "name", "Name"], ticker), ticker)
+
+
+def v73_score(row, keys, default=70):
+    return v73_num(v73_get(row, keys, default), default) or default
+
+
+def v73_wall_street(row, html=True):
+    buys = int(v73_num(v73_get(row, ["strong_buy", "buy", "Buy", "analyst_buy", "finnhub_analyst_buy"], 0), 0) or 0)
+    holds = int(v73_num(v73_get(row, ["hold", "Hold", "analyst_hold", "finnhub_analyst_hold"], 0), 0) or 0)
+    sells = int(v73_num(v73_get(row, ["sell", "Sell", "strong_sell", "analyst_sell", "finnhub_analyst_sell"], 0), 0) or 0)
+    if buys + holds + sells > 0:
+        if buys >= max(holds + sells, 1): label, dot = "Strong Buy", "green"
+        elif buys > holds: label, dot = "Bullish", "blue"
+        elif sells > buys: label, dot = "Cautious", "red"
+        else: label, dot = "Mixed", "yellow"
+        if html:
+            return f"<span class='v73-dot {dot}'></span><b>{label}</b><br><small>{buys} Buy · {holds} Hold · {sells} Sell</small>"
+        return f"{label}: {buys} Buy, {holds} Hold, {sells} Sell"
+    return "Limited analyst data" if not html else "<span class='v73-dot gray'></span><b>Limited analyst data</b><br><small>No full breakdown in saved scan</small>"
+
+
+def v73_news_candidates(row, max_items=8):
+    """Return news items with a best-effort link. If saved data lacks URLs, create a search link instead of dead text."""
+    out = []
+    raw = row.to_dict() if hasattr(row, "to_dict") else (row if isinstance(row, dict) else {})
+    # Try structured list columns first.
+    for key in ["news", "news_items", "latest_news", "articles", "headlines", "News"]:
+        val = raw.get(key)
+        if isinstance(val, list):
+            for item in val[:max_items]:
+                if isinstance(item, dict):
+                    title = v73_clean_text(item.get("title") or item.get("headline") or item.get("summary") or "")
+                    url = v73_clean_text(item.get("url") or item.get("link") or "")
+                    source = v73_clean_text(item.get("source") or item.get("site") or item.get("publisher") or "News source")
+                    date = v73_clean_text(item.get("date") or item.get("publishedDate") or item.get("published_at") or "")
+                    if title:
+                        out.append({"title": title, "url": url, "source": source, "date": date})
+                elif isinstance(item, str) and item.strip():
+                    out.append({"title": v73_clean_text(item), "url": "", "source": "News source", "date": ""})
+    # Flat headline columns.
+    for key in ["Latest Headline", "latest_headline", "Headline", "headline", "news_headline", "News Headline", "catalyst_headline"]:
+        title = v73_clean_text(raw.get(key, ""))
+        if title and not any(n["title"] == title for n in out):
+            url = v73_clean_text(v73_get(raw, ["url", "news_url", "headline_url", "article_url", "link"], ""))
+            source = v73_clean_text(v73_get(raw, ["source", "news_source", "publisher"], "News source"))
+            out.append({"title": title, "url": url, "source": source, "date": ""})
+    # Fallback: parse saved summary bullets that often include source after em dash.
+    text_blob = v73_clean_text(v73_get(raw, ["news_summary", "News Summary", "AI News Digest", "news_digest", "latest_news_summary"], ""))
+    if text_blob:
+        for part in re.split(r"\s*[•\n]\s*", text_blob):
+            part = v73_clean_text(part)
+            if len(part) > 20 and not any(n["title"] == part for n in out):
+                source = "News source"
+                title = part
+                if " — " in part:
+                    title, source = part.rsplit(" — ", 1)
+                out.append({"title": title, "url": "", "source": source, "date": ""})
+                if len(out) >= max_items:
+                    break
+    ticker = v73_ticker(row)
+    cleaned = []
+    for n in out[:max_items]:
+        title = v73_clean_text(n.get("title", ""), max_len=170)
+        if not title:
+            continue
+        url = v73_clean_text(n.get("url", ""))
+        if not url or not url.startswith("http"):
+            url = "https://www.google.com/search?q=" + _v73_quote_plus(f"{ticker} {title}")
+        cleaned.append({"title": title, "url": url, "source": v73_clean_text(n.get("source", "News source")), "date": v73_clean_text(n.get("date", ""))})
+    return cleaned
+
+
+def v73_next_earnings(row):
+    date = v73_clean_text(v73_get(row, ["next_earnings_date", "Next Earnings Date", "earnings_date", "Earnings Date", "date", "reportDate"], ""))
+    timing = v73_clean_text(v73_get(row, ["earnings_timing", "Timing", "time", "hour"], "Unknown"), "Unknown")
+    transcript = v73_clean_text(v73_get(row, ["transcript_url", "earnings_transcript_url", "Transcript URL", "transcript_link"], ""))
+    latest = ""
+    for n in v73_news_candidates(row, 10):
+        if any(w in n["title"].lower() for w in ["earnings", "quarter", "q1", "q2", "q3", "q4", "transcript", "results"]):
+            latest = n["title"]
+            if not transcript and "transcript" in n["title"].lower():
+                transcript = n["url"]
+            break
+    status = "Transcript linked" if transcript else ("Latest earnings headline found" if latest else "No transcript in saved scan")
+    return date or "Not available in saved scan", timing, status, transcript, latest
+
+
+def render_v73_design_system():
+    st.markdown("""
+<style>
+section[data-testid="stSidebar"]{display:none!important;}
+.block-container{padding-top:.75rem!important;max-width:1540px!important;}
+.v73-topnav{position:sticky;top:0;z-index:999;background:rgba(2,6,23,.94);backdrop-filter:blur(18px);border:1px solid rgba(148,163,184,.18);border-radius:20px;padding:12px 16px;margin-bottom:16px;box-shadow:0 14px 36px rgba(0,0,0,.24)}
+.v73-brandline{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:10px}.v73-brandline h3{margin:0;color:#F8FAFC;font-size:1.15rem;letter-spacing:-.04em}.v73-brandline span{display:block;color:#93C5FD;font-weight:950;letter-spacing:.14em;text-transform:uppercase;font-size:.7rem}.v73-brandline p{margin:0;color:#CBD5E1;font-size:.88rem;max-width:900px;line-height:1.35}
+div[data-testid="stRadio"] label p{font-weight:900!important;color:#F8FAFC!important} div[role="radiogroup"]{gap:8px!important;flex-wrap:wrap!important} div[role="radiogroup"] label{border:1px solid rgba(148,163,184,.22)!important;border-radius:999px!important;padding:7px 13px!important;background:rgba(15,23,42,.70)!important;min-height:34px!important}
+.v73-terminal-card{border:1px solid rgba(148,163,184,.18);border-radius:24px;background:linear-gradient(135deg,rgba(15,23,42,.82),rgba(8,47,73,.36));padding:22px;margin:16px 0}.v73-terminal-card h1,.v73-terminal-card h2,.v73-terminal-card h3{color:#F8FAFC;letter-spacing:-.055em}.v73-terminal-card p,.v73-terminal-card li{color:#CBD5E1;line-height:1.55}
+.v73-table-wrap{overflow-x:auto;border:1px solid rgba(148,163,184,.18);border-radius:22px;background:rgba(15,23,42,.46);padding:8px}.v73-table{width:100%;border-collapse:separate;border-spacing:0 8px;table-layout:auto}.v73-table th{color:#94A3B8;text-transform:uppercase;letter-spacing:.10em;font-size:.72rem;text-align:left;padding:8px 10px;white-space:normal}.v73-table td{color:#E5E7EB;padding:13px 10px;background:rgba(15,23,42,.72);vertical-align:top;line-height:1.35;white-space:normal;overflow-wrap:break-word}.v73-table tr td:first-child{border-radius:14px 0 0 14px}.v73-table tr td:last-child{border-radius:0 14px 14px 0}.v73-ticker{font-weight:950;color:#F8FAFC;font-size:1.05rem}.v73-company{font-size:.82rem;color:#94A3B8;max-width:190px;white-space:normal;overflow-wrap:break-word}.v73-pill{display:inline-flex;border-radius:999px;padding:6px 10px;font-weight:900;background:rgba(34,197,94,.14);border:1px solid rgba(34,197,94,.36);color:#DCFCE7;white-space:normal}.v73-thesis{white-space:normal!important;overflow-wrap:break-word;max-width:430px;color:#CBD5E1}.v73-small{font-size:.78rem;color:#94A3B8}.v73-score b{display:block;color:#F8FAFC;font-size:1.18rem}.v73-score span{display:block;color:#94A3B8;font-size:.76rem}.v73-dot{display:inline-block;width:14px;height:14px;border-radius:50%;margin-right:7px;vertical-align:middle}.v73-dot.green{background:#22C55E}.v73-dot.blue{background:#38BDF8}.v73-dot.yellow{background:#FACC15}.v73-dot.red{background:#EF4444}.v73-dot.gray{background:#94A3B8}
+.v73-mobile-card{display:none}.v73-news-card{padding:14px 16px;border-radius:16px;border:1px solid rgba(148,163,184,.20);background:rgba(15,23,42,.62);margin:10px 0}.v73-news-card a{color:#93C5FD!important;font-weight:950;text-decoration:none!important;overflow-wrap:anywhere}.v73-news-card small{display:block;color:#94A3B8;margin-top:5px}.v73-badge{display:inline-block;border-radius:999px;padding:5px 10px;background:rgba(59,130,246,.14);border:1px solid rgba(59,130,246,.32);color:#DBEAFE;font-weight:900}
+.v73-target-analyst{color:#38BDF8!important}.v73-target-atlas{color:#22C55E!important}.v73-target-bull{color:#A78BFA!important}.v73-target-bear{color:#F87171!important}.v73-trade-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.v73-trade-card{border:1px solid rgba(148,163,184,.22);border-radius:18px;background:rgba(15,23,42,.58);padding:16px;min-width:0}.v73-trade-card span{display:block;color:#CBD5E1}.v73-trade-card b{display:block;color:#F8FAFC;font-size:clamp(1.15rem,2vw,2rem);line-height:1.08;white-space:normal;overflow-wrap:anywhere}
+.stMarkdown, .stMarkdown p, .stMarkdown li, .stMarkdown span{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important;letter-spacing:normal!important;word-spacing:normal!important;white-space:normal!important;overflow-wrap:break-word!important} div[data-testid="stMetricValue"]{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important;font-size:clamp(1.25rem,2.2vw,2.25rem)!important;line-height:1.08!important;letter-spacing:-.035em!important;white-space:normal!important;overflow-wrap:anywhere!important}
+@media(max-width:780px){.v73-table-wrap{display:none!important}.v73-mobile-card{display:block;border:1px solid rgba(148,163,184,.23);border-radius:22px;background:linear-gradient(145deg,rgba(15,23,42,.96),rgba(17,24,39,.82));padding:18px;margin:14px 0}.v73-mobile-head{display:flex;justify-content:space-between;gap:12px}.v73-mobile-head h2{margin:0;color:#F8FAFC;font-size:1.7rem;letter-spacing:-.06em}.v73-mobile-head p{margin:4px 0 0;color:#94A3B8}.v73-mobile-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:14px}.v73-mobile-grid div{border:1px solid rgba(148,163,184,.16);border-radius:14px;padding:10px;background:rgba(15,23,42,.55)}.v73-mobile-grid small{display:block;color:#94A3B8;text-transform:uppercase;font-weight:900;font-size:.68rem}.v73-mobile-grid b{display:block;color:#F8FAFC;font-size:1.15rem}.v73-mobile-grid em{display:block;color:#94A3B8;font-style:normal;font-size:.78rem}.v73-brandline{display:block}.v73-brandline p{margin-top:8px}.v73-trade-grid{grid-template-columns:repeat(2,1fr)}.v65-hero h1{font-size:2.1rem!important}}
+</style>
+""", unsafe_allow_html=True)
+
+
+def render_v73_top_nav(pages):
+    st.markdown("""
+<div class='v73-topnav'>
+  <div class='v73-brandline'>
+    <div><h3>🧠 ATLAS</h3><span>AI Investment Terminal</span></div>
+    <p>Professional decision support: screen, research, validate the thesis, review catalysts and political risk, then size with discipline.</p>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+    return st.radio("Navigation", pages, horizontal=True, label_visibility="collapsed", key="v73_top_navigation")
+
+
+def render_v73_idea_table(df, title="Today's Highest Conviction Ideas"):
+    if df is None or getattr(df, "empty", True):
+        st.info("No ideas available in the latest saved scan.")
+        return
+    try:
+        if "calibrate_top_ai_dataframe" in globals():
+            df = calibrate_top_ai_dataframe(df.copy())
+    except Exception:
+        pass
+    st.markdown(f"<div class='v65-section-title'>{v73_esc(title)}</div>", unsafe_allow_html=True)
+    st.markdown("<div class='v65-subtitle'>Executive view with ticker, company, decision, analyst context, earnings, political signal, and AI thesis. Mobile uses cards instead of compressed tables.</div>", unsafe_allow_html=True)
+    rows = []
+    cards = []
+    for i, (_, row) in enumerate(df.head(15).iterrows(), 1):
+        ticker = v73_ticker(row); company = v73_company(row)
+        decision = v73_clean_text(v73_get(row, ["Recommendation", "Decision", "decision_action", "Action"], "Watchlist"), "Watchlist")
+        opp = v73_score(row, ["Opportunity Score", "Opportunity", "opportunity_score", "technical_agent_score", "Final Conviction"], 70)
+        qual = v73_score(row, ["Quality Score", "Quality", "quality_score", "financial_score", "fundamentals_agent_score"], 70)
+        conf = v73_score(row, ["Confidence", "AI Confidence", "confidence", "conviction_score", "Final Conviction", "final_agent_score"], min(99, max(opp, qual)))
+        upside = v73_pct(v73_get(row, ["Target Upside %", "target_upside_pct", "analyst_upside_pct", "expected_upside_pct"], None))
+        target = v73_money(v73_get(row, ["AI Fair Value", "Target", "target", "target_mean_price", "analyst_target_mean"], None), "—")
+        earnings_date, _, earnings_status, _, latest_earn = v73_next_earnings(row)
+        political = v73_clean_text(v73_get(row, ["Political Signal", "political_signal", "political_status", "congress_signal"], "Neutral"), "Neutral")
+        thesis = v73_clean_text(v73_get(row, ["AI Thesis", "ai_thesis", "Why Ranked High", "why_ranked_high", "summary", "Guidance"], "Atlas ranks this idea based on quality, valuation, trend, Wall Street, catalysts, and risk/reward."), max_len=260)
+        rows.append(f"""<tr><td><b>#{i}</b></td><td><div class='v73-ticker'>{v73_esc(ticker)}</div><div class='v73-company'>{v73_esc(company)}</div></td><td><span class='v73-pill'>{v73_esc(decision)}</span></td><td class='v73-score'><b>{opp:.0f}</b><span>{v73_score_label(opp)}</span></td><td class='v73-score'><b>{qual:.0f}</b><span>{v73_score_label(qual)}</span></td><td class='v73-score'><b>{conf:.0f}</b><span>{v73_score_label(conf)}</span></td><td><b>{v73_esc(upside)}</b><div class='v73-small'>Target {v73_esc(target)}</div></td><td>{v73_wall_street(row)}</td><td><b>{v73_esc(earnings_date, max_len=18)}</b><br><span class='v73-small'>{v73_esc(earnings_status, max_len=36)}</span></td><td>{v73_esc(political, max_len=36)}</td><td><div class='v73-thesis'>{v73_esc(thesis)}</div></td></tr>""")
+        cards.append(f"""<div class='v73-mobile-card'><div class='v73-mobile-head'><div><h2>{v73_esc(ticker)}</h2><p>{v73_esc(company)}</p></div><span class='v73-pill'>{v73_esc(decision)}</span></div><div class='v73-mobile-grid'><div><small>Opportunity</small><b>{opp:.0f}</b><em>{v73_score_label(opp)}</em></div><div><small>Quality</small><b>{qual:.0f}</b><em>{v73_score_label(qual)}</em></div><div><small>Confidence</small><b>{conf:.0f}</b><em>{v73_score_label(conf)}</em></div><div><small>Upside</small><b>{v73_esc(upside)}</b><em>Target {v73_esc(target)}</em></div><div><small>Wall Street</small><b>{v73_esc(v73_wall_street(row, html=False).split(':')[0])}</b><em>{v73_esc(v73_wall_street(row, html=False).split(':')[-1], max_len=30)}</em></div><div><small>Earnings</small><b>{v73_esc(earnings_date, max_len=20)}</b><em>{v73_esc(earnings_status, max_len=30)}</em></div></div><p class='v73-thesis'>{v73_esc(thesis)}</p></div>""")
+    st.markdown("""<div class='v73-table-wrap'><table class='v73-table'><thead><tr><th>Rank</th><th>Ticker / Company</th><th>Decision</th><th>Opportunity</th><th>Quality</th><th>Confidence</th><th>Upside</th><th>Wall Street</th><th>Earnings</th><th>Political</th><th>AI Thesis</th></tr></thead><tbody>""" + "".join(rows) + "</tbody></table></div>" + "".join(cards), unsafe_allow_html=True)
+
+# Override prior idea table names.
+render_v72_idea_table = render_v73_idea_table
+render_v71_idea_table = render_v73_idea_table
+render_v65_idea_table = render_v73_idea_table
+
+
+def render_v574_top_ideas(source_df):
+    render_v73_idea_table(source_df, title="🧠 Today's Highest Conviction Ideas")
+    if source_df is not None and not getattr(source_df, "empty", True):
+        top_df = source_df.head(15).copy()
+        labels = [f"{v73_ticker(r)} — {v73_company(r)}" for _, r in top_df.iterrows()]
+        st.markdown("### Open executive research summary")
+        st.caption("Select a ticker to open the full supporting dashboard first, then continue into the deep report modules.")
+        selected_label = st.selectbox("Open executive research summary", labels, index=0, key="v73_top_ai_selector")
+        selected_ticker = selected_label.split(" — ")[0].strip().upper()
+        selected_rows = top_df[top_df.apply(lambda r: v73_ticker(r) == selected_ticker, axis=1)]
+        render_detail(selected_rows.iloc[0] if not selected_rows.empty else top_df.iloc[0])
+
+
+def render_v73_earnings_page(full_df=None, top_df=None):
+    st.markdown("<div class='v65-section-title'>💼 Earnings Intelligence</div>", unsafe_allow_html=True)
+    st.markdown("<div class='v65-subtitle'>Earnings are a catalyst layer. This page shows company name, next earnings date, transcript status, latest earnings-related headline, and a quick AI read.</div>", unsafe_allow_html=True)
+    source = top_df if top_df is not None and not getattr(top_df, "empty", True) else (full_df.head(25) if full_df is not None and not getattr(full_df, "empty", True) else pd.DataFrame())
+    if source.empty:
+        st.info("No earnings candidates are available in the latest saved scan.")
+        return
+    rows = []
+    for _, row in source.head(25).iterrows():
+        ticker = v73_ticker(row); company = v73_company(row)
+        date, timing, status, transcript, latest = v73_next_earnings(row)
+        link_html = ""
+        if transcript:
+            link_html = f"<br><a href='{_v73_html.escape(transcript)}' target='_blank'>Open transcript/source</a>"
+        elif latest:
+            # Search link so the user can open the likely article when source URL is missing.
+            link_html = f"<br><a href='https://www.google.com/search?q={_v73_quote_plus(ticker + ' ' + latest)}' target='_blank'>Search latest earnings story</a>"
+        ai_read = "Check before new positions; earnings can quickly change guidance, sentiment, and risk/reward."
+        if latest:
+            ai_read = v73_clean_text(latest, max_len=120)
+        rows.append(f"<tr><td><b>{v73_esc(ticker)}</b></td><td>{v73_esc(company)}</td><td>{v73_esc(date)}</td><td>{v73_esc(timing)}</td><td>{v73_esc(status)}{link_html}</td><td>{v73_esc(ai_read)}</td></tr>")
+    st.markdown("""<div class='v73-table-wrap'><table class='v73-table'><thead><tr><th>Ticker</th><th>Company</th><th>Next earnings</th><th>Timing</th><th>Transcript / source</th><th>AI earnings read</th></tr></thead><tbody>""" + "".join(rows) + "</tbody></table></div>", unsafe_allow_html=True)
+
+
+def render_v73_news(row):
+    ticker = v73_ticker(row)
+    news = v73_news_candidates(row, 8)
+    st.markdown("<div class='v65-section-title'>📰 News & Catalysts</div>", unsafe_allow_html=True)
+    if not news:
+        st.info("No company-specific catalyst was included in the latest saved scan. This is neutral; it does not improve or weaken the thesis.")
+        return
+    st.markdown(f"<p class='v73-note'>Recent ticker-specific headlines were found for <b>{v73_esc(ticker)}</b>. Click a headline to open the source or a search link when the provider did not save the URL.</p>", unsafe_allow_html=True)
+    for n in news:
+        meta = " · ".join([x for x in [n.get("source"), n.get("date")] if x])
+        st.markdown(f"<div class='v73-news-card'><a href='{_v73_html.escape(n['url'])}' target='_blank'>{v73_esc(n['title'])}</a><small>{v73_esc(meta or 'News source')}</small></div>", unsafe_allow_html=True)
+
+
+def render_v73_smart_money(row):
+    insider = v73_num(v73_get(row, ["insider_activity_score", "Insider Score", "insider_score", "smart_money_score", "Smart Money Score"], None), None)
+    inst = v73_num(v73_get(row, ["institutional_ownership", "Institutional Ownership", "institutionalOwnership"], None), None)
+    short = v73_num(v73_get(row, ["short_interest", "Short Interest", "shortPercentOfFloat"], None), None)
+    st.markdown("<div class='v65-section-title'>🏛️ AI Smart Money Assessment</div>", unsafe_allow_html=True)
+    bullets = []
+    if insider is not None:
+        bullets.append(f"Insider activity score is {insider:.0f}/100. Use this as a supporting signal, not a standalone buy reason.")
+    if inst is not None:
+        bullets.append(f"Institutional ownership is approximately {v73_pct(inst)}. Higher institutional ownership can support liquidity but may also increase volatility if funds reduce exposure.")
+    if short is not None:
+        bullets.append(f"Short interest is approximately {v73_pct(short)}. Elevated short interest can increase risk, but it can also fuel sharp upside moves if sentiment improves.")
+    if not bullets:
+        bullets.append("No reliable insider, institutional, or ownership-flow signal was included in the latest saved scan.")
+        bullets.append("This section is neutral and should not affect the recommendation until stronger smart-money data is available.")
+    for b in bullets:
+        st.markdown(f"• {v73_esc(b)}")
+    st.markdown("**Bottom Line:** Smart money is a supporting evidence layer. It should confirm or challenge the thesis, not replace financial quality, valuation, and risk/reward.")
+
+
+def render_v73_technical(row):
+    rsi = v73_num(v73_get(row, ["RSI", "rsi", "rsi_14"], None), None)
+    relvol = v73_num(v73_get(row, ["relative_volume", "Relative Volume", "rel_volume"], None), None)
+    atr = v73_num(v73_get(row, ["ATR %", "atr_pct", "ATR Percent", "atr_percent"], None), None)
+    trend = v73_clean_text(v73_get(row, ["trend", "Technical Setup", "technical_setup", "price_trend"], "Constructive"), "Constructive")
+    st.markdown("<div class='v65-section-title'>📈 AI Technical Assessment</div>", unsafe_allow_html=True)
+    st.markdown(f"• **Trend:** The setup is currently described as **{v73_esc(trend)}**. For a newer investor, this means the chart is being used mainly for timing the entry, not as the only reason to buy.")
+    if rsi is not None:
+        if rsi >= 70: msg = "momentum is strong but the stock may be getting overbought, so chasing entries can be risky."
+        elif rsi <= 30: msg = "the stock may be oversold, which can create a bounce opportunity but also signals stress."
+        else: msg = "momentum is balanced; buyers have not pushed the stock into an overheated zone."
+        st.markdown(f"• **RSI:** RSI is **{rsi:.1f}**, which means {msg}")
+    if relvol is not None:
+        st.markdown(f"• **Volume:** Relative volume is **{relvol:.2f}x**. Around 1.0x means normal participation; above 1.5x means more investors are actively trading the move.")
+    if atr is not None:
+        if abs(atr) <= 1: atr *= 100
+        st.markdown(f"• **Volatility:** ATR is approximately **{atr:.1f}%**. This helps set position size and stop placement so normal price swings do not force an unnecessary exit.")
+    st.markdown("**Bottom Line:** Technicals help decide *when* to enter and where risk should be controlled. They should support the thesis, not override weak fundamentals or poor risk/reward.")
+
+
+def render_v73_target_analysis(row):
+    consensus = v73_num(v73_get(row, ["analyst_target_mean", "target_mean_price", "Analyst Target", "consensus_target"], None), None)
+    fair = v73_num(v73_get(row, ["AI Fair Value", "ai_fair_value", "Target", "target"], None), None)
+    fair_low = v73_num(v73_get(row, ["fair_low", "AI Fair Low", "bear_target"], fair), fair)
+    fair_high = v73_num(v73_get(row, ["fair_high", "AI Fair High", "bull_target"], fair), fair)
+    bull = v73_num(v73_get(row, ["bull_target", "Bull Target", "bull_scenario"], None), None)
+    bear = v73_num(v73_get(row, ["bear_target", "Bear Target", "bear_scenario"], None), None)
+    st.markdown("<div class='v65-section-title'>🎯 AI Target Analysis</div>", unsafe_allow_html=True)
+    st.markdown(f"""
+<div class='v73-trade-grid'>
+  <div class='v73-trade-card'><span>Analyst consensus</span><b class='v73-target-analyst'>{v73_money(consensus)}</b></div>
+  <div class='v73-trade-card'><span>Atlas fair value</span><b class='v73-target-atlas'>{v73_money(fair_low)} – {v73_money(fair_high)}</b></div>
+  <div class='v73-trade-card'><span>Bull scenario</span><b class='v73-target-bull'>{v73_money(bull)}</b></div>
+  <div class='v73-trade-card'><span>Bear scenario</span><b class='v73-target-bear'>{v73_money(bear)}</b></div>
+</div>
+""", unsafe_allow_html=True)
+    st.markdown(f"• Wall Street consensus is **{v73_money(consensus)}**. Atlas fair value is shown separately as **{v73_money(fair_low)} to {v73_money(fair_high)}** so users can compare analyst optimism against the model's more disciplined range.")
+
+
+def render_v73_trade_plan(row):
+    entry_low = v73_num(v73_get(row, ["entry_low", "Entry Low"], None), None)
+    entry_high = v73_num(v73_get(row, ["entry_high", "Entry High", "Entry"], None), None)
+    stop = v73_num(v73_get(row, ["stop_loss", "Stop", "Stop Loss"], None), None)
+    target = v73_num(v73_get(row, ["target", "Target", "AI Fair Value", "target_mean_price"], None), None)
+    rr = v73_clean_text(v73_get(row, ["risk_reward", "Risk/Reward", "R/R"], "Review"), "Review")
+    ideal = f"Below {v73_money(entry_low)}" if entry_low else "Review chart"
+    aggressive = f"{v73_money(entry_low)} – {v73_money(entry_high)}" if entry_low and entry_high else "Review"
+    st.markdown("<div class='v65-section-title'>📍 Trade Plan</div>", unsafe_allow_html=True)
+    st.markdown(f"""
+<div class='v73-trade-grid'>
+  <div class='v73-trade-card'><span>Ideal entry</span><b>{v73_esc(ideal)}</b></div>
+  <div class='v73-trade-card'><span>Aggressive entry</span><b>{v73_esc(aggressive)}</b></div>
+  <div class='v73-trade-card'><span>Trading stop</span><b>{v73_money(stop)}</b></div>
+  <div class='v73-trade-card'><span>Base target</span><b>{v73_money(target)}</b></div>
+</div>
+""", unsafe_allow_html=True)
+    st.markdown(f"<p class='v73-note'><b>Risk/reward:</b> {v73_esc(rr)}. Use the stop and position size before entering; do not buy only because upside looks attractive.</p>", unsafe_allow_html=True)
+
+
+def render_v73_supporting_dashboard(row):
+    ticker = v73_ticker(row); company = v73_company(row)
+    decision = v73_clean_text(v73_get(row, ["Recommendation", "Decision", "decision_action", "Action"], "Review"), "Review")
+    opp = v73_score(row, ["Opportunity Score", "Opportunity", "opportunity_score", "technical_agent_score", "Final Conviction"], 70)
+    qual = v73_score(row, ["Quality Score", "Quality", "quality_score", "financial_score", "fundamentals_agent_score"], 70)
+    conf = v73_score(row, ["Confidence", "AI Confidence", "confidence", "conviction_score", "Final Conviction", "final_agent_score"], min(99, max(opp, qual)))
+    fin = v73_score(row, ["Financial Health", "financial_health", "financial_score", "Quality"], qual)
+    st.markdown(f"""
+<div class='v73-terminal-card'>
+  <h1>🧠 {v73_esc(ticker)} Research Dashboard</h1>
+  <p><b>{v73_esc(company)}</b> · Advanced supporting dashboard loads first so investors can quickly validate the thesis before reading the full deep report.</p>
+  <div class='v73-trade-grid'>
+    <div class='v73-trade-card'><span>Decision</span><b>{v73_esc(decision)}</b></div>
+    <div class='v73-trade-card'><span>Confidence</span><b>{conf:.0f}/100</b></div>
+    <div class='v73-trade-card'><span>Opportunity</span><b>{opp:.0f}/100</b></div>
+    <div class='v73-trade-card'><span>Financial health</span><b>{fin:.0f}/100</b></div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+    st.markdown("#### Why we are interested")
+    st.markdown(f"• {v73_esc(ticker)} earns a **{v73_score_label(conf)}** confidence score because Atlas found supportive evidence across quality, valuation, Wall Street, technicals, and risk controls.")
+    st.markdown(f"• Wall Street context: **{v73_esc(v73_wall_street(row, html=False))}**.")
+    date, timing, status, _, latest = v73_next_earnings(row)
+    st.markdown(f"• Earnings check: **{v73_esc(date)}** · {v73_esc(status)}. Always review earnings timing before opening a new position.")
+    political = v73_clean_text(v73_get(row, ["Political Signal", "political_signal", "political_status", "congress_signal"], "Neutral"), "Neutral")
+    st.markdown(f"• Political intelligence: **{v73_esc(political)}**. Political data is supporting evidence, not the primary reason to buy or sell.")
+
+
+def render_detail(row):
+    """V73 report flow: fast supporting dashboard first, then prior deep modules, plus fixed sections."""
+    try:
+        render_v73_supporting_dashboard(row)
+        if "render_v71_institutional_chart" in globals():
+            render_v71_institutional_chart(row)
+        render_v73_target_analysis(row)
+        render_v73_trade_plan(row)
+        render_v73_news(row)
+        render_v73_smart_money(row)
+        render_v73_technical(row)
+        if _v73_prior_render_detail is not None:
+            with st.expander("View full legacy deep report modules", expanded=False):
+                _v73_prior_render_detail(row)
+    except Exception as e:
+        st.error(f"V73 report renderer failed, falling back to prior report: {e}")
+        if _v73_prior_render_detail is not None:
+            _v73_prior_render_detail(row)
+
+
+def render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df=None):
+    st.markdown("<div class='v65-section-title'>🔎 Research Any Ticker</div>", unsafe_allow_html=True)
+    st.markdown("<div class='v65-subtitle'>Fast saved-scan snapshot loads first. Deep refresh should only be used when you need live data beyond the saved scan.</div>", unsafe_allow_html=True)
+    ticker = st.text_input("Ticker", value="", placeholder="Example: NVDA, MSFT, OPRA", key="v73_research_ticker").strip().upper()
+    if not ticker:
+        st.info("Enter a ticker to open the full supporting dashboard.")
+        return
+    row = None
+    try:
+        row = find_ticker_row(ticker, full_df, recovery_df, watch_df, prescreen_df, etf_df)
+    except Exception:
+        row = None
+    if row is None:
+        st.warning("Ticker was not found in the latest saved scan. Showing price-only fallback if available.")
+        try:
+            row = pd.Series(build_price_only_live_row(ticker, reason="not found in saved scan"))
+        except Exception:
+            row = pd.Series({"Ticker": ticker, "Company": ticker})
+    else:
+        st.success("Loaded from the latest saved Atlas scan. This should be fast; use Deep Refresh only when needed.")
+    render_detail(row)
+    if st.button(f"Run Deep Refresh for {ticker}", key=f"v73_deep_refresh_{ticker}"):
+        with st.spinner(f"Running live AI research for {ticker}..."):
+            try:
+                live_row = build_live_research_row(ticker)
+            except Exception as e:
+                live_row = {"error": str(e)}
+        if isinstance(live_row, dict) and not live_row.get("error"):
+            render_detail(pd.Series(live_row))
+        else:
+            st.warning("Deep refresh did not return a complete live report. Saved scan remains available.")
+
+
+def render_v73_home_dashboard(full_df=None, top_df=None, recovery_df=None):
+    full_count = 0 if full_df is None or getattr(full_df, "empty", True) else len(full_df)
+    top_count = 0 if top_df is None or getattr(top_df, "empty", True) else len(top_df)
+    rec_count = 0 if recovery_df is None or getattr(recovery_df, "empty", True) else len(recovery_df)
+    st.markdown(f"""
+<div class='v65-hero'>
+  <div class='v65-kicker'>Atlas AI Investment Terminal</div>
+  <h1>Turn market noise into actionable investment decisions.</h1>
+  <p>Atlas researches companies through financial quality, valuation, risk/reward, Wall Street context, earnings, political intelligence, smart money, technicals, news, catalysts, and portfolio context — then converts the evidence into one decision workflow.</p>
+  <div class='v65-stat-grid'>
+    <div class='v65-stat'><span>Mission</span><b>Investment Research</b></div>
+    <div class='v65-stat'><span>Stocks scanned</span><b>{full_count}</b></div>
+    <div class='v65-stat'><span>Top ideas</span><b>{top_count}</b></div>
+    <div class='v65-stat'><span>Recovery watch</span><b>{rec_count}</b></div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+    render_v72_market_tape()
+    st.markdown("<div class='v65-section-title'>🔎 Search Workflow</div>", unsafe_allow_html=True)
+    st.markdown("<div class='v65-subtitle'>Use Research Any Ticker for a fast supporting dashboard, chart, earnings, political intelligence, news, and AI committee view.</div>", unsafe_allow_html=True)
+    if top_count:
+        render_v73_idea_table(top_df.head(8), title="Top Opportunities Today")
+    try:
+        render_v70_market_calendar_terminal(full_df)
+    except Exception:
+        pass
+    render_v73_earnings_page(full_df, top_df)
+
+
+def main():
+    if not dashboard_login_gate():
+        return
+    render_v59_design_system(); render_v65_design_system(); render_v70_design_system(); render_v72_design_system(); render_v73_design_system()
+    full_df = load_full_scan(); top_df = latest_top_ideas(); recovery_df = latest_recovery(); watch_df = latest_watchlist_scan(); prescreen_df = load_file(PRESCREEN_FILE); etf_df = load_file(ETF_SCAN_FILE)
+    pages = ["Home", "Top AI Ideas", "Research Any Ticker", "Earnings Intelligence", "Full Ranked Scan", "Portfolio Intelligence", "Watchlist Intelligence", "Recovery", "ETFs", "Political Intelligence", "Ask AI"]
+    selected_page = render_v73_top_nav(pages)
+    source_df = top_df if top_df is not None and not top_df.empty else full_df.head(25)
+    if selected_page != "Home":
+        render_v72_market_tape(always_show=False)
+    if selected_page == "Home": render_v73_home_dashboard(full_df, source_df, recovery_df)
+    elif selected_page == "Top AI Ideas": render_v574_top_ideas(source_df)
+    elif selected_page == "Research Any Ticker": render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df)
+    elif selected_page == "Earnings Intelligence": render_v73_earnings_page(full_df, source_df)
+    elif selected_page == "Full Ranked Scan": render_v56_ranked_table(full_df, title="Full Ranked AI Scan", max_rows=75, show_filters=True)
+    elif selected_page == "Portfolio Intelligence": render_v505_portfolio_analyzer(full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
+    elif selected_page == "Watchlist Intelligence": render_v506_watchlist_intelligence(full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
+    elif selected_page == "Recovery": render_v65_recovery_intelligence(recovery_df)
+    elif selected_page == "ETFs": render_v56_ranked_table(etf_df, title="ETF Intelligence", max_rows=50, show_filters=True)
+    elif selected_page == "Political Intelligence": render_v58_political_intelligence(full_df)
+    elif selected_page == "Ask AI": render_chat_helper(full_df)
+
+if __name__ == "__main__":
+    main()
