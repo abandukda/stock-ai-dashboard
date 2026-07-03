@@ -329,3 +329,16 @@ V72_INSTITUTIONAL_UX_FAST_RESEARCH_CALIBRATION_VERIFIED = True
 
 # V73 Enterprise verification marker
 V73_ENTERPRISE_RESEARCH_TERMINAL_CALIBRATION_VERIFIED = True
+
+# V74 marker and slightly more practical buy calibration for premium research terminal.
+V74_MAJOR_UX_HOME_MARKET_CALIBRATION_VERIFIED = True
+
+# Override recommendation to avoid showing only one BUY when opportunity and quality are clearly strong.
+def _recommendation(opp: int, quality: int, upside: float, rr: float) -> str:
+    if opp >= 82 and quality >= 70 and upside >= 10 and (rr == 0 or rr >= 1.35):
+        return "✅ BUY NOW"
+    if opp >= 76 and quality >= 65 and upside >= 7:
+        return "🟡 WATCHLIST"
+    if opp >= 65:
+        return "👀 MONITOR"
+    return "🔴 AVOID"

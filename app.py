@@ -24933,3 +24933,306 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# ==============================
+# V74 MAJOR UX + HOME DEDUPE + MARKET FALLBACK
+# ==============================
+V74_MAJOR_UX_HOME_MARKET_VERIFIED = True
+
+# Override text cleaner globally to prevent markdown/italic merge artifacts such as AIfairvaluerange.
+def v73_clean_text(value, default="—"):
+    import re, html
+    if value is None:
+        return default
+    text = str(value)
+    bad = {"nan", "none", "null", "n/a", "na", ""}
+    if text.strip().lower() in bad:
+        return default
+    replacements = {
+        "AIfairvaluerangeis": "Atlas fair value range is ",
+        "AIfairvaluerange": "Atlas fair value range",
+        "AI fairvaluerange": "Atlas fair value range",
+        "whiletheAI": "while the Atlas",
+        "bullcaseis": "bull case is ",
+        "bearcaseis": "bear case is ",
+        "Atlasconstrainsthefairvaluerangeto": "Atlas constrains the fair value range to ",
+        "constrainsthefairvaluerangeto": "constrains the fair value range to ",
+        "fairvaluerangeto": "fair value range to ",
+        "fairvalue": "fair value",
+    }
+    for k, v in replacements.items():
+        text = text.replace(k, v)
+    # add spaces around accidental camel/number joins
+    text = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", text)
+    text = re.sub(r"(?<=\d)(?=[A-Za-z])", " ", text)
+    text = re.sub(r"(?<=[A-Za-z])(?=\$?\d)", " ", text)
+    text = text.replace(" ;", ";").replace(" ,", ",")
+    text = re.sub(r"\s+", " ", text).strip()
+    return text or default
+
+def v74_money(v):
+    try:
+        n = v73_num(v, None)
+        if n is None:
+            return "Unavailable"
+        return f"${n:,.2f}"
+    except Exception:
+        return "Unavailable"
+
+def v74_pct(v):
+    try:
+        n = v73_num(v, None)
+        if n is None:
+            return "—"
+        if abs(n) <= 2: n *= 100
+        return f"{n:.1f}%"
+    except Exception:
+        return "—"
+
+def v74_market_quote(symbol):
+    try:
+        import yfinance as yf
+        hist = yf.Ticker(symbol).history(period="5d", interval="1d", auto_adjust=False)
+        if hist is None or hist.empty or "Close" not in hist:
+            return None
+        closes = hist["Close"].dropna()
+        if len(closes) < 1:
+            return None
+        last = float(closes.iloc[-1])
+        prev = float(closes.iloc[-2]) if len(closes) > 1 else last
+        pct = ((last - prev) / prev * 100) if prev else 0
+        return last, pct
+    except Exception:
+        return None
+
+def render_v72_market_tape(always_show=True):
+    symbols = [("SPY","S&P 500"),("QQQ","Nasdaq"),("DIA","Dow"),("IWM","Russell"),("VIXY","Volatility"),("GLD","Gold"),("USO","Oil"),("BTC-USD","Bitcoin")]
+    cards = []
+    for sym, name in symbols:
+        q = v74_market_quote(sym)
+        if q:
+            last, pct = q
+            color = "#20d46b" if pct >= 0 else "#ff4d4d"
+            sign = "+" if pct >= 0 else ""
+            cards.append(f"<div class='v74-tape-card'><span>{name}</span><b>{last:,.2f}</b><em style='color:{color}'>{sign}{pct:.2f}%</em></div>")
+    st.markdown("<div class='v65-kicker'>Live Market Tape · delayed / near real-time context</div>", unsafe_allow_html=True)
+    if cards:
+        st.markdown("<div class='v74-market-tape'>" + "".join(cards) + "</div>", unsafe_allow_html=True)
+    else:
+        # never leave blank: show saved-scan regime fallback
+        st.markdown("""
+<div class='v74-market-tape'>
+  <div class='v74-tape-card'><span>Market Data</span><b>Saved scan active</b><em>Live source unavailable</em></div>
+  <div class='v74-tape-card'><span>Fallback</span><b>Research remains available</b><em>Use scan + charts</em></div>
+</div>
+""", unsafe_allow_html=True)
+
+def v74_market_regime(full_df):
+    try:
+        if full_df is None or full_df.empty:
+            return "Neutral", 0, 0, 0
+        recs = full_df.apply(lambda r: str(v73_get(r, ["Recommendation","Decision","Action"], "")).upper(), axis=1)
+        buys = int(recs.str.contains("BUY").sum())
+        watch = int(recs.str.contains("WATCH").sum())
+        avoid = int(recs.str.contains("AVOID|SELL").sum())
+        if buys >= 5: regime = "Constructive"
+        elif buys >= 2: regime = "Selective"
+        else: regime = "Defensive / selective"
+        return regime, buys, watch, avoid
+    except Exception:
+        return "Neutral", 0, 0, 0
+
+def render_v74_design_system():
+    st.markdown("""
+<style>
+.v74-topbar{position:sticky;top:0;z-index:999;background:rgba(5,10,22,.94);backdrop-filter:blur(12px);border-bottom:1px solid rgba(148,163,184,.2);padding:10px 14px;margin:-1rem -1rem 1.1rem -1rem;display:flex;gap:10px;align-items:center;overflow-x:auto;white-space:nowrap}.v74-brand{font-weight:900;color:#fff;margin-right:12px}.v74-navbtn{display:inline-block;padding:10px 14px;border:1px solid rgba(148,163,184,.26);border-radius:999px;color:#dbeafe;text-decoration:none;font-weight:800;background:rgba(15,23,42,.72)}.v74-navbtn-active{background:rgba(59,130,246,.18);border-color:rgba(96,165,250,.55);color:#fff}.v74-brief{border:1px solid rgba(96,165,250,.22);border-radius:28px;background:linear-gradient(135deg,rgba(12,25,47,.98),rgba(4,10,21,.98));padding:26px;margin:18px 0}.v74-brief h1{font-size:clamp(32px,5vw,62px);line-height:1.05;margin:0 0 12px}.v74-brief p{font-size:20px;color:#b8c3d6;line-height:1.55}.v74-metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:18px}.v74-metric{border:1px solid rgba(148,163,184,.22);border-radius:20px;padding:18px;background:rgba(15,23,42,.68)}.v74-metric span{display:block;color:#93a4bb;text-transform:uppercase;letter-spacing:.1em;font-weight:900;font-size:13px}.v74-metric b{display:block;color:#fff;font-size:28px;margin-top:8px}.v74-market-tape{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:10px 0 24px}.v74-tape-card{border:1px solid rgba(148,163,184,.2);border-radius:18px;padding:13px 15px;background:rgba(15,23,42,.72)}.v74-tape-card span{display:block;color:#9ca3af;font-weight:800;font-size:13px}.v74-tape-card b{display:block;color:#fff;font-size:20px}.v74-tape-card em{font-style:normal;font-weight:900}.v74-card-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.v74-idea-card{border:1px solid rgba(148,163,184,.22);border-radius:24px;padding:20px;background:linear-gradient(145deg,rgba(15,23,42,.92),rgba(8,15,30,.98))}.v74-idea-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.v74-ticker{font-size:38px;font-weight:900;color:#fff}.v74-company{color:#9ca3af;font-size:17px;margin-top:4px}.v74-badge{border-radius:999px;padding:10px 14px;font-weight:900}.v74-buy{background:rgba(34,197,94,.17);border:1px solid rgba(34,197,94,.45);color:#fff}.v74-watch{background:rgba(245,158,11,.13);border:1px solid rgba(245,158,11,.42);color:#fff}.v74-mini-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:16px}.v74-mini{border:1px solid rgba(148,163,184,.16);border-radius:16px;padding:12px;background:rgba(2,6,23,.35)}.v74-mini span{display:block;color:#93a4bb;text-transform:uppercase;font-size:11px;font-weight:900;letter-spacing:.08em}.v74-mini b{display:block;color:#fff;font-size:21px}.v74-mini em{display:block;color:#cbd5e1;font-style:normal}.v74-thesis{color:#dbe4f0;font-size:16px;line-height:1.48;margin-top:14px}.v73-trade-card b,.v73-target-atlas,.v73-target-analyst,.v73-target-bull,.v73-target-bear{font-family:Inter,Arial,sans-serif!important;font-style:normal!important;white-space:normal!important;overflow-wrap:anywhere!important;font-size:clamp(24px,3vw,38px)!important;line-height:1.05!important}.v73-target-analyst{color:#60a5fa!important}.v73-target-atlas{color:#22c55e!important}.v73-target-bull{color:#f59e0b!important}.v73-target-bear{color:#f87171!important}.v73-note{overflow-wrap:anywhere}.v74-dark-table table{background:#0b1220!important;color:#e5e7eb!important}.v74-dark-table th{background:#111827!important;color:#d1d5db!important}.v74-dark-table td{background:#0b1220!important;color:#e5e7eb!important;white-space:normal!important}.stMarkdown a{color:#60a5fa!important;text-decoration:underline!important}
+@media(max-width:760px){.v74-metric-grid,.v74-market-tape,.v74-card-grid{grid-template-columns:1fr}.v74-mini-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.v74-brief{padding:20px}.v74-brief h1{font-size:38px}.v74-brief p{font-size:17px}.v74-topbar{gap:8px}.v74-navbtn{padding:9px 12px;font-size:14px}.v74-ticker{font-size:34px}}
+</style>
+""", unsafe_allow_html=True)
+
+def render_v73_top_nav(pages):
+    # sticky top navigation; no vertical sidebar feel
+    current = st.session_state.get("v73_page", pages[0])
+    if current not in pages:
+        current = pages[0]
+    st.markdown("<div class='v74-topbar'><span class='v74-brand'>🧠 ATLAS</span>" + "".join([f"<a class='v74-navbtn {'v74-navbtn-active' if p==current else ''}' href='?page={p.replace(' ','%20')}'>{p}</a>" for p in pages]) + "</div>", unsafe_allow_html=True)
+    # query param support
+    try:
+        qp = st.query_params.get("page")
+        if qp and qp in pages:
+            current = qp
+            st.session_state["v73_page"] = current
+    except Exception:
+        pass
+    cols = st.columns(min(5, len(pages)))
+    # compact radio fallback hidden-ish for Streamlit state reliability
+    current = st.radio("Navigate", pages, index=pages.index(current), horizontal=True, key="v74_nav_radio", label_visibility="collapsed")
+    st.session_state["v73_page"] = current
+    return current
+
+def render_v74_home_dashboard(full_df=None, top_df=None, recovery_df=None):
+    # Single home renderer only. No repeated marketing blocks lower on page.
+    full_count = 0 if full_df is None or getattr(full_df, "empty", True) else len(full_df)
+    top_count = 0 if top_df is None or getattr(top_df, "empty", True) else len(top_df)
+    rec_count = 0 if recovery_df is None or getattr(recovery_df, "empty", True) else len(recovery_df)
+    regime, buys, watch, avoid = v74_market_regime(full_df)
+    top_ticker = "—"
+    top_company = ""
+    if top_df is not None and not top_df.empty:
+        top_ticker = v73_ticker(top_df.iloc[0])
+        top_company = v73_company(top_df.iloc[0])
+    st.markdown(f"""
+<div class='v74-brief'>
+  <div class='v65-kicker'>Atlas AI Investment Terminal</div>
+  <h1>Good morning. Here is what matters today.</h1>
+  <p>Market regime: <b>{v73_esc(regime)}</b>. Top opportunity: <b>{v73_esc(top_ticker)}</b>{' — ' + v73_esc(top_company) if top_company else ''}. Review chart, earnings, news, political context, and risk before sizing.</p>
+  <div class='v74-metric-grid'>
+    <div class='v74-metric'><span>Buy Now</span><b>{buys}</b></div>
+    <div class='v74-metric'><span>Watchlist</span><b>{watch}</b></div>
+    <div class='v74-metric'><span>Recovery</span><b>{rec_count}</b></div>
+    <div class='v74-metric'><span>Stocks Covered</span><b>{full_count}</b></div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+    render_v72_market_tape()
+    if top_count:
+        render_v73_idea_table(top_df.head(8), title="Top Opportunities Today")
+    try:
+        render_v70_market_calendar_terminal(full_df)
+    except Exception:
+        pass
+    render_v73_earnings_page(full_df, top_df)
+
+def v74_row_company(row):
+    return v73_company(row)
+
+def render_v73_earnings_page(full_df=None, top_df=None):
+    st.markdown("<div class='v65-section-title'>💼 Earnings Intelligence</div>", unsafe_allow_html=True)
+    st.markdown("<div class='v65-subtitle'>Earnings are a catalyst layer. Confirm company, expected date, transcript status, and latest earnings/news evidence before opening a new position.</div>", unsafe_allow_html=True)
+    df = top_df if top_df is not None and not getattr(top_df, "empty", True) else full_df
+    if df is None or getattr(df, "empty", True):
+        st.info("No earnings data available in the latest saved scan.")
+        return
+    rows = []
+    for _, row in df.head(12).iterrows():
+        ticker = v73_ticker(row); company = v73_company(row)
+        date, timing, status, url, latest = v73_next_earnings(row)
+        transcript = "Available" if ("transcript" in str(latest).lower() or "transcript" in str(status).lower() or url) else "Not confirmed"
+        rows.append({"Ticker": ticker, "Company": company, "Next earnings": date, "Timing": timing, "Transcript": transcript, "AI earnings read": latest if latest and latest != "—" else status})
+    out = pd.DataFrame(rows)
+    st.markdown("<div class='v74-dark-table'>", unsafe_allow_html=True)
+    st.dataframe(out, use_container_width=True, hide_index=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+def render_v73_news(row):
+    ticker = v73_ticker(row)
+    items = v73_news_items(row, max_items=8)
+    st.markdown("<div class='v65-section-title'>📰 News & Catalysts</div>", unsafe_allow_html=True)
+    if not items:
+        st.info(f"No company-specific catalyst was included for {ticker} in the latest saved scan. This is neutral, not bearish.")
+        return
+    st.markdown(f"Recent ticker-specific news was found for **{v73_esc(ticker)}**. Click headlines when a source link is available.")
+    for item in items:
+        title = v73_clean_text(item.get("title") or item.get("headline") or "News item", "News item")
+        url = str(item.get("url") or item.get("link") or "").strip()
+        source = v73_clean_text(item.get("source") or item.get("site") or item.get("publisher") or "News source", "News source")
+        date = v73_clean_text(item.get("publishedDate") or item.get("date") or item.get("published_at") or "", "")
+        if url.startswith("http"):
+            st.markdown(f"- [{v73_esc(title)}]({url}) — {v73_esc(source)}{(' · ' + v73_esc(date)) if date else ''}")
+        else:
+            st.markdown(f"- **{v73_esc(title)}** — {v73_esc(source)} · link unavailable")
+
+def render_v73_target_analysis(row):
+    consensus = v73_num(v73_get(row, ["analyst_target_mean", "target_mean_price", "Analyst Target", "consensus_target"], None), None)
+    fair = v73_num(v73_get(row, ["AI Fair Value", "ai_fair_value", "Target", "target"], None), None)
+    fair_low = v73_num(v73_get(row, ["fair_low", "AI Fair Low", "bear_target"], fair), fair)
+    fair_high = v73_num(v73_get(row, ["fair_high", "AI Fair High", "bull_target"], fair), fair)
+    bull = v73_num(v73_get(row, ["bull_target", "Bull Target", "bull_scenario"], None), None)
+    bear = v73_num(v73_get(row, ["bear_target", "Bear Target", "bear_scenario"], None), None)
+    st.markdown("<div class='v65-section-title'>🎯 AI Target Analysis</div>", unsafe_allow_html=True)
+    st.markdown(f"""
+<div class='v73-trade-grid'>
+  <div class='v73-trade-card'><span>Analyst Consensus</span><b class='v73-target-analyst'>{v74_money(consensus)}</b></div>
+  <div class='v73-trade-card'><span>Atlas Fair Value</span><b class='v73-target-atlas'>{v74_money(fair_low)} – {v74_money(fair_high)}</b></div>
+  <div class='v73-trade-card'><span>Bull Scenario</span><b class='v73-target-bull'>{v74_money(bull)}</b></div>
+  <div class='v73-trade-card'><span>Bear Scenario</span><b class='v73-target-bear'>{v74_money(bear)}</b></div>
+</div>
+""", unsafe_allow_html=True)
+    st.markdown(f"• Analyst consensus is **{v74_money(consensus)}**. Atlas fair value is **{v74_money(fair_low)} to {v74_money(fair_high)}**. The two are shown separately so investors can compare Wall Street optimism against Atlas's risk-adjusted view.")
+
+def render_v73_technical(row):
+    rsi = v73_num(v73_get(row, ["RSI", "rsi", "rsi_14"], None), None)
+    relvol = v73_num(v73_get(row, ["relative_volume", "Relative Volume", "rel_volume"], None), None)
+    atr = v73_num(v73_get(row, ["ATR %", "atr_pct", "ATR Percent", "atr_percent"], None), None)
+    trend = v73_clean_text(v73_get(row, ["trend", "Technical Setup", "technical_setup", "price_trend"], "Constructive"), "Constructive")
+    st.markdown("<div class='v65-section-title'>📈 AI Technical Assessment</div>", unsafe_allow_html=True)
+    st.markdown(f"• **Trend:** The chart setup is **{v73_esc(trend)}**. In plain English, Atlas uses this to decide whether the stock is moving in the right direction before suggesting an entry.")
+    if rsi is not None:
+        if rsi >= 70: msg = "buyers are strong, but the stock may be crowded or overheated. Waiting for a pullback can reduce risk."
+        elif rsi <= 30: msg = "the stock may be washed out. This can create a bounce, but it can also mean investors are worried."
+        else: msg = "momentum is balanced. Buyers have control without the stock looking overheated."
+        st.markdown(f"• **Momentum / RSI:** RSI is **{rsi:.1f}**. {msg}")
+    if relvol is not None:
+        st.markdown(f"• **Volume:** Relative volume is **{relvol:.2f}x**. Around 1.0x is normal. Above 1.5x means more investors are participating, which makes breakouts more credible.")
+    if atr is not None:
+        if abs(atr) <= 1: atr *= 100
+        st.markdown(f"• **Volatility / ATR:** ATR is about **{atr:.1f}%**. A newer investor can use this to understand how much the stock normally moves and avoid setting a stop too tight.")
+    st.markdown("**Bottom Line:** Technicals do not tell you whether the business is good. They help decide entry timing, stop placement, and whether momentum supports the investment thesis.")
+
+def render_v73_idea_table(df, title="Top Opportunities Today"):
+    st.markdown(f"<div class='v65-section-title'>{v73_esc(title)}</div>", unsafe_allow_html=True)
+    if df is None or getattr(df, "empty", True):
+        st.info("No top ideas found in the latest saved scan.")
+        return
+    cards = []
+    for i, (_, row) in enumerate(df.head(10).iterrows(), 1):
+        ticker = v73_ticker(row); company = v73_company(row)
+        decision = v73_clean_text(v73_get(row, ["Recommendation","Decision","Action"], "Review"), "Review")
+        badge_cls = "v74-buy" if "BUY" in decision.upper() else "v74-watch"
+        opp = v73_score(row, ["Opportunity", "Opportunity Score", "opportunity_score"], 0)
+        qual = v73_score(row, ["Quality", "Quality Score", "quality_score", "financial_score"], 0)
+        conf = v73_score(row, ["Confidence", "AI Confidence", "Final Conviction", "conviction_score"], max(opp, qual))
+        up = v74_pct(v73_get(row, ["Upside", "Target Upside %", "target_upside_pct", "expected_upside_pct"], None))
+        target = v74_money(v73_get(row, ["Target", "AI Fair Value", "target", "analyst_target_mean"], None))
+        ws = v73_wall_street(row, html=False)
+        thesis = v73_clean_text(v73_get(row, ["AI Thesis", "Why Ranked", "thesis", "reason"], f"{ticker} screens as a research candidate. Validate earnings, news, valuation, and risk before entry."), "")
+        cards.append(f"""
+<div class='v74-idea-card'>
+  <div class='v74-idea-head'><div><div class='v74-ticker'>{v73_esc(ticker)}</div><div class='v74-company'>{v73_esc(company)}</div></div><div class='v74-badge {badge_cls}'>{v73_esc(decision)}</div></div>
+  <div class='v74-mini-grid'>
+    <div class='v74-mini'><span>Opportunity</span><b>{opp:.0f}</b><em>{v73_score_label(opp)}</em></div>
+    <div class='v74-mini'><span>Quality</span><b>{qual:.0f}</b><em>{v73_score_label(qual)}</em></div>
+    <div class='v74-mini'><span>Confidence</span><b>{conf:.0f}</b><em>{v73_score_label(conf)}</em></div>
+    <div class='v74-mini'><span>Upside</span><b>{up}</b><em>Potential</em></div>
+    <div class='v74-mini'><span>Target</span><b>{target}</b><em>Atlas / analyst</em></div>
+    <div class='v74-mini'><span>Wall Street</span><b>{v73_esc(ws)}</b><em>Consensus</em></div>
+  </div>
+  <div class='v74-thesis'>{v73_esc(thesis[:380])}</div>
+</div>
+""")
+    st.markdown("<div class='v74-card-grid'>" + "".join(cards) + "</div>", unsafe_allow_html=True)
+
+def main():
+    if not dashboard_login_gate():
+        return
+    render_v59_design_system(); render_v65_design_system(); render_v70_design_system(); render_v72_design_system(); render_v73_design_system(); render_v74_design_system()
+    full_df = load_full_scan(); top_df = latest_top_ideas(); recovery_df = latest_recovery(); watch_df = latest_watchlist_scan(); prescreen_df = load_file(PRESCREEN_FILE); etf_df = load_file(ETF_SCAN_FILE)
+    pages = ["Home", "Top AI Ideas", "Research Any Ticker", "Earnings Intelligence", "Full Ranked Scan", "Portfolio Intelligence", "Watchlist Intelligence", "Recovery", "ETFs", "Political Intelligence", "Ask AI"]
+    selected_page = render_v73_top_nav(pages)
+    source_df = top_df if top_df is not None and not top_df.empty else full_df.head(25)
+    if selected_page != "Home":
+        render_v72_market_tape(always_show=False)
+    if selected_page == "Home": render_v74_home_dashboard(full_df, source_df, recovery_df)
+    elif selected_page == "Top AI Ideas": render_v73_idea_table(source_df, title="Top AI Ideas")
+    elif selected_page == "Research Any Ticker": render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df)
+    elif selected_page == "Earnings Intelligence": render_v73_earnings_page(full_df, source_df)
+    elif selected_page == "Full Ranked Scan": render_v56_ranked_table(full_df, title="Full Ranked AI Scan", max_rows=75, show_filters=True)
+    elif selected_page == "Portfolio Intelligence": render_v505_portfolio_analyzer(full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
+    elif selected_page == "Watchlist Intelligence": render_v506_watchlist_intelligence(full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
+    elif selected_page == "Recovery": render_v65_recovery_intelligence(recovery_df)
+    elif selected_page == "ETFs": render_v56_ranked_table(etf_df, title="ETF Intelligence", max_rows=50, show_filters=True)
+    elif selected_page == "Political Intelligence": render_v58_political_intelligence(full_df)
+    elif selected_page == "Ask AI": render_chat_helper(full_df)
+
+if __name__ == "__main__":
+    main()
