@@ -52,7 +52,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-03T13:10:42.273693+00:00",
+    "scan_time": "2026-07-03T17:38:34.804577+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 758.45,
@@ -277,7 +277,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-03T13:02:05.974894+00:00",
+    "scan_time": "2026-07-03T17:30:02.875440+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 302.72,
@@ -307,18 +307,17 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 53,
+        "score": 69,
         "status": "Mixed",
         "impact": "Neutral",
         "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Manufacturing Trends Vary As North American And East Asian Growth Spurts Contrast With ASEAN Slowdown",
-          "Labor Market Tightens Despite Tepid Job Growth As Labor Force Declines Further Amid Crackdown On Illegal Immigration"
+          "The Week The AI Trade Broke, And Why The Data Says 'Rotation,' Not 'Recession'",
+          "Wage Growth As A Leading Inflation Indicator"
         ],
         "risks": [
-          "The Weakness In The Economy Cannot Be Ignored Any Longer",
-          "Labor Market Tightens Despite Tepid Job Growth As Labor Force Declines Further Amid Crackdown On Illegal Immigration"
+          "No negative high-confidence headline detected."
         ],
         "bottom_line": "News is mixed or insufficient."
       },
@@ -454,15 +453,14 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 53,
+    "v42_news_score": 69,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "Manufacturing Trends Vary As North American And East Asian Growth Spurts Contrast With ASEAN Slowdown",
-      "Labor Market Tightens Despite Tepid Job Growth As Labor Force Declines Further Amid Crackdown On Illegal Immigration"
+      "The Week The AI Trade Broke, And Why The Data Says 'Rotation,' Not 'Recession'",
+      "Wage Growth As A Leading Inflation Indicator"
     ],
     "v42_news_risks": [
-      "The Weakness In The Economy Cannot Be Ignored Any Longer",
-      "Labor Market Tightens Despite Tepid Job Growth As Labor Force Declines Further Amid Crackdown On Illegal Immigration"
+      "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
       "Finnhub company news"
@@ -476,7 +474,7 @@
     "v42_breakout_level": 305.75,
     "v42_pullback_zone": "$276.96 - $291.63",
     "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
-    "v42_committee_positive_agents": 1,
+    "v42_committee_positive_agents": 2,
     "v42_committee_total_agents": 10
   },
   {
@@ -532,7 +530,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-03T13:13:25.002924+00:00",
+    "scan_time": "2026-07-03T17:41:17.070667+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 697.12,
@@ -755,7 +753,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-03T13:03:32.830741+00:00",
+    "scan_time": "2026-07-03T17:31:31.886867+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 109.85,
@@ -785,12 +783,13 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 53,
+        "score": 60,
         "status": "Mixed",
         "impact": "Neutral",
         "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
+          "The Week The AI Trade Broke, And Why The Data Says 'Rotation,' Not 'Recession'",
           "Has The AI Trade Gone Too Far?",
           "LQDH: It May Be Time To Hedge Interest Rate Risk (Rating Upgrade)"
         ],
@@ -932,9 +931,10 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 53,
+    "v42_news_score": 60,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
+      "The Week The AI Trade Broke, And Why The Data Says 'Rotation,' Not 'Recession'",
       "Has The AI Trade Gone Too Far?",
       "LQDH: It May Be Time To Hedge Interest Rate Risk (Rating Upgrade)"
     ],
@@ -1012,7 +1012,7 @@
     "risk_tags": [
       "RSI is overheated"
     ],
-    "scan_time": "2026-07-03T12:57:17.487609+00:00",
+    "scan_time": "2026-07-03T17:25:09.640114+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 528.26,
@@ -1042,17 +1042,17 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 46,
+        "score": 61,
         "status": "Mixed",
         "impact": "Neutral",
         "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Labor Market Tightens Despite Tepid Job Growth As Labor Force Declines Further Amid Crackdown On Illegal Immigration"
+          "The Week The AI Trade Broke, And Why The Data Says 'Rotation,' Not 'Recession'",
+          "Wage Growth As A Leading Inflation Indicator"
         ],
         "risks": [
-          "The Weakness In The Economy Cannot Be Ignored Any Longer",
-          "Labor Market Tightens Despite Tepid Job Growth As Labor Force Declines Further Amid Crackdown On Illegal Immigration"
+          "The Weakness In The Economy Cannot Be Ignored Any Longer"
         ],
         "bottom_line": "News is mixed or insufficient."
       },
@@ -1190,14 +1190,14 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 46,
+    "v42_news_score": 61,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "Labor Market Tightens Despite Tepid Job Growth As Labor Force Declines Further Amid Crackdown On Illegal Immigration"
+      "The Week The AI Trade Broke, And Why The Data Says 'Rotation,' Not 'Recession'",
+      "Wage Growth As A Leading Inflation Indicator"
     ],
     "v42_news_risks": [
-      "The Weakness In The Economy Cannot Be Ignored Any Longer",
-      "Labor Market Tightens Despite Tepid Job Growth As Labor Force Declines Further Amid Crackdown On Illegal Immigration"
+      "The Weakness In The Economy Cannot Be Ignored Any Longer"
     ],
     "v42_news_sources": [
       "Finnhub company news"
@@ -1266,7 +1266,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-03T13:01:17.042985+00:00",
+    "scan_time": "2026-07-03T17:29:13.921001+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 79.8,
@@ -1296,18 +1296,13 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 47,
+        "score": 54,
         "status": "Mixed",
         "impact": "Neutral",
         "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Blue Owl Capital Just Showed Green Shoots Of A Big Recovery",
-          "Warsh's Dot-Plot Pivot Recalibrates Duration Risk In Investment-Grade Bonds",
-          "Forget Bonds: Build A Rock-Solid 6.5% Yield From Investment Grade Preferreds",
-          "Forget The Macro Narrative, Look At The Cross-Section",
-          "BRHY: BlackRock Enters The Active High Yield ETF Arena",
-          "Aligned Incentives: Our Key To Navigating The Diverse High Yield Market"
+          "The Week The AI Trade Broke, And Why The Data Says 'Rotation,' Not 'Recession'"
         ],
         "risks": [
           "Warsh's Dot-Plot Pivot Recalibrates Duration Risk In Investment-Grade Bonds"
@@ -1446,15 +1441,10 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 47,
+    "v42_news_score": 54,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "Blue Owl Capital Just Showed Green Shoots Of A Big Recovery",
-      "Warsh's Dot-Plot Pivot Recalibrates Duration Risk In Investment-Grade Bonds",
-      "Forget Bonds: Build A Rock-Solid 6.5% Yield From Investment Grade Preferreds",
-      "Forget The Macro Narrative, Look At The Cross-Section",
-      "BRHY: BlackRock Enters The Active High Yield ETF Arena",
-      "Aligned Incentives: Our Key To Navigating The Diverse High Yield Market"
+      "The Week The AI Trade Broke, And Why The Data Says 'Rotation,' Not 'Recession'"
     ],
     "v42_news_risks": [
       "Warsh's Dot-Plot Pivot Recalibrates Duration Risk In Investment-Grade Bonds"
@@ -1527,7 +1517,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-03T13:14:30.256059+00:00",
+    "scan_time": "2026-07-03T17:42:21.344732+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 163.85,
@@ -1752,7 +1742,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-03T13:14:27.879906+00:00",
+    "scan_time": "2026-07-03T17:42:19.200365+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 186.09,
@@ -1976,7 +1966,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-03T13:13:36.050162+00:00",
+    "scan_time": "2026-07-03T17:41:28.231211+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 373.63,
@@ -2201,7 +2191,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-03T13:14:28.763176+00:00",
+    "scan_time": "2026-07-03T17:42:20.060302+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.02,
@@ -2425,7 +2415,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-03T13:14:29.748255+00:00",
+    "scan_time": "2026-07-03T17:42:20.917418+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 47.41,
@@ -2649,7 +2639,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-03T13:09:42.893569+00:00",
+    "scan_time": "2026-07-03T17:37:34.925358+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 32.66,
@@ -2874,7 +2864,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-03T12:52:39.334795+00:00",
+    "scan_time": "2026-07-03T17:20:23.127305+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 92.65,
@@ -2904,20 +2894,21 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 68,
-        "status": "Mixed",
-        "impact": "Neutral",
+        "score": 83,
+        "status": "Positive",
+        "impact": "Positive",
         "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Manufacturing Trends Vary As North American And East Asian Growth Spurts Contrast With ASEAN Slowdown",
-          "From Punch Cards To Tokens: Some Thoughts On AI Pricing",
-          "Labor Market Tightens Despite Tepid Job Growth As Labor Force Declines Further Amid Crackdown On Illegal Immigration"
+          "The Week The AI Trade Broke, And Why The Data Says 'Rotation,' Not 'Recession'",
+          "Equity Outlook: AI Enthusiasm Leaves Little Margin For Error",
+          "Wage Growth As A Leading Inflation Indicator",
+          "Manufacturing Trends Vary As North American And East Asian Growth Spurts Contrast With ASEAN Slowdown"
         ],
         "risks": [
-          "Labor Market Tightens Despite Tepid Job Growth As Labor Force Declines Further Amid Crackdown On Illegal Immigration"
+          "No negative high-confidence headline detected."
         ],
-        "bottom_line": "News is mixed or insufficient."
+        "bottom_line": "News flow supports the thesis."
       },
       "Finance Agent": {
         "score": 50,
@@ -3051,15 +3042,16 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 68,
-    "v42_news_summary": "News is mixed or insufficient.",
+    "v42_news_score": 83,
+    "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
-      "Manufacturing Trends Vary As North American And East Asian Growth Spurts Contrast With ASEAN Slowdown",
-      "From Punch Cards To Tokens: Some Thoughts On AI Pricing",
-      "Labor Market Tightens Despite Tepid Job Growth As Labor Force Declines Further Amid Crackdown On Illegal Immigration"
+      "The Week The AI Trade Broke, And Why The Data Says 'Rotation,' Not 'Recession'",
+      "Equity Outlook: AI Enthusiasm Leaves Little Margin For Error",
+      "Wage Growth As A Leading Inflation Indicator",
+      "Manufacturing Trends Vary As North American And East Asian Growth Spurts Contrast With ASEAN Slowdown"
     ],
     "v42_news_risks": [
-      "Labor Market Tightens Despite Tepid Job Growth As Labor Force Declines Further Amid Crackdown On Illegal Immigration"
+      "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
       "Finnhub company news"
@@ -3130,7 +3122,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-03T13:14:26.587923+00:00",
+    "scan_time": "2026-07-03T17:42:17.151119+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 53.7,
@@ -3353,7 +3345,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-03T13:02:14.020422+00:00",
+    "scan_time": "2026-07-03T17:30:12.324381+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 57.87,
@@ -3609,7 +3601,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-03T13:14:29.206113+00:00",
+    "scan_time": "2026-07-03T17:42:20.472797+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 45.29,
@@ -3833,7 +3825,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-03T13:08:34.644529+00:00",
+    "scan_time": "2026-07-03T17:36:26.775129+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 18.44,
@@ -4057,7 +4049,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-03T13:14:37.435418+00:00",
+    "scan_time": "2026-07-03T17:42:28.449113+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 40.97,
@@ -4281,7 +4273,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-03T13:10:42.699459+00:00",
+    "scan_time": "2026-07-03T17:38:35.234143+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 17.57,
@@ -4507,7 +4499,7 @@
     "risk_tags": [
       "RSI is overheated"
     ],
-    "scan_time": "2026-07-03T13:09:24.470888+00:00",
+    "scan_time": "2026-07-03T17:37:17.192167+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 16.04,
@@ -4732,7 +4724,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-07-03T13:08:28.912208+00:00",
+    "scan_time": "2026-07-03T17:36:21.178078+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 747.83,
@@ -4762,16 +4754,17 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 54,
+        "score": 69,
         "status": "Mixed",
         "impact": "Neutral",
         "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Manufacturing Trends Vary As North American And East Asian Growth Spurts Contrast With ASEAN Slowdown"
+          "The Week The AI Trade Broke, And Why The Data Says 'Rotation,' Not 'Recession'",
+          "Wage Growth As A Leading Inflation Indicator"
         ],
         "risks": [
-          "The Weakness In The Economy Cannot Be Ignored Any Longer"
+          "No negative high-confidence headline detected."
         ],
         "bottom_line": "News is mixed or insufficient."
       },
@@ -4909,13 +4902,14 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 54,
+    "v42_news_score": 69,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "Manufacturing Trends Vary As North American And East Asian Growth Spurts Contrast With ASEAN Slowdown"
+      "The Week The AI Trade Broke, And Why The Data Says 'Rotation,' Not 'Recession'",
+      "Wage Growth As A Leading Inflation Indicator"
     ],
     "v42_news_risks": [
-      "The Weakness In The Economy Cannot Be Ignored Any Longer"
+      "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
       "Finnhub company news"
@@ -4929,7 +4923,7 @@
     "v42_breakout_level": 752.9,
     "v42_pullback_zone": "$685.62 - $698.35",
     "v42_chart_guidance": "Near support. Better risk/reward if support holds.",
-    "v42_committee_positive_agents": 1,
+    "v42_committee_positive_agents": 2,
     "v42_committee_total_agents": 10
   },
   {
@@ -4986,7 +4980,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-07-03T13:02:15.033719+00:00",
+    "scan_time": "2026-07-03T17:30:13.528411+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 61.08,
@@ -5240,7 +5234,7 @@
     "risk_tags": [
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-07-03T13:14:30.710674+00:00",
+    "scan_time": "2026-07-03T17:42:21.784623+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 124.51,
@@ -5465,7 +5459,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-07-03T13:08:30.126171+00:00",
+    "scan_time": "2026-07-03T17:36:22.414008+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 24.24,
@@ -5716,7 +5710,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-07-03T13:11:54.026982+00:00",
+    "scan_time": "2026-07-03T17:39:45.326601+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.19,
@@ -5941,7 +5935,7 @@
       "price is below 20-day trend",
       "20-day ETF trend is weak"
     ],
-    "scan_time": "2026-07-03T13:14:28.309997+00:00",
+    "scan_time": "2026-07-03T17:42:19.614361+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 198.49,
@@ -6165,7 +6159,7 @@
       "price is below 20-day trend",
       "20-day ETF trend is weak"
     ],
-    "scan_time": "2026-07-03T13:10:18.358971+00:00",
+    "scan_time": "2026-07-03T17:38:10.618515+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 671.83,
@@ -6389,7 +6383,7 @@
       "price is below 20-day trend",
       "20-day ETF trend is weak"
     ],
-    "scan_time": "2026-07-03T13:10:30.976445+00:00",
+    "scan_time": "2026-07-03T17:38:23.862722+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 655.95,
@@ -6615,7 +6609,7 @@
       "price is below 50-day trend",
       "20-day ETF trend is weak"
     ],
-    "scan_time": "2026-07-03T12:54:22.123087+00:00",
+    "scan_time": "2026-07-03T17:22:09.963837+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 41.69,
@@ -6645,12 +6639,13 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 76,
+        "score": 83,
         "status": "Positive",
         "impact": "Positive",
         "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
+          "Equity Outlook: AI Enthusiasm Leaves Little Margin For Error",
           "From Punch Cards To Tokens: Some Thoughts On AI Pricing",
           "Does AI Raise Or Lower Neutral Rates?",
           "From Robotaxis To Humanoids: Why Embodied AI Represents An Order-Of-Magnitude Leap Into The Future"
@@ -6792,9 +6787,10 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 76,
+    "v42_news_score": 83,
     "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
+      "Equity Outlook: AI Enthusiasm Leaves Little Margin For Error",
       "From Punch Cards To Tokens: Some Thoughts On AI Pricing",
       "Does AI Raise Or Lower Neutral Rates?",
       "From Robotaxis To Humanoids: Why Embodied AI Represents An Order-Of-Magnitude Leap Into The Future"
@@ -6871,7 +6867,7 @@
       "20-day ETF trend is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-07-03T13:11:22.943798+00:00",
+    "scan_time": "2026-07-03T17:39:14.220896+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 75.6,
@@ -7094,7 +7090,7 @@
       "price is below 50-day trend",
       "20-day ETF trend is weak"
     ],
-    "scan_time": "2026-07-03T13:12:53.276353+00:00",
+    "scan_time": "2026-07-03T17:40:44.299789+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 62.28,
@@ -7320,7 +7316,7 @@
       "60-day ETF trend is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-07-03T13:14:27.020247+00:00",
+    "scan_time": "2026-07-03T17:42:17.610715+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 63.01,
