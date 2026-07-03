@@ -9,9 +9,9 @@
     "quote_type": "ETF",
     "price": 744.78,
     "current_price": 744.78,
-    "dollar_volume": 47748635134.15,
-    "avg_volume_20d": 64111057,
-    "volume_ratio": 0.73,
+    "dollar_volume": 48144420700.42,
+    "avg_volume_20d": 64642470,
+    "volume_ratio": 0.89,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -52,7 +52,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-03T00:32:52.857969+00:00",
+    "scan_time": "2026-07-03T08:00:13.655193+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 758.45,
@@ -233,9 +233,9 @@
     "quote_type": "ETF",
     "price": 297.58,
     "current_price": 297.58,
-    "dollar_volume": 8920036962.41,
-    "avg_volume_20d": 29975258,
-    "volume_ratio": 0.69,
+    "dollar_volume": 8927023158.48,
+    "avg_volume_20d": 29998735,
+    "volume_ratio": 0.71,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -277,7 +277,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-03T00:24:38.958405+00:00",
+    "scan_time": "2026-07-03T07:52:05.346405+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 302.72,
@@ -307,17 +307,18 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 68,
+        "score": 60,
         "status": "Mixed",
         "impact": "Neutral",
         "data_used": "NewsAPI, Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
           "I Squared, TPG-CPPIB consortium nears bid for KKR-backed Re Sustainability",
-          "Jobs Report Fuels The Rotation Out Of AI CapEx Beneficiaries",
-          "AAII Sentiment Survey: Optimism Plummets"
+          "Labor Market Tightens Despite Tepid Job Growth As Labor Force Declines Further Amid Crackdown On Illegal Immigration",
+          "Jobs Report Fuels The Rotation Out Of AI CapEx Beneficiaries"
         ],
         "risks": [
+          "Labor Market Tightens Despite Tepid Job Growth As Labor Force Declines Further Amid Crackdown On Illegal Immigration",
           "The Employment Report Just Changed Everything: June Miss Reshapes Fed Playbook"
         ],
         "bottom_line": "News is mixed or insufficient."
@@ -454,14 +455,15 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 68,
+    "v42_news_score": 60,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
       "I Squared, TPG-CPPIB consortium nears bid for KKR-backed Re Sustainability",
-      "Jobs Report Fuels The Rotation Out Of AI CapEx Beneficiaries",
-      "AAII Sentiment Survey: Optimism Plummets"
+      "Labor Market Tightens Despite Tepid Job Growth As Labor Force Declines Further Amid Crackdown On Illegal Immigration",
+      "Jobs Report Fuels The Rotation Out Of AI CapEx Beneficiaries"
     ],
     "v42_news_risks": [
+      "Labor Market Tightens Despite Tepid Job Growth As Labor Force Declines Further Amid Crackdown On Illegal Immigration",
       "The Employment Report Just Changed Everything: June Miss Reshapes Fed Playbook"
     ],
     "v42_news_sources": [
@@ -477,7 +479,7 @@
     "v42_breakout_level": 305.75,
     "v42_pullback_zone": "$276.96 - $291.63",
     "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
-    "v42_committee_positive_agents": 2,
+    "v42_committee_positive_agents": 1,
     "v42_committee_total_agents": 10
   },
   {
@@ -490,9 +492,9 @@
     "quote_type": "ETF",
     "price": 684.84,
     "current_price": 684.84,
-    "dollar_volume": 8511234861.71,
-    "avg_volume_20d": 12428062,
-    "volume_ratio": 0.48,
+    "dollar_volume": 8548053368.21,
+    "avg_volume_20d": 12481825,
+    "volume_ratio": 0.56,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -533,7 +535,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-03T00:35:39.180730+00:00",
+    "scan_time": "2026-07-03T08:02:59.111571+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 697.12,
@@ -714,9 +716,9 @@
     "quote_type": "ETF",
     "price": 108.64,
     "current_price": 108.64,
-    "dollar_volume": 3112467061.3,
-    "avg_volume_20d": 28649365,
-    "volume_ratio": 0.62,
+    "dollar_volume": 3116223224.09,
+    "avg_volume_20d": 28683940,
+    "volume_ratio": 0.64,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -756,7 +758,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-03T00:26:07.096605+00:00",
+    "scan_time": "2026-07-03T07:53:31.064379+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 109.85,
@@ -977,9 +979,9 @@
     "quote_type": "ETF",
     "price": 527.88,
     "current_price": 527.88,
-    "dollar_volume": 2876616128.0,
-    "avg_volume_20d": 5449375,
-    "volume_ratio": 0.58,
+    "dollar_volume": 2885524076.69,
+    "avg_volume_20d": 5466250,
+    "volume_ratio": 0.64,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -992,23 +994,23 @@
     "sma50": 504.66,
     "twenty_day_pct": 4.14,
     "sixty_day_pct": 13.73,
-    "entry_range": "$524.93 - $529.35",
+    "entry_range": "$524.93 - $529.36",
     "entry_low": 524.93,
-    "entry_high": 529.35,
+    "entry_high": 529.36,
     "stop_loss": 513.38,
-    "target": 553.98,
-    "target_2": 567.03,
+    "target": 553.99,
+    "target_2": 567.04,
     "risk_reward": 1.8,
     "expected_upside_pct": 4.9,
     "upside": 4.9,
-    "ai_base_target": 553.98,
-    "ai_bull_target": 567.03,
+    "ai_base_target": 553.99,
+    "ai_bull_target": 567.04,
     "ai_bear_target": 513.38,
     "etf_preference_screen": "Passed non-financial / non-Israel / non-excluded-theme screen",
     "what_looks_good": "strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; positive 60-day ETF trend; ETF volatility is controlled",
     "what_could_go_wrong": "RSI is overheated",
     "investment_thesis": "State Street SPDR Dow Jones Ind (DIA) is an ETF candidate that passed your preference screen. Score 95/100. Positive factors: strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; positive 60-day ETF trend; ETF volatility is controlled. Risks: RSI is overheated.",
-    "guidance": "DIA ETF score is 95/100. Preferred entry is $524.93 - $529.35. Use stop around $513.38 and first target near $553.98.",
+    "guidance": "DIA ETF score is 95/100. Preferred entry is $524.93 - $529.36. Use stop around $513.38 and first target near $553.99.",
     "action_note": "ETF idea only. Review holdings/exposure before buying to ensure it aligns with your preferences.",
     "summary": "DIA: ETF candidate, score 95/100, estimated trade upside 4.9%.",
     "setup_tags": [
@@ -1022,12 +1024,12 @@
     "risk_tags": [
       "RSI is overheated"
     ],
-    "scan_time": "2026-07-03T00:19:56.153797+00:00",
+    "scan_time": "2026-07-03T07:47:20.747444+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
-    "high_52w": 528.25,
+    "high_52w": 528.26,
     "low_52w": 427.09,
-    "all_period_high": 528.25,
+    "all_period_high": 528.26,
     "all_period_low": 427.09,
     "range_position_pct": 99.6,
     "range_position_label": "Near 52-week highs",
@@ -1052,21 +1054,19 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 51,
+        "score": 52,
         "status": "Mixed",
         "impact": "Neutral",
         "data_used": "NewsAPI, Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Stocks Fall on Weakness in Chipmakers and AI Stocks",
+          "Labor Market Tightens Despite Tepid Job Growth As Labor Force Declines Further Amid Crackdown On Illegal Immigration",
           "Jobs Report Fuels The Rotation Out Of AI CapEx Beneficiaries",
-          "Dow Hits Records as Money Rotates Out of AI Chips Into Blue Chips: This Week on Wall Street",
-          "AAII Sentiment Survey: Optimism Plummets"
+          "Dow Hits Records as Money Rotates Out of AI Chips Into Blue Chips: This Week on Wall Street"
         ],
         "risks": [
           "Weakness in Chipmakers Drags Stock Indexes Lower",
-          "Stocks Mixed on Chipmaker Weakness and Easing US Price Pressures",
-          "Stocks Fall on Weakness in Chipmakers and AI Stocks",
+          "Labor Market Tightens Despite Tepid Job Growth As Labor Force Declines Further Amid Crackdown On Illegal Immigration",
           "The Employment Report Just Changed Everything: June Miss Reshapes Fed Playbook"
         ],
         "bottom_line": "News is mixed or insufficient."
@@ -1108,7 +1108,7 @@
         "data_used": "Price history, RSI, ATR, volume, SMA, support/resistance",
         "summary": "Evaluates trend, momentum, volatility, support/resistance and entry quality.",
         "findings": [
-          "Support 1: $498.74 \u00b7 Resistance 1: $528.25.",
+          "Support 1: $498.74 \u00b7 Resistance 1: $528.26.",
           "Price is above the 20-day trend.",
           "Price is above the 50-day trend.",
           "RSI is 79.2."
@@ -1205,18 +1205,16 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 51,
+    "v42_news_score": 52,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "Stocks Fall on Weakness in Chipmakers and AI Stocks",
+      "Labor Market Tightens Despite Tepid Job Growth As Labor Force Declines Further Amid Crackdown On Illegal Immigration",
       "Jobs Report Fuels The Rotation Out Of AI CapEx Beneficiaries",
-      "Dow Hits Records as Money Rotates Out of AI Chips Into Blue Chips: This Week on Wall Street",
-      "AAII Sentiment Survey: Optimism Plummets"
+      "Dow Hits Records as Money Rotates Out of AI Chips Into Blue Chips: This Week on Wall Street"
     ],
     "v42_news_risks": [
       "Weakness in Chipmakers Drags Stock Indexes Lower",
-      "Stocks Mixed on Chipmaker Weakness and Easing US Price Pressures",
-      "Stocks Fall on Weakness in Chipmakers and AI Stocks",
+      "Labor Market Tightens Despite Tepid Job Growth As Labor Force Declines Further Amid Crackdown On Illegal Immigration",
       "The Employment Report Just Changed Everything: June Miss Reshapes Fed Playbook"
     ],
     "v42_news_sources": [
@@ -1227,9 +1225,9 @@
     "v42_sec_cik": "0001041130",
     "v42_support_1": 498.74,
     "v42_support_2": 427.09,
-    "v42_resistance_1": 528.25,
-    "v42_resistance_2": 528.25,
-    "v42_breakout_level": 533.53,
+    "v42_resistance_1": 528.26,
+    "v42_resistance_2": 528.26,
+    "v42_breakout_level": 533.54,
     "v42_pullback_zone": "$498.74 - $517.32",
     "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
     "v42_committee_positive_agents": 1,
@@ -1245,7 +1243,7 @@
     "quote_type": "ETF",
     "price": 79.71,
     "current_price": 79.71,
-    "dollar_volume": 2712324887.7,
+    "dollar_volume": 2712324819.95,
     "avg_volume_20d": 34027410,
     "volume_ratio": 0.77,
     "conviction": 95,
@@ -1287,7 +1285,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-03T00:23:45.040266+00:00",
+    "scan_time": "2026-07-03T07:51:15.282448+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 79.8,
@@ -1493,455 +1491,6 @@
     "v42_committee_total_agents": 10
   },
   {
-    "symbol": "XLV",
-    "ticker": "XLV",
-    "company": "State Street Health Care Select",
-    "company_name": "State Street Health Care Select",
-    "sector": "ETF",
-    "industry": "State Street Investment Management",
-    "quote_type": "ETF",
-    "price": 163.74,
-    "current_price": 163.74,
-    "dollar_volume": 1917128609.05,
-    "avg_volume_20d": 11708370,
-    "volume_ratio": 1.06,
-    "conviction": 95,
-    "conviction_score": 95,
-    "score": 95,
-    "ai_score": 95,
-    "ai_confidence": 95,
-    "confidence": 95,
-    "rsi": 71.6,
-    "atr_pct": 1.62,
-    "sma20": 154.29,
-    "sma50": 149.07,
-    "twenty_day_pct": 11.46,
-    "sixty_day_pct": 12.21,
-    "entry_range": "$162.41 - $164.41",
-    "entry_low": 162.41,
-    "entry_high": 164.41,
-    "stop_loss": 153.36,
-    "target": 182.43,
-    "target_2": 191.77,
-    "risk_reward": 1.8,
-    "expected_upside_pct": 11.4,
-    "upside": 11.4,
-    "ai_base_target": 182.43,
-    "ai_bull_target": 191.77,
-    "ai_bear_target": 153.36,
-    "etf_preference_screen": "Passed non-financial / non-Israel / non-excluded-theme screen",
-    "what_looks_good": "strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; positive 60-day ETF trend; ETF volatility is controlled",
-    "what_could_go_wrong": "Main risk is a broad market or sector pullback.",
-    "investment_thesis": "State Street Health Care Select (XLV) is an ETF candidate that passed your preference screen. Score 95/100. Positive factors: strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; positive 60-day ETF trend; ETF volatility is controlled. Risks: market pullback risk.",
-    "guidance": "XLV ETF score is 95/100. Preferred entry is $162.41 - $164.41. Use stop around $153.36 and first target near $182.43.",
-    "action_note": "ETF idea only. Review holdings/exposure before buying to ensure it aligns with your preferences.",
-    "summary": "XLV: ETF candidate, score 95/100, estimated trade upside 11.4%.",
-    "setup_tags": [
-      "strong ETF liquidity",
-      "price is above 20-day trend",
-      "price is above 50-day trend",
-      "healthy 20-day ETF momentum",
-      "positive 60-day ETF trend",
-      "ETF volatility is controlled"
-    ],
-    "risk_tags": [],
-    "scan_time": "2026-07-03T00:36:52.862371+00:00",
-    "history_days_available": 251,
-    "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
-    "high_52w": 163.85,
-    "low_52w": 125.76,
-    "all_period_high": 163.85,
-    "all_period_low": 125.76,
-    "range_position_pct": 99.7,
-    "range_position_label": "Near 52-week highs",
-    "distance_from_52w_high_pct": -0.1,
-    "distance_from_52w_low_pct": 30.2,
-    "drawdown_from_period_high_pct": -0.1,
-    "drawdown_label": "Shallow drawdown",
-    "return_1m_pct": 12.3,
-    "return_3m_pct": 11.3,
-    "return_6m_pct": 6.1,
-    "return_1y_pct": null,
-    "return_3y_pct": null,
-    "return_5y_pct": null,
-    "analyst_support_score": 42.9,
-    "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
-    "analyst_support_label": "Mixed (43/100)",
-    "news_sentiment_source": "No recent NewsAPI headline returned; defaulted to neutral",
-    "top_news_headline": "No recent high-confidence company headline returned by NewsAPI",
-    "news_sentiment_label": "Neutral",
-    "news_sentiment_score": 0,
-    "thesis_strength": "Moderate Thesis",
-    "evidence_confidence": "Medium",
-    "ai_committee": {
-      "Technical Agent": {
-        "score": 95,
-        "status": "Positive",
-        "impact": "Positive",
-        "data_used": "Price history, RSI, ATR, volume, SMA, support/resistance",
-        "summary": "Lightweight scheduled scan: evaluates trend, momentum, volatility, support/resistance and entry quality.",
-        "findings": [
-          "Support 1: 148.14 \u00b7 Resistance 1: 163.85.",
-          "RSI: 71.6."
-        ],
-        "risks": [
-          "Latest news/SEC/competitor checks are deferred to full committee or live lookup."
-        ],
-        "bottom_line": "Near resistance. Avoid chasing unless breakout holds with volume."
-      },
-      "Finance Agent": {
-        "score": 50,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Existing scan fundamentals only",
-        "summary": "Lightweight scheduled scan: uses already-fetched financial fields to avoid extra API calls.",
-        "findings": [
-          "Basic financial score available from scan."
-        ],
-        "risks": [
-          "Deep financial detail available in full committee or live research."
-        ],
-        "bottom_line": "Financial profile requires full research for deeper detail."
-      },
-      "Analyst Agent": {
-        "score": 42,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Existing analyst target/count/recommendation fields",
-        "summary": "Lightweight scheduled scan: checks analyst target and support using existing scan fields.",
-        "findings": [
-          "Analyst target: N/A."
-        ],
-        "risks": [
-          "Recent target revisions are checked in full committee or live research."
-        ],
-        "bottom_line": "Analyst support is directional in lightweight mode."
-      },
-      "News Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "available": false,
-        "data_used": "Skipped in lightweight scheduled scan",
-        "summary": "News was not pulled for this lower-tier row to keep the scheduled scan fast.",
-        "findings": [
-          "Use Live Research or wait for this ticker to rank into the full committee tier."
-        ],
-        "risks": [
-          "Do not assume no news; news was intentionally deferred."
-        ],
-        "bottom_line": "News Agent deferred to full committee/live lookup."
-      },
-      "Insider Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "SEC skipped in lightweight scheduled scan",
-        "summary": "Insider/SEC data is only run for priority tickers during cron.",
-        "findings": [],
-        "risks": [
-          "Use Live Research for immediate insider/SEC check."
-        ],
-        "bottom_line": "Insider Agent deferred."
-      },
-      "Institutional Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "SEC/FMP ownership skipped in lightweight scheduled scan",
-        "summary": "Institutional data is not run for every row during cron.",
-        "findings": [],
-        "risks": [
-          "Use Live Research for immediate ownership check."
-        ],
-        "bottom_line": "Institutional Agent deferred."
-      },
-      "Competitor Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "Peer comparison skipped in lightweight scheduled scan",
-        "summary": "Competitor comparison is deferred for lower-tier rows to reduce API calls.",
-        "findings": [],
-        "risks": [
-          "Use full committee/live lookup for peer analysis."
-        ],
-        "bottom_line": "Competitor Agent deferred."
-      },
-      "Recovery Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "Existing drawdown/recovery fields",
-        "summary": "Lightweight recovery check from scan data.",
-        "findings": [
-          "Recovery scan field available if present."
-        ],
-        "risks": [
-          "Full recovery explanation available in full committee/live research."
-        ],
-        "bottom_line": "Recovery signal is directional in lightweight mode."
-      },
-      "ETF / Ownership Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "ETF/ownership checks skipped in lightweight scheduled scan",
-        "summary": "ETF ownership data is deferred unless this is a priority ETF/watchlist row.",
-        "findings": [],
-        "risks": [
-          "Use ETF tab/detail or live lookup for deeper ETF/ownership context."
-        ],
-        "bottom_line": "ETF/Ownership Agent deferred."
-      },
-      "Political Agent": {
-        "score": null,
-        "status": "Not connected yet",
-        "impact": "Not scored",
-        "data_used": "Capitol Trades planned",
-        "summary": "Political trading feed is not enabled yet.",
-        "findings": [],
-        "risks": [
-          "No political score applied."
-        ],
-        "bottom_line": "Political Agent not scored."
-      }
-    },
-    "v42_tier": "light",
-    "v42_support_1": 148.14,
-    "v42_support_2": 125.76,
-    "v42_resistance_1": 163.85,
-    "v42_resistance_2": 163.85,
-    "v42_breakout_level": 165.49,
-    "v42_pullback_zone": "$148.14 - $160.47",
-    "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume."
-  },
-  {
-    "symbol": "XLI",
-    "ticker": "XLI",
-    "company": "State Street Industrial Select ",
-    "company_name": "State Street Industrial Select ",
-    "sector": "ETF",
-    "industry": "State Street Investment Management",
-    "quote_type": "ETF",
-    "price": 183.91,
-    "current_price": 183.91,
-    "dollar_volume": 1529298053.78,
-    "avg_volume_20d": 8315469,
-    "volume_ratio": 0.79,
-    "conviction": 95,
-    "conviction_score": 95,
-    "score": 95,
-    "ai_score": 95,
-    "ai_confidence": 95,
-    "confidence": 95,
-    "rsi": 67.3,
-    "atr_pct": 1.77,
-    "sma20": 178.78,
-    "sma50": 174.93,
-    "twenty_day_pct": 5.93,
-    "sixty_day_pct": 12.22,
-    "entry_range": "$182.28 - $184.72",
-    "entry_low": 182.28,
-    "entry_high": 184.72,
-    "stop_loss": 177.64,
-    "target": 195.19,
-    "target_2": 200.83,
-    "risk_reward": 1.8,
-    "expected_upside_pct": 6.1,
-    "upside": 6.1,
-    "ai_base_target": 195.19,
-    "ai_bull_target": 200.83,
-    "ai_bear_target": 177.64,
-    "etf_preference_screen": "Passed non-financial / non-Israel / non-excluded-theme screen",
-    "what_looks_good": "strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; positive 60-day ETF trend; RSI is constructive; ETF volatility is controlled",
-    "what_could_go_wrong": "Main risk is a broad market or sector pullback.",
-    "investment_thesis": "State Street Industrial Select  (XLI) is an ETF candidate that passed your preference screen. Score 95/100. Positive factors: strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; positive 60-day ETF trend; RSI is constructive; ETF volatility is controlled. Risks: market pullback risk.",
-    "guidance": "XLI ETF score is 95/100. Preferred entry is $182.28 - $184.72. Use stop around $177.64 and first target near $195.19.",
-    "action_note": "ETF idea only. Review holdings/exposure before buying to ensure it aligns with your preferences.",
-    "summary": "XLI: ETF candidate, score 95/100, estimated trade upside 6.1%.",
-    "setup_tags": [
-      "strong ETF liquidity",
-      "price is above 20-day trend",
-      "price is above 50-day trend",
-      "healthy 20-day ETF momentum",
-      "positive 60-day ETF trend",
-      "RSI is constructive",
-      "ETF volatility is controlled"
-    ],
-    "risk_tags": [],
-    "scan_time": "2026-07-03T00:36:50.705305+00:00",
-    "history_days_available": 251,
-    "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
-    "high_52w": 186.09,
-    "low_52w": 145.87,
-    "all_period_high": 186.09,
-    "all_period_low": 145.87,
-    "range_position_pct": 94.6,
-    "range_position_label": "Near 52-week highs",
-    "distance_from_52w_high_pct": -1.2,
-    "distance_from_52w_low_pct": 26.1,
-    "drawdown_from_period_high_pct": -1.2,
-    "drawdown_label": "Shallow drawdown",
-    "return_1m_pct": 5.8,
-    "return_3m_pct": 12.1,
-    "return_6m_pct": 18.2,
-    "return_1y_pct": null,
-    "return_3y_pct": null,
-    "return_5y_pct": null,
-    "analyst_support_score": 41.5,
-    "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
-    "analyst_support_label": "Mixed (42/100)",
-    "news_sentiment_source": "No recent NewsAPI headline returned; defaulted to neutral",
-    "top_news_headline": "No recent high-confidence company headline returned by NewsAPI",
-    "news_sentiment_label": "Neutral",
-    "news_sentiment_score": 0,
-    "thesis_strength": "Developing Thesis",
-    "evidence_confidence": "Low-Medium",
-    "ai_committee": {
-      "Technical Agent": {
-        "score": 95,
-        "status": "Positive",
-        "impact": "Positive",
-        "data_used": "Price history, RSI, ATR, volume, SMA, support/resistance",
-        "summary": "Lightweight scheduled scan: evaluates trend, momentum, volatility, support/resistance and entry quality.",
-        "findings": [
-          "Support 1: 169.03 \u00b7 Resistance 1: 186.09.",
-          "RSI: 67.3."
-        ],
-        "risks": [
-          "Latest news/SEC/competitor checks are deferred to full committee or live lookup."
-        ],
-        "bottom_line": "Near resistance. Avoid chasing unless breakout holds with volume."
-      },
-      "Finance Agent": {
-        "score": 50,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Existing scan fundamentals only",
-        "summary": "Lightweight scheduled scan: uses already-fetched financial fields to avoid extra API calls.",
-        "findings": [
-          "Basic financial score available from scan."
-        ],
-        "risks": [
-          "Deep financial detail available in full committee or live research."
-        ],
-        "bottom_line": "Financial profile requires full research for deeper detail."
-      },
-      "Analyst Agent": {
-        "score": 41,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Existing analyst target/count/recommendation fields",
-        "summary": "Lightweight scheduled scan: checks analyst target and support using existing scan fields.",
-        "findings": [
-          "Analyst target: N/A."
-        ],
-        "risks": [
-          "Recent target revisions are checked in full committee or live research."
-        ],
-        "bottom_line": "Analyst support is directional in lightweight mode."
-      },
-      "News Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "available": false,
-        "data_used": "Skipped in lightweight scheduled scan",
-        "summary": "News was not pulled for this lower-tier row to keep the scheduled scan fast.",
-        "findings": [
-          "Use Live Research or wait for this ticker to rank into the full committee tier."
-        ],
-        "risks": [
-          "Do not assume no news; news was intentionally deferred."
-        ],
-        "bottom_line": "News Agent deferred to full committee/live lookup."
-      },
-      "Insider Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "SEC skipped in lightweight scheduled scan",
-        "summary": "Insider/SEC data is only run for priority tickers during cron.",
-        "findings": [],
-        "risks": [
-          "Use Live Research for immediate insider/SEC check."
-        ],
-        "bottom_line": "Insider Agent deferred."
-      },
-      "Institutional Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "SEC/FMP ownership skipped in lightweight scheduled scan",
-        "summary": "Institutional data is not run for every row during cron.",
-        "findings": [],
-        "risks": [
-          "Use Live Research for immediate ownership check."
-        ],
-        "bottom_line": "Institutional Agent deferred."
-      },
-      "Competitor Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "Peer comparison skipped in lightweight scheduled scan",
-        "summary": "Competitor comparison is deferred for lower-tier rows to reduce API calls.",
-        "findings": [],
-        "risks": [
-          "Use full committee/live lookup for peer analysis."
-        ],
-        "bottom_line": "Competitor Agent deferred."
-      },
-      "Recovery Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "Existing drawdown/recovery fields",
-        "summary": "Lightweight recovery check from scan data.",
-        "findings": [
-          "Recovery scan field available if present."
-        ],
-        "risks": [
-          "Full recovery explanation available in full committee/live research."
-        ],
-        "bottom_line": "Recovery signal is directional in lightweight mode."
-      },
-      "ETF / Ownership Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "ETF/ownership checks skipped in lightweight scheduled scan",
-        "summary": "ETF ownership data is deferred unless this is a priority ETF/watchlist row.",
-        "findings": [],
-        "risks": [
-          "Use ETF tab/detail or live lookup for deeper ETF/ownership context."
-        ],
-        "bottom_line": "ETF/Ownership Agent deferred."
-      },
-      "Political Agent": {
-        "score": null,
-        "status": "Not connected yet",
-        "impact": "Not scored",
-        "data_used": "Capitol Trades planned",
-        "summary": "Political trading feed is not enabled yet.",
-        "findings": [],
-        "risks": [
-          "No political score applied."
-        ],
-        "bottom_line": "Political Agent not scored."
-      }
-    },
-    "v42_tier": "light",
-    "v42_support_1": 169.03,
-    "v42_support_2": 145.87,
-    "v42_resistance_1": 186.09,
-    "v42_resistance_2": 186.09,
-    "v42_breakout_level": 187.95,
-    "v42_pullback_zone": "$169.03 - $180.23",
-    "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume."
-  },
-  {
     "symbol": "VTI",
     "ticker": "VTI",
     "company": "Vanguard Total Stock Market ETF",
@@ -1951,9 +1500,9 @@
     "quote_type": "ETF",
     "price": 368.76,
     "current_price": 368.76,
-    "dollar_volume": 1334862669.66,
-    "avg_volume_20d": 3619868,
-    "volume_ratio": 0.8,
+    "dollar_volume": 1338694713.05,
+    "avg_volume_20d": 3630260,
+    "volume_ratio": 0.86,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -1994,7 +1543,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-03T00:35:49.862865+00:00",
+    "scan_time": "2026-07-03T08:03:11.846143+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 373.63,
@@ -2166,455 +1715,6 @@
     "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume."
   },
   {
-    "symbol": "XLP",
-    "ticker": "XLP",
-    "company": "State Street Consumer Staples S",
-    "company_name": "State Street Consumer Staples S",
-    "sector": "ETF",
-    "industry": "State Street Investment Management",
-    "quote_type": "ETF",
-    "price": 84.99,
-    "current_price": 84.99,
-    "dollar_volume": 1072097752.56,
-    "avg_volume_20d": 12614399,
-    "volume_ratio": 1.24,
-    "conviction": 95,
-    "conviction_score": 95,
-    "score": 95,
-    "ai_score": 95,
-    "ai_confidence": 95,
-    "confidence": 95,
-    "rsi": 51.4,
-    "atr_pct": 1.41,
-    "sma20": 83.78,
-    "sma50": 83.49,
-    "twenty_day_pct": 4.16,
-    "sixty_day_pct": 5.32,
-    "entry_range": "$84.39 - $85.29",
-    "entry_low": 84.39,
-    "entry_high": 85.29,
-    "stop_loss": 83.31,
-    "target": 88.05,
-    "target_2": 89.58,
-    "risk_reward": 1.8,
-    "expected_upside_pct": 3.6,
-    "upside": 3.6,
-    "ai_base_target": 88.05,
-    "ai_bull_target": 89.58,
-    "ai_bear_target": 83.31,
-    "etf_preference_screen": "Passed non-financial / non-Israel / non-excluded-theme screen",
-    "what_looks_good": "strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; positive 60-day ETF trend; RSI is constructive; ETF volatility is controlled",
-    "what_could_go_wrong": "Main risk is a broad market or sector pullback.",
-    "investment_thesis": "State Street Consumer Staples S (XLP) is an ETF candidate that passed your preference screen. Score 95/100. Positive factors: strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; positive 60-day ETF trend; RSI is constructive; ETF volatility is controlled. Risks: market pullback risk.",
-    "guidance": "XLP ETF score is 95/100. Preferred entry is $84.39 - $85.29. Use stop around $83.31 and first target near $88.05.",
-    "action_note": "ETF idea only. Review holdings/exposure before buying to ensure it aligns with your preferences.",
-    "summary": "XLP: ETF candidate, score 95/100, estimated trade upside 3.6%.",
-    "setup_tags": [
-      "strong ETF liquidity",
-      "price is above 20-day trend",
-      "price is above 50-day trend",
-      "healthy 20-day ETF momentum",
-      "positive 60-day ETF trend",
-      "RSI is constructive",
-      "ETF volatility is controlled"
-    ],
-    "risk_tags": [],
-    "scan_time": "2026-07-03T00:36:51.540841+00:00",
-    "history_days_available": 251,
-    "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
-    "high_52w": 89.02,
-    "low_52w": 73.63,
-    "all_period_high": 89.02,
-    "all_period_low": 73.63,
-    "range_position_pct": 73.8,
-    "range_position_label": "Upper-middle range",
-    "distance_from_52w_high_pct": -4.5,
-    "distance_from_52w_low_pct": 15.4,
-    "drawdown_from_period_high_pct": -4.5,
-    "drawdown_label": "Shallow drawdown",
-    "return_1m_pct": 4.6,
-    "return_3m_pct": 5.1,
-    "return_6m_pct": 10.1,
-    "return_1y_pct": null,
-    "return_3y_pct": null,
-    "return_5y_pct": null,
-    "analyst_support_score": 40.9,
-    "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
-    "analyst_support_label": "Mixed (41/100)",
-    "news_sentiment_source": "No recent NewsAPI headline returned; defaulted to neutral",
-    "top_news_headline": "No recent high-confidence company headline returned by NewsAPI",
-    "news_sentiment_label": "Neutral",
-    "news_sentiment_score": 0,
-    "thesis_strength": "Developing Thesis",
-    "evidence_confidence": "Low-Medium",
-    "ai_committee": {
-      "Technical Agent": {
-        "score": 95,
-        "status": "Positive",
-        "impact": "Positive",
-        "data_used": "Price history, RSI, ATR, volume, SMA, support/resistance",
-        "summary": "Lightweight scheduled scan: evaluates trend, momentum, volatility, support/resistance and entry quality.",
-        "findings": [
-          "Support 1: 81.28 \u00b7 Resistance 1: 85.75.",
-          "RSI: 51.4."
-        ],
-        "risks": [
-          "Latest news/SEC/competitor checks are deferred to full committee or live lookup."
-        ],
-        "bottom_line": "Near resistance. Avoid chasing unless breakout holds with volume."
-      },
-      "Finance Agent": {
-        "score": 50,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Existing scan fundamentals only",
-        "summary": "Lightweight scheduled scan: uses already-fetched financial fields to avoid extra API calls.",
-        "findings": [
-          "Basic financial score available from scan."
-        ],
-        "risks": [
-          "Deep financial detail available in full committee or live research."
-        ],
-        "bottom_line": "Financial profile requires full research for deeper detail."
-      },
-      "Analyst Agent": {
-        "score": 40,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Existing analyst target/count/recommendation fields",
-        "summary": "Lightweight scheduled scan: checks analyst target and support using existing scan fields.",
-        "findings": [
-          "Analyst target: N/A."
-        ],
-        "risks": [
-          "Recent target revisions are checked in full committee or live research."
-        ],
-        "bottom_line": "Analyst support is directional in lightweight mode."
-      },
-      "News Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "available": false,
-        "data_used": "Skipped in lightweight scheduled scan",
-        "summary": "News was not pulled for this lower-tier row to keep the scheduled scan fast.",
-        "findings": [
-          "Use Live Research or wait for this ticker to rank into the full committee tier."
-        ],
-        "risks": [
-          "Do not assume no news; news was intentionally deferred."
-        ],
-        "bottom_line": "News Agent deferred to full committee/live lookup."
-      },
-      "Insider Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "SEC skipped in lightweight scheduled scan",
-        "summary": "Insider/SEC data is only run for priority tickers during cron.",
-        "findings": [],
-        "risks": [
-          "Use Live Research for immediate insider/SEC check."
-        ],
-        "bottom_line": "Insider Agent deferred."
-      },
-      "Institutional Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "SEC/FMP ownership skipped in lightweight scheduled scan",
-        "summary": "Institutional data is not run for every row during cron.",
-        "findings": [],
-        "risks": [
-          "Use Live Research for immediate ownership check."
-        ],
-        "bottom_line": "Institutional Agent deferred."
-      },
-      "Competitor Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "Peer comparison skipped in lightweight scheduled scan",
-        "summary": "Competitor comparison is deferred for lower-tier rows to reduce API calls.",
-        "findings": [],
-        "risks": [
-          "Use full committee/live lookup for peer analysis."
-        ],
-        "bottom_line": "Competitor Agent deferred."
-      },
-      "Recovery Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "Existing drawdown/recovery fields",
-        "summary": "Lightweight recovery check from scan data.",
-        "findings": [
-          "Recovery scan field available if present."
-        ],
-        "risks": [
-          "Full recovery explanation available in full committee/live research."
-        ],
-        "bottom_line": "Recovery signal is directional in lightweight mode."
-      },
-      "ETF / Ownership Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "ETF/ownership checks skipped in lightweight scheduled scan",
-        "summary": "ETF ownership data is deferred unless this is a priority ETF/watchlist row.",
-        "findings": [],
-        "risks": [
-          "Use ETF tab/detail or live lookup for deeper ETF/ownership context."
-        ],
-        "bottom_line": "ETF/Ownership Agent deferred."
-      },
-      "Political Agent": {
-        "score": null,
-        "status": "Not connected yet",
-        "impact": "Not scored",
-        "data_used": "Capitol Trades planned",
-        "summary": "Political trading feed is not enabled yet.",
-        "findings": [],
-        "risks": [
-          "No political score applied."
-        ],
-        "bottom_line": "Political Agent not scored."
-      }
-    },
-    "v42_tier": "light",
-    "v42_support_1": 81.28,
-    "v42_support_2": 73.63,
-    "v42_resistance_1": 85.75,
-    "v42_resistance_2": 89.02,
-    "v42_breakout_level": 86.61,
-    "v42_pullback_zone": "$81.28 - $83.29",
-    "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume."
-  },
-  {
-    "symbol": "XLU",
-    "ticker": "XLU",
-    "company": "State Street Utilities Select S",
-    "company_name": "State Street Utilities Select S",
-    "sector": "ETF",
-    "industry": "State Street Investment Management",
-    "quote_type": "ETF",
-    "price": 45.76,
-    "current_price": 45.76,
-    "dollar_volume": 965343109.07,
-    "avg_volume_20d": 21095785,
-    "volume_ratio": 1.15,
-    "conviction": 95,
-    "conviction_score": 95,
-    "score": 95,
-    "ai_score": 95,
-    "ai_confidence": 95,
-    "confidence": 95,
-    "rsi": 66.5,
-    "atr_pct": 1.53,
-    "sma20": 44.68,
-    "sma50": 44.78,
-    "twenty_day_pct": 5.36,
-    "sixty_day_pct": -0.47,
-    "entry_range": "$45.41 - $45.93",
-    "entry_low": 45.41,
-    "entry_high": 45.93,
-    "stop_loss": 44.44,
-    "target": 48.14,
-    "target_2": 49.34,
-    "risk_reward": 1.8,
-    "expected_upside_pct": 5.2,
-    "upside": 5.2,
-    "ai_base_target": 48.14,
-    "ai_bull_target": 49.34,
-    "ai_bear_target": 44.44,
-    "etf_preference_screen": "Passed non-financial / non-Israel / non-excluded-theme screen",
-    "what_looks_good": "strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; RSI is constructive; ETF volatility is controlled",
-    "what_could_go_wrong": "Main risk is a broad market or sector pullback.",
-    "investment_thesis": "State Street Utilities Select S (XLU) is an ETF candidate that passed your preference screen. Score 95/100. Positive factors: strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; RSI is constructive; ETF volatility is controlled. Risks: market pullback risk.",
-    "guidance": "XLU ETF score is 95/100. Preferred entry is $45.41 - $45.93. Use stop around $44.44 and first target near $48.14.",
-    "action_note": "ETF idea only. Review holdings/exposure before buying to ensure it aligns with your preferences.",
-    "summary": "XLU: ETF candidate, score 95/100, estimated trade upside 5.2%.",
-    "setup_tags": [
-      "strong ETF liquidity",
-      "price is above 20-day trend",
-      "price is above 50-day trend",
-      "healthy 20-day ETF momentum",
-      "RSI is constructive",
-      "ETF volatility is controlled"
-    ],
-    "risk_tags": [],
-    "scan_time": "2026-07-03T00:36:52.451823+00:00",
-    "history_days_available": 251,
-    "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
-    "high_52w": 47.41,
-    "low_52w": 39.09,
-    "all_period_high": 47.41,
-    "all_period_low": 39.09,
-    "range_position_pct": 80.2,
-    "range_position_label": "Near 52-week highs",
-    "distance_from_52w_high_pct": -3.5,
-    "distance_from_52w_low_pct": 17.1,
-    "drawdown_from_period_high_pct": -3.5,
-    "drawdown_label": "Shallow drawdown",
-    "return_1m_pct": 4.9,
-    "return_3m_pct": -0.1,
-    "return_6m_pct": 7.9,
-    "return_1y_pct": null,
-    "return_3y_pct": null,
-    "return_5y_pct": null,
-    "analyst_support_score": 41.3,
-    "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
-    "analyst_support_label": "Mixed (41/100)",
-    "news_sentiment_source": "No recent NewsAPI headline returned; defaulted to neutral",
-    "top_news_headline": "No recent high-confidence company headline returned by NewsAPI",
-    "news_sentiment_label": "Neutral",
-    "news_sentiment_score": 0,
-    "thesis_strength": "Developing Thesis",
-    "evidence_confidence": "Low-Medium",
-    "ai_committee": {
-      "Technical Agent": {
-        "score": 95,
-        "status": "Positive",
-        "impact": "Positive",
-        "data_used": "Price history, RSI, ATR, volume, SMA, support/resistance",
-        "summary": "Lightweight scheduled scan: evaluates trend, momentum, volatility, support/resistance and entry quality.",
-        "findings": [
-          "Support 1: 43.07 \u00b7 Resistance 1: 46.31.",
-          "RSI: 66.5."
-        ],
-        "risks": [
-          "Latest news/SEC/competitor checks are deferred to full committee or live lookup."
-        ],
-        "bottom_line": "Near resistance. Avoid chasing unless breakout holds with volume."
-      },
-      "Finance Agent": {
-        "score": 50,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Existing scan fundamentals only",
-        "summary": "Lightweight scheduled scan: uses already-fetched financial fields to avoid extra API calls.",
-        "findings": [
-          "Basic financial score available from scan."
-        ],
-        "risks": [
-          "Deep financial detail available in full committee or live research."
-        ],
-        "bottom_line": "Financial profile requires full research for deeper detail."
-      },
-      "Analyst Agent": {
-        "score": 41,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Existing analyst target/count/recommendation fields",
-        "summary": "Lightweight scheduled scan: checks analyst target and support using existing scan fields.",
-        "findings": [
-          "Analyst target: N/A."
-        ],
-        "risks": [
-          "Recent target revisions are checked in full committee or live research."
-        ],
-        "bottom_line": "Analyst support is directional in lightweight mode."
-      },
-      "News Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "available": false,
-        "data_used": "Skipped in lightweight scheduled scan",
-        "summary": "News was not pulled for this lower-tier row to keep the scheduled scan fast.",
-        "findings": [
-          "Use Live Research or wait for this ticker to rank into the full committee tier."
-        ],
-        "risks": [
-          "Do not assume no news; news was intentionally deferred."
-        ],
-        "bottom_line": "News Agent deferred to full committee/live lookup."
-      },
-      "Insider Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "SEC skipped in lightweight scheduled scan",
-        "summary": "Insider/SEC data is only run for priority tickers during cron.",
-        "findings": [],
-        "risks": [
-          "Use Live Research for immediate insider/SEC check."
-        ],
-        "bottom_line": "Insider Agent deferred."
-      },
-      "Institutional Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "SEC/FMP ownership skipped in lightweight scheduled scan",
-        "summary": "Institutional data is not run for every row during cron.",
-        "findings": [],
-        "risks": [
-          "Use Live Research for immediate ownership check."
-        ],
-        "bottom_line": "Institutional Agent deferred."
-      },
-      "Competitor Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "Peer comparison skipped in lightweight scheduled scan",
-        "summary": "Competitor comparison is deferred for lower-tier rows to reduce API calls.",
-        "findings": [],
-        "risks": [
-          "Use full committee/live lookup for peer analysis."
-        ],
-        "bottom_line": "Competitor Agent deferred."
-      },
-      "Recovery Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "Existing drawdown/recovery fields",
-        "summary": "Lightweight recovery check from scan data.",
-        "findings": [
-          "Recovery scan field available if present."
-        ],
-        "risks": [
-          "Full recovery explanation available in full committee/live research."
-        ],
-        "bottom_line": "Recovery signal is directional in lightweight mode."
-      },
-      "ETF / Ownership Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "ETF/ownership checks skipped in lightweight scheduled scan",
-        "summary": "ETF ownership data is deferred unless this is a priority ETF/watchlist row.",
-        "findings": [],
-        "risks": [
-          "Use ETF tab/detail or live lookup for deeper ETF/ownership context."
-        ],
-        "bottom_line": "ETF/Ownership Agent deferred."
-      },
-      "Political Agent": {
-        "score": null,
-        "status": "Not connected yet",
-        "impact": "Not scored",
-        "data_used": "Capitol Trades planned",
-        "summary": "Political trading feed is not enabled yet.",
-        "findings": [],
-        "risks": [
-          "No political score applied."
-        ],
-        "bottom_line": "Political Agent not scored."
-      }
-    },
-    "v42_tier": "light",
-    "v42_support_1": 43.07,
-    "v42_support_2": 39.09,
-    "v42_resistance_1": 46.31,
-    "v42_resistance_2": 47.41,
-    "v42_breakout_level": 46.77,
-    "v42_pullback_zone": "$43.07 - $44.84",
-    "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume."
-  },
-  {
     "symbol": "SCHD",
     "ticker": "SCHD",
     "company": "Schwab US Dividend Equity ETF",
@@ -2624,8 +1724,8 @@
     "quote_type": "ETF",
     "price": 32.39,
     "current_price": 32.39,
-    "dollar_volume": 700615493.28,
-    "avg_volume_20d": 21630611,
+    "dollar_volume": 700666297.0,
+    "avg_volume_20d": 21632180,
     "volume_ratio": 0.92,
     "conviction": 95,
     "conviction_score": 95,
@@ -2667,7 +1767,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-03T00:31:48.484902+00:00",
+    "scan_time": "2026-07-03T07:59:14.188805+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 32.66,
@@ -2848,9 +1948,9 @@
     "quote_type": "ETF",
     "price": 81.25,
     "current_price": 81.25,
-    "dollar_volume": 648759125.62,
-    "avg_volume_20d": 7984727,
-    "volume_ratio": 0.86,
+    "dollar_volume": 655052937.5,
+    "avg_volume_20d": 8062190,
+    "volume_ratio": 1.05,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -2892,7 +1992,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-03T00:14:33.004827+00:00",
+    "scan_time": "2026-07-03T07:42:44.300580+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 92.65,
@@ -2922,16 +2022,18 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 62,
+        "score": 68,
         "status": "Mixed",
         "impact": "Neutral",
         "data_used": "NewsAPI, Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Tempus AI Stock Faces a Make-or-Break Moment After Its Recent Pullback"
+          "Tempus AI Stock Faces a Make-or-Break Moment After Its Recent Pullback",
+          "From Punch Cards To Tokens: Some Thoughts On AI Pricing",
+          "Labor Market Tightens Despite Tepid Job Growth As Labor Force Declines Further Amid Crackdown On Illegal Immigration"
         ],
         "risks": [
-          "No negative high-confidence headline detected."
+          "Labor Market Tightens Despite Tepid Job Growth As Labor Force Declines Further Amid Crackdown On Illegal Immigration"
         ],
         "bottom_line": "News is mixed or insufficient."
       },
@@ -2972,7 +2074,7 @@
         "data_used": "Price history, RSI, ATR, volume, SMA, support/resistance",
         "summary": "Evaluates trend, momentum, volatility, support/resistance and entry quality.",
         "findings": [
-          "Support 1: $72.1 \u00b7 Resistance 1: $83.86.",
+          "Support 1: $72.1 \u00b7 Resistance 1: $83.89.",
           "Price is above the 20-day trend.",
           "Price is above the 50-day trend.",
           "RSI is 67.4."
@@ -3067,13 +2169,15 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 62,
+    "v42_news_score": 68,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "Tempus AI Stock Faces a Make-or-Break Moment After Its Recent Pullback"
+      "Tempus AI Stock Faces a Make-or-Break Moment After Its Recent Pullback",
+      "From Punch Cards To Tokens: Some Thoughts On AI Pricing",
+      "Labor Market Tightens Despite Tepid Job Growth As Labor Force Declines Further Amid Crackdown On Illegal Immigration"
     ],
     "v42_news_risks": [
-      "No negative high-confidence headline detected."
+      "Labor Market Tightens Despite Tepid Job Growth As Labor Force Declines Further Amid Crackdown On Illegal Immigration"
     ],
     "v42_news_sources": [
       "NewsAPI",
@@ -3083,238 +2187,13 @@
     "v42_sec_cik": null,
     "v42_support_1": 72.1,
     "v42_support_2": 62.94,
-    "v42_resistance_1": 83.86,
+    "v42_resistance_1": 83.89,
     "v42_resistance_2": 92.65,
-    "v42_breakout_level": 84.7,
+    "v42_breakout_level": 84.73,
     "v42_pullback_zone": "$72.10 - $79.62",
     "v42_chart_guidance": "Between support and resistance. Prefer pullback entry or confirmed breakout.",
-    "v42_committee_positive_agents": 1,
+    "v42_committee_positive_agents": 2,
     "v42_committee_total_agents": 10
-  },
-  {
-    "symbol": "XLB",
-    "ticker": "XLB",
-    "company": "State Street Materials Select S",
-    "company_name": "State Street Materials Select S",
-    "sector": "ETF",
-    "industry": "State Street Investment Management",
-    "quote_type": "ETF",
-    "price": 52.01,
-    "current_price": 52.01,
-    "dollar_volume": 604145950.88,
-    "avg_volume_20d": 11615957,
-    "volume_ratio": 0.94,
-    "conviction": 95,
-    "conviction_score": 95,
-    "score": 95,
-    "ai_score": 95,
-    "ai_confidence": 95,
-    "confidence": 95,
-    "rsi": 57.4,
-    "atr_pct": 1.72,
-    "sma20": 51.23,
-    "sma50": 51.11,
-    "twenty_day_pct": 1.11,
-    "sixty_day_pct": 4.24,
-    "entry_range": "$51.56 - $52.23",
-    "entry_low": 51.56,
-    "entry_high": 52.23,
-    "stop_loss": 50.76,
-    "target": 54.25,
-    "target_2": 55.37,
-    "risk_reward": 1.8,
-    "expected_upside_pct": 4.3,
-    "upside": 4.3,
-    "ai_base_target": 54.25,
-    "ai_bull_target": 55.37,
-    "ai_bear_target": 50.76,
-    "etf_preference_screen": "Passed non-financial / non-Israel / non-excluded-theme screen",
-    "what_looks_good": "strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; positive 60-day ETF trend; RSI is constructive; ETF volatility is controlled",
-    "what_could_go_wrong": "Main risk is a broad market or sector pullback.",
-    "investment_thesis": "State Street Materials Select S (XLB) is an ETF candidate that passed your preference screen. Score 95/100. Positive factors: strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; positive 60-day ETF trend; RSI is constructive; ETF volatility is controlled. Risks: market pullback risk.",
-    "guidance": "XLB ETF score is 95/100. Preferred entry is $51.56 - $52.23. Use stop around $50.76 and first target near $54.25.",
-    "action_note": "ETF idea only. Review holdings/exposure before buying to ensure it aligns with your preferences.",
-    "summary": "XLB: ETF candidate, score 95/100, estimated trade upside 4.3%.",
-    "setup_tags": [
-      "strong ETF liquidity",
-      "price is above 20-day trend",
-      "price is above 50-day trend",
-      "healthy 20-day ETF momentum",
-      "positive 60-day ETF trend",
-      "RSI is constructive",
-      "ETF volatility is controlled"
-    ],
-    "risk_tags": [],
-    "scan_time": "2026-07-03T00:36:49.426700+00:00",
-    "history_days_available": 251,
-    "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
-    "high_52w": 53.7,
-    "low_52w": 41.48,
-    "all_period_high": 53.7,
-    "all_period_low": 41.48,
-    "range_position_pct": 86.2,
-    "range_position_label": "Near 52-week highs",
-    "distance_from_52w_high_pct": -3.1,
-    "distance_from_52w_low_pct": 25.4,
-    "drawdown_from_period_high_pct": -3.1,
-    "drawdown_label": "Shallow drawdown",
-    "return_1m_pct": 1.3,
-    "return_3m_pct": 3.5,
-    "return_6m_pct": 14.7,
-    "return_1y_pct": null,
-    "return_3y_pct": null,
-    "return_5y_pct": null,
-    "analyst_support_score": 41.1,
-    "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
-    "analyst_support_label": "Mixed (41/100)",
-    "news_sentiment_source": "No recent NewsAPI headline returned; defaulted to neutral",
-    "top_news_headline": "No recent high-confidence company headline returned by NewsAPI",
-    "news_sentiment_label": "Neutral",
-    "news_sentiment_score": 0,
-    "thesis_strength": "Developing Thesis",
-    "evidence_confidence": "Low-Medium",
-    "ai_committee": {
-      "Technical Agent": {
-        "score": 95,
-        "status": "Positive",
-        "impact": "Positive",
-        "data_used": "Price history, RSI, ATR, volume, SMA, support/resistance",
-        "summary": "Lightweight scheduled scan: evaluates trend, momentum, volatility, support/resistance and entry quality.",
-        "findings": [
-          "Support 1: 49.39 \u00b7 Resistance 1: 53.11.",
-          "RSI: 57.4."
-        ],
-        "risks": [
-          "Latest news/SEC/competitor checks are deferred to full committee or live lookup."
-        ],
-        "bottom_line": "Between support and resistance. Prefer pullback entry or confirmed breakout."
-      },
-      "Finance Agent": {
-        "score": 50,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Existing scan fundamentals only",
-        "summary": "Lightweight scheduled scan: uses already-fetched financial fields to avoid extra API calls.",
-        "findings": [
-          "Basic financial score available from scan."
-        ],
-        "risks": [
-          "Deep financial detail available in full committee or live research."
-        ],
-        "bottom_line": "Financial profile requires full research for deeper detail."
-      },
-      "Analyst Agent": {
-        "score": 41,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Existing analyst target/count/recommendation fields",
-        "summary": "Lightweight scheduled scan: checks analyst target and support using existing scan fields.",
-        "findings": [
-          "Analyst target: N/A."
-        ],
-        "risks": [
-          "Recent target revisions are checked in full committee or live research."
-        ],
-        "bottom_line": "Analyst support is directional in lightweight mode."
-      },
-      "News Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "available": false,
-        "data_used": "Skipped in lightweight scheduled scan",
-        "summary": "News was not pulled for this lower-tier row to keep the scheduled scan fast.",
-        "findings": [
-          "Use Live Research or wait for this ticker to rank into the full committee tier."
-        ],
-        "risks": [
-          "Do not assume no news; news was intentionally deferred."
-        ],
-        "bottom_line": "News Agent deferred to full committee/live lookup."
-      },
-      "Insider Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "SEC skipped in lightweight scheduled scan",
-        "summary": "Insider/SEC data is only run for priority tickers during cron.",
-        "findings": [],
-        "risks": [
-          "Use Live Research for immediate insider/SEC check."
-        ],
-        "bottom_line": "Insider Agent deferred."
-      },
-      "Institutional Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "SEC/FMP ownership skipped in lightweight scheduled scan",
-        "summary": "Institutional data is not run for every row during cron.",
-        "findings": [],
-        "risks": [
-          "Use Live Research for immediate ownership check."
-        ],
-        "bottom_line": "Institutional Agent deferred."
-      },
-      "Competitor Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "Peer comparison skipped in lightweight scheduled scan",
-        "summary": "Competitor comparison is deferred for lower-tier rows to reduce API calls.",
-        "findings": [],
-        "risks": [
-          "Use full committee/live lookup for peer analysis."
-        ],
-        "bottom_line": "Competitor Agent deferred."
-      },
-      "Recovery Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "Existing drawdown/recovery fields",
-        "summary": "Lightweight recovery check from scan data.",
-        "findings": [
-          "Recovery scan field available if present."
-        ],
-        "risks": [
-          "Full recovery explanation available in full committee/live research."
-        ],
-        "bottom_line": "Recovery signal is directional in lightweight mode."
-      },
-      "ETF / Ownership Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "ETF/ownership checks skipped in lightweight scheduled scan",
-        "summary": "ETF ownership data is deferred unless this is a priority ETF/watchlist row.",
-        "findings": [],
-        "risks": [
-          "Use ETF tab/detail or live lookup for deeper ETF/ownership context."
-        ],
-        "bottom_line": "ETF/Ownership Agent deferred."
-      },
-      "Political Agent": {
-        "score": null,
-        "status": "Not connected yet",
-        "impact": "Not scored",
-        "data_used": "Capitol Trades planned",
-        "summary": "Political trading feed is not enabled yet.",
-        "findings": [],
-        "risks": [
-          "No political score applied."
-        ],
-        "bottom_line": "Political Agent not scored."
-      }
-    },
-    "v42_tier": "light",
-    "v42_support_1": 49.39,
-    "v42_support_2": 41.48,
-    "v42_resistance_1": 53.11,
-    "v42_resistance_2": 53.7,
-    "v42_breakout_level": 53.64,
-    "v42_pullback_zone": "$49.39 - $50.97",
-    "v42_chart_guidance": "Between support and resistance. Prefer pullback entry or confirmed breakout."
   },
   {
     "symbol": "JEPI",
@@ -3326,9 +2205,9 @@
     "quote_type": "ETF",
     "price": 56.71,
     "current_price": 56.71,
-    "dollar_volume": 270533865.39,
-    "avg_volume_20d": 4770479,
-    "volume_ratio": 0.96,
+    "dollar_volume": 270572479.23,
+    "avg_volume_20d": 4771160,
+    "volume_ratio": 0.97,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -3368,7 +2247,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-03T00:24:46.552015+00:00",
+    "scan_time": "2026-07-03T07:52:13.356196+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 57.87,
@@ -3572,231 +2451,6 @@
     "v42_committee_total_agents": 10
   },
   {
-    "symbol": "XLRE",
-    "ticker": "XLRE",
-    "company": "State Street Real Estate Select",
-    "company_name": "State Street Real Estate Select",
-    "sector": "ETF",
-    "industry": "State Street Investment Management",
-    "quote_type": "ETF",
-    "price": 44.68,
-    "current_price": 44.68,
-    "dollar_volume": 255048510.07,
-    "avg_volume_20d": 5708337,
-    "volume_ratio": 0.95,
-    "conviction": 95,
-    "conviction_score": 95,
-    "score": 95,
-    "ai_score": 95,
-    "ai_confidence": 95,
-    "confidence": 95,
-    "rsi": 51.2,
-    "atr_pct": 1.55,
-    "sma20": 44.39,
-    "sma50": 43.98,
-    "twenty_day_pct": 3.59,
-    "sixty_day_pct": 8.03,
-    "entry_range": "$44.34 - $44.85",
-    "entry_low": 44.34,
-    "entry_high": 44.85,
-    "stop_loss": 43.71,
-    "target": 46.42,
-    "target_2": 47.29,
-    "risk_reward": 1.8,
-    "expected_upside_pct": 3.9,
-    "upside": 3.9,
-    "ai_base_target": 46.42,
-    "ai_bull_target": 47.29,
-    "ai_bear_target": 43.71,
-    "etf_preference_screen": "Passed non-financial / non-Israel / non-excluded-theme screen",
-    "what_looks_good": "strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; positive 60-day ETF trend; RSI is constructive; ETF volatility is controlled",
-    "what_could_go_wrong": "Main risk is a broad market or sector pullback.",
-    "investment_thesis": "State Street Real Estate Select (XLRE) is an ETF candidate that passed your preference screen. Score 95/100. Positive factors: strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; positive 60-day ETF trend; RSI is constructive; ETF volatility is controlled. Risks: market pullback risk.",
-    "guidance": "XLRE ETF score is 95/100. Preferred entry is $44.34 - $44.85. Use stop around $43.71 and first target near $46.42.",
-    "action_note": "ETF idea only. Review holdings/exposure before buying to ensure it aligns with your preferences.",
-    "summary": "XLRE: ETF candidate, score 95/100, estimated trade upside 3.9%.",
-    "setup_tags": [
-      "strong ETF liquidity",
-      "price is above 20-day trend",
-      "price is above 50-day trend",
-      "healthy 20-day ETF momentum",
-      "positive 60-day ETF trend",
-      "RSI is constructive",
-      "ETF volatility is controlled"
-    ],
-    "risk_tags": [],
-    "scan_time": "2026-07-03T00:36:51.968734+00:00",
-    "history_days_available": 251,
-    "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
-    "high_52w": 45.29,
-    "low_52w": 39.12,
-    "all_period_high": 45.29,
-    "all_period_low": 39.12,
-    "range_position_pct": 90.1,
-    "range_position_label": "Near 52-week highs",
-    "distance_from_52w_high_pct": -1.3,
-    "distance_from_52w_low_pct": 14.2,
-    "drawdown_from_period_high_pct": -1.3,
-    "drawdown_label": "Shallow drawdown",
-    "return_1m_pct": 3.6,
-    "return_3m_pct": 10.1,
-    "return_6m_pct": 11.4,
-    "return_1y_pct": null,
-    "return_3y_pct": null,
-    "return_5y_pct": null,
-    "analyst_support_score": 41.0,
-    "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
-    "analyst_support_label": "Mixed (41/100)",
-    "news_sentiment_source": "No recent NewsAPI headline returned; defaulted to neutral",
-    "top_news_headline": "No recent high-confidence company headline returned by NewsAPI",
-    "news_sentiment_label": "Neutral",
-    "news_sentiment_score": 0,
-    "thesis_strength": "Developing Thesis",
-    "evidence_confidence": "Low-Medium",
-    "ai_committee": {
-      "Technical Agent": {
-        "score": 95,
-        "status": "Positive",
-        "impact": "Positive",
-        "data_used": "Price history, RSI, ATR, volume, SMA, support/resistance",
-        "summary": "Lightweight scheduled scan: evaluates trend, momentum, volatility, support/resistance and entry quality.",
-        "findings": [
-          "Support 1: 43.4 \u00b7 Resistance 1: 45.29.",
-          "RSI: 51.2."
-        ],
-        "risks": [
-          "Latest news/SEC/competitor checks are deferred to full committee or live lookup."
-        ],
-        "bottom_line": "Near resistance. Avoid chasing unless breakout holds with volume."
-      },
-      "Finance Agent": {
-        "score": 50,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Existing scan fundamentals only",
-        "summary": "Lightweight scheduled scan: uses already-fetched financial fields to avoid extra API calls.",
-        "findings": [
-          "Basic financial score available from scan."
-        ],
-        "risks": [
-          "Deep financial detail available in full committee or live research."
-        ],
-        "bottom_line": "Financial profile requires full research for deeper detail."
-      },
-      "Analyst Agent": {
-        "score": 41,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Existing analyst target/count/recommendation fields",
-        "summary": "Lightweight scheduled scan: checks analyst target and support using existing scan fields.",
-        "findings": [
-          "Analyst target: N/A."
-        ],
-        "risks": [
-          "Recent target revisions are checked in full committee or live research."
-        ],
-        "bottom_line": "Analyst support is directional in lightweight mode."
-      },
-      "News Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "available": false,
-        "data_used": "Skipped in lightweight scheduled scan",
-        "summary": "News was not pulled for this lower-tier row to keep the scheduled scan fast.",
-        "findings": [
-          "Use Live Research or wait for this ticker to rank into the full committee tier."
-        ],
-        "risks": [
-          "Do not assume no news; news was intentionally deferred."
-        ],
-        "bottom_line": "News Agent deferred to full committee/live lookup."
-      },
-      "Insider Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "SEC skipped in lightweight scheduled scan",
-        "summary": "Insider/SEC data is only run for priority tickers during cron.",
-        "findings": [],
-        "risks": [
-          "Use Live Research for immediate insider/SEC check."
-        ],
-        "bottom_line": "Insider Agent deferred."
-      },
-      "Institutional Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "SEC/FMP ownership skipped in lightweight scheduled scan",
-        "summary": "Institutional data is not run for every row during cron.",
-        "findings": [],
-        "risks": [
-          "Use Live Research for immediate ownership check."
-        ],
-        "bottom_line": "Institutional Agent deferred."
-      },
-      "Competitor Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "Peer comparison skipped in lightweight scheduled scan",
-        "summary": "Competitor comparison is deferred for lower-tier rows to reduce API calls.",
-        "findings": [],
-        "risks": [
-          "Use full committee/live lookup for peer analysis."
-        ],
-        "bottom_line": "Competitor Agent deferred."
-      },
-      "Recovery Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "Existing drawdown/recovery fields",
-        "summary": "Lightweight recovery check from scan data.",
-        "findings": [
-          "Recovery scan field available if present."
-        ],
-        "risks": [
-          "Full recovery explanation available in full committee/live research."
-        ],
-        "bottom_line": "Recovery signal is directional in lightweight mode."
-      },
-      "ETF / Ownership Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "ETF/ownership checks skipped in lightweight scheduled scan",
-        "summary": "ETF ownership data is deferred unless this is a priority ETF/watchlist row.",
-        "findings": [],
-        "risks": [
-          "Use ETF tab/detail or live lookup for deeper ETF/ownership context."
-        ],
-        "bottom_line": "ETF/Ownership Agent deferred."
-      },
-      "Political Agent": {
-        "score": null,
-        "status": "Not connected yet",
-        "impact": "Not scored",
-        "data_used": "Capitol Trades planned",
-        "summary": "Political trading feed is not enabled yet.",
-        "findings": [],
-        "risks": [
-          "No political score applied."
-        ],
-        "bottom_line": "Political Agent not scored."
-      }
-    },
-    "v42_tier": "light",
-    "v42_support_1": 43.4,
-    "v42_support_2": 39.12,
-    "v42_resistance_1": 45.29,
-    "v42_resistance_2": 45.29,
-    "v42_breakout_level": 45.74,
-    "v42_pullback_zone": "$43.40 - $43.79",
-    "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume."
-  },
-  {
     "symbol": "QYLD",
     "ticker": "QYLD",
     "company": "Global X NASDAQ 100 Covered Cal",
@@ -3806,8 +2460,8 @@
     "quote_type": "ETF",
     "price": 18.09,
     "current_price": 18.09,
-    "dollar_volume": 122784924.5,
-    "avg_volume_20d": 6787447,
+    "dollar_volume": 122786690.09,
+    "avg_volume_20d": 6787545,
     "volume_ratio": 0.5,
     "conviction": 95,
     "conviction_score": 95,
@@ -3849,7 +2503,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-03T00:30:32.547754+00:00",
+    "scan_time": "2026-07-03T07:58:08.690511+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 18.44,
@@ -4030,9 +2684,9 @@
     "quote_type": "ETF",
     "price": 40.84,
     "current_price": 40.84,
-    "dollar_volume": 37360154.43,
-    "avg_volume_20d": 914793,
-    "volume_ratio": 2.2,
+    "dollar_volume": 37379218.54,
+    "avg_volume_20d": 915260,
+    "volume_ratio": 2.21,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -4073,7 +2727,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-03T00:37:00.357997+00:00",
+    "scan_time": "2026-07-03T08:04:10.711818+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 40.97,
@@ -4254,9 +2908,9 @@
     "quote_type": "ETF",
     "price": 17.23,
     "current_price": 17.23,
-    "dollar_volume": 2637138.44,
-    "avg_volume_20d": 153055,
-    "volume_ratio": 3.4,
+    "dollar_volume": 2638257.53,
+    "avg_volume_20d": 153120,
+    "volume_ratio": 3.41,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -4264,7 +2918,7 @@
     "ai_confidence": 95,
     "confidence": 95,
     "rsi": 58.0,
-    "atr_pct": 1.16,
+    "atr_pct": 1.17,
     "sma20": 17.1,
     "sma50": 17.05,
     "twenty_day_pct": -0.74,
@@ -4297,7 +2951,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-03T00:32:53.292805+00:00",
+    "scan_time": "2026-07-03T08:00:14.070050+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 17.57,
@@ -4478,9 +3132,9 @@
     "quote_type": "ETF",
     "price": 15.98,
     "current_price": 15.98,
-    "dollar_volume": 9623011.11,
-    "avg_volume_20d": 602190,
-    "volume_ratio": 0.73,
+    "dollar_volume": 9634980.92,
+    "avg_volume_20d": 602940,
+    "volume_ratio": 0.76,
     "conviction": 94,
     "conviction_score": 94,
     "score": 94,
@@ -4523,7 +3177,7 @@
     "risk_tags": [
       "RSI is overheated"
     ],
-    "scan_time": "2026-07-03T00:31:26.431236+00:00",
+    "scan_time": "2026-07-03T07:58:56.853589+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 16.04,
@@ -4704,9 +3358,9 @@
     "quote_type": "ETF",
     "price": 712.6,
     "current_price": 712.6,
-    "dollar_volume": 38683257794.65,
-    "avg_volume_20d": 54284674,
-    "volume_ratio": 0.92,
+    "dollar_volume": 38723922597.3,
+    "avg_volume_20d": 54341740,
+    "volume_ratio": 0.94,
     "conviction": 90,
     "conviction_score": 90,
     "score": 90,
@@ -4748,7 +3402,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-07-03T00:30:27.370309+00:00",
+    "scan_time": "2026-07-03T07:58:03.382049+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 747.83,
@@ -4778,23 +3432,19 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 58,
+        "score": 60,
         "status": "Mixed",
         "impact": "Neutral",
         "data_used": "NewsAPI, Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
+          "ADX Vs. ASG: Liberty Growth Vs. Adams Diversified",
           "Robinhood and Bitget Wallet Partner to Bring 24/7 Stock Token Trading Onchain",
-          "Stocks Fall on Weakness in Chipmakers and AI Stocks",
-          "Jobs Report Fuels The Rotation Out Of AI CapEx Beneficiaries",
-          "Dow Hits Records as Money Rotates Out of AI Chips Into Blue Chips: This Week on Wall Street",
-          "AAII Sentiment Survey: Optimism Plummets"
+          "Labor Market Tightens Despite Tepid Job Growth As Labor Force Declines Further Amid Crackdown On Illegal Immigration"
         ],
         "risks": [
           "Weakness in Chipmakers Drags Stock Indexes Lower",
-          "Stocks Mixed on Chipmaker Weakness and Easing US Price Pressures",
-          "Stocks Fall on Weakness in Chipmakers and AI Stocks",
-          "The Employment Report Just Changed Everything: June Miss Reshapes Fed Playbook"
+          "Labor Market Tightens Despite Tepid Job Growth As Labor Force Declines Further Amid Crackdown On Illegal Immigration"
         ],
         "bottom_line": "News is mixed or insufficient."
       },
@@ -4932,20 +3582,16 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 58,
+    "v42_news_score": 60,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
+      "ADX Vs. ASG: Liberty Growth Vs. Adams Diversified",
       "Robinhood and Bitget Wallet Partner to Bring 24/7 Stock Token Trading Onchain",
-      "Stocks Fall on Weakness in Chipmakers and AI Stocks",
-      "Jobs Report Fuels The Rotation Out Of AI CapEx Beneficiaries",
-      "Dow Hits Records as Money Rotates Out of AI Chips Into Blue Chips: This Week on Wall Street",
-      "AAII Sentiment Survey: Optimism Plummets"
+      "Labor Market Tightens Despite Tepid Job Growth As Labor Force Declines Further Amid Crackdown On Illegal Immigration"
     ],
     "v42_news_risks": [
       "Weakness in Chipmakers Drags Stock Indexes Lower",
-      "Stocks Mixed on Chipmaker Weakness and Easing US Price Pressures",
-      "Stocks Fall on Weakness in Chipmakers and AI Stocks",
-      "The Employment Report Just Changed Everything: June Miss Reshapes Fed Playbook"
+      "Labor Market Tightens Despite Tepid Job Growth As Labor Force Declines Further Amid Crackdown On Illegal Immigration"
     ],
     "v42_news_sources": [
       "NewsAPI",
@@ -4973,8 +3619,8 @@
     "quote_type": "ETF",
     "price": 59.39,
     "current_price": 59.39,
-    "dollar_volume": 416046009.91,
-    "avg_volume_20d": 7005321,
+    "dollar_volume": 416094947.27,
+    "avg_volume_20d": 7006145,
     "volume_ratio": 1.04,
     "conviction": 90,
     "conviction_score": 90,
@@ -5017,7 +3663,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-07-03T00:24:47.592241+00:00",
+    "scan_time": "2026-07-03T07:52:14.418313+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 61.08,
@@ -5219,79 +3865,79 @@
     "v42_committee_total_agents": 10
   },
   {
-    "symbol": "XLY",
-    "ticker": "XLY",
-    "company": "State Street Consumer Discretio",
-    "company_name": "State Street Consumer Discretio",
+    "symbol": "QQQY",
+    "ticker": "QQQY",
+    "company": "Defiance Nasdaq 100 Weekly Dist",
+    "company_name": "Defiance Nasdaq 100 Weekly Dist",
     "sector": "ETF",
-    "industry": "State Street Investment Management",
+    "industry": "Defiance ETFs LLC",
     "quote_type": "ETF",
-    "price": 117.12,
-    "current_price": 117.12,
-    "dollar_volume": 931354412.69,
-    "avg_volume_20d": 7952137,
-    "volume_ratio": 1.36,
-    "conviction": 86,
-    "conviction_score": 86,
-    "score": 86,
-    "ai_score": 86,
-    "ai_confidence": 86,
-    "confidence": 86,
-    "rsi": 52.8,
-    "atr_pct": 1.95,
-    "sma20": 115.9,
-    "sma50": 117.32,
-    "twenty_day_pct": 0.53,
-    "sixty_day_pct": 8.89,
-    "entry_range": "$115.98 - $117.69",
-    "entry_low": 115.98,
-    "entry_high": 117.69,
-    "stop_loss": 113.91,
-    "target": 122.89,
-    "target_2": 125.78,
+    "price": 23.24,
+    "current_price": 23.24,
+    "dollar_volume": 3398445.32,
+    "avg_volume_20d": 146220,
+    "volume_ratio": 0.64,
+    "conviction": 84,
+    "conviction_score": 84,
+    "score": 84,
+    "ai_score": 84,
+    "ai_confidence": 84,
+    "confidence": 84,
+    "rsi": 49.7,
+    "atr_pct": 2.2,
+    "sma20": 23.46,
+    "sma50": 23.12,
+    "twenty_day_pct": -3.7,
+    "sixty_day_pct": 19.71,
+    "entry_range": "$22.98 - $23.37",
+    "entry_low": 22.98,
+    "entry_high": 23.37,
+    "stop_loss": 22.53,
+    "target": 24.53,
+    "target_2": 25.17,
     "risk_reward": 1.8,
-    "expected_upside_pct": 4.9,
-    "upside": 4.9,
-    "ai_base_target": 122.89,
-    "ai_bull_target": 125.78,
-    "ai_bear_target": 113.91,
+    "expected_upside_pct": 5.6,
+    "upside": 5.6,
+    "ai_base_target": 24.53,
+    "ai_bull_target": 25.17,
+    "ai_bear_target": 22.53,
     "etf_preference_screen": "Passed non-financial / non-Israel / non-excluded-theme screen",
-    "what_looks_good": "strong ETF liquidity; price is above 20-day trend; positive 60-day ETF trend; RSI is constructive; ETF volatility is controlled",
-    "what_could_go_wrong": "price is below 50-day trend",
-    "investment_thesis": "State Street Consumer Discretio (XLY) is an ETF candidate that passed your preference screen. Score 86/100. Positive factors: strong ETF liquidity; price is above 20-day trend; positive 60-day ETF trend; RSI is constructive; ETF volatility is controlled. Risks: price is below 50-day trend.",
-    "guidance": "XLY ETF score is 86/100. Preferred entry is $115.98 - $117.69. Use stop around $113.91 and first target near $122.89.",
+    "what_looks_good": "acceptable ETF liquidity; price is above 50-day trend; positive 60-day ETF trend; RSI is constructive; ETF volatility is controlled",
+    "what_could_go_wrong": "price is below 20-day trend",
+    "investment_thesis": "Defiance Nasdaq 100 Weekly Dist (QQQY) is an ETF candidate that passed your preference screen. Score 84/100. Positive factors: acceptable ETF liquidity; price is above 50-day trend; positive 60-day ETF trend; RSI is constructive; ETF volatility is controlled. Risks: price is below 20-day trend.",
+    "guidance": "QQQY ETF score is 84/100. Preferred entry is $22.98 - $23.37. Use stop around $22.53 and first target near $24.53.",
     "action_note": "ETF idea only. Review holdings/exposure before buying to ensure it aligns with your preferences.",
-    "summary": "XLY: ETF candidate, score 86/100, estimated trade upside 4.9%.",
+    "summary": "QQQY: ETF candidate, score 84/100, estimated trade upside 5.6%.",
     "setup_tags": [
-      "strong ETF liquidity",
-      "price is above 20-day trend",
+      "acceptable ETF liquidity",
+      "price is above 50-day trend",
       "positive 60-day ETF trend",
       "RSI is constructive",
       "ETF volatility is controlled"
     ],
     "risk_tags": [
-      "price is below 50-day trend"
+      "price is below 20-day trend"
     ],
-    "scan_time": "2026-07-03T00:36:53.369505+00:00",
+    "scan_time": "2026-07-03T07:58:04.686443+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
-    "high_52w": 124.51,
-    "low_52w": 104.98,
-    "all_period_high": 124.51,
-    "all_period_low": 104.98,
-    "range_position_pct": 62.2,
-    "range_position_label": "Upper-middle range",
-    "distance_from_52w_high_pct": -5.9,
-    "distance_from_52w_low_pct": 11.6,
-    "drawdown_from_period_high_pct": -5.9,
+    "high_52w": 24.24,
+    "low_52w": 18.26,
+    "all_period_high": 24.24,
+    "all_period_low": 18.26,
+    "range_position_pct": 83.3,
+    "range_position_label": "Near 52-week highs",
+    "distance_from_52w_high_pct": -4.1,
+    "distance_from_52w_low_pct": 27.3,
+    "drawdown_from_period_high_pct": -4.1,
     "drawdown_label": "Shallow drawdown",
-    "return_1m_pct": -0.2,
-    "return_3m_pct": 6.9,
-    "return_6m_pct": -2.3,
+    "return_1m_pct": -4.0,
+    "return_3m_pct": 20.5,
+    "return_6m_pct": 13.7,
     "return_1y_pct": null,
     "return_3y_pct": null,
     "return_5y_pct": null,
-    "analyst_support_score": 41.2,
+    "analyst_support_score": 41.4,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
     "analyst_support_label": "Mixed (41/100)",
     "news_sentiment_source": "No recent NewsAPI headline returned; defaulted to neutral",
@@ -5301,147 +3947,174 @@
     "thesis_strength": "Developing Thesis",
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
-      "Technical Agent": {
-        "score": 86,
-        "status": "Positive",
-        "impact": "Positive",
-        "data_used": "Price history, RSI, ATR, volume, SMA, support/resistance",
-        "summary": "Lightweight scheduled scan: evaluates trend, momentum, volatility, support/resistance and entry quality.",
+      "News Agent": {
+        "score": 62,
+        "status": "Mixed",
+        "impact": "Neutral",
+        "data_used": "Finnhub company news",
+        "summary": "Reviews headlines/catalysts. Confidence: Medium.",
         "findings": [
-          "Support 1: 113.13 \u00b7 Resistance 1: 119.27.",
-          "RSI: 52.8."
+          "Monthly-Paid Dividends: 25 Ideal 'Safer' June Dogs Ready To Buy"
         ],
         "risks": [
-          "Latest news/SEC/competitor checks are deferred to full committee or live lookup."
+          "No negative high-confidence headline detected."
         ],
-        "bottom_line": "Near resistance. Avoid chasing unless breakout holds with volume."
+        "bottom_line": "News is mixed or insufficient."
       },
       "Finance Agent": {
         "score": 50,
         "status": "Mixed",
         "impact": "Neutral",
-        "data_used": "Existing scan fundamentals only",
-        "summary": "Lightweight scheduled scan: uses already-fetched financial fields to avoid extra API calls.",
+        "data_used": "FMP/Yahoo fundamentals, financial statements, balance sheet, cash flow",
+        "summary": "Checks revenue, EPS, margins, leverage, liquidity, cash flow, valuation, and execution.",
         "findings": [
-          "Basic financial score available from scan."
+          "Financial data limited."
         ],
         "risks": [
-          "Deep financial detail available in full committee or live research."
+          "No major finance-specific red flag detected."
         ],
-        "bottom_line": "Financial profile requires full research for deeper detail."
+        "bottom_line": "Financial profile reviewed."
       },
       "Analyst Agent": {
         "score": 41,
         "status": "Mixed",
         "impact": "Neutral",
-        "data_used": "Existing analyst target/count/recommendation fields",
-        "summary": "Lightweight scheduled scan: checks analyst target and support using existing scan fields.",
+        "data_used": "Finnhub/Yahoo/FMP analyst targets and recommendation trends",
+        "summary": "Checks whether Wall Street estimates support the AI thesis.",
         "findings": [
-          "Analyst target: N/A."
+          "Analyst support score: 41/100.",
+          "Analyst target: $N/A.",
+          "Analyst count: N/A."
         ],
         "risks": [
-          "Recent target revisions are checked in full committee or live research."
+          "Analyst data can lag fast-moving news."
         ],
-        "bottom_line": "Analyst support is directional in lightweight mode."
+        "bottom_line": "Analyst view is mixed/limited."
       },
-      "News Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "available": false,
-        "data_used": "Skipped in lightweight scheduled scan",
-        "summary": "News was not pulled for this lower-tier row to keep the scheduled scan fast.",
+      "Technical Agent": {
+        "score": 84,
+        "status": "Positive",
+        "impact": "Positive",
+        "data_used": "Price history, RSI, ATR, volume, SMA, support/resistance",
+        "summary": "Evaluates trend, momentum, volatility, support/resistance and entry quality.",
         "findings": [
-          "Use Live Research or wait for this ticker to rank into the full committee tier."
+          "Support 1: $22.34 \u00b7 Resistance 1: $24.24.",
+          "Price is below the 20-day trend.",
+          "Price is above the 50-day trend.",
+          "RSI is 49.7."
         ],
         "risks": [
-          "Do not assume no news; news was intentionally deferred."
+          "No major technical risk detected."
         ],
-        "bottom_line": "News Agent deferred to full committee/live lookup."
+        "bottom_line": "Between support and resistance. Prefer pullback entry or confirmed breakout."
       },
       "Insider Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "SEC skipped in lightweight scheduled scan",
-        "summary": "Insider/SEC data is only run for priority tickers during cron.",
-        "findings": [],
-        "risks": [
-          "Use Live Research for immediate insider/SEC check."
+        "score": 50,
+        "status": "Limited",
+        "impact": "Neutral",
+        "data_used": "SEC EDGAR Form 4 framework; Finnhub insider-ready",
+        "summary": "Checks insider filing activity and prepares buy/sell classification.",
+        "findings": [
+          "No recent Form 4 activity retrieved."
         ],
-        "bottom_line": "Insider Agent deferred."
+        "risks": [
+          "SEC insider data unavailable: CIK not found"
+        ],
+        "bottom_line": "Insider signal is limited until transaction-level parsing is expanded."
       },
       "Institutional Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "SEC/FMP ownership skipped in lightweight scheduled scan",
-        "summary": "Institutional data is not run for every row during cron.",
-        "findings": [],
-        "risks": [
-          "Use Live Research for immediate ownership check."
+        "score": 50,
+        "status": "Limited",
+        "impact": "Neutral",
+        "data_used": "SEC EDGAR filings plus FMP institutional ownership-ready",
+        "summary": "Checks institutional context and 13F availability.",
+        "findings": [
+          "Institutional data limited."
         ],
-        "bottom_line": "Institutional Agent deferred."
+        "risks": [
+          "13F data is delayed by reporting schedule."
+        ],
+        "bottom_line": "Institutional signal is directional and should be confirmed with holder details."
       },
       "Competitor Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "Peer comparison skipped in lightweight scheduled scan",
-        "summary": "Competitor comparison is deferred for lower-tier rows to reduce API calls.",
-        "findings": [],
-        "risks": [
-          "Use full committee/live lookup for peer analysis."
+        "score": 55,
+        "status": "Limited",
+        "impact": "Neutral",
+        "data_used": "FMP peer list and company fundamentals",
+        "summary": "Compares company fundamentals and valuation context against peers.",
+        "findings": [
+          "Peer comparison framework active."
         ],
-        "bottom_line": "Competitor Agent deferred."
+        "risks": [
+          "Peer list unavailable in current scan."
+        ],
+        "bottom_line": "Peer context is limited/mixed."
+      },
+      "Political Agent": {
+        "score": 50,
+        "status": "Not connected yet",
+        "impact": "Neutral",
+        "data_used": "Capitol Trades public data planned; no API key required",
+        "summary": "Tracks congressional trading once public feed integration is enabled.",
+        "findings": [
+          "Political Agent framework is active."
+        ],
+        "risks": [
+          "Capitol Trades ingestion not enabled yet; no political score applied."
+        ],
+        "bottom_line": "No political trading signal applied yet."
       },
       "Recovery Agent": {
         "score": 50,
         "status": "Limited",
         "impact": "Neutral",
-        "data_used": "Existing drawdown/recovery fields",
-        "summary": "Lightweight recovery check from scan data.",
+        "data_used": "52-week drawdown, growth, analyst support, technical recovery signals",
+        "summary": "Explains whether this is a recovery candidate or momentum setup.",
         "findings": [
-          "Recovery scan field available if present."
+          "Recovery framework active."
         ],
         "risks": [
-          "Full recovery explanation available in full committee/live research."
+          "Recovery thesis requires business outlook to remain intact."
         ],
-        "bottom_line": "Recovery signal is directional in lightweight mode."
+        "bottom_line": "Recovery setup exists only if fundamentals remain healthy."
       },
       "ETF / Ownership Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "ETF/ownership checks skipped in lightweight scheduled scan",
-        "summary": "ETF ownership data is deferred unless this is a priority ETF/watchlist row.",
-        "findings": [],
-        "risks": [
-          "Use ETF tab/detail or live lookup for deeper ETF/ownership context."
+        "score": 55,
+        "status": "Framework active",
+        "impact": "Neutral",
+        "data_used": "ETF inclusion and ownership flow framework",
+        "summary": "Checks ETF/index ownership support.",
+        "findings": [
+          "ETF/ownership framework is active."
         ],
-        "bottom_line": "ETF/Ownership Agent deferred."
-      },
-      "Political Agent": {
-        "score": null,
-        "status": "Not connected yet",
-        "impact": "Not scored",
-        "data_used": "Capitol Trades planned",
-        "summary": "Political trading feed is not enabled yet.",
-        "findings": [],
         "risks": [
-          "No political score applied."
+          "Detailed ETF flow data not fully connected yet."
         ],
-        "bottom_line": "Political Agent not scored."
+        "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_tier": "light",
-    "v42_support_1": 113.13,
-    "v42_support_2": 104.98,
-    "v42_resistance_1": 119.27,
-    "v42_resistance_2": 124.51,
-    "v42_breakout_level": 120.47,
-    "v42_pullback_zone": "$113.13 - $114.78",
-    "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume."
+    "v42_news_score": 62,
+    "v42_news_summary": "News is mixed or insufficient.",
+    "v42_news_catalysts": [
+      "Monthly-Paid Dividends: 25 Ideal 'Safer' June Dogs Ready To Buy"
+    ],
+    "v42_news_risks": [
+      "No negative high-confidence headline detected."
+    ],
+    "v42_news_sources": [
+      "Finnhub company news"
+    ],
+    "v42_sec_available": false,
+    "v42_sec_cik": null,
+    "v42_support_1": 22.34,
+    "v42_support_2": 18.26,
+    "v42_resistance_1": 24.24,
+    "v42_resistance_2": 24.24,
+    "v42_breakout_level": 24.48,
+    "v42_pullback_zone": "$22.34 - $22.78",
+    "v42_chart_guidance": "Between support and resistance. Prefer pullback entry or confirmed breakout.",
+    "v42_committee_positive_agents": 1,
+    "v42_committee_total_agents": 10
   },
   {
     "symbol": "TLT",
@@ -5453,8 +4126,8 @@
     "quote_type": "ETF",
     "price": 85.51,
     "current_price": 85.51,
-    "dollar_volume": 2211941425.77,
-    "avg_volume_20d": 25867633,
+    "dollar_volume": 2212333159.92,
+    "avg_volume_20d": 25872215,
     "volume_ratio": 0.8,
     "conviction": 82,
     "conviction_score": 82,
@@ -5496,7 +4169,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-07-03T00:34:12.013006+00:00",
+    "scan_time": "2026-07-03T08:01:27.873970+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.19,
@@ -5668,231 +4341,6 @@
     "v42_chart_guidance": "Near support. Better risk/reward if support holds."
   },
   {
-    "symbol": "XLK",
-    "ticker": "XLK",
-    "company": "State Street Technology Select ",
-    "company_name": "State Street Technology Select ",
-    "sector": "ETF",
-    "industry": "State Street Investment Management",
-    "quote_type": "ETF",
-    "price": 180.59,
-    "current_price": 180.59,
-    "dollar_volume": 2697888836.59,
-    "avg_volume_20d": 14939303,
-    "volume_ratio": 0.92,
-    "conviction": 74,
-    "conviction_score": 74,
-    "score": 74,
-    "ai_score": 74,
-    "ai_confidence": 74,
-    "confidence": 74,
-    "rsi": 47.8,
-    "atr_pct": 3.33,
-    "sma20": 185.17,
-    "sma50": 178.4,
-    "twenty_day_pct": -7.86,
-    "sixty_day_pct": 31.56,
-    "entry_range": "$177.59 - $182.09",
-    "entry_low": 177.59,
-    "entry_high": 182.09,
-    "stop_loss": 172.18,
-    "target": 196.46,
-    "target_2": 203.31,
-    "risk_reward": 1.89,
-    "expected_upside_pct": 8.8,
-    "upside": 8.8,
-    "ai_base_target": 196.46,
-    "ai_bull_target": 203.31,
-    "ai_bear_target": 172.18,
-    "etf_preference_screen": "Passed non-financial / non-Israel / non-excluded-theme screen",
-    "what_looks_good": "strong ETF liquidity; price is above 50-day trend; RSI is constructive; ETF volatility is controlled",
-    "what_could_go_wrong": "price is below 20-day trend; 20-day ETF trend is weak",
-    "investment_thesis": "State Street Technology Select  (XLK) is an ETF candidate that passed your preference screen. Score 74/100. Positive factors: strong ETF liquidity; price is above 50-day trend; RSI is constructive; ETF volatility is controlled. Risks: price is below 20-day trend; 20-day ETF trend is weak.",
-    "guidance": "XLK ETF score is 74/100. Preferred entry is $177.59 - $182.09. Use stop around $172.18 and first target near $196.46.",
-    "action_note": "ETF idea only. Review holdings/exposure before buying to ensure it aligns with your preferences.",
-    "summary": "XLK: ETF candidate, score 74/100, estimated trade upside 8.8%.",
-    "setup_tags": [
-      "strong ETF liquidity",
-      "price is above 50-day trend",
-      "RSI is constructive",
-      "ETF volatility is controlled"
-    ],
-    "risk_tags": [
-      "price is below 20-day trend",
-      "20-day ETF trend is weak"
-    ],
-    "scan_time": "2026-07-03T00:36:51.125990+00:00",
-    "history_days_available": 251,
-    "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
-    "high_52w": 198.49,
-    "low_52w": 125.94,
-    "all_period_high": 198.49,
-    "all_period_low": 125.94,
-    "range_position_pct": 75.3,
-    "range_position_label": "Near 52-week highs",
-    "distance_from_52w_high_pct": -9.0,
-    "distance_from_52w_low_pct": 43.4,
-    "drawdown_from_period_high_pct": -9.0,
-    "drawdown_label": "Shallow drawdown",
-    "return_1m_pct": -8.8,
-    "return_3m_pct": 34.0,
-    "return_6m_pct": 24.5,
-    "return_1y_pct": null,
-    "return_3y_pct": null,
-    "return_5y_pct": null,
-    "analyst_support_score": 42.2,
-    "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
-    "analyst_support_label": "Mixed (42/100)",
-    "news_sentiment_source": "No recent NewsAPI headline returned; defaulted to neutral",
-    "top_news_headline": "No recent high-confidence company headline returned by NewsAPI",
-    "news_sentiment_label": "Neutral",
-    "news_sentiment_score": 0,
-    "thesis_strength": "Developing Thesis",
-    "evidence_confidence": "Low-Medium",
-    "ai_committee": {
-      "Technical Agent": {
-        "score": 74,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Price history, RSI, ATR, volume, SMA, support/resistance",
-        "summary": "Lightweight scheduled scan: evaluates trend, momentum, volatility, support/resistance and entry quality.",
-        "findings": [
-          "Support 1: 172.67 \u00b7 Resistance 1: 194.51.",
-          "RSI: 47.8."
-        ],
-        "risks": [
-          "Latest news/SEC/competitor checks are deferred to full committee or live lookup."
-        ],
-        "bottom_line": "Between support and resistance. Prefer pullback entry or confirmed breakout."
-      },
-      "Finance Agent": {
-        "score": 50,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Existing scan fundamentals only",
-        "summary": "Lightweight scheduled scan: uses already-fetched financial fields to avoid extra API calls.",
-        "findings": [
-          "Basic financial score available from scan."
-        ],
-        "risks": [
-          "Deep financial detail available in full committee or live research."
-        ],
-        "bottom_line": "Financial profile requires full research for deeper detail."
-      },
-      "Analyst Agent": {
-        "score": 42,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Existing analyst target/count/recommendation fields",
-        "summary": "Lightweight scheduled scan: checks analyst target and support using existing scan fields.",
-        "findings": [
-          "Analyst target: N/A."
-        ],
-        "risks": [
-          "Recent target revisions are checked in full committee or live research."
-        ],
-        "bottom_line": "Analyst support is directional in lightweight mode."
-      },
-      "News Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "available": false,
-        "data_used": "Skipped in lightweight scheduled scan",
-        "summary": "News was not pulled for this lower-tier row to keep the scheduled scan fast.",
-        "findings": [
-          "Use Live Research or wait for this ticker to rank into the full committee tier."
-        ],
-        "risks": [
-          "Do not assume no news; news was intentionally deferred."
-        ],
-        "bottom_line": "News Agent deferred to full committee/live lookup."
-      },
-      "Insider Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "SEC skipped in lightweight scheduled scan",
-        "summary": "Insider/SEC data is only run for priority tickers during cron.",
-        "findings": [],
-        "risks": [
-          "Use Live Research for immediate insider/SEC check."
-        ],
-        "bottom_line": "Insider Agent deferred."
-      },
-      "Institutional Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "SEC/FMP ownership skipped in lightweight scheduled scan",
-        "summary": "Institutional data is not run for every row during cron.",
-        "findings": [],
-        "risks": [
-          "Use Live Research for immediate ownership check."
-        ],
-        "bottom_line": "Institutional Agent deferred."
-      },
-      "Competitor Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "Peer comparison skipped in lightweight scheduled scan",
-        "summary": "Competitor comparison is deferred for lower-tier rows to reduce API calls.",
-        "findings": [],
-        "risks": [
-          "Use full committee/live lookup for peer analysis."
-        ],
-        "bottom_line": "Competitor Agent deferred."
-      },
-      "Recovery Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "Existing drawdown/recovery fields",
-        "summary": "Lightweight recovery check from scan data.",
-        "findings": [
-          "Recovery scan field available if present."
-        ],
-        "risks": [
-          "Full recovery explanation available in full committee/live research."
-        ],
-        "bottom_line": "Recovery signal is directional in lightweight mode."
-      },
-      "ETF / Ownership Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "ETF/ownership checks skipped in lightweight scheduled scan",
-        "summary": "ETF ownership data is deferred unless this is a priority ETF/watchlist row.",
-        "findings": [],
-        "risks": [
-          "Use ETF tab/detail or live lookup for deeper ETF/ownership context."
-        ],
-        "bottom_line": "ETF/Ownership Agent deferred."
-      },
-      "Political Agent": {
-        "score": null,
-        "status": "Not connected yet",
-        "impact": "Not scored",
-        "data_used": "Capitol Trades planned",
-        "summary": "Political trading feed is not enabled yet.",
-        "findings": [],
-        "risks": [
-          "No political score applied."
-        ],
-        "bottom_line": "Political Agent not scored."
-      }
-    },
-    "v42_tier": "light",
-    "v42_support_1": 172.67,
-    "v42_support_2": 125.94,
-    "v42_resistance_1": 194.51,
-    "v42_resistance_2": 198.49,
-    "v42_breakout_level": 196.45,
-    "v42_pullback_zone": "$172.67 - $176.98",
-    "v42_chart_guidance": "Between support and resistance. Prefer pullback entry or confirmed breakout."
-  },
-  {
     "symbol": "SMH",
     "ticker": "SMH",
     "company": "VanEck Semiconductor ETF",
@@ -5902,9 +4350,9 @@
     "quote_type": "ETF",
     "price": 592.29,
     "current_price": 592.29,
-    "dollar_volume": 7758708726.98,
-    "avg_volume_20d": 13099510,
-    "volume_ratio": 1.45,
+    "dollar_volume": 7825601720.19,
+    "avg_volume_20d": 13212450,
+    "volume_ratio": 1.61,
     "conviction": 68,
     "conviction_score": 68,
     "score": 68,
@@ -5945,7 +4393,7 @@
       "price is below 20-day trend",
       "20-day ETF trend is weak"
     ],
-    "scan_time": "2026-07-03T00:32:26.317170+00:00",
+    "scan_time": "2026-07-03T07:59:47.084215+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 671.83,
@@ -6126,9 +4574,9 @@
     "quote_type": "ETF",
     "price": 566.32,
     "current_price": 566.32,
-    "dollar_volume": 7026508796.19,
-    "avg_volume_20d": 12407311,
-    "volume_ratio": 1.25,
+    "dollar_volume": 7044480055.51,
+    "avg_volume_20d": 12439045,
+    "volume_ratio": 1.29,
     "conviction": 68,
     "conviction_score": 68,
     "score": 68,
@@ -6169,7 +4617,7 @@
       "price is below 20-day trend",
       "20-day ETF trend is weak"
     ],
-    "scan_time": "2026-07-03T00:32:39.102903+00:00",
+    "scan_time": "2026-07-03T08:00:00.032880+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 655.95,
@@ -6341,258 +4789,6 @@
     "v42_chart_guidance": "Between support and resistance. Prefer pullback entry or confirmed breakout."
   },
   {
-    "symbol": "QQQY",
-    "ticker": "QQQY",
-    "company": "Defiance Nasdaq 100 Weekly Dist",
-    "company_name": "Defiance Nasdaq 100 Weekly Dist",
-    "sector": "ETF",
-    "industry": "Defiance ETFs LLC",
-    "quote_type": "ETF",
-    "price": 23.24,
-    "current_price": 23.24,
-    "dollar_volume": 3398418.83,
-    "avg_volume_20d": 146217,
-    "volume_ratio": 0.64,
-    "conviction": 64,
-    "conviction_score": 64,
-    "score": 64,
-    "ai_score": 64,
-    "ai_confidence": 64,
-    "confidence": 64,
-    "rsi": 48.4,
-    "atr_pct": 2.21,
-    "sma20": 23.59,
-    "sma50": 23.26,
-    "twenty_day_pct": -4.26,
-    "sixty_day_pct": 19.01,
-    "entry_range": "$22.98 - $23.37",
-    "entry_low": 22.98,
-    "entry_high": 23.37,
-    "stop_loss": 22.53,
-    "target": 24.62,
-    "target_2": 25.17,
-    "risk_reward": 1.94,
-    "expected_upside_pct": 5.9,
-    "upside": 5.9,
-    "ai_base_target": 24.62,
-    "ai_bull_target": 25.17,
-    "ai_bear_target": 22.53,
-    "etf_preference_screen": "Passed non-financial / non-Israel / non-excluded-theme screen",
-    "what_looks_good": "acceptable ETF liquidity; positive 60-day ETF trend; RSI is constructive; ETF volatility is controlled",
-    "what_could_go_wrong": "price is below 20-day trend; price is below 50-day trend",
-    "investment_thesis": "Defiance Nasdaq 100 Weekly Dist (QQQY) is an ETF candidate that passed your preference screen. Score 64/100. Positive factors: acceptable ETF liquidity; positive 60-day ETF trend; RSI is constructive; ETF volatility is controlled. Risks: price is below 20-day trend; price is below 50-day trend.",
-    "guidance": "QQQY ETF score is 64/100. Preferred entry is $22.98 - $23.37. Use stop around $22.53 and first target near $24.62.",
-    "action_note": "ETF idea only. Review holdings/exposure before buying to ensure it aligns with your preferences.",
-    "summary": "QQQY: ETF candidate, score 64/100, estimated trade upside 5.9%.",
-    "setup_tags": [
-      "acceptable ETF liquidity",
-      "positive 60-day ETF trend",
-      "RSI is constructive",
-      "ETF volatility is controlled"
-    ],
-    "risk_tags": [
-      "price is below 20-day trend",
-      "price is below 50-day trend"
-    ],
-    "scan_time": "2026-07-03T00:30:28.654985+00:00",
-    "history_days_available": 251,
-    "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
-    "high_52w": 24.38,
-    "low_52w": 18.37,
-    "all_period_high": 24.38,
-    "all_period_low": 18.37,
-    "range_position_pct": 81.0,
-    "range_position_label": "Near 52-week highs",
-    "distance_from_52w_high_pct": -4.7,
-    "distance_from_52w_low_pct": 26.5,
-    "drawdown_from_period_high_pct": -4.7,
-    "drawdown_label": "Shallow drawdown",
-    "return_1m_pct": -4.6,
-    "return_3m_pct": 19.8,
-    "return_6m_pct": 13.0,
-    "return_1y_pct": null,
-    "return_3y_pct": null,
-    "return_5y_pct": null,
-    "analyst_support_score": 41.5,
-    "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
-    "analyst_support_label": "Mixed (42/100)",
-    "news_sentiment_source": "No recent NewsAPI headline returned; defaulted to neutral",
-    "top_news_headline": "No recent high-confidence company headline returned by NewsAPI",
-    "news_sentiment_label": "Neutral",
-    "news_sentiment_score": 0,
-    "thesis_strength": "Developing Thesis",
-    "evidence_confidence": "Low-Medium",
-    "ai_committee": {
-      "News Agent": {
-        "score": 62,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Finnhub company news",
-        "summary": "Reviews headlines/catalysts. Confidence: Medium.",
-        "findings": [
-          "Monthly-Paid Dividends: 25 Ideal 'Safer' June Dogs Ready To Buy"
-        ],
-        "risks": [
-          "No negative high-confidence headline detected."
-        ],
-        "bottom_line": "News is mixed or insufficient."
-      },
-      "Finance Agent": {
-        "score": 50,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "FMP/Yahoo fundamentals, financial statements, balance sheet, cash flow",
-        "summary": "Checks revenue, EPS, margins, leverage, liquidity, cash flow, valuation, and execution.",
-        "findings": [
-          "Financial data limited."
-        ],
-        "risks": [
-          "No major finance-specific red flag detected."
-        ],
-        "bottom_line": "Financial profile reviewed."
-      },
-      "Analyst Agent": {
-        "score": 41,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Finnhub/Yahoo/FMP analyst targets and recommendation trends",
-        "summary": "Checks whether Wall Street estimates support the AI thesis.",
-        "findings": [
-          "Analyst support score: 42/100.",
-          "Analyst target: $N/A.",
-          "Analyst count: N/A."
-        ],
-        "risks": [
-          "Analyst data can lag fast-moving news."
-        ],
-        "bottom_line": "Analyst view is mixed/limited."
-      },
-      "Technical Agent": {
-        "score": 64,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Price history, RSI, ATR, volume, SMA, support/resistance",
-        "summary": "Evaluates trend, momentum, volatility, support/resistance and entry quality.",
-        "findings": [
-          "Support 1: $22.47 \u00b7 Resistance 1: $24.38.",
-          "Price is below the 20-day trend.",
-          "Price is below the 50-day trend.",
-          "RSI is 48.4."
-        ],
-        "risks": [
-          "No major technical risk detected."
-        ],
-        "bottom_line": "Near support. Better risk/reward if support holds."
-      },
-      "Insider Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "SEC EDGAR Form 4 framework; Finnhub insider-ready",
-        "summary": "Checks insider filing activity and prepares buy/sell classification.",
-        "findings": [
-          "No recent Form 4 activity retrieved."
-        ],
-        "risks": [
-          "SEC insider data unavailable: CIK not found"
-        ],
-        "bottom_line": "Insider signal is limited until transaction-level parsing is expanded."
-      },
-      "Institutional Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "SEC EDGAR filings plus FMP institutional ownership-ready",
-        "summary": "Checks institutional context and 13F availability.",
-        "findings": [
-          "Institutional data limited."
-        ],
-        "risks": [
-          "13F data is delayed by reporting schedule."
-        ],
-        "bottom_line": "Institutional signal is directional and should be confirmed with holder details."
-      },
-      "Competitor Agent": {
-        "score": 55,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "FMP peer list and company fundamentals",
-        "summary": "Compares company fundamentals and valuation context against peers.",
-        "findings": [
-          "Peer comparison framework active."
-        ],
-        "risks": [
-          "Peer list unavailable in current scan."
-        ],
-        "bottom_line": "Peer context is limited/mixed."
-      },
-      "Political Agent": {
-        "score": 50,
-        "status": "Not connected yet",
-        "impact": "Neutral",
-        "data_used": "Capitol Trades public data planned; no API key required",
-        "summary": "Tracks congressional trading once public feed integration is enabled.",
-        "findings": [
-          "Political Agent framework is active."
-        ],
-        "risks": [
-          "Capitol Trades ingestion not enabled yet; no political score applied."
-        ],
-        "bottom_line": "No political trading signal applied yet."
-      },
-      "Recovery Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "52-week drawdown, growth, analyst support, technical recovery signals",
-        "summary": "Explains whether this is a recovery candidate or momentum setup.",
-        "findings": [
-          "Recovery framework active."
-        ],
-        "risks": [
-          "Recovery thesis requires business outlook to remain intact."
-        ],
-        "bottom_line": "Recovery setup exists only if fundamentals remain healthy."
-      },
-      "ETF / Ownership Agent": {
-        "score": 55,
-        "status": "Framework active",
-        "impact": "Neutral",
-        "data_used": "ETF inclusion and ownership flow framework",
-        "summary": "Checks ETF/index ownership support.",
-        "findings": [
-          "ETF/ownership framework is active."
-        ],
-        "risks": [
-          "Detailed ETF flow data not fully connected yet."
-        ],
-        "bottom_line": "ETF/ownership is not yet a primary scoring driver."
-      }
-    },
-    "v42_news_score": 62,
-    "v42_news_summary": "News is mixed or insufficient.",
-    "v42_news_catalysts": [
-      "Monthly-Paid Dividends: 25 Ideal 'Safer' June Dogs Ready To Buy"
-    ],
-    "v42_news_risks": [
-      "No negative high-confidence headline detected."
-    ],
-    "v42_news_sources": [
-      "Finnhub company news"
-    ],
-    "v42_sec_available": false,
-    "v42_sec_cik": null,
-    "v42_support_1": 22.47,
-    "v42_support_2": 18.37,
-    "v42_resistance_1": 24.38,
-    "v42_resistance_2": 24.38,
-    "v42_breakout_level": 24.62,
-    "v42_pullback_zone": "$22.47 - $22.78",
-    "v42_chart_guidance": "Near support. Better risk/reward if support holds.",
-    "v42_committee_positive_agents": 0,
-    "v42_committee_total_agents": 10
-  },
-  {
     "symbol": "BOTZ",
     "ticker": "BOTZ",
     "company": "Global X Robotics & Artificial ",
@@ -6602,8 +4798,8 @@
     "quote_type": "ETF",
     "price": 37.39,
     "current_price": 37.39,
-    "dollar_volume": 38495685.23,
-    "avg_volume_20d": 1029571,
+    "dollar_volume": 38503286.62,
+    "avg_volume_20d": 1029775,
     "volume_ratio": 0.82,
     "conviction": 56,
     "conviction_score": 56,
@@ -6647,7 +4843,7 @@
       "price is below 50-day trend",
       "20-day ETF trend is weak"
     ],
-    "scan_time": "2026-07-03T00:16:34.603391+00:00",
+    "scan_time": "2026-07-03T07:44:27.302947+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 41.69,
@@ -6686,6 +4882,7 @@
           "AI Just Minted $10 Trillion and You Own None of It. These 4 ETFs Put You in the Game",
           "Best AI ETFs Compared: CHAT vs BOTZ vs AIS (2026)",
           "The Global X Robotics & AI ETF (BOTZ): A Solid Way to Play Robotics",
+          "From Punch Cards To Tokens: Some Thoughts On AI Pricing",
           "Does AI Raise Or Lower Neutral Rates?",
           "From Robotaxis To Humanoids: Why Embodied AI Represents An Order-Of-Magnitude Leap Into The Future"
         ],
@@ -6832,6 +5029,7 @@
       "AI Just Minted $10 Trillion and You Own None of It. These 4 ETFs Put You in the Game",
       "Best AI ETFs Compared: CHAT vs BOTZ vs AIS (2026)",
       "The Global X Robotics & AI ETF (BOTZ): A Solid Way to Play Robotics",
+      "From Punch Cards To Tokens: Some Thoughts On AI Pricing",
       "Does AI Raise Or Lower Neutral Rates?",
       "From Robotaxis To Humanoids: Why Embodied AI Represents An Order-Of-Magnitude Leap Into The Future"
     ],
@@ -6864,8 +5062,8 @@
     "quote_type": "ETF",
     "price": 56.32,
     "current_price": 56.32,
-    "dollar_volume": 88960365.34,
-    "avg_volume_20d": 1579551,
+    "dollar_volume": 88960537.12,
+    "avg_volume_20d": 1579555,
     "volume_ratio": 0.75,
     "conviction": 43,
     "conviction_score": 43,
@@ -6908,7 +5106,7 @@
       "20-day ETF trend is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-07-03T00:33:36.560992+00:00",
+    "scan_time": "2026-07-03T08:00:55.819983+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 75.6,
@@ -7089,9 +5287,9 @@
     "quote_type": "ETF",
     "price": 43.23,
     "current_price": 43.23,
-    "dollar_volume": 160621216.77,
-    "avg_volume_20d": 3715503,
-    "volume_ratio": 1.01,
+    "dollar_volume": 161137013.34,
+    "avg_volume_20d": 3727435,
+    "volume_ratio": 1.07,
     "conviction": 40,
     "conviction_score": 40,
     "score": 40,
@@ -7131,7 +5329,7 @@
       "price is below 50-day trend",
       "20-day ETF trend is weak"
     ],
-    "scan_time": "2026-07-03T00:35:08.477050+00:00",
+    "scan_time": "2026-07-03T08:02:28.346925+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 62.28,
@@ -7300,232 +5498,6 @@
     "v42_resistance_2": 62.28,
     "v42_breakout_level": 51.15,
     "v42_pullback_zone": "$42.23 - $42.37",
-    "v42_chart_guidance": "Near support. Better risk/reward if support holds."
-  },
-  {
-    "symbol": "XLE",
-    "ticker": "XLE",
-    "company": "State Street Energy Select Sect",
-    "company_name": "State Street Energy Select Sect",
-    "sector": "ETF",
-    "industry": "State Street Investment Management",
-    "quote_type": "ETF",
-    "price": 53.22,
-    "current_price": 53.22,
-    "dollar_volume": 1790927333.54,
-    "avg_volume_20d": 33651395,
-    "volume_ratio": 0.85,
-    "conviction": 33,
-    "conviction_score": 33,
-    "score": 33,
-    "ai_score": 33,
-    "ai_confidence": 33,
-    "confidence": 33,
-    "rsi": 29.1,
-    "atr_pct": 2.05,
-    "sma20": 55.13,
-    "sma50": 56.65,
-    "twenty_day_pct": -8.7,
-    "sixty_day_pct": -10.9,
-    "entry_range": "$52.67 - $53.49",
-    "entry_low": 52.67,
-    "entry_high": 53.49,
-    "stop_loss": 51.69,
-    "target": 59.21,
-    "target_2": 57.34,
-    "risk_reward": 3.92,
-    "expected_upside_pct": 11.3,
-    "upside": 11.3,
-    "ai_base_target": 59.21,
-    "ai_bull_target": 57.34,
-    "ai_bear_target": 51.69,
-    "etf_preference_screen": "Passed non-financial / non-Israel / non-excluded-theme screen",
-    "what_looks_good": "strong ETF liquidity; ETF volatility is controlled",
-    "what_could_go_wrong": "price is below 20-day trend; price is below 50-day trend; 20-day ETF trend is weak; 60-day ETF trend is weak; RSI is weak",
-    "investment_thesis": "State Street Energy Select Sect (XLE) is an ETF candidate that passed your preference screen. Score 33/100. Positive factors: strong ETF liquidity; ETF volatility is controlled. Risks: price is below 20-day trend; price is below 50-day trend; 20-day ETF trend is weak; 60-day ETF trend is weak; RSI is weak.",
-    "guidance": "XLE ETF score is 33/100. Preferred entry is $52.67 - $53.49. Use stop around $51.69 and first target near $59.21.",
-    "action_note": "ETF idea only. Review holdings/exposure before buying to ensure it aligns with your preferences.",
-    "summary": "XLE: ETF candidate, score 33/100, estimated trade upside 11.3%.",
-    "setup_tags": [
-      "strong ETF liquidity",
-      "ETF volatility is controlled"
-    ],
-    "risk_tags": [
-      "price is below 20-day trend",
-      "price is below 50-day trend",
-      "20-day ETF trend is weak",
-      "60-day ETF trend is weak",
-      "RSI is weak"
-    ],
-    "scan_time": "2026-07-03T00:36:49.861227+00:00",
-    "history_days_available": 251,
-    "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
-    "high_52w": 63.01,
-    "low_52w": 40.78,
-    "all_period_high": 63.01,
-    "all_period_low": 40.78,
-    "range_position_pct": 56.0,
-    "range_position_label": "Upper-middle range",
-    "distance_from_52w_high_pct": -15.5,
-    "distance_from_52w_low_pct": 30.5,
-    "drawdown_from_period_high_pct": -15.5,
-    "drawdown_label": "Moderate drawdown",
-    "return_1m_pct": -7.5,
-    "return_3m_pct": -9.1,
-    "return_6m_pct": 20.0,
-    "return_1y_pct": null,
-    "return_3y_pct": null,
-    "return_5y_pct": null,
-    "analyst_support_score": 42.8,
-    "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
-    "analyst_support_label": "Mixed (43/100)",
-    "news_sentiment_source": "No recent NewsAPI headline returned; defaulted to neutral",
-    "top_news_headline": "No recent high-confidence company headline returned by NewsAPI",
-    "news_sentiment_label": "Neutral",
-    "news_sentiment_score": 0,
-    "thesis_strength": "Developing Thesis",
-    "evidence_confidence": "Low-Medium",
-    "ai_committee": {
-      "Technical Agent": {
-        "score": 33,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Price history, RSI, ATR, volume, SMA, support/resistance",
-        "summary": "Lightweight scheduled scan: evaluates trend, momentum, volatility, support/resistance and entry quality.",
-        "findings": [
-          "Support 1: 52.62 \u00b7 Resistance 1: 58.62.",
-          "RSI: 29.1."
-        ],
-        "risks": [
-          "Latest news/SEC/competitor checks are deferred to full committee or live lookup."
-        ],
-        "bottom_line": "Near support. Better risk/reward if support holds."
-      },
-      "Finance Agent": {
-        "score": 50,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Existing scan fundamentals only",
-        "summary": "Lightweight scheduled scan: uses already-fetched financial fields to avoid extra API calls.",
-        "findings": [
-          "Basic financial score available from scan."
-        ],
-        "risks": [
-          "Deep financial detail available in full committee or live research."
-        ],
-        "bottom_line": "Financial profile requires full research for deeper detail."
-      },
-      "Analyst Agent": {
-        "score": 42,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Existing analyst target/count/recommendation fields",
-        "summary": "Lightweight scheduled scan: checks analyst target and support using existing scan fields.",
-        "findings": [
-          "Analyst target: N/A."
-        ],
-        "risks": [
-          "Recent target revisions are checked in full committee or live research."
-        ],
-        "bottom_line": "Analyst support is directional in lightweight mode."
-      },
-      "News Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "available": false,
-        "data_used": "Skipped in lightweight scheduled scan",
-        "summary": "News was not pulled for this lower-tier row to keep the scheduled scan fast.",
-        "findings": [
-          "Use Live Research or wait for this ticker to rank into the full committee tier."
-        ],
-        "risks": [
-          "Do not assume no news; news was intentionally deferred."
-        ],
-        "bottom_line": "News Agent deferred to full committee/live lookup."
-      },
-      "Insider Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "SEC skipped in lightweight scheduled scan",
-        "summary": "Insider/SEC data is only run for priority tickers during cron.",
-        "findings": [],
-        "risks": [
-          "Use Live Research for immediate insider/SEC check."
-        ],
-        "bottom_line": "Insider Agent deferred."
-      },
-      "Institutional Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "SEC/FMP ownership skipped in lightweight scheduled scan",
-        "summary": "Institutional data is not run for every row during cron.",
-        "findings": [],
-        "risks": [
-          "Use Live Research for immediate ownership check."
-        ],
-        "bottom_line": "Institutional Agent deferred."
-      },
-      "Competitor Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "Peer comparison skipped in lightweight scheduled scan",
-        "summary": "Competitor comparison is deferred for lower-tier rows to reduce API calls.",
-        "findings": [],
-        "risks": [
-          "Use full committee/live lookup for peer analysis."
-        ],
-        "bottom_line": "Competitor Agent deferred."
-      },
-      "Recovery Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "Existing drawdown/recovery fields",
-        "summary": "Lightweight recovery check from scan data.",
-        "findings": [
-          "Recovery scan field available if present."
-        ],
-        "risks": [
-          "Full recovery explanation available in full committee/live research."
-        ],
-        "bottom_line": "Recovery signal is directional in lightweight mode."
-      },
-      "ETF / Ownership Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "ETF/ownership checks skipped in lightweight scheduled scan",
-        "summary": "ETF ownership data is deferred unless this is a priority ETF/watchlist row.",
-        "findings": [],
-        "risks": [
-          "Use ETF tab/detail or live lookup for deeper ETF/ownership context."
-        ],
-        "bottom_line": "ETF/Ownership Agent deferred."
-      },
-      "Political Agent": {
-        "score": null,
-        "status": "Not connected yet",
-        "impact": "Not scored",
-        "data_used": "Capitol Trades planned",
-        "summary": "Political trading feed is not enabled yet.",
-        "findings": [],
-        "risks": [
-          "No political score applied."
-        ],
-        "bottom_line": "Political Agent not scored."
-      }
-    },
-    "v42_tier": "light",
-    "v42_support_1": 52.62,
-    "v42_support_2": 40.78,
-    "v42_resistance_1": 58.62,
-    "v42_resistance_2": 63.01,
-    "v42_breakout_level": 59.2,
-    "v42_pullback_zone": "$52.62 - $52.62",
     "v42_chart_guidance": "Near support. Better risk/reward if support holds."
   }
 ]
