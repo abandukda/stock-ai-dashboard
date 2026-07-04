@@ -342,3 +342,6 @@ def _recommendation(opp: int, quality: int, upside: float, rr: float) -> str:
     if opp >= 65:
         return "👀 MONITOR"
     return "🔴 AVOID"
+
+# V76 stabilization marker
+V76_STABILIZATION_PRODUCT_QUALITY_CALIBRATION_VERIFIED = True

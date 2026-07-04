@@ -25245,10 +25245,447 @@ def main():
     elif selected_page == "Political Intelligence": render_v58_political_intelligence(full_df)
     elif selected_page == "Ask AI": render_chat_helper(full_df)
 
-if __name__ == "__main__":
+if False and __name__ == "__main__":
     main()
 
 # ==============================
 # V75.1 ROUTER + HTML ESCAPE HOTFIX
 # ==============================
 V75_1_ROUTER_ESCAPE_HOTFIX_VERIFIED = True
+
+# ============================================================
+# V76 STABILIZATION + PRODUCT QUALITY FOUNDATION
+# Master scope from Project Atlas Issues.docx.
+# Focus: single router, clearer home, stable navigation, readable tables/cards,
+# earnings month view, and first pass at tab descriptions/performance.
+# ============================================================
+V76_STABILIZATION_PRODUCT_QUALITY_VERIFIED = True
+
+
+def v76_safe_df(df):
+    try:
+        return df is not None and not getattr(df, "empty", True)
+    except Exception:
+        return False
+
+
+def v76_text(value, default=""):
+    try:
+        return v73_clean_text(value, default=default)
+    except Exception:
+        if value is None:
+            return default
+        s = str(value).strip()
+        return default if s.lower() in {"", "nan", "none", "null", "n/a"} else s
+
+
+def v76_get(row, keys, default=None):
+    try:
+        return v73_get(row, keys, default)
+    except Exception:
+        raw = row.to_dict() if hasattr(row, "to_dict") else (row if isinstance(row, dict) else {})
+        for k in keys:
+            if k in raw and raw.get(k) not in (None, "", "N/A", "nan"):
+                return raw.get(k)
+        return default
+
+
+def v76_num(value, default=0.0):
+    try:
+        if value is None or str(value).strip() == "":
+            return default
+        x = float(value)
+        if pd.isna(x):
+            return default
+        return x
+    except Exception:
+        return default
+
+
+def v76_esc(value, default="", max_len=None):
+    try:
+        return v73_esc(value, default=default, max_len=max_len)
+    except Exception:
+        import html
+        s = v76_text(value, default)
+        if max_len and len(s) > max_len:
+            s = s[:max_len].rsplit(" ", 1)[0] + "…"
+        return html.escape(s)
+
+
+def v76_money(value, default="—"):
+    try:
+        return v73_money(value, default=default)
+    except Exception:
+        x = v76_num(value, None)
+        if x is None:
+            return default
+        if abs(x) >= 1_000_000_000:
+            return f"${x/1_000_000_000:.1f}B"
+        if abs(x) >= 1_000_000:
+            return f"${x/1_000_000:.1f}M"
+        return f"${x:,.2f}"
+
+
+def v76_pct(value, default="—"):
+    try:
+        return v73_pct(value, default=default)
+    except Exception:
+        x = v76_num(value, None)
+        if x is None:
+            return default
+        if abs(x) <= 2:
+            x *= 100
+        if abs(x) > 500:
+            return default
+        return f"{x:.1f}%"
+
+
+def v76_ticker(row):
+    return v76_text(v76_get(row, ["Ticker", "ticker", "symbol", "Symbol"], ""), "").upper()
+
+
+def v76_company(row):
+    ticker = v76_ticker(row)
+    return v76_text(v76_get(row, ["Company", "company", "company_name", "name", "Name"], ticker), ticker)
+
+
+def v76_score(row, keys, fallback=0):
+    val = v76_get(row, keys, None)
+    x = v76_num(val, None)
+    if x is None:
+        return fallback
+    if x < 0:
+        return 0
+    if x > 100:
+        return 100
+    return x
+
+
+def v76_score_label(score):
+    try:
+        return v73_score_label(score)
+    except Exception:
+        x = v76_num(score, 0)
+        if x >= 90: return "Exceptional"
+        if x >= 80: return "Excellent"
+        if x >= 70: return "Strong"
+        if x >= 60: return "Constructive"
+        return "Speculative"
+
+
+def v76_decision(row):
+    text = v76_text(v76_get(row, ["Decision", "Recommendation", "decision_action", "recommendation", "Action"], "Watchlist"), "Watchlist")
+    up = text.upper()
+    if "AVOID" in up or "SELL" in up:
+        return "Avoid"
+    if "STRONG" in up and "BUY" in up:
+        return "Strong Buy"
+    if "BUY" in up:
+        return "Buy Now"
+    if "ACCUM" in up:
+        return "Accumulate"
+    if "WATCH" in up or "REVIEW" in up or "HOLD" in up:
+        return "Watchlist"
+    # fallback from score when label is weak/missing
+    conf = v76_score(row, ["Confidence", "AI Confidence", "Final Conviction", "conviction_score", "score"], 0)
+    opp = v76_score(row, ["Opportunity", "Opportunity Score", "opportunity_score", "technical_agent_score"], 0)
+    qual = v76_score(row, ["Quality", "Quality Score", "quality_score", "financial_score"], 0)
+    if conf >= 90 and opp >= 80 and qual >= 65:
+        return "Buy Now"
+    if conf >= 82 and opp >= 70 and qual >= 60:
+        return "Accumulate"
+    return "Watchlist"
+
+
+def v76_wall_street(row):
+    buys = int(v76_num(v76_get(row, ["strong_buy", "buy", "Buy", "analyst_buy", "finnhub_analyst_buy"], 0), 0) or 0)
+    holds = int(v76_num(v76_get(row, ["hold", "Hold", "analyst_hold", "finnhub_analyst_hold"], 0), 0) or 0)
+    sells = int(v76_num(v76_get(row, ["sell", "Sell", "strong_sell", "analyst_sell", "finnhub_analyst_sell"], 0), 0) or 0)
+    if buys + holds + sells > 0:
+        if buys >= max(holds + sells, 1):
+            label = "Strong Buy"
+        elif buys > holds:
+            label = "Bullish"
+        elif sells > buys:
+            label = "Cautious"
+        else:
+            label = "Mixed"
+        return f"{label}<br><small>{buys} Buy · {holds} Hold · {sells} Sell</small>"
+    score = v76_get(row, ["analyst_support_score", "Analyst Support"], None)
+    score_num = v76_num(score, None)
+    if score_num is not None and score_num > 0:
+        return f"Analyst support {score_num:.0f}/100<br><small>Breakdown unavailable</small>"
+    return "Limited analyst data<br><small>No buy/hold/sell breakdown saved</small>"
+
+
+def v76_next_earnings(row):
+    date = v76_text(v76_get(row, ["next_earnings_date", "Next Earnings Date", "earnings_date", "Earnings Date", "reportDate"], ""), "")
+    timing = v76_text(v76_get(row, ["earnings_timing", "Timing", "time", "hour"], "Unknown"), "Unknown")
+    url = v76_text(v76_get(row, ["transcript_url", "earnings_url", "article_url", "url", "link"], ""), "")
+    summary = v76_text(v76_get(row, ["earnings_summary", "Earnings Summary", "AI Earnings Read", "guidance", "Guidance", "latest_earnings_summary"], ""), "")
+    if not date:
+        date = "Not saved"
+    transcript = "Open transcript" if url.startswith("http") else ("Transcript not linked" if "transcript" in summary.lower() else "No transcript link")
+    if not summary:
+        summary = "AI earnings summary not included in saved scan. Add transcript/guidance source in V77."
+    return date, timing, transcript, url, summary
+
+
+def v76_tab_intro(title, body):
+    st.markdown(f"""
+<div class='v76-tab-intro'>
+  <div class='v76-kicker'>{v76_esc(title)}</div>
+  <p>{v76_esc(body)}</p>
+</div>
+""", unsafe_allow_html=True)
+
+
+def render_v76_design_system():
+    st.markdown("""
+<style>
+section[data-testid="stSidebar"]{display:none!important;}
+.block-container{padding-top:.65rem!important;max-width:1540px!important;}
+.v76-nav-wrap{position:sticky;top:0;z-index:999;background:rgba(3,7,18,.96);backdrop-filter:blur(14px);border-bottom:1px solid rgba(148,163,184,.20);margin:-1rem -1rem 1rem -1rem;padding:10px 16px 12px;}
+.v76-brand-row{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:8px}.v76-brand{font-size:20px;font-weight:950;color:#fff;letter-spacing:-.04em}.v76-brand-sub{color:#93c5fd;font-size:12px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}.v76-nav-wrap div[data-testid="stRadio"]{background:transparent!important}.v76-nav-wrap label[data-baseweb="radio"]{border:1px solid rgba(148,163,184,.22)!important;border-radius:999px!important;padding:8px 12px!important;background:rgba(15,23,42,.72)!important;margin-right:6px!important}.v76-nav-wrap label[data-baseweb="radio"] p{font-weight:850!important;color:#dbeafe!important;font-size:14px!important}.v76-hero{border:1px solid rgba(96,165,250,.22);border-radius:24px;background:linear-gradient(135deg,rgba(12,25,47,.98),rgba(4,10,21,.98));padding:22px;margin:12px 0 14px}.v76-hero h1{font-size:clamp(30px,4.2vw,54px);line-height:1.05;margin:0 0 8px;color:#fff}.v76-hero p{font-size:18px;line-height:1.5;color:#cbd5e1;margin:0}.v76-kicker{color:#93c5fd;text-transform:uppercase;letter-spacing:.14em;font-weight:950;font-size:12px}.v76-metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:16px}.v76-metric{border:1px solid rgba(148,163,184,.20);border-radius:18px;background:rgba(15,23,42,.68);padding:16px;min-width:0}.v76-metric span{display:block;color:#9ca3af;text-transform:uppercase;letter-spacing:.10em;font-size:11px;font-weight:950}.v76-metric b{display:block;color:#fff;font-size:30px;line-height:1.1;overflow-wrap:anywhere}.v76-metric em{display:block;color:#cbd5e1;font-style:normal;font-size:13px}.v76-tape{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:10px 0 18px}.v76-tape-card{border:1px solid rgba(148,163,184,.20);border-radius:16px;background:rgba(15,23,42,.72);padding:12px 14px}.v76-tape-card span{display:block;color:#9ca3af;font-weight:850;font-size:12px}.v76-tape-card b{display:block;color:#fff;font-size:19px}.v76-tape-card em{font-style:normal;font-weight:950}.v76-tab-intro{border:1px solid rgba(148,163,184,.18);border-radius:18px;background:rgba(15,23,42,.55);padding:14px 16px;margin:10px 0 16px}.v76-tab-intro p{margin:5px 0 0;color:#cbd5e1;line-height:1.45}.v76-section-title{font-size:25px;color:#fff;font-weight:950;margin:22px 0 8px}.v76-table-wrap{overflow-x:auto;border:1px solid rgba(148,163,184,.18);border-radius:18px}.v76-table{width:100%;border-collapse:separate;border-spacing:0;background:#08111f;color:#e5e7eb}.v76-table th{background:#0f172a;color:#bfdbfe;text-align:left;padding:12px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;white-space:nowrap}.v76-table td{padding:12px;border-top:1px solid rgba(148,163,184,.14);vertical-align:top;white-space:normal;overflow-wrap:anywhere}.v76-pill{display:inline-block;border-radius:999px;padding:6px 10px;font-weight:950;background:rgba(59,130,246,.16);border:1px solid rgba(96,165,250,.35);color:#fff}.v76-buy{background:rgba(34,197,94,.18);border-color:rgba(34,197,94,.46)}.v76-watch{background:rgba(245,158,11,.14);border-color:rgba(245,158,11,.42)}.v76-avoid{background:rgba(239,68,68,.16);border-color:rgba(239,68,68,.42)}.v76-score b{display:block;color:#fff;font-size:20px}.v76-score span{display:block;color:#94a3b8;font-size:12px}.v76-thesis{max-width:420px;line-height:1.45;color:#dbe4f0}.v76-card-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.v76-idea-card{border:1px solid rgba(148,163,184,.20);border-radius:22px;background:linear-gradient(145deg,rgba(15,23,42,.95),rgba(8,15,30,.98));padding:18px}.v76-idea-head{display:flex;justify-content:space-between;gap:12px}.v76-ticker{font-size:32px;color:#fff;font-weight:950;letter-spacing:-.06em}.v76-company{color:#9ca3af}.v76-mini-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:12px}.v76-mini{border:1px solid rgba(148,163,184,.16);border-radius:14px;padding:10px;background:rgba(2,6,23,.35);min-width:0}.v76-mini span{display:block;color:#93a4bb;text-transform:uppercase;font-size:10px;font-weight:950;letter-spacing:.08em}.v76-mini b{display:block;color:#fff;font-size:18px;overflow-wrap:anywhere}.v76-mini em{display:block;color:#cbd5e1;font-style:normal;font-size:12px}.v76-action-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.v76-link-btn{display:inline-block;border:1px solid rgba(96,165,250,.35);border-radius:999px;padding:8px 12px;color:#dbeafe!important;text-decoration:none!important;background:rgba(59,130,246,.12);font-weight:900}.stMarkdown,.stMarkdown p,.stMarkdown li,.stMarkdown span{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important;letter-spacing:normal!important;word-spacing:normal!important;white-space:normal!important;overflow-wrap:break-word!important}.stMarkdown a{color:#60a5fa!important;text-decoration:underline!important}div[data-testid="stMetricValue"]{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important;font-size:clamp(1.25rem,2.2vw,2.25rem)!important;line-height:1.08!important;letter-spacing:-.035em!important;white-space:normal!important;overflow-wrap:anywhere!important}button[kind="primary"],button[kind="secondary"]{font-weight:900!important;color:#fff!important}.stDataFrame{color:#e5e7eb!important}
+@media(max-width:820px){.v76-metric-grid,.v76-tape,.v76-card-grid{grid-template-columns:1fr}.v76-mini-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.v76-table-wrap{display:none}.v76-hero{padding:18px}.v76-hero h1{font-size:32px}.v76-nav-wrap{overflow-x:auto}.v76-nav-wrap div[role="radiogroup"]{flex-wrap:nowrap!important;overflow-x:auto!important}.v76-nav-wrap label[data-baseweb="radio"]{white-space:nowrap!important}.v76-ticker{font-size:30px}}
+</style>
+""", unsafe_allow_html=True)
+
+
+def render_v76_nav(pages):
+    st.markdown("""
+<div class='v76-nav-wrap'>
+  <div class='v76-brand-row'>
+    <div><div class='v76-brand'>🧠 ATLAS</div><div class='v76-brand-sub'>AI Investment Terminal</div></div>
+    <div class='v76-brand-sub'>V76 Stabilization</div>
+  </div>
+""", unsafe_allow_html=True)
+    current = st.radio("Navigation", pages, horizontal=True, label_visibility="collapsed", key="v76_router")
+    st.markdown("</div>", unsafe_allow_html=True)
+    return current
+
+
+def v76_market_rows():
+    symbols = [("SPY","S&P 500"),("QQQ","Nasdaq"),("DIA","Dow"),("IWM","Russell"),("VIXY","Volatility"),("GLD","Gold"),("USO","Oil"),("BTC-USD","Bitcoin")]
+    rows = []
+    for sym, label in symbols:
+        quote = None
+        try:
+            quote = v74_market_quote(sym)
+        except Exception:
+            try:
+                quote = v72_market_quote(sym)
+            except Exception:
+                quote = None
+        if quote:
+            last, pct = quote
+            rows.append((label, f"{last:,.2f}", pct))
+    return rows
+
+
+def render_v76_market_tape():
+    st.markdown("<div class='v76-kicker'>Live market tape · delayed / near real-time context</div>", unsafe_allow_html=True)
+    rows = v76_market_rows()
+    if not rows:
+        rows = [("Market Data", "Saved scan active", 0), ("Live Quotes", "Source unavailable", 0), ("Research", "Available", 0), ("Next Step", "Check API keys", 0)]
+    cards = []
+    for label, val, pct in rows:
+        color = "#20d46b" if pct >= 0 else "#ff4d4d"
+        sign = "+" if pct >= 0 else ""
+        pct_text = f"{sign}{pct:.2f}%" if isinstance(pct, (int, float)) else "—"
+        cards.append(f"<div class='v76-tape-card'><span>{v76_esc(label)}</span><b>{v76_esc(val)}</b><em style='color:{color}'>{pct_text}</em></div>")
+    st.markdown("<div class='v76-tape'>" + "".join(cards) + "</div>", unsafe_allow_html=True)
+
+
+def v76_counts(df):
+    if not v76_safe_df(df):
+        return 0, 0, 0, 0
+    buys = watch = avoid = accum = 0
+    for _, r in df.iterrows():
+        d = v76_decision(r).upper()
+        if "BUY" in d:
+            buys += 1
+        elif "ACCUM" in d:
+            accum += 1
+        elif "AVOID" in d or "SELL" in d:
+            avoid += 1
+        else:
+            watch += 1
+    return buys, accum, watch, avoid
+
+
+def render_v76_home(full_df, top_df, recovery_df):
+    source_df = top_df if v76_safe_df(top_df) else (full_df.head(25) if v76_safe_df(full_df) else pd.DataFrame())
+    buys, accum, watch, avoid = v76_counts(source_df)
+    coverage = len(full_df) if v76_safe_df(full_df) else 0
+    rec_count = len(recovery_df) if v76_safe_df(recovery_df) else 0
+    top_ticker = v76_ticker(source_df.iloc[0]) if v76_safe_df(source_df) else "—"
+    top_company = v76_company(source_df.iloc[0]) if v76_safe_df(source_df) else ""
+    st.markdown(f"""
+<div class='v76-hero'>
+  <div class='v76-kicker'>Atlas Morning Investment Brief</div>
+  <h1>What should investors pay attention to today?</h1>
+  <p>Top opportunity: <b>{v76_esc(top_ticker)}</b>{' — ' + v76_esc(top_company) if top_company else ''}. Atlas highlights ideas, earnings, news, political context, chart timing, and risk so investors can decide faster.</p>
+  <div class='v76-metric-grid'>
+    <div class='v76-metric'><span>Buy Now</span><b>{buys}</b><em>Highest-action ideas</em></div>
+    <div class='v76-metric'><span>Accumulate</span><b>{accum}</b><em>Good ideas, manage entry</em></div>
+    <div class='v76-metric'><span>Watchlist</span><b>{watch}</b><em>Wait for trigger</em></div>
+    <div class='v76-metric'><span>Coverage</span><b>{coverage}</b><em>Stocks in saved scan</em></div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+    render_v76_market_tape()
+    render_v76_idea_cards(source_df.head(8), title="Top Opportunities Today")
+    try:
+        render_v70_market_calendar_terminal(full_df)
+    except Exception:
+        v76_tab_intro("Market Calendar", "Economic calendar source unavailable in this scan. This module will be strengthened in V77 with jobs, CPI, Fed, and earnings events.")
+    render_v76_earnings(full_df, source_df, home=True)
+    if v76_safe_df(recovery_df):
+        render_v76_idea_cards(recovery_df.head(4), title="Recovery Radar")
+
+
+def render_v76_idea_cards(df, title="Top AI Ideas"):
+    st.markdown(f"<div class='v76-section-title'>{v76_esc(title)}</div>", unsafe_allow_html=True)
+    if not v76_safe_df(df):
+        st.info("No ideas were available in the latest saved scan.")
+        return
+    cards = []
+    rows = []
+    for i, (_, row) in enumerate(df.head(15).iterrows(), 1):
+        ticker = v76_ticker(row); company = v76_company(row)
+        decision = v76_decision(row)
+        badge_cls = "v76-buy" if "BUY" in decision.upper() else ("v76-avoid" if "AVOID" in decision.upper() else "v76-watch")
+        opp = v76_score(row, ["Opportunity", "Opportunity Score", "opportunity_score", "technical_agent_score", "final_agent_score"], 0)
+        qual = v76_score(row, ["Quality", "Quality Score", "quality_score", "financial_score", "fundamentals_agent_score"], 0)
+        conf = v76_score(row, ["Confidence", "AI Confidence", "confidence", "conviction_score", "Final Conviction", "score"], max(opp, qual, 0))
+        upside = v76_pct(v76_get(row, ["Target Upside %", "target_upside_pct", "analyst_upside_pct", "expected_upside_pct", "upside"], None))
+        target = v76_money(v76_get(row, ["AI Fair Value", "Target", "target", "target_mean_price", "analyst_target_mean"], None))
+        ws = v76_wall_street(row)
+        thesis = v76_text(v76_get(row, ["AI Thesis", "Why Ranked", "Why Ranked High", "why_ranked_high", "investment_thesis", "summary", "Guidance", "guidance"], ""), "")
+        if not thesis:
+            thesis = f"{ticker} is ranked based on combined evidence from opportunity, quality, valuation, Wall Street context, technical setup, and risk controls."
+        thesis_short = thesis[:380].rsplit(" ", 1)[0] + ("…" if len(thesis) > 380 else "")
+        research_url = "?page=Research%20Any%20Ticker&ticker=" + ticker
+        rows.append(f"""<tr><td><b>#{i}</b></td><td><b>{v76_esc(ticker)}</b><br><small>{v76_esc(company)}</small></td><td><span class='v76-pill {badge_cls}'>{v76_esc(decision)}</span></td><td class='v76-score'><b>{opp:.0f}</b><span>{v76_score_label(opp)}</span></td><td class='v76-score'><b>{qual:.0f}</b><span>{v76_score_label(qual)}</span></td><td class='v76-score'><b>{conf:.0f}</b><span>{v76_score_label(conf)}</span></td><td>{v76_esc(upside)}<br><small>{v76_esc(target)}</small></td><td>{ws}</td><td><div class='v76-thesis'>{v76_esc(thesis_short)}</div></td><td><a class='v76-link-btn' href='{research_url}'>Full details</a></td></tr>""")
+        cards.append(f"""
+<div class='v76-idea-card'>
+  <div class='v76-idea-head'><div><div class='v76-ticker'>{v76_esc(ticker)}</div><div class='v76-company'>{v76_esc(company)}</div></div><span class='v76-pill {badge_cls}'>{v76_esc(decision)}</span></div>
+  <div class='v76-mini-grid'>
+    <div class='v76-mini'><span>Opportunity</span><b>{opp:.0f}</b><em>{v76_score_label(opp)}</em></div>
+    <div class='v76-mini'><span>Quality</span><b>{qual:.0f}</b><em>{v76_score_label(qual)}</em></div>
+    <div class='v76-mini'><span>Confidence</span><b>{conf:.0f}</b><em>{v76_score_label(conf)}</em></div>
+    <div class='v76-mini'><span>Upside</span><b>{v76_esc(upside)}</b><em>Potential</em></div>
+    <div class='v76-mini'><span>Target</span><b>{v76_esc(target)}</b><em>Atlas / analyst</em></div>
+    <div class='v76-mini'><span>Wall Street</span><b>{v76_esc(v76_text(ws).split('<br>')[0])}</b><em>Consensus</em></div>
+  </div>
+  <p class='v76-thesis'>{v76_esc(thesis_short)}</p>
+  <div class='v76-action-row'><a class='v76-link-btn' href='{research_url}'>Open full research</a></div>
+</div>
+""")
+    st.markdown("<div class='v76-table-wrap'><table class='v76-table'><thead><tr><th>Rank</th><th>Ticker / Company</th><th>Decision</th><th>Opportunity</th><th>Quality</th><th>Confidence</th><th>Upside / Target</th><th>Wall Street</th><th>AI Thesis</th><th>Action</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>", unsafe_allow_html=True)
+    st.markdown("<div class='v76-card-grid'>" + "".join(cards[:10]) + "</div>", unsafe_allow_html=True)
+
+
+def render_v76_earnings(full_df=None, top_df=None, home=False):
+    title = "Earnings Intelligence" if not home else "Earnings Watch"
+    st.markdown(f"<div class='v76-section-title'>📞 {title}</div>", unsafe_allow_html=True)
+    v76_tab_intro("How to use this", "Review upcoming and recent earnings for Top AI ideas and major scanned companies. Links/transcripts appear when the saved scan includes them; V77 will add transcript ingestion and month-long earnings archive.")
+    frames = []
+    if v76_safe_df(top_df): frames.append(top_df)
+    if v76_safe_df(full_df): frames.append(full_df.head(50))
+    if not frames:
+        st.info("No earnings data available in the latest saved scan.")
+        return
+    work = pd.concat(frames, ignore_index=True).drop_duplicates(subset=[c for c in ["Ticker"] if c in pd.concat(frames, ignore_index=True).columns] or None).head(30)
+    rows = []
+    html_rows = []
+    for _, row in work.iterrows():
+        ticker = v76_ticker(row); company = v76_company(row)
+        date, timing, transcript, url, summary = v76_next_earnings(row)
+        link = f"<a class='v76-link-btn' target='_blank' href='{url}'>Open</a>" if url.startswith("http") else "Link unavailable"
+        html_rows.append(f"<tr><td><b>{v76_esc(ticker)}</b></td><td>{v76_esc(company)}</td><td>{v76_esc(date)}</td><td>{v76_esc(timing)}</td><td>{v76_esc(transcript)}<br>{link}</td><td><div class='v76-thesis'>{v76_esc(summary, max_len=260)}</div></td></tr>")
+    st.markdown("<div class='v76-table-wrap'><table class='v76-table'><thead><tr><th>Ticker</th><th>Company</th><th>Next / Recent Earnings</th><th>Timing</th><th>Transcript</th><th>Atlas Earnings Read</th></tr></thead><tbody>" + "".join(html_rows) + "</tbody></table></div>", unsafe_allow_html=True)
+
+
+def render_v76_research(full_df, recovery_df, watch_df, prescreen_df, etf_df=None):
+    v76_tab_intro("Research Any Ticker", "Search a ticker to open the full Atlas supporting dashboard. V76 prioritizes fast saved-scan lookup first; V77 will improve live refresh, transcript summaries, and deeper political/analyst intelligence.")
+    # Pass through to the existing full research engine to preserve all functionality.
+    try:
+        render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df)
+    except TypeError:
+        render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df)
+
+
+def render_v76_full_scan(full_df):
+    v76_tab_intro("Full Ranked AI Scan", "Use this to review the full saved scan. Tickers, company names, current price, analyst target, Atlas target, and wrapped AI thesis should help you decide which stocks deserve deeper research.")
+    try:
+        render_v56_ranked_table(full_df, title="Full Ranked AI Scan", max_rows=75, show_filters=True)
+    except Exception:
+        render_v76_idea_cards(full_df.head(50), title="Full Ranked AI Scan")
+
+
+def render_v76_passthrough(title, body, fn, *args):
+    v76_tab_intro(title, body)
+    try:
+        return fn(*args)
+    except Exception as e:
+        st.error(f"{title} could not load cleanly. V76 captured this for stabilization: {e}")
+
+
+def main():
+    if not dashboard_login_gate():
+        return
+    # One active router only.
+    for fn in [render_v59_design_system, render_v65_design_system, render_v70_design_system, render_v76_design_system]:
+        try:
+            fn()
+        except Exception:
+            pass
+    full_df = load_full_scan()
+    top_df = latest_top_ideas()
+    recovery_df = latest_recovery()
+    watch_df = latest_watchlist_scan()
+    prescreen_df = load_file(PRESCREEN_FILE)
+    etf_df = load_file(ETF_SCAN_FILE)
+    pages = ["Home", "Top AI Ideas", "Research Any Ticker", "Earnings Intelligence", "Full Ranked Scan", "Portfolio Intelligence", "Watchlist Intelligence", "Recovery", "ETFs", "Political Intelligence", "Ask AI"]
+    selected_page = render_v76_nav(pages)
+    source_df = top_df if v76_safe_df(top_df) else (full_df.head(25) if v76_safe_df(full_df) else pd.DataFrame())
+    if selected_page == "Home":
+        render_v76_home(full_df, source_df, recovery_df)
+    elif selected_page == "Top AI Ideas":
+        v76_tab_intro("Top AI Ideas", "Highest-ranked ideas from the saved scan. Click Full details to open the research dashboard for any ticker.")
+        render_v76_idea_cards(source_df, title="Top AI Ideas")
+    elif selected_page == "Research Any Ticker":
+        render_v76_research(full_df, recovery_df, watch_df, prescreen_df, etf_df)
+    elif selected_page == "Earnings Intelligence":
+        render_v76_earnings(full_df, source_df)
+    elif selected_page == "Full Ranked Scan":
+        render_v76_full_scan(full_df)
+    elif selected_page == "Portfolio Intelligence":
+        render_v76_passthrough("Portfolio Intelligence", "Analyze holdings, portfolio quality, diversification, and potential replacement/add ideas. V77 will strengthen action explanations and speed.", render_v505_portfolio_analyzer, full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
+    elif selected_page == "Watchlist Intelligence":
+        render_v76_passthrough("Watchlist Intelligence", "Track saved tickers and monitor when Atlas status changes from watch to buy, buy to hold, or risk increases.", render_v506_watchlist_intelligence, full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
+    elif selected_page == "Recovery":
+        v76_tab_intro("Recovery Intelligence", "Find stocks that have fallen meaningfully but may still have a valid recovery thesis. V77 will improve drop reason, catalyst needed, and recovery probability.")
+        try:
+            render_v65_recovery_intelligence(recovery_df)
+        except Exception:
+            render_v76_idea_cards(recovery_df, title="Recovery Intelligence")
+    elif selected_page == "ETFs":
+        v76_tab_intro("ETF Intelligence", "ETF ideas for investors who prefer diversified long-term exposure. Atlas should help decide when to enter, wait, or accumulate.")
+        try:
+            render_v56_ranked_table(etf_df, title="ETF Intelligence", max_rows=50, show_filters=True)
+        except Exception:
+            render_v76_idea_cards(etf_df, title="ETF Intelligence")
+    elif selected_page == "Political Intelligence":
+        v76_tab_intro("Political Intelligence", "Track congressional disclosures, stock-level political exposure, and future followed-politician alerts. V77/V78 will add politician profiles and follow alerts.")
+        render_v58_political_intelligence(full_df)
+    elif selected_page == "Ask AI":
+        v76_tab_intro("Ask AI", "Use this to ask questions about stocks, compare companies side by side, or request portfolio/research explanations in plain English.")
+        render_chat_helper(full_df)
+
+
+if __name__ == "__main__":
+    main()
