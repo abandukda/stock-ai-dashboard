@@ -343,8 +343,18 @@ def _recommendation(opp: int, quality: int, upside: float, rr: float) -> str:
         return "👀 MONITOR"
     return "🔴 AVOID"
 
-# V76 stabilization marker
-V76_STABILIZATION_PRODUCT_QUALITY_CALIBRATION_VERIFIED = True
 
-# V77 institutional research quality marker
-V77_INSTITUTIONAL_RESEARCH_QUALITY_CALIBRATION_VERIFIED = True
+# V77.5 Product Polish & Trust marker
+V775_PRODUCT_POLISH_TRUST_CALIBRATION_VERIFIED = True
+
+# V77.5 practical action calibration for premium user-facing language.
+def _recommendation(opp: int, quality: int, upside: float, rr: float) -> str:
+    if opp >= 88 and quality >= 72 and upside >= 8 and (rr == 0 or rr >= 1.25):
+        return "✅ BUY NOW"
+    if opp >= 80 and quality >= 65 and upside >= 6:
+        return "🟢 ACCUMULATE"
+    if opp >= 72 and quality >= 55:
+        return "🟡 WATCHLIST"
+    if opp >= 60:
+        return "👀 MONITOR"
+    return "🔴 AVOID"
