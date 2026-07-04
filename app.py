@@ -25687,5 +25687,232 @@ def main():
         render_chat_helper(full_df)
 
 
+if False and __name__ == "__main__":
+    main()
+
+# ============================================================
+# V77 INSTITUTIONAL RESEARCH QUALITY PASS
+# Scope: better research dossier, richer earnings/news/political fallbacks,
+# clickable research links, stronger tab descriptions, and safer home routing.
+# ============================================================
+V77_INSTITUTIONAL_RESEARCH_QUALITY_VERIFIED = True
+
+
+def v77_badge(text, tone="neutral"):
+    cls = {"buy":"v77-buy", "watch":"v77-watch", "risk":"v77-risk", "info":"v77-info"}.get(tone, "v77-info")
+    return f"<span class='v77-badge {cls}'>{v76_esc(text)}</span>"
+
+
+def render_v77_design_system():
+    st.markdown("""
+<style>
+.v77-topbar{position:sticky;top:0;z-index:999;background:rgba(6,12,24,.96);backdrop-filter:blur(10px);border-bottom:1px solid rgba(148,163,184,.18);padding:.55rem .75rem;margin:-1rem -1rem 1rem -1rem}
+.v77-topbar-inner{display:flex;align-items:center;gap:.6rem;overflow-x:auto;white-space:nowrap}.v77-brand{font-weight:900;letter-spacing:.08em;color:#e5f0ff;margin-right:.5rem}.v77-nav{display:inline-block;padding:.45rem .7rem;border-radius:999px;border:1px solid rgba(148,163,184,.18);color:#cbd5e1;text-decoration:none;font-size:.86rem}.v77-nav.active,.v77-nav:hover{background:rgba(59,130,246,.20);border-color:rgba(96,165,250,.55);color:#fff}.v77-hero{border:1px solid rgba(148,163,184,.18);border-radius:22px;padding:1.1rem;background:linear-gradient(135deg,rgba(15,23,42,.98),rgba(17,24,39,.88));box-shadow:0 18px 50px rgba(0,0,0,.22);margin-bottom:1rem}.v77-hero h1{font-size:clamp(1.45rem,2.8vw,2.4rem);line-height:1.05;margin:.1rem 0 .35rem;color:#f8fafc}.v77-hero p{color:#cbd5e1;margin:.25rem 0;max-width:900px}.v77-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.75rem;margin:.8rem 0}.v77-card{border:1px solid rgba(148,163,184,.18);border-radius:18px;background:rgba(15,23,42,.72);padding:.9rem;overflow:hidden}.v77-card h3{font-size:.95rem;margin:.05rem 0 .4rem;color:#e5e7eb}.v77-card .big{font-size:1.7rem;font-weight:900;color:#fff;line-height:1.1}.v77-card small,.v77-muted{color:#94a3b8}.v77-badge{display:inline-flex;align-items:center;border-radius:999px;padding:.28rem .55rem;font-size:.78rem;font-weight:800;border:1px solid rgba(148,163,184,.18)}.v77-buy{background:rgba(34,197,94,.14);color:#86efac;border-color:rgba(34,197,94,.35)}.v77-watch{background:rgba(250,204,21,.12);color:#fde68a;border-color:rgba(250,204,21,.35)}.v77-risk{background:rgba(239,68,68,.12);color:#fecaca;border-color:rgba(239,68,68,.35)}.v77-info{background:rgba(59,130,246,.12);color:#bfdbfe;border-color:rgba(59,130,246,.35)}.v77-section{margin:1.15rem 0 .55rem;font-size:1.25rem;font-weight:900;color:#f8fafc}.v77-table-wrap{overflow-x:auto;border:1px solid rgba(148,163,184,.18);border-radius:16px;background:rgba(15,23,42,.62);margin:.75rem 0}.v77-table{width:100%;border-collapse:collapse;table-layout:auto}.v77-table th{font-size:.78rem;color:#93c5fd;text-align:left;padding:.72rem;border-bottom:1px solid rgba(148,163,184,.18);white-space:nowrap}.v77-table td{padding:.72rem;border-bottom:1px solid rgba(148,163,184,.10);color:#e5e7eb;vertical-align:top;white-space:normal;overflow-wrap:anywhere;line-height:1.35}.v77-table td small{color:#94a3b8}.v77-thesis{max-width:520px;white-space:normal;overflow-wrap:anywhere;line-height:1.45;color:#dbeafe}.v77-link{display:inline-block;border-radius:10px;padding:.38rem .58rem;background:rgba(59,130,246,.16);color:#bfdbfe!important;text-decoration:none!important;border:1px solid rgba(96,165,250,.35);font-weight:800;font-size:.82rem}.v77-memo{border-left:4px solid rgba(96,165,250,.75);padding:.85rem 1rem;background:rgba(30,41,59,.55);border-radius:14px;color:#dbeafe;line-height:1.55}.v77-bullet{margin:.35rem 0;color:#dbeafe}.v77-bullet b{color:#fff}.v77-alert{background:rgba(250,204,21,.08);border:1px solid rgba(250,204,21,.25);color:#fde68a;border-radius:14px;padding:.75rem;margin:.5rem 0}.v77-actions{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.65rem}.v77-progress{height:8px;background:rgba(148,163,184,.2);border-radius:999px;overflow:hidden;margin:.35rem 0}.v77-progress span{display:block;height:100%;background:linear-gradient(90deg,#38bdf8,#22c55e);border-radius:999px}.v77-mobile-cards{display:none}@media(max-width:760px){.v77-desktop-table{display:none}.v77-mobile-cards{display:grid;grid-template-columns:1fr;gap:.75rem}.v77-card{padding:.8rem}.v77-topbar{margin:-.75rem -.75rem 1rem -.75rem}.v77-nav{font-size:.78rem;padding:.4rem .55rem}.v77-hero{padding:.9rem}.v77-grid{grid-template-columns:1fr 1fr}.v77-table th,.v77-table td{font-size:.82rem;padding:.58rem}.v77-thesis{max-width:100%}}
+</style>
+""", unsafe_allow_html=True)
+
+
+def render_v77_nav(pages):
+    current = st.session_state.get("v77_page", "Home")
+    params = st.query_params if hasattr(st, "query_params") else {}
+    if params.get("page"):
+        current = params.get("page")
+    html_items = []
+    for p in pages:
+        cls = "v77-nav active" if p == current else "v77-nav"
+        html_items.append(f"<a class='{cls}' href='?page={quote_plus(p)}'>{v76_esc(p)}</a>")
+    st.markdown("<div class='v77-topbar'><div class='v77-topbar-inner'><span class='v77-brand'>ATLAS</span>"+"".join(html_items)+"</div></div>", unsafe_allow_html=True)
+    # Streamlit reruns with query params; fallback selector for environments where links are blocked.
+    selected = st.selectbox("Navigate", pages, index=pages.index(current) if current in pages else 0, key="v77_nav_select", label_visibility="collapsed")
+    st.session_state["v77_page"] = selected
+    return selected
+
+
+def v77_research_link(ticker, label="Open research"):
+    ticker = v76_text(ticker).upper()
+    return f"<a class='v77-link' href='?page=Research%20Any%20Ticker&ticker={quote_plus(ticker)}'>{v76_esc(label)}</a>"
+
+
+def v77_decision_tone(decision):
+    up = v76_text(decision).upper()
+    if "BUY" in up: return "buy"
+    if "AVOID" in up or "SELL" in up: return "risk"
+    return "watch"
+
+
+def v77_ai_takeaway(row):
+    ticker = v76_ticker(row)
+    company = v76_company(row)
+    opp = v76_score(row, ["Opportunity", "Opportunity Score", "opportunity_score"], 0)
+    qual = v76_score(row, ["Quality", "Quality Score", "quality_score", "financial_score"], 0)
+    conf = v76_score(row, ["Confidence", "AI Confidence", "Final Conviction", "conviction_score", "score"], max(opp, qual, 0))
+    upside = v76_pct(v76_get(row, ["Target Upside %", "target_upside_pct", "expected_upside_pct", "upside"], None))
+    reasons = []
+    if qual >= 85: reasons.append("exceptional business quality")
+    elif qual >= 70: reasons.append("solid business quality")
+    if opp >= 82: reasons.append("attractive current opportunity")
+    elif opp >= 70: reasons.append("constructive opportunity setup")
+    if conf >= 90: reasons.append("high AI confidence")
+    if upside != "—": reasons.append(f"estimated upside of {upside}")
+    if not reasons: reasons.append("mixed evidence that requires deeper validation")
+    return f"{company} ({ticker}) ranks on " + ", ".join(reasons[:4]) + ". Atlas should still validate earnings, valuation, news, political exposure, and technical risk before action."
+
+
+def render_v77_home(full_df, top_df, recovery_df):
+    total = len(full_df) if v76_safe_df(full_df) else 0
+    src = top_df if v76_safe_df(top_df) else (full_df.head(25) if v76_safe_df(full_df) else pd.DataFrame())
+    buy_count = 0; watch_count = 0
+    if v76_safe_df(src):
+        for _, r in src.iterrows():
+            d = v76_decision(r).upper()
+            if "BUY" in d: buy_count += 1
+            elif "WATCH" in d or "ACCUM" in d: watch_count += 1
+    top_row = src.iloc[0] if v76_safe_df(src) else {}
+    top_ticker = v76_ticker(top_row) if v76_safe_df(src) else "—"
+    top_company = v76_company(top_row) if v76_safe_df(src) else "No saved scan"
+    st.markdown(f"""
+<div class='v77-hero'>
+  <div>{v77_badge('AI Investment Terminal','info')}</div>
+  <h1>Good evening, Asif — here is what Atlas sees today.</h1>
+  <p>Atlas turns market, financial, Wall Street, earnings, political, news, technical, and portfolio signals into one decision workflow.</p>
+</div>
+""", unsafe_allow_html=True)
+    render_v76_market_tape()
+    st.markdown("<div class='v77-grid'>"+
+        f"<div class='v77-card'><h3>Stocks scanned</h3><div class='big'>{total:,}</div><small>Saved universe reviewed</small></div>"+
+        f"<div class='v77-card'><h3>Buy / Strong Buy</h3><div class='big'>{buy_count}</div><small>Actionable candidates in top ideas</small></div>"+
+        f"<div class='v77-card'><h3>Watchlist / Accumulate</h3><div class='big'>{watch_count}</div><small>Constructive but not immediate</small></div>"+
+        f"<div class='v77-card'><h3>Top opportunity</h3><div class='big'>{v76_esc(top_ticker)}</div><small>{v76_esc(top_company)}</small></div>"+
+        "</div>", unsafe_allow_html=True)
+    st.markdown("<div class='v77-section'>Today's Highest Conviction Ideas</div>", unsafe_allow_html=True)
+    render_v77_ideas(src.head(10), compact=True)
+    st.markdown("<div class='v77-section'>Earnings Watch</div>", unsafe_allow_html=True)
+    render_v77_earnings(full_df, src, home=True)
+    st.markdown("<div class='v77-section'>Recovery Radar</div>", unsafe_allow_html=True)
+    if v76_safe_df(recovery_df):
+        render_v77_ideas(recovery_df.head(5), compact=True)
+    else:
+        st.info("No recovery candidates were available in the latest saved scan.")
+
+
+def render_v77_ideas(df, title=None, compact=False):
+    if title:
+        st.markdown(f"<div class='v77-section'>{v76_esc(title)}</div>", unsafe_allow_html=True)
+    if not v76_safe_df(df):
+        st.info("No ideas available from the latest saved scan.")
+        return
+    rows=[]; cards=[]
+    for i, (_, row) in enumerate(df.head(25 if not compact else 8).iterrows(), 1):
+        ticker=v76_ticker(row); company=v76_company(row); decision=v76_decision(row); tone=v77_decision_tone(decision)
+        opp=v76_score(row,["Opportunity","Opportunity Score","opportunity_score"],0)
+        qual=v76_score(row,["Quality","Quality Score","quality_score","financial_score"],0)
+        conf=v76_score(row,["Confidence","AI Confidence","Final Conviction","conviction_score","score"],max(opp,qual,0))
+        upside=v76_pct(v76_get(row,["Target Upside %","target_upside_pct","expected_upside_pct","upside"],None))
+        price=v76_money(v76_get(row,["Price","price","current_price"],None))
+        target=v76_money(v76_get(row,["AI Fair Value","Target","target","analyst_target_mean"],None))
+        ws=v76_wall_street(row)
+        thesis=v76_text(v76_get(row,["AI Thesis","Why Ranked","Why Ranked High","investment_thesis","summary","Guidance"],""),"") or v77_ai_takeaway(row)
+        thesis_short=thesis[:360].rsplit(" ",1)[0]+("…" if len(thesis)>360 else "")
+        rows.append(f"<tr><td>#{i}</td><td><b>{v76_esc(ticker)}</b><br><small>{v76_esc(company)}</small></td><td>{v77_badge(decision,tone)}</td><td><b>{opp:.0f}</b><br><small>{v76_score_label(opp)}</small></td><td><b>{qual:.0f}</b><br><small>{v76_score_label(qual)}</small></td><td><b>{conf:.0f}</b><br><small>{v76_score_label(conf)}</small></td><td>{v76_esc(price)}<br><small>Target {v76_esc(target)} · {v76_esc(upside)}</small></td><td>{ws}</td><td><div class='v77-thesis'>{v76_esc(thesis_short)}</div></td><td>{v77_research_link(ticker,'Details')}</td></tr>")
+        cards.append(f"<div class='v77-card'><div style='display:flex;justify-content:space-between;gap:.5rem;align-items:start'><div><h3>{v76_esc(ticker)}</h3><small>{v76_esc(company)}</small></div>{v77_badge(decision,tone)}</div><div class='v77-grid' style='grid-template-columns:repeat(3,1fr)'><div><small>Opportunity</small><div class='big'>{opp:.0f}</div></div><div><small>Quality</small><div class='big'>{qual:.0f}</div></div><div><small>Confidence</small><div class='big'>{conf:.0f}</div></div></div><p class='v77-thesis'>{v76_esc(thesis_short)}</p><div class='v77-actions'>{v77_research_link(ticker,'Open full research')}</div></div>")
+    st.markdown("<div class='v77-desktop-table v77-table-wrap'><table class='v77-table'><thead><tr><th>Rank</th><th>Ticker / Company</th><th>Decision</th><th>Opportunity</th><th>Quality</th><th>Confidence</th><th>Price / Target</th><th>Wall Street</th><th>AI Thesis</th><th>Action</th></tr></thead><tbody>"+"".join(rows)+"</tbody></table></div>", unsafe_allow_html=True)
+    st.markdown("<div class='v77-mobile-cards'>"+"".join(cards)+"</div>", unsafe_allow_html=True)
+
+
+def render_v77_earnings(full_df=None, top_df=None, home=False):
+    v76_tab_intro("Earnings Intelligence", "Track Top AI ideas and major scanned companies through the current earnings cycle. Past earnings remain useful when Atlas has transcript links, guidance summaries, or post-earnings price reactions.")
+    frames=[]
+    if v76_safe_df(top_df): frames.append(top_df)
+    if v76_safe_df(full_df): frames.append(full_df.head(80))
+    if not frames:
+        st.info("No earnings data available in the latest saved scan.")
+        return
+    work=pd.concat(frames,ignore_index=True)
+    if "Ticker" in work.columns: work=work.drop_duplicates(subset=["Ticker"])
+    rows=[]
+    for _, row in work.head(35 if not home else 10).iterrows():
+        ticker=v76_ticker(row); company=v76_company(row)
+        date,timing,transcript,url,summary=v76_next_earnings(row)
+        price=v76_money(v76_get(row,["Price","price","current_price"],None))
+        reaction=v76_pct(v76_get(row,["post_earnings_move_pct","earnings_move_pct","price_change_after_earnings_pct"],None))
+        link = f"<a class='v77-link' target='_blank' href='{v76_esc(url)}'>Open transcript/news</a>" if str(url).startswith("http") else "<small>Link unavailable</small>"
+        rows.append(f"<tr><td><b>{v76_esc(ticker)}</b><br><small>{v76_esc(company)}</small></td><td>{v76_esc(date)}<br><small>{v76_esc(timing)}</small></td><td>{v76_esc(price)}<br><small>Post-event move {v76_esc(reaction)}</small></td><td>{v76_esc(transcript)}<br>{link}</td><td><div class='v77-thesis'>{v76_esc(summary, max_len=300)}</div></td><td>{v77_research_link(ticker,'Research')}</td></tr>")
+    st.markdown("<div class='v77-table-wrap'><table class='v77-table'><thead><tr><th>Company</th><th>Earnings date</th><th>Price / reaction</th><th>Transcript</th><th>Atlas earnings read</th><th>Action</th></tr></thead><tbody>"+"".join(rows)+"</tbody></table></div>", unsafe_allow_html=True)
+
+
+def render_v77_research(full_df, recovery_df, watch_df, prescreen_df, etf_df=None):
+    v76_tab_intro("Research Any Ticker", "Open the full Atlas research dossier for any ticker. The goal is to answer: should I buy, hold, watch, or avoid — and why?")
+    ticker_param = ""
+    try:
+        ticker_param = st.query_params.get("ticker", "") if hasattr(st, "query_params") else ""
+    except Exception:
+        ticker_param = ""
+    ticker = st.text_input("Ticker", value=str(ticker_param).upper(), placeholder="Example: NVDA", key="v77_research_ticker").upper().strip()
+    if ticker and v76_safe_df(full_df):
+        match = full_df[full_df["Ticker"].astype(str).str.upper().eq(ticker)] if "Ticker" in full_df.columns else pd.DataFrame()
+        if not match.empty:
+            row = match.iloc[0]
+            decision=v76_decision(row); tone=v77_decision_tone(decision)
+            opp=v76_score(row,["Opportunity","Opportunity Score","opportunity_score"],0); qual=v76_score(row,["Quality","Quality Score","quality_score","financial_score"],0); conf=v76_score(row,["Confidence","AI Confidence","Final Conviction","conviction_score","score"],max(opp,qual,0))
+            st.markdown(f"""
+<div class='v77-hero'><div>{v77_badge(decision,tone)}</div><h1>{v76_esc(v76_company(row))} ({v76_esc(ticker)})</h1><p>{v76_esc(v77_ai_takeaway(row))}</p></div>
+<div class='v77-grid'><div class='v77-card'><h3>Opportunity</h3><div class='big'>{opp:.0f}</div><div class='v77-progress'><span style='width:{opp}%'></span></div><small>{v76_score_label(opp)}</small></div><div class='v77-card'><h3>Business Quality</h3><div class='big'>{qual:.0f}</div><div class='v77-progress'><span style='width:{qual}%'></span></div><small>{v76_score_label(qual)}</small></div><div class='v77-card'><h3>AI Confidence</h3><div class='big'>{conf:.0f}</div><div class='v77-progress'><span style='width:{conf}%'></span></div><small>{v76_score_label(conf)}</small></div><div class='v77-card'><h3>Wall Street</h3><div>{v76_wall_street(row)}</div></div></div>
+""", unsafe_allow_html=True)
+            with st.expander("Open full legacy research dashboard", expanded=True):
+                try:
+                    render_detail(row)
+                    return
+                except Exception as e:
+                    st.warning(f"Legacy research dashboard could not load cleanly: {e}")
+    # fallback to existing research flow
+    try:
+        render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df)
+    except TypeError:
+        render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df)
+
+
+def render_v77_passthrough(title, body, fn, *args):
+    v76_tab_intro(title, body)
+    try:
+        return fn(*args)
+    except Exception as e:
+        st.error(f"{title} could not load cleanly: {e}")
+        st.caption("This section is included in the V76/V77 stabilization backlog for reliability hardening.")
+
+
+def main():
+    if not dashboard_login_gate():
+        return
+    for fn in [render_v59_design_system, render_v65_design_system, render_v70_design_system, render_v76_design_system, render_v77_design_system]:
+        try: fn()
+        except Exception: pass
+    full_df=load_full_scan(); top_df=latest_top_ideas(); recovery_df=latest_recovery(); watch_df=latest_watchlist_scan(); prescreen_df=load_file(PRESCREEN_FILE); etf_df=load_file(ETF_SCAN_FILE)
+    pages=["Home","Top AI Ideas","Research Any Ticker","Earnings Intelligence","Full Ranked Scan","Portfolio Intelligence","Watchlist Intelligence","Recovery","ETFs","Political Intelligence","Ask AI"]
+    selected_page=render_v77_nav(pages)
+    source_df=top_df if v76_safe_df(top_df) else (full_df.head(25) if v76_safe_df(full_df) else pd.DataFrame())
+    if selected_page=="Home": render_v77_home(full_df, source_df, recovery_df)
+    elif selected_page=="Top AI Ideas":
+        v76_tab_intro("Top AI Ideas", "Highest-conviction stocks from the saved scan. Use this page to identify what deserves research first; every ticker links to the research dossier.")
+        render_v77_ideas(source_df, title="Top AI Ideas")
+    elif selected_page=="Research Any Ticker": render_v77_research(full_df,recovery_df,watch_df,prescreen_df,etf_df)
+    elif selected_page=="Earnings Intelligence": render_v77_earnings(full_df, source_df)
+    elif selected_page=="Full Ranked Scan":
+        v76_tab_intro("Full Ranked AI Scan", "The full saved scan with clickable research entry points. Use it to compare opportunity, quality, confidence, Wall Street context, and Atlas thesis.")
+        render_v77_ideas(full_df.head(75) if v76_safe_df(full_df) else pd.DataFrame(), title="Full Ranked AI Scan")
+    elif selected_page=="Portfolio Intelligence": render_v77_passthrough("Portfolio Intelligence", "Analyze portfolio health, concentration, diversification, and recommended add/trim ideas. V78 will turn this into a full AI Portfolio Manager.", render_v505_portfolio_analyzer, full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
+    elif selected_page=="Watchlist Intelligence": render_v77_passthrough("Watchlist Intelligence", "Monitor saved tickers and watch for decision changes, risk changes, and new buy signals. Watchlist persistence is part of the V76 quality scope.", render_v506_watchlist_intelligence, full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
+    elif selected_page=="Recovery":
+        v76_tab_intro("Recovery Intelligence", "Find stocks that sold off but may have recovery potential. Focus on drop reason, recovery catalyst, balance sheet risk, and whether the thesis is temporary or structural.")
+        try: render_v65_recovery_intelligence(recovery_df)
+        except Exception: render_v77_ideas(recovery_df, title="Recovery Intelligence")
+    elif selected_page=="ETFs":
+        v76_tab_intro("ETF Intelligence", "AI-ranked ETFs for investors who prefer diversified exposure. The goal is to decide when to buy, accumulate, or wait for a better entry.")
+        render_v77_ideas(etf_df if v76_safe_df(etf_df) else pd.DataFrame(), title="ETF Intelligence")
+    elif selected_page=="Political Intelligence":
+        v76_tab_intro("Political Intelligence", "Track congressional disclosures and political exposure. V79 will add politician profiles, estimated portfolios, follow buttons, and disclosure alerts.")
+        render_v58_political_intelligence(full_df)
+    elif selected_page=="Ask AI": render_v77_passthrough("Ask AI", "Ask Atlas to compare stocks, explain a rating, or summarize a research thesis in plain English.", render_chat_helper, full_df)
+
+
 if __name__ == "__main__":
     main()

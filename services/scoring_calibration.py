@@ -345,3 +345,6 @@ def _recommendation(opp: int, quality: int, upside: float, rr: float) -> str:
 
 # V76 stabilization marker
 V76_STABILIZATION_PRODUCT_QUALITY_CALIBRATION_VERIFIED = True
+
+# V77 institutional research quality marker
+V77_INSTITUTIONAL_RESEARCH_QUALITY_CALIBRATION_VERIFIED = True
