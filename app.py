@@ -24381,8 +24381,9 @@ def main():
     elif selected_page == "Political Intelligence": render_v58_political_intelligence(full_df)
     elif selected_page == "Ask AI": render_chat_helper(full_df)
 
-if __name__ == "__main__":
-    main()
+# V75 routing refactor: disabled earlier direct main invocation
+# if __name__ == "__main__":
+#     main()
 
 
 # ============================================================
@@ -24931,8 +24932,9 @@ def main():
     elif selected_page == "Political Intelligence": render_v58_political_intelligence(full_df)
     elif selected_page == "Ask AI": render_chat_helper(full_df)
 
-if __name__ == "__main__":
-    main()
+# V75 routing refactor: disabled earlier direct main invocation
+# if __name__ == "__main__":
+#     main()
 
 # ==============================
 # V74 MAJOR UX + HOME DEDUPE + MARKET FALLBACK
@@ -25233,6 +25235,124 @@ def main():
     elif selected_page == "ETFs": render_v56_ranked_table(etf_df, title="ETF Intelligence", max_rows=50, show_filters=True)
     elif selected_page == "Political Intelligence": render_v58_political_intelligence(full_df)
     elif selected_page == "Ask AI": render_chat_helper(full_df)
+
+# V75 routing refactor: disabled earlier direct main invocation
+# if __name__ == "__main__":
+#     main()
+
+
+# ==============================
+# V75 PROFESSIONAL TERMINAL ROUTER
+# Single-entry routing fix: prevents duplicate page rendering and keeps one active page.
+# ==============================
+V75_PROFESSIONAL_TERMINAL_ROUTER_VERIFIED = True
+
+
+def render_v75_design_system():
+    """Final V75 polish layer: top navigation readability, mobile card layout, and overflow fixes."""
+    st.markdown("""
+<style>
+/* V75: prevent duplicated-looking overflow and make terminal nav feel intentional */
+.block-container{padding-top:1.05rem!important;max-width:1500px!important;}
+.v74-topbar{position:sticky!important;top:0!important;z-index:1000!important;background:rgba(3,7,18,.96)!important;backdrop-filter:blur(16px)!important;border-bottom:1px solid rgba(148,163,184,.24)!important;box-shadow:0 10px 30px rgba(0,0,0,.22)!important;}
+.v74-brand{font-size:15px!important;letter-spacing:.08em!important;text-transform:uppercase!important;}
+.v74-navbtn{font-size:13px!important;line-height:1!important;}
+.v74-brief{margin-top:8px!important;}
+.v72-thesis,.v74-thesis,.v73-note,.v73-card p,.v73-exec-card,.v73-technical-card,.v73-smart-card,.v73-chart-summary{white-space:normal!important;overflow-wrap:anywhere!important;word-break:normal!important;line-height:1.5!important;}
+.v73-target-atlas,.v73-target-analyst,.v73-target-bull,.v73-target-bear,.v73-trade-card b{font-family:Inter,Arial,sans-serif!important;font-style:normal!important;white-space:normal!important;overflow-wrap:anywhere!important;word-break:normal!important;line-height:1.08!important;}
+.v73-target-analyst{color:#60a5fa!important}.v73-target-atlas{color:#22c55e!important}.v73-target-bull{color:#f59e0b!important}.v73-target-bear{color:#f87171!important}
+.v72-table td,.v72-table th{white-space:normal!important;vertical-align:top!important}.v72-thesis{max-width:430px!important;}
+.v74-dark-table td,.v74-dark-table th{white-space:normal!important;overflow-wrap:anywhere!important;}
+@media(max-width:760px){
+  .block-container{padding-left:.85rem!important;padding-right:.85rem!important;}
+  .v74-topbar{margin:-.75rem -.85rem 1rem -.85rem!important;gap:6px!important;}
+  .v74-navbtn{font-size:12px!important;padding:8px 10px!important;}
+  .v74-brand{font-size:13px!important;}
+  .v74-brief h1{font-size:30px!important;}
+  .v74-brief p{font-size:15px!important;}
+  .v72-desktop-table{display:none!important;}
+  .v72-mobile-list{display:block!important;}
+  div[data-testid="stDataFrame"]{max-width:100%!important;overflow-x:auto!important;}
+}
+@media(min-width:761px){.v72-mobile-list{display:none!important;}}
+</style>
+""", unsafe_allow_html=True)
+
+
+def render_v75_home_dashboard(full_df=None, top_df=None, recovery_df=None):
+    """V75 home: one concise morning briefing; no repeated marketing blocks."""
+    full_count = 0 if full_df is None or getattr(full_df, "empty", True) else len(full_df)
+    top_count = 0 if top_df is None or getattr(top_df, "empty", True) else len(top_df)
+    rec_count = 0 if recovery_df is None or getattr(recovery_df, "empty", True) else len(recovery_df)
+    regime, buys, watch, avoid = v74_market_regime(full_df)
+    top_ticker = "—"; top_company = ""
+    if top_df is not None and not top_df.empty:
+        top_ticker = v73_ticker(top_df.iloc[0]); top_company = v73_company(top_df.iloc[0])
+    st.markdown(f"""
+<div class='v74-brief'>
+  <div class='v65-kicker'>Atlas AI Investment Terminal</div>
+  <h1>Good morning. Here is what matters today.</h1>
+  <p><b>Market regime:</b> {v73_esc(regime)}. <b>Top opportunity:</b> {v73_esc(top_ticker)}{(' — ' + v73_esc(top_company)) if top_company else ''}. Atlas prioritizes decision support: what to buy, what to watch, what to avoid, and what changed.</p>
+  <div class='v74-metric-grid'>
+    <div class='v74-metric'><span>Buy / Accumulate</span><b>{buys}</b></div>
+    <div class='v74-metric'><span>Watchlist</span><b>{watch}</b></div>
+    <div class='v74-metric'><span>Recovery Radar</span><b>{rec_count}</b></div>
+    <div class='v74-metric'><span>Stocks Covered</span><b>{full_count}</b></div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+    render_v72_market_tape()
+    if top_count:
+        render_v73_idea_table(top_df.head(8), title="Top Opportunities Today")
+    try:
+        render_v70_market_calendar_terminal(full_df)
+    except Exception:
+        pass
+    try:
+        render_v73_earnings_page(full_df, top_df)
+    except Exception:
+        pass
+
+
+def main():
+    """V75 single entry point. Only this function is invoked on Streamlit load."""
+    if not dashboard_login_gate():
+        return
+    render_v59_design_system(); render_v65_design_system(); render_v70_design_system(); render_v72_design_system(); render_v73_design_system(); render_v74_design_system(); render_v75_design_system()
+    full_df = load_full_scan()
+    top_df = latest_top_ideas()
+    recovery_df = latest_recovery()
+    watch_df = latest_watchlist_scan()
+    prescreen_df = load_file(PRESCREEN_FILE)
+    etf_df = load_file(ETF_SCAN_FILE)
+    pages = ["Home", "Top AI Ideas", "Research Any Ticker", "Earnings Intelligence", "Full Ranked Scan", "Portfolio Intelligence", "Watchlist Intelligence", "Recovery", "ETFs", "Political Intelligence", "Ask AI"]
+    selected_page = render_v73_top_nav(pages)
+    source_df = top_df if top_df is not None and not top_df.empty else full_df.head(25)
+    if selected_page != "Home":
+        render_v72_market_tape(always_show=False)
+    if selected_page == "Home":
+        render_v75_home_dashboard(full_df, source_df, recovery_df)
+    elif selected_page == "Top AI Ideas":
+        render_v73_idea_table(source_df, title="Top AI Ideas")
+    elif selected_page == "Research Any Ticker":
+        render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df)
+    elif selected_page == "Earnings Intelligence":
+        render_v73_earnings_page(full_df, source_df)
+    elif selected_page == "Full Ranked Scan":
+        render_v56_ranked_table(full_df, title="Full Ranked AI Scan", max_rows=75, show_filters=True)
+    elif selected_page == "Portfolio Intelligence":
+        render_v505_portfolio_analyzer(full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
+    elif selected_page == "Watchlist Intelligence":
+        render_v506_watchlist_intelligence(full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
+    elif selected_page == "Recovery":
+        render_v65_recovery_intelligence(recovery_df)
+    elif selected_page == "ETFs":
+        render_v56_ranked_table(etf_df, title="ETF Intelligence", max_rows=50, show_filters=True)
+    elif selected_page == "Political Intelligence":
+        render_v58_political_intelligence(full_df)
+    elif selected_page == "Ask AI":
+        render_chat_helper(full_df)
+
 
 if __name__ == "__main__":
     main()
