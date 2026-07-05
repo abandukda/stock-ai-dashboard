@@ -358,3 +358,27 @@ def _recommendation(opp: int, quality: int, upside: float, rr: float) -> str:
     if opp >= 60:
         return "👀 MONITOR"
     return "🔴 AVOID"
+
+
+# V77.6 No Placeholder + Home Trust calibration marker
+V776_NO_PLACEHOLDER_HOME_TRUST_CALIBRATION_VERIFIED = True
+
+# Override target upside to prioritize real target/current-price math and avoid fixed 30% placeholders.
+def _target_upside(row: dict[str, Any]) -> float:
+    price = _num(_pick(row, "Price", "price", "current_price", "last_price", "Current Price"), 0) or 0
+    ai_target = _num(_pick(row, "AI Fair Value", "ai_fair_value", "Target", "target", "ai_base_target", "base_target"), 0) or 0
+    analyst_target = _num(_pick(row, "Analyst Target", "target_mean_price", "analyst_target_mean", "consensus_target"), 0) or 0
+
+    if price > 0 and ai_target > 0:
+        return ((ai_target - price) / price) * 100
+    if price > 0 and analyst_target > 0:
+        return ((analyst_target - price) / price) * 100
+
+    raw = _pct(_pick(row, "expected_upside_pct", "upside", "Target Upside %", "target_upside_pct", "analyst_upside_pct"), None, cap_abs=500)
+    if raw is None:
+        return 0.0
+    # Treat exact 30% with no price/target support as an unavailable placeholder.
+    if abs(raw - 30.0) < 0.05:
+        return 0.0
+    return raw
+

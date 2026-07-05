@@ -24381,7 +24381,7 @@ def main():
     elif selected_page == "Political Intelligence": render_v58_political_intelligence(full_df)
     elif selected_page == "Ask AI": render_chat_helper(full_df)
 
-if __name__ == "__main__":
+if False and __name__ == "__main__":
     main()
 
 
@@ -24931,7 +24931,7 @@ def main():
     elif selected_page == "Political Intelligence": render_v58_political_intelligence(full_df)
     elif selected_page == "Ask AI": render_chat_helper(full_df)
 
-if __name__ == "__main__":
+if False and __name__ == "__main__":
     main()
 
 # ==============================
@@ -25511,5 +25511,328 @@ def main():
     elif selected_page == "Political Intelligence": render_v58_political_intelligence(full_df)
     elif selected_page == "Ask AI": render_chat_helper(full_df)
 
+if False and __name__ == "__main__":
+    main()
+
+
+# ============================================================
+# V77.6 No Placeholder + Home Trust Fix
+# Focus: fix Top Ideas logout/navigation, remove duplicated home
+# rendering, replace fixed 30% upside placeholders with calculated
+# upside, improve title contrast, and validate home counts.
+# ============================================================
+V776_NO_PLACEHOLDER_HOME_TRUST_VERIFIED = True
+
+def v776_price(row):
+    return v73_num(v73_get(row, [
+        "current_price", "Current Price", "price", "Price", "last_price", "Last Price", "regularMarketPrice"
+    ], None), None)
+
+def v776_target(row):
+    # Prefer Atlas fair value / AI base target. Fall back to analyst target only if Atlas target unavailable.
+    return v73_num(v73_get(row, [
+        "AI Fair Value", "ai_fair_value", "ai_base_target", "target", "Target", "base_target",
+        "target_mean_price", "analyst_target_mean", "Analyst Target"
+    ], None), None)
+
+def v776_upside_num(row):
+    """
+    Calculate real upside from target and current price first.
+    Do not use a fixed 30% placeholder unless it is truly supported by target/price math.
+    """
+    price = v776_price(row)
+    target = v776_target(row)
+    if price is not None and price > 0 and target is not None and target > 0:
+        return ((target - price) / price) * 100
+
+    # Use explicit scanner upside only as a fallback.
+    raw = v73_num(v73_get(row, [
+        "expected_upside_pct", "upside", "Target Upside %", "target_upside_pct", "analyst_upside_pct"
+    ], None), None)
+    if raw is None:
+        return None
+    if abs(raw) <= 2:
+        raw *= 100
+    # If the scan gives exactly 30 without price/target support, treat as unavailable.
+    if abs(raw - 30.0) < 0.05:
+        return None
+    return raw
+
+def v776_upside_display(row):
+    n = v776_upside_num(row)
+    return "—" if n is None else f"{n:.1f}%"
+
+def v776_home_counts(source_df, recovery_df=None):
+    if source_df is None or getattr(source_df, "empty", True):
+        return {"buy": 0, "accumulate": 0, "watch": 0, "avoid": 0, "covered": 0, "recovery": 0}
+    buy = accumulate = watch = avoid = 0
+    for _, row in source_df.head(150).iterrows():
+        opp = v775_score(row, ["Opportunity", "Opportunity Score", "opportunity_score", "technical_agent_score"], 70)
+        qual = v775_score(row, ["Quality", "Quality Score", "quality_score", "financial_score", "fundamentals_agent_score"], 70)
+        conf = v775_score(row, ["Confidence", "AI Confidence", "confidence", "conviction_score", "Final Conviction", "ai_score"], max(opp, qual))
+        up = v776_upside_num(row)
+        decision = v775_decision(row, opp, qual, conf, up)
+        du = str(decision).upper()
+        if "BUY" in du:
+            buy += 1
+        elif "ACCUMULATE" in du:
+            accumulate += 1
+        elif "AVOID" in du or "SELL" in du:
+            avoid += 1
+        else:
+            watch += 1
+    return {
+        "buy": buy,
+        "accumulate": accumulate,
+        "watch": watch,
+        "avoid": avoid,
+        "covered": len(source_df),
+        "recovery": 0 if recovery_df is None or getattr(recovery_df, "empty", True) else len(recovery_df),
+    }
+
+def v776_design_system():
+    st.markdown("""
+<style>
+/* V77.6 contrast + trust polish */
+.v65-section-title,.v71-tape-title,.v775-hero h1,.v74-brief h1{
+  color:#F8FAFC!important;
+  text-shadow:0 1px 0 rgba(0,0,0,.20);
+  letter-spacing:-.035em!important;
+}
+.v65-subtitle,.v775-help,.v775-muted,.v73-note{
+  color:#CBD5E1!important;
+}
+.v776-home-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:16px 0 18px}
+.v776-home-card{border:1px solid rgba(148,163,184,.22);border-radius:18px;background:rgba(15,23,42,.72);padding:15px}
+.v776-home-card span{display:block;color:#94A3B8;font-size:.78rem;text-transform:uppercase;letter-spacing:.08em}
+.v776-home-card b{display:block;color:#F8FAFC;font-size:2.1rem;line-height:1.1;margin-top:4px}
+.v776-home-card em{display:block;color:#CBD5E1;font-size:.86rem;font-style:normal;margin-top:3px}
+.v776-open-row{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 18px}
+div[data-testid="stButton"] button{
+  border-radius:999px!important;
+  font-weight:800!important;
+}
+.v775-mini b,.v775-target-card b,.v73-trade-card b,.v74-mini b{
+  font-size:clamp(1.05rem,2.4vw,1.75rem)!important;
+  line-height:1.08!important;
+  white-space:normal!important;
+  overflow-wrap:anywhere!important;
+  word-break:normal!important;
+}
+.v775-thesis,.v775-action,.v775-note,.v73-note{
+  white-space:normal!important;
+  overflow-wrap:break-word!important;
+  word-break:normal!important;
+}
+@media(max-width:850px){.v776-home-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){.v776-home-grid{grid-template-columns:1fr}}
+</style>
+""", unsafe_allow_html=True)
+
+def render_v73_top_nav(pages):
+    """
+    V77.6: no raw href links. The prior anchor links caused full app reloads
+    and could reset authentication. Keep Streamlit radio navigation only.
+    """
+    current = st.session_state.get("v73_page", pages[0])
+    if current not in pages:
+        current = pages[0]
+    st.markdown("""
+<div class='v73-topnav'>
+  <div class='v73-brandline'>
+    <div><h3>🧠 ATLAS</h3><span>AI Investment Terminal</span></div>
+    <p>Research-first navigation. Choose a section below; Atlas keeps you signed in and preserves your research workflow.</p>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+    selected = st.radio(
+        "Navigation",
+        pages,
+        index=pages.index(current),
+        horizontal=True,
+        label_visibility="collapsed",
+        key="v776_nav_radio",
+    )
+    st.session_state["v73_page"] = selected
+    return selected
+
+def v776_open_research_button(ticker, key_suffix):
+    if st.button(f"Open full research: {ticker}", key=f"v776_open_research_{ticker}_{key_suffix}"):
+        st.session_state["v73_page"] = "Research Any Ticker"
+        st.session_state["v73_research_ticker"] = ticker
+        st.rerun()
+
+def render_v775_home_dashboard(full_df=None, top_df=None, recovery_df=None):
+    """V77.6 home: lean, non-duplicated, no ambiguous 89 Buy Now count."""
+    source_df = top_df if top_df is not None and not getattr(top_df, "empty", True) else full_df
+    counts = v776_home_counts(source_df, recovery_df)
+    regime = "Constructive" if counts["buy"] >= 3 else ("Selective" if counts["buy"] >= 1 or counts["accumulate"] >= 3 else "Defensive / selective")
+    top_ticker, top_company = "—", ""
+    if source_df is not None and not getattr(source_df, "empty", True):
+        top_ticker = v73_ticker(source_df.iloc[0]); top_company = v73_company(source_df.iloc[0])
+
+    st.markdown(f"""
+<div class='v775-hero'>
+  <div class='v65-kicker'>Atlas Morning Brief</div>
+  <h1>What deserves attention today?</h1>
+  <p><b>Market posture:</b> {v73_esc(regime)}. <b>Top idea:</b> {v73_esc(top_ticker)}{(' — ' + v73_esc(top_company)) if top_company else ''}. Counts below reflect the current Top Ideas universe, not the entire market, so they are actionable instead of inflated.</p>
+</div>
+""", unsafe_allow_html=True)
+
+    st.markdown(f"""
+<div class='v776-home-grid'>
+  <div class='v776-home-card'><span>Buy Now</span><b>{counts['buy']}</b><em>Strongest action candidates</em></div>
+  <div class='v776-home-card'><span>Accumulate</span><b>{counts['accumulate']}</b><em>Good ideas; check entry</em></div>
+  <div class='v776-home-card'><span>Watchlist</span><b>{counts['watch']}</b><em>Wait for confirmation</em></div>
+  <div class='v776-home-card'><span>Recovery Radar</span><b>{counts['recovery']}</b><em>Sold-off candidates</em></div>
+</div>
+""", unsafe_allow_html=True)
+
+    if "render_v72_market_tape" in globals():
+        render_v72_market_tape(always_show=True)
+
+    if source_df is not None and not getattr(source_df, "empty", True):
+        render_v73_idea_table(source_df.head(8), title="Top Opportunities Today")
+
+    with st.expander("📅 Market Calendar & Earnings", expanded=False):
+        try:
+            if "render_v70_market_calendar_terminal" in globals():
+                render_v70_market_calendar_terminal(full_df)
+        except Exception:
+            pass
+        render_v73_earnings_page(full_df, source_df)
+
+def render_v73_idea_table(df, title="Today's Highest Conviction Ideas"):
+    """V77.6 Top Ideas: no 30% placeholder, real upside math, internal research buttons."""
+    if df is None or getattr(df, "empty", True):
+        st.info("No top ideas available in the latest saved scan.")
+        return
+    try:
+        if "calibrate_top_ai_dataframe" in globals():
+            df = calibrate_top_ai_dataframe(df.copy())
+    except Exception:
+        pass
+
+    st.markdown(f"<div class='v65-section-title'>{v73_esc(title)}</div>", unsafe_allow_html=True)
+    st.markdown("<div class='v775-help'><b>How to use this:</b> These are the highest-priority ideas from the saved scan. Upside is calculated from current price and Atlas/analyst target where available. Use the research button to open the full dashboard without logging out.</div>", unsafe_allow_html=True)
+
+    cards, rows, tickers = [], [], []
+    for i, (_, row) in enumerate(df.head(15).iterrows(), 1):
+        ticker = v73_ticker(row); company = v73_company(row)
+        tickers.append(ticker)
+        opp = v775_score(row, ["Opportunity", "Opportunity Score", "opportunity_score", "technical_agent_score"], 70)
+        qual = v775_score(row, ["Quality", "Quality Score", "quality_score", "financial_score", "fundamentals_agent_score"], 70)
+        conf = v775_score(row, ["Confidence", "AI Confidence", "confidence", "conviction_score", "Final Conviction", "ai_score"], max(opp, qual))
+        up_num = v776_upside_num(row)
+        decision = v775_decision(row, opp, qual, conf, up_num)
+        cls = "v775-buy" if "BUY" in str(decision).upper() else ("v775-avoid" if "AVOID" in str(decision).upper() else "v775-watch")
+        upside = "—" if up_num is None else f"{up_num:.1f}%"
+        price = v775_money(v776_price(row))
+        target = v775_money(v776_target(row))
+        wall = v73_wall_street(row, html=False) if "v73_wall_street" in globals() else v775_text(v73_get(row, ["Analyst View", "Wall Street"], "Limited analyst data"))
+        earnings_date, _, earnings_status, _, latest_earn = v73_next_earnings(row) if "v73_next_earnings" in globals() else ("Not available", "", "Not in scan", None, None)
+        political = v775_text(v73_get(row, ["Political Signal", "political_signal", "political_status", "congress_signal"], "Neutral"), "Neutral", 50)
+        thesis = v775_text(v73_get(row, ["AI Thesis", "ai_thesis", "Why Ranked High", "why_ranked_high", "why_ranked", "summary", "guidance"], f"{ticker} ranks well enough for deeper research. Validate financial quality, chart support, Wall Street target, earnings timing, and downside risk before entry."), max_len=420)
+
+        cards.append(f"""
+<div class='v775-card'>
+  <div class='v775-card-head'><div><div class='v775-ticker'>{v73_esc(ticker)}</div><div class='v775-company'>{v73_esc(company)}</div></div><span class='v775-badge {cls}'>{v73_esc(decision)}</span></div>
+  <div class='v775-mini-grid'>
+    <div class='v775-mini'><span>Current</span><b>{v73_esc(price)}</b><em>last saved price</em></div>
+    <div class='v775-mini'><span>Target</span><b>{v73_esc(target)}</b><em>Atlas / analyst</em></div>
+    <div class='v775-mini'><span>Upside</span><b>{v73_esc(upside)}</b><em>calculated</em></div>
+    <div class='v775-mini'><span>Opportunity</span><b>{opp:.0f}</b><em>{v73_score_label(opp)}</em></div>
+    <div class='v775-mini'><span>Quality</span><b>{qual:.0f}</b><em>{v73_score_label(qual)}</em></div>
+    <div class='v775-mini'><span>Confidence</span><b>{conf:.0f}</b><em>{v73_score_label(conf)}</em></div>
+  </div>
+  <div class='v775-thesis'>{v73_esc(thesis)}</div>
+  <div class='v775-action'><b>Wall Street:</b> {v73_esc(wall, max_len=70)} · <b>Earnings:</b> {v73_esc(earnings_date)} · <b>Political:</b> {v73_esc(political)}</div>
+</div>
+""")
+        rows.append(f"""<tr><td>#{i}</td><td><b>{v73_esc(ticker)}</b><br><span class='v775-muted'>{v73_esc(company)}</span></td><td><span class='v775-badge {cls}'>{v73_esc(decision)}</span></td><td>{price}</td><td>{target}</td><td>{upside}</td><td>{opp:.0f}</td><td>{qual:.0f}</td><td>{conf:.0f}</td><td>{v73_esc(wall, max_len=80)}</td><td class='v775-thesis-cell'>{v73_esc(thesis, max_len=260)}</td></tr>""")
+
+    st.markdown("<div class='v775-card-grid'>" + "".join(cards[:8]) + "</div>", unsafe_allow_html=True)
+
+    st.markdown("<div class='v776-open-row'>", unsafe_allow_html=True)
+    cols = st.columns(4)
+    for idx, t in enumerate(tickers[:8]):
+        with cols[idx % 4]:
+            v776_open_research_button(t, idx)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    with st.expander("Full executive table", expanded=False):
+        st.markdown("<div class='v775-table-wrap'><table class='v775-table'><thead><tr><th>Rank</th><th>Company</th><th>Decision</th><th>Current</th><th>Target</th><th>Upside</th><th>Opportunity</th><th>Quality</th><th>Confidence</th><th>Wall Street</th><th>AI Thesis</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>", unsafe_allow_html=True)
+
+def render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df=None):
+    st.markdown("<div class='v65-section-title'>🔎 Research Any Ticker</div>", unsafe_allow_html=True)
+    st.markdown("<div class='v65-subtitle'>Fast saved-scan snapshot loads first. Deep refresh should only be used when you need live data beyond the saved scan.</div>", unsafe_allow_html=True)
+    if "v73_research_ticker" not in st.session_state:
+        st.session_state["v73_research_ticker"] = ""
+    ticker = st.text_input("Ticker", placeholder="Example: NVDA, MSFT, OPRA", key="v73_research_ticker").strip().upper()
+    if not ticker:
+        st.info("Enter a ticker to open the full supporting dashboard.")
+        return
+    row = None
+    try:
+        row = find_ticker_row(ticker, full_df, recovery_df, watch_df, prescreen_df, etf_df)
+    except Exception:
+        row = None
+    if row is None:
+        st.warning("Ticker was not found in the latest saved scan. Atlas is showing a limited fallback. This should be improved in V78 by expanding the searchable universe and cached company profile database.")
+        try:
+            row = pd.Series(build_price_only_live_row(ticker, reason="not found in saved scan"))
+        except Exception:
+            row = pd.Series({"Ticker": ticker, "Company": ticker})
+    else:
+        st.success("Loaded from the latest saved Atlas scan.")
+    render_detail(row)
+    if st.button(f"Run Deep Refresh for {ticker}", key=f"v776_deep_refresh_{ticker}"):
+        with st.spinner(f"Running live AI research for {ticker}..."):
+            try:
+                live_row = build_live_research_row(ticker)
+            except Exception as e:
+                live_row = {"error": str(e)}
+        if isinstance(live_row, dict) and not live_row.get("error"):
+            render_detail(pd.Series(live_row))
+        else:
+            st.warning("Deep refresh did not return a complete live report. Saved scan remains available.")
+
+# Maintain expected alias used by final router.
+render_v74_home_dashboard = render_v775_home_dashboard
+
+def main():
+    if not dashboard_login_gate():
+        return
+    render_v59_design_system(); render_v65_design_system(); render_v70_design_system(); render_v72_design_system(); render_v73_design_system(); render_v74_design_system(); v775_design_system(); v776_design_system()
+    full_df = load_full_scan(); top_df = latest_top_ideas(); recovery_df = latest_recovery(); watch_df = latest_watchlist_scan(); prescreen_df = load_file(PRESCREEN_FILE); etf_df = load_file(ETF_SCAN_FILE)
+    pages = ["Home", "Top AI Ideas", "Research Any Ticker", "Earnings Intelligence", "Full Ranked Scan", "Portfolio Intelligence", "Watchlist Intelligence", "Recovery", "ETFs", "Political Intelligence", "Ask AI"]
+    selected_page = render_v73_top_nav(pages)
+    source_df = top_df if top_df is not None and not top_df.empty else full_df.head(25)
+    if selected_page != "Home":
+        render_v72_market_tape(always_show=False)
+    if selected_page == "Home":
+        render_v74_home_dashboard(full_df, source_df, recovery_df)
+    elif selected_page == "Top AI Ideas":
+        render_v73_idea_table(source_df, title="Top AI Ideas")
+    elif selected_page == "Research Any Ticker":
+        render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df)
+    elif selected_page == "Earnings Intelligence":
+        render_v73_earnings_page(full_df, source_df)
+    elif selected_page == "Full Ranked Scan":
+        render_v56_ranked_table(full_df, title="Full Ranked AI Scan", max_rows=75, show_filters=True)
+    elif selected_page == "Portfolio Intelligence":
+        render_v505_portfolio_analyzer(full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
+    elif selected_page == "Watchlist Intelligence":
+        render_v506_watchlist_intelligence(full_df, top_df, recovery_df, watch_df, prescreen_df, etf_df)
+    elif selected_page == "Recovery":
+        render_v65_recovery_intelligence(recovery_df)
+    elif selected_page == "ETFs":
+        render_v56_ranked_table(etf_df, title="ETF Intelligence", max_rows=50, show_filters=True)
+    elif selected_page == "Political Intelligence":
+        render_v58_political_intelligence(full_df)
+    elif selected_page == "Ask AI":
+        render_chat_helper(full_df)
+
 if __name__ == "__main__":
     main()
+
