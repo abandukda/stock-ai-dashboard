@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-06T08:42:23.728377+00:00",
-  "count": 3124,
+  "generated_at": "2026-07-06T14:18:41.503966+00:00",
+  "count": 3128,
   "symbols": [
     "A",
     "AA",
@@ -1446,6 +1446,8 @@
     "IPHA",
     "IPI",
     "IQ",
+    "IQMX",
+    "IQMXW",
     "IQV",
     "IR",
     "IRDM",
@@ -1502,6 +1504,7 @@
     "JOYY",
     "JPM",
     "JRVR",
+    "JXN",
     "KAI",
     "KALU",
     "KARD",
@@ -2442,6 +2445,7 @@
     "SEAT",
     "SEATW",
     "SEDG",
+    "SEER",
     "SEG",
     "SEI",
     "SEM",
