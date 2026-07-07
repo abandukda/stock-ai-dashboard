@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-07T13:09:51.472585+00:00",
-  "count": 3138,
+  "generated_at": "2026-07-07T17:54:47.090282+00:00",
+  "count": 3140,
   "symbols": [
     "A",
     "AA",
@@ -1723,6 +1723,7 @@
     "MARA",
     "MAS",
     "MAT",
+    "MATV",
     "MATX",
     "MAX",
     "MBC",
@@ -2390,6 +2391,7 @@
     "RRR",
     "RRX",
     "RS",
+    "RSG",
     "RSI",
     "RTO",
     "RTX",
