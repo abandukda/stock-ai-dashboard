@@ -9,9 +9,9 @@
     "quote_type": "ETF",
     "price": 747.71,
     "current_price": 747.71,
-    "dollar_volume": 46347022398.34,
-    "avg_volume_20d": 61985289,
-    "volume_ratio": 0.65,
+    "dollar_volume": 46478081160.53,
+    "avg_volume_20d": 62160570,
+    "volume_ratio": 0.7,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -53,7 +53,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-08T00:26:40.195996+00:00",
+    "scan_time": "2026-07-08T07:03:32.206694+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 758.45,
@@ -234,9 +234,9 @@
     "quote_type": "ETF",
     "price": 296.19,
     "current_price": 296.19,
-    "dollar_volume": 8533577284.17,
-    "avg_volume_20d": 28811159,
-    "volume_ratio": 0.62,
+    "dollar_volume": 8537294735.27,
+    "avg_volume_20d": 28823710,
+    "volume_ratio": 0.63,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -278,7 +278,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-08T00:17:02.629453+00:00",
+    "scan_time": "2026-07-08T06:53:39.408827+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 302.72,
@@ -308,15 +308,12 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 90,
+        "score": 76,
         "status": "Positive",
         "impact": "Positive",
-        "data_used": "NewsAPI, Finnhub company news",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Daily ETF Flows: Inflows of $1.1B for LQD",
-          "Fed Chair Warsh Just Said the One Thing About Inflation Every Investor Wanted to Hear",
-          "I Squared, TPG-CPPIB consortium nears bid for KKR-backed Re Sustainability",
           "AI Bubble: Good Bubble, Bad Trade",
           "Nasdaq Dominates Again, Falling After Samsung's Blockbuster Estimates",
           "Trade Deficit Expands Over 40% In May"
@@ -458,12 +455,9 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 90,
+    "v42_news_score": 76,
     "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
-      "Daily ETF Flows: Inflows of $1.1B for LQD",
-      "Fed Chair Warsh Just Said the One Thing About Inflation Every Investor Wanted to Hear",
-      "I Squared, TPG-CPPIB consortium nears bid for KKR-backed Re Sustainability",
       "AI Bubble: Good Bubble, Bad Trade",
       "Nasdaq Dominates Again, Falling After Samsung's Blockbuster Estimates",
       "Trade Deficit Expands Over 40% In May"
@@ -472,7 +466,6 @@
       "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -497,8 +490,8 @@
     "quote_type": "ETF",
     "price": 687.08,
     "current_price": 687.08,
-    "dollar_volume": 8333426772.96,
-    "avg_volume_20d": 12128757,
+    "dollar_volume": 8334404281.7,
+    "avg_volume_20d": 12130180,
     "volume_ratio": 0.4,
     "conviction": 95,
     "conviction_score": 95,
@@ -541,7 +534,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-08T00:29:46.047311+00:00",
+    "scan_time": "2026-07-08T07:06:51.409453+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 697.12,
@@ -722,9 +715,9 @@
     "quote_type": "ETF",
     "price": 528.45,
     "current_price": 528.45,
-    "dollar_volume": 2742625494.55,
-    "avg_volume_20d": 5189943,
-    "volume_ratio": 0.82,
+    "dollar_volume": 2749208343.51,
+    "avg_volume_20d": 5202400,
+    "volume_ratio": 0.86,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -765,7 +758,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-08T00:11:33.013293+00:00",
+    "scan_time": "2026-07-08T06:48:01.427973+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 532.54,
@@ -795,22 +788,19 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 90,
-        "status": "Positive",
-        "impact": "Positive",
-        "data_used": "NewsAPI, Finnhub company news",
+        "score": 69,
+        "status": "Mixed",
+        "impact": "Neutral",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Portrait of Spanish Count-Duke Is Newly Attributed to Vel\u00e1zquez by Detroit Institute of Arts\u00a0Director",
-          "FSSAI sends notices to three FBOs for misleadin claims, labelling violations",
           "AI Bubble: Good Bubble, Bad Trade",
-          "Nasdaq Dominates Again, Falling After Samsung's Blockbuster Estimates",
-          "The Government Is Coming For AI"
+          "Nasdaq Dominates Again, Falling After Samsung's Blockbuster Estimates"
         ],
         "risks": [
           "No negative high-confidence headline detected."
         ],
-        "bottom_line": "News flow supports the thesis."
+        "bottom_line": "News is mixed or insufficient."
       },
       "Finance Agent": {
         "score": 50,
@@ -946,20 +936,16 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 90,
-    "v42_news_summary": "News flow supports the thesis.",
+    "v42_news_score": 69,
+    "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "Portrait of Spanish Count-Duke Is Newly Attributed to Vel\u00e1zquez by Detroit Institute of Arts\u00a0Director",
-      "FSSAI sends notices to three FBOs for misleadin claims, labelling violations",
       "AI Bubble: Good Bubble, Bad Trade",
-      "Nasdaq Dominates Again, Falling After Samsung's Blockbuster Estimates",
-      "The Government Is Coming For AI"
+      "Nasdaq Dominates Again, Falling After Samsung's Blockbuster Estimates"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": true,
@@ -984,8 +970,8 @@
     "quote_type": "ETF",
     "price": 79.76,
     "current_price": 79.76,
-    "dollar_volume": 2654046130.62,
-    "avg_volume_20d": 33275401,
+    "dollar_volume": 2654045975.08,
+    "avg_volume_20d": 33275400,
     "volume_ratio": 0.86,
     "conviction": 95,
     "conviction_score": 95,
@@ -1026,7 +1012,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-08T00:16:07.536916+00:00",
+    "scan_time": "2026-07-08T06:52:42.061697+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 79.99,
@@ -1056,19 +1042,15 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 52,
+        "score": 54,
         "status": "Mixed",
         "impact": "Neutral",
-        "data_used": "NewsAPI, Finnhub company news",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Audio Pro takes aim at Sonos, Denon, WiiM and Bose with an all-new Wi-Fi speaker \u2014 and this one's got a portable battery and IP2 water resistance",
-          "Frontiers | The gut-brain axis and anxiety: investigating associations with diet, vigorous activity, and prior adversity",
           "The Week The AI Trade Broke, And Why The Data Says 'Rotation,' Not 'Recession'"
         ],
         "risks": [
-          "Mobility and non-household environments: Understanding dengue transmission patterns in urban contexts",
-          "Experimental evidence of early-phase transmission of Yersinia pestis by Synopsyllus fonquerniei and Xenopsylla brasiliensis",
           "Warsh's Dot-Plot Pivot Recalibrates Duration Risk In Investment-Grade Bonds"
         ],
         "bottom_line": "News is mixed or insufficient."
@@ -1205,20 +1187,15 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 52,
+    "v42_news_score": 54,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "Audio Pro takes aim at Sonos, Denon, WiiM and Bose with an all-new Wi-Fi speaker \u2014 and this one's got a portable battery and IP2 water resistance",
-      "Frontiers | The gut-brain axis and anxiety: investigating associations with diet, vigorous activity, and prior adversity",
       "The Week The AI Trade Broke, And Why The Data Says 'Rotation,' Not 'Recession'"
     ],
     "v42_news_risks": [
-      "Mobility and non-household environments: Understanding dengue transmission patterns in urban contexts",
-      "Experimental evidence of early-phase transmission of Yersinia pestis by Synopsyllus fonquerniei and Xenopsylla brasiliensis",
       "Warsh's Dot-Plot Pivot Recalibrates Duration Risk In Investment-Grade Bonds"
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -1243,9 +1220,9 @@
     "quote_type": "ETF",
     "price": 164.44,
     "current_price": 164.44,
-    "dollar_volume": 1890926034.14,
-    "avg_volume_20d": 11499185,
-    "volume_ratio": 1.05,
+    "dollar_volume": 1891084694.08,
+    "avg_volume_20d": 11500150,
+    "volume_ratio": 1.06,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -1286,12 +1263,12 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-08T00:31:03.328262+00:00",
+    "scan_time": "2026-07-08T07:08:09.814245+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
-    "high_52w": 165.6,
+    "high_52w": 165.61,
     "low_52w": 125.76,
-    "all_period_high": 165.6,
+    "all_period_high": 165.61,
     "all_period_low": 125.76,
     "range_position_pct": 97.1,
     "range_position_label": "Near 52-week highs",
@@ -1322,7 +1299,7 @@
         "data_used": "Price history, RSI, ATR, volume, SMA, support/resistance",
         "summary": "Lightweight scheduled scan: evaluates trend, momentum, volatility, support/resistance and entry quality.",
         "findings": [
-          "Support 1: 148.14 \u00b7 Resistance 1: 165.6.",
+          "Support 1: 148.14 \u00b7 Resistance 1: 165.61.",
           "RSI: 72.6."
         ],
         "risks": [
@@ -1451,9 +1428,9 @@
     "v42_tier": "light",
     "v42_support_1": 148.14,
     "v42_support_2": 125.76,
-    "v42_resistance_1": 165.6,
-    "v42_resistance_2": 165.6,
-    "v42_breakout_level": 167.26,
+    "v42_resistance_1": 165.61,
+    "v42_resistance_2": 165.61,
+    "v42_breakout_level": 167.27,
     "v42_pullback_zone": "$148.14 - $161.15",
     "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume."
   },
@@ -1467,8 +1444,8 @@
     "quote_type": "ETF",
     "price": 182.38,
     "current_price": 182.38,
-    "dollar_volume": 1506126571.32,
-    "avg_volume_20d": 8258178,
+    "dollar_volume": 1506170679.92,
+    "avg_volume_20d": 8258420,
     "volume_ratio": 0.93,
     "conviction": 95,
     "conviction_score": 95,
@@ -1511,7 +1488,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-08T00:31:00.851672+00:00",
+    "scan_time": "2026-07-08T07:08:07.415870+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 186.45,
@@ -1692,8 +1669,8 @@
     "quote_type": "ETF",
     "price": 369.61,
     "current_price": 369.61,
-    "dollar_volume": 1301430263.57,
-    "avg_volume_20d": 3521090,
+    "dollar_volume": 1301491008.97,
+    "avg_volume_20d": 3521255,
     "volume_ratio": 0.82,
     "conviction": 95,
     "conviction_score": 95,
@@ -1736,7 +1713,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-08T00:30:06.662223+00:00",
+    "scan_time": "2026-07-08T07:07:11.379792+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 373.63,
@@ -1917,9 +1894,9 @@
     "quote_type": "ETF",
     "price": 84.86,
     "current_price": 84.86,
-    "dollar_volume": 1060256945.57,
-    "avg_volume_20d": 12494189,
-    "volume_ratio": 1.01,
+    "dollar_volume": 1062848171.14,
+    "avg_volume_20d": 12524725,
+    "volume_ratio": 1.06,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -1960,7 +1937,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-08T00:31:01.821122+00:00",
+    "scan_time": "2026-07-08T07:08:08.384067+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.02,
@@ -2141,9 +2118,9 @@
     "quote_type": "ETF",
     "price": 117.39,
     "current_price": 117.39,
-    "dollar_volume": 966062520.18,
-    "avg_volume_20d": 8229512,
-    "volume_ratio": 1.1,
+    "dollar_volume": 966738927.22,
+    "avg_volume_20d": 8235275,
+    "volume_ratio": 1.12,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -2185,7 +2162,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-08T00:31:03.805170+00:00",
+    "scan_time": "2026-07-08T07:08:10.289016+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 124.51,
@@ -2366,9 +2343,9 @@
     "quote_type": "ETF",
     "price": 45.7,
     "current_price": 45.7,
-    "dollar_volume": 957274616.44,
-    "avg_volume_20d": 20946927,
-    "volume_ratio": 0.83,
+    "dollar_volume": 961021660.04,
+    "avg_volume_20d": 21028920,
+    "volume_ratio": 0.9,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -2409,7 +2386,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-08T00:31:02.771466+00:00",
+    "scan_time": "2026-07-08T07:08:09.341758+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 47.41,
@@ -2590,9 +2567,9 @@
     "quote_type": "ETF",
     "price": 32.54,
     "current_price": 32.54,
-    "dollar_volume": 703491215.28,
-    "avg_volume_20d": 21619274,
-    "volume_ratio": 0.96,
+    "dollar_volume": 704057098.91,
+    "avg_volume_20d": 21636665,
+    "volume_ratio": 0.98,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -2634,7 +2611,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-08T00:25:29.827852+00:00",
+    "scan_time": "2026-07-08T07:02:21.078476+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 32.72,
@@ -2815,8 +2792,8 @@
     "quote_type": "ETF",
     "price": 51.51,
     "current_price": 51.51,
-    "dollar_volume": 628461814.78,
-    "avg_volume_20d": 12200773,
+    "dollar_volume": 628509546.52,
+    "avg_volume_20d": 12201700,
     "volume_ratio": 1.01,
     "conviction": 95,
     "conviction_score": 95,
@@ -2825,7 +2802,7 @@
     "ai_confidence": 95,
     "confidence": 95,
     "rsi": 43.2,
-    "atr_pct": 1.64,
+    "atr_pct": 1.65,
     "sma20": 51.31,
     "sma50": 51.11,
     "twenty_day_pct": 2.12,
@@ -2857,7 +2834,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-08T00:30:59.498026+00:00",
+    "scan_time": "2026-07-08T07:08:05.959057+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 53.7,
@@ -3038,9 +3015,9 @@
     "quote_type": "ETF",
     "price": 81.19,
     "current_price": 81.19,
-    "dollar_volume": 616167966.25,
-    "avg_volume_20d": 7589209,
-    "volume_ratio": 0.78,
+    "dollar_volume": 616638880.44,
+    "avg_volume_20d": 7595010,
+    "volume_ratio": 0.8,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -3048,7 +3025,7 @@
     "ai_confidence": 95,
     "confidence": 95,
     "rsi": 54.5,
-    "atr_pct": 3.16,
+    "atr_pct": 3.17,
     "sma20": 78.41,
     "sma50": 77.86,
     "twenty_day_pct": 8.99,
@@ -3082,7 +3059,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-08T00:06:11.701021+00:00",
+    "scan_time": "2026-07-08T06:42:29.032086+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 92.65,
@@ -3112,14 +3089,12 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 90,
+        "score": 76,
         "status": "Positive",
         "impact": "Positive",
-        "data_used": "NewsAPI, Finnhub company news",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Cathie Wood Sees Value in This Beaten-Down Growth Stock. I Do Too",
-          "Cathie Wood Sees Value in This Beaten-Down Growth Stock. I Do Too.",
           "Nasdaq Dominates Again, Falling After Samsung's Blockbuster Estimates",
           "Trade Deficit Expands Over 40% In May",
           "Hype Or Hope? AI Run Leading To More Stock Scrutiny"
@@ -3261,11 +3236,9 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 90,
+    "v42_news_score": 76,
     "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
-      "Cathie Wood Sees Value in This Beaten-Down Growth Stock. I Do Too",
-      "Cathie Wood Sees Value in This Beaten-Down Growth Stock. I Do Too.",
       "Nasdaq Dominates Again, Falling After Samsung's Blockbuster Estimates",
       "Trade Deficit Expands Over 40% In May",
       "Hype Or Hope? AI Run Leading To More Stock Scrutiny"
@@ -3274,7 +3247,6 @@
       "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -3299,9 +3271,9 @@
     "quote_type": "ETF",
     "price": 56.86,
     "current_price": 56.86,
-    "dollar_volume": 271552860.87,
-    "avg_volume_20d": 4775815,
-    "volume_ratio": 1.04,
+    "dollar_volume": 271745599.22,
+    "avg_volume_20d": 4779205,
+    "volume_ratio": 1.05,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -3342,7 +3314,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-08T00:17:12.331027+00:00",
+    "scan_time": "2026-07-08T06:53:48.526183+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 58.27,
@@ -3372,22 +3344,20 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 67,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "NewsAPI, Finnhub company news",
+        "score": 76,
+        "status": "Positive",
+        "impact": "Positive",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "JEPI Investors Missed 13.21% in Gains While Paying Hidden Taxes on \u2018Monthly\u2019 Income",
           "I'm 62 And Just Got Laid Off. I'll Probably Never Be Able To Replace My Income. Can I Live Off My Dividends?",
           "Two 7%+ Yielding Retirement Picks That I'd Buy For Income Growth",
           "Prediction Market ETFs Prompt SEC Review Of Fund Rules As Innovation Accelerates"
         ],
         "risks": [
-          "Why MSTY Shareholders Are Facing Uncapped Losses Despite Weekly Distributions",
-          "JEPI Investors Missed 13.21% in Gains While Paying Hidden Taxes on \u2018Monthly\u2019 Income"
+          "No negative high-confidence headline detected."
         ],
-        "bottom_line": "News is mixed or insufficient."
+        "bottom_line": "News flow supports the thesis."
       },
       "Finance Agent": {
         "score": 50,
@@ -3521,20 +3491,17 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 67,
-    "v42_news_summary": "News is mixed or insufficient.",
+    "v42_news_score": 76,
+    "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
-      "JEPI Investors Missed 13.21% in Gains While Paying Hidden Taxes on \u2018Monthly\u2019 Income",
       "I'm 62 And Just Got Laid Off. I'll Probably Never Be Able To Replace My Income. Can I Live Off My Dividends?",
       "Two 7%+ Yielding Retirement Picks That I'd Buy For Income Growth",
       "Prediction Market ETFs Prompt SEC Review Of Fund Rules As Innovation Accelerates"
     ],
     "v42_news_risks": [
-      "Why MSTY Shareholders Are Facing Uncapped Losses Despite Weekly Distributions",
-      "JEPI Investors Missed 13.21% in Gains While Paying Hidden Taxes on \u2018Monthly\u2019 Income"
+      "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -3559,9 +3526,9 @@
     "quote_type": "ETF",
     "price": 44.89,
     "current_price": 44.89,
-    "dollar_volume": 259035321.91,
-    "avg_volume_20d": 5770446,
-    "volume_ratio": 0.81,
+    "dollar_volume": 259437262.47,
+    "avg_volume_20d": 5779400,
+    "volume_ratio": 0.84,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -3603,7 +3570,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-08T00:31:02.310617+00:00",
+    "scan_time": "2026-07-08T07:08:08.874311+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 45.29,
@@ -3784,8 +3751,8 @@
     "quote_type": "ETF",
     "price": 18.07,
     "current_price": 18.07,
-    "dollar_volume": 117878382.63,
-    "avg_volume_20d": 6523430,
+    "dollar_volume": 117882624.56,
+    "avg_volume_20d": 6523665,
     "volume_ratio": 0.6,
     "conviction": 95,
     "conviction_score": 95,
@@ -3828,7 +3795,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-08T00:24:13.938209+00:00",
+    "scan_time": "2026-07-08T07:00:57.039533+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 18.44,
@@ -4009,8 +3976,8 @@
     "quote_type": "ETF",
     "price": 41.0,
     "current_price": 41.0,
-    "dollar_volume": 37154860.1,
-    "avg_volume_20d": 906216,
+    "dollar_volume": 37158710.0,
+    "avg_volume_20d": 906310,
     "volume_ratio": 0.56,
     "conviction": 95,
     "conviction_score": 95,
@@ -4053,7 +4020,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-08T00:31:11.650257+00:00",
+    "scan_time": "2026-07-08T07:08:18.366222+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 41.08,
@@ -4234,8 +4201,8 @@
     "quote_type": "ETF",
     "price": 16.0,
     "current_price": 16.0,
-    "dollar_volume": 9593636.8,
-    "avg_volume_20d": 599602,
+    "dollar_volume": 9595520.0,
+    "avg_volume_20d": 599720,
     "volume_ratio": 1.08,
     "conviction": 95,
     "conviction_score": 95,
@@ -4277,7 +4244,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-08T00:25:15.081427+00:00",
+    "scan_time": "2026-07-08T07:02:04.196700+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 16.05,
@@ -4458,9 +4425,9 @@
     "quote_type": "ETF",
     "price": 17.31,
     "current_price": 17.31,
-    "dollar_volume": 2594701.41,
-    "avg_volume_20d": 149896,
-    "volume_ratio": 0.45,
+    "dollar_volume": 2595374.77,
+    "avg_volume_20d": 149935,
+    "volume_ratio": 0.46,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -4502,7 +4469,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-08T00:26:40.727700+00:00",
+    "scan_time": "2026-07-08T07:03:32.896411+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 17.79,
@@ -4683,9 +4650,9 @@
     "quote_type": "ETF",
     "price": 59.32,
     "current_price": 59.32,
-    "dollar_volume": 403009557.52,
-    "avg_volume_20d": 6793822,
-    "volume_ratio": 0.93,
+    "dollar_volume": 403199817.53,
+    "avg_volume_20d": 6797030,
+    "volume_ratio": 0.94,
     "conviction": 92,
     "conviction_score": 92,
     "score": 92,
@@ -4727,7 +4694,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-07-08T00:17:13.560124+00:00",
+    "scan_time": "2026-07-08T06:53:49.715464+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 61.08,
@@ -4757,18 +4724,17 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 53,
+        "score": 69,
         "status": "Mixed",
         "impact": "Neutral",
-        "data_used": "NewsAPI, Finnhub company news",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
           "ROCQ: Tax-Efficient Option ETF Provides More Upside Growth Than JEPQ",
           "Prediction Market ETFs Prompt SEC Review Of Fund Rules As Innovation Accelerates"
         ],
         "risks": [
-          "Nasdaq Income Without the Megacap Risk: How JEPQ Caps Your Upside for Monthly Cash",
-          "Why MSTY Shareholders Are Facing Uncapped Losses Despite Weekly Distributions"
+          "No negative high-confidence headline detected."
         ],
         "bottom_line": "News is mixed or insufficient."
       },
@@ -4904,18 +4870,16 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 53,
+    "v42_news_score": 69,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
       "ROCQ: Tax-Efficient Option ETF Provides More Upside Growth Than JEPQ",
       "Prediction Market ETFs Prompt SEC Review Of Fund Rules As Innovation Accelerates"
     ],
     "v42_news_risks": [
-      "Nasdaq Income Without the Megacap Risk: How JEPQ Caps Your Upside for Monthly Cash",
-      "Why MSTY Shareholders Are Facing Uncapped Losses Despite Weekly Distributions"
+      "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -4927,7 +4891,7 @@
     "v42_breakout_level": 61.69,
     "v42_pullback_zone": "$56.87 - $58.13",
     "v42_chart_guidance": "Between support and resistance. Prefer pullback entry or confirmed breakout.",
-    "v42_committee_positive_agents": 1,
+    "v42_committee_positive_agents": 2,
     "v42_committee_total_agents": 10
   },
   {
@@ -4940,9 +4904,9 @@
     "quote_type": "ETF",
     "price": 551.69,
     "current_price": 551.69,
-    "dollar_volume": 6489866195.13,
-    "avg_volume_20d": 11763610,
-    "volume_ratio": 1.01,
+    "dollar_volume": 6491339041.93,
+    "avg_volume_20d": 11766280,
+    "volume_ratio": 1.02,
     "conviction": 78,
     "conviction_score": 78,
     "score": 78,
@@ -4982,7 +4946,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-07-08T00:26:32.891687+00:00",
+    "scan_time": "2026-07-08T07:03:24.975815+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 655.95,
@@ -5163,9 +5127,9 @@
     "quote_type": "ETF",
     "price": 709.43,
     "current_price": 709.43,
-    "dollar_volume": 36062652429.41,
-    "avg_volume_20d": 50833278,
-    "volume_ratio": 0.79,
+    "dollar_volume": 36138931370.9,
+    "avg_volume_20d": 50940800,
+    "volume_ratio": 0.83,
     "conviction": 62,
     "conviction_score": 62,
     "score": 62,
@@ -5206,7 +5170,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-07-08T00:24:07.822632+00:00",
+    "scan_time": "2026-07-08T07:00:50.845928+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 747.83,
@@ -5236,22 +5200,20 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 82,
-        "status": "Positive",
-        "impact": "Positive",
-        "data_used": "NewsAPI, Finnhub company news",
+        "score": 68,
+        "status": "Mixed",
+        "impact": "Neutral",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "S&P 500 Nears Record as AI Stocks Rebound",
           "AI Bubble: Good Bubble, Bad Trade",
           "The AI Memory Boom Is Finally Cracking",
-          "Samsung Selloff Sends Warning To US Investors; Amazon Enters AI Debt Binge",
-          "Nasdaq Dominates Again, Falling After Samsung's Blockbuster Estimates"
+          "Samsung Selloff Sends Warning To US Investors; Amazon Enters AI Debt Binge"
         ],
         "risks": [
           "Samsung Selloff Sends Warning To US Investors; Amazon Enters AI Debt Binge"
         ],
-        "bottom_line": "News flow supports the thesis."
+        "bottom_line": "News is mixed or insufficient."
       },
       "Finance Agent": {
         "score": 50,
@@ -5387,20 +5349,17 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 82,
-    "v42_news_summary": "News flow supports the thesis.",
+    "v42_news_score": 68,
+    "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "S&P 500 Nears Record as AI Stocks Rebound",
       "AI Bubble: Good Bubble, Bad Trade",
       "The AI Memory Boom Is Finally Cracking",
-      "Samsung Selloff Sends Warning To US Investors; Amazon Enters AI Debt Binge",
-      "Nasdaq Dominates Again, Falling After Samsung's Blockbuster Estimates"
+      "Samsung Selloff Sends Warning To US Investors; Amazon Enters AI Debt Binge"
     ],
     "v42_news_risks": [
       "Samsung Selloff Sends Warning To US Investors; Amazon Enters AI Debt Binge"
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": true,
@@ -5425,9 +5384,9 @@
     "quote_type": "ETF",
     "price": 179.18,
     "current_price": 179.18,
-    "dollar_volume": 2508092795.07,
-    "avg_volume_20d": 13997616,
-    "volume_ratio": 0.85,
+    "dollar_volume": 2511787244.63,
+    "avg_volume_20d": 14018235,
+    "volume_ratio": 0.87,
     "conviction": 62,
     "conviction_score": 62,
     "score": 62,
@@ -5468,7 +5427,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-07-08T00:31:01.348149+00:00",
+    "scan_time": "2026-07-08T07:08:07.906085+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 198.49,
@@ -5649,9 +5608,9 @@
     "quote_type": "ETF",
     "price": 54.64,
     "current_price": 54.64,
-    "dollar_volume": 1872760555.09,
-    "avg_volume_20d": 34274534,
-    "volume_ratio": 1.16,
+    "dollar_volume": 1878283036.22,
+    "avg_volume_20d": 34375605,
+    "volume_ratio": 1.22,
     "conviction": 62,
     "conviction_score": 62,
     "score": 62,
@@ -5692,7 +5651,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-07-08T00:30:59.964390+00:00",
+    "scan_time": "2026-07-08T07:08:06.420723+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 63.01,
@@ -5873,9 +5832,9 @@
     "quote_type": "ETF",
     "price": 581.45,
     "current_price": 581.45,
-    "dollar_volume": 7436999139.26,
-    "avg_volume_20d": 12790435,
-    "volume_ratio": 1.11,
+    "dollar_volume": 7442827623.26,
+    "avg_volume_20d": 12800460,
+    "volume_ratio": 1.13,
     "conviction": 58,
     "conviction_score": 58,
     "score": 58,
@@ -5915,7 +5874,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-07-08T00:26:10.615328+00:00",
+    "scan_time": "2026-07-08T07:03:02.277002+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 671.83,
@@ -6096,8 +6055,8 @@
     "quote_type": "ETF",
     "price": 36.59,
     "current_price": 36.59,
-    "dollar_volume": 37243475.6,
-    "avg_volume_20d": 1017859,
+    "dollar_volume": 37251181.46,
+    "avg_volume_20d": 1018070,
     "volume_ratio": 1.31,
     "conviction": 56,
     "conviction_score": 56,
@@ -6139,7 +6098,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-07-08T00:08:07.493689+00:00",
+    "scan_time": "2026-07-08T06:44:31.179118+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 41.69,
@@ -6172,15 +6131,15 @@
         "score": 82,
         "status": "Positive",
         "impact": "Positive",
-        "data_used": "NewsAPI, Finnhub company news",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "AI\u2019s Next Act Isn\u2019t Chatbots. It\u2019s Robots, and BOTZ Is the Bet",
-          "AI Just Minted $10 Trillion and You Own None of It. These 4 ETFs Put You in the Game",
-          "Best AI ETFs Compared: CHAT vs BOTZ vs AIS (2026)",
           "Hype Or Hope? AI Run Leading To More Stock Scrutiny",
           "Beyond The AI Bubble Debate",
-          "CDT Insider Sentiment June 2026 - The AI Bubble Reckoning"
+          "CDT Insider Sentiment June 2026 - The AI Bubble Reckoning",
+          "Jim Bianco On The 'AI Economy,' Inflation And What's Next",
+          "Equity Outlook: AI Enthusiasm Leaves Little Margin For Error",
+          "From Punch Cards To Tokens: Some Thoughts On AI Pricing"
         ],
         "risks": [
           "Q2 Recap: Historic Rebound Amid Balanced Risks"
@@ -6322,18 +6281,17 @@
     "v42_news_score": 82,
     "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
-      "AI\u2019s Next Act Isn\u2019t Chatbots. It\u2019s Robots, and BOTZ Is the Bet",
-      "AI Just Minted $10 Trillion and You Own None of It. These 4 ETFs Put You in the Game",
-      "Best AI ETFs Compared: CHAT vs BOTZ vs AIS (2026)",
       "Hype Or Hope? AI Run Leading To More Stock Scrutiny",
       "Beyond The AI Bubble Debate",
-      "CDT Insider Sentiment June 2026 - The AI Bubble Reckoning"
+      "CDT Insider Sentiment June 2026 - The AI Bubble Reckoning",
+      "Jim Bianco On The 'AI Economy,' Inflation And What's Next",
+      "Equity Outlook: AI Enthusiasm Leaves Little Margin For Error",
+      "From Punch Cards To Tokens: Some Thoughts On AI Pricing"
     ],
     "v42_news_risks": [
       "Q2 Recap: Historic Rebound Amid Balanced Risks"
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -6358,8 +6316,8 @@
     "quote_type": "ETF",
     "price": 23.13,
     "current_price": 23.13,
-    "dollar_volume": 3259245.87,
-    "avg_volume_20d": 140909,
+    "dollar_volume": 3260289.03,
+    "avg_volume_20d": 140955,
     "volume_ratio": 0.68,
     "conviction": 56,
     "conviction_score": 56,
@@ -6401,7 +6359,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-07-08T00:24:09.518007+00:00",
+    "scan_time": "2026-07-08T07:00:52.378511+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 24.38,
@@ -6609,9 +6567,9 @@
     "quote_type": "ETF",
     "price": 107.88,
     "current_price": 107.88,
-    "dollar_volume": 3100472070.41,
-    "avg_volume_20d": 28740008,
-    "volume_ratio": 1.12,
+    "dollar_volume": 3098868024.3,
+    "avg_volume_20d": 28725140,
+    "volume_ratio": 1.11,
     "conviction": 54,
     "conviction_score": 54,
     "score": 54,
@@ -6651,7 +6609,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-07-08T00:18:42.834873+00:00",
+    "scan_time": "2026-07-08T06:55:21.495885+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 110.27,
@@ -6681,21 +6639,17 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 66,
+        "score": 60,
         "status": "Mixed",
         "impact": "Neutral",
-        "data_used": "NewsAPI, Finnhub company news",
+        "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Daily ETF Flows: Inflows of $1.1B for LQD",
-          "Daily ETF Flows: LCAP Scoops Up $1.4B",
-          "Daily ETF Flows: TLT Takes In $629M",
-          "Circle Your Calendars for July 29. JPMorgan Executive Says Fed Chair Kevin Warsh Could Raise Rates in As Little as Six Weeks.",
           "The Week The AI Trade Broke, And Why The Data Says 'Rotation,' Not 'Recession'",
-          "Has The AI Trade Gone Too Far?"
+          "Has The AI Trade Gone Too Far?",
+          "LQDH: It May Be Time To Hedge Interest Rate Risk (Rating Upgrade)"
         ],
         "risks": [
-          "Circle Your Calendars for July 29. JPMorgan Executive Says Fed Chair Kevin Warsh Could Raise Rates in As Little as Six Weeks.",
           "Warsh's Dot-Plot Pivot Recalibrates Duration Risk In Investment-Grade Bonds",
           "LQDH: It May Be Time To Hedge Interest Rate Risk (Rating Upgrade)"
         ],
@@ -6833,23 +6787,18 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 66,
+    "v42_news_score": 60,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
-      "Daily ETF Flows: Inflows of $1.1B for LQD",
-      "Daily ETF Flows: LCAP Scoops Up $1.4B",
-      "Daily ETF Flows: TLT Takes In $629M",
-      "Circle Your Calendars for July 29. JPMorgan Executive Says Fed Chair Kevin Warsh Could Raise Rates in As Little as Six Weeks.",
       "The Week The AI Trade Broke, And Why The Data Says 'Rotation,' Not 'Recession'",
-      "Has The AI Trade Gone Too Far?"
+      "Has The AI Trade Gone Too Far?",
+      "LQDH: It May Be Time To Hedge Interest Rate Risk (Rating Upgrade)"
     ],
     "v42_news_risks": [
-      "Circle Your Calendars for July 29. JPMorgan Executive Says Fed Chair Kevin Warsh Could Raise Rates in As Little as Six Weeks.",
       "Warsh's Dot-Plot Pivot Recalibrates Duration Risk In Investment-Grade Bonds",
       "LQDH: It May Be Time To Hedge Interest Rate Risk (Rating Upgrade)"
     ],
     "v42_news_sources": [
-      "NewsAPI",
       "Finnhub company news"
     ],
     "v42_sec_available": false,
@@ -6861,7 +6810,7 @@
     "v42_breakout_level": 110.45,
     "v42_pullback_zone": "$107.65 - $107.65",
     "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
-    "v42_committee_positive_agents": 1,
+    "v42_committee_positive_agents": 0,
     "v42_committee_total_agents": 10
   },
   {
@@ -6874,9 +6823,9 @@
     "quote_type": "ETF",
     "price": 84.55,
     "current_price": 84.55,
-    "dollar_volume": 2186510824.31,
-    "avg_volume_20d": 25860564,
-    "volume_ratio": 0.93,
+    "dollar_volume": 2188201849.73,
+    "avg_volume_20d": 25880565,
+    "volume_ratio": 0.95,
     "conviction": 54,
     "conviction_score": 54,
     "score": 54,
@@ -6916,7 +6865,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-07-08T00:28:02.956373+00:00",
+    "scan_time": "2026-07-08T07:04:57.104982+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.54,
@@ -7097,9 +7046,9 @@
     "quote_type": "ETF",
     "price": 54.81,
     "current_price": 54.81,
-    "dollar_volume": 81206892.67,
-    "avg_volume_20d": 1481607,
-    "volume_ratio": 0.53,
+    "dollar_volume": 81241576.44,
+    "avg_volume_20d": 1482240,
+    "volume_ratio": 0.54,
     "conviction": 35,
     "conviction_score": 35,
     "score": 35,
@@ -7140,7 +7089,7 @@
       "20-day ETF trend is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-07-08T00:27:26.387342+00:00",
+    "scan_time": "2026-07-08T07:04:19.213193+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 75.6,
@@ -7321,9 +7270,9 @@
     "quote_type": "ETF",
     "price": 41.75,
     "current_price": 41.75,
-    "dollar_volume": 144972194.82,
-    "avg_volume_20d": 3472387,
-    "volume_ratio": 1.0,
+    "dollar_volume": 145815423.75,
+    "avg_volume_20d": 3492585,
+    "volume_ratio": 1.11,
     "conviction": 27,
     "conviction_score": 27,
     "score": 27,
@@ -7365,7 +7314,7 @@
       "60-day ETF trend is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-07-08T00:29:15.306826+00:00",
+    "scan_time": "2026-07-08T07:06:20.550387+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 62.28,
