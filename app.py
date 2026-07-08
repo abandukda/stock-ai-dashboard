@@ -24411,8 +24411,9 @@ def main():
     elif selected_page == "Political Intelligence": render_v58_political_intelligence(full_df)
     elif selected_page == "Ask AI": render_chat_helper(full_df)
 
-if __name__ == "__main__":
-    main()
+if False and __name__ == "__main__":
+    main()  # disabled duplicate entry point by V78.2
+
 
 
 # ============================================================
@@ -24666,6 +24667,54 @@ def render_v73_top_nav(pages):
     return st.radio("Navigation", pages, horizontal=True, label_visibility="collapsed", key="v73_top_navigation")
 
 
+
+def v782_best_target(row):
+    """Return the best available target/fair value for upside calculation."""
+    keys = [
+        "AI Fair Value", "ai_fair_value", "ai_base_target", "fair_value", "Target", "target",
+        "target_mean_price", "analyst_target_mean", "Analyst Target", "consensus_target"
+    ]
+    for k in keys:
+        val = v73_num(v73_get(row, [k], None), None)
+        if val is not None and val > 0:
+            return val
+    return None
+
+
+def v782_current_price(row):
+    for k in ["current_price", "price", "last_price", "Price", "Current Price", "close"]:
+        val = v73_num(v73_get(row, [k], None), None)
+        if val is not None and val > 0:
+            return val
+    return None
+
+
+def v782_calc_upside(row):
+    """Calculate real upside from current price and best available target; never use fixed placeholder caps."""
+    price = v782_current_price(row)
+    target = v782_best_target(row)
+    if price and target:
+        return ((target - price) / price) * 100.0
+    raw = v73_get(row, ["Target Upside %", "target_upside_pct", "analyst_upside_pct", "expected_upside_pct", "upside"], None)
+    val = v73_num(raw, None)
+    if val is not None:
+        if abs(val) <= 1:
+            val *= 100
+        return val
+    return None
+
+
+def v782_open_research(ticker):
+    """Internal navigation helper: routes to Research without query-param logout/session loss."""
+    if ticker:
+        st.session_state["v73_research_ticker"] = str(ticker).upper().strip()
+        st.session_state["v73_page"] = "Research Any Ticker"
+        try:
+            st.query_params.clear()
+        except Exception:
+            pass
+        st.rerun()
+
 def render_v73_idea_table(df, title="Today's Highest Conviction Ideas"):
     if df is None or getattr(df, "empty", True):
         st.info("No ideas available in the latest saved scan.")
@@ -24880,7 +24929,7 @@ def render_detail(row):
 def render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df=None):
     st.markdown("<div class='v65-section-title'>🔎 Research Any Ticker</div>", unsafe_allow_html=True)
     st.markdown("<div class='v65-subtitle'>Fast saved-scan snapshot loads first. Deep refresh should only be used when you need live data beyond the saved scan.</div>", unsafe_allow_html=True)
-    ticker = st.text_input("Ticker", value="", placeholder="Example: NVDA, MSFT, OPRA", key="v73_research_ticker").strip().upper()
+    ticker = st.text_input("Ticker", value=st.session_state.get("v73_research_ticker", ""), placeholder="Example: NVDA, MSFT, OPRA", key="v73_research_ticker").strip().upper()
     if not ticker:
         st.info("Enter a ticker to open the full supporting dashboard.")
         return
@@ -24961,8 +25010,9 @@ def main():
     elif selected_page == "Political Intelligence": render_v58_political_intelligence(full_df)
     elif selected_page == "Ask AI": render_chat_helper(full_df)
 
-if __name__ == "__main__":
-    main()
+if False and __name__ == "__main__":
+    main()  # disabled duplicate entry point by V78.2
+
 
 # ==============================
 # V74 MAJOR UX + HOME DEDUPE + MARKET FALLBACK
@@ -25085,7 +25135,7 @@ def render_v73_top_nav(pages):
     current = st.session_state.get("v73_page", pages[0])
     if current not in pages:
         current = pages[0]
-    st.markdown("<div class='v74-topbar'><span class='v74-brand'>🧠 ATLAS</span>" + "".join([f"<a class='v74-navbtn {'v74-navbtn-active' if p==current else ''}' href='?page={p.replace(' ','%20')}'>{p}</a>" for p in pages]) + "</div>", unsafe_allow_html=True)
+    st.markdown("<div class='v74-topbar'><span class='v74-brand'>🧠 ATLAS</span>" + "".join([f"<span class='v74-navbtn {'v74-navbtn-active' if p==current else ''}'>{p}</span>" for p in pages]) + "</div>", unsafe_allow_html=True)
     # query param support
     try:
         qp = st.query_params.get("page")
@@ -25346,6 +25396,13 @@ def v775_design_system():
 .v775-news-card{border:1px solid rgba(148,163,184,.18);border-radius:15px;background:rgba(15,23,42,.62);padding:12px;margin:8px 0}.v775-news-card a{color:#93C5FD!important;text-decoration:underline!important;font-weight:900;overflow-wrap:anywhere}.v775-news-card small{display:block;color:#94A3B8;margin-top:4px}.v775-help{border:1px solid rgba(96,165,250,.22);border-radius:18px;background:rgba(30,41,59,.52);padding:14px;color:#CBD5E1;margin:10px 0}.v775-help b{color:#F8FAFC}
 .stMarkdown, .stMarkdown p, .stMarkdown li, .stMarkdown span{white-space:normal!important;overflow-wrap:break-word!important;word-break:normal!important;letter-spacing:normal!important;word-spacing:normal!important;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important} div[data-testid="stMetricValue"]{white-space:normal!important;overflow-wrap:anywhere!important;font-size:clamp(1.25rem,2vw,2.25rem)!important;line-height:1.1!important;letter-spacing:-.035em!important}.stDataFrame div{white-space:normal!important;}
 @media(max-width:850px){.v775-grid4,.v775-card-grid,.v775-target-grid{grid-template-columns:1fr}.v775-mini-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.v775-table-wrap{display:none}.v775-card{padding:16px}.v775-ticker{font-size:2rem}.v775-hero{padding:19px}.v775-hero h1{font-size:2.1rem}.v775-hero p{font-size:.98rem}}
+
+/* V78.2 title / contrast / readability polish */
+.v65-section-title,.v74-section-title,.v775-section-title{color:#F8FAFC!important;font-weight:950!important;letter-spacing:-.045em!important;font-size:clamp(1.65rem,3vw,3.1rem)!important;line-height:1.08!important;margin:24px 0 10px!important;}
+.v65-subtitle,.v775-subtitle,.stCaptionContainer{color:#CBD5E1!important;line-height:1.55!important;}
+.v775-card,.v775-stat,.v775-mini,.v775-target-card{color:#E5E7EB!important;}
+.v775-open-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;border:1px solid rgba(96,165,250,.25);border-radius:18px;background:rgba(30,41,59,.50);padding:13px 15px;margin:12px 0 16px;color:#DBEAFE;}
+.v775-open-row b{color:#F8FAFC;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -25385,6 +25442,54 @@ def render_v775_home_dashboard(full_df=None, top_df=None, recovery_df=None):
         render_v73_earnings_page(full_df, top_df)
 
 
+
+def v782_best_target(row):
+    """Return the best available target/fair value for upside calculation."""
+    keys = [
+        "AI Fair Value", "ai_fair_value", "ai_base_target", "fair_value", "Target", "target",
+        "target_mean_price", "analyst_target_mean", "Analyst Target", "consensus_target"
+    ]
+    for k in keys:
+        val = v73_num(v73_get(row, [k], None), None)
+        if val is not None and val > 0:
+            return val
+    return None
+
+
+def v782_current_price(row):
+    for k in ["current_price", "price", "last_price", "Price", "Current Price", "close"]:
+        val = v73_num(v73_get(row, [k], None), None)
+        if val is not None and val > 0:
+            return val
+    return None
+
+
+def v782_calc_upside(row):
+    """Calculate real upside from current price and best available target; never use fixed placeholder caps."""
+    price = v782_current_price(row)
+    target = v782_best_target(row)
+    if price and target:
+        return ((target - price) / price) * 100.0
+    raw = v73_get(row, ["Target Upside %", "target_upside_pct", "analyst_upside_pct", "expected_upside_pct", "upside"], None)
+    val = v73_num(raw, None)
+    if val is not None:
+        if abs(val) <= 1:
+            val *= 100
+        return val
+    return None
+
+
+def v782_open_research(ticker):
+    """Internal navigation helper: routes to Research without query-param logout/session loss."""
+    if ticker:
+        st.session_state["v73_research_ticker"] = str(ticker).upper().strip()
+        st.session_state["v73_page"] = "Research Any Ticker"
+        try:
+            st.query_params.clear()
+        except Exception:
+            pass
+        st.rerun()
+
 def render_v73_idea_table(df, title="Today's Highest Conviction Ideas"):
     """V77.5 Top Ideas: clear ticker/company, no compressed mobile table, better action language."""
     if df is None or getattr(df, "empty", True):
@@ -25397,6 +25502,18 @@ def render_v73_idea_table(df, title="Today's Highest Conviction Ideas"):
         pass
     st.markdown(f"<div class='v65-section-title'>{v73_esc(title)}</div>", unsafe_allow_html=True)
     st.markdown("<div class='v775-help'><b>How to use this:</b> Start with BUY NOW ideas, then open the full research report before acting. Opportunity measures setup/timing; Quality measures the business; Confidence measures agreement across Atlas signals.</div>", unsafe_allow_html=True)
+    try:
+        idea_options = [f"{v73_ticker(r)} — {v73_company(r)}" for _, r in df.head(15).iterrows()]
+        if idea_options:
+            c1, c2 = st.columns([3, 1])
+            with c1:
+                selected_idea = st.selectbox("Open full research report", idea_options, key=f"v782_open_research_{title}")
+            with c2:
+                st.write("")
+                if st.button("Open Research", key=f"v782_open_btn_{title}", use_container_width=True):
+                    v782_open_research(selected_idea.split(" — ")[0])
+    except Exception:
+        pass
     cards = []
     rows = []
     for i, (_, row) in enumerate(df.head(15).iterrows(), 1):
@@ -25404,14 +25521,11 @@ def render_v73_idea_table(df, title="Today's Highest Conviction Ideas"):
         opp = v775_score(row, ["Opportunity", "Opportunity Score", "opportunity_score", "technical_agent_score"], 70)
         qual = v775_score(row, ["Quality", "Quality Score", "quality_score", "financial_score", "fundamentals_agent_score"], 70)
         conf = v775_score(row, ["Confidence", "AI Confidence", "confidence", "conviction_score", "Final Conviction", "ai_score"], max(opp, qual))
-        upside_raw = v73_get(row, ["Target Upside %", "target_upside_pct", "analyst_upside_pct", "expected_upside_pct", "upside"], None)
-        upside_num = v73_num(upside_raw, None)
-        if upside_num is not None and abs(upside_num) <= 1:
-            upside_num *= 100
+        upside_num = v782_calc_upside(row) if "v782_calc_upside" in globals() else None
         decision = v775_decision(row, opp, qual, conf, upside_num)
         cls = "v775-buy" if "BUY" in decision.upper() else ("v775-avoid" if "AVOID" in decision.upper() else "v775-watch")
         upside = f"{upside_num:.1f}%" if upside_num is not None else "—"
-        target = v775_money(v73_get(row, ["AI Fair Value", "Target", "target", "target_mean_price", "analyst_target_mean"], None))
+        target = v775_money(v782_best_target(row) if "v782_best_target" in globals() else v73_get(row, ["AI Fair Value", "Target", "target", "target_mean_price", "analyst_target_mean"], None))
         wall = v73_wall_street(row, html=False) if "v73_wall_street" in globals() else v775_text(v73_get(row, ["Analyst View", "Wall Street"], "Limited analyst data"))
         earnings_date, _, earnings_status, _, latest_earn = v73_next_earnings(row) if "v73_next_earnings" in globals() else ("Not available", "", "Not in scan", None, None)
         political = v775_text(v73_get(row, ["Political Signal", "political_signal", "political_status", "congress_signal"], "Neutral"), "Neutral", 50)
@@ -25518,6 +25632,12 @@ def render_v73_technical(row):
 # Override home renderer name used by main()
 render_v74_home_dashboard = render_v775_home_dashboard
 
+# ==============================
+# V78.2 EXECUTIVE DASHBOARD + NAVIGATION TRUST
+# ==============================
+V782_EXECUTIVE_DASHBOARD_NAVIGATION_VERIFIED = True
+
+
 
 def main():
     if not dashboard_login_gate():
@@ -25543,4 +25663,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
