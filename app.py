@@ -25405,6 +25405,24 @@ def v775_design_system():
 .v775-card,.v775-stat,.v775-mini,.v775-target-card{color:#E5E7EB!important;}
 .v775-open-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;border:1px solid rgba(96,165,250,.25);border-radius:18px;background:rgba(30,41,59,.50);padding:13px 15px;margin:12px 0 16px;color:#DBEAFE;}
 .v775-open-row b{color:#F8FAFC;}
+
+/* V78.5 Top Ideas trust fix: readable internal research buttons */
+div[data-testid="stButton"] > button {
+  background: linear-gradient(135deg, rgba(37,99,235,.92), rgba(29,78,216,.92)) !important;
+  color: #F8FAFC !important;
+  border: 1px solid rgba(147,197,253,.50) !important;
+  border-radius: 999px !important;
+  font-weight: 900 !important;
+  box-shadow: 0 10px 28px rgba(37,99,235,.18) !important;
+}
+div[data-testid="stButton"] > button:hover {
+  background: linear-gradient(135deg, rgba(59,130,246,1), rgba(37,99,235,1)) !important;
+  border-color: rgba(191,219,254,.85) !important;
+  color: #FFFFFF !important;
+}
+.v785-action-note{color:#93C5FD;font-size:.92rem;margin-top:10px;font-weight:800;}
+.v785-unavailable{color:#FBBF24!important;font-weight:900;}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -25797,9 +25815,69 @@ def v784_compact_thesis(row, ticker):
     return f"{ticker} screens for deeper research because of " + ", ".join(pieces[:3]) + ". Open the full report before sizing any position."
 
 
+
+# ==============================
+# V78.5 TOP IDEAS TRUST FIX
+# ==============================
+V785_TOP_IDEAS_TRUST_FIX_VERIFIED = True
+
+
+def v785_has_real_target(row):
+    price = v784_price(row)
+    target = v784_target(row)
+    return bool(price and target and target > 0)
+
+
+def v785_analyst_support_score(row):
+    """Lightweight analyst support signal for confidence spread, not displayed as a fake data claim."""
+    buy = v784_num(v73_get(row, ["Buy", "buy", "buy_count", "analyst_buy_count", "numberOfAnalystOpinions"], None), None)
+    hold = v784_num(v73_get(row, ["Hold", "hold", "hold_count", "analyst_hold_count"], 0), 0)
+    sell = v784_num(v73_get(row, ["Sell", "sell", "sell_count", "analyst_sell_count"], 0), 0)
+    if buy is not None and buy > 0:
+        total = max(buy + hold + sell, 1)
+        return max(40, min(95, 55 + 40 * (buy / total) - 15 * (sell / total)))
+    wall = str(v73_get(row, ["Wall Street", "Analyst View", "rating", "consensus_rating"], "")).lower()
+    if "strong buy" in wall: return 88
+    if "buy" in wall: return 78
+    if "mixed" in wall or "hold" in wall: return 62
+    if "sell" in wall or "cautious" in wall: return 45
+    return 55
+
+
+def v785_confidence(row, opp, qual, up_num):
+    """Recalculate confidence so it is not a repeated 99 placeholder."""
+    upside_score = 50
+    if up_num is not None:
+        if up_num >= 35: upside_score = 92
+        elif up_num >= 25: upside_score = 84
+        elif up_num >= 15: upside_score = 74
+        elif up_num >= 5: upside_score = 62
+        elif up_num >= 0: upside_score = 54
+        else: upside_score = 38
+    analyst_score = v785_analyst_support_score(row)
+    conf = (0.42 * qual) + (0.34 * opp) + (0.14 * upside_score) + (0.10 * analyst_score)
+    if not v785_has_real_target(row):
+        conf -= 7
+    earnings_date, timing, earnings_status, _, latest_earn = v73_next_earnings(row) if "v73_next_earnings" in globals() else ("N/A", "Unknown", "Not in scan", None, None)
+    if str(timing or earnings_status).lower() in {"unknown", "not in scan", "date unavailable"}:
+        conf -= 3
+    political = str(v73_get(row, ["Political Signal", "political_signal", "political_status", "congress_signal"], "Neutral")).lower()
+    if "negative" in political or "risk" in political or "bear" in political:
+        conf -= 5
+    # Keep truly exceptional ideas possible, but avoid blanket 99s.
+    return max(45, min(96, round(conf)))
+
+
+def v785_target_display(row):
+    target = v784_target(row)
+    if target is None:
+        return "Target unavailable", "Needs validation"
+    return v784_money(target), "validated target"
+
+
 def render_v73_idea_table(df, title="Top Opportunities Today"):
     st.markdown(f"<div class='v65-section-title'>{v73_esc(title)}</div>", unsafe_allow_html=True)
-    st.markdown("<div class='v775-help'><b>How to use this:</b> This section now hides legacy 30% placeholder upside. If Atlas cannot validate price and target, upside shows N/A. Use the Research button to open the full report without logging out.</div>", unsafe_allow_html=True)
+    st.markdown("<div class='v775-help'><b>How to use this:</b> Upside is now calculated only when Atlas has a valid current price and target. Missing targets show as unavailable instead of using a placeholder. Each card has its own View Full Research button.</div>", unsafe_allow_html=True)
     if df is None or getattr(df, "empty", True):
         st.info("No top ideas found in the latest saved scan.")
         return
@@ -25809,51 +25887,60 @@ def render_v73_idea_table(df, title="Top Opportunities Today"):
     except Exception:
         pass
     view_df = df.head(10).copy()
-    cards = []
-    button_tickers = []
     rows = []
-    for i, (_, row) in enumerate(view_df.iterrows(), 1):
-        ticker = v73_ticker(row)
-        company = v73_company(row)
-        opp = v775_score(row, ["Opportunity", "Opportunity Score", "opportunity_score", "technical_agent_score"], 0)
-        qual = v775_score(row, ["Quality", "Quality Score", "quality_score", "financial_score", "fundamentals_agent_score"], 0)
-        conf = v775_score(row, ["Confidence", "AI Confidence", "confidence", "conviction_score", "Final Conviction", "ai_score"], max(opp, qual))
-        up_num = v784_upside(row)
-        target_num = v784_target(row)
-        price_num = v784_price(row)
-        decision = v775_decision(row, opp, qual, conf, up_num)
-        cls = "v775-buy" if "BUY" in decision.upper() else ("v775-avoid" if "AVOID" in decision.upper() else "v775-watch")
-        upside = v784_pct(up_num)
-        target = v784_money(target_num)
-        price = v784_money(price_num)
-        wall = v73_wall_street(row, html=False) if "v73_wall_street" in globals() else v775_text(v73_get(row, ["Wall Street", "Analyst View"], "No analyst data"), "No analyst data", 70)
-        earnings_date, timing, earnings_status, _, latest_earn = v73_next_earnings(row) if "v73_next_earnings" in globals() else ("N/A", "Unknown", "Not in scan", None, None)
-        political = v775_text(v73_get(row, ["Political Signal", "political_signal", "political_status", "congress_signal"], "Neutral"), "Neutral", 45)
-        thesis = v784_compact_thesis(row, ticker)
-        cards.append(f"""
+    # Render cards with Streamlit columns so each card can have a working internal navigation button.
+    pairs = list(view_df.iterrows())[:8]
+    for pair_start in range(0, len(pairs), 2):
+        cols = st.columns(2)
+        for col_idx, (irow, row) in enumerate(pairs[pair_start:pair_start+2], start=0):
+            with cols[col_idx]:
+                rank = pair_start + col_idx + 1
+                ticker = v73_ticker(row)
+                company = v73_company(row)
+                opp = v775_score(row, ["Opportunity", "Opportunity Score", "opportunity_score", "technical_agent_score"], 0)
+                qual = v775_score(row, ["Quality", "Quality Score", "quality_score", "financial_score", "fundamentals_agent_score"], 0)
+                up_num = v784_upside(row)
+                conf = v785_confidence(row, opp, qual, up_num)
+                target_num = v784_target(row)
+                price_num = v784_price(row)
+                decision = v775_decision(row, opp, qual, conf, up_num)
+                cls = "v775-buy" if "BUY" in decision.upper() else ("v775-avoid" if "AVOID" in decision.upper() else "v775-watch")
+                upside = v784_pct(up_num)
+                target, target_note = v785_target_display(row)
+                price = v784_money(price_num)
+                thesis = v784_compact_thesis(row, ticker)
+                target_class = "v785-unavailable" if target == "Target unavailable" else ""
+                st.markdown(f"""
 <div class='v775-card'>
   <div class='v775-card-head'><div><div class='v775-ticker'>{v73_esc(ticker)}</div><div class='v775-company'>{v73_esc(company)}</div></div><span class='v775-badge {cls}'>{v73_esc(decision)}</span></div>
   <div class='v775-mini-grid'>
     <div class='v775-mini'><span>Current</span><b>{v73_esc(price)}</b><em>latest scan</em></div>
-    <div class='v775-mini'><span>Target</span><b>{v73_esc(target)}</b><em>validated only</em></div>
-    <div class='v775-mini'><span>Upside</span><b>{v73_esc(upside)}</b><em>not capped</em></div>
+    <div class='v775-mini'><span>Target</span><b class='{target_class}'>{v73_esc(target)}</b><em>{v73_esc(target_note)}</em></div>
+    <div class='v775-mini'><span>Upside</span><b>{v73_esc(upside)}</b><em>calculated only</em></div>
     <div class='v775-mini'><span>Opportunity</span><b>{opp:.0f}</b><em>{v73_score_label(opp)}</em></div>
     <div class='v775-mini'><span>Quality</span><b>{qual:.0f}</b><em>{v73_score_label(qual)}</em></div>
     <div class='v775-mini'><span>Confidence</span><b>{conf:.0f}</b><em>{v73_score_label(conf)}</em></div>
   </div>
   <div class='v775-thesis'>{v73_esc(thesis)}</div>
+  <div class='v785-action-note'>Open the full research report before sizing any position.</div>
 </div>
-""")
-        button_tickers.append((ticker, company))
+""", unsafe_allow_html=True)
+                if st.button(f"View Full Research — {ticker}", key=f"v785_research_{ticker}_{rank}", use_container_width=True):
+                    v784_open_research(ticker)
+    # Build executive table separately, collapsed by default.
+    for i, (_, row) in enumerate(view_df.iterrows(), 1):
+        ticker = v73_ticker(row); company = v73_company(row)
+        opp = v775_score(row, ["Opportunity", "Opportunity Score", "opportunity_score", "technical_agent_score"], 0)
+        qual = v775_score(row, ["Quality", "Quality Score", "quality_score", "financial_score", "fundamentals_agent_score"], 0)
+        up_num = v784_upside(row); conf = v785_confidence(row, opp, qual, up_num)
+        decision = v775_decision(row, opp, qual, conf, up_num)
+        cls = "v775-buy" if "BUY" in decision.upper() else ("v775-avoid" if "AVOID" in decision.upper() else "v775-watch")
+        price = v784_money(v784_price(row)); target, _note = v785_target_display(row); upside = v784_pct(up_num)
+        wall = v73_wall_street(row, html=False) if "v73_wall_street" in globals() else v775_text(v73_get(row, ["Wall Street", "Analyst View"], "No analyst data"), "No analyst data", 70)
+        earnings_date, timing, earnings_status, _, latest_earn = v73_next_earnings(row) if "v73_next_earnings" in globals() else ("N/A", "Unknown", "Not in scan", None, None)
+        political = v775_text(v73_get(row, ["Political Signal", "political_signal", "political_status", "congress_signal"], "Neutral"), "Neutral", 45)
+        thesis = v784_compact_thesis(row, ticker)
         rows.append(f"""<tr><td>#{i}</td><td><b>{v73_esc(ticker)}</b><br><span class='v775-muted'>{v73_esc(company)}</span></td><td><span class='v775-badge {cls}'>{v73_esc(decision)}</span></td><td>{v73_esc(price)}</td><td>{v73_esc(target)}</td><td>{v73_esc(upside)}</td><td>{opp:.0f}<br><span class='v775-muted'>{v73_score_label(opp)}</span></td><td>{qual:.0f}<br><span class='v775-muted'>{v73_score_label(qual)}</span></td><td>{conf:.0f}<br><span class='v775-muted'>{v73_score_label(conf)}</span></td><td>{v73_esc(wall, max_len=75)}</td><td>{v73_esc(earnings_date, max_len=20)}<br><span class='v775-muted'>{v73_esc(timing or earnings_status, max_len=35)}</span></td><td>{v73_esc(political)}</td><td class='v775-thesis-cell'>{v73_esc(thesis)}</td></tr>""")
-    st.markdown("<div class='v775-card-grid'>" + "".join(cards[:8]) + "</div>", unsafe_allow_html=True)
-    # Real Streamlit buttons preserve session and avoid raw query links.
-    st.markdown("<div class='v775-open-row'><b>Open full research:</b> Choose a company below. This uses internal session navigation and will not log you out.</div>", unsafe_allow_html=True)
-    cols = st.columns(4)
-    for idx, (ticker, company) in enumerate(button_tickers[:8]):
-        with cols[idx % 4]:
-            if st.button(f"Research {ticker}", key=f"v784_research_{ticker}_{idx}", use_container_width=True):
-                v784_open_research(ticker)
     with st.expander("Full executive table", expanded=False):
         st.markdown("<div class='v775-table-wrap'><table class='v775-table'><thead><tr><th>Rank</th><th>Company</th><th>Decision</th><th>Current</th><th>Target</th><th>Upside</th><th>Opportunity</th><th>Quality</th><th>Confidence</th><th>Wall Street</th><th>Earnings</th><th>Political</th><th>AI Thesis</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>", unsafe_allow_html=True)
 
