@@ -25020,7 +25020,7 @@ if False and __name__ == "__main__":
 V74_MAJOR_UX_HOME_MARKET_VERIFIED = True
 
 # Override text cleaner globally to prevent markdown/italic merge artifacts such as AIfairvaluerange.
-def v73_clean_text(value, default="—"):
+def v73_clean_text(value, default="—", max_len=None):
     import re, html
     if value is None:
         return default
@@ -25048,6 +25048,8 @@ def v73_clean_text(value, default="—"):
     text = re.sub(r"(?<=[A-Za-z])(?=\$?\d)", " ", text)
     text = text.replace(" ;", ";").replace(" ,", ",")
     text = re.sub(r"\s+", " ", text).strip()
+    if max_len and len(text) > max_len:
+        text = text[: max_len - 1].rsplit(" ", 1)[0] + "…"
     return text or default
 
 def v74_money(v):
@@ -25636,6 +25638,7 @@ render_v74_home_dashboard = render_v775_home_dashboard
 # V78.2 EXECUTIVE DASHBOARD + NAVIGATION TRUST
 # ==============================
 V782_EXECUTIVE_DASHBOARD_NAVIGATION_VERIFIED = True
+V783_HOME_TEXT_CLEANER_STABILITY_VERIFIED = True
 
 
 
