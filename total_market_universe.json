@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-09T17:50:59.338830+00:00",
-  "count": 3155,
+  "generated_at": "2026-07-09T20:53:09.021937+00:00",
+  "count": 3157,
   "symbols": [
     "A",
     "AA",
@@ -1019,6 +1019,7 @@
     "EXK",
     "EXLS",
     "EXP",
+    "EXPD",
     "EXPE",
     "EXPO",
     "EXR",
@@ -2613,6 +2614,7 @@
     "SRFM",
     "SRG",
     "SRI",
+    "SRL",
     "SRPT",
     "SRRK",
     "SSD",
