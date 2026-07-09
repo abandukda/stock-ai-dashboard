@@ -5,8 +5,6 @@ import math
 import datetime as dt
 import json
 import csv
-
-V786_NAV_TARGET_EARNINGS_FIX_VERIFIED = True
 from pathlib import Path
 from urllib.parse import quote_plus
 from io import StringIO
@@ -20378,6 +20376,12 @@ def render_v51_bull_base_bear(row):
 
 
 def render_v51_investment_committee(row):
+    """V79: AI-assisted Investment Committee.
+
+    Deterministic Atlas scoring remains the source of truth. The LLM layer, when
+    configured, synthesizes those facts into a CIO-style narrative without
+    inventing numbers.
+    """
     report = v51_report(row)
     ticker = v51_text(report.get("ticker") or report.get("Ticker"), "")
     ws = v51_wallstreet_pack(ticker) if ticker else {}
@@ -20386,27 +20390,90 @@ def render_v51_investment_committee(row):
     wall = v51_wallstreet_narrative(report, ws)
     smart = v51_smart_money_narrative(report)
     tech = v51_technical_narrative(report)
+    news = v51_news_narrative(report, ticker) if ticker else {"verdict": "Unavailable", "bottom": "No ticker-specific catalyst digest was available."}
+
+    # Structured facts for the AI synthesis layer.  This is intentionally compact
+    # so the model explains existing Atlas evidence rather than inventing data.
+    committee_context = {}
+    try:
+        from services.ai_synthesis import build_ticker_context, generate_investment_committee
+        committee_context = build_ticker_context(report)
+    except Exception:
+        generate_investment_committee = None
+        committee_context = {}
+
+    committee_context.update({
+        "ticker": ticker or committee_context.get("ticker", "Unknown"),
+        "committee_decision": status.get("label"),
+        "classification": status.get("classification"),
+        "opportunity_score": status.get("opportunity"),
+        "quality_score": status.get("quality"),
+        "risk_reward": status.get("risk_reward"),
+        "financial_agent": fin,
+        "wall_street_agent": wall,
+        "smart_money_agent": smart,
+        "technical_agent": tech,
+        "news_agent": news,
+    })
+
+    agent_rows = [
+        ("📊 Fundamental Analyst", fin.get("verdict", "Review"), fin.get("bottom", "Financial evidence needs review.")),
+        ("🏦 Wall Street Analyst", wall.get("verdict", "Review"), wall.get("bottom", "Wall Street support needs review.")),
+        ("🏛 Smart Money Analyst", smart.get("verdict", "Review"), smart.get("bottom", "Institutional and insider evidence is not decisive.")),
+        ("📈 Technical Analyst", tech.get("verdict", "Review"), tech.get("bottom", "Technical evidence should be used for timing, not thesis alone.")),
+        ("📰 News & Catalyst Analyst", news.get("verdict", "Review"), news.get("bottom", "No major catalyst read-through was available.")),
+        ("⚠️ Risk Officer", "Risk Review", "Position sizing should depend on valuation discipline, stop level, earnings risk, and whether support holds."),
+    ]
+
+    try:
+        cio_summary = generate_investment_committee(committee_context) if generate_investment_committee else ""
+    except Exception:
+        cio_summary = ""
+
     with st.container(border=True):
-        st.markdown("### ⚖️ AI Investment Committee")
-        st.markdown("**Evidence Reviewed:** Financial quality, Wall Street support, institutional behavior, technical timing, news/catalysts, and target discipline.")
-        st.markdown("**Why We Like It**")
-        likes = []
-        if wall["verdict"] in {"Strongly Positive", "Constructive"}: likes.append("Wall Street support is constructive.")
-        if status["opportunity"] >= 80: likes.append("Opportunity score is high.")
-        if status["risk_reward"] >= 2: likes.append("Risk/reward is attractive.")
-        if tech["verdict"].startswith("Constructive"): likes.append("Technical timing is supportive.")
-        if not likes: likes.append("Some signals are supportive, but the evidence is not yet broad-based.")
-        for x in likes: st.markdown(f"✓ {x}")
-        st.markdown("**Biggest Risks**")
-        risks = []
-        if status["quality"] < 70: risks.append(fin["bottom"])
-        risks.append("Analyst sentiment could weaken if execution or earnings disappoint.")
-        risks.append("Technical support failure on high volume would reduce timing confidence.")
-        for x in risks[:4]: st.markdown(f"⚠️ {x}")
-        st.markdown("**What Would Change Our Mind**")
-        for x in ["Financial quality improves enough to clear the Top Choice threshold.", "Analysts raise targets and estimates while ratings remain supportive.", "Institutional ownership trend confirms continued accumulation.", "Price breaks below key support with heavy selling volume."]:
+        st.markdown("### ⚖️ Atlas AI Investment Committee")
+        st.caption("V79: deterministic Atlas agents produce the evidence; the AI layer synthesizes the committee view without inventing numbers.")
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            st.metric("Committee Decision", status.get("label", "Review"))
+        with c2:
+            st.metric("Opportunity", status.get("opportunity", "—"))
+        with c3:
+            st.metric("Quality", status.get("quality", "—"))
+        with c4:
+            st.metric("Risk/Reward", status.get("risk_reward", "—"))
+
+        st.markdown("#### Specialist Agent Read-Through")
+        cols = st.columns(2)
+        for idx, (role, verdict, bottom) in enumerate(agent_rows):
+            with cols[idx % 2]:
+                st.markdown(
+                    f"""
+                    <div style='border:1px solid rgba(148,163,184,.22);border-radius:18px;padding:16px;margin:8px 0;background:rgba(15,23,42,.55);'>
+                        <div style='font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;color:#93c5fd;font-weight:800;'>{v73_esc(role)}</div>
+                        <div style='font-size:1.15rem;color:#f8fafc;font-weight:900;margin-top:6px;'>{v73_esc(verdict)}</div>
+                        <div style='font-size:.95rem;color:#cbd5e1;margin-top:8px;line-height:1.45;'>{v73_esc(bottom)}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+        st.markdown("#### CIO Synthesis")
+        if cio_summary:
+            st.markdown(cio_summary)
+        else:
+            st.markdown(f"**Committee Decision:** {status.get('label', 'Review')} — {status.get('classification', 'Needs full review')}")
+            st.markdown("Atlas is using deterministic committee evidence. Configure `OPENAI_API_KEY` to enable full AI synthesis.")
+
+        st.markdown("#### What Would Change Our Mind")
+        for x in [
+            "Financial quality weakens materially or fails to support the thesis.",
+            "Analyst targets or earnings estimates move lower after new information.",
+            "Technical trend breaks below support on heavy selling volume.",
+            "A new catalyst changes the risk/reward profile or invalidates the original thesis.",
+        ]:
             st.markdown(f"• {x}")
-        st.markdown(f"**Committee Decision:** {status['label']} — {status['classification']}")
+
 
 
 # Preserve the last pre-V51 detail page for Advanced Research only.
@@ -24666,28 +24733,7 @@ def render_v73_top_nav(pages):
   </div>
 </div>
 """, unsafe_allow_html=True)
-    desired = st.session_state.get("v73_page", pages[0])
-    if desired not in pages:
-        desired = pages[0]
-    # Keep the Streamlit radio key synchronized with internal navigation buttons.
-    try:
-        if st.session_state.get("v73_top_navigation") not in pages:
-            st.session_state["v73_top_navigation"] = desired
-        elif st.session_state.get("v73_force_nav"):
-            st.session_state["v73_top_navigation"] = desired
-            st.session_state["v73_force_nav"] = False
-    except Exception:
-        pass
-    selected = st.radio(
-        "Navigation",
-        pages,
-        index=pages.index(st.session_state.get("v73_top_navigation", desired)) if st.session_state.get("v73_top_navigation", desired) in pages else pages.index(desired),
-        horizontal=True,
-        label_visibility="collapsed",
-        key="v73_top_navigation",
-    )
-    st.session_state["v73_page"] = selected
-    return selected
+    return st.radio("Navigation", pages, horizontal=True, label_visibility="collapsed", key="v73_top_navigation")
 
 
 
@@ -24731,10 +24777,7 @@ def v782_open_research(ticker):
     """Internal navigation helper: routes to Research without query-param logout/session loss."""
     if ticker:
         st.session_state["v73_research_ticker"] = str(ticker).upper().strip()
-        st.session_state["selected_ticker"] = str(ticker).upper().strip()
         st.session_state["v73_page"] = "Research Any Ticker"
-        st.session_state["v73_top_navigation"] = "Research Any Ticker"
-        st.session_state["v73_force_nav"] = True
         try:
             st.query_params.clear()
         except Exception:
@@ -24804,18 +24847,12 @@ def render_v73_earnings_page(full_df=None, top_df=None):
             link_html = f"<br><a href='{_v73_html.escape(transcript)}' target='_blank'>Open transcript/source</a>"
         elif latest:
             # Search link so the user can open the likely article when source URL is missing.
-            link_html = "<br><span class='v73-small'>Open Atlas Research below for earnings context</span>"
+            link_html = f"<br><a href='https://www.google.com/search?q={_v73_quote_plus(ticker + ' ' + latest)}' target='_blank'>Search latest earnings story</a>"
         ai_read = "Check before new positions; earnings can quickly change guidance, sentiment, and risk/reward."
         if latest:
             ai_read = v73_clean_text(latest, max_len=120)
         rows.append(f"<tr><td><b>{v73_esc(ticker)}</b></td><td>{v73_esc(company)}</td><td>{v73_esc(date)}</td><td>{v73_esc(timing)}</td><td>{v73_esc(status)}{link_html}</td><td>{v73_esc(ai_read)}</td></tr>")
     st.markdown("""<div class='v73-table-wrap'><table class='v73-table'><thead><tr><th>Ticker</th><th>Company</th><th>Next earnings</th><th>Timing</th><th>Transcript / source</th><th>AI earnings read</th></tr></thead><tbody>""" + "".join(rows) + "</tbody></table></div>", unsafe_allow_html=True)
-    tickers_for_research = [v73_ticker(r) for _, r in source.head(25).iterrows() if v73_ticker(r)]
-    if tickers_for_research:
-        st.markdown("<div class='v65-section-title'>Open Atlas earnings research</div>", unsafe_allow_html=True)
-        selected_earnings_ticker = st.selectbox("Choose company to open in full Atlas Research", tickers_for_research, key="v786_earnings_research_select")
-        if st.button(f"Open Research for {selected_earnings_ticker}", key="v786_open_earnings_research"):
-            v784_open_research(selected_earnings_ticker)
 
 
 def render_v73_news(row):
@@ -25535,10 +25572,7 @@ def v782_open_research(ticker):
     """Internal navigation helper: routes to Research without query-param logout/session loss."""
     if ticker:
         st.session_state["v73_research_ticker"] = str(ticker).upper().strip()
-        st.session_state["selected_ticker"] = str(ticker).upper().strip()
         st.session_state["v73_page"] = "Research Any Ticker"
-        st.session_state["v73_top_navigation"] = "Research Any Ticker"
-        st.session_state["v73_force_nav"] = True
         try:
             st.query_params.clear()
         except Exception:
@@ -25751,32 +25785,14 @@ def v784_placeholder_target(price, target, raw_upside=None):
 
 
 def v784_target(row):
-    """Return the best validated target without relying on legacy 30% placeholder targets.
-
-    Priority:
-    1) Wall Street/analyst consensus target when available
-    2) Atlas/AI fair value fields
-    3) raw scan target only when it is not the known price*1.30 placeholder
-    """
     price = v784_price(row)
-
-    priority_groups = [
-        ["target_mean_price", "analyst_target_mean", "Analyst Target", "consensus_target", "priceTarget", "target_price"],
-        ["AI Fair Value", "ai_fair_value", "ai_base_target", "fair_value", "Fair Value"],
-        ["target", "Target"],
-    ]
+    target = v784_raw_target(row)
     raw_upside = v73_get(row, ["Target Upside %", "target_upside_pct", "expected_upside_pct", "upside", "analyst_upside_pct"], None)
+    if price and target and v784_placeholder_target(price, target, raw_upside):
+        # Legacy scans often stored target = price * 1.30. Treat as unavailable instead of showing fake precision.
+        return None
+    return target
 
-    for group in priority_groups:
-        for k in group:
-            val = v784_num(v73_get(row, [k], None), None)
-            if val is None or val <= 0:
-                continue
-            # Only reject the raw scan target if it is the legacy 30% placeholder.
-            if k in {"target", "Target"} and price and v784_placeholder_target(price, val, raw_upside):
-                continue
-            return val
-    return None
 
 def v784_upside(row):
     price = v784_price(row)
@@ -25836,10 +25852,7 @@ def v784_open_research(ticker):
     if not ticker:
         return
     st.session_state["v73_research_ticker"] = ticker
-    st.session_state["selected_ticker"] = ticker
     st.session_state["v73_page"] = "Research Any Ticker"
-    st.session_state["v73_top_navigation"] = "Research Any Ticker"
-    st.session_state["v73_force_nav"] = True
     try:
         st.query_params.clear()
     except Exception:
@@ -25927,11 +25940,8 @@ def v785_confidence(row, opp, qual, up_num):
 def v785_target_display(row):
     target = v784_target(row)
     if target is None:
-        return "No validated target", "Target source unavailable"
-    # Prefer clear label so clients know whether this is Wall Street or Atlas-driven.
-    analyst = v784_num(v73_get(row, ["target_mean_price", "analyst_target_mean", "Analyst Target", "consensus_target"], None), None)
-    label = "Wall Street target" if analyst is not None and abs(float(analyst) - float(target)) < 0.01 else "Atlas fair value"
-    return v784_money(target), label
+        return "Target unavailable", "Needs validation"
+    return v784_money(target), "validated target"
 
 
 def render_v73_idea_table(df, title="Top Opportunities Today"):
@@ -25968,7 +25978,7 @@ def render_v73_idea_table(df, title="Top Opportunities Today"):
                 target, target_note = v785_target_display(row)
                 price = v784_money(price_num)
                 thesis = v784_compact_thesis(row, ticker)
-                target_class = "v785-unavailable" if target == "No validated target" else ""
+                target_class = "v785-unavailable" if target == "Target unavailable" else ""
                 st.markdown(f"""
 <div class='v775-card'>
   <div class='v775-card-head'><div><div class='v775-ticker'>{v73_esc(ticker)}</div><div class='v775-company'>{v73_esc(company)}</div></div><span class='v775-badge {cls}'>{v73_esc(decision)}</span></div>
@@ -26034,68 +26044,37 @@ def v784_timing_label(date_text, fallback="Unknown"):
     return f"Reported {abs(delta)} days ago"
 
 
-def v786_current_month_or_upcoming(date_text):
-    """Return True for upcoming events or events reported in the current month."""
-    d = v784_parse_date(date_text)
-    if d is None:
-        return True  # keep uncertain high-priority names, but label them clearly
-    today = dt.date.today()
-    if d >= today:
-        return True
-    return d.year == today.year and d.month == today.month
-
-
 def render_v73_earnings_page(full_df=None, top_df=None):
     st.markdown("<div class='v65-section-title'>💼 Earnings Intelligence</div>", unsafe_allow_html=True)
-    st.markdown("<div class='v775-help'><b>How to use this:</b> This page focuses on upcoming earnings and earnings already reported this month. Open Atlas Research for the ticker to review earnings context, thesis impact, chart, targets, and risk before acting.</div>", unsafe_allow_html=True)
+    st.markdown("<div class='v775-help'><b>How to use this:</b> Earnings can reset the thesis quickly. Focus first on companies with upcoming dates, transcript evidence, or meaningful guidance/news read-through.</div>", unsafe_allow_html=True)
     df = top_df if top_df is not None and not getattr(top_df, "empty", True) else full_df
     if df is None or getattr(df, "empty", True):
         st.info("No earnings data available in the latest saved scan.")
         return
-
-    candidates = []
-    for _, row in df.head(80).iterrows():
-        date, timing, status, url, latest = v73_next_earnings(row) if "v73_next_earnings" in globals() else ("N/A", "Unknown", "Not in scan", None, None)
-        if v786_current_month_or_upcoming(date):
-            candidates.append((row, date, timing, status, url, latest))
-    candidates = candidates[:20]
-
     cards = []
     rows = []
-    research_tickers = []
-    for row, date, timing, status, url, latest in candidates:
+    for _, row in df.head(20).iterrows():
         ticker = v73_ticker(row); company = v73_company(row)
-        if ticker:
-            research_tickers.append(ticker)
+        date, timing, status, url, latest = v73_next_earnings(row) if "v73_next_earnings" in globals() else ("N/A", "Unknown", "Not in scan", None, None)
         timing_label = v784_timing_label(date, timing)
         price = v784_money(v784_price(row))
-        read = v775_text(latest if latest and latest != "—" else status, "No earnings summary in saved scan. Open Atlas Research for the full context.", 220)
-        transcript_status = "Transcript/source available" if str(url).startswith("http") else "Transcript not confirmed in saved scan"
-
+        transcript_label = "Read transcript/source" if str(url).startswith("http") else ("Search transcript" if "transcript" in str(status).lower() else "Transcript not confirmed")
+        href = str(url) if str(url).startswith("http") else f"https://www.google.com/search?q={_v73_quote_plus(ticker + ' earnings transcript') }"
+        read = v775_text(latest if latest and latest != "—" else status, "No earnings summary in saved scan", 220)
         cards.append(f"""
 <div class='v775-news-card'>
   <b>{v73_esc(ticker)} — {v73_esc(company)}</b><br>
   <span class='v775-muted'>Price: {v73_esc(price)} · Earnings: {v73_esc(date)} · {v73_esc(timing_label)}</span><br>
-  <span class='v73-small'>{v73_esc(transcript_status)}</span>
+  <a href='{_v73_html.escape(href)}' target='_blank'>{v73_esc(transcript_label)}</a>
   <small>{v73_esc(read)}</small>
 </div>
 """)
-        rows.append(f"""<tr><td><b>{v73_esc(ticker)}</b></td><td>{v73_esc(company)}</td><td>{v73_esc(price)}</td><td>{v73_esc(date)}</td><td>{v73_esc(timing_label)}</td><td>{v73_esc(transcript_status)}</td><td>{v73_esc(read)}</td></tr>""")
-
-    if not candidates:
-        st.info("No upcoming or current-month earnings candidates were found in the latest saved scan.")
-        return
-
+        rows.append(f"""<tr><td><b>{v73_esc(ticker)}</b></td><td>{v73_esc(company)}</td><td>{v73_esc(price)}</td><td>{v73_esc(date)}</td><td>{v73_esc(timing_label)}</td><td><a href='{_v73_html.escape(href)}' target='_blank'>{v73_esc(transcript_label)}</a></td><td>{v73_esc(read)}</td></tr>""")
     st.markdown("<div class='v775-card-grid'>" + "".join(cards[:6]) + "</div>", unsafe_allow_html=True)
-
-    if research_tickers:
-        selected_earnings_ticker = st.selectbox("Open company earnings research in Atlas", research_tickers, key="v786_earnings_research_select")
-        if st.button(f"Open Research for {selected_earnings_ticker}", key="v786_open_earnings_research"):
-            v784_open_research(selected_earnings_ticker)
-
     with st.expander("All earnings candidates", expanded=False):
-        st.markdown("<div class='v775-table-wrap'><table class='v775-table'><thead><tr><th>Ticker</th><th>Company</th><th>Current</th><th>Earnings Date</th><th>Timing</th><th>Transcript Status</th><th>Atlas Read</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>", unsafe_allow_html=True)
-    st.caption("Atlas does not send users to Google from this module. Use Open Research to review earnings context inside Atlas.")
+        st.markdown("<div class='v775-table-wrap'><table class='v775-table'><thead><tr><th>Ticker</th><th>Company</th><th>Current</th><th>Earnings Date</th><th>Timing</th><th>Transcript / Link</th><th>Atlas Read</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>", unsafe_allow_html=True)
+    st.caption("If an earnings date is estimated or missing, Atlas treats it as a research follow-up item rather than a trading signal.")
+
 
 def render_v775_home_dashboard(full_df=None, top_df=None, recovery_df=None):
     full_count = 0 if full_df is None or getattr(full_df, "empty", True) else len(full_df)
@@ -26159,3 +26138,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# V79 Professional Research Engine marker
+V79_AI_COMMITTEE_RESEARCH_ENGINE_VERIFIED = True

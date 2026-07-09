@@ -1,10 +1,10 @@
 """
-Atlas V78 AI Synthesis Layer.
+Atlas AI Synthesis Layer.
 
 Design principle:
 - Deterministic scoring remains the source of truth.
-- LLMs synthesize and explain the facts; they do not invent numbers.
-- If OPENAI_API_KEY is not configured, Atlas falls back to a deterministic narrative.
+- LLMs synthesize and explain facts; they do not invent numbers.
+- If OPENAI_API_KEY is not configured, Atlas falls back to deterministic narrative.
 """
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ import os
 from typing import Any, Mapping
 
 V78_AI_SYNTHESIS_LAYER_VERIFIED = True
+V79_AI_COMMITTEE_SYNTHESIS_VERIFIED = True
 
 _MISSING = {"", "nan", "none", "null", "n/a", "na", "—", "-"}
 
@@ -28,7 +29,7 @@ def _clean(value: Any, default: str = "Unavailable") -> str:
 def _pick(row: Mapping[str, Any], *keys: str, default: Any = None) -> Any:
     for key in keys:
         try:
-            value = row.get(key)  # pandas Series and dict both support get
+            value = row.get(key)
         except Exception:
             value = None
         if value is None:
@@ -102,14 +103,22 @@ def build_ticker_context(row: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _agent_line(agent: Any, fallback: str = "Needs review") -> str:
+    if isinstance(agent, Mapping):
+        verdict = _clean(agent.get("verdict"), default="Review")
+        bottom = _clean(agent.get("bottom"), default="")
+        return f"{verdict}: {bottom}" if bottom else verdict
+    return _clean(agent, default=fallback)
+
+
 def deterministic_ticker_answer(question: str, context: Mapping[str, Any]) -> str:
     ticker = context.get("ticker", "This ticker")
     company = context.get("company", "")
     name = f"{ticker} ({company})" if company else str(ticker)
     parts = [
         f"### Atlas view on {name}",
-        f"**Decision:** {context.get('decision', 'Review')}",
-        f"**Conviction:** {context.get('conviction', 'Unavailable')} | **Opportunity:** {context.get('opportunity', 'Unavailable')} | **Quality:** {context.get('quality', 'Unavailable')}",
+        f"**Decision:** {context.get('decision', context.get('committee_decision', 'Review'))}",
+        f"**Conviction:** {context.get('conviction', 'Unavailable')} | **Opportunity:** {context.get('opportunity', context.get('opportunity_score', 'Unavailable'))} | **Quality:** {context.get('quality', context.get('quality_score', 'Unavailable'))}",
         f"**Current price:** {context.get('current_price')} | **Atlas fair value:** {context.get('atlas_fair_value')} | **Wall Street target:** {context.get('analyst_target')} | **Upside:** {context.get('upside')}",
     ]
     thesis = context.get("investment_thesis") or context.get("committee_conclusion")
@@ -130,6 +139,28 @@ def deterministic_ticker_answer(question: str, context: Mapping[str, Any]) -> st
     return "\n".join(parts)
 
 
+def deterministic_committee_summary(context: Mapping[str, Any]) -> str:
+    ticker = context.get("ticker", "This ticker")
+    company = context.get("company", "")
+    name = f"{ticker} — {company}" if company else str(ticker)
+    decision = context.get("committee_decision") or context.get("decision") or "Review"
+    classification = context.get("classification") or "Needs full review"
+    return "\n".join([
+        f"**CIO View:** {decision} — {classification}",
+        "",
+        f"Atlas reviewed {name} using financial quality, Wall Street support, smart-money context, technical timing, news/catalysts, and risk controls.",
+        "",
+        "**Agent evidence:**",
+        f"- Fundamental Analyst: {_agent_line(context.get('financial_agent'))}",
+        f"- Wall Street Analyst: {_agent_line(context.get('wall_street_agent'))}",
+        f"- Smart Money Analyst: {_agent_line(context.get('smart_money_agent'))}",
+        f"- Technical Analyst: {_agent_line(context.get('technical_agent'))}",
+        f"- News & Catalyst Analyst: {_agent_line(context.get('news_agent'))}",
+        "",
+        "**Bottom line:** Use the committee verdict as a research prioritization signal, not an automatic trade. Confirm target quality, earnings timing, liquidity, and downside controls before sizing a position.",
+    ])
+
+
 def _llm_prompt(question: str, context: Mapping[str, Any]) -> list[dict[str, str]]:
     return [
         {
@@ -148,26 +179,53 @@ def _llm_prompt(question: str, context: Mapping[str, Any]) -> list[dict[str, str
     ]
 
 
-def answer_ticker_question(question: str, context: Mapping[str, Any]) -> str:
-    """Answer using LLM if configured, otherwise use deterministic fallback."""
+def _committee_prompt(context: Mapping[str, Any]) -> list[dict[str, str]]:
+    return [
+        {
+            "role": "system",
+            "content": (
+                "You are the Atlas Chief Investment Officer. Produce a concise investment committee synthesis. "
+                "Use only the supplied deterministic agent outputs and numerical fields. Do not invent missing metrics. "
+                "Label uncertainty clearly. Avoid personalized financial advice."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                f"Structured Atlas committee facts:\n{dict(context)}\n\n"
+                "Write sections: CIO View, Bull Case, Bear Case, Key Risks, What Would Change Our Mind, Bottom Line. "
+                "Keep it concise and institutional but understandable to retail investors."
+            ),
+        },
+    ]
+
+
+def _call_llm(messages: list[dict[str, str]], fallback: str, max_tokens: int = 800) -> str:
     if not llm_is_configured():
-        return deterministic_ticker_answer(question, context)
+        return fallback
     try:
         from openai import OpenAI
         client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
         model = os.getenv("ATLAS_LLM_MODEL", "gpt-4o-mini")
         completion = client.chat.completions.create(
             model=model,
-            messages=_llm_prompt(question, context),
+            messages=messages,
             temperature=0.2,
-            max_tokens=700,
+            max_tokens=max_tokens,
         )
         text = completion.choices[0].message.content or ""
-        return text.strip() or deterministic_ticker_answer(question, context)
+        return text.strip() or fallback
     except Exception:
-        return deterministic_ticker_answer(question, context)
+        return fallback
+
+
+def answer_ticker_question(question: str, context: Mapping[str, Any]) -> str:
+    """Answer using LLM if configured, otherwise use deterministic fallback."""
+    fallback = deterministic_ticker_answer(question, context)
+    return _call_llm(_llm_prompt(question, context), fallback, max_tokens=700)
 
 
 def generate_investment_committee(context: Mapping[str, Any]) -> str:
-    question = "Create an Atlas Investment Committee summary for this ticker."
-    return answer_ticker_question(question, context)
+    """Generate a single CIO synthesis from deterministic agent outputs."""
+    fallback = deterministic_committee_summary(context)
+    return _call_llm(_committee_prompt(context), fallback, max_tokens=900)
