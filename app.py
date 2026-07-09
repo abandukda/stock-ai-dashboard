@@ -24775,14 +24775,7 @@ def v782_calc_upside(row):
 
 def v782_open_research(ticker):
     """Internal navigation helper: routes to Research without query-param logout/session loss."""
-    if ticker:
-        st.session_state["v73_research_ticker"] = str(ticker).upper().strip()
-        st.session_state["v73_page"] = "Research Any Ticker"
-        try:
-            st.query_params.clear()
-        except Exception:
-            pass
-        st.rerun()
+    return v784_open_research(ticker)
 
 def render_v73_idea_table(df, title="Today's Highest Conviction Ideas"):
     if df is None or getattr(df, "empty", True):
@@ -25570,14 +25563,7 @@ def v782_calc_upside(row):
 
 def v782_open_research(ticker):
     """Internal navigation helper: routes to Research without query-param logout/session loss."""
-    if ticker:
-        st.session_state["v73_research_ticker"] = str(ticker).upper().strip()
-        st.session_state["v73_page"] = "Research Any Ticker"
-        try:
-            st.query_params.clear()
-        except Exception:
-            pass
-        st.rerun()
+    return v784_open_research(ticker)
 
 def render_v73_idea_table(df, title="Today's Highest Conviction Ideas"):
     """V77.5 Top Ideas: clear ticker/company, no compressed mobile table, better action language."""
@@ -25848,11 +25834,27 @@ def v784_top_nav(pages):
 
 
 def v784_open_research(ticker):
+    """Route internally to Research without using URL query links.
+
+    Streamlit radio widgets keep their own state by key, so setting only
+    v73_page is not enough. Set every known navigation key before rerun.
+    """
     ticker = str(ticker or "").strip().upper()
     if not ticker:
         return
     st.session_state["v73_research_ticker"] = ticker
-    st.session_state["v73_page"] = "Research Any Ticker"
+    st.session_state["selected_ticker"] = ticker
+    st.session_state["selected_research_ticker"] = ticker
+    # Keep all historical navigation keys synchronized so older render paths do not snap back to Home/Top Ideas.
+    for nav_key in [
+        "v73_page",
+        "v784_single_nav",
+        "v73_top_navigation",
+        "v72_top_navigation",
+        "v71_platform_nav",
+        "v651_platform_nav",
+    ]:
+        st.session_state[nav_key] = "Research Any Ticker"
     try:
         st.query_params.clear()
     except Exception:
@@ -25938,10 +25940,25 @@ def v785_confidence(row, opp, qual, up_num):
 
 
 def v785_target_display(row):
+    """Display a target only when it can be tied to data.
+
+    Priority:
+    1) explicit validated target/fair value columns
+    2) derived target from current price + provided upside percentage
+    3) unavailable state
+    """
+    price = v784_price(row)
     target = v784_target(row)
-    if target is None:
-        return "Target unavailable", "Needs validation"
-    return v784_money(target), "validated target"
+    if target is not None:
+        return v784_money(target), "validated target"
+    # Some saved scans carry upside but not a target after placeholder filtering.
+    # Derive the target transparently instead of showing a large yellow unavailable card.
+    up = v784_upside(row)
+    if price and up is not None:
+        modeled = price * (1 + (up / 100.0))
+        if modeled > 0:
+            return v784_money(modeled), "derived from upside"
+    return "No validated target", "Needs validation"
 
 
 def render_v73_idea_table(df, title="Top Opportunities Today"):
@@ -25978,7 +25995,7 @@ def render_v73_idea_table(df, title="Top Opportunities Today"):
                 target, target_note = v785_target_display(row)
                 price = v784_money(price_num)
                 thesis = v784_compact_thesis(row, ticker)
-                target_class = "v785-unavailable" if target == "Target unavailable" else ""
+                target_class = "v785-unavailable" if target in {"Target unavailable", "No validated target"} else ""
                 st.markdown(f"""
 <div class='v775-card'>
   <div class='v775-card-head'><div><div class='v775-ticker'>{v73_esc(ticker)}</div><div class='v775-company'>{v73_esc(company)}</div></div><span class='v775-badge {cls}'>{v73_esc(decision)}</span></div>
@@ -26142,3 +26159,4 @@ if __name__ == "__main__":
 
 # V79 Professional Research Engine marker
 V79_AI_COMMITTEE_RESEARCH_ENGINE_VERIFIED = True
+V791_RESEARCH_NAV_TARGET_HOTFIX_VERIFIED = True
