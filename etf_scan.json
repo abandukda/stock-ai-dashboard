@@ -9,9 +9,9 @@
     "quote_type": "ETF",
     "price": 751.71,
     "current_price": 751.71,
-    "dollar_volume": 44704629683.03,
-    "avg_volume_20d": 59470578,
-    "volume_ratio": 0.66,
+    "dollar_volume": 44782090957.74,
+    "avg_volume_20d": 59573625,
+    "volume_ratio": 0.69,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -53,7 +53,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T00:34:02.130366+00:00",
+    "scan_time": "2026-07-10T08:08:44.421457+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 758.45,
@@ -234,9 +234,9 @@
     "quote_type": "ETF",
     "price": 723.28,
     "current_price": 723.28,
-    "dollar_volume": 34305678953.51,
-    "avg_volume_20d": 47430701,
-    "volume_ratio": 0.7,
+    "dollar_volume": 34319322763.32,
+    "avg_volume_20d": 47449565,
+    "volume_ratio": 0.71,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -278,7 +278,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T00:31:41.999302+00:00",
+    "scan_time": "2026-07-10T08:07:00.575389+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 747.83,
@@ -315,7 +315,7 @@
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
           "CRWV Vs. QQQ: Buy CoreWeave for Explosive AI Alpha or Hold QQQ for Insulated Macro Safety?",
-          "The Nasdaq 100 Now Controls a Quarter of Every Growth ETF Dollar",
+          "Initial Unemployment Claims Down 2K, Lower Than Expected",
           "AAII Sentiment Survey: Pessimism Drops"
         ],
         "risks": [
@@ -461,7 +461,7 @@
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
       "CRWV Vs. QQQ: Buy CoreWeave for Explosive AI Alpha or Hold QQQ for Insulated Macro Safety?",
-      "The Nasdaq 100 Now Controls a Quarter of Every Growth ETF Dollar",
+      "Initial Unemployment Claims Down 2K, Lower Than Expected",
       "AAII Sentiment Survey: Pessimism Drops"
     ],
     "v42_news_risks": [
@@ -493,9 +493,9 @@
     "quote_type": "ETF",
     "price": 297.24,
     "current_price": 297.24,
-    "dollar_volume": 8140694296.25,
-    "avg_volume_20d": 27387614,
-    "volume_ratio": 0.59,
+    "dollar_volume": 8144210764.23,
+    "avg_volume_20d": 27399445,
+    "volume_ratio": 0.6,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -537,7 +537,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T00:24:34.038573+00:00",
+    "scan_time": "2026-07-10T08:02:22.856386+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 302.72,
@@ -567,19 +567,20 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 69,
-        "status": "Mixed",
-        "impact": "Neutral",
+        "score": 76,
+        "status": "Positive",
+        "impact": "Positive",
         "data_used": "NewsAPI, Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
           "Small-Cap ETFs Poised for Big Growth as Rate Outlook Shifts",
+          "Initial Unemployment Claims Down 2K, Lower Than Expected",
           "AAII Sentiment Survey: Pessimism Drops"
         ],
         "risks": [
           "No negative high-confidence headline detected."
         ],
-        "bottom_line": "News is mixed or insufficient."
+        "bottom_line": "News flow supports the thesis."
       },
       "Finance Agent": {
         "score": 50,
@@ -713,10 +714,11 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 69,
-    "v42_news_summary": "News is mixed or insufficient.",
+    "v42_news_score": 76,
+    "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
       "Small-Cap ETFs Poised for Big Growth as Rate Outlook Shifts",
+      "Initial Unemployment Claims Down 2K, Lower Than Expected",
       "AAII Sentiment Survey: Pessimism Drops"
     ],
     "v42_news_risks": [
@@ -748,9 +750,9 @@
     "quote_type": "ETF",
     "price": 690.69,
     "current_price": 690.69,
-    "dollar_volume": 7858206669.56,
-    "avg_volume_20d": 11377327,
-    "volume_ratio": 0.45,
+    "dollar_volume": 7901662846.98,
+    "avg_volume_20d": 11440245,
+    "volume_ratio": 0.56,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -792,7 +794,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T00:37:00.151501+00:00",
+    "scan_time": "2026-07-10T08:10:53.365972+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 697.12,
@@ -973,9 +975,9 @@
     "quote_type": "ETF",
     "price": 79.75,
     "current_price": 79.75,
-    "dollar_volume": 2620673534.46,
-    "avg_volume_20d": 32861110,
-    "volume_ratio": 0.63,
+    "dollar_volume": 2624822117.5,
+    "avg_volume_20d": 32913130,
+    "volume_ratio": 0.66,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -1015,7 +1017,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T00:23:42.955870+00:00",
+    "scan_time": "2026-07-10T08:01:45.224091+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 79.99,
@@ -1230,9 +1232,9 @@
     "quote_type": "ETF",
     "price": 524.19,
     "current_price": 524.19,
-    "dollar_volume": 2605704732.27,
-    "avg_volume_20d": 4970916,
-    "volume_ratio": 0.58,
+    "dollar_volume": 2610502905.46,
+    "avg_volume_20d": 4980070,
+    "volume_ratio": 0.61,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -1274,7 +1276,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T00:19:13.007271+00:00",
+    "scan_time": "2026-07-10T07:58:36.570355+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 532.54,
@@ -1304,7 +1306,7 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 60,
+        "score": 67,
         "status": "Mixed",
         "impact": "Neutral",
         "data_used": "NewsAPI, Finnhub company news",
@@ -1312,6 +1314,7 @@
         "findings": [
           "ai-impact-accounting 0.1.0",
           "ai-impact-accounting added to PyPI",
+          "Initial Unemployment Claims Down 2K, Lower Than Expected",
           "AAII Sentiment Survey: Pessimism Drops"
         ],
         "risks": [
@@ -1454,11 +1457,12 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 60,
+    "v42_news_score": 67,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
       "ai-impact-accounting 0.1.0",
       "ai-impact-accounting added to PyPI",
+      "Initial Unemployment Claims Down 2K, Lower Than Expected",
       "AAII Sentiment Survey: Pessimism Drops"
     ],
     "v42_news_risks": [
@@ -1478,7 +1482,7 @@
     "v42_breakout_level": 537.87,
     "v42_pullback_zone": "$498.74 - $513.71",
     "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
-    "v42_committee_positive_agents": 1,
+    "v42_committee_positive_agents": 2,
     "v42_committee_total_agents": 10
   },
   {
@@ -1491,8 +1495,8 @@
     "quote_type": "ETF",
     "price": 185.35,
     "current_price": 185.35,
-    "dollar_volume": 2354499153.56,
-    "avg_volume_20d": 12702989,
+    "dollar_volume": 2354742082.54,
+    "avg_volume_20d": 12704300,
     "volume_ratio": 0.61,
     "conviction": 95,
     "conviction_score": 95,
@@ -1535,7 +1539,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T00:38:13.799323+00:00",
+    "scan_time": "2026-07-10T08:11:37.273429+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 198.49,
@@ -1716,8 +1720,8 @@
     "quote_type": "ETF",
     "price": 162.17,
     "current_price": 162.17,
-    "dollar_volume": 1825209601.7,
-    "avg_volume_20d": 11254915,
+    "dollar_volume": 1825243600.64,
+    "avg_volume_20d": 11255125,
     "volume_ratio": 0.85,
     "conviction": 95,
     "conviction_score": 95,
@@ -1759,7 +1763,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T00:38:15.880502+00:00",
+    "scan_time": "2026-07-10T08:11:38.279349+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 165.61,
@@ -1940,9 +1944,9 @@
     "quote_type": "ETF",
     "price": 181.11,
     "current_price": 181.11,
-    "dollar_volume": 1476036833.7,
-    "avg_volume_20d": 8149946,
-    "volume_ratio": 0.65,
+    "dollar_volume": 1476536407.53,
+    "avg_volume_20d": 8152705,
+    "volume_ratio": 0.66,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -1984,7 +1988,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T00:38:13.392657+00:00",
+    "scan_time": "2026-07-10T08:11:36.930113+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 186.45,
@@ -2165,9 +2169,9 @@
     "quote_type": "ETF",
     "price": 371.45,
     "current_price": 371.45,
-    "dollar_volume": 1258351548.65,
-    "avg_volume_20d": 3387674,
-    "volume_ratio": 1.06,
+    "dollar_volume": 1293561666.76,
+    "avg_volume_20d": 3482465,
+    "volume_ratio": 1.57,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -2209,7 +2213,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T00:37:13.412057+00:00",
+    "scan_time": "2026-07-10T08:11:02.237264+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 373.63,
@@ -2390,8 +2394,8 @@
     "quote_type": "ETF",
     "price": 45.13,
     "current_price": 45.13,
-    "dollar_volume": 933706732.07,
-    "avg_volume_20d": 20689269,
+    "dollar_volume": 933832012.95,
+    "avg_volume_20d": 20692045,
     "volume_ratio": 0.95,
     "conviction": 95,
     "conviction_score": 95,
@@ -2433,7 +2437,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T00:38:15.334010+00:00",
+    "scan_time": "2026-07-10T08:11:38.070731+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 47.41,
@@ -2614,9 +2618,9 @@
     "quote_type": "ETF",
     "price": 32.26,
     "current_price": 32.26,
-    "dollar_volume": 681969814.12,
-    "avg_volume_20d": 21139796,
-    "volume_ratio": 0.8,
+    "dollar_volume": 682806898.17,
+    "avg_volume_20d": 21165745,
+    "volume_ratio": 0.82,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -2657,7 +2661,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T00:33:00.971584+00:00",
+    "scan_time": "2026-07-10T08:07:58.026148+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 32.72,
@@ -2838,8 +2842,8 @@
     "quote_type": "ETF",
     "price": 81.53,
     "current_price": 81.53,
-    "dollar_volume": 585464373.42,
-    "avg_volume_20d": 7180968,
+    "dollar_volume": 585466105.93,
+    "avg_volume_20d": 7180990,
     "volume_ratio": 0.58,
     "conviction": 95,
     "conviction_score": 95,
@@ -2882,7 +2886,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T00:13:43.860999+00:00",
+    "scan_time": "2026-07-10T07:55:03.955502+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 92.65,
@@ -2921,8 +2925,8 @@
           "Palantir Stock Just Scored a New Upgrade. Wall Street Says It Provides a Critical AI Orchestration Layer.",
           "Cathie Wood Sees Value in This Beaten-Down Growth Stock. I Do Too",
           "Cathie Wood Sees Value in This Beaten-Down Growth Stock. I Do Too.",
-          "Global Employment Falls For Second Month In June Amid Subdued Growth Expectations",
-          "Cathie Wood Scoops Up SpaceX Shares Again as Stock Dips, Ark Keeps Offloading AMD Shares"
+          "Initial Unemployment Claims Down 2K, Lower Than Expected",
+          "Global Employment Falls For Second Month In June Amid Subdued Growth Expectations"
         ],
         "risks": [
           "No negative high-confidence headline detected."
@@ -3067,8 +3071,8 @@
       "Palantir Stock Just Scored a New Upgrade. Wall Street Says It Provides a Critical AI Orchestration Layer.",
       "Cathie Wood Sees Value in This Beaten-Down Growth Stock. I Do Too",
       "Cathie Wood Sees Value in This Beaten-Down Growth Stock. I Do Too.",
-      "Global Employment Falls For Second Month In June Amid Subdued Growth Expectations",
-      "Cathie Wood Scoops Up SpaceX Shares Again as Stock Dips, Ark Keeps Offloading AMD Shares"
+      "Initial Unemployment Claims Down 2K, Lower Than Expected",
+      "Global Employment Falls For Second Month In June Amid Subdued Growth Expectations"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
@@ -3099,8 +3103,8 @@
     "quote_type": "ETF",
     "price": 60.24,
     "current_price": 60.24,
-    "dollar_volume": 389844649.75,
-    "avg_volume_20d": 6471524,
+    "dollar_volume": 389949795.67,
+    "avg_volume_20d": 6473270,
     "volume_ratio": 0.76,
     "conviction": 95,
     "conviction_score": 95,
@@ -3143,7 +3147,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T00:24:44.076190+00:00",
+    "scan_time": "2026-07-10T08:02:29.186122+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 61.08,
@@ -3358,8 +3362,8 @@
     "quote_type": "ETF",
     "price": 56.63,
     "current_price": 56.63,
-    "dollar_volume": 257848077.63,
-    "avg_volume_20d": 4553206,
+    "dollar_volume": 257909164.41,
+    "avg_volume_20d": 4554285,
     "volume_ratio": 0.72,
     "conviction": 95,
     "conviction_score": 95,
@@ -3400,7 +3404,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T00:24:42.990294+00:00",
+    "scan_time": "2026-07-10T08:02:28.531846+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 58.27,
@@ -3621,9 +3625,9 @@
     "quote_type": "ETF",
     "price": 18.39,
     "current_price": 18.39,
-    "dollar_volume": 109574221.13,
-    "avg_volume_20d": 5958359,
-    "volume_ratio": 0.58,
+    "dollar_volume": 109629130.91,
+    "avg_volume_20d": 5961345,
+    "volume_ratio": 0.59,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -3665,7 +3669,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T00:31:48.063506+00:00",
+    "scan_time": "2026-07-10T08:07:06.010698+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 18.44,
@@ -3846,9 +3850,9 @@
     "quote_type": "ETF",
     "price": 41.14,
     "current_price": 41.14,
-    "dollar_volume": 35399733.22,
-    "avg_volume_20d": 860469,
-    "volume_ratio": 0.5,
+    "dollar_volume": 35444577.87,
+    "avg_volume_20d": 861560,
+    "volume_ratio": 0.52,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -3889,7 +3893,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T00:38:23.392995+00:00",
+    "scan_time": "2026-07-10T08:11:43.155684+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 41.14,
@@ -4070,9 +4074,9 @@
     "quote_type": "ETF",
     "price": 16.05,
     "current_price": 16.05,
-    "dollar_volume": 9617427.58,
-    "avg_volume_20d": 599216,
-    "volume_ratio": 0.83,
+    "dollar_volume": 9623499.29,
+    "avg_volume_20d": 599595,
+    "volume_ratio": 0.85,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -4113,7 +4117,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T00:32:50.405181+00:00",
+    "scan_time": "2026-07-10T08:07:49.445731+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 16.07,
@@ -4285,6 +4289,258 @@
     "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume."
   },
   {
+    "symbol": "QQQY",
+    "ticker": "QQQY",
+    "company": "Defiance Nasdaq 100 Weekly Dist",
+    "company_name": "Defiance Nasdaq 100 Weekly Dist",
+    "sector": "ETF",
+    "industry": "Defiance ETFs LLC",
+    "quote_type": "ETF",
+    "price": 23.36,
+    "current_price": 23.36,
+    "dollar_volume": 3092482.38,
+    "avg_volume_20d": 132395,
+    "volume_ratio": 0.81,
+    "conviction": 95,
+    "conviction_score": 95,
+    "score": 95,
+    "ai_score": 95,
+    "ai_confidence": 95,
+    "confidence": 95,
+    "rsi": 49.9,
+    "atr_pct": 2.06,
+    "sma20": 23.32,
+    "sma50": 23.2,
+    "twenty_day_pct": 2.16,
+    "sixty_day_pct": 15.16,
+    "entry_range": "$23.12 - $23.48",
+    "entry_low": 23.12,
+    "entry_high": 23.48,
+    "stop_loss": 22.69,
+    "target": 24.57,
+    "target_2": 25.17,
+    "risk_reward": 1.8,
+    "expected_upside_pct": 5.2,
+    "upside": 5.2,
+    "ai_base_target": 24.57,
+    "ai_bull_target": 25.17,
+    "ai_bear_target": 22.69,
+    "etf_preference_screen": "Passed non-financial / non-Israel / non-excluded-theme screen",
+    "what_looks_good": "acceptable ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; positive 60-day ETF trend; RSI is constructive; ETF volatility is controlled",
+    "what_could_go_wrong": "Main risk is a broad market or sector pullback.",
+    "investment_thesis": "Defiance Nasdaq 100 Weekly Dist (QQQY) is an ETF candidate that passed your preference screen. Score 95/100. Positive factors: acceptable ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; positive 60-day ETF trend; RSI is constructive; ETF volatility is controlled. Risks: market pullback risk.",
+    "guidance": "QQQY ETF score is 95/100. Preferred entry is $23.12 - $23.48. Use stop around $22.69 and first target near $24.57.",
+    "action_note": "ETF idea only. Review holdings/exposure before buying to ensure it aligns with your preferences.",
+    "summary": "QQQY: ETF candidate, score 95/100, estimated trade upside 5.2%.",
+    "setup_tags": [
+      "acceptable ETF liquidity",
+      "price is above 20-day trend",
+      "price is above 50-day trend",
+      "healthy 20-day ETF momentum",
+      "positive 60-day ETF trend",
+      "RSI is constructive",
+      "ETF volatility is controlled"
+    ],
+    "risk_tags": [],
+    "scan_time": "2026-07-10T08:07:01.868210+00:00",
+    "history_days_available": 251,
+    "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
+    "high_52w": 24.24,
+    "low_52w": 18.37,
+    "all_period_high": 24.24,
+    "all_period_low": 18.37,
+    "range_position_pct": 84.9,
+    "range_position_label": "Near 52-week highs",
+    "distance_from_52w_high_pct": -3.6,
+    "distance_from_52w_low_pct": 27.1,
+    "drawdown_from_period_high_pct": -3.6,
+    "drawdown_label": "Shallow drawdown",
+    "return_1m_pct": 1.1,
+    "return_3m_pct": 17.0,
+    "return_6m_pct": 13.8,
+    "return_1y_pct": null,
+    "return_3y_pct": null,
+    "return_5y_pct": null,
+    "analyst_support_score": 41.3,
+    "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
+    "analyst_support_label": "Mixed (41/100)",
+    "news_sentiment_source": "No recent NewsAPI headline returned; defaulted to neutral",
+    "top_news_headline": "No recent high-confidence company headline returned by NewsAPI",
+    "news_sentiment_label": "Neutral",
+    "news_sentiment_score": 0,
+    "thesis_strength": "Developing Thesis",
+    "evidence_confidence": "Low-Medium",
+    "ai_committee": {
+      "News Agent": {
+        "score": 62,
+        "status": "Mixed",
+        "impact": "Neutral",
+        "data_used": "Finnhub company news",
+        "summary": "Reviews headlines/catalysts. Confidence: Medium.",
+        "findings": [
+          "Monthly-Paid Dividends: 25 Ideal 'Safer' June Dogs Ready To Buy"
+        ],
+        "risks": [
+          "No negative high-confidence headline detected."
+        ],
+        "bottom_line": "News is mixed or insufficient."
+      },
+      "Finance Agent": {
+        "score": 50,
+        "status": "Mixed",
+        "impact": "Neutral",
+        "data_used": "FMP/Yahoo fundamentals, financial statements, balance sheet, cash flow",
+        "summary": "Checks revenue, EPS, margins, leverage, liquidity, cash flow, valuation, and execution.",
+        "findings": [
+          "Financial data limited."
+        ],
+        "risks": [
+          "No major finance-specific red flag detected."
+        ],
+        "bottom_line": "Financial profile reviewed."
+      },
+      "Analyst Agent": {
+        "score": 41,
+        "status": "Mixed",
+        "impact": "Neutral",
+        "data_used": "Finnhub/Yahoo/FMP analyst targets and recommendation trends",
+        "summary": "Checks whether Wall Street estimates support the AI thesis.",
+        "findings": [
+          "Analyst support score: 41/100.",
+          "Analyst target: $N/A.",
+          "Analyst count: N/A."
+        ],
+        "risks": [
+          "Analyst data can lag fast-moving news."
+        ],
+        "bottom_line": "Analyst view is mixed/limited."
+      },
+      "Technical Agent": {
+        "score": 95,
+        "status": "Positive",
+        "impact": "Positive",
+        "data_used": "Price history, RSI, ATR, volume, SMA, support/resistance",
+        "summary": "Evaluates trend, momentum, volatility, support/resistance and entry quality.",
+        "findings": [
+          "Support 1: $22.43 \u00b7 Resistance 1: $24.1.",
+          "Price is above the 20-day trend.",
+          "Price is above the 50-day trend.",
+          "RSI is 49.9."
+        ],
+        "risks": [
+          "No major technical risk detected."
+        ],
+        "bottom_line": "Between support and resistance. Prefer pullback entry or confirmed breakout."
+      },
+      "Insider Agent": {
+        "score": 50,
+        "status": "Limited",
+        "impact": "Neutral",
+        "data_used": "SEC EDGAR Form 4 framework; Finnhub insider-ready",
+        "summary": "Checks insider filing activity and prepares buy/sell classification.",
+        "findings": [
+          "No recent Form 4 activity retrieved."
+        ],
+        "risks": [
+          "SEC insider data unavailable: CIK not found"
+        ],
+        "bottom_line": "Insider signal is limited until transaction-level parsing is expanded."
+      },
+      "Institutional Agent": {
+        "score": 50,
+        "status": "Limited",
+        "impact": "Neutral",
+        "data_used": "SEC EDGAR filings plus FMP institutional ownership-ready",
+        "summary": "Checks institutional context and 13F availability.",
+        "findings": [
+          "Institutional data limited."
+        ],
+        "risks": [
+          "13F data is delayed by reporting schedule."
+        ],
+        "bottom_line": "Institutional signal is directional and should be confirmed with holder details."
+      },
+      "Competitor Agent": {
+        "score": 55,
+        "status": "Limited",
+        "impact": "Neutral",
+        "data_used": "FMP peer list and company fundamentals",
+        "summary": "Compares company fundamentals and valuation context against peers.",
+        "findings": [
+          "Peer comparison framework active."
+        ],
+        "risks": [
+          "Peer list unavailable in current scan."
+        ],
+        "bottom_line": "Peer context is limited/mixed."
+      },
+      "Political Agent": {
+        "score": 50,
+        "status": "Not connected yet",
+        "impact": "Neutral",
+        "data_used": "Capitol Trades public data planned; no API key required",
+        "summary": "Tracks congressional trading once public feed integration is enabled.",
+        "findings": [
+          "Political Agent framework is active."
+        ],
+        "risks": [
+          "Capitol Trades ingestion not enabled yet; no political score applied."
+        ],
+        "bottom_line": "No political trading signal applied yet."
+      },
+      "Recovery Agent": {
+        "score": 50,
+        "status": "Limited",
+        "impact": "Neutral",
+        "data_used": "52-week drawdown, growth, analyst support, technical recovery signals",
+        "summary": "Explains whether this is a recovery candidate or momentum setup.",
+        "findings": [
+          "Recovery framework active."
+        ],
+        "risks": [
+          "Recovery thesis requires business outlook to remain intact."
+        ],
+        "bottom_line": "Recovery setup exists only if fundamentals remain healthy."
+      },
+      "ETF / Ownership Agent": {
+        "score": 55,
+        "status": "Framework active",
+        "impact": "Neutral",
+        "data_used": "ETF inclusion and ownership flow framework",
+        "summary": "Checks ETF/index ownership support.",
+        "findings": [
+          "ETF/ownership framework is active."
+        ],
+        "risks": [
+          "Detailed ETF flow data not fully connected yet."
+        ],
+        "bottom_line": "ETF/ownership is not yet a primary scoring driver."
+      }
+    },
+    "v42_news_score": 62,
+    "v42_news_summary": "News is mixed or insufficient.",
+    "v42_news_catalysts": [
+      "Monthly-Paid Dividends: 25 Ideal 'Safer' June Dogs Ready To Buy"
+    ],
+    "v42_news_risks": [
+      "No negative high-confidence headline detected."
+    ],
+    "v42_news_sources": [
+      "Finnhub company news"
+    ],
+    "v42_sec_available": false,
+    "v42_sec_cik": null,
+    "v42_support_1": 22.43,
+    "v42_support_2": 18.37,
+    "v42_resistance_1": 24.1,
+    "v42_resistance_2": 24.24,
+    "v42_breakout_level": 24.34,
+    "v42_pullback_zone": "$22.43 - $22.89",
+    "v42_chart_guidance": "Between support and resistance. Prefer pullback entry or confirmed breakout.",
+    "v42_committee_positive_agents": 1,
+    "v42_committee_total_agents": 10
+  },
+  {
     "symbol": "SPYT",
     "ticker": "SPYT",
     "company": "Defiance S&P 500 Target Income ",
@@ -4294,8 +4550,8 @@
     "quote_type": "ETF",
     "price": 17.4,
     "current_price": 17.4,
-    "dollar_volume": 2613457.32,
-    "avg_volume_20d": 150198,
+    "dollar_volume": 2613479.94,
+    "avg_volume_20d": 150200,
     "volume_ratio": 0.3,
     "conviction": 95,
     "conviction_score": 95,
@@ -4338,7 +4594,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T00:34:02.584925+00:00",
+    "scan_time": "2026-07-10T08:08:44.686173+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 17.79,
@@ -4510,259 +4766,6 @@
     "v42_chart_guidance": "Between support and resistance. Prefer pullback entry or confirmed breakout."
   },
   {
-    "symbol": "QQQY",
-    "ticker": "QQQY",
-    "company": "Defiance Nasdaq 100 Weekly Dist",
-    "company_name": "Defiance Nasdaq 100 Weekly Dist",
-    "sector": "ETF",
-    "industry": "Defiance ETFs LLC",
-    "quote_type": "ETF",
-    "price": 23.36,
-    "current_price": 23.36,
-    "dollar_volume": 3090499.74,
-    "avg_volume_20d": 132312,
-    "volume_ratio": 0.8,
-    "conviction": 94,
-    "conviction_score": 94,
-    "score": 94,
-    "ai_score": 94,
-    "ai_confidence": 94,
-    "confidence": 94,
-    "rsi": 48.3,
-    "atr_pct": 2.03,
-    "sma20": 23.45,
-    "sma50": 23.33,
-    "twenty_day_pct": 1.57,
-    "sixty_day_pct": 14.5,
-    "entry_range": "$23.12 - $23.48",
-    "entry_low": 23.12,
-    "entry_high": 23.48,
-    "stop_loss": 22.7,
-    "target": 24.54,
-    "target_2": 25.14,
-    "risk_reward": 1.8,
-    "expected_upside_pct": 5.1,
-    "upside": 5.1,
-    "ai_base_target": 24.54,
-    "ai_bull_target": 25.14,
-    "ai_bear_target": 22.7,
-    "etf_preference_screen": "Passed non-financial / non-Israel / non-excluded-theme screen",
-    "what_looks_good": "acceptable ETF liquidity; price is above 50-day trend; healthy 20-day ETF momentum; positive 60-day ETF trend; RSI is constructive; ETF volatility is controlled",
-    "what_could_go_wrong": "price is below 20-day trend",
-    "investment_thesis": "Defiance Nasdaq 100 Weekly Dist (QQQY) is an ETF candidate that passed your preference screen. Score 94/100. Positive factors: acceptable ETF liquidity; price is above 50-day trend; healthy 20-day ETF momentum; positive 60-day ETF trend; RSI is constructive; ETF volatility is controlled. Risks: price is below 20-day trend.",
-    "guidance": "QQQY ETF score is 94/100. Preferred entry is $23.12 - $23.48. Use stop around $22.7 and first target near $24.54.",
-    "action_note": "ETF idea only. Review holdings/exposure before buying to ensure it aligns with your preferences.",
-    "summary": "QQQY: ETF candidate, score 94/100, estimated trade upside 5.1%.",
-    "setup_tags": [
-      "acceptable ETF liquidity",
-      "price is above 50-day trend",
-      "healthy 20-day ETF momentum",
-      "positive 60-day ETF trend",
-      "RSI is constructive",
-      "ETF volatility is controlled"
-    ],
-    "risk_tags": [
-      "price is below 20-day trend"
-    ],
-    "scan_time": "2026-07-10T00:31:43.708410+00:00",
-    "history_days_available": 251,
-    "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
-    "high_52w": 24.38,
-    "low_52w": 18.48,
-    "all_period_high": 24.38,
-    "all_period_low": 18.48,
-    "range_position_pct": 82.6,
-    "range_position_label": "Near 52-week highs",
-    "distance_from_52w_high_pct": -4.2,
-    "distance_from_52w_low_pct": 26.4,
-    "drawdown_from_period_high_pct": -4.2,
-    "drawdown_label": "Shallow drawdown",
-    "return_1m_pct": 0.5,
-    "return_3m_pct": 16.3,
-    "return_6m_pct": 13.1,
-    "return_1y_pct": null,
-    "return_3y_pct": null,
-    "return_5y_pct": null,
-    "analyst_support_score": 41.3,
-    "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
-    "analyst_support_label": "Mixed (41/100)",
-    "news_sentiment_source": "No recent NewsAPI headline returned; defaulted to neutral",
-    "top_news_headline": "No recent high-confidence company headline returned by NewsAPI",
-    "news_sentiment_label": "Neutral",
-    "news_sentiment_score": 0,
-    "thesis_strength": "Developing Thesis",
-    "evidence_confidence": "Low-Medium",
-    "ai_committee": {
-      "News Agent": {
-        "score": 62,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Finnhub company news",
-        "summary": "Reviews headlines/catalysts. Confidence: Medium.",
-        "findings": [
-          "Monthly-Paid Dividends: 25 Ideal 'Safer' June Dogs Ready To Buy"
-        ],
-        "risks": [
-          "No negative high-confidence headline detected."
-        ],
-        "bottom_line": "News is mixed or insufficient."
-      },
-      "Finance Agent": {
-        "score": 50,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "FMP/Yahoo fundamentals, financial statements, balance sheet, cash flow",
-        "summary": "Checks revenue, EPS, margins, leverage, liquidity, cash flow, valuation, and execution.",
-        "findings": [
-          "Financial data limited."
-        ],
-        "risks": [
-          "No major finance-specific red flag detected."
-        ],
-        "bottom_line": "Financial profile reviewed."
-      },
-      "Analyst Agent": {
-        "score": 41,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Finnhub/Yahoo/FMP analyst targets and recommendation trends",
-        "summary": "Checks whether Wall Street estimates support the AI thesis.",
-        "findings": [
-          "Analyst support score: 41/100.",
-          "Analyst target: $N/A.",
-          "Analyst count: N/A."
-        ],
-        "risks": [
-          "Analyst data can lag fast-moving news."
-        ],
-        "bottom_line": "Analyst view is mixed/limited."
-      },
-      "Technical Agent": {
-        "score": 94,
-        "status": "Positive",
-        "impact": "Positive",
-        "data_used": "Price history, RSI, ATR, volume, SMA, support/resistance",
-        "summary": "Evaluates trend, momentum, volatility, support/resistance and entry quality.",
-        "findings": [
-          "Support 1: $22.56 \u00b7 Resistance 1: $24.24.",
-          "Price is below the 20-day trend.",
-          "Price is above the 50-day trend.",
-          "RSI is 48.3."
-        ],
-        "risks": [
-          "No major technical risk detected."
-        ],
-        "bottom_line": "Near support. Better risk/reward if support holds."
-      },
-      "Insider Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "SEC EDGAR Form 4 framework; Finnhub insider-ready",
-        "summary": "Checks insider filing activity and prepares buy/sell classification.",
-        "findings": [
-          "No recent Form 4 activity retrieved."
-        ],
-        "risks": [
-          "SEC insider data unavailable: CIK not found"
-        ],
-        "bottom_line": "Insider signal is limited until transaction-level parsing is expanded."
-      },
-      "Institutional Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "SEC EDGAR filings plus FMP institutional ownership-ready",
-        "summary": "Checks institutional context and 13F availability.",
-        "findings": [
-          "Institutional data limited."
-        ],
-        "risks": [
-          "13F data is delayed by reporting schedule."
-        ],
-        "bottom_line": "Institutional signal is directional and should be confirmed with holder details."
-      },
-      "Competitor Agent": {
-        "score": 55,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "FMP peer list and company fundamentals",
-        "summary": "Compares company fundamentals and valuation context against peers.",
-        "findings": [
-          "Peer comparison framework active."
-        ],
-        "risks": [
-          "Peer list unavailable in current scan."
-        ],
-        "bottom_line": "Peer context is limited/mixed."
-      },
-      "Political Agent": {
-        "score": 50,
-        "status": "Not connected yet",
-        "impact": "Neutral",
-        "data_used": "Capitol Trades public data planned; no API key required",
-        "summary": "Tracks congressional trading once public feed integration is enabled.",
-        "findings": [
-          "Political Agent framework is active."
-        ],
-        "risks": [
-          "Capitol Trades ingestion not enabled yet; no political score applied."
-        ],
-        "bottom_line": "No political trading signal applied yet."
-      },
-      "Recovery Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "52-week drawdown, growth, analyst support, technical recovery signals",
-        "summary": "Explains whether this is a recovery candidate or momentum setup.",
-        "findings": [
-          "Recovery framework active."
-        ],
-        "risks": [
-          "Recovery thesis requires business outlook to remain intact."
-        ],
-        "bottom_line": "Recovery setup exists only if fundamentals remain healthy."
-      },
-      "ETF / Ownership Agent": {
-        "score": 55,
-        "status": "Framework active",
-        "impact": "Neutral",
-        "data_used": "ETF inclusion and ownership flow framework",
-        "summary": "Checks ETF/index ownership support.",
-        "findings": [
-          "ETF/ownership framework is active."
-        ],
-        "risks": [
-          "Detailed ETF flow data not fully connected yet."
-        ],
-        "bottom_line": "ETF/ownership is not yet a primary scoring driver."
-      }
-    },
-    "v42_news_score": 62,
-    "v42_news_summary": "News is mixed or insufficient.",
-    "v42_news_catalysts": [
-      "Monthly-Paid Dividends: 25 Ideal 'Safer' June Dogs Ready To Buy"
-    ],
-    "v42_news_risks": [
-      "No negative high-confidence headline detected."
-    ],
-    "v42_news_sources": [
-      "Finnhub company news"
-    ],
-    "v42_sec_available": false,
-    "v42_sec_cik": null,
-    "v42_support_1": 22.56,
-    "v42_support_2": 18.48,
-    "v42_resistance_1": 24.24,
-    "v42_resistance_2": 24.38,
-    "v42_breakout_level": 24.48,
-    "v42_pullback_zone": "$22.56 - $22.89",
-    "v42_chart_guidance": "Near support. Better risk/reward if support holds.",
-    "v42_committee_positive_agents": 1,
-    "v42_committee_total_agents": 10
-  },
-  {
     "symbol": "XLRE",
     "ticker": "XLRE",
     "company": "State Street Real Estate Select",
@@ -4772,9 +4775,9 @@
     "quote_type": "ETF",
     "price": 44.23,
     "current_price": 44.23,
-    "dollar_volume": 247390911.16,
-    "avg_volume_20d": 5593283,
-    "volume_ratio": 0.51,
+    "dollar_volume": 247630498.44,
+    "avg_volume_20d": 5598700,
+    "volume_ratio": 0.53,
     "conviction": 90,
     "conviction_score": 90,
     "score": 90,
@@ -4816,7 +4819,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-07-10T00:38:14.912078+00:00",
+    "scan_time": "2026-07-10T08:11:37.767524+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 45.29,
@@ -4997,9 +5000,9 @@
     "quote_type": "ETF",
     "price": 116.85,
     "current_price": 116.85,
-    "dollar_volume": 1014326717.92,
-    "avg_volume_20d": 8680588,
-    "volume_ratio": 0.96,
+    "dollar_volume": 1015190449.74,
+    "avg_volume_20d": 8687980,
+    "volume_ratio": 0.98,
     "conviction": 88,
     "conviction_score": 88,
     "score": 88,
@@ -5041,7 +5044,7 @@
     "risk_tags": [
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-07-10T00:38:16.299026+00:00",
+    "scan_time": "2026-07-10T08:11:38.578782+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 124.51,
@@ -5222,9 +5225,9 @@
     "quote_type": "ETF",
     "price": 607.73,
     "current_price": 607.73,
-    "dollar_volume": 7306532507.08,
-    "avg_volume_20d": 12022662,
-    "volume_ratio": 0.74,
+    "dollar_volume": 7310633104.35,
+    "avg_volume_20d": 12029410,
+    "volume_ratio": 0.75,
     "conviction": 86,
     "conviction_score": 86,
     "score": 86,
@@ -5265,7 +5268,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-07-10T00:33:33.917164+00:00",
+    "scan_time": "2026-07-10T08:08:25.335921+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 671.83,
@@ -5446,9 +5449,9 @@
     "quote_type": "ETF",
     "price": 581.7,
     "current_price": 581.7,
-    "dollar_volume": 6255439927.82,
-    "avg_volume_20d": 10753721,
-    "volume_ratio": 0.89,
+    "dollar_volume": 6267311552.52,
+    "avg_volume_20d": 10774130,
+    "volume_ratio": 0.93,
     "conviction": 86,
     "conviction_score": 86,
     "score": 86,
@@ -5489,7 +5492,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-07-10T00:33:55.150866+00:00",
+    "scan_time": "2026-07-10T08:08:39.811918+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 655.95,
@@ -5670,9 +5673,9 @@
     "quote_type": "ETF",
     "price": 54.82,
     "current_price": 54.82,
-    "dollar_volume": 1855711412.22,
-    "avg_volume_20d": 33850992,
-    "volume_ratio": 0.63,
+    "dollar_volume": 1856469147.97,
+    "avg_volume_20d": 33864815,
+    "volume_ratio": 0.64,
     "conviction": 78,
     "conviction_score": 78,
     "score": 78,
@@ -5713,7 +5716,7 @@
     "risk_tags": [
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-07-10T00:38:12.580459+00:00",
+    "scan_time": "2026-07-10T08:11:36.437801+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 63.01,
@@ -5894,9 +5897,9 @@
     "quote_type": "ETF",
     "price": 83.2,
     "current_price": 83.2,
-    "dollar_volume": 1042474957.92,
-    "avg_volume_20d": 12529747,
-    "volume_ratio": 0.88,
+    "dollar_volume": 1043449849.73,
+    "avg_volume_20d": 12541465,
+    "volume_ratio": 0.9,
     "conviction": 62,
     "conviction_score": 62,
     "score": 62,
@@ -5937,7 +5940,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-07-10T00:38:14.385895+00:00",
+    "scan_time": "2026-07-10T08:11:37.492548+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.02,
@@ -6118,9 +6121,9 @@
     "quote_type": "ETF",
     "price": 36.63,
     "current_price": 36.63,
-    "dollar_volume": 35665064.28,
-    "avg_volume_20d": 973657,
-    "volume_ratio": 0.55,
+    "dollar_volume": 35670295.04,
+    "avg_volume_20d": 973800,
+    "volume_ratio": 0.56,
     "conviction": 56,
     "conviction_score": 56,
     "score": 56,
@@ -6161,7 +6164,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-07-10T00:15:49.944289+00:00",
+    "scan_time": "2026-07-10T07:56:21.660104+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 41.69,
@@ -6380,9 +6383,9 @@
     "quote_type": "ETF",
     "price": 107.71,
     "current_price": 107.71,
-    "dollar_volume": 3068088728.9,
-    "avg_volume_20d": 28484715,
-    "volume_ratio": 0.84,
+    "dollar_volume": 3071498186.59,
+    "avg_volume_20d": 28516370,
+    "volume_ratio": 0.86,
     "conviction": 54,
     "conviction_score": 54,
     "score": 54,
@@ -6422,7 +6425,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-07-10T00:26:12.762363+00:00",
+    "scan_time": "2026-07-10T08:03:33.596997+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 110.27,
@@ -6645,9 +6648,9 @@
     "quote_type": "ETF",
     "price": 84.49,
     "current_price": 84.49,
-    "dollar_volume": 2181733958.98,
-    "avg_volume_20d": 25822393,
-    "volume_ratio": 0.71,
+    "dollar_volume": 2183011587.16,
+    "avg_volume_20d": 25837515,
+    "volume_ratio": 0.72,
     "conviction": 49,
     "conviction_score": 49,
     "score": 49,
@@ -6688,7 +6691,7 @@
       "price is below 50-day trend",
       "RSI is weak"
     ],
-    "scan_time": "2026-07-10T00:35:20.140510+00:00",
+    "scan_time": "2026-07-10T08:09:39.077673+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.54,
@@ -6869,9 +6872,9 @@
     "quote_type": "ETF",
     "price": 50.26,
     "current_price": 50.26,
-    "dollar_volume": 610096962.25,
-    "avg_volume_20d": 12138817,
-    "volume_ratio": 0.82,
+    "dollar_volume": 611515409.98,
+    "avg_volume_20d": 12167040,
+    "volume_ratio": 0.87,
     "conviction": 49,
     "conviction_score": 49,
     "score": 49,
@@ -6912,7 +6915,7 @@
       "price is below 50-day trend",
       "RSI is weak"
     ],
-    "scan_time": "2026-07-10T00:38:12.179950+00:00",
+    "scan_time": "2026-07-10T08:11:36.187946+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 53.7,
@@ -7093,9 +7096,9 @@
     "quote_type": "ETF",
     "price": 42.35,
     "current_price": 42.35,
-    "dollar_volume": 137372305.7,
-    "avg_volume_20d": 3243738,
-    "volume_ratio": 0.7,
+    "dollar_volume": 137661634.54,
+    "avg_volume_20d": 3250570,
+    "volume_ratio": 0.74,
     "conviction": 41,
     "conviction_score": 41,
     "score": 41,
@@ -7137,7 +7140,7 @@
       "60-day ETF trend is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-07-10T00:36:28.330540+00:00",
+    "scan_time": "2026-07-10T08:10:30.216659+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 62.28,
@@ -7318,8 +7321,8 @@
     "quote_type": "ETF",
     "price": 54.95,
     "current_price": 54.95,
-    "dollar_volume": 76466409.89,
-    "avg_volume_20d": 1391563,
+    "dollar_volume": 76466497.81,
+    "avg_volume_20d": 1391565,
     "volume_ratio": 0.29,
     "conviction": 40,
     "conviction_score": 40,
@@ -7360,7 +7363,7 @@
       "price is below 50-day trend",
       "20-day ETF trend is weak"
     ],
-    "scan_time": "2026-07-10T00:34:46.164298+00:00",
+    "scan_time": "2026-07-10T08:09:14.419920+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 75.6,
