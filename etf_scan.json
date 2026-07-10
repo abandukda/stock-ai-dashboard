@@ -53,7 +53,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T08:08:44.421457+00:00",
+    "scan_time": "2026-07-10T13:24:52.387286+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 758.45,
@@ -278,7 +278,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T08:07:00.575389+00:00",
+    "scan_time": "2026-07-10T13:22:22.398170+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 747.83,
@@ -308,20 +308,23 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 68,
-        "status": "Mixed",
-        "impact": "Neutral",
+        "score": 74,
+        "status": "Positive",
+        "impact": "Positive",
         "data_used": "NewsAPI, Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
+          "Micron Technology (MU) Gains from growing AI infrastructure investment",
           "CRWV Vs. QQQ: Buy CoreWeave for Explosive AI Alpha or Hold QQQ for Insulated Macro Safety?",
+          "AI Capex Risk Cuts Both Ways In The American Economy",
           "Initial Unemployment Claims Down 2K, Lower Than Expected",
           "AAII Sentiment Survey: Pessimism Drops"
         ],
         "risks": [
-          "Stocks Weighed Down by Geopolitical Risks"
+          "Stocks Weighed Down by Geopolitical Risks",
+          "AI Capex Risk Cuts Both Ways In The American Economy"
         ],
-        "bottom_line": "News is mixed or insufficient."
+        "bottom_line": "News flow supports the thesis."
       },
       "Finance Agent": {
         "score": 50,
@@ -457,15 +460,18 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 68,
-    "v42_news_summary": "News is mixed or insufficient.",
+    "v42_news_score": 74,
+    "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
+      "Micron Technology (MU) Gains from growing AI infrastructure investment",
       "CRWV Vs. QQQ: Buy CoreWeave for Explosive AI Alpha or Hold QQQ for Insulated Macro Safety?",
+      "AI Capex Risk Cuts Both Ways In The American Economy",
       "Initial Unemployment Claims Down 2K, Lower Than Expected",
       "AAII Sentiment Survey: Pessimism Drops"
     ],
     "v42_news_risks": [
-      "Stocks Weighed Down by Geopolitical Risks"
+      "Stocks Weighed Down by Geopolitical Risks",
+      "AI Capex Risk Cuts Both Ways In The American Economy"
     ],
     "v42_news_sources": [
       "NewsAPI",
@@ -537,7 +543,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T08:02:22.856386+00:00",
+    "scan_time": "2026-07-10T13:15:35.881816+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 302.72,
@@ -567,18 +573,19 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 76,
+        "score": 75,
         "status": "Positive",
         "impact": "Positive",
         "data_used": "NewsAPI, Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
           "Small-Cap ETFs Poised for Big Growth as Rate Outlook Shifts",
+          "AI Capex Risk Cuts Both Ways In The American Economy",
           "Initial Unemployment Claims Down 2K, Lower Than Expected",
           "AAII Sentiment Survey: Pessimism Drops"
         ],
         "risks": [
-          "No negative high-confidence headline detected."
+          "AI Capex Risk Cuts Both Ways In The American Economy"
         ],
         "bottom_line": "News flow supports the thesis."
       },
@@ -714,15 +721,16 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 76,
+    "v42_news_score": 75,
     "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
       "Small-Cap ETFs Poised for Big Growth as Rate Outlook Shifts",
+      "AI Capex Risk Cuts Both Ways In The American Economy",
       "Initial Unemployment Claims Down 2K, Lower Than Expected",
       "AAII Sentiment Survey: Pessimism Drops"
     ],
     "v42_news_risks": [
-      "No negative high-confidence headline detected."
+      "AI Capex Risk Cuts Both Ways In The American Economy"
     ],
     "v42_news_sources": [
       "NewsAPI",
@@ -794,7 +802,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T08:10:53.365972+00:00",
+    "scan_time": "2026-07-10T13:28:00.004223+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 697.12,
@@ -1017,7 +1025,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T08:01:45.224091+00:00",
+    "scan_time": "2026-07-10T13:14:41.716455+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 79.99,
@@ -1047,7 +1055,7 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 45,
+        "score": 53,
         "status": "Mixed",
         "impact": "Neutral",
         "data_used": "NewsAPI, Finnhub company news",
@@ -1058,7 +1066,6 @@
         ],
         "risks": [
           "Study of patients with acute undifferentiated fever identifies dengue as a growing threat to public health in Mali",
-          "Mobility and non-household environments: Understanding dengue transmission patterns in urban contexts",
           "Warsh's Dot-Plot Pivot Recalibrates Duration Risk In Investment-Grade Bonds"
         ],
         "bottom_line": "News is mixed or insufficient."
@@ -1195,7 +1202,7 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 45,
+    "v42_news_score": 53,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_catalysts": [
       "Audio Pro takes aim at Sonos, Denon, WiiM and Bose with an all-new Wi-Fi speaker \u2014 and this one's got a portable battery and IP2 water resistance",
@@ -1203,7 +1210,6 @@
     ],
     "v42_news_risks": [
       "Study of patients with acute undifferentiated fever identifies dengue as a growing threat to public health in Mali",
-      "Mobility and non-household environments: Understanding dengue transmission patterns in urban contexts",
       "Warsh's Dot-Plot Pivot Recalibrates Duration Risk In Investment-Grade Bonds"
     ],
     "v42_news_sources": [
@@ -1276,7 +1282,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T07:58:36.570355+00:00",
+    "scan_time": "2026-07-10T13:10:06.069454+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 532.54,
@@ -1306,22 +1312,23 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 67,
-        "status": "Mixed",
-        "impact": "Neutral",
+        "score": 74,
+        "status": "Positive",
+        "impact": "Positive",
         "data_used": "NewsAPI, Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
           "ai-impact-accounting 0.1.0",
           "ai-impact-accounting added to PyPI",
+          "AI Capex Risk Cuts Both Ways In The American Economy",
           "Initial Unemployment Claims Down 2K, Lower Than Expected",
           "AAII Sentiment Survey: Pessimism Drops"
         ],
         "risks": [
           "Stocks Weighed Down by Geopolitical Risks",
-          "\u2018SVU\u2019 star Mariska Hargitay to host this year\u2019s Emmy Awards"
+          "AI Capex Risk Cuts Both Ways In The American Economy"
         ],
-        "bottom_line": "News is mixed or insufficient."
+        "bottom_line": "News flow supports the thesis."
       },
       "Finance Agent": {
         "score": 50,
@@ -1457,17 +1464,18 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 67,
-    "v42_news_summary": "News is mixed or insufficient.",
+    "v42_news_score": 74,
+    "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
       "ai-impact-accounting 0.1.0",
       "ai-impact-accounting added to PyPI",
+      "AI Capex Risk Cuts Both Ways In The American Economy",
       "Initial Unemployment Claims Down 2K, Lower Than Expected",
       "AAII Sentiment Survey: Pessimism Drops"
     ],
     "v42_news_risks": [
       "Stocks Weighed Down by Geopolitical Risks",
-      "\u2018SVU\u2019 star Mariska Hargitay to host this year\u2019s Emmy Awards"
+      "AI Capex Risk Cuts Both Ways In The American Economy"
     ],
     "v42_news_sources": [
       "NewsAPI",
@@ -1539,7 +1547,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T08:11:37.273429+00:00",
+    "scan_time": "2026-07-10T13:29:07.366325+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 198.49,
@@ -1763,7 +1771,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T08:11:38.279349+00:00",
+    "scan_time": "2026-07-10T13:29:09.234468+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 165.61,
@@ -1988,7 +1996,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T08:11:36.930113+00:00",
+    "scan_time": "2026-07-10T13:29:06.885849+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 186.45,
@@ -2213,7 +2221,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T08:11:02.237264+00:00",
+    "scan_time": "2026-07-10T13:28:13.478951+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 373.63,
@@ -2437,7 +2445,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T08:11:38.070731+00:00",
+    "scan_time": "2026-07-10T13:29:08.756163+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 47.41,
@@ -2661,7 +2669,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T08:07:58.026148+00:00",
+    "scan_time": "2026-07-10T13:23:44.020244+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 32.72,
@@ -2886,7 +2894,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T07:55:03.955502+00:00",
+    "scan_time": "2026-07-10T13:04:46.821871+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 92.65,
@@ -2916,7 +2924,7 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 90,
+        "score": 74,
         "status": "Positive",
         "impact": "Positive",
         "data_used": "NewsAPI, Finnhub company news",
@@ -2925,11 +2933,13 @@
           "Palantir Stock Just Scored a New Upgrade. Wall Street Says It Provides a Critical AI Orchestration Layer.",
           "Cathie Wood Sees Value in This Beaten-Down Growth Stock. I Do Too",
           "Cathie Wood Sees Value in This Beaten-Down Growth Stock. I Do Too.",
+          "AI Capex Risk Cuts Both Ways In The American Economy",
           "Initial Unemployment Claims Down 2K, Lower Than Expected",
           "Global Employment Falls For Second Month In June Amid Subdued Growth Expectations"
         ],
         "risks": [
-          "No negative high-confidence headline detected."
+          "ARKK's Dip History Comes With A Warning",
+          "AI Capex Risk Cuts Both Ways In The American Economy"
         ],
         "bottom_line": "News flow supports the thesis."
       },
@@ -3065,17 +3075,19 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 90,
+    "v42_news_score": 74,
     "v42_news_summary": "News flow supports the thesis.",
     "v42_news_catalysts": [
       "Palantir Stock Just Scored a New Upgrade. Wall Street Says It Provides a Critical AI Orchestration Layer.",
       "Cathie Wood Sees Value in This Beaten-Down Growth Stock. I Do Too",
       "Cathie Wood Sees Value in This Beaten-Down Growth Stock. I Do Too.",
+      "AI Capex Risk Cuts Both Ways In The American Economy",
       "Initial Unemployment Claims Down 2K, Lower Than Expected",
       "Global Employment Falls For Second Month In June Amid Subdued Growth Expectations"
     ],
     "v42_news_risks": [
-      "No negative high-confidence headline detected."
+      "ARKK's Dip History Comes With A Warning",
+      "AI Capex Risk Cuts Both Ways In The American Economy"
     ],
     "v42_news_sources": [
       "NewsAPI",
@@ -3147,7 +3159,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T08:02:29.186122+00:00",
+    "scan_time": "2026-07-10T13:15:45.403795+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 61.08,
@@ -3404,7 +3416,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T08:02:28.531846+00:00",
+    "scan_time": "2026-07-10T13:15:44.360637+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 58.27,
@@ -3669,7 +3681,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T08:07:06.010698+00:00",
+    "scan_time": "2026-07-10T13:22:28.055654+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 18.44,
@@ -3893,7 +3905,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T08:11:43.155684+00:00",
+    "scan_time": "2026-07-10T13:29:16.911083+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 41.14,
@@ -4117,7 +4129,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T08:07:49.445731+00:00",
+    "scan_time": "2026-07-10T13:23:30.009933+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 16.07,
@@ -4342,7 +4354,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T08:07:01.868210+00:00",
+    "scan_time": "2026-07-10T13:22:23.699979+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 24.24,
@@ -4594,7 +4606,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-07-10T08:08:44.686173+00:00",
+    "scan_time": "2026-07-10T13:24:53.073595+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 17.79,
@@ -4819,7 +4831,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-07-10T08:11:37.767524+00:00",
+    "scan_time": "2026-07-10T13:29:08.333177+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 45.29,
@@ -5044,7 +5056,7 @@
     "risk_tags": [
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-07-10T08:11:38.578782+00:00",
+    "scan_time": "2026-07-10T13:29:09.683762+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 124.51,
@@ -5268,7 +5280,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-07-10T08:08:25.335921+00:00",
+    "scan_time": "2026-07-10T13:24:25.538932+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 671.83,
@@ -5492,7 +5504,7 @@
     "risk_tags": [
       "price is below 20-day trend"
     ],
-    "scan_time": "2026-07-10T08:08:39.811918+00:00",
+    "scan_time": "2026-07-10T13:24:45.653056+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 655.95,
@@ -5716,7 +5728,7 @@
     "risk_tags": [
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-07-10T08:11:36.437801+00:00",
+    "scan_time": "2026-07-10T13:29:05.639448+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 63.01,
@@ -5940,7 +5952,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-07-10T08:11:37.492548+00:00",
+    "scan_time": "2026-07-10T13:29:07.860651+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.02,
@@ -6164,7 +6176,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-07-10T07:56:21.660104+00:00",
+    "scan_time": "2026-07-10T13:06:47.544700+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 41.69,
@@ -6203,12 +6215,12 @@
           "AI\u2019s Next Act Isn\u2019t Chatbots. It\u2019s Robots, and BOTZ Is the Bet",
           "AI Just Minted $10 Trillion and You Own None of It. These 4 ETFs Put You in the Game",
           "Best AI ETFs Compared: CHAT vs BOTZ vs AIS (2026)",
+          "AI Capex Risk Cuts Both Ways In The American Economy",
           "Why Consumer AI Appears To Be Lagging Enterprise",
-          "Hype Or Hope? AI Run Leading To More Stock Scrutiny",
-          "Beyond The AI Bubble Debate"
+          "Hype Or Hope? AI Run Leading To More Stock Scrutiny"
         ],
         "risks": [
-          "Q2 Recap: Historic Rebound Amid Balanced Risks"
+          "AI Capex Risk Cuts Both Ways In The American Economy"
         ],
         "bottom_line": "News flow supports the thesis."
       },
@@ -6350,12 +6362,12 @@
       "AI\u2019s Next Act Isn\u2019t Chatbots. It\u2019s Robots, and BOTZ Is the Bet",
       "AI Just Minted $10 Trillion and You Own None of It. These 4 ETFs Put You in the Game",
       "Best AI ETFs Compared: CHAT vs BOTZ vs AIS (2026)",
+      "AI Capex Risk Cuts Both Ways In The American Economy",
       "Why Consumer AI Appears To Be Lagging Enterprise",
-      "Hype Or Hope? AI Run Leading To More Stock Scrutiny",
-      "Beyond The AI Bubble Debate"
+      "Hype Or Hope? AI Run Leading To More Stock Scrutiny"
     ],
     "v42_news_risks": [
-      "Q2 Recap: Historic Rebound Amid Balanced Risks"
+      "AI Capex Risk Cuts Both Ways In The American Economy"
     ],
     "v42_news_sources": [
       "NewsAPI",
@@ -6425,7 +6437,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-07-10T08:03:33.596997+00:00",
+    "scan_time": "2026-07-10T13:17:19.048582+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 110.27,
@@ -6691,7 +6703,7 @@
       "price is below 50-day trend",
       "RSI is weak"
     ],
-    "scan_time": "2026-07-10T08:09:39.077673+00:00",
+    "scan_time": "2026-07-10T13:26:12.974178+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.54,
@@ -6915,7 +6927,7 @@
       "price is below 50-day trend",
       "RSI is weak"
     ],
-    "scan_time": "2026-07-10T08:11:36.187946+00:00",
+    "scan_time": "2026-07-10T13:29:05.100445+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 53.7,
@@ -7140,7 +7152,7 @@
       "60-day ETF trend is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-07-10T08:10:30.216659+00:00",
+    "scan_time": "2026-07-10T13:27:24.060125+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 62.28,
@@ -7363,7 +7375,7 @@
       "price is below 50-day trend",
       "20-day ETF trend is weak"
     ],
-    "scan_time": "2026-07-10T08:09:14.419920+00:00",
+    "scan_time": "2026-07-10T13:25:36.547970+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 75.6,
