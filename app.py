@@ -26127,6 +26127,179 @@ def render_v775_home_dashboard(full_df=None, top_df=None, recovery_df=None):
             st.caption("Market calendar is temporarily unavailable.")
 
 
+
+
+# ==============================
+# V79.3 ATLAS DECISION EXPERIENCE
+# ==============================
+V793_DECISION_EXPERIENCE_VERIFIED = True
+
+
+def v793_open_research(ticker):
+    """Canonical in-app Research navigation that preserves the authenticated session."""
+    ticker = str(ticker or "").strip().upper()
+    if not ticker:
+        return
+    st.session_state["v73_research_ticker"] = ticker
+    st.session_state["selected_ticker"] = ticker
+    st.session_state["selected_research_ticker"] = ticker
+    st.session_state["v73_page"] = "Research Any Ticker"
+    st.session_state["v79_pending_page"] = "Research Any Ticker"
+    st.session_state["v784_single_nav"] = "Research Any Ticker"
+    st.rerun()
+
+
+def v793_card_context(row):
+    from engines.research_engine import atlas_fair_value_details
+    from services.ai_synthesis import build_plain_english_reasons, build_primary_risk_sentence
+    details = atlas_fair_value_details(row)
+    current = details.get("current_price")
+    fair = details.get("atlas_fair_value")
+    reasons = build_plain_english_reasons(row, fair, current)
+    risk = build_primary_risk_sentence(row)
+    return details, reasons, risk
+
+
+def v793_confidence_label(score):
+    try: score = float(score)
+    except Exception: score = 0
+    if score >= 90: return "Very High"
+    if score >= 80: return "High"
+    if score >= 70: return "Moderate"
+    if score >= 60: return "Developing"
+    return "Weak"
+
+
+def v793_badge_meta(tier):
+    u = str(tier).upper()
+    if u == "HIGH CONVICTION BUY": return "🟢", "v775-buy"
+    if u == "BUY ON WEAKNESS": return "🟡", "v775-watch"
+    if u == "AVOID": return "🔴", "v775-avoid"
+    return "⚪", "v793-wait"
+
+
+def v793_decision_rows(df):
+    from engines.research_engine import recommendation_tier
+    rows = []
+    if df is None or getattr(df, "empty", True):
+        return rows
+    try:
+        if "calibrate_top_ai_dataframe" in globals():
+            df = calibrate_top_ai_dataframe(df.copy())
+    except Exception:
+        pass
+    for _, row in df.iterrows():
+        details, reasons, risk = v793_card_context(row)
+        opp = v775_score(row, ["Opportunity", "Opportunity Score", "opportunity_score", "technical_agent_score"], 0)
+        qual = v775_score(row, ["Quality", "Quality Score", "quality_score", "financial_score", "fundamentals_agent_score"], 0)
+        conf = v785_confidence(row, opp, qual, details.get("expected_return_pct"))
+        tier = recommendation_tier(row, conf, details.get("expected_return_pct"))
+        rows.append((row, details, reasons, risk, conf, tier, opp, qual))
+    return rows
+
+
+def v793_design_system():
+    st.markdown("""
+<style>
+.v793-wait{border-color:rgba(148,163,184,.34)!important;background:rgba(148,163,184,.10)!important;color:#E5E7EB!important}
+.v793-reasons{margin-top:14px;border-top:1px solid rgba(148,163,184,.16);padding-top:12px}
+.v793-reasons b,.v793-risk b{color:#F8FAFC}.v793-reasons ul{margin:.45rem 0 0 1.15rem;padding:0;color:#D1D5DB}.v793-reasons li{margin:.35rem 0;line-height:1.45}
+.v793-risk{margin-top:12px;padding:12px 14px;border-radius:15px;background:rgba(245,158,11,.09);border:1px solid rgba(245,158,11,.25);color:#FDE68A;line-height:1.45;white-space:normal;overflow-wrap:break-word}
+.v793-source{display:block;color:#94A3B8;font-size:.76rem;margin-top:3px;line-height:1.25}
+.v793-brief{border:1px solid rgba(96,165,250,.24);border-radius:25px;background:linear-gradient(135deg,rgba(15,23,42,.98),rgba(8,47,73,.50));padding:22px;margin:12px 0 18px}
+.v793-brief h1{color:#F8FAFC;margin:2px 0 10px;font-size:clamp(2rem,4vw,3.8rem);letter-spacing:-.055em}.v793-brief p{color:#D1D5DB;line-height:1.58;font-size:1.02rem;max-width:1150px}
+.v793-brief-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:16px}.v793-brief-stat{border:1px solid rgba(148,163,184,.18);border-radius:17px;background:rgba(2,6,23,.32);padding:13px}.v793-brief-stat span{color:#94A3B8;text-transform:uppercase;font-size:.68rem;letter-spacing:.1em;font-weight:900}.v793-brief-stat b{display:block;color:#F8FAFC;font-size:1.65rem;margin-top:3px}.v793-brief-stat em{display:block;color:#CBD5E1;font-style:normal;font-size:.79rem;margin-top:2px;line-height:1.3}
+@media(max-width:850px){.v793-brief-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.v775-mini-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.v775-card{height:auto!important;min-height:0!important}.v793-reasons li,.v793-risk{font-size:.95rem}}
+</style>
+""", unsafe_allow_html=True)
+
+
+def render_v73_idea_table(df, title="Atlas Highest Conviction Ideas"):
+    """V79.3 decision cards with consistent recommendations and uncapped fair-value returns."""
+    st.markdown(f"<div class='v65-section-title'>{v73_esc(title)}</div>", unsafe_allow_html=True)
+    st.markdown("<div class='v775-help'><b>How to read this:</b> High Conviction Buy means Atlas sees sufficient evidence to act now. Buy on Weakness means the company is attractive, but price or timing could improve. Wait for Confirmation means Atlas needs stronger evidence before recommending a purchase.</div>", unsafe_allow_html=True)
+    rows = v793_decision_rows(df)
+    if not rows:
+        st.info("No ideas were available in the latest saved scan.")
+        return
+    for pair_start in range(0, min(len(rows), 8), 2):
+        cols = st.columns(2)
+        for col_idx, payload in enumerate(rows[pair_start:pair_start+2]):
+            row, details, reasons, risk, conf, tier, opp, qual = payload
+            with cols[col_idx]:
+                rank = pair_start + col_idx + 1
+                ticker, company = v73_ticker(row), v73_company(row)
+                icon, cls = v793_badge_meta(tier)
+                current = details.get("current_price")
+                fair = details.get("atlas_fair_value")
+                street = details.get("wall_street_consensus")
+                exp_ret = details.get("expected_return_pct")
+                source = details.get("source", "Unavailable")
+                bullets = "".join(f"<li>{v73_esc(item)}</li>" for item in reasons)
+                st.markdown(f"""
+<div class='v775-card'>
+  <div class='v775-card-head'><div><div class='v775-ticker'>{v73_esc(ticker)}</div><div class='v775-company'>{v73_esc(company)}</div></div><span class='v775-badge {cls}'>{icon} {v73_esc(tier)}</span></div>
+  <div class='v775-mini-grid'>
+    <div class='v775-mini'><span>Current Price</span><b>{v73_esc(v784_money(current))}</b><em>latest saved scan</em></div>
+    <div class='v775-mini'><span>Atlas Fair Value™</span><b class='v775-green'>{v73_esc(v784_money(fair))}</b><small class='v793-source'>{v73_esc(source)}</small></div>
+    <div class='v775-mini'><span>Wall Street Consensus</span><b class='v775-blue'>{v73_esc(v784_money(street))}</b><em>covering analysts</em></div>
+    <div class='v775-mini'><span>Expected Return</span><b>{v73_esc(v784_pct(exp_ret))}</b><em>to Atlas Fair Value</em></div>
+    <div class='v775-mini'><span>Quality</span><b>{qual:.0f}</b><em>{v73_score_label(qual)}</em></div>
+    <div class='v775-mini'><span>Confidence</span><b>{conf:.0f}</b><em>{v73_esc(v793_confidence_label(conf))}</em></div>
+  </div>
+  <div class='v793-reasons'><b>Why Atlas likes it</b><ul>{bullets}</ul></div>
+  <div class='v793-risk'><b>Primary risk:</b> {v73_esc(risk)}</div>
+</div>
+""", unsafe_allow_html=True)
+                if st.button(f"View Full Research — {ticker}", key=f"v793_research_{ticker}_{rank}", use_container_width=True):
+                    v793_open_research(ticker)
+
+
+def render_v775_home_dashboard(full_df=None, top_df=None, recovery_df=None):
+    """V79.3 home: one CIO-style brief with counts derived from displayed ideas."""
+    rows = v793_decision_rows(top_df)
+    counts = {"HIGH CONVICTION BUY": 0, "BUY ON WEAKNESS": 0, "WAIT FOR CONFIRMATION": 0, "AVOID": 0}
+    for payload in rows:
+        counts[payload[5]] = counts.get(payload[5], 0) + 1
+    regime, _, _, _ = v74_market_regime(full_df) if "v74_market_regime" in globals() else ("Selective", 0, 0, 0)
+    market_risk = "Moderate" if str(regime).lower() not in {"risk-off", "defensive", "bearish"} else "Elevated"
+    priority = "No immediate buy candidate"
+    for payload in rows:
+        if payload[5] == "HIGH CONVICTION BUY":
+            priority = f"{v73_ticker(payload[0])} — {v73_company(payload[0])}"
+            break
+    if priority == "No immediate buy candidate" and rows:
+        priority = f"{v73_ticker(rows[0][0])} — {v73_company(rows[0][0])}"
+    st.markdown(f"""
+<div class='v793-brief'>
+  <div class='v65-kicker'>Atlas Morning Brief</div>
+  <h1>Today’s investment priorities</h1>
+  <p>Atlas sees a <b>{v73_esc(regime)}</b> market backdrop. The current Top Ideas list contains <b>{counts['HIGH CONVICTION BUY']} high-conviction buy candidate(s)</b>, <b>{counts['BUY ON WEAKNESS']} buy-on-weakness idea(s)</b>, and <b>{counts['WAIT FOR CONFIRMATION']} name(s) waiting for confirmation</b>. Highest-priority research: <b>{v73_esc(priority)}</b>.</p>
+  <div class='v793-brief-grid'>
+    <div class='v793-brief-stat'><span>High Conviction</span><b>{counts['HIGH CONVICTION BUY']}</b><em>strongest actionable ideas</em></div>
+    <div class='v793-brief-stat'><span>Buy on Weakness</span><b>{counts['BUY ON WEAKNESS']}</b><em>attractive with better timing</em></div>
+    <div class='v793-brief-stat'><span>Waiting</span><b>{counts['WAIT FOR CONFIRMATION']}</b><em>needs stronger evidence</em></div>
+    <div class='v793-brief-stat'><span>Market Risk</span><b>{v73_esc(market_risk)}</b><em>current macro posture</em></div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+    if top_df is not None and not getattr(top_df, "empty", True):
+        render_v73_idea_table(top_df.head(8), title="Atlas Highest Conviction Ideas")
+
+    render_v73_earnings_page(full_df, top_df)
+
+    if "render_v72_market_tape" in globals():
+        render_v72_market_tape(always_show=True)
+
+    with st.expander("Upcoming Economic Calendar", expanded=False):
+        try:
+            if "render_v70_market_calendar_terminal" in globals():
+                render_v70_market_calendar_terminal(full_df)
+        except Exception:
+            st.caption("Market calendar is temporarily unavailable.")
+
+
 # Route aliases used by older code paths.
 render_v74_home_dashboard = render_v775_home_dashboard
 render_v73_top_nav = v784_top_nav

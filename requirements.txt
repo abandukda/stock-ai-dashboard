@@ -9,3 +9,4 @@ matplotlib
 alpaca-py
 requests
 openai
+pytest

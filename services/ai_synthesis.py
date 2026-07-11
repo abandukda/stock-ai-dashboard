@@ -278,3 +278,67 @@ def build_home_decision_summary(row: Mapping[str, Any], decision: str) -> str:
     else:
         lead = "remains on watch because the evidence is not yet strong enough for an immediate purchase"
     return f"{ticker} {lead}: {evidence}. The main watch item is {risk}."
+
+
+V793_AI_DECISION_SUMMARY_VERIFIED = True
+
+def _simple_pct(value: Any) -> float | None:
+    n = _num(value)
+    if n is None:
+        return None
+    return n * 100 if abs(n) <= 1 else n
+
+
+def build_plain_english_reasons(row: Mapping[str, Any], atlas_fair_value: float | None = None, current_price: float | None = None) -> list[str]:
+    """Return up to four short reasons a newer investor can understand."""
+    reasons: list[str] = []
+    rev = _simple_pct(_pick(row, "revenue_growth", "Revenue Growth"))
+    margin = _simple_pct(_pick(row, "profit_margin", "Profit Margin"))
+    fcf = _num(_pick(row, "free_cashflow", "free_cash_flow", "Free Cash Flow"))
+    cash = _num(_pick(row, "total_cash", "cash", "Total Cash"))
+    debt = _num(_pick(row, "total_debt", "debt", "Total Debt"))
+    rsi = _num(_pick(row, "rsi", "RSI"))
+
+    if rev is not None:
+        if rev >= 15:
+            reasons.append("Revenue is growing at a strong pace.")
+        elif rev > 0:
+            reasons.append("Revenue is still moving in the right direction.")
+    if margin is not None and margin >= 10:
+        reasons.append("The business is converting sales into healthy profits.")
+    if fcf is not None and fcf > 0:
+        reasons.append("The company is generating positive free cash flow.")
+    if cash is not None and debt is not None:
+        if cash > debt:
+            reasons.append("Cash exceeds debt, giving the company financial flexibility.")
+        elif debt > cash * 2:
+            reasons.append("Growth remains attractive, but debt deserves attention.")
+    if current_price and atlas_fair_value and atlas_fair_value > current_price:
+        reasons.append("Shares trade below Atlas Fair Value.")
+    if rsi is not None and 45 <= rsi <= 68:
+        reasons.append("Price momentum is constructive without looking overheated.")
+
+    if not reasons:
+        reasons.append("The combined financial and market evidence warrants further research.")
+    return reasons[:4]
+
+
+def build_primary_risk_sentence(row: Mapping[str, Any]) -> str:
+    """Convert verbose scan risk text into one complete, actionable sentence."""
+    raw = _clean(_pick(row, "what_could_go_wrong", "Primary Risk", "primary_risk", "risk_tags", default=""), default="")
+    low = raw.lower()
+    if "earnings" in low or "gap risk" in low:
+        return "Upcoming earnings could create sharp price swings."
+    if "debt" in low and "cash" in low:
+        return "Debt is high relative to cash and could limit financial flexibility."
+    if "current ratio" in low or "liquidity" in low:
+        return "Short-term liquidity is weaker than preferred."
+    if "valuation" in low or "expensive" in low or "multiple" in low:
+        return "The current valuation leaves less room for execution mistakes."
+    if "momentum" in low or "technical" in low or "trend" in low:
+        return "Price momentum has not yet confirmed a durable uptrend."
+    if raw:
+        first = raw.split(";")[0].strip().rstrip(".")
+        if first:
+            return first[:1].upper() + first[1:] + "."
+    return "The investment case still depends on execution, earnings, and entry timing."
