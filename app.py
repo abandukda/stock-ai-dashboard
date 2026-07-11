@@ -25811,16 +25811,22 @@ def v784_pct(value, unavailable="N/A"):
 
 
 def v784_top_nav(pages):
-    """Single navigation only. Removes the duplicate large top-title nav bar."""
-    current = st.session_state.get("v73_page", pages[0])
+    """Single internal navigation with a pending-page handoff.
+
+    Streamlit forbids changing a widget's own session key after the widget has
+    been instantiated. Research buttons therefore set ``v79_pending_page``;
+    this function consumes it before creating the radio widget.
+    """
+    pending = st.session_state.pop("v79_pending_page", None)
+    current = pending or st.session_state.get("v73_page", pages[0])
     if current not in pages:
         current = pages[0]
-    try:
-        qp = st.query_params.get("page")
-        if qp and qp in pages:
-            current = qp
-    except Exception:
-        pass
+
+    # Synchronize the widget before it is instantiated. This preserves login
+    # state and avoids query-parameter navigation/reloads.
+    if pending:
+        st.session_state["v784_single_nav"] = current
+
     selected = st.radio(
         "Navigate",
         pages,
@@ -25834,33 +25840,16 @@ def v784_top_nav(pages):
 
 
 def v784_open_research(ticker):
-    """Route internally to Research without using URL query links.
-
-    Streamlit radio widgets keep their own state by key, so setting only
-    v73_page is not enough. Set every known navigation key before rerun.
-    """
+    """Open the canonical Research page without URL navigation or logout."""
     ticker = str(ticker or "").strip().upper()
     if not ticker:
         return
     st.session_state["v73_research_ticker"] = ticker
     st.session_state["selected_ticker"] = ticker
     st.session_state["selected_research_ticker"] = ticker
-    # Keep all historical navigation keys synchronized so older render paths do not snap back to Home/Top Ideas.
-    for nav_key in [
-        "v73_page",
-        "v784_single_nav",
-        "v73_top_navigation",
-        "v72_top_navigation",
-        "v71_platform_nav",
-        "v651_platform_nav",
-    ]:
-        st.session_state[nav_key] = "Research Any Ticker"
-    try:
-        st.query_params.clear()
-    except Exception:
-        pass
+    st.session_state["v73_page"] = "Research Any Ticker"
+    st.session_state["v79_pending_page"] = "Research Any Ticker"
     st.rerun()
-
 
 def v784_compact_thesis(row, ticker):
     existing = v775_text(v73_get(row, ["AI Thesis", "ai_thesis", "Why Ranked", "why_ranked", "summary", "reason"], ""), "", 260)
@@ -25939,31 +25928,37 @@ def v785_confidence(row, opp, qual, up_num):
     return max(45, min(96, round(conf)))
 
 
-def v785_target_display(row):
-    """Display a target only when it can be tied to data.
+def v792_targets(row):
+    """Return explicitly labelled Atlas and Wall Street targets."""
+    try:
+        from engines.research_engine import target_details
+        return target_details(row)
+    except Exception:
+        price = v784_price(row)
+        atlas = v784_num(v73_get(row, ["Atlas Target", "AI Fair Value", "ai_fair_value", "ai_base_target", "target", "target_2"], None), None)
+        street = v784_num(v73_get(row, ["Wall Street Target", "Analyst Target", "target_mean_price", "analyst_target_mean"], None), None)
+        return {"current_price": price, "atlas_target": atlas, "wall_street_target": street,
+                "primary_target": atlas or street,
+                "primary_source": "Atlas Target" if atlas else ("Wall Street Target" if street else "No validated target")}
 
-    Priority:
-    1) explicit validated target/fair value columns
-    2) derived target from current price + provided upside percentage
-    3) unavailable state
-    """
-    price = v784_price(row)
-    target = v784_target(row)
-    if target is not None:
-        return v784_money(target), "validated target"
-    # Some saved scans carry upside but not a target after placeholder filtering.
-    # Derive the target transparently instead of showing a large yellow unavailable card.
-    up = v784_upside(row)
-    if price and up is not None:
-        modeled = price * (1 + (up / 100.0))
-        if modeled > 0:
-            return v784_money(modeled), "derived from upside"
-    return "No validated target", "Needs validation"
+
+def v792_decision_summary(row, decision, ticker):
+    """Plain-English, evidence-based reason for BUY/ACCUMULATE/WATCHLIST."""
+    try:
+        from services.ai_synthesis import build_home_decision_summary
+        return build_home_decision_summary(row, decision)
+    except Exception:
+        good = v775_text(v73_get(row, ["what_looks_good", "financial_summary", "why_ranked_high"], ""), "", 190)
+        risk = v775_text(v73_get(row, ["what_could_go_wrong", "primary_risk", "risk_tags"], ""), "", 130)
+        if good:
+            return f"{ticker} is rated {decision} because {good}" + (f" Main watch item: {risk}" if risk else "")
+        return f"{ticker} is rated {decision}; open the research report to validate financial quality, valuation, earnings timing, and downside risk."
 
 
 def render_v73_idea_table(df, title="Top Opportunities Today"):
+    """Decision cards only; detailed tables live in the canonical Research page."""
     st.markdown(f"<div class='v65-section-title'>{v73_esc(title)}</div>", unsafe_allow_html=True)
-    st.markdown("<div class='v775-help'><b>How to use this:</b> Upside is now calculated only when Atlas has a valid current price and target. Missing targets show as unavailable instead of using a placeholder. Each card has its own View Full Research button.</div>", unsafe_allow_html=True)
+    st.markdown("<div class='v775-help'><b>Decision guide:</b> 🟢 BUY NOW = strongest current setup; 🟡 ACCUMULATE = attractive but entry discipline matters; ⚪ WATCHLIST = wait for a catalyst, better price, or stronger evidence.</div>", unsafe_allow_html=True)
     if df is None or getattr(df, "empty", True):
         st.info("No top ideas found in the latest saved scan.")
         return
@@ -25972,64 +25967,46 @@ def render_v73_idea_table(df, title="Top Opportunities Today"):
             df = calibrate_top_ai_dataframe(df.copy())
     except Exception:
         pass
-    view_df = df.head(10).copy()
-    rows = []
-    # Render cards with Streamlit columns so each card can have a working internal navigation button.
-    pairs = list(view_df.iterrows())[:8]
+
+    pairs = list(df.head(8).iterrows())
     for pair_start in range(0, len(pairs), 2):
         cols = st.columns(2)
-        for col_idx, (irow, row) in enumerate(pairs[pair_start:pair_start+2], start=0):
+        for col_idx, (_, row) in enumerate(pairs[pair_start:pair_start+2]):
             with cols[col_idx]:
                 rank = pair_start + col_idx + 1
-                ticker = v73_ticker(row)
-                company = v73_company(row)
+                ticker, company = v73_ticker(row), v73_company(row)
                 opp = v775_score(row, ["Opportunity", "Opportunity Score", "opportunity_score", "technical_agent_score"], 0)
                 qual = v775_score(row, ["Quality", "Quality Score", "quality_score", "financial_score", "fundamentals_agent_score"], 0)
-                up_num = v784_upside(row)
+                targets = v792_targets(row)
+                price_num = targets.get("current_price") or v784_price(row)
+                atlas_target = targets.get("atlas_target")
+                street_target = targets.get("wall_street_target")
+                primary = targets.get("primary_target")
+                up_num = ((primary-price_num)/price_num*100) if price_num and primary else None
                 conf = v785_confidence(row, opp, qual, up_num)
-                target_num = v784_target(row)
-                price_num = v784_price(row)
                 decision = v775_decision(row, opp, qual, conf, up_num)
-                cls = "v775-buy" if "BUY" in decision.upper() else ("v775-avoid" if "AVOID" in decision.upper() else "v775-watch")
-                upside = v784_pct(up_num)
-                target, target_note = v785_target_display(row)
-                price = v784_money(price_num)
-                thesis = v784_compact_thesis(row, ticker)
-                target_class = "v785-unavailable" if target in {"Target unavailable", "No validated target"} else ""
+                dupper = decision.upper()
+                cls = "v775-buy" if "BUY" in dupper else ("v775-avoid" if "AVOID" in dupper else "v775-watch")
+                icon = "🟢" if "BUY" in dupper else ("🟡" if "ACCUMULATE" in dupper else ("🔴" if "AVOID" in dupper else "⚪"))
+                summary = v792_decision_summary(row, decision, ticker)
+                risk = v775_text(v73_get(row, ["what_could_go_wrong", "Primary Risk", "primary_risk"], "Review earnings timing and downside controls."), "Review earnings timing and downside controls.", 150)
                 st.markdown(f"""
 <div class='v775-card'>
-  <div class='v775-card-head'><div><div class='v775-ticker'>{v73_esc(ticker)}</div><div class='v775-company'>{v73_esc(company)}</div></div><span class='v775-badge {cls}'>{v73_esc(decision)}</span></div>
+  <div class='v775-card-head'><div><div class='v775-ticker'>{v73_esc(ticker)}</div><div class='v775-company'>{v73_esc(company)}</div></div><span class='v775-badge {cls}'>{icon} {v73_esc(decision)}</span></div>
   <div class='v775-mini-grid'>
-    <div class='v775-mini'><span>Current</span><b>{v73_esc(price)}</b><em>latest scan</em></div>
-    <div class='v775-mini'><span>Target</span><b class='{target_class}'>{v73_esc(target)}</b><em>{v73_esc(target_note)}</em></div>
-    <div class='v775-mini'><span>Upside</span><b>{v73_esc(upside)}</b><em>calculated only</em></div>
-    <div class='v775-mini'><span>Opportunity</span><b>{opp:.0f}</b><em>{v73_score_label(opp)}</em></div>
+    <div class='v775-mini'><span>Current</span><b>{v73_esc(v784_money(price_num))}</b><em>latest scan</em></div>
+    <div class='v775-mini'><span>Atlas Target</span><b class='v775-green'>{v73_esc(v784_money(atlas_target))}</b><em>systematic trade/fair value</em></div>
+    <div class='v775-mini'><span>Wall Street Target</span><b class='v775-blue'>{v73_esc(v784_money(street_target))}</b><em>analyst consensus</em></div>
+    <div class='v775-mini'><span>Potential Return</span><b>{v73_esc(v784_pct(up_num))}</b><em>to primary target</em></div>
     <div class='v775-mini'><span>Quality</span><b>{qual:.0f}</b><em>{v73_score_label(qual)}</em></div>
     <div class='v775-mini'><span>Confidence</span><b>{conf:.0f}</b><em>{v73_score_label(conf)}</em></div>
   </div>
-  <div class='v775-thesis'>{v73_esc(thesis)}</div>
-  <div class='v785-action-note'>Open the full research report before sizing any position.</div>
+  <div class='v775-thesis'><b>Why this rating:</b> {v73_esc(summary, max_len=430)}</div>
+  <div class='v775-action'><b>Primary risk:</b> {v73_esc(risk)}</div>
 </div>
 """, unsafe_allow_html=True)
-                if st.button(f"View Full Research — {ticker}", key=f"v785_research_{ticker}_{rank}", use_container_width=True):
+                if st.button(f"View Full Research — {ticker}", key=f"v792_research_{ticker}_{rank}", use_container_width=True):
                     v784_open_research(ticker)
-    # Build executive table separately, collapsed by default.
-    for i, (_, row) in enumerate(view_df.iterrows(), 1):
-        ticker = v73_ticker(row); company = v73_company(row)
-        opp = v775_score(row, ["Opportunity", "Opportunity Score", "opportunity_score", "technical_agent_score"], 0)
-        qual = v775_score(row, ["Quality", "Quality Score", "quality_score", "financial_score", "fundamentals_agent_score"], 0)
-        up_num = v784_upside(row); conf = v785_confidence(row, opp, qual, up_num)
-        decision = v775_decision(row, opp, qual, conf, up_num)
-        cls = "v775-buy" if "BUY" in decision.upper() else ("v775-avoid" if "AVOID" in decision.upper() else "v775-watch")
-        price = v784_money(v784_price(row)); target, _note = v785_target_display(row); upside = v784_pct(up_num)
-        wall = v73_wall_street(row, html=False) if "v73_wall_street" in globals() else v775_text(v73_get(row, ["Wall Street", "Analyst View"], "No analyst data"), "No analyst data", 70)
-        earnings_date, timing, earnings_status, _, latest_earn = v73_next_earnings(row) if "v73_next_earnings" in globals() else ("N/A", "Unknown", "Not in scan", None, None)
-        political = v775_text(v73_get(row, ["Political Signal", "political_signal", "political_status", "congress_signal"], "Neutral"), "Neutral", 45)
-        thesis = v784_compact_thesis(row, ticker)
-        rows.append(f"""<tr><td>#{i}</td><td><b>{v73_esc(ticker)}</b><br><span class='v775-muted'>{v73_esc(company)}</span></td><td><span class='v775-badge {cls}'>{v73_esc(decision)}</span></td><td>{v73_esc(price)}</td><td>{v73_esc(target)}</td><td>{v73_esc(upside)}</td><td>{opp:.0f}<br><span class='v775-muted'>{v73_score_label(opp)}</span></td><td>{qual:.0f}<br><span class='v775-muted'>{v73_score_label(qual)}</span></td><td>{conf:.0f}<br><span class='v775-muted'>{v73_score_label(conf)}</span></td><td>{v73_esc(wall, max_len=75)}</td><td>{v73_esc(earnings_date, max_len=20)}<br><span class='v775-muted'>{v73_esc(timing or earnings_status, max_len=35)}</span></td><td>{v73_esc(political)}</td><td class='v775-thesis-cell'>{v73_esc(thesis)}</td></tr>""")
-    with st.expander("Full executive table", expanded=False):
-        st.markdown("<div class='v775-table-wrap'><table class='v775-table'><thead><tr><th>Rank</th><th>Company</th><th>Decision</th><th>Current</th><th>Target</th><th>Upside</th><th>Opportunity</th><th>Quality</th><th>Confidence</th><th>Wall Street</th><th>Earnings</th><th>Political</th><th>AI Thesis</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>", unsafe_allow_html=True)
-
 
 def v784_parse_date(value):
     text = v775_text(value, "", 40)
@@ -26062,35 +26039,54 @@ def v784_timing_label(date_text, fallback="Unknown"):
 
 
 def render_v73_earnings_page(full_df=None, top_df=None):
+    """Show upcoming earnings and results reported in the current month only."""
     st.markdown("<div class='v65-section-title'>💼 Earnings Intelligence</div>", unsafe_allow_html=True)
-    st.markdown("<div class='v775-help'><b>How to use this:</b> Earnings can reset the thesis quickly. Focus first on companies with upcoming dates, transcript evidence, or meaningful guidance/news read-through.</div>", unsafe_allow_html=True)
+    st.markdown("<div class='v775-help'><b>What matters:</b> Upcoming reports can change a rating quickly. Results already reported this month remain visible so clients can open the full Atlas report for the earnings facts, AI summary, guidance impact, and action plan.</div>", unsafe_allow_html=True)
     df = top_df if top_df is not None and not getattr(top_df, "empty", True) else full_df
     if df is None or getattr(df, "empty", True):
-        st.info("No earnings data available in the latest saved scan.")
+        st.info("No earnings data is available in the latest saved scan.")
         return
-    cards = []
-    rows = []
-    for _, row in df.head(20).iterrows():
-        ticker = v73_ticker(row); company = v73_company(row)
-        date, timing, status, url, latest = v73_next_earnings(row) if "v73_next_earnings" in globals() else ("N/A", "Unknown", "Not in scan", None, None)
-        timing_label = v784_timing_label(date, timing)
-        price = v784_money(v784_price(row))
-        transcript_label = "Read transcript/source" if str(url).startswith("http") else ("Search transcript" if "transcript" in str(status).lower() else "Transcript not confirmed")
-        href = str(url) if str(url).startswith("http") else f"https://www.google.com/search?q={_v73_quote_plus(ticker + ' earnings transcript') }"
-        read = v775_text(latest if latest and latest != "—" else status, "No earnings summary in saved scan", 220)
-        cards.append(f"""
+
+    today = _v784_date.today()
+    candidates = []
+    for _, row in df.iterrows():
+        ticker, company = v73_ticker(row), v73_company(row)
+        date_text, timing, status, url, latest = v73_next_earnings(row) if "v73_next_earnings" in globals() else ("", "", "", None, None)
+        d = v784_parse_date(date_text)
+        if d is None:
+            continue
+        is_current_month = d.year == today.year and d.month == today.month
+        is_upcoming = d >= today and (d - today).days <= 45
+        if not (is_current_month or is_upcoming):
+            continue
+        candidates.append((d, row, date_text, timing, status, latest))
+
+    candidates.sort(key=lambda item: (item[0] < today, item[0]))
+    if not candidates:
+        st.info("No upcoming or current-month earnings were found for the current Top Ideas universe.")
+        return
+
+    for pair_start in range(0, min(len(candidates), 8), 2):
+        cols = st.columns(2)
+        for col_idx, (d, row, date_text, timing, status, latest) in enumerate(candidates[pair_start:pair_start+2]):
+            with cols[col_idx]:
+                ticker, company = v73_ticker(row), v73_company(row)
+                reported = d < today
+                timing_label = v784_timing_label(date_text, timing)
+                earnings_read = v775_text(latest or v73_get(row, ["earnings_summary", "Earnings Summary", "guidance", "financial_summary"], "Open the Atlas report for earnings facts and thesis impact."), "Open the Atlas report for earnings facts and thesis impact.", 240)
+                status_label = "Reported this month" if reported else "Upcoming"
+                st.markdown(f"""
 <div class='v775-news-card'>
   <b>{v73_esc(ticker)} — {v73_esc(company)}</b><br>
-  <span class='v775-muted'>Price: {v73_esc(price)} · Earnings: {v73_esc(date)} · {v73_esc(timing_label)}</span><br>
-  <a href='{_v73_html.escape(href)}' target='_blank'>{v73_esc(transcript_label)}</a>
-  <small>{v73_esc(read)}</small>
+  <span class='v73-badge'>{v73_esc(status_label)}</span><br>
+  <span class='v775-muted'>{v73_esc(date_text)} · {v73_esc(timing_label)}</span>
+  <small><b>Atlas read:</b> {v73_esc(earnings_read)}</small>
 </div>
-""")
-        rows.append(f"""<tr><td><b>{v73_esc(ticker)}</b></td><td>{v73_esc(company)}</td><td>{v73_esc(price)}</td><td>{v73_esc(date)}</td><td>{v73_esc(timing_label)}</td><td><a href='{_v73_html.escape(href)}' target='_blank'>{v73_esc(transcript_label)}</a></td><td>{v73_esc(read)}</td></tr>""")
-    st.markdown("<div class='v775-card-grid'>" + "".join(cards[:6]) + "</div>", unsafe_allow_html=True)
-    with st.expander("All earnings candidates", expanded=False):
-        st.markdown("<div class='v775-table-wrap'><table class='v775-table'><thead><tr><th>Ticker</th><th>Company</th><th>Current</th><th>Earnings Date</th><th>Timing</th><th>Transcript / Link</th><th>Atlas Read</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>", unsafe_allow_html=True)
-    st.caption("If an earnings date is estimated or missing, Atlas treats it as a research follow-up item rather than a trading signal.")
+""", unsafe_allow_html=True)
+                if st.button(f"Open Earnings Research — {ticker}", key=f"v792_earnings_{ticker}_{pair_start}_{col_idx}", use_container_width=True):
+                    st.session_state["v79_research_focus"] = "earnings"
+                    v784_open_research(ticker)
+    st.caption("Earnings coverage is limited to upcoming reports and results from the current calendar month. No Google transcript-search links are used.")
 
 
 def render_v775_home_dashboard(full_df=None, top_df=None, recovery_df=None):
@@ -26098,17 +26094,17 @@ def render_v775_home_dashboard(full_df=None, top_df=None, recovery_df=None):
     top_count = 0 if top_df is None or getattr(top_df, "empty", True) else len(top_df)
     rec_count = 0 if recovery_df is None or getattr(recovery_df, "empty", True) else len(recovery_df)
     regime, buys, watch, avoid = v74_market_regime(full_df) if "v74_market_regime" in globals() else ("Selective", 0, 0, 0)
-    top_ticker = "—"; top_company = ""
+    top_ticker, top_company = "—", ""
     if top_df is not None and not getattr(top_df, "empty", True):
-        top_ticker = v73_ticker(top_df.iloc[0]); top_company = v73_company(top_df.iloc[0])
+        top_ticker, top_company = v73_ticker(top_df.iloc[0]), v73_company(top_df.iloc[0])
     st.markdown(f"""
 <div class='v775-hero'>
   <div class='v65-kicker'>Atlas Morning Brief</div>
-  <h1>Today’s market focus</h1>
-  <p>Top saved-scan opportunity: <b>{v73_esc(top_ticker)}</b>{(' — ' + v73_esc(top_company)) if top_company else ''}. Market posture is <b>{v73_esc(regime)}</b>. Open the full research report before sizing any trade.</p>
+  <h1>Today’s decision dashboard</h1>
+  <p>Market posture is <b>{v73_esc(regime)}</b>. Atlas is prioritizing <b>{v73_esc(top_ticker)}</b>{(' — ' + v73_esc(top_company)) if top_company else ''}. Review earnings first, then use Top Opportunities to open the complete research report before acting.</p>
   <div class='v775-grid4'>
-    <div class='v775-stat'><span>Actionable Ideas</span><b>{top_count}</b><em>ranked candidates</em></div>
-    <div class='v775-stat'><span>Buy Now</span><b>{buys}</b><em>highest-action ideas</em></div>
+    <div class='v775-stat'><span>Buy Now</span><b>{buys}</b><em>strongest current setups</em></div>
+    <div class='v775-stat'><span>Watch / Accumulate</span><b>{watch}</b><em>require entry discipline</em></div>
     <div class='v775-stat'><span>Recovery Radar</span><b>{rec_count}</b><em>sold-off candidates</em></div>
     <div class='v775-stat'><span>Stocks Covered</span><b>{full_count}</b><em>latest deep scan</em></div>
   </div>
@@ -26116,15 +26112,20 @@ def render_v775_home_dashboard(full_df=None, top_df=None, recovery_df=None):
 """, unsafe_allow_html=True)
     if "render_v72_market_tape" in globals():
         render_v72_market_tape(always_show=True)
+
+    # Earnings belongs above discovery because near-term reports can invalidate a setup.
+    render_v73_earnings_page(full_df, top_df)
+
     if top_df is not None and not getattr(top_df, "empty", True):
         render_v73_idea_table(top_df.head(8), title="Top Opportunities Today")
-    with st.expander("📅 Market Calendar & Earnings", expanded=False):
+
+    with st.expander("Market Calendar", expanded=False):
         try:
             if "render_v70_market_calendar_terminal" in globals():
                 render_v70_market_calendar_terminal(full_df)
         except Exception:
-            pass
-        render_v73_earnings_page(full_df, top_df)
+            st.caption("Market calendar is temporarily unavailable.")
+
 
 # Route aliases used by older code paths.
 render_v74_home_dashboard = render_v775_home_dashboard
@@ -26160,3 +26161,4 @@ if __name__ == "__main__":
 # V79 Professional Research Engine marker
 V79_AI_COMMITTEE_RESEARCH_ENGINE_VERIFIED = True
 V791_RESEARCH_NAV_TARGET_HOTFIX_VERIFIED = True
+V792_INTELLIGENCE_RELEASE_VERIFIED = True

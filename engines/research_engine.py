@@ -68,3 +68,61 @@ def build_research_snapshot(row: Mapping[str, Any]) -> dict[str, Any]:
         "upside_pct": upside,
         "has_valid_target": target is not None,
     }
+
+
+V792_RESEARCH_FINANCIAL_CONTEXT_VERIFIED = True
+
+def _first(row: Mapping[str, Any], *keys: str) -> Any:
+    for key in keys:
+        try:
+            value = row.get(key)
+        except Exception:
+            value = None
+        if value is not None and str(value).strip().lower() not in _MISSING:
+            return value
+    return None
+
+def target_details(row: Mapping[str, Any]) -> dict[str, Any]:
+    """Return clearly separated targets and the primary valuation reference."""
+    current = as_float(_first(row, "current_price", "price", "last_price", "Price"))
+    atlas = as_float(_first(row, "Atlas Target", "AI Fair Value", "ai_fair_value", "ai_base_target", "target", "target_2"))
+    street = as_float(_first(row, "Wall Street Target", "Analyst Target", "target_mean_price", "analyst_target_mean"))
+    primary = atlas or street
+    source = "Atlas Target" if atlas else ("Wall Street Target" if street else "No validated target")
+    return {
+        "current_price": current,
+        "atlas_target": atlas,
+        "wall_street_target": street,
+        "primary_target": primary,
+        "primary_source": source,
+        "atlas_upside_pct": calculate_upside(current, atlas),
+        "wall_street_upside_pct": calculate_upside(current, street),
+    }
+
+def build_financial_snapshot(row: Mapping[str, Any]) -> dict[str, Any]:
+    """Pure financial context used by Research and the AI synthesis layer."""
+    fields = {
+        "market_cap": ("market_cap", "Market Cap"),
+        "revenue_growth": ("revenue_growth", "Revenue Growth"),
+        "earnings_growth": ("earnings_growth", "Earnings Growth"),
+        "gross_margin": ("gross_margin", "Gross Margin"),
+        "operating_margin": ("operating_margin", "Operating Margin"),
+        "profit_margin": ("profit_margin", "Profit Margin"),
+        "free_cash_flow": ("free_cashflow", "free_cash_flow", "Free Cash Flow"),
+        "operating_cash_flow": ("operating_cashflow", "operating_cash_flow", "Operating Cash Flow"),
+        "cash": ("total_cash", "cash", "Total Cash"),
+        "debt": ("total_debt", "debt", "Total Debt"),
+        "debt_to_equity": ("debt_to_equity", "Debt to Equity"),
+        "current_ratio": ("current_ratio", "Current Ratio"),
+        "pe": ("pe_ratio", "trailing_pe", "P/E"),
+        "forward_pe": ("forward_pe", "Forward P/E"),
+        "peg": ("peg_ratio", "PEG"),
+        "price_to_sales": ("price_to_sales", "Price to Sales"),
+        "price_to_book": ("price_to_book", "Price to Book"),
+    }
+    out = {}
+    for name, keys in fields.items():
+        out[name] = as_float(_first(row, *keys))
+    cash, debt = out.get("cash"), out.get("debt")
+    out["net_cash"] = (cash - debt) if cash is not None and debt is not None else None
+    return out

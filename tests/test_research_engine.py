@@ -21,3 +21,18 @@ def test_build_research_snapshot():
     assert snap["ticker"] == "OPRA"
     assert snap["has_valid_target"] is True
     assert round(snap["upside_pct"], 1) == 25.0
+
+
+def test_target_details_separates_atlas_and_wall_street():
+    from engines.research_engine import target_details
+    row = {"price": 100, "target": 125, "target_mean_price": 115}
+    result = target_details(row)
+    assert result["atlas_target"] == 125
+    assert result["wall_street_target"] == 115
+    assert round(result["atlas_upside_pct"], 1) == 25.0
+
+def test_financial_snapshot_calculates_net_cash():
+    from engines.research_engine import build_financial_snapshot
+    result = build_financial_snapshot({"total_cash": 500, "total_debt": 125, "free_cashflow": 50})
+    assert result["net_cash"] == 375
+    assert result["free_cash_flow"] == 50

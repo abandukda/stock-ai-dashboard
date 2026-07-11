@@ -100,6 +100,20 @@ def build_ticker_context(row: Mapping[str, Any]) -> dict[str, Any]:
         "primary_risk": _clean(_pick(row, "Primary Risk", "primary_risk", "Risk", default=""), default=""),
         "investment_thesis": _clean(_pick(row, "Investment Thesis", "AI Thesis", "ai_thesis", default=""), default=""),
         "committee_conclusion": _clean(_pick(row, "Committee Conclusion", "committee_conclusion", default=""), default=""),
+        "revenue_growth": _fmt_pct(_pick(row, "revenue_growth", "Revenue Growth")),
+        "earnings_growth": _fmt_pct(_pick(row, "earnings_growth", "Earnings Growth")),
+        "gross_margin": _fmt_pct(_pick(row, "gross_margin", "Gross Margin")),
+        "operating_margin": _fmt_pct(_pick(row, "operating_margin", "Operating Margin")),
+        "profit_margin": _fmt_pct(_pick(row, "profit_margin", "Profit Margin")),
+        "free_cash_flow": _fmt_money(_pick(row, "free_cashflow", "free_cash_flow", "Free Cash Flow")),
+        "operating_cash_flow": _fmt_money(_pick(row, "operating_cashflow", "operating_cash_flow", "Operating Cash Flow")),
+        "cash": _fmt_money(_pick(row, "total_cash", "cash", "Total Cash")),
+        "debt": _fmt_money(_pick(row, "total_debt", "debt", "Total Debt")),
+        "pe": _clean(_pick(row, "pe_ratio", "trailing_pe", "P/E", default="Unavailable")),
+        "forward_pe": _clean(_pick(row, "forward_pe", "Forward P/E", default="Unavailable")),
+        "peg": _clean(_pick(row, "peg_ratio", "PEG", default="Unavailable")),
+        "rsi": _clean(_pick(row, "rsi", "RSI", default="Unavailable")),
+        "volume_ratio": _clean(_pick(row, "volume_ratio", "Relative Volume", default="Unavailable")),
     }
 
 
@@ -229,3 +243,38 @@ def generate_investment_committee(context: Mapping[str, Any]) -> str:
     """Generate a single CIO synthesis from deterministic agent outputs."""
     fallback = deterministic_committee_summary(context)
     return _call_llm(_committee_prompt(context), fallback, max_tokens=900)
+
+
+V792_HOME_DECISION_SUMMARY_VERIFIED = True
+
+def _pct_plain(value: Any) -> str | None:
+    n = _num(value)
+    if n is None:
+        return None
+    if abs(n) <= 1:
+        n *= 100
+    return f"{n:.1f}%"
+
+def build_home_decision_summary(row: Mapping[str, Any], decision: str) -> str:
+    """Create a concise evidence-based home-card explanation without an API call."""
+    ticker = _clean(_pick(row, "Ticker", "ticker", "symbol", default="This company"))
+    positives = []
+    rev = _pct_plain(_pick(row, "revenue_growth", "Revenue Growth"))
+    margin = _pct_plain(_pick(row, "profit_margin", "Profit Margin"))
+    fcf = _fmt_money(_pick(row, "free_cashflow", "free_cash_flow", "Free Cash Flow"))
+    cash = _num(_pick(row, "total_cash", "cash")); debt = _num(_pick(row, "total_debt", "debt"))
+    rsi = _num(_pick(row, "rsi", "RSI"))
+    if rev: positives.append(f"revenue growth is {rev}")
+    if margin: positives.append(f"profit margin is {margin}")
+    if fcf != "Unavailable": positives.append(f"free cash flow is {fcf}")
+    if cash is not None and debt is not None and cash > debt: positives.append("cash exceeds debt")
+    if rsi is not None: positives.append(f"RSI is {rsi:.0f}, indicating {'constructive momentum' if 45 <= rsi <= 70 else 'a setup that needs timing discipline'}")
+    evidence = "; ".join(positives[:3]) if positives else _clean(_pick(row, "what_looks_good", "financial_summary", default="the combined Atlas signals warrant deeper review"), default="the combined Atlas signals warrant deeper review")
+    risk = _clean(_pick(row, "what_could_go_wrong", "Primary Risk", "primary_risk", default="earnings, valuation, and entry timing still require review"), default="earnings, valuation, and entry timing still require review")
+    if "BUY" in str(decision).upper():
+        lead = "qualifies as a current buy candidate"
+    elif "ACCUMULATE" in str(decision).upper():
+        lead = "is attractive, but Atlas favors staged buying or a better entry"
+    else:
+        lead = "remains on watch because the evidence is not yet strong enough for an immediate purchase"
+    return f"{ticker} {lead}: {evidence}. The main watch item is {risk}."
