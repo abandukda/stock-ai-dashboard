@@ -54,8 +54,8 @@ UNIVERSE_FILE = DATA_DIR / "total_market_universe.json"
 # =========================
 # V50.8.4 SCANNER STATE VERSION LOCK
 # =========================
-SCANNER_VERSION = "V50.8.4"
-SCANNER_VERSION_LABEL = "V50.8.4 Analyst + Calendar Hotfix"
+SCANNER_VERSION = "V80.5"
+SCANNER_VERSION_LABEL = "V80.5 Discovery Engine"
 
 def scanner_version_value() -> str:
     return SCANNER_VERSION
@@ -79,8 +79,8 @@ ETF_SCAN_FILE = DATA_DIR / "etf_scan.json"
 MAX_UNIVERSE = int(os.getenv("MAX_UNIVERSE", "6500"))
 MAX_PRESCREEN = int(os.getenv("MAX_PRESCREEN", "650"))
 MAX_FULL_SCAN = int(os.getenv("MAX_FULL_SCAN", "150"))
-BATCH_SIZE = int(os.getenv("SCAN_BATCH_SIZE", "80"))
-SLEEP_BETWEEN_BATCHES = float(os.getenv("SCAN_SLEEP", "1.0"))
+BATCH_SIZE = int(os.getenv("SCAN_BATCH_SIZE", "25"))
+SLEEP_BETWEEN_BATCHES = float(os.getenv("SCAN_SLEEP", "2.0"))
 
 MIN_PRICE = float(os.getenv("MIN_PRICE", "2.00"))
 MAX_PRICE = float(os.getenv("MAX_PRICE", "1000.00"))
@@ -372,10 +372,16 @@ def build_universe() -> List[str]:
 # =========================
 
 def download_price_batch(symbols: List[str]) -> pd.DataFrame:
+    """Rate-limit-safe broad discovery download.
+
+    The Discovery Engine intentionally disables yfinance threading and uses
+    exponential backoff. Deep enrichment happens only for finalists or via
+    the Live Research Engine when a customer requests a ticker.
+    """
     if not symbols:
         return pd.DataFrame()
 
-    for attempt in range(2):
+    for attempt in range(3):
         try:
             data = yf.download(
                 tickers=" ".join(symbols),
@@ -384,16 +390,15 @@ def download_price_batch(symbols: List[str]) -> pd.DataFrame:
                 group_by="ticker",
                 auto_adjust=True,
                 prepost=False,
-                threads=True,
+                threads=False,
                 progress=False,
+                timeout=30,
             )
-            return data
-        except Exception:
-            if attempt == 0:
-                time.sleep(1.0)
-                continue
-            return pd.DataFrame()
-
+            if data is not None and not data.empty:
+                return data
+        except Exception as exc:
+            print(f"Discovery batch attempt {attempt + 1} failed for {len(symbols)} symbols: {exc}")
+        time.sleep(2 ** attempt)
     return pd.DataFrame()
 
 

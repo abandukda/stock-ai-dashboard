@@ -3927,7 +3927,16 @@ def _safe_float_live(value, default=None):
         return default
 
 
-@st.cache_data(ttl=900)
+@st.cache_data(ttl=900, show_spinner=False)
+def build_live_research_row(ticker, force_refresh=False):
+    """V80.5 live research adapter for any paid-customer ticker request."""
+    from engines.live_research_engine import build_live_research
+    return build_live_research(
+        ticker,
+        force_refresh=bool(force_refresh),
+        cache_ttl_seconds=900,
+    )
+
 def build_live_research_row(ticker):
     ticker = safe_text(ticker, "").upper().strip()
     if not ticker:
@@ -24987,36 +24996,53 @@ def render_detail(row):
 
 
 def render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df=None):
-    st.markdown("<div class='v65-section-title'>🔎 Research Any Ticker</div>", unsafe_allow_html=True)
-    st.markdown("<div class='v65-subtitle'>Fast saved-scan snapshot loads first. Deep refresh should only be used when you need live data beyond the saved scan.</div>", unsafe_allow_html=True)
+    st.markdown("<div class='v65-section-title'>🔎 Live Atlas Research</div>", unsafe_allow_html=True)
+    st.markdown("<div class='v65-subtitle'>Search any supported ticker. Atlas loads saved discovery data instantly and can refresh live financials, valuation, news, analyst context, and policy evidence on demand.</div>", unsafe_allow_html=True)
     ticker = st.text_input("Ticker", value=st.session_state.get("v73_research_ticker", ""), placeholder="Example: NVDA, MSFT, OPRA", key="v73_research_ticker").strip().upper()
     if not ticker:
-        st.info("Enter a ticker to open the full supporting dashboard.")
+        st.info("Enter a ticker to open current Atlas research.")
         return
-    row = None
+
+    saved_row = None
     try:
-        row = find_ticker_row(ticker, full_df, recovery_df, watch_df, prescreen_df, etf_df)
+        saved_row = find_ticker_row(ticker, full_df, recovery_df, watch_df, prescreen_df, etf_df)
     except Exception:
-        row = None
-    if row is None:
-        st.warning("Ticker was not found in the latest saved scan. Showing price-only fallback if available.")
-        try:
-            row = pd.Series(build_price_only_live_row(ticker, reason="not found in saved scan"))
-        except Exception:
-            row = pd.Series({"Ticker": ticker, "Company": ticker})
-    else:
-        st.success("Loaded from the latest saved Atlas scan. This should be fast; use Deep Refresh only when needed.")
-    render_detail(row)
-    if st.button(f"Run Deep Refresh for {ticker}", key=f"v73_deep_refresh_{ticker}"):
-        with st.spinner(f"Running live AI research for {ticker}..."):
+        saved_row = None
+
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        refresh = st.button(f"Refresh Live Research for {ticker}", key=f"v805_live_refresh_{ticker}", type="primary")
+    with col2:
+        use_saved = st.button("Show Saved Discovery Snapshot", key=f"v805_saved_{ticker}", disabled=saved_row is None)
+
+    state_key = f"v805_live_row_{ticker}"
+    if refresh or (saved_row is None and state_key not in st.session_state):
+        with st.spinner(f"Refreshing market data, valuation, news, and policy context for {ticker}..."):
             try:
-                live_row = build_live_research_row(ticker)
-            except Exception as e:
-                live_row = {"error": str(e)}
-        if isinstance(live_row, dict) and not live_row.get("error"):
-            render_detail(pd.Series(live_row))
-        else:
-            st.warning("Deep refresh did not return a complete live report. Saved scan remains available.")
+                live_row = build_live_research_row(ticker, force_refresh=refresh)
+            except Exception as exc:
+                live_row = {"error": str(exc)}
+        st.session_state[state_key] = live_row
+
+    if use_saved and saved_row is not None:
+        st.session_state.pop(state_key, None)
+
+    active = st.session_state.get(state_key)
+    if isinstance(active, dict) and active.get("error"):
+        st.warning(f"Live refresh was unavailable: {active['error']}")
+        active = None
+
+    if isinstance(active, dict):
+        refreshed = active.get("research_refreshed_at", "")
+        confidence = active.get("research_confidence")
+        source = active.get("research_source", "live")
+        st.success(f"Live Atlas Research loaded · Source: {source} · Confidence: {confidence or 'N/A'}% · Refreshed: {refreshed or 'just now'}")
+        render_detail(pd.Series(active))
+    elif saved_row is not None:
+        st.info("Showing the latest saved Discovery Engine snapshot. Select Refresh Live Research for current deep analysis.")
+        render_detail(saved_row)
+    else:
+        st.warning("No saved snapshot is available and live research could not be completed.")
 
 
 def render_v73_home_dashboard(full_df=None, top_df=None, recovery_df=None):
@@ -26239,20 +26265,7 @@ def render_v73_idea_table(df, title="Atlas Decision Ideas"):
                 exp_ret = details.get("expected_return_pct")
                 source = details.get("source", "Atlas Fair Value under review")
                 fair_display = v784_money(fair, "Under review")
-                # Never present Wall Street upside as Atlas expected return. When Atlas Fair Value
-                # is unavailable, show the consensus upside explicitly with its own label/source.
-                if exp_ret is not None:
-                    return_label = "Expected Return"
-                    return_display = v784_pct(exp_ret, "Unavailable")
-                    return_note = "to Atlas Fair Value"
-                elif street_upside is not None:
-                    return_label = "Consensus Upside"
-                    return_display = v784_pct(street_upside, "Unavailable")
-                    return_note = "Wall Street consensus — not Atlas Fair Value"
-                else:
-                    return_label = "Valuation Upside"
-                    return_display = "Unavailable"
-                    return_note = "insufficient valuation evidence"
+                return_display = v784_pct(exp_ret, "Under review")
                 street_note = (f"{street_upside:+.1f}% implied upside" if street_upside is not None else "covering analysts")
                 bullets = "".join(f"<li>{v73_esc(item)}</li>" for item in reasons)
                 st.markdown(f"""
@@ -26262,7 +26275,7 @@ def render_v73_idea_table(df, title="Atlas Decision Ideas"):
     <div class='v775-mini'><span>Current Price</span><b>{v73_esc(v784_money(current))}</b><em>latest saved scan</em></div>
     <div class='v775-mini'><span>Atlas Fair Value™</span><b class='v775-green'>{v73_esc(fair_display)}</b><small class='v793-source'>{v73_esc(source)}</small></div>
     <div class='v775-mini'><span>Wall Street Consensus</span><b class='v775-blue'>{v73_esc(v784_money(street))}</b><em>{v73_esc(street_note)}</em></div>
-    <div class='v775-mini'><span>{v73_esc(return_label)}</span><b>{v73_esc(return_display)}</b><em>{v73_esc(return_note)}</em></div>
+    <div class='v775-mini'><span>Expected Return</span><b>{v73_esc(return_display)}</b><em>to Atlas Fair Value</em></div>
     <div class='v775-mini'><span>Quality</span><b>{qual:.0f}</b><em>{v73_score_label(qual)}</em></div>
     <div class='v775-mini'><span>Confidence</span><b>{conf:.0f}</b><em>{v73_esc(v793_confidence_label(conf))}</em></div>
   </div>
