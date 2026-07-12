@@ -18,7 +18,7 @@ import requests
 import yfinance as yf
 import plotly.graph_objects as go
 
-from engines.report_engine import render_stock_report
+
 
 APP_VERSION = "V63.0 Institutional Scoring + Finance UI"
 V63_REAL_SCORING_AND_FINANCE_VERIFIED = True
@@ -21596,7 +21596,6 @@ def main():
     with tabs[0]:
         fast_sorted = render_v60_3_top_ai_experience(source_df, title="Top AI Ideas", max_rows=10, show_filters=False)
         default_row = v56_pick_default_stock(fast_sorted if fast_sorted is not None and not fast_sorted.empty else source_df)
-        render_stock_report(default_row, source="Top AI Ideas")
     with tabs[1]:
         render_v56_ranked_table(full_df, title="Full Ranked AI Scan", max_rows=75, show_filters=True)
 
