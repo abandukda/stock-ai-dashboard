@@ -1,0 +1,273 @@
+from __future__ import annotations
+
+import math
+import os
+from datetime import datetime, timezone
+from typing import Any, Dict, Iterable, Optional
+
+import pandas as pd
+import requests
+import yfinance as yf
+
+from services.research_cache import load_cached_research, save_cached_research
+
+NEWSAPI_KEY = os.getenv("NEWSAPI_KEY", "").strip()
+FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "").strip()
+
+POLICY_TERMS = {
+    "government contract": "Government contract",
+    "federal contract": "Federal contract",
+    "defense contract": "Defense contract",
+    "chips act": "CHIPS Act support",
+    "subsidy": "Government subsidy",
+    "tax credit": "Tax credit",
+    "grant": "Government grant",
+    "regulatory approval": "Regulatory approval",
+    "public funding": "Public funding",
+    "export restriction": "Export-control development",
+    "tariff": "Tariff development",
+}
+
+
+def _num(value: Any, default: Optional[float] = None) -> Optional[float]:
+    try:
+        result = float(value)
+        if math.isnan(result) or math.isinf(result):
+            return default
+        return result
+    except Exception:
+        return default
+
+
+def _pct(value: Optional[float]) -> Optional[float]:
+    if value is None:
+        return None
+    return value * 100 if -2 <= value <= 2 else value
+
+
+def _request_json(url: str, params: Dict[str, Any], timeout: int = 10) -> Any:
+    try:
+        response = requests.get(url, params=params, timeout=timeout)
+        if response.status_code != 200:
+            return None
+        return response.json()
+    except Exception:
+        return None
+
+
+def _latest_news(ticker: str, company: str) -> Dict[str, Any]:
+    if not NEWSAPI_KEY:
+        return {}
+    query = company if company and company.upper() != ticker else ticker
+    data = _request_json(
+        "https://newsapi.org/v2/everything",
+        {
+            "q": f'"{query}" OR {ticker}',
+            "language": "en",
+            "sortBy": "publishedAt",
+            "pageSize": 8,
+            "apiKey": NEWSAPI_KEY,
+        },
+    )
+    articles = data.get("articles", []) if isinstance(data, dict) else []
+    cleaned = []
+    for article in articles:
+        if not isinstance(article, dict):
+            continue
+        title = str(article.get("title") or "").strip()
+        if not title:
+            continue
+        source = str((article.get("source") or {}).get("name") or "").strip()
+        published = str(article.get("publishedAt") or "").strip()
+        text = f"{title} {article.get('description') or ''}".lower()
+        positive = sum(term in text for term in ("beat", "upgrade", "contract", "approval", "record", "growth", "partnership", "raised guidance"))
+        negative = sum(term in text for term in ("miss", "downgrade", "lawsuit", "probe", "cuts guidance", "weak demand", "recall"))
+        sentiment = "Positive" if positive > negative else "Negative" if negative > positive else "Neutral"
+        cleaned.append({"title": title, "source": source, "published_at": published, "sentiment": sentiment})
+    if not cleaned:
+        return {}
+    top = cleaned[0]
+    policy = []
+    combined = " ".join(item["title"].lower() for item in cleaned[:5])
+    for needle, label in POLICY_TERMS.items():
+        if needle in combined:
+            policy.append(label)
+    return {
+        "latest_news_headline": top["title"],
+        "latest_news_date": top["published_at"],
+        "latest_news_source": top["source"],
+        "latest_news_sentiment": top["sentiment"],
+        "recent_headlines": cleaned[:5],
+        "political_support": policy[0] if policy else "",
+        "political_support_summary": f"Recent reporting identifies {policy[0].lower()} relevant to the company." if policy else "",
+    }
+
+
+def _analyst_context(ticker: str) -> Dict[str, Any]:
+    if not FINNHUB_API_KEY:
+        return {}
+    target = _request_json(
+        "https://finnhub.io/api/v1/stock/price-target",
+        {"symbol": ticker, "token": FINNHUB_API_KEY},
+    )
+    if not isinstance(target, dict):
+        return {}
+    return {
+        "Analyst Target": _num(target.get("targetMean")),
+        "analyst_target_mean": _num(target.get("targetMean")),
+        "analyst_target_high": _num(target.get("targetHigh")),
+        "analyst_target_low": _num(target.get("targetLow")),
+    }
+
+
+def _fair_value(price: float, info: Dict[str, Any]) -> Dict[str, Any]:
+    forward_pe = _num(info.get("forwardPE"))
+    trailing_eps = _num(info.get("trailingEps"))
+    forward_eps = _num(info.get("forwardEps"))
+    revenue_growth = _pct(_num(info.get("revenueGrowth")))
+    earnings_growth = _pct(_num(info.get("earningsGrowth")))
+    op_margin = _pct(_num(info.get("operatingMargins")))
+    analyst_target = _num(info.get("targetMeanPrice"))
+
+    estimates = []
+    methods = []
+    eps = forward_eps or (price / forward_pe if forward_pe and forward_pe > 0 else trailing_eps)
+    if eps and eps > 0:
+        growth = earnings_growth if earnings_growth is not None else revenue_growth
+        growth = max(-5.0, min(35.0, growth if growth is not None else 8.0))
+        margin_bonus = 2.0 if op_margin is not None and op_margin >= 25 else 0.0
+        justified_pe = max(12.0, min(38.0, 16.0 + 0.45 * growth + margin_bonus))
+        estimates.append(eps * justified_pe)
+        methods.append("growth-adjusted earnings multiple")
+    if analyst_target and analyst_target > 0:
+        estimates.append(analyst_target)
+        methods.append("analyst-consensus cross-check")
+
+    if not estimates:
+        return {"Atlas Fair Value": None, "atlas_fair_value": None, "fair_value_status": "Insufficient valuation evidence"}
+
+    base = sum(estimates) / len(estimates)
+    upside = ((base / price) - 1) * 100 if price else None
+    if base <= 0 or upside is None or upside < -60 or upside > 100 or 29.65 <= upside <= 30.35:
+        return {"Atlas Fair Value": None, "atlas_fair_value": None, "fair_value_status": "Valuation requires review"}
+
+    confidence = 58 + (12 if len(estimates) >= 2 else 0) + (8 if revenue_growth is not None else 0) + (8 if earnings_growth is not None else 0)
+    return {
+        "Atlas Fair Value": round(base, 2),
+        "atlas_fair_value": round(base, 2),
+        "fair_value_method": " + ".join(methods),
+        "fair_value_confidence": min(confidence, 90),
+        "fair_value_bear": round(base * 0.85, 2),
+        "fair_value_bull": round(base * 1.15, 2),
+        "expected_upside_pct": round(upside, 1),
+        "Expected Return": round(upside, 1),
+    }
+
+
+def build_live_research(ticker: str, force_refresh: bool = False, cache_ttl_seconds: int = 900) -> Dict[str, Any]:
+    symbol = ticker.upper().strip()
+    if not symbol:
+        return {"error": "Ticker is required"}
+    if not force_refresh:
+        cached = load_cached_research(symbol, cache_ttl_seconds)
+        if cached:
+            cached["research_source"] = "cache"
+            return cached
+
+    try:
+        tk = yf.Ticker(symbol)
+        info = tk.get_info() or {}
+        hist = yf.download(symbol, period="5y", interval="1d", auto_adjust=True, progress=False, threads=False)
+    except Exception as exc:
+        return {"error": f"Live market data failed: {exc}"}
+    if hist is None or hist.empty or "Close" not in hist:
+        return {"error": "No price history returned"}
+
+    hist = hist.dropna(subset=["Close"]).copy()
+    close = hist["Close"].astype(float)
+    high = hist["High"].astype(float) if "High" in hist else close
+    low = hist["Low"].astype(float) if "Low" in hist else close
+    volume = hist["Volume"].astype(float) if "Volume" in hist else pd.Series(index=hist.index, data=0.0)
+    price = float(close.iloc[-1])
+
+    def sma(days: int) -> float:
+        return float(close.rolling(days).mean().iloc[-1]) if len(close) >= days else price
+
+    delta = close.diff()
+    gain = delta.where(delta > 0, 0).rolling(14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+    rs = gain / loss.replace(0, pd.NA)
+    rsi_series = 100 - (100 / (1 + rs))
+    rsi = float(rsi_series.dropna().iloc[-1]) if not rsi_series.dropna().empty else 50.0
+    avg_vol = float(volume.tail(20).mean()) if len(volume) else 0.0
+    volume_ratio = float(volume.iloc[-1]) / avg_vol if avg_vol else 1.0
+    tr = pd.concat([(high-low).abs(), (high-close.shift(1)).abs(), (low-close.shift(1)).abs()], axis=1).max(axis=1)
+    atr = float(tr.rolling(14).mean().iloc[-1]) if len(tr) >= 14 else float(tr.mean())
+
+    company = str(info.get("longName") or info.get("shortName") or symbol)
+    row: Dict[str, Any] = {
+        "Ticker": symbol,
+        "symbol": symbol,
+        "Company": company,
+        "company_name": company,
+        "Price": round(price, 2),
+        "price": round(price, 2),
+        "Sector": info.get("sector") or "Unknown",
+        "Industry": info.get("industry") or "Unknown",
+        "Market Cap": _num(info.get("marketCap")),
+        "SMA 20": round(sma(20), 2),
+        "SMA 50": round(sma(50), 2),
+        "SMA 200": round(sma(200), 2),
+        "RSI": round(rsi, 1),
+        "Volume Ratio": round(volume_ratio, 2),
+        "ATR %": round((atr / price) * 100, 2) if price else None,
+        "Revenue Growth": _pct(_num(info.get("revenueGrowth"))),
+        "Earnings Growth": _pct(_num(info.get("earningsGrowth"))),
+        "Forward PE": _num(info.get("forwardPE")),
+        "Operating Margin": _pct(_num(info.get("operatingMargins"))),
+        "Free Cash Flow": _num(info.get("freeCashflow")),
+        "Debt to Equity": _num(info.get("debtToEquity")),
+        "Current Ratio": _num(info.get("currentRatio")),
+        "Analyst Target": _num(info.get("targetMeanPrice")),
+        "analyst_target_mean": _num(info.get("targetMeanPrice")),
+        "Analyst Count": _num(info.get("numberOfAnalystOpinions"), 0),
+        "research_refreshed_at": datetime.now(timezone.utc).isoformat(),
+        "research_source": "live",
+        "data_freshness": {"price": "live request", "fundamentals": "latest provider snapshot", "news": "live request if configured"},
+    }
+    row.update(_analyst_context(symbol))
+    row.update(_fair_value(price, info))
+    row.update(_latest_news(symbol, company))
+
+    reasons = []
+    rev = row.get("Revenue Growth")
+    margin = row.get("Operating Margin")
+    fcf = row.get("Free Cash Flow")
+    if rev is not None and rev > 8:
+        reasons.append(f"Revenue growth is {rev:.1f}%, supporting a durable growth thesis.")
+    if margin is not None and margin > 20:
+        reasons.append(f"Operating margin is {margin:.1f}%, indicating strong business economics.")
+    if fcf is not None and fcf > 0:
+        reasons.append(f"Free cash flow is positive at ${fcf/1_000_000_000:.1f}B." if abs(fcf) >= 1_000_000_000 else "Free cash flow is positive.")
+    if row.get("latest_news_sentiment") == "Positive" and row.get("latest_news_headline"):
+        reasons.append(f"Recent catalyst: {row['latest_news_headline']}")
+    if row.get("political_support_summary"):
+        reasons.append(row["political_support_summary"])
+    row["why_atlas_likes_it"] = reasons[:5]
+
+    risk_candidates = []
+    if row.get("Debt to Equity") and row["Debt to Equity"] > 150:
+        risk_candidates.append((90, "Leverage is elevated and could reduce financial flexibility."))
+    if row.get("Forward PE") and row["Forward PE"] > 45:
+        risk_candidates.append((80, "Valuation is demanding, increasing sensitivity to execution misses."))
+    if row.get("RSI") and row["RSI"] > 72:
+        risk_candidates.append((65, "Shares are technically extended and vulnerable to a pullback."))
+    if row.get("latest_news_sentiment") == "Negative":
+        risk_candidates.append((85, f"Recent negative news flow: {row.get('latest_news_headline', '')}"))
+    risk_candidates.append((40, "Execution must remain strong enough to support current expectations."))
+    row["primary_risk"] = max(risk_candidates, key=lambda x: x[0])[1]
+
+    completeness = sum(bool(row.get(key)) for key in ("price", "Revenue Growth", "Operating Margin", "atlas_fair_value", "latest_news_headline", "analyst_target_mean"))
+    row["research_confidence"] = round(50 + completeness / 6 * 45)
+    save_cached_research(symbol, row)
+    return row
