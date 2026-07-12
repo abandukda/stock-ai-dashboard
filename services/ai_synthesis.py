@@ -302,6 +302,60 @@ def _first_sentence(value: Any) -> str:
     return text.strip().rstrip(".")
 
 
+def _parse_news_date(value: Any):
+    if not value:
+        return None
+    try:
+        from datetime import datetime
+        text = str(value).strip().replace("Z", "+00:00")
+        return datetime.fromisoformat(text[:10]).date()
+    except Exception:
+        return None
+
+
+def _fresh_news_reason(row: Mapping[str, Any]) -> tuple[float, str] | None:
+    """Return a recent, company-specific positive catalyst only when freshness is verifiable."""
+    from datetime import date
+    headline = _clean(_pick(row, "latest_news_headline", "top_news_headline", "Top News", default=""), default="")
+    published = _pick(row, "latest_news_date", "top_news_date", "News Date", "news_date")
+    source = _clean(_pick(row, "latest_news_source", "top_news_source", "News Source", default=""), default="")
+    sentiment = _clean(_pick(row, "latest_news_sentiment", "news_status", "v42_news_status", default=""), default="").lower()
+    d = _parse_news_date(published)
+    if not headline or d is None:
+        return None
+    age = (date.today() - d).days
+    if age < 0 or age > 10:
+        return None
+    positive_terms = ("beat", "raise", "raised", "upgrade", "record", "contract", "partnership", "launch", "expand", "growth", "guidance", "approval", "award", "investment")
+    negative_terms = ("miss", "cut", "downgrade", "lawsuit", "probe", "investigation", "warning", "decline", "layoff", "loss")
+    low = headline.lower()
+    if any(term in low for term in negative_terms):
+        return None
+    if "positive" not in sentiment and not any(term in low for term in positive_terms):
+        return None
+    clean_headline = headline.rstrip(" .")
+    suffix = f" ({source}, {d.isoformat()})" if source else f" ({d.isoformat()})"
+    return 96 - min(age, 10) * 0.8, f"Recent catalyst: {clean_headline}.{suffix}"
+
+
+def _political_support_reason(row: Mapping[str, Any]) -> tuple[float, str] | None:
+    """Highlight policy or disclosure support only when the saved evidence is positive and specific."""
+    signal = _clean(_pick(row, "Political Signal", "political_signal", "political_status", default=""), default="")
+    summary = _first_sentence(_pick(row, "Political Summary", "political_summary", "policy_summary", "policy_catalyst", default=""))
+    buys = _num(_pick(row, "Political Buys", "political_buys", "congress_buys")) or 0
+    sells = _num(_pick(row, "Political Sells", "political_sells", "congress_sells")) or 0
+    last_trade = _pick(row, "Political Last Trade Date", "political_last_trade_date", "last_political_trade")
+    low = f"{signal} {summary}".lower()
+    negative = any(x in low for x in ("negative", "bearish", "risk", "opposition", "restriction", "investigation"))
+    positive = any(x in low for x in ("positive", "support", "benefit", "tailwind", "funding", "subsid", "contract", "incentive", "approval"))
+    if summary and positive and not negative:
+        return 83, f"Policy support: {summary.rstrip('.')} ."
+    # Congressional trades are delayed and may only be a secondary supporting signal.
+    if buys > sells and buys >= 2 and last_trade:
+        return 68, f"Political disclosure support is positive with {int(buys)} reported buys versus {int(sells)} sells; disclosures are delayed and remain secondary evidence."
+    return None
+
+
 def build_plain_english_reasons(row: Mapping[str, Any], atlas_fair_value: float | None = None, current_price: float | None = None) -> list[str]:
     """Rank distinctive company evidence and return three concise, quantified reasons."""
     candidates: list[tuple[float, str, str]] = []
@@ -318,9 +372,13 @@ def build_plain_english_reasons(row: Mapping[str, Any], atlas_fair_value: float 
     rsi = _num(_pick(row, "rsi", "RSI"))
     twenty = _simple_pct(_pick(row, "twenty_day_pct", "20 Day Return"))
     analyst = _clean(_pick(row, "recommendation", "recommendation_key", "Analyst View", default=""), default="").lower()
-    ticker = _clean(_pick(row, "Ticker", "ticker", "symbol", default=""), default="").upper()
-    sector = _clean(_pick(row, "sector", "Sector", "industry", "Industry", default=""), default="")
-    catalyst = _first_sentence(_pick(row, "catalyst", "Catalyst", "recovery_catalyst", "earnings_summary", "news_summary", default=""))
+
+    fresh_news = _fresh_news_reason(row)
+    if fresh_news:
+        candidates.append((fresh_news[0], "fresh_news", fresh_news[1]))
+    political_support = _political_support_reason(row)
+    if political_support:
+        candidates.append((political_support[0], "political_support", political_support[1]))
 
     if rev is not None:
         if rev >= 20:
@@ -360,11 +418,6 @@ def build_plain_english_reasons(row: Mapping[str, Any], atlas_fair_value: float 
     if "strong buy" in analyst or analyst == "buy":
         candidates.append((73, "analyst", "Wall Street sentiment is supportive rather than broadly cautious."))
 
-    if catalyst and len(catalyst) >= 18:
-        candidates.append((83, "catalyst", f"Company-specific catalyst: {catalyst}."))
-    if sector:
-        candidates.append((60, "sector", f"The {sector} backdrop is an important part of the thesis and is reflected in Atlas's sector analysis."))
-
     # Use company-specific saved evidence when it contains more than generic boilerplate.
     saved = _first_sentence(_pick(row, "what_looks_good", "why_ranked_high", "financial_summary", "recovery_catalyst", default=""))
     if saved and len(saved) >= 18 and not any(x in saved.lower() for x in ("high-priority research", "good candidate", "review full report")):
@@ -398,19 +451,15 @@ def build_primary_risk_sentence(row: Mapping[str, Any]) -> str:
     atr_pct = _simple_pct(_pick(row, "atr_pct", "ATR %"))
     beta = _num(_pick(row, "beta", "Beta"))
     sector = _clean(_pick(row, "sector", "Sector", default=""), default="").lower()
-    ticker = _clean(_pick(row, "Ticker", "ticker", "symbol", default=""), default="").upper()
-    country = _clean(_pick(row, "country", "Country", default=""), default="").lower()
     earnings_date = _pick(row, "earnings_date", "Earnings Date", "next_earnings_date")
     try:
         from datetime import date, datetime
         parsed = datetime.fromisoformat(str(earnings_date)[:10]).date()
         days = (parsed - date.today()).days
         if 0 <= days <= 7:
-            # Earnings is an event risk, but should not automatically outrank a
-            # material balance-sheet, valuation, geopolitical or business risk.
-            risks.append((79, f"Earnings are due in {days} day{'s' if days != 1 else ''}, so near-term price swings could be sharp."))
+            risks.append((98, f"Earnings are due in {days} day{'s' if days != 1 else ''}, so near-term price swings could be sharp."))
         elif 8 <= days <= 21:
-            risks.append((70, f"Earnings are due in {days} days and could change the investment case quickly."))
+            risks.append((85, f"Earnings are due in {days} days and could change the investment case quickly."))
     except Exception:
         pass
 
@@ -435,14 +484,8 @@ def build_primary_risk_sentence(row: Mapping[str, Any]) -> str:
         risks.append((80 + min(atr_pct, 12), f"Daily volatility is elevated, with ATR near {atr_pct:.1f}% of the share price."))
     if beta is not None and beta >= 1.7:
         risks.append((79 + min(beta, 3), f"A beta of {beta:.1f} means the stock may swing more sharply than the market."))
-    if ticker == "TSM" or "taiwan" in country:
-        risks.append((97, "Taiwan geopolitical concentration could disrupt operations, supply continuity, or valuation multiples."))
-    if "semiconductor" in sector:
-        risks.append((84, "Semiconductor demand and capital spending are cyclical, so a downturn could pressure utilization and margins."))
-    elif any(x in sector for x in ("energy", "materials", "gold", "mining")):
-        risks.append((82, "Results are sensitive to a commodity or industry cycle that can change quickly."))
-    if ticker == "OPRA":
-        risks.append((90, "Dependence on search and advertising partnerships could pressure revenue if commercial terms or browser traffic weaken."))
+    if any(x in sector for x in ("energy", "materials", "gold", "mining", "semiconductor")):
+        risks.append((72, "Results are sensitive to an industry cycle that can change quickly."))
 
     raw = _first_sentence(_pick(row, "what_could_go_wrong", "Primary Risk", "primary_risk", "risk_tags", default=""))
     if raw and not any(x in raw.lower() for x in ("earnings can create gap risk", "avoid oversized positions before the report")):

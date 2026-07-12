@@ -146,6 +146,7 @@ def _explicit_atlas_value(row: Mapping[str, Any]) -> tuple[float | None, str]:
         ("AI Fair Value", "Atlas model fair value"),
         ("ai_fair_value", "Atlas model fair value"),
         ("ai_base_target", "Atlas model fair value"),
+        ("Atlas Target", "Legacy Atlas target"),
     )
     for key, label in candidates:
         value = as_float(_first(row, key))

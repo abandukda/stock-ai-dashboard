@@ -26134,11 +26134,14 @@ V793_DECISION_EXPERIENCE_VERIFIED = True
 
 
 def v793_open_research(ticker):
-    """Canonical in-app Research navigation with no cross-module import dependency."""
-    # Keep routing in the UI layer. Importing navigation state from the research
-    # engine caused production ImportErrors when app.py and engines were deployed
-    # from different revisions.
-    v784_open_research(ticker)
+    """Canonical in-app Research navigation that preserves the authenticated session."""
+    ticker = str(ticker or "").strip().upper()
+    if not ticker:
+        return
+    from engines.research_engine import research_navigation_state
+    for key, value in research_navigation_state(ticker).items():
+        st.session_state[key] = value
+    st.rerun()
 
 
 def v793_card_context(row):
@@ -26236,7 +26239,20 @@ def render_v73_idea_table(df, title="Atlas Decision Ideas"):
                 exp_ret = details.get("expected_return_pct")
                 source = details.get("source", "Atlas Fair Value under review")
                 fair_display = v784_money(fair, "Under review")
-                return_display = v784_pct(exp_ret, "Under review")
+                # Never present Wall Street upside as Atlas expected return. When Atlas Fair Value
+                # is unavailable, show the consensus upside explicitly with its own label/source.
+                if exp_ret is not None:
+                    return_label = "Expected Return"
+                    return_display = v784_pct(exp_ret, "Unavailable")
+                    return_note = "to Atlas Fair Value"
+                elif street_upside is not None:
+                    return_label = "Consensus Upside"
+                    return_display = v784_pct(street_upside, "Unavailable")
+                    return_note = "Wall Street consensus — not Atlas Fair Value"
+                else:
+                    return_label = "Valuation Upside"
+                    return_display = "Unavailable"
+                    return_note = "insufficient valuation evidence"
                 street_note = (f"{street_upside:+.1f}% implied upside" if street_upside is not None else "covering analysts")
                 bullets = "".join(f"<li>{v73_esc(item)}</li>" for item in reasons)
                 st.markdown(f"""
@@ -26246,7 +26262,7 @@ def render_v73_idea_table(df, title="Atlas Decision Ideas"):
     <div class='v775-mini'><span>Current Price</span><b>{v73_esc(v784_money(current))}</b><em>latest saved scan</em></div>
     <div class='v775-mini'><span>Atlas Fair Value™</span><b class='v775-green'>{v73_esc(fair_display)}</b><small class='v793-source'>{v73_esc(source)}</small></div>
     <div class='v775-mini'><span>Wall Street Consensus</span><b class='v775-blue'>{v73_esc(v784_money(street))}</b><em>{v73_esc(street_note)}</em></div>
-    <div class='v775-mini'><span>Expected Return</span><b>{v73_esc(return_display)}</b><em>to Atlas Fair Value</em></div>
+    <div class='v775-mini'><span>{v73_esc(return_label)}</span><b>{v73_esc(return_display)}</b><em>{v73_esc(return_note)}</em></div>
     <div class='v775-mini'><span>Quality</span><b>{qual:.0f}</b><em>{v73_score_label(qual)}</em></div>
     <div class='v775-mini'><span>Confidence</span><b>{conf:.0f}</b><em>{v73_esc(v793_confidence_label(conf))}</em></div>
   </div>
@@ -26259,24 +26275,11 @@ def render_v73_idea_table(df, title="Atlas Decision Ideas"):
 
 
 def render_v775_home_dashboard(full_df=None, top_df=None, recovery_df=None):
-    """V80.1 home: market context first, then an auditable CIO morning brief."""
+    """V79.3 home: one CIO-style brief with counts derived from displayed ideas."""
     rows = v793_decision_rows(top_df)[:8]
     counts = {"HIGH CONVICTION BUY": 0, "BUY ON WEAKNESS": 0, "WAIT FOR CONFIRMATION": 0, "AVOID": 0}
     for payload in rows:
         counts[payload[5]] = counts.get(payload[5], 0) + 1
-
-    # Market context must appear before interpretation.
-    if "render_v72_market_tape" in globals():
-        render_v72_market_tape(always_show=True)
-    with st.expander("Upcoming Economic Calendar — next market-moving events", expanded=True):
-        try:
-            if "render_v70_market_calendar_terminal" in globals():
-                render_v70_market_calendar_terminal(full_df)
-            else:
-                st.caption("Calendar provider is not configured.")
-        except Exception as exc:
-            st.caption(f"Market calendar is temporarily unavailable: {type(exc).__name__}.")
-
     regime, _, _, _ = v74_market_regime(full_df) if "v74_market_regime" in globals() else ("Selective", 0, 0, 0)
     market_risk = "Moderate" if str(regime).lower() not in {"risk-off", "defensive", "bearish"} else "Elevated"
     priority = "No immediate buy candidate"
@@ -26286,29 +26289,15 @@ def render_v775_home_dashboard(full_df=None, top_df=None, recovery_df=None):
             break
     if priority == "No immediate buy candidate" and rows:
         priority = f"{v73_ticker(rows[0][0])} — {v73_company(rows[0][0])}"
-
-    blocker_counts = {"valuation": 0, "confidence": 0, "quality": 0, "risk": 0}
-    for row, details, reasons, risk_text, conf, tier, opp, qual, strength in rows:
-        ret = details.get("decision_upside_pct")
-        risk_score = v775_score(row, ["risk_agent_score", "Risk Score"], 65)
-        if ret is None or ret < 8: blocker_counts["valuation"] += 1
-        if conf < 72: blocker_counts["confidence"] += 1
-        if qual < 72: blocker_counts["quality"] += 1
-        if risk_score < 58: blocker_counts["risk"] += 1
-    blockers = sorted(blocker_counts.items(), key=lambda x: x[1], reverse=True)
-    blocker_text = ", ".join(f"{count} failed {name}" for name, count in blockers if count) or "all core gates were satisfied"
-    action_text = ("Atlas found no name that cleared every action gate; " + blocker_text + "." if counts['HIGH CONVICTION BUY'] == 0 else f"Atlas found {counts['HIGH CONVICTION BUY']} name(s) that cleared all action gates.")
-
     st.markdown(f"""
 <div class='v793-brief'>
   <div class='v65-kicker'>Atlas Morning Brief</div>
   <h1>Today’s investment priorities</h1>
-  <p><b>Market setup:</b> The backdrop is <b>{v73_esc(regime)}</b> with <b>{v73_esc(market_risk.lower())} macro risk</b>. <b>Atlas positioning:</b> {v73_esc(action_text)} The first company to review is <b>{v73_esc(priority)}</b>.</p>
-  <p><b>Today’s workflow:</b> Review the economic calendar and earnings risk first, then focus on companies with validated fair value, sufficient confidence, and a clearly identified downside risk. Atlas will show “Under review” rather than manufacture a target when valuation evidence is incomplete.</p>
+  <p>The market backdrop is <b>{v73_esc(regime)}</b>. Atlas currently identifies <b>{counts['HIGH CONVICTION BUY']} ideas ready for action</b>, <b>{counts['BUY ON WEAKNESS']} attractive ideas needing a better entry</b>, and <b>{counts['WAIT FOR CONFIRMATION']} ideas that still need stronger evidence</b>. The first company to review is <b>{v73_esc(priority)}</b>.</p>
   <div class='v793-brief-grid'>
-    <div class='v793-brief-stat'><span>Ready for Action</span><b>{counts['HIGH CONVICTION BUY']}</b><em>cleared valuation, quality, confidence and risk gates</em></div>
-    <div class='v793-brief-stat'><span>Better Entry</span><b>{counts['BUY ON WEAKNESS']}</b><em>attractive thesis; price or timing is the blocker</em></div>
-    <div class='v793-brief-stat'><span>Needs Evidence</span><b>{counts['WAIT FOR CONFIRMATION']}</b><em>one or more core gates remain incomplete</em></div>
+    <div class='v793-brief-stat'><span>Ready for Action</span><b>{counts['HIGH CONVICTION BUY']}</b><em>strongest actionable ideas</em></div>
+    <div class='v793-brief-stat'><span>Better Entry</span><b>{counts['BUY ON WEAKNESS']}</b><em>attractive with better timing</em></div>
+    <div class='v793-brief-stat'><span>Needs Evidence</span><b>{counts['WAIT FOR CONFIRMATION']}</b><em>needs stronger evidence</em></div>
     <div class='v793-brief-stat'><span>Market Risk</span><b>{v73_esc(market_risk)}</b><em>current macro posture</em></div>
   </div>
 </div>
@@ -26318,6 +26307,16 @@ def render_v775_home_dashboard(full_df=None, top_df=None, recovery_df=None):
         render_v73_idea_table(top_df.head(8), title="Atlas Decision Ideas")
 
     render_v73_earnings_page(full_df, top_df)
+
+    if "render_v72_market_tape" in globals():
+        render_v72_market_tape(always_show=True)
+
+    with st.expander("Upcoming Economic Calendar", expanded=False):
+        try:
+            if "render_v70_market_calendar_terminal" in globals():
+                render_v70_market_calendar_terminal(full_df)
+        except Exception:
+            st.caption("Market calendar is temporarily unavailable.")
 
 
 # Route aliases used by older code paths.
@@ -26357,5 +26356,3 @@ if __name__ == "__main__":
 V79_AI_COMMITTEE_RESEARCH_ENGINE_VERIFIED = True
 V791_RESEARCH_NAV_TARGET_HOTFIX_VERIFIED = True
 V792_INTELLIGENCE_RELEASE_VERIFIED = True
-
-V80_1_STABILIZATION_VERIFIED = True

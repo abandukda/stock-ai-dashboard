@@ -3197,46 +3197,65 @@ def v42_news_relevance(headline: str, symbol: str, company_name: str = "") -> st
 
 
 def v42_news_stack(symbol: str, company_name: str = "") -> Dict[str, Any]:
-    symbol=str(symbol).upper(); headlines=[]; sources=[]; today=dt.date.today(); start=today-dt.timedelta(days=30)
+    """Fetch recent company news and preserve headline/source/date for freshness validation."""
+    symbol=str(symbol).upper(); articles=[]; today=dt.date.today(); start=today-dt.timedelta(days=30)
+
+    def add_article(title, source, published, provider):
+        title=str(title or '').strip()
+        if not title: return
+        articles.append({'title':title, 'source':str(source or provider or '').strip(), 'published':str(published or '').strip(), 'provider':provider})
+
     if NEWSAPI_KEY:
         try:
-            r=requests.get('https://newsapi.org/v2/everything',params={'q':f'"{symbol}" OR "{symbol} stock"','language':'en','sortBy':'publishedAt','pageSize':8,'apiKey':NEWSAPI_KEY},timeout=10)
+            r=requests.get('https://newsapi.org/v2/everything',params={'q':f'"{symbol}" OR "{company_name}"','language':'en','sortBy':'publishedAt','pageSize':8,'apiKey':NEWSAPI_KEY},timeout=10)
             if r.status_code==200:
                 for a in (r.json().get('articles') or [])[:8]:
-                    if a.get('title'): headlines.append(a['title'])
-                if headlines: sources.append('NewsAPI')
+                    add_article(a.get('title'), (a.get('source') or {}).get('name'), a.get('publishedAt'), 'NewsAPI')
         except Exception: pass
     if FINNHUB_API_KEY:
         try:
             r=requests.get('https://finnhub.io/api/v1/company-news',params={'symbol':symbol,'from':start.isoformat(),'to':today.isoformat(),'token':FINNHUB_API_KEY},timeout=10)
             if r.status_code==200:
-                before=len(headlines)
                 for a in (r.json() or [])[:8]:
-                    if a.get('headline'): headlines.append(a['headline'])
-                if len(headlines)>before: sources.append('Finnhub company news')
+                    published=dt.datetime.utcfromtimestamp(a.get('datetime')).isoformat() if a.get('datetime') else ''
+                    add_article(a.get('headline'), a.get('source'), published, 'Finnhub company news')
         except Exception: pass
     if FMP_API_KEY:
         try:
             r=requests.get('https://financialmodelingprep.com/api/v3/stock_news',params={'tickers':symbol,'limit':8,'apikey':FMP_API_KEY},timeout=10)
             if r.status_code==200:
-                before=len(headlines)
                 for a in (r.json() or [])[:8]:
-                    if a.get('title'): headlines.append(a['title'])
-                if len(headlines)>before: sources.append('FMP stock news')
+                    add_article(a.get('title'), a.get('site') or a.get('source'), a.get('publishedDate') or a.get('date'), 'FMP stock news')
         except Exception: pass
+
     seen=set(); clean=[]
-    for h in headlines:
-        k=h.strip().lower()
-        if k and k not in seen: seen.add(k); clean.append(h.strip())
-    pos_terms=['beat','raised','raise','upgrade','growth','record','partnership','expands','ai','launch','strong','accelerat','profit','guidance','contract']
+    for a in articles:
+        k=a['title'].lower()
+        if k and k not in seen:
+            seen.add(k); clean.append(a)
+    def parse_date(v):
+        try: return dt.datetime.fromisoformat(str(v)[:10]).date()
+        except Exception: return dt.date.min
+    clean.sort(key=lambda a: parse_date(a.get('published')), reverse=True)
+    pos_terms=['beat','raised','raise','upgrade','growth','record','partnership','expands','ai','launch','strong','accelerat','profit','guidance','contract','approval','award']
     neg_terms=['miss','downgrade','cut','lawsuit','probe','investigation','layoff','decline','weak','warning','risk','slump','loss']
-    pos=[h for h in clean if any(t in h.lower() for t in pos_terms)]
-    neg=[h for h in clean if any(t in h.lower() for t in neg_terms)]
+    pos=[a for a in clean if any(t in a['title'].lower() for t in pos_terms)]
+    neg=[a for a in clean if any(t in a['title'].lower() for t in neg_terms)]
     if clean:
         score=int(clamp(55+min(len(pos),5)*7-min(len(neg),5)*8,15,95)); status='Positive' if score>=70 else 'Mixed' if score>=45 else 'Negative'; conf='High' if len(clean)>=5 else 'Medium'
     else:
         score=45; status='Unknown / insufficient data'; conf='Low'
-    return {'score':score,'status':status,'confidence':conf,'sources':sources or ['No source returned recent data'],'headlines':clean[:8],'catalysts':(pos or clean)[:6],'risks':(neg[:5] if neg else (['No negative high-confidence headline detected.'] if clean else ['No recent high-confidence news retrieved; treat as insufficient data, not neutral.']))}
+    latest=clean[0] if clean else {}
+    catalysts=[a['title'] for a in (pos or clean)[:6]]
+    risks=[a['title'] for a in neg[:5]] if neg else (['No negative high-confidence headline detected.'] if clean else ['No recent high-confidence news retrieved; treat as insufficient data, not neutral.'])
+    return {
+        'score':score,'status':status,'confidence':conf,
+        'sources':sorted({a['provider'] for a in clean}) or ['No source returned recent data'],
+        'headlines':[a['title'] for a in clean[:8]],'articles':clean[:8],
+        'catalysts':catalysts,'risks':risks,
+        'latest_headline':latest.get('title',''),'latest_source':latest.get('source') or latest.get('provider',''),
+        'latest_date':latest.get('published',''),'latest_sentiment':status,
+    }
 
 def v42_sec_filings(symbol: str) -> Dict[str, Any]:
     headers={'User-Agent': SEC_USER_AGENT or 'Asif Bandukda abandukda@gmail.com'}; sym=str(symbol).upper()
@@ -3318,7 +3337,7 @@ def v42_build_committee(symbol: str, row: Dict[str,Any], meta: Dict[str,Any], in
         'ETF / Ownership Agent':v42_agent(55,'Framework active','Neutral','ETF inclusion and ownership flow framework','Checks ETF/index ownership support.',['ETF/ownership framework is active.'],['Detailed ETF flow data not fully connected yet.'],'ETF/ownership is not yet a primary scoring driver.')
     }
     pos=sum(1 for a in agents.values() if a['score']>=65); total=len(agents); agree=pos/total
-    row.update({'ai_committee':agents,'v42_news_score':agents['News Agent']['score'],'v42_news_summary':agents['News Agent']['bottom_line'],'v42_news_catalysts':news['catalysts'],'v42_news_risks':news['risks'],'v42_news_sources':news['sources'],'v42_sec_available':sec.get('available',False),'v42_sec_cik':sec.get('cik'),'v42_support_1':sr.get('support_1'),'v42_support_2':sr.get('support_2'),'v42_resistance_1':sr.get('resistance_1'),'v42_resistance_2':sr.get('resistance_2'),'v42_breakout_level':sr.get('breakout_level'),'v42_pullback_zone':sr.get('pullback_zone'),'v42_chart_guidance':sr.get('guidance'),'thesis_strength':'Exceptional Thesis' if agree>=.75 and conviction>=85 else 'Strong Thesis' if agree>=.60 else 'Moderate Thesis' if agree>=.40 else 'Developing Thesis','evidence_confidence':'High' if agree>=.75 else 'Medium-High' if agree>=.60 else 'Medium' if agree>=.40 else 'Low-Medium','v42_committee_positive_agents':pos,'v42_committee_total_agents':total})
+    row.update({'ai_committee':agents,'v42_news_score':agents['News Agent']['score'],'v42_news_summary':agents['News Agent']['bottom_line'],'v42_news_status':news['status'],'v42_news_catalysts':news['catalysts'],'v42_news_risks':news['risks'],'v42_news_sources':news['sources'],'latest_news_headline':news.get('latest_headline',''),'latest_news_source':news.get('latest_source',''),'latest_news_date':news.get('latest_date',''),'latest_news_sentiment':news.get('latest_sentiment',''),'v42_sec_available':sec.get('available',False),'v42_sec_cik':sec.get('cik'),'v42_support_1':sr.get('support_1'),'v42_support_2':sr.get('support_2'),'v42_resistance_1':sr.get('resistance_1'),'v42_resistance_2':sr.get('resistance_2'),'v42_breakout_level':sr.get('breakout_level'),'v42_pullback_zone':sr.get('pullback_zone'),'v42_chart_guidance':sr.get('guidance'),'thesis_strength':'Exceptional Thesis' if agree>=.75 and conviction>=85 else 'Strong Thesis' if agree>=.60 else 'Moderate Thesis' if agree>=.40 else 'Developing Thesis','evidence_confidence':'High' if agree>=.75 else 'Medium-High' if agree>=.60 else 'Medium' if agree>=.40 else 'Low-Medium','v42_committee_positive_agents':pos,'v42_committee_total_agents':total})
     return row
 
 
