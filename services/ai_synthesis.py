@@ -281,6 +281,8 @@ def build_home_decision_summary(row: Mapping[str, Any], decision: str) -> str:
 
 
 V793_AI_DECISION_SUMMARY_VERIFIED = True
+V80_COMPANY_SPECIFIC_REASONING_VERIFIED = True
+
 
 def _simple_pct(value: Any) -> float | None:
     n = _num(value)
@@ -289,56 +291,147 @@ def _simple_pct(value: Any) -> float | None:
     return n * 100 if abs(n) <= 1 else n
 
 
+def _first_sentence(value: Any) -> str:
+    text = _clean(value, default="")
+    if not text:
+        return ""
+    for sep in (";", ". ", "\n"):
+        if sep in text:
+            text = text.split(sep, 1)[0]
+            break
+    return text.strip().rstrip(".")
+
+
 def build_plain_english_reasons(row: Mapping[str, Any], atlas_fair_value: float | None = None, current_price: float | None = None) -> list[str]:
-    """Return up to four short reasons a newer investor can understand."""
-    reasons: list[str] = []
-    rev = _simple_pct(_pick(row, "revenue_growth", "Revenue Growth"))
-    margin = _simple_pct(_pick(row, "profit_margin", "Profit Margin"))
+    """Rank distinctive company evidence and return three concise, quantified reasons."""
+    candidates: list[tuple[float, str, str]] = []
+    rev = _simple_pct(_pick(row, "revenue_growth", "revenue_qoq_pct", "Revenue Growth"))
+    earn = _simple_pct(_pick(row, "earnings_growth", "EPS Growth", "earnings_growth_pct"))
+    gross = _simple_pct(_pick(row, "gross_margin", "gross_profit_margin", "Gross Margin"))
+    operating = _simple_pct(_pick(row, "operating_margin", "operating_profit_margin", "Operating Margin"))
+    margin = _simple_pct(_pick(row, "profit_margin", "net_profit_margin", "Profit Margin"))
     fcf = _num(_pick(row, "free_cashflow", "free_cash_flow", "Free Cash Flow"))
-    cash = _num(_pick(row, "total_cash", "cash", "Total Cash"))
+    cash = _num(_pick(row, "total_cash", "cash", "cash_and_equivalents", "Total Cash"))
     debt = _num(_pick(row, "total_debt", "debt", "Total Debt"))
+    roic = _simple_pct(_pick(row, "roic", "ROIC"))
+    forward_pe = _num(_pick(row, "forward_pe", "Forward P/E"))
     rsi = _num(_pick(row, "rsi", "RSI"))
+    twenty = _simple_pct(_pick(row, "twenty_day_pct", "20 Day Return"))
+    analyst = _clean(_pick(row, "recommendation", "recommendation_key", "Analyst View", default=""), default="").lower()
 
     if rev is not None:
-        if rev >= 15:
-            reasons.append("Revenue is growing at a strong pace.")
+        if rev >= 20:
+            candidates.append((95 + min(rev, 50) / 10, "growth", f"Revenue growth is strong at {rev:.1f}%."))
+        elif rev >= 10:
+            candidates.append((82 + rev / 20, "growth", f"Revenue is growing at a healthy {rev:.1f}%."))
         elif rev > 0:
-            reasons.append("Revenue is still moving in the right direction.")
-    if margin is not None and margin >= 10:
-        reasons.append("The business is converting sales into healthy profits.")
+            candidates.append((58 + rev / 10, "growth", f"Revenue is still growing, but at a more measured {rev:.1f}% pace."))
+    if earn is not None and earn > 8:
+        candidates.append((88 + min(earn, 40) / 10, "earnings", f"Earnings are growing {earn:.1f}%, supporting the investment case."))
+    if operating is not None and operating >= 20:
+        candidates.append((89 + min(operating, 50) / 20, "profitability", f"Operating margin is a strong {operating:.1f}%."))
+    elif margin is not None and margin >= 12:
+        candidates.append((78 + margin / 20, "profitability", f"The company keeps {margin:.1f}% of sales as profit."))
+    elif gross is not None and gross >= 55:
+        candidates.append((76 + gross / 50, "profitability", f"Gross margin of {gross:.1f}% shows attractive unit economics."))
+    if roic is not None and roic >= 12:
+        candidates.append((87 + min(roic, 40) / 20, "returns", f"Return on invested capital is strong at {roic:.1f}%."))
     if fcf is not None and fcf > 0:
-        reasons.append("The company is generating positive free cash flow.")
-    if cash is not None and debt is not None:
-        if cash > debt:
-            reasons.append("Cash exceeds debt, giving the company financial flexibility.")
-        elif debt > cash * 2:
-            reasons.append("Growth remains attractive, but debt deserves attention.")
+        scale = abs(fcf)
+        amount = _fmt_money(fcf)
+        candidates.append((70 + min(18, max(0, len(str(int(scale))) - 6) * 2), "cashflow", f"Free cash flow is positive at {amount}."))
+    if cash is not None and debt is not None and cash > debt * 1.25:
+        candidates.append((86, "balance_sheet", "Cash exceeds debt, giving the company financial flexibility."))
     if current_price and atlas_fair_value and atlas_fair_value > current_price:
-        reasons.append("Shares trade below Atlas Fair Value.")
-    if rsi is not None and 45 <= rsi <= 68:
-        reasons.append("Price momentum is constructive without looking overheated.")
+        upside = ((atlas_fair_value - current_price) / current_price) * 100
+        candidates.append((84 + min(upside, 40) / 20, "valuation", f"Shares trade about {upside:.1f}% below Atlas Fair Value."))
+    elif forward_pe is not None and 0 < forward_pe <= 18:
+        candidates.append((77, "valuation", f"Forward P/E of {forward_pe:.1f} is relatively undemanding."))
+    if rsi is not None:
+        if 45 <= rsi <= 62:
+            candidates.append((72 + (62-rsi)/20, "momentum", f"RSI of {rsi:.0f} shows constructive momentum without looking overheated."))
+        elif rsi < 40:
+            candidates.append((64, "momentum", f"RSI of {rsi:.0f} suggests the stock may be stabilizing after weakness."))
+    if twenty is not None and 3 <= twenty <= 15:
+        candidates.append((71 + twenty/10, "trend", f"The stock has gained {twenty:.1f}% over the last month, confirming improving demand."))
+    if "strong buy" in analyst or analyst == "buy":
+        candidates.append((73, "analyst", "Wall Street sentiment is supportive rather than broadly cautious."))
 
+    # Use company-specific saved evidence when it contains more than generic boilerplate.
+    saved = _first_sentence(_pick(row, "what_looks_good", "why_ranked_high", "financial_summary", "recovery_catalyst", default=""))
+    if saved and len(saved) >= 18 and not any(x in saved.lower() for x in ("high-priority research", "good candidate", "review full report")):
+        candidates.append((80, "saved_evidence", saved + "."))
+
+    candidates.sort(key=lambda x: x[0], reverse=True)
+    reasons: list[str] = []
+    used: set[str] = set()
+    for _, category, text in candidates:
+        if category in used or text in reasons:
+            continue
+        used.add(category)
+        reasons.append(text)
+        if len(reasons) == 3:
+            break
     if not reasons:
-        reasons.append("The combined financial and market evidence warrants further research.")
-    return reasons[:4]
+        reasons.append("The available evidence is mixed, so Atlas recommends completing the full research review first.")
+    return reasons
 
 
 def build_primary_risk_sentence(row: Mapping[str, Any]) -> str:
-    """Convert verbose scan risk text into one complete, actionable sentence."""
-    raw = _clean(_pick(row, "what_could_go_wrong", "Primary Risk", "primary_risk", "risk_tags", default=""), default="")
-    low = raw.lower()
-    if "earnings" in low or "gap risk" in low:
-        return "Upcoming earnings could create sharp price swings."
-    if "debt" in low and "cash" in low:
-        return "Debt is high relative to cash and could limit financial flexibility."
-    if "current ratio" in low or "liquidity" in low:
-        return "Short-term liquidity is weaker than preferred."
-    if "valuation" in low or "expensive" in low or "multiple" in low:
-        return "The current valuation leaves less room for execution mistakes."
-    if "momentum" in low or "technical" in low or "trend" in low:
-        return "Price momentum has not yet confirmed a durable uptrend."
-    if raw:
-        first = raw.split(";")[0].strip().rstrip(".")
-        if first:
-            return first[:1].upper() + first[1:] + "."
-    return "The investment case still depends on execution, earnings, and entry timing."
+    """Score actual company risks and return the single most material complete sentence."""
+    risks: list[tuple[float, str]] = []
+    cash = _num(_pick(row, "total_cash", "cash", "cash_and_equivalents", "Total Cash"))
+    debt = _num(_pick(row, "total_debt", "debt", "Total Debt"))
+    current_ratio = _num(_pick(row, "current_ratio", "Current Ratio"))
+    forward_pe = _num(_pick(row, "forward_pe", "Forward P/E"))
+    ps = _num(_pick(row, "price_to_sales", "ev_to_sales", "Price to Sales"))
+    margin = _simple_pct(_pick(row, "profit_margin", "net_profit_margin", "Profit Margin"))
+    rsi = _num(_pick(row, "rsi", "RSI"))
+    atr_pct = _simple_pct(_pick(row, "atr_pct", "ATR %"))
+    beta = _num(_pick(row, "beta", "Beta"))
+    sector = _clean(_pick(row, "sector", "Sector", default=""), default="").lower()
+    earnings_date = _pick(row, "earnings_date", "Earnings Date", "next_earnings_date")
+    try:
+        from datetime import date, datetime
+        parsed = datetime.fromisoformat(str(earnings_date)[:10]).date()
+        days = (parsed - date.today()).days
+        if 0 <= days <= 7:
+            risks.append((98, f"Earnings are due in {days} day{'s' if days != 1 else ''}, so near-term price swings could be sharp."))
+        elif 8 <= days <= 21:
+            risks.append((85, f"Earnings are due in {days} days and could change the investment case quickly."))
+    except Exception:
+        pass
+
+    if debt is not None and cash is not None and debt > max(cash * 3, 1):
+        ratio = debt / max(cash, 1)
+        risks.append((95 + min(ratio, 10), f"Debt is about {ratio:.1f} times cash, which reduces financial flexibility."))
+    elif debt is not None and cash is not None and debt > cash * 1.5:
+        risks.append((82, "Debt is meaningfully higher than cash and deserves monitoring."))
+    if current_ratio is not None and current_ratio < 0.8:
+        risks.append((94, f"A current ratio of {current_ratio:.2f} signals tight short-term liquidity."))
+    elif current_ratio is not None and current_ratio < 1.0:
+        risks.append((84, f"A current ratio of {current_ratio:.2f} leaves less short-term liquidity cushion than preferred."))
+    if forward_pe is not None and forward_pe >= 45:
+        risks.append((91 + min(forward_pe-45, 30)/10, f"A forward P/E of {forward_pe:.1f} leaves little room for an earnings disappointment."))
+    elif ps is not None and ps >= 10:
+        risks.append((88, f"A price-to-sales multiple of {ps:.1f} reflects aggressive growth expectations."))
+    if margin is not None and margin < 0:
+        risks.append((93, f"The company remains unprofitable, with a net margin of {margin:.1f}%."))
+    if rsi is not None and rsi >= 72:
+        risks.append((86 + min(rsi-72, 15)/5, f"RSI of {rsi:.0f} suggests the stock may be overextended near term."))
+    if atr_pct is not None and atr_pct >= 5:
+        risks.append((80 + min(atr_pct, 12), f"Daily volatility is elevated, with ATR near {atr_pct:.1f}% of the share price."))
+    if beta is not None and beta >= 1.7:
+        risks.append((79 + min(beta, 3), f"A beta of {beta:.1f} means the stock may swing more sharply than the market."))
+    if any(x in sector for x in ("energy", "materials", "gold", "mining", "semiconductor")):
+        risks.append((72, "Results are sensitive to an industry cycle that can change quickly."))
+
+    raw = _first_sentence(_pick(row, "what_could_go_wrong", "Primary Risk", "primary_risk", "risk_tags", default=""))
+    if raw and not any(x in raw.lower() for x in ("earnings can create gap risk", "avoid oversized positions before the report")):
+        raw = raw[:1].upper() + raw[1:]
+        risks.append((76, raw + "."))
+
+    if not risks:
+        return "The main risk is that execution falls short of the growth already reflected in the share price."
+    risks.sort(key=lambda x: x[0], reverse=True)
+    return risks[0][1]

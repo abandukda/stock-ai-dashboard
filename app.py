@@ -19,7 +19,6 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-
 APP_VERSION = "V63.0 Institutional Scoring + Finance UI"
 V63_REAL_SCORING_AND_FINANCE_VERIFIED = True
 V631_DEDUPED_SCORING_AND_UPSIDE_VERIFIED = True
@@ -16111,7 +16110,7 @@ def render_v58_political_card(ticker):
 # ==============================
 # Atlas V60.3 Top AI Experience
 # ==============================
-def render_v60_3_top_ai_experience(source_df, title="Top AI Ideas", max_rows=10, show_filters=False):
+def render_v60_3_top_ai_experience(source_df, title="Atlas Decision Ideas", max_rows=10, show_filters=False):
     # Calibrated scoring + optional mobile cards + existing ranked table.
     try:
         calibrated_df = calibrate_top_ai_dataframe(source_df)
@@ -21594,7 +21593,7 @@ def main():
     source_df = top_df if top_df is not None and not top_df.empty else full_df.head(25)
 
     with tabs[0]:
-        fast_sorted = render_v60_3_top_ai_experience(source_df, title="Top AI Ideas", max_rows=10, show_filters=False)
+        fast_sorted = render_v60_3_top_ai_experience(source_df, title="Atlas Decision Ideas", max_rows=10, show_filters=False)
         default_row = v56_pick_default_stock(fast_sorted if fast_sorted is not None and not fast_sorted.empty else source_df)
     with tabs[1]:
         render_v56_ranked_table(full_df, title="Full Ranked AI Scan", max_rows=75, show_filters=True)
@@ -22575,7 +22574,7 @@ def render_v641_sidebar_header():
 
 
 def render_v574_top_ideas(source_df):
-    fast_sorted = render_v60_3_top_ai_experience(source_df, title="Top AI Ideas", max_rows=10, show_filters=False)
+    fast_sorted = render_v60_3_top_ai_experience(source_df, title="Atlas Decision Ideas", max_rows=10, show_filters=False)
     if fast_sorted is None or getattr(fast_sorted, "empty", True):
         st.info("No Top AI Ideas available.")
         return
@@ -26139,12 +26138,9 @@ def v793_open_research(ticker):
     ticker = str(ticker or "").strip().upper()
     if not ticker:
         return
-    st.session_state["v73_research_ticker"] = ticker
-    st.session_state["selected_ticker"] = ticker
-    st.session_state["selected_research_ticker"] = ticker
-    st.session_state["v73_page"] = "Research Any Ticker"
-    st.session_state["v79_pending_page"] = "Research Any Ticker"
-    st.session_state["v784_single_nav"] = "Research Any Ticker"
+    from engines.research_engine import research_navigation_state
+    for key, value in research_navigation_state(ticker).items():
+        st.session_state[key] = value
     st.rerun()
 
 
@@ -26192,8 +26188,15 @@ def v793_decision_rows(df):
         opp = v775_score(row, ["Opportunity", "Opportunity Score", "opportunity_score", "technical_agent_score"], 0)
         qual = v775_score(row, ["Quality", "Quality Score", "quality_score", "financial_score", "fundamentals_agent_score"], 0)
         conf = v785_confidence(row, opp, qual, details.get("expected_return_pct"))
-        tier = recommendation_tier(row, conf, details.get("expected_return_pct"))
-        rows.append((row, details, reasons, risk, conf, tier, opp, qual))
+        tier = recommendation_tier(row, conf, details.get("decision_upside_pct"))
+        try:
+            from engines.research_engine import decision_strength
+            strength = decision_strength(row, conf, details.get("decision_upside_pct"))
+        except Exception:
+            strength = conf
+        rows.append((row, details, reasons, risk, conf, tier, opp, qual, strength))
+    order = {"HIGH CONVICTION BUY": 0, "BUY ON WEAKNESS": 1, "WAIT FOR CONFIRMATION": 2, "AVOID": 3}
+    rows.sort(key=lambda x: (order.get(x[5], 9), -x[8], -x[6], -x[7]))
     return rows
 
 
@@ -26213,7 +26216,7 @@ def v793_design_system():
 """, unsafe_allow_html=True)
 
 
-def render_v73_idea_table(df, title="Atlas Highest Conviction Ideas"):
+def render_v73_idea_table(df, title="Atlas Decision Ideas"):
     """V79.3 decision cards with consistent recommendations and uncapped fair-value returns."""
     st.markdown(f"<div class='v65-section-title'>{v73_esc(title)}</div>", unsafe_allow_html=True)
     st.markdown("<div class='v775-help'><b>How to read this:</b> High Conviction Buy means Atlas sees sufficient evidence to act now. Buy on Weakness means the company is attractive, but price or timing could improve. Wait for Confirmation means Atlas needs stronger evidence before recommending a purchase.</div>", unsafe_allow_html=True)
@@ -26224,7 +26227,7 @@ def render_v73_idea_table(df, title="Atlas Highest Conviction Ideas"):
     for pair_start in range(0, min(len(rows), 8), 2):
         cols = st.columns(2)
         for col_idx, payload in enumerate(rows[pair_start:pair_start+2]):
-            row, details, reasons, risk, conf, tier, opp, qual = payload
+            row, details, reasons, risk, conf, tier, opp, qual, strength = payload
             with cols[col_idx]:
                 rank = pair_start + col_idx + 1
                 ticker, company = v73_ticker(row), v73_company(row)
@@ -26232,17 +26235,21 @@ def render_v73_idea_table(df, title="Atlas Highest Conviction Ideas"):
                 current = details.get("current_price")
                 fair = details.get("atlas_fair_value")
                 street = details.get("wall_street_consensus")
+                street_upside = details.get("wall_street_upside_pct")
                 exp_ret = details.get("expected_return_pct")
-                source = details.get("source", "Unavailable")
+                source = details.get("source", "Atlas Fair Value under review")
+                fair_display = v784_money(fair, "Under review")
+                return_display = v784_pct(exp_ret, "Under review")
+                street_note = (f"{street_upside:+.1f}% implied upside" if street_upside is not None else "covering analysts")
                 bullets = "".join(f"<li>{v73_esc(item)}</li>" for item in reasons)
                 st.markdown(f"""
 <div class='v775-card'>
   <div class='v775-card-head'><div><div class='v775-ticker'>{v73_esc(ticker)}</div><div class='v775-company'>{v73_esc(company)}</div></div><span class='v775-badge {cls}'>{icon} {v73_esc(tier)}</span></div>
   <div class='v775-mini-grid'>
     <div class='v775-mini'><span>Current Price</span><b>{v73_esc(v784_money(current))}</b><em>latest saved scan</em></div>
-    <div class='v775-mini'><span>Atlas Fair Value™</span><b class='v775-green'>{v73_esc(v784_money(fair))}</b><small class='v793-source'>{v73_esc(source)}</small></div>
-    <div class='v775-mini'><span>Wall Street Consensus</span><b class='v775-blue'>{v73_esc(v784_money(street))}</b><em>covering analysts</em></div>
-    <div class='v775-mini'><span>Expected Return</span><b>{v73_esc(v784_pct(exp_ret))}</b><em>to Atlas Fair Value</em></div>
+    <div class='v775-mini'><span>Atlas Fair Value™</span><b class='v775-green'>{v73_esc(fair_display)}</b><small class='v793-source'>{v73_esc(source)}</small></div>
+    <div class='v775-mini'><span>Wall Street Consensus</span><b class='v775-blue'>{v73_esc(v784_money(street))}</b><em>{v73_esc(street_note)}</em></div>
+    <div class='v775-mini'><span>Expected Return</span><b>{v73_esc(return_display)}</b><em>to Atlas Fair Value</em></div>
     <div class='v775-mini'><span>Quality</span><b>{qual:.0f}</b><em>{v73_score_label(qual)}</em></div>
     <div class='v775-mini'><span>Confidence</span><b>{conf:.0f}</b><em>{v73_esc(v793_confidence_label(conf))}</em></div>
   </div>
@@ -26256,7 +26263,7 @@ def render_v73_idea_table(df, title="Atlas Highest Conviction Ideas"):
 
 def render_v775_home_dashboard(full_df=None, top_df=None, recovery_df=None):
     """V79.3 home: one CIO-style brief with counts derived from displayed ideas."""
-    rows = v793_decision_rows(top_df)
+    rows = v793_decision_rows(top_df)[:8]
     counts = {"HIGH CONVICTION BUY": 0, "BUY ON WEAKNESS": 0, "WAIT FOR CONFIRMATION": 0, "AVOID": 0}
     for payload in rows:
         counts[payload[5]] = counts.get(payload[5], 0) + 1
@@ -26273,18 +26280,18 @@ def render_v775_home_dashboard(full_df=None, top_df=None, recovery_df=None):
 <div class='v793-brief'>
   <div class='v65-kicker'>Atlas Morning Brief</div>
   <h1>Today’s investment priorities</h1>
-  <p>Atlas sees a <b>{v73_esc(regime)}</b> market backdrop. The current Top Ideas list contains <b>{counts['HIGH CONVICTION BUY']} high-conviction buy candidate(s)</b>, <b>{counts['BUY ON WEAKNESS']} buy-on-weakness idea(s)</b>, and <b>{counts['WAIT FOR CONFIRMATION']} name(s) waiting for confirmation</b>. Highest-priority research: <b>{v73_esc(priority)}</b>.</p>
+  <p>The market backdrop is <b>{v73_esc(regime)}</b>. Atlas currently identifies <b>{counts['HIGH CONVICTION BUY']} ideas ready for action</b>, <b>{counts['BUY ON WEAKNESS']} attractive ideas needing a better entry</b>, and <b>{counts['WAIT FOR CONFIRMATION']} ideas that still need stronger evidence</b>. The first company to review is <b>{v73_esc(priority)}</b>.</p>
   <div class='v793-brief-grid'>
-    <div class='v793-brief-stat'><span>High Conviction</span><b>{counts['HIGH CONVICTION BUY']}</b><em>strongest actionable ideas</em></div>
-    <div class='v793-brief-stat'><span>Buy on Weakness</span><b>{counts['BUY ON WEAKNESS']}</b><em>attractive with better timing</em></div>
-    <div class='v793-brief-stat'><span>Waiting</span><b>{counts['WAIT FOR CONFIRMATION']}</b><em>needs stronger evidence</em></div>
+    <div class='v793-brief-stat'><span>Ready for Action</span><b>{counts['HIGH CONVICTION BUY']}</b><em>strongest actionable ideas</em></div>
+    <div class='v793-brief-stat'><span>Better Entry</span><b>{counts['BUY ON WEAKNESS']}</b><em>attractive with better timing</em></div>
+    <div class='v793-brief-stat'><span>Needs Evidence</span><b>{counts['WAIT FOR CONFIRMATION']}</b><em>needs stronger evidence</em></div>
     <div class='v793-brief-stat'><span>Market Risk</span><b>{v73_esc(market_risk)}</b><em>current macro posture</em></div>
   </div>
 </div>
 """, unsafe_allow_html=True)
 
     if top_df is not None and not getattr(top_df, "empty", True):
-        render_v73_idea_table(top_df.head(8), title="Atlas Highest Conviction Ideas")
+        render_v73_idea_table(top_df.head(8), title="Atlas Decision Ideas")
 
     render_v73_earnings_page(full_df, top_df)
 
@@ -26303,11 +26310,13 @@ def render_v775_home_dashboard(full_df=None, top_df=None, recovery_df=None):
 render_v74_home_dashboard = render_v775_home_dashboard
 render_v73_top_nav = v784_top_nav
 
+V80_TRUST_ROUTING_STABILIZATION_VERIFIED = True
+
 
 def main():
     if not dashboard_login_gate():
         return
-    render_v59_design_system(); render_v65_design_system(); render_v70_design_system(); render_v72_design_system(); render_v73_design_system(); render_v74_design_system(); v775_design_system()
+    render_v59_design_system(); render_v65_design_system(); render_v70_design_system(); render_v72_design_system(); render_v73_design_system(); render_v74_design_system(); v775_design_system(); v793_design_system()
     full_df = load_full_scan(); top_df = latest_top_ideas(); recovery_df = latest_recovery(); watch_df = latest_watchlist_scan(); prescreen_df = load_file(PRESCREEN_FILE); etf_df = load_file(ETF_SCAN_FILE)
     pages = ["Home", "Top AI Ideas", "Research Any Ticker", "Earnings Intelligence", "Full Ranked Scan", "Portfolio Intelligence", "Watchlist Intelligence", "Recovery", "ETFs", "Political Intelligence", "Ask AI"]
     selected_page = render_v73_top_nav(pages)
@@ -26315,7 +26324,7 @@ def main():
     if selected_page != "Home":
         render_v72_market_tape(always_show=False)
     if selected_page == "Home": render_v74_home_dashboard(full_df, source_df, recovery_df)
-    elif selected_page == "Top AI Ideas": render_v73_idea_table(source_df, title="Top AI Ideas")
+    elif selected_page == "Top AI Ideas": render_v73_idea_table(source_df, title="Atlas Decision Ideas")
     elif selected_page == "Research Any Ticker": render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df)
     elif selected_page == "Earnings Intelligence": render_v73_earnings_page(full_df, source_df)
     elif selected_page == "Full Ranked Scan": render_v56_ranked_table(full_df, title="Full Ranked AI Scan", max_rows=75, show_filters=True)
