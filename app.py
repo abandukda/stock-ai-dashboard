@@ -3937,7 +3937,8 @@ def build_live_research_row(ticker, force_refresh=False):
         cache_ttl_seconds=900,
     )
 
-def build_live_research_row(ticker):
+def build_legacy_live_research_row(ticker):
+    """Legacy Yahoo-only adapter retained for fallback/debugging; not used by V80.5 live research."""
     ticker = safe_text(ticker, "").upper().strip()
     if not ticker:
         return None
@@ -25016,10 +25017,15 @@ def render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf
         use_saved = st.button("Show Saved Discovery Snapshot", key=f"v805_saved_{ticker}", disabled=saved_row is None)
 
     state_key = f"v805_live_row_{ticker}"
-    if refresh or (saved_row is None and state_key not in st.session_state):
+    auto_live_ticker = str(st.session_state.pop("v805_force_live_on_open", "") or "").upper()
+    auto_live = auto_live_ticker == ticker
+    if refresh or auto_live or (saved_row is None and state_key not in st.session_state):
         with st.spinner(f"Refreshing market data, valuation, news, and policy context for {ticker}..."):
             try:
-                live_row = build_live_research_row(ticker, force_refresh=refresh)
+                live_row = build_live_research_row(
+                    ticker,
+                    force_refresh=bool(refresh or auto_live),
+                )
             except Exception as exc:
                 live_row = {"error": str(exc)}
         st.session_state[state_key] = live_row
@@ -26167,6 +26173,9 @@ def v793_open_research(ticker):
     from engines.research_engine import research_navigation_state
     for key, value in research_navigation_state(ticker).items():
         st.session_state[key] = value
+    # V80.5: opening research from any discovery card must run the live
+    # single-ticker research pipeline instead of showing only the saved snapshot.
+    st.session_state["v805_force_live_on_open"] = ticker
     st.rerun()
 
 
@@ -26215,6 +26224,10 @@ def v793_decision_rows(df):
         qual = v775_score(row, ["Quality", "Quality Score", "quality_score", "financial_score", "fundamentals_agent_score"], 0)
         conf = v785_confidence(row, opp, qual, details.get("expected_return_pct"))
         tier = recommendation_tier(row, conf, details.get("decision_upside_pct"))
+        # V80.5 trust gate: High Conviction Buy requires a valid Atlas Fair Value.
+        # Discovery snapshots without a defensible valuation remain research candidates.
+        if details.get("atlas_fair_value") is None and str(tier).upper() == "HIGH CONVICTION BUY":
+            tier = "BUY ON WEAKNESS" if conf >= 70 and qual >= 75 else "WAIT FOR CONFIRMATION"
         try:
             from engines.research_engine import decision_strength
             strength = decision_strength(row, conf, details.get("decision_upside_pct"))
@@ -26272,7 +26285,7 @@ def render_v73_idea_table(df, title="Atlas Decision Ideas"):
 <div class='v775-card'>
   <div class='v775-card-head'><div><div class='v775-ticker'>{v73_esc(ticker)}</div><div class='v775-company'>{v73_esc(company)}</div></div><span class='v775-badge {cls}'>{icon} {v73_esc(tier)}</span></div>
   <div class='v775-mini-grid'>
-    <div class='v775-mini'><span>Current Price</span><b>{v73_esc(v784_money(current))}</b><em>latest saved scan</em></div>
+    <div class='v775-mini'><span>Current Price</span><b>{v73_esc(v784_money(current))}</b><em>Discovery snapshot</em></div>
     <div class='v775-mini'><span>Atlas Fair Value™</span><b class='v775-green'>{v73_esc(fair_display)}</b><small class='v793-source'>{v73_esc(source)}</small></div>
     <div class='v775-mini'><span>Wall Street Consensus</span><b class='v775-blue'>{v73_esc(v784_money(street))}</b><em>{v73_esc(street_note)}</em></div>
     <div class='v775-mini'><span>Expected Return</span><b>{v73_esc(return_display)}</b><em>to Atlas Fair Value</em></div>
