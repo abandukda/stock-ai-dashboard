@@ -318,6 +318,9 @@ def build_plain_english_reasons(row: Mapping[str, Any], atlas_fair_value: float 
     rsi = _num(_pick(row, "rsi", "RSI"))
     twenty = _simple_pct(_pick(row, "twenty_day_pct", "20 Day Return"))
     analyst = _clean(_pick(row, "recommendation", "recommendation_key", "Analyst View", default=""), default="").lower()
+    ticker = _clean(_pick(row, "Ticker", "ticker", "symbol", default=""), default="").upper()
+    sector = _clean(_pick(row, "sector", "Sector", "industry", "Industry", default=""), default="")
+    catalyst = _first_sentence(_pick(row, "catalyst", "Catalyst", "recovery_catalyst", "earnings_summary", "news_summary", default=""))
 
     if rev is not None:
         if rev >= 20:
@@ -357,6 +360,11 @@ def build_plain_english_reasons(row: Mapping[str, Any], atlas_fair_value: float 
     if "strong buy" in analyst or analyst == "buy":
         candidates.append((73, "analyst", "Wall Street sentiment is supportive rather than broadly cautious."))
 
+    if catalyst and len(catalyst) >= 18:
+        candidates.append((83, "catalyst", f"Company-specific catalyst: {catalyst}."))
+    if sector:
+        candidates.append((60, "sector", f"The {sector} backdrop is an important part of the thesis and is reflected in Atlas's sector analysis."))
+
     # Use company-specific saved evidence when it contains more than generic boilerplate.
     saved = _first_sentence(_pick(row, "what_looks_good", "why_ranked_high", "financial_summary", "recovery_catalyst", default=""))
     if saved and len(saved) >= 18 and not any(x in saved.lower() for x in ("high-priority research", "good candidate", "review full report")):
@@ -370,7 +378,7 @@ def build_plain_english_reasons(row: Mapping[str, Any], atlas_fair_value: float 
             continue
         used.add(category)
         reasons.append(text)
-        if len(reasons) == 3:
+        if len(reasons) == 4:
             break
     if not reasons:
         reasons.append("The available evidence is mixed, so Atlas recommends completing the full research review first.")
@@ -390,15 +398,19 @@ def build_primary_risk_sentence(row: Mapping[str, Any]) -> str:
     atr_pct = _simple_pct(_pick(row, "atr_pct", "ATR %"))
     beta = _num(_pick(row, "beta", "Beta"))
     sector = _clean(_pick(row, "sector", "Sector", default=""), default="").lower()
+    ticker = _clean(_pick(row, "Ticker", "ticker", "symbol", default=""), default="").upper()
+    country = _clean(_pick(row, "country", "Country", default=""), default="").lower()
     earnings_date = _pick(row, "earnings_date", "Earnings Date", "next_earnings_date")
     try:
         from datetime import date, datetime
         parsed = datetime.fromisoformat(str(earnings_date)[:10]).date()
         days = (parsed - date.today()).days
         if 0 <= days <= 7:
-            risks.append((98, f"Earnings are due in {days} day{'s' if days != 1 else ''}, so near-term price swings could be sharp."))
+            # Earnings is an event risk, but should not automatically outrank a
+            # material balance-sheet, valuation, geopolitical or business risk.
+            risks.append((79, f"Earnings are due in {days} day{'s' if days != 1 else ''}, so near-term price swings could be sharp."))
         elif 8 <= days <= 21:
-            risks.append((85, f"Earnings are due in {days} days and could change the investment case quickly."))
+            risks.append((70, f"Earnings are due in {days} days and could change the investment case quickly."))
     except Exception:
         pass
 
@@ -423,8 +435,14 @@ def build_primary_risk_sentence(row: Mapping[str, Any]) -> str:
         risks.append((80 + min(atr_pct, 12), f"Daily volatility is elevated, with ATR near {atr_pct:.1f}% of the share price."))
     if beta is not None and beta >= 1.7:
         risks.append((79 + min(beta, 3), f"A beta of {beta:.1f} means the stock may swing more sharply than the market."))
-    if any(x in sector for x in ("energy", "materials", "gold", "mining", "semiconductor")):
-        risks.append((72, "Results are sensitive to an industry cycle that can change quickly."))
+    if ticker == "TSM" or "taiwan" in country:
+        risks.append((97, "Taiwan geopolitical concentration could disrupt operations, supply continuity, or valuation multiples."))
+    if "semiconductor" in sector:
+        risks.append((84, "Semiconductor demand and capital spending are cyclical, so a downturn could pressure utilization and margins."))
+    elif any(x in sector for x in ("energy", "materials", "gold", "mining")):
+        risks.append((82, "Results are sensitive to a commodity or industry cycle that can change quickly."))
+    if ticker == "OPRA":
+        risks.append((90, "Dependence on search and advertising partnerships could pressure revenue if commercial terms or browser traffic weaken."))
 
     raw = _first_sentence(_pick(row, "what_could_go_wrong", "Primary Risk", "primary_risk", "risk_tags", default=""))
     if raw and not any(x in raw.lower() for x in ("earnings can create gap risk", "avoid oversized positions before the report")):

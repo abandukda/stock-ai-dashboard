@@ -129,79 +129,151 @@ def build_financial_snapshot(row: Mapping[str, Any]) -> dict[str, Any]:
 
 
 V793_DECISION_EXPERIENCE_ENGINE_VERIFIED = True
+V80_TRUST_ROUTING_STABILIZATION_VERIFIED = True
 
-def _explicit_atlas_value(row: Mapping[str, Any]) -> float | None:
-    return as_float(_first(
-        row,
-        "Atlas Fair Value", "AI Fair Value", "atlas_fair_value",
-        "ai_fair_value", "ai_base_target", "Atlas Target",
-    ))
+
+def _is_legacy_30pct_target(current: float | None, target: float | None) -> bool:
+    """Detect the repeated legacy current×1.30 target pattern."""
+    upside = calculate_upside(current, target)
+    return upside is not None and 29.65 <= upside <= 30.35
+
+
+def _explicit_atlas_value(row: Mapping[str, Any]) -> tuple[float | None, str]:
+    """Return an independently-labelled Atlas value, excluding generic legacy targets."""
+    candidates = (
+        ("Atlas Fair Value", "Atlas Fair Value"),
+        ("atlas_fair_value", "Atlas Fair Value"),
+        ("AI Fair Value", "Atlas model fair value"),
+        ("ai_fair_value", "Atlas model fair value"),
+        ("ai_base_target", "Atlas model fair value"),
+    )
+    for key, label in candidates:
+        value = as_float(_first(row, key))
+        if value is not None and value > 0:
+            return value, label
+    return None, "Unavailable"
 
 
 def atlas_fair_value_details(row: Mapping[str, Any]) -> dict[str, Any]:
-    """Return an Atlas fair-value estimate without presenting legacy fixed-upside fields as precision.
+    """Return honest Atlas and Wall Street valuation fields.
 
-    Priority:
-    1. Explicit Atlas fair-value fields.
-    2. A transparent blend of the legacy Atlas base target and Wall Street consensus.
-    3. The legacy base target when no independent consensus exists.
-
-    This preserves existing quant work while preventing a repeated 30% display from
-    being mistaken for independently estimated upside across every company.
+    V80 deliberately rejects the repeated +30% target pattern. It does not blend
+    Wall Street consensus into Atlas Fair Value merely to manufacture variation.
+    When Atlas has no independent valuation, the UI should say "Under review".
     """
     current = as_float(_first(row, "current_price", "price", "last_price", "Price"))
-    explicit = _explicit_atlas_value(row)
+    explicit, source = _explicit_atlas_value(row)
     legacy_base = as_float(_first(row, "target", "Target"))
-    legacy_bull = as_float(_first(row, "target_2", "Bull Target"))
-    street = as_float(_first(row, "Wall Street Target", "Analyst Target", "target_mean_price", "analyst_target_mean"))
+    legacy_bull = as_float(_first(row, "target_2", "Bull Target", "ai_bull_target"))
+    street = as_float(_first(
+        row, "Wall Street Target", "Analyst Target", "target_mean_price",
+        "analyst_target_mean", "finnhub_target_mean"
+    ))
 
     value = explicit
-    source = "Explicit Atlas Fair Value"
+    rejected_placeholder = False
+    if value is not None and _is_legacy_30pct_target(current, value):
+        value = None
+        source = "Under review — legacy 30% pattern rejected"
+        rejected_placeholder = True
 
-    if value is None and legacy_base is not None and street is not None:
-        legacy_upside = calculate_upside(current, legacy_base)
-        # Legacy target generation often lands exactly near +30%. Blend with an
-        # independent analyst reference so the displayed fair value varies by name.
-        if legacy_upside is not None and 29.5 <= legacy_upside <= 30.5:
-            value = (0.55 * street) + (0.45 * legacy_base)
-            source = "Atlas blended fair value"
-        else:
+    # Legacy target fields are accepted only when they do not match the repeated
+    # 30% pattern and have an explicit model/source note.
+    if value is None and legacy_base is not None:
+        target_source = str(_first(row, "target_source", "target_confidence_note") or "").lower()
+        has_model_provenance = any(x in target_source for x in ("dcf", "multiple", "valuation", "model", "fair value"))
+        if has_model_provenance and not _is_legacy_30pct_target(current, legacy_base):
             value = legacy_base
-            source = "Atlas base valuation"
-    elif value is None and legacy_base is not None:
-        value = legacy_base
-        source = "Atlas base valuation"
-    elif value is None and street is not None:
-        value = street
-        source = "Wall Street fallback"
+            source = "Atlas valuation model"
 
-    # Keep a range for the full research report when a bull target exists.
+    expected = calculate_upside(current, value)
+    street_upside = calculate_upside(current, street)
     low = value
-    high = legacy_bull if legacy_bull and value and legacy_bull > value else value
+    high = legacy_bull if value and legacy_bull and legacy_bull > value and not _is_legacy_30pct_target(current, legacy_bull) else value
     return {
         "current_price": current,
         "atlas_fair_value": value,
         "atlas_fair_value_low": low,
         "atlas_fair_value_high": high,
         "wall_street_consensus": street,
-        "expected_return_pct": calculate_upside(current, value),
-        "source": source if value is not None else "Unavailable",
+        "expected_return_pct": expected,
+        "wall_street_upside_pct": street_upside,
+        "decision_upside_pct": expected if expected is not None else street_upside,
+        "source": source if value is not None else "Atlas Fair Value under review",
+        "rejected_legacy_placeholder": rejected_placeholder or _is_legacy_30pct_target(current, legacy_base),
     }
 
 
-def recommendation_tier(row: Mapping[str, Any], confidence: Any = None, expected_return: Any = None) -> str:
-    """Return one clear customer-facing recommendation tier."""
-    raw = str(_first(row, "Recommendation", "Decision", "decision_action", "Action", "recommendation") or "").upper()
+def _score(row: Mapping[str, Any], *keys: str, default: float = 0.0) -> float:
+    return as_float(_first(row, *keys), default) or default
+
+
+def decision_strength(row: Mapping[str, Any], confidence: Any = None, expected_return: Any = None) -> float:
+    """Evidence-based decision score used by both counts and displayed cards."""
     conf = as_float(confidence)
     if conf is None:
-        conf = as_float(_first(row, "Confidence", "confidence", "conviction", "conviction_score", "score"), 0) or 0
+        conf = _score(row, "Confidence", "confidence", "ai_confidence", "conviction", "conviction_score", default=50)
     ret = as_float(expected_return)
+    if ret is None:
+        details = atlas_fair_value_details(row)
+        ret = as_float(details.get("decision_upside_pct"), 0) or 0
+    opportunity = _score(row, "Opportunity", "Opportunity Score", "opportunity_score", "technical_agent_score", default=50)
+    quality = _score(row, "Quality", "Quality Score", "quality_score", "financial_score", "fundamentals_agent_score", default=50)
+    technical = _score(row, "technical_agent_score", "Technical Score", default=opportunity)
+    fundamental = _score(row, "fundamentals_agent_score", "financial_score", "Fundamental Score", default=quality)
+    risk = _score(row, "risk_agent_score", "Risk Score", default=65)
+    valuation = _score(row, "valuation_agent_score", "Valuation Score", default=55)
+
+    upside_component = max(0.0, min(100.0, 50.0 + ret * 1.6))
+    score = (
+        0.22 * opportunity + 0.20 * quality + 0.16 * conf +
+        0.12 * technical + 0.12 * fundamental + 0.08 * risk +
+        0.05 * valuation + 0.05 * upside_component
+    )
+
+    # Transparent penalties for evidence gaps and material financial risk.
+    current_ratio = _score(row, "current_ratio", "Current Ratio", default=1.5)
+    debt = as_float(_first(row, "total_debt", "debt", "Total Debt"))
+    cash = as_float(_first(row, "total_cash", "cash", "cash_and_equivalents", "Total Cash"))
+    if current_ratio and current_ratio < 0.8:
+        score -= 5
+    if debt is not None and cash is not None and debt > max(cash * 4, 1):
+        score -= 5
+    if ret < 0:
+        score -= 8
+    return max(0.0, min(100.0, score))
+
+
+def recommendation_tier(row: Mapping[str, Any], confidence: Any = None, expected_return: Any = None) -> str:
+    """Classify from current evidence; old saved labels cannot veto a qualifying idea."""
+    raw = str(_first(row, "Recommendation", "Decision", "decision_action", "Action", "recommendation") or "").upper()
     if "SELL" in raw or "AVOID" in raw:
         return "AVOID"
-    if "BUY" in raw and conf >= 82 and (ret is None or ret >= 8):
+    strength = decision_strength(row, confidence, expected_return)
+    ret = as_float(expected_return)
+    if ret is None:
+        ret = as_float(atlas_fair_value_details(row).get("decision_upside_pct"), 0) or 0
+    risk = _score(row, "risk_agent_score", "Risk Score", default=65)
+    quality = _score(row, "Quality", "Quality Score", "quality_score", "financial_score", "fundamentals_agent_score", default=50)
+
+    if strength >= 77 and quality >= 72 and risk >= 58 and ret >= 8:
         return "HIGH CONVICTION BUY"
-    if conf >= 76 and (ret is None or ret >= 5):
+    if strength >= 68 and quality >= 62 and ret >= 4:
         return "BUY ON WEAKNESS"
-    if conf >= 58:
+    if strength >= 52:
         return "WAIT FOR CONFIRMATION"
     return "AVOID"
+
+
+def research_navigation_state(ticker: Any) -> dict[str, str]:
+    """Return the single canonical session-state handoff for Research navigation."""
+    symbol = str(ticker or "").strip().upper()
+    if not symbol:
+        return {}
+    return {
+        "v73_research_ticker": symbol,
+        "selected_ticker": symbol,
+        "selected_research_ticker": symbol,
+        "v73_page": "Research Any Ticker",
+        "v79_pending_page": "Research Any Ticker",
+    }
