@@ -3839,6 +3839,62 @@ def passes_basic_filter(ind: Dict[str, Any], meta: Dict[str, Any]) -> bool:
     return True
 
 
+
+
+def v803_apply_complete_research_fields(row: Dict[str, Any], meta: Dict[str, Any]) -> Dict[str, Any]:
+    """Persist honest valuation, recent-news, and policy-support fields into scan rows.
+
+    Uses a growth-adjusted forward-earnings method when the necessary inputs exist.
+    Wall Street consensus is kept separate and is never relabeled as Atlas Fair Value.
+    """
+    price = safe_float(row.get("price") or row.get("current_price"), None)
+    forward_pe = safe_float(meta.get("forward_pe") or row.get("forward_pe"), None)
+    revenue_growth = safe_float(meta.get("revenue_growth") or row.get("revenue_growth"), None)
+    margin = safe_float(meta.get("operating_margin") or row.get("operating_margin"), None)
+
+    # Yahoo/FMP growth fields may be decimals or percentages.
+    if revenue_growth is not None and abs(revenue_growth) <= 2:
+        revenue_growth *= 100
+    if margin is not None and abs(margin) <= 2:
+        margin *= 100
+
+    atlas_value = None
+    if price and forward_pe and forward_pe > 0:
+        forward_eps = price / forward_pe
+        growth = max(-10.0, min(40.0, revenue_growth if revenue_growth is not None else 8.0))
+        margin_bonus = 2.0 if margin is not None and margin >= 25 else 0.0
+        justified_pe = max(12.0, min(38.0, 16.0 + 0.45 * growth + margin_bonus))
+        atlas_value = round(forward_eps * justified_pe, 2)
+        # Reject implausible or accidental legacy +30% outputs.
+        upside = ((atlas_value / price) - 1) * 100
+        if atlas_value <= 0 or upside < -60 or upside > 80 or 29.65 <= upside <= 30.35:
+            atlas_value = None
+
+    if atlas_value is not None:
+        row["atlas_fair_value"] = atlas_value
+        row["Atlas Fair Value"] = atlas_value
+        row["fair_value_method"] = "Growth-adjusted forward earnings multiple"
+        row["target_source"] = "Atlas valuation model: growth-adjusted forward earnings multiple"
+        row["fair_value_confidence"] = 72 if revenue_growth is not None else 58
+        row["expected_upside_pct"] = round(((atlas_value / price) - 1) * 100, 1)
+
+    # Persist the freshest direct-news fields already obtained by the scan/committee.
+    committee = row.get("ai_committee") if isinstance(row.get("ai_committee"), dict) else {}
+    news_agent = committee.get("News Agent") if isinstance(committee, dict) else {}
+    row["latest_news_headline"] = row.get("latest_news_headline") or meta.get("latest_news_headline") or meta.get("top_news_headline") or row.get("top_news_headline") or ""
+    row["latest_news_date"] = row.get("latest_news_date") or meta.get("latest_news_date") or meta.get("top_news_date") or ""
+    row["latest_news_source"] = row.get("latest_news_source") or meta.get("latest_news_source") or meta.get("top_news_source") or ""
+    row["latest_news_sentiment"] = row.get("latest_news_sentiment") or meta.get("latest_news_sentiment") or meta.get("news_sentiment_label") or (news_agent.get("impact") if isinstance(news_agent, dict) else "") or ""
+
+    # Evidence-based policy support only; blank means no verified support was found.
+    political_terms = ("government contract", "federal contract", "subsidy", "incentive", "grant", "regulatory approval", "chips act", "defense award", "public funding")
+    headline = str(row.get("latest_news_headline") or "").lower()
+    policy_support = next((term for term in political_terms if term in headline), "")
+    row["political_support"] = policy_support
+    row["political_support_summary"] = (f"Recent news references potential policy support: {policy_support}." if policy_support else "")
+    return row
+
+
 def scan_market() -> Dict[str, Any]:
     start_time = time.time()
     universe = build_universe()
@@ -3954,6 +4010,7 @@ def scan_market() -> Dict[str, Any]:
             row = enhance_ai_committee(row, meta, ind)
             row = apply_research_field_fallbacks(row, meta)
             row = v421_apply_tiered_committee(symbol, row, meta, ind, hist)
+            row = v803_apply_complete_research_fields(row, meta)
 
             # Prescreen can include moderate setups, but weak fallback rows are reduced.
             if score >= 38:
