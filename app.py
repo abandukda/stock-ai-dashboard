@@ -26861,6 +26861,317 @@ def render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf
     else: st.error("No saved snapshot is available and live research could not be completed.")
 
 
+
+# ============================================================
+# V80.5.5 PAID-CLIENT RESEARCH QUALITY + DATA COVERAGE
+# ============================================================
+V8055_PAID_CLIENT_RESEARCH_VERIFIED = True
+
+
+def v8055_inject_research_css():
+    st.markdown("""
+<style>
+/* Improve contrast and prevent low-visibility blue-on-blue informational text. */
+div[data-testid="stAlert"] p, div[data-testid="stAlert"] li { color:#E5EDF7 !important; }
+div[data-testid="stAlert"] { border:1px solid rgba(148,163,184,.28) !important; }
+.v8055-hero{padding:26px 28px;border:1px solid rgba(96,165,250,.28);border-radius:24px;background:linear-gradient(135deg,rgba(15,23,42,.98),rgba(8,35,48,.96));margin:8px 0 20px}
+.v8055-hero h1{margin:0;color:#F8FAFC;font-size:clamp(2rem,5vw,4rem);line-height:1.02}
+.v8055-hero p{color:#CBD5E1;font-size:1rem;margin:10px 0 0}
+.v8055-meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.v8055-pill{padding:7px 12px;border-radius:999px;background:rgba(15,23,42,.72);border:1px solid rgba(148,163,184,.28);color:#E2E8F0;font-weight:700}
+.v8055-section-note{color:#CBD5E1;font-size:.94rem;margin-top:-5px;margin-bottom:12px}
+.v8055-atlas{color:#22C55E!important}.v8055-street{color:#60A5FA!important}.v8055-bull{color:#A78BFA!important}.v8055-bear{color:#FB7185!important}
+</style>
+""", unsafe_allow_html=True)
+
+
+def v8055_display_decision(value):
+    text = str(value or "Review").replace("_", " ").strip().title()
+    aliases = {"Strong Buy":"High Conviction Buy", "Buy Now":"High Conviction Buy", "Watchlist":"Buy on Weakness", "Hold":"Wait for Confirmation"}
+    return aliases.get(text, text)
+
+
+def v8055_format_et(value):
+    if not value:
+        return dt.datetime.now().astimezone().strftime("%b %-d, %Y · %-I:%M %p %Z")
+    try:
+        from zoneinfo import ZoneInfo
+        parsed = dt.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=dt.timezone.utc)
+        return parsed.astimezone(ZoneInfo("America/New_York")).strftime("%b %-d, %Y · %-I:%M %p ET")
+    except Exception:
+        return str(value)
+
+
+def v8055_merge_best(base, candidate):
+    base = dict(base or {})
+    candidate = dict(candidate or {})
+    for key, value in candidate.items():
+        zero_missing = key in _V8054_FINANCE_KEYS
+        if key not in base or v8054_is_missing(base.get(key), zero_is_missing=zero_missing):
+            if not v8054_is_missing(value, zero_is_missing=zero_missing):
+                base[key] = value
+        elif key == "Raw" and isinstance(value, dict):
+            raw = dict(base.get("Raw") or {})
+            for rk, rv in value.items():
+                if rk not in raw or v8054_is_missing(raw.get(rk), zero_is_missing=(rk in _V8054_FINANCE_KEYS)):
+                    if not v8054_is_missing(rv, zero_is_missing=(rk in _V8054_FINANCE_KEYS)):
+                        raw[rk] = rv
+            base["Raw"] = raw
+    return base
+
+
+def v8055_saved_ticker_record(ticker, *dfs):
+    """Merge the richest saved evidence across Top Ideas, full scan, watchlist, recovery, prescreen and ETF files."""
+    ticker = str(ticker or "").upper().strip()
+    merged = {}
+    sources = list(dfs)
+    for path in [TOP_IDEAS_FILE, FULL_SCAN_FILE, WATCHLIST_SCAN_FILE, RECOVERY_SCAN_FILE, PRESCREEN_FILE, ETF_SCAN_FILE]:
+        try:
+            sources.append(load_file(path))
+        except Exception:
+            pass
+    for df in sources:
+        try:
+            if df is None or getattr(df, "empty", True) or "Ticker" not in df.columns:
+                continue
+            matches = df[df["Ticker"].astype(str).str.upper() == ticker]
+            for _, row in matches.iterrows():
+                merged = v8055_merge_best(merged, dict(row))
+        except Exception:
+            continue
+    return merged
+
+
+def v8055_research_hero(row):
+    v8055_inject_research_css()
+    data = v8053_row_dict(row)
+    ticker, company = v73_ticker(row), v73_company(row)
+    refreshed = v8054_first_meaningful(row, ["research_refreshed_at","refreshed_at","generated_at","scan_time"], "")
+    decision = v8055_display_decision(v8054_first_meaningful(row,["Recommendation","Decision","decision_action","Action"],"Review"))
+    confidence = v8054_first_meaningful(row,["research_confidence","Research Confidence","Confidence","AI Confidence"],None,True)
+    source = v8054_first_meaningful(row,["research_source","data_source","source"],"Live + Discovery evidence")
+    coverage=[]
+    checks=[("Financials",["Revenue Growth","revenue_growth","Operating Margin","operating_margin","Free Cash Flow","free_cash_flow"]),("Analysts",["Analyst Target","analyst_target_mean","target_mean_price"]),("Earnings",["earnings_date","next_earnings_date","latest_eps","earnings_summary"]),("News",["latest_news_headline","Top News","news_items"]),("Policy",["political_support","policy_support","political_context"])]
+    for label, keys in checks:
+        if v8054_first_meaningful(row, keys, None) not in (None, "", [], {}): coverage.append(label)
+    conf_text = f"{float(confidence):.0f}/100" if confidence is not None else "Not scored"
+    st.markdown(f"""
+<div class='v8055-hero'>
+<h1>🧠 {v73_esc(ticker)} Research Dashboard</h1>
+<p><b>{v73_esc(company)}</b> · Institutional decision support using current retrieval plus verified Discovery evidence.</p>
+<div class='v8055-meta'>
+<span class='v8055-pill'>Decision: {v73_esc(decision)}</span>
+<span class='v8055-pill'>Research confidence: {v73_esc(conf_text)}</span>
+<span class='v8055-pill'>Last refreshed: {v73_esc(v8055_format_et(refreshed))}</span>
+<span class='v8055-pill'>Coverage: {v73_esc(' · '.join(coverage) if coverage else 'Limited')}</span>
+<span class='v8055-pill'>Source: {v73_esc(source)}</span>
+</div></div>
+""", unsafe_allow_html=True)
+
+
+def v8055_render_financial_analysis(row):
+    st.markdown("### 💰 Financial Analysis")
+    st.markdown("<div class='v8055-section-note'>Growth, profitability, cash generation, liquidity and balance-sheet strength. Missing values remain unavailable rather than becoming false zeroes.</div>", unsafe_allow_html=True)
+    metrics = [
+        ("Revenue growth", ["Revenue Growth","revenue_growth","revenue_growth_pct","revenue_qoq_pct"], "pct"),
+        ("Earnings growth", ["Earnings Growth","earnings_growth","eps_growth"], "pct"),
+        ("Gross margin", ["Gross Margin","gross_margin","grossMargins"], "pct"),
+        ("Operating margin", ["Operating Margin","operating_margin","operatingMargins"], "pct"),
+        ("Net margin", ["Net Margin","net_margin","profit_margin","profitMargins"], "pct"),
+        ("Free cash flow", ["Free Cash Flow","free_cash_flow","free_cashflow"], "money"),
+        ("Operating cash flow", ["Operating Cash Flow","operating_cash_flow","operating_cashflow"], "money"),
+        ("Cash", ["Cash","total_cash","cash_and_equivalents"], "money"),
+        ("Total debt", ["Total Debt","total_debt","Debt"], "money"),
+        ("Current ratio", ["Current Ratio","current_ratio"], "ratio"),
+        ("Forward P/E", ["Forward PE","forward_pe"], "multiple"),
+        ("ROIC / ROE", ["ROIC","roic","roe"], "pct"),
+    ]
+    values=[]
+    for label, keys, kind in metrics:
+        raw=v8054_first_meaningful(row,keys,None,zero_is_missing=True)
+        if kind=="pct": val=v63_pct_value(raw,None,cap_abs=500); display="Unavailable" if val is None else f"{val:.1f}%"
+        elif kind=="money": val=v63_clean_num(raw,None); display=v63_fmt_money(val,"Unavailable")
+        elif kind=="multiple": val=v63_clean_num(raw,None); display="Unavailable" if val is None else f"{val:.1f}x"
+        else: val=v63_clean_num(raw,None); display="Unavailable" if val is None else f"{val:.2f}"
+        values.append((label,display,val,kind))
+    for start in range(0,len(values),4):
+        cols=st.columns(4)
+        for col,(label,display,_,_) in zip(cols,values[start:start+4]): col.metric(label,display)
+    available=[x for x in values if x[2] is not None]
+    if not available:
+        st.warning("Financial statement fields were unavailable from both live retrieval and saved Discovery data. Atlas will not issue a fundamentals-based conclusion until these fields are populated.")
+        return
+    positives=[]; cautions=[]
+    lookup={x[0]:x[2] for x in available}
+    if lookup.get("Revenue growth") is not None: (positives if lookup["Revenue growth"]>=10 else cautions).append(f"Revenue growth is {lookup['Revenue growth']:.1f}%.")
+    if lookup.get("Operating margin") is not None: (positives if lookup["Operating margin"]>=15 else cautions).append(f"Operating margin is {lookup['Operating margin']:.1f}%.")
+    if lookup.get("Free cash flow") is not None: (positives if lookup["Free cash flow"]>0 else cautions).append(f"Free cash flow is {v63_fmt_money(lookup['Free cash flow'])}.")
+    if lookup.get("Cash") is not None and lookup.get("Total debt") is not None: (positives if lookup["Cash"]>=lookup["Total debt"] else cautions).append(f"Cash is {v63_fmt_money(lookup['Cash'])} versus debt of {v63_fmt_money(lookup['Total debt'])}.")
+    st.markdown("**Atlas financial read-through**")
+    for line in positives[:5]: st.markdown(f"- ✅ {line}")
+    for line in cautions[:5]: st.markdown(f"- ⚠️ {line}")
+
+
+def v8055_render_analyst_intelligence(row):
+    st.markdown("### 🧑‍💼 Wall Street Analyst Intelligence")
+    st.markdown("<div class='v8055-section-note'>Consensus target, range, analyst coverage and recommendation context. Atlas Fair Value is displayed separately and should not be confused with Wall Street.</div>", unsafe_allow_html=True)
+    price=v63_clean_num(v8054_first_meaningful(row,["Price","price","current_price"],None,True),None)
+    mean=v63_clean_num(v8054_first_meaningful(row,["Analyst Target","analyst_target_mean","target_mean_price","consensus_target"],None,True),None)
+    high=v63_clean_num(v8054_first_meaningful(row,["Analyst High","analyst_target_high","target_high_price"],None,True),None)
+    low=v63_clean_num(v8054_first_meaningful(row,["Analyst Low","analyst_target_low","target_low_price"],None,True),None)
+    count=v63_clean_num(v8054_first_meaningful(row,["Analyst Count","analyst_count","number_of_analysts"],None,True),None)
+    rec=v8054_first_meaningful(row,["Recommendation","recommendation_key","analyst_recommendation"],"Unavailable")
+    support=v8054_first_meaningful(row,["Analyst Support","analyst_support_label","analyst_support_score"],"Unavailable")
+    upside=((mean-price)/price*100) if mean and price else None
+    cols=st.columns(5)
+    cols[0].metric("Consensus target",v63_fmt_money(mean,"Unavailable"))
+    cols[1].metric("High target",v63_fmt_money(high,"Unavailable"))
+    cols[2].metric("Low target",v63_fmt_money(low,"Unavailable"))
+    cols[3].metric("Covering analysts",f"{int(count)}" if count else "Unavailable")
+    cols[4].metric("Implied upside",f"{upside:+.1f}%" if upside is not None else "Unavailable")
+    st.markdown(f"**Street recommendation:** {v711_safe_report_text(rec)} · **Analyst support:** {v711_safe_report_text(support)}")
+
+
+def v8055_render_earnings_intelligence(row):
+    st.markdown("### 📞 Earnings Intelligence")
+    st.markdown("<div class='v8055-section-note'>Latest reported quarter, upcoming report timing, earnings surprise, management guidance and transcript-based AI summary when available.</div>", unsafe_allow_html=True)
+    next_date=v8054_first_meaningful(row,["next_earnings_date","Next Earnings","earnings_date","Earnings Date"],"")
+    latest_date=v8054_first_meaningful(row,["latest_earnings_date","last_earnings_date","reported_earnings_date"],"")
+    eps=v8054_first_meaningful(row,["latest_eps","Latest EPS","eps_actual","reported_eps"],None)
+    eps_est=v8054_first_meaningful(row,["eps_estimate","estimated_eps","consensus_eps"],None)
+    eps_surprise=v8054_first_meaningful(row,["eps_surprise","EPS Surprise","eps_surprise_pct"],None)
+    rev_surprise=v8054_first_meaningful(row,["revenue_surprise","Revenue Surprise","revenue_surprise_pct"],None)
+    tone=v8054_first_meaningful(row,["management_tone","Management Tone","guidance_tone"],"Not scored")
+    transcript=v8054_first_meaningful(row,["transcript_url","Transcript URL","earnings_transcript_url","call_transcript_url"],"")
+    summary=v8054_first_meaningful(row,["earnings_ai_summary","earnings_summary","Earnings Summary","transcript_summary"],"")
+    guidance=v8054_first_meaningful(row,["guidance_summary","management_guidance","guidance_impact"],"")
+    cols=st.columns(5)
+    cols[0].metric("Next earnings",str(next_date) if next_date else "Unavailable")
+    cols[1].metric("Latest reported",str(latest_date) if latest_date else "Unavailable")
+    cols[2].metric("Reported EPS",str(eps) if eps not in (None,"") else "Unavailable")
+    cols[3].metric("EPS surprise",str(eps_surprise) if eps_surprise not in (None,"") else "Unavailable")
+    cols[4].metric("Revenue surprise",str(rev_surprise) if rev_surprise not in (None,"") else "Unavailable")
+    st.markdown(f"**Management / guidance tone:** {v711_safe_report_text(tone)}")
+    if summary: st.markdown(f"**AI earnings summary:** {v711_safe_report_text(summary)}")
+    else: st.info("A prior-quarter transcript summary was not available in the current data. Atlas can summarize the previous earnings call once a transcript or structured earnings feed is connected.")
+    if guidance: st.markdown(f"**Guidance impact:** {v711_safe_report_text(guidance)}")
+    if transcript and str(transcript).startswith("http"): st.markdown(f"[Open earnings transcript]({transcript})")
+
+
+def render_v71_institutional_chart(row):
+    ticker=v65_ticker(row)
+    if not ticker: return
+    with st.container(border=True):
+        st.markdown("### 📊 Institutional Price Chart")
+        st.caption("Price history with distinct Wall Street and Atlas valuation references, moving averages, support, resistance and entry context.")
+        period=st.selectbox("Chart range",["3mo","6mo","1y","2y","5y"],index=2,key=f"v8055_chart_range_{ticker}")
+        hist=v71_fetch_chart_history(ticker,period)
+        if hist.empty: st.warning("Chart data unavailable right now."); return
+        fig=go.Figure()
+        fig.add_trace(go.Scatter(x=hist.index,y=hist["Close"],mode="lines",name="Price",line=dict(color="#F8FAFC",width=2)))
+        palette={"SMA20":"#F59E0B","SMA50":"#38BDF8","SMA200":"#A78BFA"}
+        for col,name in [("SMA20","20DMA"),("SMA50","50DMA"),("SMA200","200DMA")]:
+            if col in hist and hist[col].notna().any(): fig.add_trace(go.Scatter(x=hist.index,y=hist[col],mode="lines",name=name,line=dict(color=palette[col],width=1.5)))
+        if "Volume" in hist: fig.add_trace(go.Bar(x=hist.index,y=hist["Volume"],name="Volume",yaxis="y2",opacity=.18,marker_color="#64748B"))
+        price=float(hist["Close"].dropna().iloc[-1])
+        analyst=v63_clean_num(v8054_first_meaningful(row,["Analyst Target","target_mean_price","analyst_target_mean","consensus_target"],None,True),None)
+        atlas=v63_clean_num(v8054_first_meaningful(row,["AI Fair Value","atlas_fair_value","Target","ai_base_target"],None,True),None)
+        support=v63_clean_num(v8054_first_meaningful(row,["Support 1","v42_support_1","support_1","stop_loss","Stop Loss"],None,True),None)
+        resistance=v63_clean_num(v8054_first_meaningful(row,["Resistance 1","v42_resistance_1","resistance_1"],None,True),None)
+        entry_low=v63_clean_num(v8054_first_meaningful(row,["entry_low","Entry Low"],None,True),None); entry_high=v63_clean_num(v8054_first_meaningful(row,["entry_high","Entry High"],None,True),None)
+        if analyst: fig.add_hline(y=analyst,line_dash="dot",line_color="#60A5FA",line_width=3,annotation_text="Wall Street consensus",annotation_font_color="#60A5FA")
+        if atlas: fig.add_hline(y=atlas,line_dash="dash",line_color="#22C55E",line_width=3,annotation_text="Atlas Fair Value",annotation_font_color="#22C55E")
+        if support: fig.add_hline(y=support,line_dash="dash",line_color="#FB7185",annotation_text="Support / stop",annotation_font_color="#FB7185")
+        if resistance: fig.add_hline(y=resistance,line_dash="dashdot",line_color="#F59E0B",annotation_text="Technical resistance",annotation_font_color="#F59E0B")
+        if entry_low and entry_high and entry_high>entry_low: fig.add_hrect(y0=entry_low,y1=entry_high,fillcolor="#38BDF8",opacity=.10,line_width=0,annotation_text="Entry zone")
+        fig.update_layout(template="plotly_dark",height=560,margin=dict(l=10,r=10,t=25,b=10),xaxis_rangeslider_visible=False,legend=dict(orientation="h",yanchor="bottom",y=1.02,xanchor="left",x=0),yaxis=dict(title="Price"),yaxis2=dict(title="Volume",overlaying="y",side="right",showgrid=False))
+        st.plotly_chart(fig,use_container_width=True,key=f"v8055_chart_{ticker}_{period}")
+        c1,c2,c3,c4=st.columns(4); c1.metric("Current Price",v70_money(price)); c2.metric("Wall Street Target",v70_money(analyst) if analyst else "Unavailable"); c3.metric("Atlas Fair Value",v70_money(atlas) if atlas else "Unavailable"); c4.metric("Support",v70_money(support) if support else "Unavailable")
+        notes=[]
+        sma50=float(hist["SMA50"].dropna().iloc[-1]) if "SMA50" in hist and hist["SMA50"].notna().any() else None
+        notes.append(f"Price is {'above' if sma50 and price>sma50 else 'below'} the 50-day trend.") if sma50 else None
+        if analyst: notes.append(f"Wall Street consensus implies {((analyst-price)/price)*100:+.1f}% from the latest price.")
+        if atlas: notes.append(f"Atlas Fair Value implies {((atlas-price)/price)*100:+.1f}% modeled upside; review valuation confidence before acting.")
+        st.markdown("#### Chart read-through")
+        for note in notes: st.markdown(f"- {note}")
+
+
+def v8055_render_ai_summary(row):
+    st.markdown("### 🧠 Atlas AI Summary & Decision Insight")
+    ticker,company=v73_ticker(row),v73_company(row)
+    decision=v8055_display_decision(v8054_first_meaningful(row,["Recommendation","Decision","decision_action","Action"],"Review"))
+    thesis=v8054_first_meaningful(row,["investment_thesis","Investment Thesis","ai_summary","summary","Guidance"],"")
+    risk=v8054_first_meaningful(row,["primary_risk","Primary Risk","what_could_go_wrong"],"Insufficient evidence to isolate one dominant risk.")
+    news=v73_news_items(row,1); catalyst=str(news[0].get("title")) if news else "No verified material catalyst in this refresh."
+    if not thesis: thesis=f"Atlas is reviewing {company} ({ticker}) using financial quality, valuation, Wall Street expectations, earnings, technical timing, news and policy evidence."
+    st.write(v711_safe_report_text(thesis))
+    c1,c2,c3=st.columns(3); c1.metric("Current Atlas decision",decision); c2.metric("Latest catalyst",catalyst[:50]+("…" if len(catalyst)>50 else "")); c3.metric("Primary risk",v711_safe_report_text(risk,50))
+    st.markdown("**What supports the decision:** verified financial quality, a defensible valuation range, analyst context, earnings execution, and technical confirmation.")
+    st.markdown("**What would strengthen the case:** improving volume, positive estimate revisions, a material recent catalyst, and valuation support from multiple methods.")
+    st.markdown("**What would change Atlas's mind:** weaker guidance, margin or cash-flow deterioration, loss of technical support, adverse policy developments, or valuation moving beyond justified fundamentals.")
+
+
+def render_detail(row):
+    """V80.5.5 paid-client research flow: concise, non-duplicative, timestamped and evidence-aware."""
+    v8055_research_hero(row)
+    if "render_v71_institutional_chart" in globals(): v8053_safe_section("Institutional chart",render_v71_institutional_chart,row)
+    v8053_safe_section("Financial analysis",v8055_render_financial_analysis,row)
+    v8053_safe_section("Analyst intelligence",v8055_render_analyst_intelligence,row)
+    v8053_safe_section("Earnings intelligence",v8055_render_earnings_intelligence,row)
+    v8053_safe_section("Target analysis",render_v73_target_analysis,row)
+    v8053_safe_section("Trade plan",render_v73_trade_plan,row)
+    v8053_safe_section("News and catalysts",render_v73_news,row)
+    v8053_safe_section("Political and policy intelligence",v8053_render_policy_support,row)
+    v8053_safe_section("Smart money",render_v73_smart_money,row)
+    v8053_safe_section("Technical analysis",render_v73_technical,row)
+    v8053_safe_section("AI summary",v8055_render_ai_summary,row)
+
+
+def v793_decision_rows(df):
+    """Use session-state live research first, then persistent cache, without live API calls on Home."""
+    if df is None or getattr(df,"empty",True): return _v8054_prior_decision_rows(df)
+    try:
+        from services.research_cache import load_cached_research
+        enriched=[]
+        for _,series in df.iterrows():
+            saved=dict(series); ticker=str(saved.get("Ticker") or saved.get("ticker") or "").upper().strip()
+            session=st.session_state.get(f"v8054_live_row_{ticker}") or st.session_state.get(f"v8053_live_row_{ticker}")
+            cached=session if isinstance(session,dict) and not session.get("error") else (load_cached_research(ticker,max_age_seconds=86400) if ticker else None)
+            if isinstance(cached,dict) and not cached.get("error"):
+                saved=v8054_merge_saved_live(saved,cached); saved["Home Research Source"]="Live research cache"
+            enriched.append(saved)
+        return _v8054_prior_decision_rows(pd.DataFrame(enriched))
+    except Exception: return _v8054_prior_decision_rows(df)
+
+
+def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=None):
+    v8055_inject_research_css()
+    st.markdown("<div class='v65-section-title'>🔎 Live Atlas Research</div>",unsafe_allow_html=True)
+    st.markdown("<div class='v65-subtitle'>Paid-client research combines current retrieval with the richest verified saved evidence across all Atlas datasets.</div>",unsafe_allow_html=True)
+    ticker=st.text_input("Ticker",value=st.session_state.get("v73_research_ticker",""),placeholder="Example: NVDA, MSFT, OPRA",key="v73_research_ticker").strip().upper()
+    if not ticker: st.info("Enter a ticker to open current Atlas research."); return
+    saved=v8055_saved_ticker_record(ticker,full_df,recovery_df,watch_df,prescreen_df,etf_df)
+    c1,c2=st.columns(2)
+    with c1: refresh=st.button(f"Refresh Live Research for {ticker}",key=f"v8055_refresh_{ticker}",type="primary")
+    with c2: clear=st.button("Clear live cache",key=f"v8055_clear_{ticker}")
+    state_key=f"v8054_live_row_{ticker}"; auto_live=str(st.session_state.pop("v805_force_live_on_open","") or "").upper()==ticker
+    if clear: st.session_state.pop(state_key,None)
+    if refresh or auto_live or state_key not in st.session_state:
+        with st.spinner(f"Refreshing financials, valuation, analysts, earnings, news and policy evidence for {ticker}..."):
+            try: live=build_live_research_row(ticker,force_refresh=bool(refresh or auto_live))
+            except Exception as exc: live={"error":str(exc)}
+        if isinstance(live,dict) and not live.get("research_refreshed_at"): live["research_refreshed_at"]=dt.datetime.now(dt.timezone.utc).isoformat()
+        st.session_state[state_key]=live
+    live=st.session_state.get(state_key)
+    if isinstance(live,dict) and not live.get("error"):
+        merged=v8054_merge_saved_live(saved,live); merged["Live Research"]=True
+        st.success(f"Live research loaded · {v8055_format_et(merged.get('research_refreshed_at'))} · Confidence: {merged.get('research_confidence',merged.get('Confidence','N/A'))}")
+        render_detail(pd.Series(merged)); return
+    if isinstance(live,dict) and live.get("error"): st.warning(f"Live refresh failed: {live['error']}. Showing verified saved evidence.")
+    if saved: render_detail(pd.Series(saved))
+    else: st.error("No saved snapshot is available and live research could not be completed.")
+
 if __name__ == "__main__":
     main()
 
