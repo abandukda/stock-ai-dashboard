@@ -22938,25 +22938,85 @@ def render_detail(row):
 
 
 def render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df=None):
-    st.subheader("🔍 Research Any Ticker")
-    st.caption("Search a ticker to open the full supporting dashboard: executive summary, Wall Street, earnings, finance, smart money, technicals, news, targets, and political intelligence.")
-    ticker = st.text_input("Enter ticker", placeholder="NVDA, MSFT, PLTR, ELF, ZS", key="research_any_ticker_v643").upper().strip()
+    """V80.5.2 canonical live-research page.
+
+    Discovery cards remain fast saved snapshots. Opening a ticker here always
+    requests the cached live-research record, while an explicit refresh bypasses
+    the 15-minute cache. Saved scan data is used only as a resilient fallback.
+    """
+    st.subheader("🔍 Live Atlas Research")
+    st.caption(
+        "Build current ticker research with live market data, Atlas Fair Value, "
+        "recent catalysts, policy context, risks, and a freshness timestamp."
+    )
+
+    routed_ticker = safe_text(
+        st.session_state.get("v73_research_ticker")
+        or st.session_state.get("selected_research_ticker")
+        or st.session_state.get("selected_ticker"),
+        "",
+    ).upper().strip()
+
+    input_key = "research_any_ticker_v643"
+    if routed_ticker and not safe_text(st.session_state.get(input_key), "").strip():
+        st.session_state[input_key] = routed_ticker
+
+    c1, c2 = st.columns([4, 1])
+    with c1:
+        ticker = st.text_input(
+            "Enter ticker",
+            placeholder="NVDA, MSFT, PLTR, ELF, ZS",
+            key=input_key,
+        ).upper().strip()
+    with c2:
+        st.write("")
+        st.write("")
+        refresh_now = st.button(
+            "Refresh Live",
+            key=f"v805_refresh_{ticker or 'blank'}",
+            use_container_width=True,
+            disabled=not bool(ticker),
+        )
+
     if not ticker:
-        st.info("Enter a ticker to load the full supporting dashboard.")
+        st.info("Enter a ticker to build current Atlas research.")
         return
-    row = find_ticker_row(ticker, full_df, recovery_df, watch_df, prescreen_df, etf_df)
-    if row is not None:
-        render_detail(row)
-        return
-    with st.spinner(f"Running live AI research for {ticker}..."):
-        live_row = build_live_research_row(ticker)
+
+    routed_force = safe_text(st.session_state.get("v805_force_live_on_open"), "").upper() == ticker
+    force_refresh = bool(refresh_now or routed_force)
+    if routed_force:
+        st.session_state.pop("v805_force_live_on_open", None)
+
+    saved_row = find_ticker_row(ticker, full_df, recovery_df, watch_df, prescreen_df, etf_df)
+
+    with st.spinner(f"Building current Atlas research for {ticker}..."):
+        live_row = build_live_research_row(ticker, force_refresh=force_refresh)
+
     if isinstance(live_row, dict) and not live_row.get("error"):
+        st.caption("Live Research · cached for up to 15 minutes unless refreshed")
         render_detail(pd.Series(live_row))
-    else:
-        st.warning(f"Could not build full live research for {ticker}. Showing rate-limit-safe fallback if available.")
-        fallback = build_price_only_live_row(ticker, reason=(live_row or {}).get("error") if isinstance(live_row, dict) else "live data unavailable")
-        if fallback:
-            render_detail(pd.Series(fallback))
+        return
+
+    error_text = (
+        safe_text(live_row.get("error"), "live data unavailable")
+        if isinstance(live_row, dict)
+        else "live data unavailable"
+    )
+    if saved_row is not None:
+        st.warning(
+            f"Live refresh for {ticker} was unavailable ({error_text}). "
+            "Showing the latest saved Discovery snapshot."
+        )
+        render_detail(saved_row)
+        return
+
+    st.warning(
+        f"Could not build full live research for {ticker}. "
+        "Showing a rate-limit-safe price fallback when available."
+    )
+    fallback = build_price_only_live_row(ticker, reason=error_text)
+    if fallback:
+        render_detail(pd.Series(fallback))
 
 
 def main():
