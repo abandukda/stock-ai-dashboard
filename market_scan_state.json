@@ -1,16 +1,16 @@
 {
-  "generated_at": "2026-07-11T00:28:36.750647+00:00",
+  "generated_at": "2026-07-13T08:03:34.447144+00:00",
   "status": "success",
-  "version": "V50.8.4",
-  "universe_count": 3163,
+  "version": "V80.5",
+  "universe_count": 3164,
   "prescreen_count": 650,
   "full_scan_count": 150,
   "recovery_count": 100,
-  "etf_count": 32,
+  "etf_count": 16,
   "fallback_rows_allowed": false,
   "data_dir": ".",
   "github_persisted": true,
-  "duration_seconds": 1454.57,
+  "duration_seconds": 1280.85,
   "fast_cron_mode": true,
   "full_committee_limit": 15,
   "pre_rank_deep_apis_skipped": true,
@@ -126,8 +126,8 @@
     "valuation_reconciliation": true,
     "thesis_strength_and_confidence": true
   },
-  "scanner_version": "V50.8.4",
-  "scanner_version_label": "V50.8.4 Analyst + Calendar Hotfix",
+  "scanner_version": "V80.5",
+  "scanner_version_label": "V80.5 Discovery Engine",
   "v50_smart_money_analyst_revision_upgrade": true,
   "v5084_app_hotfix_sync": true
 }
