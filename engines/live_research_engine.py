@@ -55,6 +55,96 @@ def _request_json(url: str, params: Dict[str, Any], timeout: int = 10) -> Any:
         return None
 
 
+
+
+def _normalize_history_frame(hist: Any, ticker: str) -> pd.DataFrame:
+    """Return a single-ticker OHLCV frame with flat canonical column names.
+
+    yfinance can return flat columns, ticker-first MultiIndex columns, or
+    price-field-first MultiIndex columns depending on version and endpoint.
+    """
+    if hist is None or not isinstance(hist, pd.DataFrame) or hist.empty:
+        return pd.DataFrame()
+
+    df = hist.copy()
+    symbol = str(ticker or "").upper().strip()
+
+    if isinstance(df.columns, pd.MultiIndex):
+        # Prefer an exact ticker slice when the symbol is one of the levels.
+        sliced = None
+        for level in range(df.columns.nlevels):
+            values = {str(v).upper() for v in df.columns.get_level_values(level)}
+            if symbol and symbol in values:
+                try:
+                    sliced = df.xs(symbol, axis=1, level=level, drop_level=True)
+                    break
+                except Exception:
+                    pass
+        if isinstance(sliced, pd.DataFrame) and not sliced.empty:
+            df = sliced
+        else:
+            # Otherwise retain the level that contains OHLCV field names.
+            field_names = {"OPEN", "HIGH", "LOW", "CLOSE", "ADJ CLOSE", "VOLUME"}
+            best_level = 0
+            best_hits = -1
+            for level in range(df.columns.nlevels):
+                vals = [str(v).upper() for v in df.columns.get_level_values(level)]
+                hits = sum(v in field_names for v in vals)
+                if hits > best_hits:
+                    best_level, best_hits = level, hits
+            df.columns = [str(v) for v in df.columns.get_level_values(best_level)]
+
+    # Flatten any residual tuple columns and normalize common aliases.
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = [next((str(part) for part in col if str(part).upper() in {"OPEN","HIGH","LOW","CLOSE","ADJ CLOSE","VOLUME"}), str(col[-1])) for col in df.columns]
+    else:
+        df.columns = [str(c) for c in df.columns]
+
+    aliases = {}
+    for col in df.columns:
+        key = col.strip().lower().replace("_", " ")
+        if key == "open": aliases[col] = "Open"
+        elif key == "high": aliases[col] = "High"
+        elif key == "low": aliases[col] = "Low"
+        elif key in {"close", "closing price", "last"}: aliases[col] = "Close"
+        elif key in {"adj close", "adjusted close"}: aliases[col] = "Adj Close"
+        elif key == "volume": aliases[col] = "Volume"
+    df = df.rename(columns=aliases)
+
+    # When auto_adjust=True, Close is preferred. If only Adj Close exists, use it.
+    if "Close" not in df.columns and "Adj Close" in df.columns:
+        df["Close"] = df["Adj Close"]
+
+    # Duplicate canonical columns can occur after flattening; keep the first.
+    df = df.loc[:, ~df.columns.duplicated()]
+    return df
+
+
+def _download_history(ticker: str) -> pd.DataFrame:
+    """Fetch history with a second yfinance path as a graceful fallback."""
+    errors = []
+    try:
+        raw = yf.download(
+            ticker, period="5y", interval="1d", auto_adjust=True,
+            progress=False, threads=False, group_by="column"
+        )
+        normalized = _normalize_history_frame(raw, ticker)
+        if not normalized.empty and "Close" in normalized.columns:
+            return normalized
+    except Exception as exc:
+        errors.append(str(exc))
+
+    try:
+        raw = yf.Ticker(ticker).history(period="5y", interval="1d", auto_adjust=True)
+        normalized = _normalize_history_frame(raw, ticker)
+        if not normalized.empty and "Close" in normalized.columns:
+            return normalized
+    except Exception as exc:
+        errors.append(str(exc))
+
+    return pd.DataFrame()
+
+
 def _latest_news(ticker: str, company: str) -> Dict[str, Any]:
     if not NEWSAPI_KEY:
         return {}
@@ -176,18 +266,39 @@ def build_live_research(ticker: str, force_refresh: bool = False, cache_ttl_seco
 
     try:
         tk = yf.Ticker(symbol)
-        info = tk.get_info() or {}
-        hist = yf.download(symbol, period="5y", interval="1d", auto_adjust=True, progress=False, threads=False)
-    except Exception as exc:
-        return {"error": f"Live market data failed: {exc}"}
-    if hist is None or hist.empty or "Close" not in hist:
-        return {"error": "No price history returned"}
+        try:
+            info = tk.get_info() or {}
+        except Exception:
+            info = {}
+        hist = _download_history(symbol)
+    except Exception:
+        info = {}
+        hist = pd.DataFrame()
+
+    if hist.empty or "Close" not in hist.columns:
+        return {
+            "error": "Live price history is temporarily unavailable from the market-data provider.",
+            "error_code": "PRICE_HISTORY_UNAVAILABLE",
+            "Ticker": symbol,
+        }
 
     hist = hist.dropna(subset=["Close"]).copy()
-    close = hist["Close"].astype(float)
-    high = hist["High"].astype(float) if "High" in hist else close
-    low = hist["Low"].astype(float) if "Low" in hist else close
-    volume = hist["Volume"].astype(float) if "Volume" in hist else pd.Series(index=hist.index, data=0.0)
+    if hist.empty:
+        return {
+            "error": "The market-data provider returned no usable closing prices.",
+            "error_code": "NO_USABLE_CLOSE",
+            "Ticker": symbol,
+        }
+    close = pd.to_numeric(hist["Close"], errors="coerce").dropna()
+    if close.empty:
+        return {
+            "error": "The market-data provider returned no usable closing prices.",
+            "error_code": "NO_USABLE_CLOSE",
+            "Ticker": symbol,
+        }
+    high = pd.to_numeric(hist["High"], errors="coerce") if "High" in hist.columns else close.reindex(hist.index)
+    low = pd.to_numeric(hist["Low"], errors="coerce") if "Low" in hist.columns else close.reindex(hist.index)
+    volume = pd.to_numeric(hist["Volume"], errors="coerce").fillna(0.0) if "Volume" in hist.columns else pd.Series(index=hist.index, data=0.0)
     price = float(close.iloc[-1])
 
     def sma(days: int) -> float:
