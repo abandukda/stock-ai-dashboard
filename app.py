@@ -25694,7 +25694,7 @@ def render_v73_target_analysis(row):
 </div>
 """, unsafe_allow_html=True)
     st.markdown("<div class='v775-note'>", unsafe_allow_html=True)
-    st.markdown(f"**Target reality check:** Wall Street consensus is **{v775_money(consensus)}** while Atlas estimates a fair value range of **{v775_money(fair_low)} to {v775_money(fair_high)}**. If Atlas value is below analyst consensus, treat the Street target as optimistic and require stronger catalysts before buying aggressively.")
+    st.write(f"Target reality check: Wall Street consensus is {v775_money(consensus)} while Atlas estimates a fair-value range of {v775_money(fair_low)} to {v775_money(fair_high)}. If Atlas value is below analyst consensus, treat the Street target as optimistic and require stronger catalysts before buying aggressively.")
     st.markdown("</div>", unsafe_allow_html=True)
 
 
@@ -26597,6 +26597,268 @@ def render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf
         render_detail(pd.Series(saved))
     else:
         st.error("No saved snapshot is available and live research could not be completed.")
+
+
+# ============================================================
+# V80.5.4 DATA INTEGRITY + HOME LIVE-CACHE ENRICHMENT
+# ============================================================
+V8054_DATA_INTEGRITY_VERIFIED = True
+
+_V8054_MISSING_TEXT = {"", "n/a", "na", "none", "null", "unavailable", "unknown", "—", "-"}
+_V8054_FINANCE_KEYS = {
+    "Revenue Growth", "revenue_growth", "revenue_growth_pct",
+    "Operating Margin", "operating_margin", "operatingMargins",
+    "Gross Margin", "gross_margin", "grossMargins",
+    "Free Cash Flow", "free_cash_flow", "free_cashflow",
+    "Forward PE", "forward_pe", "Current Ratio", "current_ratio",
+    "Cash", "total_cash", "cash_and_equivalents", "Total Debt", "total_debt", "Debt",
+}
+
+
+def v8054_is_missing(value, zero_is_missing=False):
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return value.strip().lower() in _V8054_MISSING_TEXT
+    try:
+        if pd.isna(value):
+            return True
+    except Exception:
+        pass
+    if zero_is_missing:
+        try:
+            return float(value) == 0.0
+        except Exception:
+            pass
+    return False
+
+
+def v8054_merge_saved_live(saved, live):
+    """Keep verified saved fundamentals when a live provider returns null/zero placeholders."""
+    merged = dict(saved or {})
+    for key, value in (live or {}).items():
+        zero_missing = key in _V8054_FINANCE_KEYS
+        if not v8054_is_missing(value, zero_is_missing=zero_missing):
+            merged[key] = value
+    raw_saved = saved.get("Raw") if isinstance(saved, dict) and isinstance(saved.get("Raw"), dict) else {}
+    raw_live = live.get("Raw") if isinstance(live, dict) and isinstance(live.get("Raw"), dict) else {}
+    if raw_saved or raw_live:
+        merged_raw = dict(raw_saved)
+        for key, value in raw_live.items():
+            if not v8054_is_missing(value, zero_is_missing=(key in _V8054_FINANCE_KEYS)):
+                merged_raw[key] = value
+        merged["Raw"] = merged_raw
+    return merged
+
+
+def v8054_first_meaningful(row, keys, default=None, zero_is_missing=False):
+    data = v8053_row_dict(row)
+    raw = data.get("Raw") if isinstance(data.get("Raw"), dict) else {}
+    # Prefer a meaningful normalized value; otherwise use Raw evidence.
+    for source in (data, raw):
+        for key in keys:
+            value = source.get(key)
+            if not v8054_is_missing(value, zero_is_missing=zero_is_missing):
+                return value
+    return default
+
+
+def v8054_format_time(value):
+    if not value:
+        return "Timestamp unavailable"
+    try:
+        parsed = dt.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=dt.timezone.utc)
+        eastern = dt.timezone(dt.timedelta(hours=-4))
+        return parsed.astimezone(eastern).strftime("%b %-d, %Y · %-I:%M %p ET")
+    except Exception:
+        return str(value)
+
+
+def v8053_render_refresh_metadata(row):
+    refreshed = v8054_first_meaningful(row, ["research_refreshed_at", "refreshed_at", "generated_at", "scan_time"], "")
+    confidence = v8054_first_meaningful(row, ["research_confidence", "Research Confidence", "Confidence", "AI Confidence"], None, zero_is_missing=True)
+    source = v8054_first_meaningful(row, ["research_source", "data_source", "source"], "Atlas live + Discovery evidence")
+    live = bool(v8054_first_meaningful(row, ["Live Research", "live_research", "is_live"], False)) or bool(refreshed)
+    st.markdown("## Live Atlas Research")
+    st.caption(f"Last refreshed: {v8054_format_time(refreshed)} · Mode: {'Live research' if live else 'Discovery snapshot'} · Source: {source}")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Research mode", "Live + Discovery" if live else "Discovery Snapshot")
+    c2.metric("Research confidence", f"{float(confidence):.0f}/100" if confidence is not None else "Not scored")
+    freshness = v8054_first_meaningful(row, ["data_freshness"], {})
+    c3.metric("Data coverage", "Price · Financials · News · Policy" if isinstance(freshness, dict) else "Available evidence")
+
+
+def v8053_render_financial_analysis(row):
+    st.markdown("### 💰 Financial Analysis")
+    rev = v63_pct_value(v8054_first_meaningful(row, ["Revenue Growth", "revenue_growth", "revenue_growth_pct"], None, True), None, cap_abs=300)
+    opm = v63_pct_value(v8054_first_meaningful(row, ["Operating Margin", "operating_margin", "operatingMargins"], None, True), None, cap_abs=100)
+    gross = v63_pct_value(v8054_first_meaningful(row, ["Gross Margin", "gross_margin", "grossMargins"], None, True), None, cap_abs=100)
+    fcf = v63_clean_num(v8054_first_meaningful(row, ["Free Cash Flow", "free_cash_flow", "free_cashflow"], None, True), None)
+    cash = v63_clean_num(v8054_first_meaningful(row, ["Cash", "total_cash", "cash_and_equivalents"], None, True), None)
+    debt = v63_clean_num(v8054_first_meaningful(row, ["Total Debt", "total_debt", "Debt"], None, True), None)
+    fpe = v63_clean_num(v8054_first_meaningful(row, ["Forward PE", "forward_pe"], None, True), None)
+    cr = v63_clean_num(v8054_first_meaningful(row, ["Current Ratio", "current_ratio"], None, True), None)
+    cols = st.columns(4)
+    cols[0].metric("Revenue growth", "Unavailable" if rev is None else f"{rev:.1f}%")
+    cols[1].metric("Operating margin", "Unavailable" if opm is None else f"{opm:.1f}%")
+    cols[2].metric("Free cash flow", v63_fmt_money(fcf, "Unavailable"))
+    cols[3].metric("Forward P/E", "Unavailable" if fpe is None else f"{fpe:.1f}x")
+    positives, cautions = [], []
+    if rev is not None: (positives if rev >= 10 else cautions).append(f"Revenue growth is {rev:.1f}%.")
+    if opm is not None: (positives if opm >= 15 else cautions).append(f"Operating margin is {opm:.1f}%.")
+    if gross is not None and gross >= 40: positives.append(f"Gross margin is strong at {gross:.1f}%.")
+    if fcf is not None: (positives if fcf > 0 else cautions).append(f"Free cash flow is {v63_fmt_money(fcf)}.")
+    if cash is not None and debt is not None:
+        (positives if cash >= debt else cautions).append(f"Cash is {v63_fmt_money(cash)} versus debt of {v63_fmt_money(debt)}.")
+    if cr is not None and cr < 1: cautions.append(f"Current ratio is {cr:.2f}, indicating tighter short-term liquidity.")
+    if fpe is not None and fpe > 40: cautions.append(f"Forward P/E of {fpe:.1f}x increases sensitivity to execution misses.")
+    st.markdown("**Atlas financial read-through**")
+    for line in positives[:5]: st.markdown(f"- ✅ {line}")
+    for line in cautions[:4]: st.markdown(f"- ⚠️ {line}")
+    if not positives and not cautions:
+        st.info("Financial provider fields were unavailable. Atlas is not converting missing values into zero or negative evidence.")
+
+
+def v73_news_items(row, max_items=8):
+    data = v8053_row_dict(row)
+    raw = data.get("Raw") if isinstance(data.get("Raw"), dict) else {}
+    candidates = []
+    for key in ["news_items", "latest_news", "recent_news", "news", "articles", "V42 News Direct Headlines", "v42_news_direct_headlines"]:
+        value = data.get(key, raw.get(key))
+        if isinstance(value, list): candidates.extend(value)
+        elif isinstance(value, dict): candidates.append(value)
+    headline = v8054_first_meaningful(row, ["latest_news_headline", "top_news_headline", "Top News", "news_headline"], "")
+    if headline:
+        candidates.insert(0, {"title": headline, "url": v8054_first_meaningful(row, ["latest_news_url", "top_news_url", "news_url"], ""), "source": v8054_first_meaningful(row, ["latest_news_source", "news_source"], "News source"), "date": v8054_first_meaningful(row, ["latest_news_date", "news_date", "published_at"], "")})
+    output, seen = [], set()
+    for item in candidates:
+        if isinstance(item, str): item = {"title": item}
+        if not isinstance(item, dict): continue
+        title = str(item.get("title") or item.get("headline") or "").strip()
+        low = title.lower()
+        if not title or low in seen or low.startswith("no recent high-confidence") or low in {"n/a", "unavailable"}:
+            continue
+        seen.add(low); output.append(item)
+        if len(output) >= max_items: break
+    return output
+
+
+def v8053_render_ai_summary(row):
+    st.markdown("### 🧠 Atlas AI Summary & Decision Insight")
+    ticker, company = v73_ticker(row), v73_company(row)
+    decision_raw = str(v8054_first_meaningful(row, ["Recommendation", "Decision", "decision_action", "Action"], "Review"))
+    decision = decision_raw.replace("_", " ").strip().title()
+    thesis = v73_clean_text(v8054_first_meaningful(row, ["investment_thesis", "Investment Thesis", "ai_summary", "summary", "Guidance"], ""), "")
+    risk = v73_clean_text(v8054_first_meaningful(row, ["primary_risk", "Primary Risk", "what_could_go_wrong"], "Insufficient evidence to isolate one dominant risk."), "")
+    news = v73_news_items(row, 1)
+    catalyst = str(news[0].get("title")) if news else "No verified material catalyst in the current refresh."
+    if not thesis:
+        thesis = f"Atlas is reviewing {company} ({ticker}) using financial quality, valuation, technical timing, Wall Street expectations, recent news, and policy evidence."
+    st.write(thesis)
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Current Atlas decision", decision)
+    c2.metric("Latest catalyst", catalyst[:55] + ("…" if len(catalyst) > 55 else ""))
+    c3.metric("Primary risk", risk[:55] + ("…" if len(risk) > 55 else ""))
+    st.markdown("**What would strengthen the case:** confirmed valuation support, durable earnings revisions, improving volume/technical confirmation, and a material recent catalyst.")
+    st.markdown("**What would change Atlas's mind:** weaker guidance, deteriorating margins or cash flow, loss of technical support, adverse policy changes, or valuation moving materially above justified fundamentals.")
+
+
+_v8054_prior_decision_rows = v793_decision_rows
+
+def v793_decision_rows(df):
+    """Enrich Discovery cards from fresh local live-research cache without making API calls on Home."""
+    if df is None or getattr(df, "empty", True):
+        return _v8054_prior_decision_rows(df)
+    try:
+        from services.research_cache import load_cached_research
+        enriched = []
+        for _, series in df.iterrows():
+            saved = dict(series)
+            ticker = str(saved.get("Ticker") or saved.get("ticker") or "").upper().strip()
+            cached = load_cached_research(ticker, max_age_seconds=86400) if ticker else None
+            if isinstance(cached, dict) and not cached.get("error"):
+                saved = v8054_merge_saved_live(saved, cached)
+                saved["Home Research Source"] = "Live research cache"
+            enriched.append(saved)
+        return _v8054_prior_decision_rows(pd.DataFrame(enriched))
+    except Exception:
+        return _v8054_prior_decision_rows(df)
+
+
+def render_v73_idea_table(df, title="Atlas Decision Ideas"):
+    st.markdown(f"<div class='v65-section-title'>{v73_esc(title)}</div>", unsafe_allow_html=True)
+    st.markdown("<div class='v775-help'><b>How to read this:</b> Home uses the overnight Discovery snapshot and automatically enriches a ticker from its fresh Live Research cache after that ticker has been researched.</div>", unsafe_allow_html=True)
+    rows = v793_decision_rows(df)
+    if not rows:
+        st.info("No ideas were available in the latest saved scan."); return
+    for pair_start in range(0, min(len(rows), 8), 2):
+        cols = st.columns(2)
+        for col_idx, payload in enumerate(rows[pair_start:pair_start+2]):
+            row, details, reasons, risk, conf, tier, opp, qual, strength = payload
+            with cols[col_idx]:
+                rank = pair_start + col_idx + 1
+                ticker, company = v73_ticker(row), v73_company(row)
+                icon, cls = v793_badge_meta(tier)
+                current, fair = details.get("current_price"), details.get("atlas_fair_value")
+                street, street_upside = details.get("wall_street_consensus"), details.get("wall_street_upside_pct")
+                exp_ret = details.get("expected_return_pct")
+                source = details.get("source", "Atlas Fair Value under review")
+                rowd = v8053_row_dict(row)
+                cached = bool(rowd.get("research_refreshed_at") or rowd.get("Home Research Source"))
+                snapshot_label = "Live research cache" if cached else "Discovery snapshot"
+                bullets = "".join(f"<li>{v73_esc(item)}</li>" for item in reasons)
+                st.markdown(f"""
+<div class='v775-card'>
+  <div class='v775-card-head'><div><div class='v775-ticker'>{v73_esc(ticker)}</div><div class='v775-company'>{v73_esc(company)}</div></div><span class='v775-badge {cls}'>{icon} {v73_esc(tier)}</span></div>
+  <div class='v775-mini-grid'>
+    <div class='v775-mini'><span>Current Price</span><b>{v73_esc(v784_money(current))}</b><em>{v73_esc(snapshot_label)}</em></div>
+    <div class='v775-mini'><span>Atlas Fair Value™</span><b class='v775-green'>{v73_esc(v784_money(fair, 'Under review'))}</b><small class='v793-source'>{v73_esc(source)}</small></div>
+    <div class='v775-mini'><span>Wall Street Consensus</span><b class='v775-blue'>{v73_esc(v784_money(street))}</b><em>{v73_esc((f'{street_upside:+.1f}% implied upside' if street_upside is not None else 'covering analysts'))}</em></div>
+    <div class='v775-mini'><span>Expected Return</span><b>{v73_esc(v784_pct(exp_ret, 'Under review'))}</b><em>to Atlas Fair Value</em></div>
+    <div class='v775-mini'><span>Quality</span><b>{qual:.0f}</b><em>{v73_score_label(qual)}</em></div>
+    <div class='v775-mini'><span>Confidence</span><b>{conf:.0f}</b><em>{v73_esc(v793_confidence_label(conf))}</em></div>
+  </div>
+  <div class='v793-reasons'><b>Why Atlas likes it</b><ul>{bullets}</ul></div>
+  <div class='v793-risk'><b>Primary risk:</b> {v73_esc(risk)}</div>
+</div>""", unsafe_allow_html=True)
+                if st.button(f"View Full Research — {ticker}", key=f"v8054_research_{ticker}_{rank}", use_container_width=True):
+                    v793_open_research(ticker)
+
+
+def render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df=None):
+    st.markdown("<div class='v65-section-title'>🔎 Live Atlas Research</div>", unsafe_allow_html=True)
+    st.markdown("<div class='v65-subtitle'>Current research combines live retrieval with verified Discovery evidence. Missing provider values remain unavailable rather than becoming zero.</div>", unsafe_allow_html=True)
+    ticker = st.text_input("Ticker", value=st.session_state.get("v73_research_ticker", ""), placeholder="Example: NVDA, MSFT, OPRA", key="v73_research_ticker").strip().upper()
+    if not ticker:
+        st.info("Enter a ticker to open current Atlas research."); return
+    try: saved_row = find_ticker_row(ticker, full_df, recovery_df, watch_df, prescreen_df, etf_df)
+    except Exception: saved_row = None
+    c1, c2 = st.columns([1, 1])
+    with c1: refresh = st.button(f"Refresh Live Research for {ticker}", key=f"v8054_refresh_{ticker}", type="primary")
+    with c2: clear = st.button("Clear live cache", key=f"v8054_clear_{ticker}")
+    state_key = f"v8054_live_row_{ticker}"
+    auto_live = str(st.session_state.pop("v805_force_live_on_open", "") or "").upper() == ticker
+    if clear: st.session_state.pop(state_key, None)
+    if refresh or auto_live or state_key not in st.session_state:
+        with st.spinner(f"Refreshing financials, valuation, news, analyst context, and policy evidence for {ticker}..."):
+            try: live = build_live_research_row(ticker, force_refresh=bool(refresh or auto_live))
+            except Exception as exc: live = {"error": str(exc)}
+        if isinstance(live, dict) and not live.get("research_refreshed_at"):
+            live["research_refreshed_at"] = dt.datetime.now(dt.timezone.utc).isoformat()
+        st.session_state[state_key] = live
+    live = st.session_state.get(state_key)
+    saved = v8053_row_dict(saved_row) if saved_row is not None else {}
+    if isinstance(live, dict) and not live.get("error"):
+        merged = v8054_merge_saved_live(saved, live)
+        merged["Live Research"] = True
+        st.success(f"Live research loaded · {v8054_format_time(merged.get('research_refreshed_at'))} · Confidence: {merged.get('research_confidence', merged.get('Confidence', 'N/A'))}")
+        render_detail(pd.Series(merged)); return
+    if isinstance(live, dict) and live.get("error"):
+        st.warning(f"Live provider refresh failed: {live['error']}. Showing verified Discovery evidence.")
+    if saved: render_detail(pd.Series(saved))
+    else: st.error("No saved snapshot is available and live research could not be completed.")
 
 
 if __name__ == "__main__":
