@@ -22938,85 +22938,25 @@ def render_detail(row):
 
 
 def render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df=None):
-    """V80.5.2 canonical live-research page.
-
-    Discovery cards remain fast saved snapshots. Opening a ticker here always
-    requests the cached live-research record, while an explicit refresh bypasses
-    the 15-minute cache. Saved scan data is used only as a resilient fallback.
-    """
-    st.subheader("🔍 Live Atlas Research")
-    st.caption(
-        "Build current ticker research with live market data, Atlas Fair Value, "
-        "recent catalysts, policy context, risks, and a freshness timestamp."
-    )
-
-    routed_ticker = safe_text(
-        st.session_state.get("v73_research_ticker")
-        or st.session_state.get("selected_research_ticker")
-        or st.session_state.get("selected_ticker"),
-        "",
-    ).upper().strip()
-
-    input_key = "research_any_ticker_v643"
-    if routed_ticker and not safe_text(st.session_state.get(input_key), "").strip():
-        st.session_state[input_key] = routed_ticker
-
-    c1, c2 = st.columns([4, 1])
-    with c1:
-        ticker = st.text_input(
-            "Enter ticker",
-            placeholder="NVDA, MSFT, PLTR, ELF, ZS",
-            key=input_key,
-        ).upper().strip()
-    with c2:
-        st.write("")
-        st.write("")
-        refresh_now = st.button(
-            "Refresh Live",
-            key=f"v805_refresh_{ticker or 'blank'}",
-            use_container_width=True,
-            disabled=not bool(ticker),
-        )
-
+    st.subheader("🔍 Research Any Ticker")
+    st.caption("Search a ticker to open the full supporting dashboard: executive summary, Wall Street, earnings, finance, smart money, technicals, news, targets, and political intelligence.")
+    ticker = st.text_input("Enter ticker", placeholder="NVDA, MSFT, PLTR, ELF, ZS", key="research_any_ticker_v643").upper().strip()
     if not ticker:
-        st.info("Enter a ticker to build current Atlas research.")
+        st.info("Enter a ticker to load the full supporting dashboard.")
         return
-
-    routed_force = safe_text(st.session_state.get("v805_force_live_on_open"), "").upper() == ticker
-    force_refresh = bool(refresh_now or routed_force)
-    if routed_force:
-        st.session_state.pop("v805_force_live_on_open", None)
-
-    saved_row = find_ticker_row(ticker, full_df, recovery_df, watch_df, prescreen_df, etf_df)
-
-    with st.spinner(f"Building current Atlas research for {ticker}..."):
-        live_row = build_live_research_row(ticker, force_refresh=force_refresh)
-
+    row = find_ticker_row(ticker, full_df, recovery_df, watch_df, prescreen_df, etf_df)
+    if row is not None:
+        render_detail(row)
+        return
+    with st.spinner(f"Running live AI research for {ticker}..."):
+        live_row = build_live_research_row(ticker)
     if isinstance(live_row, dict) and not live_row.get("error"):
-        st.caption("Live Research · cached for up to 15 minutes unless refreshed")
         render_detail(pd.Series(live_row))
-        return
-
-    error_text = (
-        safe_text(live_row.get("error"), "live data unavailable")
-        if isinstance(live_row, dict)
-        else "live data unavailable"
-    )
-    if saved_row is not None:
-        st.warning(
-            f"Live refresh for {ticker} was unavailable ({error_text}). "
-            "Showing the latest saved Discovery snapshot."
-        )
-        render_detail(saved_row)
-        return
-
-    st.warning(
-        f"Could not build full live research for {ticker}. "
-        "Showing a rate-limit-safe price fallback when available."
-    )
-    fallback = build_price_only_live_row(ticker, reason=error_text)
-    if fallback:
-        render_detail(pd.Series(fallback))
+    else:
+        st.warning(f"Could not build full live research for {ticker}. Showing rate-limit-safe fallback if available.")
+        fallback = build_price_only_live_row(ticker, reason=(live_row or {}).get("error") if isinstance(live_row, dict) else "live data unavailable")
+        if fallback:
+            render_detail(pd.Series(fallback))
 
 
 def main():
@@ -26433,6 +26373,231 @@ def main():
     elif selected_page == "ETFs": render_v56_ranked_table(etf_df, title="ETF Intelligence", max_rows=50, show_filters=True)
     elif selected_page == "Political Intelligence": render_v58_political_intelligence(full_df)
     elif selected_page == "Ask AI": render_chat_helper(full_df)
+
+
+
+# ============================================================
+# V80.5.3 LIVE RESEARCH REPORT COMPLETION + ERROR FIXES
+# ============================================================
+V8053_LIVE_RESEARCH_REPORT_COMPLETION_VERIFIED = True
+
+
+def v8053_row_dict(row):
+    if isinstance(row, dict):
+        return dict(row)
+    try:
+        return dict(row)
+    except Exception:
+        return {}
+
+
+def v8053_first(row, keys, default=None):
+    data = v8053_row_dict(row)
+    raw = data.get("Raw") if isinstance(data.get("Raw"), dict) else {}
+    for key in keys:
+        value = data.get(key)
+        if value not in (None, "", "N/A", "Unavailable", "Unknown"):
+            return value
+        value = raw.get(key)
+        if value not in (None, "", "N/A", "Unavailable", "Unknown"):
+            return value
+    return default
+
+
+def v73_news_items(row, max_items=8):
+    """Normalize live/saved news payloads into one renderable list."""
+    data = v8053_row_dict(row)
+    raw = data.get("Raw") if isinstance(data.get("Raw"), dict) else {}
+    candidates = []
+    for key in [
+        "news_items", "latest_news", "recent_news", "news", "articles",
+        "V42 News Direct Headlines", "v42_news_direct_headlines",
+        "V42 News Sources", "v42_news_sources",
+    ]:
+        value = data.get(key, raw.get(key))
+        if isinstance(value, list):
+            candidates.extend(value)
+        elif isinstance(value, dict):
+            candidates.append(value)
+    headline = v8053_first(row, ["latest_news_headline", "top_news_headline", "Top News", "news_headline"], "")
+    if headline:
+        candidates.insert(0, {
+            "title": headline,
+            "url": v8053_first(row, ["latest_news_url", "top_news_url", "news_url"], ""),
+            "source": v8053_first(row, ["latest_news_source", "news_source", "News Source"], "News source"),
+            "date": v8053_first(row, ["latest_news_date", "news_date", "published_at"], ""),
+        })
+    output, seen = [], set()
+    for item in candidates:
+        if isinstance(item, str):
+            item = {"title": item}
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title") or item.get("headline") or item.get("name") or "").strip()
+        if not title or title.lower() in seen:
+            continue
+        seen.add(title.lower())
+        output.append(item)
+        if len(output) >= max_items:
+            break
+    return output
+
+
+def v8053_render_refresh_metadata(row):
+    refreshed = v8053_first(row, ["research_refreshed_at", "refreshed_at", "generated_at", "scan_time"], "")
+    confidence = v8053_first(row, ["research_confidence", "Research Confidence", "Confidence", "AI Confidence"], None)
+    source = v8053_first(row, ["research_source", "data_source", "source"], "Atlas live + saved evidence")
+    live = bool(v8053_first(row, ["Live Research", "live_research", "is_live"], False)) or bool(refreshed)
+    label = "Live Atlas Research" if live else "Discovery Snapshot"
+    st.markdown("### 🕒 Research Freshness")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Research mode", label)
+    c2.metric("Research confidence", f"{float(confidence):.0f}/100" if confidence not in (None, "") else "Not scored")
+    c3.metric("Last refreshed", str(refreshed) if refreshed else "Saved scan timestamp unavailable")
+    st.caption(f"Source: {source}. Prices, news, policy, and analyst data can update on different schedules.")
+
+
+def v8053_render_financial_analysis(row):
+    st.markdown("### 💰 Financial Analysis")
+    rev = v63_pct_value(v8053_first(row, ["Revenue Growth", "revenue_growth", "revenue_growth_pct"], None), None, cap_abs=300)
+    opm = v63_pct_value(v8053_first(row, ["Operating Margin", "operating_margin", "operatingMargins"], None), None, cap_abs=100)
+    gross = v63_pct_value(v8053_first(row, ["Gross Margin", "gross_margin", "grossMargins"], None), None, cap_abs=100)
+    fcf = v63_clean_num(v8053_first(row, ["Free Cash Flow", "free_cash_flow", "free_cashflow"], None), None)
+    cash = v63_clean_num(v8053_first(row, ["Cash", "total_cash", "cash_and_equivalents"], None), None)
+    debt = v63_clean_num(v8053_first(row, ["Total Debt", "total_debt", "Debt"], None), None)
+    fpe = v63_clean_num(v8053_first(row, ["Forward PE", "forward_pe"], None), None)
+    cr = v63_clean_num(v8053_first(row, ["Current Ratio", "current_ratio"], None), None)
+    c = st.columns(4)
+    c[0].metric("Revenue growth", "Unavailable" if rev is None else f"{rev:.1f}%")
+    c[1].metric("Operating margin", "Unavailable" if opm is None else f"{opm:.1f}%")
+    c[2].metric("Free cash flow", v63_fmt_money(fcf, "Unavailable"))
+    c[3].metric("Forward P/E", "Unavailable" if fpe is None else f"{fpe:.1f}x")
+    positives, cautions = [], []
+    if rev is not None: (positives if rev >= 10 else cautions).append(f"Revenue growth is {rev:.1f}%.")
+    if opm is not None: (positives if opm >= 15 else cautions).append(f"Operating margin is {opm:.1f}%.")
+    if gross is not None and gross >= 40: positives.append(f"Gross margin is strong at {gross:.1f}%.")
+    if fcf is not None: (positives if fcf > 0 else cautions).append(f"Free cash flow is {v63_fmt_money(fcf)}.")
+    if cash is not None and debt is not None:
+        (positives if cash >= debt else cautions).append(f"Cash is {v63_fmt_money(cash)} versus debt of {v63_fmt_money(debt)}.")
+    if cr is not None and cr < 1: cautions.append(f"Current ratio is only {cr:.2f}, indicating tighter liquidity.")
+    if fpe is not None and fpe > 40: cautions.append(f"Forward P/E of {fpe:.1f}x leaves less room for execution mistakes.")
+    st.markdown("**Atlas financial read-through**")
+    for line in positives[:5]: st.markdown(f"- ✅ {line}")
+    for line in cautions[:4]: st.markdown(f"- ⚠️ {line}")
+    if not positives and not cautions:
+        st.info("Detailed financial fields were not returned by the active data provider. Atlas is not treating missing data as positive evidence.")
+
+
+def v8053_render_policy_support(row):
+    st.markdown("### 🏛️ Political & Policy Intelligence")
+    summary = v8053_first(row, [
+        "political_support", "policy_support", "political_context", "policy_context",
+        "Political Signal", "political_signal", "government_support_summary",
+    ], "")
+    score = v8053_first(row, ["political_support_score", "policy_score", "Political Score"], None)
+    catalyst = v8053_first(row, ["policy_catalyst", "government_contract", "regulatory_catalyst"], "")
+    if summary or catalyst:
+        if score not in (None, ""):
+            st.metric("Policy support score", f"{float(score):.0f}/100")
+        if summary: st.markdown(f"- **Current policy read:** {summary}")
+        if catalyst: st.markdown(f"- **Material catalyst:** {catalyst}")
+        st.caption("Policy evidence is supporting context only. It should not override valuation, financial quality, or company execution.")
+    else:
+        st.info("No verified company-specific political or policy catalyst was returned in this refresh. Atlas treats the absence of evidence as neutral—not bullish.")
+
+
+def v8053_render_ai_summary(row):
+    st.markdown("### 🧠 Atlas AI Summary & Decision Insight")
+    ticker = v73_ticker(row)
+    company = v73_company(row)
+    decision = v73_clean_text(v8053_first(row, ["Recommendation", "Decision", "decision_action", "Action"], "Review"), "Review")
+    thesis = v73_clean_text(v8053_first(row, ["investment_thesis", "Investment Thesis", "ai_summary", "summary", "Guidance"], ""), "")
+    risk = v73_clean_text(v8053_first(row, ["primary_risk", "Primary Risk", "what_could_go_wrong"], "Insufficient evidence to isolate one dominant risk."), "")
+    catalyst = v73_clean_text(v8053_first(row, ["latest_catalyst", "latest_news_headline", "Top News"], "No material fresh catalyst identified."), "")
+    if not thesis:
+        rev = v63_pct_value(v8053_first(row, ["Revenue Growth", "revenue_growth"], None), None, cap_abs=300)
+        opm = v63_pct_value(v8053_first(row, ["Operating Margin", "operating_margin"], None), None, cap_abs=100)
+        thesis = f"Atlas is reviewing {company} ({ticker}) using business quality, valuation, technical timing, Wall Street expectations, and current catalysts."
+        if rev is not None: thesis += f" Revenue growth of {rev:.1f}% supports the demand side of the thesis."
+        if opm is not None: thesis += f" Operating margin of {opm:.1f}% provides evidence on execution quality."
+    st.write(thesis)
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Current Atlas decision", decision)
+    c2.metric("Latest catalyst", catalyst[:55] + ("…" if len(catalyst) > 55 else ""))
+    c3.metric("Primary risk", risk[:55] + ("…" if len(risk) > 55 else ""))
+    st.markdown("**What would strengthen the case:** confirmed valuation support, durable earnings revisions, improving volume/technical confirmation, and a material recent catalyst.")
+    st.markdown("**What would change Atlas's mind:** weaker guidance, deteriorating margins or cash flow, loss of technical support, adverse policy changes, or valuation moving materially above justified fundamentals.")
+
+
+def v8053_safe_section(name, fn, row):
+    try:
+        fn(row)
+    except Exception as exc:
+        st.warning(f"{name} is temporarily unavailable: {exc}")
+
+
+def render_detail(row):
+    """V80.5.3 complete research report without recursive legacy fallbacks."""
+    v8053_safe_section("Research freshness", v8053_render_refresh_metadata, row)
+    v8053_safe_section("Executive dashboard", render_v73_supporting_dashboard, row)
+    if "render_v71_institutional_chart" in globals():
+        v8053_safe_section("Institutional chart", render_v71_institutional_chart, row)
+    v8053_safe_section("Financial analysis", v8053_render_financial_analysis, row)
+    v8053_safe_section("Target analysis", render_v73_target_analysis, row)
+    v8053_safe_section("Trade plan", render_v73_trade_plan, row)
+    v8053_safe_section("News and catalysts", render_v73_news, row)
+    v8053_safe_section("Political and policy intelligence", v8053_render_policy_support, row)
+    v8053_safe_section("Smart money", render_v73_smart_money, row)
+    v8053_safe_section("Technical analysis", render_v73_technical, row)
+    v8053_safe_section("AI summary", v8053_render_ai_summary, row)
+
+
+def render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf_df=None):
+    st.markdown("<div class='v65-section-title'>🔎 Live Atlas Research</div>", unsafe_allow_html=True)
+    st.markdown("<div class='v65-subtitle'>Live research combines current retrieval with the saved Discovery snapshot so missing provider fields do not erase useful verified evidence.</div>", unsafe_allow_html=True)
+    ticker = st.text_input("Ticker", value=st.session_state.get("v73_research_ticker", ""), placeholder="Example: NVDA, MSFT, OPRA", key="v73_research_ticker").strip().upper()
+    if not ticker:
+        st.info("Enter a ticker to open current Atlas research.")
+        return
+    try:
+        saved_row = find_ticker_row(ticker, full_df, recovery_df, watch_df, prescreen_df, etf_df)
+    except Exception:
+        saved_row = None
+    c1, c2 = st.columns([1, 1])
+    with c1:
+        refresh = st.button(f"Refresh Live Research for {ticker}", key=f"v8053_refresh_{ticker}", type="primary")
+    with c2:
+        clear = st.button("Clear live cache", key=f"v8053_clear_{ticker}")
+    state_key = f"v8053_live_row_{ticker}"
+    auto_live_ticker = str(st.session_state.pop("v805_force_live_on_open", "") or "").upper()
+    auto_live = auto_live_ticker == ticker
+    if clear:
+        st.session_state.pop(state_key, None)
+    if refresh or auto_live or state_key not in st.session_state:
+        with st.spinner(f"Refreshing financials, valuation, news, analyst context, and policy evidence for {ticker}..."):
+            try:
+                live = build_live_research_row(ticker, force_refresh=bool(refresh or auto_live))
+            except Exception as exc:
+                live = {"error": str(exc)}
+        if isinstance(live, dict) and not live.get("research_refreshed_at"):
+            live["research_refreshed_at"] = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        st.session_state[state_key] = live
+    live = st.session_state.get(state_key)
+    saved = v8053_row_dict(saved_row) if saved_row is not None else {}
+    if isinstance(live, dict) and not live.get("error"):
+        merged = dict(saved)
+        merged.update({k: v for k, v in live.items() if v not in (None, "", [], {})})
+        merged["Live Research"] = True
+        st.success(f"Live Atlas Research loaded · Refreshed: {merged.get('research_refreshed_at', 'just now')} · Confidence: {merged.get('research_confidence', merged.get('Confidence', 'N/A'))}")
+        render_detail(pd.Series(merged))
+        return
+    if isinstance(live, dict) and live.get("error"):
+        st.warning(f"Live provider refresh failed: {live['error']}. Showing the saved Discovery snapshot with all available evidence.")
+    if saved:
+        render_detail(pd.Series(saved))
+    else:
+        st.error("No saved snapshot is available and live research could not be completed.")
+
 
 if __name__ == "__main__":
     main()
