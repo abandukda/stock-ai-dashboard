@@ -9,6 +9,8 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 import pandas as pd
 
+from engines.decision_intelligence_engine import evidence_pack, primary_risk, decision, movement_explanation
+
 HISTORY_FILE = Path("data/atlas_discovery_history.json")
 MEGA_CAPS = {"MSFT", "NVDA", "META", "AMZN", "GOOGL", "GOOG", "AAPL", "AVGO", "TSM", "AMD", "COST", "LLY"}
 _SECTION_CACHE: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
@@ -191,7 +193,12 @@ def build_dynamic_rankings(df: pd.DataFrame, max_rows: int = 100) -> List[Dict[s
         row["dynamic_rank"] = idx
         old = row.get("prior_rank")
         row["rank_change"] = (old - idx) if old else None
-        row["why_today"] = _rank_reason(row, prior.get(_ticker(row), {}))
+        row["why_today"] = evidence_pack(row, 6)
+        row["primary_risk"] = primary_risk(row)
+        decision_pack = decision(row)
+        row["atlas_decision"] = decision_pack["label"]
+        row["decision_guidance"] = decision_pack["action"]
+        row["movement_explanation"] = movement_explanation(row)
 
     save_history(output)
     return output

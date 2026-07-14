@@ -10,6 +10,7 @@ import requests
 import yfinance as yf
 
 from services.research_cache import load_cached_research, save_cached_research
+from engines.decision_intelligence_engine import evidence_pack, primary_risk, decision
 
 NEWSAPI_KEY = os.getenv("NEWSAPI_KEY", "").strip()
 FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "").strip()
@@ -668,14 +669,13 @@ def build_live_research(ticker: str, force_refresh: bool = False, cache_ttl_seco
     if row.get("Free Cash Flow") is not None and row["Free Cash Flow"] > 0: reasons.append("Free cash flow is positive.")
     if row.get("eps_surprise_pct") is not None: reasons.append(f"Latest EPS surprise was {row['eps_surprise_pct']:+.1f}%.")
     if row.get("latest_news_headline"): reasons.append(f"Recent catalyst: {row['latest_news_headline']}")
-    row["why_atlas_likes_it"] = reasons[:5]
-
-    risks = []
-    if row.get("Debt to Equity") and row["Debt to Equity"] > 150: risks.append((90, "Leverage is elevated and could reduce flexibility."))
-    if row.get("Forward PE") and row["Forward PE"] > 45: risks.append((80, "The forward valuation requires strong execution."))
-    if volume_ratio < 0.7: risks.append((65, "Volume confirmation is light."))
-    risks.append((40, "Execution must remain strong enough to support current expectations."))
-    row["primary_risk"] = max(risks, key=lambda x: x[0])[1]
+    row["why_atlas_likes_it"] = evidence_pack(row, 7)
+    row["primary_risk"] = primary_risk(row)
+    decision_pack = decision(row)
+    row["Recommendation"] = decision_pack["label"]
+    row["decision_action"] = decision_pack["label"]
+    row["decision_guidance"] = decision_pack["action"]
+    row["investment_thesis"] = " ".join(row["why_atlas_likes_it"][:5])
 
     critical = ["price", "Revenue Growth", "Operating Margin", "Free Cash Flow", "atlas_fair_value", "analyst_target_mean", "next_earnings_date"]
     available = sum(row.get(k) not in (None, "", "Unavailable") for k in critical)
