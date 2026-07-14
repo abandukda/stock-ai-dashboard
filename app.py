@@ -27172,6 +27172,151 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
     if saved: render_detail(pd.Series(saved))
     else: st.error("No saved snapshot is available and live research could not be completed.")
 
+
+
+# ============================================================
+# V81.0 DYNAMIC DISCOVERY HOMEPAGE
+# ============================================================
+def v810_rank_badge(row):
+    change = row.get("rank_change")
+    if row.get("is_new_discovery"):
+        return "NEW TODAY"
+    if change is None:
+        return "STABLE"
+    if change > 0:
+        return f"↑ {int(change)} ranks"
+    if change < 0:
+        return f"↓ {abs(int(change))} ranks"
+    return "UNCHANGED"
+
+
+def v810_why_today_text(row):
+    reasons = row.get("why_today") or []
+    if isinstance(reasons, str):
+        reasons = [reasons]
+    return " · ".join(str(x) for x in reasons[:3]) or "Core evidence remains stable."
+
+
+def v810_render_compact_table(rows, title, subtitle):
+    st.markdown(f"### {title}")
+    st.caption(subtitle)
+    if not rows:
+        st.info("No qualifying names in this category yet. Atlas will populate it as rank history accumulates.")
+        return
+    payload=[]
+    for row in rows:
+        payload.append({
+            "Ticker": v73_ticker(row),
+            "Company": v73_company(row),
+            "Home Score": f"{float(row.get('home_score',0)):.1f}",
+            "Movement": v810_rank_badge(row),
+            "Decision": v8055_display_decision(v8054_first_meaningful(row,["Recommendation","Decision","Action"],"Review")),
+            "Why today": v810_why_today_text(row),
+        })
+    st.dataframe(pd.DataFrame(payload), use_container_width=True, hide_index=True)
+
+
+def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
+    """Paid-client home answers: what changed today, what is new, and what remains core."""
+    if "render_v72_market_tape" in globals():
+        render_v72_market_tape(always_show=True)
+    source = full_df if full_df is not None and not getattr(full_df,"empty",True) else top_df
+    if source is None or getattr(source,"empty",True):
+        st.warning("Discovery data is unavailable.")
+        return
+    try:
+        from engines.dynamic_home_engine import build_home_sections
+        sections = build_home_sections(source)
+    except Exception as exc:
+        st.warning(f"Dynamic ranking temporarily unavailable: {exc}. Showing the saved Discovery ranking.")
+        sections = {"today": [dict(r) for _,r in top_df.head(8).iterrows()] if top_df is not None and not top_df.empty else [], "movers":[],"new":[],"hidden":[],"core":[],"mega":[]}
+
+    today=sections.get("today",[]); movers=sections.get("movers",[]); new=sections.get("new",[])
+    core=sections.get("core",[]); mega=sections.get("mega",[]); hidden=sections.get("hidden",[])
+    generated = dt.datetime.now().astimezone().strftime("%b %d, %Y · %I:%M %p %Z")
+    st.markdown(f"""
+<div class='v793-brief'>
+  <div class='v65-kicker'>Atlas Daily Discovery · {v73_esc(generated)}</div>
+  <h1>What changed since the last scan?</h1>
+  <p>Atlas separates <b>today's changing opportunities</b> from <b>stable high-quality companies</b>. Repeated names with no meaningful score or catalyst change move into Core Holdings or Mega-Cap Monitor instead of occupying the daily opportunity list.</p>
+  <div class='v793-brief-grid'>
+    <div class='v793-brief-stat'><span>Today's Opportunities</span><b>{len(today)}</b><em>dynamic, catalyst-aware ranking</em></div>
+    <div class='v793-brief-stat'><span>Biggest Movers</span><b>{len(movers)}</b><em>rank changes since prior snapshot</em></div>
+    <div class='v793-brief-stat'><span>New Discoveries</span><b>{len(new)}</b><em>not present in prior history</em></div>
+    <div class='v793-brief-stat'><span>Core / Mega Cap</span><b>{len(core)+len(mega)}</b><em>monitored separately</em></div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+    st.markdown("## 🔥 Today's Highest-Conviction Opportunities")
+    st.caption("Ranked for today's opportunity—not simply the highest-quality businesses. Catalyst, technical confirmation, valuation, confidence and freshness all contribute.")
+    if today:
+        render_v73_idea_table(pd.DataFrame(today[:8]), title="Why Atlas surfaced these today")
+    else:
+        st.info("No fresh opportunity cleared today's evidence threshold. Atlas is not forcing a recommendation.")
+
+    c1,c2=st.columns(2)
+    with c1:
+        v810_render_compact_table(movers,"📈 Biggest Score Movers","Names whose rank changed most since the prior Discovery snapshot.")
+    with c2:
+        v810_render_compact_table(new,"🚀 New Discoveries","Names Atlas did not surface in the prior ranking history.")
+
+    c3,c4=st.columns(2)
+    with c3:
+        v810_render_compact_table(hidden,"💎 Hidden Gems","Small/mid-cap ideas with strong evidence and relatively limited analyst coverage.")
+    with c4:
+        v810_render_compact_table(core,"⭐ Atlas Core Holdings","High-quality names intentionally monitored separately when their daily setup is unchanged.")
+
+    v810_render_compact_table(mega,"🏦 Mega-Cap Monitor","Large strategic companies monitored continuously without crowding the daily discovery list.")
+
+    with st.expander("Upcoming Economic Calendar", expanded=True):
+        try:
+            if "render_v70_market_calendar_terminal" in globals(): render_v70_market_calendar_terminal(full_df)
+        except Exception:
+            st.caption("Market calendar is temporarily unavailable.")
+
+
+def v810_render_today_page(full_df):
+    try:
+        from engines.dynamic_home_engine import build_home_sections
+        rows=build_home_sections(full_df).get("today",[])
+        if rows: render_v73_idea_table(pd.DataFrame(rows),title="🔥 Today's Opportunities")
+        else: st.info("No fresh opportunities qualified today.")
+    except Exception as exc:
+        st.warning(f"Today's ranking is temporarily unavailable: {exc}")
+
+
+def v810_render_core_page(full_df):
+    try:
+        from engines.dynamic_home_engine import build_home_sections
+        sections=build_home_sections(full_df)
+        v810_render_compact_table(sections.get("core",[]),"⭐ Atlas Core Holdings","Stable high-quality ideas monitored for valuation and entry opportunities.")
+        v810_render_compact_table(sections.get("mega",[]),"🏦 Mega-Cap Monitor","Strategic large-cap companies kept separate from the daily opportunity feed.")
+    except Exception as exc:
+        st.warning(f"Core Holdings is temporarily unavailable: {exc}")
+
+
+def main():
+    if not dashboard_login_gate(): return
+    render_v59_design_system(); render_v65_design_system(); render_v70_design_system(); render_v72_design_system(); render_v73_design_system(); render_v74_design_system(); v775_design_system(); v793_design_system(); v8055_inject_research_css()
+    full_df=load_full_scan(); top_df=latest_top_ideas(); recovery_df=latest_recovery(); watch_df=latest_watchlist_scan(); prescreen_df=load_file(PRESCREEN_FILE); etf_df=load_file(ETF_SCAN_FILE)
+    pages=["Home","Today's Opportunities","Atlas Core Holdings","Research Any Ticker","Earnings Intelligence","Full Ranked Scan","Portfolio Intelligence","Watchlist Intelligence","Recovery","ETFs","Political Intelligence","Ask AI"]
+    selected_page=render_v73_top_nav(pages)
+    source_df=top_df if top_df is not None and not top_df.empty else full_df.head(25)
+    if selected_page != "Home": render_v72_market_tape(always_show=False)
+    if selected_page=="Home": v810_render_dynamic_home(full_df,source_df,recovery_df)
+    elif selected_page=="Today's Opportunities": v810_render_today_page(full_df)
+    elif selected_page=="Atlas Core Holdings": v810_render_core_page(full_df)
+    elif selected_page=="Research Any Ticker": render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df)
+    elif selected_page=="Earnings Intelligence": render_v73_earnings_page(full_df,source_df)
+    elif selected_page=="Full Ranked Scan": render_v56_ranked_table(full_df,title="Full Ranked AI Scan",max_rows=75,show_filters=True)
+    elif selected_page=="Portfolio Intelligence": render_v505_portfolio_analyzer(full_df,top_df,recovery_df,watch_df,prescreen_df,etf_df)
+    elif selected_page=="Watchlist Intelligence": render_v506_watchlist_intelligence(full_df,top_df,recovery_df,watch_df,prescreen_df,etf_df)
+    elif selected_page=="Recovery": render_v56_ranked_table(recovery_df,title="Recovery Intelligence",max_rows=50,show_filters=True)
+    elif selected_page=="ETFs": render_v56_ranked_table(etf_df,title="ETF Intelligence",max_rows=50,show_filters=True)
+    elif selected_page=="Political Intelligence": render_v58_political_intelligence(full_df)
+    elif selected_page=="Ask AI": render_chat_helper(full_df)
+
 if __name__ == "__main__":
     main()
 
