@@ -1,0 +1,17 @@
+{
+  "generated_at": "2026-07-14T03:47:42.994533+00:00",
+  "tickers": {
+    "XYZ": {
+      "rank": 1,
+      "home_score": 76.45,
+      "opportunity_score": 88.0,
+      "shown_days": 1
+    },
+    "MSFT": {
+      "rank": 2,
+      "home_score": 71.25,
+      "opportunity_score": 80.0,
+      "shown_days": 1
+    }
+  }
+}

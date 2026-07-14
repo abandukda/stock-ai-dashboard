@@ -27216,6 +27216,111 @@ def v810_render_compact_table(rows, title, subtitle):
     st.dataframe(pd.DataFrame(payload), use_container_width=True, hide_index=True)
 
 
+def v811_build_home_sections(source):
+    """Import-compatible adapter; avoids a blank homepage if module names drift."""
+    try:
+        from engines import dynamic_home_engine as _dhe
+        builder = getattr(_dhe, "build_home_sections", None) or getattr(_dhe, "build_dynamic_home_sections", None)
+        if not callable(builder):
+            raise ImportError("dynamic home engine has no compatible section builder")
+        return builder(source)
+    except Exception:
+        raise
+
+
+def v811_event_key(row):
+    event = v65_clean_text(row.get("Event") or row.get("event") or row.get("Focus") or "", 120).lower()
+    date = str(row.get("Date") or row.get("date") or "")[:10]
+    return (date, " ".join(event.split()))
+
+
+def v811_macro_interpretation(event, actual="", estimate=""):
+    e = str(event).lower()
+    a = v8054_num(actual, None) if "v8054_num" in globals() else None
+    est = v8054_num(estimate, None) if "v8054_num" in globals() else None
+    direction = ""
+    if a is not None and est is not None:
+        direction = "above expectations" if a > est else "below expectations" if a < est else "in line with expectations"
+    if any(x in e for x in ["cpi", "ppi", "pce", "inflation"]):
+        base = "Inflation data can move Treasury yields and valuation multiples."
+        if direction: base += f" The release was {direction}."
+        return base
+    if any(x in e for x in ["payroll", "employment", "jobs", "unemployment", "jolts"]):
+        base = "Labor data can reset growth and Federal Reserve expectations."
+        if direction: base += f" The release was {direction}."
+        return base
+    if any(x in e for x in ["fed", "fomc"]):
+        return "Federal Reserve communication can change rate expectations and risk appetite across equities and bonds."
+    if any(x in e for x in ["retail", "consumer confidence"]):
+        return "Consumer data helps measure demand strength and recession risk."
+    if any(x in e for x in ["pmi", "ism", "manufacturing", "services"]):
+        return "Business-activity data helps identify expansion, contraction, and sector rotation."
+    return "This release may influence rates, risk appetite, sector leadership, and valuation multiples."
+
+
+def v811_market_calendar_rows(past_days=14, future_days=21):
+    today = dt.date.today()
+    start = today - dt.timedelta(days=past_days)
+    end = today + dt.timedelta(days=future_days)
+    rows=[]
+    try:
+        if "v5082_stable_rows" in globals():
+            raw, _, _ = v5082_stable_rows("economic-calendar", {"from": start.isoformat(), "to": end.isoformat(), "limit": 800})
+            rows = raw or []
+    except Exception:
+        rows=[]
+    if not rows:
+        # Existing normalized source fallback.
+        try:
+            data=v51_economic_calendar(days=future_days) if "v51_economic_calendar" in globals() else {}
+            rows=data.get("rows") or []
+        except Exception:
+            rows=[]
+    normalized=[]; seen=set()
+    keywords=("CPI","PPI","PCE","FOMC","FED","PAYROLL","NONFARM","UNEMPLOYMENT","GDP","RETAIL SALES","JOBLESS","CONSUMER CONFIDENCE","JOLTS","PMI","ISM","DURABLE GOODS","MANUFACTURING","SERVICES")
+    for r in rows:
+        event=v65_clean_text(r.get("event") or r.get("Event") or r.get("name") or r.get("title") or r.get("Focus") or "",120)
+        date_text=str(r.get("date") or r.get("Date") or "")[:10]
+        country=str(r.get("country") or r.get("countryCode") or r.get("currency") or "US").upper()
+        if not event or not date_text or (country not in {"US","USA","USD","UNITED STATES",""}): continue
+        if not any(k in event.upper() for k in keywords): continue
+        row={"Date":date_text,"Event":event,"Actual":r.get("actual") or r.get("Actual") or "","Estimate":r.get("estimate") or r.get("consensus") or r.get("Estimate") or "","Previous":r.get("previous") or r.get("Previous") or ""}
+        key=v811_event_key(row)
+        if key in seen: continue
+        seen.add(key); normalized.append(row)
+    normalized.sort(key=lambda x:(x["Date"],x["Event"]))
+    return normalized
+
+
+def render_v811_market_calendar_terminal(full_df=None):
+    rows=v811_market_calendar_rows(14,21)
+    today=dt.date.today().isoformat()
+    completed=[r for r in rows if r.get("Date","") < today]
+    upcoming=[r for r in rows if r.get("Date","") >= today]
+    st.markdown('<div class="v65-section-title">📅 Market Calendar: Results & Upcoming Events</div>', unsafe_allow_html=True)
+    st.markdown('<div class="v65-subtitle">Completed July releases show actual versus estimate and Atlas interpretation; upcoming events show what to watch.</div>', unsafe_allow_html=True)
+    t1,t2=st.tabs(["What already happened","Upcoming events"])
+    with t1:
+        if not completed:
+            st.info("No completed high-impact U.S. macro releases were returned for the lookback window.")
+        else:
+            for r in completed[-12:][::-1]:
+                date=v651_safe_date(r.get("Date")); event=r.get("Event"); actual=r.get("Actual") or "Not reported"; estimate=r.get("Estimate") or "Not available"; previous=r.get("Previous") or "Not available"
+                with st.container(border=True):
+                    st.markdown(f"**{date} — {event}**")
+                    c1,c2,c3=st.columns(3); c1.metric("Actual",str(actual)); c2.metric("Estimate",str(estimate)); c3.metric("Previous",str(previous))
+                    st.caption(v811_macro_interpretation(event,actual,estimate))
+    with t2:
+        if not upcoming:
+            st.info("No upcoming high-impact U.S. macro releases were returned.")
+        else:
+            cards=[]
+            for r in upcoming[:12]:
+                event=r.get("Event"); date=v651_safe_date(r.get("Date")); estimate=r.get("Estimate") or "Not available"
+                cards.append(f'<div class="v65-card"><h3>{v73_esc(date)}</h3><p><b>{v73_esc(event)}</b></p><p>Consensus: {v73_esc(str(estimate))}</p><p>{v73_esc(v811_macro_interpretation(event))}</p></div>')
+            st.markdown('<div class="v65-card-grid">'+''.join(cards)+'</div>',unsafe_allow_html=True)
+
+
 def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
     """Paid-client home answers: what changed today, what is new, and what remains core."""
     if "render_v72_market_tape" in globals():
@@ -27225,8 +27330,7 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
         st.warning("Discovery data is unavailable.")
         return
     try:
-        from engines.dynamic_home_engine import build_home_sections
-        sections = build_home_sections(source)
+        sections = v811_build_home_sections(source)
     except Exception as exc:
         st.warning(f"Dynamic ranking temporarily unavailable: {exc}. Showing the saved Discovery ranking.")
         sections = {"today": [dict(r) for _,r in top_df.head(8).iterrows()] if top_df is not None and not top_df.empty else [], "movers":[],"new":[],"hidden":[],"core":[],"mega":[]}
@@ -27271,15 +27375,14 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
 
     with st.expander("Upcoming Economic Calendar", expanded=True):
         try:
-            if "render_v70_market_calendar_terminal" in globals(): render_v70_market_calendar_terminal(full_df)
+            render_v811_market_calendar_terminal(full_df)
         except Exception:
             st.caption("Market calendar is temporarily unavailable.")
 
 
 def v810_render_today_page(full_df):
     try:
-        from engines.dynamic_home_engine import build_home_sections
-        rows=build_home_sections(full_df).get("today",[])
+        rows=v811_build_home_sections(full_df).get("today",[])
         if rows: render_v73_idea_table(pd.DataFrame(rows),title="🔥 Today's Opportunities")
         else: st.info("No fresh opportunities qualified today.")
     except Exception as exc:
@@ -27288,8 +27391,7 @@ def v810_render_today_page(full_df):
 
 def v810_render_core_page(full_df):
     try:
-        from engines.dynamic_home_engine import build_home_sections
-        sections=build_home_sections(full_df)
+        sections=v811_build_home_sections(full_df)
         v810_render_compact_table(sections.get("core",[]),"⭐ Atlas Core Holdings","Stable high-quality ideas monitored for valuation and entry opportunities.")
         v810_render_compact_table(sections.get("mega",[]),"🏦 Mega-Cap Monitor","Strategic large-cap companies kept separate from the daily opportunity feed.")
     except Exception as exc:
