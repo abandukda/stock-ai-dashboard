@@ -27567,6 +27567,142 @@ def v8055_render_ai_summary(row):
     st.markdown("**What would change Atlas's mind:** weaker guidance, deteriorating growth or cash flow, adverse policy/news, or valuation moving beyond justified fundamentals.")
 
 
+
+# ============================================================
+# V83 INSTITUTIONAL INTELLIGENCE OVERRIDES
+# ============================================================
+from engines.institutional_intelligence_engine import (
+    institutional_summary as v83_institutional_summary,
+    institutional_evidence as v83_institutional_evidence,
+    company_specific_risks as v83_company_specific_risks,
+    institutional_decision as v83_institutional_decision,
+    home_guidance as v83_home_guidance,
+    market_calendar_intelligence as v83_market_calendar_intelligence,
+)
+
+
+def v82_enrich_row(row):
+    data = dict(row) if hasattr(row, "items") else {}
+    summary = v83_institutional_summary(data)
+    data["why_atlas_likes_it"] = summary["evidence"]
+    data["primary_risk"] = summary["risks"][0]
+    data["risk_factors"] = summary["risks"]
+    data["Recommendation"] = summary["decision"]["label"]
+    data["Decision"] = summary["decision"]["label"]
+    data["decision_guidance"] = summary["decision"]["action"]
+    data["evidence_score"] = summary["decision"]["score"]
+    data["evidence_scorecard"] = summary["scorecard"]
+    data["investment_thesis"] = summary["investment_thesis"]
+    data["counter_thesis"] = summary["counter_thesis"]
+    return data
+
+
+def v810_rank_badge(row):
+    return v83_home_guidance(dict(row)).get("movement", "Current qualified ranking")
+
+
+def v810_why_today_text(row):
+    return v83_home_guidance(dict(row)).get("why_today", "")
+
+
+def v810_render_compact_table(rows, title, subtitle):
+    st.markdown(f"### {title}")
+    st.caption(subtitle)
+    if not rows:
+        st.info("No qualifying names are available in the current scan. Atlas will not fabricate a candidate.")
+        return
+    for raw in rows:
+        row = v82_enrich_row(raw)
+        guide = v83_home_guidance(row)
+        with st.container(border=True):
+            c1, c2, c3, c4 = st.columns([1.0, 2.2, 1.4, 1.5])
+            c1.markdown(f"### {v73_ticker(row)}")
+            c2.markdown(f"**{v73_company(row)}**")
+            c3.metric("Evidence score", f"{guide['evidence_score']:.0f}/100")
+            c4.markdown(f"**{guide['decision']}**")
+            st.markdown(f"**Movement:** {guide['movement']}")
+            st.markdown(f"**Why Atlas surfaced it:** {guide['why_today']}")
+            st.markdown(f"**Plain-language guidance:** {guide['guidance']}")
+            st.markdown(f"**Primary risk:** {guide['primary_risk']}")
+
+
+def v8055_render_ai_summary(row):
+    data = v82_enrich_row(dict(row))
+    summary = v83_institutional_summary(data)
+    decision = summary["decision"]
+    st.markdown("### 🧠 Atlas Institutional Research Summary")
+    st.markdown(f"#### {summary['ticker']} — {summary['company']}")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Atlas decision", decision["label"])
+    c2.metric("Evidence score", f"{decision['score']:.0f}/100")
+    c3.metric("Research confidence", f"{decision['confidence']:.0f}/100")
+    c4.metric("Expected return", f"{decision['upside']:+.1f}%" if decision["upside"] is not None else "Unavailable")
+    st.markdown(f"**Executive thesis:** {summary['investment_thesis']}")
+    st.markdown(f"**Action guidance:** {decision['action']}")
+
+    st.markdown("#### Evidence scorecard")
+    score_cols = st.columns(4)
+    for idx, (name, value) in enumerate((k, v) for k, v in summary["scorecard"].items() if k != "Evidence Score"):
+        score_cols[idx % 4].metric(name, f"{value:.0f}/100")
+
+    left, right = st.columns(2)
+    with left:
+        st.markdown("#### Bull case and supporting evidence")
+        for item in summary["bull_case"]:
+            st.markdown(f"- {item}")
+    with right:
+        st.markdown("#### Bear case and risks")
+        for item in summary["bear_case"]:
+            st.markdown(f"- {item}")
+
+    st.markdown(f"**Latest verified catalyst:** {summary['latest_catalyst']}")
+    st.markdown(f"**Earnings and guidance:** {summary['earnings_read']}")
+    st.markdown(f"**Political and policy intelligence:** {summary['policy_read']}")
+    st.markdown(f"**What could make Atlas wrong:** {summary['counter_thesis']}")
+
+
+def v811_macro_interpretation(event, actual="", estimate=""):
+    return v83_market_calendar_intelligence(event, actual, estimate).get("plain_language")
+
+
+def render_v811_market_calendar_terminal(full_df=None):
+    rows = v811_market_calendar_rows(31, 21)
+    today = dt.date.today().isoformat()
+    completed = [r for r in rows if r.get("Date", "") < today]
+    upcoming = [r for r in rows if r.get("Date", "") >= today]
+    st.markdown('<div class="v65-section-title">📅 Market Calendar: Results, Market Meaning & Upcoming Risks</div>', unsafe_allow_html=True)
+    st.markdown('<div class="v65-subtitle">Completed releases show actual versus consensus, the surprise, likely winners and losers, and a confidence-rated Atlas interpretation.</div>', unsafe_allow_html=True)
+    t1, t2 = st.tabs(["What already happened", "Upcoming events"])
+    with t1:
+        if not completed:
+            st.info("No completed high-impact U.S. releases with usable data were returned for the lookback period.")
+        for r in completed[-18:][::-1]:
+            actual = r.get("Actual") or "Not reported"
+            estimate = r.get("Estimate") or "Not available"
+            previous = r.get("Previous") or "Not available"
+            insight = v83_market_calendar_intelligence(r.get("Event", ""), actual, estimate, previous)
+            with st.container(border=True):
+                st.markdown(f"### {v651_safe_date(r.get('Date'))} — {r.get('Event')}")
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("Actual", str(actual)); c2.metric("Consensus", str(estimate)); c3.metric("Previous", str(previous)); c4.metric("Impact score", f"{insight['impact_score']:.1f}/10")
+                st.markdown(f"**Atlas interpretation:** {insight['plain_language']}")
+                st.markdown(f"**Likely beneficiaries:** {insight['supports']}")
+                st.markdown(f"**Potential pressure:** {insight['pressures']}")
+                st.caption(f"Market read: {insight['impact']} · Interpretation confidence: {insight['confidence']}")
+    with t2:
+        if not upcoming:
+            st.info("No upcoming high-impact U.S. releases were returned.")
+        for r in upcoming[:16]:
+            insight = v83_market_calendar_intelligence(r.get("Event", ""))
+            with st.container(border=True):
+                st.markdown(f"### {v651_safe_date(r.get('Date'))} — {r.get('Event')}")
+                st.write(f"Consensus: {r.get('Estimate') or 'Not available'}")
+                st.markdown(f"**Why it matters:** {insight['plain_language']}")
+                st.caption(f"Likely support: {insight['supports']} · Potential pressure: {insight['pressures']}")
+
+
+V83_INSTITUTIONAL_INTELLIGENCE_VERIFIED = True
+
 if __name__ == "__main__":
     main()
 

@@ -10,6 +10,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 import pandas as pd
 
 from engines.decision_intelligence_engine import evidence_pack, primary_risk, decision, movement_explanation
+from engines.institutional_intelligence_engine import home_guidance, institutional_evidence, company_specific_risks, institutional_decision
 
 HISTORY_FILE = Path("data/atlas_discovery_history.json")
 MEGA_CAPS = {"MSFT", "NVDA", "META", "AMZN", "GOOGL", "GOOG", "AAPL", "AVGO", "TSM", "AMD", "COST", "LLY"}
@@ -193,12 +194,18 @@ def build_dynamic_rankings(df: pd.DataFrame, max_rows: int = 100) -> List[Dict[s
         row["dynamic_rank"] = idx
         old = row.get("prior_rank")
         row["rank_change"] = (old - idx) if old else None
-        row["why_today"] = evidence_pack(row, 6)
-        row["primary_risk"] = primary_risk(row)
-        decision_pack = decision(row)
+        row["why_today"] = institutional_evidence(row, 7)
+        risks = company_specific_risks(row, 4)
+        row["primary_risk"] = risks[0]
+        row["risk_factors"] = risks
+        decision_pack = institutional_decision(row)
         row["atlas_decision"] = decision_pack["label"]
+        row["Recommendation"] = decision_pack["label"]
         row["decision_guidance"] = decision_pack["action"]
+        row["evidence_score"] = decision_pack["score"]
+        row["evidence_scorecard"] = decision_pack["scorecard"]
         row["movement_explanation"] = movement_explanation(row)
+        row.update(home_guidance(row))
 
     save_history(output)
     return output
@@ -253,7 +260,7 @@ def build_home_sections(df: pd.DataFrame) -> Dict[str, List[Dict[str, Any]]]:
     for r in ranked:
         cap = _num(_pick(r, ["Market Cap", "market_cap", "marketCap"]))
         analysts = _num(_pick(r, ["Analyst Count", "analyst_count", "numberOfAnalystOpinions"]), 0) or 0
-        if cap and 500_000_000 <= cap <= 20_000_000_000 and analysts <= 20 and r.get("home_score", 0) >= 55:
+        if cap and 500_000_000 <= cap <= 20_000_000_000 and analysts <= 25 and r.get("home_score", 0) >= 50 and _score(r, ["Quality", "Quality Score", "quality_score"], 50) >= 55:
             hidden.append(r)
         if len(hidden) >= 6:
             break
