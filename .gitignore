@@ -1,4 +1,4 @@
 .DS_Store
 atlas_debug.zip
 atlas_debug/
-__pycache__/
+__pycache__/data/atlas_discovery_history.json
