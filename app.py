@@ -27701,6 +27701,149 @@ def render_v811_market_calendar_terminal(full_df=None):
                 st.caption(f"Likely support: {insight['supports']} · Potential pressure: {insight['pressures']}")
 
 
+
+
+# ============================================================
+# V84 AI RESEARCH INTELLIGENCE OVERRIDES
+# ============================================================
+from engines.research_intelligence_engine import build_research_report as v84_build_research_report
+
+
+def v84_metric(value, suffix="", unavailable="Unavailable"):
+    if value is None:
+        return unavailable
+    try:
+        return f"{float(value):,.1f}{suffix}"
+    except Exception:
+        return str(value)
+
+
+def v84_render_checklist(checks):
+    cols = st.columns(4)
+    for idx, (name, ok) in enumerate(checks.items()):
+        cols[idx % 4].markdown(f"{'✅' if ok else '◻️'} **{name}**")
+
+
+def v8055_render_ai_summary(row):
+    data = v82_enrich_row(dict(row))
+    report = v84_build_research_report(data)
+    decision = report["decision"]
+    completeness = report["completeness"]
+
+    st.markdown("### 🧠 Atlas AI Research Intelligence")
+    st.markdown(f"#### {report['ticker']} — {report['company']}")
+    st.caption("Evidence-based research generated from the verified fields available in the current snapshot. Missing fields are shown as unavailable—not converted into positive or negative evidence.")
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Atlas verdict", decision["label"])
+    c2.metric("Evidence strength", f"{report['evidence_strength']:.1f}/10")
+    c3.metric("Research completeness", f"{completeness['count']}/{completeness['total']}")
+    c4.metric("Expected return", f"{decision['upside']:+.1f}%" if decision["upside"] is not None else "Unavailable")
+    st.markdown(f"**Investment thesis strength:** {report['thesis_strength']}")
+    st.markdown(f"**Executive summary:** {report['executive_summary']}")
+    st.info(f"**Action guidance:** {decision['action']}")
+
+    with st.expander("Research completeness and evidence sources", expanded=True):
+        v84_render_checklist(completeness["checks"])
+        st.progress(completeness["pct"] / 100.0)
+        st.caption(f"{completeness['pct']}% of the eight core research pillars are populated in this snapshot.")
+
+    st.markdown("#### 💰 Financial quality and cash generation")
+    for item in report["financial"]["bullets"]:
+        st.markdown(f"- {item}")
+
+    st.markdown("#### 🎯 Valuation and Atlas Fair Value")
+    valuation = report["valuation"]
+    vc1, vc2, vc3 = st.columns(3)
+    vc1.metric("Atlas Fair Value", f"${valuation['fair_value']:,.2f}" if valuation["fair_value"] is not None else "Unavailable")
+    vc2.metric("Modeled upside", f"{valuation['upside']:+.1f}%" if valuation["upside"] is not None else "Unavailable")
+    if valuation["low"] is not None and valuation["high"] is not None:
+        vc3.metric("Fair-value range", f"${valuation['low']:,.2f}–${valuation['high']:,.2f}")
+    else:
+        vc3.metric("Model inputs", str(len(valuation["methods"])))
+    st.markdown(valuation["summary"])
+    st.caption("Methodology represented in this snapshot: " + ", ".join(valuation["methods"]))
+
+    st.markdown("#### 🏦 Wall Street analyst intelligence")
+    analysts = report["analysts"]
+    ac1, ac2, ac3, ac4 = st.columns(4)
+    ac1.metric("Consensus", f"${analysts['consensus']:,.2f}" if analysts["consensus"] is not None else "Unavailable")
+    ac2.metric("High target", f"${analysts['high']:,.2f}" if analysts["high"] is not None else "Unavailable")
+    ac3.metric("Low target", f"${analysts['low']:,.2f}" if analysts["low"] is not None else "Unavailable")
+    ac4.metric("Analysts", str(analysts["count"]) if analysts["count"] is not None else "Unavailable")
+    st.markdown(analysts["summary"])
+    ratings = {k: v for k, v in analysts["ratings"].items() if v is not None}
+    if ratings:
+        st.caption("Rating distribution: " + " · ".join(f"{k}: {int(v)}" for k, v in ratings.items()))
+
+    st.markdown("#### 📰 News and catalyst intelligence")
+    news = report["news"]
+    nc1, nc2 = st.columns([1, 4])
+    nc1.metric("News read", news["sentiment"])
+    nc2.markdown(f"**Latest verified development:** {news['headline']}")
+    st.markdown(f"**Why it matters:** {news['interpretation']}")
+
+    st.markdown("#### 🏛️ Political, policy and macro context")
+    policy = report["policy"]
+    pc1, pc2 = st.columns([1, 4])
+    pc1.metric("Policy read", policy["label"])
+    pc2.markdown(policy["summary"])
+
+    st.markdown("#### 🏢 Institutional and insider evidence")
+    for item in report["institutional_activity"]["bullets"]:
+        st.markdown(f"- {item}")
+
+    st.markdown("#### 📈 Technical setup and entry timing")
+    for item in report["technical"]["bullets"]:
+        st.markdown(f"- {item}")
+    st.caption("Technical analysis helps answer when to enter; it does not replace business quality, valuation, earnings, or risk analysis.")
+
+    left, right = st.columns(2)
+    with left:
+        st.markdown("#### ✅ Bull case")
+        for item in report["bull_case"][:7]:
+            st.markdown(f"- {item}")
+    with right:
+        st.markdown("#### ⚠️ Bear case and company-specific risks")
+        for item in report["risks"]:
+            st.markdown(f"- {item}")
+
+    st.markdown("#### 🧾 Earnings and management guidance")
+    st.markdown(report["earnings_read"])
+    st.markdown("#### 🧭 Final Atlas conclusion")
+    st.markdown(f"**Recommendation:** {decision['label']}  ")
+    st.markdown(f"**Evidence score:** {decision['score']:.0f}/100  ")
+    st.markdown(f"**Confidence:** {decision['confidence']:.0f}/100  ")
+    st.markdown(f"**What could invalidate the thesis:** {report['counter_thesis']}")
+
+
+def v810_render_compact_table(rows, title, subtitle):
+    st.markdown(f"### {title}")
+    st.caption(subtitle)
+    if not rows:
+        st.info("No qualifying names are available in the current scan. Atlas will not fabricate a candidate.")
+        return
+    for raw in rows:
+        row = v82_enrich_row(raw)
+        guide = v83_home_guidance(row)
+        report = v84_build_research_report(row)
+        with st.container(border=True):
+            c1, c2, c3, c4 = st.columns([1.0, 2.0, 1.2, 1.5])
+            c1.markdown(f"### {v73_ticker(row)}")
+            c2.markdown(f"**{v73_company(row)}**")
+            c3.metric("Evidence", f"{report['evidence_strength']:.1f}/10")
+            c4.markdown(f"**{guide['decision']}**")
+            st.markdown(f"**Movement in simple language:** {guide['movement']}")
+            st.markdown("**Why Atlas surfaced it:**")
+            for item in report["bull_case"][:4]:
+                st.markdown(f"- {item}")
+            st.markdown(f"**Action guidance:** {guide['guidance']}")
+            st.markdown(f"**Most important risk:** {report['risks'][0]}")
+            st.caption(f"Research completeness: {report['completeness']['count']}/{report['completeness']['total']} pillars")
+
+
+V84_AI_RESEARCH_INTELLIGENCE_VERIFIED = True
+
 V83_INSTITUTIONAL_INTELLIGENCE_VERIFIED = True
 
 if __name__ == "__main__":
