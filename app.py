@@ -27846,6 +27846,83 @@ V84_AI_RESEARCH_INTELLIGENCE_VERIFIED = True
 
 V83_INSTITUTIONAL_INTELLIGENCE_VERIFIED = True
 
+
+# ============================================================
+# V85 INVESTMENT THESIS ENGINE OVERRIDES
+# ============================================================
+from engines.investment_thesis_engine import build_investment_thesis as v85_build_investment_thesis
+
+
+def v85_render_evidence_profile(profile):
+    pillars = profile.get("pillars", {})
+    cols = st.columns(4)
+    for idx, (name, detail) in enumerate(pillars.items()):
+        score = detail.get("score", 0)
+        available = detail.get("available", False)
+        stars = "★" * max(1, min(5, round(score / 20))) if available else "—"
+        with cols[idx % 4]:
+            st.markdown(f"**{name}**")
+            st.markdown(stars)
+            st.caption(f"{score:.0f}/100" if available else "Not populated")
+
+
+_v84_render_ai_summary = v8055_render_ai_summary
+
+
+def v8055_render_ai_summary(row):
+    data = v82_enrich_row(dict(row))
+    report = v84_build_research_report(data)
+    thesis = report.get("thesis") or v85_build_investment_thesis(data, report)
+
+    st.markdown("## 🧠 Atlas Executive Investment Thesis")
+    st.markdown(f"### {thesis['ticker']} — {thesis['company']}")
+    st.caption("V85 synthesizes business quality, financials, valuation, technicals, analysts, news, ownership, earnings, and policy evidence into one balanced investment memo.")
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Recommendation", thesis["recommendation"])
+    c2.metric("Confidence", f"{thesis['confidence']:.0f}%")
+    c3.metric("Evidence strength", f"{thesis['evidence']['overall_10']:.1f}/10")
+    c4.metric("Expected return", f"{thesis['expected_return']:+.1f}%" if thesis.get("expected_return") is not None else "Unavailable")
+
+    st.markdown(f"**Investment thesis strength:** {thesis['thesis_strength']}")
+    st.info(thesis["executive_summary"])
+    st.markdown(f"**Time horizon:** {thesis['time_horizon']}")
+
+    with st.expander("Evidence agreement and scorecard", expanded=True):
+        v85_render_evidence_profile(thesis["evidence"])
+        st.progress(thesis["evidence"]["overall_score"] / 100.0)
+        st.caption(
+            f"{thesis['evidence']['agreeing_pillars']} of {thesis['evidence']['available_pillars']} populated pillars are supportive. "
+            f"Disagreements: {', '.join(thesis['evidence']['disagreements']) if thesis['evidence']['disagreements'] else 'none identified.'}"
+        )
+
+    left, right = st.columns(2)
+    with left:
+        st.markdown("### ✅ Integrated bull case")
+        for item in thesis["bull_case"]:
+            st.markdown(f"- {item}")
+    with right:
+        st.markdown("### ⚠️ Integrated bear case")
+        for item in thesis["bear_case"]:
+            st.markdown(f"- {item}")
+
+    st.markdown("### 🔄 What changed in the latest evidence")
+    for item in thesis["whats_changed"]:
+        st.markdown(f"- {item}")
+
+    st.markdown("### 🧭 What would change Atlas's mind")
+    for item in thesis["invalidation"]:
+        st.markdown(f"- {item}")
+
+    st.markdown("### 📌 Atlas bottom line")
+    st.success(thesis["bottom_line"])
+
+    with st.expander("Full supporting research", expanded=False):
+        _v84_render_ai_summary(row)
+
+
+V85_INVESTMENT_THESIS_ENGINE_VERIFIED = True
+
 if __name__ == "__main__":
     main()
 
@@ -27854,3 +27931,4 @@ if __name__ == "__main__":
 V79_AI_COMMITTEE_RESEARCH_ENGINE_VERIFIED = True
 V791_RESEARCH_NAV_TARGET_HOTFIX_VERIFIED = True
 V792_INTELLIGENCE_RELEASE_VERIFIED = True
+

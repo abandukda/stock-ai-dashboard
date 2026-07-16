@@ -3,6 +3,8 @@ from __future__ import annotations
 import math
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
+from engines.investment_thesis_engine import build_investment_thesis
+
 from engines.institutional_intelligence_engine import (
     institutional_summary,
     evidence_scorecard,
@@ -275,8 +277,10 @@ def build_research_report(row: Mapping[str, Any]) -> Dict[str, Any]:
         f"{completeness['count']}/{completeness['total']} research pillars populated. "
         f"{financial['bullets'][0]} {valuation['summary']} {news['interpretation']}"
     )
+    thesis = build_investment_thesis(row, {"risks": risks})
     return {
         **base,
+        "thesis": thesis,
         "financial": financial,
         "technical": technical,
         "analysts": analysts,
