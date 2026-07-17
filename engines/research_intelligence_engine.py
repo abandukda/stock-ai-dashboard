@@ -4,6 +4,7 @@ import math
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from engines.investment_thesis_engine import build_investment_thesis
+from engines.equity_research_engine import build_equity_research_report
 
 from engines.institutional_intelligence_engine import (
     institutional_summary,
@@ -257,6 +258,12 @@ def research_completeness(row: Mapping[str, Any]) -> Dict[str, Any]:
 
 
 def build_research_report(row: Mapping[str, Any]) -> Dict[str, Any]:
+    """Build the V86 unified research object.
+
+    The legacy V83–V85 sections are retained for backward compatibility, while
+    the new equity research engine becomes the primary source for the executive
+    thesis, decision, bull/bear case, catalyst timeline, and final verdict.
+    """
     base = institutional_summary(row)
     financial = financial_intelligence(row)
     technical = technical_intelligence(row)
@@ -268,19 +275,54 @@ def build_research_report(row: Mapping[str, Any]) -> Dict[str, Any]:
     completeness = research_completeness(row)
     risks = company_specific_risks(row, 5)
     scorecard = evidence_scorecard(row)
-    decision = base["decision"]
+
+    # V86 central research brain.
+    equity = build_equity_research_report(row)
+
+    legacy_decision = base.get("decision", {})
+    legacy_score = _num(legacy_decision.get("score"), 0) or 0
     evidence_sources = [name for name, ok in completeness["checks"].items() if ok]
-    evidence_strength = round((decision["score"] * .7 + completeness["pct"] * .3) / 10, 1)
-    thesis_strength = "Very Strong" if evidence_strength >= 8.5 else "Strong" if evidence_strength >= 7 else "Developing" if evidence_strength >= 5 else "Limited"
-    thesis = (
-        f"{_company(row)} is rated {decision['label']} with {decision['score']:.0f}/100 evidence and "
-        f"{completeness['count']}/{completeness['total']} research pillars populated. "
-        f"{financial['bullets'][0]} {valuation['summary']} {news['interpretation']}"
+    evidence_strength = round(
+        (
+            (_num(equity.get("overall_score"), legacy_score) or legacy_score) * 0.70
+            + completeness["pct"] * 0.30
+        )
+        / 10,
+        1,
     )
-    thesis = build_investment_thesis(row, {"risks": risks})
+    thesis_strength = (
+        "Very Strong"
+        if evidence_strength >= 8.5
+        else "Strong"
+        if evidence_strength >= 7
+        else "Developing"
+        if evidence_strength >= 5
+        else "Limited"
+    )
+
+    executive_summary = _text(
+        equity.get("executive_thesis"),
+        build_investment_thesis(row, {"risks": risks}),
+    )
+
+    # Keep the original institutional payload, but use V86 as the authoritative
+    # recommendation so Home, Research, Portfolio, and future Atlas Chat can all
+    # consume one consistent decision object.
+    unified_decision = {
+        **legacy_decision,
+        "label": _text(equity.get("decision"), legacy_decision.get("label", "Wait for Confirmation")),
+        "score": _num(equity.get("overall_score"), legacy_score) or legacy_score,
+        "confidence": _num(equity.get("confidence")),
+        "risk": _text(equity.get("risk_level"), "Moderate"),
+        "time_horizon": _text(equity.get("time_horizon"), "12–18 months"),
+        "expected_return_pct": _num(equity.get("expected_return_pct")),
+    }
+
     return {
         **base,
-        "thesis": thesis,
+        "decision": unified_decision,
+        "thesis": executive_summary,
+        "executive_summary": executive_summary,
         "financial": financial,
         "technical": technical,
         "analysts": analysts,
@@ -289,10 +331,27 @@ def build_research_report(row: Mapping[str, Any]) -> Dict[str, Any]:
         "institutional_activity": institutional,
         "valuation": valuation,
         "completeness": completeness,
-        "risks": risks,
+        "risks": equity.get("primary_risks") or risks,
         "evidence_strength": evidence_strength,
         "thesis_strength": thesis_strength,
         "evidence_sources": evidence_sources,
-        "executive_summary": thesis,
-        "scorecard": scorecard,
+        "scorecard": equity.get("evidence_scorecard") or scorecard,
+
+        # V86 structured institutional report.
+        "equity_research": equity,
+        "bull_case": equity.get("bull_case", []),
+        "bear_case": equity.get("bear_case", []),
+        "catalyst_timeline": equity.get("catalyst_timeline", {}),
+        "thesis_invalidation": equity.get("thesis_invalidation", []),
+        "ai_verdict": equity.get("ai_verdict", {}),
+        "bottom_line": equity.get("bottom_line", ""),
+        "business_summary": equity.get("business_summary", ""),
+        "quality_summary": equity.get("quality_summary", ""),
+        "valuation_summary": equity.get("valuation_summary", ""),
+        "technical_summary": equity.get("technical_summary", ""),
+        "wall_street_summary": equity.get("wall_street_summary", ""),
+        "institutional_summary_v86": equity.get("institutional_summary", ""),
+        "management_summary": equity.get("management_summary", ""),
+        "macro_policy_summary": equity.get("macro_policy_summary", ""),
+        "news_summary": equity.get("news_summary", ""),
     }
