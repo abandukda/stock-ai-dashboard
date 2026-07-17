@@ -20,7 +20,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V90.6 Broad-Universe Home Output"
+APP_VERSION = "V91 Single-Source Home Decision Pipeline"
 V63_REAL_SCORING_AND_FINANCE_VERIFIED = True
 V631_DEDUPED_SCORING_AND_UPSIDE_VERIFIED = True
 V64_PREMIUM_REASONING_UI_VERIFIED = True
@@ -29447,6 +29447,304 @@ def v811_build_home_sections(source):
 
 
 V906_BROAD_UNIVERSE_HOME_OUTPUT_VERIFIED = True
+
+
+# ============================================================
+# V91 — SINGLE-SOURCE HOME DECISION PIPELINE
+# ============================================================
+def v91_canonicalize_row(raw):
+    """
+    Create exactly one authoritative Home decision for a stock.
+
+    The V89 decision is first reconciled through the V90.4 evidence rules,
+    then translated once into the plain-language V90.5 taxonomy.
+
+    No later Home function is allowed to reclassify the stock.
+    """
+    data = dict(raw) if hasattr(raw, "items") else {}
+
+    # Reconcile evidence only when a canonical action code is not already present.
+    existing = data.get("v89_decision")
+    if isinstance(existing, dict) and existing.get("action_code") in {
+        "BUY_NOW", "ACCUMULATE", "MONITOR", "AVOID"
+    }:
+        return data
+
+    reconciled = v904_home_classification(data)
+    canonical = v905_apply_plain_language_action(reconciled)
+
+    decision = canonical.get("v89_decision")
+    if not isinstance(decision, dict):
+        decision = {}
+
+    code = decision.get("action_code")
+    if code not in {"BUY_NOW", "ACCUMULATE", "MONITOR", "AVOID"}:
+        code = "MONITOR"
+        decision["action_code"] = code
+        decision["display_action"] = "Monitor"
+        decision["action"] = "Watch for Trigger"
+        decision["monitor_trigger"] = (
+            decision.get("monitor_trigger")
+            or "Waiting for sufficient independent evidence."
+        )
+
+    canonical["v89_decision"] = decision
+    canonical["Action Code"] = code
+    canonical["Display Action"] = decision.get("display_action")
+    canonical["Recommendation"] = decision.get("display_action")
+    canonical["Decision"] = decision.get("display_action")
+    return canonical
+
+
+def v91_decision_code(row):
+    decision = row.get("v89_decision") if isinstance(
+        row.get("v89_decision"), dict
+    ) else {}
+    code = decision.get("action_code")
+    return code if code in {"BUY_NOW", "ACCUMULATE", "MONITOR", "AVOID"} else "MONITOR"
+
+
+def v91_rank_key(row):
+    decision = row.get("v89_decision") if isinstance(
+        row.get("v89_decision"), dict
+    ) else {}
+    code = v91_decision_code(row)
+    weight = {
+        "BUY_NOW": 4,
+        "ACCUMULATE": 3,
+        "MONITOR": 2,
+        "AVOID": 0,
+    }[code]
+    pillars = v8054_num(decision.get("evidence_pillar_count"), 0) or 0
+    conviction = v8054_num(decision.get("conviction"), 0) or 0
+    completeness = v8054_num(
+        decision.get("research_completeness_pct"), 0
+    ) or 0
+    expected = v8054_num(decision.get("expected_return_pct"), 0) or 0
+    quality = v8054_num(v8054_first_meaningful(
+        row, ["Quality", "Quality Score", "quality_score"], 0
+    ), 0) or 0
+    return (
+        weight,
+        pillars,
+        conviction,
+        completeness,
+        min(expected, 100),
+        quality,
+    )
+
+
+def v91_unique_rows(rows):
+    output = []
+    seen = set()
+    for raw in rows:
+        row = v91_canonicalize_row(raw)
+        ticker = v73_ticker(row)
+        if not ticker or ticker in seen:
+            continue
+        seen.add(ticker)
+        output.append(row)
+    return output
+
+
+def v811_build_home_sections(source):
+    """
+    V91 is the only Home decision router.
+
+    BUY_NOW    -> Today's Opportunities
+    ACCUMULATE -> Today's Opportunities
+    MONITOR    -> Closest Opportunities to Action
+    AVOID      -> never rendered on Home opportunity cards
+    """
+    candidates = []
+    seen = set()
+
+    # Main ranked universe.
+    if source is not None and not getattr(source, "empty", True):
+        for _, series in source.iterrows():
+            row = v91_canonicalize_row(dict(series))
+            ticker = v73_ticker(row)
+            if ticker and ticker not in seen:
+                seen.add(ticker)
+                candidates.append(row)
+
+    # Retain saved/dynamic candidates only as universe supplements.
+    try:
+        saved = _v901_prior_build_home_sections(source)
+    except Exception:
+        saved = {}
+
+    if isinstance(saved, dict):
+        for key in ("today", "movers", "new", "hidden", "core", "mega"):
+            for raw in saved.get(key, []) or []:
+                row = v91_canonicalize_row(raw)
+                ticker = v73_ticker(row)
+                if ticker and ticker not in seen:
+                    seen.add(ticker)
+                    candidates.append(row)
+
+    candidates.sort(key=v91_rank_key, reverse=True)
+
+    buy_now = [row for row in candidates if v91_decision_code(row) == "BUY_NOW"]
+    accumulate = [row for row in candidates if v91_decision_code(row) == "ACCUMULATE"]
+    monitor = [row for row in candidates if v91_decision_code(row) == "MONITOR"]
+    avoid = [row for row in candidates if v91_decision_code(row) == "AVOID"]
+
+    actionable = (buy_now + accumulate)
+    actionable.sort(key=v91_rank_key, reverse=True)
+    monitor.sort(key=v91_rank_key, reverse=True)
+
+    if actionable:
+        today = actionable[:8]
+        display_mode = "actionable"
+    else:
+        today = monitor[:3]
+        display_mode = "monitor"
+
+    today_tickers = {v73_ticker(row) for row in today}
+
+    core = []
+    mega = []
+    hidden = []
+
+    for row in candidates:
+        ticker = v73_ticker(row)
+        if not ticker or ticker in today_tickers:
+            continue
+        code = v91_decision_code(row)
+        if code == "AVOID":
+            continue
+
+        market_cap = v8054_num(v8054_first_meaningful(
+            row, ["Market Cap", "market_cap", "marketCap"], None
+        ), None)
+        quality = v8054_num(v8054_first_meaningful(
+            row, ["Quality", "Quality Score", "quality_score"], 0
+        ), 0) or 0
+        pillars = v8054_num(
+            (row.get("v89_decision") or {}).get("evidence_pillar_count"), 0
+        ) or 0
+
+        if market_cap is not None and market_cap >= 200_000_000_000:
+            mega.append(row)
+        elif quality >= 72:
+            core.append(row)
+        elif (
+            market_cap is not None
+            and market_cap <= 25_000_000_000
+            and pillars >= 3
+            and code in {"BUY_NOW", "ACCUMULATE"}
+        ):
+            hidden.append(row)
+
+    # Movers and discoveries are descriptive sections, but Avoid remains excluded.
+    def supplemental_rows(key, limit=8):
+        rows = []
+        local_seen = set()
+        if isinstance(saved, dict):
+            for raw in saved.get(key, []) or []:
+                row = v91_canonicalize_row(raw)
+                ticker = v73_ticker(row)
+                if (
+                    ticker
+                    and ticker not in local_seen
+                    and v91_decision_code(row) != "AVOID"
+                ):
+                    local_seen.add(ticker)
+                    rows.append(row)
+        rows.sort(key=v91_rank_key, reverse=True)
+        return rows[:limit]
+
+    return {
+        "today": today,
+        "display_mode": display_mode,
+        "buy_now": buy_now[:8],
+        "accumulate": accumulate[:8],
+        "monitor": monitor[:3],
+        "closest_to_trigger": monitor[:3],
+        "movers": supplemental_rows("movers"),
+        "new": supplemental_rows("new"),
+        "hidden": hidden[:6],
+        "core": core[:10],
+        "mega": mega[:10],
+        "buy_now_count": len(buy_now),
+        "accumulate_count": len(accumulate),
+        "actionable_count": len(actionable),
+        "monitor_count": len(monitor),
+        "excluded_avoid_count": len(avoid),
+        "funnel_diagnostics": {
+            "universe_evaluated": len(candidates),
+            "buy_now": len(buy_now),
+            "accumulate": len(accumulate),
+            "monitor": len(monitor),
+            "avoid_verified": len(avoid),
+        },
+    }
+
+
+def v793_decision_rows(df):
+    """
+    Render rows from their already-canonical V91 action.
+
+    This function does not call older decision-row builders and therefore
+    cannot turn a Monitor candidate back into Avoid during rendering.
+    """
+    if df is None or getattr(df, "empty", True):
+        return []
+
+    rows = []
+    for _, series in df.iterrows():
+        data = v91_canonicalize_row(dict(series))
+        decision = data.get("v89_decision") or {}
+        code = v91_decision_code(data)
+
+        # Home opportunities may render only actionable or Monitor rows.
+        if code == "AVOID":
+            continue
+
+        reasons = data.get("why_atlas_likes_it") or decision.get(
+            "supporting_evidence"
+        ) or []
+        if isinstance(reasons, str):
+            reasons = [reasons]
+
+        risk = (
+            decision.get("biggest_risk")
+            or data.get("primary_risk")
+            or "Execution risk remains."
+        )
+        conviction = v8054_num(decision.get("conviction"), 0) or 0
+        quality = v8054_num(v8054_first_meaningful(
+            data, ["Quality", "Quality Score", "quality_score"], 0
+        ), 0) or 0
+        display_action = (
+            decision.get("display_action")
+            or data.get("Display Action")
+            or "Monitor"
+        )
+
+        rows.append(
+            (
+                pd.Series(data),
+                {},
+                list(reasons)[:8],
+                risk,
+                conviction,
+                display_action,
+                conviction,
+                quality,
+                conviction,
+            )
+        )
+
+    rows.sort(
+        key=lambda payload: v91_rank_key(dict(payload[0])),
+        reverse=True,
+    )
+    return rows
+
+
+V91_SINGLE_SOURCE_HOME_PIPELINE_VERIFIED = True
 
 V90_V89_DECISION_UI_INTEGRATION_VERIFIED = True
 
