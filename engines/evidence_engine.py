@@ -129,3 +129,130 @@ def build_evidence_profile(row: Mapping[str, Any]) -> Dict[str, Any]:
         "upside": upside,
         "analyst_upside": analyst_upside,
     }
+
+def build_evidence(row: Mapping[str, Any]) -> Dict[str, Any]:
+    """V87 compatibility layer built on the V85 evidence profile.
+
+    Keeps build_evidence_profile available for V84/V85 tests and engines while
+    exposing richer plain-language evidence and risk fields for newer UI code.
+    """
+    profile = build_evidence_profile(row)
+
+    revenue = _pct(_pick(row, ["Revenue Growth", "revenue_growth", "revenueGrowth"]))
+    earnings = _pct(_pick(row, ["Earnings Growth", "earnings_growth", "EPS Growth", "earningsGrowth"]))
+    operating = _pct(_pick(row, ["Operating Margin", "operating_margin", "operatingMargins"]))
+    gross = _pct(_pick(row, ["Gross Margin", "gross_margin", "grossMargins"]))
+    fcf = _num(_pick(row, ["Free Cash Flow", "free_cash_flow", "freeCashflow"]))
+    current_ratio = _num(_pick(row, ["Current Ratio", "current_ratio", "currentRatio"]))
+    debt_to_equity = _num(_pick(row, ["Debt to Equity", "debt_to_equity", "debtToEquity"]))
+    rsi = _num(_pick(row, ["RSI", "rsi"]))
+    relative_volume = _num(_pick(row, ["Relative Volume", "relative_volume", "relativeVolume"]))
+    analyst_count = _num(_pick(row, ["Analyst Count", "analyst_count", "numberOfAnalystOpinions"]))
+    latest_news = _text(_pick(row, ["latest_news_headline", "Top News", "news_headline"]), "")
+    policy = _text(_pick(row, ["political_support_summary", "political_support", "Political Signal"]), "")
+    earnings_summary = _text(
+        _pick(row, ["earnings_ai_summary", "earnings_summary", "guidance_summary", "management_guidance"]),
+        "",
+    )
+
+    evidence: list[str] = []
+    risks: list[str] = []
+
+    upside = profile.get("upside")
+    analyst_upside = profile.get("analyst_upside")
+
+    if upside is not None:
+        if upside >= 20:
+            evidence.append(f"Atlas Fair Value implies approximately {upside:.1f}% upside.")
+        elif upside > 0:
+            evidence.append(f"Atlas Fair Value remains {upside:.1f}% above the current price.")
+
+    if analyst_upside is not None and analyst_upside > 0:
+        evidence.append(f"Wall Street consensus implies approximately {analyst_upside:.1f}% upside.")
+
+    if revenue is not None:
+        if revenue >= 15:
+            evidence.append(f"Revenue growth of {revenue:.1f}% indicates strong demand.")
+        elif revenue > 0:
+            evidence.append(f"Revenue continues growing at {revenue:.1f}%.")
+
+    if earnings is not None and earnings > 0:
+        evidence.append(f"Earnings growth of {earnings:.1f}% supports the operating thesis.")
+
+    if operating is not None and operating >= 15:
+        evidence.append(f"Operating margin of {operating:.1f}% demonstrates attractive profitability.")
+
+    if gross is not None and gross >= 40:
+        evidence.append(f"Gross margin of {gross:.1f}% supports healthy unit economics.")
+
+    if fcf is not None and fcf > 0:
+        if abs(fcf) >= 1_000_000_000:
+            evidence.append(f"Free cash flow is positive at ${fcf / 1_000_000_000:.1f}B.")
+        elif abs(fcf) >= 1_000_000:
+            evidence.append(f"Free cash flow is positive at ${fcf / 1_000_000:.1f}M.")
+        else:
+            evidence.append("Free cash flow is positive.")
+
+    if rsi is not None and 45 <= rsi <= 65:
+        evidence.append(f"RSI of {rsi:.0f} shows constructive momentum without looking overheated.")
+
+    if relative_volume is not None and relative_volume >= 1.0:
+        evidence.append(f"Relative volume of {relative_volume:.2f}x provides healthy participation.")
+
+    if analyst_count is not None and analyst_count >= 10:
+        evidence.append(f"{int(analyst_count)} analysts contribute to the available consensus.")
+
+    if latest_news:
+        evidence.append(f"Latest verified catalyst: {latest_news}")
+
+    if policy:
+        evidence.append(f"Policy context: {policy}")
+
+    if earnings_summary:
+        evidence.append(f"Earnings and guidance context: {earnings_summary}")
+
+    if current_ratio is not None and 0 < current_ratio < 1:
+        risks.append(f"Current ratio of {current_ratio:.2f} indicates a tighter short-term liquidity cushion.")
+
+    if debt_to_equity is not None and debt_to_equity > 200:
+        risks.append(f"Debt-to-equity of {debt_to_equity:.0f}% increases balance-sheet sensitivity.")
+
+    if rsi is not None and rsi >= 75:
+        risks.append(f"RSI of {rsi:.0f} suggests the shares may be technically overheated.")
+
+    if relative_volume is not None and relative_volume < 0.7:
+        risks.append(f"Relative volume of {relative_volume:.2f}x shows limited confirmation behind the move.")
+
+    if not latest_news:
+        risks.append("No material recent company-specific catalyst was verified.")
+
+    if not earnings_summary:
+        risks.append("Recent earnings and management-guidance context is incomplete.")
+
+    if not risks:
+        risks.append("Execution may fall short of the growth assumptions embedded in the valuation.")
+
+    score = float(profile.get("overall_score", 50.0) or 50.0)
+    if score >= 84:
+        decision = "High Conviction Buy"
+    elif score >= 76:
+        decision = "Buy Now"
+    elif score >= 67:
+        decision = "Buy on Weakness"
+    elif score < 48:
+        decision = "Avoid"
+    else:
+        decision = "Wait for Confirmation"
+
+    return {
+        **profile,
+        "score": round(score, 1),
+        "decision": decision,
+        "why_atlas_likes_it": evidence[:8],
+        "primary_risks": risks[:5],
+        "summary": " ".join(evidence[:4]) if evidence else "Evidence remains incomplete and requires further verification.",
+    }
+
+
+__all__ = ["build_evidence_profile", "build_evidence"]
+
