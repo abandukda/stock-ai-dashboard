@@ -19,7 +19,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V63.0 Institutional Scoring + Finance UI"
+APP_VERSION = "V90 V89 Decision UI Integration"
 V63_REAL_SCORING_AND_FINANCE_VERIFIED = True
 V631_DEDUPED_SCORING_AND_UPSIDE_VERIFIED = True
 V64_PREMIUM_REASONING_UI_VERIFIED = True
@@ -27922,6 +27922,428 @@ def v8055_render_ai_summary(row):
 
 
 V85_INVESTMENT_THESIS_ENGINE_VERIFIED = True
+
+
+# ============================================================
+# V90 — V89 FINAL AI DECISION UI INTEGRATION
+# ============================================================
+from engines.ai_decision_engine import build_ai_decision as v89_build_ai_decision
+
+
+def v90_decision_payload(row):
+    """Build V89 safely and retain the original row when an engine fails."""
+    data = dict(row) if hasattr(row, "items") else {}
+    try:
+        payload = v89_build_ai_decision(data)
+        return payload if isinstance(payload, dict) else {}
+    except Exception as exc:
+        return {
+            "action": v8055_display_decision(
+                v8054_first_meaningful(
+                    data,
+                    ["Recommendation", "Decision", "decision_action", "Action"],
+                    "Wait for Confirmation",
+                )
+            ),
+            "conviction": v8054_num(
+                v8054_first_meaningful(data, ["Confidence", "Final Conviction"], 0),
+                0,
+            ),
+            "expected_return_pct": v8054_num(
+                v8054_first_meaningful(
+                    data,
+                    ["Expected Return", "Target Upside %", "expected_return"],
+                    None,
+                ),
+                None,
+            ),
+            "buy_today_answer": "NOT YET — RESEARCH ENGINE UNAVAILABLE",
+            "supporting_evidence": [],
+            "primary_risks": [
+                "The final AI decision engine could not complete this refresh."
+            ],
+            "decision_reason": f"Decision integration error: {exc}",
+            "research_completeness_pct": 0,
+            "entry": {"entry_zone": "Unavailable", "instruction": ""},
+            "position_size": {"range": "Unavailable", "guidance": ""},
+            "component_scores": {},
+            "summary": "",
+            "narrative": {},
+        }
+
+
+def v82_enrich_row(row):
+    """V90 compatibility override: make V89 the authoritative decision layer."""
+    data = dict(row) if hasattr(row, "items") else {}
+    decision = v90_decision_payload(data)
+    narrative = decision.get("narrative") if isinstance(decision.get("narrative"), dict) else {}
+
+    evidence = decision.get("supporting_evidence") or narrative.get("why_atlas_likes_it") or []
+    risks = decision.get("primary_risks") or narrative.get("primary_risks") or []
+
+    if isinstance(evidence, str):
+        evidence = [evidence]
+    if isinstance(risks, str):
+        risks = [risks]
+
+    action = decision.get("action") or "Wait for Confirmation"
+    data["why_atlas_likes_it"] = list(evidence)[:8]
+    data["primary_risk"] = (
+        risks[0]
+        if risks
+        else "Execution may fall short of the assumptions embedded in the valuation."
+    )
+    data["risk_factors"] = list(risks)[:6]
+    data["Recommendation"] = action
+    data["Decision"] = action
+    data["decision_guidance"] = decision.get("decision_reason") or decision.get("summary") or ""
+    data["evidence_score"] = decision.get("conviction")
+    data["evidence_scorecard"] = decision.get("component_scores") or {}
+    data["investment_thesis"] = (
+        narrative.get("executive_summary")
+        or decision.get("summary")
+        or data.get("investment_thesis")
+        or data.get("Investment Thesis")
+        or ""
+    )
+    data["counter_thesis"] = " ".join(decision.get("what_would_change_atlas_mind") or [])
+    data["v89_decision"] = decision
+    data["Expected Return"] = decision.get("expected_return_pct")
+    data["Target Upside %"] = (
+        decision.get("expected_return_pct")
+        if decision.get("expected_return_pct") is not None
+        else data.get("Target Upside %")
+    )
+    data["Would Atlas Buy Today"] = decision.get("buy_today_answer")
+    data["Entry Zone"] = (decision.get("entry") or {}).get("entry_zone")
+    data["Position Size"] = (decision.get("position_size") or {}).get("range")
+    return data
+
+
+def v90_render_score_component(label, value):
+    value = v8054_num(value, None)
+    if value is None:
+        st.metric(label, "Unavailable")
+        return
+    st.metric(label, f"{value:.0f}/100")
+
+
+def v8055_render_ai_summary(row):
+    """V90 paid-client final decision memo powered by the V89 engine."""
+    data = v82_enrich_row(dict(row))
+    decision = data.get("v89_decision") or v90_decision_payload(data)
+    narrative = decision.get("narrative") if isinstance(decision.get("narrative"), dict) else {}
+
+    ticker = decision.get("ticker") or v73_ticker(data)
+    company = decision.get("company") or v73_company(data)
+    action = decision.get("action") or "Wait for Confirmation"
+    conviction = v8054_num(decision.get("conviction"), 0) or 0
+    probability = v8054_num(decision.get("probability_thesis_success"), None)
+    expected_return = v8054_num(decision.get("expected_return_pct"), None)
+    drawdown = v8054_num(decision.get("expected_drawdown_pct"), None)
+    completeness = v8054_num(decision.get("research_completeness_pct"), 0) or 0
+    risk_level = str(decision.get("risk_level") or "Moderate")
+    horizon = str(decision.get("time_horizon") or "12–18 months")
+    buy_today = str(decision.get("buy_today_answer") or "NOT YET — WAIT FOR CONFIRMATION")
+
+    st.markdown("## 🧠 Atlas Final AI Decision")
+    st.markdown(f"### {ticker} — {company}")
+    st.caption(
+        "V90 displays the unified V89 decision after fundamentals, valuation, "
+        "technicals, analysts, news, earnings, ownership, policy evidence, "
+        "research completeness, and risk controls are reconciled."
+    )
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Final action", action)
+    c2.metric("Conviction", f"{conviction:.0f}/100")
+    c3.metric(
+        "Thesis probability",
+        f"{probability:.0f}%" if probability is not None else "Unavailable",
+    )
+    c4.metric(
+        "Expected return",
+        f"{expected_return:+.1f}%"
+        if expected_return is not None
+        else "Unavailable",
+    )
+
+    c5, c6, c7, c8 = st.columns(4)
+    c5.metric(
+        "Expected drawdown",
+        f"{drawdown:.1f}%" if drawdown is not None else "Unavailable",
+    )
+    c6.metric("Risk level", risk_level)
+    c7.metric("Time horizon", horizon)
+    c8.metric("Research completeness", f"{completeness:.0f}%")
+
+    if action in {"High Conviction Buy", "Buy Now"}:
+        st.success(f"**Would Atlas buy today?** {buy_today}")
+    elif action == "Avoid":
+        st.error(f"**Would Atlas buy today?** {buy_today}")
+    else:
+        st.warning(f"**Would Atlas buy today?** {buy_today}")
+
+    executive = (
+        narrative.get("executive_summary")
+        or decision.get("summary")
+        or data.get("investment_thesis")
+    )
+    if executive:
+        st.markdown("### Executive investment memo")
+        st.write(v711_safe_report_text(executive))
+
+    strongest = decision.get("strongest_reason")
+    biggest_risk = decision.get("biggest_risk")
+    if strongest or biggest_risk:
+        left, right = st.columns(2)
+        with left:
+            st.markdown("#### Strongest supporting reason")
+            st.info(str(strongest or "No dominant positive evidence was verified."))
+        with right:
+            st.markdown("#### Most important risk")
+            st.warning(str(biggest_risk or "Execution risk remains."))
+
+    st.markdown("### Evidence supporting the decision")
+    evidence = decision.get("supporting_evidence") or []
+    if evidence:
+        for item in evidence[:8]:
+            st.markdown(f"- {item}")
+    else:
+        st.info("No sufficiently strong independent supporting evidence was verified.")
+
+    st.markdown("### Company-specific risks")
+    risks = decision.get("primary_risks") or []
+    if risks:
+        for item in risks[:6]:
+            st.markdown(f"- {item}")
+    else:
+        st.info("No company-specific risk list was returned.")
+
+    entry = decision.get("entry") if isinstance(decision.get("entry"), dict) else {}
+    position = (
+        decision.get("position_size")
+        if isinstance(decision.get("position_size"), dict)
+        else {}
+    )
+    st.markdown("### Entry and risk-control plan")
+    e1, e2, e3 = st.columns(3)
+    e1.metric("Preferred entry zone", entry.get("entry_zone") or "Unavailable")
+    e2.metric("Suggested position size", position.get("range") or "Unavailable")
+    e3.metric("Current Atlas action", action)
+    if entry.get("instruction"):
+        st.markdown(f"**Entry guidance:** {entry['instruction']}")
+    if position.get("guidance"):
+        st.markdown(f"**Sizing guidance:** {position['guidance']}")
+
+    components = decision.get("component_scores") or {}
+    if components:
+        with st.expander("Decision score breakdown", expanded=True):
+            labels = [
+                ("Narrative evidence", components.get("narrative")),
+                ("Fundamentals", components.get("fundamentals")),
+                ("Valuation", components.get("valuation")),
+                ("Technicals", components.get("technicals")),
+                ("Completeness", components.get("completeness")),
+                ("Risk penalty", components.get("risk_penalty")),
+            ]
+            cols = st.columns(3)
+            for idx, (label, value) in enumerate(labels):
+                with cols[idx % 3]:
+                    if label == "Risk penalty":
+                        shown = v8054_num(value, None)
+                        st.metric(
+                            label,
+                            f"-{shown:.1f}"
+                            if shown is not None
+                            else "Unavailable",
+                        )
+                    else:
+                        v90_render_score_component(label, value)
+
+    movement = narrative.get("movement") if isinstance(narrative.get("movement"), dict) else {}
+    if movement:
+        st.markdown("### What changed and why it matters")
+        st.markdown(f"**Movement:** {movement.get('label', 'No verified ranking change')}")
+        st.write(movement.get("explanation") or movement.get("decision_context") or "")
+
+    invalidation = decision.get("what_would_change_atlas_mind") or []
+    st.markdown("### What would change Atlas's mind")
+    if invalidation:
+        for item in invalidation[:5]:
+            st.markdown(f"- {item}")
+    else:
+        st.markdown(
+            "- Weaker guidance, deteriorating growth or free cash flow, loss of "
+            "technical support, adverse policy/news, or valuation moving above "
+            "justified fundamentals."
+        )
+
+    bull = narrative.get("bull_case") or []
+    bear = narrative.get("bear_case") or []
+    if bull or bear:
+        left, right = st.columns(2)
+        with left:
+            st.markdown("### Bull case")
+            for item in bull[:6]:
+                st.markdown(f"- {item}")
+        with right:
+            st.markdown("### Bear case")
+            for item in bear[:6]:
+                st.markdown(f"- {item}")
+
+    st.markdown("### Atlas bottom line")
+    bottom_line = (
+        narrative.get("bottom_line")
+        or decision.get("summary")
+        or decision.get("decision_reason")
+    )
+    if action in {"High Conviction Buy", "Buy Now"}:
+        st.success(bottom_line)
+    elif action == "Avoid":
+        st.error(bottom_line)
+    else:
+        st.info(bottom_line)
+
+
+def v810_render_compact_table(rows, title, subtitle):
+    """V90 narrative cards replace vague, horizontally clipped dataframes."""
+    st.markdown(f"### {title}")
+    st.caption(subtitle)
+    if not rows:
+        st.info(
+            "No qualifying names are available in this category. Atlas will "
+            "not fabricate a candidate."
+        )
+        return
+
+    for raw in rows:
+        row = v82_enrich_row(raw)
+        decision = row.get("v89_decision") or {}
+        narrative = (
+            decision.get("narrative")
+            if isinstance(decision.get("narrative"), dict)
+            else {}
+        )
+        movement = (
+            narrative.get("movement")
+            if isinstance(narrative.get("movement"), dict)
+            else {}
+        )
+
+        with st.container(border=True):
+            h1, h2, h3 = st.columns([1.0, 2.2, 1.4])
+            h1.markdown(f"### {v73_ticker(row)}")
+            h2.markdown(f"**{v73_company(row)}**")
+            h3.markdown(f"**{decision.get('action', row.get('Recommendation'))}**")
+
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Conviction", f"{v8054_num(decision.get('conviction'), 0):.0f}/100")
+            probability = v8054_num(
+                decision.get("probability_thesis_success"), None
+            )
+            m2.metric(
+                "Thesis probability",
+                f"{probability:.0f}%" if probability is not None else "Unavailable",
+            )
+            expected = v8054_num(decision.get("expected_return_pct"), None)
+            m3.metric(
+                "Expected return",
+                f"{expected:+.1f}%" if expected is not None else "Unavailable",
+            )
+            m4.metric(
+                "Buy today?",
+                decision.get("buy_today_answer") or "Not yet",
+            )
+
+            st.markdown(
+                f"**Movement explained:** "
+                f"{movement.get('label') or 'No verified ranking change'}"
+            )
+            if movement.get("explanation"):
+                st.write(movement["explanation"])
+
+            st.markdown("**Why Atlas surfaced it:**")
+            evidence = decision.get("supporting_evidence") or []
+            if evidence:
+                for item in evidence[:4]:
+                    st.markdown(f"- {item}")
+            else:
+                st.markdown("- Evidence remains incomplete.")
+
+            st.markdown(
+                f"**Plain-language guidance:** "
+                f"{decision.get('decision_reason') or decision.get('summary') or ''}"
+            )
+            st.markdown(
+                f"**Primary risk:** "
+                f"{decision.get('biggest_risk') or row.get('primary_risk')}"
+            )
+            st.caption(
+                f"Research completeness: "
+                f"{v8054_num(decision.get('research_completeness_pct'), 0):.0f}%"
+            )
+
+
+# Force Home opportunity-card preparation to consume the V89 decision layer.
+_v90_prior_decision_rows = v793_decision_rows
+
+
+def v793_decision_rows(df):
+    if df is None or getattr(df, "empty", True):
+        return []
+
+    enriched_df = pd.DataFrame(
+        [v82_enrich_row(dict(row)) for _, row in df.iterrows()]
+    )
+
+    try:
+        rows = _v90_prior_decision_rows(enriched_df)
+    except Exception:
+        rows = []
+
+    if not rows:
+        rows = []
+        for _, series in enriched_df.iterrows():
+            data = dict(series)
+            decision = data.get("v89_decision") or {}
+            rows.append(
+                (
+                    pd.Series(data),
+                    {},
+                    data.get("why_atlas_likes_it") or [],
+                    data.get("primary_risk"),
+                    decision.get("conviction", 0),
+                    decision.get("action", "Wait for Confirmation"),
+                    decision.get("conviction", 0),
+                    v63_quality_score(data),
+                    decision.get("conviction", 0),
+                )
+            )
+        return rows
+
+    output = []
+    for payload in rows:
+        row, details, _reasons, _risk, conf, _tier, opp, qual, strength = payload
+        data = v82_enrich_row(dict(row))
+        decision = data.get("v89_decision") or {}
+        output.append(
+            (
+                pd.Series(data),
+                details,
+                data.get("why_atlas_likes_it") or [],
+                data.get("primary_risk"),
+                decision.get("conviction", conf),
+                decision.get("action", "Wait for Confirmation"),
+                decision.get("conviction", opp),
+                qual,
+                decision.get("conviction", strength),
+            )
+        )
+    return output
+
+
+V90_V89_DECISION_UI_INTEGRATION_VERIFIED = True
 
 if __name__ == "__main__":
     main()
