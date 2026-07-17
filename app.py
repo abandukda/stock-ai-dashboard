@@ -20,7 +20,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V90.5 Plain-Language Actions + Accumulation Price"
+APP_VERSION = "V90.6 Broad-Universe Home Output"
 V63_REAL_SCORING_AND_FINANCE_VERIFIED = True
 V631_DEDUPED_SCORING_AND_UPSIDE_VERIFIED = True
 V64_PREMIUM_REASONING_UI_VERIFIED = True
@@ -27379,6 +27379,7 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
         sections = {"today": [dict(r) for _,r in top_df.head(8).iterrows()] if top_df is not None and not top_df.empty else [], "movers":[],"new":[],"hidden":[],"core":[],"mega":[]}
 
     today=sections.get("today",[]); movers=sections.get("movers",[]); new=sections.get("new",[])
+    actionable_count=sections.get("actionable_count", len(today)); display_mode=sections.get("display_mode", "actionable")
     core=sections.get("core",[]); mega=sections.get("mega",[]); hidden=sections.get("hidden",[])
     generated = dt.datetime.now().astimezone().strftime("%b %d, %Y · %I:%M %p %Z")
     st.markdown(f"""
@@ -27387,7 +27388,7 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
   <h1>What changed since the last scan?</h1>
   <p>Atlas separates <b>today's changing opportunities</b> from <b>stable high-quality companies</b>. Repeated names with no meaningful score or catalyst change move into Core Holdings or Mega-Cap Monitor instead of occupying the daily opportunity list.</p>
   <div class='v793-brief-grid'>
-    <div class='v793-brief-stat'><span>Today's Opportunities</span><b>{len(today)}</b><em>dynamic, catalyst-aware ranking</em></div>
+    <div class='v793-brief-stat'><span>Today's Opportunities</span><b>{actionable_count}</b><em>verified Buy Now / Accumulate candidates</em></div>
     <div class='v793-brief-stat'><span>Biggest Movers</span><b>{len(movers)}</b><em>rank changes since prior snapshot</em></div>
     <div class='v793-brief-stat'><span>New Discoveries</span><b>{len(new)}</b><em>not present in prior history</em></div>
     <div class='v793-brief-stat'><span>Core / Mega Cap</span><b>{len(core)+len(mega)}</b><em>monitored separately</em></div>
@@ -27395,8 +27396,8 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
 </div>
 """, unsafe_allow_html=True)
 
-    st.markdown("## 🔥 Today's Highest-Conviction Opportunities")
-    st.caption("Ranked for today's opportunity—not simply the highest-quality businesses. Catalyst, technical confirmation, valuation, confidence and freshness all contribute.")
+    st.markdown("## 🔥 Today's Highest-Conviction Opportunities" if display_mode == "actionable" else "## 🟡 Closest Opportunities to Action")
+    st.caption("Ranked for today—these are verified actionable ideas." if display_mode == "actionable" else "No stock cleared Buy Now or Accumulate today. Atlas is showing only the three closest Monitor candidates and the exact confirmation each still needs.")
     if today:
         render_v73_idea_table(pd.DataFrame(today[:8]), title="Why Atlas surfaced these today")
     else:
@@ -29264,6 +29265,188 @@ def v793_decision_rows(df):
 
 
 V905_PLAIN_LANGUAGE_ACTIONS_VERIFIED = True
+
+
+# ============================================================
+# V90.6 — BROAD-UNIVERSE HOME OUTPUT + LIMITED MONITOR FALLBACK
+# ============================================================
+_v906_prior_build_home_sections = v811_build_home_sections
+
+
+def v906_candidate_score(row):
+    """Relative ordering only; this does not convert a Monitor into Buy Now."""
+    decision = row.get("v89_decision") if isinstance(
+        row.get("v89_decision"), dict
+    ) else {}
+    action_code = decision.get("action_code")
+    action_weight = {
+        "BUY_NOW": 4,
+        "ACCUMULATE": 3,
+        "MONITOR": 2,
+        "AVOID": 0,
+    }.get(action_code, 1)
+    pillars = v8054_num(decision.get("evidence_pillar_count"), 0) or 0
+    conviction = v8054_num(decision.get("conviction"), 0) or 0
+    completeness = v8054_num(
+        decision.get("research_completeness_pct"), 0
+    ) or 0
+    expected = v8054_num(decision.get("expected_return_pct"), 0) or 0
+    quality = v8054_num(v8054_first_meaningful(
+        row, ["Quality", "Quality Score", "quality_score"], 0
+    ), 0) or 0
+    return (
+        action_weight,
+        pillars,
+        conviction,
+        completeness,
+        min(expected, 100),
+        quality,
+    )
+
+
+def v906_classify_source_row(raw):
+    data = v904_home_classification(dict(raw))
+    return v905_apply_plain_language_action(data)
+
+
+def v811_build_home_sections(source):
+    """
+    V90.6 evaluates the complete dataframe directly.
+
+    It never manufactures a Buy Now decision. When no actionable candidate
+    clears the evidence gates, Home shows only the three closest Monitor names
+    with their exact missing trigger so the page remains useful.
+    """
+    try:
+        base = _v906_prior_build_home_sections(source)
+        if not isinstance(base, dict):
+            base = {}
+    except Exception:
+        base = {}
+
+    candidate_pool = []
+    seen = set()
+
+    if source is not None and not getattr(source, "empty", True):
+        for _, series in source.iterrows():
+            row = v906_classify_source_row(dict(series))
+            ticker = v73_ticker(row)
+            if ticker and ticker not in seen:
+                seen.add(ticker)
+                candidate_pool.append(row)
+
+    # Preserve candidates available only through the dynamic/history engine.
+    for key in ("today", "movers", "new", "hidden", "core", "mega"):
+        for raw in base.get(key, []) or []:
+            row = v906_classify_source_row(raw)
+            ticker = v73_ticker(row)
+            if ticker and ticker not in seen:
+                seen.add(ticker)
+                candidate_pool.append(row)
+
+    candidate_pool.sort(key=v906_candidate_score, reverse=True)
+
+    actionable = [
+        row for row in candidate_pool
+        if (row.get("v89_decision") or {}).get("action_code")
+        in {"BUY_NOW", "ACCUMULATE"}
+    ]
+    monitors = [
+        row for row in candidate_pool
+        if (row.get("v89_decision") or {}).get("action_code") == "MONITOR"
+    ]
+    avoided = [
+        row for row in candidate_pool
+        if (row.get("v89_decision") or {}).get("action_code") == "AVOID"
+    ]
+
+    # Do not leave the paid-client Home page blank. This is a display fallback,
+    # not a recommendation override: Monitor labels and triggers remain intact.
+    if actionable:
+        today = actionable[:8]
+        display_mode = "actionable"
+    else:
+        today = monitors[:3]
+        display_mode = "monitor"
+
+    today_tickers = {v73_ticker(row) for row in today}
+
+    core = []
+    mega = []
+    hidden = []
+    for row in candidate_pool:
+        ticker = v73_ticker(row)
+        if not ticker or ticker in today_tickers:
+            continue
+
+        decision = row.get("v89_decision") or {}
+        if decision.get("action_code") == "AVOID":
+            continue
+
+        market_cap = v8054_num(v8054_first_meaningful(
+            row, ["Market Cap", "market_cap", "marketCap"], None
+        ), None)
+        quality = v8054_num(v8054_first_meaningful(
+            row, ["Quality", "Quality Score", "quality_score"], 0
+        ), 0) or 0
+        pillars = v8054_num(decision.get("evidence_pillar_count"), 0) or 0
+
+        if market_cap is not None and market_cap >= 200_000_000_000:
+            mega.append(row)
+        elif quality >= 72:
+            core.append(row)
+        elif (
+            market_cap is not None
+            and market_cap <= 25_000_000_000
+            and pillars >= 3
+        ):
+            hidden.append(row)
+
+    def classify_base_rows(key):
+        output = []
+        local_seen = set()
+        for raw in base.get(key, []) or []:
+            row = v906_classify_source_row(raw)
+            ticker = v73_ticker(row)
+            code = (row.get("v89_decision") or {}).get("action_code")
+            if ticker and ticker not in local_seen and code != "AVOID":
+                local_seen.add(ticker)
+                output.append(row)
+        output.sort(key=v906_candidate_score, reverse=True)
+        return output
+
+    result = dict(base)
+    result["today"] = today
+    result["display_mode"] = display_mode
+    result["closest_to_trigger"] = monitors[:3]
+    result["monitor"] = monitors[:3]
+    result["movers"] = classify_base_rows("movers")[:8]
+    result["new"] = classify_base_rows("new")[:8]
+    result["hidden"] = hidden[:6]
+    result["core"] = core[:10]
+    result["mega"] = mega[:10]
+
+    result["actionable_count"] = len(actionable)
+    result["buy_now_count"] = sum(
+        1 for row in actionable
+        if (row.get("v89_decision") or {}).get("action_code") == "BUY_NOW"
+    )
+    result["accumulate_count"] = sum(
+        1 for row in actionable
+        if (row.get("v89_decision") or {}).get("action_code") == "ACCUMULATE"
+    )
+    result["monitor_count"] = len(monitors)
+    result["excluded_avoid_count"] = len(avoided)
+    result["funnel_diagnostics"] = {
+        "universe_evaluated": len(candidate_pool),
+        "actionable": len(actionable),
+        "monitor": len(monitors),
+        "avoid_verified": len(avoided),
+    }
+    return result
+
+
+V906_BROAD_UNIVERSE_HOME_OUTPUT_VERIFIED = True
 
 V90_V89_DECISION_UI_INTEGRATION_VERIFIED = True
 
