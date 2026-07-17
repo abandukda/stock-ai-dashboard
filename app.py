@@ -20,7 +20,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V93 Canonical Stock Snapshot"
+APP_VERSION = "V94.1 Scan Audit Integration"
 V63_REAL_SCORING_AND_FINANCE_VERIFIED = True
 V631_DEDUPED_SCORING_AND_UPSIDE_VERIFIED = True
 V64_PREMIUM_REASONING_UI_VERIFIED = True
@@ -30635,6 +30635,361 @@ def v811_build_home_sections(source):
 
 
 V93_CANONICAL_STOCK_SNAPSHOT_VERIFIED = True
+
+
+# ============================================================
+# V94.1 — ADMIN SCAN AUDIT INTEGRATION
+# ============================================================
+from engines.scan_audit_engine import (
+    build_scan_audit as v94_build_scan_audit,
+    validate_audit_invariants as v94_validate_audit_invariants,
+)
+
+
+def v941_scan_metadata(full_df, prescreen_df=None):
+    """Read upstream scan counts without changing any recommendation."""
+    state = read_state() if "read_state" in globals() else {}
+    state = state if isinstance(state, dict) else {}
+
+    def count_df(df):
+        return 0 if df is None or getattr(df, "empty", True) else int(len(df))
+
+    universe_loaded = v8054_num(
+        v8054_first_meaningful(
+            state,
+            [
+                "universe_loaded",
+                "universe_count",
+                "total_symbols",
+                "symbols_scanned",
+                "scan_universe_count",
+            ],
+            None,
+        ),
+        None,
+    )
+    if universe_loaded is None:
+        universe_data = read_json_file(UNIVERSE_FILE) if "UNIVERSE_FILE" in globals() else []
+        if isinstance(universe_data, dict):
+            universe_loaded = len(
+                universe_data.get("symbols")
+                or universe_data.get("rows")
+                or universe_data.get("data")
+                or []
+            )
+        elif isinstance(universe_data, list):
+            universe_loaded = len(universe_data)
+    if not universe_loaded:
+        universe_loaded = count_df(full_df)
+
+    excluded_policy = v8054_num(
+        v8054_first_meaningful(
+            state,
+            [
+                "excluded_policy",
+                "policy_exclusions",
+                "excluded_count",
+                "symbols_excluded",
+            ],
+            0,
+        ),
+        0,
+    ) or 0
+
+    passed_liquidity = v8054_num(
+        v8054_first_meaningful(
+            state,
+            ["passed_liquidity", "liquidity_pass_count"],
+            count_df(prescreen_df) or count_df(full_df),
+        ),
+        count_df(full_df),
+    ) or 0
+
+    passed_prescreen = v8054_num(
+        v8054_first_meaningful(
+            state,
+            ["passed_prescreen", "prescreen_count", "prescreened_symbols"],
+            count_df(prescreen_df) or count_df(full_df),
+        ),
+        count_df(full_df),
+    ) or 0
+
+    execution_seconds = v8054_num(
+        v8054_first_meaningful(
+            state,
+            ["execution_seconds", "scan_duration_seconds", "duration_seconds"],
+            None,
+        ),
+        None,
+    )
+
+    provider_status = {}
+    for provider, keys in {
+        "FMP": ["fmp_status", "source_fmp_status"],
+        "Finnhub": ["finnhub_status"],
+        "News": ["news_status", "newsapi_status"],
+        "SEC": ["sec_status"],
+        "Earnings": ["earnings_status"],
+        "Political": ["political_status", "policy_status"],
+    }.items():
+        value = v8054_first_meaningful(state, keys, None)
+        if value is not None:
+            provider_status[provider] = str(value)
+
+    return {
+        "universe_loaded": int(universe_loaded or 0),
+        "excluded_policy": int(excluded_policy),
+        "passed_liquidity": int(passed_liquidity),
+        "passed_prescreen": int(passed_prescreen),
+        "execution_seconds": execution_seconds,
+        "provider_status": provider_status,
+    }
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def v941_cached_scan_audit(records_json, metadata_json):
+    """Cache the read-only audit so Home refreshes do not repeatedly recompute it."""
+    records = json.loads(records_json)
+    metadata = json.loads(metadata_json)
+    return v94_build_scan_audit(
+        records,
+        expected_exclusions=[
+            "financials",
+            "entertainment",
+            "gambling",
+            "alcohol",
+            "israeli",
+        ],
+        metadata=metadata,
+    )
+
+
+def v941_build_home_audit(full_df, prescreen_df=None):
+    """
+    Finalize rows once through V93, then pass immutable copies to V94.
+
+    V94 remains observational and cannot write back into the dashboard rows.
+    """
+    if full_df is None or getattr(full_df, "empty", True):
+        return v94_build_scan_audit([], metadata=v941_scan_metadata(full_df, prescreen_df))
+
+    # Limit only as a safety guard; normal full scans remain below this ceiling.
+    records = []
+    for _, series in full_df.head(10000).iterrows():
+        finalized = v93_build_snapshot(dict(series))
+        records.append(finalized)
+
+    metadata = v941_scan_metadata(full_df, prescreen_df)
+    fully_enriched = sum(
+        v8054_num(
+            (row.get("v89_decision") or {}).get("research_completeness_pct"),
+            0,
+        ) >= 60
+        for row in records
+    )
+    metadata["fully_enriched"] = int(fully_enriched)
+
+    return v941_cached_scan_audit(
+        json.dumps(records, sort_keys=True, default=str),
+        json.dumps(metadata, sort_keys=True, default=str),
+    )
+
+
+def v941_health_label(score):
+    score = v8054_num(score, 0) or 0
+    if score >= 85:
+        return "🟢 Healthy"
+    if score >= 70:
+        return "🟡 Needs attention"
+    return "🔴 Unreliable"
+
+
+def v941_render_scan_audit(full_df, prescreen_df=None):
+    """Admin-only audit panel. This function never changes stock decisions."""
+    if is_viewer():
+        return
+
+    try:
+        audit = v941_build_home_audit(full_df, prescreen_df)
+    except Exception as exc:
+        st.error(f"Atlas Scan Audit could not complete: {exc}")
+        return
+
+    pipeline = audit.get("pipeline") or {}
+    coverage = audit.get("field_coverage") or {}
+    distribution = audit.get("decision_distribution") or {}
+    warnings = audit.get("warnings") or []
+    invariant_errors = v94_validate_audit_invariants(audit)
+
+    with st.expander("🛠 Atlas Scan Audit · Admin", expanded=True):
+        health = v8054_num(audit.get("scan_health_score"), 0) or 0
+        st.markdown(
+            f"### {v941_health_label(health)} — Scan Health {health:.1f}%"
+        )
+        st.caption(
+            "Read-only V94 audit of the finalized V93 stock snapshots. "
+            "This panel reports coverage and filtering; it does not alter recommendations."
+        )
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Universe loaded", int(pipeline.get("universe_loaded", 0)))
+        c2.metric("Passed prescreen", int(pipeline.get("passed_prescreen", 0)))
+        c3.metric("Fully enriched", int(pipeline.get("fully_enriched", 0)))
+        c4.metric(
+            "Avg. completeness",
+            f"{v8054_num(audit.get('average_research_completeness_pct'), 0):.1f}%",
+        )
+
+        st.markdown("#### Decision distribution")
+        d1, d2, d3, d4 = st.columns(4)
+        d1.metric("Buy Now", int(distribution.get("BUY_NOW", 0)))
+        d2.metric("Accumulate", int(distribution.get("ACCUMULATE", 0)))
+        d3.metric("Monitor", int(distribution.get("MONITOR", 0)))
+        d4.metric("Avoid", int(distribution.get("AVOID", 0)))
+
+        st.markdown("#### Pipeline waterfall")
+        waterfall = pd.DataFrame(
+            [
+                ["Universe loaded", pipeline.get("universe_loaded", 0)],
+                ["Policy exclusions", pipeline.get("excluded_policy", 0)],
+                ["Passed liquidity", pipeline.get("passed_liquidity", 0)],
+                ["Passed prescreen", pipeline.get("passed_prescreen", 0)],
+                ["Fully enriched", pipeline.get("fully_enriched", 0)],
+                ["Buy Now", pipeline.get("buy_now", 0)],
+                ["Accumulate", pipeline.get("accumulate", 0)],
+                ["Monitor", pipeline.get("monitor", 0)],
+                ["Avoid", pipeline.get("avoid", 0)],
+            ],
+            columns=["Stage", "Count"],
+        )
+        st.dataframe(waterfall, hide_index=True, use_container_width=True)
+
+        st.markdown("#### Research-field coverage")
+        coverage_rows = []
+        labels = {
+            "price": "Price",
+            "fair_value": "Atlas Fair Value",
+            "analyst_target": "Analyst targets",
+            "revenue_growth": "Revenue growth",
+            "eps_growth": "EPS growth",
+            "operating_margin": "Operating margin",
+            "free_cash_flow": "Free cash flow",
+            "liquidity": "Liquidity",
+            "technicals": "Technicals",
+            "news": "News / catalysts",
+            "earnings": "Earnings / guidance",
+            "institutional": "Institutional",
+            "policy": "Political / policy",
+        }
+        for key, label in labels.items():
+            item = coverage.get(key) or {}
+            pct = v8054_num(item.get("coverage_pct"), 0) or 0
+            coverage_rows.append(
+                {
+                    "Area": label,
+                    "Coverage": f"{pct:.1f}%",
+                    "Available": int(item.get("available", 0)),
+                    "Missing": int(item.get("missing", 0)),
+                    "Status": "Healthy" if pct >= 80 else "Needs attention",
+                }
+            )
+        st.dataframe(
+            pd.DataFrame(coverage_rows),
+            hide_index=True,
+            use_container_width=True,
+        )
+
+        st.markdown("#### Top rejection reasons")
+        rejection_rows = audit.get("top_rejection_reasons") or []
+        if rejection_rows:
+            st.dataframe(
+                pd.DataFrame(rejection_rows).rename(
+                    columns={"reason": "Reason", "count": "Count"}
+                ),
+                hide_index=True,
+                use_container_width=True,
+            )
+        else:
+            st.info("No rejection reasons were recorded.")
+
+        provider_rollup = audit.get("provider_rollup") or {}
+        if provider_rollup:
+            st.markdown("#### Provider coverage")
+            provider_rows = []
+            for provider, counts in provider_rollup.items():
+                ok = int(counts.get("ok", 0))
+                missing = int(counts.get("missing", 0))
+                total = max(ok + missing, 1)
+                provider_rows.append(
+                    {
+                        "Provider / Area": provider,
+                        "Coverage": f"{ok / total * 100:.1f}%",
+                        "Rows available": ok,
+                        "Rows missing": missing,
+                        "Reported status": counts.get("reported_status", "Not reported"),
+                    }
+                )
+            st.dataframe(
+                pd.DataFrame(provider_rows),
+                hide_index=True,
+                use_container_width=True,
+            )
+
+        if warnings:
+            st.markdown("#### Audit warnings")
+            for warning in warnings:
+                st.warning(warning)
+
+        if invariant_errors:
+            st.markdown("#### Contract violations")
+            for error in invariant_errors:
+                st.error(error)
+        else:
+            st.success(
+                "V94 contract check passed: the audit remained read-only and "
+                "pipeline counts are internally consistent."
+            )
+
+        with st.expander("Per-stock audit details", expanded=False):
+            stock_audits = audit.get("stock_audits") or []
+            if stock_audits:
+                detail_rows = []
+                for item in stock_audits[:250]:
+                    detail_rows.append(
+                        {
+                            "Ticker": item.get("ticker"),
+                            "Action": item.get("action"),
+                            "Completeness": f"{v8054_num(item.get('research_completeness_pct'), 0):.1f}%",
+                            "Passed gates": ", ".join(item.get("passed_gates") or []),
+                            "Failed gates": ", ".join(item.get("failed_gates") or []),
+                            "Top reason": item.get("top_rejection_reason"),
+                        }
+                    )
+                st.dataframe(
+                    pd.DataFrame(detail_rows),
+                    hide_index=True,
+                    use_container_width=True,
+                )
+            else:
+                st.info("No stock-level audit rows were available.")
+
+
+_v941_prior_dynamic_home = v810_render_dynamic_home
+
+
+def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
+    """Render the existing Home experience, then the admin-only V94 audit."""
+    _v941_prior_dynamic_home(full_df, top_df, recovery_df)
+
+    try:
+        prescreen_df = load_file(PRESCREEN_FILE)
+    except Exception:
+        prescreen_df = None
+
+    v941_render_scan_audit(full_df, prescreen_df)
+
+
+V941_SCAN_AUDIT_INTEGRATION_VERIFIED = True
 
 V90_V89_DECISION_UI_INTEGRATION_VERIFIED = True
 
