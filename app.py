@@ -20,7 +20,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V90.4 Evidence-Pillar Home Funnel"
+APP_VERSION = "V90.5 Plain-Language Actions + Accumulation Price"
 V63_REAL_SCORING_AND_FINANCE_VERIFIED = True
 V631_DEDUPED_SCORING_AND_UPSIDE_VERIFIED = True
 V64_PREMIUM_REASONING_UI_VERIFIED = True
@@ -28029,7 +28029,7 @@ def v82_enrich_row(row):
     if isinstance(risks, str):
         risks = [risks]
 
-    action = decision.get("action") or "Wait for Confirmation"
+    action = decision.get("display_action") or decision.get("action") or "Monitor"
     data["why_atlas_likes_it"] = list(evidence)[:8]
     data["primary_risk"] = (
         risks[0]
@@ -28278,7 +28278,7 @@ def v810_render_compact_table(rows, title, subtitle):
             h1, h2, h3 = st.columns([1.0, 2.2, 1.4])
             h1.markdown(f"### {v73_ticker(row)}")
             h2.markdown(f"**{v73_company(row)}**")
-            h3.markdown(f"**{decision.get('action', row.get('Recommendation'))}**")
+            h3.markdown(f"**{decision.get('display_action') or decision.get('action', row.get('Recommendation'))}**")
 
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("Conviction", f"{v8054_num(decision.get('conviction'), 0):.0f}/100")
@@ -28983,6 +28983,287 @@ def v811_build_home_sections(source):
 
 
 V904_EVIDENCE_PILLAR_HOME_FUNNEL_VERIFIED = True
+
+
+# ============================================================
+# V90.5 — PLAIN-LANGUAGE ACTIONS + ACCUMULATION PRICE
+# ============================================================
+def v905_accumulation_plan(row, decision=None):
+    """
+    Build a concrete, risk-aware accumulation price.
+
+    Priority:
+    1. Existing V89 ideal entry
+    2. Verified technical support / moving-average anchors below market
+    3. ATR-aware pullback from current price
+
+    The price is never created from Atlas Fair Value alone.
+    """
+    data = dict(row) if hasattr(row, "items") else {}
+    decision = dict(decision) if isinstance(decision, dict) else {}
+
+    current = v8054_num(v8054_first_meaningful(
+        data, ["Current Price", "Price", "Close", "current_price"], None
+    ), None)
+    atr_pct = v8054_num(v8054_first_meaningful(
+        data, ["ATR %", "atr_pct", "ATR Percent", "ATR_pct"], None
+    ), None)
+
+    entry = decision.get("entry") if isinstance(decision.get("entry"), dict) else {}
+    existing_ideal = v8054_num(entry.get("ideal_entry"), None)
+
+    support = v8054_num(v8054_first_meaningful(
+        data, ["Support", "support", "Ideal Entry", "ideal_entry"], None
+    ), None)
+    sma20 = v8054_num(v8054_first_meaningful(
+        data, ["SMA20", "sma20", "20DMA", "MA20"], None
+    ), None)
+    sma50 = v8054_num(v8054_first_meaningful(
+        data, ["SMA50", "sma50", "50DMA", "MA50"], None
+    ), None)
+
+    if current is None or current <= 0:
+        return {
+            "accumulate_below": None,
+            "excellent_entry": None,
+            "entry_zone": "Unavailable",
+            "method": "Current price unavailable",
+        }
+
+    # Only use real anchors that are reasonably below the current price.
+    anchors = []
+    for name, value in [
+        ("V89 ideal entry", existing_ideal),
+        ("technical support", support),
+        ("20-day average", sma20),
+        ("50-day average", sma50),
+    ]:
+        if value is not None and 0 < value < current:
+            discount = (current - value) / current
+            if discount <= 0.20:
+                anchors.append((name, value))
+
+    if anchors:
+        # Closest verified support below market is the practical accumulation level.
+        method, accumulate = max(anchors, key=lambda item: item[1])
+    else:
+        # Default pullback is 3%–8%, widened modestly for volatile stocks.
+        if atr_pct is None or atr_pct <= 0:
+            pullback_pct = 0.04
+            method = "4% valuation-and-timing buffer"
+        else:
+            pullback_pct = max(0.03, min(0.08, (atr_pct / 100.0) * 1.20))
+            method = "ATR-adjusted pullback"
+        accumulate = current * (1.0 - pullback_pct)
+
+    # Excellent entry is a second tranche, not a substitute for risk control.
+    extra_discount = max(0.025, min(0.06, ((atr_pct or 3.0) / 100.0) * 0.75))
+    excellent = accumulate * (1.0 - extra_discount)
+
+    # Keep the preferred zone narrow and understandable.
+    zone_low = excellent
+    zone_high = accumulate
+
+    return {
+        "current_price": round(current, 2),
+        "accumulate_below": round(accumulate, 2),
+        "excellent_entry": round(excellent, 2),
+        "entry_low": round(zone_low, 2),
+        "entry_high": round(zone_high, 2),
+        "entry_zone": f"${zone_low:,.2f}–${zone_high:,.2f}",
+        "method": method,
+        "instruction": (
+            f"Begin accumulating at or below ${accumulate:,.2f}; "
+            f"reserve additional capital for approximately ${excellent:,.2f}."
+        ),
+    }
+
+
+def v905_monitor_trigger(row, decision=None):
+    """Return one specific reason Atlas is monitoring rather than buying."""
+    data = dict(row) if hasattr(row, "items") else {}
+    decision = dict(decision) if isinstance(decision, dict) else {}
+    pillars = decision.get("evidence_pillars") if isinstance(
+        decision.get("evidence_pillars"), dict
+    ) else {}
+
+    missing = [name for name, passed in pillars.items() if not passed]
+    translations = {
+        "fundamentals": "stronger financial or earnings confirmation",
+        "valuation": "a more attractive valuation or entry price",
+        "technicals": "technical confirmation above support or resistance",
+        "analysts": "broader analyst support or estimate revisions",
+        "catalyst": "a verified earnings, guidance, or company catalyst",
+        "institutional_policy": "institutional or policy confirmation",
+        "institutional": "institutional accumulation",
+        "policy": "clearer policy support",
+    }
+    if missing:
+        return f"Waiting for {translations.get(missing[0], missing[0])}."
+
+    technical = v8054_num(
+        (decision.get("component_scores") or {}).get("technicals"), None
+    )
+    if technical is not None and technical < 55:
+        return "Waiting for stronger price and volume confirmation."
+
+    completeness = v8054_num(decision.get("research_completeness_pct"), None)
+    if completeness is not None and completeness < 50:
+        return "Waiting for more complete financial, earnings, and catalyst evidence."
+
+    return "Waiting for one additional independent confirmation before buying."
+
+
+def v905_apply_plain_language_action(row):
+    """Add client-facing action labels without weakening the underlying V89 gates."""
+    data = dict(row) if hasattr(row, "items") else {}
+    decision = data.get("v89_decision") if isinstance(
+        data.get("v89_decision"), dict
+    ) else {}
+    decision = dict(decision)
+
+    raw_action = str(
+        decision.get("action")
+        or data.get("Recommendation")
+        or data.get("Decision")
+        or "Watch for Trigger"
+    ).strip()
+
+    if raw_action in {"High Conviction Buy", "Buy Now"}:
+        action_code = "BUY_NOW"
+        display_action = "Buy Now"
+        entry = decision.get("entry") if isinstance(decision.get("entry"), dict) else {}
+    elif raw_action == "Buy on Weakness":
+        action_code = "ACCUMULATE"
+        plan = v905_accumulation_plan(data, decision)
+        price = plan.get("accumulate_below")
+        display_action = (
+            f"Accumulate Below ${price:,.2f}"
+            if price is not None
+            else "Accumulate"
+        )
+        entry = plan
+        decision["accumulate_below"] = plan.get("accumulate_below")
+        decision["excellent_entry"] = plan.get("excellent_entry")
+        decision["accumulation_method"] = plan.get("method")
+    elif raw_action in {
+        "Watch for Trigger",
+        "Wait for Confirmation",
+        "Research Incomplete",
+        "Monitor",
+    }:
+        action_code = "MONITOR"
+        display_action = "Monitor"
+        entry = decision.get("entry") if isinstance(decision.get("entry"), dict) else {}
+        decision["monitor_trigger"] = v905_monitor_trigger(data, decision)
+    else:
+        action_code = "AVOID"
+        display_action = "Avoid"
+        entry = decision.get("entry") if isinstance(decision.get("entry"), dict) else {}
+
+    decision["raw_action"] = raw_action
+    decision["action_code"] = action_code
+    decision["display_action"] = display_action
+    decision["entry"] = entry
+
+    data["v89_decision"] = decision
+    data["Display Action"] = display_action
+    data["Action Code"] = action_code
+    data["Recommendation"] = display_action
+    data["Decision"] = display_action
+
+    if action_code == "ACCUMULATE":
+        data["Accumulate Below"] = decision.get("accumulate_below")
+        data["Excellent Entry"] = decision.get("excellent_entry")
+        data["Entry Zone"] = entry.get("entry_zone")
+    elif action_code == "MONITOR":
+        data["Monitor Trigger"] = decision.get("monitor_trigger")
+
+    return data
+
+
+_v905_prior_build_home_sections = v811_build_home_sections
+
+
+def v811_build_home_sections(source):
+    """
+    V90.5 final Home taxonomy:
+    - Buy Now: ready today
+    - Accumulate Below $X: strong long-term case with a defined entry
+    - Monitor: not ready; maximum three closest candidates
+    - Avoid: excluded from Home opportunity cards
+    """
+    result = _v905_prior_build_home_sections(source)
+    if not isinstance(result, dict):
+        return result
+
+    output = dict(result)
+    for key in ("today", "movers", "new", "hidden", "core", "mega"):
+        output[key] = [
+            v905_apply_plain_language_action(row)
+            for row in (result.get(key, []) or [])
+        ]
+
+    monitor_rows = [
+        v905_apply_plain_language_action(row)
+        for row in (result.get("closest_to_trigger", []) or [])
+    ]
+    output["monitor"] = [
+        row for row in monitor_rows
+        if (row.get("v89_decision") or {}).get("action_code") == "MONITOR"
+    ][:3]
+    output["closest_to_trigger"] = output["monitor"]
+
+    # Top ideas remain only genuine Buy Now or Accumulate candidates.
+    output["today"] = [
+        row for row in output["today"]
+        if (row.get("v89_decision") or {}).get("action_code")
+        in {"BUY_NOW", "ACCUMULATE"}
+    ][:8]
+
+    output["buy_now_count"] = sum(
+        1 for row in output["today"]
+        if (row.get("v89_decision") or {}).get("action_code") == "BUY_NOW"
+    )
+    output["accumulate_count"] = sum(
+        1 for row in output["today"]
+        if (row.get("v89_decision") or {}).get("action_code") == "ACCUMULATE"
+    )
+    output["monitor_count"] = len(output["monitor"])
+    return output
+
+
+_v905_prior_decision_rows = v793_decision_rows
+
+
+def v793_decision_rows(df):
+    """Use plain-language labels on Home cards while retaining V89 scoring."""
+    rows = _v905_prior_decision_rows(df)
+    output = []
+    for payload in rows:
+        if not isinstance(payload, tuple) or len(payload) < 9:
+            output.append(payload)
+            continue
+        row, details, reasons, risk, conf, tier, opp, qual, strength = payload
+        data = v905_apply_plain_language_action(dict(row))
+        decision = data.get("v89_decision") or {}
+        output.append(
+            (
+                pd.Series(data),
+                details,
+                reasons,
+                risk,
+                conf,
+                decision.get("display_action") or tier,
+                opp,
+                qual,
+                strength,
+            )
+        )
+    return output
+
+
+V905_PLAIN_LANGUAGE_ACTIONS_VERIFIED = True
 
 V90_V89_DECISION_UI_INTEGRATION_VERIFIED = True
 
