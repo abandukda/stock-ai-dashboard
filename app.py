@@ -20,7 +20,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V90.3 NumPy Import Hotfix"
+APP_VERSION = "V90.4 Evidence-Pillar Home Funnel"
 V63_REAL_SCORING_AND_FINANCE_VERIFIED = True
 V631_DEDUPED_SCORING_AND_UPSIDE_VERIFIED = True
 V64_PREMIUM_REASONING_UI_VERIFIED = True
@@ -28649,6 +28649,340 @@ def v811_build_home_sections(source):
 
 
 V901_ACTIONABLE_HOME_RANKING_VERIFIED = True
+
+
+# ============================================================
+# V90.4 — EVIDENCE-PILLAR HOME FUNNEL
+# ============================================================
+def v904_present(value):
+    if value is None:
+        return False
+    try:
+        if pd.isna(value):
+            return False
+    except Exception:
+        pass
+    if isinstance(value, str):
+        return value.strip().lower() not in {
+            "", "n/a", "na", "none", "null", "nan", "unavailable",
+            "under review", "not available", "not reported", "-", "—",
+        }
+    return True
+
+
+def v904_text_present(row, keys):
+    value = v8054_first_meaningful(row, keys, None)
+    if isinstance(value, (list, tuple, dict, set)):
+        return len(value) > 0
+    return v904_present(value)
+
+
+def v904_evidence_pillars(row, decision=None):
+    """Count independent, verified evidence pillars for Home eligibility."""
+    decision = decision if isinstance(decision, dict) else {}
+    components = decision.get("component_scores") if isinstance(decision.get("component_scores"), dict) else {}
+
+    price = v8054_num(v8054_first_meaningful(
+        row, ["Current Price", "Price", "Close", "current_price"], None
+    ), None)
+    fair_value = v8054_num(v8054_first_meaningful(
+        row, ["Atlas Fair Value", "atlas_fair_value", "fair_value"], None
+    ), None)
+    analyst_target = v8054_num(v8054_first_meaningful(
+        row, ["Analyst Target", "Wall Street Consensus", "analyst_target", "targetMeanPrice"], None
+    ), None)
+    analyst_count = v8054_num(v8054_first_meaningful(
+        row, ["Analyst Count", "analyst_count", "numberOfAnalystOpinions"], None
+    ), None)
+
+    quality = v8054_num(v8054_first_meaningful(
+        row, ["Quality", "Quality Score", "quality_score"], None
+    ), None)
+    revenue = v8054_num(v8054_first_meaningful(
+        row, ["Revenue Growth", "Revenue Growth %", "revenue_growth", "revenueGrowth"], None
+    ), None)
+    margin = v8054_num(v8054_first_meaningful(
+        row, ["Operating Margin", "operating_margin", "operatingMargins"], None
+    ), None)
+    fcf = v8054_num(v8054_first_meaningful(
+        row, ["Free Cash Flow", "free_cash_flow", "freeCashflow"], None
+    ), None)
+
+    rsi = v8054_num(v8054_first_meaningful(row, ["RSI", "rsi"], None), None)
+    technical_score = v8054_num(
+        components.get("technicals"),
+        v8054_num(v8054_first_meaningful(
+            row, ["Technical Score", "technical_score", "Technical"], None
+        ), None),
+    )
+    fundamental_score = v8054_num(
+        components.get("fundamentals"),
+        v8054_num(v8054_first_meaningful(
+            row, ["Financial Health", "financial_health", "Fundamental Score"], None
+        ), None),
+    )
+
+    expected_return = v8054_num(decision.get("expected_return_pct"), None)
+    if expected_return is None and price and fair_value and price > 0:
+        expected_return = ((fair_value - price) / price) * 100.0
+
+    pillars = {}
+    pillars["fundamentals"] = bool(
+        (fundamental_score is not None and fundamental_score >= 58)
+        or (quality is not None and quality >= 65)
+        or (revenue is not None and revenue >= 5)
+        or (margin is not None and margin >= 12)
+        or (fcf is not None and fcf > 0)
+    )
+    pillars["valuation"] = bool(
+        expected_return is not None
+        and expected_return >= 10
+        and price is not None
+        and fair_value is not None
+        and fair_value > price
+    )
+    pillars["technicals"] = bool(
+        (technical_score is not None and technical_score >= 55)
+        or (rsi is not None and 45 <= rsi <= 65)
+    )
+    pillars["analysts"] = bool(
+        price is not None
+        and analyst_target is not None
+        and analyst_target > price
+        and (analyst_count is None or analyst_count >= 3)
+    )
+    pillars["catalyst"] = bool(
+        v904_text_present(row, [
+            "news_items", "latest_news", "news", "latest_news_headline",
+            "earnings_summary", "earnings_ai_summary", "guidance_summary",
+            "management_guidance", "transcript_summary",
+        ])
+    )
+    pillars["institutional_policy"] = bool(
+        v904_text_present(row, [
+            "institutional_summary", "institutional_activity",
+            "political_support", "political_context", "policy_context",
+        ])
+    )
+
+    return pillars, sum(1 for value in pillars.values() if value), expected_return
+
+
+def v904_verified_negative(row, decision, pillars, expected_return):
+    """Avoid requires verified negative evidence, not merely incomplete fields."""
+    components = decision.get("component_scores") if isinstance(decision.get("component_scores"), dict) else {}
+    fundamentals = v8054_num(components.get("fundamentals"), None)
+    risk_level = str(decision.get("risk_level") or "").lower()
+    completeness = v8054_num(decision.get("research_completeness_pct"), 0) or 0
+
+    negative_return = expected_return is not None and expected_return < 0
+    weak_fundamentals = (
+        fundamentals is not None
+        and fundamentals < 38
+        and pillars.get("fundamentals") is False
+        and completeness >= 45
+    )
+    high_risk_with_evidence = risk_level == "high" and completeness >= 55
+    return bool(negative_return or weak_fundamentals or high_risk_with_evidence)
+
+
+def v904_home_classification(row):
+    """Reconcile V89 with evidence pillars for Home-page actionability."""
+    data = v82_enrich_row(row)
+    decision = data.get("v89_decision") if isinstance(data.get("v89_decision"), dict) else {}
+    decision = dict(decision)
+
+    pillars, pillar_count, expected_return = v904_evidence_pillars(data, decision)
+    conviction = v8054_num(decision.get("conviction"), 0) or 0
+    completeness = v8054_num(decision.get("research_completeness_pct"), 0) or 0
+    technical_ok = pillars["technicals"]
+    core_ok = pillars["fundamentals"] and pillars["valuation"]
+    verified_negative = v904_verified_negative(data, decision, pillars, expected_return)
+
+    if verified_negative:
+        action = "Avoid"
+    elif (
+        core_ok
+        and technical_ok
+        and pillar_count >= 5
+        and conviction >= 74
+        and completeness >= 50
+    ):
+        action = "High Conviction Buy"
+    elif (
+        core_ok
+        and technical_ok
+        and pillar_count >= 4
+        and conviction >= 62
+        and completeness >= 40
+        and expected_return is not None
+        and expected_return >= 10
+    ):
+        action = "Buy Now"
+    elif (
+        core_ok
+        and pillar_count >= 3
+        and conviction >= 57
+        and completeness >= 35
+        and expected_return is not None
+        and expected_return > 0
+    ):
+        action = "Buy on Weakness"
+    elif completeness < 35 and pillar_count < 3:
+        action = "Research Incomplete"
+    else:
+        action = "Watch for Trigger"
+
+    decision["action"] = action
+    decision["evidence_pillars"] = pillars
+    decision["evidence_pillar_count"] = pillar_count
+    decision["expected_return_pct"] = expected_return
+    decision["home_eligibility_reason"] = (
+        f"{pillar_count}/6 independent evidence pillars verified; "
+        f"research completeness {completeness:.0f}%; "
+        f"conviction {conviction:.0f}/100."
+    )
+
+    data["v89_decision"] = decision
+    data["Recommendation"] = action
+    data["Decision"] = action
+    return data
+
+
+def v904_sort_key(row):
+    decision = row.get("v89_decision") if isinstance(row.get("v89_decision"), dict) else {}
+    action = decision.get("action")
+    weight = {
+        "High Conviction Buy": 4,
+        "Buy Now": 3,
+        "Buy on Weakness": 2,
+        "Watch for Trigger": 1,
+        "Research Incomplete": 0,
+        "Avoid": -1,
+    }.get(action, 0)
+    pillars = v8054_num(decision.get("evidence_pillar_count"), 0) or 0
+    conviction = v8054_num(decision.get("conviction"), 0) or 0
+    completeness = v8054_num(decision.get("research_completeness_pct"), 0) or 0
+    expected = v8054_num(decision.get("expected_return_pct"), 0) or 0
+    return (weight, pillars, conviction, completeness, min(expected, 100))
+
+
+_v904_prior_build_home_sections = v811_build_home_sections
+
+
+def v811_build_home_sections(source):
+    """V90.4 broad-universe funnel with evidence-based final eligibility."""
+    base = _v904_prior_build_home_sections(source)
+    if not isinstance(base, dict):
+        base = {}
+
+    candidate_pool = []
+    seen = set()
+
+    # Use all available scan rows, not only the eight names selected by the old engine.
+    if source is not None and not getattr(source, "empty", True):
+        for _, series in source.iterrows():
+            row = v904_home_classification(dict(series))
+            ticker = v73_ticker(row)
+            if ticker and ticker not in seen:
+                seen.add(ticker)
+                candidate_pool.append(row)
+
+    # Retain specialized categories returned by the dynamic engine.
+    for key in ("today", "movers", "new", "hidden", "core", "mega"):
+        for raw in base.get(key, []) or []:
+            row = v904_home_classification(raw)
+            ticker = v73_ticker(row)
+            if ticker and ticker not in seen:
+                seen.add(ticker)
+                candidate_pool.append(row)
+
+    actionable = [
+        row for row in candidate_pool
+        if (row.get("v89_decision") or {}).get("action")
+        in {"High Conviction Buy", "Buy Now", "Buy on Weakness"}
+    ]
+    triggers = [
+        row for row in candidate_pool
+        if (row.get("v89_decision") or {}).get("action") == "Watch for Trigger"
+    ]
+    incomplete = [
+        row for row in candidate_pool
+        if (row.get("v89_decision") or {}).get("action") == "Research Incomplete"
+    ]
+    avoided = [
+        row for row in candidate_pool
+        if (row.get("v89_decision") or {}).get("action") == "Avoid"
+    ]
+
+    actionable.sort(key=v904_sort_key, reverse=True)
+    triggers.sort(key=v904_sort_key, reverse=True)
+
+    result = dict(base)
+    result["today"] = actionable[:8]
+
+    # Only the best three trigger names are retained as a separate diagnostic set.
+    result["closest_to_trigger"] = triggers[:3]
+
+    # Existing specialty categories are filtered through the reconciled action.
+    def filtered_category(key, allowed):
+        rows = []
+        category_seen = set()
+        for raw in base.get(key, []) or []:
+            row = v904_home_classification(raw)
+            ticker = v73_ticker(row)
+            action = (row.get("v89_decision") or {}).get("action")
+            if ticker and ticker not in category_seen and action in allowed:
+                category_seen.add(ticker)
+                rows.append(row)
+        rows.sort(key=v904_sort_key, reverse=True)
+        return rows
+
+    result["movers"] = filtered_category(
+        "movers",
+        {"High Conviction Buy", "Buy Now", "Buy on Weakness", "Watch for Trigger"},
+    )
+    result["new"] = filtered_category(
+        "new",
+        {"High Conviction Buy", "Buy Now", "Buy on Weakness", "Watch for Trigger"},
+    )
+    result["hidden"] = filtered_category(
+        "hidden",
+        {"High Conviction Buy", "Buy Now", "Buy on Weakness"},
+    )
+    result["core"] = filtered_category(
+        "core",
+        {"High Conviction Buy", "Buy Now", "Buy on Weakness", "Watch for Trigger"},
+    )
+    result["mega"] = filtered_category(
+        "mega",
+        {"High Conviction Buy", "Buy Now", "Buy on Weakness", "Watch for Trigger"},
+    )
+
+    result["funnel_diagnostics"] = {
+        "universe_evaluated": len(candidate_pool),
+        "actionable": len(actionable),
+        "watch_for_trigger": len(triggers),
+        "research_incomplete": len(incomplete),
+        "avoid_verified": len(avoided),
+        "average_pillars": round(
+            sum(
+                v8054_num(
+                    (row.get("v89_decision") or {}).get("evidence_pillar_count"),
+                    0,
+                ) or 0
+                for row in candidate_pool
+            ) / max(len(candidate_pool), 1),
+            1,
+        ),
+    }
+    result["actionable_count"] = len(result["today"])
+    result["watch_count"] = len(triggers)
+    result["excluded_avoid_count"] = len(avoided)
+    return result
+
+
+V904_EVIDENCE_PILLAR_HOME_FUNNEL_VERIFIED = True
 
 V90_V89_DECISION_UI_INTEGRATION_VERIFIED = True
 
