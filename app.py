@@ -20,7 +20,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V91 Single-Source Home Decision Pipeline"
+APP_VERSION = "V92 Metric and Risk Consistency"
 V63_REAL_SCORING_AND_FINANCE_VERIFIED = True
 V631_DEDUPED_SCORING_AND_UPSIDE_VERIFIED = True
 V64_PREMIUM_REASONING_UI_VERIFIED = True
@@ -29745,6 +29745,395 @@ def v793_decision_rows(df):
 
 
 V91_SINGLE_SOURCE_HOME_PIPELINE_VERIFIED = True
+
+
+# ============================================================
+# V92 — METRIC CONSISTENCY + COMPANY-SPECIFIC RISK ENGINE
+# ============================================================
+V92_NEGATIVE_CATALYST_PHRASES = (
+    "no recent",
+    "no material",
+    "not returned",
+    "not available",
+    "unavailable",
+    "under review",
+    "additional verified evidence is needed",
+    "no high-confidence",
+)
+
+
+def v92_is_real_text(value):
+    if not v904_present(value):
+        return False
+    text = str(value).strip().lower()
+    return not any(phrase in text for phrase in V92_NEGATIVE_CATALYST_PHRASES)
+
+
+def v92_recalculate_returns(row):
+    """
+    Make displayed upside mathematically consistent with displayed prices.
+
+    Atlas expected return always uses:
+        (Atlas Fair Value - Current Price) / Current Price
+
+    Wall Street upside always uses:
+        (Consensus Target - Current Price) / Current Price
+    """
+    data = dict(row) if hasattr(row, "items") else {}
+
+    current = v8054_num(v8054_first_meaningful(
+        data, ["Current Price", "current_price", "Price", "Close"], None
+    ), None)
+    fair_value = v8054_num(v8054_first_meaningful(
+        data, ["Atlas Fair Value", "atlas_fair_value", "fair_value"], None
+    ), None)
+    analyst_target = v8054_num(v8054_first_meaningful(
+        data,
+        [
+            "Wall Street Consensus",
+            "Analyst Target",
+            "analyst_target",
+            "analyst_target_mean",
+            "targetMeanPrice",
+        ],
+        None,
+    ), None)
+
+    atlas_return = None
+    analyst_upside = None
+
+    if current is not None and current > 0:
+        if fair_value is not None and fair_value > 0:
+            atlas_return = ((fair_value - current) / current) * 100.0
+        if analyst_target is not None and analyst_target > 0:
+            analyst_upside = ((analyst_target - current) / current) * 100.0
+
+    data["Expected Return"] = atlas_return
+    data["Target Upside %"] = analyst_upside
+    data["Analyst Upside %"] = analyst_upside
+    data["Atlas Expected Return"] = atlas_return
+
+    decision = data.get("v89_decision")
+    if isinstance(decision, dict):
+        decision = dict(decision)
+        decision["expected_return_pct"] = atlas_return
+        data["v89_decision"] = decision
+
+    return data
+
+
+def v92_company_specific_risks(row):
+    """
+    Rank verified company-specific risks.
+
+    Missing data lowers completeness but is not itself the primary risk unless
+    no verified operating, financial, valuation, technical, or event risk exists.
+    """
+    data = dict(row) if hasattr(row, "items") else {}
+    risks = []
+
+    def add(score, category, statement):
+        if statement and v92_is_real_text(statement):
+            risks.append({
+                "score": float(score),
+                "category": category,
+                "statement": str(statement).strip(),
+            })
+
+    current_ratio = v8054_num(v8054_first_meaningful(
+        data, ["Current Ratio", "current_ratio", "currentRatio"], None
+    ), None)
+    debt_to_equity = v8054_num(v8054_first_meaningful(
+        data, ["Debt to Equity", "debt_to_equity", "debtToEquity"], None
+    ), None)
+    free_cash_flow = v8054_num(v8054_first_meaningful(
+        data, ["Free Cash Flow", "free_cash_flow", "freeCashflow"], None
+    ), None)
+    revenue_growth = v8054_num(v8054_first_meaningful(
+        data, ["Revenue Growth", "Revenue Growth %", "revenue_growth", "revenueGrowth"], None
+    ), None)
+    eps_growth = v8054_num(v8054_first_meaningful(
+        data, ["EPS Growth", "eps_growth", "earningsGrowth"], None
+    ), None)
+    operating_margin = v8054_num(v8054_first_meaningful(
+        data, ["Operating Margin", "operating_margin", "operatingMargins"], None
+    ), None)
+    forward_pe = v8054_num(v8054_first_meaningful(
+        data, ["Forward P/E", "forward_pe", "forwardPE"], None
+    ), None)
+    beta = v8054_num(v8054_first_meaningful(
+        data, ["Beta", "beta"], None
+    ), None)
+    rsi = v8054_num(v8054_first_meaningful(
+        data, ["RSI", "rsi"], None
+    ), None)
+    relative_volume = v8054_num(v8054_first_meaningful(
+        data, ["Relative Volume", "relative_volume", "relativeVolume"], None
+    ), None)
+
+    if current_ratio is not None and 0 < current_ratio < 1:
+        add(
+            82,
+            "Liquidity",
+            f"Current ratio of {current_ratio:.2f} indicates limited short-term liquidity flexibility.",
+        )
+    if debt_to_equity is not None and debt_to_equity > 200:
+        add(
+            80,
+            "Balance sheet",
+            f"Debt-to-equity of {debt_to_equity:.0f}% increases refinancing and earnings sensitivity.",
+        )
+    if free_cash_flow is not None and free_cash_flow < 0:
+        add(
+            86,
+            "Cash flow",
+            "Free cash flow is negative, increasing reliance on financing or balance-sheet cash.",
+        )
+    if revenue_growth is not None and revenue_growth < 0:
+        add(
+            84,
+            "Growth",
+            f"Revenue is contracting by approximately {abs(revenue_growth):.1f}%, weakening the growth thesis.",
+        )
+    if eps_growth is not None and eps_growth < 0:
+        add(
+            83,
+            "Earnings",
+            f"EPS is declining by approximately {abs(eps_growth):.1f}%, showing pressure on shareholder earnings.",
+        )
+    if operating_margin is not None and operating_margin < 5:
+        add(
+            72,
+            "Profitability",
+            f"Operating margin of {operating_margin:.1f}% leaves limited protection against execution setbacks.",
+        )
+    if forward_pe is not None and forward_pe > 50:
+        add(
+            70,
+            "Valuation",
+            f"Forward valuation of {forward_pe:.1f}x leaves little room for earnings or guidance disappointment.",
+        )
+    if beta is not None and beta > 1.8:
+        add(
+            62,
+            "Volatility",
+            f"Beta of {beta:.2f} indicates materially higher volatility than the broader market.",
+        )
+    if rsi is not None and rsi >= 75:
+        add(
+            60,
+            "Technical",
+            f"RSI of {rsi:.0f} indicates an overextended technical setup and elevated pullback risk.",
+        )
+    if relative_volume is not None and relative_volume < 0.65:
+        add(
+            48,
+            "Confirmation",
+            f"Relative volume of {relative_volume:.2f}x provides limited confirmation behind the current move.",
+        )
+
+    # Use structured event and management risks when present.
+    event_fields = [
+        ("Patent / Exclusivity", ["patent_risk", "patent_cliff", "exclusivity_risk"]),
+        ("Regulatory", ["regulatory_risk", "political_risk", "policy_risk"]),
+        ("Earnings / Guidance", ["earnings_risk", "guidance_risk", "management_risk"]),
+        ("Competition", ["competitive_risk", "competition_risk"]),
+        ("Legal", ["legal_risk", "litigation_risk"]),
+        ("Supply chain", ["supply_chain_risk", "supplier_risk"]),
+    ]
+    for category, keys in event_fields:
+        value = v8054_first_meaningful(data, keys, None)
+        if v92_is_real_text(value):
+            add(92, category, value)
+
+    # Existing engine risks can be used, but generic fallbacks are deprioritized.
+    existing = []
+    decision = data.get("v89_decision")
+    if isinstance(decision, dict):
+        existing.extend(decision.get("primary_risks") or [])
+        existing.extend(decision.get("narrative", {}).get("primary_risks") or []
+                        if isinstance(decision.get("narrative"), dict) else [])
+    existing.extend(data.get("risk_factors") or [])
+    if data.get("primary_risk"):
+        existing.append(data.get("primary_risk"))
+
+    if isinstance(existing, str):
+        existing = [existing]
+
+    generic_phrases = (
+        "recent earnings and management-guidance context is incomplete",
+        "no material recent company-specific catalyst",
+        "execution may fall short",
+        "additional verified evidence",
+        "quality score",
+    )
+    for item in existing:
+        if not v92_is_real_text(item):
+            continue
+        lower = str(item).lower()
+        score = 42 if any(phrase in lower for phrase in generic_phrases) else 76
+        add(score, "Existing research risk", item)
+
+    # Deduplicate by normalized statement.
+    unique = {}
+    for risk in risks:
+        key = re.sub(r"\s+", " ", risk["statement"].lower()).strip()
+        if key not in unique or risk["score"] > unique[key]["score"]:
+            unique[key] = risk
+
+    ranked = sorted(unique.values(), key=lambda item: item["score"], reverse=True)
+
+    if not ranked:
+        ranked = [{
+            "score": 25.0,
+            "category": "Research completeness",
+            "statement": (
+                "Atlas has not verified enough company-specific downside evidence "
+                "to identify a dominant operating risk yet."
+            ),
+        }]
+
+    return ranked[:6]
+
+
+def v92_clean_supporting_evidence(row):
+    """Remove negative or empty placeholders from the positive evidence list."""
+    data = dict(row) if hasattr(row, "items") else {}
+    evidence = data.get("why_atlas_likes_it") or []
+
+    decision = data.get("v89_decision")
+    if isinstance(decision, dict):
+        evidence = (
+            decision.get("supporting_evidence")
+            or evidence
+            or decision.get("narrative", {}).get("why_atlas_likes_it", [])
+            if isinstance(decision.get("narrative"), dict)
+            else evidence
+        )
+
+    if isinstance(evidence, str):
+        evidence = [evidence]
+
+    cleaned = []
+    seen = set()
+    for item in evidence:
+        if not v92_is_real_text(item):
+            continue
+        text_item = str(item).strip()
+        key = re.sub(r"\s+", " ", text_item.lower())
+        if key not in seen:
+            seen.add(key)
+            cleaned.append(text_item)
+
+    return cleaned[:8]
+
+
+def v92_finalize_row(raw):
+    """Final consistency pass used by all Home and research-card renderers."""
+    data = v91_canonicalize_row(raw)
+    data = v92_recalculate_returns(data)
+
+    risks = v92_company_specific_risks(data)
+    evidence = v92_clean_supporting_evidence(data)
+
+    primary = risks[0]["statement"]
+    data["primary_risk"] = primary
+    data["risk_factors"] = [risk["statement"] for risk in risks]
+    data["risk_details"] = risks
+    data["why_atlas_likes_it"] = evidence
+
+    decision = data.get("v89_decision")
+    if isinstance(decision, dict):
+        decision = dict(decision)
+        decision["biggest_risk"] = primary
+        decision["primary_risks"] = [risk["statement"] for risk in risks]
+        decision["supporting_evidence"] = evidence
+        decision["expected_return_pct"] = data.get("Expected Return")
+        data["v89_decision"] = decision
+
+    return data
+
+
+_v92_prior_build_home_sections = v811_build_home_sections
+
+
+def v811_build_home_sections(source):
+    result = _v92_prior_build_home_sections(source)
+    if not isinstance(result, dict):
+        return result
+
+    output = dict(result)
+    for key in (
+        "today", "buy_now", "accumulate", "monitor",
+        "closest_to_trigger", "movers", "new", "hidden", "core", "mega",
+    ):
+        output[key] = [
+            v92_finalize_row(row)
+            for row in (result.get(key, []) or [])
+            if v91_decision_code(v92_finalize_row(row)) != "AVOID"
+            or key not in {"today", "monitor", "closest_to_trigger"}
+        ]
+
+    # Enforce Home-category invariants after the final consistency pass.
+    output["today"] = [
+        row for row in output.get("today", [])
+        if v91_decision_code(row) in {"BUY_NOW", "ACCUMULATE", "MONITOR"}
+    ]
+    output["monitor"] = [
+        row for row in output.get("monitor", [])
+        if v91_decision_code(row) == "MONITOR"
+    ][:3]
+    output["closest_to_trigger"] = list(output["monitor"])
+    return output
+
+
+def v793_decision_rows(df):
+    """V92 renderer uses recalculated returns and ranked specific risks."""
+    if df is None or getattr(df, "empty", True):
+        return []
+
+    rows = []
+    for _, series in df.iterrows():
+        data = v92_finalize_row(dict(series))
+        code = v91_decision_code(data)
+        if code == "AVOID":
+            continue
+
+        decision = data.get("v89_decision") or {}
+        reasons = data.get("why_atlas_likes_it") or []
+        risk = data.get("primary_risk")
+        conviction = v8054_num(decision.get("conviction"), 0) or 0
+        quality = v8054_num(v8054_first_meaningful(
+            data, ["Quality", "Quality Score", "quality_score"], 0
+        ), 0) or 0
+        display_action = (
+            decision.get("display_action")
+            or data.get("Display Action")
+            or "Monitor"
+        )
+
+        rows.append(
+            (
+                pd.Series(data),
+                {},
+                list(reasons)[:8],
+                risk,
+                conviction,
+                display_action,
+                conviction,
+                quality,
+                conviction,
+            )
+        )
+
+    rows.sort(
+        key=lambda payload: v91_rank_key(dict(payload[0])),
+        reverse=True,
+    )
+    return rows
+
+
+V92_METRIC_AND_RISK_CONSISTENCY_VERIFIED = True
 
 V90_V89_DECISION_UI_INTEGRATION_VERIFIED = True
 
