@@ -19,7 +19,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V90 V89 Decision UI Integration"
+APP_VERSION = "V90.2 Actionable Ranking Hotfix"
 V63_REAL_SCORING_AND_FINANCE_VERIFIED = True
 V631_DEDUPED_SCORING_AND_UPSIDE_VERIFIED = True
 V64_PREMIUM_REASONING_UI_VERIFIED = True
@@ -26661,6 +26661,48 @@ def v8054_first_meaningful(row, keys, default=None, zero_is_missing=False):
             if not v8054_is_missing(value, zero_is_missing=zero_is_missing):
                 return value
     return default
+
+
+def v8054_num(value, default=None):
+    """Safely coerce a numeric value without turning missing data into zero."""
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return float(value)
+    try:
+        if pd.isna(value):
+            return default
+    except Exception:
+        pass
+    if isinstance(value, (int, float, np.integer, np.floating)):
+        try:
+            number = float(value)
+            if not np.isfinite(number):
+                return default
+            return number
+        except Exception:
+            return default
+    text = str(value).strip()
+    if not text or text.lower() in {
+        "n/a", "na", "none", "null", "nan", "unavailable",
+        "under review", "not available", "not reported", "-", "—",
+    }:
+        return default
+    cleaned = (
+        text.replace(",", "")
+        .replace("$", "")
+        .replace("%", "")
+        .replace("x", "")
+        .strip()
+    )
+    match = re.search(r"-?\d+(?:\.\d+)?", cleaned)
+    if not match:
+        return default
+    try:
+        number = float(match.group(0))
+        return number if np.isfinite(number) else default
+    except Exception:
+        return default
 
 
 def v8054_format_time(value):
