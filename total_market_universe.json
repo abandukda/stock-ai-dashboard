@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-16T20:07:48.877897+00:00",
-  "count": 3219,
+  "generated_at": "2026-07-17T00:03:39.166886+00:00",
+  "count": 3222,
   "symbols": [
     "A",
     "AA",
@@ -50,6 +50,7 @@
     "ACVA",
     "AD",
     "ADBE",
+    "ADC",
     "ADCT",
     "ADEA",
     "ADI",
@@ -1679,6 +1680,7 @@
     "LGN",
     "LGND",
     "LGO",
+    "LH",
     "LHX",
     "LI",
     "LIF",
@@ -1910,6 +1912,7 @@
     "MTCH",
     "MTD",
     "MTDR",
+    "MTG",
     "MTH",
     "MTN",
     "MTR",
