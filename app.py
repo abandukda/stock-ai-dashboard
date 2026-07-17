@@ -20,7 +20,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V94.1 Scan Audit Integration"
+APP_VERSION = "V94.2 Canonical Quality and Card Cleanup"
 V63_REAL_SCORING_AND_FINANCE_VERIFIED = True
 V631_DEDUPED_SCORING_AND_UPSIDE_VERIFIED = True
 V64_PREMIUM_REASONING_UI_VERIFIED = True
@@ -30990,6 +30990,389 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
 
 
 V941_SCAN_AUDIT_INTEGRATION_VERIFIED = True
+
+
+# ============================================================
+# V94.2 — CANONICAL QUALITY + CLEAN SUPPLEMENTAL CARDS
+# ============================================================
+from engines.scan_audit_engine import audit_stock_row as v94_audit_stock_row
+
+
+def v942_quality_score(row):
+    """
+    Resolve Quality from verified source fields.
+
+    Missing Quality remains unavailable; it is never converted to zero.
+    A derived score is produced only when enough independent evidence exists.
+    """
+    data = dict(row) if hasattr(row, "items") else {}
+    snapshot = data.get("v93_snapshot")
+    snapshot = snapshot if isinstance(snapshot, dict) else {}
+    decision = data.get("v89_decision")
+    decision = decision if isinstance(decision, dict) else {}
+    components = decision.get("component_scores")
+    components = components if isinstance(components, dict) else {}
+
+    direct = v8054_num(
+        v8054_first_meaningful(
+            data,
+            [
+                "Quality",
+                "Quality Score",
+                "quality_score",
+                "financial_score",
+                "fundamentals_agent_score",
+                "Financial Health",
+                "Fundamental Score",
+            ],
+            snapshot.get("quality"),
+        ),
+        None,
+    )
+    if direct is not None and direct > 0:
+        return max(0.0, min(100.0, direct))
+
+    component_value = v8054_num(components.get("fundamentals"), None)
+    if component_value is not None and component_value > 0:
+        return max(0.0, min(100.0, component_value))
+
+    metrics = []
+
+    revenue = v8054_num(v8054_first_meaningful(
+        data,
+        ["Revenue Growth", "Revenue Growth %", "revenue_growth", "revenueGrowth"],
+        None,
+    ), None)
+    if revenue is not None:
+        metrics.append(max(0.0, min(100.0, 50.0 + revenue * 1.5)))
+
+    eps = v8054_num(v8054_first_meaningful(
+        data,
+        ["EPS Growth", "eps_growth", "earningsGrowth"],
+        None,
+    ), None)
+    if eps is not None:
+        metrics.append(max(0.0, min(100.0, 50.0 + eps * 1.25)))
+
+    margin = v8054_num(v8054_first_meaningful(
+        data,
+        ["Operating Margin", "operating_margin", "operatingMargins"],
+        None,
+    ), None)
+    if margin is not None:
+        metrics.append(max(0.0, min(100.0, 35.0 + margin * 1.5)))
+
+    fcf = v8054_num(v8054_first_meaningful(
+        data,
+        ["Free Cash Flow", "free_cash_flow", "freeCashflow"],
+        None,
+    ), None)
+    if fcf is not None:
+        metrics.append(70.0 if fcf > 0 else 25.0)
+
+    current_ratio = v8054_num(v8054_first_meaningful(
+        data,
+        ["Current Ratio", "current_ratio", "currentRatio"],
+        None,
+    ), None)
+    if current_ratio is not None and current_ratio > 0:
+        metrics.append(
+            75.0 if current_ratio >= 1.5
+            else 62.0 if current_ratio >= 1.0
+            else 38.0
+        )
+
+    roe = v8054_num(v8054_first_meaningful(
+        data,
+        ["ROE", "Return on Equity", "return_on_equity", "returnOnEquity"],
+        None,
+    ), None)
+    if roe is not None:
+        metrics.append(max(0.0, min(100.0, 45.0 + roe)))
+
+    # Do not manufacture a quality score from one isolated field.
+    if len(metrics) < 2:
+        return None
+    return round(sum(metrics) / len(metrics), 1)
+
+
+def v942_has_verified_negative(row):
+    """Low completeness is not a verified negative investment conclusion."""
+    data = dict(row) if hasattr(row, "items") else {}
+    decision = data.get("v89_decision")
+    decision = decision if isinstance(decision, dict) else {}
+    risk_level = str(decision.get("risk_level") or "").strip().lower()
+
+    expected = v8054_num(decision.get("expected_return_pct"), None)
+    if expected is not None and expected < 0:
+        return True
+    if risk_level == "high":
+        return True
+
+    for key in (
+        "Revenue Growth", "Revenue Growth %", "revenue_growth",
+        "EPS Growth", "eps_growth",
+        "Free Cash Flow", "free_cash_flow",
+    ):
+        value = v8054_num(data.get(key), None)
+        if value is not None and value < 0:
+            return True
+
+    return False
+
+
+def v942_finalize_row(raw):
+    """
+    Final UI boundary.
+
+    The renderer consumes only this finalized row. It never reuses stale
+    narrative strings from earlier Home implementations.
+    """
+    data = v93_build_snapshot(raw)
+    snapshot = dict(data.get("v93_snapshot") or {})
+    decision = dict(data.get("v89_decision") or {})
+
+    quality = v942_quality_score(data)
+    snapshot["quality"] = quality
+    data["Quality"] = quality
+
+    try:
+        stock_audit = v94_audit_stock_row(data)
+    except Exception:
+        stock_audit = {}
+
+    completeness = v8054_num(
+        decision.get("research_completeness_pct"),
+        v8054_num(stock_audit.get("research_completeness_pct"), None),
+    )
+    decision["research_completeness_pct"] = completeness
+    snapshot["research_completeness_pct"] = completeness
+
+    code = str(decision.get("action_code") or snapshot.get("action_code") or "MONITOR")
+    # An incomplete row cannot be labeled Avoid unless negative evidence is verified.
+    if code == "AVOID" and (completeness is None or completeness < 45):
+        if not v942_has_verified_negative(data):
+            code = "MONITOR"
+            decision["action_code"] = "MONITOR"
+            decision["display_action"] = "Monitor"
+            decision["action"] = "Watch for Trigger"
+            decision["monitor_trigger"] = (
+                "Waiting for complete financial, earnings, catalyst, and risk evidence."
+            )
+            snapshot["action_code"] = "MONITOR"
+            snapshot["display_action"] = "Monitor"
+            data["Recommendation"] = "Monitor"
+            data["Decision"] = "Monitor"
+            data["Display Action"] = "Monitor"
+            data["Action Code"] = "MONITOR"
+
+    snapshot["quality"] = quality
+    snapshot["action_code"] = decision.get("action_code", code)
+    snapshot["display_action"] = decision.get("display_action", "Monitor")
+    snapshot["supporting_evidence"] = list(data.get("why_atlas_likes_it") or [])
+    snapshot["primary_risk"] = data.get("primary_risk")
+    data["v93_snapshot"] = snapshot
+    data["v89_decision"] = decision
+    return data
+
+
+_v942_prior_home_sections = v811_build_home_sections
+
+
+def v811_build_home_sections(source):
+    """Finalize and deduplicate all Home sections after the V94.1 audit layer."""
+    result = _v942_prior_home_sections(source)
+    if not isinstance(result, dict):
+        return result
+
+    output = dict(result)
+    global_seen = set()
+
+    for key in (
+        "today", "buy_now", "accumulate", "monitor", "closest_to_trigger",
+        "movers", "new", "hidden", "core", "mega",
+    ):
+        finalized = []
+        local_seen = set()
+
+        for raw in result.get(key, []) or []:
+            row = v942_finalize_row(raw)
+            ticker = v73_ticker(row)
+            code = (row.get("v89_decision") or {}).get("action_code", "MONITOR")
+
+            if not ticker or ticker in local_seen:
+                continue
+            if key in {"today", "monitor", "closest_to_trigger", "movers", "new"}:
+                if code == "AVOID":
+                    continue
+
+            # A name cannot simultaneously be a mover and a new discovery.
+            if key == "new" and ticker in {
+                v73_ticker(item) for item in output.get("movers", [])
+            }:
+                continue
+
+            local_seen.add(ticker)
+            finalized.append(row)
+
+        output[key] = finalized
+
+    output["monitor"] = [
+        row for row in output.get("monitor", [])
+        if (row.get("v89_decision") or {}).get("action_code") == "MONITOR"
+    ][:3]
+    output["closest_to_trigger"] = list(output["monitor"])
+
+    output["today"] = [
+        row for row in output.get("today", [])
+        if (row.get("v89_decision") or {}).get("action_code")
+        in {"BUY_NOW", "ACCUMULATE", "MONITOR"}
+    ][:8]
+    return output
+
+
+def v810_render_compact_table(rows, title, subtitle):
+    """
+    V94.2 supplemental renderer.
+
+    Uses native Streamlit containers so all text wraps naturally. Avoid names
+    are excluded, and stale V84–V90 narrative strings are not rendered.
+    """
+    st.markdown(f"### {title}")
+    st.caption(subtitle)
+
+    finalized = []
+    seen = set()
+    for raw in rows or []:
+        row = v942_finalize_row(raw)
+        ticker = v73_ticker(row)
+        decision = row.get("v89_decision") or {}
+        code = decision.get("action_code", "MONITOR")
+        if not ticker or ticker in seen or code == "AVOID":
+            continue
+        seen.add(ticker)
+        finalized.append(row)
+
+    if not finalized:
+        st.info(
+            "No non-Avoid names qualified for this category in the latest "
+            "canonical scan."
+        )
+        return
+
+    for row in finalized[:8]:
+        snapshot = row.get("v93_snapshot") or {}
+        decision = row.get("v89_decision") or {}
+        ticker = v73_ticker(row)
+        company = v73_company(row)
+        action = decision.get("display_action") or "Monitor"
+
+        with st.container(border=True):
+            h1, h2, h3 = st.columns([1.0, 2.4, 1.3])
+            h1.markdown(f"### {ticker}")
+            h2.markdown(f"**{company}**")
+            h3.markdown(f"**{action}**")
+
+            m1, m2, m3, m4 = st.columns(4)
+            confidence = v8054_num(snapshot.get("confidence"), None)
+            probability = v8054_num(
+                decision.get("probability_thesis_success"), None
+            )
+            expected = v8054_num(snapshot.get("expected_return_pct"), None)
+            completeness = v8054_num(
+                snapshot.get("research_completeness_pct"), None
+            )
+
+            m1.metric(
+                "Conviction",
+                f"{confidence:.0f}/100" if confidence is not None else "Under review",
+            )
+            m2.metric(
+                "Thesis probability",
+                f"{probability:.0f}%" if probability is not None else "Under review",
+            )
+            m3.metric(
+                "Expected return",
+                f"{expected:+.1f}%" if expected is not None else "Under review",
+            )
+            m4.metric("Buy today?", "YES" if action == "Buy Now" else "NO")
+
+            movement = (
+                decision.get("narrative", {}).get("movement", {})
+                if isinstance(decision.get("narrative"), dict)
+                else {}
+            )
+            if isinstance(movement, dict):
+                label = movement.get("label")
+                explanation = movement.get("explanation")
+                if label:
+                    st.markdown(f"**Movement:** {label}")
+                if explanation:
+                    st.write(explanation)
+
+            st.markdown("**Why Atlas surfaced it**")
+            evidence = snapshot.get("supporting_evidence") or []
+            if evidence:
+                for item in evidence[:6]:
+                    st.markdown(f"- {item}")
+            else:
+                st.write("Atlas is waiting for additional verified evidence.")
+
+            trigger = decision.get("monitor_trigger")
+            if action == "Monitor" and trigger:
+                st.markdown(f"**What Atlas is waiting for:** {trigger}")
+
+            st.markdown(
+                f"**Primary risk:** "
+                f"{snapshot.get('primary_risk') or 'Risk evidence remains under review.'}"
+            )
+            st.caption(
+                "Research completeness: "
+                + (
+                    f"{completeness:.0f}%"
+                    if completeness is not None
+                    else "Under review"
+                )
+            )
+
+
+# Ensure long content wraps inside all legacy metric/card containers too.
+st.markdown(
+    """
+<style>
+.v775-card,
+.v775-mini,
+.v793-reasons,
+.v793-risk,
+[data-testid="stMetric"],
+[data-testid="stMetricValue"],
+[data-testid="stMetricLabel"] {
+    min-width: 0 !important;
+    max-width: 100% !important;
+}
+.v775-card *,
+.v775-mini *,
+.v793-reasons *,
+.v793-risk *,
+[data-testid="stMetric"] * {
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+    text-overflow: clip !important;
+}
+.v775-mini b,
+.v775-mini em,
+.v775-mini small {
+    display: block !important;
+    max-width: 100% !important;
+}
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
+
+V942_CANONICAL_QUALITY_AND_CARD_CLEANUP_VERIFIED = True
 
 V90_V89_DECISION_UI_INTEGRATION_VERIFIED = True
 
