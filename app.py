@@ -20,7 +20,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V92 Metric and Risk Consistency"
+APP_VERSION = "V93 Canonical Stock Snapshot"
 V63_REAL_SCORING_AND_FINANCE_VERIFIED = True
 V631_DEDUPED_SCORING_AND_UPSIDE_VERIFIED = True
 V64_PREMIUM_REASONING_UI_VERIFIED = True
@@ -30134,6 +30134,507 @@ def v793_decision_rows(df):
 
 
 V92_METRIC_AND_RISK_CONSISTENCY_VERIFIED = True
+
+
+# ============================================================
+# V93 — CANONICAL STOCK SNAPSHOT (SINGLE SOURCE OF TRUTH)
+# ============================================================
+def v93_num_from(row, keys):
+    return v8054_num(v8054_first_meaningful(row, keys, None), None)
+
+
+def v93_text_from(row, keys):
+    value = v8054_first_meaningful(row, keys, None)
+    return str(value).strip() if v904_present(value) else None
+
+
+def v93_quality(row):
+    value = v93_num_from(
+        row,
+        [
+            "Quality",
+            "Quality Score",
+            "quality_score",
+            "financial_score",
+            "fundamentals_agent_score",
+            "Financial Health",
+        ],
+    )
+    return None if value is None else max(0.0, min(100.0, value))
+
+
+def v93_confidence(row, decision):
+    value = v8054_num(decision.get("conviction"), None)
+    if value is None:
+        value = v93_num_from(
+            row,
+            ["Confidence", "Final Conviction", "confidence", "Conviction"],
+        )
+    return None if value is None else max(0.0, min(100.0, value))
+
+
+def v93_sector_risk(row):
+    industry = (
+        v93_text_from(
+            row,
+            ["Industry", "industry", "Sector", "sector", "Business Summary"],
+        )
+        or ""
+    ).lower()
+
+    if any(word in industry for word in ("pharma", "biotech", "drug", "therapeutic")):
+        return (
+            "Patent-expiration, clinical-development, and pipeline-replacement risk "
+            "could pressure future revenue if newer products do not offset mature brands."
+        )
+    if any(word in industry for word in ("software", "cloud", "information technology")):
+        return (
+            "Enterprise technology spending and competitive pricing could slow growth "
+            "or reduce margins if customer budgets weaken."
+        )
+    if any(word in industry for word in ("semiconductor", "chip")):
+        return (
+            "Semiconductor demand is cyclical, and inventory corrections or customer "
+            "concentration could pressure revenue and margins."
+        )
+    if any(word in industry for word in ("retail", "consumer")):
+        return (
+            "Consumer demand and promotional intensity could weaken sales growth and "
+            "compress margins."
+        )
+    if any(word in industry for word in ("industrial", "transport", "logistics")):
+        return (
+            "Economic sensitivity, freight or input-cost volatility, and weaker customer "
+            "demand could pressure earnings."
+        )
+    if any(word in industry for word in ("energy", "oil", "gas")):
+        return (
+            "Commodity-price volatility and policy changes could materially affect cash "
+            "flow, capital spending, and valuation."
+        )
+    if any(word in industry for word in ("healthcare", "medical")):
+        return (
+            "Reimbursement, regulatory, and procedure-volume changes could pressure "
+            "growth and profitability."
+        )
+    return (
+        "Execution, demand, and valuation assumptions may not develop as expected; "
+        "Atlas requires refreshed company-specific evidence before increasing conviction."
+    )
+
+
+def v93_specific_risk(row):
+    """Return one ranked risk that is specific to the company or its industry."""
+    candidates = []
+
+    def add(priority, statement):
+        if v92_is_real_text(statement):
+            candidates.append((priority, str(statement).strip()))
+
+    structured_fields = [
+        (100, ["patent_risk", "patent_cliff", "exclusivity_risk"]),
+        (98, ["regulatory_risk", "policy_risk", "political_risk"]),
+        (96, ["guidance_risk", "earnings_risk", "management_risk"]),
+        (94, ["competitive_risk", "competition_risk"]),
+        (92, ["legal_risk", "litigation_risk"]),
+        (90, ["supply_chain_risk", "supplier_risk"]),
+    ]
+    for priority, keys in structured_fields:
+        add(priority, v8054_first_meaningful(row, keys, None))
+
+    revenue = v93_num_from(
+        row, ["Revenue Growth", "Revenue Growth %", "revenue_growth", "revenueGrowth"]
+    )
+    eps = v93_num_from(row, ["EPS Growth", "eps_growth", "earningsGrowth"])
+    fcf = v93_num_from(row, ["Free Cash Flow", "free_cash_flow", "freeCashflow"])
+    current_ratio = v93_num_from(row, ["Current Ratio", "current_ratio", "currentRatio"])
+    debt_to_equity = v93_num_from(
+        row, ["Debt to Equity", "debt_to_equity", "debtToEquity"]
+    )
+    operating_margin = v93_num_from(
+        row, ["Operating Margin", "operating_margin", "operatingMargins"]
+    )
+    forward_pe = v93_num_from(row, ["Forward P/E", "forward_pe", "forwardPE"])
+    rsi = v93_num_from(row, ["RSI", "rsi"])
+
+    if revenue is not None and revenue < 0:
+        add(88, f"Revenue is contracting by approximately {abs(revenue):.1f}%.")
+    if eps is not None and eps < 0:
+        add(87, f"EPS is declining by approximately {abs(eps):.1f}%.")
+    if fcf is not None and fcf < 0:
+        add(86, "Free cash flow is negative, increasing financing and execution risk.")
+    if current_ratio is not None and 0 < current_ratio < 1:
+        add(
+            82,
+            f"Current ratio of {current_ratio:.2f} indicates limited short-term liquidity flexibility.",
+        )
+    if debt_to_equity is not None and debt_to_equity > 200:
+        add(
+            80,
+            f"Debt-to-equity of {debt_to_equity:.0f}% increases refinancing and earnings sensitivity.",
+        )
+    if operating_margin is not None and operating_margin < 5:
+        add(
+            74,
+            f"Operating margin of {operating_margin:.1f}% leaves limited protection against setbacks.",
+        )
+    if forward_pe is not None and forward_pe > 50:
+        add(
+            70,
+            f"Forward valuation of {forward_pe:.1f}x leaves little room for disappointment.",
+        )
+    if rsi is not None and rsi >= 75:
+        add(62, f"RSI of {rsi:.0f} indicates an overextended technical setup.")
+
+    # Distinct industry risk is preferred to a repeated generic fallback.
+    add(50, v93_sector_risk(row))
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    return candidates[0][1]
+
+
+def v93_supporting_evidence(row, snapshot):
+    """Build evidence only from the exact canonical metrics displayed on the card."""
+    evidence = []
+
+    def add(statement):
+        if statement and statement not in evidence:
+            evidence.append(statement)
+
+    current = snapshot["current_price"]
+    fair = snapshot["atlas_fair_value"]
+    street = snapshot["wall_street_consensus"]
+    atlas_return = snapshot["expected_return_pct"]
+    street_upside = snapshot["wall_street_upside_pct"]
+
+    revenue = v93_num_from(
+        row, ["Revenue Growth", "Revenue Growth %", "revenue_growth", "revenueGrowth"]
+    )
+    eps = v93_num_from(row, ["EPS Growth", "eps_growth", "earningsGrowth"])
+    margin = v93_num_from(
+        row, ["Operating Margin", "operating_margin", "operatingMargins"]
+    )
+    fcf = v93_num_from(row, ["Free Cash Flow", "free_cash_flow", "freeCashflow"])
+    rsi = v93_num_from(row, ["RSI", "rsi"])
+    analyst_count = v93_num_from(
+        row, ["Analyst Count", "analyst_count", "numberOfAnalystOpinions"]
+    )
+
+    if atlas_return is not None and fair is not None and current is not None:
+        add(
+            f"Atlas Fair Value of ${fair:,.2f} implies approximately "
+            f"{atlas_return:.1f}% upside from ${current:,.2f}."
+        )
+    if street_upside is not None and street is not None:
+        add(
+            f"Wall Street consensus of ${street:,.2f} implies approximately "
+            f"{street_upside:.1f}% upside."
+        )
+    if revenue is not None:
+        add(
+            f"Revenue is growing {revenue:.1f}%."
+            if revenue > 0
+            else f"Revenue growth is currently {revenue:.1f}%."
+        )
+    if eps is not None:
+        add(
+            f"EPS is growing {eps:.1f}%."
+            if eps > 0
+            else f"EPS growth is currently {eps:.1f}%."
+        )
+    if margin is not None and margin > 0:
+        add(f"Operating margin is {margin:.1f}%.")
+    if fcf is not None and fcf > 0:
+        add(f"Free cash flow is positive at {v66_money_short(fcf)}.")
+    if rsi is not None:
+        if 45 <= rsi <= 65:
+            add(
+                f"RSI of {rsi:.0f} shows constructive momentum without appearing overextended."
+            )
+        elif rsi < 45:
+            add(f"RSI of {rsi:.0f} indicates weak momentum that still needs confirmation.")
+        else:
+            add(f"RSI of {rsi:.0f} indicates elevated momentum and pullback risk.")
+    if analyst_count is not None and analyst_count > 0:
+        add(f"{analyst_count:.0f} analysts contribute to the available consensus.")
+
+    return evidence[:8]
+
+
+def v93_build_snapshot(raw):
+    """
+    Build the one canonical object consumed by Home cards and research summaries.
+    All calculations and narrative strings originate here.
+    """
+    row = dict(raw) if hasattr(raw, "items") else {}
+    row = v91_canonicalize_row(row)
+    decision = row.get("v89_decision") if isinstance(row.get("v89_decision"), dict) else {}
+    decision = dict(decision)
+
+    current = v93_num_from(
+        row, ["Current Price", "current_price", "Price", "Close", "price"]
+    )
+    fair = v93_num_from(
+        row, ["Atlas Fair Value", "atlas_fair_value", "fair_value"]
+    )
+    street = v93_num_from(
+        row,
+        [
+            "Wall Street Consensus",
+            "Analyst Target",
+            "analyst_target",
+            "analyst_target_mean",
+            "targetMeanPrice",
+        ],
+    )
+
+    atlas_return = (
+        ((fair - current) / current) * 100.0
+        if current is not None and current > 0 and fair is not None and fair > 0
+        else None
+    )
+    street_upside = (
+        ((street - current) / current) * 100.0
+        if current is not None and current > 0 and street is not None and street > 0
+        else None
+    )
+
+    snapshot = {
+        "ticker": v73_ticker(row),
+        "company": v73_company(row),
+        "current_price": current,
+        "atlas_fair_value": fair,
+        "wall_street_consensus": street,
+        "expected_return_pct": atlas_return,
+        "wall_street_upside_pct": street_upside,
+        "quality": v93_quality(row),
+        "confidence": v93_confidence(row, decision),
+        "action_code": decision.get("action_code") or "MONITOR",
+        "display_action": decision.get("display_action") or "Monitor",
+        "fair_value_source": (
+            "Atlas model fair value" if fair is not None else "Atlas Fair Value under review"
+        ),
+    }
+
+    snapshot["primary_risk"] = v93_specific_risk(row)
+    snapshot["supporting_evidence"] = v93_supporting_evidence(row, snapshot)
+
+    # Keep one canonical object and mirror only for legacy UI compatibility.
+    row["v93_snapshot"] = snapshot
+    row["Current Price"] = snapshot["current_price"]
+    row["Atlas Fair Value"] = snapshot["atlas_fair_value"]
+    row["Wall Street Consensus"] = snapshot["wall_street_consensus"]
+    row["Analyst Target"] = snapshot["wall_street_consensus"]
+    row["Expected Return"] = snapshot["expected_return_pct"]
+    row["Target Upside %"] = snapshot["wall_street_upside_pct"]
+    row["Quality"] = snapshot["quality"]
+    row["Confidence"] = snapshot["confidence"]
+    row["Recommendation"] = snapshot["display_action"]
+    row["Decision"] = snapshot["display_action"]
+    row["primary_risk"] = snapshot["primary_risk"]
+    row["why_atlas_likes_it"] = snapshot["supporting_evidence"]
+
+    decision["expected_return_pct"] = snapshot["expected_return_pct"]
+    decision["biggest_risk"] = snapshot["primary_risk"]
+    decision["primary_risks"] = [snapshot["primary_risk"]]
+    decision["supporting_evidence"] = snapshot["supporting_evidence"]
+    decision["display_action"] = snapshot["display_action"]
+    decision["action_code"] = snapshot["action_code"]
+    row["v89_decision"] = decision
+    return row
+
+
+def v793_card_context(row):
+    """V93 card context reads only the canonical snapshot."""
+    data = v93_build_snapshot(row)
+    snapshot = data["v93_snapshot"]
+    details = {
+        "current_price": snapshot["current_price"],
+        "atlas_fair_value": snapshot["atlas_fair_value"],
+        "wall_street_consensus": snapshot["wall_street_consensus"],
+        "expected_return_pct": snapshot["expected_return_pct"],
+        "decision_upside_pct": snapshot["expected_return_pct"],
+        "wall_street_upside_pct": snapshot["wall_street_upside_pct"],
+        "source": snapshot["fair_value_source"],
+    }
+    return details, snapshot["supporting_evidence"], snapshot["primary_risk"]
+
+
+def v793_decision_rows(df):
+    """V93: every rendered card is built from the same canonical snapshot."""
+    if df is None or getattr(df, "empty", True):
+        return []
+
+    rows = []
+    for _, series in df.iterrows():
+        data = v93_build_snapshot(dict(series))
+        snapshot = data["v93_snapshot"]
+
+        # Avoid remains excluded from Home opportunity/monitor cards.
+        if snapshot["action_code"] == "AVOID":
+            continue
+
+        quality = snapshot["quality"]
+        confidence = snapshot["confidence"]
+        rows.append(
+            (
+                pd.Series(data),
+                {
+                    "current_price": snapshot["current_price"],
+                    "atlas_fair_value": snapshot["atlas_fair_value"],
+                    "wall_street_consensus": snapshot["wall_street_consensus"],
+                    "expected_return_pct": snapshot["expected_return_pct"],
+                    "decision_upside_pct": snapshot["expected_return_pct"],
+                    "wall_street_upside_pct": snapshot["wall_street_upside_pct"],
+                    "source": snapshot["fair_value_source"],
+                },
+                snapshot["supporting_evidence"],
+                snapshot["primary_risk"],
+                confidence,
+                snapshot["display_action"],
+                confidence,
+                quality,
+                confidence,
+            )
+        )
+
+    rows.sort(key=lambda payload: v91_rank_key(dict(payload[0])), reverse=True)
+    return rows
+
+
+def render_v73_idea_table(df, title="Atlas Decision Ideas"):
+    """V93 cards render only values from the canonical stock snapshot."""
+    st.markdown(
+        f"<div class='v65-section-title'>{v73_esc(title)}</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "<div class='v775-help'><b>How to read this:</b> Buy Now means Atlas sees "
+        "sufficient evidence to act. Accumulate Below provides a preferred entry. "
+        "Monitor means the thesis is not ready for purchase.</div>",
+        unsafe_allow_html=True,
+    )
+
+    rows = v793_decision_rows(df)
+    if not rows:
+        st.info("No non-Avoid ideas were available in the latest evaluated universe.")
+        return
+
+    for pair_start in range(0, min(len(rows), 8), 2):
+        cols = st.columns(2)
+        for col_idx, payload in enumerate(rows[pair_start:pair_start + 2]):
+            row, details, reasons, risk, conf, tier, opp, qual, strength = payload
+            with cols[col_idx]:
+                rank = pair_start + col_idx + 1
+                ticker, company = v73_ticker(row), v73_company(row)
+                snapshot = row.get("v93_snapshot") or {}
+                icon, cls = v793_badge_meta(tier)
+
+                current = snapshot.get("current_price")
+                fair = snapshot.get("atlas_fair_value")
+                street = snapshot.get("wall_street_consensus")
+                street_upside = snapshot.get("wall_street_upside_pct")
+                exp_ret = snapshot.get("expected_return_pct")
+                source = snapshot.get("fair_value_source")
+
+                fair_display = v784_money(fair, "Under review")
+                return_display = v784_pct(exp_ret, "Under review")
+                street_note = (
+                    f"{street_upside:+.1f}% implied upside"
+                    if street_upside is not None
+                    else "covering analysts"
+                )
+                quality_display = (
+                    f"{qual:.0f}" if qual is not None else "Under review"
+                )
+                quality_label = (
+                    v73_score_label(qual) if qual is not None else "Research incomplete"
+                )
+                confidence_display = (
+                    f"{conf:.0f}" if conf is not None else "Under review"
+                )
+                confidence_label = (
+                    v793_confidence_label(conf)
+                    if conf is not None
+                    else "Research incomplete"
+                )
+                bullets = "".join(
+                    f"<li>{v73_esc(item)}</li>" for item in reasons
+                ) or "<li>Atlas is waiting for additional verified evidence.</li>"
+
+                st.markdown(
+                    f"""
+<div class='v775-card'>
+  <div class='v775-card-head'>
+    <div>
+      <div class='v775-ticker'>{v73_esc(ticker)}</div>
+      <div class='v775-company'>{v73_esc(company)}</div>
+    </div>
+    <span class='v775-badge {cls}'>{icon} {v73_esc(tier)}</span>
+  </div>
+  <div class='v775-mini-grid'>
+    <div class='v775-mini'><span>Current Price</span><b>{v73_esc(v784_money(current, "Under review"))}</b><em>Discovery snapshot</em></div>
+    <div class='v775-mini'><span>Atlas Fair Value™</span><b class='v775-green'>{v73_esc(fair_display)}</b><small class='v793-source'>{v73_esc(source)}</small></div>
+    <div class='v775-mini'><span>Wall Street Consensus</span><b class='v775-blue'>{v73_esc(v784_money(street, "Under review"))}</b><em>{v73_esc(street_note)}</em></div>
+    <div class='v775-mini'><span>Expected Return</span><b>{v73_esc(return_display)}</b><em>to Atlas Fair Value</em></div>
+    <div class='v775-mini'><span>Quality</span><b>{v73_esc(quality_display)}</b><em>{v73_esc(quality_label)}</em></div>
+    <div class='v775-mini'><span>Confidence</span><b>{v73_esc(confidence_display)}</b><em>{v73_esc(confidence_label)}</em></div>
+  </div>
+  <div class='v793-reasons'><b>Why Atlas surfaced it</b><ul>{bullets}</ul></div>
+  <div class='v793-risk'><b>Primary risk:</b> {v73_esc(risk)}</div>
+</div>
+""",
+                    unsafe_allow_html=True,
+                )
+
+                if st.button(
+                    f"View Full Research — {ticker}",
+                    key=f"v93_research_{ticker}_{rank}",
+                    use_container_width=True,
+                ):
+                    v793_open_research(ticker)
+
+
+_v93_prior_build_home_sections = v811_build_home_sections
+
+
+def v811_build_home_sections(source):
+    """Finalize every Home section through the canonical V93 snapshot once."""
+    result = _v93_prior_build_home_sections(source)
+    if not isinstance(result, dict):
+        return result
+
+    output = dict(result)
+    for key in (
+        "today",
+        "buy_now",
+        "accumulate",
+        "monitor",
+        "closest_to_trigger",
+        "movers",
+        "new",
+        "hidden",
+        "core",
+        "mega",
+    ):
+        finalized = []
+        for row in result.get(key, []) or []:
+            data = v93_build_snapshot(row)
+            if key in {"today", "monitor", "closest_to_trigger"}:
+                if data["v93_snapshot"]["action_code"] == "AVOID":
+                    continue
+            finalized.append(data)
+        output[key] = finalized
+
+    output["monitor"] = [
+        row
+        for row in output.get("monitor", [])
+        if row["v93_snapshot"]["action_code"] == "MONITOR"
+    ][:3]
+    output["closest_to_trigger"] = list(output["monitor"])
+    return output
+
+
+V93_CANONICAL_STOCK_SNAPSHOT_VERIFIED = True
 
 V90_V89_DECISION_UI_INTEGRATION_VERIFIED = True
 
