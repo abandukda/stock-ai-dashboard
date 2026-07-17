@@ -28343,6 +28343,270 @@ def v793_decision_rows(df):
     return output
 
 
+
+# ============================================================
+# V90.1 — ACTIONABLE HOME RANKING + MISSING-DATA GUARDRAILS
+# ============================================================
+V901_ACTIONABLE_ACTIONS = {
+    "High Conviction Buy",
+    "Buy Now",
+    "Buy on Weakness",
+}
+
+
+def v901_clean_missing_research_fields(raw):
+    """Keep absent provider values as None instead of false zero evidence."""
+    data = dict(raw) if hasattr(raw, "items") else {}
+
+    # A zero/negative price target is never a valid analyst target.
+    for key in [
+        "Analyst Target",
+        "Wall Street Consensus",
+        "analyst_target",
+        "analyst_target_mean",
+        "target_mean_price",
+        "targetMeanPrice",
+        "targetHighPrice",
+        "targetLowPrice",
+    ]:
+        if key in data:
+            value = v8054_num(data.get(key), None)
+            if value is not None and value <= 0:
+                data[key] = None
+
+    # These fields are frequently created as zero by legacy normalization.
+    # Treat zero as missing only when no non-zero alias exists anywhere in the row.
+    alias_groups = {
+        "Revenue Growth": [
+            "Revenue Growth",
+            "Revenue Growth %",
+            "revenue_growth",
+            "revenueGrowth",
+            "revenue_qoq_pct",
+            "scan_revenue_growth_pct",
+        ],
+        "Operating Margin": [
+            "Operating Margin",
+            "operating_margin",
+            "operatingMargins",
+        ],
+        "Gross Margin": [
+            "Gross Margin",
+            "gross_margin",
+            "grossMargins",
+        ],
+        "Current Ratio": [
+            "Current Ratio",
+            "current_ratio",
+            "currentRatio",
+        ],
+        "Free Cash Flow": [
+            "Free Cash Flow",
+            "free_cash_flow",
+            "freeCashflow",
+        ],
+        "Analyst Count": [
+            "Analyst Count",
+            "analyst_count",
+            "numberOfAnalystOpinions",
+        ],
+    }
+
+    for canonical, aliases in alias_groups.items():
+        values = [v8054_num(data.get(key), None) for key in aliases if key in data]
+        nonzero = [value for value in values if value is not None and abs(value) > 1e-12]
+        if nonzero:
+            if canonical not in data or v8054_num(data.get(canonical), None) in (None, 0):
+                data[canonical] = nonzero[0]
+        elif values and all(value in (None, 0) for value in values):
+            for key in aliases:
+                if key in data:
+                    data[key] = None
+            data[canonical] = None
+
+    return data
+
+
+_v901_prior_enrich_row = v82_enrich_row
+
+
+def v82_enrich_row(row):
+    """V90.1 override: sanitize provider gaps before V89 evaluates the stock."""
+    clean = v901_clean_missing_research_fields(row)
+    return _v901_prior_enrich_row(clean)
+
+
+def v901_actionable_payload(raw):
+    row = v82_enrich_row(raw)
+    decision = row.get("v89_decision") if isinstance(row.get("v89_decision"), dict) else {}
+    action = str(decision.get("action") or row.get("Recommendation") or "").strip()
+    conviction = v8054_num(decision.get("conviction"), 0) or 0
+    completeness = v8054_num(decision.get("research_completeness_pct"), 0) or 0
+    expected_return = v8054_num(decision.get("expected_return_pct"), None)
+
+    is_actionable = (
+        action in V901_ACTIONABLE_ACTIONS
+        and conviction >= 60
+        and completeness >= 50
+        and (expected_return is None or expected_return > 0)
+    )
+    return row, decision, is_actionable
+
+
+def v901_home_sort_key(row):
+    decision = row.get("v89_decision") if isinstance(row.get("v89_decision"), dict) else {}
+    action = decision.get("action") or row.get("Recommendation")
+    action_weight = {
+        "High Conviction Buy": 3,
+        "Buy Now": 2,
+        "Buy on Weakness": 1,
+    }.get(action, 0)
+    conviction = v8054_num(decision.get("conviction"), 0) or 0
+    completeness = v8054_num(decision.get("research_completeness_pct"), 0) or 0
+    expected_return = v8054_num(decision.get("expected_return_pct"), 0) or 0
+    return (action_weight, conviction, completeness, min(expected_return, 100))
+
+
+_v901_prior_build_home_sections = v811_build_home_sections
+
+
+def v811_build_home_sections(source):
+    """V90.1: V89 decides eligibility before a stock reaches Top Ideas."""
+    base = _v901_prior_build_home_sections(source)
+    if not isinstance(base, dict):
+        return base
+
+    keys = ("today", "movers", "new", "hidden", "core", "mega")
+    enriched = {key: [] for key in keys}
+    seen = set()
+
+    # Enrich all dynamic-engine categories once.
+    for key in keys:
+        for raw in base.get(key, []) or []:
+            row = v82_enrich_row(raw)
+            ticker = v73_ticker(row)
+            identity = (key, ticker)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            enriched[key].append(row)
+
+    # Build a broad replenishment pool so rejected legacy selections are replaced
+    # by the next best V89-qualified candidates rather than leaving Avoid names.
+    candidate_pool = []
+    ticker_seen = set()
+    for key in ("today", "new", "movers", "hidden", "core", "mega"):
+        for row in enriched[key]:
+            ticker = v73_ticker(row)
+            if ticker and ticker not in ticker_seen:
+                ticker_seen.add(ticker)
+                candidate_pool.append(row)
+
+    # Also evaluate the full source dataframe, because the old dynamic engine may
+    # have pre-selected eight names before V89 was applied.
+    if source is not None and not getattr(source, "empty", True):
+        for _, series in source.iterrows():
+            row = v82_enrich_row(dict(series))
+            ticker = v73_ticker(row)
+            if ticker and ticker not in ticker_seen:
+                ticker_seen.add(ticker)
+                candidate_pool.append(row)
+
+    actionable = []
+    watch = []
+    avoided = []
+
+    for row in candidate_pool:
+        decision = row.get("v89_decision") if isinstance(row.get("v89_decision"), dict) else {}
+        action = decision.get("action") or row.get("Recommendation") or "Wait for Confirmation"
+        conviction = v8054_num(decision.get("conviction"), 0) or 0
+        completeness = v8054_num(decision.get("research_completeness_pct"), 0) or 0
+        expected_return = v8054_num(decision.get("expected_return_pct"), None)
+
+        qualifies = (
+            action in V901_ACTIONABLE_ACTIONS
+            and conviction >= 60
+            and completeness >= 50
+            and (expected_return is None or expected_return > 0)
+        )
+
+        if qualifies:
+            actionable.append(row)
+        elif action == "Wait for Confirmation":
+            watch.append(row)
+        else:
+            avoided.append(row)
+
+    actionable.sort(key=v901_home_sort_key, reverse=True)
+    watch.sort(key=v901_home_sort_key, reverse=True)
+
+    # Top Ideas must never contain Avoid. Do not force eight names.
+    final_today = actionable[:8]
+
+    # Preserve movers/new only when they are not Avoid; their cards can still
+    # explain that a name is waiting for confirmation.
+    def non_avoid(rows):
+        output = []
+        for row in rows:
+            decision = row.get("v89_decision") if isinstance(row.get("v89_decision"), dict) else {}
+            if (decision.get("action") or row.get("Recommendation")) != "Avoid":
+                output.append(row)
+        return output
+
+    result = dict(base)
+    result["today"] = final_today
+    result["movers"] = non_avoid(enriched["movers"])
+    result["new"] = non_avoid(enriched["new"])
+
+    # Stable, high-quality Wait names belong in Core/Mega rather than Top Ideas.
+    existing_core = non_avoid(enriched["core"])
+    existing_mega = non_avoid(enriched["mega"])
+    core_tickers = {v73_ticker(row) for row in existing_core + existing_mega}
+
+    for row in watch:
+        ticker = v73_ticker(row)
+        if not ticker or ticker in core_tickers:
+            continue
+        market_cap = v8054_num(
+            v8054_first_meaningful(
+                row,
+                ["Market Cap", "market_cap", "marketCap"],
+                None,
+            ),
+            None,
+        )
+        quality = v8054_num(
+            v8054_first_meaningful(
+                row,
+                ["Quality", "Quality Score", "quality_score"],
+                0,
+            ),
+            0,
+        ) or 0
+
+        if market_cap is not None and market_cap >= 200_000_000_000:
+            existing_mega.append(row)
+            core_tickers.add(ticker)
+        elif quality >= 70:
+            existing_core.append(row)
+            core_tickers.add(ticker)
+
+    result["core"] = existing_core[:12]
+    result["mega"] = existing_mega[:12]
+    result["hidden"] = [
+        row for row in enriched["hidden"]
+        if (row.get("v89_decision") or {}).get("action") in V901_ACTIONABLE_ACTIONS
+    ][:10]
+
+    # Diagnostics used by the Home brief and future QA.
+    result["excluded_avoid_count"] = len(avoided)
+    result["watch_count"] = len(watch)
+    result["actionable_count"] = len(final_today)
+    return result
+
+
+V901_ACTIONABLE_HOME_RANKING_VERIFIED = True
+
 V90_V89_DECISION_UI_INTEGRATION_VERIFIED = True
 
 if __name__ == "__main__":
