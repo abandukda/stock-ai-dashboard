@@ -10,6 +10,7 @@ from urllib.parse import quote_plus
 from io import StringIO
 from ui.layout import inject_css
 import pandas as pd
+import numpy as np
 import streamlit as st
 from services.scoring_calibration import calibrate_top_ai_dataframe
 from ui.mobile_cards import render_mobile_top_ai_cards
@@ -19,7 +20,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V90.2 Actionable Ranking Hotfix"
+APP_VERSION = "V90.3 NumPy Import Hotfix"
 V63_REAL_SCORING_AND_FINANCE_VERIFIED = True
 V631_DEDUPED_SCORING_AND_UPSIDE_VERIFIED = True
 V64_PREMIUM_REASONING_UI_VERIFIED = True
