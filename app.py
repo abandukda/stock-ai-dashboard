@@ -16,11 +16,17 @@ from services.scoring_calibration import calibrate_top_ai_dataframe
 from ui.mobile_cards import render_mobile_top_ai_cards
 
 import requests
+from utils.data_integrity import (
+    first_present as v952_first_present,
+    is_present as v952_is_present,
+    to_number as v952_to_number,
+)
+from services.http_client import robust_get as v952_robust_get
 import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V95.1 Opportunity Discovery Integration"
+APP_VERSION = "V95.2 Data Integrity Foundation"
 V63_REAL_SCORING_AND_FINANCE_VERIFIED = True
 V631_DEDUPED_SCORING_AND_UPSIDE_VERIFIED = True
 V64_PREMIUM_REASONING_UI_VERIFIED = True
@@ -1904,7 +1910,7 @@ def fetch_fmp_chart_history_v4185(ticker, period="5y"):
             "to": end.isoformat(),
             "apikey": FMP_API_KEY,
         }
-        resp = requests.get(url, params=params, timeout=15)
+        resp = v952_robust_get(url, params=params, timeout=15)
         if resp.status_code != 200:
             return pd.DataFrame()
 
@@ -2380,7 +2386,7 @@ def v423_fetch_quote(symbol):
     try:
         if FMP_API_KEY:
             url = f"https://financialmodelingprep.com/api/v3/quote/{symbol}"
-            r = requests.get(url, params={"apikey": FMP_API_KEY}, timeout=8)
+            r = v952_robust_get(url, params={"apikey": FMP_API_KEY}, timeout=8)
             if r.status_code == 200:
                 data = r.json() or []
                 if data:
@@ -2417,7 +2423,7 @@ def v423_fetch_economic_calendar():
             today = dt.datetime.now().date()
             end = today + dt.timedelta(days=7)
             url = "https://financialmodelingprep.com/api/v3/economic_calendar"
-            r = requests.get(url, params={"from": today.isoformat(), "to": end.isoformat(), "apikey": FMP_API_KEY}, timeout=10)
+            r = v952_robust_get(url, params={"from": today.isoformat(), "to": end.isoformat(), "apikey": FMP_API_KEY}, timeout=10)
             if r.status_code == 200:
                 data = r.json() or []
                 important_terms = ["CPI", "PPI", "Payroll", "Nonfarm", "FOMC", "Fed", "Jobless", "GDP", "Retail Sales", "Inflation", "Unemployment", "ISM", "PMI"]
@@ -2449,7 +2455,7 @@ def v423_fetch_earnings_calendar():
         if FMP_API_KEY:
             today = dt.datetime.now().date()
             url = "https://financialmodelingprep.com/api/v3/earning_calendar"
-            r = requests.get(
+            r = v952_robust_get(
                 url,
                 params={
                     "from": today.isoformat(),
@@ -2504,7 +2510,7 @@ def v423_fetch_market_news_headlines():
     try:
         if NEWSAPI_KEY:
             url = "https://newsapi.org/v2/everything"
-            r = requests.get(
+            r = v952_robust_get(
                 url,
                 params={
                     "q": '(stock market OR S&P 500 OR Nasdaq OR Federal Reserve OR CPI OR inflation OR earnings)',
@@ -2784,7 +2790,7 @@ def v424_fmp_get(endpoint, params=None):
         url = f"https://financialmodelingprep.com/api/v3/{endpoint.lstrip('/')}"
         merged = dict(params or {})
         merged["apikey"] = FMP_API_KEY
-        r = requests.get(url, params=merged, timeout=12)
+        r = v952_robust_get(url, params=merged, timeout=12)
         if r.status_code == 200:
             return r.json()
     except Exception:
@@ -2894,7 +2900,7 @@ def v424_market_news():
         key = globals().get("NEWSAPI_KEY") or globals().get("NEWS_API_KEY") or os.getenv("NEWSAPI_KEY") or os.getenv("NEWS_API_KEY")
         key = (key or "").strip()
         if key:
-            r = requests.get(
+            r = v952_robust_get(
                 "https://newsapi.org/v2/everything",
                 params={
                     "q": '(stock market OR S&P 500 OR Nasdaq OR Federal Reserve OR CPI OR inflation OR earnings)',
@@ -4699,7 +4705,7 @@ def v4242_nasdaq_earnings_today():
             "Origin": "https://www.nasdaq.com",
             "Referer": "https://www.nasdaq.com/market-activity/earnings",
         }
-        r = requests.get(url, params={"date": today.isoformat()}, headers=headers, timeout=12)
+        r = v952_robust_get(url, params={"date": today.isoformat()}, headers=headers, timeout=12)
         if r.status_code == 200:
             data = r.json() or {}
             table = (((data.get("data") or {}).get("rows")) or [])
@@ -4733,7 +4739,7 @@ def v4242_alpha_vantage_earnings_today():
         if not key:
             return rows
         url = "https://www.alphavantage.co/query"
-        r = requests.get(url, params={"function": "EARNINGS_CALENDAR", "horizon": "3month", "apikey": key}, timeout=15)
+        r = v952_robust_get(url, params={"function": "EARNINGS_CALENDAR", "horizon": "3month", "apikey": key}, timeout=15)
         if r.status_code == 200 and r.text:
             today = (v424_today() if "v424_today" in globals() else dt.datetime.now().date()).isoformat()
             reader = csv.DictReader(StringIO(r.text))
@@ -4818,7 +4824,7 @@ def v4242_tradingeconomics_calendar():
         today = v424_today() if "v424_today" in globals() else dt.datetime.now().date()
         end = today + dt.timedelta(days=45)
         url = "https://api.tradingeconomics.com/calendar"
-        r = requests.get(
+        r = v952_robust_get(
             url,
             params={"c": "guest:guest", "f": "json", "d1": today.isoformat(), "d2": end.isoformat()},
             timeout=12,
@@ -4922,7 +4928,7 @@ def v424_market_news():
     try:
         key = (globals().get("NEWSAPI_KEY") or globals().get("NEWS_API_KEY") or os.getenv("NEWSAPI_KEY") or os.getenv("NEWS_API_KEY") or "").strip()
         if key:
-            r = requests.get(
+            r = v952_robust_get(
                 "https://newsapi.org/v2/everything",
                 params={
                     "q": '(stock market OR S&P 500 OR Nasdaq OR Federal Reserve OR CPI OR inflation OR earnings)',
@@ -4949,7 +4955,7 @@ def v424_market_news():
     try:
         token = (globals().get("FINNHUB_API_KEY") or os.getenv("FINNHUB_API_KEY") or os.getenv("FINNHUB_TOKEN") or "").strip()
         if token:
-            r = requests.get("https://finnhub.io/api/v1/news", params={"category": "general", "token": token}, timeout=10)
+            r = v952_robust_get("https://finnhub.io/api/v1/news", params={"category": "general", "token": token}, timeout=10)
             if r.status_code == 200:
                 for a in (r.json() or [])[:5]:
                     headline = safe_text(a.get("headline") or "")
@@ -5081,7 +5087,7 @@ def v4242_nasdaq_earnings_today():
             "Origin": "https://www.nasdaq.com",
             "Referer": "https://www.nasdaq.com/market-activity/earnings",
         }
-        r = requests.get(url, params={"date": today.isoformat()}, headers=headers, timeout=12)
+        r = v952_robust_get(url, params={"date": today.isoformat()}, headers=headers, timeout=12)
         if r.status_code == 200:
             data = r.json() or {}
             table = (((data.get("data") or {}).get("rows")) or [])
@@ -5120,7 +5126,7 @@ def v4242_alpha_vantage_earnings_today():
         if not key:
             return rows
         url = "https://www.alphavantage.co/query"
-        r = requests.get(url, params={"function": "EARNINGS_CALENDAR", "horizon": "3month", "apikey": key}, timeout=15)
+        r = v952_robust_get(url, params={"function": "EARNINGS_CALENDAR", "horizon": "3month", "apikey": key}, timeout=15)
         if r.status_code == 200 and r.text:
             today = (v424_today() if "v424_today" in globals() else dt.datetime.now().date()).isoformat()
             reader = csv.DictReader(StringIO(r.text))
@@ -6397,7 +6403,7 @@ def v4253_official_bls_calendar():
     events = []
     try:
         url = "https://www.bls.gov/schedule/news_release/"
-        r = requests.get(url, timeout=12, headers={"User-Agent": "Mozilla/5.0"})
+        r = v952_robust_get(url, timeout=12, headers={"User-Agent": "Mozilla/5.0"})
         if r.status_code != 200:
             return events
         text = r.text
@@ -6432,7 +6438,7 @@ def v4253_official_fed_calendar():
     events = []
     try:
         url = "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
-        r = requests.get(url, timeout=12, headers={"User-Agent": "Mozilla/5.0"})
+        r = v952_robust_get(url, timeout=12, headers={"User-Agent": "Mozilla/5.0"})
         if r.status_code != 200:
             return events
         text = r.text
@@ -6455,7 +6461,7 @@ def v4253_official_bea_calendar():
     events = []
     try:
         url = "https://www.bea.gov/news/schedule"
-        r = requests.get(url, timeout=12, headers={"User-Agent": "Mozilla/5.0"})
+        r = v952_robust_get(url, timeout=12, headers={"User-Agent": "Mozilla/5.0"})
         if r.status_code != 200:
             return events
         text = r.text
@@ -6666,7 +6672,7 @@ def v426_key_status():
 
 def v426_safe_get(url, params=None, headers=None, timeout=12):
     try:
-        r = requests.get(url, params=params or {}, headers=headers or {"User-Agent": "Mozilla/5.0"}, timeout=timeout)
+        r = v952_robust_get(url, params=params or {}, headers=headers or {"User-Agent": "Mozilla/5.0"}, timeout=timeout)
         if r.status_code == 200:
             ctype = safe_text(r.headers.get("content-type"), "")
             if "json" in ctype.lower():
@@ -8185,7 +8191,7 @@ def v432_env_status():
 
 def v432_http_json(url, params=None, headers=None, timeout=8):
     try:
-        r = requests.get(url, params=params or {}, headers=headers or {"User-Agent": "Mozilla/5.0"}, timeout=timeout)
+        r = v952_robust_get(url, params=params or {}, headers=headers or {"User-Agent": "Mozilla/5.0"}, timeout=timeout)
         if r.status_code == 200:
             return r.json(), r.status_code
         return None, r.status_code
@@ -8195,7 +8201,7 @@ def v432_http_json(url, params=None, headers=None, timeout=8):
 
 def v432_http_text(url, params=None, headers=None, timeout=8):
     try:
-        r = requests.get(url, params=params or {}, headers=headers or {"User-Agent": "Mozilla/5.0"}, timeout=timeout)
+        r = v952_robust_get(url, params=params or {}, headers=headers or {"User-Agent": "Mozilla/5.0"}, timeout=timeout)
         if r.status_code == 200:
             return r.text, r.status_code
         return None, r.status_code
@@ -14265,7 +14271,7 @@ def v50_fmp_json(endpoint, params=None):
         url = f"https://financialmodelingprep.com/api/v3/{endpoint.lstrip('/')}"
         p = dict(params or {})
         p["apikey"] = key
-        r = requests.get(url, params=p, timeout=12)
+        r = v952_robust_get(url, params=p, timeout=12)
         if r.status_code != 200:
             return None, f"HTTP {r.status_code}"
         return r.json(), "ok"
@@ -14282,7 +14288,7 @@ def v50_finnhub_json(endpoint, params=None):
         url = f"https://finnhub.io/api/v1/{endpoint.lstrip('/')}"
         p = dict(params or {})
         p["token"] = key
-        r = requests.get(url, params=p, timeout=12)
+        r = v952_robust_get(url, params=p, timeout=12)
         if r.status_code != 200:
             return None, f"HTTP {r.status_code}"
         return r.json()
@@ -15019,7 +15025,7 @@ def v502_fmp_v3(endpoint, params=None):
         url = f"https://financialmodelingprep.com/api/v3/{endpoint.lstrip('/')}"
         p = dict(params or {})
         p["apikey"] = key
-        r = requests.get(url, params=p, timeout=12)
+        r = v952_robust_get(url, params=p, timeout=12)
         if r.status_code != 200:
             return None
         return r.json()
@@ -15882,7 +15888,7 @@ def v58_fmp_get(endpoint, params=None):
         params["apikey"] = FMP_API_KEY
     try:
         url = f"https://financialmodelingprep.com/stable/{endpoint.lstrip('/')}"
-        r = requests.get(url, params=params, timeout=20)
+        r = v952_robust_get(url, params=params, timeout=20)
         if r.status_code != 200:
             return []
         data = r.json()
@@ -18082,7 +18088,7 @@ def v5081_fmp_stable(path, params_json="{}"):
     params = dict(params or {})
     params["apikey"] = key
     try:
-        r = requests.get(url, params=params, timeout=15)
+        r = v952_robust_get(url, params=params, timeout=15)
         status = f"HTTP {r.status_code}"
         diagnostics.append(f"FMP stable {path}: {status}")
         if r.status_code != 200:
@@ -26653,57 +26659,19 @@ def v8054_merge_saved_live(saved, live):
 
 
 def v8054_first_meaningful(row, keys, default=None, zero_is_missing=False):
+    """V95.2 canonical field resolver; preserves legitimate zero/False values."""
     data = v8053_row_dict(row)
-    raw = data.get("Raw") if isinstance(data.get("Raw"), dict) else {}
-    # Prefer a meaningful normalized value; otherwise use Raw evidence.
-    for source in (data, raw):
-        for key in keys:
-            value = source.get(key)
-            if not v8054_is_missing(value, zero_is_missing=zero_is_missing):
-                return value
-    return default
+    return v952_first_present(
+        data,
+        keys,
+        default=default,
+        zero_is_missing=zero_is_missing,
+    )
 
 
 def v8054_num(value, default=None):
-    """Safely coerce a numeric value without turning missing data into zero."""
-    if value is None:
-        return default
-    if isinstance(value, bool):
-        return float(value)
-    try:
-        if pd.isna(value):
-            return default
-    except Exception:
-        pass
-    if isinstance(value, (int, float, np.integer, np.floating)):
-        try:
-            number = float(value)
-            if not np.isfinite(number):
-                return default
-            return number
-        except Exception:
-            return default
-    text = str(value).strip()
-    if not text or text.lower() in {
-        "n/a", "na", "none", "null", "nan", "unavailable",
-        "under review", "not available", "not reported", "-", "—",
-    }:
-        return default
-    cleaned = (
-        text.replace(",", "")
-        .replace("$", "")
-        .replace("%", "")
-        .replace("x", "")
-        .strip()
-    )
-    match = re.search(r"-?\d+(?:\.\d+)?", cleaned)
-    if not match:
-        return default
-    try:
-        number = float(match.group(0))
-        return number if np.isfinite(number) else default
-    except Exception:
-        return default
+    """V95.2 canonical numeric coercion; preserves real zero values."""
+    return v952_to_number(value, default)
 
 
 def v8054_format_time(value):
@@ -31645,6 +31613,8 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
 V951_OPPORTUNITY_DISCOVERY_INTEGRATION_VERIFIED = True
 
 V90_V89_DECISION_UI_INTEGRATION_VERIFIED = True
+
+V952_DATA_INTEGRITY_FOUNDATION_VERIFIED = True
 
 if __name__ == "__main__":
     main()

@@ -2,3 +2,16 @@
 atlas_debug.zip
 atlas_debug/
 __pycache__/data/atlas_discovery_history.json
+
+# Python generated files
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Local consultant packages
+atlas_consultant_review/
+atlas_consultant_review.zip
+stock_ai_tool_consultant_review.zip
+
+# Generated local data
+data/atlas_discovery_history.json
