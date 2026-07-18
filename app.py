@@ -20,7 +20,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V94.2 Canonical Quality and Card Cleanup"
+APP_VERSION = "V95.1 Opportunity Discovery Integration"
 V63_REAL_SCORING_AND_FINANCE_VERIFIED = True
 V631_DEDUPED_SCORING_AND_UPSIDE_VERIFIED = True
 V64_PREMIUM_REASONING_UI_VERIFIED = True
@@ -31373,6 +31373,276 @@ st.markdown(
 
 
 V942_CANONICAL_QUALITY_AND_CARD_CLEANUP_VERIFIED = True
+
+
+# ============================================================
+# V95.1 — OPPORTUNITY DISCOVERY INTEGRATION
+# ============================================================
+from engines.opportunity_discovery_engine import (
+    DiscoveryConfig as v95_DiscoveryConfig,
+    discover_opportunities as v95_discover_opportunities,
+    validate_discovery_contract as v95_validate_discovery_contract,
+)
+
+
+def v951_discovery_config():
+    """Central discovery configuration. This does not alter V89 decisions."""
+    return v95_DiscoveryConfig(
+        minimum_price=max(20.0, float(MIN_UPSIDE_PCT * 0 + 20.0)),
+        minimum_market_cap=500_000_000.0,
+        minimum_average_volume=250_000.0,
+        minimum_signal_score=25.0,
+        minimum_data_coverage_pct=35.0,
+        maximum_candidates=40,
+        maximum_per_sector=6,
+        include_price_buckets=True,
+        exclude_israeli_companies=True,
+    )
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def v951_cached_discovery(records_json):
+    records = json.loads(records_json)
+    return v95_discover_opportunities(
+        records,
+        config=v951_discovery_config(),
+    )
+
+
+def v951_build_discovery(full_df):
+    """
+    Run V95 against the complete available scan dataframe.
+
+    V95 only selects candidates for enrichment. It does not assign or rewrite
+    Buy Now / Accumulate / Monitor / Avoid.
+    """
+    if full_df is None or getattr(full_df, "empty", True):
+        return v95_discover_opportunities([], config=v951_discovery_config())
+
+    records = [
+        dict(series)
+        for _, series in full_df.head(10000).iterrows()
+    ]
+    return v951_cached_discovery(
+        json.dumps(records, sort_keys=True, default=str)
+    )
+
+
+def v951_attach_discovery_context(row, candidate):
+    """Attach V95 metadata without overwriting decision or snapshot fields."""
+    data = dict(row) if hasattr(row, "items") else {}
+    candidate = candidate if isinstance(candidate, dict) else {}
+
+    data["v95_discovery"] = {
+        "discovery_score": candidate.get("discovery_score"),
+        "data_coverage_pct": candidate.get("data_coverage_pct"),
+        "signal_count": candidate.get("signal_count"),
+        "top_signals": candidate.get("top_signals") or [],
+        "why_discovered": candidate.get("why_discovered") or [],
+        "price_bucket": candidate.get("price_bucket"),
+    }
+
+    existing = list(data.get("why_atlas_likes_it") or [])
+    discovered = list(candidate.get("why_discovered") or [])
+    clean = []
+    seen = set()
+    for item in discovered + existing:
+        item = str(item or "").strip()
+        key = item.lower()
+        if item and key not in seen:
+            seen.add(key)
+            clean.append(item)
+    data["why_atlas_likes_it"] = clean[:8]
+    return data
+
+
+_v951_prior_home_sections = v811_build_home_sections
+
+
+def v811_build_home_sections(source):
+    """
+    V95.1 uses Discovery as the candidate gate, then lets the existing V89/V93
+    decision pipeline evaluate those candidates.
+
+    Discovery never changes the final recommendation.
+    """
+    discovery = v951_build_discovery(source)
+    selected_rows = discovery.get("selected_rows") or []
+    ranked_candidates = discovery.get("ranked_candidates") or []
+
+    candidate_by_ticker = {
+        str(item.get("ticker") or "").upper(): item
+        for item in ranked_candidates
+        if item.get("ticker")
+    }
+
+    if selected_rows:
+        selected_df = pd.DataFrame(selected_rows)
+        result = _v951_prior_home_sections(selected_df)
+    else:
+        # Preserve the existing Home behavior when discovery itself has no output.
+        result = _v951_prior_home_sections(source)
+
+    if not isinstance(result, dict):
+        return result
+
+    output = dict(result)
+    selected_tickers = set(candidate_by_ticker)
+
+    for key in (
+        "today", "buy_now", "accumulate", "monitor", "closest_to_trigger",
+        "movers", "new", "hidden", "core", "mega",
+    ):
+        rows = []
+        seen = set()
+        for raw in result.get(key, []) or []:
+            ticker = v73_ticker(raw)
+            if not ticker or ticker in seen:
+                continue
+
+            # Today's opportunity feed must originate from V95-selected candidates.
+            if key in {"today", "buy_now", "accumulate", "monitor", "closest_to_trigger"}:
+                if selected_tickers and ticker not in selected_tickers:
+                    continue
+
+            data = v951_attach_discovery_context(
+                raw,
+                candidate_by_ticker.get(ticker, {}),
+            )
+            rows.append(data)
+            seen.add(ticker)
+
+        output[key] = rows
+
+    output["v95_discovery"] = {
+        "summary": discovery.get("discovery_summary") or {},
+        "signal_distribution": discovery.get("signal_distribution") or {},
+        "exclusion_summary": discovery.get("exclusion_summary") or {},
+        "top_rejection_reasons": discovery.get("top_rejection_reasons") or [],
+        "price_bucket_distribution": discovery.get("price_bucket_distribution") or {},
+        "sector_distribution": discovery.get("sector_distribution") or {},
+        "diagnostics": discovery.get("diagnostics") or [],
+        "contract_errors": v95_validate_discovery_contract(discovery),
+    }
+    output["discovery_selected_count"] = len(selected_rows)
+    return output
+
+
+def v951_render_discovery_audit(full_df):
+    """Admin-only V95 diagnostic panel. Read-only and recommendation-neutral."""
+    if is_viewer():
+        return
+
+    try:
+        result = v951_build_discovery(full_df)
+    except Exception as exc:
+        st.error(f"V95 Opportunity Discovery could not complete: {exc}")
+        return
+
+    summary = result.get("discovery_summary") or {}
+    contract_errors = v95_validate_discovery_contract(result)
+
+    with st.expander("🔎 V95 Opportunity Discovery · Admin", expanded=True):
+        st.caption(
+            "V95 identifies candidates for full research. It does not assign "
+            "Buy Now, Accumulate, Monitor, or Avoid."
+        )
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Universe received", int(summary.get("universe_received", 0)))
+        c2.metric("Excluded", int(summary.get("excluded", 0)))
+        c3.metric(
+            "Qualified for enrichment",
+            int(summary.get("qualified_for_enrichment", 0)),
+        )
+        c4.metric(
+            "Selected for full research",
+            int(summary.get("selected_for_full_research", 0)),
+        )
+
+        candidates = result.get("ranked_candidates") or []
+        if candidates:
+            st.markdown("#### Selected candidates")
+            rows = []
+            for item in candidates[:40]:
+                signals = item.get("why_discovered") or []
+                rows.append(
+                    {
+                        "Ticker": item.get("ticker"),
+                        "Company": item.get("company"),
+                        "Sector": item.get("sector"),
+                        "Discovery Score": item.get("discovery_score"),
+                        "Coverage": f"{v8054_num(item.get('data_coverage_pct'), 0):.1f}%",
+                        "Signals": int(item.get("signal_count", 0)),
+                        "Why discovered": " | ".join(signals[:3]),
+                    }
+                )
+            st.dataframe(
+                pd.DataFrame(rows),
+                hide_index=True,
+                use_container_width=True,
+                column_config={
+                    "Why discovered": st.column_config.TextColumn(
+                        "Why discovered",
+                        width="large",
+                    )
+                },
+            )
+        else:
+            st.warning("V95 selected no candidates for full research.")
+
+        rejection_rows = result.get("top_rejection_reasons") or []
+        if rejection_rows:
+            st.markdown("#### Top rejection reasons")
+            st.dataframe(
+                pd.DataFrame(rejection_rows).rename(
+                    columns={"reason": "Reason", "count": "Count"}
+                ),
+                hide_index=True,
+                use_container_width=True,
+            )
+
+        signal_distribution = result.get("signal_distribution") or {}
+        if signal_distribution:
+            st.markdown("#### Signal distribution")
+            signal_rows = [
+                {"Signal": key.replace("_", " ").title(), "Count": value}
+                for key, value in sorted(
+                    signal_distribution.items(),
+                    key=lambda item: item[1],
+                    reverse=True,
+                )
+            ]
+            st.dataframe(
+                pd.DataFrame(signal_rows),
+                hide_index=True,
+                use_container_width=True,
+            )
+
+        diagnostics = result.get("diagnostics") or []
+        for item in diagnostics:
+            st.warning(item)
+
+        if contract_errors:
+            for error in contract_errors:
+                st.error(error)
+        else:
+            st.success(
+                "V95 contract passed: Discovery remained read-only and did not "
+                "create any investment-decision fields."
+            )
+
+
+_v951_prior_dynamic_home = v810_render_dynamic_home
+
+
+def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
+    """Render the existing Home, V94 audit, then the V95 discovery audit."""
+    _v951_prior_dynamic_home(full_df, top_df, recovery_df)
+    v951_render_discovery_audit(full_df)
+
+
+V951_OPPORTUNITY_DISCOVERY_INTEGRATION_VERIFIED = True
 
 V90_V89_DECISION_UI_INTEGRATION_VERIFIED = True
 
