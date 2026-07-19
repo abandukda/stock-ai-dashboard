@@ -26,7 +26,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 
-APP_VERSION = "V95.2 Data Integrity Foundation"
+APP_VERSION = "V96.1 Institutional Discovery Funnel Integration"
 V63_REAL_SCORING_AND_FINANCE_VERIFIED = True
 V631_DEDUPED_SCORING_AND_UPSIDE_VERIFIED = True
 V64_PREMIUM_REASONING_UI_VERIFIED = True
@@ -31613,6 +31613,224 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
 V951_OPPORTUNITY_DISCOVERY_INTEGRATION_VERIFIED = True
 
 V90_V89_DECISION_UI_INTEGRATION_VERIFIED = True
+
+
+# ============================================================
+# V96.1 — INSTITUTIONAL DISCOVERY FUNNEL INTEGRATION
+# ============================================================
+from engines.institutional_discovery_engine import (
+    DiscoveryConfig as v96_DiscoveryConfig,
+    run_institutional_discovery as v96_run_institutional_discovery,
+    validate_discovery_invariants as v96_validate_discovery_invariants,
+)
+
+
+def v961_discovery_config():
+    """Central V96 funnel configuration. This does not change V89 decisions."""
+    return v96_DiscoveryConfig(
+        minimum_price=20.0,
+        minimum_market_cap=500_000_000.0,
+        minimum_average_volume=250_000.0,
+        minimum_quality_score=45.0,
+        minimum_financial_health_score=45.0,
+        minimum_technical_score=45.0,
+        minimum_valuation_score=40.0,
+        minimum_evidence_pillars=3,
+        minimum_research_completeness_pct=35.0,
+        shortlist_size=50,
+        maximum_per_sector=7,
+        exclude_israeli_companies=True,
+        require_catalyst_for_top_tier=True,
+    )
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def v961_cached_discovery(records_json):
+    records = json.loads(records_json)
+    return v96_run_institutional_discovery(
+        records,
+        config=v961_discovery_config(),
+    )
+
+
+def v961_build_discovery(full_df):
+    """
+    Evaluate the complete available scan dataframe through V96.
+
+    V96 is read-only. It records funnel outcomes but never writes a Buy Now,
+    Accumulate, Monitor, Avoid, V89 decision, or V93 snapshot.
+    """
+    if full_df is None or getattr(full_df, "empty", True):
+        return v96_run_institutional_discovery(
+            [],
+            config=v961_discovery_config(),
+        )
+
+    records = [
+        dict(series)
+        for _, series in full_df.head(10000).iterrows()
+    ]
+    return v961_cached_discovery(
+        json.dumps(records, sort_keys=True, default=str)
+    )
+
+
+def v961_render_discovery_funnel(full_df):
+    """Admin-only funnel and evidence audit."""
+    if is_viewer():
+        return
+
+    try:
+        result = v961_build_discovery(full_df)
+    except Exception as exc:
+        st.error(f"V96 Institutional Discovery could not complete: {exc}")
+        return
+
+    funnel = result.get("funnel_counts") or {}
+    invariant_errors = v96_validate_discovery_invariants(result)
+
+    with st.expander("🏛️ V96 Institutional Discovery Funnel · Admin", expanded=True):
+        st.caption(
+            "V96 audits how the broad universe narrows into a full-research shortlist. "
+            "It is read-only and does not create or overwrite investment recommendations."
+        )
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Universe received", int(funnel.get("universe_received", 0)))
+        c2.metric("Eligible universe", int(funnel.get("eligible_universe", 0)))
+        c3.metric("Research candidates", int(funnel.get("research_candidates", 0)))
+        c4.metric(
+            "Full-research shortlist",
+            int(funnel.get("shortlisted_for_full_research", 0)),
+        )
+
+        st.markdown("#### Discovery waterfall")
+        waterfall = pd.DataFrame(
+            [
+                ["Universe received", funnel.get("universe_received", 0)],
+                ["Eligible after policy/liquidity", funnel.get("eligible_universe", 0)],
+                ["Passed quality", funnel.get("passed_quality", 0)],
+                ["Passed financial health", funnel.get("passed_financial_health", 0)],
+                ["Passed technicals", funnel.get("passed_technical", 0)],
+                ["Passed valuation", funnel.get("passed_valuation", 0)],
+                ["Verified catalyst", funnel.get("has_verified_catalyst", 0)],
+                ["Passed evidence minimum", funnel.get("passed_evidence", 0)],
+                [
+                    "Passed research completeness",
+                    funnel.get("passed_research_completeness", 0),
+                ],
+                ["Research candidates", funnel.get("research_candidates", 0)],
+                [
+                    "Shortlisted for full research",
+                    funnel.get("shortlisted_for_full_research", 0),
+                ],
+            ],
+            columns=["Stage", "Count"],
+        )
+        st.dataframe(waterfall, hide_index=True, use_container_width=True)
+
+        candidates = result.get("shortlisted_candidates") or []
+        st.markdown("#### Institutional research shortlist")
+        if candidates:
+            rows = []
+            for item in candidates[:50]:
+                pillars = item.get("evidence_pillars") or {}
+                confirmed = [
+                    name.replace("_", " ").title()
+                    for name, present in pillars.items()
+                    if present
+                ]
+                rows.append(
+                    {
+                        "Ticker": item.get("ticker"),
+                        "Company": item.get("company"),
+                        "Sector": item.get("sector"),
+                        "Status": item.get("discovery_status"),
+                        "Discovery Score": item.get("discovery_score"),
+                        "Evidence": (
+                            f"{item.get('evidence_count', 0)}/"
+                            f"{item.get('evidence_total', 15)}"
+                        ),
+                        "Completeness": (
+                            f"{v8054_num(item.get('research_completeness_pct'), 0):.1f}%"
+                        ),
+                        "Confirmed pillars": ", ".join(confirmed),
+                    }
+                )
+
+            st.dataframe(
+                pd.DataFrame(rows),
+                hide_index=True,
+                use_container_width=True,
+                column_config={
+                    "Confirmed pillars": st.column_config.TextColumn(
+                        "Confirmed pillars",
+                        width="large",
+                    )
+                },
+            )
+        else:
+            st.warning("No stocks qualified for the V96 full-research shortlist.")
+
+        failures = result.get("top_failure_reasons") or []
+        if failures:
+            st.markdown("#### Top filtering reasons")
+            st.dataframe(
+                pd.DataFrame(failures).rename(
+                    columns={"reason": "Reason", "count": "Count"}
+                ),
+                hide_index=True,
+                use_container_width=True,
+            )
+
+        evidence = result.get("evidence_distribution") or {}
+        if evidence:
+            st.markdown("#### Evidence-pillar coverage")
+            evidence_rows = [
+                {
+                    "Pillar": pillar.replace("_", " ").title(),
+                    "Stocks with evidence": count,
+                    "Coverage": (
+                        f"{count / max(int(funnel.get('universe_received', 0)), 1) * 100:.1f}%"
+                    ),
+                }
+                for pillar, count in sorted(
+                    evidence.items(),
+                    key=lambda item: item[1],
+                    reverse=True,
+                )
+            ]
+            st.dataframe(
+                pd.DataFrame(evidence_rows),
+                hide_index=True,
+                use_container_width=True,
+            )
+
+        diagnostics = result.get("diagnostics") or []
+        for item in diagnostics:
+            st.warning(item)
+
+        if invariant_errors:
+            st.markdown("#### V96 contract violations")
+            for error in invariant_errors:
+                st.error(error)
+        else:
+            st.success(
+                "V96 contract passed: the discovery funnel remained read-only "
+                "and did not generate investment-decision fields."
+            )
+
+
+_v961_prior_dynamic_home = v810_render_dynamic_home
+
+
+def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
+    """Render the existing Home experience, then the V96 admin funnel."""
+    _v961_prior_dynamic_home(full_df, top_df, recovery_df)
+    v961_render_discovery_funnel(full_df)
+
+
+V961_INSTITUTIONAL_DISCOVERY_INTEGRATION_VERIFIED = True
 
 V952_DATA_INTEGRITY_FOUNDATION_VERIFIED = True
 
