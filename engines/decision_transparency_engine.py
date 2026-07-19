@@ -392,6 +392,7 @@ def _expected_return(row: Mapping[str, Any]) -> float | None:
 
 
 def _risk_passed(row: Mapping[str, Any], risk_score: float | None) -> bool | None:
+    """Resolve explicit risk evidence before falling back to score availability."""
     decision = _decision(row)
     risk_level = _text(decision.get("risk_level")).lower()
 
@@ -401,16 +402,27 @@ def _risk_passed(row: Mapping[str, Any], risk_score: float | None) -> bool | Non
         if risk_level in {"low", "low to moderate", "moderate"}:
             return True
 
+    explicit = _text(
+        _first(
+            row,
+            "Risk Pass",
+            "risk_pass",
+            "Risk Status",
+            "risk_status",
+        )
+    ).lower()
+
+    if explicit in {"pass", "passed", "true", "yes", "acceptable", "approved"}:
+        return True
+
+    if explicit in {"fail", "failed", "false", "no", "high risk", "rejected"}:
+        return False
+
     if risk_score is None:
         return None
 
-    # Existing Atlas risk components may use either high-is-good or high-is-risk.
-    # Prefer explicit fields where available and otherwise treat midrange as unknown.
-    explicit = _text(_first(row, "Risk Pass", "risk_pass", "Risk Status")).lower()
-    if explicit in {"pass", "passed", "true", "yes"}:
-        return True
-    if explicit in {"fail", "failed", "false", "no"}:
-        return False
+    # Do not guess score direction when the source does not declare whether
+    # a higher risk score is safer or riskier.
     return None
 
 
