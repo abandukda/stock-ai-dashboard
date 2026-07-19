@@ -31830,6 +31830,239 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
     v961_render_discovery_funnel(full_df)
 
 
+
+# ============================================================
+# V100.5 — INSTITUTIONAL HOME INTEGRATION
+# ============================================================
+from engines.decision_transparency_engine import (
+    build_transparency_report as v1005_build_transparency_report,
+    validate_transparency_contract as v1005_validate_transparency_contract,
+)
+from engines.opportunity_ranking_engine import (
+    rank_opportunities as v1005_rank_opportunities,
+    validate_ranking_contract as v1005_validate_ranking_contract,
+)
+from engines.portfolio_competition_engine import (
+    select_competing_opportunities as v1005_select_competing_opportunities,
+    validate_competition_contract as v1005_validate_competition_contract,
+)
+from ui.command_center import (
+    render_command_center as v1005_render_command_center,
+    validate_command_center_contract as v1005_validate_command_center_contract,
+)
+from ui.institutional_experience import (
+    index_by_ticker as v1005_index_by_ticker,
+    render_institutional_opportunity_card as v1005_render_institutional_card,
+)
+
+
+def v1005_records_from_df(frame, limit=10000):
+    """Convert a dataframe to stable records without mutating source data."""
+    if frame is None or getattr(frame, "empty", True):
+        return []
+    return [
+        dict(series)
+        for _, series in frame.head(limit).iterrows()
+    ]
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def v1005_cached_reports(records_json):
+    """
+    Build all read-only institutional reports from one consistent input snapshot.
+    """
+    records = json.loads(records_json)
+    discovery = v96_run_institutional_discovery(
+        records,
+        config=v961_discovery_config(),
+    )
+    ranking_input = discovery.get("shortlisted_rows") or records
+    ranking = v1005_rank_opportunities(ranking_input)
+    competition = v1005_select_competing_opportunities(ranking)
+    transparency = v1005_build_transparency_report(records)
+
+    return {
+        "discovery": discovery,
+        "ranking": ranking,
+        "competition": competition,
+        "transparency": transparency,
+    }
+
+
+def v1005_build_reports(full_df):
+    records = v1005_records_from_df(full_df)
+    return v1005_cached_reports(
+        json.dumps(records, sort_keys=True, default=str)
+    )
+
+
+def v1005_contract_errors(reports):
+    errors = []
+    errors.extend(
+        v96_validate_discovery_invariants(
+            reports.get("discovery") or {}
+        )
+    )
+    errors.extend(
+        v1005_validate_transparency_contract(
+            reports.get("transparency") or {}
+        )
+    )
+    errors.extend(
+        v1005_validate_ranking_contract(
+            reports.get("ranking") or {}
+        )
+    )
+    errors.extend(
+        v1005_validate_competition_contract(
+            reports.get("competition") or {}
+        )
+    )
+    return errors
+
+
+def v1005_render_top_cards(full_df, reports):
+    """
+    Render V99 institutional cards from V97/V98 outputs.
+
+    The command center remains the summary layer; these cards provide the
+    subscriber-facing explanation for the selected portfolio candidates.
+    """
+    if full_df is None or getattr(full_df, "empty", True):
+        return
+
+    ranking_rows = (
+        (reports.get("ranking") or {}).get("ranked_candidates")
+        or []
+    )
+    competition_rows = (
+        (reports.get("competition") or {}).get("selected_candidates")
+        or []
+    )
+    transparency_rows = (
+        (reports.get("transparency") or {}).get("scorecards")
+        or []
+    )
+
+    ranking_by_ticker = v1005_index_by_ticker(ranking_rows)
+    competition_by_ticker = v1005_index_by_ticker(competition_rows)
+    transparency_by_ticker = v1005_index_by_ticker(transparency_rows)
+
+    selected = competition_rows[:6]
+    if not selected:
+        selected = ranking_rows[:6]
+
+    if not selected:
+        return
+
+    source_by_ticker = {
+        str(row.get("Ticker") or row.get("ticker") or "").upper(): dict(row)
+        for row in v1005_records_from_df(full_df)
+        if str(row.get("Ticker") or row.get("ticker") or "").strip()
+    }
+
+    st.markdown("## Institutional Opportunity Cards")
+    st.caption(
+        "Finalized Atlas recommendations enriched with relative ranking, "
+        "portfolio competition, decision pillars, primary blockers, and triggers."
+    )
+
+    for selected_item in selected:
+        ticker = str(
+            selected_item.get("ticker")
+            or selected_item.get("Ticker")
+            or ""
+        ).upper()
+        row = source_by_ticker.get(ticker)
+        if not row:
+            continue
+
+        v1005_render_institutional_card(
+            row,
+            transparency=transparency_by_ticker.get(ticker),
+            ranking=ranking_by_ticker.get(ticker),
+            competition=competition_by_ticker.get(ticker),
+        )
+
+
+_v1005_prior_dynamic_home = v810_render_dynamic_home
+
+
+def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
+    """
+    V100.5 Home integration.
+
+    Render the institutional command center first. Preserve the proven legacy
+    Home experience inside a collapsed section while the new presentation is
+    validated in production.
+    """
+    try:
+        reports = v1005_build_reports(full_df)
+
+        command_model = v1005_render_command_center(
+            stock_rows=v1005_records_from_df(full_df),
+            discovery_report=reports.get("discovery"),
+            transparency_report=reports.get("transparency"),
+            ranking_report=reports.get("ranking"),
+            competition_report=reports.get("competition"),
+        )
+
+        command_errors = v1005_validate_command_center_contract(
+            command_model
+        )
+        report_errors = v1005_contract_errors(reports)
+        all_errors = command_errors + report_errors
+
+        v1005_render_top_cards(full_df, reports)
+
+        if not is_viewer():
+            with st.expander(
+                "V100.5 Institutional Integration Health · Admin",
+                expanded=False,
+            ):
+                if all_errors:
+                    for error in all_errors:
+                        st.error(error)
+                else:
+                    st.success(
+                        "V96, V97, V98, V99, and V100 read-only contracts passed."
+                    )
+
+                summary = command_model.get("summary") or {}
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric(
+                    "Universe",
+                    int(summary.get("universe_received", 0)),
+                )
+                c2.metric(
+                    "Ranked",
+                    int(summary.get("ranked_universe", 0)),
+                )
+                c3.metric(
+                    "Portfolio",
+                    int(summary.get("portfolio_candidates", 0)),
+                )
+                c4.metric(
+                    "Buy Now",
+                    int(summary.get("buy_now_count", 0)),
+                )
+
+    except Exception as exc:
+        st.warning(
+            "The institutional command center is temporarily unavailable. "
+            f"The proven Home experience remains available below. Details: {exc}"
+        )
+
+    with st.expander(
+        "Legacy Discovery Detail",
+        expanded=False,
+    ):
+        _v1005_prior_dynamic_home(full_df, top_df, recovery_df)
+
+
+APP_VERSION = "V100.5 Institutional Home Integration"
+V1005_INSTITUTIONAL_HOME_INTEGRATION_VERIFIED = True
+
 V961_INSTITUTIONAL_DISCOVERY_INTEGRATION_VERIFIED = True
 
 V952_DATA_INTEGRITY_FOUNDATION_VERIFIED = True
