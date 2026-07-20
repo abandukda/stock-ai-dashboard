@@ -32067,6 +32067,83 @@ V961_INSTITUTIONAL_DISCOVERY_INTEGRATION_VERIFIED = True
 
 V952_DATA_INTEGRITY_FOUNDATION_VERIFIED = True
 
+
+# ============================================================
+# V102 CANONICAL PIPELINE RESET — ONE ACTIVE HOME ROUTE
+# ============================================================
+from core.pipeline_v102 import build_canonical_pipeline as v102_build_pipeline
+from ui.command_center_v102 import render_v102_command_center
+from ui.market_briefing_v102 import render_v102_earnings_briefing
+
+ATLAS_ACTIVE_PIPELINE = "V102_CANONICAL"
+_v102_legacy_home_renderer = v810_render_dynamic_home
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def v102_cached_pipeline(records_json):
+    return v102_build_pipeline(json.loads(records_json))
+
+
+def v102_pipeline_from_df(full_df):
+    if full_df is None or getattr(full_df, "empty", True):
+        return v102_build_pipeline([])
+    records = [
+        dict(series)
+        for _, series in full_df.head(10000).iterrows()
+    ]
+    return v102_cached_pipeline(
+        json.dumps(records, sort_keys=True, default=str)
+    )
+
+
+def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
+    """
+    Single active V102 Home route.
+
+    Older Home renderers remain in the file for rollback only. They are not
+    executed during normal V102 operation.
+    """
+    pipeline = v102_pipeline_from_df(full_df)
+
+    render_v102_command_center(pipeline)
+
+    st.markdown("---")
+    st.markdown("## Market & Economic Calendar")
+    try:
+        render_v811_market_calendar_terminal(full_df)
+    except Exception as exc:
+        st.warning(
+            "The live economic calendar could not load. "
+            f"Canonical stock ranking remains available. Details: {exc}"
+        )
+
+    st.markdown("---")
+    render_v102_earnings_briefing(pipeline)
+
+    if not is_viewer():
+        with st.expander("V102 Canonical Pipeline Health · Admin", expanded=False):
+            summary = pipeline.get("summary") or {}
+            c1,c2,c3,c4 = st.columns(4)
+            c1.metric("Received", summary.get("received",0))
+            c2.metric("Eligible", summary.get("eligible",0))
+            c3.metric("Selected", summary.get("selected",0))
+            c4.metric("Incomplete/Excluded", summary.get("excluded_or_incomplete",0))
+            if summary.get("eligible",0) and not pipeline.get("selected_candidates"):
+                st.warning("Eligible stocks exist, but portfolio selection returned zero.")
+            else:
+                st.success("V102 canonical route is active.")
+
+    with st.expander("Legacy Home (rollback view)", expanded=False):
+        st.caption(
+            "This renderer is retained only for rollback validation. "
+            "The V102 canonical route above is the active subscriber experience."
+        )
+        # Intentionally do not call the old renderer automatically.
+
+
+APP_VERSION = "V102 Canonical Pipeline Reset"
+V102_CANONICAL_PIPELINE_VERIFIED = True
+
 if __name__ == "__main__":
     main()
 
