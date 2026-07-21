@@ -32069,35 +32069,35 @@ V952_DATA_INTEGRITY_FOUNDATION_VERIFIED = True
 
 
 # ============================================================
-# ATLAS V103 — ONE ACTIVE INSTITUTIONAL HOME ROUTE
+# ATLAS V104 — RESEARCH CANDIDATE → COMMITTEE VERDICT WORKFLOW
 # ============================================================
-from core.pipeline_v103 import build_v103_pipeline
-from ui.command_center_v103 import render_v103_command_center
-from ui.market_briefing_v103 import render_v103_earnings_briefing
+from core.pipeline_v104 import build_v104_pipeline
+from ui.home_v104 import render_v104_home
+from ui.market_briefing_v104 import render_v104_earnings_briefing
 
 
 @st.cache_data(ttl=900, show_spinner=False)
-def v103_cached_pipeline(records_json):
-    return build_v103_pipeline(json.loads(records_json))
+def v104_cached_pipeline(records_json):
+    return build_v104_pipeline(json.loads(records_json))
 
 
-def v103_pipeline_from_df(full_df):
+def v104_pipeline_from_df(full_df):
     if full_df is None or getattr(full_df, "empty", True):
-        return build_v103_pipeline([])
+        return build_v104_pipeline([])
 
     records = [
         dict(series)
         for _, series in full_df.head(10000).iterrows()
     ]
-    return v103_cached_pipeline(
+    return v104_cached_pipeline(
         json.dumps(records, sort_keys=True, default=str)
     )
 
 
 def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
-    pipeline = v103_pipeline_from_df(full_df)
+    pipeline = v104_pipeline_from_df(full_df)
 
-    render_v103_command_center(pipeline)
+    render_v104_home(pipeline)
 
     st.markdown("---")
     with st.expander(
@@ -32106,8 +32106,8 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
     ):
         st.caption(
             "Collapsed by default to keep Home concise. "
-            "Open for completed releases, upcoming events, "
-            "consensus estimates, and market implications."
+            "Open for completed releases, upcoming events, consensus, "
+            "and Atlas market interpretation."
         )
         try:
             render_v811_market_calendar_terminal(full_df)
@@ -32115,11 +32115,11 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
             st.warning(f"Calendar temporarily unavailable: {exc}")
 
     st.markdown("---")
-    render_v103_earnings_briefing(pipeline)
+    render_v104_earnings_briefing(pipeline)
 
 
-APP_VERSION = "V103 Institutional Scoring & Decision"
-V103_INSTITUTIONAL_SCORING_VERIFIED = True
+APP_VERSION = "V104 Research Candidate & Investment Committee"
+V104_INVESTMENT_COMMITTEE_VERIFIED = True
 
 if __name__ == "__main__":
     main()
