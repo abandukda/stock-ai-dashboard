@@ -1,5 +1,7 @@
 """
-Atlas V104 — Compact Market and Earnings Briefing
+Atlas V104.1 — Compact Market and Earnings Briefing
+
+Drop-in replacement for ui/market_briefing_v104.py.
 """
 
 from __future__ import annotations
@@ -20,22 +22,35 @@ def render_v104_earnings_briefing(
             "Ticker": row.get("ticker"),
             "Company": row.get("company"),
             "Next Earnings": row.get("next_earnings_date"),
-            "Committee Verdict": row.get("committee_verdict"),
+            "Committee Verdict": str(
+                row.get("committee_verdict") or "MONITOR"
+            ).replace("_", " ").title(),
+            "Opportunity": row.get("opportunity_score"),
             "Confidence": row.get("confidence_pct"),
         }
         for row in rows
         if row.get("next_earnings_date")
     ]
 
-    st.markdown("## Upcoming Earnings")
-    if earnings:
-        st.dataframe(
-            pd.DataFrame(earnings[:20]),
-            hide_index=True,
-            use_container_width=True,
-        )
-    else:
-        st.info("No upcoming earnings dates were included in the saved scan.")
+    with st.expander("Upcoming Earnings", expanded=False):
+        if earnings:
+            st.dataframe(
+                pd.DataFrame(earnings[:20]),
+                hide_index=True,
+                use_container_width=True,
+                column_config={
+                    "Opportunity": st.column_config.NumberColumn(
+                        format="%.1f"
+                    ),
+                    "Confidence": st.column_config.NumberColumn(
+                        format="%.1f%%"
+                    ),
+                },
+            )
+        else:
+            st.info(
+                "No upcoming earnings dates were included in the saved scan."
+            )
 
 
 __all__ = ["render_v104_earnings_briefing"]
