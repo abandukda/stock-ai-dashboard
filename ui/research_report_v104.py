@@ -91,7 +91,13 @@ def render_candidate_card(
     evidence = calculate_evidence_coverage(row)
     validated = calculate_validated_return(row)
     individualized = calculate_individualized_scores(row)
-    horizon = classify_horizon(row).get("primary", "Research / Monitor")
+    raw_horizon = classify_horizon(row).get("primary", "Research / Monitor")
+    horizon = {
+        "Swing": "Short-Term Setup",
+        "Position": "3–12 Month View",
+        "Long-Term": "Long-Term View",
+        "Research / Monitor": "Research Monitor",
+    }.get(raw_horizon, raw_horizon)
 
     positives = [
         str(item) for item in (row.get("positive_drivers") or [])
@@ -103,12 +109,17 @@ def render_candidate_card(
     positive_html = "".join(
         f"<li>{escape(item)}</li>" for item in positives
     )
-    risk_items = waits + [
-        f"Missing: {item}" for item in evidence["missing"][:3]
-    ]
+    # Do not expose raw engineering diagnostics on customer cards.
+    # Evidence gaps remain available in the internal audit and full report.
+    risk_items = waits
+    if evidence["coverage_pct"] < 70:
+        risk_items.append(
+            "Some supplemental evidence is still being validated; "
+            "position sizing should remain conservative."
+        )
     risk_html = "".join(
         f"<li>{escape(item)}</li>" for item in risk_items
-    ) or "<li>No material evidence gap.</li>"
+    ) or "<li>No material structured blocker is currently identified.</li>"
 
     atlas_target = (
         row.get("validated_fair_value")
@@ -166,7 +177,7 @@ def render_candidate_card(
               <ul>{positive_html}</ul>
             </div>
             <div class="atlas-panel">
-              <h4>Risks and missing evidence</h4>
+              <h4>Key risks and considerations</h4>
               <ul>{risk_html}</ul>
             </div>
           </div>

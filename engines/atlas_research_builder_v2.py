@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Mapping, Sequence
 import math
 
+from adapters.research_data_adapter_v2 import enrich_supporting_research_data
 from engines.research_enrichment_v105 import build_enriched_research_report
 from engines.research_engine_v105 import build_institutional_research
 from engines.analyst_engine import build_analyst_snapshot, build_analyst_summary
@@ -320,7 +321,7 @@ def build_atlas_research_v2(
     enrichers: Sequence[Enricher] = (),
 ) -> dict[str, Any]:
     ticker = _text(row.get("ticker") or row.get("Ticker"), "UNKNOWN")
-    enriched_row = dict(row)
+    enriched_row = enrich_supporting_research_data(row)
 
     enricher_errors = []
     for enricher in enrichers:

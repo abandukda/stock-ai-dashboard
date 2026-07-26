@@ -1,14 +1,25 @@
+
 """
-Atlas V104 — Research Candidate and Investment Committee Pipeline
+Atlas V104/V2 — Research Candidate and Investment Committee Pipeline
+
+Phase 2A enriches institutional and political fields before scoring so those
+components are derived from ownership and transaction data when available.
 """
 
 from __future__ import annotations
 
 from typing import Any, Iterable, Mapping
 
+from adapters.research_data_adapter_v2 import (
+    enrich_supporting_research_data,
+)
 from engines.institutional_scoring_engine import score_stock
-from engines.confidence_calibration_engine import calibrate_v103_confidence
-from engines.investment_committee_v104 import build_committee_verdict
+from engines.confidence_calibration_engine import (
+    calibrate_v103_confidence,
+)
+from engines.investment_committee_v104 import (
+    build_committee_verdict,
+)
 
 
 def _tier(score):
@@ -36,7 +47,41 @@ def build_v104_pipeline(
         if not isinstance(raw, Mapping):
             continue
 
-        item = score_stock(raw)
+        enriched_raw = enrich_supporting_research_data(raw)
+        item = score_stock(enriched_raw)
+
+        # score_stock preserves its full input under raw. Re-attach normalized
+        # sections at top level so the V2 report does not need to rediscover
+        # them from nested provider fields.
+        item.update(
+            {
+                key: value
+                for key, value in enriched_raw.items()
+                if key in {
+                    "ownership",
+                    "institutional",
+                    "political",
+                    "institutional_ownership_pct",
+                    "institutional_change_pct",
+                    "institutional_buying",
+                    "institutional_selling",
+                    "major_holders",
+                    "institutional_score",
+                    "political_score",
+                    "political_buyers",
+                    "political_sellers",
+                    "political_transactions",
+                    "political_support_summary",
+                    "regulatory_exposure",
+                    "export_control_exposure",
+                    "government_contract_exposure",
+                    "tariff_exposure",
+                    "institutional_data_status",
+                    "political_data_status",
+                    "political_retrieval_status",
+                }
+            }
+        )
 
         if (
             item.get("eligible")
@@ -86,10 +131,12 @@ def build_v104_pipeline(
         if sector_counts.get(sector, 0) >= 2:
             continue
         research_candidates.append(row)
-        sector_counts[sector] = sector_counts.get(sector, 0) + 1
+        sector_counts[sector] = (
+            sector_counts.get(sector, 0) + 1
+        )
 
     return {
-        "version": "V104",
+        "version": "V2-PHASE2A",
         "all_rows": all_rows,
         "ranked_candidates": ranked,
         "research_candidates": research_candidates,
@@ -114,7 +161,9 @@ def build_v104_pipeline(
                 row.get("committee_verdict") == "MONITOR"
                 for row in ranked
             ),
-            "excluded_or_incomplete": len(all_rows) - len(ranked),
+            "excluded_or_incomplete": (
+                len(all_rows) - len(ranked)
+            ),
         },
     }
 
