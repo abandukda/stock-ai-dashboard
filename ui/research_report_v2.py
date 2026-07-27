@@ -85,10 +85,35 @@ def _render_price_chart(report: Mapping[str, Any]) -> None:
     section = report["sections"]["technical"]
     history = section.get("history") or []
     if not history:
-        st.info(
-            "Historical price and volume data are not present in the current research row. "
-            "The V2 provider layer should attach price_history before rendering this chart."
-        )
+        provenance = section.get("history_provenance") or {}
+        status = provenance.get("status") or "NOT_LOADED"
+        if status == "PROVIDER_ERROR":
+            st.warning(
+                "Historical price data could not be retrieved from the connected "
+                "market-data providers. Atlas did not infer chart values."
+            )
+        elif status == "NO_RECORDS":
+            st.info(
+                "The market-data provider completed successfully but returned no "
+                "historical price records for this ticker."
+            )
+        elif status == "STALE":
+            st.warning(
+                "Only stale historical data are available. Atlas has not rendered "
+                "the chart until usable records are present."
+            )
+        else:
+            st.info(
+                "Historical price data were not loaded for this report. "
+                "No conclusion should be drawn from the missing chart."
+            )
+        if provenance:
+            st.caption(
+                f"History status: {status} · "
+                f"Source: {provenance.get('source', 'Unknown')} · "
+                f"Records: {provenance.get('records_found', 0)} · "
+                f"Retrieval: {provenance.get('retrieval_status', 'Unknown')}"
+            )
         return
 
     try:
@@ -185,6 +210,14 @@ def _render_price_chart(report: Mapping[str, Any]) -> None:
         hovermode="x unified",
     )
     st.plotly_chart(fig, use_container_width=True)
+    provenance = section.get("history_provenance") or {}
+    if provenance:
+        st.caption(
+            f"History source: {provenance.get('source', 'Unknown')} · "
+            f"Records: {provenance.get('records_found', len(history))} · "
+            f"Status: {provenance.get('status', 'AVAILABLE')} · "
+            f"As of: {provenance.get('as_of', 'Unknown')}"
+        )
 
 
 def _render_trade_plan(report: Mapping[str, Any]) -> None:

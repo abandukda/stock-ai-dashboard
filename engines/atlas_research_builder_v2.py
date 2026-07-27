@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Mapping, Sequence
 import math
 
-from adapters.research_data_adapter_v2 import enrich_supporting_research_data
+from engines.canonical_market_data import attach_price_history
 from engines.research_enrichment_v105 import build_enriched_research_report
 from engines.research_engine_v105 import build_institutional_research
 from engines.analyst_engine import build_analyst_snapshot, build_analyst_summary
@@ -305,14 +305,36 @@ def _risk_interpretations(risk_rows: Sequence[Mapping[str, Any]]) -> list[dict[s
 
 
 def _history(row: Mapping[str, Any]) -> list[dict[str, Any]]:
-    raw = (
-        row.get("price_history")
-        or row.get("historical_prices")
-        or row.get("chart_data")
-        or row.get("historical_data")
-        or []
+    candidates = [
+        row.get("price_history"),
+        row.get("historical_prices"),
+        row.get("chart_data"),
+        row.get("historical_data"),
+    ]
+    raw = row.get("raw") or row.get("Raw")
+    if isinstance(raw, Mapping):
+        candidates.extend(
+            [
+                raw.get("price_history"),
+                raw.get("historical_prices"),
+                raw.get("chart_data"),
+                raw.get("historical_data"),
+            ]
+        )
+
+    history = next(
+        (
+            value
+            for value in candidates
+            if isinstance(value, list) and value
+        ),
+        [],
     )
-    return [dict(item) for item in _sequence(raw) if isinstance(item, Mapping)]
+    return [
+        dict(item)
+        for item in history
+        if isinstance(item, Mapping)
+    ]
 
 
 def build_atlas_research_v2(
@@ -321,7 +343,7 @@ def build_atlas_research_v2(
     enrichers: Sequence[Enricher] = (),
 ) -> dict[str, Any]:
     ticker = _text(row.get("ticker") or row.get("Ticker"), "UNKNOWN")
-    enriched_row = enrich_supporting_research_data(row)
+    enriched_row = attach_price_history(row)
 
     enricher_errors = []
     for enricher in enrichers:
@@ -417,6 +439,9 @@ def build_atlas_research_v2(
             **enriched["technical"],
             **_section_status(technical_data, ("price", "sma50", "sma200", "rsi", "volume_confirmation")),
             "history": _history(enriched_row),
+            "history_provenance": _mapping(
+                enriched_row.get("history_provenance")
+            ),
             "interpretation": (
                 _text(_first(enriched_row, "technical_summary", "Technical Summary", "v42_chart_guidance"))
                 or "Atlas will assess trend, momentum, moving averages, support, resistance, and volume when populated."

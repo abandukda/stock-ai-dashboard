@@ -10,6 +10,8 @@ from __future__ import annotations
 from typing import Any, Mapping
 import math
 
+from engines.component_builder import build_components
+
 
 def _present(value: Any) -> bool:
     if value is None:
@@ -259,6 +261,26 @@ def score_stock(row: Mapping[str, Any]) -> dict[str, Any]:
     if momentum is not None:
         macro = _clamp(52 + momentum * 0.8)
 
+    # Build canonical component details without changing legacy behavior.
+    # Financial and Technical override legacy scores only when the canonical
+    # component has actual evidence and a numeric score. All other components,
+    # rankings, eligibility, confidence and committee behavior remain intact.
+    component_details = build_components(row)
+
+    canonical_financial = component_details.get("fundamentals") or {}
+    if (
+        canonical_financial.get("status") in {"AVAILABLE", "PARTIAL"}
+        and _num(canonical_financial.get("score")) is not None
+    ):
+        fundamentals = _num(canonical_financial.get("score"))
+
+    canonical_technical = component_details.get("technical") or {}
+    if (
+        canonical_technical.get("status") in {"AVAILABLE", "PARTIAL"}
+        and _num(canonical_technical.get("score")) is not None
+    ):
+        technical = _num(canonical_technical.get("score"))
+
     components = {
         "fundamentals": fundamentals,
         "valuation": valuation,
@@ -342,6 +364,7 @@ def score_stock(row: Mapping[str, Any]) -> dict[str, Any]:
         ),
         "component_coverage_pct": round(coverage, 1),
         "components": components,
+        "component_details": component_details,
         "investment_thesis": _text(
             _first(
                 row,

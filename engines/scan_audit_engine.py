@@ -212,6 +212,12 @@ FIELD_GROUPS: Dict[str, Sequence[str]] = {
         "Above 50DMA",
         "Above 200DMA",
     ),
+    "price_history": (
+        "price_history",
+        "historical_prices",
+        "chart_data",
+        "historical_data",
+    ),
     "news": ("news_items", "latest_news", "news", "latest_news_headline", "Top News"),
     "earnings": (
         "earnings_summary",
@@ -342,6 +348,11 @@ def audit_stock_row(row: Mapping[str, Any]) -> Dict[str, Any]:
     provider_status = {
         "financials": "ok" if any(statuses[g] == "available" for g in ("revenue_growth", "eps_growth", "operating_margin", "free_cash_flow")) else "missing",
         "technicals": "ok" if statuses["technicals"] == "available" else "missing",
+        "price_history": (
+            "ok"
+            if statuses["price_history"] == "available"
+            else "missing"
+        ),
         "valuation": "ok" if statuses["fair_value"] == "available" else "missing",
         "analysts": "ok" if statuses["analyst_target"] == "available" else "missing",
         "news": "ok" if statuses["news"] == "available" else "missing",
@@ -565,7 +576,64 @@ def validate_audit_invariants(audit: Mapping[str, Any]) -> List[str]:
     return errors
 
 
+def audit_history_provenance(
+    row: Mapping[str, Any],
+) -> Dict[str, Any]:
+    """Distinguish absent records from fetch or mapping failures."""
+    provenance = row.get("history_provenance")
+    provenance = (
+        provenance
+        if isinstance(provenance, Mapping)
+        else {}
+    )
+    history = _first(
+        row,
+        "price_history",
+        "historical_prices",
+        "chart_data",
+        "historical_data",
+        default=[],
+    )
+    records_found = (
+        len(history)
+        if isinstance(history, list)
+        else int(_num(provenance.get("records_found"), 0) or 0)
+    )
+
+    if records_found > 0:
+        status = "AVAILABLE"
+    else:
+        status = _text(
+            provenance.get("status"),
+            "NOT_LOADED",
+        ).upper()
+
+    return {
+        "status": status,
+        "provider_called": bool(
+            provenance.get("provider_called")
+        ),
+        "provider_success": bool(
+            provenance.get("provider_success")
+        ),
+        "records_found": records_found,
+        "mapping_success": bool(
+            provenance.get("mapping_success")
+        ),
+        "source": _text(provenance.get("source")),
+        "as_of": _text(provenance.get("as_of")),
+        "retrieval_status": _text(
+            provenance.get("retrieval_status")
+        ),
+        "cache_status": _text(
+            provenance.get("cache_status")
+        ),
+        "error": _text(provenance.get("error")),
+    }
+
+
 __all__ = [
+    "audit_history_provenance",
     "audit_stock_row",
     "build_scan_audit",
     "validate_audit_invariants",
