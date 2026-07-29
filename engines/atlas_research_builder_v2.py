@@ -24,6 +24,7 @@ from engines.research_engine_v105 import build_institutional_research
 from engines.analyst_engine import build_analyst_snapshot, build_analyst_summary
 from engines.individualized_scoring_v1052 import calculate_individualized_scores
 from engines.trade_plan_v1052 import build_trade_plan
+from engines.atlas_intelligence_engine import build_executive_intelligence
 
 
 Enricher = Callable[[str, Mapping[str, Any]], Mapping[str, Any]]
@@ -464,8 +465,8 @@ def build_atlas_research_v2(
         1,
     )
 
-    return {
-        "version": "V2.0-PHASE1",
+    report = {
+        "version": "V2.1-AI-INTELLIGENCE",
         "ticker": ticker,
         "company": enriched.get("company"),
         "sector": enriched.get("sector"),
@@ -487,13 +488,21 @@ def build_atlas_research_v2(
         "sections": sections,
         "research_completeness_pct": completeness,
         "enricher_errors": enricher_errors,
+        "upgrade_triggers": institutional.get("upgrade_triggers") or enriched_row.get("upgrade_triggers") or [],
+        "downgrade_triggers": institutional.get("downgrade_triggers") or enriched_row.get("downgrade_triggers") or [],
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
+    report["intelligence"] = build_executive_intelligence(report)
+    report["executive_summary"] = (
+        report["intelligence"].get("executive_summary")
+        or report.get("executive_summary")
+    )
+    return report
 
 
 def validate_atlas_research_v2(report: Mapping[str, Any]) -> list[str]:
     errors = []
-    if report.get("version") != "V2.0-PHASE1":
+    if report.get("version") not in {"V2.0-PHASE1", "V2.1-AI-INTELLIGENCE"}:
         errors.append("Unexpected report version.")
     if not report.get("ticker"):
         errors.append("Ticker is required.")

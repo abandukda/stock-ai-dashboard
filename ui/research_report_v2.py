@@ -12,6 +12,7 @@ import pandas as pd
 import streamlit as st
 
 from engines.atlas_research_builder_v2 import build_atlas_research_v2
+from engines.ask_atlas_engine import ask_atlas
 
 
 def _money(value: Any) -> str:
@@ -253,6 +254,113 @@ def _render_trade_plan(report: Mapping[str, Any]) -> None:
     )
 
 
+
+def _render_ai_intelligence(report: Mapping[str, Any]) -> None:
+    intelligence = report.get("intelligence") or {}
+    today = intelligence.get("today_move") or {}
+
+    st.markdown("### Atlas AI Intelligence")
+    st.write(
+        intelligence.get("executive_summary")
+        or report.get("executive_summary")
+        or "No grounded executive summary is currently available."
+    )
+
+    support_col, risk_col = st.columns(2)
+    with support_col:
+        st.markdown("#### Why Atlas Supports It")
+        items = intelligence.get("why_atlas_supports_it") or []
+        if items:
+            for item in items:
+                st.success(str(item))
+        else:
+            st.info("No structured supporting evidence is currently populated.")
+    with risk_col:
+        st.markdown("#### Key Risks")
+        items = intelligence.get("key_risks") or []
+        if items:
+            for item in items:
+                st.warning(str(item))
+        else:
+            st.info("No structured risk evidence is currently populated.")
+
+    st.markdown("#### Today's Move Explained")
+    c = st.columns(2)
+    c[0].metric("Move Explanation", today.get("headline", "Under review"))
+    c[1].metric(
+        "Explanation Confidence",
+        _pct(today.get("explanation_confidence_pct")),
+    )
+
+    facts = today.get("verified_facts") or []
+    inferences = today.get("atlas_inferences") or []
+    limitations = today.get("data_limitations") or []
+    for item in facts:
+        st.markdown(f"**Verified fact:** {item}")
+    for item in inferences:
+        st.markdown(f"**Atlas inference:** {item}")
+    for item in limitations:
+        st.caption(f"Data limitation: {item}")
+
+    up_col, down_col = st.columns(2)
+    with up_col:
+        st.markdown("#### What Could Upgrade the Rating")
+        for item in intelligence.get("upgrade_triggers") or []:
+            st.info(str(item))
+    with down_col:
+        st.markdown("#### What Could Downgrade the Rating")
+        for item in intelligence.get("downgrade_triggers") or []:
+            st.warning(str(item))
+
+    st.caption(intelligence.get("evidence_note", ""))
+
+
+def _render_ask_atlas(report: Mapping[str, Any]) -> None:
+    st.markdown("### Ask Atlas AI")
+    st.caption(
+        "Ask about today's move, the verdict, earnings, risks, valuation, "
+        "or what could change the rating."
+    )
+
+    ticker = str(report.get("ticker") or "UNKNOWN")
+    suggested = st.columns(4)
+    prompts = [
+        "Why did this stock move today?",
+        "Why is this the current Atlas rating?",
+        "What are the biggest risks?",
+        "Explain this for a beginner.",
+    ]
+    for col, prompt in zip(suggested, prompts):
+        if col.button(prompt, key=f"ask_suggest_{ticker}_{prompt}"):
+            st.session_state[f"ask_atlas_question_{ticker}"] = prompt
+
+    question = st.text_input(
+        "Question",
+        value=st.session_state.get(f"ask_atlas_question_{ticker}", ""),
+        placeholder="Example: What would upgrade this stock to Buy Now?",
+        key=f"ask_atlas_input_{ticker}",
+    )
+    if st.button(
+        "Ask Atlas",
+        key=f"ask_atlas_submit_{ticker}",
+        type="primary",
+        use_container_width=True,
+    ):
+        st.session_state[f"ask_atlas_answer_{ticker}"] = ask_atlas(
+            question,
+            report,
+        )
+
+    result = st.session_state.get(f"ask_atlas_answer_{ticker}")
+    if result:
+        st.markdown(result.get("answer") or "")
+        sources = result.get("sources_used") or []
+        st.caption(
+            f"Mode: {result.get('mode', 'Unknown')} · "
+            f"Atlas sections used: {', '.join(sources) if sources else 'None'} · "
+            f"Report generated: {result.get('generated_from', 'Unknown')}"
+        )
+
 def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
     report = build_atlas_research_v2(row)
 
@@ -299,6 +407,8 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
             "Chart & Technicals",
             "Valuation & Risk",
             "Final Decision",
+            "AI Intelligence",
+            "Ask Atlas AI",
         ]
     )
 
@@ -531,6 +641,12 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
                 "Some optional live enrichers failed: "
                 + "; ".join(str(error) for error in report["enricher_errors"])
             )
+
+    with tabs[10]:
+        _render_ai_intelligence(report)
+
+    with tabs[11]:
+        _render_ask_atlas(report)
 
 
 __all__ = ["render_atlas_research_v2"]
