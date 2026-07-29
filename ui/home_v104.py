@@ -5,6 +5,10 @@ from typing import Any, Mapping
 
 import streamlit as st
 
+from ui.daily_opportunities import (
+    render_today_opportunities,
+    render_volume_momentum,
+)
 from ui.research_report_v104 import (
     inject_v104_polish_css,
     render_candidate_card,
@@ -22,63 +26,7 @@ def _avg(rows, key):
     return sum(values) / len(values) if values else 0.0
 
 
-def render_v104_home(pipeline: Mapping[str, Any]) -> None:
-    inject_v104_polish_css()
-
-    summary = pipeline.get("summary") or {}
-    ranked = pipeline.get("ranked_candidates") or []
-    candidates = pipeline.get("research_candidates") or []
-
-    query = st.query_params.get("research")
-    if query and not st.session_state.get("v104_research_ticker"):
-        st.session_state["v104_research_ticker"] = (
-            query[0] if isinstance(query, list) else str(query)
-        )
-
-    st.markdown("# Atlas V2 Institutional Intelligence")
-    st.caption(
-        "Individualized scoring, complete research dossiers, valuation, "
-        "risk-managed trade planning, and clear AI interpretation."
-    )
-
-    c = st.columns(4)
-    c[0].metric("BUY NOW", summary.get("buy_now", 0))
-    c[1].metric("Research Candidates", summary.get("research_candidates", 0))
-    c[2].metric("Committee Ready", summary.get("committee_ready", 0))
-    c[3].metric("Universe Reviewed", summary.get("received", 0))
-
-    c = st.columns(4)
-    c[0].metric("Accumulate", summary.get("accumulate", 0))
-    c[1].metric("Monitor", summary.get("monitor", 0))
-    c[2].metric(
-        "Average Confidence",
-        f"{_avg(ranked, 'confidence_pct'):.1f}%",
-    )
-    c[3].metric(
-        "Average Opportunity",
-        f"{_avg(ranked, 'opportunity_score'):.1f}",
-    )
-
-    selected_ticker = st.session_state.get("v104_research_ticker")
-    if selected_ticker:
-        selected = next(
-            (
-                row
-                for row in ranked
-                if str(row.get("ticker", "")).upper()
-                == str(selected_ticker).upper()
-            ),
-            None,
-        )
-
-        if selected:
-            render_full_research_report(selected)
-            st.markdown("---")
-        else:
-            st.warning(
-                f"{selected_ticker} is not present in the current scan."
-            )
-
+def _render_research_candidates(candidates):
     st.markdown("## Top Research Candidates")
     st.caption(
         "Each card uses individualized Opportunity and Confidence scoring. "
@@ -161,6 +109,81 @@ def render_v104_home(pipeline: Mapping[str, Any]) -> None:
             row,
             key_prefix=f"v2_candidate_{index}",
         )
+
+
+def render_v104_home(pipeline: Mapping[str, Any]) -> None:
+    inject_v104_polish_css()
+
+    summary = pipeline.get("summary") or {}
+    ranked = pipeline.get("ranked_candidates") or []
+    candidates = pipeline.get("research_candidates") or []
+
+    query = st.query_params.get("research")
+    if query and not st.session_state.get("v104_research_ticker"):
+        st.session_state["v104_research_ticker"] = (
+            query[0] if isinstance(query, list) else str(query)
+        )
+
+    st.markdown("# Atlas V2 Institutional Intelligence")
+    st.caption(
+        "Actionable opportunities, volume intelligence, individualized research, "
+        "valuation, risk-managed trade planning, and grounded AI interpretation."
+    )
+
+    c = st.columns(4)
+    c[0].metric("BUY NOW", summary.get("buy_now", 0))
+    c[1].metric("Research Candidates", summary.get("research_candidates", 0))
+    c[2].metric("Committee Ready", summary.get("committee_ready", 0))
+    c[3].metric("Universe Reviewed", summary.get("received", 0))
+
+    c = st.columns(4)
+    c[0].metric("Accumulate", summary.get("accumulate", 0))
+    c[1].metric("Monitor", summary.get("monitor", 0))
+    c[2].metric(
+        "Average Confidence",
+        f"{_avg(ranked, 'confidence_pct'):.1f}%",
+    )
+    c[3].metric(
+        "Average Opportunity",
+        f"{_avg(ranked, 'opportunity_score'):.1f}",
+    )
+
+    selected_ticker = st.session_state.get("v104_research_ticker")
+    if selected_ticker:
+        selected = next(
+            (
+                row
+                for row in ranked
+                if str(row.get("ticker", "")).upper()
+                == str(selected_ticker).upper()
+            ),
+            None,
+        )
+
+        if selected:
+            render_full_research_report(selected)
+            st.markdown("---")
+        else:
+            st.warning(
+                f"{selected_ticker} is not present in the current scan."
+            )
+
+    tabs = st.tabs(
+        [
+            "Today's Opportunities",
+            "Volume & Momentum",
+            "Research Candidates",
+        ]
+    )
+
+    with tabs[0]:
+        render_today_opportunities(ranked)
+
+    with tabs[1]:
+        render_volume_momentum(ranked)
+
+    with tabs[2]:
+        _render_research_candidates(candidates)
 
 
 __all__ = ["render_v104_home"]
