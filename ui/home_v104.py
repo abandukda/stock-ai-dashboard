@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from typing import Any, Mapping
@@ -9,6 +8,7 @@ from ui.daily_opportunities import (
     render_today_opportunities,
     render_volume_momentum,
 )
+from ui.morning_brief import render_morning_brief
 from ui.research_report_v104 import (
     inject_v104_polish_css,
     render_candidate_card,
@@ -104,7 +104,10 @@ def _render_research_candidates(candidates):
         st.info("No research candidates match the selected filters.")
         return
 
-    for index, row in enumerate(filtered[: int(count)], start=1):
+    for index, row in enumerate(
+        filtered[: int(count)],
+        start=1,
+    ):
         render_candidate_card(
             row,
             key_prefix=f"v2_candidate_{index}",
@@ -119,25 +122,42 @@ def render_v104_home(pipeline: Mapping[str, Any]) -> None:
     candidates = pipeline.get("research_candidates") or []
 
     query = st.query_params.get("research")
-    if query and not st.session_state.get("v104_research_ticker"):
+    if query and not st.session_state.get(
+        "v104_research_ticker"
+    ):
         st.session_state["v104_research_ticker"] = (
-            query[0] if isinstance(query, list) else str(query)
+            query[0]
+            if isinstance(query, list)
+            else str(query)
         )
 
     st.markdown("# Atlas V2 Institutional Intelligence")
     st.caption(
-        "Actionable opportunities, volume intelligence, individualized research, "
-        "valuation, risk-managed trade planning, and grounded AI interpretation."
+        "Morning intelligence, actionable opportunities, volume analysis, "
+        "individualized research, valuation, risk-managed trade planning, "
+        "and grounded AI interpretation."
     )
 
     c = st.columns(4)
     c[0].metric("BUY NOW", summary.get("buy_now", 0))
-    c[1].metric("Research Candidates", summary.get("research_candidates", 0))
-    c[2].metric("Committee Ready", summary.get("committee_ready", 0))
-    c[3].metric("Universe Reviewed", summary.get("received", 0))
+    c[1].metric(
+        "Research Candidates",
+        summary.get("research_candidates", 0),
+    )
+    c[2].metric(
+        "Committee Ready",
+        summary.get("committee_ready", 0),
+    )
+    c[3].metric(
+        "Universe Reviewed",
+        summary.get("received", 0),
+    )
 
     c = st.columns(4)
-    c[0].metric("Accumulate", summary.get("accumulate", 0))
+    c[0].metric(
+        "Accumulate",
+        summary.get("accumulate", 0),
+    )
     c[1].metric("Monitor", summary.get("monitor", 0))
     c[2].metric(
         "Average Confidence",
@@ -148,7 +168,9 @@ def render_v104_home(pipeline: Mapping[str, Any]) -> None:
         f"{_avg(ranked, 'opportunity_score'):.1f}",
     )
 
-    selected_ticker = st.session_state.get("v104_research_ticker")
+    selected_ticker = st.session_state.get(
+        "v104_research_ticker"
+    )
     if selected_ticker:
         selected = next(
             (
@@ -165,11 +187,13 @@ def render_v104_home(pipeline: Mapping[str, Any]) -> None:
             st.markdown("---")
         else:
             st.warning(
-                f"{selected_ticker} is not present in the current scan."
+                f"{selected_ticker} is not present "
+                "in the current scan."
             )
 
     tabs = st.tabs(
         [
+            "Morning Brief",
             "Today's Opportunities",
             "Volume & Momentum",
             "Research Candidates",
@@ -177,12 +201,15 @@ def render_v104_home(pipeline: Mapping[str, Any]) -> None:
     )
 
     with tabs[0]:
-        render_today_opportunities(ranked)
+        render_morning_brief(ranked)
 
     with tabs[1]:
-        render_volume_momentum(ranked)
+        render_today_opportunities(ranked)
 
     with tabs[2]:
+        render_volume_momentum(ranked)
+
+    with tabs[3]:
         _render_research_candidates(candidates)
 
 
