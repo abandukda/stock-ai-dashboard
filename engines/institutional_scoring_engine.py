@@ -269,14 +269,14 @@ def score_stock(row: Mapping[str, Any]) -> dict[str, Any]:
 
     canonical_financial = component_details.get("fundamentals") or {}
     if (
-        canonical_financial.get("status") in {"AVAILABLE", "PARTIAL"}
+        canonical_financial.get("status") == "AVAILABLE"
         and _num(canonical_financial.get("score")) is not None
     ):
         fundamentals = _num(canonical_financial.get("score"))
 
     canonical_technical = component_details.get("technical") or {}
     if (
-        canonical_technical.get("status") in {"AVAILABLE", "PARTIAL"}
+        canonical_technical.get("status") == "AVAILABLE"
         and _num(canonical_technical.get("score")) is not None
     ):
         technical = _num(canonical_technical.get("score"))
