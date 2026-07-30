@@ -27410,16 +27410,23 @@ def v810_render_core_page(full_df):
         st.warning(f"Core Holdings is temporarily unavailable: {exc}")
 
 
+from ui.daily_opportunities import render_volume_momentum
+from ui.developer_center import render_developer_center
+
+
 def main():
     if not dashboard_login_gate(): return
     render_v59_design_system(); render_v65_design_system(); render_v70_design_system(); render_v72_design_system(); render_v73_design_system(); render_v74_design_system(); v775_design_system(); v793_design_system(); v8055_inject_research_css()
     full_df=load_full_scan(); top_df=latest_top_ideas(); recovery_df=latest_recovery(); watch_df=latest_watchlist_scan(); prescreen_df=load_file(PRESCREEN_FILE); etf_df=load_file(ETF_SCAN_FILE)
-    pages=["Home","Today's Opportunities","Atlas Core Holdings","Research Any Ticker","Earnings Intelligence","Full Ranked Scan","Portfolio Intelligence","Watchlist Intelligence","Recovery","ETFs","Political Intelligence","Ask AI"]
+    pages=["Home","Today's Opportunities","Volume Intelligence","Atlas Core Holdings","Research Any Ticker","Earnings Intelligence","Full Ranked Scan","Portfolio Intelligence","Watchlist Intelligence","Recovery","ETFs","Political Intelligence","Ask AI","Developer Center"]
     selected_page=render_v73_top_nav(pages)
     source_df=top_df if top_df is not None and not top_df.empty else full_df.head(25)
     if selected_page != "Home": render_v72_market_tape(always_show=False)
     if selected_page=="Home": v810_render_dynamic_home(full_df,source_df,recovery_df)
     elif selected_page=="Today's Opportunities": v810_render_today_page(full_df)
+    elif selected_page=="Volume Intelligence":
+        _volume_pipeline = v104_pipeline_from_df(full_df)
+        render_volume_momentum(_volume_pipeline.get("ranked_candidates") or [])
     elif selected_page=="Atlas Core Holdings": v810_render_core_page(full_df)
     elif selected_page=="Research Any Ticker": render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df)
     elif selected_page=="Earnings Intelligence": render_v73_earnings_page(full_df,source_df)
@@ -27430,6 +27437,13 @@ def main():
     elif selected_page=="ETFs": render_v56_ranked_table(etf_df,title="ETF Intelligence",max_rows=50,show_filters=True)
     elif selected_page=="Political Intelligence": render_v58_political_intelligence(full_df)
     elif selected_page=="Ask AI": render_chat_helper(full_df)
+    elif selected_page=="Developer Center":
+        _developer_pipeline = v104_pipeline_from_df(full_df)
+        render_developer_center(
+            pipeline=_developer_pipeline,
+            navigation_pages=pages,
+            app_version=APP_VERSION,
+        )
 
 
 # ============================================================
