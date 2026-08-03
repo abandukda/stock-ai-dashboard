@@ -1,0 +1,15 @@
+PAGE_CONTRACTS = {
+    "Home": {"required_text": ["Atlas"]},
+    "Today's Opportunities": {"required_text": ["Opportunity", "Confidence", "Atlas"]},
+    "Volume Intelligence": {"required_text": ["Volume", "Relative Volume", "Atlas"]},
+    "Research Any Ticker": {"required_text": ["Research"]},
+    "Earnings Intelligence": {"required_text": ["Earnings"]},
+    "Full Ranked Scan": {"required_text": ["Rank"]},
+    "Portfolio Intelligence": {"required_text": ["Portfolio"]},
+    "Watchlist Intelligence": {"required_text": ["Watchlist"]},
+    "Recovery": {"required_text": ["Recovery"]},
+    "ETFs": {"required_text": ["ETF"]},
+    "Political Intelligence": {"required_text": ["Political"]},
+    "Ask AI": {"required_text": ["Ask"]},
+    "Developer Center": {"required_text": ["Developer", "System Health"]},
+}
