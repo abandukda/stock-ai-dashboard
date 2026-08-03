@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-03T17:46:14.687753+00:00",
-  "count": 3325,
+  "generated_at": "2026-08-03T20:36:09.902627+00:00",
+  "count": 3327,
   "symbols": [
     "A",
     "AA",
@@ -809,6 +809,7 @@
     "CUBI",
     "CURB",
     "CURV",
+    "CUVL",
     "CUZ",
     "CVCO",
     "CVE",
@@ -3030,6 +3031,7 @@
     "UFCS",
     "UFI",
     "UFPI",
+    "UFPT",
     "UGI",
     "UGP",
     "UHAL",
