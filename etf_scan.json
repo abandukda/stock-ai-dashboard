@@ -52,7 +52,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-08-03T21:03:04.973152+00:00",
+    "scan_time": "2026-08-04T00:31:52.620828+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 758.58,
@@ -276,7 +276,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-08-03T20:51:43.282393+00:00",
+    "scan_time": "2026-08-04T00:23:58.159800+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 302.72,
@@ -306,12 +306,13 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 54,
+        "score": 61,
         "status": "Mixed",
         "impact": "Neutral",
         "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
+          "Is The Angst Over AI Spending And Fed Inaction Warranted?",
           "Index Gains Conceal Renewed Breadth Weakness"
         ],
         "risks": [
@@ -451,10 +452,11 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 54,
+    "v42_news_score": 61,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_status": "Mixed",
     "v42_news_catalysts": [
+      "Is The Angst Over AI Spending And Fed Inaction Warranted?",
       "Index Gains Conceal Renewed Breadth Weakness"
     ],
     "v42_news_risks": [
@@ -463,9 +465,9 @@
     "v42_news_sources": [
       "Finnhub company news"
     ],
-    "latest_news_headline": "The Market's Next Move Depends On More Than Earnings",
+    "latest_news_headline": "Dead Cat Bounce > Last Chance - Weekly Blog # 952",
     "latest_news_source": "SeekingAlpha",
-    "latest_news_date": "2026-08-03T15:55:00",
+    "latest_news_date": "2026-08-03T17:45:00",
     "latest_news_sentiment": "Mixed",
     "v42_sec_available": false,
     "v42_sec_cik": null,
@@ -532,7 +534,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-08-03T21:06:49.941012+00:00",
+    "scan_time": "2026-08-04T00:34:43.263389+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 697.31,
@@ -756,7 +758,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-08-03T20:45:17.330342+00:00",
+    "scan_time": "2026-08-04T00:19:20.290904+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 532.39,
@@ -786,13 +788,18 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 62,
+        "score": 55,
         "status": "Mixed",
         "impact": "Neutral",
         "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Chart Of The Day: Seasonality Is No Longer Providing A Tailwind"
+          "Bear Market Signals: Semiconductor Stocks Sink",
+          "A Quiet August? Not For Investors",
+          "The Market's Next Move Depends On More Than Earnings",
+          "Oil Sinks 6%, Nasdaq 100 Rallies On Iran Talks: Stock Market Today",
+          "The Treasury Sell-Off May Be Just Getting Started",
+          "New Month Kicks Off On The Upside"
         ],
         "risks": [
           "No negative high-confidence headline detected."
@@ -933,11 +940,16 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 62,
+    "v42_news_score": 55,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_status": "Mixed",
     "v42_news_catalysts": [
-      "Chart Of The Day: Seasonality Is No Longer Providing A Tailwind"
+      "Bear Market Signals: Semiconductor Stocks Sink",
+      "A Quiet August? Not For Investors",
+      "The Market's Next Move Depends On More Than Earnings",
+      "Oil Sinks 6%, Nasdaq 100 Rallies On Iran Talks: Stock Market Today",
+      "The Treasury Sell-Off May Be Just Getting Started",
+      "New Month Kicks Off On The Upside"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
@@ -945,9 +957,9 @@
     "v42_news_sources": [
       "Finnhub company news"
     ],
-    "latest_news_headline": "The Market's Next Move Depends On More Than Earnings",
+    "latest_news_headline": "Bear Market Signals: Semiconductor Stocks Sink",
     "latest_news_source": "SeekingAlpha",
-    "latest_news_date": "2026-08-03T15:55:00",
+    "latest_news_date": "2026-08-03T18:28:59",
     "latest_news_sentiment": "Mixed",
     "v42_sec_available": true,
     "v42_sec_cik": "0001041130",
@@ -1015,7 +1027,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-08-03T21:08:05.987211+00:00",
+    "scan_time": "2026-08-04T00:35:38.981633+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 63.01,
@@ -1239,7 +1251,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-08-03T21:08:08.463781+00:00",
+    "scan_time": "2026-08-04T00:35:41.047761+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 168.53,
@@ -1463,7 +1475,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-08-03T21:08:06.790815+00:00",
+    "scan_time": "2026-08-04T00:35:40.047081+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 186.45,
@@ -1687,7 +1699,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-08-03T21:07:05.128697+00:00",
+    "scan_time": "2026-08-04T00:34:53.244129+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 374.26,
@@ -1910,7 +1922,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-08-03T21:08:08.951583+00:00",
+    "scan_time": "2026-08-04T00:35:41.306643+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 124.51,
@@ -2133,7 +2145,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-08-03T21:08:07.409305+00:00",
+    "scan_time": "2026-08-04T00:35:40.432227+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.02,
@@ -2357,7 +2369,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-08-03T21:01:48.302741+00:00",
+    "scan_time": "2026-08-04T00:30:57.298565+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 34.24,
@@ -2538,9 +2550,9 @@
     "quote_type": "ETF",
     "price": 57.35,
     "current_price": 57.35,
-    "dollar_volume": 257899011.8,
-    "avg_volume_20d": 4496931,
-    "volume_ratio": 1.08,
+    "dollar_volume": 258001461.83,
+    "avg_volume_20d": 4498717,
+    "volume_ratio": 1.09,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -2581,7 +2593,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-08-03T20:51:58.313653+00:00",
+    "scan_time": "2026-08-04T00:24:07.985267+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 57.87,
@@ -2611,16 +2623,17 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 54,
+        "score": 69,
         "status": "Mixed",
         "impact": "Neutral",
         "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
+          "Goldman Sachs' GPIX, GPIQ Beat JPMorgan's JEPI, JEPQ in Key Metrics",
           "GPIX: Still Bullish As This Covered Call ETF Compounds Through Record Highs"
         ],
         "risks": [
-          "High Yields, Higher Risk: Why I'm Slowly Averaging Into Covered Call ETFs Instead Of Going All In"
+          "No negative high-confidence headline detected."
         ],
         "bottom_line": "News is mixed or insufficient."
       },
@@ -2756,21 +2769,22 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 54,
+    "v42_news_score": 69,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_status": "Mixed",
     "v42_news_catalysts": [
+      "Goldman Sachs' GPIX, GPIQ Beat JPMorgan's JEPI, JEPQ in Key Metrics",
       "GPIX: Still Bullish As This Covered Call ETF Compounds Through Record Highs"
     ],
     "v42_news_risks": [
-      "High Yields, Higher Risk: Why I'm Slowly Averaging Into Covered Call ETFs Instead Of Going All In"
+      "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
       "Finnhub company news"
     ],
-    "latest_news_headline": "ICAP: A Primer On The Infrastructure Capital Equity Income ETF",
-    "latest_news_source": "SeekingAlpha",
-    "latest_news_date": "2026-07-24T17:49:27",
+    "latest_news_headline": "Goldman Sachs' GPIX, GPIQ Beat JPMorgan's JEPI, JEPQ in Key Metrics",
+    "latest_news_source": "Benzinga",
+    "latest_news_date": "2026-08-02T12:30:19",
     "latest_news_sentiment": "Mixed",
     "v42_sec_available": false,
     "v42_sec_cik": null,
@@ -2781,7 +2795,7 @@
     "v42_breakout_level": 58.22,
     "v42_pullback_zone": "$56.23 - $56.23",
     "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
-    "v42_committee_positive_agents": 1,
+    "v42_committee_positive_agents": 2,
     "v42_committee_total_agents": 10
   },
   {
@@ -2837,7 +2851,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-08-03T21:08:07.771604+00:00",
+    "scan_time": "2026-08-04T00:35:40.618205+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 46.46,
@@ -3062,7 +3076,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-08-03T21:08:20.236184+00:00",
+    "scan_time": "2026-08-04T00:35:49.069665+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 41.39,
@@ -3287,7 +3301,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-08-03T21:01:30.780233+00:00",
+    "scan_time": "2026-08-04T00:30:45.006548+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 16.19,
@@ -3468,8 +3482,8 @@
     "quote_type": "ETF",
     "price": 17.91,
     "current_price": 17.91,
-    "dollar_volume": 80298578.07,
-    "avg_volume_20d": 4483449,
+    "dollar_volume": 80302276.48,
+    "avg_volume_20d": 4483655,
     "volume_ratio": 0.78,
     "conviction": 90,
     "conviction_score": 90,
@@ -3509,7 +3523,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-08-03T21:00:05.235771+00:00",
+    "scan_time": "2026-08-04T00:29:50.209152+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 18.3,
@@ -3769,7 +3783,7 @@
     "risk_tags": [
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-08-03T21:08:05.666860+00:00",
+    "scan_time": "2026-08-04T00:35:38.768541+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 53.7,
@@ -3992,7 +4006,7 @@
     "risk_tags": [
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-08-03T20:59:49.926996+00:00",
+    "scan_time": "2026-08-04T00:29:47.677652+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 747.83,
@@ -4022,16 +4036,16 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 54,
+        "score": 62,
         "status": "Mixed",
         "impact": "Neutral",
         "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Index Gains Conceal Renewed Breadth Weakness"
+          "Is The Angst Over AI Spending And Fed Inaction Warranted?"
         ],
         "risks": [
-          "Index Gains Conceal Renewed Breadth Weakness"
+          "No negative high-confidence headline detected."
         ],
         "bottom_line": "News is mixed or insufficient."
       },
@@ -4169,21 +4183,21 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 54,
+    "v42_news_score": 62,
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_status": "Mixed",
     "v42_news_catalysts": [
-      "Index Gains Conceal Renewed Breadth Weakness"
+      "Is The Angst Over AI Spending And Fed Inaction Warranted?"
     ],
     "v42_news_risks": [
-      "Index Gains Conceal Renewed Breadth Weakness"
+      "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
       "Finnhub company news"
     ],
-    "latest_news_headline": "The Market's Next Move Depends On More Than Earnings",
+    "latest_news_headline": "Bear Market Signals: Semiconductor Stocks Sink",
     "latest_news_source": "SeekingAlpha",
-    "latest_news_date": "2026-08-03T15:55:00",
+    "latest_news_date": "2026-08-03T18:28:59",
     "latest_news_sentiment": "Mixed",
     "v42_sec_available": true,
     "v42_sec_cik": "0001067839",
@@ -4251,7 +4265,7 @@
       "price is below 50-day trend",
       "20-day ETF trend is weak"
     ],
-    "scan_time": "2026-08-03T20:41:21.066594+00:00",
+    "scan_time": "2026-08-04T00:16:28.400115+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 41.69,
@@ -4513,7 +4527,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-08-03T21:08:07.107298+00:00",
+    "scan_time": "2026-08-04T00:35:40.236897+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 198.49,
@@ -4738,7 +4752,7 @@
       "20-day ETF trend is weak",
       "60-day ETF trend is weak"
     ],
-    "scan_time": "2026-08-03T21:06:01.959496+00:00",
+    "scan_time": "2026-08-04T00:34:13.151422+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 62.28,
@@ -4919,9 +4933,9 @@
     "quote_type": "ETF",
     "price": 79.31,
     "current_price": 79.31,
-    "dollar_volume": 2533399331.32,
-    "avg_volume_20d": 31943001,
-    "volume_ratio": 0.93,
+    "dollar_volume": 2536223017.06,
+    "avg_volume_20d": 31978604,
+    "volume_ratio": 0.95,
     "conviction": 54,
     "conviction_score": 54,
     "score": 54,
@@ -4961,7 +4975,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-08-03T20:50:40.637162+00:00",
+    "scan_time": "2026-08-04T00:23:15.399396+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 79.91,
@@ -5178,9 +5192,9 @@
     "quote_type": "ETF",
     "price": 58.34,
     "current_price": 58.34,
-    "dollar_volume": 433849121.56,
-    "avg_volume_20d": 7436563,
-    "volume_ratio": 1.82,
+    "dollar_volume": 433992772.14,
+    "avg_volume_20d": 7439025,
+    "volume_ratio": 1.83,
     "conviction": 54,
     "conviction_score": 54,
     "score": 54,
@@ -5220,7 +5234,7 @@
       "price is below 20-day trend",
       "price is below 50-day trend"
     ],
-    "scan_time": "2026-08-03T20:52:00.019474+00:00",
+    "scan_time": "2026-08-04T00:24:08.753496+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 61.08,
@@ -5250,14 +5264,17 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 45,
-        "status": "Unknown / insufficient data",
+        "score": 61,
+        "status": "Mixed",
         "impact": "Neutral",
-        "data_used": "No source returned recent data",
-        "summary": "Reviews headlines/catalysts. Confidence: Low.",
-        "findings": [],
+        "data_used": "Finnhub company news",
+        "summary": "Reviews headlines/catalysts. Confidence: High.",
+        "findings": [
+          "Goldman Sachs' GPIX, GPIQ Beat JPMorgan's JEPI, JEPQ in Key Metrics",
+          "TDV: An AI-Driven Dividend Growth ETF Emerges"
+        ],
         "risks": [
-          "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
+          "Two 25%+ Covered Call ETFs Where The Risk Has Quietly Changed"
         ],
         "bottom_line": "News is mixed or insufficient."
       },
@@ -5393,20 +5410,23 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 45,
+    "v42_news_score": 61,
     "v42_news_summary": "News is mixed or insufficient.",
-    "v42_news_status": "Unknown / insufficient data",
-    "v42_news_catalysts": [],
+    "v42_news_status": "Mixed",
+    "v42_news_catalysts": [
+      "Goldman Sachs' GPIX, GPIQ Beat JPMorgan's JEPI, JEPQ in Key Metrics",
+      "TDV: An AI-Driven Dividend Growth ETF Emerges"
+    ],
     "v42_news_risks": [
-      "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
+      "Two 25%+ Covered Call ETFs Where The Risk Has Quietly Changed"
     ],
     "v42_news_sources": [
-      "No source returned recent data"
+      "Finnhub company news"
     ],
-    "latest_news_headline": "",
-    "latest_news_source": "",
-    "latest_news_date": "",
-    "latest_news_sentiment": "Unknown / insufficient data",
+    "latest_news_headline": "Two 7%+ Yielding ETFs You Can Hold Through Anything",
+    "latest_news_source": "SeekingAlpha",
+    "latest_news_date": "2026-08-03T09:15:00",
+    "latest_news_sentiment": "Mixed",
     "v42_sec_available": false,
     "v42_sec_cik": null,
     "v42_support_1": 56.08,
@@ -5472,7 +5492,7 @@
       "price is below 50-day trend",
       "RSI is weak"
     ],
-    "scan_time": "2026-08-03T20:53:49.814907+00:00",
+    "scan_time": "2026-08-04T00:25:26.721826+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 109.85,
@@ -5502,16 +5522,20 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 45,
-        "status": "Unknown / insufficient data",
-        "impact": "Neutral",
-        "data_used": "No source returned recent data",
-        "summary": "Reviews headlines/catalysts. Confidence: Low.",
-        "findings": [],
-        "risks": [
-          "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
+        "score": 76,
+        "status": "Positive",
+        "impact": "Positive",
+        "data_used": "Finnhub company news",
+        "summary": "Reviews headlines/catalysts. Confidence: High.",
+        "findings": [
+          "Is The Angst Over AI Spending And Fed Inaction Warranted?",
+          "Retail Stays Bullish On Hyperscalers Ahead Of Earnings",
+          "Is The AI Earnings Upswing A 'Pig In The Python'?"
         ],
-        "bottom_line": "News is mixed or insufficient."
+        "risks": [
+          "No negative high-confidence headline detected."
+        ],
+        "bottom_line": "News flow supports the thesis."
       },
       "Finance Agent": {
         "score": 50,
@@ -5645,20 +5669,24 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 45,
-    "v42_news_summary": "News is mixed or insufficient.",
-    "v42_news_status": "Unknown / insufficient data",
-    "v42_news_catalysts": [],
+    "v42_news_score": 76,
+    "v42_news_summary": "News flow supports the thesis.",
+    "v42_news_status": "Positive",
+    "v42_news_catalysts": [
+      "Is The Angst Over AI Spending And Fed Inaction Warranted?",
+      "Retail Stays Bullish On Hyperscalers Ahead Of Earnings",
+      "Is The AI Earnings Upswing A 'Pig In The Python'?"
+    ],
     "v42_news_risks": [
-      "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
+      "No negative high-confidence headline detected."
     ],
     "v42_news_sources": [
-      "No source returned recent data"
+      "Finnhub company news"
     ],
-    "latest_news_headline": "",
-    "latest_news_source": "",
-    "latest_news_date": "",
-    "latest_news_sentiment": "Unknown / insufficient data",
+    "latest_news_headline": "Is The Angst Over AI Spending And Fed Inaction Warranted?",
+    "latest_news_source": "SeekingAlpha",
+    "latest_news_date": "2026-08-03T17:20:00",
+    "latest_news_sentiment": "Positive",
     "v42_sec_available": false,
     "v42_sec_cik": null,
     "v42_support_1": 105.96,
@@ -5668,7 +5696,7 @@
     "v42_breakout_level": 109.42,
     "v42_pullback_zone": "$105.96 - $105.96",
     "v42_chart_guidance": "Near support. Better risk/reward if support holds.",
-    "v42_committee_positive_agents": 0,
+    "v42_committee_positive_agents": 1,
     "v42_committee_total_agents": 10
   },
   {
@@ -5724,7 +5752,7 @@
       "price is below 50-day trend",
       "RSI is weak"
     ],
-    "scan_time": "2026-08-03T21:04:38.854021+00:00",
+    "scan_time": "2026-08-04T00:33:10.950196+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.19,
@@ -5948,7 +5976,7 @@
       "price is below 50-day trend",
       "RSI is weak"
     ],
-    "scan_time": "2026-08-03T21:08:08.104149+00:00",
+    "scan_time": "2026-08-04T00:35:40.848986+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 47.41,
@@ -6173,7 +6201,7 @@
       "20-day ETF trend is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-08-03T20:39:09.358078+00:00",
+    "scan_time": "2026-08-04T00:14:42.036029+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 92.65,
@@ -6209,7 +6237,7 @@
         "data_used": "Finnhub company news",
         "summary": "Reviews headlines/catalysts. Confidence: High.",
         "findings": [
-          "Chart Of The Day: Seasonality Is No Longer Providing A Tailwind"
+          "Is The Angst Over AI Spending And Fed Inaction Warranted?"
         ],
         "risks": [
           "No negative high-confidence headline detected."
@@ -6352,7 +6380,7 @@
     "v42_news_summary": "News is mixed or insufficient.",
     "v42_news_status": "Mixed",
     "v42_news_catalysts": [
-      "Chart Of The Day: Seasonality Is No Longer Providing A Tailwind"
+      "Is The Angst Over AI Spending And Fed Inaction Warranted?"
     ],
     "v42_news_risks": [
       "No negative high-confidence headline detected."
@@ -6360,9 +6388,9 @@
     "v42_news_sources": [
       "Finnhub company news"
     ],
-    "latest_news_headline": "CDT Insider Sentiment July 2026 - The Market Is Asking Questions",
+    "latest_news_headline": "Dead Cat Bounce > Last Chance - Weekly Blog # 952",
     "latest_news_source": "SeekingAlpha",
-    "latest_news_date": "2026-08-03T16:05:00",
+    "latest_news_date": "2026-08-03T17:45:00",
     "latest_news_sentiment": "Mixed",
     "v42_sec_available": false,
     "v42_sec_cik": null,
@@ -6429,7 +6457,7 @@
       "20-day ETF trend is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-08-03T21:02:38.152745+00:00",
+    "scan_time": "2026-08-04T00:31:33.810534+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 671.83,
@@ -6653,7 +6681,7 @@
       "20-day ETF trend is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-08-03T21:03:00.561124+00:00",
+    "scan_time": "2026-08-04T00:31:50.119059+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 655.95,
@@ -6879,7 +6907,7 @@
       "60-day ETF trend is weak",
       "RSI is weak"
     ],
-    "scan_time": "2026-08-03T21:03:58.054112+00:00",
+    "scan_time": "2026-08-04T00:32:32.148871+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 75.6,
