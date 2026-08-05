@@ -33,8 +33,8 @@ from agents.qa_v3_models import PageResult, QAIssue
 DEFAULT_URL = "https://stock-ai-dashboard.streamlit.app"
 PAGE_TIMEOUT_MS = 35_000
 ACTION_TIMEOUT_MS = 6_000
-LOGIN_TIMEOUT_SECONDS = 55
-TOTAL_TIMEOUT_SECONDS = 540
+LOGIN_TIMEOUT_SECONDS = 240
+TOTAL_TIMEOUT_SECONDS = 900
 
 KNOWN_NAV_LABELS = (
     "Home",
@@ -139,6 +139,7 @@ async def _find_password_target(
         lambda scope: scope.get_by_label(re.compile(r"^password$", re.I)),
         lambda scope: scope.locator('input[aria-label*="password" i]'),
         lambda scope: scope.locator('input[placeholder*="password" i]'),
+        lambda scope: scope.locator('[data-testid="stTextInput"] input'),
     )
     for scope in _all_scopes(page):
         for build in selectors:
@@ -200,7 +201,15 @@ async def _submit_login(
 
 
 async def _authenticate_and_confirm(page: Page, output_dir: Path) -> dict[str, Any]:
-    password = os.getenv("ATLAS_AUDIT_PASSWORD", "").strip()
+    password = (
+        os.getenv("ATLAS_AUDIT_PASSWORD")
+        or os.getenv("GUEST_PASSWORD")
+        or os.getenv("VIEWER_PASSWORD")
+        or os.getenv("VIEW_PASSWORD")
+        or ""
+    ).strip()
+    if len(password) >= 2 and password[0] == password[-1] and password[0] in {"\"", "'"}:
+        password = password[1:-1].strip()
     started = time.monotonic()
     diagnostics: dict[str, Any] = {
         "password_field_detected": False,
@@ -208,9 +217,15 @@ async def _authenticate_and_confirm(page: Page, output_dir: Path) -> dict[str, A
         "authenticated_dashboard_detected": False,
         "navigation_labels": [],
         "frames_seen": [],
+        "configured_secret_length": len(password),
+        "poll_count": 0,
     }
 
     while time.monotonic() - started < LOGIN_TIMEOUT_SECONDS:
+        diagnostics["poll_count"] += 1
+        elapsed = round(time.monotonic() - started, 1)
+        if diagnostics["poll_count"] == 1 or diagnostics["poll_count"] % 14 == 0:
+            print(f"[login] Waiting for login/dashboard ({elapsed}s elapsed)...", flush=True)
         diagnostics["frames_seen"] = [frame.url for frame in page.frames]
 
         nav = await _known_navigation_visible(page)
@@ -233,10 +248,18 @@ async def _authenticate_and_confirm(page: Page, output_dir: Path) -> dict[str, A
                 print(f"[login] Password field found in {_scope_name(scope)}.", flush=True)
                 await _submit_login(page, scope, locator, password)
                 diagnostics["password_submitted"] = True
-                await page.wait_for_timeout(2500)
+                print("[login] Password submitted; waiting for Streamlit rerun...", flush=True)
+                await page.wait_for_timeout(5000)
                 continue
 
             visible = await _combined_visible_text(page)
+            configured_lengths = [int(value) for value in re.findall(r"length:\s*(\d+)", visible, re.I)]
+            diagnostics["configured_password_lengths_seen"] = configured_lengths
+            if configured_lengths and len(password) not in configured_lengths:
+                raise RuntimeError(
+                    f"ATLAS_AUDIT_PASSWORD length {len(password)} does not match any "
+                    f"configured viewer password length displayed by Atlas: {configured_lengths}."
+                )
             if re.search(r"invalid password|incorrect password|login failed", visible, re.I):
                 raise RuntimeError(
                     "Atlas rejected ATLAS_AUDIT_PASSWORD. Confirm the GitHub secret "
@@ -475,7 +498,7 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
         try:
             authentication = await asyncio.wait_for(
                 _open_and_authenticate(page, url, output_dir),
-                timeout=80,
+                timeout=300,
             )
             pages = await _discover_navigation(
                 page,
