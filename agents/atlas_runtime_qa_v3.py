@@ -19,6 +19,7 @@ import os
 from pathlib import Path
 import re
 import time
+import traceback
 from typing import Any, Iterable
 
 from playwright.async_api import BrowserContext, Frame, Locator, Page, async_playwright
@@ -161,7 +162,12 @@ async def _known_navigation_visible(page: Page) -> list[str]:
                 scope.get_by_role("tab", name=label, exact=True),
                 scope.get_by_text(label, exact=True),
             )
-            if any(await _safe_count(locator) for locator in candidates):
+            matched = False
+            for locator in candidates:
+                if await _safe_count(locator):
+                    matched = True
+                    break
+            if matched:
                 found.append(label)
                 break
     return list(dict.fromkeys(found))
@@ -539,6 +545,11 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
                     encoding="utf-8",
                 )
         except Exception as exc:
+            failure_trace = traceback.format_exc()
+            (output_dir / "initialization_error.txt").write_text(
+                failure_trace,
+                encoding="utf-8",
+            )
             issues.append(QAIssue(
                 severity="CRITICAL",
                 category="Audit Initialization",
@@ -547,10 +558,11 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
                 expected="The authenticated dashboard is reached and at least three pages are discovered.",
                 actual=f"{type(exc).__name__}: {exc}",
                 recommendation=(
-                    "Verify ATLAS_AUDIT_PASSWORD and inspect login_diagnostics.json. "
-                    "Do not treat this run as a valid dashboard audit."
+                    "Inspect initialization_error.txt and login_diagnostics.json. "
+                    "Verify ATLAS_AUDIT_PASSWORD only if the trace reaches login handling."
                 ),
                 likely_files=["agents/atlas_runtime_qa_v3.py"],
+                evidence={"traceback": failure_trace[-8000:]},
             ).to_dict())
         finally:
             await context.close()
