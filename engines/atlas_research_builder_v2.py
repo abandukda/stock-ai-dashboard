@@ -433,7 +433,7 @@ def build_atlas_research_v2(
                 "Ownership evidence should be evaluated through holder concentration, recent institutional change, "
                 "and whether insider activity is discretionary buying or routine compensation selling."
                 if ownership_data
-                else "Ownership and insider details are not populated in the current payload."
+                else f"{ticker} ownership evidence is not populated in the current payload; this is a data limitation, not a negative signal."
             ),
         },
         "technical": {
@@ -455,7 +455,7 @@ def build_atlas_research_v2(
             "interpretation": (
                 "Risk should determine position size and invalidation levels, not merely appear as a score."
                 if risk_rows
-                else "No structured risk matrix was supplied."
+                else f"No structured {ticker} risk matrix was supplied; Atlas will not infer that risk is absent."
             ),
         },
     }
@@ -468,8 +468,14 @@ def build_atlas_research_v2(
     report = {
         "version": "V2.1-AI-INTELLIGENCE",
         "ticker": ticker,
-        "company": enriched.get("company"),
-        "sector": enriched.get("sector"),
+        "company": (
+            enriched.get("company")
+            or _text(_first(enriched_row, "company", "Company", "company_name", "name"), ticker)
+        ),
+        "sector": (
+            enriched.get("sector")
+            or _text(_first(enriched_row, "sector", "Sector", "industry", "Industry"))
+        ),
         "committee_verdict": institutional.get("committee_verdict") or enriched.get("committee_verdict"),
         "opportunity_score": scores["opportunity_score"],
         "confidence_pct": scores["confidence_pct"],
@@ -491,6 +497,21 @@ def build_atlas_research_v2(
         "upgrade_triggers": institutional.get("upgrade_triggers") or enriched_row.get("upgrade_triggers") or [],
         "downgrade_triggers": institutional.get("downgrade_triggers") or enriched_row.get("downgrade_triggers") or [],
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "narrative_context": {
+            "ticker": ticker,
+            "company": (
+                enriched.get("company")
+                or _text(_first(enriched_row, "company", "Company", "company_name", "name"), ticker)
+            ),
+            "sector": (
+                enriched.get("sector")
+                or _text(_first(enriched_row, "sector", "Sector", "industry", "Industry"))
+            ),
+            "current_price": quote.get("price"),
+            "validated_fair_value": institutional.get("validated_fair_value"),
+            "expected_return_pct": institutional.get("expected_return_pct"),
+            "research_completeness_pct": completeness,
+        },
     }
     report["intelligence"] = build_executive_intelligence(report)
     report["executive_summary"] = (
