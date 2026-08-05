@@ -4,15 +4,13 @@ on:
   workflow_dispatch:
 
   schedule:
-    # Every weekday at 7:30 AM Eastern (adjust if desired)
     - cron: "30 11 * * 1-5"
-
-    # Every weekday at 7:30 PM Eastern (adjust if desired)
     - cron: "30 23 * * 1-5"
 
 jobs:
   runtime-qa:
     runs-on: ubuntu-latest
+    timeout-minutes: 12
 
     steps:
       - name: Checkout repository
@@ -23,23 +21,35 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Verify QA source
+        run: |
+          test -f requirements-runtime-qa.txt
+          test -f agents/atlas_runtime_qa_v3.py
+          test -f agents/ai_content_integrity_v3.py
+          test -f agents/code_contract_mapper_v3.py
+          test -f agents/fix_planner_v3.py
+          test -f agents/qa_v3_models.py
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-runtime-qa.txt
-          python -m playwright install chromium
+          python -m pip install -r requirements-runtime-qa.txt
+          python -m playwright install --with-deps chromium
 
       - name: Run Atlas Runtime QA
         env:
           ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
+          PYTHONUNBUFFERED: "1"
         run: |
-          python -m agents.atlas_runtime_qa_v2 \
+          python -u -m agents.atlas_runtime_qa_v3 \
             --url https://stock-ai-dashboard.streamlit.app \
             --output audit_results
 
       - name: Upload QA Report
-        uses: actions/upload-artifact@v4
         if: always()
+        uses: actions/upload-artifact@v4
         with:
-          name: atlas-runtime-qa
+          name: atlas-runtime-qa-v3
           path: audit_results
+          if-no-files-found: warn
+          retention-days: 14
