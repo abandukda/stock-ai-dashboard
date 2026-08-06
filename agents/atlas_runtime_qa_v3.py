@@ -55,9 +55,24 @@ KNOWN_NAV_LABELS = (
 )
 
 SUMMARY_HEADING = re.compile(
-    r"ai summary|atlas summary|why atlas|investment thesis|ai interpretation",
+    r"atlas perspective|executive summary|ai summary|atlas summary|"
+    r"why atlas is interested|why it is interesting|investment thesis|ai interpretation",
     re.I,
 )
+CARD_START_HEADING = re.compile(r"^(?:atlas perspective|executive summary)$", re.I)
+CARD_STOP_HEADINGS = {
+    "Why it is interesting", "Why Atlas is interested", "What Atlas is watching",
+    "Open complete Atlas research", "Atlas Rating", "Opportunity", "Confidence",
+    "Today's Move", "Relative Volume", "Dollar Volume", "Expected Return",
+    "Atlas Target", "Evidence Coverage", "Suggested Position",
+}
+INVALID_SUMMARY_IDENTIFIERS = {
+    "AI", "NO", "YES", "BUY", "NOW", "ETF", "EPS", "RSI", "HOME", "TODAY",
+    "ASK", "ATLAS", "FULL", "TOP", "CORE", "WATCHLIST", "RECOVERY",
+    "POLITICAL", "DEVELOPER", "CENTER", "EARNINGS", "VOLUME", "RESEARCH",
+    "PORTFOLIO", "INTELLIGENCE", "SUMMARY", "MONITOR", "ACCUMULATE", "AVOID",
+}
+VALID_TICKER_RE = re.compile(r"^[A-Z][A-Z0-9.-]{0,5}$")
 ERROR_TEXT = re.compile(
     r"traceback|modulenotfounderror|streamlitapiexception|uncaught exception",
     re.I,
@@ -358,6 +373,12 @@ async def _click_navigation(page: Page, label: str) -> None:
 
 
 def _page_issues(page_name: str, text: str) -> list[QAIssue]:
+    """Report only actionable page-level defects.
+
+    A single legitimate "Under review" field or evidence limitation is not a
+    page defect. Repeated generic fallback language is reported only when it is
+    unusually frequent on the same page.
+    """
     issues: list[QAIssue] = []
     if ERROR_TEXT.search(text):
         issues.append(QAIssue(
@@ -370,15 +391,30 @@ def _page_issues(page_name: str, text: str) -> list[QAIssue]:
             recommendation="Inspect the active page renderer and its imports.",
             likely_files=["app.py"],
         ))
-    if MISSING_TEXT.search(text):
+
+    generic_limitations = len(re.findall(
+        r"some financial evidence remains incomplete",
+        text,
+        flags=re.I,
+    ))
+    if generic_limitations >= 3:
         issues.append(QAIssue(
             severity="MEDIUM",
-            category="Incomplete Data",
+            category="Repeated Generic Limitation",
             page=page_name,
-            element="Visible page content",
-            expected="Available data is rendered and missing evidence is clearly classified.",
-            actual="A missing-data or placeholder phrase is visible.",
-            recommendation="Trace the value from provider status through normalization and UI mapping.",
+            element="Stock-card caution language",
+            expected=(
+                "Missing evidence is identified by ticker and component rather than "
+                "one repeated generic fallback sentence."
+            ),
+            actual=(
+                f"The same generic financial-evidence limitation appears "
+                f"{generic_limitations} times."
+            ),
+            recommendation=(
+                "Render ticker-specific missing components or suppress the generic "
+                "fallback when no actionable detail is available."
+            ),
             likely_files=[
                 "engines/atlas_research_builder_v2.py",
                 "ui/research_report_v2.py",
@@ -387,10 +423,170 @@ def _page_issues(page_name: str, text: str) -> list[QAIssue]:
     return issues
 
 
-async def _inventory(page: Page, page_name: str) -> PageResult:
+async def _visual_layout_issues(page: Page, page_name: str) -> list[QAIssue]:
+    """Inspect rendered DOM geometry and typography for professional UI defects."""
+    findings: list[dict[str, Any]] = []
+    for scope in _all_scopes(page):
+        try:
+            values = await scope.locator("body").evaluate(
+                """
+                () => {
+                  const visible = (el) => {
+                    const s = getComputedStyle(el);
+                    const r = el.getBoundingClientRect();
+                    return s.display !== 'none' && s.visibility !== 'hidden'
+                      && Number(s.opacity || 1) > 0 && r.width > 2 && r.height > 2;
+                  };
+                  const result = [];
+
+                  document.querySelectorAll('[data-atlas-qa="narrative"]').forEach((el) => {
+                    if (!visible(el)) return;
+                    const base = getComputedStyle(el);
+                    const code = el.querySelectorAll('code, pre');
+                    if (code.length) {
+                      result.push({
+                        kind: 'UNEXPECTED_INLINE_CODE',
+                        name: el.dataset.atlasQaName || 'narrative',
+                        detail: `${code.length} code/pre element(s) found inside ordinary prose`,
+                        severity: 'HIGH'
+                      });
+                    }
+                    [...el.querySelectorAll('*')].forEach((child) => {
+                      if (!visible(child)) return;
+                      const style = getComputedStyle(child);
+                      const highlighted =
+                        style.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
+                        style.backgroundColor !== 'transparent';
+                      const monospace = /mono|courier/i.test(style.fontFamily);
+                      if (highlighted || monospace) {
+                        result.push({
+                          kind: 'TYPOGRAPHY_INCONSISTENCY',
+                          name: el.dataset.atlasQaName || 'narrative',
+                          detail: `child uses ${style.fontFamily} with background ${style.backgroundColor}`,
+                          severity: 'HIGH'
+                        });
+                      }
+                    });
+                    if (el.scrollWidth > el.clientWidth + 4) {
+                      result.push({
+                        kind: 'NARRATIVE_HORIZONTAL_OVERFLOW',
+                        name: el.dataset.atlasQaName || 'narrative',
+                        detail: `scrollWidth ${el.scrollWidth}px exceeds ${el.clientWidth}px`,
+                        severity: 'HIGH'
+                      });
+                    }
+                  });
+
+                  const cards = [...document.querySelectorAll('[data-atlas-qa="trade-card"]')]
+                    .filter(visible);
+                  cards.forEach((card) => {
+                    const value = card.querySelector('.atlas-trade-value');
+                    if (!value) return;
+                    const rect = value.getBoundingClientRect();
+                    const style = getComputedStyle(value);
+                    const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.2;
+                    const lines = Math.max(1, Math.round(rect.height / lineHeight));
+                    const text = (value.innerText || '').trim();
+
+                    if (lines >= 3 || (text.length >= 5 && rect.width < 65)) {
+                      result.push({
+                        kind: 'VERTICAL_CHARACTER_WRAP',
+                        name: card.dataset.atlasQaName || 'trade-card',
+                        detail: `"${text}" rendered across approximately ${lines} lines in ${Math.round(rect.width)}px`,
+                        severity: 'CRITICAL'
+                      });
+                    }
+                    if (value.scrollWidth > value.clientWidth + 4) {
+                      result.push({
+                        kind: 'CARD_TEXT_OVERFLOW',
+                        name: card.dataset.atlasQaName || 'trade-card',
+                        detail: `"${text}" overflows by ${value.scrollWidth - value.clientWidth}px`,
+                        severity: 'HIGH'
+                      });
+                    }
+                  });
+
+                  if (cards.length >= 3) {
+                    const heights = cards.map((card) => Math.round(card.getBoundingClientRect().height));
+                    const min = Math.min(...heights);
+                    const max = Math.max(...heights);
+                    if (max - min > 35) {
+                      result.push({
+                        kind: 'INCONSISTENT_CARD_HEIGHTS',
+                        name: 'trade-plan-grid',
+                        detail: `card heights range from ${min}px to ${max}px`,
+                        severity: 'MEDIUM'
+                      });
+                    }
+                  }
+
+                  document.querySelectorAll('[data-testid="stMetricValue"]').forEach((el) => {
+                    if (!visible(el)) return;
+                    const rect = el.getBoundingClientRect();
+                    const text = (el.innerText || '').trim();
+                    const style = getComputedStyle(el);
+                    const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.2;
+                    const lines = Math.max(1, Math.round(rect.height / lineHeight));
+                    if (text.length >= 5 && lines >= 3) {
+                      result.push({
+                        kind: 'METRIC_VERTICAL_WRAP',
+                        name: text.slice(0, 50),
+                        detail: `metric value rendered across approximately ${lines} lines`,
+                        severity: 'CRITICAL'
+                      });
+                    }
+                  });
+
+                  return result;
+                }
+                """
+            )
+            if isinstance(values, list):
+                findings.extend(item for item in values if isinstance(item, dict))
+        except Exception:
+            continue
+
+    unique: dict[tuple[str, str, str], dict[str, Any]] = {}
+    for item in findings:
+        key = (str(item.get("kind")), str(item.get("name")), str(item.get("detail")))
+        unique[key] = item
+
+    issues: list[QAIssue] = []
+    for item in unique.values():
+        kind = str(item.get("kind") or "VISUAL_LAYOUT")
+        name = str(item.get("name") or "Rendered component")
+        detail = str(item.get("detail") or "Visual defect detected.")
+        severity = str(item.get("severity") or "MEDIUM")
+        issues.append(QAIssue(
+            severity=severity,
+            category="Visual Formatting",
+            page=page_name,
+            element=name,
+            expected=(
+                "Text remains horizontally readable, cards remain aligned, and "
+                "ordinary prose uses consistent typography without code-style highlights."
+            ),
+            actual=f"{kind}: {detail}",
+            recommendation=(
+                "Inspect the component CSS and renderer. Prevent break-all wrapping, "
+                "use responsive minimum widths, remove Markdown backticks from prose, "
+                "and enforce inherited typography."
+            ),
+            likely_files=[
+                "ui/research_report_v2.py",
+                "agents/atlas_runtime_qa_v3.py",
+            ],
+            evidence={"visual_rule": kind, "component": name, "detail": detail},
+            regression_test="Run DOM geometry and typography checks at desktop and mobile widths.",
+        ))
+    return issues
+
+
+async def _inventory(page: Page, page_name: str, output_dir: Path | None = None) -> PageResult:
     started = time.monotonic()
     text = await _combined_visible_text(page)
     issues = _page_issues(page_name, text)
+    issues.extend(await _visual_layout_issues(page, page_name))
 
     metrics = tables = charts = buttons = tabs = expanders = 0
     for scope in _all_scopes(page):
@@ -408,6 +604,16 @@ async def _inventory(page: Page, page_name: str) -> PageResult:
         tabs += await _safe_count(scope.locator('[role="tab"]'))
         expanders += await _safe_count(scope.locator('[data-testid="stExpander"]'))
 
+    if output_dir is not None:
+        try:
+            safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", page_name).strip("_") or "page"
+            await page.screenshot(
+                path=str(output_dir / f"visual_{safe_name}.png"),
+                full_page=True,
+            )
+        except Exception:
+            pass
+
     return PageResult(
         page=page_name,
         status="FAIL" if any(issue.severity == "CRITICAL" for issue in issues) else "PASS",
@@ -423,35 +629,125 @@ async def _inventory(page: Page, page_name: str) -> PageResult:
     )
 
 
+def _is_valid_summary_ticker(value: str) -> bool:
+    ticker = str(value or "").strip().upper()
+    return bool(
+        VALID_TICKER_RE.fullmatch(ticker)
+        and ticker not in INVALID_SUMMARY_IDENTIFIERS
+        and ticker not in {label.upper() for label in KNOWN_NAV_LABELS}
+    )
+
+
+def _nearest_ticker(lines: list[str], heading_index: int) -> str:
+    """Find the ticker belonging to the card immediately before a summary."""
+    # Prefer the ticker just before "Atlas Rating", which marks the card start.
+    lower_bound = max(0, heading_index - 20)
+    segment = lines[lower_bound:heading_index]
+    for relative in range(len(segment) - 1, -1, -1):
+        if segment[relative].lower() == "atlas rating" and relative > 0:
+            candidate = segment[relative - 1].strip().upper()
+            if _is_valid_summary_ticker(candidate):
+                return candidate
+
+    # Fallback: walk backwards, rejecting labels, numeric values, and sentences.
+    for candidate in reversed(segment):
+        clean = candidate.strip().upper()
+        if _is_valid_summary_ticker(clean):
+            return clean
+    return ""
+
+
+def _summary_after_heading(lines: list[str], heading_index: int) -> str:
+    chunks: list[str] = []
+    for line in lines[heading_index + 1:]:
+        if not line:
+            continue
+        if line in CARD_STOP_HEADINGS:
+            break
+        if SUMMARY_HEADING.fullmatch(line) and chunks:
+            break
+        if line.startswith("Open complete Atlas research"):
+            break
+        # Avoid swallowing the next card ticker.
+        if chunks and _is_valid_summary_ticker(line.upper()) and len(line) <= 6:
+            break
+        chunks.append(line)
+        if len(" ".join(chunks)) >= 700:
+            break
+    return _clean(" ".join(chunks))
+
+
 def _extract_summary_records(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Extract one genuine stock narrative per ticker.
+
+    Navigation labels, page headings, "NO", and repeated copies of the same card
+    are rejected before AI-content scoring.
+    """
     records: list[dict[str, Any]] = []
-    ticker_re = re.compile(r"\b[A-Z]{1,5}\b")
+    seen: set[tuple[str, str]] = set()
+
     for result in results:
         text = str(result.get("visible_text") or "")
         if not SUMMARY_HEADING.search(text):
             continue
+
         lines = [_clean(line) for line in text.splitlines() if _clean(line)]
         for index, line in enumerate(lines):
-            if not SUMMARY_HEADING.search(line):
+            if not CARD_START_HEADING.fullmatch(line):
                 continue
-            summary = " ".join(lines[index + 1:index + 6])
-            nearby = " ".join(lines[max(0, index - 6):index + 1])
-            ticker = next(
-                (
-                    token
-                    for token in ticker_re.findall(nearby)
-                    if token not in {"AI", "ETF", "EPS", "BUY", "NOW"}
-                ),
-                str(result.get("page") or "UNKNOWN"),
-            )
-            if len(summary) >= 50:
-                records.append({
-                    "ticker": ticker,
-                    "company": ticker,
-                    "ai_summary": summary,
-                    "page": result.get("page"),
-                })
+
+            ticker = _nearest_ticker(lines, index)
+            summary = _summary_after_heading(lines, index)
+            if not ticker or len(summary.split()) < 12:
+                continue
+
+            key = (ticker, re.sub(r"\s+", " ", summary.lower())[:500])
+            if key in seen:
+                continue
+            seen.add(key)
+
+            records.append({
+                "ticker": ticker,
+                "company": ticker,
+                "ai_summary": summary,
+                "page": result.get("page"),
+                "source_heading": line,
+            })
     return records
+
+
+def _deduplicate_issues(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[tuple[Any, ...], dict[str, Any]] = {}
+    for item in items:
+        evidence = item.get("evidence") or {}
+        key = (
+            item.get("severity"),
+            item.get("category"),
+            item.get("page"),
+            item.get("ticker"),
+            item.get("element"),
+            item.get("actual"),
+            json.dumps(evidence, sort_keys=True, default=str),
+        )
+        if key not in grouped:
+            value = dict(item)
+            value["occurrence_count"] = int(value.get("occurrence_count") or 1)
+            value["pages_seen"] = sorted({str(value.get("page") or "")})
+            grouped[key] = value
+        else:
+            grouped[key]["occurrence_count"] += 1
+            page = str(item.get("page") or "")
+            if page and page not in grouped[key]["pages_seen"]:
+                grouped[key]["pages_seen"].append(page)
+                grouped[key]["pages_seen"].sort()
+    return list(grouped.values())
+
+
+def _product_issues(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        item for item in items
+        if item.get("classification", "PRODUCT_ISSUE") == "PRODUCT_ISSUE"
+    ]
 
 
 async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
@@ -465,7 +761,7 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
     authentication: dict[str, Any] = {}
 
     print("=" * 72, flush=True)
-    print("ATLAS RUNTIME QA V3.1 — AUTHENTICATED ONE-SHOT", flush=True)
+    print("ATLAS RUNTIME QA V3.5 — CONTENT AND VISUAL FORMATTING QA", flush=True)
     print("=" * 72, flush=True)
 
     async with async_playwright() as playwright:
@@ -594,6 +890,7 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
     summaries = _extract_summary_records(page_results)
     ai_integrity = audit_summary_collection(summaries)
     issues.extend(ai_integrity["issues"])
+    issues = _deduplicate_issues(issues)
 
     audit_valid = bool(
         authentication.get("authenticated_dashboard_detected")
@@ -615,27 +912,37 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
         health = 0
         status = "AUDIT_INVALID"
     else:
+        product_findings = _product_issues(issues)
         counts_preview = {
-            level: sum(item.get("severity") == level for item in issues)
+            level: sum(item.get("severity") == level for item in product_findings)
             for level in ("CRITICAL", "HIGH", "MEDIUM", "LOW")
         }
         health = max(
             0,
             100
-            - counts_preview["CRITICAL"] * 12
-            - counts_preview["HIGH"] * 5
+            - counts_preview["CRITICAL"] * 15
+            - counts_preview["HIGH"] * 6
             - counts_preview["MEDIUM"] * 2
             - counts_preview["LOW"],
         )
         status = "COMPLETE"
 
+    product_findings = _product_issues(issues)
     counts = {
-        level: sum(item.get("severity") == level for item in issues)
+        level: sum(item.get("severity") == level for item in product_findings)
+        for level in ("CRITICAL", "HIGH", "MEDIUM", "LOW")
+    }
+    qa_counts = {
+        level: sum(
+            item.get("severity") == level
+            and item.get("classification") == "QA_EXTRACTION_ISSUE"
+            for item in issues
+        )
         for level in ("CRITICAL", "HIGH", "MEDIUM", "LOW")
     }
 
     report = {
-        "version": "ATLAS-RUNTIME-QA-V3.1",
+        "version": "ATLAS-RUNTIME-QA-V3.5",
         "status": status,
         "audit_valid": audit_valid,
         "url": url,
@@ -643,6 +950,7 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
         "duration_seconds": round(time.monotonic() - started, 1),
         "health_score": health,
         "severity_counts": counts,
+        "qa_extraction_counts": qa_counts,
         "authentication": authentication,
         "navigation_discovered": [item["page"] for item in page_results],
         "pages_inspected": len(page_results),
@@ -650,6 +958,7 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
         "failed_requests": deduped_requests,
         "console_errors": console_errors,
         "ai_content_integrity": ai_integrity,
+        "summary_records_extracted": summaries,
         "issues": issues,
         "code_contract": contract,
     }
@@ -659,7 +968,7 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
     fix_path = write_fix_plan(report, output_dir)
 
     markdown = [
-        "# Atlas Runtime QA v3.1",
+        "# Atlas Runtime QA v3.5",
         "",
         f"- Status: {status}",
         f"- Audit valid: {audit_valid}",

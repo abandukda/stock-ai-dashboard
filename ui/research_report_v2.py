@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from html import escape
 from typing import Any, Mapping
+import re
 
 import pandas as pd
 import streamlit as st
@@ -36,6 +37,144 @@ def _score(value: Any) -> str:
         return f"{float(value):.1f}"
     except (TypeError, ValueError):
         return "Unavailable"
+
+
+def _clean_prose(value: Any) -> str:
+    """Normalize generated prose so Markdown cannot create accidental code pills."""
+    text = str(value or "").replace("`", "")
+    text = text.replace("\u00a0", " ")
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\s*\n\s*", " ", text)
+    return text.strip()
+
+
+def _render_consistent_prose(value: Any, *, qa_name: str) -> None:
+    """Render ordinary prose as escaped HTML with one consistent typography style."""
+    text = _clean_prose(value)
+    if not text:
+        text = "No grounded narrative is currently available."
+    st.markdown(
+        (
+            f'<div class="atlas-prose" data-atlas-qa="narrative" '
+            f'data-atlas-qa-name="{escape(qa_name)}">{escape(text)}</div>'
+        ),
+        unsafe_allow_html=True,
+    )
+
+
+def _inject_visual_standards() -> None:
+    """Install defensive CSS for research cards and narrative typography."""
+    st.markdown(
+        """
+        <style>
+        .atlas-prose {
+            color: inherit;
+            font-family: inherit;
+            font-size: 1.08rem;
+            font-weight: 400;
+            line-height: 1.62;
+            letter-spacing: normal;
+            white-space: normal;
+            overflow-wrap: normal;
+            word-break: normal;
+            hyphens: none;
+            margin: 0.35rem 0 1.2rem 0;
+        }
+        .atlas-prose code,
+        .atlas-prose pre {
+            all: unset !important;
+            color: inherit !important;
+            background: transparent !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            padding: 0 !important;
+            font: inherit !important;
+            white-space: inherit !important;
+        }
+        .atlas-trade-grid {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(150px, 1fr));
+            gap: 1rem;
+            width: 100%;
+            margin: 0.6rem 0 1.1rem 0;
+        }
+        .atlas-trade-card {
+            min-width: 0;
+            min-height: 128px;
+            padding: 1.35rem 1.45rem;
+            border: 1px solid rgba(120, 155, 205, 0.28);
+            border-radius: 24px;
+            background: linear-gradient(
+                145deg,
+                rgba(20, 30, 51, 0.98),
+                rgba(13, 23, 42, 0.98)
+            );
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+        .atlas-trade-label {
+            color: #c4cce0;
+            font-family: inherit;
+            font-size: 1rem;
+            font-weight: 500;
+            line-height: 1.25;
+            margin-bottom: 0.55rem;
+            white-space: nowrap;
+        }
+        .atlas-trade-value {
+            color: #f7f9ff;
+            font-family: inherit;
+            font-size: clamp(1.55rem, 2.2vw, 2.2rem);
+            font-weight: 800;
+            line-height: 1.08;
+            letter-spacing: -0.035em;
+            white-space: nowrap;
+            word-break: keep-all;
+            overflow-wrap: normal;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        @media (max-width: 1150px) {
+            .atlas-trade-grid {
+                grid-template-columns: repeat(3, minmax(150px, 1fr));
+            }
+        }
+        @media (max-width: 760px) {
+            .atlas-trade-grid {
+                grid-template-columns: repeat(2, minmax(135px, 1fr));
+            }
+            .atlas-trade-card {
+                min-height: 112px;
+                padding: 1rem;
+            }
+        }
+        @media (max-width: 460px) {
+            .atlas-trade-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _trade_card(label: str, value: Any, *, qa_name: str) -> str:
+    return (
+        f'<div class="atlas-trade-card" data-atlas-qa="trade-card" '
+        f'data-atlas-qa-name="{escape(qa_name)}">'
+        f'<div class="atlas-trade-label">{escape(label)}</div>'
+        f'<div class="atlas-trade-value">{escape(str(value))}</div>'
+        "</div>"
+    )
+
+
+def _render_trade_card_grid(items: list[tuple[str, Any, str]]) -> None:
+    cards = "".join(_trade_card(label, value, qa_name=name) for label, value, name in items)
+    st.markdown(f'<div class="atlas-trade-grid">{cards}</div>', unsafe_allow_html=True)
 
 
 def _meta(section: Mapping[str, Any]) -> None:
@@ -228,19 +367,26 @@ def _render_trade_plan(report: Mapping[str, Any]) -> None:
         st.warning(plan.get("reason", "A current quote is required before Atlas can calculate a trade plan."))
         return
 
-    c = st.columns(5)
-    c[0].metric("Current Price", _money(plan.get("current_price")))
-    c[1].metric("Entry Zone", f"{_money(plan.get('entry_low'))}–{_money(plan.get('entry_high'))}")
-    c[2].metric("Stop", _money(plan.get("stop_loss")))
-    c[3].metric("Target 1", _money(plan.get("target_1")))
-    c[4].metric("Target 2", _money(plan.get("target_2")))
+    entry_low = _money(plan.get("entry_low"))
+    entry_high = _money(plan.get("entry_high"))
+    entry_zone = (
+        f"{entry_low}–{entry_high}"
+        if "Unavailable" not in (entry_low, entry_high)
+        else "Unavailable"
+    )
 
-    c = st.columns(5)
-    c[0].metric("Atlas Target", _money(plan.get("atlas_target")))
-    c[1].metric("Analyst Average", _money(plan.get("analyst_average_target")))
-    c[2].metric("Do Not Chase", _money(plan.get("do_not_chase")))
-    c[3].metric("R/R to Target 1", plan.get("risk_reward_target_1", "Unavailable"))
-    c[4].metric("Primary Horizon", (plan.get("horizon") or {}).get("primary", "Unavailable"))
+    _render_trade_card_grid([
+        ("Current Price", _money(plan.get("current_price")), "current-price"),
+        ("Entry Zone", entry_zone, "entry-zone"),
+        ("Stop", _money(plan.get("stop_loss")), "stop-loss"),
+        ("Target 1", _money(plan.get("target_1")), "target-1"),
+        ("Target 2", _money(plan.get("target_2")), "target-2"),
+        ("Atlas Target", _money(plan.get("atlas_target")), "atlas-target"),
+        ("Analyst Average", _money(plan.get("analyst_average_target")), "analyst-average"),
+        ("Do Not Chase", _money(plan.get("do_not_chase")), "do-not-chase"),
+        ("R/R to Target 1", plan.get("risk_reward_target_1", "Unavailable"), "risk-reward"),
+        ("Primary Horizon", (plan.get("horizon") or {}).get("primary", "Unavailable"), "horizon"),
+    ])
 
     quote = plan.get("quote") or {}
     st.caption(
@@ -254,16 +400,16 @@ def _render_trade_plan(report: Mapping[str, Any]) -> None:
     )
 
 
-
 def _render_ai_intelligence(report: Mapping[str, Any]) -> None:
     intelligence = report.get("intelligence") or {}
     today = intelligence.get("today_move") or {}
 
     st.markdown("### Atlas AI Intelligence")
-    st.write(
+    _render_consistent_prose(
         intelligence.get("executive_summary")
         or report.get("executive_summary")
-        or "No grounded executive summary is currently available."
+        or "No grounded executive summary is currently available.",
+        qa_name="atlas-ai-intelligence-summary",
     )
 
     support_col, risk_col = st.columns(2)
@@ -363,6 +509,7 @@ def _render_ask_atlas(report: Mapping[str, Any]) -> None:
 
 def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
     report = build_atlas_research_v2(row)
+    _inject_visual_standards()
 
     st.markdown(
         f"""
@@ -392,7 +539,10 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
     c[4].metric("Research Completeness", _pct(report.get("research_completeness_pct")))
 
     st.markdown("## Executive Summary")
-    st.write(report.get("executive_summary") or "No executive summary is currently available.")
+    _render_consistent_prose(
+        report.get("executive_summary") or "No executive summary is currently available.",
+        qa_name="executive-summary",
+    )
     _render_trade_plan(report)
 
     tabs = st.tabs(
