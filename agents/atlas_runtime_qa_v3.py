@@ -1,4 +1,4 @@
-"""Atlas Runtime QA v3.1 — authenticated one-shot browser audit.
+"""Atlas QA Enterprise v4.0 — production synthetic QA.
 
 Primary goals:
 - Reliably authenticate through Streamlit's password-only login, including
@@ -28,13 +28,14 @@ from agents.ai_content_integrity_v3 import audit_summary_collection
 from agents.code_contract_mapper_v3 import build_code_contract
 from agents.fix_planner_v3 import write_fix_plan
 from agents.qa_v3_models import PageResult, QAIssue
+from agents.runtime_qa_user_journeys_v40 import run_user_journeys
 
 
 DEFAULT_URL = "https://stock-ai-dashboard.streamlit.app"
 PAGE_TIMEOUT_MS = 35_000
 ACTION_TIMEOUT_MS = 6_000
 LOGIN_TIMEOUT_SECONDS = 240
-TOTAL_TIMEOUT_SECONDS = 900
+TOTAL_TIMEOUT_SECONDS = 1_500
 
 KNOWN_NAV_LABELS = (
     "Home",
@@ -759,9 +760,10 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
     failed_requests: list[dict[str, Any]] = []
     console_errors: list[dict[str, Any]] = []
     authentication: dict[str, Any] = {}
+    user_journeys: dict[str, Any] = {}
 
     print("=" * 72, flush=True)
-    print("ATLAS RUNTIME QA V3.5 — CONTENT AND VISUAL FORMATTING QA", flush=True)
+    print("ATLAS QA ENTERPRISE V4.0 — RUNTIME + VISUAL + AI + USER JOURNEYS", flush=True)
     print("=" * 72, flush=True)
 
     async with async_playwright() as playwright:
@@ -830,8 +832,8 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
                             timeout=12,
                         )
                     result = await asyncio.wait_for(
-                        _inventory(page, page_name),
-                        timeout=15,
+                        _inventory(page, page_name, output_dir),
+                        timeout=20,
                     )
                 except Exception as exc:
                     result = PageResult(
@@ -863,6 +865,49 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
                     }, indent=2, default=str),
                     encoding="utf-8",
                 )
+
+            print("[journeys] Starting full synthetic client journeys", flush=True)
+            try:
+                user_journeys = await asyncio.wait_for(
+                    run_user_journeys(
+                        page,
+                        output_dir=output_dir,
+                        navigation_labels=pages,
+                    ),
+                    timeout=420,
+                )
+                (output_dir / "atlas_user_journeys_v40.json").write_text(
+                    json.dumps(user_journeys, indent=2, default=str),
+                    encoding="utf-8",
+                )
+                for step in user_journeys.get("steps", []):
+                    if step.get("status") == "FAIL":
+                        issues.append(QAIssue(
+                            severity="HIGH",
+                            category="User Journey Failure",
+                            page=step.get("page") or "Application",
+                            element=f"{step.get('journey')} — {step.get('step')}",
+                            expected="The synthetic client journey completes without a broken interaction.",
+                            actual=step.get("detail") or "Synthetic journey failed.",
+                            recommendation=(
+                                "Reproduce the failed journey using the attached screenshot and evidence. "
+                                "Inspect the page renderer, Streamlit control, and downstream engine."
+                            ),
+                            likely_files=["app.py", "ui/research_report_v2.py", "engines/ask_atlas_engine.py"],
+                            evidence=step,
+                            regression_test="Keep this synthetic journey in the permanent QA suite.",
+                        ).to_dict())
+            except Exception as exc:
+                issues.append(QAIssue(
+                    severity="HIGH",
+                    category="User Journey Engine",
+                    page="Application",
+                    element="Synthetic client journeys",
+                    expected="Navigation, research, Ask AI, and responsive smoke journeys execute.",
+                    actual=f"{type(exc).__name__}: {exc}",
+                    recommendation="Inspect agents/runtime_qa_user_journeys_v40.py and journey screenshots.",
+                    likely_files=["agents/runtime_qa_user_journeys_v40.py"],
+                ).to_dict())
         except Exception as exc:
             failure_trace = traceback.format_exc()
             (output_dir / "initialization_error.txt").write_text(
@@ -942,7 +987,7 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
     }
 
     report = {
-        "version": "ATLAS-RUNTIME-QA-V3.5",
+        "version": "ATLAS-QA-ENTERPRISE-V4.0",
         "status": status,
         "audit_valid": audit_valid,
         "url": url,
@@ -959,6 +1004,8 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
         "console_errors": console_errors,
         "ai_content_integrity": ai_integrity,
         "summary_records_extracted": summaries,
+        "user_journeys": user_journeys,
+        "performance": (user_journeys or {}).get("performance", {}),
         "issues": issues,
         "code_contract": contract,
     }
@@ -968,7 +1015,7 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
     fix_path = write_fix_plan(report, output_dir)
 
     markdown = [
-        "# Atlas Runtime QA v3.5",
+        "# Atlas QA Enterprise v4.0",
         "",
         f"- Status: {status}",
         f"- Audit valid: {audit_valid}",
@@ -977,6 +1024,7 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
         f"- Pages inspected: {len(page_results)}",
         f"- Failed request URLs captured: {len(deduped_requests)}",
         f"- AI summaries reviewed: {ai_integrity['records_reviewed']}",
+        f"- User journey failures: {(user_journeys.get('counts') or {}).get('FAIL', 0)}",
         "",
         "## Findings",
         "",

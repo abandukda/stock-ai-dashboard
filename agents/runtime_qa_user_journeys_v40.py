@@ -1,0 +1,518 @@
+"""Synthetic client journeys for Atlas Runtime QA.
+
+The engine behaves like a cautious real user:
+- visits every navigation item
+- opens tabs and expanders
+- tests safe internal links/buttons
+- researches valid and invalid tickers
+- asks Atlas questions and validates non-empty, ticker-aware answers
+- measures interaction latency
+- captures screenshots and structured evidence
+
+Destructive actions (delete, trade, logout, billing, upload, etc.) are never clicked.
+"""
+
+from __future__ import annotations
+
+import asyncio
+from dataclasses import dataclass, asdict
+import re
+import time
+from pathlib import Path
+from typing import Any, Iterable, Mapping
+
+from playwright.async_api import Frame, Page
+
+
+ERROR_RE = re.compile(
+    r"traceback|uncaught exception|streamlitapiexception|modulenotfounderror|"
+    r"attributeerror|typeerror|keyerror|valueerror",
+    re.I,
+)
+SPINNER_RE = re.compile(r"running|loading|please wait|working", re.I)
+
+SAFE_DENY_RE = re.compile(
+    r"delete|remove|trash|logout|sign out|subscribe|billing|checkout|"
+    r"buy|sell|place order|execute|upload|import|reset|clear all|disconnect",
+    re.I,
+)
+
+PAGE_LABELS = (
+    "Home",
+    "Today's Opportunities",
+    "Volume Intelligence",
+    "Atlas Core Holdings",
+    "Research Any Ticker",
+    "Earnings Intelligence",
+    "Full Ranked Scan",
+    "Portfolio Intelligence",
+    "Watchlist Intelligence",
+    "Recovery",
+    "ETFs",
+    "Political Intelligence",
+    "Ask AI",
+    "Developer Center",
+)
+
+RESEARCH_TICKERS = ("NVDA", "AVGO", "CRM")
+INVALID_TICKER = "INVALID123"
+
+ASK_AI_PROMPTS = (
+    ("NVDA", "Why is NVDA rated the way it is? Include the strongest supporting evidence and the biggest risk."),
+    ("CRM", "What are the biggest risks for CRM and what evidence would change Atlas's view?"),
+    ("AVGO", "Explain AVGO valuation versus the Atlas target using the available evidence."),
+)
+
+
+@dataclass
+class JourneyStep:
+    journey: str
+    step: str
+    status: str
+    duration_seconds: float
+    page: str = ""
+    detail: str = ""
+    screenshot: str = ""
+    evidence: dict[str, Any] | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+def _clean(value: Any) -> str:
+    return re.sub(r"\s+", " ", str(value or "")).strip()
+
+
+def _scopes(page: Page) -> list[Page | Frame]:
+    return [page, *list(page.frames)]
+
+
+async def _visible_text(page: Page) -> str:
+    chunks: list[str] = []
+    for scope in _scopes(page):
+        try:
+            text = await scope.locator("body").inner_text(timeout=2500)
+        except Exception:
+            continue
+        if text:
+            chunks.append(text)
+    return "\n".join(chunks)
+
+
+async def _screenshot(page: Page, output_dir: Path, name: str) -> str:
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", name).strip("_") or "journey"
+    path = output_dir / f"journey_{safe}.png"
+    try:
+        await page.screenshot(path=str(path), full_page=True)
+        return path.name
+    except Exception:
+        return ""
+
+
+async def _click_text(page: Page, label: str, *, timeout_ms: int = 6500) -> bool:
+    for scope in _scopes(page):
+        candidates = (
+            scope.get_by_text(label, exact=True),
+            scope.get_by_role("button", name=label, exact=True),
+            scope.get_by_role("link", name=label, exact=True),
+        )
+        for locator in candidates:
+            try:
+                if await locator.count() and await locator.first.is_visible():
+                    await locator.first.click(timeout=timeout_ms)
+                    await asyncio.sleep(0.55)
+                    return True
+            except Exception:
+                continue
+    return False
+
+
+async def _navigate(page: Page, label: str) -> tuple[bool, float, str]:
+    started = time.monotonic()
+    clicked = await _click_text(page, label)
+    if not clicked:
+        return False, time.monotonic() - started, f"Could not click navigation label: {label}"
+
+    deadline = time.monotonic() + 8
+    text = ""
+    while time.monotonic() < deadline:
+        text = await _visible_text(page)
+        if label.lower() in text.lower() and not ERROR_RE.search(text):
+            return True, time.monotonic() - started, ""
+        await asyncio.sleep(0.5)
+    return not bool(ERROR_RE.search(text)), time.monotonic() - started, "Navigation settled without a strong page marker."
+
+
+async def _find_text_input(page: Page, purpose: str):
+    selectors: list[str]
+    if purpose == "research":
+        selectors = [
+            'input[placeholder*="ticker" i]',
+            'input[aria-label*="ticker" i]',
+            'input[type="text"]',
+        ]
+    else:
+        selectors = [
+            'textarea[placeholder*="ask" i]',
+            'textarea[placeholder*="question" i]',
+            'input[placeholder*="ask" i]',
+            'input[placeholder*="question" i]',
+            'textarea',
+            'input[type="text"]',
+        ]
+
+    for scope in _scopes(page):
+        for selector in selectors:
+            try:
+                locator = scope.locator(selector)
+                count = await locator.count()
+                for index in range(min(count, 8)):
+                    item = locator.nth(index)
+                    if await item.is_visible() and await item.is_enabled():
+                        return item
+            except Exception:
+                continue
+    return None
+
+
+async def _click_matching_button(page: Page, patterns: Iterable[str]) -> str:
+    regex = re.compile("|".join(re.escape(item) for item in patterns), re.I)
+    for scope in _scopes(page):
+        try:
+            buttons = scope.get_by_role("button")
+            count = await buttons.count()
+        except Exception:
+            continue
+        for index in range(min(count, 50)):
+            button = buttons.nth(index)
+            try:
+                if not await button.is_visible() or not await button.is_enabled():
+                    continue
+                label = _clean(await button.inner_text())
+                if SAFE_DENY_RE.search(label):
+                    continue
+                if regex.search(label):
+                    await button.click(timeout=6000)
+                    await asyncio.sleep(0.7)
+                    return label
+            except Exception:
+                continue
+    return ""
+
+
+async def _wait_for_change(
+    page: Page,
+    before: str,
+    *,
+    required_term: str = "",
+    timeout_seconds: float = 22,
+) -> tuple[str, bool]:
+    deadline = time.monotonic() + timeout_seconds
+    latest = before
+    while time.monotonic() < deadline:
+        await asyncio.sleep(0.65)
+        latest = await _visible_text(page)
+        meaningful_change = len(latest) > len(before) + 80 or latest != before
+        term_ok = not required_term or required_term.lower() in latest.lower()
+        if meaningful_change and term_ok and not ERROR_RE.search(latest):
+            return latest, True
+    return latest, False
+
+
+async def _exercise_safe_controls(page: Page, page_name: str) -> dict[str, Any]:
+    """Click safe tabs/expanders and a small number of safe internal links/buttons."""
+    result = {"tabs_clicked": 0, "expanders_clicked": 0, "buttons_clicked": [], "errors": []}
+
+    # Streamlit tabs.
+    for scope in _scopes(page):
+        try:
+            tabs = scope.get_by_role("tab")
+            for index in range(min(await tabs.count(), 12)):
+                tab = tabs.nth(index)
+                if not await tab.is_visible():
+                    continue
+                try:
+                    await tab.click(timeout=3500)
+                    result["tabs_clicked"] += 1
+                    await asyncio.sleep(0.15)
+                except Exception as exc:
+                    result["errors"].append(f"tab[{index}]: {type(exc).__name__}")
+        except Exception:
+            pass
+
+    # Streamlit expanders are usually buttons with aria-expanded.
+    for scope in _scopes(page):
+        try:
+            expanders = scope.locator('button[aria-expanded="false"]')
+            for index in range(min(await expanders.count(), 10)):
+                item = expanders.nth(index)
+                try:
+                    label = _clean(await item.inner_text())
+                    if label and not SAFE_DENY_RE.search(label) and await item.is_visible():
+                        await item.click(timeout=3500)
+                        result["expanders_clicked"] += 1
+                        await asyncio.sleep(0.15)
+                except Exception as exc:
+                    result["errors"].append(f"expander[{index}]: {type(exc).__name__}")
+        except Exception:
+            pass
+
+    # Safe internal calls-to-action only. Avoid generic buttons that may mutate data.
+    cta_re = re.compile(r"open complete atlas research|view research|show upcoming earnings|show details", re.I)
+    for scope in _scopes(page):
+        try:
+            nodes = scope.locator("button, a")
+            count = await nodes.count()
+        except Exception:
+            continue
+        for index in range(min(count, 80)):
+            node = nodes.nth(index)
+            try:
+                if not await node.is_visible() or not await node.is_enabled():
+                    continue
+                label = _clean(await node.inner_text())
+                if not label or SAFE_DENY_RE.search(label) or not cta_re.search(label):
+                    continue
+                if len(result["buttons_clicked"]) >= 3:
+                    break
+                await node.click(timeout=4000)
+                result["buttons_clicked"].append(label[:120])
+                await asyncio.sleep(0.35)
+            except Exception:
+                continue
+
+    text = await _visible_text(page)
+    if ERROR_RE.search(text):
+        result["errors"].append("Rendered error text detected after safe interaction exercise.")
+    return result
+
+
+async def _research_one(page: Page, ticker: str, output_dir: Path) -> JourneyStep:
+    journey = f"Research {ticker}"
+    started = time.monotonic()
+    ok, _, nav_detail = await _navigate(page, "Research Any Ticker")
+    if not ok:
+        return JourneyStep(journey, "open research page", "FAIL", time.monotonic()-started, "Research Any Ticker", nav_detail)
+
+    before = await _visible_text(page)
+    field = await _find_text_input(page, "research")
+    if field is None:
+        return JourneyStep(journey, "locate ticker input", "FAIL", time.monotonic()-started, "Research Any Ticker", "No visible ticker text input was found.")
+
+    try:
+        await field.fill(ticker)
+    except Exception as exc:
+        return JourneyStep(journey, "enter ticker", "FAIL", time.monotonic()-started, "Research Any Ticker", f"{type(exc).__name__}: {exc}")
+
+    clicked = await _click_matching_button(page, ("research", "analyze", "run", "load", "generate"))
+    if not clicked:
+        try:
+            await field.press("Enter")
+        except Exception:
+            pass
+
+    after, changed = await _wait_for_change(page, before, required_term=ticker if ticker != INVALID_TICKER else "")
+    screenshot = await _screenshot(page, output_dir, f"research_{ticker}")
+
+    if ticker == INVALID_TICKER:
+        invalid_handled = bool(
+            re.search(r"invalid|not found|unable|no data|unsupported|enter a valid", after, re.I)
+        ) and not ERROR_RE.search(after)
+        return JourneyStep(
+            journey, "invalid ticker handling",
+            "PASS" if invalid_handled else "WARN",
+            time.monotonic()-started,
+            "Research Any Ticker",
+            "Invalid ticker was handled without a crash." if invalid_handled else "Invalid ticker did not produce a clear validation message.",
+            screenshot,
+            {"submit_control": clicked, "content_changed": changed},
+        )
+
+    expected_markers = (
+        "Executive Summary",
+        "Live Price & Educational Trade Plan",
+        "Atlas Rating",
+        "Investment Thesis",
+    )
+    markers = [marker for marker in expected_markers if marker.lower() in after.lower()]
+    ticker_present = ticker.lower() in after.lower()
+    no_error = not ERROR_RE.search(after)
+    passed = changed and ticker_present and no_error and len(markers) >= 2
+    return JourneyStep(
+        journey,
+        "generate full research",
+        "PASS" if passed else "FAIL",
+        time.monotonic()-started,
+        "Research Any Ticker",
+        f"Found markers: {', '.join(markers) or 'none'}",
+        screenshot,
+        {
+            "submit_control": clicked,
+            "content_changed": changed,
+            "ticker_present": ticker_present,
+            "markers": markers,
+        },
+    )
+
+
+async def _ask_question(page: Page, ticker: str, prompt: str, output_dir: Path) -> JourneyStep:
+    journey = f"Ask AI — {ticker}"
+    started = time.monotonic()
+
+    # Prefer the dedicated Ask AI page.
+    ok, _, nav_detail = await _navigate(page, "Ask AI")
+    if not ok:
+        return JourneyStep(journey, "open Ask AI", "FAIL", time.monotonic()-started, "Ask AI", nav_detail)
+
+    before = await _visible_text(page)
+    field = await _find_text_input(page, "ask")
+    if field is None:
+        return JourneyStep(journey, "locate question input", "FAIL", time.monotonic()-started, "Ask AI", "No visible Ask AI input was found.")
+
+    try:
+        await field.fill(prompt)
+    except Exception as exc:
+        return JourneyStep(journey, "enter question", "FAIL", time.monotonic()-started, "Ask AI", f"{type(exc).__name__}: {exc}")
+
+    clicked = await _click_matching_button(page, ("ask atlas", "ask ai", "ask", "send", "submit"))
+    if not clicked:
+        try:
+            await field.press("Enter")
+        except Exception:
+            pass
+
+    after, changed = await _wait_for_change(page, before, required_term=ticker, timeout_seconds=30)
+    screenshot = await _screenshot(page, output_dir, f"ask_ai_{ticker}")
+
+    new_text = after[len(before):] if after.startswith(before) else after
+    ticker_present = ticker.lower() in new_text.lower() or ticker.lower() in after.lower()
+    numeric_evidence = bool(re.search(r"\d+(?:\.\d+)?%|\$\d+|\d+\.\d+", new_text))
+    generic_only = bool(re.fullmatch(r".*(review the available data|unable to answer|try again).*", _clean(new_text), re.I))
+    passed = changed and ticker_present and len(_clean(new_text).split()) >= 18 and not ERROR_RE.search(after) and not generic_only
+
+    return JourneyStep(
+        journey,
+        "answer investment question",
+        "PASS" if passed else "FAIL",
+        time.monotonic()-started,
+        "Ask AI",
+        "Ticker-aware answer returned." if passed else "Ask AI response was missing, generic, ticker-inconsistent, or errored.",
+        screenshot,
+        {
+            "submit_control": clicked,
+            "content_changed": changed,
+            "ticker_present": ticker_present,
+            "numeric_evidence": numeric_evidence,
+            "response_word_count": len(_clean(new_text).split()),
+        },
+    )
+
+
+async def _responsive_smoke(page: Page, output_dir: Path) -> list[JourneyStep]:
+    steps: list[JourneyStep] = []
+    original = page.viewport_size or {"width": 1440, "height": 1000}
+    for label, width, height in (("tablet", 768, 1024), ("mobile", 390, 844)):
+        started = time.monotonic()
+        try:
+            await page.set_viewport_size({"width": width, "height": height})
+            await asyncio.sleep(0.5)
+            geometry = await page.evaluate(
+                """() => ({
+                    viewport: document.documentElement.clientWidth,
+                    scroll: document.documentElement.scrollWidth,
+                    bodyScroll: document.body ? document.body.scrollWidth : 0
+                })"""
+            )
+            overflow = max(int(geometry.get("scroll", 0)), int(geometry.get("bodyScroll", 0))) > int(geometry.get("viewport", width)) + 12
+            shot = await _screenshot(page, output_dir, f"responsive_{label}")
+            steps.append(JourneyStep(
+                f"Responsive {label}",
+                "horizontal overflow smoke",
+                "FAIL" if overflow else "PASS",
+                time.monotonic()-started,
+                page.url,
+                f"viewport={geometry.get('viewport')} scrollWidth={max(geometry.get('scroll',0), geometry.get('bodyScroll',0))}",
+                shot,
+                geometry,
+            ))
+        except Exception as exc:
+            steps.append(JourneyStep(
+                f"Responsive {label}",
+                "responsive smoke",
+                "FAIL",
+                time.monotonic()-started,
+                page.url,
+                f"{type(exc).__name__}: {exc}",
+            ))
+    await page.set_viewport_size(original)
+    return steps
+
+
+async def run_user_journeys(
+    page: Page,
+    *,
+    output_dir: Path,
+    navigation_labels: Iterable[str] = PAGE_LABELS,
+) -> dict[str, Any]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    steps: list[JourneyStep] = []
+    started = time.monotonic()
+
+    # 1. Full navigation + safe interaction coverage.
+    for label in navigation_labels:
+        step_start = time.monotonic()
+        ok, duration, detail = await _navigate(page, label)
+        if not ok:
+            steps.append(JourneyStep("Navigation coverage", label, "FAIL", duration, label, detail))
+            continue
+
+        controls = await _exercise_safe_controls(page, label)
+        screenshot = await _screenshot(page, output_dir, f"nav_{label}")
+        status = "FAIL" if controls["errors"] else "PASS"
+        steps.append(JourneyStep(
+            "Navigation coverage",
+            label,
+            status,
+            time.monotonic()-step_start,
+            label,
+            "; ".join(controls["errors"]) if controls["errors"] else "Page opened and safe controls were exercised.",
+            screenshot,
+            controls,
+        ))
+
+    # 2. Research journeys.
+    for ticker in (*RESEARCH_TICKERS, INVALID_TICKER):
+        steps.append(await _research_one(page, ticker, output_dir))
+
+    # 3. Ask AI journeys.
+    for ticker, prompt in ASK_AI_PROMPTS:
+        steps.append(await _ask_question(page, ticker, prompt, output_dir))
+
+    # 4. Responsive smoke after returning to Research page.
+    await _navigate(page, "Research Any Ticker")
+    steps.extend(await _responsive_smoke(page, output_dir))
+
+    values = [step.to_dict() for step in steps]
+    counts = {
+        status: sum(step["status"] == status for step in values)
+        for status in ("PASS", "WARN", "FAIL")
+    }
+    performance = {
+        "total_seconds": round(time.monotonic()-started, 2),
+        "slow_steps": sorted(
+            [
+                {"journey": step["journey"], "step": step["step"], "seconds": step["duration_seconds"]}
+                for step in values
+                if step["duration_seconds"] >= 8
+            ],
+            key=lambda item: item["seconds"],
+            reverse=True,
+        ),
+    }
+    return {
+        "version": "ATLAS-USER-JOURNEYS-V4.0",
+        "status": "PASS" if counts["FAIL"] == 0 else "FAIL",
+        "counts": counts,
+        "steps": values,
+        "performance": performance,
+    }
