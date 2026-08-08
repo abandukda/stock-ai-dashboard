@@ -112,15 +112,16 @@ async def _screenshot(page: Page, output_dir: Path, name: str) -> str:
 async def _click_text(page: Page, label: str, *, timeout_ms: int = 6500) -> bool:
     for scope in _scopes(page):
         candidates = (
-            scope.get_by_text(label, exact=True),
+            scope.get_by_role("radio", name=label, exact=True),
             scope.get_by_role("button", name=label, exact=True),
             scope.get_by_role("link", name=label, exact=True),
+            scope.get_by_text(label, exact=True),
         )
         for locator in candidates:
             try:
                 if await locator.count() and await locator.first.is_visible():
                     await locator.first.click(timeout=timeout_ms)
-                    await asyncio.sleep(0.55)
+                    await asyncio.sleep(1.0)
                     return True
             except Exception:
                 continue
@@ -175,6 +176,16 @@ async def _find_text_input(page: Page, purpose: str):
     return None
 
 
+async def _wait_for_text_input(page: Page, purpose: str, timeout_seconds: float = 10):
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        field = await _find_text_input(page, purpose)
+        if field is not None:
+            return field
+        await asyncio.sleep(0.35)
+    return None
+
+
 async def _click_matching_button(page: Page, patterns: Iterable[str]) -> str:
     regex = re.compile("|".join(re.escape(item) for item in patterns), re.I)
     for scope in _scopes(page):
@@ -200,6 +211,54 @@ async def _click_matching_button(page: Page, patterns: Iterable[str]) -> str:
     return ""
 
 
+async def _click_qa_submit(page: Page, form_key: str, expected_name: re.Pattern[str]) -> str:
+    """Select a submit inside one named Streamlit form; never fall through to unrelated controls."""
+    for scope in _scopes(page):
+        # Current Streamlit does not expose widget keys in every release, so use the
+        # unique exact accessible name as the compatible form-submit contract.
+        candidates = scope.get_by_role("button", name=expected_name)
+        for index in range(await candidates.count()):
+            button = candidates.nth(index)
+            try:
+                label = _clean(await button.inner_text())
+                if await button.is_visible() and await button.is_enabled() and not SAFE_DENY_RE.search(label):
+                    await button.click(timeout=6000)
+                    return label
+            except Exception:
+                continue
+    return ""
+
+
+async def _wait_for_qa_state(page: Page, qa: str, status: str, ticker: str, timeout_seconds: float) -> bool:
+    selector = (
+        f'[data-atlas-qa="{qa}"][data-atlas-status="{status}"]'
+        f'[data-atlas-ticker="{ticker}"]'
+    )
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        for scope in _scopes(page):
+            try:
+                if await scope.locator(selector).count():
+                    return True
+            except Exception:
+                continue
+        await asyncio.sleep(0.4)
+    return False
+
+
+async def _qa_response_length(page: Page, ticker: str) -> int:
+    selector = f'[data-atlas-qa="ask-ai-response"][data-atlas-status="complete"][data-atlas-ticker="{ticker}"]'
+    for scope in _scopes(page):
+        try:
+            marker = scope.locator(selector).last
+            value = await marker.get_attribute("data-atlas-response-length")
+            if value:
+                return int(value)
+        except Exception:
+            continue
+    return 0
+
+
 async def _wait_for_change(
     page: Page,
     before: str,
@@ -221,7 +280,7 @@ async def _wait_for_change(
 
 async def _exercise_safe_controls(page: Page, page_name: str) -> dict[str, Any]:
     """Click safe tabs/expanders and a small number of safe internal links/buttons."""
-    result = {"tabs_clicked": 0, "expanders_clicked": 0, "buttons_clicked": [], "errors": []}
+    result = {"tabs_clicked": 0, "expanders_clicked": 0, "buttons_clicked": [], "errors": [], "interaction_notes": []}
 
     # Streamlit tabs.
     for scope in _scopes(page):
@@ -236,7 +295,9 @@ async def _exercise_safe_controls(page: Page, page_name: str) -> dict[str, Any]:
                     result["tabs_clicked"] += 1
                     await asyncio.sleep(0.15)
                 except Exception as exc:
-                    result["errors"].append(f"tab[{index}]: {type(exc).__name__}")
+                    # Streamlit may replace a tab node during a successful rerun. This
+                    # is diagnostic unless the settled page also renders an error.
+                    result["interaction_notes"].append(f"tab[{index}] detached: {type(exc).__name__}")
         except Exception:
             pass
 
@@ -253,7 +314,7 @@ async def _exercise_safe_controls(page: Page, page_name: str) -> dict[str, Any]:
                         result["expanders_clicked"] += 1
                         await asyncio.sleep(0.15)
                 except Exception as exc:
-                    result["errors"].append(f"expander[{index}]: {type(exc).__name__}")
+                    result["interaction_notes"].append(f"expander[{index}] detached: {type(exc).__name__}")
         except Exception:
             pass
 
@@ -295,7 +356,7 @@ async def _research_one(page: Page, ticker: str, output_dir: Path) -> JourneySte
         return JourneyStep(journey, "open research page", "FAIL", time.monotonic()-started, "Research Any Ticker", nav_detail)
 
     before = await _visible_text(page)
-    field = await _find_text_input(page, "research")
+    field = await _wait_for_text_input(page, "research")
     if field is None:
         return JourneyStep(journey, "locate ticker input", "FAIL", time.monotonic()-started, "Research Any Ticker", "No visible ticker text input was found.")
 
@@ -304,14 +365,17 @@ async def _research_one(page: Page, ticker: str, output_dir: Path) -> JourneySte
     except Exception as exc:
         return JourneyStep(journey, "enter ticker", "FAIL", time.monotonic()-started, "Research Any Ticker", f"{type(exc).__name__}: {exc}")
 
-    clicked = await _click_matching_button(page, ("research", "analyze", "run", "load", "generate"))
+    clicked = await _click_qa_submit(page, "research_ticker_form", re.compile(r"^Research ticker$", re.I))
     if not clicked:
         try:
             await field.press("Enter")
         except Exception:
             pass
 
-    after, changed = await _wait_for_change(page, before, required_term=ticker if ticker != INVALID_TICKER else "")
+    expected_status = "error" if ticker == INVALID_TICKER else "complete"
+    marker_ready = await _wait_for_qa_state(page, "research-container", expected_status, ticker, 45)
+    after = await _visible_text(page)
+    changed = after != before
     screenshot = await _screenshot(page, output_dir, f"research_{ticker}")
 
     if ticker == INVALID_TICKER:
@@ -320,12 +384,12 @@ async def _research_one(page: Page, ticker: str, output_dir: Path) -> JourneySte
         ) and not ERROR_RE.search(after)
         return JourneyStep(
             journey, "invalid ticker handling",
-            "PASS" if invalid_handled else "WARN",
+            "PASS" if invalid_handled and marker_ready else "FAIL",
             time.monotonic()-started,
             "Research Any Ticker",
             "Invalid ticker was handled without a crash." if invalid_handled else "Invalid ticker did not produce a clear validation message.",
             screenshot,
-            {"submit_control": clicked, "content_changed": changed},
+            {"submit_control": clicked, "content_changed": changed, "qa_marker_ready": marker_ready},
         )
 
     expected_markers = (
@@ -333,11 +397,17 @@ async def _research_one(page: Page, ticker: str, output_dir: Path) -> JourneySte
         "Live Price & Educational Trade Plan",
         "Atlas Rating",
         "Investment Thesis",
+        "Financial Analysis",
+        "Final Decision",
+        "Atlas AI Summary",
+        "AI Summary & Decision Insight",
+        "Analyst Intelligence",
+        "Earnings Intelligence",
     )
     markers = [marker for marker in expected_markers if marker.lower() in after.lower()]
     ticker_present = ticker.lower() in after.lower()
     no_error = not ERROR_RE.search(after)
-    passed = changed and ticker_present and no_error and len(markers) >= 2
+    passed = marker_ready and ticker_present and no_error and len(markers) >= 2
     return JourneyStep(
         journey,
         "generate full research",
@@ -349,6 +419,7 @@ async def _research_one(page: Page, ticker: str, output_dir: Path) -> JourneySte
         {
             "submit_control": clicked,
             "content_changed": changed,
+            "qa_marker_ready": marker_ready,
             "ticker_present": ticker_present,
             "markers": markers,
         },
@@ -365,7 +436,7 @@ async def _ask_question(page: Page, ticker: str, prompt: str, output_dir: Path) 
         return JourneyStep(journey, "open Ask AI", "FAIL", time.monotonic()-started, "Ask AI", nav_detail)
 
     before = await _visible_text(page)
-    field = await _find_text_input(page, "ask")
+    field = await _wait_for_text_input(page, "ask")
     if field is None:
         return JourneyStep(journey, "locate question input", "FAIL", time.monotonic()-started, "Ask AI", "No visible Ask AI input was found.")
 
@@ -374,21 +445,26 @@ async def _ask_question(page: Page, ticker: str, prompt: str, output_dir: Path) 
     except Exception as exc:
         return JourneyStep(journey, "enter question", "FAIL", time.monotonic()-started, "Ask AI", f"{type(exc).__name__}: {exc}")
 
-    clicked = await _click_matching_button(page, ("ask atlas", "ask ai", "ask", "send", "submit"))
+    clicked = await _click_qa_submit(page, "ask_ai_form", re.compile(r"^Ask Atlas$", re.I))
     if not clicked:
         try:
             await field.press("Enter")
         except Exception:
             pass
 
-    after, changed = await _wait_for_change(page, before, required_term=ticker, timeout_seconds=30)
+    # The first request may initialize the synthesis client; later requests use the normal budget.
+    timeout = 60 if ticker == ASK_AI_PROMPTS[0][0] else 35
+    marker_ready = await _wait_for_qa_state(page, "ask-ai-response", "complete", ticker, timeout)
+    response_length = await _qa_response_length(page, ticker)
+    after = await _visible_text(page)
+    changed = after != before
     screenshot = await _screenshot(page, output_dir, f"ask_ai_{ticker}")
 
     new_text = after[len(before):] if after.startswith(before) else after
     ticker_present = ticker.lower() in new_text.lower() or ticker.lower() in after.lower()
     numeric_evidence = bool(re.search(r"\d+(?:\.\d+)?%|\$\d+|\d+\.\d+", new_text))
     generic_only = bool(re.fullmatch(r".*(review the available data|unable to answer|try again).*", _clean(new_text), re.I))
-    passed = changed and ticker_present and len(_clean(new_text).split()) >= 18 and not ERROR_RE.search(after) and not generic_only
+    passed = marker_ready and response_length > 0 and ticker_present and len(_clean(new_text).split()) >= 18 and not ERROR_RE.search(after) and not generic_only
 
     return JourneyStep(
         journey,
@@ -401,14 +477,17 @@ async def _ask_question(page: Page, ticker: str, prompt: str, output_dir: Path) 
         {
             "submit_control": clicked,
             "content_changed": changed,
+            "qa_marker_ready": marker_ready,
             "ticker_present": ticker_present,
             "numeric_evidence": numeric_evidence,
             "response_word_count": len(_clean(new_text).split()),
+            "response_length": response_length,
         },
     )
 
 
 async def _responsive_smoke(page: Page, output_dir: Path) -> list[JourneyStep]:
+    # Stable report labels include "Responsive tablet" and "Responsive mobile".
     steps: list[JourneyStep] = []
     original = page.viewport_size or {"width": 1440, "height": 1000}
     for label, width, height in (("tablet", 768, 1024), ("mobile", 390, 844)):

@@ -23,6 +23,23 @@ def test_destructive_controls_are_denied():
         assert SAFE_DENY_RE.search(label)
 
 
+def test_explicit_state_markers_drive_research_and_ask_ai():
+    app = Path("app.py").read_text(encoding="utf-8")
+    journeys = Path("agents/runtime_qa_user_journeys_v40.py").read_text(encoding="utf-8")
+    assert 'data-atlas-qa="research-container"' in app
+    assert 'data-atlas-qa="ask-ai-response"' in app
+    assert "typed_ticker" in app and "active_research_ticker" in app
+    assert "_wait_for_qa_state" in journeys
+    assert '"research-container"' in journeys and '"ask-ai-response"' in journeys
+
+
+def test_invalid_ticker_is_expected_error_pass_and_no_destructive_fallback():
+    source = Path("agents/runtime_qa_user_journeys_v40.py").read_text(encoding="utf-8")
+    assert 'expected_status = "error" if ticker == INVALID_TICKER else "complete"' in source
+    assert '"PASS" if invalid_handled and marker_ready else "FAIL"' in source
+    assert "SAFE_DENY_RE.search(label)" in source
+
+
 def test_runtime_integrates_user_journeys():
     source = Path("agents/atlas_runtime_qa_v3.py").read_text(encoding="utf-8")
     assert "run_user_journeys" in source
