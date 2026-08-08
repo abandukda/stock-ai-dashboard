@@ -453,13 +453,21 @@ def get_metadata(symbol: str) -> Dict[str, Any]:
             "analyst_target_mean": safe_float(info.get("targetMeanPrice")),
             "analyst_target_high": safe_float(info.get("targetHighPrice")),
             "analyst_target_low": safe_float(info.get("targetLowPrice")),
-            "analyst_count": safe_int(info.get("numberOfAnalystOpinions"), 0),
+            "analyst_count": safe_int(info.get("numberOfAnalystOpinions"), None),
             "recommendation_mean": safe_float(info.get("recommendationMean")),
             "recommendation_key": info.get("recommendationKey") or "unknown",
             "revenue_growth": safe_float(info.get("revenueGrowth")),
             "earnings_growth": safe_float(info.get("earningsGrowth")),
             "forward_pe": safe_float(info.get("forwardPE")),
             "peg_ratio": safe_float(info.get("pegRatio")),
+            # Yahoo includes these timestamps in the metadata response, so this
+            # recovers the calendar value without an additional API request.
+            "next_earnings_date": (
+                datetime.fromtimestamp(float(info.get("earningsTimestamp")), tz=timezone.utc).isoformat()
+                if safe_float(info.get("earningsTimestamp")) is not None
+                and float(info.get("earningsTimestamp")) > time.time()
+                else None
+            ),
         }
     except Exception:
         return defaults
@@ -1164,7 +1172,8 @@ def normalize_conviction(raw_score: float, ind: Dict[str, Any], meta: Dict[str, 
     atr_pct = ind.get("atr_pct") or 4
     dollar_volume = ind.get("dollar_volume") or 0
     analyst_mean = meta.get("analyst_target_mean")
-    analyst_count = meta.get("analyst_count") or 0
+    raw_analyst_count = meta.get("analyst_count")
+    analyst_count = raw_analyst_count if raw_analyst_count is not None else 0
     revenue_growth = meta.get("revenue_growth")
     earnings_growth = meta.get("earnings_growth")
     forward_pe = meta.get("forward_pe")
@@ -1515,7 +1524,8 @@ def build_ai_target_model(ind: Dict[str, Any], meta: Dict[str, Any], score: int)
     analyst_mean = meta.get("analyst_target_mean")
     analyst_high = meta.get("analyst_target_high")
     analyst_low = meta.get("analyst_target_low")
-    analyst_count = meta.get("analyst_count") or 0
+    raw_analyst_count = meta.get("analyst_count")
+    analyst_count = raw_analyst_count if raw_analyst_count is not None else 0
 
     # V40.3: use Finnhub target data as fallback or secondary source.
     finnhub_mean = meta.get("finnhub_target_mean")
@@ -1528,7 +1538,10 @@ def build_ai_target_model(ind: Dict[str, Any], meta: Dict[str, Any], score: int)
     if (not analyst_low or analyst_low <= 0) and finnhub_low:
         analyst_low = finnhub_low
     if analyst_count <= 0:
-        analyst_count = meta.get("finnhub_analyst_total") or 0
+        finnhub_count = meta.get("finnhub_analyst_total")
+        if finnhub_count is not None:
+            analyst_count = finnhub_count
+            raw_analyst_count = finnhub_count
     recommendation_key = meta.get("recommendation_key") or "unknown"
     recommendation_mean = meta.get("recommendation_mean")
 
@@ -1690,7 +1703,9 @@ def build_ai_target_model(ind: Dict[str, Any], meta: Dict[str, Any], score: int)
         "analyst_target_mean": round(analyst_mean, 2) if analyst_mean else None,
         "analyst_target_high": round(analyst_high, 2) if analyst_high else None,
         "analyst_target_low": round(analyst_low, 2) if analyst_low else None,
-        "analyst_count": analyst_count,
+        # Keep the scoring behavior unchanged, but never persist unavailable as
+        # verified zero coverage.
+        "analyst_count": raw_analyst_count,
         "recommendation_key": recommendation_key,
         "recommendation_mean": round(recommendation_mean, 2) if recommendation_mean else None,
         "analyst_upside_pct": round(analyst_upside_pct, 1) if analyst_upside_pct is not None else None,
@@ -1809,6 +1824,11 @@ def make_dashboard_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], s
         "revenue_quarters": meta.get("revenue_quarters"),
         "eps_quarters": meta.get("eps_quarters"),
         "eps_surprises_last4": meta.get("eps_surprises_last4"),
+        "latest_earnings_date": meta.get("latest_earnings_date"),
+        "reported_eps": meta.get("reported_eps"),
+        "eps_estimate": meta.get("eps_estimate"),
+        "eps_surprise_pct": meta.get("eps_surprise_pct"),
+        "next_earnings_date": meta.get("next_earnings_date"),
         "eps_beats_last4": meta.get("eps_beats_last4"),
         "eps_misses_last4": meta.get("eps_misses_last4"),
         "total_debt": meta.get("total_debt"),
@@ -1856,8 +1876,12 @@ def make_dashboard_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], s
         "entry_high": plan.get("entry_high"),
         "stop_loss": plan.get("stop_loss"),
 
-        "target": target_model.get("ai_base_target") or plan.get("target"),
-        "target_2": target_model.get("ai_bull_target") or plan.get("target_2"),
+        # Canonical target concepts.  Legacy `target` remains the Atlas fair
+        # value for compatibility; trade targets are persisted independently.
+        "target": target_model.get("ai_base_target"),
+        "target_1": plan.get("target"),
+        "target_2": plan.get("target_2"),
+        "trade_target_2": plan.get("target_2"),
         "ai_base_target": target_model.get("ai_base_target"),
         "ai_bull_target": target_model.get("ai_bull_target"),
         "ai_bear_target": target_model.get("ai_bear_target"),
@@ -2497,6 +2521,7 @@ def get_fmp_financial_intelligence(symbol: str) -> Dict[str, Any]:
         surprises = []
         beats = 0
         misses = 0
+        latest_event = None
         for item in earnings[:4]:
             if not isinstance(item, dict):
                 continue
@@ -2505,6 +2530,14 @@ def get_fmp_financial_intelligence(symbol: str) -> Dict[str, Any]:
             if actual is not None and estimate is not None:
                 diff = actual - estimate
                 surprises.append(round(diff, 3))
+                if latest_event is None:
+                    surprise_pct = (diff / abs(estimate) * 100) if estimate != 0 else None
+                    latest_event = {
+                        "latest_earnings_date": item.get("date"),
+                        "reported_eps": actual,
+                        "eps_estimate": estimate,
+                        "eps_surprise_pct": round(surprise_pct, 2) if surprise_pct is not None else None,
+                    }
                 if diff >= 0:
                     beats += 1
                 else:
@@ -2516,6 +2549,9 @@ def get_fmp_financial_intelligence(symbol: str) -> Dict[str, Any]:
             "eps_misses_last4": misses,
             "source_fmp_earnings_surprises": True,
         })
+        if latest_event:
+            # Keep zero actual/estimate values; remove only truly unavailable fields.
+            result.update({k: v for k, v in latest_event.items() if v is not None})
 
     if isinstance(peers, list) and peers:
         # FMP stock_peers commonly returns list of symbols or dict with peersList.
@@ -3878,10 +3914,28 @@ def v803_apply_complete_research_fields(row: Dict[str, Any], meta: Dict[str, Any
     if atlas_value is not None:
         row["atlas_fair_value"] = atlas_value
         row["Atlas Fair Value"] = atlas_value
+        row["ai_base_target"] = atlas_value
+        row["target"] = atlas_value
         row["fair_value_method"] = "Growth-adjusted forward earnings multiple"
         row["target_source"] = "Atlas valuation model: growth-adjusted forward earnings multiple"
         row["fair_value_confidence"] = 72 if revenue_growth is not None else 58
         row["expected_upside_pct"] = round(((atlas_value / price) - 1) * 100, 1)
+        row["expected_return_pct"] = row["expected_upside_pct"]
+        row["upside"] = row["expected_upside_pct"]
+
+        # Narrative is generated only after the final canonical valuation pass.
+        company = meta.get("company_name") or row.get("company_name") or row.get("ticker")
+        thesis_prefix = str(row.get("investment_thesis") or "").split("AI target is $", 1)[0].rstrip()
+        risk = str(row.get("what_could_go_wrong") or "").lower()
+        row["investment_thesis"] = (
+            f"{thesis_prefix} AI target is ${atlas_value:.2f} with expected upside of "
+            f"{row['expected_upside_pct']:.1f}%, using {row['target_source']}. "
+            f"Key risk: {risk}."
+        ).strip()
+        row["summary"] = (
+            f"{company}: AI target ${atlas_value:.2f} with "
+            f"{row['expected_upside_pct']:.1f}% upside."
+        )
 
     # Persist the freshest direct-news fields already obtained by the scan/committee.
     committee = row.get("ai_committee") if isinstance(row.get("ai_committee"), dict) else {}
@@ -3897,6 +3951,16 @@ def v803_apply_complete_research_fields(row: Dict[str, Any], meta: Dict[str, Any
     policy_support = next((term for term in political_terms if term in headline), "")
     row["political_support"] = policy_support
     row["political_support_summary"] = (f"Recent news references potential policy support: {policy_support}." if policy_support else "")
+
+    # Persist the output of the already-approved committee sizing methodology.
+    # Only the sizing field is copied; score, verdict, and recommendation remain
+    # owned by their existing pipelines.
+    if not row.get("position_size_range"):
+        try:
+            from engines.investment_committee_v104 import build_committee_verdict
+            row["position_size_range"] = build_committee_verdict(row).get("position_size_range")
+        except Exception:
+            row["position_size_range"] = None
     return row
 
 

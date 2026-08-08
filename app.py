@@ -821,9 +821,11 @@ def normalize_scan_row(raw):
     company = safe_text(pick(raw, "Company", "company", "company_name", "name", default=ticker), ticker)
 
     price = safe_number(pick(raw, "Price", "price", "current_price", "last_price", default=0), 0)
-    target = safe_number(pick(raw, "AI Fair Value", "ai_base_target", "target", "Target", default=0), 0)
-    bull = safe_number(pick(raw, "AI Bull Case", "ai_bull_target", "target_2", default=0), 0)
-    bear = safe_number(pick(raw, "AI Bear Case", "ai_bear_target", default=0), 0)
+    target = safe_number(pick(raw, "AI Fair Value", "atlas_fair_value", "ai_base_target", default=None), None)
+    bull = safe_number(pick(raw, "AI Bull Case", "ai_bull_target", default=None), None)
+    bear = safe_number(pick(raw, "AI Bear Case", "ai_bear_target", default=None), None)
+    target_1 = safe_number(pick(raw, "Target 1", "target_1", default=None), None)
+    target_2 = safe_number(pick(raw, "Target 2", "trade_target_2", "target_2", default=None), None)
 
     expected_upside = pick(raw, "Target Upside %", "expected_upside_pct", "upside", "analyst_upside_pct", default=None)
     expected_upside = safe_number(expected_upside, None)
@@ -863,11 +865,11 @@ def normalize_scan_row(raw):
         "AI Fair Value": target,
         "AI Bull Case": bull,
         "AI Bear Case": bear,
-        "Target Upside %": expected_upside if expected_upside is not None else 0,
-        "Analyst Target": safe_number(pick(raw, "Analyst Target", "analyst_target_mean", "target_mean_price", default=0), 0),
-        "Analyst High": safe_number(pick(raw, "Analyst High", "analyst_target_high", "target_high_price", default=0), 0),
-        "Analyst Low": safe_number(pick(raw, "Analyst Low", "analyst_target_low", "target_low_price", default=0), 0),
-        "Analyst Count": int(safe_number(pick(raw, "Analyst Count", "analyst_count", default=0), 0)),
+        "Target Upside %": expected_upside,
+        "Analyst Target": safe_number(pick(raw, "Analyst Target", "analyst_target_mean", "target_mean_price", default=None), None),
+        "Analyst High": safe_number(pick(raw, "Analyst High", "analyst_target_high", "target_high_price", default=None), None),
+        "Analyst Low": safe_number(pick(raw, "Analyst Low", "analyst_target_low", "target_low_price", default=None), None),
+        "Analyst Count": safe_number(pick(raw, "Analyst Count", "analyst_count", default=None), None),
         "Recommendation": safe_text(pick(raw, "Recommendation", "recommendation_key", default="N/A"), "N/A"),
         "Analyst Support": safe_text(pick(raw, "analyst_support_label", default=""), "") or analyst_support_label(pick(raw, "analyst_support_score", "Analyst Support", default=None)),
         "Analyst Support Source": safe_text(pick(raw, "analyst_support_source", default=""), ""),
@@ -876,8 +878,10 @@ def normalize_scan_row(raw):
         "Top News": safe_text(pick(raw, "top_news_headline", "Top News", default=""), ""),
         "AI Fair Value Adjustment %": safe_number(pick(raw, "AI Fair Value Adjustment %", "ai_fair_value_adjustment_pct", default=0), 0),
         "Entry Range": safe_text(pick(raw, "Entry Range", "entry_range", default="N/A"), "N/A"),
-        "Stop Loss": safe_number(pick(raw, "Stop Loss", "stop_loss", default=0), 0),
+        "Stop Loss": safe_number(pick(raw, "Stop Loss", "stop_loss", default=None), None),
         "Target": target,
+        "Target 1": target_1,
+        "Target 2": target_2,
         "Risk/Reward": safe_number(pick(raw, "Risk/Reward", "risk_reward", default=0), 0),
         "RSI": safe_number(pick(raw, "RSI", "rsi", default=0), 0),
         "ATR %": safe_number(pick(raw, "ATR %", "atr_pct", default=0), 0),
@@ -1025,7 +1029,9 @@ def load_file(path: Path):
 
     for col in numeric_cols:
         if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+            # Missing investment data must remain missing.  A provider-supplied
+            # zero survives numeric coercion, while invalid/absent values remain NaN.
+            df[col] = pd.to_numeric(df[col], errors="coerce")
 
     df["Final Conviction"] = df["Final Conviction"].astype(int)
 

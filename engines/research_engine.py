@@ -85,7 +85,10 @@ def _first(row: Mapping[str, Any], *keys: str) -> Any:
 def target_details(row: Mapping[str, Any]) -> dict[str, Any]:
     """Return clearly separated targets and the primary valuation reference."""
     current = as_float(_first(row, "current_price", "price", "last_price", "Price"))
-    atlas = as_float(_first(row, "Atlas Target", "AI Fair Value", "ai_fair_value", "ai_base_target", "target", "target_2"))
+    atlas = as_float(_first(
+        row, "Atlas Fair Value", "atlas_fair_value", "AI Fair Value",
+        "ai_fair_value", "ai_base_target", "Atlas Target"
+    ))
     street = as_float(_first(row, "Wall Street Target", "Analyst Target", "target_mean_price", "analyst_target_mean"))
     primary = atlas or street
     source = "Atlas Target" if atlas else ("Wall Street Target" if street else "No validated target")

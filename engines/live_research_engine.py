@@ -342,7 +342,7 @@ def build_live_research(ticker: str, force_refresh: bool = False, cache_ttl_seco
         "Current Ratio": _num(info.get("currentRatio")),
         "Analyst Target": _num(info.get("targetMeanPrice")),
         "analyst_target_mean": _num(info.get("targetMeanPrice")),
-        "Analyst Count": _num(info.get("numberOfAnalystOpinions"), 0),
+        "Analyst Count": _num(info.get("numberOfAnalystOpinions")),
         "research_refreshed_at": datetime.now(timezone.utc).isoformat(),
         "research_source": "live",
         "data_freshness": {"price": "live request", "fundamentals": "latest provider snapshot", "news": "live request if configured"},
@@ -490,7 +490,7 @@ def _expanded_analyst_context(ticker: str, info: Dict[str, Any], tk: Any) -> Dic
     result.setdefault("analyst_target_high", _num(info.get("targetHighPrice")))
     result.setdefault("analyst_target_low", _num(info.get("targetLowPrice")))
     result["analyst_target_median"] = _num(info.get("targetMedianPrice"))
-    result["Analyst Count"] = _num(info.get("numberOfAnalystOpinions"), 0)
+    result["Analyst Count"] = _num(info.get("numberOfAnalystOpinions"))
     result["analyst_recommendation"] = info.get("recommendationKey") or info.get("recommendationMean")
     try:
         recommendations = tk.recommendations_summary

@@ -25,7 +25,9 @@ def test_build_research_snapshot():
 
 def test_target_details_separates_atlas_and_wall_street():
     from engines.research_engine import target_details
-    row = {"price": 100, "target": 125, "target_mean_price": 115}
+    # Generic `target` is a legacy/trade field and must not be silently treated
+    # as an independently modelled Atlas fair value.
+    row = {"price": 100, "ai_base_target": 125, "target_mean_price": 115}
     result = target_details(row)
     assert result["atlas_target"] == 125
     assert result["wall_street_target"] == 115
