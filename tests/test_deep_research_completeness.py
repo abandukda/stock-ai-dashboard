@@ -4,6 +4,7 @@ import overnight_market_scan as scan
 from engines.atlas_research_builder_v2 import build_atlas_research_v2
 from engines.live_research_engine import _company_news_relevant
 from engines.research_enrichment_v105 import build_enriched_research_report
+from engines.research_engine import atlas_fair_value_details
 
 
 class _Response:
@@ -47,7 +48,7 @@ def test_fmp_financials_parse_partial_zero_and_earnings(monkeypatch):
         ],
         "balance-sheet-statement": [{"totalDebt": 0, "totalAssets": 500, "totalStockholdersEquity": 300, "cashAndCashEquivalents": 80}],
         "cash-flow-statement": [{"operatingCashFlow": 40, "freeCashFlow": 30, "capitalExpenditure": -10}],
-        "ratios": [{"currentRatio": 1.5, "returnOnEquity": 0.18}],
+        "ratios": [{"currentRatio": 1.5, "returnOnEquityRatio": 0.18}],
         "key-metrics": [{"roic": 0.16}],
         "earnings": [{"date": "2026-06-30", "epsActual": 0.0, "epsEstimated": 0.0, "revenueActual": 120, "revenueEstimated": 100}],
         "stock-peers": [{"peersList": ["ORCL"]}],
@@ -65,6 +66,107 @@ def test_fmp_financials_parse_partial_zero_and_earnings(monkeypatch):
     assert result["revenue_surprise_pct"] == 20.0
     assert result["revenue_growth"] == 0.2
     assert result["roic"] == 0.16
+    assert result["return_on_equity"] == 0.18
+
+
+def test_yahoo_roe_decimal_is_mapped_without_double_scaling(monkeypatch):
+    class _Ticker:
+        def __init__(self, symbol):
+            self.symbol = symbol
+
+        def get_info(self):
+            return {
+                "shortName": "Salesforce",
+                "quoteType": "EQUITY",
+                "returnOnEquity": 0.1691,
+            }
+
+    monkeypatch.setattr(scan.yf, "Ticker", _Ticker)
+    metadata = scan.get_metadata("CRM")
+    report = build_enriched_research_report({"ticker": "CRM", **metadata})
+
+    assert metadata["return_on_equity"] == 0.1691
+    assert report["financials"]["data"]["roe_pct"] == 16.91
+
+
+def test_missing_roe_remains_unavailable(monkeypatch):
+    class _Ticker:
+        def __init__(self, symbol):
+            self.symbol = symbol
+
+        def get_info(self):
+            return {"shortName": "No ROE Corp", "quoteType": "EQUITY"}
+
+    monkeypatch.setattr(scan.yf, "Ticker", _Ticker)
+    assert scan.get_metadata("NONE")["return_on_equity"] is None
+
+
+def test_canonical_fair_value_does_not_replace_analyst_scenario_base():
+    fixtures = {
+        "BALL": (63.45, 14.029014, 0.197, 58.37, 76.36, 84.0, 112.46),
+        "CCK": (120.69, 13.341042, 0.165, 111.03, 148.92, 163.81, 211.91),
+        "DELL": (453.77, 20.766945, 0.875, 360.0, 625.06, 700.0, 742.92),
+    }
+    for symbol, (price, forward_pe, growth, bear, base, bull, canonical) in fixtures.items():
+        row = {
+            "ticker": symbol, "price": price, "current_price": price,
+            "forward_pe": forward_pe, "revenue_growth": growth,
+            "ai_bear_target": bear, "ai_base_target": base,
+            "ai_bull_target": bull, "target": base,
+        }
+        scan.v803_apply_complete_research_fields(row, dict(row))
+        assert row["atlas_fair_value"] == canonical
+        assert (row["ai_bear_target"], row["ai_base_target"], row["ai_bull_target"]) == (bear, base, bull)
+        assert bear <= base <= bull
+
+
+def test_bear_above_canonical_does_not_corrupt_analyst_scenario_tuple():
+    row = {
+        "ticker": "ANET", "price": 180.0, "current_price": 180.0,
+        "forward_pe": 36.0, "revenue_growth": 0.10,
+        "ai_bear_target": 173.58, "ai_base_target": 238.63,
+        "ai_bull_target": 293.52, "target": 238.63,
+    }
+    scan.v803_apply_complete_research_fields(row, dict(row))
+    assert row["atlas_fair_value"] < row["ai_bear_target"]
+    assert row["ai_bear_target"] <= row["ai_base_target"] <= row["ai_bull_target"]
+
+
+def test_rejected_canonical_value_stays_unavailable_and_legacy_is_not_canonical():
+    row = {
+        "ticker": "CDE", "price": 17.39, "current_price": 17.39,
+        "forward_pe": 8.766844, "revenue_growth": 1.259,
+        "ai_base_target": 29.38, "target": 29.38,
+        "target_source": "Multi-factor AI fair value using analyst consensus",
+    }
+    scan.v803_apply_complete_research_fields(row, dict(row))
+
+    assert row.get("atlas_fair_value") is None
+    assert row["ai_base_target"] == 29.38
+    assert atlas_fair_value_details(row)["atlas_fair_value"] is None
+
+
+def test_signed_eps_and_revenue_surprise_scaling_is_unchanged(monkeypatch):
+    monkeypatch.setattr(scan, "FMP_API_KEY", "test")
+    payloads = {
+        "income-statement": [], "balance-sheet-statement": [],
+        "cash-flow-statement": [], "ratios": [], "key-metrics": [],
+        "earnings": [{
+            "date": "2026-08-05", "epsActual": 0.12,
+            "epsEstimated": 0.2579, "revenueActual": 1_085_592_000,
+            "revenueEstimated": 1_238_784_000,
+        }],
+        "stock-peers": [],
+    }
+    monkeypatch.setattr(
+        scan, "http_get_json",
+        lambda url, params=None, timeout=0: payloads[url.rsplit("/", 1)[-1]],
+    )
+
+    result = scan.get_fmp_financial_intelligence("CDE")
+
+    assert result["eps_surprise_pct"] == -53.47
+    assert result["revenue_surprise_pct"] == -12.37
 
 
 def test_partial_finalist_enrichment_is_propagated(monkeypatch):

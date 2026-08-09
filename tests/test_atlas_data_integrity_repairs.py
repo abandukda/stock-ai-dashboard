@@ -12,12 +12,18 @@ def test_normalize_scan_row_preserves_missing_and_real_zero():
     assert missing["Stop Loss"] is None
     assert missing["Analyst Count"] is None
 
+    legacy = app.normalize_scan_row({"ticker": "LEGACY", "price": 10, "ai_base_target": 13})
+    assert legacy["AI Fair Value"] is None
+    assert legacy["Multi-Factor Base Target"] == 13
+
     zero = app.normalize_scan_row({
-        "ticker": "ZERO", "price": 10, "ai_base_target": 0,
+        "ticker": "ZERO", "price": 10, "atlas_fair_value": 0,
+        "ai_base_target": 0,
         "expected_upside_pct": 0, "stop_loss": 0, "analyst_count": 0,
         "reported_eps": 0, "eps_estimate": 0,
     })
     assert zero["AI Fair Value"] == 0
+    assert zero["Multi-Factor Base Target"] == 0
     assert zero["Target Upside %"] == 0
     assert zero["Stop Loss"] == 0
     assert zero["Analyst Count"] == 0
@@ -42,8 +48,9 @@ def test_final_valuation_pass_synchronizes_all_canonical_values_and_narrative(mo
         "DELL": (447.17, 9.0, 20.0), "AMZN": (275.89, 7.0, 18.0),
     }
     for ticker, (price, growth, margin) in cases.items():
+        analyst_scenario_base = price * 1.9
         row = {
-            "ticker": ticker, "price": price, "ai_base_target": price * 1.9,
+            "ticker": ticker, "price": price, "ai_base_target": analyst_scenario_base,
             "target": price * 1.9, "expected_upside_pct": -7.1,
             "investment_thesis": f"{ticker} evidence. AI target is ${price * 1.9:.2f} with expected upside of 90.0%.",
             "what_could_go_wrong": "Execution risk",
@@ -53,7 +60,8 @@ def test_final_valuation_pass_synchronizes_all_canonical_values_and_narrative(mo
         )
         fair = result["atlas_fair_value"]
         expected = round((fair / price - 1) * 100, 1)
-        assert result["target"] == result["ai_base_target"] == result["Atlas Fair Value"] == fair
+        assert result["target"] == result["Atlas Fair Value"] == fair
+        assert result["ai_base_target"] == analyst_scenario_base
         assert result["expected_upside_pct"] == result["expected_return_pct"] == result["upside"] == expected
         assert f"${fair:.2f}" in result["investment_thesis"]
         assert f"{expected:.1f}%" in result["investment_thesis"]

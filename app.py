@@ -821,7 +821,8 @@ def normalize_scan_row(raw):
     company = safe_text(pick(raw, "Company", "company", "company_name", "name", default=ticker), ticker)
 
     price = safe_number(pick(raw, "Price", "price", "current_price", "last_price", default=0), 0)
-    target = safe_number(pick(raw, "AI Fair Value", "atlas_fair_value", "ai_base_target", default=None), None)
+    target = safe_number(pick(raw, "Atlas Fair Value", "atlas_fair_value", "AI Fair Value", "ai_fair_value", default=None), None)
+    scenario_base = safe_number(pick(raw, "Multi-Factor Base Target", "ai_base_target", default=None), None)
     bull = safe_number(pick(raw, "AI Bull Case", "ai_bull_target", default=None), None)
     bear = safe_number(pick(raw, "AI Bear Case", "ai_bear_target", default=None), None)
     target_1 = safe_number(pick(raw, "Target 1", "target_1", default=None), None)
@@ -863,6 +864,7 @@ def normalize_scan_row(raw):
         "Setup Rating": setup_label(score),
         "AI Confidence": score,
         "AI Fair Value": target,
+        "Multi-Factor Base Target": scenario_base,
         "AI Bull Case": bull,
         "AI Bear Case": bear,
         "Target Upside %": expected_upside,
@@ -25731,22 +25733,22 @@ def render_v73_earnings_page(full_df=None, top_df=None):
 
 def render_v73_target_analysis(row):
     consensus = v73_num(v73_get(row, ["analyst_target_mean", "target_mean_price", "Analyst Target", "consensus_target"], None), None)
-    fair = v73_num(v73_get(row, ["AI Fair Value", "ai_fair_value", "Target", "target", "ai_base_target"], None), None)
-    fair_low = v73_num(v73_get(row, ["fair_low", "AI Fair Low", "ai_bear_target", "bear_target"], fair), fair)
-    fair_high = v73_num(v73_get(row, ["fair_high", "AI Fair High", "ai_bull_target", "bull_target"], fair), fair)
-    bull = v73_num(v73_get(row, ["bull_target", "Bull Target", "ai_bull_target", "bull_scenario"], fair_high), fair_high)
-    bear = v73_num(v73_get(row, ["bear_target", "Bear Target", "ai_bear_target", "bear_scenario"], fair_low), fair_low)
+    fair = v73_num(v73_get(row, ["Atlas Fair Value", "atlas_fair_value", "AI Fair Value", "ai_fair_value"], None), None)
+    scenario_base = v73_num(v73_get(row, ["Multi-Factor Base Target", "ai_base_target"], None), None)
+    bull = v73_num(v73_get(row, ["bull_target", "Bull Target", "ai_bull_target", "bull_scenario"], None), None)
+    bear = v73_num(v73_get(row, ["bear_target", "Bear Target", "ai_bear_target", "bear_scenario"], None), None)
     st.markdown("<div class='v65-section-title'>🎯 AI Target Analysis</div>", unsafe_allow_html=True)
     st.markdown(f"""
 <div class='v775-target-grid'>
   <div class='v775-target-card'><span>Analyst Consensus</span><b class='v775-blue'>{v775_money(consensus)}</b></div>
-  <div class='v775-target-card'><span>Atlas Fair Value</span><b class='v775-green'>{v775_money(fair_low)} – {v775_money(fair_high)}</b></div>
-  <div class='v775-target-card'><span>Bull Scenario</span><b class='v775-purple'>{v775_money(bull)}</b></div>
-  <div class='v775-target-card'><span>Bear Scenario</span><b class='v775-red'>{v775_money(bear)}</b></div>
+  <div class='v775-target-card'><span>Atlas Fair Value</span><b class='v775-green'>{v775_money(fair)}</b></div>
+  <div class='v775-target-card'><span>Multi-Factor Base</span><b>{v775_money(scenario_base)}</b></div>
+  <div class='v775-target-card'><span>Analyst-Driven Bull Scenario</span><b class='v775-purple'>{v775_money(bull)}</b></div>
+  <div class='v775-target-card'><span>Analyst-Driven Bear Scenario</span><b class='v775-red'>{v775_money(bear)}</b></div>
 </div>
 """, unsafe_allow_html=True)
     st.markdown("<div class='v775-note'>", unsafe_allow_html=True)
-    st.write(f"Target reality check: Wall Street consensus is {v775_money(consensus)} while Atlas estimates a fair-value range of {v775_money(fair_low)} to {v775_money(fair_high)}. If Atlas value is below analyst consensus, treat the Street target as optimistic and require stronger catalysts before buying aggressively.")
+    st.write(f"Target reality check: Wall Street consensus is {v775_money(consensus)} and canonical Atlas Fair Value is {v775_money(fair)}. The multi-factor bear/base/bull scenarios are shown separately because they use analyst targets plus market and risk inputs.")
     st.markdown("</div>", unsafe_allow_html=True)
 
 

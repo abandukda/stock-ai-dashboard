@@ -148,8 +148,6 @@ def _explicit_atlas_value(row: Mapping[str, Any]) -> tuple[float | None, str]:
         ("atlas_fair_value", "Atlas Fair Value"),
         ("AI Fair Value", "Atlas model fair value"),
         ("ai_fair_value", "Atlas model fair value"),
-        ("ai_base_target", "Atlas model fair value"),
-        ("Atlas Target", "Legacy Atlas target"),
     )
     for key, label in candidates:
         value = as_float(_first(row, key))
@@ -168,7 +166,6 @@ def atlas_fair_value_details(row: Mapping[str, Any]) -> dict[str, Any]:
     current = as_float(_first(row, "current_price", "price", "last_price", "Price"))
     explicit, source = _explicit_atlas_value(row)
     legacy_base = as_float(_first(row, "target", "Target"))
-    legacy_bull = as_float(_first(row, "target_2", "Bull Target", "ai_bull_target"))
     street = as_float(_first(
         row, "Wall Street Target", "Analyst Target", "target_mean_price",
         "analyst_target_mean", "finnhub_target_mean"
@@ -181,19 +178,10 @@ def atlas_fair_value_details(row: Mapping[str, Any]) -> dict[str, Any]:
         source = "Under review — legacy 30% pattern rejected"
         rejected_placeholder = True
 
-    # Legacy target fields are accepted only when they do not match the repeated
-    # 30% pattern and have an explicit model/source note.
-    if value is None and legacy_base is not None:
-        target_source = str(_first(row, "target_source", "target_confidence_note") or "").lower()
-        has_model_provenance = any(x in target_source for x in ("dcf", "multiple", "valuation", "model", "fair value"))
-        if has_model_provenance and not _is_legacy_30pct_target(current, legacy_base):
-            value = legacy_base
-            source = "Atlas valuation model"
-
     expected = calculate_upside(current, value)
     street_upside = calculate_upside(current, street)
     low = value
-    high = legacy_bull if value and legacy_bull and legacy_bull > value and not _is_legacy_30pct_target(current, legacy_bull) else value
+    high = value
     return {
         "current_price": current,
         "atlas_fair_value": value,

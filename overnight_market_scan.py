@@ -470,6 +470,10 @@ def get_metadata(symbol: str) -> Dict[str, Any]:
             "earnings_growth": safe_float(info.get("earningsGrowth")),
             "forward_pe": safe_float(info.get("forwardPE")),
             "peg_ratio": safe_float(info.get("pegRatio")),
+            # Preserve Yahoo's decimal ratio (for example 0.1691 == 16.91%).
+            # The research adapter owns presentation scaling, matching the
+            # scheduled FMP ratio convention and preventing double scaling.
+            "return_on_equity": safe_float(info.get("returnOnEquity")),
             "institutional_ownership_pct": (
                 safe_float(info.get("heldPercentInstitutions")) * 100
                 if safe_float(info.get("heldPercentInstitutions")) is not None else None
@@ -2562,7 +2566,11 @@ def get_fmp_financial_intelligence(symbol: str) -> Dict[str, Any]:
             "operating_profit_margin": safe_float(latest_ratios.get("operatingProfitMargin")),
             "net_profit_margin": safe_float(latest_ratios.get("netProfitMargin")),
             "current_ratio": safe_float(latest_ratios.get("currentRatio")),
-            "return_on_equity": safe_float(latest_ratios.get("returnOnEquity")),
+            "return_on_equity": safe_float(
+                latest_ratios.get("returnOnEquity")
+                if latest_ratios.get("returnOnEquity") is not None
+                else latest_ratios.get("returnOnEquityRatio")
+            ),
             "return_on_assets": safe_float(latest_ratios.get("returnOnAssets")),
         })
 
@@ -4133,7 +4141,9 @@ def v803_apply_complete_research_fields(row: Dict[str, Any], meta: Dict[str, Any
     if atlas_value is not None:
         row["atlas_fair_value"] = atlas_value
         row["Atlas Fair Value"] = atlas_value
-        row["ai_base_target"] = atlas_value
+        # Keep the analyst-driven bear/base/bull tuple in one semantic
+        # framework. Canonical Atlas Fair Value is an independent output; no
+        # approved canonical bear/bull constructor exists to replace it with.
         row["target"] = atlas_value
         row["fair_value_method"] = "Growth-adjusted forward earnings multiple"
         row["target_source"] = "Atlas valuation model: growth-adjusted forward earnings multiple"
