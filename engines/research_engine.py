@@ -266,6 +266,9 @@ def research_navigation_state(ticker: Any) -> dict[str, str]:
         "v73_research_ticker": symbol,
         "selected_ticker": symbol,
         "selected_research_ticker": symbol,
+        "typed_ticker": symbol,
+        "active_research_ticker": symbol,
+        "v805_force_live_on_open": symbol,
         "v73_page": "Research Any Ticker",
         "v79_pending_page": "Research Any Ticker",
     }

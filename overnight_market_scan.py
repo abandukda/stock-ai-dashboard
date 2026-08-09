@@ -403,6 +403,8 @@ def download_price_batch(symbols: List[str]) -> pd.DataFrame:
         # charging every healthy batch a fixed sleep.
         if attempt < 2:
             delay = 2 ** attempt
+            _record_scan_timing("yahoo_retry_count", count=1)
+            _record_scan_timing("yahoo_backoff_seconds", elapsed=float(delay))
             print(
                 f"[yahoo-retry] attempt={attempt + 1}/3 symbols={len(symbols)} "
                 f"backoff_seconds={delay}",
@@ -3348,27 +3350,39 @@ def v42_news_stack(symbol: str, company_name: str = "") -> Dict[str, Any]:
         articles.append({'title':title, 'source':str(source or provider or '').strip(), 'published':str(published or '').strip(), 'provider':provider})
 
     if NEWSAPI_KEY:
+        if _ACTIVE_COMMITTEE_TIMING_SCOPE == "etf": _record_scan_timing("etf_newsapi_calls", count=1)
         try:
+            provider_started=time.monotonic()
             r=requests.get('https://newsapi.org/v2/everything',params={'q':f'"{symbol}" OR "{company_name}"','language':'en','sortBy':'publishedAt','pageSize':8,'apiKey':NEWSAPI_KEY},timeout=10)
             if r.status_code==200:
                 for a in (r.json().get('articles') or [])[:8]:
                     add_article(a.get('title'), (a.get('source') or {}).get('name'), a.get('publishedAt'), 'NewsAPI')
         except Exception: pass
+        finally:
+            if _ACTIVE_COMMITTEE_TIMING_SCOPE == "etf": _record_scan_timing("etf_newsapi_seconds", time.monotonic()-provider_started)
     if FINNHUB_API_KEY:
+        if _ACTIVE_COMMITTEE_TIMING_SCOPE == "etf": _record_scan_timing("etf_finnhub_news_calls", count=1)
         try:
+            provider_started=time.monotonic()
             r=requests.get('https://finnhub.io/api/v1/company-news',params={'symbol':symbol,'from':start.isoformat(),'to':today.isoformat(),'token':FINNHUB_API_KEY},timeout=10)
             if r.status_code==200:
                 for a in (r.json() or [])[:8]:
                     published=dt.datetime.utcfromtimestamp(a.get('datetime')).isoformat() if a.get('datetime') else ''
                     add_article(a.get('headline'), a.get('source'), published, 'Finnhub company news')
         except Exception: pass
+        finally:
+            if _ACTIVE_COMMITTEE_TIMING_SCOPE == "etf": _record_scan_timing("etf_finnhub_news_seconds", time.monotonic()-provider_started)
     if FMP_API_KEY:
+        if _ACTIVE_COMMITTEE_TIMING_SCOPE == "etf": _record_scan_timing("etf_fmp_news_calls", count=1)
         try:
+            provider_started=time.monotonic()
             r=requests.get('https://financialmodelingprep.com/api/v3/stock_news',params={'tickers':symbol,'limit':8,'apikey':FMP_API_KEY},timeout=10)
             if r.status_code==200:
                 for a in (r.json() or [])[:8]:
                     add_article(a.get('title'), a.get('site') or a.get('source'), a.get('publishedDate') or a.get('date'), 'FMP stock news')
         except Exception: pass
+        finally:
+            if _ACTIVE_COMMITTEE_TIMING_SCOPE == "etf": _record_scan_timing("etf_fmp_news_seconds", time.monotonic()-provider_started)
 
     seen=set(); clean=[]
     for a in articles:
@@ -3402,14 +3416,23 @@ def v42_news_stack(symbol: str, company_name: str = "") -> Dict[str, Any]:
 def v42_sec_filings(symbol: str) -> Dict[str, Any]:
     headers={'User-Agent': SEC_USER_AGENT or 'Asif Bandukda abandukda@gmail.com'}; sym=str(symbol).upper()
     try:
-        r=requests.get('https://www.sec.gov/files/company_tickers.json',headers=headers,timeout=12)
+        map_started=time.monotonic()
+        _record_scan_timing("sec_ticker_map_downloads", count=1)
+        try:
+            r=requests.get('https://www.sec.gov/files/company_tickers.json',headers=headers,timeout=12)
+        finally:
+            if _ACTIVE_COMMITTEE_TIMING_SCOPE == "etf": _record_scan_timing("etf_sec_ticker_map_seconds", time.monotonic()-map_started)
         if r.status_code!=200: return {'available':False,'reason':f'SEC ticker map HTTP {r.status_code}'}
         cik=None; title=None
         for item in (r.json() or {}).values():
             if str(item.get('ticker','')).upper()==sym:
                 cik=str(item.get('cik_str')).zfill(10); title=item.get('title'); break
         if not cik: return {'available':False,'reason':'CIK not found'}
-        r=requests.get(f'https://data.sec.gov/submissions/CIK{cik}.json',headers=headers,timeout=12)
+        submissions_started=time.monotonic()
+        try:
+            r=requests.get(f'https://data.sec.gov/submissions/CIK{cik}.json',headers=headers,timeout=12)
+        finally:
+            if _ACTIVE_COMMITTEE_TIMING_SCOPE == "etf": _record_scan_timing("etf_sec_submissions_seconds", time.monotonic()-submissions_started)
         if r.status_code!=200: return {'available':False,'reason':f'SEC submissions HTTP {r.status_code}','cik':cik}
         recent=r.json().get('filings',{}).get('recent',{})
         forms=recent.get('form',[]) or []; dates=recent.get('filingDate',[]) or []
@@ -3698,7 +3721,39 @@ FULL_RESEARCH_MIN_RECOVERY = float(os.getenv("FULL_RESEARCH_MIN_RECOVERY", "88")
 WATCHLIST_FULL_COMMITTEE_LIMIT = int(os.getenv("WATCHLIST_FULL_COMMITTEE_LIMIT", "25"))
 FAST_CRON_SKIP_PRE_RANK_DEEP_APIS = os.getenv("FAST_CRON_SKIP_PRE_RANK_DEEP_APIS", "true").strip().lower() not in {"0", "false", "no", "off"}
 HTTP_TIMEOUT_FAST = float(os.getenv("HTTP_TIMEOUT_FAST", "6"))
-_SCAN_TIMINGS = {"finalist_provider_calls": 0, "finalist_provider_seconds": 0.0}
+_SCAN_TIMINGS = {
+    "yahoo_broad_scan_seconds": 0.0,
+    "yahoo_retry_count": 0,
+    "yahoo_backoff_seconds": 0.0,
+    "finalist_provider_calls": 0,
+    "finalist_provider_seconds": 0.0,
+    "etf_rows_processed": 0,
+    "etf_processing_seconds": 0.0,
+    "etf_full_committee_calls": 0,
+    "etf_full_committee_seconds": 0.0,
+    "etf_newsapi_calls": 0,
+    "etf_newsapi_seconds": 0.0,
+    "etf_finnhub_news_calls": 0,
+    "etf_finnhub_news_seconds": 0.0,
+    "etf_fmp_news_calls": 0,
+    "etf_fmp_news_seconds": 0.0,
+    "etf_sec_ticker_map_seconds": 0.0,
+    "etf_sec_submissions_seconds": 0.0,
+    "sec_ticker_map_downloads": 0,
+    "output_persistence_seconds": 0.0,
+}
+_ACTIVE_COMMITTEE_TIMING_SCOPE = ""
+
+
+def _record_scan_timing(key: str, elapsed: float = 0.0, count: int = 0) -> None:
+    _SCAN_TIMINGS[key] = _SCAN_TIMINGS.get(key, 0) + (count if count else elapsed)
+
+
+def _persisted_scan_timings() -> Dict[str, Any]:
+    return {
+        key: round(value, 2) if isinstance(value, float) else value
+        for key, value in _SCAN_TIMINGS.items()
+    }
 
 
 
@@ -4194,8 +4249,10 @@ def v803_apply_complete_research_fields(row: Dict[str, Any], meta: Dict[str, Any
 
 
 def scan_market() -> Dict[str, Any]:
+    global _ACTIVE_COMMITTEE_TIMING_SCOPE
     start_time = time.time()
-    _SCAN_TIMINGS.update(finalist_provider_calls=0, finalist_provider_seconds=0.0)
+    for timing_key in list(_SCAN_TIMINGS):
+        _SCAN_TIMINGS[timing_key] = 0 if isinstance(_SCAN_TIMINGS[timing_key], int) else 0.0
     universe = build_universe()
 
     universe_payload = {
@@ -4221,6 +4278,7 @@ def scan_market() -> Dict[str, Any]:
         yahoo_started = time.monotonic()
         price_data = download_price_batch(batch)
         yahoo_elapsed = time.monotonic() - yahoo_started
+        _record_scan_timing("yahoo_broad_scan_seconds", yahoo_elapsed)
 
         for symbol in batch:
             hist = extract_symbol_history(price_data, symbol)
@@ -4293,6 +4351,7 @@ def scan_market() -> Dict[str, Any]:
 
             quote_type = str(meta.get("quote_type", "")).upper()
             if quote_type == "ETF":
+                etf_started = time.monotonic()
                 etf_row = score_etf_row(symbol, meta, ind)
                 if etf_row:
                     price_history = build_price_history_intelligence(hist, ind)
@@ -4302,8 +4361,24 @@ def scan_market() -> Dict[str, Any]:
                     if FAST_CRON_MODE and len(etf_rows) >= ETF_FULL_COMMITTEE_LIMIT:
                         etf_row = v421_build_light_committee(symbol, etf_row, meta, ind, hist)
                     else:
-                        etf_row = v42_build_committee(symbol, etf_row, meta, ind, hist)
+                        committee_started = time.monotonic()
+                        print(f"[etf-committee] start ticker={symbol}", flush=True)
+                        _ACTIVE_COMMITTEE_TIMING_SCOPE = "etf"
+                        try:
+                            etf_row = v42_build_committee(symbol, etf_row, meta, ind, hist)
+                        finally:
+                            _ACTIVE_COMMITTEE_TIMING_SCOPE = ""
+                            committee_elapsed = time.monotonic() - committee_started
+                            _record_scan_timing("etf_full_committee_calls", count=1)
+                            _record_scan_timing("etf_full_committee_seconds", committee_elapsed)
+                            print(
+                                f"[etf-committee] end ticker={symbol} "
+                                f"elapsed_seconds={committee_elapsed:.2f}",
+                                flush=True,
+                            )
                     etf_rows.append(etf_row)
+                    _record_scan_timing("etf_rows_processed", count=1)
+                _record_scan_timing("etf_processing_seconds", time.monotonic() - etf_started)
                 continue
 
             if not passes_basic_filter(ind, meta):
@@ -4407,6 +4482,7 @@ def scan_market() -> Dict[str, Any]:
         "fast_cron_mode": FAST_CRON_MODE,
         "full_committee_limit": FULL_COMMITTEE_LIMIT,
         "pre_rank_deep_apis_skipped": FAST_CRON_SKIP_PRE_RANK_DEEP_APIS,
+        "run_timings": {},
         "filters": {
             "min_price": MIN_PRICE,
             "max_price": MAX_PRICE,
@@ -4521,10 +4597,13 @@ def scan_market() -> Dict[str, Any]:
         },
     }
 
+    output_started = time.monotonic()
     write_json(PRESCREEN_FILE, prescreen_rows)
     write_json(FULL_SCAN_FILE, full_rows)
     write_json(RECOVERY_SCAN_FILE, recovery_rows)
     write_json(ETF_SCAN_FILE, etf_rows)
+    _record_scan_timing("output_persistence_seconds", time.monotonic() - output_started)
+    state["run_timings"] = _persisted_scan_timings()
     write_json(STATE_FILE, state)
 
     persistence_started = time.monotonic()
@@ -4543,6 +4622,7 @@ def scan_market() -> Dict[str, Any]:
         f"elapsed_seconds={_SCAN_TIMINGS['finalist_provider_seconds']:.2f}",
         flush=True,
     )
+    print(f"[run-timing-summary] {json.dumps(_persisted_scan_timings(), sort_keys=True)}", flush=True)
 
     return state
 

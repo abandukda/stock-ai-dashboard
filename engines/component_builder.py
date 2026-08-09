@@ -169,6 +169,8 @@ def _financial_component(row: Mapping[str, Any]) -> ComponentResult:
                 "EPS Growth %",
                 "eps_growth",
                 "eps_growth_pct",
+                "earnings_growth",
+                "Earnings Growth",
                 "earningsGrowth",
             )
         ),

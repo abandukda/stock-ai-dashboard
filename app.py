@@ -26227,9 +26227,6 @@ def v793_open_research(ticker):
     from engines.research_engine import research_navigation_state
     for key, value in research_navigation_state(ticker).items():
         st.session_state[key] = value
-    # V80.5: opening research from any discovery card must run the live
-    # single-ticker research pipeline instead of showing only the saved snapshot.
-    st.session_state["v805_force_live_on_open"] = ticker
     st.rerun()
 
 
@@ -27094,11 +27091,14 @@ def v8055_render_analyst_intelligence(row):
 def v8055_render_earnings_intelligence(row):
     st.markdown("### 📞 Earnings Intelligence")
     st.markdown("<div class='v8055-section-note'>Latest reported quarter, upcoming report timing, earnings surprise, management guidance and transcript-based AI summary when available.</div>", unsafe_allow_html=True)
+    history=v8054_first_meaningful(row,["earnings_history","historical_earnings","quarterly_earnings"],[]) or []
+    history=[item for item in history if isinstance(item,dict)]
+    latest_history=history[0] if history else {}
     next_date=v8054_first_meaningful(row,["next_earnings_date","Next Earnings","earnings_date","Earnings Date"],"")
-    latest_date=v8054_first_meaningful(row,["latest_earnings_date","last_earnings_date","reported_earnings_date"],"")
-    eps=v8054_first_meaningful(row,["latest_eps","Latest EPS","eps_actual","reported_eps"],None)
-    eps_est=v8054_first_meaningful(row,["eps_estimate","estimated_eps","consensus_eps"],None)
-    eps_surprise=v8054_first_meaningful(row,["eps_surprise","EPS Surprise","eps_surprise_pct"],None)
+    latest_date=v8054_first_meaningful(row,["latest_earnings_date","last_earnings_date","reported_earnings_date"],latest_history.get("period", ""))
+    eps=v8054_first_meaningful(row,["latest_eps","Latest EPS","eps_actual","reported_eps"],latest_history.get("eps_actual"))
+    eps_est=v8054_first_meaningful(row,["eps_estimate","estimated_eps","consensus_eps"],latest_history.get("eps_estimate"))
+    eps_surprise=v8054_first_meaningful(row,["eps_surprise","EPS Surprise","eps_surprise_pct"],latest_history.get("eps_surprise_pct"))
     rev_surprise=v8054_first_meaningful(row,["revenue_surprise","Revenue Surprise","revenue_surprise_pct"],None)
     tone=v8054_first_meaningful(row,["management_tone","Management Tone","guidance_tone"],"Not scored")
     transcript=v8054_first_meaningful(row,["transcript_url","Transcript URL","earnings_transcript_url","call_transcript_url"],"")
@@ -27115,6 +27115,16 @@ def v8055_render_earnings_intelligence(row):
     else: st.info("A prior-quarter transcript summary was not available in the current data. Atlas can summarize the previous earnings call once a transcript or structured earnings feed is connected.")
     if guidance: st.markdown(f"**Guidance impact:** {v711_safe_report_text(guidance)}")
     if transcript and str(transcript).startswith("http"): st.markdown(f"[Open earnings transcript]({transcript})")
+    if history:
+        st.markdown("#### Reported earnings history")
+        st.dataframe(
+            pd.DataFrame(history[:8]).rename(columns={
+                "period":"Reported date", "eps_actual":"Reported EPS",
+                "eps_estimate":"Estimated EPS", "eps_surprise_pct":"EPS surprise %",
+            }),
+            hide_index=True,
+            use_container_width=True,
+        )
 
 
 def render_v71_institutional_chart(row):

@@ -7,6 +7,7 @@ from typing import Any, Mapping
 import streamlit as st
 
 from engines.individualized_scoring_v1052 import calculate_individualized_scores
+from engines.research_engine import research_navigation_state
 from engines.trade_plan_v1052 import classify_horizon
 from ui.research_report_v2 import render_atlas_research_v2
 from utils.evidence_coverage_v1046 import calculate_evidence_coverage
@@ -192,8 +193,8 @@ def render_candidate_card(
         use_container_width=True,
         type="primary",
     ):
-        st.session_state["v104_research_ticker"] = ticker
-        st.query_params["research"] = ticker
+        for state_key, state_value in research_navigation_state(ticker).items():
+            st.session_state[state_key] = state_value
         st.rerun()
 
 

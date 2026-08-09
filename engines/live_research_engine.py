@@ -560,6 +560,16 @@ def _earnings_context(tk: Any) -> Dict[str, Any]:
             idx = pd.to_datetime(dates.index, utc=True, errors="coerce")
             past = dates.loc[idx <= now]
             future = dates.loc[idx > now]
+            history = []
+            for date_index, earnings_row in past.head(8).iterrows():
+                history.append({
+                    "period": str(date_index),
+                    "eps_actual": _num(earnings_row.get("Reported EPS")),
+                    "eps_estimate": _num(earnings_row.get("EPS Estimate")),
+                    "eps_surprise_pct": _num(earnings_row.get("Surprise(%)")),
+                })
+            if history:
+                result["earnings_history"] = history
             if not future.empty and not result.get("next_earnings_date"):
                 result["next_earnings_date"] = str(future.index[0])
             if not past.empty:
@@ -611,27 +621,31 @@ def _fair_value_complete(price: float, info: Dict[str, Any], fundamentals: Dict[
         estimates.append((analyst_low + analyst_high) / 2)
         methods.append("analyst range midpoint")
 
-    provisional = False
     if not estimates:
-        # Never invent upside. Provide a neutral provisional anchor and disclose low confidence.
-        estimates = [price]
-        methods = ["current-price neutral anchor"]
-        provisional = True
+        return {
+            "Atlas Fair Value": None,
+            "atlas_fair_value": None,
+            "fair_value_status": "Insufficient valuation evidence",
+        }
 
     base = sum(estimates) / len(estimates)
     # Avoid implausible targets in the paid-client card.
     base = max(price * 0.55, min(price * 1.75, base))
     upside = (base / price - 1) * 100 if price else 0.0
     dispersion = 0.15 if len(estimates) >= 2 else 0.22
-    confidence = 35 if provisional else min(92, 55 + len(estimates) * 10 + (8 if revenue_growth is not None else 0) + (8 if earnings_growth is not None else 0))
+    confidence = min(92, 55 + len(estimates) * 10 + (8 if revenue_growth is not None else 0) + (8 if earnings_growth is not None else 0))
     return {
         "Atlas Fair Value": round(base, 2),
         "atlas_fair_value": round(base, 2),
         "fair_value_method": " + ".join(methods),
-        "fair_value_status": "Provisional neutral anchor" if provisional else "Modeled",
+        "fair_value_status": "Modeled",
         "fair_value_confidence": confidence,
         "fair_value_bear": round(base * (1 - dispersion), 2),
+        "fair_value_base": round(base, 2),
         "fair_value_bull": round(base * (1 + dispersion), 2),
+        "ai_bear_target": round(base * (1 - dispersion), 2),
+        "ai_base_target": round(base, 2),
+        "ai_bull_target": round(base * (1 + dispersion), 2),
         "expected_upside_pct": round(upside, 1),
         "expected_return_pct": round(upside, 1),
         "Expected Return": round(upside, 1),

@@ -37,8 +37,8 @@ def test_fair_value_populates_with_analyst_target():
     assert result["fair_value_confidence"] >= 55
 
 
-def test_fair_value_uses_disclosed_neutral_anchor_when_no_inputs():
+def test_fair_value_stays_unavailable_when_no_legitimate_inputs():
     result = module._fair_value_complete(100.0, {}, {}, {})
-    assert result["atlas_fair_value"] == 100.0
-    assert result["expected_return_pct"] == 0.0
-    assert result["fair_value_status"] == "Provisional neutral anchor"
+    assert result["atlas_fair_value"] is None
+    assert result["Atlas Fair Value"] is None
+    assert result["fair_value_status"] == "Insufficient valuation evidence"
