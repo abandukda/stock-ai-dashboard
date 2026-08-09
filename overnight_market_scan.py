@@ -80,7 +80,6 @@ MAX_UNIVERSE = int(os.getenv("MAX_UNIVERSE", "6500"))
 MAX_PRESCREEN = int(os.getenv("MAX_PRESCREEN", "650"))
 MAX_FULL_SCAN = int(os.getenv("MAX_FULL_SCAN", "150"))
 BATCH_SIZE = int(os.getenv("SCAN_BATCH_SIZE", "25"))
-SLEEP_BETWEEN_BATCHES = float(os.getenv("SCAN_SLEEP", "2.0"))
 
 MIN_PRICE = float(os.getenv("MIN_PRICE", "2.00"))
 MAX_PRICE = float(os.getenv("MAX_PRICE", "1000.00"))
@@ -398,7 +397,17 @@ def download_price_batch(symbols: List[str]) -> pd.DataFrame:
                 return data
         except Exception as exc:
             print(f"Discovery batch attempt {attempt + 1} failed for {len(symbols)} symbols: {exc}")
-        time.sleep(2 ** attempt)
+        # Successful batches return immediately. Delay only after a failed or
+        # empty Yahoo response, preserving exponential retry/backoff without
+        # charging every healthy batch a fixed sleep.
+        if attempt < 2:
+            delay = 2 ** attempt
+            print(
+                f"[yahoo-retry] attempt={attempt + 1}/3 symbols={len(symbols)} "
+                f"backoff_seconds={delay}",
+                flush=True,
+            )
+            time.sleep(delay)
     return pd.DataFrame()
 
 
@@ -512,6 +521,13 @@ def get_fmp_data(symbol: str) -> Dict[str, Any]:
         }
     except Exception:
         return {}
+
+
+def get_pre_rank_fmp_data(symbol: str) -> Dict[str, Any]:
+    """Return broad-loop FMP profile data only when deep pre-rank APIs are enabled."""
+    if FAST_CRON_MODE and FAST_CRON_SKIP_PRE_RANK_DEEP_APIS:
+        return {}
+    return get_fmp_data(symbol)
 
 
 
@@ -3597,6 +3613,7 @@ FULL_RESEARCH_MIN_RECOVERY = float(os.getenv("FULL_RESEARCH_MIN_RECOVERY", "88")
 WATCHLIST_FULL_COMMITTEE_LIMIT = int(os.getenv("WATCHLIST_FULL_COMMITTEE_LIMIT", "25"))
 FAST_CRON_SKIP_PRE_RANK_DEEP_APIS = os.getenv("FAST_CRON_SKIP_PRE_RANK_DEEP_APIS", "true").strip().lower() not in {"0", "false", "no", "off"}
 HTTP_TIMEOUT_FAST = float(os.getenv("HTTP_TIMEOUT_FAST", "6"))
+_SCAN_TIMINGS = {"finalist_provider_calls": 0, "finalist_provider_seconds": 0.0}
 
 
 
@@ -3833,6 +3850,23 @@ def v421_apply_tiered_committee(symbol: str, row: Dict[str, Any], meta: Dict[str
     """
     try:
         if v421_should_run_full_research(symbol, row):
+            # Fast scheduled scans intentionally skip per-symbol FMP calls in
+            # the broad pre-rank loop. Preserve profile enrichment for the
+            # existing bounded full-research tier only.
+            if FAST_CRON_MODE and FAST_CRON_SKIP_PRE_RANK_DEEP_APIS:
+                provider_started = time.monotonic()
+                print(f"[finalist-provider] start ticker={symbol} provider=FMP_PROFILE", flush=True)
+                fmp_profile = get_fmp_data(symbol)
+                if fmp_profile:
+                    _merge_fmp_profile(meta, row, fmp_profile)
+                provider_elapsed = time.monotonic() - provider_started
+                _SCAN_TIMINGS["finalist_provider_calls"] += 1
+                _SCAN_TIMINGS["finalist_provider_seconds"] += provider_elapsed
+                print(
+                    f"[finalist-provider] end ticker={symbol} provider=FMP_PROFILE "
+                    f"elapsed_seconds={provider_elapsed:.2f} enriched={bool(fmp_profile)}",
+                    flush=True,
+                )
             if "v42_build_committee_safe" in globals():
                 row = v42_build_committee_safe(symbol, row, meta, ind, hist)
             else:
@@ -3850,6 +3884,39 @@ def v421_apply_tiered_committee(symbol: str, row: Dict[str, Any], meta: Dict[str
         row["v42_tier"] = "light_fallback"
         row["v42_tier_warning"] = f"Tiered committee fallback used: {str(e)[:160]}"
         return row
+
+
+_FMP_PROFILE_ROW_FIELDS = {
+    "company_name": ("company_name", "company", "name"),
+    "sector": ("sector",),
+    "industry": ("industry",),
+    "market_cap": ("market_cap",),
+    "country": ("country",),
+    "exchange": ("exchange",),
+    "fmp_price": ("fmp_price",),
+    "beta": ("beta",),
+    "last_dividend": ("last_dividend",),
+    "range_52w": ("range_52w",),
+    "website": ("website",),
+    "description": ("description",),
+    "source_fmp_profile": ("source_fmp_profile",),
+}
+
+
+def _merge_fmp_profile(meta: Dict[str, Any], row: Dict[str, Any], profile: Dict[str, Any]) -> None:
+    """Merge finalist profile data without touching investment calculations."""
+    for key, value in profile.items():
+        if value in (None, "", "Unknown"):
+            continue
+        current = meta.get(key)
+        if current in (None, "", "Unknown") or key.startswith("source_") or key in {
+            "country", "exchange", "fmp_price", "beta", "last_dividend",
+            "range_52w", "website", "description",
+        }:
+            meta[key] = value
+        for row_key in _FMP_PROFILE_ROW_FIELDS.get(key, ()):
+            if row.get(row_key) in (None, "", "Unknown") or key.startswith("source_"):
+                row[row_key] = value
 
 
 # =========================
@@ -3966,6 +4033,7 @@ def v803_apply_complete_research_fields(row: Dict[str, Any], meta: Dict[str, Any
 
 def scan_market() -> Dict[str, Any]:
     start_time = time.time()
+    _SCAN_TIMINGS.update(finalist_provider_calls=0, finalist_provider_seconds=0.0)
     universe = build_universe()
 
     universe_payload = {
@@ -3981,9 +4049,14 @@ def scan_market() -> Dict[str, Any]:
 
     metadata_cache: Dict[str, Dict[str, Any]] = {}
 
+    total_batches = math.ceil(len(universe) / BATCH_SIZE) if universe else 0
+    qualifying_candidates = 0
     for i in range(0, len(universe), BATCH_SIZE):
         batch = universe[i:i + BATCH_SIZE]
+        batch_number = i // BATCH_SIZE + 1
+        yahoo_started = time.monotonic()
         price_data = download_price_batch(batch)
+        yahoo_elapsed = time.monotonic() - yahoo_started
 
         for symbol in batch:
             hist = extract_symbol_history(price_data, symbol)
@@ -3996,6 +4069,7 @@ def scan_market() -> Dict[str, Any]:
                 continue
             if (ind.get("dollar_volume") or 0) < MIN_DOLLAR_VOLUME:
                 continue
+            qualifying_candidates += 1
 
             meta = metadata_cache.get(symbol)
             if meta is None:
@@ -4003,7 +4077,7 @@ def scan_market() -> Dict[str, Any]:
 
                 # V40.0: enrich Yahoo metadata with FMP profile data when available.
                 # FMP values only replace missing/weak fields; failures safely do nothing.
-                fmp_meta = get_fmp_data(symbol)
+                fmp_meta = get_pre_rank_fmp_data(symbol)
                 if fmp_meta:
                     for key, value in fmp_meta.items():
                         if value not in (None, "", "Unknown"):
@@ -4089,8 +4163,13 @@ def scan_market() -> Dict[str, Any]:
             if score >= 45:
                 full_rows.append(row)
 
-        if SLEEP_BETWEEN_BATCHES > 0:
-            time.sleep(SLEEP_BETWEEN_BATCHES)
+        print(
+            f"[scan-progress] batch={batch_number}/{total_batches} "
+            f"elapsed_seconds={time.time() - start_time:.1f} "
+            f"yahoo_batch_seconds={yahoo_elapsed:.2f} "
+            f"qualifying_candidates={qualifying_candidates}",
+            flush=True,
+        )
 
     prescreen_rows.sort(key=lambda r: (r.get("conviction") or 0, r.get("dollar_volume") or 0), reverse=True)
     full_rows.sort(key=lambda r: (r.get("conviction") or 0, r.get("dollar_volume") or 0), reverse=True)
@@ -4256,9 +4335,22 @@ def scan_market() -> Dict[str, Any]:
     write_json(ETF_SCAN_FILE, etf_rows)
     write_json(STATE_FILE, state)
 
+    persistence_started = time.monotonic()
+    print("[persistence] start", flush=True)
     if GITHUB_PERSIST:
         state["github_persisted"] = persist_to_github() or bool(os.getenv("GITHUB_ACTIONS"))
         write_json(STATE_FILE, state)
+    persistence_elapsed = time.monotonic() - persistence_started
+    print(
+        f"[persistence] end elapsed_seconds={persistence_elapsed:.2f} "
+        f"enabled={GITHUB_PERSIST}",
+        flush=True,
+    )
+    print(
+        f"[finalist-provider-summary] calls={_SCAN_TIMINGS['finalist_provider_calls']} "
+        f"elapsed_seconds={_SCAN_TIMINGS['finalist_provider_seconds']:.2f}",
+        flush=True,
+    )
 
     return state
 
