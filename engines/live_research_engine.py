@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import os
+import re
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, Optional
 
@@ -168,6 +169,9 @@ def _latest_news(ticker: str, company: str) -> Dict[str, Any]:
         title = str(article.get("title") or "").strip()
         if not title:
             continue
+        description = str(article.get("description") or "").strip()
+        if not _company_news_relevant(title, description, ticker, company):
+            continue
         source = str((article.get("source") or {}).get("name") or "").strip()
         published = str(article.get("publishedAt") or "").strip()
         text = f"{title} {article.get('description') or ''}".lower()
@@ -192,6 +196,34 @@ def _latest_news(ticker: str, company: str) -> Dict[str, Any]:
         "political_support": policy[0] if policy else "",
         "political_support_summary": f"Recent reporting identifies {policy[0].lower()} relevant to the company." if policy else "",
     }
+
+
+def _company_news_relevant(title: str, description: str, ticker: str, company: str) -> bool:
+    """Reject ticker-substring collisions such as ELF appearing in filesystem."""
+    text = f"{title or ''} {description or ''}".lower()
+    ticker = str(ticker or "").strip().upper()
+    company = str(company or "").strip()
+    aliases = []
+    if company and company.upper() != ticker:
+        aliases.append(company)
+        aliases.append(re.sub(
+            r"\b(inc\.?|corporation|corp\.?|ltd\.?|limited|plc|class a|common stock)\b",
+            "",
+            company,
+            flags=re.I,
+        ).strip(" ,.-"))
+    aliases.extend({
+        "ELF": ["e.l.f. beauty", "e.l.f. cosmetics", "elf beauty"],
+        "CRM": ["salesforce"],
+        "NVDA": ["nvidia"],
+    }.get(ticker, []))
+    if any(alias and alias.lower() in text for alias in aliases):
+        return True
+    return bool(re.search(
+        rf"(?:\$|NASDAQ:\s*|NYSE:\s*|ticker\s+)" + re.escape(ticker) + r"\b",
+        text,
+        re.I,
+    ))
 
 
 def _analyst_context(ticker: str) -> Dict[str, Any]:
@@ -481,6 +513,8 @@ def _fundamental_fallbacks(tk: Any, info: Dict[str, Any]) -> Dict[str, Any]:
         "Price to Book": _num(info.get("priceToBook")),
         "ROE": _pct(_num(info.get("returnOnEquity"))),
         "ROA": _pct(_num(info.get("returnOnAssets"))),
+        "institutional_ownership_pct": _pct(_num(info.get("heldPercentInstitutions"))),
+        "insider_ownership_pct": _pct(_num(info.get("heldPercentInsiders"))),
     }
 
 
@@ -489,6 +523,7 @@ def _expanded_analyst_context(ticker: str, info: Dict[str, Any], tk: Any) -> Dic
     result.setdefault("analyst_target_mean", _num(info.get("targetMeanPrice")))
     result.setdefault("analyst_target_high", _num(info.get("targetHighPrice")))
     result.setdefault("analyst_target_low", _num(info.get("targetLowPrice")))
+    result["analyst_count"] = _num(info.get("numberOfAnalystOpinions"))
     result["analyst_target_median"] = _num(info.get("targetMedianPrice"))
     result["Analyst Count"] = _num(info.get("numberOfAnalystOpinions"))
     result["analyst_recommendation"] = info.get("recommendationKey") or info.get("recommendationMean")

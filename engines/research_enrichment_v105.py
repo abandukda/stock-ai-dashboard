@@ -30,6 +30,12 @@ def _num(v, d=None):
     except Exception:
         return d
 
+def _pct(v, d=None):
+    value = _num(v, d)
+    if value is None:
+        return d
+    return value * 100 if abs(value) <= 2 else value
+
 def _map(v):
     return v if isinstance(v, Mapping) else {}
 
@@ -63,18 +69,19 @@ def _section(data, source, as_of="", notes=""):
 def build_financial_section(row):
     s = _sources(row)
     data = {
-        "revenue_growth_pct": _num(_first(s,"revenue_growth_pct","Revenue Growth %","revenueGrowth")),
-        "eps_growth_pct": _num(_first(s,"eps_growth_pct","EPS Growth %","epsGrowth")),
-        "gross_margin_pct": _num(_first(s,"gross_margin_pct","Gross Margin %","grossMargin")),
-        "operating_margin_pct": _num(_first(s,"operating_margin_pct","Operating Margin %","operatingMargin")),
-        "net_margin_pct": _num(_first(s,"net_margin_pct","Net Margin %","netMargin")),
+        "revenue_growth_pct": _pct(_first(s,"revenue_growth_pct","revenue_growth","Revenue Growth %","Revenue Growth","revenueGrowth")),
+        "eps_growth_pct": _pct(_first(s,"eps_growth_pct","earnings_growth","EPS Growth %","Earnings Growth","epsGrowth")),
+        "gross_margin_pct": _pct(_first(s,"gross_margin_pct","gross_profit_margin","Gross Margin %","Gross Margin","grossMargin")),
+        "operating_margin_pct": _pct(_first(s,"operating_margin_pct","operating_profit_margin","Operating Margin %","Operating Margin","operatingMargin")),
+        "net_margin_pct": _pct(_first(s,"net_margin_pct","net_profit_margin","Net Margin %","Net Margin","netMargin")),
         "free_cash_flow": _num(_first(s,"free_cash_flow","Free Cash Flow","freeCashFlow")),
-        "roe_pct": _num(_first(s,"roe_pct","ROE","returnOnEquity")),
-        "roic_pct": _num(_first(s,"roic_pct","ROIC","returnOnInvestedCapital")),
-        "cash": _num(_first(s,"cash","Cash","cashAndCashEquivalents")),
-        "debt": _num(_first(s,"debt","Total Debt","totalDebt")),
+        "operating_cash_flow": _num(_first(s,"operating_cash_flow","Operating Cash Flow","operatingCashFlow")),
+        "roe_pct": _pct(_first(s,"roe_pct","return_on_equity","ROE","returnOnEquity")),
+        "roic_pct": _pct(_first(s,"roic_pct","roic","ROIC","returnOnInvestedCapital")),
+        "cash": _num(_first(s,"cash","cash_and_equivalents","Cash","cashAndCashEquivalents")),
+        "debt": _num(_first(s,"debt","total_debt","Total Debt","totalDebt")),
         "current_ratio": _num(_first(s,"current_ratio","Current Ratio","currentRatio")),
-        "forward_pe": _num(_first(s,"forward_pe","Forward P/E","forwardPE")),
+        "forward_pe": _num(_first(s,"forward_pe","Forward P/E","Forward PE","forwardPE")),
         "peg_ratio": _num(_first(s,"peg_ratio","PEG Ratio","pegRatio")),
         "price_to_sales": _num(_first(s,"price_to_sales","Price/Sales","priceToSales")),
         "ev_ebitda": _num(_first(s,"ev_ebitda","EV/EBITDA","enterpriseValueToEBITDA")),
@@ -92,6 +99,7 @@ def build_analyst_section(row):
         "average_target": _num(_first(s,"analyst_target_mean","Analyst Target","targetMeanPrice")),
         "high_target": _num(_first(s,"analyst_target_high","Analyst Target High","targetHighPrice")),
         "low_target": _num(_first(s,"analyst_target_low","Analyst Target Low","targetLowPrice")),
+        "analyst_count": _num(_first(s,"analyst_count","Analyst Count","numberOfAnalystOpinions")),
         "top_analyst_name": _text(_first(s,"top_analyst_name","Top Analyst")),
         "top_analyst_rating": _text(_first(s,"top_analyst_rating","Top Analyst Rating")),
         "top_analyst_target": _num(_first(s,"top_analyst_target","Top Analyst Target")),
@@ -106,7 +114,7 @@ def build_analyst_section(row):
 
 def build_news_section(row):
     s = _sources(row)
-    raw = row.get("news") or _first(s,"recent_news","news_items","articles","headlines") or []
+    raw = row.get("news") or _first(s,"recent_news","recent_headlines","news_items","articles","headlines") or []
     items = []
     for item in _seq(raw):
         if isinstance(item, Mapping):
@@ -151,14 +159,20 @@ def build_political_section(row):
 
 def build_earnings_section(row):
     s = _sources(row)
+    has_guidance_evidence = bool(_first(s,"source_management_guidance","source_earnings_transcript","guidance_evidence_available"))
     data = {
+        "latest_reported_date": _text(_first(s,"latest_earnings_date","Latest Earnings Date")),
+        "reported_eps": _num(_first(s,"reported_eps","Reported EPS","epsActual")),
+        "estimated_eps": _num(_first(s,"eps_estimate","estimated_eps","Estimated EPS","epsEstimated")),
         "next_earnings_date": _text(_first(s,"next_earnings_date","Next Earnings","Earnings Date","earnings_date")),
         "timing": _text(_first(s,"earnings_timing","Earnings Timing")),
         "eps_surprise_pct": _num(_first(s,"eps_surprise_pct","EPS Surprise %")),
         "revenue_surprise_pct": _num(_first(s,"revenue_surprise_pct","Revenue Surprise %")),
-        "guidance": _text(_first(s,"guidance","Guidance")),
-        "management_tone": _text(_first(s,"management_tone","Management Tone")),
-        "transcript_summary": _text(_first(s,"transcript_summary","Latest Earnings Summary")),
+        "reported_revenue": _num(_first(s,"reported_revenue","Reported Revenue","revenueActual")),
+        "estimated_revenue": _num(_first(s,"revenue_estimate","estimated_revenue","Estimated Revenue","revenueEstimated")),
+        "guidance": _text(_first(s,"management_guidance","earnings_guidance","Guidance")) if has_guidance_evidence else "",
+        "management_tone": _text(_first(s,"management_tone","Management Tone")) if has_guidance_evidence else "",
+        "transcript_summary": _text(_first(s,"transcript_summary","Latest Earnings Summary")) if has_guidance_evidence else "",
         "important_quote": _text(_first(s,"important_quote","Most Important Quote")),
     }
     data = {k:v for k,v in data.items() if v not in (None,"")}
@@ -168,11 +182,15 @@ def build_ownership_section(row):
     s = _sources(row)
     data = {
         "institutional_ownership_pct": _num(_first(s,"institutional_ownership_pct","Institutional Ownership %")),
+        "insider_ownership_pct": _num(_first(s,"insider_ownership_pct","Insider Ownership %")),
         "institutional_change_pct": _num(_first(s,"institutional_change_pct","Institutional Change %")),
         "major_holders": _seq(_first(s,"major_holders","institutional_holders","holders"))[:15],
         "insider_transactions": _seq(_first(s,"insider_transactions","insider_trades"))[:20],
         "institutional_support_score": _num(_first(s,"institutional_score","Institutional Score")),
         "insider_support_score": _num(_first(s,"insider_score","Insider Score")),
+        "insider_activity_label": _text(_first(s,"insider_activity_label")),
+        "insider_buy_count": _num(_first(s,"insider_buy_count")),
+        "insider_sell_count": _num(_first(s,"insider_sell_count")),
     }
     data = {k:v for k,v in data.items() if v not in (None,"",[])}
     return _section(data, _text(_first(s,"ownership_source","source"),"Current Atlas ownership payload"))

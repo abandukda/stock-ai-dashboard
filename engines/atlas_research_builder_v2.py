@@ -96,6 +96,53 @@ def _section_status(data: Any, required: Sequence[str] = ()) -> dict[str, Any]:
     return {"status": status, "completeness_pct": completeness}
 
 
+def _evidence_registry(
+    sections: Mapping[str, Mapping[str, Any]],
+    *,
+    validated_fair_value: Any,
+    fair_value_cases: Sequence[Mapping[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Canonical availability registry used by coverage and completeness."""
+    def entry(status: str, detail: str) -> dict[str, Any]:
+        return {"status": status, "detail": detail}
+
+    def section_entry(name: str) -> dict[str, Any]:
+        section = sections.get(name) or {}
+        return entry(str(section.get("status") or "unavailable"), f"{section.get('completeness_pct', 0):.1f}% populated")
+
+    earnings_data = _mapping((sections.get("earnings") or {}).get("data"))
+    ownership_data = _mapping((sections.get("ownership") or {}).get("data"))
+    political_data = _mapping((sections.get("political") or {}).get("data"))
+    valid_cases = sum(_num(case.get("fair_value")) is not None for case in fair_value_cases if isinstance(case, Mapping))
+    valuation_status = "available" if _num(validated_fair_value) is not None and valid_cases >= 1 else "unavailable"
+    guidance_status = "available" if any(
+        earnings_data.get(key) not in (None, "", [], {})
+        for key in ("guidance", "management_tone", "transcript_summary")
+    ) else "unavailable"
+    insider_status = "available" if any(
+        ownership_data.get(key) not in (None, "", [], {})
+        for key in ("insider_transactions", "insider_buy_count", "insider_sell_count", "insider_support_score")
+    ) else "unavailable"
+    return {
+        "fundamentals": section_entry("financials"),
+        "valuation": entry(valuation_status, f"{valid_cases} populated fair-value cases"),
+        "technicals": section_entry("technical"),
+        "analysts": section_entry("analysts"),
+        "earnings": section_entry("earnings"),
+        "guidance": entry(guidance_status, "Genuine guidance/transcript evidence only"),
+        "news": section_entry("news"),
+        "ownership": section_entry("ownership"),
+        "insider_activity": entry(insider_status, "Structured insider evidence"),
+        "policy": entry("available" if political_data else "not_applicable", "Not critical financial evidence"),
+    }
+
+
+def _registry_coverage(registry: Mapping[str, Mapping[str, Any]]) -> float:
+    points = {"available": 100.0, "partial": 50.0, "unavailable": 0.0}
+    applicable = [points[item["status"]] for item in registry.values() if item.get("status") in points]
+    return round(sum(applicable) / len(applicable), 1) if applicable else 0.0
+
+
 def _financial_interpretation(data: Mapping[str, Any]) -> str:
     strengths, risks = [], []
     growth = _num(data.get("revenue_growth_pct"))
@@ -345,6 +392,16 @@ def build_atlas_research_v2(
 ) -> dict[str, Any]:
     ticker = _text(row.get("ticker") or row.get("Ticker"), "UNKNOWN")
     enriched_row = attach_price_history(row)
+    # Normalize canonical valuation inputs before the institutional builder.
+    # This reconciles saved/live aliases without changing valuation formulas.
+    if _num(enriched_row.get("current_price")) is None:
+        current_price = _num(_first(enriched_row, "Price", "price", "last_price"))
+        if current_price is not None:
+            enriched_row["current_price"] = current_price
+    if _num(enriched_row.get("validated_fair_value")) is None:
+        fair_value = _num(_first(enriched_row, "atlas_fair_value", "Atlas Fair Value"))
+        if fair_value is not None:
+            enriched_row["validated_fair_value"] = fair_value
 
     enricher_errors = []
     for enricher in enrichers:
@@ -460,10 +517,15 @@ def build_atlas_research_v2(
         },
     }
 
-    completeness = round(
-        sum(section["completeness_pct"] for section in sections.values()) / len(sections),
-        1,
+    fair_value_cases = institutional.get("fair_value_cases") or []
+    validated_fair_value = institutional.get("validated_fair_value")
+    evidence_registry = _evidence_registry(
+        sections,
+        validated_fair_value=validated_fair_value,
+        fair_value_cases=fair_value_cases,
     )
+    completeness = _registry_coverage(evidence_registry)
+    committee_verdict = institutional.get("committee_verdict") or enriched.get("committee_verdict")
 
     report = {
         "version": "V2.1-AI-INTELLIGENCE",
@@ -476,7 +538,7 @@ def build_atlas_research_v2(
             enriched.get("sector")
             or _text(_first(enriched_row, "sector", "Sector", "industry", "Industry"))
         ),
-        "committee_verdict": institutional.get("committee_verdict") or enriched.get("committee_verdict"),
+        "committee_verdict": committee_verdict,
         "opportunity_score": scores["opportunity_score"],
         "confidence_pct": scores["confidence_pct"],
         "score_attribution": scores,
@@ -485,14 +547,16 @@ def build_atlas_research_v2(
         "investment_thesis": institutional.get("investment_thesis") or enriched.get("executive_summary"),
         "bull_case": institutional.get("bull_case") or enriched.get("positive_drivers"),
         "bear_case": institutional.get("bear_case") or enriched.get("reasons_to_wait"),
-        "fair_value_cases": institutional.get("fair_value_cases") or [],
-        "validated_fair_value": institutional.get("validated_fair_value"),
+        "fair_value_cases": fair_value_cases,
+        "validated_fair_value": validated_fair_value,
         "expected_return_pct": institutional.get("expected_return_pct"),
         "current_price": quote.get("price"),
         "quote": quote,
         "trade_plan": trade_plan,
         "sections": sections,
         "research_completeness_pct": completeness,
+        "evidence_coverage_pct": completeness,
+        "evidence_registry": evidence_registry,
         "enricher_errors": enricher_errors,
         "upgrade_triggers": institutional.get("upgrade_triggers") or enriched_row.get("upgrade_triggers") or [],
         "downgrade_triggers": institutional.get("downgrade_triggers") or enriched_row.get("downgrade_triggers") or [],

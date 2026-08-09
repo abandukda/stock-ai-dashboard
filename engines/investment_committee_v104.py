@@ -26,6 +26,15 @@ def _status(row: Mapping[str, Any], name: str) -> str:
     return str(component.get("status") or "LEGACY").upper()
 
 
+def _missing_detail(row: Mapping[str, Any], name: str, fallback: str) -> str:
+    component = (row.get("component_details") or {}).get(name) or {}
+    missing = component.get("missing_fields") or component.get("missing") or []
+    if isinstance(missing, str):
+        missing = [missing]
+    labels = [str(item).replace("_", " ") for item in missing if item]
+    return f"Missing {name} evidence: {', '.join(labels[:5])}." if labels else fallback
+
+
 def build_committee_verdict(row: Mapping[str, Any]) -> dict[str, Any]:
     score = _num(row.get("opportunity_score"))
     confidence = _num(row.get("confidence_pct"))
@@ -64,11 +73,19 @@ def build_committee_verdict(row: Mapping[str, Any]) -> dict[str, Any]:
     if financial_status == "AVAILABLE" and fundamentals < 55:
         cautions.append("Verified fundamental quality is below Atlas preference.")
     elif financial_status in {"PARTIAL", "NOT_LOADED", "NO_DATA"}:
-        cautions.append("Some financial evidence remains incomplete.")
+        cautions.append(_missing_detail(
+            row,
+            "fundamentals",
+            "Fundamental evidence is incomplete; the provider supplied no field-level detail.",
+        ))
     if technical_status == "AVAILABLE" and technical < 52:
         cautions.append("Technical confirmation remains weak.")
     elif technical_status in {"PARTIAL", "NOT_LOADED", "NO_DATA"}:
-        cautions.append("Technical confirmation is incomplete.")
+        cautions.append(_missing_detail(
+            row,
+            "technical",
+            "Technical evidence is incomplete; the provider supplied no field-level detail.",
+        ))
     if upside_value is None:
         cautions.append("Validated fair-value upside is unavailable.")
     elif upside_value > 60:

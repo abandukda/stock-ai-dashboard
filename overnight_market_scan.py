@@ -14,6 +14,7 @@ V50.8.4 AI Committee Scanner - Analyst + Calendar Hotfix Sync
 import json
 import math
 import os
+import re
 import datetime as dt
 import requests
 import subprocess
@@ -469,6 +470,14 @@ def get_metadata(symbol: str) -> Dict[str, Any]:
             "earnings_growth": safe_float(info.get("earningsGrowth")),
             "forward_pe": safe_float(info.get("forwardPE")),
             "peg_ratio": safe_float(info.get("pegRatio")),
+            "institutional_ownership_pct": (
+                safe_float(info.get("heldPercentInstitutions")) * 100
+                if safe_float(info.get("heldPercentInstitutions")) is not None else None
+            ),
+            "insider_ownership_pct": (
+                safe_float(info.get("heldPercentInsiders")) * 100
+                if safe_float(info.get("heldPercentInsiders")) is not None else None
+            ),
             # Yahoo includes these timestamps in the metadata response, so this
             # recovers the calendar value without an additional API request.
             "next_earnings_date": (
@@ -492,14 +501,17 @@ def get_fmp_data(symbol: str) -> Dict[str, Any]:
         return {}
 
     try:
-        url = f"https://financialmodelingprep.com/api/v3/profile/{symbol}"
-        response = requests.get(url, params={"apikey": FMP_API_KEY}, timeout=10)
+        symbol = str(symbol or "").strip().upper()
+        url = "https://financialmodelingprep.com/stable/profile"
+        response = requests.get(url, params={"symbol": symbol, "apikey": FMP_API_KEY}, timeout=10)
 
         if response.status_code != 200:
             return {}
 
         data = response.json()
-        if not isinstance(data, list) or not data:
+        if isinstance(data, dict):
+            data = data.get("data") or data.get("results") or data.get("profile") or []
+        if not isinstance(data, list) or not data or not isinstance(data[0], dict):
             return {}
 
         row = data[0] or {}
@@ -508,13 +520,13 @@ def get_fmp_data(symbol: str) -> Dict[str, Any]:
             "company_name": row.get("companyName"),
             "sector": row.get("sector"),
             "industry": row.get("industry"),
-            "market_cap": safe_float(row.get("mktCap")),
+            "market_cap": safe_float(row.get("marketCap") if row.get("marketCap") is not None else row.get("mktCap")),
             "country": row.get("country"),
             "exchange": row.get("exchangeShortName") or row.get("exchange"),
             "fmp_price": safe_float(row.get("price")),
             "beta": safe_float(row.get("beta")),
-            "last_dividend": safe_float(row.get("lastDiv")),
-            "range_52w": row.get("range"),
+            "last_dividend": safe_float(row.get("lastDividend") if row.get("lastDividend") is not None else row.get("lastDiv")),
+            "range_52w": row.get("range") or row.get("range52Week"),
             "website": row.get("website"),
             "description": row.get("description"),
             "source_fmp_profile": True,
@@ -663,6 +675,8 @@ def get_news_research(symbol: str, company_name: str = "") -> Dict[str, Any]:
         published_at = safe_text(article.get("publishedAt"), "")
 
         if not title:
+            continue
+        if not news_item_is_company_relevant(title, description, symbol, company_name):
             continue
 
         score, positives, negatives = score_headline_sentiment(title, description)
@@ -1836,6 +1850,9 @@ def make_dashboard_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], s
         "source_fmp_earnings_surprises": meta.get("source_fmp_earnings_surprises", False),
         "latest_revenue": meta.get("latest_revenue"),
         "latest_eps": meta.get("latest_eps"),
+        "revenue_growth": meta.get("revenue_growth"),
+        "earnings_growth": meta.get("earnings_growth"),
+        "forward_pe": meta.get("forward_pe"),
         "revenue_qoq_pct": meta.get("revenue_qoq_pct"),
         "revenue_quarters": meta.get("revenue_quarters"),
         "eps_quarters": meta.get("eps_quarters"),
@@ -1844,6 +1861,9 @@ def make_dashboard_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], s
         "reported_eps": meta.get("reported_eps"),
         "eps_estimate": meta.get("eps_estimate"),
         "eps_surprise_pct": meta.get("eps_surprise_pct"),
+        "reported_revenue": meta.get("reported_revenue"),
+        "revenue_estimate": meta.get("revenue_estimate"),
+        "revenue_surprise_pct": meta.get("revenue_surprise_pct"),
         "next_earnings_date": meta.get("next_earnings_date"),
         "eps_beats_last4": meta.get("eps_beats_last4"),
         "eps_misses_last4": meta.get("eps_misses_last4"),
@@ -1853,6 +1873,7 @@ def make_dashboard_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], s
         "debt_to_equity": meta.get("debt_to_equity"),
         "debt_to_assets": meta.get("debt_to_assets"),
         "current_ratio": meta.get("current_ratio"),
+        "return_on_equity": meta.get("return_on_equity"),
         "gross_profit_margin": meta.get("gross_profit_margin"),
         "operating_profit_margin": meta.get("operating_profit_margin"),
         "net_profit_margin": meta.get("net_profit_margin"),
@@ -1862,6 +1883,8 @@ def make_dashboard_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], s
         "ev_to_sales": meta.get("ev_to_sales"),
         "ev_to_ebitda": meta.get("ev_to_ebitda"),
         "peer_symbols": meta.get("peer_symbols"),
+        "institutional_ownership_pct": meta.get("institutional_ownership_pct"),
+        "insider_ownership_pct": meta.get("insider_ownership_pct"),
 
         "price": ind.get("price"),
         "current_price": ind.get("price"),
@@ -2441,24 +2464,32 @@ def get_fmp_financial_intelligence(symbol: str) -> Dict[str, Any]:
     result: Dict[str, Any] = {}
 
     def get(endpoint: str, params: Optional[Dict[str, Any]] = None):
-        base = f"https://financialmodelingprep.com/api/v3/{endpoint}"
-        merged = {"apikey": FMP_API_KEY}
+        base = f"https://financialmodelingprep.com/stable/{endpoint}"
+        merged = {"apikey": FMP_API_KEY, "symbol": str(symbol).upper().strip()}
         if params:
             merged.update(params)
         return http_get_json(base, params=merged, timeout=12)
 
     # Quarterly financials
-    income = get(f"income-statement/{symbol}", {"period": "quarter", "limit": 5})
-    balance = get(f"balance-sheet-statement/{symbol}", {"period": "quarter", "limit": 5})
-    cashflow = get(f"cash-flow-statement/{symbol}", {"period": "quarter", "limit": 5})
-    ratios = get(f"ratios/{symbol}", {"period": "quarter", "limit": 4})
-    key_metrics = get(f"key-metrics/{symbol}", {"period": "quarter", "limit": 4})
-    earnings = get(f"earnings-surprises/{symbol}", {"limit": 4})
-    peers = get(f"stock_peers", {"symbol": symbol})
+    income = get("income-statement", {"period": "quarter", "limit": 5})
+    balance = get("balance-sheet-statement", {"period": "quarter", "limit": 5})
+    cashflow = get("cash-flow-statement", {"period": "quarter", "limit": 5})
+    ratios = get("ratios", {"period": "quarter", "limit": 4})
+    key_metrics = get("key-metrics", {"period": "quarter", "limit": 4})
+    earnings = get("earnings", {"limit": 4})
+    if not earnings:
+        # Backward-compatible fallback for accounts still entitled to v3.
+        earnings = http_get_json(
+            f"https://financialmodelingprep.com/api/v3/earnings-surprises/{str(symbol).upper().strip()}",
+            params={"limit": 4, "apikey": FMP_API_KEY},
+            timeout=12,
+        )
+    peers = get("stock-peers")
 
     if isinstance(income, list) and income:
         latest_income = income[0] or {}
         prior_income = income[1] if len(income) > 1 else {}
+        year_ago_income = income[4] if len(income) > 4 else {}
         four_q = income[:4]
 
         revenues = [safe_float(x.get("revenue")) for x in four_q if isinstance(x, dict)]
@@ -2468,6 +2499,14 @@ def get_fmp_financial_intelligence(symbol: str) -> Dict[str, Any]:
         latest_revenue = safe_float(latest_income.get("revenue"))
         prior_revenue = safe_float(prior_income.get("revenue")) if isinstance(prior_income, dict) else None
         revenue_qoq = pct_change(latest_revenue, prior_revenue)
+        revenue_yoy = pct_change(
+            latest_revenue,
+            safe_float(year_ago_income.get("revenue")) if isinstance(year_ago_income, dict) else None,
+        )
+        eps_yoy = pct_change(
+            safe_float(latest_income.get("eps")),
+            safe_float(year_ago_income.get("eps")) if isinstance(year_ago_income, dict) else None,
+        )
 
         result.update({
             "latest_revenue": latest_revenue,
@@ -2475,7 +2514,12 @@ def get_fmp_financial_intelligence(symbol: str) -> Dict[str, Any]:
             "latest_net_income": safe_float(latest_income.get("netIncome")),
             "latest_gross_profit": safe_float(latest_income.get("grossProfit")),
             "latest_operating_income": safe_float(latest_income.get("operatingIncome")),
+            "gross_profit_margin": safe_float(latest_income.get("grossProfitRatio")),
+            "operating_profit_margin": safe_float(latest_income.get("operatingIncomeRatio")),
+            "net_profit_margin": safe_float(latest_income.get("netIncomeRatio")),
             "revenue_qoq_pct": round(revenue_qoq, 1) if revenue_qoq is not None else None,
+            "revenue_growth": revenue_yoy / 100 if revenue_yoy is not None else None,
+            "earnings_growth": eps_yoy / 100 if eps_yoy is not None else None,
             "revenue_quarters": revenues,
             "eps_quarters": eps_values,
             "net_income_quarters": net_income_values,
@@ -2525,7 +2569,11 @@ def get_fmp_financial_intelligence(symbol: str) -> Dict[str, Any]:
     if isinstance(key_metrics, list) and key_metrics:
         latest_metrics = key_metrics[0] or {}
         result.update({
-            "roic": safe_float(latest_metrics.get("roic")),
+            "roic": safe_float(
+                latest_metrics.get("returnOnInvestedCapital")
+                if latest_metrics.get("returnOnInvestedCapital") is not None
+                else latest_metrics.get("roic")
+            ),
             "enterprise_value": safe_float(latest_metrics.get("enterpriseValue")),
             "ev_to_sales": safe_float(latest_metrics.get("evToSales")),
             "ev_to_ebitda": safe_float(latest_metrics.get("enterpriseValueOverEBITDA")),
@@ -2541,8 +2589,8 @@ def get_fmp_financial_intelligence(symbol: str) -> Dict[str, Any]:
         for item in earnings[:4]:
             if not isinstance(item, dict):
                 continue
-            actual = safe_float(item.get("actualEarningResult"))
-            estimate = safe_float(item.get("estimatedEarning"))
+            actual = safe_float(item.get("epsActual") if item.get("epsActual") is not None else item.get("actualEarningResult"))
+            estimate = safe_float(item.get("epsEstimated") if item.get("epsEstimated") is not None else item.get("estimatedEarning"))
             if actual is not None and estimate is not None:
                 diff = actual - estimate
                 surprises.append(round(diff, 3))
@@ -2553,7 +2601,15 @@ def get_fmp_financial_intelligence(symbol: str) -> Dict[str, Any]:
                         "reported_eps": actual,
                         "eps_estimate": estimate,
                         "eps_surprise_pct": round(surprise_pct, 2) if surprise_pct is not None else None,
+                        "reported_revenue": safe_float(item.get("revenueActual")),
+                        "revenue_estimate": safe_float(item.get("revenueEstimated")),
                     }
+                    revenue_actual = latest_event.get("reported_revenue")
+                    revenue_estimate = latest_event.get("revenue_estimate")
+                    if revenue_actual is not None and revenue_estimate not in (None, 0):
+                        latest_event["revenue_surprise_pct"] = round(
+                            ((revenue_actual - revenue_estimate) / abs(revenue_estimate)) * 100, 2
+                        )
                 if diff >= 0:
                     beats += 1
                 else:
@@ -3201,6 +3257,8 @@ def v42_company_aliases(symbol: str, company_name: str = "") -> List[str]:
         "AMZN": ["Amazon"],
         "TSLA": ["Tesla"],
         "PLTR": ["Palantir"],
+        "CRM": ["Salesforce"],
+        "ELF": ["e.l.f. Beauty", "e.l.f. Cosmetics", "Elf Beauty"],
     }
     aliases.extend(overrides.get(symbol, []))
     # De-dupe
@@ -3212,6 +3270,24 @@ def v42_company_aliases(symbol: str, company_name: str = "") -> List[str]:
             seen.add(key)
             out.append(a)
     return out
+
+
+def news_item_is_company_relevant(
+    headline: str, description: str, symbol: str, company_name: str = ""
+) -> bool:
+    """Require an entity match before treating an article as company evidence."""
+    text = f"{headline or ''} {description or ''}".lower()
+    symbol = str(symbol or "").strip().upper()
+    aliases = [alias.lower() for alias in v42_company_aliases(symbol, company_name) if alias]
+    if any(alias in text for alias in aliases if alias != symbol.lower()):
+        return True
+    # Never accept a bare ticker substring (notably ELF). Ticker-only evidence
+    # must use an explicit market context such as $ELF or NASDAQ: ELF.
+    return bool(re.search(
+        rf"(?:\$|NASDAQ:\s*|NYSE:\s*|ticker\s+)" + re.escape(symbol) + r"\b",
+        text,
+        re.I,
+    ))
 
 
 def v42_news_relevance(headline: str, symbol: str, company_name: str = "") -> str:
@@ -3260,6 +3336,7 @@ def v42_news_stack(symbol: str, company_name: str = "") -> Dict[str, Any]:
     def add_article(title, source, published, provider):
         title=str(title or '').strip()
         if not title: return
+        if not news_item_is_company_relevant(title, '', symbol, company_name): return
         articles.append({'title':title, 'source':str(source or provider or '').strip(), 'published':str(published or '').strip(), 'provider':provider})
 
     if NEWSAPI_KEY:
@@ -3355,7 +3432,7 @@ def v42_peer_context(symbol: str, meta: Dict[str,Any]) -> Dict[str,Any]:
     return {'score':int(clamp(score,20,90)),'peers':peers,'findings':findings or ['Peer comparison framework active.'],'risks':risks or ['Peer comparison is directional; confirm exact peer metrics before investing.']}
 
 def v42_build_committee(symbol: str, row: Dict[str,Any], meta: Dict[str,Any], ind: Dict[str,Any], hist: pd.DataFrame) -> Dict[str,Any]:
-    news=v42_news_stack(symbol); sec=v42_sec_filings(symbol); sr=v42_support_resistance(hist,ind); peer=v42_peer_context(symbol,meta)
+    news=v42_news_stack(symbol, meta.get('company_name', '')); sec=v42_sec_filings(symbol); sr=v42_support_resistance(hist,ind); peer=v42_peer_context(symbol,meta)
     conviction=v42_float(row.get('conviction'), row.get('Final Conviction') or 50) or 50; upside=v42_float(row.get('expected_upside_pct'), row.get('Target Upside %') or 0) or 0; analyst=v42_float(row.get('analyst_support_score'), meta.get('analyst_support_score') or 50) or 50
     rsi=ind.get('rsi'); atr=ind.get('atr_pct'); price=ind.get('price')
     tech_find=[f'Support 1: ${sr.get("support_1","N/A")} · Resistance 1: ${sr.get("resistance_1","N/A")}.']
@@ -3841,7 +3918,81 @@ def v421_build_light_committee(symbol: str, row: Dict[str, Any], meta: Dict[str,
     return row
 
 
-def v421_apply_tiered_committee(symbol: str, row: Dict[str, Any], meta: Dict[str, Any], ind: Dict[str, Any], hist: pd.DataFrame) -> Dict[str, Any]:
+def get_finalist_enrichment(symbol: str, company_name: str = "") -> Tuple[Dict[str, Any], Dict[str, str]]:
+    """Fetch deep evidence only for the existing bounded full-research tier."""
+    payloads = {
+        "profile": get_fmp_data(symbol),
+        "fundamentals": get_fmp_financial_intelligence(symbol),
+        "analysts": get_finnhub_research(symbol),
+        "ownership": get_finnhub_insider_activity(symbol),
+        "news": get_news_research(symbol, company_name),
+    }
+    merged: Dict[str, Any] = {}
+    for payload in payloads.values():
+        if isinstance(payload, dict):
+            merged.update(payload)
+    categories = {
+        name: ("yes" if payload else "no")
+        for name, payload in payloads.items()
+    }
+    categories["earnings"] = "yes" if merged.get("source_fmp_earnings_surprises") else "no"
+    categories["valuation_inputs"] = "yes" if any(
+        merged.get(key) is not None
+        for key in ("revenue_growth", "earnings_growth", "forward_pe", "operating_profit_margin", "roic")
+    ) else "no"
+    return merged, categories
+
+
+_FINALIST_TARGET_FIELDS = (
+    "target", "ai_base_target", "ai_bull_target", "ai_bear_target",
+    "analyst_target_mean", "analyst_target_high", "analyst_target_low", "analyst_count",
+    "analyst_upside_pct", "analyst_high_upside_pct", "analyst_low_upside_pct",
+    "expected_upside_pct", "upside", "ai_fair_value_adjustment_pct", "target_source",
+    "target_confidence_note", "recommendation_key", "recommendation_mean",
+)
+
+
+def merge_finalist_enrichment(
+    symbol: str,
+    row: Dict[str, Any],
+    meta: Dict[str, Any],
+    ind: Dict[str, Any],
+    enrichment: Dict[str, Any],
+) -> None:
+    """Propagate bounded evidence without changing any scoring or valuation formula."""
+    profile = {key: value for key, value in enrichment.items() if key in _FMP_PROFILE_ROW_FIELDS}
+    _merge_fmp_profile(meta, row, profile)
+    for key, value in enrichment.items():
+        if value in (None, "", "Unknown", []):
+            continue
+        current = meta.get(key)
+        if current in (None, "", "Unknown", []) or key.startswith("source_"):
+            meta[key] = value
+        row_current = row.get(key)
+        if (
+            row_current in (None, "", "Unknown", [])
+            or key.startswith("source_")
+            or (key == "top_news_headline" and str(row_current).startswith("No recent high-confidence"))
+        ):
+            row[key] = value
+
+    target_model = build_ai_target_model(ind, meta, int(safe_float(row.get("conviction"), 0) or 0))
+    for key in _FINALIST_TARGET_FIELDS:
+        if key in target_model:
+            row[key] = target_model[key]
+    if target_model.get("ai_base_target") is not None:
+        row["target"] = target_model["ai_base_target"]
+
+
+def v421_apply_tiered_committee(
+    symbol: str,
+    row: Dict[str, Any],
+    meta: Dict[str, Any],
+    ind: Dict[str, Any],
+    hist: pd.DataFrame,
+    *,
+    force_full: bool = False,
+) -> Dict[str, Any]:
     """
     V50.8.3.3.2.1a tiered scheduled scan:
       - Full committee for priority names.
@@ -3849,22 +4000,23 @@ def v421_apply_tiered_committee(symbol: str, row: Dict[str, Any], meta: Dict[str
       - Live lookup remains full research on demand.
     """
     try:
-        if v421_should_run_full_research(symbol, row):
+        if force_full or v421_should_run_full_research(symbol, row):
             # Fast scheduled scans intentionally skip per-symbol FMP calls in
             # the broad pre-rank loop. Preserve profile enrichment for the
             # existing bounded full-research tier only.
             if FAST_CRON_MODE and FAST_CRON_SKIP_PRE_RANK_DEEP_APIS:
                 provider_started = time.monotonic()
-                print(f"[finalist-provider] start ticker={symbol} provider=FMP_PROFILE", flush=True)
-                fmp_profile = get_fmp_data(symbol)
-                if fmp_profile:
-                    _merge_fmp_profile(meta, row, fmp_profile)
+                print(f"[finalist-provider] start ticker={symbol} provider=BOUNDED_DEEP_ENRICHMENT", flush=True)
+                enrichment, categories = get_finalist_enrichment(symbol, meta.get("company_name", symbol))
+                if enrichment:
+                    merge_finalist_enrichment(symbol, row, meta, ind, enrichment)
                 provider_elapsed = time.monotonic() - provider_started
                 _SCAN_TIMINGS["finalist_provider_calls"] += 1
                 _SCAN_TIMINGS["finalist_provider_seconds"] += provider_elapsed
                 print(
-                    f"[finalist-provider] end ticker={symbol} provider=FMP_PROFILE "
-                    f"elapsed_seconds={provider_elapsed:.2f} enriched={bool(fmp_profile)}",
+                    f"[finalist-provider] end ticker={symbol} provider=BOUNDED_DEEP_ENRICHMENT "
+                    f"elapsed_seconds={provider_elapsed:.2f} "
+                    + " ".join(f"{name}={status}" for name, status in categories.items()),
                     flush=True,
                 )
             if "v42_build_committee_safe" in globals():
@@ -4048,6 +4200,8 @@ def scan_market() -> Dict[str, Any]:
     etf_rows: List[Dict[str, Any]] = []
 
     metadata_cache: Dict[str, Dict[str, Any]] = {}
+    indicator_cache: Dict[str, Dict[str, Any]] = {}
+    history_cache: Dict[str, pd.DataFrame] = {}
 
     total_batches = math.ceil(len(universe) / BATCH_SIZE) if universe else 0
     qualifying_candidates = 0
@@ -4152,8 +4306,13 @@ def scan_market() -> Dict[str, Any]:
                 row.update(price_history)
             row = enhance_ai_committee(row, meta, ind)
             row = apply_research_field_fallbacks(row, meta)
-            row = v421_apply_tiered_committee(symbol, row, meta, ind, hist)
+            if FAST_CRON_MODE:
+                row = v421_build_light_committee(symbol, row, meta, ind, hist)
+            else:
+                row = v421_apply_tiered_committee(symbol, row, meta, ind, hist)
             row = v803_apply_complete_research_fields(row, meta)
+            indicator_cache[symbol] = ind
+            history_cache[symbol] = hist
 
             # Prescreen can include moderate setups, but weak fallback rows are reduced.
             if score >= 38:
@@ -4195,6 +4354,29 @@ def scan_market() -> Dict[str, Any]:
 
     full_rows.sort(key=lambda r: (r.get("conviction") or 0, r.get("relative_rank_score") or 0, r.get("dollar_volume") or 0), reverse=True)
     prescreen_rows.sort(key=lambda r: (r.get("conviction") or 0, r.get("relative_rank_score") or 0, r.get("dollar_volume") or 0), reverse=True)
+
+    # The final ranking now exists: spend the bounded deep-provider budget on
+    # actual finalists, not the first alphabetic qualifiers encountered.
+    if FAST_CRON_MODE:
+        watchlist = v421_watchlist_symbols()
+        finalist_symbols = {
+            str(row.get("symbol") or row.get("ticker") or "").upper()
+            for row in full_rows[:FULL_COMMITTEE_LIMIT]
+        }
+        finalist_symbols.update(
+            str(row.get("symbol") or row.get("ticker") or "").upper()
+            for row in full_rows
+            if str(row.get("symbol") or row.get("ticker") or "").upper() in watchlist
+        )
+        for row in full_rows:
+            symbol = str(row.get("symbol") or row.get("ticker") or "").upper()
+            if symbol not in finalist_symbols:
+                continue
+            meta = metadata_cache.get(symbol) or {}
+            ind = indicator_cache.get(symbol) or {}
+            hist = history_cache.get(symbol, pd.DataFrame())
+            v421_apply_tiered_committee(symbol, row, meta, ind, hist, force_full=True)
+            v803_apply_complete_research_fields(row, meta)
 
     # V41.1: Recovery tab focuses on stocks that fell but still have a forward rebound case.
     recovery_rows = build_recovery_rows(prescreen_rows)
