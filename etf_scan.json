@@ -53,7 +53,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-08-09T02:46:15.708898+00:00",
+    "scan_time": "2026-08-09T05:00:22.838257+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 546.75,
@@ -83,18 +83,14 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 53,
-        "status": "Mixed",
+        "score": 45,
+        "status": "Unknown / insufficient data",
         "impact": "Neutral",
-        "data_used": "Finnhub company news, NewsAPI",
-        "summary": "Reviews headlines/catalysts. Confidence: High.",
-        "findings": [
-          "The AI Capex Waterfall Is Raining Future Dividends",
-          "Patriot expands Peru silver play acreage by 50%"
-        ],
+        "data_used": "No source returned recent data",
+        "summary": "Reviews headlines/catalysts. Confidence: Low.",
+        "findings": [],
         "risks": [
-          "As America Runs Out Of Missiles, The Next CPI Print Is A Risk To Equities",
-          "Stocks Settle Higher as a Weak Jobs Report Allays Rate Hike Fears"
+          "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
         ],
         "bottom_line": "News is mixed or insufficient."
       },
@@ -232,25 +228,20 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 53,
+    "v42_news_score": 45,
     "v42_news_summary": "News is mixed or insufficient.",
-    "v42_news_status": "Mixed",
-    "v42_news_catalysts": [
-      "The AI Capex Waterfall Is Raining Future Dividends",
-      "Patriot expands Peru silver play acreage by 50%"
-    ],
+    "v42_news_status": "Unknown / insufficient data",
+    "v42_news_catalysts": [],
     "v42_news_risks": [
-      "As America Runs Out Of Missiles, The Next CPI Print Is A Risk To Equities",
-      "Stocks Settle Higher as a Weak Jobs Report Allays Rate Hike Fears"
+      "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
     ],
     "v42_news_sources": [
-      "Finnhub company news",
-      "NewsAPI"
+      "No source returned recent data"
     ],
-    "latest_news_headline": "Revisiting My Most Read Article: Revenge Of The Baby Boomers",
-    "latest_news_source": "SeekingAlpha",
-    "latest_news_date": "2026-08-08T08:19:01",
-    "latest_news_sentiment": "Mixed",
+    "latest_news_headline": "",
+    "latest_news_source": "",
+    "latest_news_date": "",
+    "latest_news_sentiment": "Unknown / insufficient data",
     "v42_sec_available": true,
     "v42_sec_cik": "0001041130",
     "v42_support_1": 514.72,
@@ -315,7 +306,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-08-09T02:43:17.448752+00:00",
+    "scan_time": "2026-08-09T04:57:29.194521+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 92.65,
@@ -345,17 +336,14 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 69,
-        "status": "Mixed",
+        "score": 45,
+        "status": "Unknown / insufficient data",
         "impact": "Neutral",
-        "data_used": "Finnhub company news, NewsAPI",
-        "summary": "Reviews headlines/catalysts. Confidence: High.",
-        "findings": [
-          "Q3 Active Management Pulse: AI Reshapes The Opportunity Set",
-          "Cathie Wood sells $17 million of popular AI stock"
-        ],
+        "data_used": "No source returned recent data",
+        "summary": "Reviews headlines/catalysts. Confidence: Low.",
+        "findings": [],
         "risks": [
-          "No negative high-confidence headline detected."
+          "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
         ],
         "bottom_line": "News is mixed or insufficient."
       },
@@ -491,24 +479,20 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 69,
+    "v42_news_score": 45,
     "v42_news_summary": "News is mixed or insufficient.",
-    "v42_news_status": "Mixed",
-    "v42_news_catalysts": [
-      "Q3 Active Management Pulse: AI Reshapes The Opportunity Set",
-      "Cathie Wood sells $17 million of popular AI stock"
-    ],
+    "v42_news_status": "Unknown / insufficient data",
+    "v42_news_catalysts": [],
     "v42_news_risks": [
-      "No negative high-confidence headline detected."
+      "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
     ],
     "v42_news_sources": [
-      "Finnhub company news",
-      "NewsAPI"
+      "No source returned recent data"
     ],
-    "latest_news_headline": "Global Outlook Marred By Further Slide In Emerging Market Business Confidence",
-    "latest_news_source": "SeekingAlpha",
-    "latest_news_date": "2026-08-08T08:30:00",
-    "latest_news_sentiment": "Mixed",
+    "latest_news_headline": "",
+    "latest_news_source": "",
+    "latest_news_date": "",
+    "latest_news_sentiment": "Unknown / insufficient data",
     "v42_sec_available": false,
     "v42_sec_cik": null,
     "v42_support_1": 69.89,
@@ -518,7 +502,7 @@
     "v42_breakout_level": 81.51,
     "v42_pullback_zone": "$69.89 - $77.84",
     "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
-    "v42_committee_positive_agents": 2,
+    "v42_committee_positive_agents": 1,
     "v42_committee_total_agents": 10
   },
   {
@@ -573,7 +557,7 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-08-09T02:44:23.653384+00:00",
+    "scan_time": "2026-08-09T04:58:33.083987+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 41.69,
@@ -603,23 +587,16 @@
     "evidence_confidence": "Low-Medium",
     "ai_committee": {
       "News Agent": {
-        "score": 82,
-        "status": "Positive",
-        "impact": "Positive",
-        "data_used": "Finnhub company news, NewsAPI",
-        "summary": "Reviews headlines/catalysts. Confidence: High.",
-        "findings": [
-          "Q3 Active Management Pulse: AI Reshapes The Opportunity Set",
-          "The AI Selloff Is Missing The Bigger Story",
-          "AI's Latest Frontiers: An Investor's Perspective On AI, Space And Equity Opportunities",
-          "AI Genie Out Of The Bottle - Despite Attempts To Throttle",
-          "AI Bear Case: What Skeptics Get Right And Wrong",
-          "ETF Odyssey Continues as Issuers Sail Toward Another Record-Breaking Year"
-        ],
+        "score": 45,
+        "status": "Unknown / insufficient data",
+        "impact": "Neutral",
+        "data_used": "No source returned recent data",
+        "summary": "Reviews headlines/catalysts. Confidence: Low.",
+        "findings": [],
         "risks": [
-          "The AI Selloff Is Missing The Bigger Story"
+          "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
         ],
-        "bottom_line": "News flow supports the thesis."
+        "bottom_line": "News is mixed or insufficient."
       },
       "Finance Agent": {
         "score": 50,
@@ -753,28 +730,20 @@
         "bottom_line": "ETF/ownership is not yet a primary scoring driver."
       }
     },
-    "v42_news_score": 82,
-    "v42_news_summary": "News flow supports the thesis.",
-    "v42_news_status": "Positive",
-    "v42_news_catalysts": [
-      "Q3 Active Management Pulse: AI Reshapes The Opportunity Set",
-      "The AI Selloff Is Missing The Bigger Story",
-      "AI's Latest Frontiers: An Investor's Perspective On AI, Space And Equity Opportunities",
-      "AI Genie Out Of The Bottle - Despite Attempts To Throttle",
-      "AI Bear Case: What Skeptics Get Right And Wrong",
-      "ETF Odyssey Continues as Issuers Sail Toward Another Record-Breaking Year"
-    ],
+    "v42_news_score": 45,
+    "v42_news_summary": "News is mixed or insufficient.",
+    "v42_news_status": "Unknown / insufficient data",
+    "v42_news_catalysts": [],
     "v42_news_risks": [
-      "The AI Selloff Is Missing The Bigger Story"
+      "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
     ],
     "v42_news_sources": [
-      "Finnhub company news",
-      "NewsAPI"
+      "No source returned recent data"
     ],
-    "latest_news_headline": "Q3 Active Management Pulse: AI Reshapes The Opportunity Set",
-    "latest_news_source": "SeekingAlpha",
-    "latest_news_date": "2026-08-08T07:50:00",
-    "latest_news_sentiment": "Positive",
+    "latest_news_headline": "",
+    "latest_news_source": "",
+    "latest_news_date": "",
+    "latest_news_sentiment": "Unknown / insufficient data",
     "v42_sec_available": false,
     "v42_sec_cik": null,
     "v42_support_1": 33.48,
@@ -784,272 +753,7 @@
     "v42_breakout_level": 38.14,
     "v42_pullback_zone": "$33.48 - $36.86",
     "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
-    "v42_committee_positive_agents": 2,
-    "v42_committee_total_agents": 10
-  },
-  {
-    "symbol": "LQD",
-    "ticker": "LQD",
-    "company": "iShares iBoxx $ Investment Grad",
-    "company_name": "iShares iBoxx $ Investment Grad",
-    "sector": "ETF",
-    "industry": "iShares",
-    "quote_type": "ETF",
-    "price": 106.55,
-    "current_price": 106.55,
-    "dollar_volume": 3208526390.4,
-    "avg_volume_20d": 30112870,
-    "volume_ratio": 0.76,
-    "conviction": 78,
-    "conviction_score": 78,
-    "score": 78,
-    "ai_score": 78,
-    "ai_confidence": 78,
-    "confidence": 78,
-    "rsi": 48.3,
-    "atr_pct": 0.41,
-    "sma20": 106.39,
-    "sma50": 107.33,
-    "twenty_day_pct": -0.42,
-    "sixty_day_pct": -0.71,
-    "entry_range": "$106.33 - $106.66",
-    "entry_low": 106.33,
-    "entry_high": 106.66,
-    "stop_loss": 105.93,
-    "target": 110.39,
-    "target_2": 112.3,
-    "risk_reward": 1.8,
-    "expected_upside_pct": 3.6,
-    "upside": 3.6,
-    "ai_base_target": 110.39,
-    "ai_bull_target": 112.3,
-    "ai_bear_target": 105.93,
-    "etf_preference_screen": "Passed non-financial / non-Israel / non-excluded-theme screen",
-    "what_looks_good": "strong ETF liquidity; price is above 20-day trend; RSI is constructive; ETF volatility is controlled",
-    "what_could_go_wrong": "price is below 50-day trend",
-    "investment_thesis": "iShares iBoxx $ Investment Grad (LQD) is an ETF candidate that passed your preference screen. Score 78/100. Positive factors: strong ETF liquidity; price is above 20-day trend; RSI is constructive; ETF volatility is controlled. Risks: price is below 50-day trend.",
-    "guidance": "LQD ETF score is 78/100. Preferred entry is $106.33 - $106.66. Use stop around $105.93 and first target near $110.39.",
-    "action_note": "ETF idea only. Review holdings/exposure before buying to ensure it aligns with your preferences.",
-    "summary": "LQD: ETF candidate, score 78/100, estimated trade upside 3.6%.",
-    "setup_tags": [
-      "strong ETF liquidity",
-      "price is above 20-day trend",
-      "RSI is constructive",
-      "ETF volatility is controlled"
-    ],
-    "risk_tags": [
-      "price is below 50-day trend"
-    ],
-    "scan_time": "2026-08-09T02:49:25.490597+00:00",
-    "history_days_available": 251,
-    "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
-    "high_52w": 109.38,
-    "low_52w": 104.37,
-    "all_period_high": 109.38,
-    "all_period_low": 104.37,
-    "range_position_pct": 43.6,
-    "range_position_label": "Lower-middle range",
-    "distance_from_52w_high_pct": -2.6,
-    "distance_from_52w_low_pct": 2.1,
-    "drawdown_from_period_high_pct": -2.6,
-    "drawdown_label": "Shallow drawdown",
-    "return_1m_pct": -0.6,
-    "return_3m_pct": -0.9,
-    "return_6m_pct": -1.3,
-    "return_1y_pct": null,
-    "return_3y_pct": null,
-    "return_5y_pct": null,
-    "analyst_support_score": 40.9,
-    "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
-    "analyst_support_label": "Mixed (41/100)",
-    "news_sentiment_source": "No recent NewsAPI headline returned; defaulted to neutral",
-    "top_news_headline": "No recent high-confidence company headline returned by NewsAPI",
-    "news_sentiment_label": "Neutral",
-    "news_sentiment_score": 0,
-    "thesis_strength": "Developing Thesis",
-    "evidence_confidence": "Low-Medium",
-    "ai_committee": {
-      "News Agent": {
-        "score": 90,
-        "status": "Positive",
-        "impact": "Positive",
-        "data_used": "Finnhub company news, NewsAPI",
-        "summary": "Reviews headlines/catalysts. Confidence: High.",
-        "findings": [
-          "AI Borrowing Reshapes The Bond Market",
-          "Market Brief: Has The AI Washout Already Done Its Work?",
-          "Is The Angst Over AI Spending And Fed Inaction Warranted?",
-          "Daily ETF Flows: TQQQ Pulls In $368M",
-          "Lee Launches LQD Denim Featuring Premium Fabric That Feels Liquid on the\u00a0Body"
-        ],
-        "risks": [
-          "No negative high-confidence headline detected."
-        ],
-        "bottom_line": "News flow supports the thesis."
-      },
-      "Finance Agent": {
-        "score": 50,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "FMP/Yahoo fundamentals, financial statements, balance sheet, cash flow",
-        "summary": "Checks revenue, EPS, margins, leverage, liquidity, cash flow, valuation, and execution.",
-        "findings": [
-          "Financial data limited."
-        ],
-        "risks": [
-          "No major finance-specific red flag detected."
-        ],
-        "bottom_line": "Financial profile reviewed."
-      },
-      "Analyst Agent": {
-        "score": 40,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Finnhub/Yahoo/FMP analyst targets and recommendation trends",
-        "summary": "Checks whether Wall Street estimates support the AI thesis.",
-        "findings": [
-          "Analyst support score: 41/100.",
-          "Analyst target: $N/A.",
-          "Analyst count: N/A."
-        ],
-        "risks": [
-          "Analyst data can lag fast-moving news."
-        ],
-        "bottom_line": "Analyst view is mixed/limited."
-      },
-      "Technical Agent": {
-        "score": 78,
-        "status": "Positive",
-        "impact": "Positive",
-        "data_used": "Price history, RSI, ATR, volume, SMA, support/resistance",
-        "summary": "Evaluates trend, momentum, volatility, support/resistance and entry quality.",
-        "findings": [
-          "Support 1: $105.54 \u00b7 Resistance 1: $107.33.",
-          "Price is above the 20-day trend.",
-          "Price is below the 50-day trend.",
-          "RSI is 48.3."
-        ],
-        "risks": [
-          "No major technical risk detected."
-        ],
-        "bottom_line": "Near resistance. Avoid chasing unless breakout holds with volume."
-      },
-      "Insider Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "SEC EDGAR Form 4 framework; Finnhub insider-ready",
-        "summary": "Checks insider filing activity and prepares buy/sell classification.",
-        "findings": [
-          "No recent Form 4 activity retrieved."
-        ],
-        "risks": [
-          "SEC insider data unavailable: CIK not found"
-        ],
-        "bottom_line": "Insider signal is limited until transaction-level parsing is expanded."
-      },
-      "Institutional Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "SEC EDGAR filings plus FMP institutional ownership-ready",
-        "summary": "Checks institutional context and 13F availability.",
-        "findings": [
-          "Institutional data limited."
-        ],
-        "risks": [
-          "13F data is delayed by reporting schedule."
-        ],
-        "bottom_line": "Institutional signal is directional and should be confirmed with holder details."
-      },
-      "Competitor Agent": {
-        "score": 55,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "FMP peer list and company fundamentals",
-        "summary": "Compares company fundamentals and valuation context against peers.",
-        "findings": [
-          "Peer comparison framework active."
-        ],
-        "risks": [
-          "Peer list unavailable in current scan."
-        ],
-        "bottom_line": "Peer context is limited/mixed."
-      },
-      "Political Agent": {
-        "score": 50,
-        "status": "Not connected yet",
-        "impact": "Neutral",
-        "data_used": "Capitol Trades public data planned; no API key required",
-        "summary": "Tracks congressional trading once public feed integration is enabled.",
-        "findings": [
-          "Political Agent framework is active."
-        ],
-        "risks": [
-          "Capitol Trades ingestion not enabled yet; no political score applied."
-        ],
-        "bottom_line": "No political trading signal applied yet."
-      },
-      "Recovery Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "52-week drawdown, growth, analyst support, technical recovery signals",
-        "summary": "Explains whether this is a recovery candidate or momentum setup.",
-        "findings": [
-          "Recovery framework active."
-        ],
-        "risks": [
-          "Recovery thesis requires business outlook to remain intact."
-        ],
-        "bottom_line": "Recovery setup exists only if fundamentals remain healthy."
-      },
-      "ETF / Ownership Agent": {
-        "score": 55,
-        "status": "Framework active",
-        "impact": "Neutral",
-        "data_used": "ETF inclusion and ownership flow framework",
-        "summary": "Checks ETF/index ownership support.",
-        "findings": [
-          "ETF/ownership framework is active."
-        ],
-        "risks": [
-          "Detailed ETF flow data not fully connected yet."
-        ],
-        "bottom_line": "ETF/ownership is not yet a primary scoring driver."
-      }
-    },
-    "v42_news_score": 90,
-    "v42_news_summary": "News flow supports the thesis.",
-    "v42_news_status": "Positive",
-    "v42_news_catalysts": [
-      "AI Borrowing Reshapes The Bond Market",
-      "Market Brief: Has The AI Washout Already Done Its Work?",
-      "Is The Angst Over AI Spending And Fed Inaction Warranted?",
-      "Daily ETF Flows: TQQQ Pulls In $368M",
-      "Lee Launches LQD Denim Featuring Premium Fabric That Feels Liquid on the\u00a0Body"
-    ],
-    "v42_news_risks": [
-      "No negative high-confidence headline detected."
-    ],
-    "v42_news_sources": [
-      "Finnhub company news",
-      "NewsAPI"
-    ],
-    "latest_news_headline": "AI Borrowing Reshapes The Bond Market",
-    "latest_news_source": "SeekingAlpha",
-    "latest_news_date": "2026-08-08T06:50:00",
-    "latest_news_sentiment": "Positive",
-    "v42_sec_available": false,
-    "v42_sec_cik": null,
-    "v42_support_1": 105.54,
-    "v42_support_2": 104.37,
-    "v42_resistance_1": 107.33,
-    "v42_resistance_2": 109.38,
-    "v42_breakout_level": 108.4,
-    "v42_pullback_zone": "$105.54 - $105.54",
-    "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
-    "v42_committee_positive_agents": 2,
+    "v42_committee_positive_agents": 1,
     "v42_committee_total_agents": 10
   }
 ]
