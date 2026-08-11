@@ -7,6 +7,7 @@ from typing import Any, Mapping, Sequence
 import streamlit as st
 
 from engines.morning_brief_engine import build_morning_brief
+from engines.guidance_summary import build_guidance_summary
 
 
 def _pct(value: Any, *, signed: bool = False) -> str:
@@ -73,18 +74,21 @@ def _opportunity_card(
             row.get("position_size_range") or "Under review",
         )
 
-        positives = row.get("positive_drivers") or []
-        cautions = row.get("reasons_to_wait") or []
+        guidance = build_guidance_summary(row)
+        positives = guidance.get("supporting_facts") or []
+        cautions = guidance.get("key_risks") or []
 
         left, right = st.columns(2)
         with left:
             st.markdown("**Why Atlas is interested**")
             for item in positives[:3]:
-                st.success(str(item))
+                st.success(f"{item.get('fact')} {item.get('why_it_matters')}")
         with right:
             st.markdown("**What Atlas is watching**")
             for item in cautions[:3]:
-                st.warning(str(item))
+                st.warning(f"{item.get('risk')} {item.get('consequence')}")
+            if not cautions:
+                st.info("No concrete adverse evidence is populated; Atlas is monitoring the stated thesis conditions.")
 
         _research_button(
             ticker,

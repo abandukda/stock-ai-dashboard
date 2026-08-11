@@ -88,17 +88,20 @@ def _card(row: Mapping[str, Any], *, key_prefix: str, volume_mode: bool = False)
             or "Atlas does not yet have enough normalized evidence for a daily summary."
         )
 
-        reasons = row.get("positive_drivers") or []
-        cautions = row.get("reasons_to_wait") or []
+        guidance = row.get("guidance_summary") or {}
+        reasons = guidance.get("supporting_facts") or []
+        cautions = guidance.get("key_risks") or []
         left, right = st.columns(2)
         with left:
             st.markdown("**Why it is interesting**")
             for item in reasons[:3]:
-                st.success(str(item))
+                st.success(f"{item.get('fact')} {item.get('why_it_matters')}")
         with right:
             st.markdown("**What Atlas is watching**")
             for item in cautions[:3]:
-                st.warning(str(item))
+                st.warning(f"{item.get('risk')} {item.get('consequence')}")
+            if not cautions:
+                st.info("No concrete adverse evidence is populated; Atlas is monitoring the stated thesis conditions.")
 
         _open_research(ticker, f"{key_prefix}_{ticker}")
 

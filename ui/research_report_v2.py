@@ -543,6 +543,43 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
         report.get("executive_summary") or "No executive summary is currently available.",
         qa_name="executive-summary",
     )
+    guidance = report.get("guidance_summary") or {}
+    action = guidance.get("action_now") or {}
+    st.markdown("### What the investor should do now")
+    st.info(
+        f"{action.get('current_action', 'Monitor')} · "
+        f"{action.get('entry_timing_context', 'No verified timing instruction is available.')} · "
+        f"Position guidance: {action.get('position_size_guidance', 'Unavailable')}"
+    )
+    support_col, risk_col = st.columns(2)
+    with support_col:
+        st.markdown("### Why")
+        for item in guidance.get("supporting_facts") or []:
+            st.success(f"{item.get('fact')} {item.get('why_it_matters')}")
+            st.caption(f"Source: {item.get('source')} · As of: {item.get('as_of')}")
+    with risk_col:
+        st.markdown("### What Atlas is cautious about")
+        risks = guidance.get("key_risks") or []
+        for item in risks:
+            st.warning(f"{item.get('risk')} {item.get('consequence')}")
+        if not risks:
+            st.info("No concrete adverse evidence is populated; monitor the thesis-change conditions below.")
+    catalyst = guidance.get("next_catalyst") or {}
+    st.markdown("### What happens next")
+    st.write(
+        f"{catalyst.get('event', 'No verified next catalyst is available')}"
+        + (f" — {catalyst.get('date')}" if catalyst.get("date") else "")
+        + f". {catalyst.get('what_atlas_will_watch', '')}"
+    )
+    changes = guidance.get("thesis_change_conditions") or {}
+    with st.expander("What would strengthen, weaken, or invalidate the thesis"):
+        for label in ("strengthen", "weaken", "invalidate"):
+            st.markdown(f"**{label.title()}**")
+            for item in changes.get(label) or []:
+                st.write(f"- {item}")
+    gaps = guidance.get("unavailable_evidence") or []
+    if gaps:
+        st.caption("Important evidence unavailable: " + "; ".join(gaps))
     _render_trade_plan(report)
 
     tabs = st.tabs(

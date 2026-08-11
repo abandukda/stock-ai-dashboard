@@ -11,6 +11,8 @@ from __future__ import annotations
 from typing import Any, Iterable, Mapping
 import math
 
+from engines.guidance_summary import build_guidance_summary, guidance_summary_text
+
 
 VERDICT_PRIORITY = {
     "BUY_NOW": 4,
@@ -105,34 +107,7 @@ def _volume_label(relative_volume: float | None, change: float | None) -> str:
 
 
 def _summary(row: Mapping[str, Any]) -> str:
-    ticker = _text(row.get("ticker"), "This stock")
-    verdict = _text(row.get("committee_verdict"), "MONITOR").replace("_", " ").title()
-    relative_volume = _relative_volume(row)
-    change = _day_change(row)
-    expected_return = _num(row.get("expected_return_pct"))
-    reasons = [
-        _text(item)
-        for item in (row.get("positive_drivers") or [])
-        if _text(item)
-    ]
-    cautions = [
-        _text(item)
-        for item in (row.get("reasons_to_wait") or [])
-        if _text(item)
-    ]
-
-    parts = [f"{ticker} is currently rated {verdict}."]
-    if change is not None:
-        parts.append(f"The stock is {change:+.1f}% in the loaded session data.")
-    if relative_volume is not None:
-        parts.append(f"Relative volume is {relative_volume:.2f}× normal.")
-    if expected_return is not None:
-        parts.append(f"Validated expected return is {expected_return:.1f}%.")
-    if reasons:
-        parts.append("Primary support: " + reasons[0])
-    if cautions:
-        parts.append("Primary caution: " + cautions[0])
-    return " ".join(parts)
+    return guidance_summary_text(build_guidance_summary(row))
 
 
 def build_today_opportunities(
@@ -148,6 +123,7 @@ def build_today_opportunities(
         if verdict not in {"BUY_NOW", "ACCUMULATE", "MONITOR"}:
             continue
         item = dict(raw)
+        item["guidance_summary"] = build_guidance_summary(item)
         item["daily_ai_summary"] = _summary(item)
         item["relative_volume"] = _relative_volume(item)
         item["day_change_pct"] = _day_change(item)
@@ -190,6 +166,7 @@ def build_volume_momentum(
                 "dollar_volume": dollar_volume,
                 "volume_signal": _volume_label(relative_volume, change),
                 "daily_ai_summary": _summary(item),
+                "guidance_summary": build_guidance_summary(item),
             }
         )
         results.append(item)

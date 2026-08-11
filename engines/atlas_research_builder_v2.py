@@ -25,6 +25,7 @@ from engines.analyst_engine import build_analyst_snapshot, build_analyst_summary
 from engines.individualized_scoring_v1052 import calculate_individualized_scores
 from engines.trade_plan_v1052 import build_trade_plan
 from engines.atlas_intelligence_engine import build_executive_intelligence
+from engines.guidance_summary import build_guidance_summary, guidance_summary_text
 
 
 Enricher = Callable[[str, Mapping[str, Any]], Mapping[str, Any]]
@@ -578,10 +579,27 @@ def build_atlas_research_v2(
         },
     }
     report["intelligence"] = build_executive_intelligence(report)
-    report["executive_summary"] = (
-        report["intelligence"].get("executive_summary")
-        or report.get("executive_summary")
-    )
+    guidance_input = dict(enriched_row)
+    guidance_input.update({
+        "committee_verdict": report.get("committee_verdict"),
+        "confidence_pct": report.get("confidence_pct"),
+        "position_size_range": report.get("position_size_range"),
+        "trade_plan": report.get("trade_plan") or {},
+    })
+    report["guidance_summary"] = build_guidance_summary(guidance_input)
+    report["executive_summary"] = guidance_summary_text(report["guidance_summary"])
+    report["source_investment_thesis"] = report.get("investment_thesis")
+    report["source_bull_case"] = report.get("bull_case")
+    report["source_bear_case"] = report.get("bear_case")
+    report["investment_thesis"] = report["executive_summary"]
+    report["bull_case"] = [
+        f"{item.get('fact')} {item.get('why_it_matters')}"
+        for item in report["guidance_summary"].get("supporting_facts") or []
+    ]
+    report["bear_case"] = [
+        f"{item.get('risk')} {item.get('consequence')}"
+        for item in report["guidance_summary"].get("key_risks") or []
+    ]
     return report
 
 
