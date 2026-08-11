@@ -444,9 +444,12 @@ def get_metadata(symbol: str) -> Dict[str, Any]:
         "quote_type": "EQUITY",
     }
 
+    metadata_started = time.monotonic()
+    outcome = "failures"
     try:
         ticker = yf.Ticker(symbol)
         info = ticker.get_info() or {}
+        outcome = "successes" if info else "empty"
 
         name = (
             info.get("shortName")
@@ -495,6 +498,12 @@ def get_metadata(symbol: str) -> Dict[str, Any]:
         }
     except Exception:
         return defaults
+    finally:
+        _record_yahoo_metadata_result(
+            symbol,
+            time.monotonic() - metadata_started,
+            outcome,
+        )
 
 
 def get_fmp_data(symbol: str) -> Dict[str, Any]:
@@ -3721,10 +3730,27 @@ FULL_RESEARCH_MIN_RECOVERY = float(os.getenv("FULL_RESEARCH_MIN_RECOVERY", "88")
 WATCHLIST_FULL_COMMITTEE_LIMIT = int(os.getenv("WATCHLIST_FULL_COMMITTEE_LIMIT", "25"))
 FAST_CRON_SKIP_PRE_RANK_DEEP_APIS = os.getenv("FAST_CRON_SKIP_PRE_RANK_DEEP_APIS", "true").strip().lower() not in {"0", "false", "no", "off"}
 HTTP_TIMEOUT_FAST = float(os.getenv("HTTP_TIMEOUT_FAST", "6"))
+YAHOO_METADATA_SLOW_SECONDS = 2.0
 _SCAN_TIMINGS = {
+    "scanner_total_seconds": 0.0,
     "yahoo_broad_scan_seconds": 0.0,
     "yahoo_retry_count": 0,
     "yahoo_backoff_seconds": 0.0,
+    "yahoo_metadata_calls": 0,
+    "yahoo_metadata_seconds": 0.0,
+    "yahoo_metadata_successes": 0,
+    "yahoo_metadata_failures": 0,
+    "yahoo_metadata_empty": 0,
+    "yahoo_metadata_slow_calls": 0,
+    "yahoo_metadata_max_seconds": 0.0,
+    "yahoo_metadata_p95_seconds": 0.0,
+    "broad_row_processing_seconds": 0.0,
+    "prescreen_ranking_seconds": 0.0,
+    "full_scan_construction_seconds": 0.0,
+    "recovery_processing_seconds": 0.0,
+    "universe_construction_seconds": 0.0,
+    "universe_persistence_seconds": 0.0,
+    "finalist_row_processing_seconds": 0.0,
     "finalist_provider_calls": 0,
     "finalist_provider_seconds": 0.0,
     "etf_rows_processed": 0,
@@ -3741,7 +3767,9 @@ _SCAN_TIMINGS = {
     "etf_sec_submissions_seconds": 0.0,
     "sec_ticker_map_downloads": 0,
     "output_persistence_seconds": 0.0,
+    "unattributed_seconds": 0.0,
 }
+_YAHOO_METADATA_LATENCIES: List[Tuple[str, float]] = []
 _ACTIVE_COMMITTEE_TIMING_SCOPE = ""
 
 
@@ -3754,6 +3782,48 @@ def _persisted_scan_timings() -> Dict[str, Any]:
         key: round(value, 2) if isinstance(value, float) else value
         for key, value in _SCAN_TIMINGS.items()
     }
+
+
+def _record_yahoo_metadata_result(symbol: str, elapsed: float, outcome: str) -> None:
+    _record_scan_timing("yahoo_metadata_calls", count=1)
+    _record_scan_timing("yahoo_metadata_seconds", elapsed=elapsed)
+    _record_scan_timing(f"yahoo_metadata_{outcome}", count=1)
+    _YAHOO_METADATA_LATENCIES.append((symbol, elapsed))
+    if elapsed > YAHOO_METADATA_SLOW_SECONDS:
+        _record_scan_timing("yahoo_metadata_slow_calls", count=1)
+    _SCAN_TIMINGS["yahoo_metadata_max_seconds"] = max(
+        float(_SCAN_TIMINGS["yahoo_metadata_max_seconds"]), elapsed
+    )
+
+
+def _finalize_yahoo_metadata_percentiles() -> None:
+    if not _YAHOO_METADATA_LATENCIES:
+        _SCAN_TIMINGS["yahoo_metadata_p95_seconds"] = 0.0
+        return
+    ordered = sorted(value for _, value in _YAHOO_METADATA_LATENCIES)
+    rank = max(0, math.ceil(0.95 * len(ordered)) - 1)
+    _SCAN_TIMINGS["yahoo_metadata_p95_seconds"] = ordered[rank]
+
+
+def _reconcile_scan_timings(scanner_total: float) -> float:
+    # These phases are exclusive. Retry/backoff is already inside Yahoo batch
+    # time; ETF committee/provider/SEC timings are already inside ETF time.
+    exclusive_keys = (
+        "universe_construction_seconds",
+        "universe_persistence_seconds",
+        "yahoo_broad_scan_seconds",
+        "yahoo_metadata_seconds",
+        "broad_row_processing_seconds",
+        "prescreen_ranking_seconds",
+        "full_scan_construction_seconds",
+        "finalist_provider_seconds",
+        "finalist_row_processing_seconds",
+        "recovery_processing_seconds",
+        "etf_processing_seconds",
+        "output_persistence_seconds",
+    )
+    attributed = sum(float(_SCAN_TIMINGS[key]) for key in exclusive_keys)
+    return max(0.0, scanner_total - attributed)
 
 
 
@@ -4253,14 +4323,19 @@ def scan_market() -> Dict[str, Any]:
     start_time = time.time()
     for timing_key in list(_SCAN_TIMINGS):
         _SCAN_TIMINGS[timing_key] = 0 if isinstance(_SCAN_TIMINGS[timing_key], int) else 0.0
+    _YAHOO_METADATA_LATENCIES.clear()
+    universe_started = time.monotonic()
     universe = build_universe()
+    _record_scan_timing("universe_construction_seconds", time.monotonic() - universe_started)
 
     universe_payload = {
         "generated_at": now_iso(),
         "count": len(universe),
         "symbols": universe,
     }
+    universe_persistence_started = time.monotonic()
     write_json(UNIVERSE_FILE, universe_payload)
+    _record_scan_timing("universe_persistence_seconds", time.monotonic() - universe_persistence_started)
 
     prescreen_rows: List[Dict[str, Any]] = []
     full_rows: List[Dict[str, Any]] = []
@@ -4272,6 +4347,7 @@ def scan_market() -> Dict[str, Any]:
 
     total_batches = math.ceil(len(universe) / BATCH_SIZE) if universe else 0
     qualifying_candidates = 0
+    broad_loop_started = time.monotonic()
     for i in range(0, len(universe), BATCH_SIZE):
         batch = universe[i:i + BATCH_SIZE]
         batch_number = i // BATCH_SIZE + 1
@@ -4407,13 +4483,30 @@ def scan_market() -> Dict[str, Any]:
             if score >= 45:
                 full_rows.append(row)
 
+        metadata_calls = int(_SCAN_TIMINGS["yahoo_metadata_calls"])
+        metadata_seconds = float(_SCAN_TIMINGS["yahoo_metadata_seconds"])
         print(
             f"[scan-progress] batch={batch_number}/{total_batches} "
             f"elapsed_seconds={time.time() - start_time:.1f} "
             f"yahoo_batch_seconds={yahoo_elapsed:.2f} "
-            f"qualifying_candidates={qualifying_candidates}",
+            f"qualifying_candidates={qualifying_candidates} "
+            f"metadata_calls={metadata_calls} metadata_universe_upper_bound={len(universe)} "
+            f"metadata_seconds={metadata_seconds:.2f} "
+            f"metadata_average_seconds={metadata_seconds / metadata_calls if metadata_calls else 0.0:.2f} "
+            f"metadata_slow_calls={_SCAN_TIMINGS['yahoo_metadata_slow_calls']}",
             flush=True,
         )
+
+    broad_loop_elapsed = time.monotonic() - broad_loop_started
+    _SCAN_TIMINGS["broad_row_processing_seconds"] = max(
+        0.0,
+        broad_loop_elapsed
+        - float(_SCAN_TIMINGS["yahoo_broad_scan_seconds"])
+        - float(_SCAN_TIMINGS["yahoo_metadata_seconds"])
+        - float(_SCAN_TIMINGS["etf_processing_seconds"]),
+    )
+
+    ranking_started = time.monotonic()
 
     prescreen_rows.sort(key=lambda r: (r.get("conviction") or 0, r.get("dollar_volume") or 0), reverse=True)
     full_rows.sort(key=lambda r: (r.get("conviction") or 0, r.get("dollar_volume") or 0), reverse=True)
@@ -4422,8 +4515,10 @@ def scan_market() -> Dict[str, Any]:
     full_rows = full_rows[:MAX_FULL_SCAN]
     etf_rows.sort(key=lambda r: (r.get("conviction") or 0, r.get("dollar_volume") or 0), reverse=True)
     etf_rows = etf_rows[:150]
+    _record_scan_timing("prescreen_ranking_seconds", time.monotonic() - ranking_started)
 
     # If full scan is too thin, only backfill with actual valid prescreen rows, not fake rows.
+    full_scan_started = time.monotonic()
     if len(full_rows) < min(25, MAX_FULL_SCAN):
         seen = {r["symbol"] for r in full_rows}
         for row in prescreen_rows:
@@ -4439,10 +4534,13 @@ def scan_market() -> Dict[str, Any]:
 
     full_rows.sort(key=lambda r: (r.get("conviction") or 0, r.get("relative_rank_score") or 0, r.get("dollar_volume") or 0), reverse=True)
     prescreen_rows.sort(key=lambda r: (r.get("conviction") or 0, r.get("relative_rank_score") or 0, r.get("dollar_volume") or 0), reverse=True)
+    _record_scan_timing("full_scan_construction_seconds", time.monotonic() - full_scan_started)
 
     # The final ranking now exists: spend the bounded deep-provider budget on
     # actual finalists, not the first alphabetic qualifiers encountered.
     if FAST_CRON_MODE:
+        finalist_processing_started = time.monotonic()
+        finalist_provider_before = float(_SCAN_TIMINGS["finalist_provider_seconds"])
         watchlist = v421_watchlist_symbols()
         finalist_symbols = {
             str(row.get("symbol") or row.get("ticker") or "").upper()
@@ -4462,9 +4560,16 @@ def scan_market() -> Dict[str, Any]:
             hist = history_cache.get(symbol, pd.DataFrame())
             v421_apply_tiered_committee(symbol, row, meta, ind, hist, force_full=True)
             v803_apply_complete_research_fields(row, meta)
+        _SCAN_TIMINGS["finalist_row_processing_seconds"] = max(
+            0.0,
+            time.monotonic() - finalist_processing_started
+            - (float(_SCAN_TIMINGS["finalist_provider_seconds"]) - finalist_provider_before),
+        )
 
     # V41.1: Recovery tab focuses on stocks that fell but still have a forward rebound case.
+    recovery_started = time.monotonic()
     recovery_rows = build_recovery_rows(prescreen_rows)
+    _record_scan_timing("recovery_processing_seconds", time.monotonic() - recovery_started)
 
     state = {
         "generated_at": now_iso(),
@@ -4478,7 +4583,7 @@ def scan_market() -> Dict[str, Any]:
         "fallback_rows_allowed": False,
         "data_dir": str(DATA_DIR),
         "github_persisted": bool(os.getenv("GITHUB_ACTIONS")),
-        "duration_seconds": round(time.time() - start_time, 2),
+        "duration_seconds": 0.0,
         "fast_cron_mode": FAST_CRON_MODE,
         "full_committee_limit": FULL_COMMITTEE_LIMIT,
         "pre_rank_deep_apis_skipped": FAST_CRON_SKIP_PRE_RANK_DEEP_APIS,
@@ -4603,6 +4708,11 @@ def scan_market() -> Dict[str, Any]:
     write_json(RECOVERY_SCAN_FILE, recovery_rows)
     write_json(ETF_SCAN_FILE, etf_rows)
     _record_scan_timing("output_persistence_seconds", time.monotonic() - output_started)
+    _finalize_yahoo_metadata_percentiles()
+    scanner_total = time.time() - start_time
+    _SCAN_TIMINGS["scanner_total_seconds"] = scanner_total
+    _SCAN_TIMINGS["unattributed_seconds"] = _reconcile_scan_timings(scanner_total)
+    state["duration_seconds"] = round(scanner_total, 2)
     state["run_timings"] = _persisted_scan_timings()
     write_json(STATE_FILE, state)
 
@@ -4620,6 +4730,18 @@ def scan_market() -> Dict[str, Any]:
     print(
         f"[finalist-provider-summary] calls={_SCAN_TIMINGS['finalist_provider_calls']} "
         f"elapsed_seconds={_SCAN_TIMINGS['finalist_provider_seconds']:.2f}",
+        flush=True,
+    )
+    slowest_metadata = sorted(_YAHOO_METADATA_LATENCIES, key=lambda item: item[1], reverse=True)[:20]
+    print(
+        f"[yahoo-metadata-summary] calls={_SCAN_TIMINGS['yahoo_metadata_calls']} "
+        f"successes={_SCAN_TIMINGS['yahoo_metadata_successes']} "
+        f"empty={_SCAN_TIMINGS['yahoo_metadata_empty']} "
+        f"failures={_SCAN_TIMINGS['yahoo_metadata_failures']} "
+        f"elapsed_seconds={_SCAN_TIMINGS['yahoo_metadata_seconds']:.2f} "
+        f"p95_seconds={_SCAN_TIMINGS['yahoo_metadata_p95_seconds']:.2f} "
+        f"max_seconds={_SCAN_TIMINGS['yahoo_metadata_max_seconds']:.2f} "
+        f"slowest={json.dumps([(symbol, round(elapsed, 2)) for symbol, elapsed in slowest_metadata])}",
         flush=True,
     )
     print(f"[run-timing-summary] {json.dumps(_persisted_scan_timings(), sort_keys=True)}", flush=True)
