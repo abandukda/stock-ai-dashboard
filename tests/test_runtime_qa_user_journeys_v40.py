@@ -4,6 +4,7 @@ from agents.runtime_qa_user_journeys_v40 import (
     INVALID_TICKER,
     ASK_AI_PROMPTS,
     SAFE_DENY_RE,
+    PAGE_READY_TEXT,
 )
 
 
@@ -45,3 +46,16 @@ def test_runtime_integrates_user_journeys():
     assert "run_user_journeys" in source
     assert "atlas_user_journeys_v40.json" in source
     assert '"user_journeys": user_journeys' in source
+
+
+def test_navigation_requires_selected_control_and_page_specific_content():
+    source = Path("agents/runtime_qa_user_journeys_v40.py").read_text(encoding="utf-8")
+    assert "await control.is_checked()" in source
+    assert "selected and page_ready" in source
+    assert 'return False, time.monotonic() - started' in source
+    assert PAGE_READY_TEXT["Research Any Ticker"].search(
+        "Enter a ticker to open current Atlas research."
+    )
+    assert not PAGE_READY_TEXT["Research Any Ticker"].search("Earnings Intelligence")
+    assert PAGE_READY_TEXT["Ask AI"].search("Ask about a ticker or ranking")
+    assert not PAGE_READY_TEXT["Ask AI"].search("Live Atlas Research")

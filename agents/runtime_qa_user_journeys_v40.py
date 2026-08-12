@@ -54,6 +54,23 @@ PAGE_LABELS = (
     "Developer Center",
 )
 
+PAGE_READY_TEXT = {
+    "Home": re.compile(r"Atlas V2 Institutional Intelligence|Morning Brief", re.I),
+    "Today's Opportunities": re.compile(r"Today's Opportunities", re.I),
+    "Volume Intelligence": re.compile(r"Volume & Momentum|Volume Intelligence", re.I),
+    "Atlas Core Holdings": re.compile(r"Atlas Core Holdings", re.I),
+    "Research Any Ticker": re.compile(r"Live Atlas Research|Enter a ticker to open current Atlas research", re.I),
+    "Earnings Intelligence": re.compile(r"Earnings Intelligence", re.I),
+    "Full Ranked Scan": re.compile(r"Full Ranked AI Scan", re.I),
+    "Portfolio Intelligence": re.compile(r"Portfolio Intelligence", re.I),
+    "Watchlist Intelligence": re.compile(r"Watchlist Intelligence", re.I),
+    "Recovery": re.compile(r"Recovery Intelligence", re.I),
+    "ETFs": re.compile(r"ETF Intelligence", re.I),
+    "Political Intelligence": re.compile(r"Political Intelligence", re.I),
+    "Ask AI": re.compile(r"Ask Atlas AI|Ask about a ticker", re.I),
+    "Developer Center": re.compile(r"Developer Center", re.I),
+}
+
 RESEARCH_TICKERS = ("NVDA", "AVGO", "CRM")
 INVALID_TICKER = "INVALID123"
 
@@ -134,14 +151,30 @@ async def _navigate(page: Page, label: str) -> tuple[bool, float, str]:
     if not clicked:
         return False, time.monotonic() - started, f"Could not click navigation label: {label}"
 
-    deadline = time.monotonic() + 8
+    deadline = time.monotonic() + 12
     text = ""
     while time.monotonic() < deadline:
         text = await _visible_text(page)
-        if label.lower() in text.lower() and not ERROR_RE.search(text):
+        selected = False
+        for scope in _scopes(page):
+            try:
+                controls = scope.get_by_role("radio", name=label, exact=True)
+                for index in range(await controls.count()):
+                    control = controls.nth(index)
+                    if await control.is_checked():
+                        selected = True
+                        break
+            except Exception:
+                continue
+            if selected:
+                break
+        page_ready = bool(PAGE_READY_TEXT.get(label, re.compile(re.escape(label), re.I)).search(text))
+        if selected and page_ready and not ERROR_RE.search(text):
             return True, time.monotonic() - started, ""
         await asyncio.sleep(0.5)
-    return not bool(ERROR_RE.search(text)), time.monotonic() - started, "Navigation settled without a strong page marker."
+    return False, time.monotonic() - started, (
+        f"Navigation did not settle on {label}: selected={selected}, page_ready={page_ready}."
+    )
 
 
 async def _find_text_input(page: Page, purpose: str):
