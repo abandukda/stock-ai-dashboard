@@ -32201,7 +32201,31 @@ def v104_pipeline_from_df(full_df):
 def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
     pipeline = v104_pipeline_from_df(full_df)
 
-    render_v104_home(pipeline)
+    # Orientation comes first; the existing tape methodology is unchanged.
+    render_v71_market_tape(always_show=True)
+    watchlist_tickers = read_watchlist_symbols()
+    portfolio_tickers = []
+    try:
+        portfolio_payload = read_json_file(DATA_DIR / "portfolio.json")
+        portfolio_rows = (
+            portfolio_payload
+            if isinstance(portfolio_payload, list)
+            else portfolio_payload.get("holdings", [])
+            if isinstance(portfolio_payload, dict)
+            else []
+        )
+        portfolio_tickers = [
+            row.get("ticker") or row.get("symbol")
+            for row in portfolio_rows
+            if isinstance(row, dict) and (row.get("ticker") or row.get("symbol"))
+        ]
+    except Exception:
+        portfolio_tickers = []
+    render_v104_home(
+        pipeline,
+        portfolio_tickers=portfolio_tickers,
+        watchlist_tickers=watchlist_tickers,
+    )
 
     st.markdown("---")
     with st.expander(
