@@ -217,7 +217,7 @@ def test_saved_fields_map_to_research_page_without_fake_guidance():
         "guidance": "Preferred entry is $190-$195 with a chart stop.",
         "analyst_target_mean": 225, "analyst_target_high": 250,
         "analyst_target_low": 180, "analyst_count": 40,
-        "recent_headlines": [{"title": "Salesforce reports results", "source": "Wire"}],
+        "recent_headlines": [{"title": "Salesforce reports results", "source": "Wire", "date": "2026-08-10"}],
     }
     report = build_enriched_research_report(row)
 

@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
+from engines.semantic_fields import canonical_atlas_fair_value
+
 V79_RESEARCH_ENGINE_EXTRACTION_VERIFIED = True
 
 _MISSING = {"", "nan", "none", "null", "n/a", "na", "—", "-"}
@@ -36,11 +38,13 @@ def calculate_upside(current_price: Any, target_price: Any) -> float | None:
 
 
 def validated_target(row: Mapping[str, Any]) -> float | None:
-    """Pick the best available target from explicit Atlas/analyst fields."""
+    """Legacy decision reference: canonical Atlas FV, then analyst consensus.
+
+    Generic target, scenario, and trade aliases are deliberately excluded.
+    """
     keys = (
-        "AI Fair Value", "Atlas Fair Value", "Atlas Target", "Target",
+        "atlas_fair_value", "Atlas Fair Value",
         "Analyst Target", "target_mean_price", "analyst_target_mean",
-        "ai_fair_value", "target", "ai_base_target",
     )
     for key in keys:
         try:
@@ -85,13 +89,10 @@ def _first(row: Mapping[str, Any], *keys: str) -> Any:
 def target_details(row: Mapping[str, Any]) -> dict[str, Any]:
     """Return clearly separated targets and the primary valuation reference."""
     current = as_float(_first(row, "current_price", "price", "last_price", "Price"))
-    atlas = as_float(_first(
-        row, "Atlas Fair Value", "atlas_fair_value", "AI Fair Value",
-        "ai_fair_value", "ai_base_target", "Atlas Target"
-    ))
+    atlas = canonical_atlas_fair_value(row)
     street = as_float(_first(row, "Wall Street Target", "Analyst Target", "target_mean_price", "analyst_target_mean"))
-    primary = atlas or street
-    source = "Atlas Target" if atlas else ("Wall Street Target" if street else "No validated target")
+    primary = atlas if atlas is not None else street
+    source = "Atlas Fair Value" if atlas is not None else ("Wall Street Consensus" if street is not None else "No validated target")
     return {
         "current_price": current,
         "atlas_target": atlas,
@@ -146,8 +147,6 @@ def _explicit_atlas_value(row: Mapping[str, Any]) -> tuple[float | None, str]:
     candidates = (
         ("Atlas Fair Value", "Atlas Fair Value"),
         ("atlas_fair_value", "Atlas Fair Value"),
-        ("AI Fair Value", "Atlas model fair value"),
-        ("ai_fair_value", "Atlas model fair value"),
     )
     for key, label in candidates:
         value = as_float(_first(row, key))

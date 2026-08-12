@@ -351,7 +351,17 @@ def score_stock(row: Mapping[str, Any]) -> dict[str, Any]:
         "quote_type": quote_type,
         "eligible": not excluded,
         "current_price": price,
+        # Compatibility alias retained because the V103 confidence and
+        # committee layers currently consume it.  Its source is explicitly
+        # identified below; customer-facing code must not label it Atlas FV.
         "validated_fair_value": target if price and target and 0.6 * price <= target <= 1.8 * price else None,
+        "decision_valuation_target": target if price and target and 0.6 * price <= target <= 1.8 * price else None,
+        "decision_valuation_source": "analyst_consensus" if _num(_first(row, "Analyst Target", "analyst_target_mean")) is not None else "legacy_valuation_target",
+        "decision_expected_return_pct": (
+            round(expected_return, 1)
+            if expected_return is not None and -60 <= expected_return <= 80
+            else None
+        ),
         "expected_return_pct": (
             round(expected_return, 1)
             if expected_return is not None and -60 <= expected_return <= 80

@@ -26,7 +26,10 @@ def test_enriched_contract():
 def test_completeness_agent():
     audit=audit_research_completeness(sample())
     assert audit["version"]=="V105"
-    assert audit["coverage_pct"]==100.0
+    # A headline without publisher/date and company association is not
+    # accepted as verified company news merely to inflate completeness.
+    assert audit["coverage_pct"]<100.0
+    assert any(item["section"]=="news" and item["issue"]=="Section is unavailable" for item in audit["findings"])
 
 def test_ui_export():
     assert callable(render_v105_enriched_research)

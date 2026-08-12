@@ -1934,6 +1934,7 @@ def make_dashboard_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], s
         # value for compatibility; trade targets are persisted independently.
         "target": target_model.get("ai_base_target"),
         "target_1": plan.get("target"),
+        "trade_target_1": plan.get("target"),
         "target_2": plan.get("target_2"),
         "trade_target_2": plan.get("target_2"),
         "ai_base_target": target_model.get("ai_base_target"),
@@ -4269,12 +4270,16 @@ def v803_apply_complete_research_fields(row: Dict[str, Any], meta: Dict[str, Any
         # Keep the analyst-driven bear/base/bull tuple in one semantic
         # framework. Canonical Atlas Fair Value is an independent output; no
         # approved canonical bear/bull constructor exists to replace it with.
+        # Generic `target` remains a legacy compatibility field and must not be
+        # used by new customer-facing code.  Explicit trade_target_* and
+        # atlas_fair_value fields preserve their independent meanings.
         row["target"] = atlas_value
         row["fair_value_method"] = "Growth-adjusted forward earnings multiple"
         row["target_source"] = "Atlas valuation model: growth-adjusted forward earnings multiple"
         row["fair_value_confidence"] = 72 if revenue_growth is not None else 58
         row["expected_upside_pct"] = round(((atlas_value / price) - 1) * 100, 1)
         row["expected_return_pct"] = row["expected_upside_pct"]
+        row["atlas_expected_return_pct"] = row["expected_upside_pct"]
         row["upside"] = row["expected_upside_pct"]
 
         # Narrative is generated only after the final canonical valuation pass.

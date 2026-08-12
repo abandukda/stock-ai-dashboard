@@ -11,6 +11,8 @@ from __future__ import annotations
 import os
 from typing import Any, Mapping
 
+from engines.semantic_fields import valuation_families
+
 V78_AI_SYNTHESIS_LAYER_VERIFIED = True
 V79_AI_COMMITTEE_SYNTHESIS_VERIFIED = True
 
@@ -78,19 +80,28 @@ def llm_is_configured() -> bool:
 def build_ticker_context(row: Mapping[str, Any]) -> dict[str, Any]:
     """Create a compact, auditable context object for AI synthesis."""
     price = _pick(row, "Price", "price", "current_price", "last_price")
-    fair_value = _pick(row, "AI Fair Value", "Target", "ai_fair_value", "target", "ai_base_target")
-    analyst_target = _pick(row, "Analyst Target", "target_mean_price", "analyst_target_mean")
+    valuation = valuation_families(row)
+    fair_value = valuation["atlas_fair_value"]
+    analyst_target = valuation["analyst_target_mean"]
     return {
         "ticker": _clean(_pick(row, "Ticker", "ticker", default="Unknown")),
         "company": _clean(_pick(row, "Company", "company", "Name", "name", default=""), default=""),
-        "decision": _clean(_pick(row, "Recommendation", "Decision", "Action", "recommendation", default="Review")),
+        "decision": _clean(_pick(row, "committee_verdict", "action_code", "Recommendation", "Decision", "Action", "recommendation", default="Review")),
+        "recommendation": _clean(_pick(row, "committee_verdict", "action_code", "Recommendation", "recommendation", default="Review")),
         "conviction": _clean(_pick(row, "Final Conviction", "Conviction", "AI Score", "Score", default="Unavailable")),
-        "opportunity": _clean(_pick(row, "Opportunity", "Opportunity Score", "opportunity_score", default="Unavailable")),
+        "opportunity": _clean(_pick(row, "opportunity_score", "Opportunity", "Opportunity Score", default="Unavailable")),
+        "opportunity_score": _clean(_pick(row, "opportunity_score", "Opportunity", "Opportunity Score", default="Unavailable")),
+        "confidence_pct": _clean(_pick(row, "confidence_pct", "Confidence", default="Unavailable")),
         "quality": _clean(_pick(row, "Quality", "Quality Score", "quality_score", default="Unavailable")),
         "current_price": _fmt_money(price),
         "atlas_fair_value": _fmt_money(fair_value),
         "analyst_target": _fmt_money(analyst_target),
-        "upside": _fmt_pct(_pick(row, "Target Upside %", "upside", "expected_upside_pct", "analyst_upside_pct")),
+        "atlas_expected_return": _fmt_pct(valuation["atlas_expected_return_pct"]),
+        "analyst_upside": _fmt_pct(valuation["analyst_upside_pct"]),
+        "scenario_base": _fmt_money(valuation["scenario_base"]),
+        "scenario_base_upside": _fmt_pct(valuation["scenario_base_upside_pct"]),
+        # Compatibility display key: the context now identifies its source.
+        "upside": _fmt_pct(valuation["atlas_expected_return_pct"]),
         "risk_reward": _clean(_pick(row, "Risk/Reward", "risk_reward", default="Unavailable")),
         "financial_summary": _clean(_pick(row, "Financial Summary", "financial_summary", "finance_agent_bottom_line", default=""), default=""),
         "technical_summary": _clean(_pick(row, "Technical Summary", "technical_summary", "v42_chart_guidance", default=""), default=""),
@@ -132,8 +143,8 @@ def deterministic_ticker_answer(question: str, context: Mapping[str, Any]) -> st
     parts = [
         f"### Atlas view on {name}",
         f"**Decision:** {context.get('decision', context.get('committee_decision', 'Review'))}",
-        f"**Conviction:** {context.get('conviction', 'Unavailable')} | **Opportunity:** {context.get('opportunity', context.get('opportunity_score', 'Unavailable'))} | **Quality:** {context.get('quality', context.get('quality_score', 'Unavailable'))}",
-        f"**Current price:** {context.get('current_price')} | **Atlas fair value:** {context.get('atlas_fair_value')} | **Wall Street target:** {context.get('analyst_target')} | **Upside:** {context.get('upside')}",
+        f"**Recommendation:** {context.get('recommendation', context.get('decision', 'Review'))} | **Opportunity:** {context.get('opportunity_score', 'Unavailable')} | **Confidence:** {context.get('confidence_pct', 'Unavailable')}",
+        f"**Current price:** {context.get('current_price')} | **Atlas fair value:** {context.get('atlas_fair_value')} | **Atlas FV return:** {context.get('atlas_expected_return')} | **Wall Street target:** {context.get('analyst_target')} | **Analyst upside:** {context.get('analyst_upside')}",
     ]
     thesis = context.get("investment_thesis") or context.get("committee_conclusion")
     if thesis:

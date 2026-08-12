@@ -16,7 +16,7 @@ def test_validated_target_prefers_available_target():
 
 
 def test_build_research_snapshot():
-    row = {"Ticker": "opra", "Company": "Opera Limited", "Price": "$20", "Target": "$25"}
+    row = {"Ticker": "opra", "Company": "Opera Limited", "Price": "$20", "Analyst Target": "$25"}
     snap = build_research_snapshot(row)
     assert snap["ticker"] == "OPRA"
     assert snap["has_valid_target"] is True
@@ -27,7 +27,7 @@ def test_target_details_separates_atlas_and_wall_street():
     from engines.research_engine import target_details
     # Generic `target` is a legacy/trade field and must not be silently treated
     # as an independently modelled Atlas fair value.
-    row = {"price": 100, "ai_base_target": 125, "target_mean_price": 115}
+    row = {"price": 100, "atlas_fair_value": 125, "target_mean_price": 115}
     result = target_details(row)
     assert result["atlas_target"] == 125
     assert result["wall_street_target"] == 115

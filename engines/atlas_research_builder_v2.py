@@ -22,7 +22,7 @@ from engines.canonical_market_data import attach_price_history
 from engines.research_enrichment_v105 import build_enriched_research_report
 from engines.research_engine_v105 import build_institutional_research
 from engines.analyst_engine import build_analyst_snapshot, build_analyst_summary
-from engines.individualized_scoring_v1052 import calculate_individualized_scores
+from engines.semantic_fields import canonical_atlas_fair_value, valuation_families
 from engines.trade_plan_v1052 import build_trade_plan
 from engines.atlas_intelligence_engine import build_executive_intelligence
 from engines.guidance_summary import build_guidance_summary, guidance_summary_text
@@ -248,7 +248,7 @@ def _earnings_interpretation(data: Mapping[str, Any], history: Sequence[Mapping[
 
 def _news_interpretation(items: Sequence[Mapping[str, Any]]) -> str:
     if not items:
-        return "No recent verified news items were included in the current research payload."
+        return "No recent high-confidence company-specific news available."
     positive = negative = material = 0
     for item in items:
         sentiment = _text(item.get("sentiment")).lower()
@@ -283,10 +283,11 @@ def _political_interpretation(data: Mapping[str, Any]) -> str:
         _text(data.get("export_control_exposure")),
     ]
     exposures = [item for item in exposures if item]
-    if not transactions and not buyers and not sellers and not exposures:
+    policy = _sequence(data.get("policy_evidence"))
+    if not transactions and not buyers and not sellers and not exposures and not policy:
         return (
-            "No structured recent political transactions or policy exposures were supplied. "
-            "This should be treated as missing evidence, not proof that political risk is absent."
+            "No material company-specific policy evidence currently available. "
+            "A numeric political component alone is not evidence of policy support."
         )
     parts = []
     if transactions:
@@ -295,10 +296,15 @@ def _political_interpretation(data: Mapping[str, Any]) -> str:
         parts.append(f"the aggregate signal contains {buyers:.0f} buyers and {sellers:.0f} sellers")
     if exposures:
         parts.append("policy exposure includes " + "; ".join(exposures))
+    if policy:
+        parts.append(f"{len(policy)} sourced company-specific policy event(s) are available")
     return "Atlas political assessment: " + ". ".join(parts) + "."
 
 
 def _analyst_details(row: Mapping[str, Any], data: Mapping[str, Any]) -> list[dict[str, Any]]:
+    actions = _sequence(data.get("actions"))
+    if actions:
+        return [dict(item) for item in actions if isinstance(item, Mapping)][:20]
     raw = (
         row.get("analyst_details")
         or row.get("Analyst Details")
@@ -309,15 +315,8 @@ def _analyst_details(row: Mapping[str, Any], data: Mapping[str, Any]) -> list[di
     details = [dict(item) for item in _sequence(raw) if isinstance(item, Mapping)]
     if details:
         return details[:20]
-    if data:
-        return [
-            {
-                "analyst_or_source": data.get("top_analyst_name") or "Wall Street Consensus",
-                "rating": data.get("top_analyst_rating") or data.get("consensus"),
-                "target": data.get("top_analyst_target") or data.get("average_target"),
-                "status": data.get("top_analyst_status") or data.get("recent_rating_change"),
-            }
-        ]
+    # Aggregate consensus is displayed in the consensus metrics, not invented
+    # as an individual analyst action.
     return []
 
 
@@ -399,10 +398,10 @@ def build_atlas_research_v2(
         current_price = _num(_first(enriched_row, "Price", "price", "last_price"))
         if current_price is not None:
             enriched_row["current_price"] = current_price
-    if _num(enriched_row.get("validated_fair_value")) is None:
-        fair_value = _num(_first(enriched_row, "atlas_fair_value", "Atlas Fair Value"))
-        if fair_value is not None:
-            enriched_row["validated_fair_value"] = fair_value
+    # Full Research uses only canonical Atlas valuation in its Atlas-FV slot.
+    # This deliberately replaces the V103 compatibility alias, which can hold
+    # analyst consensus, without changing V103 scoring or recommendations.
+    enriched_row["validated_fair_value"] = canonical_atlas_fair_value(enriched_row)
 
     enricher_errors = []
     for enricher in enrichers:
@@ -415,7 +414,13 @@ def build_atlas_research_v2(
 
     enriched = build_enriched_research_report(enriched_row)
     institutional = build_institutional_research(enriched_row)
-    scores = calculate_individualized_scores(enriched_row)
+    # Authoritative customer-facing V103 values pass through unchanged.  The
+    # individualized calculator remains available to legacy/internal callers.
+    scores = {
+        "opportunity_score": _num(enriched_row.get("opportunity_score")),
+        "confidence_pct": _num(enriched_row.get("confidence_pct")),
+        "source": "Authoritative V103 fields",
+    }
 
     quote = {
         "price": _num(
@@ -518,7 +523,18 @@ def build_atlas_research_v2(
         },
     }
 
-    fair_value_cases = institutional.get("fair_value_cases") or []
+    valuation = valuation_families(enriched_row)
+    fair_value_cases = []
+    for label, key in (("Bear", "scenario_bear"), ("Base", "scenario_base"), ("Bull", "scenario_bull")):
+        value = valuation.get(key)
+        implied = ((value / quote["price"]) - 1) * 100 if value is not None and quote.get("price") else None
+        fair_value_cases.append({
+            "label": label,
+            "fair_value": value,
+            "expected_return_pct": round(implied, 1) if implied is not None else None,
+            "probability_pct": None,
+            "source": "Analyst-driven scenario model",
+        })
     validated_fair_value = institutional.get("validated_fair_value")
     evidence_registry = _evidence_registry(
         sections,
@@ -550,7 +566,11 @@ def build_atlas_research_v2(
         "bear_case": institutional.get("bear_case") or enriched.get("reasons_to_wait"),
         "fair_value_cases": fair_value_cases,
         "validated_fair_value": validated_fair_value,
-        "expected_return_pct": institutional.get("expected_return_pct"),
+        "atlas_expected_return_pct": valuation.get("atlas_expected_return_pct"),
+        "analyst_upside_pct": valuation.get("analyst_upside_pct"),
+        "scenario_base_upside_pct": valuation.get("scenario_base_upside_pct"),
+        "expected_return_pct": valuation.get("atlas_expected_return_pct"),
+        "valuation_families": valuation,
         "current_price": quote.get("price"),
         "quote": quote,
         "trade_plan": trade_plan,

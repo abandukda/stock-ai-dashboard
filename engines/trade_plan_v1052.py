@@ -2,6 +2,8 @@ from __future__ import annotations
 from typing import Any, Mapping
 import math
 
+from engines.semantic_fields import scanner_trade_plan
+
 def _num(v: Any, d=None):
     try:
         if v is None or v == "": return d
@@ -27,6 +29,30 @@ def build_trade_plan(row: Mapping[str, Any], quote: Mapping[str, Any]) -> dict[s
     p=_num(quote.get("price"))
     if not p or p<=0:
         return {"status":"UNAVAILABLE","actionable":False,"reason":"Valid current price required.","quote":dict(quote)}
+    persisted = scanner_trade_plan(row)
+    if all(persisted.get(key) is not None for key in ("entry_low", "entry_high", "stop_loss", "trade_target_1", "trade_target_2")):
+        entry_low = persisted["entry_low"]
+        entry_high = persisted["entry_high"]
+        stop = persisted["stop_loss"]
+        target_1 = persisted["trade_target_1"]
+        target_2 = persisted["trade_target_2"]
+        return {
+            "status":"CURRENT","actionable":True,"educational_only":True,
+            "source":"Persisted scanner trade plan",
+            "current_price":round(p,2),"entry_low":entry_low,"entry_high":entry_high,
+            "stop_loss":stop,"target_1":target_1,"target_2":target_2,
+            "stretch_target":None,"atlas_target":None,"analyst_average_target":None,
+            "risk_per_share":round(max(p-stop,0.01),2),
+            "risk_reward_target_1":persisted["risk_reward"],
+            "risk_reward_target_2":round((target_2-p)/max(p-stop,0.01),2),
+            "entry_status":"IN_ENTRY_ZONE" if entry_low<=p<=entry_high else "BELOW_ENTRY_ZONE" if p<entry_low else "ABOVE_PREFERRED_ENTRY",
+            "horizon":classify_horizon(row),"quote":dict(quote),
+            "education":{
+                "target_1":"Consider trimming part of the position and reducing risk.",
+                "target_2":"Consider another partial sale or raising the stop.",
+                "stop_loss":"Risk-control level, not a guaranteed execution price.",
+            },
+        }
     tech=row.get("technical") or {}
     atr=_num(row.get("atr") or tech.get("atr"),p*0.025)
     support=_num(row.get("support") or tech.get("support"),p-atr)

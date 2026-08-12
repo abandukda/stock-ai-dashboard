@@ -535,7 +535,7 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
     c[0].metric("Verdict", str(report.get("committee_verdict") or "Monitor").replace("_", " ").title())
     c[1].metric("Opportunity", _score(report.get("opportunity_score")))
     c[2].metric("Confidence", _pct(report.get("confidence_pct")))
-    c[3].metric("Expected Return", _pct(report.get("expected_return_pct"), signed=True))
+    c[3].metric("Atlas FV Implied Return", _pct(report.get("atlas_expected_return_pct"), signed=True))
     c[4].metric("Research Completeness", _pct(report.get("research_completeness_pct")))
 
     st.markdown("## Executive Summary")
@@ -680,7 +680,7 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
 
     with tabs[3]:
         section = report["sections"]["analysts"]
-        st.markdown("### Wall Street & Top Analyst Intelligence")
+        st.markdown("### Wall Street Analyst Intelligence")
         _meta(section)
         data = section.get("data") or {}
         _metric_grid(
@@ -694,7 +694,7 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
             },
         )
         details = section.get("details") or []
-        st.markdown("#### Analyst Detail & Status")
+        st.markdown("#### Latest Analyst Actions")
         if details:
             st.dataframe(pd.DataFrame(details), hide_index=True, use_container_width=True)
         else:
@@ -706,11 +706,11 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
 
     with tabs[4]:
         section = report["sections"]["news"]
-        st.markdown("### Recent News & Catalyst Intelligence")
+        st.markdown("### Company News Intelligence")
         _meta(section)
         items = section.get("data") or []
         if not items:
-            st.info("No verified recent-news records are attached to the current research row.")
+            st.info("No recent high-confidence company-specific news available.")
         for item in items:
             with st.container(border=True):
                 st.markdown(f"**{item.get('headline', 'Headline unavailable')}**")
@@ -723,13 +723,15 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
                     st.caption(details)
                 if item.get("summary"):
                     st.write(item["summary"])
+                if item.get("relevance"):
+                    st.caption(f"Relevance: {item['relevance']} · Category: {item.get('classification', 'Other Company-Specific')}")
                 if item.get("impact") is not None:
                     st.metric("Materiality / Impact", _score(item["impact"]))
         _render_interpretation(section.get("interpretation", ""))
 
     with tabs[5]:
         section = report["sections"]["political"]
-        st.markdown("### Political, Congressional & Regulatory Intelligence")
+        st.markdown("### Political / Policy Exposure")
         _meta(section)
         data = section.get("data") or {}
         _metric_grid(
@@ -737,14 +739,15 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
             pct_keys={"political_support_score"},
         )
         transactions = data.get("transactions") or []
+        policy_events = data.get("policy_evidence") or []
+        if policy_events:
+            st.markdown("#### Verified Company-Specific Policy Events")
+            st.dataframe(pd.DataFrame(policy_events), hide_index=True, use_container_width=True)
         st.markdown("#### Recent Political Transactions")
         if transactions:
             st.dataframe(pd.DataFrame(transactions), hide_index=True, use_container_width=True)
         else:
-            st.info(
-                "No structured recent political transactions are present. This is missing evidence, "
-                "not confirmation that no activity exists."
-            )
+            st.info("No material company-specific policy evidence currently available.")
         _render_interpretation(section.get("interpretation", ""))
 
     with tabs[6]:
@@ -776,16 +779,33 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
         _render_interpretation(section.get("interpretation", ""))
 
     with tabs[8]:
-        st.markdown("### Fair Value Scenarios")
+        valuation = report.get("valuation_families") or {}
+        st.markdown("### Atlas Valuation")
+        atlas_cols = st.columns(3)
+        atlas_cols[0].metric("Current Price", _money(valuation.get("current_price")))
+        atlas_cols[1].metric("Canonical Atlas Fair Value", _money(valuation.get("atlas_fair_value")))
+        atlas_cols[2].metric("Atlas FV Implied Return", _pct(valuation.get("atlas_expected_return_pct"), signed=True))
+        if valuation.get("atlas_fair_value") is None:
+            st.info("Canonical Atlas Fair Value is unavailable / under review. Analyst and scenario values remain separate below.")
+
+        st.markdown("### Wall Street Consensus")
+        wall_street_cols = st.columns(5)
+        wall_street_cols[0].metric("Mean Target", _money(valuation.get("analyst_target_mean")))
+        wall_street_cols[1].metric("High Target", _money(valuation.get("analyst_target_high")))
+        wall_street_cols[2].metric("Low Target", _money(valuation.get("analyst_target_low")))
+        wall_street_cols[3].metric("Analyst Count", _score(valuation.get("analyst_count")))
+        wall_street_cols[4].metric("Consensus Upside", _pct(valuation.get("analyst_upside_pct"), signed=True))
+
+        st.markdown("### Analyst-Driven Scenario Analysis")
         cases = report.get("fair_value_cases") or []
         if cases:
             cols = st.columns(min(3, len(cases)))
             for col, case in zip(cols, cases):
                 with col:
                     st.markdown(f"#### {case.get('label', 'Case')}")
-                    st.metric("Fair Value", _money(case.get("fair_value")))
-                    st.metric("Expected Return", _pct(case.get("expected_return_pct"), signed=True))
-                    st.caption(f"Probability: {_pct(case.get('probability_pct'))}")
+                    st.metric("Scenario Value", _money(case.get("fair_value")))
+                    st.metric("Scenario Upside", _pct(case.get("expected_return_pct"), signed=True))
+                    st.caption("Source: Analyst-driven scenario model")
         else:
             st.info("Fair-value scenarios are unavailable.")
 

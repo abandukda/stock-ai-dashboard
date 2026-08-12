@@ -90,7 +90,11 @@ def test_v2_contract():
     report = build_atlas_research_v2(sample_row())
     assert validate_atlas_research_v2(report) == []
     assert report["ticker"] == "TEST"
-    assert report["opportunity_score"] != report["confidence_pct"]
+    # Missing authoritative V103 scores remain unavailable; Full Research no
+    # longer invents replacements with individualized scoring/ticker jitter.
+    assert report["opportunity_score"] is None
+    assert report["confidence_pct"] is None
+    assert report["score_attribution"]["source"] == "Authoritative V103 fields"
     assert report["sections"]["financials"]["status"] == "available"
 
 

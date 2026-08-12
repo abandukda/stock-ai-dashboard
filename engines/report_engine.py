@@ -36,11 +36,10 @@ def calculate_upside(current_price: Any, target_price: Any) -> float | None:
 
 
 def validated_target(row: Mapping[str, Any]) -> float | None:
-    """Pick the best available target from explicit Atlas/analyst fields."""
+    """Legacy decision reference excluding generic/scenario/trade targets."""
     keys = (
-        "AI Fair Value", "Atlas Fair Value", "Atlas Target", "Target",
+        "atlas_fair_value", "Atlas Fair Value",
         "Analyst Target", "target_mean_price", "analyst_target_mean",
-        "ai_fair_value", "target", "ai_base_target",
     )
     for key in keys:
         try:

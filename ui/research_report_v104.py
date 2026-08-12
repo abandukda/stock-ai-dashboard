@@ -6,11 +6,14 @@ from typing import Any, Mapping
 
 import streamlit as st
 
-from engines.individualized_scoring_v1052 import calculate_individualized_scores
+from engines.individualized_scoring_v1052 import calculate_individualized_scores  # compatibility export only
+from engines.semantic_fields import canonical_atlas_fair_value
 from engines.research_engine import research_navigation_state
 from engines.trade_plan_v1052 import classify_horizon
 from ui.research_report_v2 import render_atlas_research_v2
 from utils.evidence_coverage_v1046 import calculate_evidence_coverage
+# Compatibility export retained for existing integrations/tests; candidate
+# rendering no longer uses its ambiguous validated-fair-value semantics.
 from utils.validated_return_v1046 import calculate_validated_return
 
 
@@ -90,8 +93,13 @@ def render_candidate_card(
 
     ticker = str(row.get("ticker") or "UNKNOWN")
     evidence = calculate_evidence_coverage(row)
-    validated = calculate_validated_return(row)
-    individualized = calculate_individualized_scores(row)
+    decision_return = row.get("decision_expected_return_pct")
+    if decision_return is None:
+        decision_return = row.get("expected_return_pct")
+    individualized = {
+        "opportunity_score": row.get("opportunity_score"),
+        "confidence_pct": row.get("confidence_pct"),
+    }
     raw_horizon = classify_horizon(row).get("primary", "Research / Monitor")
     horizon = {
         "Swing": "Short-Term Setup",
@@ -122,10 +130,7 @@ def render_candidate_card(
         f"<li>{escape(item)}</li>" for item in risk_items
     ) or "<li>No material structured blocker is currently identified.</li>"
 
-    atlas_target = (
-        row.get("validated_fair_value")
-        or row.get("atlas_fair_value")
-    )
+    atlas_target = canonical_atlas_fair_value(row)
     analyst_target = _analyst_target(row)
 
     st.markdown(
@@ -155,15 +160,15 @@ def render_candidate_card(
               <div class="atlas-value">{_pct(individualized.get("confidence_pct"))}</div>
             </div>
             <div class="atlas-metric">
-              <div class="atlas-label">Validated Return</div>
-              <div class="atlas-value">{escape(validated["label"])}</div>
+              <div class="atlas-label">Analyst-Implied Upside</div>
+              <div class="atlas-value">{_pct(decision_return)}</div>
             </div>
             <div class="atlas-metric">
               <div class="atlas-label">Evidence Coverage</div>
               <div class="atlas-value">{evidence["coverage_pct"]:.1f}%</div>
             </div>
             <div class="atlas-metric">
-              <div class="atlas-label">Atlas Target</div>
+              <div class="atlas-label">Atlas Fair Value</div>
               <div class="atlas-value">{_money(atlas_target)}</div>
             </div>
             <div class="atlas-metric">

@@ -12,6 +12,7 @@ from engines.daily_opportunities_engine import (
     build_today_opportunities,
     build_volume_momentum,
 )
+from engines.semantic_fields import canonical_atlas_fair_value
 
 
 def _money(value: Any) -> str:
@@ -73,8 +74,11 @@ def _card(row: Mapping[str, Any], *, key_prefix: str, volume_mode: bool = False)
             else "Under review"
         ))
         metrics[2].metric("Dollar Volume", _money(row.get("dollar_volume")))
-        metrics[3].metric("Expected Return", _pct(row.get("expected_return_pct"), signed=True))
-        metrics[4].metric("Atlas Target", _money(row.get("validated_fair_value")))
+        decision_return = row.get("decision_expected_return_pct")
+        if decision_return is None:
+            decision_return = row.get("expected_return_pct")
+        metrics[3].metric("Analyst-Implied Upside", _pct(decision_return, signed=True))
+        metrics[4].metric("Atlas Fair Value", _money(canonical_atlas_fair_value(row)))
 
         if volume_mode:
             st.markdown(

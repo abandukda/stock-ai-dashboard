@@ -11,6 +11,8 @@ from datetime import datetime
 import math
 from typing import Any, Mapping, Sequence
 
+from engines.research_enrichment_v105 import accepted_company_news
+
 
 _MISSING = {"", "n/a", "na", "none", "null", "nan", "unknown", "unavailable", "under review", "—", "-"}
 _GENERIC_NEWS = ("no recent", "no high-confidence", "not returned", "unavailable")
@@ -117,6 +119,8 @@ def _normalized_evidence(row: Mapping[str, Any]) -> dict[str, Any]:
     price = _num(_first(row, "current_price", "price", "Price", "Current Price"))
     fair_value = _canonical_fair_value(row)
     analyst_mean = _num(_first(row, "analyst_target_mean", "Analyst Target", "Wall Street Consensus"))
+    accepted_news = accepted_company_news(row)
+    lead_news = accepted_news[0] if accepted_news else {}
     return {
         "ticker": _text(_first(row, "ticker", "symbol", "Ticker"), "UNKNOWN").upper(),
         "company": _text(_first(row, "company", "company_name", "Company")),
@@ -147,8 +151,9 @@ def _normalized_evidence(row: Mapping[str, Any]) -> dict[str, Any]:
         "next_earnings_date": _verified_date(_first(row, "next_earnings_date", "Next Earnings Date", "earnings_date")),
         "institutional_ownership": _num(_first(row, "institutional_ownership_pct", "Institutional Ownership %")),
         "insider_ownership": _num(_first(row, "insider_ownership_pct", "Insider Ownership %")),
-        "news_headline": _text(_first(row, "latest_news_headline", "top_news_headline", "Latest News Headline")),
-        "news_date": _verified_date(_first(row, "latest_news_date", "news_date", "Latest News Date")),
+        "news_headline": _text(lead_news.get("headline")),
+        "news_date": _verified_date(lead_news.get("date")),
+        "news_classification": _text(lead_news.get("classification")),
         "rsi": _num(_first(row, "rsi", "RSI")),
         "sma50": _num(_first(row, "sma50", "SMA50")),
         "sma200": _num(_first(row, "sma200", "SMA200")),
@@ -221,7 +226,14 @@ def _supporting_facts(e: Mapping[str, Any]) -> list[dict[str, Any]]:
             "Yahoo/Finnhub analyst consensus", as_of, "analyst",
         ))
     headline = str(e["news_headline"] or "")
-    if headline and not any(marker in headline.lower() for marker in _GENERIC_NEWS):
+    if (
+        headline
+        and e.get("news_classification") in {
+            "Catalyst", "Earnings", "Analyst Action",
+            "Regulatory / Political", "M&A / Capital Allocation",
+        }
+        and not any(marker in headline.lower() for marker in _GENERIC_NEWS)
+    ):
         candidates.append(_fact(
             f"Verified company-specific headline: {headline}",
             "A current company event can change estimates, sentiment, or the timing of the thesis.",
