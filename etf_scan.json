@@ -7,42 +7,42 @@
     "sector": "ETF",
     "industry": "State Street Investment Management",
     "quote_type": "ETF",
-    "price": 537.15,
-    "current_price": 537.15,
-    "dollar_volume": 2121503564.67,
-    "avg_volume_20d": 3949555,
-    "volume_ratio": 0.8,
+    "price": 536.74,
+    "current_price": 536.74,
+    "dollar_volume": 2069902159.64,
+    "avg_volume_20d": 3856433,
+    "volume_ratio": 0.34,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
     "ai_score": 95,
     "ai_confidence": 95,
     "confidence": 95,
-    "rsi": 68.0,
+    "rsi": 66.1,
     "atr_pct": 1.15,
-    "sma20": 527.83,
-    "sma50": 521.73,
-    "twenty_day_pct": 2.16,
-    "sixty_day_pct": 8.76,
-    "entry_range": "$534.06 - $538.69",
-    "entry_low": 534.06,
-    "entry_high": 538.69,
-    "stop_loss": 525.67,
-    "target": 557.82,
-    "target_2": 568.15,
+    "sma20": 528.43,
+    "sma50": 522.22,
+    "twenty_day_pct": 2.3,
+    "sixty_day_pct": 8.32,
+    "entry_range": "$533.65 - $538.28",
+    "entry_low": 533.65,
+    "entry_high": 538.28,
+    "stop_loss": 526.27,
+    "target": 556.06,
+    "target_2": 565.72,
     "risk_reward": 1.8,
-    "expected_upside_pct": 3.8,
-    "upside": 3.8,
-    "ai_base_target": 557.82,
-    "ai_bull_target": 568.15,
-    "ai_bear_target": 525.67,
+    "expected_upside_pct": 3.6,
+    "upside": 3.6,
+    "ai_base_target": 556.06,
+    "ai_bull_target": 565.72,
+    "ai_bear_target": 526.27,
     "etf_preference_screen": "Passed non-financial / non-Israel / non-excluded-theme screen",
     "what_looks_good": "strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; positive 60-day ETF trend; RSI is constructive; ETF volatility is controlled",
     "what_could_go_wrong": "Main risk is a broad market or sector pullback.",
     "investment_thesis": "State Street SPDR Dow Jones Ind (DIA) is an ETF candidate that passed your preference screen. Score 95/100. Positive factors: strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; positive 60-day ETF trend; RSI is constructive; ETF volatility is controlled. Risks: market pullback risk.",
-    "guidance": "DIA ETF score is 95/100. Preferred entry is $534.06 - $538.69. Use stop around $525.67 and first target near $557.82.",
+    "guidance": "DIA ETF score is 95/100. Preferred entry is $533.65 - $538.28. Use stop around $526.27 and first target near $556.06.",
     "action_note": "ETF idea only. Review holdings/exposure before buying to ensure it aligns with your preferences.",
-    "summary": "DIA: ETF candidate, score 95/100, estimated trade upside 3.8%.",
+    "summary": "DIA: ETF candidate, score 95/100, estimated trade upside 3.6%.",
     "setup_tags": [
       "strong ETF liquidity",
       "price is above 20-day trend",
@@ -53,26 +53,26 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-08-13T11:42:55.880332+00:00",
-    "history_days_available": 251,
+    "scan_time": "2026-08-13T16:55:27.736705+00:00",
+    "history_days_available": 252,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 546.75,
     "low_52w": 439.43,
     "all_period_high": 546.75,
     "all_period_low": 439.43,
-    "range_position_pct": 91.1,
+    "range_position_pct": 90.7,
     "range_position_label": "Near 52-week highs",
     "distance_from_52w_high_pct": -1.8,
-    "distance_from_52w_low_pct": 22.2,
+    "distance_from_52w_low_pct": 22.1,
     "drawdown_from_period_high_pct": -1.8,
     "drawdown_label": "Shallow drawdown",
-    "return_1m_pct": 2.4,
-    "return_3m_pct": 8.3,
-    "return_6m_pct": 7.8,
+    "return_1m_pct": 2.1,
+    "return_3m_pct": 8.4,
+    "return_6m_pct": 7.9,
     "return_1y_pct": null,
     "return_3y_pct": null,
     "return_5y_pct": null,
-    "analyst_support_score": 41.0,
+    "analyst_support_score": 40.9,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
     "analyst_support_label": "Mixed (41/100)",
     "news_sentiment_source": "No recent NewsAPI headline returned; defaulted to neutral",
@@ -109,7 +109,7 @@
         "bottom_line": "Financial profile reviewed."
       },
       "Analyst Agent": {
-        "score": 41,
+        "score": 40,
         "status": "Mixed",
         "impact": "Neutral",
         "data_used": "Finnhub/Yahoo/FMP analyst targets and recommendation trends",
@@ -134,7 +134,7 @@
           "Support 1: $514.72 \u00b7 Resistance 1: $546.75.",
           "Price is above the 20-day trend.",
           "Price is above the 50-day trend.",
-          "RSI is 68.0."
+          "RSI is 66.1."
         ],
         "risks": [
           "No major technical risk detected."
@@ -249,512 +249,7 @@
     "v42_resistance_1": 546.75,
     "v42_resistance_2": 546.75,
     "v42_breakout_level": 552.22,
-    "v42_pullback_zone": "$514.72 - $526.41",
-    "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
-    "v42_committee_positive_agents": 1,
-    "v42_committee_total_agents": 10
-  },
-  {
-    "symbol": "SCHD",
-    "ticker": "SCHD",
-    "company": "Schwab US Dividend Equity ETF",
-    "company_name": "Schwab US Dividend Equity ETF",
-    "sector": "ETF",
-    "industry": "Schwab ETFs",
-    "quote_type": "ETF",
-    "price": 34.26,
-    "current_price": 34.26,
-    "dollar_volume": 799857560.21,
-    "avg_volume_20d": 23346690,
-    "volume_ratio": 0.81,
-    "conviction": 95,
-    "conviction_score": 95,
-    "score": 95,
-    "ai_score": 95,
-    "ai_confidence": 95,
-    "confidence": 95,
-    "rsi": 75.5,
-    "atr_pct": 1.32,
-    "sma20": 33.5,
-    "sma50": 32.67,
-    "twenty_day_pct": 5.94,
-    "sixty_day_pct": 8.87,
-    "entry_range": "$34.03 - $34.37",
-    "entry_low": 34.03,
-    "entry_high": 34.37,
-    "stop_loss": 33.34,
-    "target": 35.91,
-    "target_2": 36.74,
-    "risk_reward": 1.8,
-    "expected_upside_pct": 4.8,
-    "upside": 4.8,
-    "ai_base_target": 35.91,
-    "ai_bull_target": 36.74,
-    "ai_bear_target": 33.34,
-    "etf_preference_screen": "Passed non-financial / non-Israel / non-excluded-theme screen",
-    "what_looks_good": "strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; positive 60-day ETF trend; ETF volatility is controlled",
-    "what_could_go_wrong": "Main risk is a broad market or sector pullback.",
-    "investment_thesis": "Schwab US Dividend Equity ETF (SCHD) is an ETF candidate that passed your preference screen. Score 95/100. Positive factors: strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; positive 60-day ETF trend; ETF volatility is controlled. Risks: market pullback risk.",
-    "guidance": "SCHD ETF score is 95/100. Preferred entry is $34.03 - $34.37. Use stop around $33.34 and first target near $35.91.",
-    "action_note": "ETF idea only. Review holdings/exposure before buying to ensure it aligns with your preferences.",
-    "summary": "SCHD: ETF candidate, score 95/100, estimated trade upside 4.8%.",
-    "setup_tags": [
-      "strong ETF liquidity",
-      "price is above 20-day trend",
-      "price is above 50-day trend",
-      "healthy 20-day ETF momentum",
-      "positive 60-day ETF trend",
-      "ETF volatility is controlled"
-    ],
-    "risk_tags": [],
-    "scan_time": "2026-08-13T11:52:45.232763+00:00",
-    "history_days_available": 251,
-    "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
-    "high_52w": 34.34,
-    "low_52w": 25.63,
-    "all_period_high": 34.34,
-    "all_period_low": 25.63,
-    "range_position_pct": 99.1,
-    "range_position_label": "Near 52-week highs",
-    "distance_from_52w_high_pct": -0.2,
-    "distance_from_52w_low_pct": 33.7,
-    "drawdown_from_period_high_pct": -0.2,
-    "drawdown_label": "Shallow drawdown",
-    "return_1m_pct": 6.4,
-    "return_3m_pct": 8.7,
-    "return_6m_pct": 11.3,
-    "return_1y_pct": null,
-    "return_3y_pct": null,
-    "return_5y_pct": null,
-    "analyst_support_score": 41.2,
-    "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
-    "analyst_support_label": "Mixed (41/100)",
-    "news_sentiment_source": "No recent NewsAPI headline returned; defaulted to neutral",
-    "top_news_headline": "No recent high-confidence company headline returned by NewsAPI",
-    "news_sentiment_label": "Neutral",
-    "news_sentiment_score": 0,
-    "thesis_strength": "Developing Thesis",
-    "evidence_confidence": "Low-Medium",
-    "ai_committee": {
-      "News Agent": {
-        "score": 45,
-        "status": "Unknown / insufficient data",
-        "impact": "Neutral",
-        "data_used": "No source returned recent data",
-        "summary": "Reviews headlines/catalysts. Confidence: Low.",
-        "findings": [],
-        "risks": [
-          "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
-        ],
-        "bottom_line": "News is mixed or insufficient."
-      },
-      "Finance Agent": {
-        "score": 50,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "FMP/Yahoo fundamentals, financial statements, balance sheet, cash flow",
-        "summary": "Checks revenue, EPS, margins, leverage, liquidity, cash flow, valuation, and execution.",
-        "findings": [
-          "Financial data limited."
-        ],
-        "risks": [
-          "No major finance-specific red flag detected."
-        ],
-        "bottom_line": "Financial profile reviewed."
-      },
-      "Analyst Agent": {
-        "score": 41,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Finnhub/Yahoo/FMP analyst targets and recommendation trends",
-        "summary": "Checks whether Wall Street estimates support the AI thesis.",
-        "findings": [
-          "Analyst support score: 41/100.",
-          "Analyst target: $N/A.",
-          "Analyst count: N/A."
-        ],
-        "risks": [
-          "Analyst data can lag fast-moving news."
-        ],
-        "bottom_line": "Analyst view is mixed/limited."
-      },
-      "Technical Agent": {
-        "score": 95,
-        "status": "Positive",
-        "impact": "Positive",
-        "data_used": "Price history, RSI, ATR, volume, SMA, support/resistance",
-        "summary": "Evaluates trend, momentum, volatility, support/resistance and entry quality.",
-        "findings": [
-          "Support 1: $32.59 \u00b7 Resistance 1: $34.34.",
-          "Price is above the 20-day trend.",
-          "Price is above the 50-day trend.",
-          "RSI is 75.5."
-        ],
-        "risks": [
-          "RSI is overbought; avoid chasing."
-        ],
-        "bottom_line": "Near resistance. Avoid chasing unless breakout holds with volume."
-      },
-      "Insider Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "SEC EDGAR Form 4 framework; Finnhub insider-ready",
-        "summary": "Checks insider filing activity and prepares buy/sell classification.",
-        "findings": [
-          "No recent Form 4 activity retrieved."
-        ],
-        "risks": [
-          "SEC insider data unavailable: CIK not found"
-        ],
-        "bottom_line": "Insider signal is limited until transaction-level parsing is expanded."
-      },
-      "Institutional Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "SEC EDGAR filings plus FMP institutional ownership-ready",
-        "summary": "Checks institutional context and 13F availability.",
-        "findings": [
-          "Institutional data limited."
-        ],
-        "risks": [
-          "13F data is delayed by reporting schedule."
-        ],
-        "bottom_line": "Institutional signal is directional and should be confirmed with holder details."
-      },
-      "Competitor Agent": {
-        "score": 55,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "FMP peer list and company fundamentals",
-        "summary": "Compares company fundamentals and valuation context against peers.",
-        "findings": [
-          "Peer comparison framework active."
-        ],
-        "risks": [
-          "Peer list unavailable in current scan."
-        ],
-        "bottom_line": "Peer context is limited/mixed."
-      },
-      "Political Agent": {
-        "score": 50,
-        "status": "Not connected yet",
-        "impact": "Neutral",
-        "data_used": "Capitol Trades public data planned; no API key required",
-        "summary": "Tracks congressional trading once public feed integration is enabled.",
-        "findings": [
-          "Political Agent framework is active."
-        ],
-        "risks": [
-          "Capitol Trades ingestion not enabled yet; no political score applied."
-        ],
-        "bottom_line": "No political trading signal applied yet."
-      },
-      "Recovery Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "52-week drawdown, growth, analyst support, technical recovery signals",
-        "summary": "Explains whether this is a recovery candidate or momentum setup.",
-        "findings": [
-          "Recovery framework active."
-        ],
-        "risks": [
-          "Recovery thesis requires business outlook to remain intact."
-        ],
-        "bottom_line": "Recovery setup exists only if fundamentals remain healthy."
-      },
-      "ETF / Ownership Agent": {
-        "score": 55,
-        "status": "Framework active",
-        "impact": "Neutral",
-        "data_used": "ETF inclusion and ownership flow framework",
-        "summary": "Checks ETF/index ownership support.",
-        "findings": [
-          "ETF/ownership framework is active."
-        ],
-        "risks": [
-          "Detailed ETF flow data not fully connected yet."
-        ],
-        "bottom_line": "ETF/ownership is not yet a primary scoring driver."
-      }
-    },
-    "v42_news_score": 45,
-    "v42_news_summary": "News is mixed or insufficient.",
-    "v42_news_status": "Unknown / insufficient data",
-    "v42_news_catalysts": [],
-    "v42_news_risks": [
-      "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
-    ],
-    "v42_news_sources": [
-      "No source returned recent data"
-    ],
-    "latest_news_headline": "",
-    "latest_news_source": "",
-    "latest_news_date": "",
-    "latest_news_sentiment": "Unknown / insufficient data",
-    "v42_sec_available": false,
-    "v42_sec_cik": null,
-    "v42_support_1": 32.59,
-    "v42_support_2": 25.63,
-    "v42_resistance_1": 34.34,
-    "v42_resistance_2": 34.34,
-    "v42_breakout_level": 34.68,
-    "v42_pullback_zone": "$32.59 - $33.57",
-    "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
-    "v42_committee_positive_agents": 1,
-    "v42_committee_total_agents": 10
-  },
-  {
-    "symbol": "JEPQ",
-    "ticker": "JEPQ",
-    "company": "JPMorgan Nasdaq Equity Premium ",
-    "company_name": "JPMorgan Nasdaq Equity Premium ",
-    "sector": "ETF",
-    "industry": "JPMorgan",
-    "quote_type": "ETF",
-    "price": 60.0,
-    "current_price": 60.0,
-    "dollar_volume": 427705200.0,
-    "avg_volume_20d": 7128420,
-    "volume_ratio": 0.69,
-    "conviction": 95,
-    "conviction_score": 95,
-    "score": 95,
-    "ai_score": 95,
-    "ai_confidence": 95,
-    "confidence": 95,
-    "rsi": 64.5,
-    "atr_pct": 1.53,
-    "sma20": 58.32,
-    "sma50": 58.7,
-    "twenty_day_pct": 1.02,
-    "sixty_day_pct": 3.63,
-    "entry_range": "$59.54 - $60.23",
-    "entry_low": 59.54,
-    "entry_high": 60.23,
-    "stop_loss": 58.0,
-    "target": 63.6,
-    "target_2": 65.41,
-    "risk_reward": 1.8,
-    "expected_upside_pct": 6.0,
-    "upside": 6.0,
-    "ai_base_target": 63.6,
-    "ai_bull_target": 65.41,
-    "ai_bear_target": 58.0,
-    "etf_preference_screen": "Passed non-financial / non-Israel / non-excluded-theme screen",
-    "what_looks_good": "strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; positive 60-day ETF trend; RSI is constructive; ETF volatility is controlled",
-    "what_could_go_wrong": "Main risk is a broad market or sector pullback.",
-    "investment_thesis": "JPMorgan Nasdaq Equity Premium  (JEPQ) is an ETF candidate that passed your preference screen. Score 95/100. Positive factors: strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; positive 60-day ETF trend; RSI is constructive; ETF volatility is controlled. Risks: market pullback risk.",
-    "guidance": "JEPQ ETF score is 95/100. Preferred entry is $59.54 - $60.23. Use stop around $58.0 and first target near $63.6.",
-    "action_note": "ETF idea only. Review holdings/exposure before buying to ensure it aligns with your preferences.",
-    "summary": "JEPQ: ETF candidate, score 95/100, estimated trade upside 6.0%.",
-    "setup_tags": [
-      "strong ETF liquidity",
-      "price is above 20-day trend",
-      "price is above 50-day trend",
-      "healthy 20-day ETF momentum",
-      "positive 60-day ETF trend",
-      "RSI is constructive",
-      "ETF volatility is controlled"
-    ],
-    "risk_tags": [],
-    "scan_time": "2026-08-13T11:47:25.702528+00:00",
-    "history_days_available": 251,
-    "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
-    "high_52w": 60.34,
-    "low_52w": 48.75,
-    "all_period_high": 60.34,
-    "all_period_low": 48.75,
-    "range_position_pct": 97.1,
-    "range_position_label": "Near 52-week highs",
-    "distance_from_52w_high_pct": -0.6,
-    "distance_from_52w_low_pct": 23.1,
-    "drawdown_from_period_high_pct": -0.6,
-    "drawdown_label": "Shallow drawdown",
-    "return_1m_pct": 0.9,
-    "return_3m_pct": 3.8,
-    "return_6m_pct": 9.4,
-    "return_1y_pct": null,
-    "return_3y_pct": null,
-    "return_5y_pct": null,
-    "analyst_support_score": 41.5,
-    "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
-    "analyst_support_label": "Mixed (42/100)",
-    "news_sentiment_source": "No recent NewsAPI headline returned; defaulted to neutral",
-    "top_news_headline": "No recent high-confidence company headline returned by NewsAPI",
-    "news_sentiment_label": "Neutral",
-    "news_sentiment_score": 0,
-    "thesis_strength": "Developing Thesis",
-    "evidence_confidence": "Low-Medium",
-    "ai_committee": {
-      "News Agent": {
-        "score": 45,
-        "status": "Unknown / insufficient data",
-        "impact": "Neutral",
-        "data_used": "No source returned recent data",
-        "summary": "Reviews headlines/catalysts. Confidence: Low.",
-        "findings": [],
-        "risks": [
-          "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
-        ],
-        "bottom_line": "News is mixed or insufficient."
-      },
-      "Finance Agent": {
-        "score": 50,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "FMP/Yahoo fundamentals, financial statements, balance sheet, cash flow",
-        "summary": "Checks revenue, EPS, margins, leverage, liquidity, cash flow, valuation, and execution.",
-        "findings": [
-          "Financial data limited."
-        ],
-        "risks": [
-          "No major finance-specific red flag detected."
-        ],
-        "bottom_line": "Financial profile reviewed."
-      },
-      "Analyst Agent": {
-        "score": 41,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Finnhub/Yahoo/FMP analyst targets and recommendation trends",
-        "summary": "Checks whether Wall Street estimates support the AI thesis.",
-        "findings": [
-          "Analyst support score: 42/100.",
-          "Analyst target: $N/A.",
-          "Analyst count: N/A."
-        ],
-        "risks": [
-          "Analyst data can lag fast-moving news."
-        ],
-        "bottom_line": "Analyst view is mixed/limited."
-      },
-      "Technical Agent": {
-        "score": 95,
-        "status": "Positive",
-        "impact": "Positive",
-        "data_used": "Price history, RSI, ATR, volume, SMA, support/resistance",
-        "summary": "Evaluates trend, momentum, volatility, support/resistance and entry quality.",
-        "findings": [
-          "Support 1: $55.41 \u00b7 Resistance 1: $60.1.",
-          "Price is above the 20-day trend.",
-          "Price is above the 50-day trend.",
-          "RSI is 64.5."
-        ],
-        "risks": [
-          "No major technical risk detected."
-        ],
-        "bottom_line": "Near resistance. Avoid chasing unless breakout holds with volume."
-      },
-      "Insider Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "SEC EDGAR Form 4 framework; Finnhub insider-ready",
-        "summary": "Checks insider filing activity and prepares buy/sell classification.",
-        "findings": [
-          "No recent Form 4 activity retrieved."
-        ],
-        "risks": [
-          "SEC insider data unavailable: CIK not found"
-        ],
-        "bottom_line": "Insider signal is limited until transaction-level parsing is expanded."
-      },
-      "Institutional Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "SEC EDGAR filings plus FMP institutional ownership-ready",
-        "summary": "Checks institutional context and 13F availability.",
-        "findings": [
-          "Institutional data limited."
-        ],
-        "risks": [
-          "13F data is delayed by reporting schedule."
-        ],
-        "bottom_line": "Institutional signal is directional and should be confirmed with holder details."
-      },
-      "Competitor Agent": {
-        "score": 55,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "FMP peer list and company fundamentals",
-        "summary": "Compares company fundamentals and valuation context against peers.",
-        "findings": [
-          "Peer comparison framework active."
-        ],
-        "risks": [
-          "Peer list unavailable in current scan."
-        ],
-        "bottom_line": "Peer context is limited/mixed."
-      },
-      "Political Agent": {
-        "score": 50,
-        "status": "Not connected yet",
-        "impact": "Neutral",
-        "data_used": "Capitol Trades public data planned; no API key required",
-        "summary": "Tracks congressional trading once public feed integration is enabled.",
-        "findings": [
-          "Political Agent framework is active."
-        ],
-        "risks": [
-          "Capitol Trades ingestion not enabled yet; no political score applied."
-        ],
-        "bottom_line": "No political trading signal applied yet."
-      },
-      "Recovery Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "52-week drawdown, growth, analyst support, technical recovery signals",
-        "summary": "Explains whether this is a recovery candidate or momentum setup.",
-        "findings": [
-          "Recovery framework active."
-        ],
-        "risks": [
-          "Recovery thesis requires business outlook to remain intact."
-        ],
-        "bottom_line": "Recovery setup exists only if fundamentals remain healthy."
-      },
-      "ETF / Ownership Agent": {
-        "score": 55,
-        "status": "Framework active",
-        "impact": "Neutral",
-        "data_used": "ETF inclusion and ownership flow framework",
-        "summary": "Checks ETF/index ownership support.",
-        "findings": [
-          "ETF/ownership framework is active."
-        ],
-        "risks": [
-          "Detailed ETF flow data not fully connected yet."
-        ],
-        "bottom_line": "ETF/ownership is not yet a primary scoring driver."
-      }
-    },
-    "v42_news_score": 45,
-    "v42_news_summary": "News is mixed or insufficient.",
-    "v42_news_status": "Unknown / insufficient data",
-    "v42_news_catalysts": [],
-    "v42_news_risks": [
-      "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
-    ],
-    "v42_news_sources": [
-      "No source returned recent data"
-    ],
-    "latest_news_headline": "",
-    "latest_news_source": "",
-    "latest_news_date": "",
-    "latest_news_sentiment": "Unknown / insufficient data",
-    "v42_sec_available": false,
-    "v42_sec_cik": null,
-    "v42_support_1": 55.41,
-    "v42_support_2": 48.75,
-    "v42_resistance_1": 60.1,
-    "v42_resistance_2": 60.34,
-    "v42_breakout_level": 60.7,
-    "v42_pullback_zone": "$55.41 - $58.80",
+    "v42_pullback_zone": "$514.72 - $526.01",
     "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
     "v42_committee_positive_agents": 1,
     "v42_committee_total_agents": 10
@@ -767,42 +262,42 @@
     "sector": "ETF",
     "industry": "ARK ETF Trust",
     "quote_type": "ETF",
-    "price": 81.37,
-    "current_price": 81.37,
-    "dollar_volume": 400770453.98,
-    "avg_volume_20d": 4925285,
-    "volume_ratio": 0.68,
+    "price": 81.6,
+    "current_price": 81.6,
+    "dollar_volume": 383788171.22,
+    "avg_volume_20d": 4703286,
+    "volume_ratio": 0.36,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
     "ai_score": 95,
     "ai_confidence": 95,
     "confidence": 95,
-    "rsi": 68.2,
-    "atr_pct": 2.96,
-    "sma20": 75.5,
-    "sma50": 77.4,
-    "twenty_day_pct": 2.22,
-    "sixty_day_pct": 8.64,
-    "entry_range": "$80.17 - $81.97",
-    "entry_low": 80.17,
-    "entry_high": 81.97,
-    "stop_loss": 74.66,
-    "target": 93.45,
-    "target_2": 99.5,
+    "rsi": 75.6,
+    "atr_pct": 2.85,
+    "sma20": 75.75,
+    "sma50": 77.44,
+    "twenty_day_pct": 6.43,
+    "sixty_day_pct": 9.52,
+    "entry_range": "$80.43 - $82.18",
+    "entry_low": 80.43,
+    "entry_high": 82.18,
+    "stop_loss": 74.93,
+    "target": 93.6,
+    "target_2": 99.6,
     "risk_reward": 1.8,
-    "expected_upside_pct": 14.8,
-    "upside": 14.8,
-    "ai_base_target": 93.45,
-    "ai_bull_target": 99.5,
-    "ai_bear_target": 74.66,
+    "expected_upside_pct": 14.7,
+    "upside": 14.7,
+    "ai_base_target": 93.6,
+    "ai_bull_target": 99.6,
+    "ai_bear_target": 74.93,
     "etf_preference_screen": "Passed non-financial / non-Israel / non-excluded-theme screen",
     "what_looks_good": "strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; positive 60-day ETF trend; ETF volatility is controlled",
     "what_could_go_wrong": "Main risk is a broad market or sector pullback.",
     "investment_thesis": "ARK Innovation ETF (ARKK) is an ETF candidate that passed your preference screen. Score 95/100. Positive factors: strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; positive 60-day ETF trend; ETF volatility is controlled. Risks: market pullback risk.",
-    "guidance": "ARKK ETF score is 95/100. Preferred entry is $80.17 - $81.97. Use stop around $74.66 and first target near $93.45.",
+    "guidance": "ARKK ETF score is 95/100. Preferred entry is $80.43 - $82.18. Use stop around $74.93 and first target near $93.6.",
     "action_note": "ETF idea only. Review holdings/exposure before buying to ensure it aligns with your preferences.",
-    "summary": "ARKK: ETF candidate, score 95/100, estimated trade upside 14.8%.",
+    "summary": "ARKK: ETF candidate, score 95/100, estimated trade upside 14.7%.",
     "setup_tags": [
       "strong ETF liquidity",
       "price is above 20-day trend",
@@ -812,22 +307,22 @@
       "ETF volatility is controlled"
     ],
     "risk_tags": [],
-    "scan_time": "2026-08-13T11:38:37.322617+00:00",
-    "history_days_available": 251,
+    "scan_time": "2026-08-13T16:51:39.840809+00:00",
+    "history_days_available": 252,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 92.65,
     "low_52w": 62.94,
     "all_period_high": 92.65,
     "all_period_low": 62.94,
-    "range_position_pct": 62.0,
+    "range_position_pct": 62.8,
     "range_position_label": "Upper-middle range",
-    "distance_from_52w_high_pct": -12.2,
-    "distance_from_52w_low_pct": 29.3,
-    "drawdown_from_period_high_pct": -12.2,
+    "distance_from_52w_high_pct": -11.9,
+    "distance_from_52w_low_pct": 29.6,
+    "drawdown_from_period_high_pct": -11.9,
     "drawdown_label": "Moderate drawdown",
-    "return_1m_pct": 2.3,
-    "return_3m_pct": 4.0,
-    "return_6m_pct": 12.6,
+    "return_1m_pct": 2.5,
+    "return_3m_pct": 4.5,
+    "return_6m_pct": 15.1,
     "return_1y_pct": null,
     "return_3y_pct": null,
     "return_5y_pct": null,
@@ -890,13 +385,13 @@
         "data_used": "Price history, RSI, ATR, volume, SMA, support/resistance",
         "summary": "Evaluates trend, momentum, volatility, support/resistance and entry quality.",
         "findings": [
-          "Support 1: $69.89 \u00b7 Resistance 1: $82.02.",
+          "Support 1: $69.89 \u00b7 Resistance 1: $82.6.",
           "Price is above the 20-day trend.",
           "Price is above the 50-day trend.",
-          "RSI is 68.2."
+          "RSI is 75.6."
         ],
         "risks": [
-          "No major technical risk detected."
+          "RSI is overbought; avoid chasing."
         ],
         "bottom_line": "Near resistance. Avoid chasing unless breakout holds with volume."
       },
@@ -1003,58 +498,58 @@
     "v42_sec_cik": null,
     "v42_support_1": 69.89,
     "v42_support_2": 62.94,
-    "v42_resistance_1": 82.02,
+    "v42_resistance_1": 82.6,
     "v42_resistance_2": 92.65,
-    "v42_breakout_level": 82.84,
-    "v42_pullback_zone": "$69.89 - $79.74",
+    "v42_breakout_level": 83.43,
+    "v42_pullback_zone": "$69.89 - $79.97",
     "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
     "v42_committee_positive_agents": 1,
     "v42_committee_total_agents": 10
   },
   {
-    "symbol": "JEPI",
-    "ticker": "JEPI",
-    "company": "JPMorgan Equity Premium Income ",
-    "company_name": "JPMorgan Equity Premium Income ",
+    "symbol": "QYLD",
+    "ticker": "QYLD",
+    "company": "Global X NASDAQ 100 Covered Cal",
+    "company_name": "Global X NASDAQ 100 Covered Cal",
     "sector": "ETF",
-    "industry": "JPMorgan",
+    "industry": "Global X Funds",
     "quote_type": "ETF",
-    "price": 57.84,
-    "current_price": 57.84,
-    "dollar_volume": 275149507.93,
-    "avg_volume_20d": 4757080,
-    "volume_ratio": 0.86,
+    "price": 18.19,
+    "current_price": 18.19,
+    "dollar_volume": 75333949.92,
+    "avg_volume_20d": 4140365,
+    "volume_ratio": 0.26,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
     "ai_score": 95,
     "ai_confidence": 95,
     "confidence": 95,
-    "rsi": 80.6,
-    "atr_pct": 0.65,
-    "sma20": 56.94,
-    "sma50": 56.1,
-    "twenty_day_pct": 2.81,
-    "sixty_day_pct": 5.61,
-    "entry_range": "$57.66 - $57.93",
-    "entry_low": 57.66,
-    "entry_high": 57.93,
-    "stop_loss": 56.81,
-    "target": 59.92,
-    "target_2": 60.96,
+    "rsi": 74.1,
+    "atr_pct": 0.87,
+    "sma20": 17.83,
+    "sma50": 17.86,
+    "twenty_day_pct": 1.93,
+    "sixty_day_pct": 4.82,
+    "entry_range": "$18.11 - $18.23",
+    "entry_low": 18.11,
+    "entry_high": 18.23,
+    "stop_loss": 17.77,
+    "target": 18.94,
+    "target_2": 19.31,
     "risk_reward": 1.8,
-    "expected_upside_pct": 3.6,
-    "upside": 3.6,
-    "ai_base_target": 59.92,
-    "ai_bull_target": 60.96,
-    "ai_bear_target": 56.81,
+    "expected_upside_pct": 4.1,
+    "upside": 4.1,
+    "ai_base_target": 18.94,
+    "ai_bull_target": 19.31,
+    "ai_bear_target": 17.77,
     "etf_preference_screen": "Passed non-financial / non-Israel / non-excluded-theme screen",
     "what_looks_good": "strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; positive 60-day ETF trend; ETF volatility is controlled",
-    "what_could_go_wrong": "RSI is overheated",
-    "investment_thesis": "JPMorgan Equity Premium Income  (JEPI) is an ETF candidate that passed your preference screen. Score 95/100. Positive factors: strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; positive 60-day ETF trend; ETF volatility is controlled. Risks: RSI is overheated.",
-    "guidance": "JEPI ETF score is 95/100. Preferred entry is $57.66 - $57.93. Use stop around $56.81 and first target near $59.92.",
+    "what_could_go_wrong": "Main risk is a broad market or sector pullback.",
+    "investment_thesis": "Global X NASDAQ 100 Covered Cal (QYLD) is an ETF candidate that passed your preference screen. Score 95/100. Positive factors: strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; positive 60-day ETF trend; ETF volatility is controlled. Risks: market pullback risk.",
+    "guidance": "QYLD ETF score is 95/100. Preferred entry is $18.11 - $18.23. Use stop around $17.77 and first target near $18.94.",
     "action_note": "ETF idea only. Review holdings/exposure before buying to ensure it aligns with your preferences.",
-    "summary": "JEPI: ETF candidate, score 95/100, estimated trade upside 3.6%.",
+    "summary": "QYLD: ETF candidate, score 95/100, estimated trade upside 4.1%.",
     "setup_tags": [
       "strong ETF liquidity",
       "price is above 20-day trend",
@@ -1063,29 +558,27 @@
       "positive 60-day ETF trend",
       "ETF volatility is controlled"
     ],
-    "risk_tags": [
-      "RSI is overheated"
-    ],
-    "scan_time": "2026-08-13T11:47:24.788424+00:00",
-    "history_days_available": 251,
+    "risk_tags": [],
+    "scan_time": "2026-08-13T17:03:04.789509+00:00",
+    "history_days_available": 252,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
-    "high_52w": 57.88,
-    "low_52w": 52.06,
-    "all_period_high": 57.88,
-    "all_period_low": 52.06,
-    "range_position_pct": 99.3,
+    "high_52w": 18.3,
+    "low_52w": 14.64,
+    "all_period_high": 18.3,
+    "all_period_low": 14.64,
+    "range_position_pct": 97.3,
     "range_position_label": "Near 52-week highs",
-    "distance_from_52w_high_pct": -0.1,
-    "distance_from_52w_low_pct": 11.1,
-    "drawdown_from_period_high_pct": -0.1,
+    "distance_from_52w_high_pct": -0.5,
+    "distance_from_52w_low_pct": 24.3,
+    "drawdown_from_period_high_pct": -0.5,
     "drawdown_label": "Shallow drawdown",
-    "return_1m_pct": 2.9,
-    "return_3m_pct": 5.2,
-    "return_6m_pct": 1.8,
+    "return_1m_pct": 0.4,
+    "return_3m_pct": 3.4,
+    "return_6m_pct": 8.5,
     "return_1y_pct": null,
     "return_3y_pct": null,
     "return_5y_pct": null,
-    "analyst_support_score": 40.9,
+    "analyst_support_score": 41.0,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
     "analyst_support_label": "Mixed (41/100)",
     "news_sentiment_source": "No recent NewsAPI headline returned; defaulted to neutral",
@@ -1122,7 +615,7 @@
         "bottom_line": "Financial profile reviewed."
       },
       "Analyst Agent": {
-        "score": 40,
+        "score": 41,
         "status": "Mixed",
         "impact": "Neutral",
         "data_used": "Finnhub/Yahoo/FMP analyst targets and recommendation trends",
@@ -1144,10 +637,10 @@
         "data_used": "Price history, RSI, ATR, volume, SMA, support/resistance",
         "summary": "Evaluates trend, momentum, volatility, support/resistance and entry quality.",
         "findings": [
-          "Support 1: $55.87 \u00b7 Resistance 1: $57.88.",
+          "Support 1: $17.21 \u00b7 Resistance 1: $18.2.",
           "Price is above the 20-day trend.",
           "Price is above the 50-day trend.",
-          "RSI is 80.6."
+          "RSI is 74.1."
         ],
         "risks": [
           "RSI is overbought; avoid chasing."
@@ -1255,270 +748,14 @@
     "latest_news_sentiment": "Unknown / insufficient data",
     "v42_sec_available": false,
     "v42_sec_cik": null,
-    "v42_support_1": 55.87,
-    "v42_support_2": 52.06,
-    "v42_resistance_1": 57.88,
-    "v42_resistance_2": 57.88,
-    "v42_breakout_level": 58.46,
-    "v42_pullback_zone": "$55.87 - $56.68",
+    "v42_support_1": 17.21,
+    "v42_support_2": 14.64,
+    "v42_resistance_1": 18.2,
+    "v42_resistance_2": 18.3,
+    "v42_breakout_level": 18.38,
+    "v42_pullback_zone": "$17.21 - $17.83",
     "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
     "v42_committee_positive_agents": 1,
-    "v42_committee_total_agents": 10
-  },
-  {
-    "symbol": "URA",
-    "ticker": "URA",
-    "company": "Global X Uranium ETF",
-    "company_name": "Global X Uranium ETF",
-    "sector": "ETF",
-    "industry": "Global X Funds",
-    "quote_type": "ETF",
-    "price": 45.2,
-    "current_price": 45.2,
-    "dollar_volume": 148576018.51,
-    "avg_volume_20d": 3287080,
-    "volume_ratio": 0.51,
-    "conviction": 95,
-    "conviction_score": 95,
-    "score": 95,
-    "ai_score": 95,
-    "ai_confidence": 95,
-    "confidence": 95,
-    "rsi": 64.0,
-    "atr_pct": 3.64,
-    "sma20": 41.17,
-    "sma50": 43.42,
-    "twenty_day_pct": 10.51,
-    "sixty_day_pct": -9.47,
-    "entry_range": "$44.38 - $45.61",
-    "entry_low": 44.38,
-    "entry_high": 45.61,
-    "stop_loss": 40.6,
-    "target": 53.49,
-    "target_2": 57.63,
-    "risk_reward": 1.8,
-    "expected_upside_pct": 18.3,
-    "upside": 18.3,
-    "ai_base_target": 53.49,
-    "ai_bull_target": 57.63,
-    "ai_bear_target": 40.6,
-    "etf_preference_screen": "Passed non-financial / non-Israel / non-excluded-theme screen",
-    "what_looks_good": "strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; RSI is constructive; ETF volatility is controlled",
-    "what_could_go_wrong": "Main risk is a broad market or sector pullback.",
-    "investment_thesis": "Global X Uranium ETF (URA) is an ETF candidate that passed your preference screen. Score 95/100. Positive factors: strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; RSI is constructive; ETF volatility is controlled. Risks: market pullback risk.",
-    "guidance": "URA ETF score is 95/100. Preferred entry is $44.38 - $45.61. Use stop around $40.6 and first target near $53.49.",
-    "action_note": "ETF idea only. Review holdings/exposure before buying to ensure it aligns with your preferences.",
-    "summary": "URA: ETF candidate, score 95/100, estimated trade upside 18.3%.",
-    "setup_tags": [
-      "strong ETF liquidity",
-      "price is above 20-day trend",
-      "price is above 50-day trend",
-      "healthy 20-day ETF momentum",
-      "RSI is constructive",
-      "ETF volatility is controlled"
-    ],
-    "risk_tags": [],
-    "scan_time": "2026-08-13T11:55:06.385760+00:00",
-    "history_days_available": 251,
-    "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
-    "high_52w": 62.28,
-    "low_52w": 34.02,
-    "all_period_high": 62.28,
-    "all_period_low": 34.02,
-    "range_position_pct": 39.6,
-    "range_position_label": "Lower-middle range",
-    "distance_from_52w_high_pct": -27.4,
-    "distance_from_52w_low_pct": 32.9,
-    "drawdown_from_period_high_pct": -27.4,
-    "drawdown_label": "Deep drawdown",
-    "return_1m_pct": 8.8,
-    "return_3m_pct": -16.8,
-    "return_6m_pct": -15.5,
-    "return_1y_pct": null,
-    "return_3y_pct": null,
-    "return_5y_pct": null,
-    "analyst_support_score": 44.6,
-    "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
-    "analyst_support_label": "Mixed (45/100)",
-    "news_sentiment_source": "No recent NewsAPI headline returned; defaulted to neutral",
-    "top_news_headline": "No recent high-confidence company headline returned by NewsAPI",
-    "news_sentiment_label": "Neutral",
-    "news_sentiment_score": 0,
-    "thesis_strength": "Developing Thesis",
-    "evidence_confidence": "Low-Medium",
-    "ai_committee": {
-      "News Agent": {
-        "score": 55,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Finnhub company news",
-        "summary": "Reviews headlines/catalysts. Confidence: Medium.",
-        "findings": [
-          "If You Invested $1000 In Global X Uranium ETF Stock 5 Years Ago, You Would Have This Much Today"
-        ],
-        "risks": [
-          "No negative high-confidence headline detected."
-        ],
-        "bottom_line": "News is mixed or insufficient."
-      },
-      "Finance Agent": {
-        "score": 50,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "FMP/Yahoo fundamentals, financial statements, balance sheet, cash flow",
-        "summary": "Checks revenue, EPS, margins, leverage, liquidity, cash flow, valuation, and execution.",
-        "findings": [
-          "Financial data limited."
-        ],
-        "risks": [
-          "No major finance-specific red flag detected."
-        ],
-        "bottom_line": "Financial profile reviewed."
-      },
-      "Analyst Agent": {
-        "score": 44,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Finnhub/Yahoo/FMP analyst targets and recommendation trends",
-        "summary": "Checks whether Wall Street estimates support the AI thesis.",
-        "findings": [
-          "Analyst support score: 45/100.",
-          "Analyst target: $N/A.",
-          "Analyst count: N/A."
-        ],
-        "risks": [
-          "Analyst data can lag fast-moving news."
-        ],
-        "bottom_line": "Analyst view is mixed/limited."
-      },
-      "Technical Agent": {
-        "score": 95,
-        "status": "Positive",
-        "impact": "Positive",
-        "data_used": "Price history, RSI, ATR, volume, SMA, support/resistance",
-        "summary": "Evaluates trend, momentum, volatility, support/resistance and entry quality.",
-        "findings": [
-          "Support 1: $37.18 \u00b7 Resistance 1: $45.98.",
-          "Price is above the 20-day trend.",
-          "Price is above the 50-day trend.",
-          "RSI is 64.0."
-        ],
-        "risks": [
-          "No major technical risk detected."
-        ],
-        "bottom_line": "Near resistance. Avoid chasing unless breakout holds with volume."
-      },
-      "Insider Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "SEC EDGAR Form 4 framework; Finnhub insider-ready",
-        "summary": "Checks insider filing activity and prepares buy/sell classification.",
-        "findings": [
-          "No recent Form 4 activity retrieved."
-        ],
-        "risks": [
-          "SEC insider data unavailable: CIK not found"
-        ],
-        "bottom_line": "Insider signal is limited until transaction-level parsing is expanded."
-      },
-      "Institutional Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "SEC EDGAR filings plus FMP institutional ownership-ready",
-        "summary": "Checks institutional context and 13F availability.",
-        "findings": [
-          "Institutional data limited."
-        ],
-        "risks": [
-          "13F data is delayed by reporting schedule."
-        ],
-        "bottom_line": "Institutional signal is directional and should be confirmed with holder details."
-      },
-      "Competitor Agent": {
-        "score": 55,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "FMP peer list and company fundamentals",
-        "summary": "Compares company fundamentals and valuation context against peers.",
-        "findings": [
-          "Peer comparison framework active."
-        ],
-        "risks": [
-          "Peer list unavailable in current scan."
-        ],
-        "bottom_line": "Peer context is limited/mixed."
-      },
-      "Political Agent": {
-        "score": 50,
-        "status": "Not connected yet",
-        "impact": "Neutral",
-        "data_used": "Capitol Trades public data planned; no API key required",
-        "summary": "Tracks congressional trading once public feed integration is enabled.",
-        "findings": [
-          "Political Agent framework is active."
-        ],
-        "risks": [
-          "Capitol Trades ingestion not enabled yet; no political score applied."
-        ],
-        "bottom_line": "No political trading signal applied yet."
-      },
-      "Recovery Agent": {
-        "score": 65,
-        "status": "Constructive",
-        "impact": "Positive",
-        "data_used": "52-week drawdown, growth, analyst support, technical recovery signals",
-        "summary": "Explains whether this is a recovery candidate or momentum setup.",
-        "findings": [
-          "Recovery framework active."
-        ],
-        "risks": [
-          "Recovery thesis requires business outlook to remain intact."
-        ],
-        "bottom_line": "Recovery setup exists only if fundamentals remain healthy."
-      },
-      "ETF / Ownership Agent": {
-        "score": 55,
-        "status": "Framework active",
-        "impact": "Neutral",
-        "data_used": "ETF inclusion and ownership flow framework",
-        "summary": "Checks ETF/index ownership support.",
-        "findings": [
-          "ETF/ownership framework is active."
-        ],
-        "risks": [
-          "Detailed ETF flow data not fully connected yet."
-        ],
-        "bottom_line": "ETF/ownership is not yet a primary scoring driver."
-      }
-    },
-    "v42_news_score": 55,
-    "v42_news_summary": "News is mixed or insufficient.",
-    "v42_news_status": "Mixed",
-    "v42_news_catalysts": [
-      "If You Invested $1000 In Global X Uranium ETF Stock 5 Years Ago, You Would Have This Much Today"
-    ],
-    "v42_news_risks": [
-      "No negative high-confidence headline detected."
-    ],
-    "v42_news_sources": [
-      "Finnhub company news"
-    ],
-    "latest_news_headline": "If You Invested $1000 In Global X Uranium ETF Stock 5 Years Ago, You Would Have This Much Today",
-    "latest_news_source": "Benzinga",
-    "latest_news_date": "2026-07-22T11:31:14",
-    "latest_news_sentiment": "Mixed",
-    "v42_sec_available": false,
-    "v42_sec_cik": null,
-    "v42_support_1": 37.18,
-    "v42_support_2": 34.02,
-    "v42_resistance_1": 45.98,
-    "v42_resistance_2": 62.28,
-    "v42_breakout_level": 46.44,
-    "v42_pullback_zone": "$37.18 - $44.30",
-    "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
-    "v42_committee_positive_agents": 2,
     "v42_committee_total_agents": 10
   },
   {
@@ -1529,42 +766,42 @@
     "sector": "ETF",
     "industry": "Global X Funds",
     "quote_type": "ETF",
-    "price": 37.81,
-    "current_price": 37.81,
-    "dollar_volume": 29315984.56,
-    "avg_volume_20d": 775350,
-    "volume_ratio": 0.53,
-    "conviction": 94,
-    "conviction_score": 94,
-    "score": 94,
-    "ai_score": 94,
-    "ai_confidence": 94,
-    "confidence": 94,
-    "rsi": 75.4,
-    "atr_pct": 1.95,
-    "sma20": 35.59,
-    "sma50": 36.71,
-    "twenty_day_pct": 4.94,
-    "sixty_day_pct": -5.97,
-    "entry_range": "$37.44 - $38.00",
-    "entry_low": 37.44,
-    "entry_high": 38.0,
-    "stop_loss": 35.33,
-    "target": 42.27,
-    "target_2": 44.5,
+    "price": 37.74,
+    "current_price": 37.74,
+    "dollar_volume": 28446462.98,
+    "avg_volume_20d": 753664,
+    "volume_ratio": 0.33,
+    "conviction": 86,
+    "conviction_score": 86,
+    "score": 86,
+    "ai_score": 86,
+    "ai_confidence": 86,
+    "confidence": 86,
+    "rsi": 80.3,
+    "atr_pct": 1.9,
+    "sma20": 35.7,
+    "sma50": 36.66,
+    "twenty_day_pct": 6.23,
+    "sixty_day_pct": -5.19,
+    "entry_range": "$37.38 - $37.92",
+    "entry_low": 37.38,
+    "entry_high": 37.92,
+    "stop_loss": 35.45,
+    "target": 41.87,
+    "target_2": 43.93,
     "risk_reward": 1.8,
-    "expected_upside_pct": 11.8,
-    "upside": 11.8,
-    "ai_base_target": 42.27,
-    "ai_bull_target": 44.5,
-    "ai_bear_target": 35.33,
+    "expected_upside_pct": 10.9,
+    "upside": 10.9,
+    "ai_base_target": 41.87,
+    "ai_bull_target": 43.93,
+    "ai_bear_target": 35.45,
     "etf_preference_screen": "Passed non-financial / non-Israel / non-excluded-theme screen",
     "what_looks_good": "acceptable ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; ETF volatility is controlled",
-    "what_could_go_wrong": "Main risk is a broad market or sector pullback.",
-    "investment_thesis": "Global X Robotics & Artificial  (BOTZ) is an ETF candidate that passed your preference screen. Score 94/100. Positive factors: acceptable ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; ETF volatility is controlled. Risks: market pullback risk.",
-    "guidance": "BOTZ ETF score is 94/100. Preferred entry is $37.44 - $38.00. Use stop around $35.33 and first target near $42.27.",
+    "what_could_go_wrong": "RSI is overheated",
+    "investment_thesis": "Global X Robotics & Artificial  (BOTZ) is an ETF candidate that passed your preference screen. Score 86/100. Positive factors: acceptable ETF liquidity; price is above 20-day trend; price is above 50-day trend; healthy 20-day ETF momentum; ETF volatility is controlled. Risks: RSI is overheated.",
+    "guidance": "BOTZ ETF score is 86/100. Preferred entry is $37.38 - $37.92. Use stop around $35.45 and first target near $41.87.",
     "action_note": "ETF idea only. Review holdings/exposure before buying to ensure it aligns with your preferences.",
-    "summary": "BOTZ: ETF candidate, score 94/100, estimated trade upside 11.8%.",
+    "summary": "BOTZ: ETF candidate, score 86/100, estimated trade upside 10.9%.",
     "setup_tags": [
       "acceptable ETF liquidity",
       "price is above 20-day trend",
@@ -1572,27 +809,29 @@
       "healthy 20-day ETF momentum",
       "ETF volatility is controlled"
     ],
-    "risk_tags": [],
-    "scan_time": "2026-08-13T11:40:11.734014+00:00",
-    "history_days_available": 251,
+    "risk_tags": [
+      "RSI is overheated"
+    ],
+    "scan_time": "2026-08-13T16:52:59.771815+00:00",
+    "history_days_available": 252,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 41.69,
     "low_52w": 31.86,
     "all_period_high": 41.69,
     "all_period_low": 31.86,
-    "range_position_pct": 60.5,
+    "range_position_pct": 59.9,
     "range_position_label": "Upper-middle range",
-    "distance_from_52w_high_pct": -9.3,
-    "distance_from_52w_low_pct": 18.7,
-    "drawdown_from_period_high_pct": -9.3,
+    "distance_from_52w_high_pct": -9.5,
+    "distance_from_52w_low_pct": 18.5,
+    "drawdown_from_period_high_pct": -9.5,
     "drawdown_label": "Shallow drawdown",
-    "return_1m_pct": 5.4,
-    "return_3m_pct": -7.1,
-    "return_6m_pct": -1.4,
+    "return_1m_pct": 4.8,
+    "return_3m_pct": -9.3,
+    "return_6m_pct": -0.9,
     "return_1y_pct": null,
     "return_3y_pct": null,
     "return_5y_pct": null,
-    "analyst_support_score": 43.0,
+    "analyst_support_score": 42.7,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
     "analyst_support_label": "Mixed (43/100)",
     "news_sentiment_source": "No recent NewsAPI headline returned; defaulted to neutral",
@@ -1629,7 +868,7 @@
         "bottom_line": "Financial profile reviewed."
       },
       "Analyst Agent": {
-        "score": 43,
+        "score": 42,
         "status": "Mixed",
         "impact": "Neutral",
         "data_used": "Finnhub/Yahoo/FMP analyst targets and recommendation trends",
@@ -1645,7 +884,7 @@
         "bottom_line": "Analyst view is mixed/limited."
       },
       "Technical Agent": {
-        "score": 94,
+        "score": 86,
         "status": "Positive",
         "impact": "Positive",
         "data_used": "Price history, RSI, ATR, volume, SMA, support/resistance",
@@ -1654,7 +893,7 @@
           "Support 1: $33.48 \u00b7 Resistance 1: $38.15.",
           "Price is above the 20-day trend.",
           "Price is above the 50-day trend.",
-          "RSI is 75.4."
+          "RSI is 80.3."
         ],
         "risks": [
           "RSI is overbought; avoid chasing."
@@ -1767,257 +1006,7 @@
     "v42_resistance_1": 38.15,
     "v42_resistance_2": 41.69,
     "v42_breakout_level": 38.53,
-    "v42_pullback_zone": "$33.48 - $37.05",
-    "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
-    "v42_committee_positive_agents": 1,
-    "v42_committee_total_agents": 10
-  },
-  {
-    "symbol": "HYG",
-    "ticker": "HYG",
-    "company": "iShares iBoxx $ High Yield Corp",
-    "company_name": "iShares iBoxx $ High Yield Corp",
-    "sector": "ETF",
-    "industry": "iShares",
-    "quote_type": "ETF",
-    "price": 79.61,
-    "current_price": 79.61,
-    "dollar_volume": 2555635861.04,
-    "avg_volume_20d": 32101945,
-    "volume_ratio": 0.79,
-    "conviction": 90,
-    "conviction_score": 90,
-    "score": 90,
-    "ai_score": 90,
-    "ai_confidence": 90,
-    "confidence": 90,
-    "rsi": 74.4,
-    "atr_pct": 0.25,
-    "sma20": 79.25,
-    "sma50": 79.2,
-    "twenty_day_pct": 0.23,
-    "sixty_day_pct": 1.66,
-    "entry_range": "$79.51 - $79.66",
-    "entry_low": 79.51,
-    "entry_high": 79.66,
-    "stop_loss": 79.18,
-    "target": 82.48,
-    "target_2": 83.91,
-    "risk_reward": 1.8,
-    "expected_upside_pct": 3.6,
-    "upside": 3.6,
-    "ai_base_target": 82.48,
-    "ai_bull_target": 83.91,
-    "ai_bear_target": 79.18,
-    "etf_preference_screen": "Passed non-financial / non-Israel / non-excluded-theme screen",
-    "what_looks_good": "strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; ETF volatility is controlled",
-    "what_could_go_wrong": "Main risk is a broad market or sector pullback.",
-    "investment_thesis": "iShares iBoxx $ High Yield Corp (HYG) is an ETF candidate that passed your preference screen. Score 90/100. Positive factors: strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; ETF volatility is controlled. Risks: market pullback risk.",
-    "guidance": "HYG ETF score is 90/100. Preferred entry is $79.51 - $79.66. Use stop around $79.18 and first target near $82.48.",
-    "action_note": "ETF idea only. Review holdings/exposure before buying to ensure it aligns with your preferences.",
-    "summary": "HYG: ETF candidate, score 90/100, estimated trade upside 3.6%.",
-    "setup_tags": [
-      "strong ETF liquidity",
-      "price is above 20-day trend",
-      "price is above 50-day trend",
-      "ETF volatility is controlled"
-    ],
-    "risk_tags": [],
-    "scan_time": "2026-08-13T11:46:43.107210+00:00",
-    "history_days_available": 251,
-    "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
-    "high_52w": 79.69,
-    "low_52w": 75.64,
-    "all_period_high": 79.69,
-    "all_period_low": 75.64,
-    "range_position_pct": 98.0,
-    "range_position_label": "Near 52-week highs",
-    "distance_from_52w_high_pct": -0.1,
-    "distance_from_52w_low_pct": 5.2,
-    "drawdown_from_period_high_pct": -0.1,
-    "drawdown_label": "Shallow drawdown",
-    "return_1m_pct": 0.4,
-    "return_3m_pct": 1.1,
-    "return_6m_pct": 1.4,
-    "return_1y_pct": null,
-    "return_3y_pct": null,
-    "return_5y_pct": null,
-    "analyst_support_score": 40.9,
-    "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
-    "analyst_support_label": "Mixed (41/100)",
-    "news_sentiment_source": "No recent NewsAPI headline returned; defaulted to neutral",
-    "top_news_headline": "No recent high-confidence company headline returned by NewsAPI",
-    "news_sentiment_label": "Neutral",
-    "news_sentiment_score": 0,
-    "thesis_strength": "Developing Thesis",
-    "evidence_confidence": "Low-Medium",
-    "ai_committee": {
-      "News Agent": {
-        "score": 45,
-        "status": "Unknown / insufficient data",
-        "impact": "Neutral",
-        "data_used": "No source returned recent data",
-        "summary": "Reviews headlines/catalysts. Confidence: Low.",
-        "findings": [],
-        "risks": [
-          "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
-        ],
-        "bottom_line": "News is mixed or insufficient."
-      },
-      "Finance Agent": {
-        "score": 50,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "FMP/Yahoo fundamentals, financial statements, balance sheet, cash flow",
-        "summary": "Checks revenue, EPS, margins, leverage, liquidity, cash flow, valuation, and execution.",
-        "findings": [
-          "Financial data limited."
-        ],
-        "risks": [
-          "No major finance-specific red flag detected."
-        ],
-        "bottom_line": "Financial profile reviewed."
-      },
-      "Analyst Agent": {
-        "score": 40,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Finnhub/Yahoo/FMP analyst targets and recommendation trends",
-        "summary": "Checks whether Wall Street estimates support the AI thesis.",
-        "findings": [
-          "Analyst support score: 41/100.",
-          "Analyst target: $N/A.",
-          "Analyst count: N/A."
-        ],
-        "risks": [
-          "Analyst data can lag fast-moving news."
-        ],
-        "bottom_line": "Analyst view is mixed/limited."
-      },
-      "Technical Agent": {
-        "score": 90,
-        "status": "Positive",
-        "impact": "Positive",
-        "data_used": "Price history, RSI, ATR, volume, SMA, support/resistance",
-        "summary": "Evaluates trend, momentum, volatility, support/resistance and entry quality.",
-        "findings": [
-          "Support 1: $78.76 \u00b7 Resistance 1: $79.69.",
-          "Price is above the 20-day trend.",
-          "Price is above the 50-day trend.",
-          "RSI is 74.4."
-        ],
-        "risks": [
-          "RSI is overbought; avoid chasing."
-        ],
-        "bottom_line": "Near resistance. Avoid chasing unless breakout holds with volume."
-      },
-      "Insider Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "SEC EDGAR Form 4 framework; Finnhub insider-ready",
-        "summary": "Checks insider filing activity and prepares buy/sell classification.",
-        "findings": [
-          "No recent Form 4 activity retrieved."
-        ],
-        "risks": [
-          "SEC insider data unavailable: CIK not found"
-        ],
-        "bottom_line": "Insider signal is limited until transaction-level parsing is expanded."
-      },
-      "Institutional Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "SEC EDGAR filings plus FMP institutional ownership-ready",
-        "summary": "Checks institutional context and 13F availability.",
-        "findings": [
-          "Institutional data limited."
-        ],
-        "risks": [
-          "13F data is delayed by reporting schedule."
-        ],
-        "bottom_line": "Institutional signal is directional and should be confirmed with holder details."
-      },
-      "Competitor Agent": {
-        "score": 55,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "FMP peer list and company fundamentals",
-        "summary": "Compares company fundamentals and valuation context against peers.",
-        "findings": [
-          "Forward PE available for peer context: 1326.8."
-        ],
-        "risks": [
-          "Peer list unavailable in current scan."
-        ],
-        "bottom_line": "Peer context is limited/mixed."
-      },
-      "Political Agent": {
-        "score": 50,
-        "status": "Not connected yet",
-        "impact": "Neutral",
-        "data_used": "Capitol Trades public data planned; no API key required",
-        "summary": "Tracks congressional trading once public feed integration is enabled.",
-        "findings": [
-          "Political Agent framework is active."
-        ],
-        "risks": [
-          "Capitol Trades ingestion not enabled yet; no political score applied."
-        ],
-        "bottom_line": "No political trading signal applied yet."
-      },
-      "Recovery Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "52-week drawdown, growth, analyst support, technical recovery signals",
-        "summary": "Explains whether this is a recovery candidate or momentum setup.",
-        "findings": [
-          "Recovery framework active."
-        ],
-        "risks": [
-          "Recovery thesis requires business outlook to remain intact."
-        ],
-        "bottom_line": "Recovery setup exists only if fundamentals remain healthy."
-      },
-      "ETF / Ownership Agent": {
-        "score": 55,
-        "status": "Framework active",
-        "impact": "Neutral",
-        "data_used": "ETF inclusion and ownership flow framework",
-        "summary": "Checks ETF/index ownership support.",
-        "findings": [
-          "ETF/ownership framework is active."
-        ],
-        "risks": [
-          "Detailed ETF flow data not fully connected yet."
-        ],
-        "bottom_line": "ETF/ownership is not yet a primary scoring driver."
-      }
-    },
-    "v42_news_score": 45,
-    "v42_news_summary": "News is mixed or insufficient.",
-    "v42_news_status": "Unknown / insufficient data",
-    "v42_news_catalysts": [],
-    "v42_news_risks": [
-      "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
-    ],
-    "v42_news_sources": [
-      "No source returned recent data"
-    ],
-    "latest_news_headline": "",
-    "latest_news_source": "",
-    "latest_news_date": "",
-    "latest_news_sentiment": "Unknown / insufficient data",
-    "v42_sec_available": false,
-    "v42_sec_cik": null,
-    "v42_support_1": 78.76,
-    "v42_support_2": 75.64,
-    "v42_resistance_1": 79.69,
-    "v42_resistance_2": 79.69,
-    "v42_breakout_level": 80.49,
-    "v42_pullback_zone": "$78.76 - $78.76",
+    "v42_pullback_zone": "$33.48 - $36.99",
     "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
     "v42_committee_positive_agents": 1,
     "v42_committee_total_agents": 10
