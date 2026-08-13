@@ -32200,9 +32200,6 @@ def v104_pipeline_from_df(full_df):
 
 def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
     pipeline = v104_pipeline_from_df(full_df)
-
-    # Orientation comes first; the existing tape methodology is unchanged.
-    render_v71_market_tape(always_show=True)
     watchlist_tickers = read_watchlist_symbols()
     portfolio_tickers = []
     try:
@@ -32225,6 +32222,7 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
         pipeline,
         portfolio_tickers=portfolio_tickers,
         watchlist_tickers=watchlist_tickers,
+        signal_as_of=read_state().get("generated_at"),
     )
 
     st.markdown("---")

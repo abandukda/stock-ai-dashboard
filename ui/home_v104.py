@@ -10,6 +10,14 @@ from ui.daily_opportunities import (
 )
 from ui.morning_brief import render_morning_brief
 from engines.home_discovery import build_home_intelligence
+from engines.home_market_data import fetch_home_market_tape
+from engines.buy_now_synthesis import (
+    build_buy_now_context,
+    configured_openai_generator,
+    evidence_fingerprint,
+    implied_upside_pct,
+    synthesize_buy_now,
+)
 from engines.research_engine import research_navigation_state
 from ui.research_report_v104 import (
     inject_v104_polish_css,
@@ -147,6 +155,38 @@ def _open_research(ticker: str, key: str) -> None:
         st.rerun()
 
 
+@st.cache_data(ttl=120, show_spinner=False)
+def _home_market_tape():
+    import yfinance as yf
+    return fetch_home_market_tape(yf.download)
+
+
+def _render_market_tape() -> None:
+    tape = _home_market_tape()
+    st.markdown("### Live Market Tape")
+    cols = st.columns(4)
+    for index, row in enumerate(tape["rows"]):
+        with cols[index % 4]:
+            if row["status"] == "live":
+                st.metric(row["label"], _money(row["price"]), _pct(row.get("change_pct")))
+            else:
+                st.metric(row["label"], "Unavailable")
+    st.caption(
+        f"Market data updated: {tape['market_data_as_of'] or 'Unavailable'} · delayed / near-real-time {tape['source']} · "
+        f"{tape['available']}/{tape['requested']} instruments available. "
+        "Live context is not used in persisted Atlas scores or recommendations."
+    )
+
+
+def _synthesis_for(row: Mapping[str, Any]) -> Mapping[str, Any]:
+    context = build_buy_now_context(row)
+    fingerprint = evidence_fingerprint(context)
+    cache = st.session_state.setdefault("home_buy_now_synthesis_cache", {})
+    if fingerprint not in cache:
+        cache[fingerprint] = synthesize_buy_now(context, configured_openai_generator)
+    return cache[fingerprint]
+
+
 def _render_discovery_card(row: Mapping[str, Any], rank: int) -> None:
     ticker = str(row.get("ticker") or "UNKNOWN")
     company = str(_raw_value(row, "company", "company_name", "Company") or ticker)
@@ -162,17 +202,24 @@ def _render_discovery_card(row: Mapping[str, Any], rank: int) -> None:
         entry = f"{_money(low)}–{_money(high)}" if low is not None and high is not None else "Unavailable"
     fair_value = _raw_value(row, "atlas_fair_value", "Atlas Fair Value")
     analyst = _raw_value(row, "analyst_target_mean", "Wall Street Consensus")
+    price = _raw_value(row, "current_price", "price")
+    atlas_upside = implied_upside_pct(fair_value, price)
+    analyst_upside = implied_upside_pct(analyst, price)
+    synthesis = _synthesis_for(row)
 
     with st.container(border=True):
         st.caption(f"#{rank} · {label}")
         st.markdown(f"### {ticker} — {company}")
         st.markdown("## BUY NOW")
-        metrics = st.columns(4)
-        metrics[0].metric("Current Price", _money(_raw_value(row, "current_price", "price")))
+        metrics = st.columns(2)
+        metrics[0].metric("Current Price", _money(price))
         metrics[1].metric("Preferred Entry", str(entry))
-        metrics[2].metric("Expected Return", _pct(row.get("expected_return_pct")))
-        metrics[3].metric("Atlas Fair Value", _money(fair_value))
-        st.caption(f"Wall Street consensus: {_money(analyst)} · Position guidance: {row.get('position_size_range') or 'Unavailable'}")
+        values = st.columns(2)
+        values[0].metric("Atlas Fair Value", _money(fair_value), f"{_pct(atlas_upside)} vs current price" if atlas_upside is not None else None)
+        values[1].metric("Wall Street Consensus", _money(analyst), f"{_pct(analyst_upside)} implied upside" if analyst_upside is not None else None)
+        st.caption(f"Position guidance: {row.get('position_size_range') or 'Unavailable'}")
+        st.markdown(f"**What Atlas thinks:** {synthesis['what_atlas_thinks']}")
+        st.markdown(f"**What to do now:** {synthesis['what_to_do_now']}")
         st.markdown("**Why now**")
         if facts:
             for item in facts[:3]:
@@ -189,6 +236,7 @@ def _render_discovery_card(row: Mapping[str, Any], rank: int) -> None:
         action = guidance.get("action_now") or {}
         timing = "Buy within the existing preferred entry range." if entry != "Unavailable" else (action.get("entry_timing_context") or "Entry timing is unavailable.")
         st.markdown(f"**Atlas action:** {action.get('current_action') or 'BUY NOW'} · {timing}")
+        st.caption(f"Signal as of: {row.get('signal_as_of') or 'Unavailable'}")
         changes = guidance.get("thesis_change_conditions") or {}
         strengthen = (changes.get("strengthen") or [None])[0]
         weaken = (changes.get("weaken") or [None])[0]
@@ -226,6 +274,7 @@ def render_v104_home(
     *,
     portfolio_tickers=(),
     watchlist_tickers=(),
+    signal_as_of=None,
 ) -> None:
     inject_v104_polish_css()
     st.markdown(
@@ -258,13 +307,15 @@ def render_v104_home(
             else str(query)
         )
 
-    st.markdown("# Atlas Morning Command Center")
-    st.caption("What matters today, what Atlas would investigate now, and where deeper evidence is available.")
+    st.markdown("# Atlas Morning Decision")
+    st.caption("A concise decision dashboard built from the latest persisted Atlas research.")
+    _render_market_tape()
+    st.caption(f"Atlas signal as of {signal_as_of or 'Unavailable'} · Separate from live market context")
 
     st.markdown("## Atlas Morning View")
     st.info(home["morning_view"])
 
-    st.markdown("## What To Do Today")
+    st.markdown("## Decision Snapshot")
     counts = home["counts"]
     c = st.columns(4)
     c[0].metric("BUY NOW", counts["buy_now"], "Review highest-conviction entries")
@@ -276,32 +327,15 @@ def render_v104_home(
     c[3].metric("Watch", counts["monitor"])
 
     discoveries = home["discoveries"]["selected"]
+    for discovery in discoveries:
+        discovery["signal_as_of"] = signal_as_of
     st.markdown("## Top BUY NOW Discoveries")
     if len(discoveries) < 3:
         st.info(f"ATLAS found only {len(discoveries)} high-conviction BUY NOW opportunities today.")
+    discovery_columns = st.columns(max(1, len(discoveries)))
     for index, row in enumerate(discoveries, start=1):
-        _render_discovery_card(row, index)
-
-    if home["portfolio_actions"]:
-        _render_action_rows("Portfolio Actions", home["portfolio_actions"], "home_portfolio")
-    else:
-        st.caption("Portfolio actions will appear after holdings are added in Portfolio Intelligence.")
-    _render_action_rows("Watchlist Actions", home["watchlist_actions"], "home_watchlist")
-
-    st.markdown("## Today's Dated Evidence")
-    st.caption(
-        f"{counts['scheduled_earnings']} scheduled earnings dates from persisted provider evidence · "
-        f"{counts['company_news_events']} current company-specific news events from the filtered news feed."
-    )
-    catalysts = home["catalysts"][:6]
-    if not catalysts:
-        st.caption("No verified dated company catalyst is available in the current research set.")
-    for row in catalysts:
-        catalyst = (row.get("guidance_summary") or {}).get("next_catalyst") or {}
-        st.markdown(
-            f"**{row.get('ticker')} · {catalyst.get('date')} · {row.get('catalyst_type')}** — "
-            f"{catalyst.get('event')}  \n_Source: {row.get('catalyst_source')}_"
-        )
+        with discovery_columns[index - 1]:
+            _render_discovery_card(row, index)
 
     selected_ticker = st.session_state.get(
         "v104_research_ticker"
@@ -326,27 +360,23 @@ def render_v104_home(
                 "in the current scan."
             )
 
-    st.markdown("## Broader Opportunities")
-    tabs = st.tabs(
-        [
-            "Morning Brief",
-            "Today's Opportunities",
-            "Volume & Momentum",
-            "Research Candidates",
-        ]
-    )
-
+    st.markdown("## More Decisions")
+    tabs = st.tabs(["My Stocks", "More Opportunities", "Catalysts", "Calendar"])
     with tabs[0]:
-        render_morning_brief(ranked)
-
+        if home["portfolio_actions"]:
+            _render_action_rows("Portfolio Actions", home["portfolio_actions"], "home_portfolio")
+        else:
+            st.caption("No holdings configured. Add holdings in Portfolio Intelligence.")
+        _render_action_rows("Watchlist Actions", home["watchlist_actions"], "home_watchlist")
     with tabs[1]:
         render_today_opportunities(ranked)
-
     with tabs[2]:
-        render_volume_momentum(ranked)
-
+        st.caption(f"{counts['scheduled_earnings']} scheduled earnings · {counts['company_news_events']} sourced company-news events")
+        for item in home["catalysts"][:8]:
+            catalyst = (item.get("guidance_summary") or {}).get("next_catalyst") or {}
+            st.markdown(f"**{item.get('ticker')} · {catalyst.get('date')} · {item.get('catalyst_type')}** — {catalyst.get('event')}  \n_Source: {item.get('catalyst_source')}_")
     with tabs[3]:
-        _render_research_candidates(candidates)
+        st.caption("Open Market & Economic Calendar below for the full verified calendar.")
 
 
 __all__ = ["render_v104_home"]
