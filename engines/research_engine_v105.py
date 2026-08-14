@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from typing import Any, Mapping
+
+from engines.semantic_fields import canonical_atlas_fair_value
 import math
 
 
@@ -97,10 +99,7 @@ def _safe_case(
 
 def _fair_value_cases(row: Mapping[str, Any]) -> list[ResearchCase]:
     current_price = _num(row.get("current_price"))
-    base_value = _num(
-        row.get("validated_fair_value")
-        or row.get("atlas_fair_value")
-    )
+    base_value = canonical_atlas_fair_value(row)
 
     if current_price is None or base_value is None:
         return [
@@ -272,7 +271,6 @@ def _wall_street(row: Mapping[str, Any]) -> dict[str, Any]:
     average_target = _num(
         raw.get("analyst_target_mean")
         or raw.get("Analyst Target")
-        or row.get("validated_fair_value")
     )
     high_target = _num(
         raw.get("analyst_target_high")
@@ -446,10 +444,7 @@ def build_institutional_research(
         "opportunity_score": _num(row.get("opportunity_score")),
         "confidence_pct": _num(row.get("confidence_pct")),
         "current_price": _num(row.get("current_price")),
-        "validated_fair_value": _num(
-            row.get("validated_fair_value")
-            or row.get("atlas_fair_value")
-        ),
+        "validated_fair_value": canonical_atlas_fair_value(row),
         "expected_return_pct": _num(
             row.get("expected_return_pct")
         ),

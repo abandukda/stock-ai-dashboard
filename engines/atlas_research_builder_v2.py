@@ -22,7 +22,7 @@ from engines.canonical_market_data import attach_price_history
 from engines.research_enrichment_v105 import build_enriched_research_report
 from engines.research_engine_v105 import build_institutional_research
 from engines.analyst_engine import build_analyst_snapshot, build_analyst_summary
-from engines.semantic_fields import canonical_atlas_fair_value, valuation_families
+from engines.semantic_fields import atlas_valuation_status, canonical_atlas_fair_value, valuation_families
 from engines.trade_plan_v1052 import build_trade_plan
 from engines.atlas_intelligence_engine import build_executive_intelligence
 from engines.guidance_summary import build_guidance_summary, guidance_summary_text
@@ -566,6 +566,9 @@ def build_atlas_research_v2(
         "bear_case": institutional.get("bear_case") or enriched.get("reasons_to_wait"),
         "fair_value_cases": fair_value_cases,
         "validated_fair_value": validated_fair_value,
+        "atlas_fair_value": validated_fair_value,
+        "atlas_valuation_status": atlas_valuation_status(enriched_row),
+        "atlas_fv_upside_pct": valuation.get("atlas_fv_upside_pct"),
         "atlas_expected_return_pct": valuation.get("atlas_expected_return_pct"),
         "analyst_upside_pct": valuation.get("analyst_upside_pct"),
         "scenario_base_upside_pct": valuation.get("scenario_base_upside_pct"),
@@ -594,6 +597,7 @@ def build_atlas_research_v2(
             ),
             "current_price": quote.get("price"),
             "validated_fair_value": institutional.get("validated_fair_value"),
+            "atlas_valuation_status": atlas_valuation_status(enriched_row),
             "expected_return_pct": institutional.get("expected_return_pct"),
             "research_completeness_pct": completeness,
         },

@@ -27,6 +27,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 import yfinance as yf
 
+from engines.atlas_valuation import AtlasValuationInputs, PUBLISHED, calculate_atlas_fair_value
 
 
 def v42_safe_float(value, default=0.0):
@@ -472,8 +473,14 @@ def get_metadata(symbol: str) -> Dict[str, Any]:
             "recommendation_mean": safe_float(info.get("recommendationMean")),
             "recommendation_key": info.get("recommendationKey") or "unknown",
             "revenue_growth": safe_float(info.get("revenueGrowth")),
+            "revenue_growth_source": "YAHOO_INFO" if info.get("revenueGrowth") is not None else None,
+            "revenue_growth_horizon": "PROVIDER_DEFINED" if info.get("revenueGrowth") is not None else None,
             "earnings_growth": safe_float(info.get("earningsGrowth")),
+            "earnings_growth_source": "YAHOO_INFO" if info.get("earningsGrowth") is not None else None,
+            "earnings_growth_horizon": "PROVIDER_DEFINED" if info.get("earningsGrowth") is not None else None,
             "forward_pe": safe_float(info.get("forwardPE")),
+            "forward_eps": safe_float(info.get("forwardEps")),
+            "forward_eps_source": "YAHOO_INFO" if info.get("forwardEps") is not None else None,
             "peg_ratio": safe_float(info.get("pegRatio")),
             # Preserve Yahoo's decimal ratio (for example 0.1691 == 16.91%).
             # The research adapter owns presentation scaling, matching the
@@ -1866,8 +1873,14 @@ def make_dashboard_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], s
         "latest_revenue": meta.get("latest_revenue"),
         "latest_eps": meta.get("latest_eps"),
         "revenue_growth": meta.get("revenue_growth"),
+        "revenue_growth_source": meta.get("revenue_growth_source"),
+        "revenue_growth_horizon": meta.get("revenue_growth_horizon"),
         "earnings_growth": meta.get("earnings_growth"),
+        "earnings_growth_source": meta.get("earnings_growth_source"),
+        "earnings_growth_horizon": meta.get("earnings_growth_horizon"),
         "forward_pe": meta.get("forward_pe"),
+        "forward_eps": meta.get("forward_eps"),
+        "forward_eps_source": meta.get("forward_eps_source"),
         "revenue_qoq_pct": meta.get("revenue_qoq_pct"),
         "revenue_quarters": meta.get("revenue_quarters"),
         "eps_quarters": meta.get("eps_quarters"),
@@ -2535,7 +2548,11 @@ def get_fmp_financial_intelligence(symbol: str) -> Dict[str, Any]:
             "net_profit_margin": safe_float(latest_income.get("netIncomeRatio")),
             "revenue_qoq_pct": round(revenue_qoq, 1) if revenue_qoq is not None else None,
             "revenue_growth": revenue_yoy / 100 if revenue_yoy is not None else None,
+            "revenue_growth_source": "FMP_STABLE_INCOME_STATEMENT" if revenue_yoy is not None else None,
+            "revenue_growth_horizon": "LATEST_QUARTER_YEAR_OVER_YEAR" if revenue_yoy is not None else None,
             "earnings_growth": eps_yoy / 100 if eps_yoy is not None else None,
+            "earnings_growth_source": "FMP_STABLE_INCOME_STATEMENT" if eps_yoy is not None else None,
+            "earnings_growth_horizon": "LATEST_QUARTER_YEAR_OVER_YEAR" if eps_yoy is not None else None,
             "revenue_quarters": revenues,
             "eps_quarters": eps_values,
             "net_income_quarters": net_income_values,
@@ -4241,30 +4258,13 @@ def v803_apply_complete_research_fields(row: Dict[str, Any], meta: Dict[str, Any
     Uses a growth-adjusted forward-earnings method when the necessary inputs exist.
     Wall Street consensus is kept separate and is never relabeled as Atlas Fair Value.
     """
-    price = safe_float(row.get("price") or row.get("current_price"), None)
-    forward_pe = safe_float(meta.get("forward_pe") or row.get("forward_pe"), None)
-    revenue_growth = safe_float(meta.get("revenue_growth") or row.get("revenue_growth"), None)
-    margin = safe_float(meta.get("operating_margin") or row.get("operating_margin"), None)
+    valuation_source = dict(row)
+    valuation_source.update({key: value for key, value in meta.items() if value not in (None, "", "Unknown")})
+    result = calculate_atlas_fair_value(AtlasValuationInputs.from_row(valuation_source))
+    row.update(result.public_fields())
+    atlas_value = result.fair_value
 
-    # Yahoo/FMP growth fields may be decimals or percentages.
-    if revenue_growth is not None and abs(revenue_growth) <= 2:
-        revenue_growth *= 100
-    if margin is not None and abs(margin) <= 2:
-        margin *= 100
-
-    atlas_value = None
-    if price and forward_pe and forward_pe > 0:
-        forward_eps = price / forward_pe
-        growth = max(-10.0, min(40.0, revenue_growth if revenue_growth is not None else 8.0))
-        margin_bonus = 2.0 if margin is not None and margin >= 25 else 0.0
-        justified_pe = max(12.0, min(38.0, 16.0 + 0.45 * growth + margin_bonus))
-        atlas_value = round(forward_eps * justified_pe, 2)
-        # Reject implausible or accidental legacy +30% outputs.
-        upside = ((atlas_value / price) - 1) * 100
-        if atlas_value <= 0 or upside < -60 or upside > 80 or 29.65 <= upside <= 30.35:
-            atlas_value = None
-
-    if atlas_value is not None:
+    if result.status == PUBLISHED and atlas_value is not None:
         row["atlas_fair_value"] = atlas_value
         row["Atlas Fair Value"] = atlas_value
         # Keep the analyst-driven bear/base/bull tuple in one semantic
@@ -4276,8 +4276,8 @@ def v803_apply_complete_research_fields(row: Dict[str, Any], meta: Dict[str, Any
         row["target"] = atlas_value
         row["fair_value_method"] = "Growth-adjusted forward earnings multiple"
         row["target_source"] = "Atlas valuation model: growth-adjusted forward earnings multiple"
-        row["fair_value_confidence"] = 72 if revenue_growth is not None else 58
-        row["expected_upside_pct"] = round(((atlas_value / price) - 1) * 100, 1)
+        row["fair_value_confidence"] = 72 if result.growth_method == "PROVIDER_VALUE" else 58
+        row["expected_upside_pct"] = result.upside_pct
         row["expected_return_pct"] = row["expected_upside_pct"]
         row["atlas_expected_return_pct"] = row["expected_upside_pct"]
         row["upside"] = row["expected_upside_pct"]
@@ -4295,6 +4295,8 @@ def v803_apply_complete_research_fields(row: Dict[str, Any], meta: Dict[str, Any
             f"{company}: AI target ${atlas_value:.2f} with "
             f"{row['expected_upside_pct']:.1f}% upside."
         )
+    else:
+        row.pop("Atlas Fair Value", None)
 
     # Persist the freshest direct-news fields already obtained by the scan/committee.
     committee = row.get("ai_committee") if isinstance(row.get("ai_committee"), dict) else {}

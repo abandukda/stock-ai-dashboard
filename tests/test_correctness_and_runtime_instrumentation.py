@@ -73,21 +73,21 @@ def test_direct_research_state_contract_propagates_active_ticker():
     assert state["v79_pending_page"] == "Research Any Ticker"
 
 
-def test_live_scenarios_publish_scheduled_aliases_without_changing_values():
+def test_live_canonical_value_does_not_masquerade_as_analyst_scenarios():
     fundamentals = {"Forward PE": 20, "Revenue Growth": 15, "Earnings Growth": 20, "Operating Margin": 25}
     analysts = {"analyst_target_mean": 120, "analyst_target_low": 100, "analyst_target_high": 140}
     result = _fair_value_complete(100, {"forwardEps": 5}, fundamentals, analysts)
-    assert result["ai_bear_target"] == result["fair_value_bear"]
-    assert result["ai_base_target"] == result["atlas_fair_value"] == result["fair_value_base"]
-    assert result["ai_bull_target"] == result["fair_value_bull"]
-    assert result["ai_bear_target"] <= result["ai_base_target"] <= result["ai_bull_target"]
+    assert result["atlas_fair_value"] == 123.75
+    assert "ai_bear_target" not in result
+    assert "ai_base_target" not in result
+    assert "ai_bull_target" not in result
 
 
 def test_neutral_anchor_cannot_surface_as_canonical_fair_value():
     result = _fair_value_complete(100, {}, {}, {})
     assert result["atlas_fair_value"] is None
     assert result["Atlas Fair Value"] is None
-    assert result["fair_value_status"] == "Insufficient valuation evidence"
+    assert result["fair_value_status"] == "INSUFFICIENT_INPUTS"
 
 
 class _YahooEarningsTicker:

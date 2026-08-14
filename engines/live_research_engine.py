@@ -12,6 +12,7 @@ import yfinance as yf
 
 from services.research_cache import load_cached_research, save_cached_research
 from engines.decision_intelligence_engine import evidence_pack, primary_risk, decision
+from engines.atlas_valuation import AtlasValuationInputs, calculate_atlas_fair_value
 
 NEWSAPI_KEY = os.getenv("NEWSAPI_KEY", "").strip()
 FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "").strip()
@@ -243,48 +244,47 @@ def _analyst_context(ticker: str) -> Dict[str, Any]:
     }
 
 
+def _canonical_live_valuation(
+    price: float,
+    info: Dict[str, Any],
+    fundamentals: Dict[str, Any],
+    analyst: Dict[str, Any],
+) -> Dict[str, Any]:
+    revenue = fundamentals.get("Revenue Growth", _pct(_num(info.get("revenueGrowth"))))
+    margin = fundamentals.get("Operating Margin", _pct(_num(info.get("operatingMargins"))))
+    inputs = AtlasValuationInputs(
+        price=price,
+        forward_pe=_num(fundamentals.get("Forward PE"), _num(info.get("forwardPE"))),
+        forward_eps=_num(info.get("forwardEps")),
+        forward_eps_source="YAHOO_INFO" if info.get("forwardEps") is not None else None,
+        revenue_growth=revenue,
+        revenue_growth_source=fundamentals.get("revenue_growth_source") or ("YAHOO_INFO" if info.get("revenueGrowth") is not None else None),
+        revenue_growth_horizon=fundamentals.get("revenue_growth_horizon") or ("PROVIDER_DEFINED" if info.get("revenueGrowth") is not None else None),
+        operating_margin=margin,
+        analyst_target_mean=_num(analyst.get("analyst_target_mean")),
+        analyst_target_low=_num(analyst.get("analyst_target_low")),
+        analyst_target_high=_num(analyst.get("analyst_target_high")),
+    )
+    result = calculate_atlas_fair_value(inputs)
+    fields = result.public_fields()
+    fields.update({
+        "Atlas Fair Value": result.fair_value,
+        "fair_value_status": result.status,
+        "fair_value_method": "Atlas canonical growth-adjusted forward earnings multiple",
+        "fair_value_confidence": 72 if result.growth_method == "PROVIDER_VALUE" else 58,
+        "expected_upside_pct": result.upside_pct,
+        "expected_return_pct": result.upside_pct,
+        "Expected Return": result.upside_pct,
+    })
+    return fields
+
+
 def _fair_value(price: float, info: Dict[str, Any]) -> Dict[str, Any]:
-    forward_pe = _num(info.get("forwardPE"))
-    trailing_eps = _num(info.get("trailingEps"))
-    forward_eps = _num(info.get("forwardEps"))
-    revenue_growth = _pct(_num(info.get("revenueGrowth")))
-    earnings_growth = _pct(_num(info.get("earningsGrowth")))
-    op_margin = _pct(_num(info.get("operatingMargins")))
-    analyst_target = _num(info.get("targetMeanPrice"))
-
-    estimates = []
-    methods = []
-    eps = forward_eps or (price / forward_pe if forward_pe and forward_pe > 0 else trailing_eps)
-    if eps and eps > 0:
-        growth = earnings_growth if earnings_growth is not None else revenue_growth
-        growth = max(-5.0, min(35.0, growth if growth is not None else 8.0))
-        margin_bonus = 2.0 if op_margin is not None and op_margin >= 25 else 0.0
-        justified_pe = max(12.0, min(38.0, 16.0 + 0.45 * growth + margin_bonus))
-        estimates.append(eps * justified_pe)
-        methods.append("growth-adjusted earnings multiple")
-    if analyst_target and analyst_target > 0:
-        estimates.append(analyst_target)
-        methods.append("analyst-consensus cross-check")
-
-    if not estimates:
-        return {"Atlas Fair Value": None, "atlas_fair_value": None, "fair_value_status": "Insufficient valuation evidence"}
-
-    base = sum(estimates) / len(estimates)
-    upside = ((base / price) - 1) * 100 if price else None
-    if base <= 0 or upside is None or upside < -60 or upside > 100 or 29.65 <= upside <= 30.35:
-        return {"Atlas Fair Value": None, "atlas_fair_value": None, "fair_value_status": "Valuation requires review"}
-
-    confidence = 58 + (12 if len(estimates) >= 2 else 0) + (8 if revenue_growth is not None else 0) + (8 if earnings_growth is not None else 0)
-    return {
-        "Atlas Fair Value": round(base, 2),
-        "atlas_fair_value": round(base, 2),
-        "fair_value_method": " + ".join(methods),
-        "fair_value_confidence": min(confidence, 90),
-        "fair_value_bear": round(base * 0.85, 2),
-        "fair_value_bull": round(base * 1.15, 2),
-        "expected_upside_pct": round(upside, 1),
-        "Expected Return": round(upside, 1),
-    }
+    return _canonical_live_valuation(price, info, {}, {
+        "analyst_target_mean": _num(info.get("targetMeanPrice")),
+        "analyst_target_low": _num(info.get("targetLowPrice")),
+        "analyst_target_high": _num(info.get("targetHighPrice")),
+    })
 
 
 def build_live_research(ticker: str, force_refresh: bool = False, cache_ttl_seconds: int = 900) -> Dict[str, Any]:
@@ -477,9 +477,11 @@ def _fundamental_fallbacks(tk: Any, info: Dict[str, Any]) -> Dict[str, Any]:
     current_liabilities = _statement_value(balance, ["Current Liabilities", "Total Current Liabilities"])
 
     revenue_growth = _pct(_num(info.get("revenueGrowth")))
+    revenue_growth_from_provider = revenue_growth is not None
     if revenue_growth is None:
         revenue_growth = _growth_from_statement(income, ["Total Revenue", "Operating Revenue"])
     earnings_growth = _pct(_num(info.get("earningsGrowth")))
+    earnings_growth_from_provider = earnings_growth is not None
     if earnings_growth is None:
         earnings_growth = _growth_from_statement(income, ["Net Income", "Net Income Common Stockholders"])
 
@@ -498,7 +500,11 @@ def _fundamental_fallbacks(tk: Any, info: Dict[str, Any]) -> Dict[str, Any]:
 
     return {
         "Revenue Growth": revenue_growth,
+        "revenue_growth_source": "YAHOO_INFO" if revenue_growth_from_provider else ("YAHOO_QUARTERLY_STATEMENT" if revenue_growth is not None else None),
+        "revenue_growth_horizon": "PROVIDER_DEFINED" if revenue_growth_from_provider else ("ADJACENT_REPORTED_PERIODS" if revenue_growth is not None else None),
         "Earnings Growth": earnings_growth,
+        "earnings_growth_source": "YAHOO_INFO" if earnings_growth_from_provider else ("YAHOO_QUARTERLY_STATEMENT" if earnings_growth is not None else None),
+        "earnings_growth_horizon": "PROVIDER_DEFINED" if earnings_growth_from_provider else ("ADJACENT_REPORTED_PERIODS" if earnings_growth is not None else None),
         "Gross Margin": gross_margin,
         "Operating Margin": op_margin,
         "Net Margin": net_margin,
@@ -594,62 +600,7 @@ def _earnings_context(tk: Any) -> Dict[str, Any]:
 
 
 def _fair_value_complete(price: float, info: Dict[str, Any], fundamentals: Dict[str, Any], analyst: Dict[str, Any]) -> Dict[str, Any]:
-    forward_eps = _num(info.get("forwardEps"))
-    trailing_eps = _num(info.get("trailingEps"))
-    forward_pe = _num(fundamentals.get("Forward PE"))
-    revenue_growth = _pct(fundamentals.get("Revenue Growth"))
-    earnings_growth = _pct(fundamentals.get("Earnings Growth"))
-    op_margin = _pct(fundamentals.get("Operating Margin"))
-    analyst_mean = _num(analyst.get("analyst_target_mean"))
-    analyst_low = _num(analyst.get("analyst_target_low"))
-    analyst_high = _num(analyst.get("analyst_target_high"))
-
-    estimates = []
-    methods = []
-    eps = forward_eps or trailing_eps or (price / forward_pe if forward_pe and forward_pe > 0 else None)
-    if eps and eps > 0:
-        growth = earnings_growth if earnings_growth is not None else revenue_growth
-        growth = max(-5.0, min(30.0, growth if growth is not None else 6.0))
-        justified_pe = max(11.0, min(36.0, 15.0 + 0.42 * growth + (2.0 if op_margin and op_margin >= 25 else 0.0)))
-        estimates.append(eps * justified_pe)
-        methods.append("growth-adjusted earnings")
-    if analyst_mean and analyst_mean > 0:
-        # Use a conservative haircut so Atlas remains independent from Wall Street.
-        estimates.append(price * 0.30 + analyst_mean * 0.70)
-        methods.append("discounted analyst cross-check")
-    if analyst_low and analyst_high and analyst_high >= analyst_low > 0:
-        estimates.append((analyst_low + analyst_high) / 2)
-        methods.append("analyst range midpoint")
-
-    if not estimates:
-        return {
-            "Atlas Fair Value": None,
-            "atlas_fair_value": None,
-            "fair_value_status": "Insufficient valuation evidence",
-        }
-
-    base = sum(estimates) / len(estimates)
-    # Avoid implausible targets in the paid-client card.
-    base = max(price * 0.55, min(price * 1.75, base))
-    upside = (base / price - 1) * 100 if price else 0.0
-    dispersion = 0.15 if len(estimates) >= 2 else 0.22
-    confidence = min(92, 55 + len(estimates) * 10 + (8 if revenue_growth is not None else 0) + (8 if earnings_growth is not None else 0))
-    return {
-        "Atlas Fair Value": round(base, 2),
-        "atlas_fair_value": round(base, 2),
-        "fair_value_method": " + ".join(methods),
-        "fair_value_status": "Modeled",
-        "fair_value_confidence": confidence,
-        "fair_value_bear": round(base * (1 - dispersion), 2),
-        "fair_value_base": round(base, 2),
-        "fair_value_bull": round(base * (1 + dispersion), 2),
-        "ai_bear_target": round(base * (1 - dispersion), 2),
-        "ai_base_target": round(base, 2),
-        "ai_bull_target": round(base * (1 + dispersion), 2),
-        "expected_upside_pct": round(upside, 1),
-        "expected_return_pct": round(upside, 1),
-        "Expected Return": round(upside, 1),
-    }
+    return _canonical_live_valuation(price, info, fundamentals, analyst)
 
 
 _build_live_research_v806 = build_live_research

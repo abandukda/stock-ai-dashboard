@@ -55,6 +55,13 @@ def canonical_atlas_fair_value(row: Mapping[str, Any]) -> float | None:
     return number(first_present(row, "atlas_fair_value", "Atlas Fair Value"))
 
 
+def atlas_valuation_status(row: Mapping[str, Any]) -> str:
+    status = first_present(row, "atlas_valuation_status", "fair_value_status")
+    if status is not None:
+        return str(status)
+    return "PUBLISHED" if canonical_atlas_fair_value(row) is not None else "INSUFFICIENT_INPUTS"
+
+
 def analyst_consensus(row: Mapping[str, Any]) -> dict[str, float | None]:
     return {
         "mean": number(first_present(row, "analyst_target_mean", "Analyst Target", "targetMeanPrice")),
@@ -103,6 +110,8 @@ def valuation_families(row: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "current_price": price,
         "atlas_fair_value": atlas,
+        "atlas_valuation_status": atlas_valuation_status(row),
+        "atlas_fv_upside_pct": round(atlas_return, 1) if atlas_return is not None else None,
         "atlas_expected_return_pct": round(atlas_return, 1) if atlas_return is not None else None,
         "analyst_target_mean": analysts["mean"],
         "analyst_target_high": analysts["high"],
@@ -117,6 +126,6 @@ def valuation_families(row: Mapping[str, Any]) -> dict[str, Any]:
 
 
 __all__ = [
-    "analyst_consensus", "analyst_scenarios", "canonical_atlas_fair_value",
+    "analyst_consensus", "analyst_scenarios", "atlas_valuation_status", "canonical_atlas_fair_value",
     "first_present", "number", "present", "scanner_trade_plan", "valuation_families",
 ]

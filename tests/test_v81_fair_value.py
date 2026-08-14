@@ -41,4 +41,4 @@ def test_fair_value_stays_unavailable_when_no_legitimate_inputs():
     result = module._fair_value_complete(100.0, {}, {}, {})
     assert result["atlas_fair_value"] is None
     assert result["Atlas Fair Value"] is None
-    assert result["fair_value_status"] == "Insufficient valuation evidence"
+    assert result["fair_value_status"] == "INSUFFICIENT_INPUTS"

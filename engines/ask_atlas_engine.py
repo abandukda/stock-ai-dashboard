@@ -7,6 +7,7 @@ from typing import Any, Mapping
 import json
 
 from engines.atlas_intelligence_engine import build_executive_intelligence
+from engines.semantic_fields import valuation_families
 
 try:
     from services.ai_synthesis import answer_ticker_question, llm_is_configured
@@ -20,6 +21,7 @@ except Exception:
 def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
     intelligence = report.get("intelligence") or build_executive_intelligence(report)
     sections = report.get("sections") or {}
+    valuation = report.get("valuation_families") or valuation_families(report)
     return {
         "ticker": report.get("ticker"),
         "company": report.get("company"),
@@ -27,8 +29,14 @@ def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
         "opportunity": report.get("opportunity_score"),
         "conviction": report.get("confidence_pct"),
         "current_price": report.get("current_price"),
-        "atlas_fair_value": report.get("validated_fair_value"),
-        "upside": report.get("expected_return_pct"),
+        "atlas_fair_value": valuation.get("atlas_fair_value"),
+        "atlas_valuation_status": valuation.get("atlas_valuation_status"),
+        "atlas_fv_upside_pct": valuation.get("atlas_fv_upside_pct"),
+        "analyst_consensus": valuation.get("analyst_target_mean"),
+        "analyst_low": valuation.get("analyst_target_low"),
+        "analyst_high": valuation.get("analyst_target_high"),
+        "analyst_implied_upside_pct": valuation.get("analyst_upside_pct"),
+        "upside": valuation.get("atlas_fv_upside_pct"),
         "investment_thesis": report.get("investment_thesis"),
         "financial_summary": (sections.get("financials") or {}).get("interpretation"),
         "technical_summary": (sections.get("technical") or {}).get("interpretation"),
