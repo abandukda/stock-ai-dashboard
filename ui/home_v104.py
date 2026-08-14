@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 from typing import Any, Mapping
 
 import streamlit as st
@@ -209,23 +210,27 @@ def _render_discovery_card(row: Mapping[str, Any], rank: int) -> None:
 
     with st.container(border=True):
         st.caption(f"#{rank} · {label}")
-        st.markdown(f"### {ticker} — {company}")
+        st.markdown(f'<h3 class="atlas-card-title" title="{html.escape(company)}">{html.escape(ticker)} — {html.escape(company)}</h3>', unsafe_allow_html=True)
         st.markdown("## BUY NOW")
-        metrics = st.columns(2)
-        metrics[0].metric("Current Price", _money(price))
-        metrics[1].metric("Preferred Entry", str(entry))
-        values = st.columns(2)
-        values[0].metric("Atlas Fair Value", _money(fair_value), f"{_pct(atlas_upside)} vs current price" if atlas_upside is not None else None)
-        values[1].metric("Wall Street Consensus", _money(analyst), f"{_pct(analyst_upside)} implied upside" if analyst_upside is not None else None)
-        st.caption(f"Position guidance: {row.get('position_size_range') or 'Unavailable'}")
+        st.caption(f"Evidence support: {row.get('headline_support_quality') or 'SUPPORTED WITH EVIDENCE GAPS'}")
+        metric_html = (
+            '<div class="atlas-compact-grid">'
+            f'<div class="atlas-compact-metric"><small>Current</small><strong>{html.escape(_money(price))}</strong></div>'
+            f'<div class="atlas-compact-metric"><small>Preferred Entry</small><strong>{html.escape(str(entry))}</strong></div>'
+            f'<div class="atlas-compact-metric"><small>Atlas FV</small><strong>{html.escape(_money(fair_value))}</strong><em>{html.escape(_pct(atlas_upside) + " vs current" if atlas_upside is not None else "Canonical valuation unavailable")}</em></div>'
+            f'<div class="atlas-compact-metric"><small>Wall Street</small><strong>{html.escape(_money(analyst))}</strong><em>{html.escape(_pct(analyst_upside) + " implied upside" if analyst_upside is not None else "Consensus unavailable")}</em></div>'
+            '</div>'
+        )
+        st.markdown(metric_html, unsafe_allow_html=True)
         st.markdown(f"**What Atlas thinks:** {synthesis['what_atlas_thinks']}")
         st.markdown(f"**What to do now:** {synthesis['what_to_do_now']}")
-        st.markdown("**Why now**")
-        if facts:
-            for item in facts[:3]:
-                st.write(f"• {item.get('fact')}")
+        st.markdown("**WHY BUY NOW**")
+        why_now = [str(item) for item in synthesis.get("why_now") or [] if item]
+        if why_now:
+            st.write(" ".join(why_now[:3]))
         else:
             st.write("Unavailable")
+        st.caption(f"Position guidance: {row.get('position_size_range') or 'Unavailable'} · See Full Research for sizing context.")
         st.markdown("**Primary risk**")
         st.write((risks[0] or {}).get("risk") if risks else "Unavailable")
         st.markdown("**Next catalyst**")
@@ -285,6 +290,17 @@ def render_v104_home(
           [data-testid="column"] { min-width: 100% !important; width: 100% !important; }
           [data-testid="stHorizontalBlock"] { flex-wrap: wrap; }
         }
+        .atlas-card-title { margin:0; overflow-wrap:anywhere; line-height:1.18; }
+        .atlas-compact-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.45rem .7rem; margin:.45rem 0 .8rem; }
+        .atlas-compact-metric { border:1px solid rgba(148,163,184,.2); border-radius:12px; padding:.55rem .65rem; min-width:0; }
+        .atlas-compact-metric small { display:block; color:#94A3B8; font-size:.68rem; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
+        .atlas-compact-metric strong { display:block; overflow-wrap:anywhere; font-size:1rem; line-height:1.2; margin-top:.16rem; }
+        .atlas-compact-metric em { display:block; color:#94A3B8; font-size:.72rem; font-style:normal; margin-top:.12rem; }
+        @media (max-width: 430px) {
+          .atlas-compact-grid { gap:.35rem; margin:.35rem 0 .6rem; }
+          .atlas-compact-metric { padding:.45rem .5rem; border-radius:10px; }
+          .atlas-card-title { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; font-size:1.25rem; }
+        }
         </style>""",
         unsafe_allow_html=True,
     )
@@ -331,7 +347,7 @@ def render_v104_home(
         discovery["signal_as_of"] = signal_as_of
     st.markdown("## Top BUY NOW Discoveries")
     if len(discoveries) < 3:
-        st.info(f"ATLAS found only {len(discoveries)} high-conviction BUY NOW opportunities today.")
+        st.info(f"ATLAS found only {len(discoveries)} sufficiently supported headline BUY NOW ideas in the latest scan.")
     discovery_columns = st.columns(max(1, len(discoveries)))
     for index, row in enumerate(discoveries, start=1):
         with discovery_columns[index - 1]:

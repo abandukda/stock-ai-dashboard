@@ -53,6 +53,8 @@ class BuyNowSynthesisContext:
     risks: tuple[str, ...]
     catalyst: Mapping[str, Any] | None
     evidence_gaps: tuple[str, ...]
+    support_quality: str
+    missing_material_domains: tuple[str, ...]
     signal_timestamp: Any
 
 
@@ -105,6 +107,8 @@ def build_buy_now_context(row: Mapping[str, Any]) -> BuyNowSynthesisContext:
         supporting_facts=facts[:3], risks=risks[:3],
         catalyst=guidance.get("next_catalyst") if isinstance(guidance.get("next_catalyst"), Mapping) else None,
         evidence_gaps=tuple(str(value) for value in guidance.get("unavailable_evidence", []) if value)[:6],
+        support_quality=str(row.get("headline_support_quality") or "SUPPORTED WITH EVIDENCE GAPS"),
+        missing_material_domains=tuple(str(value) for value in row.get("headline_missing_material_domains", []) if value),
         signal_timestamp=row.get("signal_as_of") or first_present(row, "generated_at", "scan_time"),
     )
 
@@ -114,14 +118,39 @@ def evidence_fingerprint(context: BuyNowSynthesisContext) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
+def _support_gap_disclosure(context: BuyNowSynthesisContext) -> str | None:
+    missing = set(context.missing_material_domains)
+    labels = []
+    if "profitability_cash" in missing:
+        labels.append("margin/cash-flow")
+    if "earnings_result" in missing:
+        labels.append("latest earnings-result")
+    if "verified_news_or_catalyst" in missing:
+        labels.append("verified news/catalyst")
+    if not labels:
+        return None
+    joined = labels[0] if len(labels) == 1 else (
+        " and ".join(labels) if len(labels) == 2 else f"{', '.join(labels[:-1])}, and {labels[-1]}"
+    )
+    return f"{joined.capitalize()} confirmation remains incomplete in the current evidence."
+
+
 def deterministic_buy_now_summary(context: BuyNowSynthesisContext) -> dict[str, Any]:
     facts = list(context.supporting_facts)
     risks = list(context.risks)
     catalyst = context.catalyst or {}
+    why = facts[:2] or ["No ticker-specific supporting fact is available."]
+    if context.atlas_fair_value is None and context.analyst_consensus.get("mean") is None:
+        why.append("Valuation confirmation is limited because canonical Atlas Fair Value and Wall Street consensus are unavailable.")
+    elif context.atlas_fair_value is None:
+        why.append("Canonical Atlas Fair Value is unavailable, so the valuation view relies on separately labeled external analyst evidence.")
+    disclosure = _support_gap_disclosure(context)
+    if disclosure:
+        why.append(disclosure)
     return {
         "what_atlas_thinks": f"{context.ticker} remains {context.verdict.replace('_', ' ')} on the persisted Atlas decision.",
         "what_to_do_now": f"Use the persisted preferred entry ({context.preferred_entry}) and open full research before acting." if context.preferred_entry else "Preferred-entry evidence is unavailable; open full research before acting.",
-        "why_now": facts[:3] or ["No ticker-specific supporting fact is available."],
+        "why_now": why[:3],
         "risks": risks[:3] or ["Ticker-specific risk evidence is unavailable."],
         "next_catalyst": catalyst if catalyst.get("date") else None,
         "thesis_change": "Reassess when the cited evidence, risk, catalyst, or persisted Atlas verdict materially changes.",
@@ -164,6 +193,9 @@ def synthesize_buy_now(
     # Structured facts remain authoritative even when prose synthesis is AI-generated.
     result["next_catalyst"] = context.catalyst if context.catalyst and context.catalyst.get("date") else None
     result["evidence_gaps"] = list(context.evidence_gaps)
+    disclosure = _support_gap_disclosure(context)
+    if disclosure:
+        result["why_now"] = [str(value) for value in result["why_now"][:2]] + [disclosure]
     result["source"] = "ai"
     return result
 
@@ -185,6 +217,9 @@ def configured_openai_generator(payload: Mapping[str, Any]) -> Mapping[str, Any]
                 "Canonical Atlas Fair Value upside, Wall Street implied upside, and decision-model expected return "
                 "are separate supplied concepts. Attribute each number to its exact named source and never call "
                 "Wall Street implied upside 'Atlas upside'. "
+                "Acknowledge material missing valuation, margin, cash-flow, earnings-surprise, or catalyst evidence. "
+                "Respect support_quality and explicitly disclose supplied missing_material_domains. "
+                "Make why_now two or three concise, company-specific sentences grounded in the supplied facts. "
                 "Return JSON keys what_atlas_thinks, what_to_do_now, why_now (list), risks (list), "
                 "next_catalyst, thesis_change, evidence_gaps."
             )},

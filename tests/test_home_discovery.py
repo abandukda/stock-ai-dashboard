@@ -1,6 +1,13 @@
 from pathlib import Path
 
-from engines.home_discovery import build_home_intelligence, select_home_discoveries
+from engines.home_discovery import (
+    GAPPED_HEADLINE_SUPPORT,
+    STRONG_HEADLINE_SUPPORT,
+    audit_headline_evidence_quality,
+    build_home_intelligence,
+    evaluate_headline_eligibility,
+    select_home_discoveries,
+)
 from engines.research_engine import research_navigation_state
 
 
@@ -22,6 +29,7 @@ def row(ticker, verdict="BUY_NOW", opportunity=70, confidence=70, expected=20, *
         "revenue_growth": 0.20,
         "earnings_growth": 0.30,
         "next_earnings_date": "2026-09-01",
+        "primary_risk": "Customer concentration could pressure future growth.",
     }
     payload.update(extra)
     return payload
@@ -118,7 +126,7 @@ def test_dated_news_requires_named_source_to_count_as_verified():
 
 def test_guidance_fields_are_legitimate_and_missing_fair_value_stays_unavailable():
     item = row("AAA", atlas_fair_value=None, analyst_target_mean=140)
-    selected = select_home_discoveries([item])["selected"][0]
+    selected = select_home_discoveries([item])["eligible"][0]
     guidance = selected["guidance_summary"]
     assert guidance["atlas_view"]["verdict"] == "BUY_NOW"
     assert "Canonical Atlas Fair Value" in guidance["unavailable_evidence"]
@@ -149,3 +157,71 @@ def test_presentation_layer_does_not_contain_methodology_mutations():
     source = Path("engines/home_discovery.py").read_text(encoding="utf-8")
     forbidden = ("build_committee_verdict", "score_stock(", "atlas_fair_value =", "expected_return_pct =", "entry_low =")
     assert not any(token in source for token in forbidden)
+
+
+def test_evidence_limited_buy_now_remains_buy_now_but_is_not_headline_selected():
+    limited = row("LIMITED", opportunity=95, atlas_fair_value=None, analyst_target_mean=140)
+    limited.update(revenue_growth=None, earnings_growth=None, next_earnings_date=None)
+    limited["component_coverage_pct"] = 70
+    result = select_home_discoveries([limited])
+    assert result["eligible"][0]["committee_verdict"] == "BUY_NOW"
+    assert result["eligible"][0]["headline_eligible"] is False
+    assert result["selected"] == []
+
+
+def test_missing_fair_value_alone_does_not_disqualify_strong_evidence():
+    nvda_like = row(
+        "STRONG", atlas_fair_value=None, gross_profit_margin=.75,
+        operating_profit_margin=.65, free_cash_flow=48_000_000_000,
+        eps_surprise_pct=6.2, analyst_count=50, rsi=60,
+    )
+    result = evaluate_headline_eligibility(nvda_like)
+    assert result["eligible"] is True
+    assert "canonical_valuation" not in result["evidence_domains"]
+
+
+def test_support_quality_distinguishes_comprehensive_from_supported_gaps():
+    comprehensive = row(
+        "COMPLETE", atlas_fair_value=None, gross_profit_margin=.75,
+        free_cash_flow=48_000_000_000, reported_eps=1.2,
+        eps_surprise_pct=6.2, analyst_count=50, rsi=60,
+        institutional_ownership_pct=72,
+    )
+    complete_result = evaluate_headline_eligibility(comprehensive)
+    assert complete_result["eligible"] is True
+    assert complete_result["support_quality"] == STRONG_HEADLINE_SUPPORT
+    assert complete_result["missing_material_domains"] == ["canonical_valuation"]
+
+    supported = row("GAPPED", gross_profit_margin=None, free_cash_flow=None, reported_eps=None, eps_surprise_pct=None)
+    supported_result = evaluate_headline_eligibility(supported)
+    assert supported_result["eligible"] is True
+    assert supported_result["support_quality"] == GAPPED_HEADLINE_SUPPORT
+    assert "profitability_cash" in supported_result["missing_material_domains"]
+    assert "earnings_result" in supported_result["missing_material_domains"]
+
+
+def test_support_quality_is_presentation_only_and_does_not_change_selection_order():
+    complete = row("COMPLETE", opportunity=80, gross_profit_margin=.7, reported_eps=1.1, eps_surprise_pct=4)
+    gapped = row("GAPPED", opportunity=90, gross_profit_margin=None, reported_eps=None, eps_surprise_pct=None)
+    result = select_home_discoveries([complete, gapped], limit=2)
+    assert [item["ticker"] for item in result["selected"]] == ["GAPPED", "COMPLETE"]
+    assert result["selected"][0]["headline_support_quality"] == GAPPED_HEADLINE_SUPPORT
+
+
+def test_coverage_alone_cannot_pass_and_qa_rule_flags_contradiction():
+    sparse = row(
+        "SPARSE", opportunity=90, atlas_fair_value=None, analyst_target_mean=None,
+        revenue_growth=None, earnings_growth=None, next_earnings_date=None,
+    )
+    sparse["component_coverage_pct"] = 90
+    finding = audit_headline_evidence_quality([sparse])
+    assert finding[0]["rule"] == "HEADLINE BUY NOW EVIDENCE QUALITY"
+    assert "no_strong_primary_thesis_domain" in finding[0]["reason_codes"]
+
+
+def test_selector_does_not_backfill_sparse_rows_to_reach_three():
+    supported = row("SUPPORTED")
+    sparse = row("SPARSE", atlas_fair_value=None, analyst_target_mean=None, revenue_growth=None, earnings_growth=None, next_earnings_date=None)
+    result = select_home_discoveries([supported, sparse], limit=3)
+    assert [item["ticker"] for item in result["selected"]] == ["SUPPORTED"]
+    assert result["count"] == 2

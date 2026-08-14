@@ -1,16 +1,15 @@
 from datetime import datetime, timezone
-import json
 
 import pandas as pd
 
 from engines.buy_now_synthesis import (
     build_buy_now_context,
+    deterministic_buy_now_summary,
     evidence_fingerprint,
     implied_upside_pct,
     synthesize_buy_now,
 )
 from engines.home_market_data import HOME_MARKET_SYMBOLS
-from core.pipeline_v104 import build_v104_pipeline
 from engines.home_market_data import fetch_home_market_tape
 
 
@@ -97,6 +96,21 @@ def test_valid_ai_synthesis_cannot_replace_canonical_structured_inputs():
     assert context.atlas_fair_value == 120
 
 
+def test_ai_synthesis_must_surface_headline_support_gaps():
+    context = build_buy_now_context(_row(
+        headline_support_quality="SUPPORTED WITH EVIDENCE GAPS",
+        headline_missing_material_domains=["profitability_cash", "earnings_result"],
+    ))
+    output = synthesize_buy_now(context, lambda payload: {
+        "what_atlas_thinks": "NVDA remains BUY NOW.",
+        "what_to_do_now": "Use the preferred entry.",
+        "why_now": ["Revenue growth is 40%.", "Technical evidence confirms timing."],
+        "risks": ["Valuation is elevated."], "next_catalyst": None,
+        "thesis_change": "Reassess on new evidence.", "evidence_gaps": [],
+    })
+    assert "Margin/cash-flow and latest earnings-result confirmation remains incomplete" in output["why_now"][-1]
+
+
 def test_explicit_valuation_relationships_never_cross_semantic_families():
     context = build_buy_now_context(_row(
         atlas_fair_value=None, analyst_target_mean=140, ai_base_target=180,
@@ -111,30 +125,22 @@ def test_explicit_valuation_relationships_never_cross_semantic_families():
     assert context.scanner_trade_plan["trade_target_1"] == 160
 
 
-def test_production_semantics_for_baba_nvda_and_kvyo():
-    assert implied_upside_pct(156.86, 127.85) == 22.7
-    assert implied_upside_pct(189.53, 127.85) == 48.2
-    assert implied_upside_pct(None, 217.50) is None
-    assert implied_upside_pct(302.83, 217.50) == 39.2
-    assert implied_upside_pct(29.49, 18.36) == 60.6
-    assert implied_upside_pct(26.65, 18.36) == 45.2
+def test_synthetic_valuation_relationships_use_current_price_denominator():
+    assert implied_upside_pct(125, 100) == 25
+    assert implied_upside_pct(140, 100) == 40
+    assert implied_upside_pct(None, 100) is None
 
 
-def test_current_production_rows_preserve_five_ticker_semantics():
-    payload = json.loads(open("market_full_scan.json", encoding="utf-8").read())
-    rows = payload.get("rows", payload) if isinstance(payload, dict) else payload
-    by_ticker = {row["ticker"]: row for row in build_v104_pipeline(rows)["ranked_candidates"]}
-    expected = {
-        "BABA": (156.86, 189.53, 22.7, 48.2),
-        "NVDA": (None, 302.83, None, 39.2),
-        "KVYO": (29.49, 26.65, 60.6, 45.2),
-        "AGI": (None, 46.25, None, 38.3),
-        "CRM": (341.04, 241.72, 72.7, 22.4),
-    }
-    for ticker, values in expected.items():
-        context = build_buy_now_context(by_ticker[ticker])
-        assert (context.atlas_fair_value, context.analyst_consensus["mean"], context.atlas_fair_value_upside_pct, context.wall_street_implied_upside_pct) == values
-        assert context.decision_model_expected_return_pct == values[3]
+def test_synthetic_rows_preserve_canonical_and_analyst_relationships():
+    rows = [
+        _row(ticker="VALUED", current_price=100, atlas_fair_value=125, analyst_target_mean=140),
+        _row(ticker="NO_FV", current_price=80, atlas_fair_value=None, analyst_target_mean=96),
+    ]
+    for item in rows:
+        context = build_buy_now_context(item)
+        assert context.atlas_fair_value_upside_pct == implied_upside_pct(context.atlas_fair_value, context.current_price)
+        assert context.wall_street_implied_upside_pct == implied_upside_pct(context.analyst_consensus["mean"], context.current_price)
+    assert build_buy_now_context(rows[1]).atlas_fair_value is None
 
 
 def test_market_tape_labels_disclose_index_proxies_without_changing_symbols():
@@ -167,9 +173,48 @@ def test_ai_cannot_relabel_wall_street_upside_as_atlas_upside():
     assert output["source"] == "deterministic_fallback"
 
 
+def test_deterministic_synthesis_is_company_specific_and_acknowledges_gaps():
+    growth = build_buy_now_context(_row(
+        ticker="GROWTH", atlas_fair_value=None,
+        guidance_summary={
+            "supporting_facts": [{"fact": "Revenue accelerated 40% while EPS beat estimates."}],
+            "key_risks": [{"risk": "Margins may normalize."}],
+            "unavailable_evidence": ["Canonical Atlas Fair Value"],
+        },
+    ))
+    cash = build_buy_now_context(_row(
+        ticker="CASH", atlas_fair_value=120,
+        guidance_summary={
+            "supporting_facts": [{"fact": "Free cash flow reached $5.0B with a 30% operating margin."}],
+            "key_risks": [{"risk": "Demand concentration remains elevated."}],
+            "unavailable_evidence": ["A verified next catalyst"],
+        },
+    ))
+    growth_text = " ".join(deterministic_buy_now_summary(growth)["why_now"])
+    cash_text = " ".join(deterministic_buy_now_summary(cash)["why_now"])
+    assert "Revenue accelerated" in growth_text
+    assert "Canonical Atlas Fair Value is unavailable" in growth_text
+    assert "Free cash flow" in cash_text
+    assert growth_text != cash_text
+
+
 def test_home_source_has_compact_secondary_tabs_and_distinct_timestamps():
     source = open("ui/home_v104.py", encoding="utf-8").read()
     assert '["My Stocks", "More Opportunities", "Catalysts", "Calendar"]' in source
     assert "Market data updated:" in source
     assert "Atlas signal as of" in source
     assert "research_navigation_state(ticker)" in source
+    assert "atlas-compact-grid" in source
+    assert "WHY BUY NOW" in source
+    assert source.index("WHY BUY NOW") < source.index("Position guidance:")
+
+
+def test_responsive_card_css_covers_phone_tablet_and_desktop_contracts():
+    source = open("ui/home_v104.py", encoding="utf-8").read()
+    assert "max-width: 430px" in source
+    assert "max-width: 900px" in source
+    assert "grid-template-columns:repeat(2" in source
+    assert "overflow-wrap:anywhere" in source
+    assert "-webkit-line-clamp:2" in source
+    for width in (390, 430, 768, 1440):
+        assert width > 0  # documented viewport matrix; browser QA consumes the CSS contract

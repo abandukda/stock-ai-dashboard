@@ -17,6 +17,8 @@ from engines.guidance_summary import build_guidance_summary
 
 FAMILIAR_MEGA_CAPS = {"AAPL", "AMZN", "AVGO", "CRM", "GOOGL", "META", "MSFT", "NVDA", "TSLA"}
 _MISSING = {None, "", "Unavailable", "Under review", "Unknown", "—"}
+STRONG_HEADLINE_SUPPORT = "STRONG / COMPREHENSIVE"
+GAPPED_HEADLINE_SUPPORT = "SUPPORTED WITH EVIDENCE GAPS"
 
 
 def _num(value: Any) -> float | None:
@@ -93,30 +95,119 @@ def _discovery_key(
     )
 
 
-def _evidence_eligibility(row: Mapping[str, Any], guidance: Mapping[str, Any]) -> tuple[bool, str]:
-    """Headline presentation guard; missing canonical FV alone never fails it."""
+def evaluate_headline_eligibility(row: Mapping[str, Any], guidance: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """Evaluate reporting eligibility without changing the investment decision."""
+    guidance = guidance or build_guidance_summary(row)
     coverage = _num(row.get("component_coverage_pct")) or 0.0
-    expected = _num(row.get("expected_return_pct"))
-    domains = {item.get("domain") for item in guidance.get("supporting_facts") or [] if item.get("domain")}
-    entry_available = _first(row, "entry_range", "entry_low", "Entry Range", "Entry Low") is not None
-    base = coverage >= 70 and expected is not None and entry_available and len(domains) >= 2
-    # Evidence-limited rows remain visible in the BUY_NOW universe but do not
-    # displace substantiated alternatives in the headline three.
-    substantiated = base and not bool(guidance.get("evidence_limited"))
-    if substantiated:
-        return True, f"Substantiated: {coverage:.0f}% coverage and {len(domains)} evidence domains"
-    gaps = []
+    price = _num(_first(row, "current_price", "price", "Current Price"))
+    preferred_low = _num(_first(row, "preferred_entry_low", "entry_low", "Entry Low"))
+    preferred_high = _num(_first(row, "preferred_entry_high", "entry_high", "Entry High"))
+    domains: set[str] = set()
+    growth = any(_num(_first(row, key)) is not None for key in ("revenue_growth", "earnings_growth"))
+    profitability = any(_num(_first(row, key)) is not None for key in (
+        "gross_profit_margin", "operating_profit_margin", "free_cash_flow",
+        "operating_cash_flow", "roic", "roe",
+    ))
+    earnings_result = any(_num(_first(row, key)) is not None for key in (
+        "reported_eps", "eps_surprise_pct", "revenue_surprise_pct",
+    ))
+    atlas_value = _num(_first(row, "atlas_fair_value", "Atlas Fair Value"))
+    analyst_mean = _num(_first(row, "analyst_target_mean", "Analyst Target"))
+    analyst_count = _num(_first(row, "analyst_count", "Analyst Count"))
+    technical = any(_num(_first(row, key)) is not None for key in ("rsi", "sma20", "sma50", "volume_ratio"))
+    ownership = any(_num(_first(row, key)) is not None for key in (
+        "institutional_ownership_pct", "insider_ownership_pct",
+    ))
+    headline = _text(_first(row, "latest_news_headline", "Top News"))
+    publisher = _text(_first(row, "latest_news_source", "Latest News Source"))
+    verified_news = bool(headline and publisher and "no recent high-confidence" not in headline.lower())
+    catalyst = guidance.get("next_catalyst") or {}
+    verified_catalyst = bool(catalyst.get("date") and str(catalyst.get("verification_status", "")).lower().startswith("verified"))
+    for available, name in (
+        (growth, "earnings_growth"), (profitability, "profitability_cash"),
+        (earnings_result, "earnings_result"), (atlas_value is not None, "canonical_valuation"),
+        (analyst_mean is not None and analyst_count is not None and analyst_count > 0, "analyst"),
+        (technical, "technical_timing"), (ownership, "ownership"),
+        (verified_news, "verified_news"), (verified_catalyst, "verified_catalyst"),
+    ):
+        if available:
+            domains.add(name)
+
+    risks = [str(item.get("risk") or "").strip() for item in guidance.get("key_risks") or [] if isinstance(item, Mapping)]
+    generic_risk = ("normal pullback", "normal market", "execution risk")
+    material_gaps = [str(item).lower() for item in guidance.get("unavailable_evidence") or []]
+    concrete_limitation = any(
+        marker in gap for gap in material_gaps
+        for marker in ("canonical atlas fair value", "earnings-surprise", "cash flow", "margin", "verified next catalyst")
+    )
+    concrete_risk = any(risk and not any(marker in risk.lower() for marker in generic_risk) for risk in risks) or concrete_limitation
+    primary = bool({"earnings_growth", "profitability_cash", "earnings_result", "canonical_valuation"} & domains)
+    confirmation = bool(domains - {"earnings_growth", "profitability_cash", "earnings_result", "canonical_valuation", "technical_timing"})
+    reasons = []
+    if row.get("committee_verdict") != "BUY_NOW":
+        reasons.append("not_buy_now")
+    if price is None or price <= 0:
+        reasons.append("invalid_current_price")
+    if preferred_low is None or preferred_high is None or preferred_low <= 0 or preferred_high < preferred_low:
+        reasons.append("preferred_entry_unavailable")
     if coverage < 70:
-        gaps.append("coverage below 70%")
-    if expected is None:
-        gaps.append("expected return unavailable")
-    if not entry_available:
-        gaps.append("preferred entry unavailable")
-    if len(domains) < 2:
-        gaps.append("fewer than two supporting evidence domains")
+        reasons.append("evidence_coverage_below_70")
+    if len(domains) < 3:
+        reasons.append("fewer_than_three_independent_evidence_domains")
+    if not primary:
+        reasons.append("no_strong_primary_thesis_domain")
+    if not confirmation:
+        reasons.append("no_independent_confirmation_domain")
+    if not concrete_risk:
+        reasons.append("no_concrete_explainable_risk")
     if guidance.get("evidence_limited"):
-        gaps.append("GuidanceSummary marks evidence limited")
-    return False, "; ".join(gaps) or "Evidence guard not met"
+        reasons.append("evidence_limited_thesis")
+    if atlas_value is None and analyst_mean is None and not ({"profitability_cash", "earnings_result", "verified_news", "verified_catalyst"} & domains):
+        reasons.append("no_valuation_or_independent_deep_confirmation")
+    comprehensive_domains = {
+        "earnings_growth", "earnings_result", "profitability_cash", "analyst",
+        "ownership", "technical_timing",
+    }
+    missing_material_domains = sorted(comprehensive_domains - domains)
+    if not ({"verified_news", "verified_catalyst"} & domains):
+        missing_material_domains.append("verified_news_or_catalyst")
+    # Canonical valuation is reported as a gap when absent, but it is not a
+    # requirement for comprehensive support and never changes eligibility.
+    if "canonical_valuation" not in domains:
+        missing_material_domains.append("canonical_valuation")
+    support_quality = (
+        STRONG_HEADLINE_SUPPORT
+        if comprehensive_domains.issubset(domains) and {"verified_news", "verified_catalyst"} & domains
+        else GAPPED_HEADLINE_SUPPORT
+    )
+    return {
+        "eligible": not reasons,
+        "evidence_domains": sorted(domains),
+        "support_quality": support_quality,
+        "missing_material_domains": missing_material_domains,
+        "missing_critical_domains": [
+            name for present, name in ((primary, "primary_thesis"), (confirmation, "independent_confirmation"), (concrete_risk, "concrete_risk"))
+            if not present
+        ],
+        "reason_codes": reasons,
+        "coverage_pct": coverage,
+        "evidence_limited": bool(guidance.get("evidence_limited")),
+    }
+
+
+def audit_headline_evidence_quality(rows: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """QA finding for headline rows that contradict the presentation guard."""
+    findings = []
+    for row in rows or []:
+        result = evaluate_headline_eligibility(row, row.get("guidance_summary"))
+        if row.get("committee_verdict") == "BUY_NOW" and not result["eligible"]:
+            findings.append({
+                "ticker": _text(row.get("ticker"), "UNKNOWN"),
+                "rule": "HEADLINE BUY NOW EVIDENCE QUALITY",
+                "severity": "HIGH",
+                "reason_codes": result["reason_codes"],
+            })
+    return findings
 
 
 def select_home_discoveries(
@@ -138,9 +229,16 @@ def select_home_discoveries(
         held, watched = ticker in held_set, ticker in watched_set
         prior = _history_for(history, ticker)
         row["guidance_summary"] = build_guidance_summary(row)
-        evidence_ok, evidence_reason = _evidence_eligibility(row, row["guidance_summary"])
+        headline = evaluate_headline_eligibility(row, row["guidance_summary"])
+        evidence_ok = headline["eligible"]
+        evidence_reason = "; ".join(headline["reason_codes"]) or "Headline evidence guard satisfied"
         row["discovery_evidence_eligible"] = evidence_ok
         row["discovery_evidence_reason"] = evidence_reason
+        row["headline_eligible"] = evidence_ok
+        row["headline_exclusion_reasons"] = headline["reason_codes"]
+        row["headline_evidence_domains"] = headline["evidence_domains"]
+        row["headline_support_quality"] = headline["support_quality"]
+        row["headline_missing_material_domains"] = headline["missing_material_domains"]
         row["portfolio_status"] = "Held" if held else "Not held"
         row["watchlist_status"] = "Watched" if watched else "Not watched"
         row["discovery_label"] = _freshness_label(prior)
@@ -168,8 +266,7 @@ def select_home_discoveries(
 
     eligible.sort(key=lambda item: (item["_discovery_key"], _text(item.get("ticker"))), reverse=True)
     substantiated = [row for row in eligible if row["discovery_evidence_eligible"]]
-    sparse = [row for row in eligible if not row["discovery_evidence_eligible"]]
-    selected = (substantiated + sparse)[: max(0, int(limit))]
+    selected = substantiated[: max(0, int(limit))]
     for row in eligible:
         row.pop("_discovery_key", None)
     return {"selected": selected, "eligible": eligible, "count": len(eligible)}
@@ -289,4 +386,8 @@ def build_home_intelligence(
     }
 
 
-__all__ = ["build_home_intelligence", "select_home_discoveries"]
+__all__ = [
+    "GAPPED_HEADLINE_SUPPORT", "STRONG_HEADLINE_SUPPORT",
+    "audit_headline_evidence_quality", "build_home_intelligence",
+    "evaluate_headline_eligibility", "select_home_discoveries",
+]
