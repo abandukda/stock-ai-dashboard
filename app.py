@@ -32189,10 +32189,18 @@ def v104_pipeline_from_df(full_df):
     if full_df is None or getattr(full_df, "empty", True):
         return build_v104_pipeline([])
 
-    records = [
-        dict(series)
-        for _, series in full_df.head(10000).iterrows()
-    ]
+    records = []
+    for _, series in full_df.head(10000).iterrows():
+        normalized = dict(series)
+        original_scanner_row = normalized.get("Raw")
+        # Home must evaluate the same complete scanner row as the production
+        # pipeline. The display-normalized DataFrame intentionally omits deep
+        # fields and must not become a second investment input contract.
+        records.append(
+            dict(original_scanner_row)
+            if isinstance(original_scanner_row, dict)
+            else normalized
+        )
     return v104_cached_pipeline(
         json.dumps(records, sort_keys=True, default=str)
     )

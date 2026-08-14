@@ -4,7 +4,9 @@ from engines.home_discovery import (
     GAPPED_HEADLINE_SUPPORT,
     STRONG_HEADLINE_SUPPORT,
     audit_headline_evidence_quality,
+    build_client_evidence_view,
     build_home_intelligence,
+    classify_entry_status,
     evaluate_headline_eligibility,
     select_home_discoveries,
 )
@@ -96,7 +98,8 @@ def test_evidence_floor_prefers_substantiated_candidate_but_does_not_require_fai
 def test_morning_view_and_action_counts_come_from_real_rows():
     rows = [row("AAA"), row("BBB", "ACCUMULATE"), row("CCC", "MONITOR")]
     home = build_home_intelligence(rows, watchlist_tickers=["CCC"])
-    assert "1 of 3" in home["morning_view"]
+    assert "1 stock meeting BUY NOW criteria" in home["morning_view"]
+    assert "component coverage" not in home["morning_view"].lower()
     assert home["counts"] == {
         "buy_now": 1,
         "accumulate": 1,
@@ -225,3 +228,83 @@ def test_selector_does_not_backfill_sparse_rows_to_reach_three():
     result = select_home_discoveries([supported, sparse], limit=3)
     assert [item["ticker"] for item in result["selected"]] == ["SUPPORTED"]
     assert result["count"] == 2
+
+
+def test_all_buy_now_count_reconciles_and_every_signal_is_accessible():
+    rows = [row("AAA"), row("BBB"), row("CCC", "ACCUMULATE")]
+    home = build_home_intelligence(rows)
+    assert home["counts"]["buy_now"] == home["buy_now_accessible_count"] == 2
+    assert {item["ticker"] for item in home["all_buy_now"]} == {"AAA", "BBB"}
+    assert all(item["client_evidence_view"]["recommendation"] == "BUY_NOW" for item in home["all_buy_now"])
+
+
+def test_zero_headline_candidates_preserves_compact_access_to_all_buy_now():
+    sparse = row("SPARSE", atlas_fair_value=None, analyst_target_mean=None, revenue_growth=None, earnings_growth=None, next_earnings_date=None)
+    sparse["component_coverage_pct"] = 90
+    home = build_home_intelligence([sparse])
+    assert home["discoveries"]["selected"] == []
+    assert [item["ticker"] for item in home["all_buy_now"]] == ["SPARSE"]
+    assert home["buy_now_accessible_count"] == home["counts"]["buy_now"] == 1
+
+
+def test_entry_status_boundaries_are_presentation_only():
+    assert classify_entry_status(94, 95, 102)["code"] == "BELOW"
+    assert classify_entry_status(95, 95, 102)["code"] == "INSIDE"
+    assert classify_entry_status(102, 95, 102)["code"] == "INSIDE"
+    assert classify_entry_status(103, 95, 102) == {
+        "code": "ABOVE", "label": "Above preferred entry", "action": "Wait for a better entry",
+    }
+    assert classify_entry_status(None, 95, 102)["code"] == "UNAVAILABLE"
+
+
+def test_fresh_presentation_price_is_isolated_from_persisted_investment_fields():
+    item = row("FRESH", opportunity=81, confidence=79, expected=22)
+    before = {key: item[key] for key in ("committee_verdict", "opportunity_score", "confidence_pct", "expected_return_pct")}
+    view = build_client_evidence_view(
+        item, presentation_price=110, presentation_price_as_of="2026-08-14T14:00:00Z",
+        presentation_price_source_type="Presentation market quote",
+    )
+    assert view["signal_price"] == 100
+    assert view["presentation_price"] == 110
+    assert view["entry_status"]["code"] == "ABOVE"
+    assert {key: item[key] for key in before} == before
+
+
+def test_missing_fresh_quote_falls_back_only_to_legitimate_signal_price():
+    view = build_client_evidence_view(row("FALLBACK", current_price=88), presentation_price=None)
+    assert view["signal_price"] == view["presentation_price"] == 88
+    assert view["uses_fresher_presentation_price"] is False
+    assert view["presentation_price_source_type"] == "Persisted scanner signal price"
+    missing = build_client_evidence_view(row("MISSING", current_price=None), presentation_price=None)
+    assert missing["presentation_price"] is None
+
+
+def test_client_valuation_view_never_promotes_noncanonical_targets():
+    view = build_client_evidence_view(row(
+        "NOFV", atlas_fair_value=None, analyst_target_mean=140,
+        ai_base_target=150, target=160, target_1=170, trade_target_1=180,
+    ))
+    assert view["atlas_fair_value"] is None
+    assert view["analyst_consensus"] == 140
+    assert view["valuation_items"] == [{"label": "Wall Street Consensus", "value": 140}]
+    assert view["valuation_limitation"] == "Atlas valuation is not currently published."
+
+
+def test_dataframe_nan_placeholder_does_not_hide_legitimate_nested_entry_values():
+    item = row("NESTED", entry_low=float("nan"), entry_high=float("nan"))
+    item["raw"] = {"entry_low": 96, "entry_high": 101}
+    view = build_client_evidence_view(item)
+    assert view["preferred_entry_low"] == 96
+    assert view["preferred_entry_high"] == 101
+    assert view["entry_status"]["code"] == "INSIDE"
+    assert evaluate_headline_eligibility(item)["eligible"] is True
+
+
+def test_app_normalized_wrapper_preserves_original_scanner_evidence():
+    original = row("WRAPPED", entry_low=96, entry_high=101, free_cash_flow=5_000_000)
+    wrapped = row("WRAPPED", entry_low=float("nan"), entry_high=float("nan"), free_cash_flow=float("nan"))
+    wrapped["raw"] = {"Raw": original}
+    view = build_client_evidence_view(wrapped)
+    eligibility = evaluate_headline_eligibility(wrapped)
+    assert (view["preferred_entry_low"], view["preferred_entry_high"]) == (96, 101)
+    assert "profitability_cash" in eligibility["evidence_domains"]

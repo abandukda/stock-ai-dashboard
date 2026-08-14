@@ -13,12 +13,15 @@ import math
 from typing import Any, Iterable, Mapping
 
 from engines.guidance_summary import build_guidance_summary
+from engines.semantic_fields import analyst_consensus, canonical_atlas_fair_value
 
 
 FAMILIAR_MEGA_CAPS = {"AAPL", "AMZN", "AVGO", "CRM", "GOOGL", "META", "MSFT", "NVDA", "TSLA"}
 _MISSING = {None, "", "Unavailable", "Under review", "Unknown", "—"}
 STRONG_HEADLINE_SUPPORT = "STRONG / COMPREHENSIVE"
 GAPPED_HEADLINE_SUPPORT = "SUPPORTED WITH EVIDENCE GAPS"
+CLIENT_STRONG_SUPPORT = "STRONG SUPPORT"
+CLIENT_SUPPORTED = "SUPPORTED"
 
 
 def _num(value: Any) -> float | None:
@@ -37,12 +40,96 @@ def _text(value: Any, default: str = "") -> str:
 def _first(row: Mapping[str, Any], *keys: str) -> Any:
     raw = row.get("raw") if isinstance(row.get("raw"), Mapping) else {}
     legacy = row.get("Raw") if isinstance(row.get("Raw"), Mapping) else {}
-    for source in (row, raw, legacy):
+    nested_raw = raw.get("raw") if isinstance(raw.get("raw"), Mapping) else {}
+    nested_legacy = raw.get("Raw") if isinstance(raw.get("Raw"), Mapping) else {}
+    for source in (row, raw, legacy, nested_raw, nested_legacy):
         for key in keys:
             value = source.get(key)
+            if isinstance(value, float) and not math.isfinite(value):
+                continue
             if value not in _MISSING:
                 return value
     return None
+
+
+def classify_entry_status(price: Any, preferred_low: Any, preferred_high: Any) -> dict[str, Any]:
+    """Describe price versus the persisted entry range without changing a decision."""
+    price_value, low, high = _num(price), _num(preferred_low), _num(preferred_high)
+    if price_value is None or price_value <= 0 or low is None or high is None or low <= 0 or high < low:
+        return {"code": "UNAVAILABLE", "label": "Entry context unavailable", "action": None}
+    if price_value < low:
+        return {"code": "BELOW", "label": "Below preferred entry", "action": "Review before entering"}
+    if price_value <= high:
+        return {"code": "INSIDE", "label": "Inside Atlas preferred entry", "action": "Within the preferred range"}
+    return {"code": "ABOVE", "label": "Above preferred entry", "action": "Wait for a better entry"}
+
+
+def build_client_evidence_view(
+    row: Mapping[str, Any],
+    *,
+    presentation_price: Any = None,
+    presentation_price_as_of: Any = None,
+    presentation_price_source_type: str | None = None,
+) -> dict[str, Any]:
+    """Resolve paid-client presentation from existing evidence only.
+
+    A supplied presentation quote is isolated from every persisted investment
+    field. When absent or invalid, the legitimate scanner signal price is used.
+    """
+    signal_price = _num(_first(row, "current_price", "price", "Current Price"))
+    fresh_price = _num(presentation_price)
+    if fresh_price is not None and fresh_price > 0:
+        shown_price = fresh_price
+        price_source_type = presentation_price_source_type or "Presentation market quote"
+        price_as_of = presentation_price_as_of
+        is_fresher = True
+    else:
+        shown_price = signal_price
+        price_source_type = "Persisted scanner signal price" if signal_price is not None else "Unavailable"
+        price_as_of = _first(row, "scan_time", "generated_at", "signal_as_of")
+        is_fresher = False
+    low = _num(_first(row, "preferred_entry_low", "entry_low", "Entry Low"))
+    high = _num(_first(row, "preferred_entry_high", "entry_high", "Entry High"))
+    atlas_value = canonical_atlas_fair_value(row)
+    street = analyst_consensus(row).get("mean")
+    valuation_items = []
+    if atlas_value is not None:
+        valuation_items.append({"label": "Atlas Fair Value", "value": atlas_value})
+    if street is not None:
+        valuation_items.append({"label": "Wall Street Consensus", "value": street})
+    if atlas_value is None and street is None:
+        valuation_limitation = "Valuation confirmation is limited."
+    elif atlas_value is None:
+        valuation_limitation = "Atlas valuation is not currently published."
+    elif street is None:
+        valuation_limitation = "Wall Street consensus is not currently available."
+    else:
+        valuation_limitation = None
+    support = str(row.get("headline_support_quality") or GAPPED_HEADLINE_SUPPORT)
+    guidance = row.get("guidance_summary") if isinstance(row.get("guidance_summary"), Mapping) else build_guidance_summary(row)
+    facts = guidance.get("supporting_facts") or []
+    return {
+        "ticker": _text(row.get("ticker"), "UNKNOWN"),
+        "company": _text(_first(row, "company", "company_name", "Company"), _text(row.get("ticker"), "UNKNOWN")),
+        "recommendation": _text(row.get("committee_verdict"), "MONITOR"),
+        "signal_price": signal_price,
+        "presentation_price": shown_price,
+        "presentation_price_source_type": price_source_type,
+        "presentation_price_as_of": price_as_of,
+        "uses_fresher_presentation_price": is_fresher,
+        "preferred_entry_low": low,
+        "preferred_entry_high": high,
+        "entry_status": classify_entry_status(shown_price, low, high),
+        "atlas_fair_value": atlas_value,
+        "analyst_consensus": street,
+        "valuation_items": valuation_items,
+        "valuation_limitation": valuation_limitation,
+        "headline_eligible": bool(row.get("headline_eligible")),
+        "support_quality_internal": support,
+        "support_quality_client": CLIENT_STRONG_SUPPORT if support == STRONG_HEADLINE_SUPPORT else CLIENT_SUPPORTED,
+        "primary_thesis": _text((facts[0] or {}).get("fact") if facts else None, "Open full research for the current Atlas thesis."),
+        "guidance_summary": guidance,
+    }
 
 
 def _ticker_set(values: Iterable[Any] | None) -> set[str]:
@@ -308,29 +395,28 @@ def build_home_intelligence(
         posture = "constructive"
     elif not counts["BUY_NOW"]:
         posture = "cautious"
-    buy_now = [row for row in normalized if row.get("committee_verdict") == "BUY_NOW"]
-    buy_pct = counts["BUY_NOW"] / len(normalized) * 100 if normalized else 0.0
-    near_entry = 0
-    fv_available = 0
-    strong_evidence = 0
+    buy_now = discovery["eligible"]
+    all_buy_now = []
+    entry_counts = Counter()
     for row in buy_now:
-        price = _num(_first(row, "current_price", "price"))
-        low = _num(_first(row, "entry_low", "Entry Low"))
-        high = _num(_first(row, "entry_high", "Entry High"))
-        if price is not None and low is not None and high is not None and low <= price <= high:
-            near_entry += 1
-        if _num(_first(row, "atlas_fair_value", "Atlas Fair Value")) is not None:
-            fv_available += 1
-        if (_num(row.get("component_coverage_pct")) or 0) >= 80:
-            strong_evidence += 1
-    theme_text = f" Actionable evidence is concentrated in {' and '.join(themes)}." if themes else ""
-    morning_view = (
-        f"ATLAS is {posture} this morning: {counts['BUY_NOW']} of {len(normalized)} fully researched stocks "
-        f"({buy_pct:.1f}%) qualify as BUY NOW, while {counts['ACCUMULATE']} are ACCUMULATE. "
-        f"{near_entry} of {len(buy_now)} BUY NOW names trade inside their persisted preferred entry ranges; "
-        f"canonical Atlas Fair Value is available for {fv_available}, and {strong_evidence} have at least 80% evidence coverage."
-        f"{theme_text}"
-    )
+        client_view = build_client_evidence_view(row)
+        row["client_evidence_view"] = client_view
+        all_buy_now.append(row)
+        entry_counts[client_view["entry_status"]["code"]] += 1
+    theme_text = f" The current opportunities are concentrated in {' and '.join(themes)}." if themes else ""
+    if buy_now:
+        stock_word = "stock" if len(buy_now) == 1 else "stocks"
+        actionable_text = f"{entry_counts['INSIDE']} are inside their preferred entry ranges"
+        if entry_counts["ABOVE"]:
+            actionable_text += f", while {entry_counts['ABOVE']} are better approached on a pullback"
+        if entry_counts["BELOW"]:
+            actionable_text += f"; {entry_counts['BELOW']} currently trade below their preferred ranges and merit a fresh review"
+        morning_view = (
+            f"Atlas is {posture} today, with {len(buy_now)} {stock_word} meeting BUY NOW criteria. "
+            f"{actionable_text}.{theme_text}"
+        )
+    else:
+        morning_view = "Atlas is cautious today: no stocks currently meet BUY NOW criteria. Patience is warranted until stronger setups emerge."
     portfolio_actions = [row for row in normalized if _text(row.get("ticker")).upper() in held]
     watchlist_actions = [row for row in normalized if _text(row.get("ticker")).upper() in watched]
     catalysts = []
@@ -380,6 +466,8 @@ def build_home_intelligence(
             "company_news_events": catalyst_counts["Company-specific news"],
         },
         "discoveries": discovery,
+        "all_buy_now": all_buy_now,
+        "buy_now_accessible_count": len(all_buy_now),
         "portfolio_actions": portfolio_actions,
         "watchlist_actions": watchlist_actions,
         "catalysts": catalysts,
@@ -387,7 +475,7 @@ def build_home_intelligence(
 
 
 __all__ = [
-    "GAPPED_HEADLINE_SUPPORT", "STRONG_HEADLINE_SUPPORT",
-    "audit_headline_evidence_quality", "build_home_intelligence",
-    "evaluate_headline_eligibility", "select_home_discoveries",
+    "CLIENT_STRONG_SUPPORT", "CLIENT_SUPPORTED", "GAPPED_HEADLINE_SUPPORT", "STRONG_HEADLINE_SUPPORT",
+    "audit_headline_evidence_quality", "build_client_evidence_view", "build_home_intelligence",
+    "classify_entry_status", "evaluate_headline_eligibility", "select_home_discoveries",
 ]

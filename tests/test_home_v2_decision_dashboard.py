@@ -201,12 +201,66 @@ def test_deterministic_synthesis_is_company_specific_and_acknowledges_gaps():
 def test_home_source_has_compact_secondary_tabs_and_distinct_timestamps():
     source = open("ui/home_v104.py", encoding="utf-8").read()
     assert '["My Stocks", "More Opportunities", "Catalysts", "Calendar"]' in source
-    assert "Market data updated:" in source
-    assert "Atlas signal as of" in source
+    assert "Delayed market context" in source
+    assert "atlas-market-strip" in source
     assert "research_navigation_state(ticker)" in source
     assert "atlas-compact-grid" in source
     assert "WHY BUY NOW" in source
     assert source.index("WHY BUY NOW") < source.index("Position guidance:")
+
+
+def test_all_buy_now_view_and_zero_headline_explanation_are_customer_visible():
+    source = open("ui/home_v104.py", encoding="utf-8").read()
+    assert "View all {expected_count} BUY NOW" in source
+    assert "supporting research evidence to designate a flagship idea" in source
+    assert "home_all_buy_now_" in source
+    assert "buy_now_accessible_count" in open("engines/home_discovery.py", encoding="utf-8").read()
+
+
+def test_normal_home_hides_provider_and_debug_language():
+    source = open("ui/home_v104.py", encoding="utf-8").read()
+    forbidden = (
+        "Yahoo Finance", "Financial Modeling Prep", "FMP", "Finnhub", "NewsAPI",
+        "persisted provider", "provider response", "generated dataset", "source marker",
+        "instruments available", "component coverage",
+    )
+    assert not any(value.lower() in source.lower() for value in forbidden)
+    assert "tape['source']" not in source
+    assert "catalyst_source" not in source
+
+
+def test_optional_missing_evidence_does_not_render_giant_unavailable_metrics():
+    source = open("ui/home_v104.py", encoding="utf-8").read()
+    assert "if fair_value is not None" in source
+    assert "if analyst is not None" in source
+    assert "Valuation confirmation is limited." not in source  # centralized client resolver owns this copy
+    assert '<strong>{html.escape(_money(fair_value))}</strong>' not in source
+    assert '<strong>{html.escape(_money(analyst))}</strong>' not in source
+
+
+def test_entry_status_and_price_are_visible_on_cards_and_compact_rows():
+    source = open("ui/home_v104.py", encoding="utf-8").read()
+    assert "Current Price" in source
+    assert "At Atlas signal time" in source
+    assert "Preferred Entry" in source
+    assert "atlas-entry-status" in source
+    assert 'view["entry_status"]' in source
+    assert "Current price **{price}**" in source
+
+
+def test_market_tape_is_compact_and_partial_failure_is_graceful():
+    source = open("ui/home_v104.py", encoding="utf-8").read()
+    assert "atlas-market-strip" in source
+    assert "st.metric(row[\"label\"]" not in source
+    assert "<em>—</em>" in source
+    assert "7/8" not in source
+
+
+def test_home_pipeline_uses_complete_scanner_rows_not_lossy_display_rows():
+    source = open("app.py", encoding="utf-8").read()
+    assert 'original_scanner_row = normalized.get("Raw")' in source
+    assert "dict(original_scanner_row)" in source
+    assert "display-normalized DataFrame" in source
 
 
 def test_responsive_card_css_covers_phone_tablet_and_desktop_contracts():

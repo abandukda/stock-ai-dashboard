@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import html
+from datetime import datetime
 from typing import Any, Mapping
+from zoneinfo import ZoneInfo
 
 import streamlit as st
 
@@ -10,7 +12,7 @@ from ui.daily_opportunities import (
     render_volume_momentum,
 )
 from ui.morning_brief import render_morning_brief
-from engines.home_discovery import build_home_intelligence
+from engines.home_discovery import build_client_evidence_view, build_home_intelligence
 from engines.home_market_data import fetch_home_market_tape
 from engines.buy_now_synthesis import (
     build_buy_now_context,
@@ -150,7 +152,7 @@ def _raw_value(row: Mapping[str, Any], *keys: str):
 
 
 def _open_research(ticker: str, key: str) -> None:
-    if st.button("Open Full Research →", key=key, use_container_width=True, type="primary"):
+    if st.button("Open Full Research →", key=key, width="stretch", type="primary"):
         for state_key, state_value in research_navigation_state(ticker).items():
             st.session_state[state_key] = state_value
         st.rerun()
@@ -164,19 +166,24 @@ def _home_market_tape():
 
 def _render_market_tape() -> None:
     tape = _home_market_tape()
-    st.markdown("### Live Market Tape")
-    cols = st.columns(4)
-    for index, row in enumerate(tape["rows"]):
-        with cols[index % 4]:
-            if row["status"] == "live":
-                st.metric(row["label"], _money(row["price"]), _pct(row.get("change_pct")))
-            else:
-                st.metric(row["label"], "Unavailable")
-    st.caption(
-        f"Market data updated: {tape['market_data_as_of'] or 'Unavailable'} · delayed / near-real-time {tape['source']} · "
-        f"{tape['available']}/{tape['requested']} instruments available. "
-        "Live context is not used in persisted Atlas scores or recommendations."
-    )
+    items = []
+    for row in tape["rows"]:
+        label = str(row["label"]).split(" · ", 1)[0]
+        if row["status"] != "live":
+            items.append(f'<span><b>{html.escape(label)}</b> <em>—</em></span>')
+            continue
+        value = _money(row["price"])
+        if row["symbol"] in {"SPY", "QQQ", "DIA", "IWM"}:
+            value = _pct(row.get("change_pct"))
+        items.append(f'<span><b>{html.escape(label)}</b> {html.escape(value)}</span>')
+    st.markdown(f'<div class="atlas-market-strip">{"".join(items)}</div>', unsafe_allow_html=True)
+    updated = ""
+    try:
+        stamp = datetime.fromisoformat(str(tape.get("market_data_as_of") or "").replace("Z", "+00:00"))
+        updated = stamp.astimezone(ZoneInfo("America/New_York")).strftime("%-I:%M %p ET")
+    except (TypeError, ValueError):
+        pass
+    st.caption(f"Delayed market context{f' · Updated {updated}' if updated else ''}")
 
 
 def _synthesis_for(row: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -196,62 +203,75 @@ def _render_discovery_card(row: Mapping[str, Any], rank: int) -> None:
     risks = guidance.get("key_risks") or []
     catalyst = guidance.get("next_catalyst") or {}
     label = row.get("discovery_label") or "BUY NOW DISCOVERY"
-    entry = _raw_value(row, "entry_range", "Entry Range")
-    if not entry:
-        low = _raw_value(row, "entry_low", "Entry Low")
-        high = _raw_value(row, "entry_high", "Entry High")
-        entry = f"{_money(low)}–{_money(high)}" if low is not None and high is not None else "Unavailable"
-    fair_value = _raw_value(row, "atlas_fair_value", "Atlas Fair Value")
-    analyst = _raw_value(row, "analyst_target_mean", "Wall Street Consensus")
-    price = _raw_value(row, "current_price", "price")
+    view = row.get("client_evidence_view") or build_client_evidence_view(row)
+    low, high = view["preferred_entry_low"], view["preferred_entry_high"]
+    entry = f"{_money(low)}–{_money(high)}" if low is not None and high is not None else "Entry range unavailable"
+    fair_value, analyst = view["atlas_fair_value"], view["analyst_consensus"]
+    price = view["presentation_price"]
     atlas_upside = implied_upside_pct(fair_value, price)
     analyst_upside = implied_upside_pct(analyst, price)
     synthesis = _synthesis_for(row)
 
     with st.container(border=True):
-        st.caption(f"#{rank} · {label}")
+        st.caption(f"#{rank} · {label or 'TOP SUPPORTED IDEA'}")
         st.markdown(f'<h3 class="atlas-card-title" title="{html.escape(company)}">{html.escape(ticker)} — {html.escape(company)}</h3>', unsafe_allow_html=True)
         st.markdown("## BUY NOW")
-        st.caption(f"Evidence support: {row.get('headline_support_quality') or 'SUPPORTED WITH EVIDENCE GAPS'}")
+        st.caption(f"Research support: {view['support_quality_client'].title()}")
         metric_html = (
             '<div class="atlas-compact-grid">'
-            f'<div class="atlas-compact-metric"><small>Current</small><strong>{html.escape(_money(price))}</strong></div>'
+            f'<div class="atlas-compact-metric"><small>Current Price</small><strong>{html.escape(_money(price))}</strong><em>At Atlas signal time</em></div>'
             f'<div class="atlas-compact-metric"><small>Preferred Entry</small><strong>{html.escape(str(entry))}</strong></div>'
-            f'<div class="atlas-compact-metric"><small>Atlas FV</small><strong>{html.escape(_money(fair_value))}</strong><em>{html.escape(_pct(atlas_upside) + " vs current" if atlas_upside is not None else "Canonical valuation unavailable")}</em></div>'
-            f'<div class="atlas-compact-metric"><small>Wall Street</small><strong>{html.escape(_money(analyst))}</strong><em>{html.escape(_pct(analyst_upside) + " implied upside" if analyst_upside is not None else "Consensus unavailable")}</em></div>'
             '</div>'
         )
         st.markdown(metric_html, unsafe_allow_html=True)
-        st.markdown(f"**What Atlas thinks:** {synthesis['what_atlas_thinks']}")
-        st.markdown(f"**What to do now:** {synthesis['what_to_do_now']}")
+        status = view["entry_status"]
+        icon = "✓" if status["code"] == "INSIDE" else "•"
+        st.markdown(f'<div class="atlas-entry-status atlas-entry-{status["code"].lower()}"><b>{icon} {html.escape(status["label"])}</b>{f" · {html.escape(status["action"])}" if status.get("action") else ""}</div>', unsafe_allow_html=True)
         st.markdown("**WHY BUY NOW**")
         why_now = [str(item) for item in synthesis.get("why_now") or [] if item]
         if why_now:
-            st.write(" ".join(why_now[:3]))
+            st.markdown(f'<p class="atlas-why-copy">{html.escape(" ".join(why_now[:3]))}</p>', unsafe_allow_html=True)
         else:
             st.write("Unavailable")
-        st.caption(f"Position guidance: {row.get('position_size_range') or 'Unavailable'} · See Full Research for sizing context.")
+        valuation_html = []
+        if fair_value is not None:
+            valuation_html.append(f'<span><small>Atlas Fair Value</small><b>{html.escape(_money(fair_value))}</b><em>{html.escape(_pct(atlas_upside))} vs signal price</em></span>')
+        if analyst is not None:
+            valuation_html.append(f'<span><small>Wall Street Consensus</small><b>{html.escape(_money(analyst))}</b><em>{html.escape(_pct(analyst_upside))} vs signal price</em></span>')
+        if valuation_html:
+            st.markdown(f'<div class="atlas-valuation-row">{"".join(valuation_html)}</div>', unsafe_allow_html=True)
+        if view.get("valuation_limitation"):
+            st.caption(view["valuation_limitation"])
         st.markdown("**Primary risk**")
-        st.write((risks[0] or {}).get("risk") if risks else "Unavailable")
-        st.markdown("**Next catalyst**")
+        st.write((risks[0] or {}).get("risk") if risks else "Open Full Research for the current risk assessment.")
         if catalyst.get("date"):
+            st.markdown("**Next catalyst**")
             st.write(f"{catalyst.get('event')} — {catalyst.get('date')}")
         else:
-            st.write("Unavailable")
-        action = guidance.get("action_now") or {}
-        timing = "Buy within the existing preferred entry range." if entry != "Unavailable" else (action.get("entry_timing_context") or "Entry timing is unavailable.")
-        st.markdown(f"**Atlas action:** {action.get('current_action') or 'BUY NOW'} · {timing}")
-        st.caption(f"Signal as of: {row.get('signal_as_of') or 'Unavailable'}")
-        changes = guidance.get("thesis_change_conditions") or {}
-        strengthen = (changes.get("strengthen") or [None])[0]
-        weaken = (changes.get("weaken") or [None])[0]
-        if strengthen or weaken:
-            with st.expander("What changes the thesis"):
-                if strengthen:
-                    st.write(f"**Strengthens if:** {strengthen}")
-                if weaken:
-                    st.write(f"**Weakens if:** {weaken}")
+            st.caption("No near-term verified catalyst is currently identified.")
+        st.caption(f"Position guidance: {row.get('position_size_range') or 'See Full Research'}")
         _open_research(ticker, f"home_discovery_{rank}_{ticker}")
+
+
+def _render_all_buy_now(rows: list[Mapping[str, Any]], expected_count: int) -> None:
+    if len(rows) != expected_count:
+        st.error("BUY NOW ideas are temporarily unavailable. Please open Daily Opportunities.")
+        return
+    with st.expander(f"View all {expected_count} BUY NOW →", expanded=False):
+        for index, row in enumerate(rows, start=1):
+            view = row.get("client_evidence_view") or build_client_evidence_view(row)
+            price = _money(view["presentation_price"])
+            low, high = view["preferred_entry_low"], view["preferred_entry_high"]
+            entry = f"{_money(low)}–{_money(high)}" if low is not None and high is not None else "Entry range unavailable"
+            status = view["entry_status"]
+            c1, c2 = st.columns([4, 1])
+            c1.markdown(
+                f"**{view['ticker']} — {view['company']} · BUY NOW**  \n"
+                f"Current price **{price}** · Preferred entry **{entry}** · **{status['label']}**  \n"
+                f"_{view['support_quality_client'].title()}_ · {view['primary_thesis']}"
+            )
+            with c2:
+                _open_research(view["ticker"], f"home_all_buy_now_{index}_{view['ticker']}")
 
 
 def _render_action_rows(title: str, rows, key_prefix: str) -> None:
@@ -296,6 +316,17 @@ def render_v104_home(
         .atlas-compact-metric small { display:block; color:#94A3B8; font-size:.68rem; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
         .atlas-compact-metric strong { display:block; overflow-wrap:anywhere; font-size:1rem; line-height:1.2; margin-top:.16rem; }
         .atlas-compact-metric em { display:block; color:#94A3B8; font-size:.72rem; font-style:normal; margin-top:.12rem; }
+        .atlas-market-strip { display:flex; flex-wrap:wrap; gap:.35rem 1rem; padding:.55rem .75rem; border:1px solid rgba(148,163,184,.2); border-radius:12px; font-size:.86rem; }
+        .atlas-market-strip span { white-space:nowrap; }
+        .atlas-market-strip em { color:#94A3B8; font-style:normal; }
+        .atlas-entry-status { margin:-.25rem 0 .75rem; padding:.38rem .55rem; border-radius:8px; font-size:.82rem; background:rgba(148,163,184,.10); }
+        .atlas-why-copy { line-height:1.45; margin:.2rem 0 .65rem; }
+        .atlas-entry-inside { color:#34D399; }
+        .atlas-entry-above { color:#FBBF24; }
+        .atlas-valuation-row { display:flex; flex-wrap:wrap; gap:.45rem; margin:.65rem 0; }
+        .atlas-valuation-row span { flex:1 1 9rem; padding:.45rem .55rem; border-left:2px solid rgba(148,163,184,.35); }
+        .atlas-valuation-row small,.atlas-valuation-row b,.atlas-valuation-row em { display:block; }
+        .atlas-valuation-row em { color:#94A3B8; font-size:.72rem; font-style:normal; }
         @media (max-width: 430px) {
           .atlas-compact-grid { gap:.35rem; margin:.35rem 0 .6rem; }
           .atlas-compact-metric { padding:.45rem .5rem; border-radius:10px; }
@@ -324,34 +355,31 @@ def render_v104_home(
         )
 
     st.markdown("# Atlas Morning Decision")
-    st.caption("A concise decision dashboard built from the latest persisted Atlas research.")
     _render_market_tape()
-    st.caption(f"Atlas signal as of {signal_as_of or 'Unavailable'} · Separate from live market context")
 
     st.markdown("## Atlas Morning View")
     st.info(home["morning_view"])
 
-    st.markdown("## Decision Snapshot")
     counts = home["counts"]
-    c = st.columns(4)
-    c[0].metric("BUY NOW", counts["buy_now"], "Review highest-conviction entries")
-    if counts["portfolio_actions"]:
-        c[1].metric("Portfolio Actions", counts["portfolio_actions"])
-    else:
-        c[1].metric("Portfolio", "Not configured")
-    c[2].metric("Scheduled Earnings", counts["scheduled_earnings"])
-    c[3].metric("Watch", counts["monitor"])
+    st.markdown(f"## {counts['buy_now']} BUY NOW Today")
 
     discoveries = home["discoveries"]["selected"]
     for discovery in discoveries:
         discovery["signal_as_of"] = signal_as_of
-    st.markdown("## Top BUY NOW Discoveries")
-    if len(discoveries) < 3:
-        st.info(f"ATLAS found only {len(discoveries)} sufficiently supported headline BUY NOW ideas in the latest scan.")
-    discovery_columns = st.columns(max(1, len(discoveries)))
-    for index, row in enumerate(discoveries, start=1):
-        with discovery_columns[index - 1]:
-            _render_discovery_card(row, index)
+    st.markdown("### Top Supported Ideas")
+    if not discoveries and counts["buy_now"]:
+        st.info(
+            f"{counts['buy_now']} BUY NOW signals were identified, but Atlas does not currently have enough "
+            "supporting research evidence to designate a flagship idea."
+        )
+    elif len(discoveries) < 3:
+        st.caption(f"{len(discoveries)} ideas currently meet the stricter flagship research standard.")
+    if discoveries:
+        discovery_columns = st.columns(len(discoveries))
+        for index, row in enumerate(discoveries, start=1):
+            with discovery_columns[index - 1]:
+                _render_discovery_card(row, index)
+    _render_all_buy_now(home["all_buy_now"], counts["buy_now"])
 
     selected_ticker = st.session_state.get(
         "v104_research_ticker"
@@ -387,10 +415,10 @@ def render_v104_home(
     with tabs[1]:
         render_today_opportunities(ranked)
     with tabs[2]:
-        st.caption(f"{counts['scheduled_earnings']} scheduled earnings · {counts['company_news_events']} sourced company-news events")
+        st.caption(f"{counts['scheduled_earnings']} scheduled earnings · {counts['company_news_events']} company-news events")
         for item in home["catalysts"][:8]:
             catalyst = (item.get("guidance_summary") or {}).get("next_catalyst") or {}
-            st.markdown(f"**{item.get('ticker')} · {catalyst.get('date')} · {item.get('catalyst_type')}** — {catalyst.get('event')}  \n_Source: {item.get('catalyst_source')}_")
+            st.markdown(f"**{item.get('ticker')} · {catalyst.get('date')} · {item.get('catalyst_type')}** — {catalyst.get('event')}")
     with tabs[3]:
         st.caption("Open Market & Economic Calendar below for the full verified calendar.")
 
