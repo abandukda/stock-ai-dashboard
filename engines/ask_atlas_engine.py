@@ -8,6 +8,7 @@ import json
 
 from engines.atlas_intelligence_engine import build_executive_intelligence
 from engines.semantic_fields import valuation_families
+from engines.analyst_intelligence import grounded_analyst_context
 
 try:
     from services.ai_synthesis import answer_ticker_question, llm_is_configured
@@ -22,6 +23,7 @@ def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
     intelligence = report.get("intelligence") or build_executive_intelligence(report)
     sections = report.get("sections") or {}
     valuation = report.get("valuation_families") or valuation_families(report)
+    analyst = report.get("analyst_intelligence") or {}
     return {
         "ticker": report.get("ticker"),
         "company": report.get("company"),
@@ -48,6 +50,7 @@ def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
         "upgrade_triggers": intelligence.get("upgrade_triggers"),
         "downgrade_triggers": intelligence.get("downgrade_triggers"),
         "today_move": intelligence.get("today_move"),
+        "analyst_intelligence": grounded_analyst_context(analyst),
     }
 
 
@@ -55,6 +58,49 @@ def _deterministic_answer(question: str, report: Mapping[str, Any]) -> str:
     intelligence = report.get("intelligence") or build_executive_intelligence(report)
     q = question.lower()
     ticker = report.get("ticker") or "This stock"
+    analyst = report.get("analyst_intelligence") or {}
+
+    analyst_terms = (
+        "wall street", "analyst", "target change", "target raise", "target cut",
+        "more bullish", "more bearish", "agree with", "consensus",
+    )
+    if any(term in q for term in analyst_terms):
+        mean = analyst.get("wall_street_mean_target")
+        upside = analyst.get("wall_street_implied_upside_pct")
+        coverage = analyst.get("analyst_coverage")
+        relationship = analyst.get("atlas_street_relationship") or "VALUATION COMPARISON UNAVAILABLE"
+        lines = [f"### Wall Street and Atlas on {ticker}"]
+        if mean is not None:
+            detail = f"Wall Street consensus is ${float(mean):,.2f}"
+            if upside is not None:
+                detail += f", implying {float(upside):+.1f}% from the current price"
+            if coverage is not None:
+                detail += f" with {int(coverage)} covering analysts"
+            lines.append(detail + ".")
+        else:
+            lines.append("Wall Street consensus is not available in the current structured evidence.")
+        for days in (30, 90):
+            trend = analyst.get(f"trend_{days}d") or {}
+            lines.append(
+                f"**{days}-day trend:** {trend.get('classification', 'STABLE')} "
+                f"({trend.get('positive', 0)} positive, {trend.get('negative', 0)} negative, "
+                f"{trend.get('neutral', 0)} neutral)."
+            )
+        actions = analyst.get("recent_actions") or []
+        if actions:
+            lines.append("**Recent structured actions:**")
+            for action in actions:
+                firm = action.get("firm")
+                label = action.get("primary_action")
+                target = action.get("current_target")
+                target_text = f" to ${float(target):,.2f}" if target is not None else ""
+                lines.append(f"- {firm}: {label}{target_text} ({str(action.get('date') or '')[:10]}).")
+        lines.append(f"**Atlas/Street relationship:** {relationship}. {analyst.get('atlas_street_divergence_message') or ''}")
+        lines.append(
+            f"**Decision context:** Atlas's {str(report.get('committee_verdict') or 'MONITOR').replace('_', ' ')} "
+            "decision is produced by the existing multi-component decision model; Wall Street consensus and canonical Atlas valuation remain separate evidence."
+        )
+        return "\n\n".join(lines)
 
     if "move" in q or "drop" in q or "up today" in q or "down today" in q or "volume" in q:
         move = intelligence["today_move"]
@@ -118,7 +164,17 @@ def ask_atlas(question: str, report: Mapping[str, Any]) -> dict[str, Any]:
         }
 
     context = _compact_context(report)
-    if llm_is_configured() and callable(answer_ticker_question):
+    analyst_terms = (
+        "wall street", "analyst", "target change", "target raise", "target cut",
+        "more bullish", "more bearish", "agree with", "consensus",
+    )
+    analyst_question = any(term in question.lower() for term in analyst_terms)
+    # Analyst answers remain deterministic so an LLM cannot introduce a firm,
+    # target, action, count, or median absent from the normalized object.
+    if analyst_question:
+        answer = _deterministic_answer(question, report)
+        mode = "deterministic_analyst_grounding"
+    elif llm_is_configured() and callable(answer_ticker_question):
         try:
             answer = answer_ticker_question(question, context)
             mode = "llm_grounded"

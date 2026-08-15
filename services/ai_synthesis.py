@@ -12,6 +12,7 @@ import os
 from typing import Any, Mapping
 
 from engines.semantic_fields import valuation_families
+from engines.analyst_intelligence import build_analyst_intelligence, grounded_analyst_context
 
 V78_AI_SYNTHESIS_LAYER_VERIFIED = True
 V79_AI_COMMITTEE_SYNTHESIS_VERIFIED = True
@@ -83,6 +84,7 @@ def build_ticker_context(row: Mapping[str, Any]) -> dict[str, Any]:
     valuation = valuation_families(row)
     fair_value = valuation["atlas_fair_value"]
     analyst_target = valuation["analyst_target_mean"]
+    analyst = build_analyst_intelligence(row)
     return {
         "ticker": _clean(_pick(row, "Ticker", "ticker", default="Unknown")),
         "company": _clean(_pick(row, "Company", "company", "Name", "name", default=""), default=""),
@@ -131,6 +133,9 @@ def build_ticker_context(row: Mapping[str, Any]) -> dict[str, Any]:
         "peg": _clean(_pick(row, "peg_ratio", "PEG", default="Unavailable")),
         "rsi": _clean(_pick(row, "rsi", "RSI", default="Unavailable")),
         "volume_ratio": _clean(_pick(row, "volume_ratio", "Relative Volume", default="Unavailable")),
+        # Precomputed deterministic facts only; the LLM may summarize but not
+        # calculate or substitute any analyst/Atlas semantic field.
+        "analyst_intelligence": grounded_analyst_context(analyst),
     }
 
 
@@ -199,6 +204,8 @@ def _llm_prompt(question: str, context: Mapping[str, Any]) -> list[dict[str, str
             "content": (
                 "You are Atlas AI, an investment research synthesis assistant. "
                 "Use only the supplied structured facts. Do not invent figures, targets, dates, news, or filings. "
+                "Do not invent analysts, firms, recommendation counts, actions, or a median target. "
+                "Never relabel Wall Street consensus as Atlas Fair Value or Atlas Fair Value as Wall Street consensus. "
                 "If a fact is unavailable, say so plainly. Write in clear, professional language for retail investors. "
                 "Separate facts from interpretation. Do not provide personalized financial advice or tell the user they must trade."
             ),

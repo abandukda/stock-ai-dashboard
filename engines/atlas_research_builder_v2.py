@@ -26,6 +26,7 @@ from engines.semantic_fields import atlas_valuation_status, canonical_atlas_fair
 from engines.trade_plan_v1052 import build_trade_plan
 from engines.atlas_intelligence_engine import build_executive_intelligence
 from engines.guidance_summary import build_guidance_summary, guidance_summary_text
+from engines.analyst_intelligence import build_analyst_intelligence
 
 
 Enricher = Callable[[str, Mapping[str, Any]], Mapping[str, Any]]
@@ -611,6 +612,14 @@ def build_atlas_research_v2(
         "trade_plan": report.get("trade_plan") or {},
     })
     report["guidance_summary"] = build_guidance_summary(guidance_input)
+    analyst_input = dict(enriched_row)
+    analyst_input.update({
+        "committee_verdict": report.get("committee_verdict"),
+        "atlas_fair_value": report.get("atlas_fair_value"),
+        "atlas_fv_upside_pct": report.get("atlas_fv_upside_pct"),
+        "current_price": report.get("current_price"),
+    })
+    report["analyst_intelligence"] = build_analyst_intelligence(analyst_input)
     report["executive_summary"] = guidance_summary_text(report["guidance_summary"])
     report["source_investment_thesis"] = report.get("investment_thesis")
     report["source_bull_case"] = report.get("bull_case")

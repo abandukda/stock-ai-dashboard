@@ -3,6 +3,8 @@ from __future__ import annotations
 import math
 import os
 import re
+import threading
+import time
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, Optional
 
@@ -16,6 +18,9 @@ from engines.atlas_valuation import AtlasValuationInputs, calculate_atlas_fair_v
 
 NEWSAPI_KEY = os.getenv("NEWSAPI_KEY", "").strip()
 FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "").strip()
+
+_ANALYST_ACTION_CACHE: Dict[str, tuple[float, list[dict[str, Any]]]] = {}
+_ANALYST_ACTION_CACHE_LOCK = threading.Lock()
 
 POLICY_TERMS = {
     "government contract": "Government contract",
@@ -543,6 +548,68 @@ def _expanded_analyst_context(ticker: str, info: Dict[str, Any], tk: Any) -> Dic
     except Exception:
         pass
     return result
+
+
+def fetch_analyst_action_history(
+    ticker: str,
+    *,
+    ticker_object: Any = None,
+    cache_ttl_seconds: int = 43_200,
+    request_timeout_seconds: float = 2.0,
+) -> Dict[str, Any]:
+    """Fetch one bounded analyst-action payload for an opened Full Research page.
+
+    This function is intentionally not called by the scanner, Home, ranking, or
+    live-research construction. Failures return an empty history so research can
+    continue rendering. A daemonized request guard bounds page wait time.
+    """
+    symbol = str(ticker or "").strip().upper()
+    if not symbol:
+        return {"actions": [], "cache_hit": False, "retrieval_seconds": 0.0, "request_count": 0}
+    now = time.monotonic()
+    with _ANALYST_ACTION_CACHE_LOCK:
+        cached = _ANALYST_ACTION_CACHE.get(symbol)
+        if cached and now - cached[0] < max(0, cache_ttl_seconds):
+            return {
+                "actions": [dict(item) for item in cached[1]],
+                "cache_hit": True,
+                "retrieval_seconds": 0.0,
+                "request_count": 0,
+            }
+    started = time.monotonic()
+    actions: list[dict[str, Any]] = []
+    result: Dict[str, Any] = {}
+
+    def _request() -> None:
+        try:
+            tk = ticker_object if ticker_object is not None else yf.Ticker(symbol)
+            result["history"] = tk.upgrades_downgrades
+        except Exception:
+            result["history"] = None
+
+    worker = threading.Thread(target=_request, name=f"atlas-analyst-actions-{symbol}", daemon=True)
+    worker.start()
+    worker.join(max(0.0, float(request_timeout_seconds)))
+    history = None if worker.is_alive() else result.get("history")
+    if isinstance(history, pd.DataFrame) and not history.empty:
+        frame = history.reset_index()
+        date_column = next(
+            (column for column in frame.columns if str(column).lower() in {"gradedate", "date", "index"}),
+            frame.columns[0],
+        )
+        for record in frame.to_dict("records"):
+            item = dict(record)
+            item["date"] = item.get("date") or item.get("GradeDate") or item.get(date_column)
+            actions.append(item)
+    elapsed = time.monotonic() - started
+    with _ANALYST_ACTION_CACHE_LOCK:
+        _ANALYST_ACTION_CACHE[symbol] = (time.monotonic(), [dict(item) for item in actions])
+    return {
+        "actions": actions,
+        "cache_hit": False,
+        "retrieval_seconds": round(elapsed, 4),
+        "request_count": 1,
+    }
 
 
 def _earnings_context(tk: Any) -> Dict[str, Any]:

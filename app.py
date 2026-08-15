@@ -27181,19 +27181,10 @@ def v8055_render_ai_summary(row):
 
 
 def render_detail(row):
-    """V80.5.5 paid-client research flow: concise, non-duplicative, timestamped and evidence-aware."""
-    v8055_research_hero(row)
-    if "render_v71_institutional_chart" in globals(): v8053_safe_section("Institutional chart",render_v71_institutional_chart,row)
-    v8053_safe_section("Financial analysis",v8055_render_financial_analysis,row)
-    v8053_safe_section("Analyst intelligence",v8055_render_analyst_intelligence,row)
-    v8053_safe_section("Earnings intelligence",v8055_render_earnings_intelligence,row)
-    v8053_safe_section("Target analysis",render_v73_target_analysis,row)
-    v8053_safe_section("Trade plan",render_v73_trade_plan,row)
-    v8053_safe_section("News and catalysts",render_v73_news,row)
-    v8053_safe_section("Political and policy intelligence",v8053_render_policy_support,row)
-    v8053_safe_section("Smart money",render_v73_smart_money,row)
-    v8053_safe_section("Technical analysis",render_v73_technical,row)
-    v8053_safe_section("AI summary",v8055_render_ai_summary,row)
+    """Render the canonical Full Research contract for saved or live rows."""
+    from ui.research_report_v104 import render_full_research_report
+
+    render_full_research_report(dict(row))
 
 
 def v793_decision_rows(df):

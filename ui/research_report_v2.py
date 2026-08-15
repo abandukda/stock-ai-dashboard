@@ -14,6 +14,7 @@ import streamlit as st
 
 from engines.atlas_research_builder_v2 import build_atlas_research_v2
 from engines.ask_atlas_engine import ask_atlas
+from engines.live_research_engine import fetch_analyst_action_history
 
 
 def _money(value: Any) -> str:
@@ -37,6 +38,21 @@ def _score(value: Any) -> str:
         return f"{float(value):.1f}"
     except (TypeError, ValueError):
         return "Unavailable"
+
+
+def _customer_evidence_source(value: Any) -> str:
+    """Translate internal feed provenance into a paid-client evidence label."""
+    text = str(value or "").strip()
+    lowered = text.lower()
+    if "analyst" in lowered or "consensus" in lowered:
+        return "Wall Street consensus evidence"
+    if "earning" in lowered:
+        return "Reported earnings evidence"
+    if "ownership" in lowered:
+        return "Ownership evidence"
+    if any(name in lowered for name in ("yahoo", "finnhub", "fmp", "newsapi")):
+        return "Atlas normalized research evidence"
+    return text or "Atlas research evidence"
 
 
 def _clean_prose(value: Any) -> str:
@@ -97,6 +113,27 @@ def _inject_visual_standards() -> None:
             gap: 1rem;
             width: 100%;
             margin: 0.6rem 0 1.1rem 0;
+        }
+        .atlas-analyst-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
+            gap: .8rem;
+            margin: .7rem 0 1.1rem;
+        }
+        .atlas-analyst-card, .atlas-action-card {
+            min-width: 0;
+            border: 1px solid rgba(120, 155, 205, .28);
+            border-radius: 16px;
+            padding: 1rem;
+            background: rgba(16, 30, 50, .72);
+            overflow-wrap: anywhere;
+        }
+        .atlas-analyst-label { color:#aebbd0; font-size:.76rem; text-transform:uppercase; letter-spacing:.07em; }
+        .atlas-analyst-value { color:#f8faff; font-size:1.35rem; font-weight:800; margin-top:.25rem; }
+        .atlas-action-list { display:grid; gap:.7rem; }
+        @media (max-width: 900px) {
+            .atlas-analyst-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .atlas-action-list { grid-template-columns: 1fr; }
         }
         .atlas-trade-card {
             min-width: 0;
@@ -160,6 +197,103 @@ def _inject_visual_standards() -> None:
         """,
         unsafe_allow_html=True,
     )
+
+
+def _analyst_intelligence_html(intelligence: Mapping[str, Any]) -> str:
+    """Build responsive customer-facing analyst cards with optional data omitted."""
+    metrics = [
+        ("Wall Street Consensus", _money(intelligence.get("wall_street_mean_target"))),
+        ("Implied Upside", _pct(intelligence.get("wall_street_implied_upside_pct"), signed=True)),
+        ("Analyst Coverage", intelligence.get("analyst_coverage")),
+        ("Analyst Agreement", intelligence.get("analyst_agreement")),
+    ]
+    if intelligence.get("wall_street_median_target") is not None:
+        metrics.append(("Median Target", _money(intelligence.get("wall_street_median_target"))))
+    cards = "".join(
+        f'<div class="atlas-analyst-card"><div class="atlas-analyst-label">{escape(str(label))}</div>'
+        f'<div class="atlas-analyst-value">{escape(str(value))}</div></div>'
+        for label, value in metrics if value not in {None, "Unavailable"}
+    )
+    return f'<div class="atlas-analyst-grid">{cards}</div>'
+
+
+def _divergence_disclosure(report: Mapping[str, Any]) -> str | None:
+    analyst = report.get("analyst_intelligence") or {}
+    verdict = str(report.get("committee_verdict") or "").upper().replace(" ", "_")
+    atlas_upside = analyst.get("atlas_fv_upside_pct")
+    street_upside = analyst.get("wall_street_implied_upside_pct")
+    if verdict != "BUY_NOW" or atlas_upside is None or street_upside is None or not (atlas_upside < 0 < street_upside):
+        return None
+    return (
+        "**ATLAS / STREET DIVERGENCE**\n\n"
+        f"Atlas's independent valuation indicates {abs(float(atlas_upside)):.1f}% downside, while Wall Street "
+        f"consensus indicates {float(street_upside):.1f}% upside. The current BUY NOW decision is supported "
+        "by other components of the existing Atlas decision model."
+    )
+
+
+def _render_analyst_intelligence(intelligence: Mapping[str, Any]) -> None:
+    st.markdown("## Wall Street Analyst Intelligence")
+    st.markdown(_analyst_intelligence_html(intelligence), unsafe_allow_html=True)
+    low, high = intelligence.get("wall_street_low_target"), intelligence.get("wall_street_high_target")
+    if low is not None and high is not None:
+        st.markdown("### Target Range")
+        st.write(f"{_money(low)} — {_money(high)}")
+        if intelligence.get("target_dispersion_pct") is not None:
+            st.caption(f"Dispersion: {_pct(intelligence.get('target_dispersion_pct'))}")
+    if intelligence.get("recommendation_response_count") is not None:
+        labels = ("Strong Buy", "Buy", "Hold", "Sell", "Strong Sell")
+        keys = ("strong_buy_count", "buy_count", "hold_count", "sell_count", "strong_sell_count")
+        st.markdown("### Analyst Sentiment")
+        st.write(" | ".join(labels))
+        st.write(" | ".join(str(int(intelligence[key])) for key in keys))
+        st.caption(
+            f"{intelligence['bullish_pct']:.1f}% Bullish · {intelligence['neutral_pct']:.1f}% Neutral · "
+            f"{intelligence['bearish_pct']:.1f}% Bearish · Latest recommendation responses"
+        )
+    actions = intelligence.get("recent_actions") or []
+    if actions:
+        st.markdown("### Analyst Trend")
+        trend_cols = st.columns(2)
+        for col, days in zip(trend_cols, (30, 90)):
+            trend = intelligence.get(f"trend_{days}d") or {}
+            col.metric(f"{days} Days", trend.get("classification", "STABLE"))
+            col.caption(f"{trend.get('positive', 0)} positive · {trend.get('negative', 0)} negative · {trend.get('neutral', 0)} neutral")
+        st.markdown("### Recent Analyst Actions")
+        action_html = []
+        for action in actions:
+            target_text = ""
+            if action.get("current_target") is not None and action.get("previous_target") is not None:
+                target_text = f"Target {_money(action['previous_target'])} → {_money(action['current_target'])}<br>"
+            elif action.get("current_target") is not None:
+                target_text = f"Target {_money(action['current_target'])}<br>"
+            rating = escape(str(action.get("current_rating") or action.get("primary_action") or "Action"))
+            action_html.append(
+                '<div class="atlas-action-card">'
+                f'<strong>{escape(str(action.get("firm") or "Firm"))}</strong><br>{rating}<br>{target_text}'
+                f'{escape(str(action.get("primary_action") or ""))} · {escape(str(action.get("date") or "")[:10])}'
+                '</div>'
+            )
+        st.markdown(f'<div class="atlas-action-list">{"".join(action_html)}</div>', unsafe_allow_html=True)
+        all_actions = intelligence.get("all_actions") or []
+        if len(all_actions) > len(actions):
+            with st.expander("View all analyst actions"):
+                for action in all_actions:
+                    st.write(f"{action.get('date', '')[:10]} · {action.get('firm')} · {action.get('primary_action')}")
+    st.markdown("### Atlas vs Wall Street")
+    atlas_value = intelligence.get("atlas_fair_value")
+    street_value = intelligence.get("wall_street_mean_target")
+    available_values = []
+    if atlas_value is not None:
+        available_values.append(("Atlas Fair Value", _money(atlas_value)))
+    if street_value is not None:
+        available_values.append(("Wall Street Consensus", _money(street_value)))
+    if available_values:
+        compare = st.columns(len(available_values))
+        for column, (label, value) in zip(compare, available_values):
+            column.metric(label, value)
+    st.markdown(f"**{intelligence.get('atlas_street_relationship', 'VALUATION COMPARISON UNAVAILABLE')}**")
+    st.write(intelligence.get("atlas_street_divergence_message") or "")
 
 
 def _trade_card(label: str, value: Any, *, qa_name: str) -> str:
@@ -508,7 +642,14 @@ def _render_ask_atlas(report: Mapping[str, Any]) -> None:
         )
 
 def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
-    report = build_atlas_research_v2(row)
+    research_row = dict(row)
+    symbol = str(research_row.get("ticker") or research_row.get("Ticker") or "").strip().upper()
+    retrieval = fetch_analyst_action_history(symbol) if symbol else {
+        "actions": [], "cache_hit": False, "retrieval_seconds": 0.0, "request_count": 0,
+    }
+    research_row["analyst_actions"] = retrieval.get("actions") or research_row.get("analyst_actions") or []
+    report = build_atlas_research_v2(research_row)
+    report["analyst_action_retrieval"] = retrieval
     _inject_visual_standards()
 
     st.markdown(
@@ -551,12 +692,26 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
         f"{action.get('entry_timing_context', 'No verified timing instruction is available.')} · "
         f"Position guidance: {action.get('position_size_guidance', 'Unavailable')}"
     )
+    analyst = report.get("analyst_intelligence") or {}
+    disclosure = _divergence_disclosure(report)
+    if disclosure:
+        st.warning(disclosure)
+    st.markdown("## Canonical Atlas Valuation")
+    if report.get("atlas_fair_value") is None:
+        st.metric("Current Price", _money(report.get("current_price")))
+        st.info("Atlas has not published a canonical fair value for this company. Wall Street consensus remains separate external evidence.")
+    else:
+        valuation_cols = st.columns(3)
+        valuation_cols[0].metric("Current Price", _money(report.get("current_price")))
+        valuation_cols[1].metric("Atlas Fair Value", _money(report.get("atlas_fair_value")))
+        valuation_cols[2].metric("Atlas FV Implied Return", _pct(report.get("atlas_fv_upside_pct"), signed=True))
+    _render_analyst_intelligence(analyst)
     support_col, risk_col = st.columns(2)
     with support_col:
         st.markdown("### Why")
         for item in guidance.get("supporting_facts") or []:
             st.success(f"{item.get('fact')} {item.get('why_it_matters')}")
-            st.caption(f"Source: {item.get('source')} · As of: {item.get('as_of')}")
+            st.caption(f"Source: {_customer_evidence_source(item.get('source'))} · As of: {item.get('as_of')}")
     with risk_col:
         st.markdown("### What Atlas is cautious about")
         risks = guidance.get("key_risks") or []
@@ -580,19 +735,17 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
     gaps = guidance.get("unavailable_evidence") or []
     if gaps:
         st.caption("Important evidence unavailable: " + "; ".join(gaps))
-    _render_trade_plan(report)
-
     tabs = st.tabs(
         [
             "Thesis",
-            "Financials",
-            "Earnings",
-            "Wall Street",
-            "News",
-            "Political",
+            "Growth & Profitability",
+            "Earnings Intelligence",
+            "Risk",
+            "Catalysts & Company News",
             "Ownership",
+            "Political Intelligence Boundary",
+            "Earnings Call Boundary",
             "Chart & Technicals",
-            "Valuation & Risk",
             "Final Decision",
             "AI Intelligence",
             "Ask Atlas AI",
@@ -679,30 +832,16 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
         _render_interpretation(section.get("interpretation", ""))
 
     with tabs[3]:
-        section = report["sections"]["analysts"]
-        st.markdown("### Wall Street Analyst Intelligence")
-        _meta(section)
-        data = section.get("data") or {}
-        _metric_grid(
-            data,
-            money_keys={
-                "average_target",
-                "high_target",
-                "low_target",
-                "top_analyst_target",
-                "highest_published_target",
-            },
-        )
-        details = section.get("details") or []
-        st.markdown("#### Latest Analyst Actions")
-        if details:
-            st.dataframe(pd.DataFrame(details), hide_index=True, use_container_width=True)
+        risk = report["sections"]["risk"]
+        st.markdown("### Atlas Risk Center")
+        if risk.get("data"):
+            for item in risk["data"]:
+                with st.container(border=True):
+                    st.markdown(f"**{item.get('factor')} — {item.get('level')}**")
+                    st.write(item.get("atlas_interpretation"))
         else:
-            st.info(
-                "Individual analyst records are not present. Atlas will not call the highest target "
-                "a 'top analyst' unless accuracy or ranking data are supplied."
-            )
-        _render_interpretation(section.get("interpretation", ""))
+            st.info("No structured risk factors are currently available.")
+        _render_interpretation(risk.get("interpretation", ""))
 
     with tabs[4]:
         section = report["sections"]["news"]
@@ -729,7 +868,7 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
                     st.metric("Materiality / Impact", _score(item["impact"]))
         _render_interpretation(section.get("interpretation", ""))
 
-    with tabs[5]:
+    with tabs[6]:
         section = report["sections"]["political"]
         st.markdown("### Political / Policy Exposure")
         _meta(section)
@@ -750,7 +889,7 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
             st.info("No material company-specific policy evidence currently available.")
         _render_interpretation(section.get("interpretation", ""))
 
-    with tabs[6]:
+    with tabs[5]:
         section = report["sections"]["ownership"]
         st.markdown("### Ownership, Institutions & Insiders")
         _meta(section)
@@ -767,7 +906,7 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
             st.dataframe(pd.DataFrame(data["insider_transactions"]), hide_index=True, use_container_width=True)
         _render_interpretation(section.get("interpretation", ""))
 
-    with tabs[7]:
+    with tabs[8]:
         section = report["sections"]["technical"]
         st.markdown("### Technical Intelligence")
         _meta(section)
@@ -778,47 +917,9 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
         _render_price_chart(report)
         _render_interpretation(section.get("interpretation", ""))
 
-    with tabs[8]:
-        valuation = report.get("valuation_families") or {}
-        st.markdown("### Atlas Valuation")
-        atlas_cols = st.columns(3)
-        atlas_cols[0].metric("Current Price", _money(valuation.get("current_price")))
-        atlas_cols[1].metric("Canonical Atlas Fair Value", _money(valuation.get("atlas_fair_value")))
-        atlas_cols[2].metric("Atlas FV Implied Return", _pct(valuation.get("atlas_expected_return_pct"), signed=True))
-        if valuation.get("atlas_fair_value") is None:
-            st.info("Canonical Atlas Fair Value is unavailable / under review. Analyst and scenario values remain separate below.")
-
-        st.markdown("### Wall Street Consensus")
-        wall_street_cols = st.columns(5)
-        wall_street_cols[0].metric("Mean Target", _money(valuation.get("analyst_target_mean")))
-        wall_street_cols[1].metric("High Target", _money(valuation.get("analyst_target_high")))
-        wall_street_cols[2].metric("Low Target", _money(valuation.get("analyst_target_low")))
-        wall_street_cols[3].metric("Analyst Count", _score(valuation.get("analyst_count")))
-        wall_street_cols[4].metric("Consensus Upside", _pct(valuation.get("analyst_upside_pct"), signed=True))
-
-        st.markdown("### Analyst-Driven Scenario Analysis")
-        cases = report.get("fair_value_cases") or []
-        if cases:
-            cols = st.columns(min(3, len(cases)))
-            for col, case in zip(cols, cases):
-                with col:
-                    st.markdown(f"#### {case.get('label', 'Case')}")
-                    st.metric("Scenario Value", _money(case.get("fair_value")))
-                    st.metric("Scenario Upside", _pct(case.get("expected_return_pct"), signed=True))
-                    st.caption("Source: Analyst-driven scenario model")
-        else:
-            st.info("Fair-value scenarios are unavailable.")
-
-        risk = report["sections"]["risk"]
-        st.markdown("### Atlas Risk Center")
-        if risk.get("data"):
-            for item in risk["data"]:
-                with st.container(border=True):
-                    st.markdown(f"**{item.get('factor')} — {item.get('level')}**")
-                    st.write(item.get("atlas_interpretation"))
-        else:
-            st.info("No structured risk factors are currently available.")
-        _render_interpretation(risk.get("interpretation", ""))
+    with tabs[7]:
+        st.markdown("### Earnings Call / Transcript Intelligence")
+        st.info("Transcript intelligence is not connected in this phase. Atlas does not infer management guidance without structured transcript evidence.")
 
     with tabs[9]:
         st.markdown("### Final Atlas Guidance")
@@ -854,6 +955,8 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
 
     with tabs[11]:
         _render_ask_atlas(report)
+
+    _render_trade_plan(report)
 
 
 __all__ = ["render_atlas_research_v2"]

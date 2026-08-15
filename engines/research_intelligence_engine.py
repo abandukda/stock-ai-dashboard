@@ -11,6 +11,7 @@ from engines.institutional_intelligence_engine import (
     evidence_scorecard,
     company_specific_risks,
 )
+from engines.analyst_intelligence import build_analyst_intelligence
 
 _MISSING = {"", "none", "null", "nan", "n/a", "na", "unavailable", "not available", "—", "-"}
 
@@ -80,19 +81,13 @@ def _meaningful(value: Any) -> bool:
 
 
 def analyst_intelligence(row: Mapping[str, Any]) -> Dict[str, Any]:
-    mean = _num(_pick(row, ["Analyst Target", "analyst_target_mean", "target_mean_price", "targetMeanPrice"]))
-    high = _num(_pick(row, ["Analyst High", "analyst_target_high", "target_high_price", "targetHighPrice"]))
-    low = _num(_pick(row, ["Analyst Low", "analyst_target_low", "target_low_price", "targetLowPrice"]))
-    median = _num(_pick(row, ["Analyst Median", "analyst_target_median", "target_median_price", "targetMedianPrice"]))
-    count = _num(_pick(row, ["Analyst Count", "analyst_count", "numberOfAnalystOpinions"]))
-    current = _num(_pick(row, ["Current Price", "current_price", "Price", "Close"]))
+    model = build_analyst_intelligence(row)
+    mean = model["wall_street_mean_target"]
+    high = model["wall_street_high_target"]
+    low = model["wall_street_low_target"]
+    count = model["analyst_coverage"]
     rating = _text(_pick(row, ["Analyst Rating", "recommendationKey", "analyst_consensus", "Wall Street Consensus"]), "Unavailable")
-    strong_buy = _num(_pick(row, ["strong_buy_count", "Strong Buy Count"]))
-    buy = _num(_pick(row, ["buy_count", "Buy Count"]))
-    hold = _num(_pick(row, ["hold_count", "Hold Count"]))
-    sell = _num(_pick(row, ["sell_count", "Sell Count"]))
-    upside = None if mean is None or not current else (mean / current - 1) * 100
-    spread = None if high is None or low is None or not mean else (high - low) / mean * 100
+    upside = model["wall_street_implied_upside_pct"]
     if mean is None:
         read = "Analyst target data is unavailable in this snapshot; Atlas does not infer missing Wall Street coverage."
     else:
@@ -105,10 +100,14 @@ def analyst_intelligence(row: Mapping[str, Any]) -> Dict[str, Any]:
             read += f" across {int(count)} covering analysts"
         read += "."
     return {
-        "consensus": mean, "high": high, "low": low, "median": median or mean,
-        "count": int(count) if count else None, "rating": rating, "upside": upside,
-        "spread_pct": spread,
-        "ratings": {"Strong Buy": strong_buy, "Buy": buy, "Hold": hold, "Sell": sell},
+        "consensus": mean, "high": high, "low": low, "median": model["wall_street_median_target"],
+        "count": count, "rating": rating, "upside": upside,
+        "spread_pct": model["target_dispersion_pct"],
+        "ratings": {
+            "Strong Buy": model["strong_buy_count"], "Buy": model["buy_count"],
+            "Hold": model["hold_count"], "Sell": model["sell_count"],
+            "Strong Sell": model["strong_sell_count"],
+        },
         "summary": read,
     }
 
