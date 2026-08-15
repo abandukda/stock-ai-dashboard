@@ -203,7 +203,7 @@ def _analyst_intelligence_html(intelligence: Mapping[str, Any]) -> str:
     """Build responsive customer-facing analyst cards with optional data omitted."""
     metrics = [
         ("Wall Street Consensus", _money(intelligence.get("wall_street_mean_target"))),
-        ("Implied Upside", _pct(intelligence.get("wall_street_implied_upside_pct"), signed=True)),
+        ("Wall Street Implied Upside", _pct(intelligence.get("wall_street_implied_upside_pct"), signed=True)),
         ("Analyst Coverage", intelligence.get("analyst_coverage")),
         ("Analyst Agreement", intelligence.get("analyst_agreement")),
     ]
@@ -676,7 +676,7 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
     c[0].metric("Verdict", str(report.get("committee_verdict") or "Monitor").replace("_", " ").title())
     c[1].metric("Opportunity", _score(report.get("opportunity_score")))
     c[2].metric("Confidence", _pct(report.get("confidence_pct")))
-    c[3].metric("Atlas FV Implied Return", _pct(report.get("atlas_expected_return_pct"), signed=True))
+    c[3].metric("Atlas-FV Implied Upside", _pct(report.get("atlas_expected_return_pct"), signed=True))
     c[4].metric("Research Completeness", _pct(report.get("research_completeness_pct")))
 
     st.markdown("## Executive Summary")
@@ -704,7 +704,7 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
         valuation_cols = st.columns(3)
         valuation_cols[0].metric("Current Price", _money(report.get("current_price")))
         valuation_cols[1].metric("Atlas Fair Value", _money(report.get("atlas_fair_value")))
-        valuation_cols[2].metric("Atlas FV Implied Return", _pct(report.get("atlas_fv_upside_pct"), signed=True))
+        valuation_cols[2].metric("Atlas-FV Implied Upside", _pct(report.get("atlas_fv_upside_pct"), signed=True))
     _render_analyst_intelligence(analyst)
     support_col, risk_col = st.columns(2)
     with support_col:

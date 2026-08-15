@@ -235,9 +235,9 @@ def _render_discovery_card(row: Mapping[str, Any], rank: int) -> None:
             st.write("Unavailable")
         valuation_html = []
         if fair_value is not None:
-            valuation_html.append(f'<span><small>Atlas Fair Value</small><b>{html.escape(_money(fair_value))}</b><em>{html.escape(_pct(atlas_upside))} vs signal price</em></span>')
+            valuation_html.append(f'<span><small>Atlas Fair Value</small><b>{html.escape(_money(fair_value))}</b><em>Atlas-FV Upside: {html.escape(_pct(atlas_upside))}</em></span>')
         if analyst is not None:
-            valuation_html.append(f'<span><small>Wall Street Consensus</small><b>{html.escape(_money(analyst))}</b><em>{html.escape(_pct(analyst_upside))} vs signal price</em></span>')
+            valuation_html.append(f'<span><small>Wall Street Consensus</small><b>{html.escape(_money(analyst))}</b><em>Wall Street Implied Upside: {html.escape(_pct(analyst_upside))}</em></span>')
         if valuation_html:
             st.markdown(f'<div class="atlas-valuation-row">{"".join(valuation_html)}</div>', unsafe_allow_html=True)
         if view.get("valuation_limitation"):

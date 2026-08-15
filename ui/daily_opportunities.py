@@ -77,7 +77,13 @@ def _card(row: Mapping[str, Any], *, key_prefix: str, volume_mode: bool = False)
         decision_return = row.get("decision_expected_return_pct")
         if decision_return is None:
             decision_return = row.get("expected_return_pct")
-        metrics[3].metric("Analyst-Implied Upside", _pct(decision_return, signed=True))
+        target_source = str(row.get("decision_target_source") or "").lower()
+        upside_label = (
+            "Wall Street Implied Upside"
+            if "analyst" in target_source or "wall_street" in target_source
+            else "Decision-Target Implied Upside"
+        )
+        metrics[3].metric(upside_label, _pct(decision_return, signed=True))
         metrics[4].metric("Atlas Fair Value", _money(canonical_atlas_fair_value(row)))
 
         if volume_mode:

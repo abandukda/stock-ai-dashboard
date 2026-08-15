@@ -84,6 +84,13 @@ def build_ticker_context(row: Mapping[str, Any]) -> dict[str, Any]:
     valuation = valuation_families(row)
     fair_value = valuation["atlas_fair_value"]
     analyst_target = valuation["analyst_target_mean"]
+    decision_target = _pick(row, "decision_valuation_target")
+    decision_target_source = _clean(
+        _pick(row, "decision_target_source", default="Unavailable")
+    )
+    decision_target_upside = _pick(
+        row, "decision_expected_return_pct", "expected_return_pct"
+    )
     analyst = build_analyst_intelligence(row)
     return {
         "ticker": _clean(_pick(row, "Ticker", "ticker", default="Unknown")),
@@ -103,7 +110,20 @@ def build_ticker_context(row: Mapping[str, Any]) -> dict[str, Any]:
         "analyst_low": _fmt_money(valuation["analyst_target_low"]),
         "analyst_high": _fmt_money(valuation["analyst_target_high"]),
         "analyst_implied_upside_pct": _fmt_pct(valuation["analyst_upside_pct"]),
+        "wall_street_implied_upside_pct": _fmt_pct(valuation["analyst_upside_pct"]),
         "analyst_target": _fmt_money(analyst_target),
+        "decision_target": _fmt_money(decision_target),
+        "decision_target_source": decision_target_source,
+        "decision_target_implied_upside_pct": _fmt_pct(decision_target_upside),
+        "valuation_semantics": {
+            "atlas_fair_value": "independent canonical Atlas valuation",
+            "atlas_fv_upside_pct": "calculated only from canonical Atlas Fair Value and current price",
+            "wall_street_consensus": "external analyst mean target",
+            "wall_street_implied_upside_pct": "calculated only from Wall Street consensus and current price",
+            "decision_target": "internal decision-model target; use decision_target_source for attribution",
+            "decision_target_implied_upside_pct": "calculated from the internal decision target and current price",
+        },
+        # Compatibility keys retained; their semantic owner is explicit above.
         "atlas_expected_return": _fmt_pct(valuation["atlas_expected_return_pct"]),
         "analyst_upside": _fmt_pct(valuation["analyst_upside_pct"]),
         "scenario_base": _fmt_money(valuation["scenario_base"]),
@@ -155,7 +175,7 @@ def deterministic_ticker_answer(question: str, context: Mapping[str, Any]) -> st
         f"### Atlas view on {name}",
         f"**Decision:** {context.get('decision', context.get('committee_decision', 'Review'))}",
         f"**Recommendation:** {context.get('recommendation', context.get('decision', 'Review'))} | **Opportunity:** {context.get('opportunity_score', 'Unavailable')} | **Confidence:** {context.get('confidence_pct', 'Unavailable')}",
-        f"**Current price:** {context.get('current_price')} | **Atlas fair value:** {context.get('atlas_fair_value')} | **Atlas FV return:** {context.get('atlas_expected_return')} | **Wall Street target:** {context.get('analyst_target')} | **Analyst upside:** {context.get('analyst_upside')}",
+        f"**Current price:** {context.get('current_price')} | **Atlas Fair Value:** {context.get('atlas_fair_value')} | **Atlas-FV Implied Upside:** {context.get('atlas_fv_upside_pct')} | **Wall Street Consensus:** {context.get('analyst_consensus')} | **Wall Street Implied Upside:** {context.get('wall_street_implied_upside_pct')}",
     ]
     thesis = context.get("investment_thesis") or context.get("committee_conclusion")
     if thesis:
@@ -206,6 +226,8 @@ def _llm_prompt(question: str, context: Mapping[str, Any]) -> list[dict[str, str
                 "Use only the supplied structured facts. Do not invent figures, targets, dates, news, or filings. "
                 "Do not invent analysts, firms, recommendation counts, actions, or a median target. "
                 "Never relabel Wall Street consensus as Atlas Fair Value or Atlas Fair Value as Wall Street consensus. "
+                "Never call Wall Street implied upside Atlas expected return, Atlas upside, Atlas return, or Atlas Fair Value upside. "
+                "Use decision_target_source whenever discussing decision-target implied upside. Do not calculate valuation or upside values. "
                 "If a fact is unavailable, say so plainly. Write in clear, professional language for retail investors. "
                 "Separate facts from interpretation. Do not provide personalized financial advice or tell the user they must trade."
             ),

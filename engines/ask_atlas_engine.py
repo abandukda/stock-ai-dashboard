@@ -38,6 +38,21 @@ def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
         "analyst_low": valuation.get("analyst_target_low"),
         "analyst_high": valuation.get("analyst_target_high"),
         "analyst_implied_upside_pct": valuation.get("analyst_upside_pct"),
+        "wall_street_implied_upside_pct": valuation.get("analyst_upside_pct"),
+        "decision_target": report.get("decision_valuation_target"),
+        "decision_target_source": report.get("decision_target_source"),
+        "decision_target_implied_upside_pct": (
+            report.get("decision_expected_return_pct")
+            if report.get("decision_expected_return_pct") is not None
+            else report.get("expected_return_pct")
+        ),
+        "valuation_semantics": {
+            "atlas_fair_value": "independent canonical Atlas valuation",
+            "atlas_fv_upside_pct": "canonical Atlas Fair Value versus current price",
+            "wall_street_consensus": "external analyst mean target",
+            "wall_street_implied_upside_pct": "Wall Street consensus versus current price",
+            "decision_target": "internal target attributed by decision_target_source",
+        },
         "upside": valuation.get("atlas_fv_upside_pct"),
         "investment_thesis": report.get("investment_thesis"),
         "financial_summary": (sections.get("financials") or {}).get("interpretation"),

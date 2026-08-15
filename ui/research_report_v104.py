@@ -96,6 +96,12 @@ def render_candidate_card(
     decision_return = row.get("decision_expected_return_pct")
     if decision_return is None:
         decision_return = row.get("expected_return_pct")
+    target_source = str(row.get("decision_target_source") or "").lower()
+    decision_return_label = (
+        "Wall Street Implied Upside"
+        if "analyst" in target_source or "wall_street" in target_source
+        else "Decision-Target Implied Upside"
+    )
     individualized = {
         "opportunity_score": row.get("opportunity_score"),
         "confidence_pct": row.get("confidence_pct"),
@@ -160,7 +166,7 @@ def render_candidate_card(
               <div class="atlas-value">{_pct(individualized.get("confidence_pct"))}</div>
             </div>
             <div class="atlas-metric">
-              <div class="atlas-label">Analyst-Implied Upside</div>
+              <div class="atlas-label">{escape(decision_return_label)}</div>
               <div class="atlas-value">{_pct(decision_return)}</div>
             </div>
             <div class="atlas-metric">
@@ -172,7 +178,7 @@ def render_candidate_card(
               <div class="atlas-value">{_money(atlas_target)}</div>
             </div>
             <div class="atlas-metric">
-              <div class="atlas-label">Analyst Average</div>
+              <div class="atlas-label">Wall Street Consensus</div>
               <div class="atlas-value">{_money(analyst_target)}</div>
             </div>
           </div>

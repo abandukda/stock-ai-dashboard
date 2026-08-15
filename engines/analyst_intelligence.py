@@ -210,12 +210,12 @@ def _relationship(atlas_upside: float | None, street_upside: float | None, atlas
     if atlas_upside is None or street_upside is None:
         return "VALUATION COMPARISON UNAVAILABLE", "The available values cannot be compared without a legitimate current price."
     if (atlas_upside < 0 < street_upside) or (street_upside < 0 < atlas_upside):
-        return "MATERIAL DIVERGENCE", f"Atlas indicates {atlas_upside:+.1f}% while Wall Street consensus indicates {street_upside:+.1f}%."
+        return "MATERIAL DIVERGENCE", f"Atlas-FV implied upside is {atlas_upside:+.1f}% while Wall Street implied upside is {street_upside:+.1f}%."
     if abs(atlas_upside - street_upside) <= 10:
-        return "BROADLY ALIGNED", f"Atlas and Wall Street implied returns are within 10 percentage points ({atlas_upside:+.1f}% versus {street_upside:+.1f}%)."
+        return "BROADLY ALIGNED", f"Atlas-FV and Wall Street implied upside are within 10 percentage points ({atlas_upside:+.1f}% versus {street_upside:+.1f}%)."
     if atlas_upside > street_upside:
-        return "ATLAS MORE CONSTRUCTIVE", f"Atlas indicates {atlas_upside:+.1f}% versus Wall Street consensus at {street_upside:+.1f}%."
-    return "WALL STREET MORE CONSTRUCTIVE", f"Wall Street consensus indicates {street_upside:+.1f}% versus Atlas at {atlas_upside:+.1f}%."
+        return "ATLAS MORE CONSTRUCTIVE", f"Atlas-FV implied upside is {atlas_upside:+.1f}% versus Wall Street implied upside at {street_upside:+.1f}%."
+    return "WALL STREET MORE CONSTRUCTIVE", f"Wall Street implied upside is {street_upside:+.1f}% versus Atlas-FV implied upside at {atlas_upside:+.1f}%."
 
 
 def build_analyst_intelligence(row: Mapping[str, Any], *, actions: Iterable[Mapping[str, Any]] | None = None, now: datetime | None = None) -> dict[str, Any]:
