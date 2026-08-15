@@ -24,6 +24,7 @@ from engines.research_engine_v105 import build_institutional_research
 from engines.analyst_engine import build_analyst_snapshot, build_analyst_summary
 from engines.semantic_fields import atlas_valuation_status, canonical_atlas_fair_value, valuation_families
 from engines.trade_plan_v1052 import build_trade_plan
+from engines.policy_intelligence import build_policy_intelligence
 from engines.atlas_intelligence_engine import build_executive_intelligence
 from engines.guidance_summary import build_guidance_summary, guidance_summary_text
 from engines.analyst_intelligence import build_analyst_intelligence
@@ -135,7 +136,10 @@ def _evidence_registry(
         "news": section_entry("news"),
         "ownership": section_entry("ownership"),
         "insider_activity": entry(insider_status, "Structured insider evidence"),
-        "policy": entry("available" if political_data else "not_applicable", "Not critical financial evidence"),
+        "policy": entry(
+            "available" if _num(political_data.get("evidence_count")) else "not_applicable",
+            "Not critical financial evidence",
+        ),
     }
 
 
@@ -446,6 +450,7 @@ def build_atlas_research_v2(
     earnings_data = _mapping(enriched["earnings"].get("data"))
     news_items = _sequence(enriched["news"].get("data"))
     political_data = _mapping(enriched["political"].get("data"))
+    policy_intelligence = build_policy_intelligence(enriched_row)
     analyst_data = _mapping(enriched["analysts"].get("data"))
     ownership_data = _mapping(enriched["ownership"].get("data"))
     technical_data = _mapping(enriched["technical"].get("data"))
@@ -487,8 +492,18 @@ def build_atlas_research_v2(
         },
         "political": {
             **enriched["political"],
-            **_section_status(political_data, ("political_support_score", "transactions")),
-            "interpretation": _political_interpretation(political_data),
+            "status": (
+                "available"
+                if policy_intelligence.get("evidence_count")
+                else "unavailable"
+            ),
+            "completeness_pct": 100.0 if policy_intelligence.get("evidence_count") else 0.0,
+            "data": policy_intelligence,
+            "interpretation": (
+                "Atlas identified verified company-specific policy evidence."
+                if policy_intelligence.get("evidence_count")
+                else "Atlas does not currently have enough verified company-specific policy evidence to classify this exposure."
+            ),
         },
         "ownership": {
             **enriched["ownership"],
@@ -578,6 +593,7 @@ def build_atlas_research_v2(
         "current_price": quote.get("price"),
         "quote": quote,
         "trade_plan": trade_plan,
+        "policy_intelligence": policy_intelligence,
         "sections": sections,
         "research_completeness_pct": completeness,
         "evidence_coverage_pct": completeness,

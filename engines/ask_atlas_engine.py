@@ -9,6 +9,7 @@ import json
 from engines.atlas_intelligence_engine import build_executive_intelligence
 from engines.semantic_fields import valuation_families
 from engines.analyst_intelligence import grounded_analyst_context
+from engines.policy_intelligence import build_policy_intelligence, public_policy_context
 
 try:
     from services.ai_synthesis import answer_ticker_question, llm_is_configured
@@ -24,6 +25,7 @@ def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
     sections = report.get("sections") or {}
     valuation = report.get("valuation_families") or valuation_families(report)
     analyst = report.get("analyst_intelligence") or {}
+    policy = report.get("policy_intelligence") or build_policy_intelligence(report)
     return {
         "ticker": report.get("ticker"),
         "company": report.get("company"),
@@ -66,6 +68,7 @@ def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
         "downgrade_triggers": intelligence.get("downgrade_triggers"),
         "today_move": intelligence.get("today_move"),
         "analyst_intelligence": grounded_analyst_context(analyst),
+        "policy_intelligence": public_policy_context(policy),
     }
 
 
@@ -74,6 +77,28 @@ def _deterministic_answer(question: str, report: Mapping[str, Any]) -> str:
     q = question.lower()
     ticker = report.get("ticker") or "This stock"
     analyst = report.get("analyst_intelligence") or {}
+    policy = report.get("policy_intelligence") or build_policy_intelligence(report)
+
+    policy_terms = (
+        "policy", "government", "contract", "regulation", "regulatory",
+        "tariff", "trade", "export control", "sanction", "lobbying",
+    )
+    if any(term in q for term in policy_terms):
+        status = str(policy.get("policy_overall_status") or "INSUFFICIENT_VERIFIED_EVIDENCE").replace("_", " ").title()
+        lines = [f"### Policy and government intelligence for {ticker}", f"**Overall exposure:** {status}"]
+        items = []
+        for key in (
+            "government_contract_evidence", "regulatory_evidence", "trade_tariff_evidence",
+            "export_control_evidence", "legislative_policy_evidence", "public_funding_evidence", "policy_news",
+        ):
+            items.extend(policy.get(key) or [])
+        if not items:
+            lines.append("Atlas does not currently have enough verified company-specific policy evidence to classify this exposure.")
+        else:
+            for item in items[:5]:
+                lines.append(f"- {item.get('fact')} Why it matters: {item.get('why_it_matters') or 'No additional verified consequence was supplied.'} Authority: {item.get('authority') or 'Unavailable'}. Status: {item.get('relevance_status') or 'UNKNOWN'}.")
+        lines.append("Atlas does not infer political affiliation, favoritism, endorsement, or influence from this evidence.")
+        return "\n\n".join(lines)
 
     analyst_terms = (
         "wall street", "analyst", "target change", "target raise", "target cut",
@@ -184,11 +209,15 @@ def ask_atlas(question: str, report: Mapping[str, Any]) -> dict[str, Any]:
         "more bullish", "more bearish", "agree with", "consensus",
     )
     analyst_question = any(term in question.lower() for term in analyst_terms)
+    policy_question = any(term in question.lower() for term in (
+        "policy", "government", "contract", "regulation", "regulatory",
+        "tariff", "trade", "export control", "sanction", "lobbying",
+    ))
     # Analyst answers remain deterministic so an LLM cannot introduce a firm,
     # target, action, count, or median absent from the normalized object.
-    if analyst_question:
+    if analyst_question or policy_question:
         answer = _deterministic_answer(question, report)
-        mode = "deterministic_analyst_grounding"
+        mode = "deterministic_analyst_grounding" if analyst_question else "deterministic_policy_grounding"
     elif llm_is_configured() and callable(answer_ticker_question):
         try:
             answer = answer_ticker_question(question, context)

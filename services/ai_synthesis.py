@@ -13,6 +13,7 @@ from typing import Any, Mapping
 
 from engines.semantic_fields import valuation_families
 from engines.analyst_intelligence import build_analyst_intelligence, grounded_analyst_context
+from engines.policy_intelligence import build_policy_intelligence, public_policy_context
 
 V78_AI_SYNTHESIS_LAYER_VERIFIED = True
 V79_AI_COMMITTEE_SYNTHESIS_VERIFIED = True
@@ -92,6 +93,7 @@ def build_ticker_context(row: Mapping[str, Any]) -> dict[str, Any]:
         row, "decision_expected_return_pct", "expected_return_pct"
     )
     analyst = build_analyst_intelligence(row)
+    policy = build_policy_intelligence(row)
     return {
         "ticker": _clean(_pick(row, "Ticker", "ticker", default="Unknown")),
         "company": _clean(_pick(row, "Company", "company", "Name", "name", default=""), default=""),
@@ -156,6 +158,7 @@ def build_ticker_context(row: Mapping[str, Any]) -> dict[str, Any]:
         # Precomputed deterministic facts only; the LLM may summarize but not
         # calculate or substitute any analyst/Atlas semantic field.
         "analyst_intelligence": grounded_analyst_context(analyst),
+        "policy_intelligence": public_policy_context(policy),
     }
 
 
@@ -228,6 +231,7 @@ def _llm_prompt(question: str, context: Mapping[str, Any]) -> list[dict[str, str
                 "Never relabel Wall Street consensus as Atlas Fair Value or Atlas Fair Value as Wall Street consensus. "
                 "Never call Wall Street implied upside Atlas expected return, Atlas upside, Atlas return, or Atlas Fair Value upside. "
                 "Use decision_target_source whenever discussing decision-target implied upside. Do not calculate valuation or upside values. "
+                "Policy intelligence must use only the supplied normalized policy_intelligence object. Never invent a contract, award value, agency action, regulation, tariff, sanction, lobbying activity, date, company linkage, partisan alignment, political support, influence, favoritism, or endorsement. Never treat an award ceiling as revenue or lobbying as favorable treatment. "
                 "If a fact is unavailable, say so plainly. Write in clear, professional language for retail investors. "
                 "Separate facts from interpretation. Do not provide personalized financial advice or tell the user they must trade."
             ),

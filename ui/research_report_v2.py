@@ -15,6 +15,7 @@ import streamlit as st
 from engines.atlas_research_builder_v2 import build_atlas_research_v2
 from engines.ask_atlas_engine import ask_atlas
 from engines.live_research_engine import fetch_analyst_action_history
+from services.policy_data import enrich_policy_for_research
 
 
 def _money(value: Any) -> str:
@@ -76,6 +77,69 @@ def _render_consistent_prose(value: Any, *, qa_name: str) -> None:
         ),
         unsafe_allow_html=True,
     )
+
+
+def _policy_status_label(value: Any) -> str:
+    return str(value or "INSUFFICIENT_VERIFIED_EVIDENCE").replace("_", " ").title()
+
+
+def _load_policy_enrichment(symbol: str, row: Mapping[str, Any]) -> dict[str, Any]:
+    """Failure-safe boundary for optional explicit-ticker policy enrichment."""
+    if not symbol:
+        return {"government_contract_evidence": [], "metrics": {"provider_call_count": 0}}
+    try:
+        return enrich_policy_for_research(symbol, row)
+    except Exception:
+        return {
+            "government_contract_evidence": [],
+            "metrics": {"provider_call_count": 0, "failure_count": 1},
+        }
+
+
+def _render_policy_intelligence(policy: Mapping[str, Any]) -> None:
+    st.markdown("### Policy & Government Intelligence")
+    status = str(policy.get("policy_overall_status") or "INSUFFICIENT_VERIFIED_EVIDENCE")
+    st.markdown(f"**Overall Policy Exposure:** {_policy_status_label(status)}")
+    if status == "INSUFFICIENT_VERIFIED_EVIDENCE":
+        st.info("Atlas does not currently have enough verified company-specific policy evidence to classify this exposure.")
+        return
+    labels = (
+        ("Government Exposure", "government_contract_evidence"),
+        ("Regulatory Exposure", "regulatory_evidence"),
+        ("Trade / Tariff Exposure", "trade_tariff_evidence"),
+        ("Export Controls / Sanctions", "export_control_evidence"),
+        ("Lobbying Activity", "lobbying_evidence"),
+    )
+    st.markdown("#### Key Policy Factors")
+    shown = 0
+    for label, key in labels:
+        items = policy.get(key) or []
+        if not items:
+            continue
+        st.markdown(f"**{label}**")
+        st.write(items[0].get("fact"))
+    developments = []
+    for key in (
+        "government_contract_evidence", "regulatory_evidence",
+        "trade_tariff_evidence", "export_control_evidence",
+        "legislative_policy_evidence", "public_funding_evidence", "policy_news",
+    ):
+        developments.extend(policy.get(key) or [])
+    if developments:
+        st.markdown("#### Recent Material Developments")
+    for item in developments[:5]:
+        with st.container(border=True):
+            st.markdown(f"**What happened:** {escape(str(item.get('fact') or 'Evidence unavailable'))}")
+            if item.get("why_it_matters"):
+                st.write(f"Why it matters: {item['why_it_matters']}")
+            details = " · ".join(str(value) for value in (
+                item.get("event_date"), item.get("authority"), item.get("relevance_status")
+            ) if value)
+            if details:
+                st.caption(details)
+            shown += 1
+    if not shown and status != "INSUFFICIENT_VERIFIED_EVIDENCE":
+        st.caption("No current material development cards are available.")
 
 
 def _inject_visual_standards() -> None:
@@ -648,8 +712,11 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
         "actions": [], "cache_hit": False, "retrieval_seconds": 0.0, "request_count": 0,
     }
     research_row["analyst_actions"] = retrieval.get("actions") or research_row.get("analyst_actions") or []
+    policy_retrieval = _load_policy_enrichment(symbol, research_row)
+    research_row["policy_intelligence_external"] = policy_retrieval
     report = build_atlas_research_v2(research_row)
     report["analyst_action_retrieval"] = retrieval
+    report["policy_source_metrics"] = policy_retrieval.get("metrics") or {}
     _inject_visual_standards()
 
     st.markdown(
@@ -870,24 +937,13 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
 
     with tabs[6]:
         section = report["sections"]["political"]
-        st.markdown("### Political / Policy Exposure")
-        _meta(section)
-        data = section.get("data") or {}
-        _metric_grid(
-            data,
-            pct_keys={"political_support_score"},
-        )
-        transactions = data.get("transactions") or []
-        policy_events = data.get("policy_evidence") or []
-        if policy_events:
-            st.markdown("#### Verified Company-Specific Policy Events")
-            st.dataframe(pd.DataFrame(policy_events), hide_index=True, use_container_width=True)
-        st.markdown("#### Recent Political Transactions")
+        data = section.get("data") or report.get("policy_intelligence") or {}
+        _render_policy_intelligence(data)
+        transactions = data.get("policymaker_transactions") or []
         if transactions:
+            st.markdown("#### Policymaker Transactions")
+            st.caption("Transactions are disclosure evidence, not policy support or government endorsement.")
             st.dataframe(pd.DataFrame(transactions), hide_index=True, use_container_width=True)
-        else:
-            st.info("No material company-specific policy evidence currently available.")
-        _render_interpretation(section.get("interpretation", ""))
 
     with tabs[5]:
         section = report["sections"]["ownership"]
