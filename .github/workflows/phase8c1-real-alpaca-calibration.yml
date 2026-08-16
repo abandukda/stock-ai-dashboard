@@ -1,0 +1,53 @@
+name: Phase 8C.1 Real Alpaca Radar Calibration
+
+on:
+  workflow_dispatch:
+    inputs:
+      end_date:
+        description: Optional inclusive calibration end date (YYYY-MM-DD; blank uses prior UTC date)
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  real-alpaca-calibration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      APCA_API_KEY_ID: ${{ secrets.APCA_API_KEY_ID }}
+      APCA_API_SECRET_KEY: ${{ secrets.APCA_API_SECRET_KEY }}
+      PHASE8C_END_DATE: ${{ inputs.end_date }}
+      PHASE8C_REQUEST_CAP: "80"
+      PHASE8C_TIMEOUT: "15"
+      PHASE8C_OUTPUT_DIR: audit_results/phase8c1
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Checkout committed calibration source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run untouched V1 aggregate calibration
+        shell: bash
+        run: |
+          set +x
+          if [ -n "${APCA_API_KEY_ID}" ]; then echo "::add-mask::${APCA_API_KEY_ID}"; fi
+          if [ -n "${APCA_API_SECRET_KEY}" ]; then echo "::add-mask::${APCA_API_SECRET_KEY}"; fi
+          python analysis/phase8b_calibration/real_alpaca_runner.py
+
+      - name: Upload aggregate calibration reports only
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase8c1-radar-aggregate-calibration
+          path: |
+            audit_results/phase8c1/summary.json
+            audit_results/phase8c1/state_outcomes.csv
+            audit_results/phase8c1/score_buckets.csv
+            audit_results/phase8c1/threshold_sensitivity.csv
+          if-no-files-found: error
+          retention-days: 30

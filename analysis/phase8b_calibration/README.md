@@ -17,3 +17,9 @@ a time, and do not mutate V1.
 
 No real calibration conclusion is valid until an authenticated, licensed
 historical dataset—including inactive securities where available—is supplied.
+
+The manual Phase 8C.1 workflow supplies this input entirely in memory from the
+Alpaca Basic IEX historical feed. It uploads aggregate reports only; raw OHLCV
+and provider payloads are never written or uploaded. Benchmark and sector bars
+are aligned to each security by historical trading date, supporting later IPOs
+without introducing future observations.

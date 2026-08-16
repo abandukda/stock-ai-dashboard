@@ -127,8 +127,10 @@ def chronological_split(events: Sequence[CalibrationEvent], split_at: datetime) 
     return calibration, validation
 
 
-def _aligned_prefix(reference: Sequence[DailyBar], end: datetime) -> list[DailyBar]:
-    return [bar for bar in reference if bar.timestamp <= end]
+def _aligned_prefix(reference: Sequence[DailyBar], target: Sequence[DailyBar]) -> list[DailyBar]:
+    """Return reference bars on the target's historical dates, never future dates."""
+    mapping = {bar.timestamp: bar for bar in reference}
+    return [mapping[bar.timestamp] for bar in target if bar.timestamp in mapping]
 
 
 def _regime(benchmark_prefix: Sequence[DailyBar]) -> str:
@@ -177,14 +179,14 @@ def replay_dataset(dataset: HistoricalDataset, engine: TechnicalIntelligenceEngi
         prior_pivot = None
         for index in range(model.config.minimum_history - 1, len(rows)):
             prefix = rows[:index + 1]
-            benchmark_prefix = _aligned_prefix(benchmark, rows[index].timestamp)
+            benchmark_prefix = _aligned_prefix(benchmark, prefix)
             if len(benchmark_prefix) != len(prefix):
                 continue
             sector_reference = None
             sector_symbol = (dataset.sector_benchmarks or {}).get(metadata.sector or "")
             sector_full = dataset.bars.get(sector_symbol, ()) if sector_symbol else ()
             if sector_symbol and sector_symbol in dataset.bars:
-                sector_reference = _aligned_prefix(sector_full, rows[index].timestamp)
+                sector_reference = _aligned_prefix(sector_full, prefix)
                 if len(sector_reference) != len(prefix):
                     sector_reference = None
             analysis = model.evaluate(
@@ -250,6 +252,11 @@ def _summary(events: Sequence[CalibrationEvent]) -> dict[str, float | int | None
         "mean_time_to_mfe": statistics.fmean(times) if times else None,
     })
     return output
+
+
+def summarize_events(events: Sequence[CalibrationEvent]) -> dict[str, float | int | None]:
+    """Public aggregate-only summary used by offline reporting workflows."""
+    return _summary(events)
 
 
 def _group(events: Sequence[CalibrationEvent], key) -> dict[str, Mapping[str, float | int | None]]:
