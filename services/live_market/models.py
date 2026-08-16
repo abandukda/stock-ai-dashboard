@@ -201,6 +201,35 @@ class TechnicalStateResult:
     event_timestamp: datetime
     evidence: Mapping[str, Any]
     feed_health: FeedHealth
+    security_type: SecurityType = SecurityType.UNKNOWN
+    score: float = 0.0
+    state_confidence: float = 0.0
+    pivot: float | None = None
+    support: float | None = None
+    volume_confirmed: bool = False
+    relative_strength: str = "UNAVAILABLE"
+    urgency: str = "WATCH"
+
+    @property
+    def fingerprint(self) -> str:
+        """Stable deterministic transition identity; explanations are excluded."""
+        payload = {
+            "ticker": normalize_ticker(self.ticker),
+            "security_type": self.security_type.value,
+            "previous_state": self.previous_state.value,
+            "new_state": self.new_state.value,
+            "event_timestamp": _utc(self.event_timestamp).isoformat(),
+            "score": round(float(self.score), 6),
+            "pivot": None if self.pivot is None else round(float(self.pivot), 8),
+            "support": None if self.support is None else round(float(self.support), 8),
+            "volume_confirmed": bool(self.volume_confirmed),
+            "relative_strength": self.relative_strength,
+            "urgency": self.urgency,
+            "evidence": dict(self.evidence),
+        }
+        return hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode()
+        ).hexdigest()
 
 
 @dataclass(frozen=True)
