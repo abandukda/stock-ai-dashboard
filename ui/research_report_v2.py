@@ -16,6 +16,7 @@ from engines.atlas_research_builder_v2 import build_atlas_research_v2
 from engines.ask_atlas_engine import ask_atlas
 from engines.live_research_engine import fetch_analyst_action_history
 from services.policy_data import enrich_policy_for_research
+from services.ai_valuation_synthesis import get_ai_valuation_for_research
 
 
 def _money(value: Any) -> str:
@@ -94,6 +95,68 @@ def _load_policy_enrichment(symbol: str, row: Mapping[str, Any]) -> dict[str, An
             "government_contract_evidence": [],
             "metrics": {"provider_call_count": 0, "failure_count": 1},
         }
+
+
+def _load_ai_valuation(symbol: str, row: Mapping[str, Any]) -> dict[str, Any]:
+    """Failure-safe, explicit-ticker boundary for research-only AI valuation."""
+    if not symbol:
+        return {}
+    try:
+        return get_ai_valuation_for_research(symbol, row)
+    except Exception:
+        return {
+            "ticker": symbol, "ai_valuation_status": "UNDER_REVIEW",
+            "ai_bear_value": None, "ai_base_value": None, "ai_bull_value": None,
+            "ai_evidence_gaps": ["ATLAS AI Valuation is temporarily unavailable."],
+            "ai_validation_status": "NOT_PUBLISHED",
+        }
+
+
+def _render_hybrid_valuation(report: Mapping[str, Any]) -> None:
+    st.markdown("## ATLAS Valuation")
+    current = report.get("current_price")
+    quant = report.get("atlas_fair_value")
+    top = st.columns(3)
+    top[0].metric("Current Price", _money(current))
+    if quant is None:
+        top[1].metric("Atlas Quant Fair Value", "Not published")
+        top[2].metric("Quant-FV Implied Upside", "Unavailable")
+    else:
+        top[1].metric("Atlas Quant Fair Value", _money(quant))
+        top[2].metric("Quant-FV Implied Upside", _pct(report.get("atlas_fv_upside_pct"), signed=True))
+
+    ai = report.get("ai_valuation") or {}
+    st.markdown("### ATLAS AI Valuation")
+    if ai.get("ai_valuation_status") != "PUBLISHED":
+        if ai.get("ai_valuation_status") == "INSUFFICIENT_JUSTIFIED_MULTIPLE_EVIDENCE":
+            st.info(
+                "Under Review — Atlas has sufficient company-level financial evidence for AI valuation analysis, "
+                "but an independently calibrated justified-multiple framework is not yet available."
+            )
+        else:
+            gaps = ai.get("ai_evidence_gaps") or []
+            explanation = gaps[0] if gaps else "The AI valuation evidence gate has not been satisfied."
+            st.info(f"Not published — {explanation}")
+    else:
+        values = st.columns(3)
+        values[0].metric("AI Bear Value", _money(ai.get("ai_bear_value")))
+        values[1].metric("AI Base Value", _money(ai.get("ai_base_value")))
+        values[2].metric("AI Bull Value", _money(ai.get("ai_bull_value")))
+        detail = st.columns(3)
+        detail[0].metric("AI Base Implied Upside", _pct(ai.get("ai_base_upside_pct"), signed=True))
+        confidence = ai.get("ai_valuation_confidence") or {}
+        detail[1].metric("Deterministic Confidence", f"{confidence.get('band', 'Unavailable')} · {confidence.get('score', 0):.1f}%")
+        detail[2].metric("Valuation Horizon", ai.get("ai_valuation_horizon") or "12–18 months")
+        with st.expander("AI valuation method, assumptions, and evidence"):
+            st.write(ai.get("ai_method_rationale") or "Method rationale unavailable.")
+            st.write("Method: " + str(ai.get("ai_valuation_method") or "Unavailable").replace("_", " ").title())
+            if ai.get("ai_assumptions"):
+                st.dataframe(pd.DataFrame(ai["ai_assumptions"]), hide_index=True, use_container_width=True)
+            if ai.get("ai_evidence_gaps"):
+                st.caption("Evidence gaps: " + "; ".join(ai["ai_evidence_gaps"]))
+    relationship = str(ai.get("valuation_relationship") or "COMPARISON_UNAVAILABLE").replace("_", " ").title()
+    st.markdown("### Valuation Agreement")
+    st.caption(f"{relationship}. Phase 7A comparison thresholds are provisional and research-only.")
 
 
 def _render_policy_intelligence(policy: Mapping[str, Any]) -> None:
@@ -714,6 +777,7 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
     research_row["analyst_actions"] = retrieval.get("actions") or research_row.get("analyst_actions") or []
     policy_retrieval = _load_policy_enrichment(symbol, research_row)
     research_row["policy_intelligence_external"] = policy_retrieval
+    research_row["ai_valuation_external"] = _load_ai_valuation(symbol, research_row)
     report = build_atlas_research_v2(research_row)
     report["analyst_action_retrieval"] = retrieval
     report["policy_source_metrics"] = policy_retrieval.get("metrics") or {}
@@ -763,15 +827,7 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
     disclosure = _divergence_disclosure(report)
     if disclosure:
         st.warning(disclosure)
-    st.markdown("## Canonical Atlas Valuation")
-    if report.get("atlas_fair_value") is None:
-        st.metric("Current Price", _money(report.get("current_price")))
-        st.info("Atlas has not published a canonical fair value for this company. Wall Street consensus remains separate external evidence.")
-    else:
-        valuation_cols = st.columns(3)
-        valuation_cols[0].metric("Current Price", _money(report.get("current_price")))
-        valuation_cols[1].metric("Atlas Fair Value", _money(report.get("atlas_fair_value")))
-        valuation_cols[2].metric("Atlas-FV Implied Upside", _pct(report.get("atlas_fv_upside_pct"), signed=True))
+    _render_hybrid_valuation(report)
     _render_analyst_intelligence(analyst)
     support_col, risk_col = st.columns(2)
     with support_col:

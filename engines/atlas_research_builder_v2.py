@@ -22,7 +22,8 @@ from engines.canonical_market_data import attach_price_history
 from engines.research_enrichment_v105 import build_enriched_research_report
 from engines.research_engine_v105 import build_institutional_research
 from engines.analyst_engine import build_analyst_snapshot, build_analyst_summary
-from engines.semantic_fields import atlas_valuation_status, canonical_atlas_fair_value, valuation_families
+from engines.semantic_fields import ai_valuation_object, atlas_valuation_status, canonical_atlas_fair_value, valuation_families
+from engines.ai_valuation import attach_valuation_comparison, build_ai_valuation
 from engines.trade_plan_v1052 import build_trade_plan
 from engines.policy_intelligence import build_policy_intelligence
 from engines.atlas_intelligence_engine import build_executive_intelligence
@@ -451,6 +452,10 @@ def build_atlas_research_v2(
     news_items = _sequence(enriched["news"].get("data"))
     political_data = _mapping(enriched["political"].get("data"))
     policy_intelligence = build_policy_intelligence(enriched_row)
+    ai_valuation = ai_valuation_object(enriched_row)
+    if not ai_valuation:
+        ai_valuation = build_ai_valuation(enriched_row)
+    ai_valuation = attach_valuation_comparison(ai_valuation, enriched_row)
     analyst_data = _mapping(enriched["analysts"].get("data"))
     ownership_data = _mapping(enriched["ownership"].get("data"))
     technical_data = _mapping(enriched["technical"].get("data"))
@@ -594,6 +599,7 @@ def build_atlas_research_v2(
         "quote": quote,
         "trade_plan": trade_plan,
         "policy_intelligence": policy_intelligence,
+        "ai_valuation": ai_valuation,
         "sections": sections,
         "research_completeness_pct": completeness,
         "evidence_coverage_pct": completeness,

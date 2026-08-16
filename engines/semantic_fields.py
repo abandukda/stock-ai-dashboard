@@ -91,6 +91,17 @@ def scanner_trade_plan(row: Mapping[str, Any]) -> dict[str, float | None]:
     }
 
 
+def ai_valuation_object(row: Mapping[str, Any]) -> dict[str, Any]:
+    """Resolve only the explicit Phase 7A object; no legacy aliases apply."""
+    value = row.get("ai_valuation")
+    if not isinstance(value, Mapping):
+        value = row.get("ai_valuation_external")
+    if not isinstance(value, Mapping):
+        return {}
+    from engines.ai_valuation import enforce_customer_publication_gate
+    return enforce_customer_publication_gate(value)
+
+
 def valuation_families(row: Mapping[str, Any]) -> dict[str, Any]:
     price = number(first_present(row, "current_price", "price", "Price", "Current Price"))
     atlas = canonical_atlas_fair_value(row)
@@ -126,6 +137,6 @@ def valuation_families(row: Mapping[str, Any]) -> dict[str, Any]:
 
 
 __all__ = [
-    "analyst_consensus", "analyst_scenarios", "atlas_valuation_status", "canonical_atlas_fair_value",
+    "ai_valuation_object", "analyst_consensus", "analyst_scenarios", "atlas_valuation_status", "canonical_atlas_fair_value",
     "first_present", "number", "present", "scanner_trade_plan", "valuation_families",
 ]

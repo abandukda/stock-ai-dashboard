@@ -7,7 +7,7 @@ from typing import Any, Mapping
 import json
 
 from engines.atlas_intelligence_engine import build_executive_intelligence
-from engines.semantic_fields import valuation_families
+from engines.semantic_fields import ai_valuation_object, valuation_families
 from engines.analyst_intelligence import grounded_analyst_context
 from engines.policy_intelligence import build_policy_intelligence, public_policy_context
 
@@ -26,6 +26,7 @@ def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
     valuation = report.get("valuation_families") or valuation_families(report)
     analyst = report.get("analyst_intelligence") or {}
     policy = report.get("policy_intelligence") or build_policy_intelligence(report)
+    ai_valuation = ai_valuation_object(report)
     return {
         "ticker": report.get("ticker"),
         "company": report.get("company"),
@@ -69,6 +70,7 @@ def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
         "today_move": intelligence.get("today_move"),
         "analyst_intelligence": grounded_analyst_context(analyst),
         "policy_intelligence": public_policy_context(policy),
+        "ai_valuation": ai_valuation,
     }
 
 
@@ -78,6 +80,40 @@ def _deterministic_answer(question: str, report: Mapping[str, Any]) -> str:
     ticker = report.get("ticker") or "This stock"
     analyst = report.get("analyst_intelligence") or {}
     policy = report.get("policy_intelligence") or build_policy_intelligence(report)
+    ai_valuation = ai_valuation_object(report)
+
+    ai_valuation_terms = (
+        "ai valuation", "ai base value", "ai bear", "ai bull",
+        "ai think", "ai thinks", "ai worth",
+        "quant fair value", "quant fv", "valuation method", "valuation different",
+        "which valuation", "how was the ai valuation",
+    )
+    if any(term in q for term in ai_valuation_terms):
+        status = ai_valuation.get("ai_valuation_status") or "UNDER_REVIEW"
+        lines = [f"### ATLAS AI Valuation for {ticker}", f"**Status:** {str(status).replace('_', ' ').title()}"]
+        if status == "PUBLISHED":
+            lines.extend([
+                f"**Method:** {str(ai_valuation.get('ai_valuation_method') or 'Unavailable').replace('_', ' ').title()}",
+                f"**12–18 month range:** ${float(ai_valuation['ai_bear_value']):,.2f} to ${float(ai_valuation['ai_bull_value']):,.2f}; base ${float(ai_valuation['ai_base_value']):,.2f}.",
+                f"**Deterministic confidence:** {(ai_valuation.get('ai_valuation_confidence') or {}).get('band', 'Unavailable')}.",
+            ])
+            if ai_valuation.get("ai_method_rationale"):
+                lines.append(f"**Why this method:** {ai_valuation['ai_method_rationale']}")
+            assumptions = ai_valuation.get("ai_assumptions") or []
+            if assumptions:
+                lines.append("**Verified/bounded assumptions:** " + "; ".join(f"{item.get('name')}: {item.get('value')}" for item in assumptions) + ".")
+        elif status == "INSUFFICIENT_JUSTIFIED_MULTIPLE_EVIDENCE":
+            lines.append(
+                "**Why it is not published:** Atlas has sufficient company-level financial evidence for valuation analysis, "
+                "but its independent justified-multiple framework is not yet sufficiently calibrated. Atlas will not use "
+                "today's market multiple, Wall Street targets, or another valuation target to manufacture a value."
+            )
+        else:
+            gaps = ai_valuation.get("ai_evidence_gaps") or ["The research-only evidence gate was not satisfied."]
+            lines.append("**Why it is not published:** " + "; ".join(str(item) for item in gaps))
+        lines.append(f"**Valuation relationship:** {str(ai_valuation.get('valuation_relationship') or 'COMPARISON_UNAVAILABLE').replace('_', ' ').title()}.")
+        lines.append("Atlas Quant Fair Value, ATLAS AI Valuation, and Wall Street Consensus are separate perspectives. None is automatically the correct value.")
+        return "\n\n".join(lines)
 
     policy_terms = (
         "policy", "government", "contract", "regulation", "regulatory",
@@ -213,9 +249,17 @@ def ask_atlas(question: str, report: Mapping[str, Any]) -> dict[str, Any]:
         "policy", "government", "contract", "regulation", "regulatory",
         "tariff", "trade", "export control", "sanction", "lobbying",
     ))
+    ai_valuation_question = any(term in question.lower() for term in (
+        "ai valuation", "ai base value", "ai bear", "ai bull", "quant fair value",
+        "ai think", "ai thinks", "ai worth", "quant fv", "valuation method",
+        "valuation different", "which valuation",
+    ))
     # Analyst answers remain deterministic so an LLM cannot introduce a firm,
     # target, action, count, or median absent from the normalized object.
-    if analyst_question or policy_question:
+    if ai_valuation_question:
+        answer = _deterministic_answer(question, report)
+        mode = "deterministic_ai_valuation_grounding"
+    elif analyst_question or policy_question:
         answer = _deterministic_answer(question, report)
         mode = "deterministic_analyst_grounding" if analyst_question else "deterministic_policy_grounding"
     elif llm_is_configured() and callable(answer_ticker_question):
