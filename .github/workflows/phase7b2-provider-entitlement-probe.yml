@@ -1,0 +1,33 @@
+name: Phase 7B.2 Sanitized Provider Entitlement Probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sanitized-provider-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+      FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+      PHASE7B2_REQUEST_CAP: "48"
+      PHASE7B2_HTTP_TIMEOUT: "12"
+    steps:
+      - name: Checkout probe source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run sanitized bounded entitlement probe
+        shell: bash
+        run: |
+          set +x
+          echo "::add-mask::${FMP_API_KEY}"
+          echo "::add-mask::${FINNHUB_API_KEY}"
+          python analysis/phase7b2/provider_entitlement_probe.py
