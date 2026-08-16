@@ -1,0 +1,36 @@
+name: Phase 7C Sanitized Alpaca Entitlement Probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sanitized-alpaca-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      APCA_API_KEY_ID: ${{ secrets.APCA_API_KEY_ID }}
+      APCA_API_SECRET_KEY: ${{ secrets.APCA_API_SECRET_KEY }}
+      ALPACA_PROBE_REQUEST_CAP: "20"
+      ALPACA_PROBE_TIMEOUT: "10"
+    steps:
+      - name: Checkout probe source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install bounded WebSocket client
+        run: python -m pip install --disable-pip-version-check websocket-client==1.8.0
+
+      - name: Run sanitized bounded Alpaca entitlement probe
+        shell: bash
+        run: |
+          set +x
+          if [ -n "${APCA_API_KEY_ID}" ]; then echo "::add-mask::${APCA_API_KEY_ID}"; fi
+          if [ -n "${APCA_API_SECRET_KEY}" ]; then echo "::add-mask::${APCA_API_SECRET_KEY}"; fi
+          python analysis/phase7c/alpaca_entitlement_probe.py
