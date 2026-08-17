@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-17T11:14:26.349592+00:00",
-  "count": 3424,
+  "generated_at": "2026-08-17T19:34:31.259350+00:00",
+  "count": 3427,
   "symbols": [
     "A",
     "AA",
@@ -660,6 +660,7 @@
     "CGON",
     "CHA",
     "CHCO",
+    "CHD",
     "CHDN",
     "CHE",
     "CHEF",
@@ -1911,6 +1912,7 @@
     "MCHP",
     "MCHPP",
     "MCHX",
+    "MCI",
     "MCK",
     "MCN",
     "MCO",
@@ -2359,6 +2361,7 @@
     "PDCC",
     "PDD",
     "PDFS",
+    "PDI",
     "PDM",
     "PDS",
     "PEB",
