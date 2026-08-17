@@ -11,6 +11,7 @@ import csv
 from dataclasses import asdict
 from datetime import date, datetime, timedelta, timezone
 import json
+import math
 import os
 from pathlib import Path
 import socket
@@ -49,6 +50,24 @@ class RequestBudget:
         if self.used >= self.cap:
             raise RuntimeError("ALPACA_REQUEST_CAP_REACHED")
         self.used += 1
+
+
+class BarIngestionError(ValueError):
+    """Sanitized fail-closed provider-bar rejection without numeric payloads."""
+
+    def __init__(self, ticker: str, bar_date: str | None, invariant: str, field: str | None) -> None:
+        self.ticker = str(ticker)
+        self.bar_date = bar_date
+        self.invariant = str(invariant)
+        self.field = field
+        super().__init__(f"ALPACA_BAR_REJECTED ticker={self.ticker} date={bar_date or 'UNKNOWN'} invariant={self.invariant} field={field or 'BAR'}")
+
+    def metadata(self) -> dict[str, Any]:
+        return {
+            "kind": "bar_ingestion_rejection", "ticker": self.ticker,
+            "bar_date": self.bar_date, "invariant": self.invariant,
+            "field": self.field, "action": "FAIL_CLOSED_NO_EXCLUSION",
+        }
 
 
 def _request_json(
@@ -103,12 +122,47 @@ def _chunks(values: Sequence[str], size: int) -> list[Sequence[str]]:
 
 
 def _parse_bar(ticker: str, row: Mapping[str, Any]) -> DailyBar:
-    return DailyBar(
-        ticker=ticker,
-        timestamp=datetime.fromisoformat(str(row["t"]).replace("Z", "+00:00")),
-        open=float(row["o"]), high=float(row["h"]), low=float(row["l"]),
-        close=float(row["c"]), volume=float(row["v"]),
-    )
+    timestamp_value = row.get("t")
+    timestamp_text = str(timestamp_value or "")
+    bar_date = timestamp_text[:10] if len(timestamp_text) >= 10 else None
+    required = {"t": "timestamp", "o": "open", "h": "high", "l": "low", "c": "close", "v": "volume"}
+    for key, field in required.items():
+        if key not in row or row.get(key) is None:
+            raise BarIngestionError(ticker, bar_date, "MISSING_REQUIRED_FIELD", field)
+    try:
+        timestamp = datetime.fromisoformat(timestamp_text.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        raise BarIngestionError(ticker, bar_date, "INVALID_TIMESTAMP", "timestamp") from None
+    numeric: dict[str, float] = {}
+    for key, field in (("o", "open"), ("h", "high"), ("l", "low"), ("c", "close"), ("v", "volume")):
+        try:
+            numeric[field] = float(row[key])
+        except (TypeError, ValueError, OverflowError):
+            raise BarIngestionError(ticker, bar_date, "NON_NUMERIC_VALUE", field) from None
+        if not math.isfinite(numeric[field]):
+            raise BarIngestionError(ticker, bar_date, "NON_FINITE_VALUE", field)
+    for field in ("open", "high", "low", "close"):
+        if numeric[field] <= 0:
+            raise BarIngestionError(ticker, bar_date, "NON_POSITIVE_PRICE", field)
+    if numeric["volume"] < 0:
+        raise BarIngestionError(ticker, bar_date, "NEGATIVE_VOLUME", "volume")
+    if numeric["high"] < numeric["open"]:
+        raise BarIngestionError(ticker, bar_date, "HIGH_BELOW_OPEN", "high")
+    if numeric["high"] < numeric["close"]:
+        raise BarIngestionError(ticker, bar_date, "HIGH_BELOW_CLOSE", "high")
+    if numeric["high"] < numeric["low"]:
+        raise BarIngestionError(ticker, bar_date, "HIGH_BELOW_LOW", "high")
+    if numeric["low"] > numeric["open"]:
+        raise BarIngestionError(ticker, bar_date, "LOW_ABOVE_OPEN", "low")
+    if numeric["low"] > numeric["close"]:
+        raise BarIngestionError(ticker, bar_date, "LOW_ABOVE_CLOSE", "low")
+    try:
+        return DailyBar(
+            ticker=ticker, timestamp=timestamp, open=numeric["open"], high=numeric["high"],
+            low=numeric["low"], close=numeric["close"], volume=numeric["volume"],
+        )
+    except ValueError:
+        raise BarIngestionError(ticker, bar_date, "DAILY_BAR_CONTRACT_REJECTION", None) from None
 
 
 def fetch_daily_bars(
@@ -148,7 +202,16 @@ def fetch_daily_bars(
                 rows = bars.get(ticker, [])
                 if not isinstance(rows, list):
                     raise RuntimeError("MALFORMED_SYMBOL_BARS")
-                output[ticker].extend(_parse_bar(ticker, row) for row in rows if isinstance(row, Mapping))
+                for row in rows:
+                    if not isinstance(row, Mapping):
+                        error = BarIngestionError(ticker, None, "MALFORMED_BAR_OBJECT", None)
+                        print(json.dumps(error.metadata(), sort_keys=True))
+                        raise error
+                    try:
+                        output[ticker].append(_parse_bar(ticker, row))
+                    except BarIngestionError as error:
+                        print(json.dumps(error.metadata(), sort_keys=True))
+                        raise
             next_token = payload.get("next_page_token")
             token = str(next_token) if next_token else None
             if not token:

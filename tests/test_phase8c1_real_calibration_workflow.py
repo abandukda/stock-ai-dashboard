@@ -12,7 +12,8 @@ import pytest
 
 from analysis.phase8b_calibration.calibration import AssetMetadata, HistoricalDataset, build_calibration_report
 from analysis.phase8b_calibration.real_alpaca_runner import (
-    DEFAULT_REQUEST_CAP, MAX_RETRIES, RequestBudget, fetch_daily_bars, run,
+    DEFAULT_REQUEST_CAP, MAX_RETRIES, BarIngestionError, RequestBudget,
+    _parse_bar, fetch_daily_bars, run,
 )
 from services.live_market.models import SecurityType
 from services.technical_intelligence.config import TECHNICAL_MODEL_VERSION
@@ -120,6 +121,61 @@ def test_bulk_fetch_paginates_in_memory_without_file_writes():
     assert budget.used == 0  # injected requester owns no real request budget
     assert len(calls) == 2 and calls[1][1]["page_token"] == "second"
     assert set(result) == {"NVDA", "SPY"}
+
+
+@pytest.mark.parametrize("field,value,invariant", [
+    ("o", 0, "NON_POSITIVE_PRICE"),
+    ("h", -1, "NON_POSITIVE_PRICE"),
+    ("l", float("nan"), "NON_FINITE_VALUE"),
+    ("c", None, "MISSING_REQUIRED_FIELD"),
+    ("v", -1, "NEGATIVE_VOLUME"),
+])
+def test_real_bar_rejection_is_sanitized_and_field_specific(field, value, invariant):
+    row = {"t": "2020-03-04T05:00:00Z", "o": 10, "h": 11, "l": 9, "c": 10.5, "v": 1000}
+    row[field] = value
+    with pytest.raises(BarIngestionError) as caught:
+        _parse_bar("CIVI", row)
+    error = caught.value
+    assert error.ticker == "CIVI"
+    assert error.bar_date == "2020-03-04"
+    assert error.invariant == invariant
+    assert error.field == {"o": "open", "h": "high", "l": "low", "c": "close", "v": "volume"}[field]
+    assert "10.5" not in str(error)
+
+
+@pytest.mark.parametrize("field,value,invariant", [
+    ("h", 9.5, "HIGH_BELOW_OPEN"),
+    ("l", 10.25, "LOW_ABOVE_OPEN"),
+])
+def test_ohlc_ordering_rejections_have_precise_categories(field, value, invariant):
+    row = {"t": "2020-03-04T05:00:00Z", "o": 10, "h": 11, "l": 9, "c": 10.5, "v": 1000}
+    row[field] = value
+    with pytest.raises(BarIngestionError, match=invariant):
+        _parse_bar("CIVI", row)
+
+
+def test_zero_volume_and_zero_optional_fields_are_legitimate_at_ingestion():
+    row = {"t": "2020-03-04T05:00:00Z", "o": 10, "h": 11, "l": 9, "c": 10.5, "v": 0, "n": 0, "vw": 0}
+    bar = _parse_bar("CIVI", row)
+    assert bar.volume == 0
+
+
+def test_fetch_fails_closed_and_emits_only_sanitized_invariant_metadata(capsys):
+    def requester(path, params, **kwargs):
+        return {"bars": {"CIVI": [{"t": "2020-03-04T05:00:00Z", "o": 0, "h": 1, "l": 0, "c": 0.5, "v": 100}]}, "next_page_token": None}
+
+    with pytest.raises(BarIngestionError, match="NON_POSITIVE_PRICE"):
+        fetch_daily_bars(
+            ("CIVI",), start="2020-01-01", end="2020-04-01", feed="iex",
+            adjustment="all", key_id="secret", secret_key="secret",
+            budget=RequestBudget(2), requester=requester,
+        )
+    output = capsys.readouterr().out
+    assert '"ticker": "CIVI"' in output
+    assert '"bar_date": "2020-03-04"' in output
+    assert '"invariant": "NON_POSITIVE_PRICE"' in output
+    assert '"action": "FAIL_CLOSED_NO_EXCLUSION"' in output
+    assert '"open":' not in output and '"close":' not in output
 
 
 def test_later_ipo_history_aligns_to_spy_by_timestamp_without_future_leakage():
