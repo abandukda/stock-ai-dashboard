@@ -12,8 +12,9 @@ import pytest
 
 from analysis.phase8b_calibration.calibration import AssetMetadata, HistoricalDataset, build_calibration_report
 from analysis.phase8b_calibration.real_alpaca_runner import (
-    DEFAULT_REQUEST_CAP, MAX_RETRIES, BarIngestionError, RequestBudget,
-    _parse_bar, fetch_daily_bars, run,
+    DEFAULT_REQUEST_CAP, MAX_RETRIES, BarIngestionError, CoverageError,
+    IngestionResult, RequestBudget, _parse_bar, fetch_daily_bars, run,
+    validate_calibration_coverage,
 )
 from services.live_market.models import SecurityType
 from services.technical_intelligence.config import TECHNICAL_MODEL_VERSION
@@ -120,7 +121,9 @@ def test_bulk_fetch_paginates_in_memory_without_file_writes():
     )
     assert budget.used == 0  # injected requester owns no real request budget
     assert len(calls) == 2 and calls[1][1]["page_token"] == "second"
-    assert set(result) == {"NVDA", "SPY"}
+    assert set(result.bars) == {"NVDA", "SPY"}
+    assert result.bars_downloaded == 4
+    assert result.bars_accepted == 4
 
 
 @pytest.mark.parametrize("field,value,invariant", [
@@ -160,22 +163,155 @@ def test_zero_volume_and_zero_optional_fields_are_legitimate_at_ingestion():
     assert bar.volume == 0
 
 
-def test_fetch_fails_closed_and_emits_only_sanitized_invariant_metadata(capsys):
+def test_one_invalid_bar_quarantines_entire_security_without_deleting_only_that_bar(capsys):
     def requester(path, params, **kwargs):
-        return {"bars": {"CIVI": [{"t": "2020-03-04T05:00:00Z", "o": 0, "h": 1, "l": 0, "c": 0.5, "v": 100}]}, "next_page_token": None}
+        return {"bars": {"CIVI": [
+            {"t": "2020-03-03T05:00:00Z", "o": 10, "h": 11, "l": 9, "c": 10.5, "v": 100},
+            {"t": "2020-03-04T05:00:00Z", "o": 0, "h": 1, "l": 0, "c": 0.5, "v": 100},
+            {"t": "2020-03-05T05:00:00Z", "o": 11, "h": 12, "l": 10, "c": 11.5, "v": 110},
+        ]}, "next_page_token": None}
 
-    with pytest.raises(BarIngestionError, match="NON_POSITIVE_PRICE"):
-        fetch_daily_bars(
-            ("CIVI",), start="2020-01-01", end="2020-04-01", feed="iex",
-            adjustment="all", key_id="secret", secret_key="secret",
-            budget=RequestBudget(2), requester=requester,
-        )
+    result = fetch_daily_bars(
+        ("CIVI",), start="2020-01-01", end="2020-04-01", feed="iex",
+        adjustment="all", key_id="secret", secret_key="secret",
+        budget=RequestBudget(2), requester=requester,
+    )
+    assert "CIVI" not in result.bars
+    assert result.bars_downloaded == 3
+    assert result.bars_accepted == 0
+    assert result.securities_quarantined == 1
+    assert len(result.violations) == 1
     output = capsys.readouterr().out
     assert '"ticker": "CIVI"' in output
     assert '"bar_date": "2020-03-04"' in output
     assert '"invariant": "NON_POSITIVE_PRICE"' in output
-    assert '"action": "FAIL_CLOSED_NO_EXCLUSION"' in output
+    assert '"action": "QUARANTINE_SECURITY_FAIL_CLOSED"' in output
     assert '"open":' not in output and '"close":' not in output
+
+
+def test_multiple_invalid_securities_are_discovered_in_one_complete_pass():
+    def requester(path, params, **kwargs):
+        return {"bars": {
+            "AAA": [{"t": "2020-01-02T05:00:00Z", "o": 0, "h": 1, "l": 0.5, "c": 0.8, "v": 10}],
+            "BBB": [{"t": "2020-01-02T05:00:00Z", "o": 10, "h": 11, "l": 9, "c": 10, "v": -1}],
+            "CCC": [{"t": "2020-01-02T05:00:00Z", "o": 10, "h": 11, "l": 9, "c": 10, "v": 10}],
+        }, "next_page_token": None}
+
+    result = fetch_daily_bars(
+        ("AAA", "BBB", "CCC"), start="2020-01-01", end="2020-01-03", feed="iex",
+        adjustment="all", key_id="secret", secret_key="secret",
+        budget=RequestBudget(2), requester=requester,
+    )
+    assert result.quarantined_tickers == ("AAA", "BBB")
+    assert set(result.bars) == {"CCC"}
+    assert [item["invariant"] for item in result.violations] == ["NON_POSITIVE_PRICE", "NEGATIVE_VOLUME"]
+
+
+def test_valid_security_history_remains_unchanged_after_other_ticker_quarantine():
+    valid_rows = [
+        {"t": "2020-01-02T05:00:00Z", "o": 10, "h": 11, "l": 9, "c": 10, "v": 10},
+        {"t": "2020-01-03T05:00:00Z", "o": 11, "h": 12, "l": 10, "c": 11, "v": 20},
+    ]
+    def requester(path, params, **kwargs):
+        return {"bars": {
+            "VALID": valid_rows,
+            "BAD": [{"t": "2020-01-02T05:00:00Z", "o": 0, "h": 1, "l": 0, "c": 1, "v": 10}],
+        }, "next_page_token": None}
+
+    result = fetch_daily_bars(
+        ("VALID", "BAD"), start="2020-01-01", end="2020-01-04", feed="iex",
+        adjustment="all", key_id="secret", secret_key="secret",
+        budget=RequestBudget(2), requester=requester,
+    )
+    assert [bar.close for bar in result.bars["VALID"]] == [10, 11]
+    assert "BAD" not in result.bars
+
+
+def test_quarantine_is_independent_of_future_outcomes():
+    first = {"t": "2020-01-02T05:00:00Z", "o": 0, "h": 1, "l": 0, "c": 1, "v": 10}
+    def collect(future_close):
+        def requester(path, params, **kwargs):
+            return {"bars": {"AAA": [first, {"t": "2020-01-03T05:00:00Z", "o": future_close, "h": future_close + 1, "l": future_close - 1, "c": future_close, "v": 10}]}, "next_page_token": None}
+        return fetch_daily_bars(
+            ("AAA",), start="2020-01-01", end="2020-01-04", feed="iex",
+            adjustment="all", key_id="secret", secret_key="secret",
+            budget=RequestBudget(2), requester=requester,
+        )
+    assert collect(10).quarantined_tickers == collect(1000).quarantined_tickers == ("AAA",)
+
+
+def _coverage_fixture():
+    universe = json.loads(UNIVERSE.read_text())
+    bars = {item["ticker"]: [object()] * 200 for item in universe["assets"]}
+    return universe, bars
+
+
+def _ingestion_for_coverage(bars, violations=()):
+    return IngestionResult(
+        bars=bars, securities_requested=73, securities_downloaded=73,
+        securities_accepted=len(bars), securities_quarantined=len({item["ticker"] for item in violations}),
+        bars_downloaded=73 * 200, bars_accepted=sum(len(rows) for rows in bars.values()),
+        violations=tuple(violations),
+    )
+
+
+def test_spy_invalidity_fails_complete_calibration():
+    universe, bars = _coverage_fixture()
+    bars.pop("SPY")
+    with pytest.raises(CoverageError, match="SPY"):
+        validate_calibration_coverage(universe, _ingestion_for_coverage(bars))
+
+
+def test_required_sector_benchmark_invalidity_fails_complete_calibration():
+    universe, bars = _coverage_fixture()
+    bars.pop("XLK")
+    with pytest.raises(CoverageError, match="REQUIRED_BENCHMARK:XLK"):
+        validate_calibration_coverage(universe, _ingestion_for_coverage(bars))
+
+
+def test_insufficient_post_quarantine_equity_coverage_fails_closed():
+    universe, bars = _coverage_fixture()
+    equities = [item["ticker"] for item in universe["assets"] if item["type"] == "STOCK"]
+    for ticker in equities[:7]:
+        bars.pop(ticker)
+    with pytest.raises(CoverageError, match="INSUFFICIENT_ACCEPTED_EQUITIES:53<54"):
+        validate_calibration_coverage(universe, _ingestion_for_coverage(bars))
+
+
+def test_insufficient_sector_representation_fails_even_when_total_is_adequate():
+    universe, bars = _coverage_fixture()
+    technology = [item["ticker"] for item in universe["assets"] if item["type"] == "STOCK" and item["sector"] == "Technology"]
+    for ticker in technology[:-1]:
+        bars.pop(ticker)
+    with pytest.raises(CoverageError, match="Technology=1"):
+        validate_calibration_coverage(universe, _ingestion_for_coverage(bars))
+
+
+def test_quarantine_audit_metadata_contains_no_ohlcv_values():
+    violation = {"kind": "bar_ingestion_rejection", "ticker": "AAA", "bar_date": "2020-01-02", "invariant": "NON_POSITIVE_PRICE", "field": "low", "action": "QUARANTINE_SECURITY_FAIL_CLOSED"}
+    result = _ingestion_for_coverage({"SPY": [object()] * 200}, (violation,))
+    serialized = json.dumps(result.audit_metadata(), sort_keys=True)
+    assert '"ticker": "AAA"' in serialized and '"bar_date": "2020-01-02"' in serialized
+    assert not any(name in serialized for name in ('"open"', '"high"', '"low":', '"close"', '"volume"'))
+    assert result.audit_metadata() == {
+        "securities_requested": 73,
+        "securities_downloaded": 73,
+        "securities_accepted": 1,
+        "securities_quarantined": 1,
+        "bars_downloaded": 14600,
+        "bars_accepted": 200,
+        "invalid_bar_count": 1,
+        "violations_by_invariant": {"NON_POSITIVE_PRICE": 1},
+        "quarantined_tickers": ["AAA"],
+        "violations": [violation],
+    }
+
+
+def test_no_ticker_is_hard_coded_into_quarantine_policy():
+    import analysis.phase8b_calibration.real_alpaca_runner as module
+    source = inspect.getsource(module)
+    assert 'ticker == "T"' not in source
+    assert 'ticker in {"T"' not in source
 
 
 def test_later_ipo_history_aligns_to_spy_by_timestamp_without_future_leakage():

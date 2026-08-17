@@ -23,3 +23,16 @@ Alpaca Basic IEX historical feed. It uploads aggregate reports only; raw OHLCV
 and provider payloads are never written or uploaded. Benchmark and sector bars
 are aligned to each security by historical trading date, supporting later IPOs
 without introducing future observations.
+
+## Deterministic quarantine and coverage
+
+Every downloaded bar is checked against the unchanged `DailyBar` contract. A
+single unusable observation quarantines that security's complete history; the
+individual bar is never deleted or repaired. Validation continues across the
+remaining universe so aggregate sanitized violations can be audited. Before
+replay, SPY and every configured sector benchmark must be valid with at least
+200 bars, at least 54 of 60 equities and 12 benchmark ETFs must remain, and
+each intended equity sector must retain at least two names. The 90% equity
+floor tolerates isolated provider anomalies while preserving breadth; the
+sector and benchmark floors prevent a numerically adequate but structurally
+unrepresentative calibration.

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 import csv
-from dataclasses import asdict
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 import json
 import math
@@ -39,6 +39,9 @@ BATCH_SIZE = 20
 PAGE_LIMIT = 10_000
 MIN_REQUEST_INTERVAL_SECONDS = 0.4
 WALK_FORWARD_SPLIT = datetime(2022, 1, 1, tzinfo=timezone.utc)
+MIN_ACCEPTED_EQUITIES = 54
+MIN_REQUIRED_BENCHMARK_ETFS = 12
+MIN_EQUITIES_PER_SECTOR = 2
 
 
 class RequestBudget:
@@ -66,8 +69,45 @@ class BarIngestionError(ValueError):
         return {
             "kind": "bar_ingestion_rejection", "ticker": self.ticker,
             "bar_date": self.bar_date, "invariant": self.invariant,
-            "field": self.field, "action": "FAIL_CLOSED_NO_EXCLUSION",
+            "field": self.field, "action": "QUARANTINE_SECURITY_FAIL_CLOSED",
         }
+
+
+@dataclass(frozen=True)
+class IngestionResult:
+    bars: Mapping[str, Sequence[DailyBar]]
+    securities_requested: int
+    securities_downloaded: int
+    securities_accepted: int
+    securities_quarantined: int
+    bars_downloaded: int
+    bars_accepted: int
+    violations: tuple[Mapping[str, Any], ...]
+
+    @property
+    def quarantined_tickers(self) -> tuple[str, ...]:
+        return tuple(sorted({str(item["ticker"]) for item in self.violations}))
+
+    def audit_metadata(self) -> dict[str, Any]:
+        by_invariant: dict[str, int] = defaultdict(int)
+        for item in self.violations:
+            by_invariant[str(item["invariant"])] += 1
+        return {
+            "securities_requested": self.securities_requested,
+            "securities_downloaded": self.securities_downloaded,
+            "securities_accepted": self.securities_accepted,
+            "securities_quarantined": self.securities_quarantined,
+            "bars_downloaded": self.bars_downloaded,
+            "bars_accepted": self.bars_accepted,
+            "invalid_bar_count": len(self.violations),
+            "violations_by_invariant": dict(sorted(by_invariant.items())),
+            "quarantined_tickers": list(self.quarantined_tickers),
+            "violations": [dict(item) for item in self.violations],
+        }
+
+
+class CoverageError(RuntimeError):
+    pass
 
 
 def _request_json(
@@ -177,8 +217,11 @@ def fetch_daily_bars(
     budget: RequestBudget,
     timeout: float = DEFAULT_TIMEOUT_SECONDS,
     requester=_request_json,
-) -> dict[str, list[DailyBar]]:
+) -> IngestionResult:
     output: dict[str, list[DailyBar]] = {symbol: [] for symbol in symbols}
+    downloaded: set[str] = set()
+    violations: list[Mapping[str, Any]] = []
+    bars_downloaded = 0
     for batch_number, batch in enumerate(_chunks(tuple(symbols), BATCH_SIZE), 1):
         token = None
         pages = 0
@@ -203,21 +246,70 @@ def fetch_daily_bars(
                 if not isinstance(rows, list):
                     raise RuntimeError("MALFORMED_SYMBOL_BARS")
                 for row in rows:
+                    downloaded.add(ticker)
+                    bars_downloaded += 1
                     if not isinstance(row, Mapping):
                         error = BarIngestionError(ticker, None, "MALFORMED_BAR_OBJECT", None)
                         print(json.dumps(error.metadata(), sort_keys=True))
-                        raise error
+                        violations.append(error.metadata())
+                        continue
                     try:
                         output[ticker].append(_parse_bar(ticker, row))
                     except BarIngestionError as error:
                         print(json.dumps(error.metadata(), sort_keys=True))
-                        raise
+                        violations.append(error.metadata())
             next_token = payload.get("next_page_token")
             token = str(next_token) if next_token else None
             if not token:
                 break
         print(json.dumps({"kind": "fetch_progress", "batch": batch_number, "batch_size": len(batch), "pages": pages, "requests_used": budget.used}, sort_keys=True))
-    return {ticker: rows for ticker, rows in output.items() if rows}
+    quarantined = {str(item["ticker"]) for item in violations}
+    accepted = {ticker: rows for ticker, rows in output.items() if rows and ticker not in quarantined}
+    return IngestionResult(
+        bars=accepted,
+        securities_requested=len(symbols), securities_downloaded=len(downloaded),
+        securities_accepted=len(accepted), securities_quarantined=len(quarantined),
+        bars_downloaded=bars_downloaded,
+        bars_accepted=sum(len(rows) for rows in accepted.values()),
+        violations=tuple(violations),
+    )
+
+
+def validate_calibration_coverage(universe: Mapping[str, Any], ingestion: IngestionResult) -> dict[str, Any]:
+    """Fail before replay if quarantine undermines broad calibration coverage."""
+    assets = {str(item["ticker"]): item for item in universe["assets"]}
+    eligible = {
+        ticker for ticker, rows in ingestion.bars.items()
+        if len(rows) >= TechnicalConfig().minimum_history
+    }
+    if "SPY" not in eligible:
+        raise CoverageError("INVALID_OR_INSUFFICIENT_SPY_BENCHMARK")
+    required_benchmarks = {"SPY", *map(str, universe["sector_benchmarks"].values())}
+    missing_benchmarks = sorted(required_benchmarks - eligible)
+    if missing_benchmarks:
+        raise CoverageError("INVALID_OR_INSUFFICIENT_REQUIRED_BENCHMARK:" + ",".join(missing_benchmarks))
+    accepted_equities = {ticker for ticker in eligible if assets[ticker]["type"] == "STOCK"}
+    if len(accepted_equities) < MIN_ACCEPTED_EQUITIES:
+        raise CoverageError(f"INSUFFICIENT_ACCEPTED_EQUITIES:{len(accepted_equities)}<{MIN_ACCEPTED_EQUITIES}")
+    accepted_etfs = {ticker for ticker in eligible if assets[ticker]["type"] == "ETF"}
+    if len(accepted_etfs) < MIN_REQUIRED_BENCHMARK_ETFS:
+        raise CoverageError(f"INSUFFICIENT_ACCEPTED_ETFS:{len(accepted_etfs)}<{MIN_REQUIRED_BENCHMARK_ETFS}")
+    intended_sectors = sorted({str(item["sector"]) for item in universe["assets"] if item["type"] == "STOCK"})
+    sector_counts = {
+        sector: sum(ticker in accepted_equities and assets[ticker]["sector"] == sector for ticker in assets)
+        for sector in intended_sectors
+    }
+    inadequate = {sector: count for sector, count in sector_counts.items() if count < MIN_EQUITIES_PER_SECTOR}
+    if inadequate:
+        details = ",".join(f"{sector}={count}" for sector, count in sorted(inadequate.items()))
+        raise CoverageError("INSUFFICIENT_SECTOR_REPRESENTATION:" + details)
+    return {
+        "minimum_accepted_equities": MIN_ACCEPTED_EQUITIES,
+        "minimum_required_benchmark_etfs": MIN_REQUIRED_BENCHMARK_ETFS,
+        "minimum_equities_per_sector": MIN_EQUITIES_PER_SECTOR,
+        "eligible_equities": len(accepted_equities), "eligible_etfs": len(accepted_etfs),
+        "sector_equity_counts": sector_counts, "required_benchmarks": sorted(required_benchmarks),
+    }
 
 
 def _json_safe(value: Any) -> Any:
@@ -281,13 +373,14 @@ def run() -> int:
         "start": universe["start"], "end": end, "feed": universe["feed"],
         "adjustment": universe["adjustment"], "request_cap": budget.cap,
     }, sort_keys=True))
-    bars = fetch_daily_bars(
+    ingestion = fetch_daily_bars(
         symbols, start=universe["start"], end=end, feed=universe["feed"],
         adjustment=universe["adjustment"], key_id=key_id, secret_key=secret_key,
         budget=budget, timeout=timeout,
     )
-    if "SPY" not in bars:
-        raise RuntimeError("MISSING_SPY_HISTORY")
+    print(json.dumps({"kind": "data_quality_summary", **ingestion.audit_metadata()}, sort_keys=True))
+    coverage = validate_calibration_coverage(universe, ingestion)
+    bars = dict(ingestion.bars)
     asset_lookup = {item["ticker"]: item for item in assets_input}
     assets = {
         ticker: AssetMetadata(
@@ -329,6 +422,8 @@ def run() -> int:
         "market_cap_outcomes": report.market_cap_outcomes,
         "component_correlations_20d": report.component_correlations_20d,
         "component_overlap": report.component_overlap,
+        "data_quality": ingestion.audit_metadata(),
+        "coverage_policy": coverage,
         "year_outcomes": year_outcomes,
         "walk_forward": {
             "split": WALK_FORWARD_SPLIT.isoformat(),
@@ -344,6 +439,8 @@ def run() -> int:
         "kind": "calibration_complete", "status": "SUCCESS",
         "securities_with_history": len(bars), "total_bars": summary["total_bars"],
         "events": len(report.events), "requests_used": budget.used,
+        "securities_quarantined": ingestion.securities_quarantined,
+        "invalid_bar_count": len(ingestion.violations),
         "aggregate_artifact_count": 4,
     }, sort_keys=True))
     return 0
