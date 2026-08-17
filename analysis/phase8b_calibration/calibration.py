@@ -73,6 +73,7 @@ class CalibrationEvent:
     transition: str
     score: float
     components: Mapping[str, float]
+    evidence: Mapping[str, float | str | bool | None]
     evidence_coverage: float
     regime: str
     liquidity_band: str
@@ -218,7 +219,7 @@ def replay_dataset(dataset: HistoricalDataset, engine: TechnicalIntelligenceEngi
                     ticker, metadata.security_type, metadata.sector, metadata.market_cap_band,
                     metadata.adjustment, index, rows[index].timestamp, prior_state, state,
                     f"{prior_state.value}->{state.value}", analysis.result.score,
-                    analysis.component_scores, analysis.evidence_coverage, _regime(benchmark_prefix),
+                    analysis.component_scores, analysis.result.evidence, analysis.evidence_coverage, _regime(benchmark_prefix),
                     _band(dollar_volume, 10_000_000, 100_000_000), _band(atr_pct, 0.02, 0.05),
                     forward, spy_relative, sector_relative, failure, mfe, mae, time_to_mfe,
                 ))

@@ -1,0 +1,68 @@
+name: Phase 8C.2 Radar Threshold Sensitivity
+
+on:
+  workflow_dispatch:
+    inputs:
+      end_date:
+        description: Historical end date; Run #4 lock date reproduces the exact baseline
+        required: true
+        default: "2026-08-16"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  offline-radar-sensitivity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      APCA_API_KEY_ID: ${{ secrets.APCA_API_KEY_ID }}
+      APCA_API_SECRET_KEY: ${{ secrets.APCA_API_SECRET_KEY }}
+      PHASE8C_END_DATE: ${{ inputs.end_date }}
+      PHASE8C_REQUEST_CAP: "80"
+      PHASE8C_TIMEOUT: "15"
+      PHASE8C2_LOCKED_SUMMARY: run4-baseline/summary.json
+      PHASE8C2_OUTPUT_DIR: audit_results/phase8c2
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Checkout research source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Download locked Run 4 aggregate baseline
+        uses: actions/download-artifact@v4
+        with:
+          name: phase8c1-radar-aggregate-calibration
+          path: run4-baseline
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: abandukda/stock-ai-dashboard
+          run-id: "31985918377"
+
+      - name: Run offline one-factor diagnostics
+        shell: bash
+        run: |
+          set +x
+          if [ -n "${APCA_API_KEY_ID}" ]; then echo "::add-mask::${APCA_API_KEY_ID}"; fi
+          if [ -n "${APCA_API_SECRET_KEY}" ]; then echo "::add-mask::${APCA_API_SECRET_KEY}"; fi
+          python -m analysis.phase8b_calibration.phase8c2_runner
+
+      - name: Upload aggregate research reports only
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase8c2-radar-threshold-sensitivity
+          path: |
+            audit_results/phase8c2/baseline_reproduction.json
+            audit_results/phase8c2/sensitivity_comparison.csv
+            audit_results/phase8c2/near_breakout_precision_coverage.csv
+            audit_results/phase8c2/confirmed_breakout_preservation.csv
+            audit_results/phase8c2/score_monotonicity.csv
+            audit_results/phase8c2/segment_robustness.csv
+            audit_results/phase8c2/component_diagnostic_ablation.csv
+            audit_results/phase8c2/candidate_recommendation.json
+          if-no-files-found: error
+          retention-days: 30

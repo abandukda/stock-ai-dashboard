@@ -352,6 +352,72 @@ def _threshold_inventory(path: Path) -> None:
             writer.writerow((name, current, alternatives, "NOT_RUN_BASELINE_ONLY"))
 
 
+def build_historical_dataset(universe: Mapping[str, Any], ingestion: IngestionResult) -> HistoricalDataset:
+    """Build the immutable in-memory replay dataset after quarantine validation."""
+    bars = dict(ingestion.bars)
+    asset_lookup = {item["ticker"]: item for item in universe["assets"]}
+    assets = {
+        ticker: AssetMetadata(
+            ticker=ticker,
+            security_type=SecurityType(asset_lookup[ticker]["type"]),
+            sector=asset_lookup[ticker].get("sector"),
+            market_cap_band=asset_lookup[ticker].get("cap"), active=True,
+            adjustment=universe["adjustment"],
+        )
+        for ticker in bars
+    }
+    sector_benchmarks = {
+        sector: ticker for sector, ticker in universe["sector_benchmarks"].items()
+        if ticker in bars
+    }
+    return HistoricalDataset(
+        bars=bars, assets=assets, benchmark_symbol="SPY",
+        sector_benchmarks=sector_benchmarks,
+    )
+
+
+def build_run_summary(
+    universe: Mapping[str, Any], symbols: Sequence[str], ingestion: IngestionResult,
+    coverage: Mapping[str, Any], report: Any, requests_used: int,
+) -> dict[str, Any]:
+    """Build the Run #4-compatible aggregate baseline summary."""
+    bars = ingestion.bars
+    calibration, validation = chronological_split(report.events, WALK_FORWARD_SPLIT)
+    years: dict[str, list[Any]] = defaultdict(list)
+    for event in report.events:
+        years[str(event.timestamp.year)].append(event)
+    year_outcomes = {year: summarize_events(events) for year, events in sorted(years.items())}
+    all_dates = [bar.timestamp for rows in bars.values() for bar in rows]
+    return {
+        "schema_version": "ATLAS_RADAR_CALIBRATION_AGGREGATES_V1",
+        "model_version": report.model_version,
+        "universe_version": universe["version"],
+        "survivorship_note": universe["survivorship_note"],
+        "feed": universe["feed"], "adjustment": universe["adjustment"],
+        "requested_securities": len(symbols), "securities_with_history": len(bars),
+        "security_symbols": sorted(bars), "total_bars": sum(len(rows) for rows in bars.values()),
+        "earliest_bar": min(all_dates).isoformat(), "latest_bar": max(all_dates).isoformat(),
+        "requests_used": requests_used, "state_counts": report.state_counts,
+        "transition_counts": report.transition_counts,
+        "state_outcomes": report.state_outcomes, "score_buckets": report.score_buckets,
+        "security_type_outcomes": report.security_type_outcomes,
+        "sector_outcomes": report.sector_outcomes, "regime_outcomes": report.regime_outcomes,
+        "liquidity_outcomes": report.liquidity_outcomes,
+        "volatility_outcomes": report.volatility_outcomes,
+        "market_cap_outcomes": report.market_cap_outcomes,
+        "component_correlations_20d": report.component_correlations_20d,
+        "component_overlap": report.component_overlap,
+        "data_quality": ingestion.audit_metadata(),
+        "coverage_policy": dict(coverage),
+        "year_outcomes": year_outcomes,
+        "walk_forward": {
+            "split": WALK_FORWARD_SPLIT.isoformat(),
+            "calibration": summarize_events(calibration), "validation": summarize_events(validation),
+        },
+        "threshold_sensitivity": "DEFERRED_UNTIL_UNTOUCHED_V1_BASELINE_REVIEW",
+    }
+
+
 def run() -> int:
     key_id = os.getenv("APCA_API_KEY_ID", "").strip()
     secret_key = os.getenv("APCA_API_SECRET_KEY", "").strip()
@@ -381,56 +447,13 @@ def run() -> int:
     print(json.dumps({"kind": "data_quality_summary", **ingestion.audit_metadata()}, sort_keys=True))
     coverage = validate_calibration_coverage(universe, ingestion)
     bars = dict(ingestion.bars)
-    asset_lookup = {item["ticker"]: item for item in assets_input}
-    assets = {
-        ticker: AssetMetadata(
-            ticker=ticker,
-            security_type=SecurityType(asset_lookup[ticker]["type"]),
-            sector=asset_lookup[ticker].get("sector"),
-            market_cap_band=asset_lookup[ticker].get("cap"), active=True,
-            adjustment=universe["adjustment"],
-        )
-        for ticker in bars
-    }
-    sector_benchmarks = {sector: ticker for sector, ticker in universe["sector_benchmarks"].items() if ticker in bars}
-    dataset = HistoricalDataset(bars=bars, assets=assets, benchmark_symbol="SPY", sector_benchmarks=sector_benchmarks)
+    dataset = build_historical_dataset(universe, ingestion)
     report = build_calibration_report(dataset)
-    calibration, validation = chronological_split(report.events, WALK_FORWARD_SPLIT)
-    years: dict[str, list[Any]] = defaultdict(list)
-    for event in report.events:
-        years[str(event.timestamp.year)].append(event)
-    year_outcomes = {year: summarize_events(events) for year, events in sorted(years.items())}
     output_dir = Path(os.getenv("PHASE8C_OUTPUT_DIR", "audit_results/phase8c1"))
     output_dir.mkdir(parents=True, exist_ok=True)
-    all_dates = [bar.timestamp for rows in bars.values() for bar in rows]
-    summary = {
-        "schema_version": "ATLAS_RADAR_CALIBRATION_AGGREGATES_V1",
-        "model_version": report.model_version,
-        "universe_version": universe["version"],
-        "survivorship_note": universe["survivorship_note"],
-        "feed": universe["feed"], "adjustment": universe["adjustment"],
-        "requested_securities": len(symbols), "securities_with_history": len(bars),
-        "security_symbols": sorted(bars), "total_bars": sum(len(rows) for rows in bars.values()),
-        "earliest_bar": min(all_dates).isoformat(), "latest_bar": max(all_dates).isoformat(),
-        "requests_used": budget.used, "state_counts": report.state_counts,
-        "transition_counts": report.transition_counts,
-        "state_outcomes": report.state_outcomes, "score_buckets": report.score_buckets,
-        "security_type_outcomes": report.security_type_outcomes,
-        "sector_outcomes": report.sector_outcomes, "regime_outcomes": report.regime_outcomes,
-        "liquidity_outcomes": report.liquidity_outcomes,
-        "volatility_outcomes": report.volatility_outcomes,
-        "market_cap_outcomes": report.market_cap_outcomes,
-        "component_correlations_20d": report.component_correlations_20d,
-        "component_overlap": report.component_overlap,
-        "data_quality": ingestion.audit_metadata(),
-        "coverage_policy": coverage,
-        "year_outcomes": year_outcomes,
-        "walk_forward": {
-            "split": WALK_FORWARD_SPLIT.isoformat(),
-            "calibration": summarize_events(calibration), "validation": summarize_events(validation),
-        },
-        "threshold_sensitivity": "DEFERRED_UNTIL_UNTOUCHED_V1_BASELINE_REVIEW",
-    }
+    summary = build_run_summary(universe, symbols, ingestion, coverage, report, budget.used)
+    if summary["threshold_sensitivity"] != "DEFERRED_UNTIL_UNTOUCHED_V1_BASELINE_REVIEW":
+        raise RuntimeError("PHASE8C1_BASELINE_MUST_NOT_RUN_SENSITIVITY")
     (output_dir / "summary.json").write_text(json.dumps(_json_safe(summary), sort_keys=True, indent=2) + "\n")
     _write_group_csv(output_dir / "state_outcomes.csv", report.state_outcomes)
     _write_group_csv(output_dir / "score_buckets.csv", report.score_buckets)
