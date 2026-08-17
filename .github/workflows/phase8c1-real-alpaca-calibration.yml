@@ -38,7 +38,7 @@ jobs:
           set +x
           if [ -n "${APCA_API_KEY_ID}" ]; then echo "::add-mask::${APCA_API_KEY_ID}"; fi
           if [ -n "${APCA_API_SECRET_KEY}" ]; then echo "::add-mask::${APCA_API_SECRET_KEY}"; fi
-          python analysis/phase8b_calibration/real_alpaca_runner.py
+          python -m analysis.phase8b_calibration.real_alpaca_runner
 
       - name: Upload aggregate calibration reports only
         uses: actions/upload-artifact@v4

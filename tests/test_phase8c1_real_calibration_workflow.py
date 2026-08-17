@@ -3,7 +3,10 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import inspect
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 
@@ -33,6 +36,23 @@ def test_workflow_is_manual_only_and_cannot_write_repository():
     assert "contents: read" in text
     assert "git commit" not in text and "git push" not in text
     assert "overnight_market_scan" not in text
+    assert "python -m analysis.phase8b_calibration.real_alpaca_runner" in text
+    assert "python analysis/phase8b_calibration/real_alpaca_runner.py" not in text
+
+
+def test_github_style_repository_root_module_execution_imports_successfully():
+    environment = dict(os.environ)
+    environment.pop("APCA_API_KEY_ID", None)
+    environment.pop("APCA_API_SECRET_KEY", None)
+    environment["PYTHONDONTWRITEBYTECODE"] = "1"
+    completed = subprocess.run(
+        [sys.executable, "-m", "analysis.phase8b_calibration.real_alpaca_runner"],
+        cwd=ROOT, env=environment, text=True, capture_output=True, timeout=15,
+        check=False,
+    )
+    assert completed.returncode == 2
+    assert "MISSING_CREDENTIALS_ZERO_NETWORK_CALLS" in completed.stdout
+    assert "ModuleNotFoundError" not in completed.stderr
 
 
 def test_workflow_masks_environment_only_secrets_and_uploads_allowlist():
