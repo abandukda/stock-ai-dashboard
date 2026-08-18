@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 import json
+import re
 
 from engines.atlas_intelligence_engine import build_executive_intelligence
 from engines.semantic_fields import ai_valuation_object, valuation_families
@@ -71,6 +72,61 @@ def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
         "analyst_intelligence": grounded_analyst_context(analyst),
         "policy_intelligence": public_policy_context(policy),
         "ai_valuation": ai_valuation,
+    }
+
+
+def _question_section(question: str) -> str:
+    q = question.lower()
+    groups = (
+        ("valuation", ("valuation", "fair value", "worth", "target", "upside")),
+        ("analysts", ("analyst", "wall street", "consensus", "rating change")),
+        ("earnings", ("earn", "eps", "revenue surprise", "guidance", "transcript")),
+        ("technical", ("technical", "chart", "rsi", "moving average", "volume", "breakout")),
+        ("news", ("news", "headline", "catalyst")),
+        ("policy", ("policy", "government", "regulation", "tariff", "sanction", "contract")),
+        ("risk", ("risk", "downside", "invalidate")),
+    )
+    return next((name for name, terms in groups if any(term in q for term in terms)), "overview")
+
+
+def extract_requested_ticker(question: str, allowed_symbols: list[str]) -> str | None:
+    """Return an exact ticker token; never use ticker-substring matching."""
+    allowed = {str(symbol).strip().upper() for symbol in allowed_symbols if str(symbol).strip()}
+    tokens = re.findall(r"(?<![A-Z0-9])([A-Z]{1,10}(?:[.-][A-Z]{1,3})?)(?![A-Z0-9])", str(question or "").upper())
+    return next((token for token in tokens if token in allowed), None)
+
+
+def _grounding_metadata(question: str, report: Mapping[str, Any]) -> dict[str, Any]:
+    section = _question_section(question)
+    sections = report.get("sections") or {}
+    registry = report.get("evidence_registry") or {}
+    registry_name = {"policy": "policy", "valuation": "valuation", "risk": "risk"}.get(section, section)
+    if section == "overview":
+        used = [
+            name for name, item in registry.items()
+            if isinstance(item, Mapping) and item.get("status") == "AVAILABLE"
+        ]
+        missing = [
+            f"{name}:{item.get('status') or 'DATA_UNAVAILABLE'}"
+            for name, item in registry.items()
+            if isinstance(item, Mapping) and item.get("status") != "AVAILABLE"
+        ]
+    elif registry_name in registry:
+        state = (registry.get(registry_name) or {}).get("status")
+        used = [registry_name] if state == "AVAILABLE" else []
+        missing = [] if state == "AVAILABLE" else [f"{registry_name}:{state or 'DATA_UNAVAILABLE'}"]
+    else:
+        item = sections.get(section) or {}
+        available = item.get("status") in {"available", "partial"}
+        used = [section] if available else []
+        missing = [] if available else [f"{section}:DATA_UNAVAILABLE"]
+    return {
+        "ticker": str(report.get("ticker") or "UNKNOWN").upper(),
+        "section": section,
+        "evidence_used": used,
+        "evidence_missing": missing,
+        "generated_at": report.get("generated_at"),
+        "framework_version": "ASK_ATLAS_GROUNDED_V1",
     }
 
 
@@ -232,11 +288,13 @@ def _deterministic_answer(question: str, report: Mapping[str, Any]) -> str:
 
 def ask_atlas(question: str, report: Mapping[str, Any]) -> dict[str, Any]:
     question = str(question or "").strip()
+    grounding = _grounding_metadata(question, report)
     if not question:
         return {
             "answer": "Enter a question about this stock.",
             "mode": "validation",
             "sources_used": [],
+            **grounding,
         }
 
     context = _compact_context(report)
@@ -285,7 +343,8 @@ def ask_atlas(question: str, report: Mapping[str, Any]) -> dict[str, Any]:
         "mode": mode,
         "sources_used": sources,
         "generated_from": report.get("generated_at"),
+        **grounding,
     }
 
 
-__all__ = ["ask_atlas"]
+__all__ = ["ask_atlas", "extract_requested_ticker"]

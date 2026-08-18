@@ -13,6 +13,7 @@ from engines.daily_opportunities_engine import (
     build_volume_momentum,
 )
 from engines.semantic_fields import canonical_atlas_fair_value
+from engines.research_engine import research_navigation_state
 
 
 def _money(value: Any) -> str:
@@ -50,8 +51,8 @@ def _open_research(ticker: str, key: str) -> None:
         use_container_width=True,
         type="primary",
     ):
-        st.session_state["v104_research_ticker"] = ticker
-        st.query_params["research"] = ticker
+        for state_key, state_value in research_navigation_state(ticker).items():
+            st.session_state[state_key] = state_value
         st.rerun()
 
 

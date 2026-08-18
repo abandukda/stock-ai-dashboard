@@ -4496,12 +4496,13 @@ def render_chat_helper(full_df):
 
     matched = None
     ticker_col = "Ticker" if "Ticker" in full_df.columns else "ticker"
-    for ticker in full_df[ticker_col].dropna().astype(str).unique():
-        if ticker.lower() in q:
-            rows = full_df[full_df[ticker_col].astype(str).str.upper().eq(ticker.upper())]
-            if not rows.empty:
-                matched = rows.iloc[0]
-                break
+    from engines.ask_atlas_engine import extract_requested_ticker
+    allowed_tickers = full_df[ticker_col].dropna().astype(str).str.upper().unique().tolist()
+    requested_ticker = extract_requested_ticker(question, allowed_tickers)
+    if requested_ticker:
+        rows = full_df[full_df[ticker_col].astype(str).str.upper().eq(requested_ticker)]
+        if not rows.empty:
+            matched = rows.iloc[0]
 
     if matched is None:
         requested = (re.search(r"\b[A-Z]{1,10}(?:[.-][A-Z]{1,3})?\b", question.upper()) or [""])[0]
@@ -4518,39 +4519,29 @@ def render_chat_helper(full_df):
     st.markdown(f"### {ticker} Atlas AI Response")
 
     try:
-        from services.ai_synthesis import build_ticker_context, answer_ticker_question, llm_is_configured
-        context = build_ticker_context(matched)
-        if llm_is_configured():
-            with st.spinner("Atlas AI is synthesizing the research context..."):
-                response = answer_ticker_question(question, context)
-            response = str(response or "").strip()
-        else:
-            st.info("OPENAI_API_KEY is not configured yet, so Atlas is using the deterministic research summary. Add the key in Render to activate the real AI synthesis layer.")
-            response = str(answer_ticker_question(question, context) or "").strip()
+        from engines.ask_atlas_engine import ask_atlas
+        from engines.atlas_research_builder_v2 import build_atlas_research_v2
+        source = matched.get("Raw") or matched.get("raw")
+        canonical_row = dict(source) if isinstance(source, dict) else dict(matched)
+        canonical_row.update({
+            "ticker": ticker,
+            "committee_verdict": matched.get("committee_verdict") or canonical_row.get("committee_verdict"),
+            "opportunity_score": matched.get("opportunity_score") or canonical_row.get("opportunity_score"),
+            "confidence_pct": matched.get("confidence_pct") or canonical_row.get("confidence_pct"),
+        })
+        report = build_atlas_research_v2(canonical_row)
+        result = ask_atlas(question, report)
+        response = str(result.get("answer") or "").strip()
         if not response:
             raise ValueError("Atlas returned an empty response")
         st.session_state.update(ask_ai_status="complete", ask_ai_ticker=ticker, ask_ai_response=response, ask_ai_error="")
         st.markdown(f'<div data-atlas-qa="ask-ai-response" data-atlas-status="complete" data-atlas-ticker="{html.escape(ticker)}" data-atlas-response-length="{len(response)}"></div>', unsafe_allow_html=True)
         st.markdown(response)
     except Exception as exc:
-        response = (
-            f"{ticker} has an AI score of {int(safe_number(matched.get('Final Conviction'), 0))}, "
-            f"AI fair value of {fmt_money(matched.get('AI Fair Value'))}, and estimated upside of "
-            f"{fmt_pct(matched.get('Target Upside %'))}."
-        )
-        thesis = safe_text(matched.get("Investment Thesis"), "")
-        if thesis:
-            response += f"\n\n{thesis}"
-        committee = safe_text(matched.get("Committee Conclusion"), "")
-        if committee:
-            response += f"\n\n{committee}"
-        risk = safe_text(matched.get("Primary Risk"), "")
-        if risk:
-            response += f"\n\nPrimary risk: {risk}"
-        st.session_state.update(ask_ai_status="complete", ask_ai_ticker=ticker, ask_ai_response=response, ask_ai_error="")
-        st.caption(f"Live synthesis was unavailable ({type(exc).__name__}); showing the deterministic Atlas summary.")
-        st.markdown(f'<div data-atlas-qa="ask-ai-response" data-atlas-status="complete" data-atlas-ticker="{html.escape(ticker)}" data-atlas-response-length="{len(response)}"></div>', unsafe_allow_html=True)
-        st.markdown(response)
+        message = f"Verified Atlas evidence for {ticker} is temporarily unavailable. No valuation or target was substituted."
+        st.session_state.update(ask_ai_status="error", ask_ai_ticker=ticker, ask_ai_response="", ask_ai_error=message)
+        st.markdown(f'<div data-atlas-qa="ask-ai-response" data-atlas-status="error" data-atlas-ticker="{html.escape(ticker)}"></div>', unsafe_allow_html=True)
+        st.error(message)
 
 
 # =========================

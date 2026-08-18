@@ -22,7 +22,11 @@ from engines.canonical_market_data import attach_price_history
 from engines.research_enrichment_v105 import build_enriched_research_report
 from engines.research_engine_v105 import build_institutional_research
 from engines.analyst_engine import build_analyst_snapshot, build_analyst_summary
-from engines.semantic_fields import ai_valuation_object, atlas_valuation_status, canonical_atlas_fair_value, valuation_families
+from engines.semantic_fields import (
+    AVAILABLE, DATA_UNAVAILABLE, NOT_APPLICABLE, NOT_PUBLISHED,
+    TEMPORARILY_UNAVAILABLE, ai_valuation_object, atlas_valuation_status,
+    canonical_atlas_fair_value, evidence_state, valuation_families,
+)
 from engines.ai_valuation import attach_valuation_comparison, build_ai_valuation
 from engines.trade_plan_v1052 import build_trade_plan
 from engines.policy_intelligence import build_policy_intelligence
@@ -91,13 +95,20 @@ def _section_status(data: Any, required: Sequence[str] = ()) -> dict[str, Any]:
     if isinstance(data, Mapping):
         populated = sum(data.get(key) not in (None, "", [], {}) for key in required)
         completeness = round(populated / len(required) * 100, 1) if required else (100.0 if data else 0.0)
+        has_evidence = any(value not in (None, "", [], {}) for value in data.values())
     elif isinstance(data, list):
         completeness = 100.0 if data else 0.0
+        has_evidence = bool(data)
     else:
         completeness = 100.0 if data not in (None, "") else 0.0
+        has_evidence = data not in (None, "")
 
     status = "available" if completeness >= 70 else "partial" if completeness > 0 else "unavailable"
-    return {"status": status, "completeness_pct": completeness}
+    return {
+        "status": status,
+        "semantic_status": AVAILABLE if has_evidence else DATA_UNAVAILABLE,
+        "completeness_pct": completeness,
+    }
 
 
 def _evidence_registry(
@@ -105,48 +116,65 @@ def _evidence_registry(
     *,
     validated_fair_value: Any,
     fair_value_cases: Sequence[Mapping[str, Any]],
+    is_etf: bool = False,
 ) -> dict[str, dict[str, Any]]:
     """Canonical availability registry used by coverage and completeness."""
-    def entry(status: str, detail: str) -> dict[str, Any]:
-        return {"status": status, "detail": detail}
+    def entry(status: str, detail: str, coverage_points: float | None = None) -> dict[str, Any]:
+        result = {"status": status, "detail": detail}
+        if coverage_points is not None:
+            result["coverage_points"] = coverage_points
+        return result
 
     def section_entry(name: str) -> dict[str, Any]:
         section = sections.get(name) or {}
-        return entry(str(section.get("status") or "unavailable"), f"{section.get('completeness_pct', 0):.1f}% populated")
+        status = str(section.get("semantic_status") or "")
+        if status not in {AVAILABLE, DATA_UNAVAILABLE, NOT_APPLICABLE, NOT_PUBLISHED, TEMPORARILY_UNAVAILABLE}:
+            status = AVAILABLE if section.get("status") in {"available", "partial"} else DATA_UNAVAILABLE
+        legacy_status = section.get("status")
+        points = 100.0 if legacy_status == "available" else 50.0 if legacy_status == "partial" else 0.0
+        return entry(status, f"{section.get('completeness_pct', 0):.1f}% populated", points)
 
     earnings_data = _mapping((sections.get("earnings") or {}).get("data"))
     ownership_data = _mapping((sections.get("ownership") or {}).get("data"))
     political_data = _mapping((sections.get("political") or {}).get("data"))
     valid_cases = sum(_num(case.get("fair_value")) is not None for case in fair_value_cases if isinstance(case, Mapping))
-    valuation_status = "available" if _num(validated_fair_value) is not None and valid_cases >= 1 else "unavailable"
-    guidance_status = "available" if any(
+    valuation_status = evidence_state(
+        validated_fair_value,
+        applicable=not is_etf,
+        published=_num(validated_fair_value) is not None,
+    )
+    guidance_status = evidence_state(any(
         earnings_data.get(key) not in (None, "", [], {})
         for key in ("guidance", "management_tone", "transcript_summary")
-    ) else "unavailable"
-    insider_status = "available" if any(
+    ), applicable=not is_etf)
+    insider_status = evidence_state(any(
         ownership_data.get(key) not in (None, "", [], {})
         for key in ("insider_transactions", "insider_buy_count", "insider_sell_count", "insider_support_score")
-    ) else "unavailable"
+    ), applicable=not is_etf)
     return {
-        "fundamentals": section_entry("financials"),
+        "fundamentals": entry(NOT_APPLICABLE, "Corporate fundamentals do not apply to funds") if is_etf else section_entry("financials"),
         "valuation": entry(valuation_status, f"{valid_cases} populated fair-value cases"),
         "technicals": section_entry("technical"),
-        "analysts": section_entry("analysts"),
-        "earnings": section_entry("earnings"),
+        "analysts": entry(NOT_APPLICABLE, "Corporate analyst consensus does not apply to funds") if is_etf else section_entry("analysts"),
+        "earnings": entry(NOT_APPLICABLE, "Corporate earnings do not apply to funds") if is_etf else section_entry("earnings"),
         "guidance": entry(guidance_status, "Genuine guidance/transcript evidence only"),
         "news": section_entry("news"),
         "ownership": section_entry("ownership"),
         "insider_activity": entry(insider_status, "Structured insider evidence"),
         "policy": entry(
-            "available" if _num(political_data.get("evidence_count")) else "not_applicable",
-            "Not critical financial evidence",
+            AVAILABLE if _num(political_data.get("evidence_count")) else (NOT_APPLICABLE if is_etf else DATA_UNAVAILABLE),
+            "Verified ticker-specific policy evidence only",
         ),
     }
 
 
 def _registry_coverage(registry: Mapping[str, Mapping[str, Any]]) -> float:
-    points = {"available": 100.0, "partial": 50.0, "unavailable": 0.0}
-    applicable = [points[item["status"]] for item in registry.values() if item.get("status") in points]
+    points = {AVAILABLE: 100.0, DATA_UNAVAILABLE: 0.0, TEMPORARILY_UNAVAILABLE: 0.0, NOT_PUBLISHED: 0.0}
+    applicable = [
+        float(item.get("coverage_points", points[item["status"]]))
+        for item in registry.values()
+        if item.get("status") in points
+    ]
     return round(sum(applicable) / len(applicable), 1) if applicable else 0.0
 
 
@@ -204,21 +232,33 @@ def _earnings_history(row: Mapping[str, Any]) -> list[dict[str, Any]]:
         or _first(row, "Earnings History", "Historical Earnings", "earningsHistory")
         or []
     )
+    def item_first(item: Mapping[str, Any], *keys: str) -> Any:
+        for key in keys:
+            if key in item and item.get(key) not in (None, ""):
+                return item.get(key)
+        return None
+
     output = []
     for item in _sequence(candidates):
         if not isinstance(item, Mapping):
             continue
         output.append(
             {
-                "period": _text(item.get("period") or item.get("quarter") or item.get("date")),
-                "eps_actual": _num(item.get("eps_actual") or item.get("epsActual") or item.get("actual_eps")),
-                "eps_estimate": _num(item.get("eps_estimate") or item.get("epsEstimated") or item.get("estimated_eps")),
-                "revenue_actual": _num(item.get("revenue_actual") or item.get("revenueActual")),
-                "revenue_estimate": _num(item.get("revenue_estimate") or item.get("revenueEstimated")),
-                "reaction_pct": _num(item.get("reaction_pct") or item.get("price_change_pct")),
+                "period": _text(item_first(item, "period", "quarter", "date")),
+                "eps_actual": _num(item_first(item, "eps_actual", "epsActual", "actual_eps")),
+                "eps_estimate": _num(item_first(item, "eps_estimate", "epsEstimated", "estimated_eps")),
+                "revenue_actual": _num(item_first(item, "revenue_actual", "revenueActual")),
+                "revenue_estimate": _num(item_first(item, "revenue_estimate", "revenueEstimated")),
+                "reaction_pct": _num(item_first(item, "reaction_pct", "price_change_pct")),
             }
         )
-    return output[:8]
+    unique = {}
+    for item in output:
+        key = item.get("period") or repr(item)
+        unique.setdefault(key, item)
+    return sorted(
+        unique.values(), key=lambda item: item.get("period") or "", reverse=True
+    )[:8]
 
 
 def _earnings_interpretation(data: Mapping[str, Any], history: Sequence[Mapping[str, Any]]) -> str:
@@ -459,6 +499,10 @@ def build_atlas_research_v2(
     analyst_data = _mapping(enriched["analysts"].get("data"))
     ownership_data = _mapping(enriched["ownership"].get("data"))
     technical_data = _mapping(enriched["technical"].get("data"))
+    security_type = _text(
+        _first(enriched_row, "security_type", "quote_type", "quoteType"), "EQUITY"
+    ).upper()
+    is_etf = security_type in {"ETF", "FUND", "MUTUALFUND"}
     earnings_history = _earnings_history(enriched_row)
     analyst_details = _analyst_details(enriched_row, analyst_data)
     risk_rows = _risk_interpretations(institutional.get("risk_matrix") or [])
@@ -503,6 +547,10 @@ def build_atlas_research_v2(
                 else "unavailable"
             ),
             "completeness_pct": 100.0 if policy_intelligence.get("evidence_count") else 0.0,
+            "semantic_status": (
+                AVAILABLE if policy_intelligence.get("evidence_count")
+                else NOT_APPLICABLE if is_etf else DATA_UNAVAILABLE
+            ),
             "data": policy_intelligence,
             "interpretation": (
                 "Atlas identified verified company-specific policy evidence."
@@ -561,6 +609,7 @@ def build_atlas_research_v2(
         sections,
         validated_fair_value=validated_fair_value,
         fair_value_cases=fair_value_cases,
+        is_etf=is_etf,
     )
     completeness = _registry_coverage(evidence_registry)
     committee_verdict = institutional.get("committee_verdict") or enriched.get("committee_verdict")
@@ -576,6 +625,7 @@ def build_atlas_research_v2(
             enriched.get("sector")
             or _text(_first(enriched_row, "sector", "Sector", "industry", "Industry"))
         ),
+        "security_type": security_type,
         "committee_verdict": committee_verdict,
         "opportunity_score": scores["opportunity_score"],
         "confidence_pct": scores["confidence_pct"],
@@ -604,6 +654,13 @@ def build_atlas_research_v2(
         "research_completeness_pct": completeness,
         "evidence_coverage_pct": completeness,
         "evidence_registry": evidence_registry,
+        "evidence_coverage": {
+            state: sum(item.get("status") == state for item in evidence_registry.values())
+            for state in (
+                AVAILABLE, NOT_PUBLISHED, NOT_APPLICABLE,
+                DATA_UNAVAILABLE, TEMPORARILY_UNAVAILABLE,
+            )
+        },
         "enricher_errors": enricher_errors,
         "upgrade_triggers": institutional.get("upgrade_triggers") or enriched_row.get("upgrade_triggers") or [],
         "downgrade_triggers": institutional.get("downgrade_triggers") or enriched_row.get("downgrade_triggers") or [],

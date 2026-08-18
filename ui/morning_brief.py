@@ -8,6 +8,7 @@ import streamlit as st
 
 from engines.morning_brief_engine import build_morning_brief
 from engines.guidance_summary import build_guidance_summary
+from engines.research_engine import research_navigation_state
 
 
 def _pct(value: Any, *, signed: bool = False) -> str:
@@ -32,8 +33,8 @@ def _research_button(ticker: str, key: str) -> None:
         key=key,
         use_container_width=True,
     ):
-        st.session_state["v104_research_ticker"] = ticker
-        st.query_params["research"] = ticker
+        for state_key, state_value in research_navigation_state(ticker).items():
+            st.session_state[state_key] = state_value
         st.rerun()
 
 

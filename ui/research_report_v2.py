@@ -764,8 +764,11 @@ def _render_ask_atlas(report: Mapping[str, Any]) -> None:
         sources = result.get("sources_used") or []
         st.caption(
             f"Mode: {result.get('mode', 'Unknown')} · "
+            f"Ticker: {result.get('ticker', ticker)} · "
+            f"Section: {result.get('section', 'overview')} · "
             f"Atlas sections used: {', '.join(sources) if sources else 'None'} · "
-            f"Report generated: {result.get('generated_from', 'Unknown')}"
+            f"Report generated: {result.get('generated_at') or result.get('generated_from', 'Unknown')} · "
+            f"Framework: {result.get('framework_version', 'Unknown')}"
         )
 
 def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
@@ -985,6 +988,8 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
                     st.caption(details)
                 if item.get("summary"):
                     st.write(item["summary"])
+                if item.get("url"):
+                    st.markdown(f"[Open verified source]({item['url']})")
                 if item.get("relevance"):
                     st.caption(f"Relevance: {item['relevance']} · Category: {item.get('classification', 'Other Company-Specific')}")
                 if item.get("impact") is not None:

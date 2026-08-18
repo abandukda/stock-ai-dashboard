@@ -13,6 +13,16 @@ from typing import Any, Mapping
 
 _MISSING = {"", "none", "null", "nan", "n/a", "na", "unknown", "unavailable", "under review", "—", "-"}
 
+AVAILABLE = "AVAILABLE"
+NOT_PUBLISHED = "NOT_PUBLISHED"
+NOT_APPLICABLE = "NOT_APPLICABLE"
+DATA_UNAVAILABLE = "DATA_UNAVAILABLE"
+TEMPORARILY_UNAVAILABLE = "TEMPORARILY_UNAVAILABLE"
+SEMANTIC_AVAILABILITY_STATES = frozenset({
+    AVAILABLE, NOT_PUBLISHED, NOT_APPLICABLE, DATA_UNAVAILABLE,
+    TEMPORARILY_UNAVAILABLE,
+})
+
 
 def _mapping(value: Any) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
@@ -48,6 +58,25 @@ def number(value: Any) -> float | None:
         return result if math.isfinite(result) else None
     except (TypeError, ValueError):
         return None
+
+
+def evidence_state(
+    value: Any,
+    *,
+    applicable: bool = True,
+    published: bool = True,
+    temporarily_unavailable: bool = False,
+) -> str:
+    """Classify availability without creating or substituting evidence."""
+    if not applicable:
+        return NOT_APPLICABLE
+    if temporarily_unavailable:
+        return TEMPORARILY_UNAVAILABLE
+    if not published:
+        return NOT_PUBLISHED
+    if isinstance(value, bool):
+        return AVAILABLE if value else DATA_UNAVAILABLE
+    return AVAILABLE if present(value) else DATA_UNAVAILABLE
 
 
 def canonical_atlas_fair_value(row: Mapping[str, Any]) -> float | None:
@@ -137,6 +166,8 @@ def valuation_families(row: Mapping[str, Any]) -> dict[str, Any]:
 
 
 __all__ = [
+    "AVAILABLE", "DATA_UNAVAILABLE", "NOT_APPLICABLE", "NOT_PUBLISHED",
+    "SEMANTIC_AVAILABILITY_STATES", "TEMPORARILY_UNAVAILABLE", "evidence_state",
     "ai_valuation_object", "analyst_consensus", "analyst_scenarios", "atlas_valuation_status", "canonical_atlas_fair_value",
     "first_present", "number", "present", "scanner_trade_plan", "valuation_families",
 ]

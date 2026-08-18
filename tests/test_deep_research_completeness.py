@@ -248,5 +248,5 @@ def test_evidence_registry_does_not_change_existing_recommendation():
 
     assert report["committee_verdict"] == "BUY_NOW"
     assert report["evidence_coverage_pct"] == report["research_completeness_pct"]
-    assert report["evidence_registry"]["policy"]["status"] == "not_applicable"
+    assert report["evidence_registry"]["policy"]["status"] == "DATA_UNAVAILABLE"
     assert "recommendation_integrity_missing" not in report
