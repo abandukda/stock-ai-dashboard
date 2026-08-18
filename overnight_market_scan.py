@@ -19,6 +19,7 @@ import datetime as dt
 import requests
 import subprocess
 import sys
+import threading
 import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -28,6 +29,14 @@ import pandas as pd
 import yfinance as yf
 
 from engines.atlas_valuation import AtlasValuationInputs, PUBLISHED, calculate_atlas_fair_value
+from engines.deep_research_evidence import (
+    build_earnings_comparisons,
+    normalize_earnings_history,
+    normalize_news_articles,
+    select_deep_enrichment_symbols,
+)
+from core.pipeline_v104 import build_v104_pipeline
+from services.deep_research_cache import cached_evidence
 
 
 def v42_safe_float(value, default=0.0):
@@ -502,6 +511,13 @@ def get_metadata(symbol: str) -> Dict[str, Any]:
                 and float(info.get("earningsTimestamp")) > time.time()
                 else None
             ),
+            # ETF-only reference fields.  They remain isolated from corporate
+            # earnings/guidance semantics and require no additional request.
+            "fund_family": info.get("fundFamily"),
+            "fund_category": info.get("category"),
+            "expense_ratio": safe_float(info.get("annualReportExpenseRatio")),
+            "distribution_yield": safe_float(info.get("yield")),
+            "fund_total_assets": safe_float(info.get("totalAssets")),
         }
     except Exception:
         return defaults
@@ -625,6 +641,33 @@ def get_finnhub_research(symbol: str) -> Dict[str, Any]:
             "source_finnhub_target": True,
         })
 
+    # Dated Wall Street actions remain a separate evidence family.  They do
+    # not alter recommendation, target, valuation, or ranking calculations.
+    action_data = http_get_json(
+        "https://finnhub.io/api/v1/stock/upgrade-downgrade",
+        params={"symbol": symbol, "token": FINNHUB_API_KEY},
+        timeout=10,
+    )
+    actions = []
+    if isinstance(action_data, list):
+        for item in action_data[:20]:
+            if not isinstance(item, dict):
+                continue
+            action = {
+                "date": item.get("gradeTime") or item.get("date"),
+                "firm": item.get("company"),
+                "from_grade": item.get("fromGrade"),
+                "to_grade": item.get("toGrade"),
+                "action": item.get("action"),
+                "provider": "FINNHUB",
+                "evidence_timestamp": now_iso(),
+            }
+            if action["date"] and (action["action"] or action["to_grade"]):
+                actions.append({key: value for key, value in action.items() if value not in (None, "")})
+    if actions:
+        result["analyst_actions"] = actions
+        result["source_finnhub_analyst_actions"] = True
+
     return {k: v for k, v in result.items() if v not in (None, "", "Unknown")}
 
 
@@ -654,6 +697,23 @@ def score_headline_sentiment(title: str, description: str = "") -> Tuple[int, Li
     score = len(positives) - len(negatives)
 
     return score, positives[:3], negatives[:3]
+
+
+def classify_news_evidence(title: str, description: str = "") -> Tuple[str, str]:
+    """Deterministic reporting labels; never used by investment scoring."""
+    text = f"{title} {description}".lower()
+    rules = (
+        ("EARNINGS", ("earnings", "revenue", "eps", "quarterly results")),
+        ("GUIDANCE", ("guidance", "outlook", "forecast")),
+        ("M_AND_A", ("acquisition", "merger", "takeover")),
+        ("REGULATORY", ("regulator", "sec ", "fda", "antitrust", "approval")),
+        ("CAPITAL_ALLOCATION", ("buyback", "dividend", "debt offering", "share offering")),
+        ("PRODUCT_OR_CONTRACT", ("launch", "contract", "partnership", "customer")),
+    )
+    category = next((name for name, terms in rules if any(term in text for term in terms)), "COMPANY_NEWS")
+    high_terms = ("earnings", "guidance", "merger", "acquisition", "fda", "antitrust", "buyback", "dividend")
+    materiality = "HIGH" if any(term in text for term in high_terms) else "STANDARD"
+    return category, materiality
 
 
 def get_news_research(symbol: str, company_name: str = "") -> Dict[str, Any]:
@@ -702,6 +762,7 @@ def get_news_research(symbol: str, company_name: str = "") -> Dict[str, Any]:
             continue
 
         score, positives, negatives = score_headline_sentiment(title, description)
+        category, materiality = classify_news_evidence(title, description)
         total_score += score
         positive_hits.extend(positives)
         negative_hits.extend(negatives)
@@ -710,7 +771,10 @@ def get_news_research(symbol: str, company_name: str = "") -> Dict[str, Any]:
             "title": title,
             "source": source_name,
             "published_at": published_at,
+            "url": safe_text(article.get("url"), ""),
             "sentiment_score": score,
+            "category": category,
+            "materiality": materiality,
         })
 
     if not headlines:
@@ -723,11 +787,13 @@ def get_news_research(symbol: str, company_name: str = "") -> Dict[str, Any]:
     else:
         sentiment_label = "Neutral"
 
+    normalized_articles = normalize_news_articles(headlines, symbol=symbol)
     return {
         "news_headline_count": len(headlines),
         "news_sentiment_score": max(-100, min(100, total_score * 15)),
         "news_sentiment_label": sentiment_label,
         "recent_headlines": headlines[:5],
+        "news_evidence": normalized_articles[:5],
         "positive_news_terms": list(dict.fromkeys(positive_hits))[:5],
         "negative_news_terms": list(dict.fromkeys(negative_hits))[:5],
         "top_news_headline": headlines[0]["title"] if headlines else "",
@@ -1139,6 +1205,7 @@ def compute_indicators(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
     sma20 = safe_float(close.rolling(20).mean().iloc[-1])
     sma50 = safe_float(close.rolling(50).mean().iloc[-1]) if len(close) >= 50 else None
     sma100 = safe_float(close.rolling(100).mean().iloc[-1]) if len(close) >= 100 else None
+    sma200 = safe_float(close.rolling(200).mean().iloc[-1]) if len(close) >= 200 else None
 
     vol20 = safe_float(volume.rolling(20).mean().iloc[-1], 0)
     dollar_volume = price * (vol20 or 0)
@@ -1185,6 +1252,7 @@ def compute_indicators(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
         "sma20": round(sma20, 2) if sma20 else None,
         "sma50": round(sma50, 2) if sma50 else None,
         "sma100": round(sma100, 2) if sma100 else None,
+        "sma200": round(sma200, 2) if sma200 else None,
         "avg_volume_20d": safe_int(vol20, 0),
         "dollar_volume": round(dollar_volume, 2),
         "one_day_pct": round(one_day, 2) if one_day is not None else None,
@@ -2476,6 +2544,20 @@ def score_etf_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any]) -> Opt
         "summary": f"{symbol}: ETF candidate, score {score}/100, estimated trade upside {round(upside, 1)}%.",
         "setup_tags": good,
         "risk_tags": risks,
+        "etf_research": {
+            "status": "AVAILABLE" if any(meta.get(key) is not None for key in (
+                "fund_family", "fund_category", "expense_ratio", "distribution_yield", "fund_total_assets"
+            )) else "DATA_UNAVAILABLE",
+            "fund_family": meta.get("fund_family"),
+            "benchmark_or_category": meta.get("fund_category"),
+            "expense_ratio": meta.get("expense_ratio"),
+            "distribution_yield": meta.get("distribution_yield"),
+            "assets_under_management": meta.get("fund_total_assets"),
+            "top_holdings": [],
+            "holdings_status": "DATA_UNAVAILABLE",
+            "provider": "YAHOO_INFO",
+            "evidence_timestamp": now_iso(),
+        },
         # V41.6 price history fields are merged after row creation.
         "scan_time": now_iso(),
     }
@@ -2505,12 +2587,12 @@ def get_fmp_financial_intelligence(symbol: str) -> Dict[str, Any]:
     cashflow = get("cash-flow-statement", {"period": "quarter", "limit": 5})
     ratios = get("ratios", {"period": "quarter", "limit": 4})
     key_metrics = get("key-metrics", {"period": "quarter", "limit": 4})
-    earnings = get("earnings", {"limit": 4})
+    earnings = get("earnings", {"limit": 8})
     if not earnings:
         # Backward-compatible fallback for accounts still entitled to v3.
         earnings = http_get_json(
             f"https://financialmodelingprep.com/api/v3/earnings-surprises/{str(symbol).upper().strip()}",
-            params={"limit": 4, "apikey": FMP_API_KEY},
+            params={"limit": 8, "apikey": FMP_API_KEY},
             timeout=12,
         )
     peers = get("stock-peers")
@@ -2619,6 +2701,12 @@ def get_fmp_financial_intelligence(symbol: str) -> Dict[str, Any]:
         })
 
     if isinstance(earnings, list) and earnings:
+        earnings_history = normalize_earnings_history(
+            earnings,
+            provider="FMP",
+            captured_at=now_iso(),
+            limit=8,
+        )
         surprises = []
         beats = 0
         misses = 0
@@ -2657,6 +2745,8 @@ def get_fmp_financial_intelligence(symbol: str) -> Dict[str, Any]:
             "eps_beats_last4": beats,
             "eps_misses_last4": misses,
             "source_fmp_earnings_surprises": True,
+            "earnings_history": earnings_history,
+            "earnings_comparisons": build_earnings_comparisons(earnings_history),
         })
         if latest_event:
             # Keep zero actual/estimate values; remove only truly unavailable fields.
@@ -2670,6 +2760,16 @@ def get_fmp_financial_intelligence(symbol: str) -> Dict[str, Any]:
         elif all(isinstance(x, str) for x in peers):
             peer_symbols = peers
         result["peer_symbols"] = [str(x).upper() for x in peer_symbols[:8] if x]
+
+    if result:
+        result["fundamentals_provenance"] = {
+            "provider": "FMP",
+            "evidence_timestamp": now_iso(),
+            "endpoint_families": [
+                "income-statement", "balance-sheet-statement", "cash-flow-statement",
+                "ratios", "key-metrics", "earnings", "stock-peers",
+            ],
+        }
 
     return {k: v for k, v in result.items() if v not in (None, "", "Unknown", [])}
 
@@ -3115,6 +3215,18 @@ def build_price_history_intelligence(df: pd.DataFrame, ind: Dict[str, Any]) -> D
     }
 
 
+def attach_technical_research_evidence(row: Dict[str, Any], ind: Dict[str, Any]) -> None:
+    """Publish long-history evidence without adding a scoring input."""
+    sma200 = safe_float(ind.get("sma200"), None)
+    if sma200 is None:
+        return
+    evidence = row.get("deep_research_evidence") if isinstance(row.get("deep_research_evidence"), dict) else {}
+    evidence["sma200"] = round(sma200, 2)
+    evidence["sma200_provider"] = "YAHOO_BATCH_HISTORY"
+    evidence["sma200_evidence_timestamp"] = now_iso()
+    row["deep_research_evidence"] = evidence
+
+
 def apply_research_field_fallbacks(row: Dict[str, Any], meta: Dict[str, Any]) -> Dict[str, Any]:
     """
     V41.7 QA fix:
@@ -3370,11 +3482,11 @@ def v42_news_stack(symbol: str, company_name: str = "") -> Dict[str, Any]:
     """Fetch recent company news and preserve headline/source/date for freshness validation."""
     symbol=str(symbol).upper(); articles=[]; today=dt.date.today(); start=today-dt.timedelta(days=30)
 
-    def add_article(title, source, published, provider):
+    def add_article(title, source, published, provider, url=""):
         title=str(title or '').strip()
         if not title: return
         if not news_item_is_company_relevant(title, '', symbol, company_name): return
-        articles.append({'title':title, 'source':str(source or provider or '').strip(), 'published':str(published or '').strip(), 'provider':provider})
+        articles.append({'title':title, 'source':str(source or provider or '').strip(), 'published':str(published or '').strip(), 'published_at':str(published or '').strip(), 'provider':provider, 'url':str(url or '').strip()})
 
     if NEWSAPI_KEY:
         if _ACTIVE_COMMITTEE_TIMING_SCOPE == "etf": _record_scan_timing("etf_newsapi_calls", count=1)
@@ -3383,7 +3495,7 @@ def v42_news_stack(symbol: str, company_name: str = "") -> Dict[str, Any]:
             r=requests.get('https://newsapi.org/v2/everything',params={'q':f'"{symbol}" OR "{company_name}"','language':'en','sortBy':'publishedAt','pageSize':8,'apiKey':NEWSAPI_KEY},timeout=10)
             if r.status_code==200:
                 for a in (r.json().get('articles') or [])[:8]:
-                    add_article(a.get('title'), (a.get('source') or {}).get('name'), a.get('publishedAt'), 'NewsAPI')
+                    add_article(a.get('title'), (a.get('source') or {}).get('name'), a.get('publishedAt'), 'NewsAPI', a.get('url'))
         except Exception: pass
         finally:
             if _ACTIVE_COMMITTEE_TIMING_SCOPE == "etf": _record_scan_timing("etf_newsapi_seconds", time.monotonic()-provider_started)
@@ -3395,7 +3507,7 @@ def v42_news_stack(symbol: str, company_name: str = "") -> Dict[str, Any]:
             if r.status_code==200:
                 for a in (r.json() or [])[:8]:
                     published=dt.datetime.utcfromtimestamp(a.get('datetime')).isoformat() if a.get('datetime') else ''
-                    add_article(a.get('headline'), a.get('source'), published, 'Finnhub company news')
+                    add_article(a.get('headline'), a.get('source'), published, 'Finnhub company news', a.get('url'))
         except Exception: pass
         finally:
             if _ACTIVE_COMMITTEE_TIMING_SCOPE == "etf": _record_scan_timing("etf_finnhub_news_seconds", time.monotonic()-provider_started)
@@ -3406,7 +3518,7 @@ def v42_news_stack(symbol: str, company_name: str = "") -> Dict[str, Any]:
             r=requests.get('https://financialmodelingprep.com/api/v3/stock_news',params={'tickers':symbol,'limit':8,'apikey':FMP_API_KEY},timeout=10)
             if r.status_code==200:
                 for a in (r.json() or [])[:8]:
-                    add_article(a.get('title'), a.get('site') or a.get('source'), a.get('publishedDate') or a.get('date'), 'FMP stock news')
+                    add_article(a.get('title'), a.get('site') or a.get('source'), a.get('publishedDate') or a.get('date'), 'FMP stock news', a.get('url'))
         except Exception: pass
         finally:
             if _ACTIVE_COMMITTEE_TIMING_SCOPE == "etf": _record_scan_timing("etf_fmp_news_seconds", time.monotonic()-provider_started)
@@ -3529,7 +3641,7 @@ def v42_build_committee(symbol: str, row: Dict[str,Any], meta: Dict[str,Any], in
         'ETF / Ownership Agent':v42_agent(55,'Framework active','Neutral','ETF inclusion and ownership flow framework','Checks ETF/index ownership support.',['ETF/ownership framework is active.'],['Detailed ETF flow data not fully connected yet.'],'ETF/ownership is not yet a primary scoring driver.')
     }
     pos=sum(1 for a in agents.values() if a['score']>=65); total=len(agents); agree=pos/total
-    row.update({'ai_committee':agents,'v42_news_score':agents['News Agent']['score'],'v42_news_summary':agents['News Agent']['bottom_line'],'v42_news_status':news['status'],'v42_news_catalysts':news['catalysts'],'v42_news_risks':news['risks'],'v42_news_sources':news['sources'],'latest_news_headline':news.get('latest_headline',''),'latest_news_source':news.get('latest_source',''),'latest_news_date':news.get('latest_date',''),'latest_news_sentiment':news.get('latest_sentiment',''),'v42_sec_available':sec.get('available',False),'v42_sec_cik':sec.get('cik'),'v42_support_1':sr.get('support_1'),'v42_support_2':sr.get('support_2'),'v42_resistance_1':sr.get('resistance_1'),'v42_resistance_2':sr.get('resistance_2'),'v42_breakout_level':sr.get('breakout_level'),'v42_pullback_zone':sr.get('pullback_zone'),'v42_chart_guidance':sr.get('guidance'),'thesis_strength':'Exceptional Thesis' if agree>=.75 and conviction>=85 else 'Strong Thesis' if agree>=.60 else 'Moderate Thesis' if agree>=.40 else 'Developing Thesis','evidence_confidence':'High' if agree>=.75 else 'Medium-High' if agree>=.60 else 'Medium' if agree>=.40 else 'Low-Medium','v42_committee_positive_agents':pos,'v42_committee_total_agents':total})
+    row.update({'ai_committee':agents,'v42_news_score':agents['News Agent']['score'],'v42_news_summary':agents['News Agent']['bottom_line'],'v42_news_status':news['status'],'v42_news_catalysts':news['catalysts'],'v42_news_risks':news['risks'],'v42_news_sources':news['sources'],'news_evidence':normalize_news_articles(news.get('articles') or [], symbol=symbol),'latest_news_headline':news.get('latest_headline',''),'latest_news_source':news.get('latest_source',''),'latest_news_date':news.get('latest_date',''),'latest_news_sentiment':news.get('latest_sentiment',''),'v42_sec_available':sec.get('available',False),'v42_sec_cik':sec.get('cik'),'v42_support_1':sr.get('support_1'),'v42_support_2':sr.get('support_2'),'v42_resistance_1':sr.get('resistance_1'),'v42_resistance_2':sr.get('resistance_2'),'v42_breakout_level':sr.get('breakout_level'),'v42_pullback_zone':sr.get('pullback_zone'),'v42_chart_guidance':sr.get('guidance'),'thesis_strength':'Exceptional Thesis' if agree>=.75 and conviction>=85 else 'Strong Thesis' if agree>=.60 else 'Moderate Thesis' if agree>=.40 else 'Developing Thesis','evidence_confidence':'High' if agree>=.75 else 'Medium-High' if agree>=.60 else 'Medium' if agree>=.40 else 'Low-Medium','v42_committee_positive_agents':pos,'v42_committee_total_agents':total})
     return row
 
 
@@ -3775,6 +3887,8 @@ _SCAN_TIMINGS = {
     "etf_processing_seconds": 0.0,
     "etf_full_committee_calls": 0,
     "etf_full_committee_seconds": 0.0,
+    "etf_research_calls": 0,
+    "etf_research_seconds": 0.0,
     "etf_newsapi_calls": 0,
     "etf_newsapi_seconds": 0.0,
     "etf_finnhub_news_calls": 0,
@@ -4069,15 +4183,107 @@ def v421_build_light_committee(symbol: str, row: Dict[str, Any], meta: Dict[str,
     return row
 
 
+_FINALIST_ENRICHMENT_CACHE: Dict[str, Tuple[Dict[str, Any], Dict[str, str]]] = {}
+_ETF_RESEARCH_CACHE: Dict[str, Dict[str, Any]] = {}
+
+# Versioned evidence freshness policy. These values affect only post-ranking
+# provider retrieval; they are not investment-model inputs.
+DEEP_RESEARCH_TTLS = {
+    "profile": 7 * 24 * 60 * 60,
+    "fundamentals": 8 * 60 * 60,
+    "analysts": 4 * 60 * 60,
+    "ownership": 12 * 60 * 60,
+    "news": 60 * 60,
+    "etf": 24 * 60 * 60,
+}
+
+
+def get_etf_research(symbol: str) -> Dict[str, Any]:
+    """Fetch an isolated bounded ETF facts payload; failures stay unavailable."""
+    cache_key = str(symbol or "").strip().upper()
+    if cache_key in _ETF_RESEARCH_CACHE:
+        return dict(_ETF_RESEARCH_CACHE[cache_key])
+    result: Dict[str, Any] = {}
+    response: Dict[str, Any] = {}
+
+    def fetch() -> None:
+        try:
+            response["funds"] = yf.Ticker(cache_key).funds_data
+        except Exception:
+            response["funds"] = None
+
+    worker = threading.Thread(target=fetch, name=f"atlas-etf-research-{cache_key}", daemon=True)
+    worker.start()
+    worker.join(max(0.1, HTTP_TIMEOUT_FAST))
+    try:
+        funds = None if worker.is_alive() else response.get("funds")
+        if funds is None:
+            raise ValueError("ETF research unavailable")
+        holdings = getattr(funds, "top_holdings", None)
+        if isinstance(holdings, pd.DataFrame) and not holdings.empty:
+            normalized_holdings = []
+            frame = holdings.reset_index()
+            for record in frame.head(10).to_dict("records"):
+                ticker = record.get("Symbol") or record.get("symbol") or record.get("index")
+                name = record.get("Name") or record.get("name")
+                weight = safe_float(record.get("Holding Percent") or record.get("holdingPercent"))
+                normalized_holdings.append({
+                    "ticker": str(ticker).upper() if ticker else None,
+                    "name": name,
+                    "weight_pct": round(weight * 100, 4) if weight is not None and abs(weight) <= 1 else weight,
+                })
+            result["top_holdings"] = normalized_holdings
+            weights = [safe_float(item.get("weight_pct")) for item in normalized_holdings]
+            result["top_10_concentration_pct"] = round(sum(value for value in weights if value is not None), 4)
+        sectors = getattr(funds, "sector_weightings", None)
+        if isinstance(sectors, dict):
+            result["sector_exposure"] = {
+                str(key): round(float(value) * 100, 4) if safe_float(value) is not None and abs(float(value)) <= 1 else safe_float(value)
+                for key, value in sectors.items()
+                if safe_float(value) is not None
+            }
+    except Exception:
+        result = {}
+    _ETF_RESEARCH_CACHE[cache_key] = dict(result)
+    return result
+
+
 def get_finalist_enrichment(symbol: str, company_name: str = "") -> Tuple[Dict[str, Any], Dict[str, str]]:
     """Fetch deep evidence only for the existing bounded full-research tier."""
-    payloads = {
-        "profile": get_fmp_data(symbol),
-        "fundamentals": get_fmp_financial_intelligence(symbol),
-        "analysts": get_finnhub_research(symbol),
-        "ownership": get_finnhub_insider_activity(symbol),
-        "news": get_news_research(symbol, company_name),
+    cache_key = str(symbol or "").strip().upper()
+    cached = _FINALIST_ENRICHMENT_CACHE.get(cache_key)
+    if cached is not None:
+        payload, categories = cached
+        cached_categories = dict(categories)
+        cached_categories["cache"] = "hit"
+        return dict(payload), cached_categories
+    fetchers = {
+        "profile": lambda: get_fmp_data(symbol),
+        "fundamentals": lambda: get_fmp_financial_intelligence(symbol),
+        "analysts": lambda: get_finnhub_research(symbol),
+        "ownership": lambda: get_finnhub_insider_activity(symbol),
+        "news": lambda: get_news_research(symbol, company_name),
     }
+    source_functions = {
+        "profile": get_fmp_data,
+        "fundamentals": get_fmp_financial_intelligence,
+        "analysts": get_finnhub_research,
+        "ownership": get_finnhub_insider_activity,
+        "news": get_news_research,
+    }
+    payloads: Dict[str, Dict[str, Any]] = {}
+    freshness: Dict[str, Dict[str, Any]] = {}
+    for family, fetcher in fetchers.items():
+        payloads[family], freshness[family] = cached_evidence(
+            symbol,
+            family,
+            DEEP_RESEARCH_TTLS[family],
+            fetcher,
+            source_version=(
+                f"{getattr(source_functions[family], '__module__', '')}."
+                f"{getattr(source_functions[family], '__qualname__', '')}"
+            ),
+        )
     merged: Dict[str, Any] = {}
     for payload in payloads.values():
         if isinstance(payload, dict):
@@ -4086,11 +4292,16 @@ def get_finalist_enrichment(symbol: str, company_name: str = "") -> Tuple[Dict[s
         name: ("yes" if payload else "no")
         for name, payload in payloads.items()
     }
+    categories.update({f"{name}_freshness": freshness[name]["status"] for name in payloads})
     categories["earnings"] = "yes" if merged.get("source_fmp_earnings_surprises") else "no"
     categories["valuation_inputs"] = "yes" if any(
         merged.get(key) is not None
         for key in ("revenue_growth", "earnings_growth", "forward_pe", "operating_profit_margin", "roic")
     ) else "no"
+    categories["cache"] = "miss"
+    if merged:
+        merged["_evidence_freshness"] = freshness
+    _FINALIST_ENRICHMENT_CACHE[cache_key] = (dict(merged), dict(categories))
     return merged, categories
 
 
@@ -4109,8 +4320,20 @@ def merge_finalist_enrichment(
     meta: Dict[str, Any],
     ind: Dict[str, Any],
     enrichment: Dict[str, Any],
+    *,
+    evidence_only: bool = False,
 ) -> None:
     """Propagate bounded evidence without changing any scoring or valuation formula."""
+    if evidence_only:
+        # Expansion-only names expose evidence to Full Research through a
+        # namespaced payload.  Root scoring inputs remain byte-for-byte as
+        # ranked, preventing new research coverage from changing decisions.
+        existing = row.get("deep_research_evidence") if isinstance(row.get("deep_research_evidence"), dict) else {}
+        existing.update(enrichment)
+        row["deep_research_evidence"] = existing
+        row["deep_research_evidence_status"] = "AVAILABLE" if enrichment else "TEMPORARILY_UNAVAILABLE"
+        row["deep_research_evidence_timestamp"] = now_iso()
+        return
     profile = {key: value for key, value in enrichment.items() if key in _FMP_PROFILE_ROW_FIELDS}
     _merge_fmp_profile(meta, row, profile)
     for key, value in enrichment.items():
@@ -4143,6 +4366,7 @@ def v421_apply_tiered_committee(
     hist: pd.DataFrame,
     *,
     force_full: bool = False,
+    evidence_only: bool = False,
 ) -> Dict[str, Any]:
     """
     V50.8.3.3.2.1a tiered scheduled scan:
@@ -4159,8 +4383,10 @@ def v421_apply_tiered_committee(
                 provider_started = time.monotonic()
                 print(f"[finalist-provider] start ticker={symbol} provider=BOUNDED_DEEP_ENRICHMENT", flush=True)
                 enrichment, categories = get_finalist_enrichment(symbol, meta.get("company_name", symbol))
-                if enrichment:
-                    merge_finalist_enrichment(symbol, row, meta, ind, enrichment)
+                if enrichment or evidence_only:
+                    merge_finalist_enrichment(
+                        symbol, row, meta, ind, enrichment, evidence_only=evidence_only
+                    )
                 provider_elapsed = time.monotonic() - provider_started
                 _SCAN_TIMINGS["finalist_provider_calls"] += 1
                 _SCAN_TIMINGS["finalist_provider_seconds"] += provider_elapsed
@@ -4170,6 +4396,8 @@ def v421_apply_tiered_committee(
                     + " ".join(f"{name}={status}" for name, status in categories.items()),
                     flush=True,
                 )
+            if evidence_only:
+                return row
             if "v42_build_committee_safe" in globals():
                 row = v42_build_committee_safe(symbol, row, meta, ind, hist)
             else:
@@ -4440,6 +4668,7 @@ def scan_market() -> Dict[str, Any]:
                     price_history = build_price_history_intelligence(hist, ind)
                     if price_history:
                         etf_row.update(price_history)
+                    attach_technical_research_evidence(etf_row, ind)
                     etf_row = apply_research_field_fallbacks(etf_row, meta)
                     if FAST_CRON_MODE and len(etf_rows) >= ETF_FULL_COMMITTEE_LIMIT:
                         etf_row = v421_build_light_committee(symbol, etf_row, meta, ind, hist)
@@ -4472,6 +4701,7 @@ def scan_market() -> Dict[str, Any]:
             price_history = build_price_history_intelligence(hist, ind)
             if price_history:
                 row.update(price_history)
+            attach_technical_research_evidence(row, ind)
             row = enhance_ai_committee(row, meta, ind)
             row = apply_research_field_fallbacks(row, meta)
             if FAST_CRON_MODE:
@@ -4522,6 +4752,27 @@ def scan_market() -> Dict[str, Any]:
     full_rows = full_rows[:MAX_FULL_SCAN]
     etf_rows.sort(key=lambda r: (r.get("conviction") or 0, r.get("dollar_volume") or 0), reverse=True)
     etf_rows = etf_rows[:150]
+    # Separate ETF-only enrichment after ETF ranking.  Corporate earnings,
+    # guidance, and analyst-target schemas are never attached here.
+    for etf_row in etf_rows[:ETF_FULL_COMMITTEE_LIMIT]:
+        etf_symbol = str(etf_row.get("symbol") or etf_row.get("ticker") or "").upper()
+        etf_research_started = time.monotonic()
+        etf_payload, etf_freshness = cached_evidence(
+            etf_symbol,
+            "etf",
+            DEEP_RESEARCH_TTLS["etf"],
+            lambda symbol=etf_symbol: get_etf_research(symbol),
+            source_version=f"{get_etf_research.__module__}.{get_etf_research.__qualname__}",
+        )
+        _record_scan_timing("etf_research_calls", count=1)
+        _record_scan_timing("etf_research_seconds", time.monotonic() - etf_research_started)
+        if etf_payload:
+            etf_row.setdefault("etf_research", {}).update(etf_payload)
+            etf_row["etf_research"]["status"] = "AVAILABLE"
+            etf_row["etf_research"]["holdings_status"] = (
+                "AVAILABLE" if etf_payload.get("top_holdings") else "DATA_UNAVAILABLE"
+            )
+        etf_row.setdefault("etf_research", {})["freshness"] = etf_freshness
     _record_scan_timing("prescreen_ranking_seconds", time.monotonic() - ranking_started)
 
     # If full scan is too thin, only backfill with actual valid prescreen rows, not fake rows.
@@ -4549,11 +4800,32 @@ def scan_market() -> Dict[str, Any]:
         finalist_processing_started = time.monotonic()
         finalist_provider_before = float(_SCAN_TIMINGS["finalist_provider_seconds"])
         watchlist = v421_watchlist_symbols()
-        finalist_symbols = {
+        # Compute the existing V104 verdicts on copies solely to choose the
+        # bounded post-ranking research population.  The results are not
+        # written back, so enrichment cannot change scanner rank or decisions.
+        selection_pipeline = build_v104_pipeline([dict(row) for row in full_rows])
+        selection_by_symbol = {
+            str(item.get("symbol") or item.get("ticker") or "").upper(): item
+            for item in selection_pipeline.get("all_rows", [])
+        }
+        selection_rows = []
+        for row in full_rows:
+            symbol = str(row.get("symbol") or row.get("ticker") or "").upper()
+            candidate = dict(row)
+            scored = selection_by_symbol.get(symbol) or {}
+            candidate["recommendation"] = scored.get("committee_verdict")
+            selection_rows.append(candidate)
+        ordered_finalists, finalist_reasons = select_deep_enrichment_symbols(
+            selection_rows,
+            top_limit=FULL_COMMITTEE_LIMIT,
+            watchlist=watchlist,
+        )
+        finalist_symbols = set(ordered_finalists)
+        legacy_finalist_symbols = {
             str(row.get("symbol") or row.get("ticker") or "").upper()
             for row in full_rows[:FULL_COMMITTEE_LIMIT]
         }
-        finalist_symbols.update(
+        legacy_finalist_symbols.update(
             str(row.get("symbol") or row.get("ticker") or "").upper()
             for row in full_rows
             if str(row.get("symbol") or row.get("ticker") or "").upper() in watchlist
@@ -4565,8 +4837,17 @@ def scan_market() -> Dict[str, Any]:
             meta = metadata_cache.get(symbol) or {}
             ind = indicator_cache.get(symbol) or {}
             hist = history_cache.get(symbol, pd.DataFrame())
-            v421_apply_tiered_committee(symbol, row, meta, ind, hist, force_full=True)
+            v421_apply_tiered_committee(
+                symbol,
+                row,
+                meta,
+                ind,
+                hist,
+                force_full=True,
+                evidence_only=symbol not in legacy_finalist_symbols,
+            )
             v803_apply_complete_research_fields(row, meta)
+            row["deep_enrichment_reasons"] = finalist_reasons.get(symbol, [])
         _SCAN_TIMINGS["finalist_row_processing_seconds"] = max(
             0.0,
             time.monotonic() - finalist_processing_started
@@ -4593,6 +4874,7 @@ def scan_market() -> Dict[str, Any]:
         "duration_seconds": 0.0,
         "fast_cron_mode": FAST_CRON_MODE,
         "full_committee_limit": FULL_COMMITTEE_LIMIT,
+        "deep_enrichment_symbol_count": len(finalist_symbols) if FAST_CRON_MODE else 0,
         "pre_rank_deep_apis_skipped": FAST_CRON_SKIP_PRE_RANK_DEEP_APIS,
         "run_timings": {},
         "filters": {

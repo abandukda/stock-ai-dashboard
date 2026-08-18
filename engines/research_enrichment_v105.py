@@ -49,6 +49,7 @@ def _sources(row):
         _map(row.get("financials")), _map(row.get("analysts")),
         _map(row.get("earnings")), _map(row.get("political")),
         _map(row.get("ownership")), _map(row.get("technical")),
+        _map(row.get("deep_research_evidence")),
     ) if x]
 
 def _first(src, *keys):
@@ -98,6 +99,7 @@ def build_analyst_section(row):
         "hold_count": _num(_first(s,"analyst_hold_count","Hold Ratings")),
         "sell_count": _num(_first(s,"analyst_sell_count","Sell Ratings")),
         "average_target": _num(_first(s,"analyst_target_mean","Analyst Target","targetMeanPrice")),
+        "median_target": _num(_first(s,"analyst_target_median","finnhub_target_median","Analyst Target Median","targetMedian")),
         "high_target": _num(_first(s,"analyst_target_high","Analyst Target High","targetHighPrice")),
         "low_target": _num(_first(s,"analyst_target_low","Analyst Target Low","targetLowPrice")),
         "analyst_count": _num(_first(s,"analyst_count","Analyst Count","numberOfAnalystOpinions")),
@@ -129,8 +131,8 @@ def normalize_analyst_actions(value):
             "firm": firm or None,
             "date": date,
             "action": _text(item.get("action") or item.get("gradingAction")) or None,
-            "current_rating": _text(item.get("rating") or item.get("newGrade") or item.get("current_rating")) or None,
-            "previous_rating": _text(item.get("previousGrade") or item.get("previous_rating")) or None,
+            "current_rating": _text(item.get("rating") or item.get("newGrade") or item.get("to_grade") or item.get("current_rating")) or None,
+            "previous_rating": _text(item.get("previousGrade") or item.get("from_grade") or item.get("previous_rating")) or None,
             "current_target": current_target,
             "previous_target": previous_target,
             "target_change": round(change, 2) if change is not None else None,
@@ -199,8 +201,9 @@ def accepted_company_news(row, value=None):
             "url": _text(item.get("url")) or None,
             "sentiment": _text(item.get("sentiment")) or None,
             "summary": _text(item.get("summary")) or None,
-            "relevance": "Accepted company/ticker match",
-            "classification": _text(item.get("classification")) or "Other Company-Specific",
+            "relevance": _text(item.get("ticker_relevance") or item.get("relevance")) or "Accepted company/ticker match",
+            "classification": _text(item.get("category") or item.get("classification")) or "Other Company-Specific",
+            "materiality": _text(item.get("materiality")) or "UNCLASSIFIED",
         })
     return accepted[:10]
 

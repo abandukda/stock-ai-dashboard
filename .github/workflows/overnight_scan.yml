@@ -54,6 +54,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Restore sanitized deep-research evidence cache
+        uses: actions/cache@v4
+        with:
+          path: .atlas_research_cache/deep_v1
+          key: atlas-deep-research-v1-${{ github.run_id }}
+          restore-keys: |
+            atlas-deep-research-v1-
+
       - name: Run overnight scan
         run: |
           python overnight_market_scan.py

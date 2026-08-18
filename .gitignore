@@ -7,6 +7,7 @@ __pycache__/data/atlas_discovery_history.json
 __pycache__/
 *.pyc
 .pytest_cache/
+.atlas_research_cache/
 
 # Local consultant packages
 atlas_consultant_review/

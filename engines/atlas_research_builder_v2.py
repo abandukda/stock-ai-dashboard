@@ -225,8 +225,10 @@ def _financial_interpretation(data: Mapping[str, Any]) -> str:
 
 
 def _earnings_history(row: Mapping[str, Any]) -> list[dict[str, Any]]:
+    deep = row.get("deep_research_evidence") if isinstance(row.get("deep_research_evidence"), Mapping) else {}
     candidates = (
         row.get("earnings_history")
+        or deep.get("earnings_history")
         or row.get("historical_earnings")
         or row.get("quarterly_earnings")
         or _first(row, "Earnings History", "Historical Earnings", "earningsHistory")
@@ -244,20 +246,28 @@ def _earnings_history(row: Mapping[str, Any]) -> list[dict[str, Any]]:
             continue
         output.append(
             {
-                "period": _text(item_first(item, "period", "quarter", "date")),
+                "period": _text(item_first(item, "fiscal_period", "period", "quarter", "report_date", "date")),
+                "fiscal_period": _text(item_first(item, "fiscal_period", "period", "quarter")) or None,
+                "report_date": _text(item_first(item, "report_date", "date")) or None,
                 "eps_actual": _num(item_first(item, "eps_actual", "epsActual", "actual_eps")),
                 "eps_estimate": _num(item_first(item, "eps_estimate", "epsEstimated", "estimated_eps")),
+                "eps_surprise_pct": _num(item_first(item, "eps_surprise_pct", "epsSurprisePct")),
                 "revenue_actual": _num(item_first(item, "revenue_actual", "revenueActual")),
                 "revenue_estimate": _num(item_first(item, "revenue_estimate", "revenueEstimated")),
+                "revenue_surprise_pct": _num(item_first(item, "revenue_surprise_pct", "revenueSurprisePct")),
+                "provider": _text(item_first(item, "provider", "source")) or None,
+                "evidence_timestamp": _text(item_first(item, "evidence_timestamp", "as_of")) or None,
                 "reaction_pct": _num(item_first(item, "reaction_pct", "price_change_pct")),
             }
         )
     unique = {}
     for item in output:
-        key = item.get("period") or repr(item)
+        key = (item.get("fiscal_period"), item.get("report_date"))
+        if not any(key):
+            key = item.get("period") or repr(item)
         unique.setdefault(key, item)
     return sorted(
-        unique.values(), key=lambda item: item.get("period") or "", reverse=True
+        unique.values(), key=lambda item: item.get("report_date") or item.get("period") or "", reverse=True
     )[:8]
 
 

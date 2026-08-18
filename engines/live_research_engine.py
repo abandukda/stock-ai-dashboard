@@ -11,6 +11,7 @@ from typing import Any, Dict, Iterable, Optional
 import pandas as pd
 import requests
 import yfinance as yf
+from engines.deep_research_evidence import build_earnings_comparisons
 
 from services.research_cache import load_cached_research, save_cached_research
 from engines.decision_intelligence_engine import evidence_pack, primary_risk, decision
@@ -636,13 +637,21 @@ def _earnings_context(tk: Any) -> Dict[str, Any]:
             history = []
             for date_index, earnings_row in past.head(8).iterrows():
                 history.append({
+                    "fiscal_period": None,
+                    "report_date": str(date_index),
                     "period": str(date_index),
                     "eps_actual": _num(earnings_row.get("Reported EPS")),
                     "eps_estimate": _num(earnings_row.get("EPS Estimate")),
                     "eps_surprise_pct": _num(earnings_row.get("Surprise(%)")),
+                    "revenue_actual": None,
+                    "revenue_estimate": None,
+                    "revenue_surprise_pct": None,
+                    "provider": "YAHOO_EARNINGS_DATES",
+                    "evidence_timestamp": pd.Timestamp.now(tz="UTC").isoformat(),
                 })
             if history:
                 result["earnings_history"] = history
+                result["earnings_comparisons"] = build_earnings_comparisons(history)
             if not future.empty and not result.get("next_earnings_date"):
                 result["next_earnings_date"] = str(future.index[0])
             if not past.empty:
