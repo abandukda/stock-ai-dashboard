@@ -20,6 +20,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-runtime-qa.txt
 
       - name: Verify QA source
         run: |
@@ -34,7 +36,21 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements-runtime-qa.txt
-          python -m playwright install --with-deps chromium
+
+      - name: Install and verify Chromium
+        timeout-minutes: 8
+        run: |
+          python -m playwright install chromium
+          python - <<'PY'
+          from playwright.sync_api import sync_playwright
+
+          with sync_playwright() as playwright:
+              browser = playwright.chromium.launch(headless=True)
+              page = browser.new_page()
+              page.set_content("<title>ATLAS Runtime QA browser ready</title>")
+              assert page.title() == "ATLAS Runtime QA browser ready"
+              browser.close()
+          PY
 
       - name: Run Atlas Runtime QA
         env:
