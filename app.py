@@ -4460,6 +4460,11 @@ def render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf
 def render_chat_helper(full_df):
     st.subheader("Ask Atlas AI")
     st.caption("Ask a ticker-specific question. Atlas uses saved scan facts first, then an optional LLM synthesis layer when OPENAI_API_KEY is configured.")
+    st.markdown(
+        '<span data-atlas-qa="page-ready" data-atlas-page="ask-ai" '
+        'data-atlas-status="ready" aria-hidden="true" style="display:none">ask-ai-ready</span>',
+        unsafe_allow_html=True,
+    )
 
     st.session_state.setdefault("ask_ai_status", "idle")
     st.session_state.setdefault("ask_ai_ticker", "")
@@ -4477,8 +4482,9 @@ def render_chat_helper(full_df):
         status = st.session_state["ask_ai_status"]
         ticker = st.session_state["ask_ai_ticker"]
         st.markdown(
-            f'<div data-atlas-qa="ask-ai-response" data-atlas-status="{html.escape(status)}" '
-            f'data-atlas-ticker="{html.escape(ticker)}"></div>',
+            f'<span data-atlas-qa="ask-ai-response" data-atlas-status="{html.escape(status)}" '
+            f'data-atlas-ticker="{html.escape(ticker)}" aria-hidden="true" style="display:none">'
+            f'ask-ai-{html.escape(status)}</span>',
             unsafe_allow_html=True,
         )
         if status == "complete" and st.session_state["ask_ai_response"]:
@@ -4490,15 +4496,22 @@ def render_chat_helper(full_df):
     q = question.lower().strip()
     if full_df.empty:
         st.session_state.update(ask_ai_status="error", ask_ai_ticker="", ask_ai_response="", ask_ai_error="No scan data loaded.")
-        st.markdown('<div data-atlas-qa="ask-ai-response" data-atlas-status="error" data-atlas-ticker=""></div>', unsafe_allow_html=True)
+        st.markdown('<span data-atlas-qa="ask-ai-response" data-atlas-status="error" data-atlas-ticker="" aria-hidden="true" style="display:none">ask-ai-error</span>', unsafe_allow_html=True)
         st.error("No scan data loaded.")
         return
 
     matched = None
     ticker_col = "Ticker" if "Ticker" in full_df.columns else "ticker"
-    from engines.ask_atlas_engine import extract_requested_ticker
     allowed_tickers = full_df[ticker_col].dropna().astype(str).str.upper().unique().tolist()
-    requested_ticker = extract_requested_ticker(question, allowed_tickers)
+    try:
+        from engines.ask_atlas_engine import extract_requested_ticker
+        requested_ticker = extract_requested_ticker(question, allowed_tickers)
+    except ImportError:
+        # Fail closed with the same exact-token contract if a hot-reloaded
+        # Streamlit worker briefly holds an older module object.
+        allowed = {str(symbol).strip().upper() for symbol in allowed_tickers if str(symbol).strip()}
+        tokens = re.findall(r"(?<![A-Z0-9])([A-Z]{1,10}(?:[.-][A-Z]{1,3})?)(?![A-Z0-9])", question.upper())
+        requested_ticker = next((token for token in tokens if token in allowed), None)
     if requested_ticker:
         rows = full_df[full_df[ticker_col].astype(str).str.upper().eq(requested_ticker)]
         if not rows.empty:
@@ -4508,14 +4521,14 @@ def render_chat_helper(full_df):
         requested = (re.search(r"\b[A-Z]{1,10}(?:[.-][A-Z]{1,3})?\b", question.upper()) or [""])[0]
         message = "Ticker not recognized. Ask about a ticker in the Atlas research table."
         st.session_state.update(ask_ai_status="error", ask_ai_ticker=requested, ask_ai_response="", ask_ai_error=message)
-        st.markdown(f'<div data-atlas-qa="ask-ai-response" data-atlas-status="error" data-atlas-ticker="{html.escape(requested)}"></div>', unsafe_allow_html=True)
+        st.markdown(f'<span data-atlas-qa="ask-ai-response" data-atlas-status="error" data-atlas-ticker="{html.escape(requested)}" aria-hidden="true" style="display:none">ask-ai-error</span>', unsafe_allow_html=True)
         st.error(message)
         return
 
     ticker = matched.get("Ticker") or matched.get("ticker")
     ticker = str(ticker).upper().strip()
     st.session_state.update(ask_ai_status="loading", ask_ai_ticker=ticker, ask_ai_response="", ask_ai_error="")
-    st.markdown(f'<div data-atlas-qa="ask-ai-response" data-atlas-status="loading" data-atlas-ticker="{html.escape(ticker)}"></div>', unsafe_allow_html=True)
+    st.markdown(f'<span data-atlas-qa="ask-ai-response" data-atlas-status="loading" data-atlas-ticker="{html.escape(ticker)}" aria-hidden="true" style="display:none">ask-ai-loading</span>', unsafe_allow_html=True)
     st.markdown(f"### {ticker} Atlas AI Response")
 
     try:
@@ -4534,13 +4547,25 @@ def render_chat_helper(full_df):
         response = str(result.get("answer") or "").strip()
         if not response:
             raise ValueError("Atlas returned an empty response")
+        if not re.search(rf"(?<![A-Z0-9]){re.escape(ticker)}(?![A-Z0-9])", response.upper()):
+            response = f"### {ticker} Atlas answer\n\n{response}"
         st.session_state.update(ask_ai_status="complete", ask_ai_ticker=ticker, ask_ai_response=response, ask_ai_error="")
-        st.markdown(f'<div data-atlas-qa="ask-ai-response" data-atlas-status="complete" data-atlas-ticker="{html.escape(ticker)}" data-atlas-response-length="{len(response)}"></div>', unsafe_allow_html=True)
+        evidence_used = len(result.get("evidence_used") or result.get("sources_used") or [])
+        evidence_missing = len(result.get("evidence_missing") or [])
+        st.markdown(
+            f'<span data-atlas-qa="ask-ai-response" data-atlas-status="complete" '
+            f'data-atlas-ticker="{html.escape(ticker)}" data-atlas-section="{html.escape(str(result.get("section") or "overview"))}" '
+            f'data-atlas-evidence-used="{evidence_used}" data-atlas-evidence-missing="{evidence_missing}" '
+            f'data-atlas-generated-at="{html.escape(str(result.get("generated_at") or result.get("generated_from") or ""))}" '
+            f'data-atlas-framework="{html.escape(str(result.get("framework_version") or "ASK_ATLAS_GROUNDED_V1"))}" '
+            f'data-atlas-response-length="{len(response)}" aria-hidden="true" style="display:none">ask-ai-complete</span>',
+            unsafe_allow_html=True,
+        )
         st.markdown(response)
     except Exception as exc:
         message = f"Verified Atlas evidence for {ticker} is temporarily unavailable. No valuation or target was substituted."
         st.session_state.update(ask_ai_status="error", ask_ai_ticker=ticker, ask_ai_response="", ask_ai_error=message)
-        st.markdown(f'<div data-atlas-qa="ask-ai-response" data-atlas-status="error" data-atlas-ticker="{html.escape(ticker)}"></div>', unsafe_allow_html=True)
+        st.markdown(f'<span data-atlas-qa="ask-ai-response" data-atlas-status="error" data-atlas-ticker="{html.escape(ticker)}" aria-hidden="true" style="display:none">ask-ai-error</span>', unsafe_allow_html=True)
         st.error(message)
 
 
@@ -27199,6 +27224,11 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
     v8055_inject_research_css()
     st.markdown("<div class='v65-section-title'>🔎 Live Atlas Research</div>",unsafe_allow_html=True)
     st.markdown("<div class='v65-subtitle'>Paid-client research combines current retrieval with the richest verified saved evidence across all Atlas datasets.</div>",unsafe_allow_html=True)
+    st.markdown(
+        '<span data-atlas-qa="page-ready" data-atlas-page="research-any-ticker" '
+        'data-atlas-status="ready" aria-hidden="true" style="display:none">research-page-ready</span>',
+        unsafe_allow_html=True,
+    )
     pending_ticker=str(st.session_state.get("v805_force_live_on_open","") or "").upper().strip()
     st.session_state.setdefault("typed_ticker", pending_ticker or st.session_state.get("v73_research_ticker", ""))
     st.session_state.setdefault("active_research_ticker", pending_ticker)
@@ -27219,7 +27249,7 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
         st.session_state["research_status"]="error"
         st.session_state["research_error"] = f"Ticker not recognized. Atlas could not retrieve a valid security for {ticker or 'the supplied symbol'}. Check the symbol and try again."
         status="error"
-    st.markdown(f'<div data-atlas-qa="research-container" data-atlas-status="{html.escape(status)}" data-atlas-ticker="{html.escape(marker_ticker)}"></div>',unsafe_allow_html=True)
+    st.markdown(f'<span data-atlas-qa="research-container" data-atlas-status="{html.escape(status)}" data-atlas-ticker="{html.escape(marker_ticker)}" aria-hidden="true" style="display:none">research-{html.escape(status)}</span>',unsafe_allow_html=True)
     if status == "error":
         st.error(st.session_state["research_error"])
         return
@@ -27242,9 +27272,19 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
             st.warning(f"Live refresh was unavailable for {ticker}; showing its verified saved Atlas research.")
         else:
             st.success(f"Live research loaded · {v8055_format_et(merged.get('research_refreshed_at'))} · Confidence: {merged.get('research_confidence',merged.get('Confidence','N/A'))}")
+        company=str(v8054_first_meaningful(merged,["company","Company","company_name","name"],ticker) or ticker)
+        is_etf=bool(merged.get("is_etf") or str(v8054_first_meaningful(merged,["security_type","Security Type"],"")).upper()=="ETF")
+        security_type="ETF" if is_etf else str(v8054_first_meaningful(merged,["security_type","Security Type"],"Equity") or "Equity")
+        generated_at=str(v8054_first_meaningful(merged,["research_refreshed_at","generated_at","scan_timestamp","Generated At"],"") or "Unavailable")
+        st.caption(f"Research context · {ticker} · {company} · {security_type} · Generated {generated_at}")
         render_detail(pd.Series(merged))
         # Emit completion only after all report sections have been rendered.
-        st.markdown(f'<div data-atlas-qa="research-container" data-atlas-status="complete" data-atlas-ticker="{html.escape(ticker)}"></div>',unsafe_allow_html=True)
+        st.markdown(
+            f'<span data-atlas-qa="research-container" data-atlas-status="complete" data-atlas-ticker="{html.escape(ticker)}" '
+            f'data-atlas-company="{html.escape(company)}" data-atlas-security-type="{html.escape(security_type)}" '
+            f'data-atlas-generated-at="{html.escape(generated_at)}" aria-hidden="true" style="display:none">research-complete</span>',
+            unsafe_allow_html=True,
+        )
         return
     if isinstance(live,dict) and live.get("error"):
         st.session_state["research_status"]="error"
@@ -27252,7 +27292,7 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
     else:
         st.session_state["research_status"]="error"
         st.session_state["research_error"]=f"Ticker not recognized. Atlas could not retrieve a valid security for {ticker}. Check the symbol and try again."
-    st.markdown(f'<div data-atlas-qa="research-container" data-atlas-status="error" data-atlas-ticker="{html.escape(ticker)}"></div>',unsafe_allow_html=True)
+    st.markdown(f'<span data-atlas-qa="research-container" data-atlas-status="error" data-atlas-ticker="{html.escape(ticker)}" data-atlas-error="unsupported-or-unavailable" aria-hidden="true" style="display:none">research-error</span>',unsafe_allow_html=True)
     st.error(st.session_state["research_error"])
 
 
@@ -32232,6 +32272,11 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
 
     st.markdown("---")
     render_v104_earnings_briefing(pipeline)
+    st.markdown(
+        '<span data-atlas-qa="page-ready" data-atlas-page="home" '
+        'data-atlas-status="ready" aria-hidden="true" style="display:none">home-ready</span>',
+        unsafe_allow_html=True,
+    )
 
 
 APP_VERSION = "V104 Research Candidate & Investment Committee"

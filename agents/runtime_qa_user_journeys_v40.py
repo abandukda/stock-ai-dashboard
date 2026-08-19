@@ -26,7 +26,7 @@ from playwright.async_api import Frame, Page
 
 ERROR_RE = re.compile(
     r"traceback|uncaught exception|streamlitapiexception|modulenotfounderror|"
-    r"attributeerror|typeerror|keyerror|valueerror",
+    r"importerror|attributeerror|typeerror|keyerror|valueerror",
     re.I,
 )
 SPINNER_RE = re.compile(r"running|loading|please wait|working", re.I)
@@ -71,6 +71,12 @@ PAGE_READY_TEXT = {
     "Developer Center": re.compile(r"Developer Center", re.I),
 }
 
+PAGE_QA_IDS = {
+    "Home": "home",
+    "Research Any Ticker": "research-any-ticker",
+    "Ask AI": "ask-ai",
+}
+
 RESEARCH_TICKERS = ("NVDA", "AVGO", "CRM")
 INVALID_TICKER = "INVALID123"
 
@@ -79,6 +85,25 @@ ASK_AI_PROMPTS = (
     ("CRM", "What are the biggest risks for CRM and what evidence would change Atlas's view?"),
     ("AVGO", "Explain AVGO valuation versus the Atlas target using the available evidence."),
 )
+
+
+def navigation_contract_satisfied(*, selected: bool, page_ready: bool, rendered_exception: bool) -> bool:
+    """Pure settlement rule shared by browser journeys and regression tests."""
+    return bool(selected and page_ready and not rendered_exception)
+
+
+def research_context_complete(context: Mapping[str, Any], ticker: str) -> bool:
+    return bool(
+        str(context.get("ticker") or "").upper() == str(ticker or "").upper()
+        and all(context.get(key) for key in ("company", "security-type", "generated-at"))
+    )
+
+
+def ask_grounding_complete(context: Mapping[str, Any], ticker: str) -> bool:
+    return bool(
+        str(context.get("ticker") or "").upper() == str(ticker or "").upper()
+        and all(context.get(key) for key in ("section", "generated-at", "framework"))
+    )
 
 
 @dataclass
@@ -114,6 +139,34 @@ async def _visible_text(page: Page) -> str:
         if text:
             chunks.append(text)
     return "\n".join(chunks)
+
+
+async def _has_rendered_exception(page: Page) -> bool:
+    """Detect an actual Streamlit exception, not prose containing words like 'error'."""
+    for scope in _scopes(page):
+        try:
+            if await scope.locator('[data-testid="stException"]').count():
+                return True
+        except Exception:
+            continue
+    return False
+
+
+async def _page_contract_ready(page: Page, label: str) -> bool:
+    page_id = PAGE_QA_IDS.get(label)
+    if not page_id:
+        return False
+    selector = (
+        f'[data-atlas-qa="page-ready"][data-atlas-page="{page_id}"]'
+        '[data-atlas-status="ready"]'
+    )
+    for scope in _scopes(page):
+        try:
+            if await scope.locator(selector).count():
+                return True
+        except Exception:
+            continue
+    return False
 
 
 async def _screenshot(page: Page, output_dir: Path, name: str) -> str:
@@ -168,12 +221,20 @@ async def _navigate(page: Page, label: str) -> tuple[bool, float, str]:
                 continue
             if selected:
                 break
-        page_ready = bool(PAGE_READY_TEXT.get(label, re.compile(re.escape(label), re.I)).search(text))
-        if selected and page_ready and not ERROR_RE.search(text):
+        explicit_ready = await _page_contract_ready(page, label)
+        text_ready = bool(PAGE_READY_TEXT.get(label, re.compile(re.escape(label), re.I)).search(text))
+        page_ready = explicit_ready or text_ready
+        rendered_exception = await _has_rendered_exception(page)
+        if navigation_contract_satisfied(
+            selected=selected,
+            page_ready=page_ready,
+            rendered_exception=rendered_exception,
+        ):
             return True, time.monotonic() - started, ""
         await asyncio.sleep(0.5)
     return False, time.monotonic() - started, (
-        f"Navigation did not settle on {label}: selected={selected}, page_ready={page_ready}."
+        f"Navigation did not settle on {label}: selected={selected}, page_ready={page_ready}, "
+        f"explicit_ready={explicit_ready}, rendered_exception={rendered_exception}."
     )
 
 
@@ -292,6 +353,27 @@ async def _qa_response_length(page: Page, ticker: str) -> int:
     return 0
 
 
+async def _qa_state_metadata(page: Page, qa: str, status: str, ticker: str) -> dict[str, str]:
+    selector = f'[data-atlas-qa="{qa}"][data-atlas-status="{status}"][data-atlas-ticker="{ticker}"]'
+    attributes = (
+        "data-atlas-ticker", "data-atlas-company", "data-atlas-security-type",
+        "data-atlas-generated-at", "data-atlas-section", "data-atlas-evidence-used",
+        "data-atlas-evidence-missing", "data-atlas-framework",
+    )
+    for scope in _scopes(page):
+        try:
+            marker = scope.locator(selector).last
+            if not await marker.count():
+                continue
+            return {
+                name.removeprefix("data-atlas-"): (await marker.get_attribute(name) or "")
+                for name in attributes
+            }
+        except Exception:
+            continue
+    return {}
+
+
 async def _wait_for_change(
     page: Page,
     before: str,
@@ -407,6 +489,7 @@ async def _research_one(page: Page, ticker: str, output_dir: Path) -> JourneySte
 
     expected_status = "error" if ticker == INVALID_TICKER else "complete"
     marker_ready = await _wait_for_qa_state(page, "research-container", expected_status, ticker, 45)
+    context = await _qa_state_metadata(page, "research-container", expected_status, ticker)
     after = await _visible_text(page)
     changed = after != before
     screenshot = await _screenshot(page, output_dir, f"research_{ticker}")
@@ -438,9 +521,10 @@ async def _research_one(page: Page, ticker: str, output_dir: Path) -> JourneySte
         "Earnings Intelligence",
     )
     markers = [marker for marker in expected_markers if marker.lower() in after.lower()]
-    ticker_present = ticker.lower() in after.lower()
-    no_error = not ERROR_RE.search(after)
-    passed = marker_ready and ticker_present and no_error and len(markers) >= 2
+    ticker_present = context.get("ticker") == ticker or ticker.lower() in after.lower()
+    context_ready = research_context_complete(context, ticker)
+    no_error = not await _has_rendered_exception(page)
+    passed = marker_ready and ticker_present and context_ready and no_error and len(markers) >= 2
     return JourneyStep(
         journey,
         "generate full research",
@@ -454,6 +538,8 @@ async def _research_one(page: Page, ticker: str, output_dir: Path) -> JourneySte
             "content_changed": changed,
             "qa_marker_ready": marker_ready,
             "ticker_present": ticker_present,
+            "research_context_ready": context_ready,
+            "research_context": context,
             "markers": markers,
         },
     )
@@ -488,16 +574,18 @@ async def _ask_question(page: Page, ticker: str, prompt: str, output_dir: Path) 
     # The first request may initialize the synthesis client; later requests use the normal budget.
     timeout = 60 if ticker == ASK_AI_PROMPTS[0][0] else 35
     marker_ready = await _wait_for_qa_state(page, "ask-ai-response", "complete", ticker, timeout)
+    grounding = await _qa_state_metadata(page, "ask-ai-response", "complete", ticker)
     response_length = await _qa_response_length(page, ticker)
     after = await _visible_text(page)
     changed = after != before
     screenshot = await _screenshot(page, output_dir, f"ask_ai_{ticker}")
 
     new_text = after[len(before):] if after.startswith(before) else after
-    ticker_present = ticker.lower() in new_text.lower() or ticker.lower() in after.lower()
+    ticker_present = grounding.get("ticker") == ticker or ticker.lower() in new_text.lower() or ticker.lower() in after.lower()
+    grounding_ready = ask_grounding_complete(grounding, ticker)
     numeric_evidence = bool(re.search(r"\d+(?:\.\d+)?%|\$\d+|\d+\.\d+", new_text))
     generic_only = bool(re.fullmatch(r".*(review the available data|unable to answer|try again).*", _clean(new_text), re.I))
-    passed = marker_ready and response_length > 0 and ticker_present and len(_clean(new_text).split()) >= 18 and not ERROR_RE.search(after) and not generic_only
+    passed = marker_ready and response_length > 0 and ticker_present and grounding_ready and len(_clean(new_text).split()) >= 18 and not await _has_rendered_exception(page) and not generic_only
 
     return JourneyStep(
         journey,
@@ -512,6 +600,8 @@ async def _ask_question(page: Page, ticker: str, prompt: str, output_dir: Path) 
             "content_changed": changed,
             "qa_marker_ready": marker_ready,
             "ticker_present": ticker_present,
+            "grounding_ready": grounding_ready,
+            "grounding": grounding,
             "numeric_evidence": numeric_evidence,
             "response_word_count": len(_clean(new_text).split()),
             "response_length": response_length,
