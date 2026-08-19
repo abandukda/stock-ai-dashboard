@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-08-19T04:57:19.092478+00:00",
+  "generated_at": "2026-08-19T11:31:04.307143+00:00",
   "status": "success",
   "version": "V80.5",
-  "universe_count": 3429,
+  "universe_count": 3430,
   "prescreen_count": 650,
   "full_scan_count": 150,
   "recovery_count": 100,
@@ -11,54 +11,54 @@
   "data_dir": ".",
   "github_persisted": false,
   "git_persistence_owner": "GITHUB_ACTIONS_WORKFLOW",
-  "duration_seconds": 794.97,
+  "duration_seconds": 1042.54,
   "fast_cron_mode": true,
   "full_committee_limit": 15,
   "deep_enrichment_symbol_count": 19,
   "pre_rank_deep_apis_skipped": true,
   "run_timings": {
-    "scanner_total_seconds": 794.97,
-    "yahoo_broad_scan_seconds": 436.44,
+    "scanner_total_seconds": 1042.54,
+    "yahoo_broad_scan_seconds": 569.9,
     "yahoo_retry_count": 0,
     "yahoo_backoff_seconds": 0.0,
-    "yahoo_metadata_calls": 2816,
-    "yahoo_metadata_seconds": 311.3,
-    "yahoo_metadata_successes": 856,
-    "yahoo_metadata_failures": 1960,
+    "yahoo_metadata_calls": 2824,
+    "yahoo_metadata_seconds": 421.68,
+    "yahoo_metadata_successes": 1073,
+    "yahoo_metadata_failures": 1751,
     "yahoo_metadata_empty": 0,
-    "yahoo_metadata_rate_limited": 1960,
+    "yahoo_metadata_rate_limited": 1751,
     "yahoo_metadata_invalid_or_delisted": 0,
     "yahoo_metadata_timeout_or_network": 0,
     "yahoo_metadata_parsing_or_schema": 0,
     "yahoo_metadata_other_exceptions": 0,
-    "yahoo_metadata_slow_calls": 0,
-    "yahoo_metadata_max_seconds": 0.4,
-    "yahoo_metadata_p95_seconds": 0.19,
-    "broad_row_processing_seconds": 22.67,
-    "prescreen_ranking_seconds": 0.31,
+    "yahoo_metadata_slow_calls": 1,
+    "yahoo_metadata_max_seconds": 3.21,
+    "yahoo_metadata_p95_seconds": 0.34,
+    "broad_row_processing_seconds": 21.01,
+    "prescreen_ranking_seconds": 0.36,
     "full_scan_construction_seconds": 0.01,
-    "recovery_processing_seconds": 0.0,
-    "universe_construction_seconds": 2.19,
+    "recovery_processing_seconds": 0.01,
+    "universe_construction_seconds": 1.96,
     "universe_persistence_seconds": 0.0,
-    "finalist_row_processing_seconds": 6.37,
+    "finalist_row_processing_seconds": 6.48,
     "finalist_provider_calls": 19,
-    "finalist_provider_seconds": 13.03,
+    "finalist_provider_seconds": 18.83,
     "etf_rows_processed": 4,
-    "etf_processing_seconds": 2.33,
+    "etf_processing_seconds": 1.98,
     "etf_full_committee_calls": 4,
-    "etf_full_committee_seconds": 2.33,
+    "etf_full_committee_seconds": 1.98,
     "etf_research_calls": 4,
-    "etf_research_seconds": 0.3,
+    "etf_research_seconds": 0.34,
     "etf_newsapi_calls": 4,
-    "etf_newsapi_seconds": 0.7,
+    "etf_newsapi_seconds": 0.74,
     "etf_finnhub_news_calls": 4,
-    "etf_finnhub_news_seconds": 0.42,
+    "etf_finnhub_news_seconds": 0.38,
     "etf_fmp_news_calls": 4,
-    "etf_fmp_news_seconds": 0.62,
-    "etf_sec_ticker_map_seconds": 0.34,
-    "etf_sec_submissions_seconds": 0.2,
+    "etf_fmp_news_seconds": 0.36,
+    "etf_sec_ticker_map_seconds": 0.41,
+    "etf_sec_submissions_seconds": 0.04,
     "sec_ticker_map_downloads": 20,
-    "output_persistence_seconds": 0.31,
+    "output_persistence_seconds": 0.32,
     "unattributed_seconds": 0.0
   },
   "filters": {
@@ -177,145 +177,144 @@
     "newsapi": {
       "requests": 19,
       "by_status": {
-        "ALL_ARTICLES_REJECTED_BY_RELEVANCE": 10,
-        "SUCCESS": 9
+        "HTTP_RATE_LIMIT": 19
       },
-      "article_count": 134,
-      "accepted_count": 27,
-      "relevance_rejected_count": 107,
+      "article_count": 0,
+      "accepted_count": 0,
+      "relevance_rejected_count": 0,
       "results": [
         {
           "ticker": "CRM",
-          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
-          "article_count": 8,
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
           "accepted_count": 0,
-          "relevance_rejected_count": 8
-        },
-        {
-          "ticker": "AVGO",
-          "status": "SUCCESS",
-          "article_count": 8,
-          "accepted_count": 5,
-          "relevance_rejected_count": 3
+          "relevance_rejected_count": 0
         },
         {
           "ticker": "BCRX",
-          "status": "SUCCESS",
-          "article_count": 3,
-          "accepted_count": 3,
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
+          "accepted_count": 0,
           "relevance_rejected_count": 0
         },
         {
           "ticker": "DCH",
-          "status": "SUCCESS",
-          "article_count": 7,
-          "accepted_count": 1,
-          "relevance_rejected_count": 6
-        },
-        {
-          "ticker": "MATX",
-          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
-          "article_count": 8,
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
           "accepted_count": 0,
-          "relevance_rejected_count": 8
+          "relevance_rejected_count": 0
         },
         {
           "ticker": "CHTR",
-          "status": "SUCCESS",
-          "article_count": 8,
-          "accepted_count": 5,
-          "relevance_rejected_count": 3
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
+          "accepted_count": 0,
+          "relevance_rejected_count": 0
+        },
+        {
+          "ticker": "EXPE",
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
+          "accepted_count": 0,
+          "relevance_rejected_count": 0
         },
         {
           "ticker": "BBW",
-          "status": "SUCCESS",
-          "article_count": 5,
-          "accepted_count": 1,
-          "relevance_rejected_count": 4
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
+          "accepted_count": 0,
+          "relevance_rejected_count": 0
+        },
+        {
+          "ticker": "DSP",
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
+          "accepted_count": 0,
+          "relevance_rejected_count": 0
         },
         {
           "ticker": "BMRN",
-          "status": "SUCCESS",
-          "article_count": 5,
-          "accepted_count": 2,
-          "relevance_rejected_count": 3
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
+          "accepted_count": 0,
+          "relevance_rejected_count": 0
         },
         {
-          "ticker": "CHWY",
-          "status": "SUCCESS",
-          "article_count": 5,
-          "accepted_count": 4,
-          "relevance_rejected_count": 1
+          "ticker": "BBWI",
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
+          "accepted_count": 0,
+          "relevance_rejected_count": 0
         },
         {
           "ticker": "CNK",
-          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
-          "article_count": 6,
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
           "accepted_count": 0,
-          "relevance_rejected_count": 6
+          "relevance_rejected_count": 0
         },
         {
-          "ticker": "ADSK",
-          "status": "SUCCESS",
-          "article_count": 8,
-          "accepted_count": 5,
-          "relevance_rejected_count": 3
+          "ticker": "EDU",
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
+          "accepted_count": 0,
+          "relevance_rejected_count": 0
+        },
+        {
+          "ticker": "CHWY",
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
+          "accepted_count": 0,
+          "relevance_rejected_count": 0
         },
         {
           "ticker": "AR",
-          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
-          "article_count": 8,
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
           "accepted_count": 0,
-          "relevance_rejected_count": 8
+          "relevance_rejected_count": 0
+        },
+        {
+          "ticker": "ADSK",
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
+          "accepted_count": 0,
+          "relevance_rejected_count": 0
         },
         {
           "ticker": "BILL",
-          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
-          "article_count": 7,
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
           "accepted_count": 0,
-          "relevance_rejected_count": 7
-        },
-        {
-          "ticker": "SR",
-          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
-          "article_count": 8,
-          "accepted_count": 0,
-          "relevance_rejected_count": 8
-        },
-        {
-          "ticker": "ACN",
-          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
-          "article_count": 8,
-          "accepted_count": 0,
-          "relevance_rejected_count": 8
-        },
-        {
-          "ticker": "BOOT",
-          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
-          "article_count": 8,
-          "accepted_count": 0,
-          "relevance_rejected_count": 8
+          "relevance_rejected_count": 0
         },
         {
           "ticker": "B",
-          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
-          "article_count": 8,
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
           "accepted_count": 0,
-          "relevance_rejected_count": 8
+          "relevance_rejected_count": 0
+        },
+        {
+          "ticker": "DVN",
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
+          "accepted_count": 0,
+          "relevance_rejected_count": 0
         },
         {
           "ticker": "BABA",
-          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
-          "article_count": 8,
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
           "accepted_count": 0,
-          "relevance_rejected_count": 8
+          "relevance_rejected_count": 0
         },
         {
           "ticker": "AMZN",
-          "status": "SUCCESS",
-          "article_count": 8,
-          "accepted_count": 1,
-          "relevance_rejected_count": 7
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
+          "accepted_count": 0,
+          "relevance_rejected_count": 0
         }
       ]
     }
