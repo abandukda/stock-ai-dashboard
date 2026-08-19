@@ -71,6 +71,6 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git status
-          git add -A
+          git add -- etf_scan.json market_full_scan.json market_prescreen.json market_scan_state.json recovery_scan.json total_market_universe.json
           git commit -m "Update overnight market scan data - $(date -u +'%Y-%m-%d %H:%M UTC')" || echo "No changes to commit"
           git push origin main

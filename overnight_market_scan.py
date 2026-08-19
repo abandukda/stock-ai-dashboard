@@ -100,6 +100,15 @@ MIN_MARKET_CAP = float(os.getenv("MIN_MARKET_CAP", "50000000"))
 GITHUB_PERSIST = os.getenv("GITHUB_PERSIST", "true").lower() == "true"
 GIT_COMMIT_MESSAGE = os.getenv("GIT_COMMIT_MESSAGE", "Update overnight market scan data")
 
+PRODUCTION_OUTPUT_FILES = (
+    ETF_SCAN_FILE,
+    FULL_SCAN_FILE,
+    PRESCREEN_FILE,
+    STATE_FILE,
+    RECOVERY_SCAN_FILE,
+    UNIVERSE_FILE,
+)
+
 # V40.0 external research data sources
 # Add these in Render Environment Variables. Missing keys are handled safely.
 FMP_API_KEY = os.getenv("FMP_API_KEY", "").strip()
@@ -195,6 +204,60 @@ def http_get_json(url: str, params: Optional[Dict[str, Any]] = None, timeout: in
         return response.json()
     except Exception:
         return None
+
+
+NEWSAPI_SUCCESS = "SUCCESS"
+NEWSAPI_AUTH_FAILURE = "HTTP_AUTHORIZATION_OR_ENTITLEMENT_FAILURE"
+NEWSAPI_RATE_LIMIT = "HTTP_RATE_LIMIT"
+NEWSAPI_HTTP_FAILURE = "OTHER_HTTP_FAILURE"
+NEWSAPI_NETWORK_FAILURE = "TIMEOUT_OR_NETWORK_FAILURE"
+NEWSAPI_SCHEMA_FAILURE = "PARSING_OR_SCHEMA_FAILURE"
+NEWSAPI_ZERO_ARTICLES = "ZERO_ARTICLES_RETURNED"
+NEWSAPI_RELEVANCE_REJECTED = "ALL_ARTICLES_REJECTED_BY_RELEVANCE"
+_NEWSAPI_DIAGNOSTICS: List[Dict[str, Any]] = []
+
+
+def _record_newsapi_diagnostic(
+    symbol: str,
+    status: str,
+    *,
+    article_count: int = 0,
+    accepted_count: int = 0,
+    relevance_rejected_count: int = 0,
+) -> None:
+    """Record only bounded, non-sensitive NewsAPI outcome metadata."""
+    record = {
+        "ticker": str(symbol or "").strip().upper(),
+        "status": status,
+        "article_count": max(0, int(article_count)),
+        "accepted_count": max(0, int(accepted_count)),
+        "relevance_rejected_count": max(0, int(relevance_rejected_count)),
+    }
+    _NEWSAPI_DIAGNOSTICS.append(record)
+    print(
+        "[newsapi-diagnostic] "
+        f"ticker={record['ticker']} status={record['status']} "
+        f"article_count={record['article_count']} accepted_count={record['accepted_count']} "
+        f"relevance_rejected_count={record['relevance_rejected_count']}",
+        flush=True,
+    )
+
+
+def _newsapi_diagnostic_summary() -> Dict[str, Any]:
+    by_status: Dict[str, int] = {}
+    for item in _NEWSAPI_DIAGNOSTICS:
+        status = str(item.get("status") or NEWSAPI_SCHEMA_FAILURE)
+        by_status[status] = by_status.get(status, 0) + 1
+    return {
+        "requests": len(_NEWSAPI_DIAGNOSTICS),
+        "by_status": dict(sorted(by_status.items())),
+        "article_count": sum(int(item.get("article_count") or 0) for item in _NEWSAPI_DIAGNOSTICS),
+        "accepted_count": sum(int(item.get("accepted_count") or 0) for item in _NEWSAPI_DIAGNOSTICS),
+        "relevance_rejected_count": sum(
+            int(item.get("relevance_rejected_count") or 0) for item in _NEWSAPI_DIAGNOSTICS
+        ),
+        "results": [dict(item) for item in _NEWSAPI_DIAGNOSTICS],
+    }
 
 
 # =========================
@@ -456,9 +519,12 @@ def get_metadata(symbol: str) -> Dict[str, Any]:
 
     metadata_started = time.monotonic()
     outcome = "failures"
+    failure_category = None
     try:
         ticker = yf.Ticker(symbol)
         info = ticker.get_info() or {}
+        if not isinstance(info, dict):
+            raise TypeError("Yahoo metadata schema is not an object")
         outcome = "successes" if info else "empty"
 
         name = (
@@ -519,13 +585,15 @@ def get_metadata(symbol: str) -> Dict[str, Any]:
             "distribution_yield": safe_float(info.get("yield")),
             "fund_total_assets": safe_float(info.get("totalAssets")),
         }
-    except Exception:
+    except Exception as exc:
+        failure_category = _classify_yahoo_metadata_exception(exc)
         return defaults
     finally:
         _record_yahoo_metadata_result(
             symbol,
             time.monotonic() - metadata_started,
             outcome,
+            failure_category,
         )
 
 
@@ -722,33 +790,61 @@ def get_news_research(symbol: str, company_name: str = "") -> Dict[str, Any]:
     Pulls recent headlines and creates catalyst/risk summary.
     """
     if not NEWSAPI_KEY:
+        _record_newsapi_diagnostic(symbol, NEWSAPI_AUTH_FAILURE)
         return {}
 
     query = company_name if company_name and company_name != symbol else symbol
 
-    data = http_get_json(
-        "https://newsapi.org/v2/everything",
-        params={
-            "q": f'"{query}" OR {symbol}',
-            "language": "en",
-            "sortBy": "publishedAt",
-            "pageSize": 8,
-            "apiKey": NEWSAPI_KEY,
-        },
-        timeout=10,
-    )
+    try:
+        response = requests.get(
+            "https://newsapi.org/v2/everything",
+            params={
+                "q": f'"{query}" OR {symbol}',
+                "language": "en",
+                "sortBy": "publishedAt",
+                "pageSize": 8,
+                "apiKey": NEWSAPI_KEY,
+            },
+            timeout=10,
+        )
+    except (requests.Timeout, requests.ConnectionError, requests.RequestException):
+        _record_newsapi_diagnostic(symbol, NEWSAPI_NETWORK_FAILURE)
+        return {}
+    except Exception:
+        _record_newsapi_diagnostic(symbol, NEWSAPI_NETWORK_FAILURE)
+        return {}
 
+    if response.status_code in {401, 403}:
+        _record_newsapi_diagnostic(symbol, NEWSAPI_AUTH_FAILURE)
+        return {}
+    if response.status_code == 429:
+        _record_newsapi_diagnostic(symbol, NEWSAPI_RATE_LIMIT)
+        return {}
+    if response.status_code != 200:
+        _record_newsapi_diagnostic(symbol, NEWSAPI_HTTP_FAILURE)
+        return {}
+    try:
+        data = response.json()
+    except Exception:
+        _record_newsapi_diagnostic(symbol, NEWSAPI_SCHEMA_FAILURE)
+        return {}
     if not isinstance(data, dict):
+        _record_newsapi_diagnostic(symbol, NEWSAPI_SCHEMA_FAILURE)
         return {}
 
     articles = data.get("articles") or []
-    if not isinstance(articles, list) or not articles:
+    if not isinstance(articles, list):
+        _record_newsapi_diagnostic(symbol, NEWSAPI_SCHEMA_FAILURE)
+        return {}
+    if not articles:
+        _record_newsapi_diagnostic(symbol, NEWSAPI_ZERO_ARTICLES)
         return {}
 
     headlines = []
     total_score = 0
     positive_hits: List[str] = []
     negative_hits: List[str] = []
+    relevance_rejected_count = 0
 
     for article in articles[:8]:
         title = safe_text(article.get("title"), "")
@@ -759,6 +855,7 @@ def get_news_research(symbol: str, company_name: str = "") -> Dict[str, Any]:
         if not title:
             continue
         if not news_item_is_company_relevant(title, description, symbol, company_name):
+            relevance_rejected_count += 1
             continue
 
         score, positives, negatives = score_headline_sentiment(title, description)
@@ -778,7 +875,21 @@ def get_news_research(symbol: str, company_name: str = "") -> Dict[str, Any]:
         })
 
     if not headlines:
+        _record_newsapi_diagnostic(
+            symbol,
+            NEWSAPI_RELEVANCE_REJECTED,
+            article_count=len(articles),
+            relevance_rejected_count=relevance_rejected_count,
+        )
         return {}
+
+    _record_newsapi_diagnostic(
+        symbol,
+        NEWSAPI_SUCCESS,
+        article_count=len(articles),
+        accepted_count=len(headlines),
+        relevance_rejected_count=relevance_rejected_count,
+    )
 
     if total_score > 1:
         sentiment_label = "Positive"
@@ -3871,6 +3982,11 @@ _SCAN_TIMINGS = {
     "yahoo_metadata_successes": 0,
     "yahoo_metadata_failures": 0,
     "yahoo_metadata_empty": 0,
+    "yahoo_metadata_rate_limited": 0,
+    "yahoo_metadata_invalid_or_delisted": 0,
+    "yahoo_metadata_timeout_or_network": 0,
+    "yahoo_metadata_parsing_or_schema": 0,
+    "yahoo_metadata_other_exceptions": 0,
     "yahoo_metadata_slow_calls": 0,
     "yahoo_metadata_max_seconds": 0.0,
     "yahoo_metadata_p95_seconds": 0.0,
@@ -3916,16 +4032,64 @@ def _persisted_scan_timings() -> Dict[str, Any]:
     }
 
 
-def _record_yahoo_metadata_result(symbol: str, elapsed: float, outcome: str) -> None:
+def _record_yahoo_metadata_result(
+    symbol: str,
+    elapsed: float,
+    outcome: str,
+    failure_category: str | None = None,
+) -> None:
     _record_scan_timing("yahoo_metadata_calls", count=1)
     _record_scan_timing("yahoo_metadata_seconds", elapsed=elapsed)
     _record_scan_timing(f"yahoo_metadata_{outcome}", count=1)
+    if outcome == "failures":
+        category = failure_category or "other_exceptions"
+        _record_scan_timing(f"yahoo_metadata_{category}", count=1)
     _YAHOO_METADATA_LATENCIES.append((symbol, elapsed))
     if elapsed > YAHOO_METADATA_SLOW_SECONDS:
         _record_scan_timing("yahoo_metadata_slow_calls", count=1)
     _SCAN_TIMINGS["yahoo_metadata_max_seconds"] = max(
         float(_SCAN_TIMINGS["yahoo_metadata_max_seconds"]), elapsed
     )
+
+
+def _classify_yahoo_metadata_exception(exc: Exception) -> str:
+    """Classify failures without logging provider response content."""
+    name = type(exc).__name__.lower()
+    message = str(exc).lower()
+    if "ratelimit" in name or "rate limit" in message or "too many requests" in message or "429" in message:
+        return "rate_limited"
+    if "delisted" in message or "not found" in message or "no data found" in message or "404" in message:
+        return "invalid_or_delisted"
+    if (
+        isinstance(exc, (TimeoutError, requests.Timeout, requests.ConnectionError))
+        or "timeout" in name
+        or "timed out" in message
+        or "connection" in name
+    ):
+        return "timeout_or_network"
+    if isinstance(exc, (TypeError, ValueError, KeyError, json.JSONDecodeError)) or "decode" in name:
+        return "parsing_or_schema"
+    return "other_exceptions"
+
+
+def yahoo_metadata_dependency_map() -> Dict[str, Tuple[str, ...]]:
+    """Document why get_info cannot currently be deferred without model drift."""
+    return {
+        "before_prescreen": (
+            "company_name", "sector", "industry", "market_cap", "quote_type",
+            "revenue_growth", "earnings_growth", "forward_pe", "forward_eps",
+            "return_on_equity", "institutional_ownership_pct", "insider_ownership_pct",
+        ),
+        "scoring_and_ranking": (
+            "market_cap", "revenue_growth", "earnings_growth", "forward_pe", "forward_eps",
+            "analyst_target_mean", "analyst_target_high", "analyst_target_low",
+            "analyst_count", "recommendation_mean",
+        ),
+        "post_prescreen_presentation_only": (
+            "fund_family", "fund_category", "expense_ratio", "distribution_yield",
+            "fund_total_assets", "website", "description", "country", "exchange",
+        ),
+    }
 
 
 def _finalize_yahoo_metadata_percentiles() -> None:
@@ -4559,6 +4723,7 @@ def scan_market() -> Dict[str, Any]:
     for timing_key in list(_SCAN_TIMINGS):
         _SCAN_TIMINGS[timing_key] = 0 if isinstance(_SCAN_TIMINGS[timing_key], int) else 0.0
     _YAHOO_METADATA_LATENCIES.clear()
+    _NEWSAPI_DIAGNOSTICS.clear()
     universe_started = time.monotonic()
     universe = build_universe()
     _record_scan_timing("universe_construction_seconds", time.monotonic() - universe_started)
@@ -4870,7 +5035,10 @@ def scan_market() -> Dict[str, Any]:
         "etf_count": len(etf_rows),
         "fallback_rows_allowed": False,
         "data_dir": str(DATA_DIR),
-        "github_persisted": bool(os.getenv("GITHUB_ACTIONS")),
+        "github_persisted": False,
+        "git_persistence_owner": (
+            "GITHUB_ACTIONS_WORKFLOW" if os.getenv("GITHUB_ACTIONS") else "SCANNER_LOCAL_PERSISTENCE"
+        ),
         "duration_seconds": 0.0,
         "fast_cron_mode": FAST_CRON_MODE,
         "full_committee_limit": FULL_COMMITTEE_LIMIT,
@@ -5003,17 +5171,19 @@ def scan_market() -> Dict[str, Any]:
     _SCAN_TIMINGS["unattributed_seconds"] = _reconcile_scan_timings(scanner_total)
     state["duration_seconds"] = round(scanner_total, 2)
     state["run_timings"] = _persisted_scan_timings()
+    state["provider_diagnostics"] = {"newsapi": _newsapi_diagnostic_summary()}
     write_json(STATE_FILE, state)
 
     persistence_started = time.monotonic()
     print("[persistence] start", flush=True)
-    if GITHUB_PERSIST:
-        state["github_persisted"] = persist_to_github() or bool(os.getenv("GITHUB_ACTIONS"))
+    if GITHUB_PERSIST and not os.getenv("GITHUB_ACTIONS"):
+        state["github_persisted"] = persist_to_github()
         write_json(STATE_FILE, state)
     persistence_elapsed = time.monotonic() - persistence_started
     print(
         f"[persistence] end elapsed_seconds={persistence_elapsed:.2f} "
-        f"enabled={GITHUB_PERSIST}",
+        f"enabled={GITHUB_PERSIST and not bool(os.getenv('GITHUB_ACTIONS'))} "
+        f"owner={state['git_persistence_owner']}",
         flush=True,
     )
     print(
@@ -5047,15 +5217,14 @@ def persist_to_github() -> bool:
     Uses existing Render repo checkout and credentials.
     Safe no-op if nothing changed.
     """
-    files = [
-        str(FULL_SCAN_FILE),
-        str(PRESCREEN_FILE),
-        str(STATE_FILE),
-        str(UNIVERSE_FILE),
-        str(RECOVERY_SCAN_FILE),
-        str(ETF_SCAN_FILE),
-        str(WATCHLIST_FILE),
-    ]
+    if os.getenv("GITHUB_ACTIONS"):
+        print("Git persistence deferred to the GitHub Actions workflow.")
+        return False
+
+    # Preserve the legacy non-Actions path, including an explicitly maintained
+    # watchlist. GitHub Actions never enters this branch and stages only the six
+    # generated production outputs in the workflow step.
+    files = [str(path) for path in PRODUCTION_OUTPUT_FILES] + [str(WATCHLIST_FILE)]
 
     code, out = run_cmd(["git", "status", "--porcelain"])
     if code != 0:
