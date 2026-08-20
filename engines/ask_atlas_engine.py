@@ -62,6 +62,10 @@ def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
         "financial_summary": (sections.get("financials") or {}).get("interpretation"),
         "technical_summary": (sections.get("technical") or {}).get("interpretation"),
         "earnings_summary": (sections.get("earnings") or {}).get("interpretation"),
+        "earnings_intelligence": report.get("earnings_intelligence") or {},
+        "earnings_history": (report.get("earnings_intelligence") or {}).get("history") or [],
+        "market_context": report.get("market_context") or {},
+        "verified_company_news": (sections.get("news") or {}).get("data") or [],
         "political_summary": (sections.get("political") or {}).get("interpretation"),
         "news_summary": (sections.get("news") or {}).get("interpretation"),
         "primary_risk": (intelligence.get("key_risks") or [""])[0],
@@ -137,6 +141,55 @@ def _deterministic_answer(question: str, report: Mapping[str, Any]) -> str:
     analyst = report.get("analyst_intelligence") or {}
     policy = report.get("policy_intelligence") or build_policy_intelligence(report)
     ai_valuation = ai_valuation_object(report)
+
+    earnings_terms = (
+        "earnings getting", "earnings better", "earnings worse", "quarters has",
+        "quarters have", "beaten estimates", "beat estimates", "earnings trend",
+        "next quarter", "eps surprise", "revenue surprise",
+    )
+    if "earn" in q or any(term in q for term in earnings_terms):
+        earnings = report.get("earnings_intelligence") or {}
+        summary = report.get("earnings_summary") or {}
+        if earnings.get("semantic_status") == "NOT_APPLICABLE":
+            return f"### Earnings view for {ticker}\nCorporate earnings intelligence does not apply to ETFs."
+        if earnings.get("semantic_status") != "AVAILABLE":
+            return (
+                f"### Earnings view for {ticker}\nReported earnings history is unavailable, so Atlas cannot verify whether "
+                "earnings are improving or deteriorating. Atlas has not verified management guidance or transcript evidence."
+            )
+        latest = earnings.get("latest_quarter") or {}
+        lines = [f"### Earnings view for {ticker}", summary.get("what_happened") or "The latest quarter is available."]
+        lines.append(
+            f"**Recent streaks:** {earnings.get('consecutive_eps_beats', 0)} consecutive EPS beat(s); "
+            f"{earnings.get('consecutive_revenue_beats', 0)} consecutive revenue beat(s)."
+        )
+        lines.append(
+            f"**Trend:** EPS surprises are {str(earnings.get('eps_surprise_trend') or 'UNAVAILABLE').lower()}; "
+            f"revenue surprises are {str(earnings.get('revenue_surprise_trend') or 'UNAVAILABLE').lower()}."
+        )
+        lines.append(f"**Watch next:** {summary.get('watch_next') or 'The next verified reported quarter.'}")
+        lines.append("**Evidence boundary:** Atlas has not verified management guidance or transcript evidence.")
+        if latest.get("report_date"):
+            lines.append(f"Latest reported evidence date: {latest['report_date']}.")
+        return "\n\n".join(lines)
+
+    market_terms = (
+        "risk-off", "risk off", "market-wide", "market wide", "broad market",
+        "buy the dip", "don't panic", "decline company-specific", "decline company specific",
+    )
+    if any(term in q for term in market_terms):
+        context = report.get("market_context") or {}
+        regime = context.get("market_regime") or "UNAVAILABLE"
+        lines = [f"### Market-stress context for {ticker}", f"**Broad-market regime:** {str(regime).replace('_', ' ').title()}."]
+        if regime == "UNAVAILABLE":
+            lines.append("Atlas lacks sufficient broad-market trend evidence to classify this decline as company-specific or market-wide.")
+        else:
+            lines.append(
+                "Atlas separates broad-market pressure from company evidence. Patience or staged buying requires the company thesis to remain intact; "
+                "fundamental, guidance, valuation, or technical deterioration instead warrants caution or thesis review."
+            )
+        lines.append("Atlas does not issue a blanket 'buy the dip' or 'don't panic' instruction.")
+        return "\n\n".join(lines)
 
     ai_valuation_terms = (
         "ai valuation", "ai base value", "ai bear", "ai bull",
@@ -261,13 +314,6 @@ def _deterministic_answer(question: str, report: Mapping[str, Any]) -> str:
         risks = "\n".join(f"- {item}" for item in intelligence.get("key_risks") or [])
         return f"### Main risks for {ticker}\n{risks or '- No structured risks were populated.'}"
 
-    if "earn" in q:
-        section = (report.get("sections") or {}).get("earnings") or {}
-        return (
-            f"### Earnings view for {ticker}\n"
-            f"{section.get('interpretation') or 'Structured earnings evidence is not available.'}"
-        )
-
     if "beginner" in q or "simple" in q or "explain" in q:
         return (
             f"### {ticker} in plain English\n"
@@ -312,9 +358,18 @@ def ask_atlas(question: str, report: Mapping[str, Any]) -> dict[str, Any]:
         "ai think", "ai thinks", "ai worth", "quant fv", "valuation method",
         "valuation different", "which valuation",
     ))
+    earnings_question = "earn" in question.lower() or any(term in question.lower() for term in (
+        "beat estimates", "beaten estimates", "next quarter", "eps surprise", "revenue surprise",
+    ))
+    market_stress_question = any(term in question.lower() for term in (
+        "risk-off", "risk off", "market-wide", "market wide", "broad market", "buy the dip", "don't panic",
+    ))
     # Analyst answers remain deterministic so an LLM cannot introduce a firm,
     # target, action, count, or median absent from the normalized object.
-    if ai_valuation_question:
+    if earnings_question or market_stress_question:
+        answer = _deterministic_answer(question, report)
+        mode = "deterministic_earnings_grounding" if earnings_question else "deterministic_market_context_grounding"
+    elif ai_valuation_question:
         answer = _deterministic_answer(question, report)
         mode = "deterministic_ai_valuation_grounding"
     elif analyst_question or policy_question:

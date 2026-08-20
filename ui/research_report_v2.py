@@ -861,6 +861,14 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
     gaps = guidance.get("unavailable_evidence") or []
     if gaps:
         st.caption("Important evidence unavailable: " + "; ".join(gaps))
+    earnings_brief = report.get("earnings_summary") or {}
+    st.markdown("### Earnings Intelligence")
+    if earnings_brief.get("semantic_status") == "AVAILABLE":
+        st.write(earnings_brief.get("summary"))
+    elif earnings_brief.get("semantic_status") == "NOT_APPLICABLE":
+        st.caption("Corporate Earnings Intelligence is not applicable to this ETF.")
+    else:
+        st.caption("Reported earnings history is unavailable for a grounded trend assessment.")
     tabs = st.tabs(
         [
             "Thesis",
@@ -937,25 +945,37 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
 
     with tabs[2]:
         section = report["sections"]["earnings"]
-        st.markdown("### Latest Earnings & Transcript")
+        intelligence = report.get("earnings_intelligence") or {}
+        summary = report.get("earnings_summary") or {}
+        st.markdown("### Deterministic Earnings Intelligence")
         _meta(section)
-        data = section.get("data") or {}
-        _metric_grid(
-            data,
-            pct_keys={"eps_surprise_pct", "revenue_surprise_pct"},
-        )
-        for key in ("guidance", "management_tone", "transcript_summary", "important_quote"):
-            if data.get(key):
-                st.markdown(f"#### {key.replace('_', ' ').title()}")
-                st.write(data[key])
+        latest = intelligence.get("latest_quarter") or {}
+        if intelligence.get("semantic_status") == "AVAILABLE":
+            metrics = st.columns(4)
+            metrics[0].metric("Latest quarter", latest.get("fiscal_period") or latest.get("report_date") or "Unavailable")
+            metrics[1].metric("Quarter result", intelligence.get("latest_quarter_classification") or "Unavailable")
+            metrics[2].metric("Consecutive EPS beats", intelligence.get("consecutive_eps_beats", 0))
+            metrics[3].metric("Consecutive revenue beats", intelligence.get("consecutive_revenue_beats", 0))
+            st.write(summary.get("what_happened"))
+            st.write(summary.get("trend_assessment"))
+            st.info(summary.get("watch_next"))
+        elif intelligence.get("semantic_status") == "NOT_APPLICABLE":
+            st.info("Corporate Earnings Intelligence is not applicable to this ETF.")
+        else:
+            st.info("No structured multi-quarter earnings history is attached to this stock row.")
 
-        history = section.get("history") or []
+        history = intelligence.get("history") or []
         st.markdown("#### Previous Earnings History")
         if history:
             st.dataframe(pd.DataFrame(history), hide_index=True, use_container_width=True)
         else:
             st.info("No structured multi-quarter earnings history is attached to this stock row.")
-        _render_interpretation(section.get("interpretation", ""))
+        guidance_object = report.get("management_guidance") or {}
+        st.markdown("#### Management Guidance")
+        if guidance_object.get("semantic_status") == "AVAILABLE":
+            st.json({key: value for key, value in guidance_object.items() if key not in {"version", "semantic_status"}})
+        else:
+            st.caption(guidance_object.get("status_detail") or "Management guidance is unavailable.")
 
     with tabs[3]:
         risk = report["sections"]["risk"]
@@ -1036,7 +1056,11 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
 
     with tabs[7]:
         st.markdown("### Earnings Call / Transcript Intelligence")
-        st.info("Transcript intelligence is not connected in this phase. Atlas does not infer management guidance without structured transcript evidence.")
+        transcript = report.get("transcript_intelligence") or {}
+        if transcript.get("semantic_status") == "AVAILABLE":
+            st.json({key: value for key, value in transcript.items() if key not in {"version", "semantic_status"}})
+        else:
+            st.info(transcript.get("status_detail") or "Transcript intelligence not yet available.")
 
     with tabs[9]:
         st.markdown("### Final Atlas Guidance")

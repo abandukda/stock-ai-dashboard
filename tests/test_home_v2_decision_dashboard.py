@@ -200,7 +200,7 @@ def test_deterministic_synthesis_is_company_specific_and_acknowledges_gaps():
 
 def test_home_source_has_compact_secondary_tabs_and_distinct_timestamps():
     source = open("ui/home_v104.py", encoding="utf-8").read()
-    assert '["My Stocks", "More Opportunities", "Catalysts", "Calendar"]' in source
+    assert '["My Stocks", "More Opportunities", "Catalysts", "What Is Moving Markets", "Calendar"]' in source
     assert "Delayed market context" in source
     assert "atlas-market-strip" in source
     assert "research_navigation_state(ticker)" in source

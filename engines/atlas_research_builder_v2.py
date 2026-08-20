@@ -33,6 +33,14 @@ from engines.policy_intelligence import build_policy_intelligence
 from engines.atlas_intelligence_engine import build_executive_intelligence
 from engines.guidance_summary import build_guidance_summary, guidance_summary_text
 from engines.analyst_intelligence import build_analyst_intelligence
+from engines.earnings_intelligence import (
+    build_earnings_intelligence,
+    build_earnings_summary,
+    build_management_guidance,
+    build_transcript_intelligence,
+)
+from engines.market_context import build_market_context
+from engines.market_moving_news import build_market_moving_news
 
 
 Enricher = Callable[[str, Mapping[str, Any]], Mapping[str, Any]]
@@ -514,6 +522,24 @@ def build_atlas_research_v2(
     ).upper()
     is_etf = security_type in {"ETF", "FUND", "MUTUALFUND"}
     earnings_history = _earnings_history(enriched_row)
+    earnings_intelligence = build_earnings_intelligence(
+        earnings_history, is_etf=is_etf
+    )
+    earnings_summary = build_earnings_summary(
+        earnings_intelligence, ticker=ticker
+    )
+    management_guidance = build_management_guidance(
+        enriched_row, is_etf=is_etf
+    )
+    transcript_intelligence = build_transcript_intelligence(
+        enriched_row, is_etf=is_etf
+    )
+    market_context = build_market_context(
+        enriched_row.get("market_context_inputs")
+    )
+    market_moving_news = build_market_moving_news(
+        enriched_row.get("market_moving_news_candidates")
+    )
     analyst_details = _analyst_details(enriched_row, analyst_data)
     risk_rows = _risk_interpretations(institutional.get("risk_matrix") or [])
 
@@ -660,6 +686,12 @@ def build_atlas_research_v2(
         "trade_plan": trade_plan,
         "policy_intelligence": policy_intelligence,
         "ai_valuation": ai_valuation,
+        "earnings_intelligence": earnings_intelligence,
+        "earnings_summary": earnings_summary,
+        "management_guidance": management_guidance,
+        "transcript_intelligence": transcript_intelligence,
+        "market_context": market_context,
+        "market_moving_news": market_moving_news,
         "sections": sections,
         "research_completeness_pct": completeness,
         "evidence_coverage_pct": completeness,

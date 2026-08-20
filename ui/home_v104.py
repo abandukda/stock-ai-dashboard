@@ -22,6 +22,8 @@ from engines.buy_now_synthesis import (
     synthesize_buy_now,
 )
 from engines.research_engine import research_navigation_state
+from engines.market_context import build_atlas_now, build_market_context
+from engines.market_moving_news import build_market_moving_news
 from ui.research_report_v104 import (
     inject_v104_polish_css,
     render_candidate_card,
@@ -357,6 +359,32 @@ def render_v104_home(
     st.markdown("# Atlas Morning Decision")
     _render_market_tape()
 
+    market_context = build_market_context(pipeline.get("market_context_inputs"))
+    atlas_now = build_atlas_now(
+        ranked,
+        market_context=market_context,
+        watchlist_tickers=watchlist_tickers,
+        as_of=signal_as_of,
+    )
+    st.markdown("## ATLAS NOW")
+    st.caption(
+        f"{atlas_now['freshness_label']}"
+        + (f" · As of {atlas_now['as_of']}" if atlas_now.get("as_of") else "")
+    )
+    now_columns = st.columns(4)
+    now_columns[0].metric("BUY NOW", atlas_now["buy_now_count"])
+    now_columns[1].metric("Developing", atlas_now["developing_opportunity_count"])
+    now_columns[2].metric("Upcoming earnings", len(atlas_now["upcoming_earnings"]))
+    now_columns[3].metric("Market regime", str(atlas_now["market_regime"]).replace("_", " ").title())
+    if atlas_now["upcoming_earnings"]:
+        upcoming = ", ".join(
+            f"{item['ticker']} ({item['date'][:10]})"
+            for item in atlas_now["upcoming_earnings"][:5]
+        )
+        st.caption(f"Promoted/watchlist earnings: {upcoming}")
+    if atlas_now["major_research_changes"]:
+        st.caption("Major research changes: " + "; ".join(str(item) for item in atlas_now["major_research_changes"]))
+
     st.markdown("## Atlas Morning View")
     st.info(home["morning_view"])
 
@@ -405,7 +433,7 @@ def render_v104_home(
             )
 
     st.markdown("## More Decisions")
-    tabs = st.tabs(["My Stocks", "More Opportunities", "Catalysts", "Calendar"])
+    tabs = st.tabs(["My Stocks", "More Opportunities", "Catalysts", "What Is Moving Markets", "Calendar"])
     with tabs[0]:
         if home["portfolio_actions"]:
             _render_action_rows("Portfolio Actions", home["portfolio_actions"], "home_portfolio")
@@ -420,6 +448,16 @@ def render_v104_home(
             catalyst = (item.get("guidance_summary") or {}).get("next_catalyst") or {}
             st.markdown(f"**{item.get('ticker')} · {catalyst.get('date')} · {item.get('catalyst_type')}** — {catalyst.get('event')}")
     with tabs[3]:
+        moving = build_market_moving_news(pipeline.get("market_moving_news_candidates"))
+        stories = moving.get("stories") or []
+        if not stories:
+            st.caption(moving.get("status_detail") or "Verified market-moving evidence is unavailable.")
+        for story in stories:
+            st.markdown(f"**{story['impact']} · {story['headline']}**")
+            st.caption(f"{story['source']} · {story['timestamp']} · {story['direction']}")
+            st.write(story["why_it_matters"])
+            st.markdown(f"[Open verified source]({story['url']})")
+    with tabs[4]:
         st.caption("Open Market & Economic Calendar below for the full verified calendar.")
 
 
