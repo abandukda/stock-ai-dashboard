@@ -1,64 +1,64 @@
 {
-  "generated_at": "2026-08-20T05:46:36.118692+00:00",
+  "generated_at": "2026-08-20T11:41:23.143363+00:00",
   "status": "success",
   "version": "V80.5",
   "universe_count": 3443,
   "prescreen_count": 650,
   "full_scan_count": 150,
   "recovery_count": 100,
-  "etf_count": 35,
+  "etf_count": 37,
   "fallback_rows_allowed": false,
   "data_dir": ".",
   "github_persisted": false,
   "git_persistence_owner": "GITHUB_ACTIONS_WORKFLOW",
-  "duration_seconds": 1458.83,
+  "duration_seconds": 1544.02,
   "fast_cron_mode": true,
   "full_committee_limit": 15,
-  "deep_enrichment_symbol_count": 18,
+  "deep_enrichment_symbol_count": 21,
   "pre_rank_deep_apis_skipped": true,
   "run_timings": {
-    "scanner_total_seconds": 1458.83,
-    "yahoo_broad_scan_seconds": 666.27,
+    "scanner_total_seconds": 1544.02,
+    "yahoo_broad_scan_seconds": 735.07,
     "yahoo_retry_count": 0,
     "yahoo_backoff_seconds": 0.0,
-    "yahoo_metadata_calls": 2838,
-    "yahoo_metadata_seconds": 679.67,
-    "yahoo_metadata_successes": 2470,
-    "yahoo_metadata_failures": 368,
+    "yahoo_metadata_calls": 2837,
+    "yahoo_metadata_seconds": 743.32,
+    "yahoo_metadata_successes": 2837,
+    "yahoo_metadata_failures": 0,
     "yahoo_metadata_empty": 0,
-    "yahoo_metadata_rate_limited": 368,
+    "yahoo_metadata_rate_limited": 0,
     "yahoo_metadata_invalid_or_delisted": 0,
     "yahoo_metadata_timeout_or_network": 0,
     "yahoo_metadata_parsing_or_schema": 0,
     "yahoo_metadata_other_exceptions": 0,
     "yahoo_metadata_slow_calls": 0,
-    "yahoo_metadata_max_seconds": 0.93,
-    "yahoo_metadata_p95_seconds": 0.4,
-    "broad_row_processing_seconds": 17.25,
+    "yahoo_metadata_max_seconds": 1.15,
+    "yahoo_metadata_p95_seconds": 0.39,
+    "broad_row_processing_seconds": 17.63,
     "prescreen_ranking_seconds": 0.02,
     "full_scan_construction_seconds": 0.01,
     "recovery_processing_seconds": 0.0,
-    "universe_construction_seconds": 3.32,
+    "universe_construction_seconds": 2.67,
     "universe_persistence_seconds": 0.0,
-    "finalist_row_processing_seconds": 14.79,
-    "finalist_provider_calls": 18,
-    "finalist_provider_seconds": 59.48,
-    "etf_rows_processed": 35,
-    "etf_processing_seconds": 17.77,
+    "finalist_row_processing_seconds": 11.78,
+    "finalist_provider_calls": 21,
+    "finalist_provider_seconds": 24.77,
+    "etf_rows_processed": 37,
+    "etf_processing_seconds": 8.43,
     "etf_full_committee_calls": 10,
-    "etf_full_committee_seconds": 17.72,
+    "etf_full_committee_seconds": 8.38,
     "etf_research_calls": 10,
     "etf_research_seconds": 0.0,
     "etf_newsapi_calls": 10,
-    "etf_newsapi_seconds": 11.72,
+    "etf_newsapi_seconds": 1.79,
     "etf_finnhub_news_calls": 10,
-    "etf_finnhub_news_seconds": 1.78,
+    "etf_finnhub_news_seconds": 1.59,
     "etf_fmp_news_calls": 10,
-    "etf_fmp_news_seconds": 2.87,
-    "etf_sec_ticker_map_seconds": 0.81,
-    "etf_sec_submissions_seconds": 0.43,
-    "sec_ticker_map_downloads": 25,
-    "output_persistence_seconds": 0.25,
+    "etf_fmp_news_seconds": 2.49,
+    "etf_sec_ticker_map_seconds": 2.11,
+    "etf_sec_submissions_seconds": 0.27,
+    "sec_ticker_map_downloads": 26,
+    "output_persistence_seconds": 0.32,
     "unattributed_seconds": 0.0
   },
   "filters": {
@@ -175,140 +175,160 @@
   },
   "provider_diagnostics": {
     "newsapi": {
-      "requests": 18,
+      "requests": 21,
       "by_status": {
-        "ALL_ARTICLES_REJECTED_BY_RELEVANCE": 9,
-        "SUCCESS": 9
+        "HTTP_RATE_LIMIT": 21
       },
-      "article_count": 139,
-      "accepted_count": 33,
-      "relevance_rejected_count": 106,
+      "article_count": 0,
+      "accepted_count": 0,
+      "relevance_rejected_count": 0,
       "results": [
         {
           "ticker": "NVDA",
-          "status": "SUCCESS",
-          "article_count": 8,
-          "accepted_count": 6,
-          "relevance_rejected_count": 2
-        },
-        {
-          "ticker": "MU",
-          "status": "SUCCESS",
-          "article_count": 8,
-          "accepted_count": 1,
-          "relevance_rejected_count": 7
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
+          "accepted_count": 0,
+          "relevance_rejected_count": 0
         },
         {
           "ticker": "CHTR",
-          "status": "SUCCESS",
-          "article_count": 8,
-          "accepted_count": 5,
-          "relevance_rejected_count": 3
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
+          "accepted_count": 0,
+          "relevance_rejected_count": 0
         },
         {
           "ticker": "CRM",
-          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
-          "article_count": 8,
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
           "accepted_count": 0,
-          "relevance_rejected_count": 8
-        },
-        {
-          "ticker": "RGLD",
-          "status": "SUCCESS",
-          "article_count": 8,
-          "accepted_count": 5,
-          "relevance_rejected_count": 3
+          "relevance_rejected_count": 0
         },
         {
           "ticker": "HL",
-          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
-          "article_count": 8,
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
           "accepted_count": 0,
-          "relevance_rejected_count": 8
+          "relevance_rejected_count": 0
         },
         {
           "ticker": "INSM",
-          "status": "SUCCESS",
-          "article_count": 8,
-          "accepted_count": 2,
-          "relevance_rejected_count": 6
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
+          "accepted_count": 0,
+          "relevance_rejected_count": 0
+        },
+        {
+          "ticker": "EXPE",
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
+          "accepted_count": 0,
+          "relevance_rejected_count": 0
         },
         {
           "ticker": "PCG",
-          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
-          "article_count": 8,
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
           "accepted_count": 0,
-          "relevance_rejected_count": 8
+          "relevance_rejected_count": 0
         },
         {
           "ticker": "GPN",
-          "status": "SUCCESS",
-          "article_count": 8,
-          "accepted_count": 2,
-          "relevance_rejected_count": 6
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
+          "accepted_count": 0,
+          "relevance_rejected_count": 0
         },
         {
           "ticker": "ZBH",
-          "status": "SUCCESS",
-          "article_count": 8,
-          "accepted_count": 3,
-          "relevance_rejected_count": 5
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
+          "accepted_count": 0,
+          "relevance_rejected_count": 0
         },
         {
           "ticker": "LYFT",
-          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
-          "article_count": 8,
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
           "accepted_count": 0,
-          "relevance_rejected_count": 8
-        },
-        {
-          "ticker": "HBM",
-          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
-          "article_count": 8,
-          "accepted_count": 0,
-          "relevance_rejected_count": 8
+          "relevance_rejected_count": 0
         },
         {
           "ticker": "INTU",
-          "status": "SUCCESS",
-          "article_count": 8,
-          "accepted_count": 4,
-          "relevance_rejected_count": 4
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
+          "accepted_count": 0,
+          "relevance_rejected_count": 0
+        },
+        {
+          "ticker": "AG",
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
+          "accepted_count": 0,
+          "relevance_rejected_count": 0
         },
         {
           "ticker": "CVE",
-          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
-          "article_count": 8,
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
           "accepted_count": 0,
-          "relevance_rejected_count": 8
+          "relevance_rejected_count": 0
         },
         {
           "ticker": "PAAS",
-          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
-          "article_count": 8,
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
           "accepted_count": 0,
-          "relevance_rejected_count": 8
+          "relevance_rejected_count": 0
+        },
+        {
+          "ticker": "ZBRA",
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
+          "accepted_count": 0,
+          "relevance_rejected_count": 0
         },
         {
           "ticker": "SE",
-          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
-          "article_count": 8,
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
           "accepted_count": 0,
-          "relevance_rejected_count": 8
+          "relevance_rejected_count": 0
         },
         {
-          "ticker": "KVYO",
-          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
-          "article_count": 3,
+          "ticker": "AR",
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
           "accepted_count": 0,
-          "relevance_rejected_count": 3
+          "relevance_rejected_count": 0
         },
         {
-          "ticker": "TRMB",
-          "status": "SUCCESS",
-          "article_count": 8,
-          "accepted_count": 5,
-          "relevance_rejected_count": 3
+          "ticker": "SNX",
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
+          "accepted_count": 0,
+          "relevance_rejected_count": 0
+        },
+        {
+          "ticker": "ADSK",
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
+          "accepted_count": 0,
+          "relevance_rejected_count": 0
+        },
+        {
+          "ticker": "BABA",
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
+          "accepted_count": 0,
+          "relevance_rejected_count": 0
+        },
+        {
+          "ticker": "AMZN",
+          "status": "HTTP_RATE_LIMIT",
+          "article_count": 0,
+          "accepted_count": 0,
+          "relevance_rejected_count": 0
         }
       ]
     }
