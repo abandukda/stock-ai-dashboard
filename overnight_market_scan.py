@@ -35,8 +35,10 @@ from engines.deep_research_evidence import (
     normalize_news_articles,
     select_deep_enrichment_symbols,
 )
+from engines.fmp_normalization import normalize_ratios
 from core.pipeline_v104 import build_v104_pipeline
 from services.deep_research_cache import cached_evidence
+from services.fmp_stable_client import AUTHORIZED_EMPTY, FMPStableClient, SUCCESS
 
 
 def v42_safe_float(value, default=0.0):
@@ -608,13 +610,12 @@ def get_fmp_data(symbol: str) -> Dict[str, Any]:
 
     try:
         symbol = str(symbol or "").strip().upper()
-        url = "https://financialmodelingprep.com/stable/profile"
-        response = requests.get(url, params={"symbol": symbol, "apikey": FMP_API_KEY}, timeout=10)
-
-        if response.status_code != 200:
+        fmp_response = FMPStableClient(FMP_API_KEY, timeout_seconds=10).get(
+            "profile", {"symbol": symbol}
+        )
+        if fmp_response.outcome != SUCCESS:
             return {}
-
-        data = response.json()
+        data = fmp_response.payload
         if isinstance(data, dict):
             data = data.get("data") or data.get("results") or data.get("profile") or []
         if not isinstance(data, list) or not data or not isinstance(data[0], dict):
@@ -2685,12 +2686,14 @@ def get_fmp_financial_intelligence(symbol: str) -> Dict[str, Any]:
 
     result: Dict[str, Any] = {}
 
+    client = FMPStableClient(FMP_API_KEY, timeout_seconds=12)
+
     def get(endpoint: str, params: Optional[Dict[str, Any]] = None):
-        base = f"https://financialmodelingprep.com/stable/{endpoint}"
-        merged = {"apikey": FMP_API_KEY, "symbol": str(symbol).upper().strip()}
+        merged = {"symbol": str(symbol).upper().strip()}
         if params:
             merged.update(params)
-        return http_get_json(base, params=merged, timeout=12)
+        response = client.get(endpoint, merged)
+        return response.payload if response.outcome in {SUCCESS, AUTHORIZED_EMPTY} else None
 
     # Quarterly financials
     income = get("income-statement", {"period": "quarter", "limit": 5})
@@ -2783,17 +2786,14 @@ def get_fmp_financial_intelligence(symbol: str) -> Dict[str, Any]:
 
     if isinstance(ratios, list) and ratios:
         latest_ratios = ratios[0] or {}
+        canonical_ratios = normalize_ratios(latest_ratios, fetched_at=now_iso())
         result.update({
-            "gross_profit_margin": safe_float(latest_ratios.get("grossProfitMargin")),
-            "operating_profit_margin": safe_float(latest_ratios.get("operatingProfitMargin")),
-            "net_profit_margin": safe_float(latest_ratios.get("netProfitMargin")),
-            "current_ratio": safe_float(latest_ratios.get("currentRatio")),
-            "return_on_equity": safe_float(
-                latest_ratios.get("returnOnEquity")
-                if latest_ratios.get("returnOnEquity") is not None
-                else latest_ratios.get("returnOnEquityRatio")
-            ),
-            "return_on_assets": safe_float(latest_ratios.get("returnOnAssets")),
+            "gross_profit_margin": canonical_ratios.get("gross_profit_margin"),
+            "operating_profit_margin": canonical_ratios.get("operating_profit_margin"),
+            "net_profit_margin": canonical_ratios.get("net_profit_margin"),
+            "current_ratio": canonical_ratios.get("current_ratio"),
+            "return_on_equity": canonical_ratios.get("return_on_equity"),
+            "return_on_assets": canonical_ratios.get("return_on_assets"),
         })
 
     if isinstance(key_metrics, list) and key_metrics:

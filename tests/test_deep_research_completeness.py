@@ -54,10 +54,14 @@ def test_fmp_financials_parse_partial_zero_and_earnings(monkeypatch):
         "stock-peers": [{"peersList": ["ORCL"]}],
     }
 
-    def fake_get(url, params=None, timeout=0):
-        return payloads[url.rsplit("/", 1)[-1]]
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
 
-    monkeypatch.setattr(scan, "http_get_json", fake_get)
+        def get(self, endpoint, params=None):
+            return type("FMPResult", (), {"outcome": "SUCCESS", "payload": payloads[endpoint]})()
+
+    monkeypatch.setattr(scan, "FMPStableClient", FakeClient)
     result = scan.get_fmp_financial_intelligence("CRM")
 
     assert result["total_debt"] == 0
@@ -158,10 +162,14 @@ def test_signed_eps_and_revenue_surprise_scaling_is_unchanged(monkeypatch):
         }],
         "stock-peers": [],
     }
-    monkeypatch.setattr(
-        scan, "http_get_json",
-        lambda url, params=None, timeout=0: payloads[url.rsplit("/", 1)[-1]],
-    )
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def get(self, endpoint, params=None):
+            return type("FMPResult", (), {"outcome": "SUCCESS", "payload": payloads[endpoint]})()
+
+    monkeypatch.setattr(scan, "FMPStableClient", FakeClient)
 
     result = scan.get_fmp_financial_intelligence("CDE")
 

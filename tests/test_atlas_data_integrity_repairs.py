@@ -107,6 +107,14 @@ def test_fmp_latest_earnings_event_survives_normalization(monkeypatch):
     responses = {
         "earnings-surprises/TEST": [{"date": "2026-07-01", "actualEarningResult": 0.0, "estimatedEarning": 0.0}],
     }
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def get(self, endpoint, params=None):
+            return type("FMPResult", (), {"outcome": "AUTHORIZED_EMPTY", "payload": []})()
+
+    monkeypatch.setattr(scan, "FMPStableClient", FakeClient)
     monkeypatch.setattr(scan, "http_get_json", lambda url, params=None, timeout=0: next(
         (value for endpoint, value in responses.items() if endpoint in url), []
     ))
