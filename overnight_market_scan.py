@@ -39,6 +39,7 @@ from engines.fmp_normalization import normalize_ratios
 from core.pipeline_v104 import build_v104_pipeline
 from services.deep_research_cache import cached_evidence
 from services.fmp_stable_client import AUTHORIZED_EMPTY, FMPStableClient, SUCCESS
+from services.fmp_shadow_research import build_fmp_shadow_research, build_provider_comparison
 
 
 def v42_safe_float(value, default=0.0):
@@ -4550,6 +4551,20 @@ def v421_apply_tiered_committee(
                 if enrichment or evidence_only:
                     merge_finalist_enrichment(
                         symbol, row, meta, ind, enrichment, evidence_only=evidence_only
+                    )
+                # Phase 9FMP.2: FMP analyst/ownership/news remains a separate
+                # post-ranking research-only shadow. It never participates in
+                # root-field merging or provider winner selection.
+                shadow = build_fmp_shadow_research(
+                    symbol,
+                    meta.get("company_name", symbol),
+                    api_key=FMP_API_KEY,
+                    relevance_check=news_item_is_company_relevant,
+                )
+                if shadow:
+                    row["fmp_shadow_research"] = shadow
+                    row["provider_comparison_diagnostics"] = build_provider_comparison(
+                        enrichment, shadow
                     )
                 provider_elapsed = time.monotonic() - provider_started
                 _SCAN_TIMINGS["finalist_provider_calls"] += 1

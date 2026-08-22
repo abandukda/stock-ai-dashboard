@@ -147,6 +147,111 @@ def normalize_fund_disclosure(row: Mapping[str, Any], *, fetched_at: str | None 
     return values
 
 
+def normalize_institutional_ownership_summary(
+    row: Mapping[str, Any], *, fetched_at: str | None = None
+) -> dict[str, Any]:
+    reporting_date = _text(_first(row, "date", "reportingDate"))
+    filing_date = _text(_first(row, "filingDate", "acceptedDate"))
+    values = {
+        "symbol": (_text(_first(row, "symbol", "ticker")) or "").upper() or None,
+        "investors_holding": _integer(_first(row, "investorsHolding", "holdersCount")),
+        "institutional_ownership_pct": _number(_first(row, "ownershipPercent", "institutionalOwnershipPercent")),
+        "shares_held": _number(_first(row, "shares", "sharesHeld", "totalShares")),
+        "reporting_date": reporting_date,
+        "filing_date": filing_date,
+        "evidence_available_from": filing_date,
+        "evidence_type": "INSTITUTIONAL_OWNERSHIP_SUMMARY",
+    }
+    available = bool(values["symbol"] and filing_date and any(
+        values[key] is not None for key in ("investors_holding", "institutional_ownership_pct", "shares_held")
+    ))
+    values["provenance"] = _provenance(
+        "institutional-ownership/symbol-positions-summary", fetched_at=fetched_at,
+        reporting_date=reporting_date, filing_date=filing_date, available=available,
+    )
+    return values
+
+
+def normalize_analyst_consensus(row: Mapping[str, Any], *, fetched_at: str | None = None) -> dict[str, Any]:
+    values = {
+        "strong_buy": _integer(_first(row, "strongBuy", "strongBuyCount")),
+        "buy": _integer(_first(row, "buy", "buyCount")),
+        "hold": _integer(_first(row, "hold", "holdCount")),
+        "sell": _integer(_first(row, "sell", "sellCount")),
+        "strong_sell": _integer(_first(row, "strongSell", "strongSellCount")),
+        "consensus": _text(_first(row, "consensus", "rating", "consensusRating")),
+        "observation_date": _text(_first(row, "date", "publishedDate")),
+    }
+    available = bool(values["consensus"] or any(values[key] is not None for key in ("strong_buy", "buy", "hold", "sell", "strong_sell")))
+    values["provenance"] = _provenance(
+        "grades-consensus", fetched_at=fetched_at, observation_date=values["observation_date"], available=available
+    )
+    return values
+
+
+def normalize_analyst_action(row: Mapping[str, Any], *, fetched_at: str | None = None) -> dict[str, Any]:
+    observation_date = _text(_first(row, "date", "publishedDate"))
+    values = {
+        "date": observation_date,
+        "firm": _text(_first(row, "gradingCompany", "firm", "company")),
+        "action": _text(_first(row, "action", "gradingAction")),
+        "from_grade": _text(_first(row, "previousGrade", "fromGrade")),
+        "to_grade": _text(_first(row, "newGrade", "toGrade")),
+    }
+    available = bool(observation_date and values["firm"] and (values["action"] or values["to_grade"]))
+    values["provenance"] = _provenance(
+        "grades", fetched_at=fetched_at, observation_date=observation_date, available=available
+    )
+    return values
+
+
+def normalize_price_target(
+    row: Mapping[str, Any], *, endpoint_family: str, fetched_at: str | None = None
+) -> dict[str, Any]:
+    observation_date = _text(_first(row, "date", "publishedDate", "lastUpdated"))
+    values = {
+        "target_consensus": _number(_first(row, "targetConsensus", "targetMean", "consensus")),
+        "target_median": _number(_first(row, "targetMedian", "medianPriceTarget")),
+        "target_high": _number(_first(row, "targetHigh", "highPriceTarget")),
+        "target_low": _number(_first(row, "targetLow", "lowPriceTarget")),
+        "last_month_average_target": _number(row.get("lastMonthAvgPriceTarget")),
+        "last_quarter_average_target": _number(row.get("lastQuarterAvgPriceTarget")),
+        "last_year_average_target": _number(row.get("lastYearAvgPriceTarget")),
+        "all_time_average_target": _number(row.get("allTimeAvgPriceTarget")),
+        "analyst_count": _integer(_first(row, "analystCount", "numAnalysts")),
+        "observation_date": observation_date,
+    }
+    available = any(values[key] is not None for key in (
+        "target_consensus", "target_median", "target_high", "target_low",
+        "last_month_average_target", "last_quarter_average_target",
+        "last_year_average_target", "all_time_average_target",
+    ))
+    values["provenance"] = _provenance(
+        endpoint_family, fetched_at=fetched_at, observation_date=observation_date, available=available
+    )
+    return values
+
+
+def normalize_fmp_news(
+    row: Mapping[str, Any], *, symbol: str, endpoint_family: str, fetched_at: str | None = None
+) -> dict[str, Any]:
+    published_at = _text(_first(row, "publishedDate", "date", "publishedAt"))
+    values = {
+        "headline": _text(_first(row, "title", "headline")),
+        "source": _text(_first(row, "site", "source", "publisher")),
+        "published_at": published_at,
+        "url": _text(_first(row, "url", "link")),
+        "ticker": str(symbol or "").strip().upper(),
+        "ticker_relevance": "VERIFIED_ENTITY_MATCH",
+        "provider": PROVIDER,
+    }
+    available = bool(values["headline"] and published_at and values["url"])
+    values["provenance"] = _provenance(
+        endpoint_family, fetched_at=fetched_at, observation_date=published_at, available=available
+    )
+    return values
+
+
 def normalize_transcript_period(row: Mapping[str, Any], *, fetched_at: str | None = None) -> dict[str, Any]:
     year = _integer(_first(row, "year", "fiscalYear", "calendarYear"))
     quarter = _integer(_first(row, "quarter", "fiscalQuarter"))
@@ -173,6 +278,8 @@ def latest_valid_transcript_period(rows: Sequence[Mapping[str, Any]], *, fetched
 
 
 __all__ = [
-    "latest_valid_transcript_period", "normalize_analyst_estimate", "normalize_fund_disclosure",
-    "normalize_ratios", "normalize_transcript_period",
+    "latest_valid_transcript_period", "normalize_analyst_action", "normalize_analyst_consensus",
+    "normalize_analyst_estimate", "normalize_fmp_news", "normalize_fund_disclosure",
+    "normalize_institutional_ownership_summary", "normalize_price_target", "normalize_ratios",
+    "normalize_transcript_period",
 ]
