@@ -1,0 +1,37 @@
+name: Phase 2A Sanitized FMP Entitlement Probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sanitized-fmp-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+    steps:
+      - name: Checkout diagnostic source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run bounded sanitized FMP probe
+        shell: bash
+        run: |
+          set +x
+          echo "::add-mask::${FMP_API_KEY}"
+          python -m analysis.phase2a.fmp_entitlement_probe
+
+      - name: Upload sanitized entitlement summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: fmp-entitlement-probe-summary
+          path: fmp_entitlement_probe_summary.json
+          if-no-files-found: error
+          retention-days: 7
