@@ -23,7 +23,7 @@ import threading
 import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 import pandas as pd
 import yfinance as yf
@@ -4000,6 +4000,9 @@ _SCAN_TIMINGS = {
     "finalist_row_processing_seconds": 0.0,
     "finalist_provider_calls": 0,
     "finalist_provider_seconds": 0.0,
+    # Nested subset of finalist_provider_seconds; excluded from reconciliation
+    # to avoid double-counting the outer provider phase.
+    "fmp_shadow_seconds": 0.0,
     "etf_rows_processed": 0,
     "etf_processing_seconds": 0.0,
     "etf_full_committee_calls": 0,
@@ -4020,6 +4023,16 @@ _SCAN_TIMINGS = {
 }
 _YAHOO_METADATA_LATENCIES: List[Tuple[str, float]] = []
 _ACTIVE_COMMITTEE_TIMING_SCOPE = ""
+def _empty_fmp_shadow_diagnostics() -> Dict[str, Any]:
+    return {
+        "symbols": 0, "calls": 0, "live_fetches": 0, "fresh_cache_hits": 0,
+        "stale_fallbacks": 0, "unavailable": 0, "outcomes": {},
+        "provider_rows_returned": 0, "normalized_rows": 0, "retained_rows": 0,
+        "discarded_by_cap": 0, "families": {},
+    }
+
+
+_FMP_SHADOW_RUN_DIAGNOSTICS: Dict[str, Any] = _empty_fmp_shadow_diagnostics()
 
 
 def _record_scan_timing(key: str, elapsed: float = 0.0, count: int = 0) -> None:
@@ -4031,6 +4044,46 @@ def _persisted_scan_timings() -> Dict[str, Any]:
         key: round(value, 2) if isinstance(value, float) else value
         for key, value in _SCAN_TIMINGS.items()
     }
+
+
+def _accumulate_fmp_shadow_diagnostics(shadow: Mapping[str, Any]) -> None:
+    diagnostic = shadow.get("diagnostics") if isinstance(shadow.get("diagnostics"), Mapping) else {}
+    seconds = float(diagnostic.get("fmp_shadow_seconds") or 0.0)
+    _record_scan_timing("fmp_shadow_seconds", seconds)
+    _FMP_SHADOW_RUN_DIAGNOSTICS["symbols"] += 1
+    families = diagnostic.get("families") if isinstance(diagnostic.get("families"), Mapping) else {}
+    for family_name, family_value in families.items():
+        if not isinstance(family_value, Mapping):
+            continue
+        aggregate = _FMP_SHADOW_RUN_DIAGNOSTICS["families"].setdefault(str(family_name), {
+            "calls": 0, "live_fetches": 0, "fresh_cache_hits": 0,
+            "stale_fallbacks": 0, "unavailable": 0, "elapsed_seconds": 0.0,
+            "outcomes": {}, "provider_rows_returned": 0, "normalized_rows": 0,
+            "retained_rows": 0, "discarded_by_cap": 0,
+        })
+        for key in ("calls", "live_fetches", "fresh_cache_hits", "stale_fallbacks", "unavailable"):
+            value = int(family_value.get(key) or 0)
+            aggregate[key] += value
+            _FMP_SHADOW_RUN_DIAGNOSTICS[key] += value
+        aggregate["elapsed_seconds"] += float(family_value.get("elapsed_seconds") or 0.0)
+        outcomes = family_value.get("outcomes") if isinstance(family_value.get("outcomes"), Mapping) else {}
+        for outcome in outcomes.values():
+            name = str(outcome)
+            aggregate["outcomes"][name] = aggregate["outcomes"].get(name, 0) + 1
+            run_outcomes = _FMP_SHADOW_RUN_DIAGNOSTICS["outcomes"]
+            run_outcomes[name] = run_outcomes.get(name, 0) + 1
+        for key in ("provider_rows_returned", "normalized_rows", "retained_rows", "discarded_by_cap"):
+            value = int(family_value.get(key) or 0)
+            aggregate[key] += value
+            _FMP_SHADOW_RUN_DIAGNOSTICS[key] += value
+
+
+def _persisted_fmp_shadow_diagnostics() -> Dict[str, Any]:
+    result = json.loads(json.dumps(_FMP_SHADOW_RUN_DIAGNOSTICS))
+    for family in result.get("families", {}).values():
+        family["elapsed_seconds"] = round(float(family.get("elapsed_seconds") or 0.0), 2)
+    result["fmp_shadow_seconds"] = round(float(_SCAN_TIMINGS.get("fmp_shadow_seconds") or 0.0), 2)
+    return result
 
 
 def _record_yahoo_metadata_result(
@@ -4563,6 +4616,7 @@ def v421_apply_tiered_committee(
                 )
                 if shadow:
                     row["fmp_shadow_research"] = shadow
+                    _accumulate_fmp_shadow_diagnostics(shadow)
                     row["provider_comparison_diagnostics"] = build_provider_comparison(
                         enrichment, shadow
                     )
@@ -4739,6 +4793,8 @@ def scan_market() -> Dict[str, Any]:
         _SCAN_TIMINGS[timing_key] = 0 if isinstance(_SCAN_TIMINGS[timing_key], int) else 0.0
     _YAHOO_METADATA_LATENCIES.clear()
     _NEWSAPI_DIAGNOSTICS.clear()
+    _FMP_SHADOW_RUN_DIAGNOSTICS.clear()
+    _FMP_SHADOW_RUN_DIAGNOSTICS.update(_empty_fmp_shadow_diagnostics())
     universe_started = time.monotonic()
     universe = build_universe()
     _record_scan_timing("universe_construction_seconds", time.monotonic() - universe_started)
@@ -5186,7 +5242,10 @@ def scan_market() -> Dict[str, Any]:
     _SCAN_TIMINGS["unattributed_seconds"] = _reconcile_scan_timings(scanner_total)
     state["duration_seconds"] = round(scanner_total, 2)
     state["run_timings"] = _persisted_scan_timings()
-    state["provider_diagnostics"] = {"newsapi": _newsapi_diagnostic_summary()}
+    state["provider_diagnostics"] = {
+        "newsapi": _newsapi_diagnostic_summary(),
+        "fmp_shadow": _persisted_fmp_shadow_diagnostics(),
+    }
     write_json(STATE_FILE, state)
 
     persistence_started = time.monotonic()
@@ -5204,6 +5263,10 @@ def scan_market() -> Dict[str, Any]:
     print(
         f"[finalist-provider-summary] calls={_SCAN_TIMINGS['finalist_provider_calls']} "
         f"elapsed_seconds={_SCAN_TIMINGS['finalist_provider_seconds']:.2f}",
+        flush=True,
+    )
+    print(
+        f"[fmp-shadow-summary] {json.dumps(_persisted_fmp_shadow_diagnostics(), sort_keys=True)}",
         flush=True,
     )
     slowest_metadata = sorted(_YAHOO_METADATA_LATENCIES, key=lambda item: item[1], reverse=True)[:20]

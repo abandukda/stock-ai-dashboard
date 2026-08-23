@@ -123,23 +123,36 @@ def normalize_ratios(row: Mapping[str, Any], *, fetched_at: str | None = None) -
 
 
 def normalize_fund_disclosure(row: Mapping[str, Any], *, fetched_at: str | None = None) -> dict[str, Any]:
-    reporting_date = _text(_first(row, "date", "reportingDate"))
-    filing_date = _text(_first(row, "filingDate", "acceptedDate"))
+    # Stable ``funds/disclosure-holders-latest`` currently uses the
+    # ``reporting*``/``filing*`` names below.  Keep the older aliases for
+    # cached evidence produced before Phase 9FMP.2A.
+    reporting_date = _text(_first(
+        row, "dateReported", "reportingDate", "reportDate", "reportingPeriod", "periodOfReport", "date",
+    ))
+    filing_date = _text(_first(
+        row, "filingDate", "filedAt", "acceptedDate", "acceptedAt", "filing_date",
+    ))
     values = {
-        "investor_name": _text(_first(row, "investorName", "holder", "holderName", "fundName", "name")),
-        "investor_cik": _text(_first(row, "cik", "investorCik")),
-        "security_symbol": _text(_first(row, "symbol", "securitySymbol")),
-        "security_name": _text(_first(row, "securityName", "asset")),
-        "security_cusip": _text(_first(row, "securityCusip", "cusip")),
-        "shares": _number(_first(row, "sharesNumber", "shares", "numberOfShares")),
-        "weight": _number(_first(row, "weight", "weightPercentage", "portfolioWeight")),
-        "market_value": _number(_first(row, "marketValue", "value", "reportedValue")),
+        "investor_name": _text(_first(
+            row, "investorName", "investor", "holder", "holderName", "fundName", "entityName", "name",
+        )),
+        "investor_cik": _text(_first(row, "investorCik", "holderCik", "cik")),
+        "security_symbol": _text(_first(row, "securitySymbol", "ticker", "symbol")),
+        "security_name": _text(_first(row, "securityName", "security", "issuerName", "asset", "titleOfClass")),
+        "security_cusip": _text(_first(row, "securityCusip", "cusip", "cusipNumber")),
+        "shares": _number(_first(row, "sharesNumber", "shares", "numberOfShares", "sharesHeld")),
+        "weight": _number(_first(
+            row, "weightPercent", "weight", "weightPercentage", "portfolioWeight", "portfolioWeightPercentage",
+        )),
+        "market_value": _number(_first(row, "marketValue", "value", "reportedValue", "marketValueUSD")),
         "reporting_date": reporting_date,
         "filing_date": filing_date,
         "evidence_available_from": filing_date,
+        "availability_limitation": None if filing_date else "FILING_DATE_UNAVAILABLE",
         "evidence_type": "INSTITUTIONAL_FUND_HOLDING",
     }
-    available = bool(values["investor_name"] and values["security_symbol"] and filing_date)
+    security_identified = any(values[key] for key in ("security_symbol", "security_name", "security_cusip"))
+    available = bool(values["investor_name"] and security_identified and filing_date)
     values["provenance"] = _provenance(
         "funds/disclosure-holders-latest", fetched_at=fetched_at,
         reporting_date=reporting_date, filing_date=filing_date, available=available,
@@ -150,8 +163,12 @@ def normalize_fund_disclosure(row: Mapping[str, Any], *, fetched_at: str | None 
 def normalize_institutional_ownership_summary(
     row: Mapping[str, Any], *, fetched_at: str | None = None
 ) -> dict[str, Any]:
-    reporting_date = _text(_first(row, "date", "reportingDate"))
-    filing_date = _text(_first(row, "filingDate", "acceptedDate"))
+    reporting_date = _text(_first(
+        row, "reportingDate", "reportDate", "reportingPeriod", "periodOfReport", "date",
+    ))
+    filing_date = _text(_first(
+        row, "filingDate", "filedAt", "acceptedDate", "acceptedAt", "filing_date",
+    ))
     values = {
         "symbol": (_text(_first(row, "symbol", "ticker")) or "").upper() or None,
         "investors_holding": _integer(_first(row, "investorsHolding", "holdersCount")),
@@ -160,6 +177,7 @@ def normalize_institutional_ownership_summary(
         "reporting_date": reporting_date,
         "filing_date": filing_date,
         "evidence_available_from": filing_date,
+        "availability_limitation": None if filing_date else "FILING_DATE_UNAVAILABLE",
         "evidence_type": "INSTITUTIONAL_OWNERSHIP_SUMMARY",
     }
     available = bool(values["symbol"] and filing_date and any(
