@@ -62,6 +62,14 @@ jobs:
           restore-keys: |
             atlas-deep-research-v1-
 
+      - name: Restore normalized FMP bulk-metadata shadow snapshot
+        uses: actions/cache@v4
+        with:
+          path: .atlas_research_cache/fmp_bulk_metadata_v1
+          key: atlas-fmp-bulk-metadata-v1-${{ github.run_id }}
+          restore-keys: |
+            atlas-fmp-bulk-metadata-v1-
+
       - name: Run overnight scan
         run: |
           python overnight_market_scan.py

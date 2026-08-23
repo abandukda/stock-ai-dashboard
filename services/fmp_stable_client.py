@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import csv
+import io
 import json
 import time
 from typing import Any, Mapping
@@ -64,7 +66,13 @@ class FMPStableClient:
         self.retries = max(0, min(int(retries), 2))
         self._session = session
 
-    def get(self, endpoint_family: str, params: Mapping[str, Any] | None = None) -> FMPResponse:
+    def get(
+        self,
+        endpoint_family: str,
+        params: Mapping[str, Any] | None = None,
+        *,
+        allow_csv: bool = False,
+    ) -> FMPResponse:
         family = str(endpoint_family or "").strip().strip("/")
         fetched_at = datetime.now(timezone.utc).isoformat()
         if not self._api_key or not family:
@@ -102,7 +110,19 @@ class FMPStableClient:
             try:
                 payload = response.json()
             except (ValueError, json.JSONDecodeError):
-                return FMPResponse(None, SCHEMA_FAILURE, family, fetched_at, status, attempts)
+                if not allow_csv:
+                    return FMPResponse(None, SCHEMA_FAILURE, family, fetched_at, status, attempts)
+                try:
+                    body = str(getattr(response, "text", "") or "")
+                    if not body.strip():
+                        payload = []
+                    else:
+                        reader = csv.DictReader(io.StringIO(body))
+                        if not reader.fieldnames:
+                            raise ValueError("missing CSV schema")
+                        payload = [dict(row) for row in reader]
+                except Exception:
+                    return FMPResponse(None, SCHEMA_FAILURE, family, fetched_at, status, attempts)
             if not isinstance(payload, (list, dict)):
                 return FMPResponse(None, SCHEMA_FAILURE, family, fetched_at, status, attempts)
             outcome = AUTHORIZED_EMPTY if _empty(payload) else SUCCESS

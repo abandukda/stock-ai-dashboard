@@ -40,6 +40,13 @@ from core.pipeline_v104 import build_v104_pipeline
 from services.deep_research_cache import cached_evidence
 from services.fmp_stable_client import AUTHORIZED_EMPTY, FMPStableClient, SUCCESS
 from services.fmp_shadow_research import build_fmp_shadow_research, build_provider_comparison
+from services.fmp_bulk_metadata_shadow import (
+    acquire_fmp_bulk_metadata_shadow,
+    build_fmp_candidate_metadata,
+    compare_prescreen_replay,
+    compare_yahoo_fmp_metadata,
+    persist_bulk_shadow_analysis,
+)
 
 
 def v42_safe_float(value, default=0.0):
@@ -4711,6 +4718,28 @@ def passes_basic_filter(ind: Dict[str, Any], meta: Dict[str, Any]) -> bool:
     return True
 
 
+def _shadow_filter_reason(ind: Dict[str, Any], meta: Dict[str, Any]) -> Optional[str]:
+    """Explain current filter failure without becoming production authority."""
+    reason = exclusion_reason(meta)
+    if reason:
+        return reason
+    price = ind.get("price")
+    if price is None:
+        return "MISSING_PRICE"
+    if price < MIN_PRICE:
+        return "PRICE_BELOW_MINIMUM"
+    if price > MAX_PRICE:
+        return "PRICE_ABOVE_MAXIMUM"
+    if (ind.get("dollar_volume") or 0) < MIN_DOLLAR_VOLUME:
+        return "DOLLAR_VOLUME_BELOW_MINIMUM"
+    market_cap = meta.get("market_cap")
+    if market_cap is not None and market_cap < MIN_MARKET_CAP:
+        return "MARKET_CAP_BELOW_MINIMUM"
+    if ind.get("sma20") is None or ind.get("sma50") is None:
+        return "INSUFFICIENT_TECHNICAL_HISTORY"
+    return None
+
+
 
 
 def v803_apply_complete_research_fields(row: Dict[str, Any], meta: Dict[str, Any]) -> Dict[str, Any]:
@@ -4799,6 +4828,19 @@ def scan_market() -> Dict[str, Any]:
     universe = build_universe()
     _record_scan_timing("universe_construction_seconds", time.monotonic() - universe_started)
 
+    # Research-only benchmark.  The normalized FMP records are never merged
+    # into Yahoo metadata and therefore cannot influence any production row.
+    # Failure is deliberately non-fatal because Yahoo remains authoritative.
+    try:
+        fmp_bulk_shadow = acquire_fmp_bulk_metadata_shadow(FMP_API_KEY, universe)
+    except Exception:
+        fmp_bulk_shadow = {
+            "mode": "RESEARCH_ONLY_SHADOW",
+            "records": {},
+            "freshness": {"status": "TEMPORARILY_UNAVAILABLE"},
+            "run_diagnostics": {"requests": 0, "sanitized_outcome": "LOCAL_SHADOW_FAILURE"},
+        }
+
     universe_payload = {
         "generated_at": now_iso(),
         "count": len(universe),
@@ -4815,6 +4857,10 @@ def scan_market() -> Dict[str, Any]:
     metadata_cache: Dict[str, Dict[str, Any]] = {}
     indicator_cache: Dict[str, Dict[str, Any]] = {}
     history_cache: Dict[str, pd.DataFrame] = {}
+    fmp_bulk_shadow_rows: List[Dict[str, Any]] = []
+    fmp_bulk_shadow_exclusions: Dict[str, str] = {}
+    fmp_bulk_shadow_eligible: List[str] = []
+    yahoo_authoritative_eligible: List[str] = []
 
     total_batches = math.ceil(len(universe) / BATCH_SIZE) if universe else 0
     qualifying_candidates = 0
@@ -4856,6 +4902,27 @@ def scan_market() -> Dict[str, Any]:
                                 "range_52w", "website", "description"
                             }:
                                 meta[key] = value
+
+                # Replay the same deterministic pre-screen primitives on the
+                # FMP snapshot before applying authoritative Yahoo exclusions.
+                # This is isolated diagnostics: no FMP value enters `meta`.
+                fmp_record = (fmp_bulk_shadow.get("records") or {}).get(symbol, {})
+                fmp_shadow_meta = build_fmp_candidate_metadata(fmp_record)
+                fmp_shadow_reason = _shadow_filter_reason(ind, fmp_shadow_meta)
+                if fmp_shadow_reason:
+                    fmp_bulk_shadow_exclusions[symbol] = fmp_shadow_reason
+                elif str(fmp_shadow_meta.get("quote_type") or "").upper() not in {"EQUITY", "STOCK"}:
+                    fmp_bulk_shadow_exclusions[symbol] = "Missing or non-equity FMP classification"
+                else:
+                    fmp_bulk_shadow_eligible.append(symbol)
+                    fmp_score, _fmp_good, _fmp_risks = score_stock(ind, fmp_shadow_meta)
+                    if fmp_score >= 38:
+                        fmp_bulk_shadow_rows.append({
+                            "symbol": symbol,
+                            "conviction": fmp_score,
+                            "dollar_volume": ind.get("dollar_volume") or 0,
+                            "atr_pct": ind.get("atr_pct"),
+                        })
 
                 # V41: apply hard exclusions after FMP profile enrichment and before extra API calls.
                 if exclusion_reason(meta):
@@ -4931,6 +4998,7 @@ def scan_market() -> Dict[str, Any]:
 
             if not passes_basic_filter(ind, meta):
                 continue
+            yahoo_authoritative_eligible.append(symbol)
 
             score, good, risks = score_stock(ind, meta)
             row = make_dashboard_row(symbol, meta, ind, score, good, risks)
@@ -5029,6 +5097,41 @@ def scan_market() -> Dict[str, Any]:
     full_rows.sort(key=lambda r: (r.get("conviction") or 0, r.get("relative_rank_score") or 0, r.get("dollar_volume") or 0), reverse=True)
     prescreen_rows.sort(key=lambda r: (r.get("conviction") or 0, r.get("relative_rank_score") or 0, r.get("dollar_volume") or 0), reverse=True)
     _record_scan_timing("full_scan_construction_seconds", time.monotonic() - full_scan_started)
+
+    # Persist aggregate parity/replay diagnostics only to the ignored shadow
+    # snapshot.  Production state/result JSON remains unchanged.
+    try:
+        fmp_bulk_shadow_rows = normalize_final_convictions(fmp_bulk_shadow_rows)
+        fmp_bulk_shadow_rows.sort(
+            key=lambda row: (
+                row.get("conviction") or 0,
+                row.get("relative_rank_score") or 0,
+                row.get("dollar_volume") or 0,
+            ),
+            reverse=True,
+        )
+        fmp_bulk_shadow_order = [row["symbol"] for row in fmp_bulk_shadow_rows[:MAX_PRESCREEN]]
+        yahoo_order = [row["symbol"] for row in prescreen_rows]
+        parity = compare_yahoo_fmp_metadata(metadata_cache, fmp_bulk_shadow.get("records") or {})
+        replay = compare_prescreen_replay(
+            yahoo_order,
+            fmp_bulk_shadow_order,
+            fmp_bulk_shadow_exclusions,
+            authoritative_eligible=yahoo_authoritative_eligible,
+            shadow_eligible=fmp_bulk_shadow_eligible,
+        )
+        persist_bulk_shadow_analysis(fmp_bulk_shadow, comparison=parity, replay=replay)
+        acquisition = fmp_bulk_shadow.get("acquisition_diagnostics") or fmp_bulk_shadow.get("run_diagnostics") or {}
+        print(
+            "[fmp-bulk-metadata-summary] "
+            f"mode=shadow_only requests={int(acquisition.get('requests') or 0)} "
+            f"seconds={float(acquisition.get('bulk_metadata_seconds') or 0.0):.2f} "
+            f"records={len(fmp_bulk_shadow.get('records') or {})} "
+            f"authoritative_prescreen={len(yahoo_order)} shadow_prescreen={len(fmp_bulk_shadow_order)}",
+            flush=True,
+        )
+    except Exception:
+        print("[fmp-bulk-metadata-summary] mode=shadow_only outcome=LOCAL_ANALYSIS_FAILURE", flush=True)
 
     # The final ranking now exists: spend the bounded deep-provider budget on
     # actual finalists, not the first alphabetic qualifiers encountered.
