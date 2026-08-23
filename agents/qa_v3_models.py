@@ -17,6 +17,8 @@ class QAIssue:
     evidence: dict[str, Any] = field(default_factory=dict)
     screenshot: str = ""
     regression_test: str = ""
+    classification: str = "PRODUCT_DEFECT"
+    architecture_severity: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -35,6 +37,26 @@ class PageResult:
     tabs: int = 0
     expanders: int = 0
     issues: list[dict[str, Any]] = field(default_factory=list)
+    screenshot: str = ""
+    canonical_summary: dict[str, Any] = field(default_factory=dict)
+    rendered_summary: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class CertificationResult:
+    page: str
+    journey: str
+    ticker: str
+    classification: str
+    severity: str = ""
+    canonical_reconciliation: dict[str, Any] = field(default_factory=dict)
+    freshness_result: dict[str, Any] = field(default_factory=dict)
+    provenance_result: dict[str, Any] = field(default_factory=dict)
+    cross_page_consistency: dict[str, Any] = field(default_factory=dict)
+    screenshot_paths: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

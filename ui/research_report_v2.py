@@ -19,6 +19,63 @@ from services.policy_data import enrich_policy_for_research
 from services.ai_valuation_synthesis import get_ai_valuation_for_research
 
 
+_QA_FAMILY_SECTION = {
+    "profile": None,
+    "financial_statements": "financials",
+    "ratios_key_metrics": "financials",
+    "growth_segments": "financials",
+    "earnings_history": "earnings",
+    "analyst_estimates": "analysts",
+    "analyst_consensus_targets": "analysts",
+    "analyst_actions": "analysts",
+    "institutional_ownership": "ownership",
+    "company_news": "news",
+    "press_releases": "news",
+    "sec_filings": None,
+}
+
+
+def _render_architecture_qa_markers(report: Mapping[str, Any]) -> None:
+    """Emit identity/digest metadata only; never expose hidden financial data."""
+    context = report.get("research_context") if isinstance(report.get("research_context"), Mapping) else {}
+    families = context.get("evidence_families") if isinstance(context.get("evidence_families"), Mapping) else {}
+    sections = report.get("sections") if isinstance(report.get("sections"), Mapping) else {}
+    markers = []
+    for family, section_name in _QA_FAMILY_SECTION.items():
+        section = sections.get(section_name) if section_name else None
+        displayed = family == "profile" or (
+            isinstance(section, Mapping)
+            and section.get("semantic_status") == "AVAILABLE"
+        )
+        envelope = families.get(family) if isinstance(families.get(family), Mapping) else {}
+        markers.append(
+            f'<span data-atlas-qa="research-rendered-family" '
+            f'data-atlas-family="{escape(family)}" '
+            f'data-atlas-displayed="{str(bool(displayed)).lower()}" '
+            f'data-atlas-rendered-status="{escape(str((section or {}).get("semantic_status") or "DATA_UNAVAILABLE"))}" '
+            f'data-atlas-provider="{escape(str(envelope.get("provider") or ""))}" '
+            f'data-atlas-cache-status="{escape(str(envelope.get("cache_status") or ""))}" '
+            f'data-atlas-render-source="legacy-report-adapter" aria-hidden="true" style="display:none">{escape(family)}</span>'
+        )
+    try:
+        from agents.runtime_qa_architecture import stable_digest
+        valuation = report.get("valuation_families") if isinstance(report.get("valuation_families"), Mapping) else {}
+        value_markers = (
+            ("atlas_fair_value", report.get("atlas_fair_value")),
+            ("wall_street_target", valuation.get("analyst_target_mean")),
+            ("analyst_target_range", (valuation.get("analyst_target_low"), valuation.get("analyst_target_high"))),
+        )
+        for role, value in value_markers:
+            markers.append(
+                f'<span data-atlas-qa="valuation-provenance" data-atlas-value-role="{role}" '
+                f'data-atlas-value-present="{str(value is not None).lower()}" '
+                f'data-atlas-value-digest="{stable_digest(value)}" aria-hidden="true" style="display:none">{role}</span>'
+            )
+    except Exception:
+        pass
+    st.markdown("".join(markers), unsafe_allow_html=True)
+
+
 def _money(value: Any) -> str:
     try:
         return f"${float(value):,.2f}"
@@ -785,6 +842,7 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
     report["analyst_action_retrieval"] = retrieval
     report["policy_source_metrics"] = policy_retrieval.get("metrics") or {}
     _inject_visual_standards()
+    _render_architecture_qa_markers(report)
 
     st.markdown(
         f"""

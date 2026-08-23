@@ -22,6 +22,12 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 from playwright.async_api import Frame, Page
+from agents.runtime_qa_architecture import (
+    certify_analyst_action_readiness, certify_ask_context, certify_etf_context,
+    certify_missing_production_ticker, certify_research_context,
+    decode_context_summary, protected_decision_digest,
+    production_decision_for_ticker, research_ticker_matrix, stable_digest,
+)
 
 
 ERROR_RE = re.compile(
@@ -77,14 +83,23 @@ PAGE_QA_IDS = {
     "Ask AI": "ask-ai",
 }
 
-RESEARCH_TICKERS = ("NVDA", "AVGO", "CRM")
+_TICKER_MATRIX = research_ticker_matrix(".")
+RESEARCH_TICKERS = tuple(_TICKER_MATRIX["tickers"][:-1])
 INVALID_TICKER = "INVALID123"
+MISSING_PRODUCTION_TICKER = str(_TICKER_MATRIX.get("missing_production") or "")
+CURRENT_TOP15_TICKER = str(_TICKER_MATRIX.get("dynamic_top15") or "")
 
-ASK_AI_PROMPTS = (
-    ("NVDA", "Why is NVDA rated the way it is? Include the strongest supporting evidence and the biggest risk."),
-    ("CRM", "What are the biggest risks for CRM and what evidence would change Atlas's view?"),
-    ("AVGO", "Explain AVGO valuation versus the Atlas target using the available evidence."),
+ASK_AI_QUESTIONS = (
+    "Why does ATLAS like this company?",
+    "What are the biggest risks?",
+    "Are earnings improving?",
+    "What do analysts expect?",
+    "What changed recently?",
+    "What should I watch next?",
 )
+_ASK_TICKER = CURRENT_TOP15_TICKER or "NVDA"
+ASK_AI_PROMPTS = tuple((_ASK_TICKER, f"{_ASK_TICKER}: {question}") for question in ASK_AI_QUESTIONS)
+_RESEARCH_SUMMARIES: dict[str, dict[str, Any]] = {}
 
 
 def navigation_contract_satisfied(*, selected: bool, page_ready: bool, rendered_exception: bool) -> bool:
@@ -96,6 +111,8 @@ def research_context_complete(context: Mapping[str, Any], ticker: str) -> bool:
     return bool(
         str(context.get("ticker") or "").upper() == str(ticker or "").upper()
         and all(context.get(key) for key in ("company", "security-type", "generated-at"))
+        and context.get("context-version") == "RESEARCH_CONTEXT_V1"
+        and context.get("decision-digest")
     )
 
 
@@ -103,6 +120,8 @@ def ask_grounding_complete(context: Mapping[str, Any], ticker: str) -> bool:
     return bool(
         str(context.get("ticker") or "").upper() == str(ticker or "").upper()
         and all(context.get(key) for key in ("section", "generated-at", "framework"))
+        and context.get("context-version") == "RESEARCH_CONTEXT_V1"
+        and context.get("context-digest")
     )
 
 
@@ -359,6 +378,8 @@ async def _qa_state_metadata(page: Page, qa: str, status: str, ticker: str) -> d
         "data-atlas-ticker", "data-atlas-company", "data-atlas-security-type",
         "data-atlas-generated-at", "data-atlas-section", "data-atlas-evidence-used",
         "data-atlas-evidence-missing", "data-atlas-framework",
+        "data-atlas-context-version", "data-atlas-decision-status",
+        "data-atlas-decision-digest", "data-atlas-context-digest",
     )
     for scope in _scopes(page):
         try:
@@ -369,6 +390,55 @@ async def _qa_state_metadata(page: Page, qa: str, status: str, ticker: str) -> d
                 name.removeprefix("data-atlas-"): (await marker.get_attribute(name) or "")
                 for name in attributes
             }
+        except Exception:
+            continue
+    return {}
+
+
+async def _canonical_research_summary(page: Page, ticker: str) -> dict[str, Any]:
+    selector = f'[data-atlas-qa="research-context-v1"][data-atlas-ticker="{ticker}"]'
+    for scope in _scopes(page):
+        try:
+            marker = scope.locator(selector).last
+            if await marker.count():
+                return decode_context_summary(await marker.get_attribute("data-atlas-context-summary") or "")
+        except Exception:
+            continue
+    return {}
+
+
+async def _rendered_family_summary(page: Page) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+    for scope in _scopes(page):
+        try:
+            markers = scope.locator('[data-atlas-qa="research-rendered-family"]')
+            for index in range(await markers.count()):
+                marker = markers.nth(index)
+                family = await marker.get_attribute("data-atlas-family") or ""
+                if family:
+                    result[family] = {
+                        "displayed": await marker.get_attribute("data-atlas-displayed") or "false",
+                        "semantic_status": await marker.get_attribute("data-atlas-rendered-status") or "",
+                        "provider": await marker.get_attribute("data-atlas-provider") or "",
+                        "cache_status": await marker.get_attribute("data-atlas-cache-status") or "",
+                        "render_source": await marker.get_attribute("data-atlas-render-source") or "",
+                    }
+        except Exception:
+            continue
+    return result
+
+
+async def _page_certification_metadata(page: Page, label: str) -> dict[str, str]:
+    page_id = re.sub(r"[^a-z0-9]+", "-", label.lower()).strip("-")
+    selector = f'[data-atlas-qa="page-certification"][data-atlas-page="{page_id}"]'
+    for scope in _scopes(page):
+        try:
+            marker = scope.locator(selector).last
+            if await marker.count():
+                return {
+                    "ticker": await marker.get_attribute("data-atlas-ticker") or "",
+                    "decision_digest": await marker.get_attribute("data-atlas-decision-digest") or "",
+                }
         except Exception:
             continue
     return {}
@@ -490,6 +560,10 @@ async def _research_one(page: Page, ticker: str, output_dir: Path) -> JourneySte
     expected_status = "error" if ticker == INVALID_TICKER else "complete"
     marker_ready = await _wait_for_qa_state(page, "research-container", expected_status, ticker, 45)
     context = await _qa_state_metadata(page, "research-container", expected_status, ticker)
+    canonical_summary = await _canonical_research_summary(page, ticker) if expected_status == "complete" else {}
+    if canonical_summary:
+        _RESEARCH_SUMMARIES[ticker] = canonical_summary
+    rendered_families = await _rendered_family_summary(page) if expected_status == "complete" else {}
     after = await _visible_text(page)
     changed = after != before
     screenshot = await _screenshot(page, output_dir, f"research_{ticker}")
@@ -523,8 +597,21 @@ async def _research_one(page: Page, ticker: str, output_dir: Path) -> JourneySte
     markers = [marker for marker in expected_markers if marker.lower() in after.lower()]
     ticker_present = context.get("ticker") == ticker or ticker.lower() in after.lower()
     context_ready = research_context_complete(context, ticker)
+    reconciliation = certify_research_context(canonical_summary, rendered_families)
+    expected_decision = production_decision_for_ticker(ticker)
+    decision_digest_matches = bool(canonical_summary) and canonical_summary.get("production_decision_digest") == protected_decision_digest(expected_decision)
+    special: dict[str, Any] = {}
+    if ticker == MISSING_PRODUCTION_TICKER:
+        empty_expected = production_decision_for_ticker(ticker)
+        special["missing_production"] = {
+            "status": canonical_summary.get("production_decision_status"),
+            "digest_matches_empty_decision": canonical_summary.get("production_decision_digest") == protected_decision_digest(empty_expected),
+        }
+    if ticker == "SPY":
+        special["etf"] = certify_etf_context(canonical_summary)
+    special["analyst_action_readiness"] = canonical_summary.get("analyst_action_readiness") or {}
     no_error = not await _has_rendered_exception(page)
-    passed = marker_ready and ticker_present and context_ready and no_error and len(markers) >= 2
+    passed = marker_ready and ticker_present and context_ready and no_error and len(markers) >= 2 and bool(canonical_summary) and decision_digest_matches
     return JourneyStep(
         journey,
         "generate full research",
@@ -540,6 +627,11 @@ async def _research_one(page: Page, ticker: str, output_dir: Path) -> JourneySte
             "ticker_present": ticker_present,
             "research_context_ready": context_ready,
             "research_context": context,
+            "canonical_research_summary": canonical_summary,
+            "canonical_reconciliation": reconciliation,
+            "rendered_family_summary": rendered_families,
+            "decision_digest_matches": decision_digest_matches,
+            "special_certification": special,
             "markers": markers,
         },
     )
@@ -584,8 +676,12 @@ async def _ask_question(page: Page, ticker: str, prompt: str, output_dir: Path) 
     ticker_present = grounding.get("ticker") == ticker or ticker.lower() in new_text.lower() or ticker.lower() in after.lower()
     grounding_ready = ask_grounding_complete(grounding, ticker)
     numeric_evidence = bool(re.search(r"\d+(?:\.\d+)?%|\$\d+|\d+\.\d+", new_text))
+    unsupported_numeric = bool(numeric_evidence and str(grounding.get("evidence-used") or "0") == "0")
+    canonical_ask = certify_ask_context(_RESEARCH_SUMMARIES.get(ticker, {}), {
+        "ticker": grounding.get("ticker"), "context_digest": grounding.get("context-digest"),
+    }) if ticker in _RESEARCH_SUMMARIES else {"classification": "ARCHITECTURE_DRIFT", "severity": "P1", "reason": "Research context was not captured for Ask comparison."}
     generic_only = bool(re.fullmatch(r".*(review the available data|unable to answer|try again).*", _clean(new_text), re.I))
-    passed = marker_ready and response_length > 0 and ticker_present and grounding_ready and len(_clean(new_text).split()) >= 18 and not await _has_rendered_exception(page) and not generic_only
+    passed = marker_ready and response_length > 0 and ticker_present and grounding_ready and len(_clean(new_text).split()) >= 18 and not await _has_rendered_exception(page) and not generic_only and not unsupported_numeric and canonical_ask.get("classification") == "PASS"
 
     return JourneyStep(
         journey,
@@ -603,6 +699,8 @@ async def _ask_question(page: Page, ticker: str, prompt: str, output_dir: Path) 
             "grounding_ready": grounding_ready,
             "grounding": grounding,
             "numeric_evidence": numeric_evidence,
+            "unsupported_numeric_claim": unsupported_numeric,
+            "canonical_context_certification": canonical_ask,
             "response_word_count": len(_clean(new_text).split()),
             "response_length": response_length,
         },
@@ -650,6 +748,26 @@ async def _responsive_smoke(page: Page, output_dir: Path) -> list[JourneyStep]:
     return steps
 
 
+async def _core_mobile_certification(page: Page, output_dir: Path) -> list[JourneyStep]:
+    steps: list[JourneyStep] = []
+    original = page.viewport_size or {"width": 1440, "height": 1000}
+    await page.set_viewport_size({"width": 390, "height": 844})
+    for label in ("Home", "Today's Opportunities", "Research Any Ticker", "Ask AI"):
+        started = time.monotonic()
+        ok, _, detail = await _navigate(page, label)
+        screenshot = await _screenshot(page, output_dir, f"mobile_{label}") if ok else ""
+        metadata = await _page_certification_metadata(page, label) if ok else {}
+        rendered_exception = await _has_rendered_exception(page) if ok else True
+        steps.append(JourneyStep(
+            "Core mobile certification", label,
+            "PASS" if ok and screenshot and not rendered_exception else "FAIL",
+            time.monotonic() - started, label, detail or "Mobile core page rendered.",
+            screenshot, {"page_certification": metadata, "rendered_exception": rendered_exception},
+        ))
+    await page.set_viewport_size(original)
+    return steps
+
+
 async def run_user_journeys(
     page: Page,
     *,
@@ -669,6 +787,7 @@ async def run_user_journeys(
             continue
 
         controls = await _exercise_safe_controls(page, label)
+        controls["page_certification"] = await _page_certification_metadata(page, label)
         screenshot = await _screenshot(page, output_dir, f"nav_{label}")
         status = "FAIL" if controls["errors"] else "PASS"
         steps.append(JourneyStep(
@@ -693,6 +812,7 @@ async def run_user_journeys(
     # 4. Responsive smoke after returning to Research page.
     await _navigate(page, "Research Any Ticker")
     steps.extend(await _responsive_smoke(page, output_dir))
+    steps.extend(await _core_mobile_certification(page, output_dir))
 
     values = [step.to_dict() for step in steps]
     counts = {
@@ -711,10 +831,23 @@ async def run_user_journeys(
             reverse=True,
         ),
     }
+    cross_page = {}
+    for step in values:
+        marker = (step.get("evidence") or {}).get("page_certification") or {}
+        if marker.get("ticker") == CURRENT_TOP15_TICKER and marker.get("decision_digest"):
+            cross_page[step.get("page") or step.get("step")] = marker.get("decision_digest")
+    unique_digests = set(cross_page.values())
     return {
         "version": "ATLAS-USER-JOURNEYS-V4.0",
         "status": "PASS" if counts["FAIL"] == 0 else "FAIL",
         "counts": counts,
         "steps": values,
         "performance": performance,
+        "ticker_matrix": _TICKER_MATRIX,
+        "stable_ask_questions": ASK_AI_QUESTIONS,
+        "cross_page_consistency": {
+            "ticker": CURRENT_TOP15_TICKER,
+            "page_decision_digests": cross_page,
+            "consistent": len(unique_digests) <= 1 and bool(cross_page),
+        },
     }

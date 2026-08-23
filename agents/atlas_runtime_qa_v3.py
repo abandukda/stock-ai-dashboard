@@ -29,6 +29,10 @@ from agents.code_contract_mapper_v3 import build_code_contract
 from agents.fix_planner_v3 import write_fix_plan
 from agents.qa_v3_models import PageResult, QAIssue
 from agents.runtime_qa_user_journeys_v40 import run_user_journeys
+from agents.runtime_qa_architecture import (
+    CERTIFICATION_ARTIFACT, RUNTIME_QA_FRAMEWORK_VERSION,
+    architecture_preflight, architecture_versions, certification_record,
+)
 
 
 DEFAULT_URL = "https://stock-ai-dashboard.streamlit.app"
@@ -605,13 +609,16 @@ async def _inventory(page: Page, page_name: str, output_dir: Path | None = None)
         tabs += await _safe_count(scope.locator('[role="tab"]'))
         expanders += await _safe_count(scope.locator('[data-testid="stExpander"]'))
 
+    screenshot_path = ""
     if output_dir is not None:
         try:
             safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", page_name).strip("_") or "page"
+            path = output_dir / f"visual_{safe_name}.png"
             await page.screenshot(
-                path=str(output_dir / f"visual_{safe_name}.png"),
+                path=str(path),
                 full_page=True,
             )
+            screenshot_path = str(path)
         except Exception:
             pass
 
@@ -627,6 +634,7 @@ async def _inventory(page: Page, page_name: str, output_dir: Path | None = None)
         tabs=tabs,
         expanders=expanders,
         issues=[issue.to_dict() for issue in issues],
+        screenshot=screenshot_path,
     )
 
 
@@ -754,6 +762,19 @@ def _product_issues(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
 async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
     output_dir.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
+    architecture = architecture_preflight(".")
+    versions = architecture_versions(".")
+    if architecture.get("status") != "PASS":
+        early = {
+            "version": RUNTIME_QA_FRAMEWORK_VERSION,
+            "source_commit": versions["source_commit"],
+            "architecture_versions": versions,
+            "status": "ARCHITECTURE_DRIFT",
+            "architecture_preflight": architecture,
+            "certifications": [],
+        }
+        (output_dir / CERTIFICATION_ARTIFACT).write_text(json.dumps(early, indent=2), encoding="utf-8")
+        raise RuntimeError(f"Architecture preflight failed: {architecture.get('failures')}")
     contract = build_code_contract(".")
     page_results: list[dict[str, Any]] = []
     issues: list[dict[str, Any]] = []
@@ -937,6 +958,32 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
     issues.extend(ai_integrity["issues"])
     issues = _deduplicate_issues(issues)
 
+    certifications: list[dict[str, Any]] = []
+    for item in page_results:
+        certifications.append(certification_record(
+            page=item.get("page"), journey="Page certification", ticker="",
+            screenshot_paths=(item.get("screenshot"),) if item.get("screenshot") else (),
+            classification="PASS" if item.get("status") == "PASS" else "PRODUCT_DEFECT",
+            severity=None if item.get("status") == "PASS" else "P1",
+        ))
+    for step in (user_journeys.get("steps") or []):
+        evidence = step.get("evidence") or {}
+        reconciliation = evidence.get("canonical_reconciliation") or evidence.get("canonical_context_certification") or {}
+        classification = reconciliation.get("classification")
+        if not classification:
+            classification = "PASS" if step.get("status") == "PASS" else "PRODUCT_DEFECT"
+        certifications.append(certification_record(
+            page=step.get("page"), journey=f"{step.get('journey')} — {step.get('step')}",
+            ticker=((evidence.get("canonical_research_summary") or {}).get("ticker") or (evidence.get("grounding") or {}).get("ticker") or ""),
+            canonical_reconciliation=reconciliation,
+            freshness_result={family: value.get("freshness") for family, value in (reconciliation.get("family_reconciliation") or {}).items()},
+            provenance_result={"rendered_families": evidence.get("rendered_family_summary") or {}},
+            cross_page_consistency=user_journeys.get("cross_page_consistency") or {},
+            screenshot_paths=(step.get("screenshot"),) if step.get("screenshot") else (),
+            classification=classification,
+            severity=reconciliation.get("severity") or (None if classification in {"PASS", "PASS_WITH_EVIDENCE_LIMITATIONS", "PROVIDER_LIMITATION"} else "P1"),
+        ))
+
     audit_valid = bool(
         authentication.get("authenticated_dashboard_detected")
         and len(page_results) >= 3
@@ -987,7 +1034,10 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
     }
 
     report = {
-        "version": "ATLAS-QA-ENTERPRISE-V4.0",
+        "version": RUNTIME_QA_FRAMEWORK_VERSION,
+        "source_commit": versions["source_commit"],
+        "architecture_versions": versions,
+        "architecture_preflight": architecture,
         "status": status,
         "audit_valid": audit_valid,
         "url": url,
@@ -1008,7 +1058,21 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
         "performance": (user_journeys or {}).get("performance", {}),
         "issues": issues,
         "code_contract": contract,
+        "certifications": certifications,
     }
+
+    certification_artifact = {
+        "version": RUNTIME_QA_FRAMEWORK_VERSION,
+        "source_commit": versions["source_commit"],
+        "architecture_versions": versions,
+        "rollout_state": architecture.get("rollout_state"),
+        "ticker_matrix": user_journeys.get("ticker_matrix") or {},
+        "cross_page_consistency": user_journeys.get("cross_page_consistency") or {},
+        "certifications": certifications,
+    }
+    (output_dir / CERTIFICATION_ARTIFACT).write_text(
+        json.dumps(certification_artifact, indent=2, default=str), encoding="utf-8",
+    )
 
     report_path = output_dir / "atlas_runtime_qa_v3.json"
     report_path.write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")

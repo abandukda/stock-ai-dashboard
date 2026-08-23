@@ -30,12 +30,16 @@ def test_research_and_ask_contexts_are_ticker_isolated():
         "company": "NVIDIA Corporation",
         "security-type": "Equity",
         "generated-at": "2026-08-18T12:00:00Z",
+        "context-version": "RESEARCH_CONTEXT_V1",
+        "decision-digest": "digest",
     }
     ask = {
         "ticker": "NVDA",
         "section": "overview",
         "generated-at": "2026-08-18T12:00:00Z",
         "framework": "ASK_ATLAS_GROUNDED_V1",
+        "context-version": "RESEARCH_CONTEXT_V1",
+        "context-digest": "digest",
     }
     assert research_context_complete(research, "NVDA")
     assert ask_grounding_complete(ask, "NVDA")

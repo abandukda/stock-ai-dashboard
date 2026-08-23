@@ -9,12 +9,12 @@ from agents.runtime_qa_user_journeys_v40 import (
 
 
 def test_synthetic_research_coverage():
-    assert {"NVDA", "AVGO", "CRM"}.issubset(set(RESEARCH_TICKERS))
+    assert {"NVDA", "AAPL", "SPY"}.issubset(set(RESEARCH_TICKERS))
     assert INVALID_TICKER == "INVALID123"
 
 
 def test_ask_ai_has_multiple_ticker_aware_prompts():
-    assert len(ASK_AI_PROMPTS) >= 3
+    assert len(ASK_AI_PROMPTS) == 6
     for ticker, prompt in ASK_AI_PROMPTS:
         assert ticker in prompt
 

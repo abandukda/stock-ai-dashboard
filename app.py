@@ -4552,12 +4552,22 @@ def render_chat_helper(full_df):
         st.session_state.update(ask_ai_status="complete", ask_ai_ticker=ticker, ask_ai_response=response, ask_ai_error="")
         evidence_used = len(result.get("evidence_used") or result.get("sources_used") or [])
         evidence_missing = len(result.get("evidence_missing") or [])
+        try:
+            from agents.runtime_qa_architecture import sanitize_research_context, stable_digest
+            _ask_context_summary = sanitize_research_context(report.get("research_context") if isinstance(report.get("research_context"), dict) else {})
+            _ask_context_digest = stable_digest(_ask_context_summary)
+            _ask_context_version = str(_ask_context_summary.get("context_version") or "")
+        except Exception:
+            _ask_context_digest = ""
+            _ask_context_version = ""
         st.markdown(
             f'<span data-atlas-qa="ask-ai-response" data-atlas-status="complete" '
             f'data-atlas-ticker="{html.escape(ticker)}" data-atlas-section="{html.escape(str(result.get("section") or "overview"))}" '
             f'data-atlas-evidence-used="{evidence_used}" data-atlas-evidence-missing="{evidence_missing}" '
             f'data-atlas-generated-at="{html.escape(str(result.get("generated_at") or result.get("generated_from") or ""))}" '
             f'data-atlas-framework="{html.escape(str(result.get("framework_version") or "ASK_ATLAS_GROUNDED_V1"))}" '
+            f'data-atlas-context-version="{html.escape(_ask_context_version)}" '
+            f'data-atlas-context-digest="{html.escape(_ask_context_digest)}" '
             f'data-atlas-response-length="{len(response)}" aria-hidden="true" style="display:none">ask-ai-complete</span>',
             unsafe_allow_html=True,
         )
@@ -27277,12 +27287,30 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
         security_type="ETF" if is_etf else str(v8054_first_meaningful(merged,["security_type","Security Type"],"Equity") or "Equity")
         generated_at=str(v8054_first_meaningful(merged,["research_refreshed_at","generated_at","scan_timestamp","Generated At"],"") or "Unavailable")
         st.caption(f"Research context · {ticker} · {company} · {security_type} · Generated {generated_at}")
+        try:
+            from agents.runtime_qa_architecture import encode_context_summary, sanitize_research_context
+            _qa_context = merged.get("research_context") if isinstance(merged.get("research_context"), dict) else {}
+            _qa_summary = sanitize_research_context(_qa_context)
+            _qa_encoded = encode_context_summary(_qa_context)
+            st.markdown(
+                f'<span data-atlas-qa="research-context-v1" data-atlas-ticker="{html.escape(ticker)}" '
+                f'data-atlas-context-version="{html.escape(str(_qa_summary.get("context_version") or ""))}" '
+                f'data-atlas-decision-status="{html.escape(str(_qa_summary.get("production_decision_status") or ""))}" '
+                f'data-atlas-decision-digest="{html.escape(str(_qa_summary.get("production_decision_digest") or ""))}" '
+                f'data-atlas-context-summary="{html.escape(_qa_encoded)}" aria-hidden="true" style="display:none">research-context-v1</span>',
+                unsafe_allow_html=True,
+            )
+        except Exception:
+            _qa_summary = {}
         render_detail(pd.Series(merged))
         # Emit completion only after all report sections have been rendered.
         st.markdown(
             f'<span data-atlas-qa="research-container" data-atlas-status="complete" data-atlas-ticker="{html.escape(ticker)}" '
             f'data-atlas-company="{html.escape(company)}" data-atlas-security-type="{html.escape(security_type)}" '
-            f'data-atlas-generated-at="{html.escape(generated_at)}" aria-hidden="true" style="display:none">research-complete</span>',
+            f'data-atlas-generated-at="{html.escape(generated_at)}" '
+            f'data-atlas-context-version="{html.escape(str(_qa_summary.get("context_version") or ""))}" '
+            f'data-atlas-decision-digest="{html.escape(str(_qa_summary.get("production_decision_digest") or ""))}" '
+            f'aria-hidden="true" style="display:none">research-complete</span>',
             unsafe_allow_html=True,
         )
         return
@@ -27526,6 +27554,27 @@ from ui.daily_opportunities import render_volume_momentum
 from ui.developer_center import render_developer_center
 
 
+def _emit_page_certification_marker(page_name, source_df):
+    """Emit a digest-only cross-page contract for Runtime QA."""
+    try:
+        if source_df is None or getattr(source_df, "empty", True):
+            return
+        from agents.runtime_qa_architecture import protected_decision_digest
+        from engines.research_context import build_production_decision
+        row = dict(source_df.iloc[0])
+        ticker = str(row.get("ticker") or row.get("Ticker") or "").upper().strip()
+        digest = protected_decision_digest(build_production_decision(row))
+        page_id = re.sub(r"[^a-z0-9]+", "-", str(page_name).lower()).strip("-")
+        st.markdown(
+            f'<span data-atlas-qa="page-certification" data-atlas-page="{html.escape(page_id)}" '
+            f'data-atlas-ticker="{html.escape(ticker)}" data-atlas-decision-digest="{html.escape(digest)}" '
+            f'aria-hidden="true" style="display:none">page-certification</span>',
+            unsafe_allow_html=True,
+        )
+    except Exception:
+        return
+
+
 def main():
     if not dashboard_login_gate(): return
     render_v59_design_system(); render_v65_design_system(); render_v70_design_system(); render_v72_design_system(); render_v73_design_system(); render_v74_design_system(); v775_design_system(); v793_design_system(); v8055_inject_research_css()
@@ -27533,6 +27582,7 @@ def main():
     pages=["Home","Today's Opportunities","Volume Intelligence","Atlas Core Holdings","Research Any Ticker","Earnings Intelligence","Full Ranked Scan","Portfolio Intelligence","Watchlist Intelligence","Recovery","ETFs","Political Intelligence","Ask AI","Developer Center"]
     selected_page=render_v73_top_nav(pages)
     source_df=top_df if top_df is not None and not top_df.empty else full_df.head(25)
+    _emit_page_certification_marker(selected_page, source_df)
     if selected_page != "Home": render_v72_market_tape(always_show=False)
     if selected_page=="Home": v810_render_dynamic_home(full_df,source_df,recovery_df)
     elif selected_page=="Today's Opportunities": v810_render_today_page(full_df)

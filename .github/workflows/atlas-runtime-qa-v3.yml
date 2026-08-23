@@ -32,6 +32,14 @@ jobs:
           test -f agents/fix_planner_v3.py
           test -f agents/qa_v3_models.py
 
+      - name: Record source and verify architecture
+        run: |
+          mkdir -p audit_results
+          git rev-parse HEAD | tee audit_results/source_commit.txt
+          python -m agents.runtime_qa_architecture \
+            --preflight \
+            --output audit_results/architecture_preflight.json
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
