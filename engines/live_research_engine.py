@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import math
+import hashlib
+import json
 import os
 import re
 import threading
@@ -14,8 +16,14 @@ import yfinance as yf
 from engines.deep_research_evidence import build_earnings_comparisons
 
 from services.research_cache import load_cached_research, save_cached_research
-from engines.decision_intelligence_engine import evidence_pack, primary_risk, decision
+from engines.decision_intelligence_engine import evidence_pack, primary_risk
 from engines.atlas_valuation import AtlasValuationInputs, calculate_atlas_fair_value
+from engines.research_context import (
+    build_research_context,
+    evidence_envelope,
+    load_production_row,
+    stable_evidence_id,
+)
 
 NEWSAPI_KEY = os.getenv("NEWSAPI_KEY", "").strip()
 FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "").strip()
@@ -682,6 +690,153 @@ def _fair_value_complete(price: float, info: Dict[str, Any], fundamentals: Dict[
 _build_live_research_v806 = build_live_research
 
 
+_PRODUCTION_DECISION_KEYS = frozenset({
+    "Recommendation", "recommendation", "committee_verdict", "decision_action",
+    "decision_guidance", "Opportunity", "opportunity_score", "Opportunity Score",
+    "score", "Confidence", "confidence", "confidence_pct", "conviction",
+    "conviction_score", "ai_confidence", "ai_score", "buy_now", "is_buy_now",
+    "ranking", "rank", "relative_rank_score", "atlas_fair_value",
+    "Atlas Fair Value", "expected_return_pct", "decision_expected_return_pct",
+    "Expected Return", "expected_upside_pct", "preferred_entry_low",
+    "preferred_entry_high", "entry_low", "entry_high", "decision_target",
+    "target", "trade_target_1", "trade_target_2", "target_1", "target_2",
+    "stop_loss", "stop", "position_size_range", "position_sizing",
+})
+
+
+def _family_from_values(
+    symbol: str,
+    family: str,
+    provider: str,
+    endpoint_family: str,
+    fetched_at: str | None,
+    values: Dict[str, Any],
+) -> Dict[str, Any]:
+    available = any(value is not None and value != "" for value in values.values())
+    evidence_ids = ()
+    if available:
+        content_digest = hashlib.sha256(
+            json.dumps(values, sort_keys=True, separators=(",", ":"), default=str).encode()
+        ).hexdigest()[:16]
+        evidence_ids = (stable_evidence_id(
+            ticker=symbol,
+            family=family,
+            provider=provider,
+            semantic_identity=f"{endpoint_family}:{content_digest}",
+            provenance=endpoint_family,
+        ),)
+    return evidence_envelope(
+        ticker=symbol,
+        family=family,
+        semantic_status="AVAILABLE" if available else "DATA_UNAVAILABLE",
+        cache_status="FETCHED" if available else "TEMPORARILY_UNAVAILABLE",
+        provider=provider,
+        endpoint_family=endpoint_family,
+        fetched_at=fetched_at,
+        observation_date=None,
+        data=values if available else None,
+        evidence_ids=evidence_ids,
+        limitations=() if available else ("No normalized evidence was returned for this family.",),
+    )
+
+
+def _attach_canonical_research_context(row: Dict[str, Any], symbol: str) -> Dict[str, Any]:
+    """Remove enrichment decisions and restore only persisted production outputs."""
+    for key in _PRODUCTION_DECISION_KEYS:
+        row.pop(key, None)
+
+    production_row = load_production_row(symbol)
+    fetched_at = row.get("research_refreshed_at")
+    families = {
+        "profile": _family_from_values(symbol, "profile", "YAHOO", "get_info", fetched_at, {
+            "company_name": row.get("company_name"),
+            "sector": row.get("Sector"),
+            "industry": row.get("Industry"),
+            "market_cap": row.get("Market Cap"),
+        }),
+        "ratios_key_metrics": _family_from_values(symbol, "ratios_key_metrics", "YAHOO", "get_info_and_statements", fetched_at, {
+            "operating_margin": row.get("Operating Margin"),
+            "free_cash_flow": row.get("Free Cash Flow"),
+            "debt_to_equity": row.get("Debt to Equity"),
+            "current_ratio": row.get("Current Ratio"),
+        }),
+        "growth_segments": _family_from_values(symbol, "growth_segments", "YAHOO", "get_info_and_statements", fetched_at, {
+            "revenue_growth": row.get("Revenue Growth"),
+            "earnings_growth": row.get("Earnings Growth"),
+        }),
+        "earnings_history": _family_from_values(symbol, "earnings_history", "YAHOO", "earnings_dates", fetched_at, {
+            "history": row.get("earnings_history"),
+            "latest_earnings_date": row.get("latest_earnings_date"),
+            "next_earnings_date": row.get("next_earnings_date"),
+        }),
+        "analyst_consensus_targets": _family_from_values(symbol, "analyst_consensus_targets", "FINNHUB_YAHOO", "analyst_snapshot", fetched_at, {
+            "target_mean": row.get("analyst_target_mean"),
+            "target_low": row.get("analyst_target_low"),
+            "target_high": row.get("analyst_target_high"),
+            "analyst_count": row.get("analyst_count"),
+        }),
+        "analyst_actions": _family_from_values(symbol, "analyst_actions", "YAHOO", "upgrades_downgrades", fetched_at, {
+            "actions": row.get("analyst_actions"),
+        }),
+        "company_news": _family_from_values(symbol, "company_news", "NEWSAPI", "everything", fetched_at, {
+            "headline": row.get("latest_news_headline"),
+            "source": row.get("latest_news_source"),
+            "date": row.get("latest_news_date"),
+            "url": row.get("latest_news_url"),
+        }),
+        "technicals": _family_from_values(symbol, "technicals", "YAHOO", "daily_history", fetched_at, {
+            "sma20": row.get("SMA 20"),
+            "sma50": row.get("SMA 50"),
+            "sma200": row.get("SMA 200"),
+            "rsi": row.get("RSI"),
+            "atr_pct": row.get("ATR %"),
+            "volume_ratio": row.get("Volume Ratio"),
+        }),
+    }
+    context = build_research_context(
+        symbol,
+        production_row=production_row,
+        market_snapshot={
+            "current_price": row.get("price"),
+            "fetched_at": fetched_at,
+            "provider": "YAHOO",
+        },
+        evidence_families=families,
+    )
+    row["research_context"] = context
+
+    decision = context["production_decision"]
+    legacy_map = {
+        "Recommendation": "recommendation",
+        "recommendation": "recommendation",
+        "committee_verdict": "recommendation",
+        "Opportunity": "opportunity",
+        "opportunity_score": "opportunity",
+        "score": "opportunity",
+        "Confidence": "confidence",
+        "confidence": "confidence",
+        "conviction": "confidence",
+        "buy_now": "buy_now",
+        "relative_rank_score": "ranking",
+        "atlas_fair_value": "atlas_fair_value",
+        "expected_return_pct": "decision_expected_return",
+        "decision_expected_return_pct": "decision_expected_return",
+        "entry_low": "entry_low",
+        "entry_high": "entry_high",
+        "target": "decision_target",
+        "trade_target_1": "trade_target_1",
+        "trade_target_2": "trade_target_2",
+        "stop_loss": "stop",
+        "position_size_range": "position_sizing",
+    }
+    if decision.get("semantic_status") == "AVAILABLE":
+        for legacy_key, canonical_key in legacy_map.items():
+            value = decision.get(canonical_key)
+            if value is not None:
+                row[legacy_key] = value
+    return row
+
+
 def build_live_research(ticker: str, force_refresh: bool = False, cache_ttl_seconds: int = 900) -> Dict[str, Any]:
     symbol = str(ticker or "").upper().strip()
     if not symbol:
@@ -690,7 +845,7 @@ def build_live_research(ticker: str, force_refresh: bool = False, cache_ttl_seco
         cached = load_cached_research(symbol, cache_ttl_seconds)
         if cached:
             cached["research_source"] = "cache"
-            return cached
+            return _attach_canonical_research_context(cached, symbol)
 
     tk = yf.Ticker(symbol)
     try:
@@ -724,7 +879,6 @@ def build_live_research(ticker: str, force_refresh: bool = False, cache_ttl_seco
     fundamentals = _fundamental_fallbacks(tk, info)
     analyst = _expanded_analyst_context(symbol, info, tk)
     earnings = _earnings_context(tk)
-    valuation = _fair_value_complete(price, info, fundamentals, analyst)
 
     row: Dict[str, Any] = {
         "Ticker": symbol, "symbol": symbol, "Company": company, "company_name": company,
@@ -737,7 +891,7 @@ def build_live_research(ticker: str, force_refresh: bool = False, cache_ttl_seco
         "research_refreshed_at": datetime.now(timezone.utc).isoformat(),
         "research_source": "live", "data_freshness": {"price": "live request", "fundamentals": "latest available statements", "analysts": "latest provider snapshot", "earnings": "latest available calendar/history"},
     }
-    row.update(fundamentals); row.update(analyst); row.update(earnings); row.update(valuation); row.update(_latest_news(symbol, company))
+    row.update(fundamentals); row.update(analyst); row.update(earnings); row.update(_latest_news(symbol, company))
 
     reasons = []
     if row.get("Revenue Growth") is not None and row["Revenue Growth"] > 8: reasons.append(f"Revenue growth is {row['Revenue Growth']:.1f}%.")
@@ -747,15 +901,12 @@ def build_live_research(ticker: str, force_refresh: bool = False, cache_ttl_seco
     if row.get("latest_news_headline"): reasons.append(f"Recent catalyst: {row['latest_news_headline']}")
     row["why_atlas_likes_it"] = evidence_pack(row, 7)
     row["primary_risk"] = primary_risk(row)
-    decision_pack = decision(row)
-    row["Recommendation"] = decision_pack["label"]
-    row["decision_action"] = decision_pack["label"]
-    row["decision_guidance"] = decision_pack["action"]
     row["investment_thesis"] = " ".join(row["why_atlas_likes_it"][:5])
 
     critical = ["price", "Revenue Growth", "Operating Margin", "Free Cash Flow", "atlas_fair_value", "analyst_target_mean", "next_earnings_date"]
     available = sum(row.get(k) not in (None, "", "Unavailable") for k in critical)
     row["research_confidence"] = round(45 + available / len(critical) * 50)
     row["coverage_status"] = {k: row.get(k) not in (None, "", "Unavailable") for k in critical}
+    _attach_canonical_research_context(row, symbol)
     save_cached_research(symbol, row)
     return row
