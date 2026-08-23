@@ -692,6 +692,9 @@ def build_atlas_research_v2(
         "transcript_intelligence": transcript_intelligence,
         "market_context": market_context,
         "market_moving_news": market_moving_news,
+        # Canonical explicit-Research evidence is passed through unchanged for
+        # UI/Ask grounding. It remains separate from legacy section adapters.
+        "research_context": enriched_row.get("research_context") or {},
         "sections": sections,
         "research_completeness_pct": completeness,
         "evidence_coverage_pct": completeness,

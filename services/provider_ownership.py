@@ -73,6 +73,17 @@ class ProviderOwnership:
     rollback_owner: str
 
 
+@dataclass(frozen=True)
+class ExplicitResearchAuthority:
+    """FIRST.3 governance declaration; acquisition code does not consult it."""
+
+    family: str
+    primary: str
+    rollback_owner: str
+    authority_status: str
+    commercial_status: str
+
+
 def _entry(
     family: str,
     intended_primary: str,
@@ -155,6 +166,29 @@ PROVIDER_OWNERSHIP: Final[tuple[ProviderOwnership, ...]] = (
 )
 
 
+# Explicit Research only. Scanner/current global authority in PROVIDER_OWNERSHIP
+# is intentionally unchanged until separately replayed and approved.
+EXPLICIT_RESEARCH_FMP_PRIMARY: Final[tuple[ExplicitResearchAuthority, ...]] = tuple(
+    ExplicitResearchAuthority(
+        family=family,
+        primary=FMP,
+        rollback_owner=rollback,
+        authority_status=FMP_PRIMARY_YAHOO_FALLBACK,
+        commercial_status=COMMERCIAL_LICENSE_PENDING,
+    )
+    for family, rollback in (
+        ("COMPANY_PROFILE_REFERENCE", YAHOO), ("COMPANY_PEERS", FMP),
+        ("FINANCIAL_STATEMENTS", YAHOO), ("KEY_METRICS", YAHOO),
+        ("FINANCIAL_RATIOS", YAHOO), ("FINANCIAL_GROWTH", YAHOO),
+        ("EARNINGS_HISTORY", YAHOO), ("EARNINGS_ACTUAL_VS_ESTIMATE", YAHOO),
+        ("ANALYST_ESTIMATES", YAHOO), ("ANALYST_CONSENSUS", FINNHUB),
+        ("ANALYST_PRICE_TARGETS", FINNHUB), ("ANALYST_FIRM_ACTIONS", FINNHUB),
+        ("INSTITUTIONAL_OWNERSHIP", YAHOO), ("FUND_13F_HOLDINGS", MIXED_LEGACY),
+        ("COMPANY_NEWS", NEWSAPI), ("PRESS_RELEASES", MIXED_LEGACY),
+    )
+)
+
+
 def provider_ownership_summary() -> tuple[ProviderOwnership, ...]:
     """Return immutable governance records; never select a provider value."""
     return PROVIDER_OWNERSHIP
@@ -179,7 +213,7 @@ def provider_migration_metrics() -> dict[str, int]:
 
 __all__ = [
     "ATLAS", "COMMERCIAL_LICENSE_PENDING", "CURRENT_PRIMARY", "FINNHUB",
-    "FMP", "FMP_PRIMARY", "FMP_PRIMARY_YAHOO_FALLBACK",
+    "EXPLICIT_RESEARCH_FMP_PRIMARY", "ExplicitResearchAuthority", "FMP", "FMP_PRIMARY", "FMP_PRIMARY_YAHOO_FALLBACK",
     "LEGACY_PENDING_REMOVAL", "LICENSED_MARKET_DATA_PROVIDER",
     "MIGRATION_VALIDATION", "NEWSAPI", "PROVIDER_OWNERSHIP",
     "PROVIDER_OWNERSHIP_VERSION", "ProviderOwnership", "READY_FOR_CUTOVER",

@@ -64,6 +64,138 @@ def _provenance(
     return result
 
 
+def normalize_profile(row: Mapping[str, Any], *, fetched_at: str | None = None) -> dict[str, Any]:
+    quote_type = (_text(_first(row, "type", "securityType", "quoteType")) or "").upper()
+    values = {
+        "symbol": (_text(_first(row, "symbol", "ticker")) or "").upper() or None,
+        "company_name": _text(_first(row, "companyName", "name")),
+        "description": _text(row.get("description")),
+        "sector": _text(row.get("sector")),
+        "industry": _text(row.get("industry")),
+        "country": _text(row.get("country")),
+        "exchange": _text(_first(row, "exchange", "exchangeShortName")),
+        "market_cap": _number(_first(row, "marketCap", "mktCap")),
+        "security_type": "ETF" if quote_type in {"ETF", "FUND"} else "EQUITY",
+    }
+    available = bool(values["symbol"] and values["company_name"])
+    values["provenance"] = _provenance("profile", fetched_at=fetched_at, available=available)
+    return values
+
+
+def normalize_peers(row: Mapping[str, Any], *, fetched_at: str | None = None) -> dict[str, Any]:
+    symbol = (_text(_first(row, "symbol", "ticker")) or "").upper() or None
+    peers_value = _first(row, "peers", "peerList")
+    peers = [str(item).upper().strip() for item in peers_value if str(item).strip()] if isinstance(peers_value, Sequence) and not isinstance(peers_value, str) else []
+    result = {"symbol": symbol, "peers": list(dict.fromkeys(peers))}
+    result["provenance"] = _provenance("stock-peers", fetched_at=fetched_at, available=bool(peers))
+    return result
+
+
+def normalize_financial_statement(
+    row: Mapping[str, Any], *, statement_type: str, fetched_at: str | None = None
+) -> dict[str, Any]:
+    common = {
+        "fiscal_date": _text(_first(row, "date", "fiscalDateEnding")),
+        "reporting_period": _text(_first(row, "period", "fiscalPeriod")),
+        "fiscal_year": _text(_first(row, "calendarYear", "fiscalYear")),
+        "reported_currency": _text(row.get("reportedCurrency")),
+        "filing_date": _text(_first(row, "fillingDate", "filingDate", "acceptedDate")),
+    }
+    fields = {
+        "income_statement": {
+            "revenue": _number(row.get("revenue")),
+            "gross_profit": _number(row.get("grossProfit")),
+            "operating_income": _number(row.get("operatingIncome")),
+            "net_income": _number(row.get("netIncome")),
+            "eps": _number(_first(row, "eps", "epsDiluted")),
+            "gross_margin": _number(_first(row, "grossProfitRatio", "grossProfitMargin")),
+            "operating_margin": _number(_first(row, "operatingIncomeRatio", "operatingProfitMargin")),
+            "net_margin": _number(_first(row, "netIncomeRatio", "netProfitMargin")),
+        },
+        "balance_sheet": {
+            "cash_and_equivalents": _number(_first(row, "cashAndCashEquivalents", "cashAndShortTermInvestments")),
+            "total_debt": _number(row.get("totalDebt")),
+            "total_assets": _number(row.get("totalAssets")),
+            "total_equity": _number(_first(row, "totalStockholdersEquity", "totalEquity")),
+        },
+        "cash_flow": {
+            "operating_cash_flow": _number(_first(row, "operatingCashFlow", "netCashProvidedByOperatingActivities")),
+            "capital_expenditure": _number(_first(row, "capitalExpenditure", "capitalExpenditures")),
+            "free_cash_flow": _number(row.get("freeCashFlow")),
+        },
+    }
+    if statement_type not in fields:
+        raise ValueError(f"unsupported statement_type: {statement_type}")
+    values = {**common, **fields[statement_type], "statement_type": statement_type}
+    available = any(values[key] is not None for key in fields[statement_type])
+    endpoint = {
+        "income_statement": "income-statement",
+        "balance_sheet": "balance-sheet-statement",
+        "cash_flow": "cash-flow-statement",
+    }[statement_type]
+    values["provenance"] = _provenance(
+        endpoint, fetched_at=fetched_at, observation_date=common["fiscal_date"],
+        reporting_date=common["fiscal_date"], filing_date=common["filing_date"], available=available,
+    )
+    return values
+
+
+def normalize_key_metrics(row: Mapping[str, Any], *, fetched_at: str | None = None) -> dict[str, Any]:
+    values = {
+        "fiscal_date": _text(_first(row, "date", "fiscalDateEnding")),
+        "market_cap": _number(_first(row, "marketCap", "marketCapTTM")),
+        "enterprise_value": _number(_first(row, "enterpriseValue", "enterpriseValueTTM")),
+        "roic": _number(_first(row, "returnOnInvestedCapital", "roic")),
+        "free_cash_flow_yield": _number(_first(row, "freeCashFlowYield", "freeCashFlowYieldTTM")),
+        "debt_to_equity": _number(_first(row, "debtToEquity", "debtToEquityTTM")),
+    }
+    available = any(value is not None for key, value in values.items() if key != "fiscal_date")
+    values["provenance"] = _provenance(
+        "key-metrics", fetched_at=fetched_at, observation_date=values["fiscal_date"], available=available
+    )
+    return values
+
+
+def normalize_financial_growth(row: Mapping[str, Any], *, fetched_at: str | None = None) -> dict[str, Any]:
+    values = {
+        "fiscal_date": _text(_first(row, "date", "fiscalDateEnding")),
+        "revenue_growth": _number(_first(row, "growthRevenue", "revenueGrowth")),
+        "eps_growth": _number(_first(row, "growthEPS", "epsGrowth")),
+        "gross_profit_growth": _number(_first(row, "growthGrossProfit", "grossProfitGrowth")),
+        "operating_income_growth": _number(_first(row, "growthOperatingIncome", "operatingIncomeGrowth")),
+        "net_income_growth": _number(_first(row, "growthNetIncome", "netIncomeGrowth")),
+        "free_cash_flow_growth": _number(_first(row, "growthFreeCashFlow", "freeCashFlowGrowth")),
+    }
+    available = any(value is not None for key, value in values.items() if key != "fiscal_date")
+    values["provenance"] = _provenance(
+        "financial-growth", fetched_at=fetched_at, observation_date=values["fiscal_date"], available=available
+    )
+    return values
+
+
+def normalize_earnings_record(row: Mapping[str, Any], *, fetched_at: str | None = None) -> dict[str, Any]:
+    report_date = _text(_first(row, "date", "reportedDate", "reportDate"))
+    values = {
+        "fiscal_period": _text(_first(row, "fiscalDateEnding", "period", "fiscalPeriod")),
+        "report_date": report_date,
+        "eps_actual": _number(_first(row, "epsActual", "actualEarningResult", "reportedEPS")),
+        "eps_estimate": _number(_first(row, "epsEstimated", "estimatedEarning", "epsEstimate")),
+        "eps_surprise_pct": _number(_first(row, "epsSurprisePercentage", "surprisePercentage", "epsSurprisePct")),
+        "revenue_actual": _number(_first(row, "revenueActual", "actualRevenue")),
+        "revenue_estimate": _number(_first(row, "revenueEstimated", "estimatedRevenue")),
+        "revenue_surprise_pct": _number(_first(row, "revenueSurprisePercentage", "revenueSurprisePct")),
+        "provider": PROVIDER,
+        "evidence_timestamp": fetched_at,
+    }
+    # Estimate-only future rows remain normalized but are not reported history.
+    values["reported_period"] = values["eps_actual"] is not None or values["revenue_actual"] is not None
+    available = bool(values["reported_period"] or values["eps_estimate"] is not None or values["revenue_estimate"] is not None)
+    values["provenance"] = _provenance(
+        "earnings", fetched_at=fetched_at, observation_date=report_date, reporting_date=report_date, available=available
+    )
+    return values
+
+
 def normalize_analyst_estimate(row: Mapping[str, Any], *, fetched_at: str | None = None) -> dict[str, Any]:
     """Normalize current stable names first, retaining legacy aliases.
 
@@ -298,6 +430,7 @@ def latest_valid_transcript_period(rows: Sequence[Mapping[str, Any]], *, fetched
 __all__ = [
     "latest_valid_transcript_period", "normalize_analyst_action", "normalize_analyst_consensus",
     "normalize_analyst_estimate", "normalize_fmp_news", "normalize_fund_disclosure",
+    "normalize_earnings_record", "normalize_financial_growth", "normalize_financial_statement",
     "normalize_institutional_ownership_summary", "normalize_price_target", "normalize_ratios",
-    "normalize_transcript_period",
+    "normalize_key_metrics", "normalize_peers", "normalize_profile", "normalize_transcript_period",
 ]

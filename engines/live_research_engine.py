@@ -740,7 +740,30 @@ def _family_from_values(
     )
 
 
-def _attach_canonical_research_context(row: Dict[str, Any], symbol: str) -> Dict[str, Any]:
+def _explicit_fmp_research_context(
+    symbol: str, production_row: Dict[str, Any] | None, *, force_refresh: bool = False,
+) -> tuple[Dict[str, Any] | None, Dict[str, Any]]:
+    """Lazy explicit-Research adapter; never imported or called by the scanner."""
+    try:
+        from services.fmp_research_acquisition import acquire_explicit_fmp_research
+        result = acquire_explicit_fmp_research(
+            symbol,
+            production_row=production_row,
+            api_key=os.getenv("FMP_API_KEY", "").strip(),
+            force_refresh=force_refresh,
+        )
+        context = result.get("research_context")
+        diagnostics = result.get("diagnostics")
+        return (context if isinstance(context, dict) else None, diagnostics if isinstance(diagnostics, dict) else {})
+    except Exception:
+        # Explicit Research remains available with its legacy evidence if one
+        # independently refreshed FMP family service is unavailable.
+        return None, {"semantic_status": "TEMPORARILY_UNAVAILABLE"}
+
+
+def _attach_canonical_research_context(
+    row: Dict[str, Any], symbol: str, *, canonical_context: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
     """Remove enrichment decisions and restore only persisted production outputs."""
     for key in _PRODUCTION_DECISION_KEYS:
         row.pop(key, None)
@@ -793,14 +816,9 @@ def _attach_canonical_research_context(row: Dict[str, Any], symbol: str) -> Dict
             "volume_ratio": row.get("Volume Ratio"),
         }),
     }
-    context = build_research_context(
-        symbol,
-        production_row=production_row,
-        market_snapshot={
-            "current_price": row.get("price"),
-            "fetched_at": fetched_at,
-            "provider": "YAHOO",
-        },
+    context = canonical_context or build_research_context(
+        symbol, production_row=production_row,
+        market_snapshot={"current_price": row.get("price"), "fetched_at": fetched_at, "provider": "YAHOO"},
         evidence_families=families,
     )
     row["research_context"] = context
@@ -841,11 +859,14 @@ def build_live_research(ticker: str, force_refresh: bool = False, cache_ttl_seco
     symbol = str(ticker or "").upper().strip()
     if not symbol:
         return {"error": "Ticker is required"}
+    production_row = load_production_row(symbol)
+    fmp_context, fmp_diagnostics = _explicit_fmp_research_context(symbol, production_row, force_refresh=force_refresh)
     if not force_refresh:
         cached = load_cached_research(symbol, cache_ttl_seconds)
         if cached:
             cached["research_source"] = "cache"
-            return _attach_canonical_research_context(cached, symbol)
+            cached["fmp_research_diagnostics"] = fmp_diagnostics
+            return _attach_canonical_research_context(cached, symbol, canonical_context=fmp_context)
 
     tk = yf.Ticker(symbol)
     try:
@@ -907,6 +928,7 @@ def build_live_research(ticker: str, force_refresh: bool = False, cache_ttl_seco
     available = sum(row.get(k) not in (None, "", "Unavailable") for k in critical)
     row["research_confidence"] = round(45 + available / len(critical) * 50)
     row["coverage_status"] = {k: row.get(k) not in (None, "", "Unavailable") for k in critical}
-    _attach_canonical_research_context(row, symbol)
+    row["fmp_research_diagnostics"] = fmp_diagnostics
+    _attach_canonical_research_context(row, symbol, canonical_context=fmp_context)
     save_cached_research(symbol, row)
     return row

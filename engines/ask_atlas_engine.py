@@ -76,6 +76,9 @@ def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
         "analyst_intelligence": grounded_analyst_context(analyst),
         "policy_intelligence": public_policy_context(policy),
         "ai_valuation": ai_valuation,
+        # FIRST.3 exposes normalized evidence for future grounded synthesis;
+        # Ask does not calculate or replace any protected decision field.
+        "research_context": report.get("research_context") or {},
     }
 
 
