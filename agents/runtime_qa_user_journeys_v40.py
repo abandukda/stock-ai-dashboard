@@ -26,7 +26,7 @@ from agents.runtime_qa_architecture import (
     certify_analyst_action_readiness, certify_ask_context, certify_etf_context,
     certify_missing_production_ticker, certify_research_context,
     decode_context_summary, protected_decision_digest,
-    production_decision_for_ticker, research_ticker_matrix, stable_digest,
+    journey_completeness, production_decision_for_ticker, research_ticker_matrix, stable_digest,
 )
 
 
@@ -77,11 +77,7 @@ PAGE_READY_TEXT = {
     "Developer Center": re.compile(r"Developer Center", re.I),
 }
 
-PAGE_QA_IDS = {
-    "Home": "home",
-    "Research Any Ticker": "research-any-ticker",
-    "Ask AI": "ask-ai",
-}
+PAGE_QA_IDS = {label: re.sub(r"[^a-z0-9]+", "-", label.lower()).strip("-") for label in PAGE_LABELS}
 
 _TICKER_MATRIX = research_ticker_matrix(".")
 RESEARCH_TICKERS = tuple(_TICKER_MATRIX["tickers"][:-1])
@@ -105,6 +101,25 @@ _RESEARCH_SUMMARIES: dict[str, dict[str, Any]] = {}
 def navigation_contract_satisfied(*, selected: bool, page_ready: bool, rendered_exception: bool) -> bool:
     """Pure settlement rule shared by browser journeys and regression tests."""
     return bool(selected and page_ready and not rendered_exception)
+
+
+def page_identity_settled(*, requested: str, rendered: str, selected: bool, page_ready: bool, rendered_exception: bool) -> bool:
+    return bool(
+        requested == rendered and
+        navigation_contract_satisfied(selected=selected, page_ready=page_ready, rendered_exception=rendered_exception)
+    )
+
+
+async def _page_identity_matches(page: Page, label: str) -> bool:
+    page_id = PAGE_QA_IDS.get(label) or re.sub(r"[^a-z0-9]+", "-", label.lower()).strip("-")
+    selector = f'[data-atlas-qa="page-identity"][data-atlas-page="{page_id}"][data-atlas-status="ready"]'
+    for scope in _scopes(page):
+        try:
+            if await scope.locator(selector).count():
+                return True
+        except Exception:
+            continue
+    return False
 
 
 def research_context_complete(context: Mapping[str, Any], ticker: str) -> bool:
@@ -217,8 +232,9 @@ async def _click_text(page: Page, label: str, *, timeout_ms: int = 6500) -> bool
     return False
 
 
-async def _navigate(page: Page, label: str) -> tuple[bool, float, str]:
+async def _navigate(page: Page, label: str, output_dir: Path | None = None) -> tuple[bool, float, str]:
     started = time.monotonic()
+    before_shot = await _screenshot(page, output_dir, f"before_nav_{label}") if output_dir else ""
     clicked = await _click_text(page, label)
     if not clicked:
         return False, time.monotonic() - started, f"Could not click navigation label: {label}"
@@ -241,20 +257,38 @@ async def _navigate(page: Page, label: str) -> tuple[bool, float, str]:
             if selected:
                 break
         explicit_ready = await _page_contract_ready(page, label)
+        identity_matches = await _page_identity_matches(page, label)
         text_ready = bool(PAGE_READY_TEXT.get(label, re.compile(re.escape(label), re.I)).search(text))
-        page_ready = explicit_ready or text_ready
+        page_ready = explicit_ready and text_ready and identity_matches
         rendered_exception = await _has_rendered_exception(page)
-        if navigation_contract_satisfied(
-            selected=selected,
-            page_ready=page_ready,
-            rendered_exception=rendered_exception,
-        ):
+        rendered_identity = label if identity_matches else ""
+        if page_identity_settled(requested=label, rendered=rendered_identity, selected=selected,
+                                 page_ready=page_ready, rendered_exception=rendered_exception):
             return True, time.monotonic() - started, ""
         await asyncio.sleep(0.5)
+    after_shot = await _screenshot(page, output_dir, f"failed_nav_{label}") if output_dir else ""
     return False, time.monotonic() - started, (
         f"Navigation did not settle on {label}: selected={selected}, page_ready={page_ready}, "
-        f"explicit_ready={explicit_ready}, rendered_exception={rendered_exception}."
+        f"identity_matches={identity_matches}, explicit_ready={explicit_ready}, rendered_exception={rendered_exception}, "
+        f"before_screenshot={before_shot or 'none'}, after_screenshot={after_shot or 'none'}."
     )
+
+
+async def wait_for_page_settlement(page: Page, label: str, output_dir: Path | None = None) -> tuple[bool, float, str]:
+    """Public route-settlement contract shared by inventory and journey engines."""
+    started = time.monotonic()
+    deadline = time.monotonic() + 12
+    while time.monotonic() < deadline:
+        identity = await _page_identity_matches(page, label)
+        ready = await _page_contract_ready(page, label)
+        text = await _visible_text(page)
+        text_ready = bool(PAGE_READY_TEXT.get(label, re.compile(re.escape(label), re.I)).search(text))
+        rendered_exception = await _has_rendered_exception(page)
+        if identity and ready and text_ready and not rendered_exception:
+            return True, time.monotonic() - started, ""
+        await asyncio.sleep(0.4)
+    shot = await _screenshot(page, output_dir, f"failed_settlement_{label}") if output_dir else ""
+    return False, time.monotonic() - started, f"Rendered page identity did not settle on {label}; screenshot={shot or 'none'}."
 
 
 async def _find_text_input(page: Page, purpose: str):
@@ -536,7 +570,7 @@ async def _exercise_safe_controls(page: Page, page_name: str) -> dict[str, Any]:
 async def _research_one(page: Page, ticker: str, output_dir: Path) -> JourneyStep:
     journey = f"Research {ticker}"
     started = time.monotonic()
-    ok, _, nav_detail = await _navigate(page, "Research Any Ticker")
+    ok, _, nav_detail = await _navigate(page, "Research Any Ticker", output_dir)
     if not ok:
         return JourneyStep(journey, "open research page", "FAIL", time.monotonic()-started, "Research Any Ticker", nav_detail)
 
@@ -642,7 +676,7 @@ async def _ask_question(page: Page, ticker: str, prompt: str, output_dir: Path) 
     started = time.monotonic()
 
     # Prefer the dedicated Ask AI page.
-    ok, _, nav_detail = await _navigate(page, "Ask AI")
+    ok, _, nav_detail = await _navigate(page, "Ask AI", output_dir)
     if not ok:
         return JourneyStep(journey, "open Ask AI", "FAIL", time.monotonic()-started, "Ask AI", nav_detail)
 
@@ -754,7 +788,7 @@ async def _core_mobile_certification(page: Page, output_dir: Path) -> list[Journ
     await page.set_viewport_size({"width": 390, "height": 844})
     for label in ("Home", "Today's Opportunities", "Research Any Ticker", "Ask AI"):
         started = time.monotonic()
-        ok, _, detail = await _navigate(page, label)
+        ok, _, detail = await _navigate(page, label, output_dir)
         screenshot = await _screenshot(page, output_dir, f"mobile_{label}") if ok else ""
         metadata = await _page_certification_metadata(page, label) if ok else {}
         rendered_exception = await _has_rendered_exception(page) if ok else True
@@ -781,7 +815,7 @@ async def run_user_journeys(
     # 1. Full navigation + safe interaction coverage.
     for label in navigation_labels:
         step_start = time.monotonic()
-        ok, duration, detail = await _navigate(page, label)
+        ok, duration, detail = await _navigate(page, label, output_dir)
         if not ok:
             steps.append(JourneyStep("Navigation coverage", label, "FAIL", duration, label, detail))
             continue
@@ -810,7 +844,7 @@ async def run_user_journeys(
         steps.append(await _ask_question(page, ticker, prompt, output_dir))
 
     # 4. Responsive smoke after returning to Research page.
-    await _navigate(page, "Research Any Ticker")
+    await _navigate(page, "Research Any Ticker", output_dir)
     steps.extend(await _responsive_smoke(page, output_dir))
     steps.extend(await _core_mobile_certification(page, output_dir))
 
@@ -837,6 +871,35 @@ async def run_user_journeys(
         if marker.get("ticker") == CURRENT_TOP15_TICKER and marker.get("decision_digest"):
             cross_page[step.get("page") or step.get("step")] = marker.get("decision_digest")
     unique_digests = set(cross_page.values())
+    cross_page_result = {
+        "status": "PASS" if cross_page and len(unique_digests) == 1 else "FAIL" if cross_page else "NOT_EXECUTED",
+        "reason": None if cross_page else "No dynamic Top-15 page decision markers were captured.",
+        "ticker": CURRENT_TOP15_TICKER,
+        "page_decision_digests": cross_page,
+        "consistent": len(unique_digests) == 1 and bool(cross_page),
+    }
+    selectors = {
+        "navigation": lambda step: step["journey"] == "Navigation coverage",
+        "research": lambda step: step["journey"].startswith("Research "),
+        "ask": lambda step: step["journey"].startswith("Ask AI —"),
+        "responsive": lambda step: step["journey"].startswith("Responsive ") or step["journey"] == "Core mobile certification",
+    }
+    family_completed = {}
+    for family, predicate in selectors.items():
+        matching = [step for step in values if predicate(step)]
+        family_completed[family] = {
+            "attempted": len(matching),
+            "completed": sum(step["status"] == "PASS" for step in matching),
+            "failed": sum(step["status"] == "FAIL" for step in matching),
+        }
+    family_completed["cross_page"] = {
+        "attempted": 1, "completed": 1 if cross_page_result["status"] == "PASS" else 0,
+        "failed": 0 if cross_page_result["status"] == "PASS" else 1,
+    }
+    completeness = journey_completeness({
+        "navigation": len(tuple(navigation_labels)), "research": len(RESEARCH_TICKERS) + 1,
+        "ask": len(ASK_AI_PROMPTS), "responsive": 6, "cross_page": 1,
+    }, family_completed)
     return {
         "version": "ATLAS-USER-JOURNEYS-V4.0",
         "status": "PASS" if counts["FAIL"] == 0 else "FAIL",
@@ -845,9 +908,14 @@ async def run_user_journeys(
         "performance": performance,
         "ticker_matrix": _TICKER_MATRIX,
         "stable_ask_questions": ASK_AI_QUESTIONS,
-        "cross_page_consistency": {
-            "ticker": CURRENT_TOP15_TICKER,
-            "page_decision_digests": cross_page,
-            "consistent": len(unique_digests) <= 1 and bool(cross_page),
-        },
+        "required_journey_completeness": completeness,
+        "cross_page_consistency": cross_page_result,
     }
+
+
+__all__ = [
+    "ASK_AI_PROMPTS", "ASK_AI_QUESTIONS", "INVALID_TICKER", "PAGE_LABELS",
+    "PAGE_READY_TEXT", "RESEARCH_TICKERS", "ask_grounding_complete",
+    "navigation_contract_satisfied", "research_context_complete", "run_user_journeys",
+    "page_identity_settled", "wait_for_page_settlement",
+]

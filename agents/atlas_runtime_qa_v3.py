@@ -28,10 +28,11 @@ from agents.ai_content_integrity_v3 import audit_summary_collection
 from agents.code_contract_mapper_v3 import build_code_contract
 from agents.fix_planner_v3 import write_fix_plan
 from agents.qa_v3_models import PageResult, QAIssue
-from agents.runtime_qa_user_journeys_v40 import run_user_journeys
+from agents.runtime_qa_user_journeys_v40 import run_user_journeys, wait_for_page_settlement
 from agents.runtime_qa_architecture import (
-    CERTIFICATION_ARTIFACT, RUNTIME_QA_FRAMEWORK_VERSION,
-    architecture_preflight, architecture_versions, certification_record,
+    CERTIFICATION_ARTIFACT, CORE_PAGE_CONTRACTS, RUNTIME_QA_FRAMEWORK_VERSION,
+    architecture_preflight, architecture_versions, certification_integrity,
+    certification_record, journey_completeness, research_ticker_matrix,
 )
 
 
@@ -759,6 +760,16 @@ def _product_issues(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ]
 
 
+def _classify_failed_request(url: str, status: int) -> dict[str, str]:
+    """Classify platform traffic without retaining query strings or credentials."""
+    from urllib.parse import urlsplit
+    parts = urlsplit(str(url or ""))
+    path = parts.path or "/"
+    if path.endswith("/api/v2/user/details") and status == 404:
+        return {"path": path, "classification": "PLATFORM_NOISE", "relevance": "NOT_ATLAS_FUNCTIONALITY"}
+    return {"path": path, "classification": "APPLICATION_OR_DEPENDENCY_REQUEST_FAILURE", "relevance": "REVIEW_REQUIRED"}
+
+
 async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
     output_dir.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
@@ -781,7 +792,25 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
     failed_requests: list[dict[str, Any]] = []
     console_errors: list[dict[str, Any]] = []
     authentication: dict[str, Any] = {}
-    user_journeys: dict[str, Any] = {}
+    resolved_ticker_matrix = research_ticker_matrix(".")
+    required_expected = {"navigation": 14, "research": 6, "ask": 6, "responsive": 6, "cross_page": 1}
+    user_journeys: dict[str, Any] = {
+        "status": "NOT_EXECUTED", "ticker_matrix": resolved_ticker_matrix,
+        "cross_page_consistency": {"status": "NOT_EXECUTED", "reason": "Browser journeys have not started."},
+        "required_journey_completeness": journey_completeness(required_expected, {}, engine_error="NOT_EXECUTED"),
+        "steps": [], "counts": {"PASS": 0, "WARN": 0, "FAIL": 0},
+    }
+    (output_dir / CERTIFICATION_ARTIFACT).write_text(json.dumps({
+        "version": RUNTIME_QA_FRAMEWORK_VERSION,
+        "source_commit": versions["source_commit"],
+        "architecture_versions": versions,
+        "status": "IN_PROGRESS",
+        "audit_valid": False,
+        "ticker_matrix": resolved_ticker_matrix,
+        "required_journey_completeness": user_journeys["required_journey_completeness"],
+        "cross_page_consistency": user_journeys["cross_page_consistency"],
+        "certifications": [],
+    }, indent=2), encoding="utf-8")
 
     print("=" * 72, flush=True)
     print("ATLAS QA ENTERPRISE V4.0 — RUNTIME + VISUAL + AI + USER JOURNEYS", flush=True)
@@ -852,6 +881,9 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
                             _click_navigation(page, page_name),
                             timeout=12,
                         )
+                    settled, _, settlement_detail = await wait_for_page_settlement(page, page_name, output_dir)
+                    if not settled:
+                        raise TimeoutError(settlement_detail)
                     result = await asyncio.wait_for(
                         _inventory(page, page_name, output_dir),
                         timeout=20,
@@ -895,7 +927,7 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
                         output_dir=output_dir,
                         navigation_labels=pages,
                     ),
-                    timeout=420,
+                    timeout=600,
                 )
                 (output_dir / "atlas_user_journeys_v40.json").write_text(
                     json.dumps(user_journeys, indent=2, default=str),
@@ -919,15 +951,29 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
                             regression_test="Keep this synthetic journey in the permanent QA suite.",
                         ).to_dict())
             except Exception as exc:
+                exception_category = type(exc).__name__
+                user_journeys.update({
+                    "status": "ENGINE_EXCEPTION",
+                    "engine_exception_category": exception_category,
+                    "required_journey_completeness": journey_completeness(
+                        required_expected, {}, engine_error=exception_category,
+                    ),
+                    "cross_page_consistency": {
+                        "status": "NOT_EXECUTED",
+                        "reason": f"Journey engine terminated with {exception_category}.",
+                    },
+                })
                 issues.append(QAIssue(
                     severity="HIGH",
                     category="User Journey Engine",
                     page="Application",
                     element="Synthetic client journeys",
                     expected="Navigation, research, Ask AI, and responsive smoke journeys execute.",
-                    actual=f"{type(exc).__name__}: {exc}",
+                    actual=exception_category,
                     recommendation="Inspect agents/runtime_qa_user_journeys_v40.py and journey screenshots.",
                     likely_files=["agents/runtime_qa_user_journeys_v40.py"],
+                    classification="QA_DEFECT",
+                    architecture_severity="P1",
                 ).to_dict())
         except Exception as exc:
             failure_trace = traceback.format_exc()
@@ -960,18 +1006,26 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
 
     certifications: list[dict[str, Any]] = []
     for item in page_results:
+        semantic_required = item.get("page") in CORE_PAGE_CONTRACTS
+        navigation_ok = item.get("status") == "PASS"
         certifications.append(certification_record(
             page=item.get("page"), journey="Page certification", ticker="",
             screenshot_paths=(item.get("screenshot"),) if item.get("screenshot") else (),
-            classification="PASS" if item.get("status") == "PASS" else "PRODUCT_DEFECT",
-            severity=None if item.get("status") == "PASS" else "P1",
+            classification="QA_DEFECT" if semantic_required or not navigation_ok else "PASS",
+            severity="P1" if semantic_required or not navigation_ok else None,
+            navigation_status="PASS" if navigation_ok else "FAIL",
+            semantic_status="NOT_EXECUTED" if semantic_required else "NOT_REQUIRED",
+            reconciliation_status="NOT_EXECUTED" if semantic_required else "NOT_REQUIRED",
         ))
     for step in (user_journeys.get("steps") or []):
         evidence = step.get("evidence") or {}
         reconciliation = evidence.get("canonical_reconciliation") or evidence.get("canonical_context_certification") or {}
         classification = reconciliation.get("classification")
         if not classification:
-            classification = "PASS" if step.get("status") == "PASS" else "PRODUCT_DEFECT"
+            classification = "PASS" if step.get("status") == "PASS" else "QA_DEFECT"
+        semantic_required = step.get("page") in {"Research Any Ticker", "Ask AI"}
+        if semantic_required and not reconciliation:
+            classification = "QA_DEFECT"
         certifications.append(certification_record(
             page=step.get("page"), journey=f"{step.get('journey')} — {step.get('step')}",
             ticker=((evidence.get("canonical_research_summary") or {}).get("ticker") or (evidence.get("grounding") or {}).get("ticker") or ""),
@@ -982,13 +1036,25 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
             screenshot_paths=(step.get("screenshot"),) if step.get("screenshot") else (),
             classification=classification,
             severity=reconciliation.get("severity") or (None if classification in {"PASS", "PASS_WITH_EVIDENCE_LIMITATIONS", "PROVIDER_LIMITATION"} else "P1"),
+            navigation_status="PASS" if step.get("status") == "PASS" else "FAIL",
+            semantic_status="PASS" if reconciliation and classification in {"PASS", "PASS_WITH_EVIDENCE_LIMITATIONS"} else "NOT_EXECUTED" if semantic_required else "NOT_REQUIRED",
+            reconciliation_status="PASS" if reconciliation else "NOT_EXECUTED" if semantic_required else "NOT_REQUIRED",
+            responsive_status="PASS" if str(step.get("journey") or "").startswith(("Responsive ", "Core mobile")) and step.get("status") == "PASS" else "NOT_APPLICABLE",
         ))
 
-    audit_valid = bool(
+    integrity = certification_integrity(
+        authenticated=bool(authentication.get("authenticated_dashboard_detected")),
+        page_count=len(page_results),
+        journey_state=user_journeys.get("required_journey_completeness") or {},
+        ticker_matrix=resolved_ticker_matrix,
+        cross_page=user_journeys.get("cross_page_consistency") or {},
+    )
+    base_audit_ready = bool(
         authentication.get("authenticated_dashboard_detected")
         and len(page_results) >= 3
         and any((item.get("visible_text") or "").strip() for item in page_results)
     )
+    audit_valid = bool(base_audit_ready and integrity["audit_valid"])
 
     # De-duplicate failed requests by status/url/resource type.
     deduped_requests = list({
@@ -999,6 +1065,8 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
         ): item
         for item in failed_requests
     }.values())
+    for item in deduped_requests:
+        item.update(_classify_failed_request(item.pop("url", ""), int(item.get("status") or 0)))
 
     if not audit_valid:
         health = 0
@@ -1038,6 +1106,7 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
         "source_commit": versions["source_commit"],
         "architecture_versions": versions,
         "architecture_preflight": architecture,
+        "certification_integrity": integrity,
         "status": status,
         "audit_valid": audit_valid,
         "url": url,
@@ -1066,8 +1135,12 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
         "source_commit": versions["source_commit"],
         "architecture_versions": versions,
         "rollout_state": architecture.get("rollout_state"),
-        "ticker_matrix": user_journeys.get("ticker_matrix") or {},
-        "cross_page_consistency": user_journeys.get("cross_page_consistency") or {},
+        "status": "PASS" if audit_valid else "INCOMPLETE",
+        "audit_valid": audit_valid,
+        "certification_integrity": integrity,
+        "ticker_matrix": resolved_ticker_matrix,
+        "required_journey_completeness": user_journeys.get("required_journey_completeness"),
+        "cross_page_consistency": user_journeys.get("cross_page_consistency") or {"status": "NOT_EXECUTED", "reason": "No results."},
         "certifications": certifications,
     }
     (output_dir / CERTIFICATION_ARTIFACT).write_text(

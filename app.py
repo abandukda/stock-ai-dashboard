@@ -27566,6 +27566,10 @@ def _emit_page_certification_marker(page_name, source_df):
         digest = protected_decision_digest(build_production_decision(row))
         page_id = re.sub(r"[^a-z0-9]+", "-", str(page_name).lower()).strip("-")
         st.markdown(
+            f'<span data-atlas-qa="page-identity" data-atlas-page="{html.escape(page_id)}" '
+            f'data-atlas-status="ready" aria-hidden="true" style="display:none">page-identity</span>'
+            f'<span data-atlas-qa="page-ready" data-atlas-page="{html.escape(page_id)}" '
+            f'data-atlas-status="ready" aria-hidden="true" style="display:none">page-ready</span>'
             f'<span data-atlas-qa="page-certification" data-atlas-page="{html.escape(page_id)}" '
             f'data-atlas-ticker="{html.escape(ticker)}" data-atlas-decision-digest="{html.escape(digest)}" '
             f'aria-hidden="true" style="display:none">page-certification</span>',

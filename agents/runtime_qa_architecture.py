@@ -427,8 +427,70 @@ def research_ticker_matrix(root: str | Path = ".") -> dict[str, Any]:
     if not missing:
         universe = _scan_rows(root_path / "total_market_universe.json")
         missing = next((str(row.get("ticker") or row.get("symbol") or "").upper() for row in universe if re.fullmatch(r"[A-Z]{1,5}", str(row.get("ticker") or row.get("symbol") or "").upper()) and str(row.get("ticker") or row.get("symbol") or "").upper() not in set(symbols)), "")
-    tickers = list(dict.fromkeys(filter(None, ("NVDA", "AAPL", top15, missing, "SPY", "INVALID123"))))
-    return {"tickers": tickers, "dynamic_top15": top15, "missing_production": missing}
+    ordered = (("fixed_equity", "NVDA"), ("fixed_equity", "AAPL"),
+               ("dynamic_top15", top15), ("missing_production", missing),
+               ("etf", "SPY"), ("invalid", "INVALID123"))
+    entries = []
+    seen: set[str] = set()
+    rows_by_ticker = {str(row.get("ticker") or row.get("Ticker") or "").upper(): row for row in full}
+    for role, ticker in ordered:
+        if not ticker or ticker in seen:
+            continue
+        seen.add(ticker)
+        row = rows_by_ticker.get(ticker) or {}
+        production_member = ticker in rows_by_ticker
+        security_type = "ETF" if ticker == "SPY" else str(row.get("security_type") or row.get("Security Type") or "EQUITY")
+        entries.append({
+            "role": role, "ticker": ticker,
+            "production_member": production_member,
+            "security_type": security_type,
+            "expected_production_decision_status": "AVAILABLE" if production_member else "DATA_UNAVAILABLE",
+        })
+    return {
+        "tickers": [entry["ticker"] for entry in entries], "entries": entries,
+        "dynamic_top15": top15, "missing_production": missing,
+    }
+
+
+def journey_completeness(expected: Mapping[str, int], completed: Mapping[str, Any], *, engine_error: str = "") -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for family, count in expected.items():
+        observed = completed.get(family, 0)
+        if isinstance(observed, Mapping):
+            attempted = max(0, int(observed.get("attempted", 0)))
+            done = max(0, int(observed.get("completed", 0)))
+            failed = max(0, int(observed.get("failed", attempted - done)))
+        else:
+            done = max(0, int(observed))
+            attempted, failed = done, 0
+        required = max(0, int(count))
+        result[family] = {
+            "expected": required, "attempted": attempted, "completed": done,
+            "failed": failed, "skipped": max(0, required - attempted),
+        }
+    complete = not engine_error and all(item["skipped"] == 0 and item["failed"] == 0 and item["completed"] == item["expected"] for item in result.values())
+    return {"status": "PASS" if complete else "INCOMPLETE", "families": result, "engine_error_category": engine_error or None}
+
+
+def certification_integrity(
+    *, authenticated: bool, page_count: int, journey_state: Mapping[str, Any],
+    ticker_matrix: Mapping[str, Any], cross_page: Mapping[str, Any],
+) -> dict[str, Any]:
+    failures: list[str] = []
+    if not authenticated or page_count < 3:
+        failures.append("AUTHENTICATED_PAGE_AUDIT_INCOMPLETE")
+    if not ticker_matrix.get("entries"):
+        failures.append("TICKER_MATRIX_EMPTY")
+    if journey_state.get("status") != "PASS":
+        failures.append("REQUIRED_JOURNEYS_INCOMPLETE")
+    if not cross_page or cross_page.get("status") in {None, "NOT_EXECUTED"}:
+        failures.append("CROSS_PAGE_NOT_EXECUTED")
+    return {
+        "audit_valid": not failures,
+        "classification": "PASS" if not failures else "QA_DEFECT",
+        "severity": None if not failures else "P1",
+        "failures": failures,
+    }
 
 
 def certification_record(**values: Any) -> dict[str, Any]:
@@ -442,11 +504,23 @@ def certification_record(**values: Any) -> dict[str, Any]:
         "screenshot_paths": list(values.get("screenshot_paths") or []),
         "classification": values.get("classification") or "QA_DEFECT",
         "severity": values.get("severity"),
+        "navigation_status": values.get("navigation_status") or "NOT_EXECUTED",
+        "semantic_status": values.get("semantic_status") or "NOT_EXECUTED",
+        "reconciliation_status": values.get("reconciliation_status") or "NOT_EXECUTED",
+        "responsive_status": values.get("responsive_status") or "NOT_APPLICABLE",
     }
     if record["classification"] not in CERTIFICATION_CLASSIFICATIONS:
         raise ValueError("invalid certification classification")
     if record["severity"] is not None and record["severity"] not in CERTIFICATION_SEVERITIES:
         raise ValueError("invalid certification severity")
+    if record["reconciliation_status"] == "PASS" and not record["canonical_reconciliation"]:
+        record["reconciliation_status"] = "NOT_EXECUTED"
+    required_dimensions = (
+        record["navigation_status"], record["semantic_status"],
+        record["reconciliation_status"], record["responsive_status"],
+    )
+    if record["classification"] == "PASS" and any(value in {"FAIL", "NOT_EXECUTED"} for value in required_dimensions):
+        record["classification"], record["severity"] = "QA_DEFECT", "P1"
     return record
 
 
@@ -473,6 +547,7 @@ __all__ = [
     "CERTIFICATION_SEVERITIES", "CORE_PAGE_CONTRACTS", "FAMILY_RECONCILIATIONS",
     "PROTECTED_DECISION_FIELDS", "ROLLOUT_STATE", "RUNTIME_QA_FRAMEWORK_VERSION",
     "architecture_preflight", "architecture_versions", "certification_record",
+    "certification_integrity", "journey_completeness",
     "certify_analyst_action_readiness", "certify_ask_context", "certify_etf_context",
     "certify_freshness", "certify_immutable_decision",
     "certify_missing_production_ticker", "certify_research_context",
