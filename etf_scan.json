@@ -61,81 +61,81 @@
       "assets_under_management": 795306885120.0,
       "top_holdings": [
         {
-          "name": "NVIDIA Corp",
           "ticker": "NVDA",
+          "name": "NVIDIA Corp",
           "weight_pct": 7.5494
         },
         {
-          "name": "Apple Inc",
           "ticker": "AAPL",
+          "name": "Apple Inc",
           "weight_pct": 7.0445
         },
         {
-          "name": "Microsoft Corp",
           "ticker": "MSFT",
+          "name": "Microsoft Corp",
           "weight_pct": 5.3599
         },
         {
-          "name": "Amazon.com Inc",
           "ticker": "AMZN",
+          "name": "Amazon.com Inc",
           "weight_pct": 4.1276
         },
         {
-          "name": "Alphabet Inc Class A",
           "ticker": "GOOGL",
+          "name": "Alphabet Inc Class A",
           "weight_pct": 3.2422
         },
         {
-          "name": "Broadcom Inc",
           "ticker": "AVGO",
+          "name": "Broadcom Inc",
           "weight_pct": 2.862
         },
         {
-          "name": "Alphabet Inc Class C",
           "ticker": "GOOG",
+          "name": "Alphabet Inc Class C",
           "weight_pct": 2.6171
         },
         {
-          "name": "Meta Platforms Inc Class A",
           "ticker": "META",
+          "name": "Meta Platforms Inc Class A",
           "weight_pct": 1.8981
         },
         {
-          "name": "JPMorgan Chase & Co",
           "ticker": "JPM",
+          "name": "JPMorgan Chase & Co",
           "weight_pct": 1.4638
         },
         {
-          "name": "Berkshire Hathaway Inc Class B",
           "ticker": "BRK-B",
+          "name": "Berkshire Hathaway Inc Class B",
           "weight_pct": 1.4564
         }
       ],
       "holdings_status": "AVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T02:56:29.488517+00:00",
-      "sector_exposure": {
-        "basic_materials": 1.62,
-        "communication_services": 9.91,
-        "consumer_cyclical": 9.57,
-        "consumer_defensive": 4.61,
-        "energy": 3.36,
-        "financial_services": 12.24,
-        "healthcare": 9.1,
-        "industrials": 8.16,
-        "realestate": 1.88,
-        "technology": 37.4,
-        "utilities": 2.15
-      },
+      "evidence_timestamp": "2026-08-24T05:19:11.637305+00:00",
       "top_10_concentration_pct": 37.621,
+      "sector_exposure": {
+        "realestate": 1.88,
+        "consumer_cyclical": 9.57,
+        "basic_materials": 1.62,
+        "consumer_defensive": 4.61,
+        "technology": 37.4,
+        "communication_services": 9.91,
+        "financial_services": 12.24,
+        "utilities": 2.15,
+        "industrials": 8.16,
+        "energy": 3.36,
+        "healthcare": 9.1
+      },
       "freshness": {
-        "status": "FRESH_CACHE",
-        "fetched_at": "2026-08-22T18:52:45.359940+00:00",
-        "age_seconds": 29283.256,
+        "status": "FETCHED",
+        "fetched_at": "2026-08-24T05:22:06.266344+00:00",
+        "age_seconds": 0.0,
         "ttl_seconds": 86400
       }
     },
-    "scan_time": "2026-08-23T02:56:29.488529+00:00",
+    "scan_time": "2026-08-24T05:19:11.637317+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 779.37,
@@ -157,7 +157,7 @@
     "deep_research_evidence": {
       "sma200": 704.98,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-23T02:56:29.489619+00:00"
+      "sma200_evidence_timestamp": "2026-08-24T05:19:11.638224+00:00"
     },
     "analyst_support_score": 40.9,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -373,81 +373,81 @@
       "assets_under_management": 452800643072.0,
       "top_holdings": [
         {
-          "name": "NVIDIA Corp",
           "ticker": "NVDA",
+          "name": "NVIDIA Corp",
           "weight_pct": 8.0377
         },
         {
-          "name": "Apple Inc",
           "ticker": "AAPL",
+          "name": "Apple Inc",
           "weight_pct": 7.5064
         },
         {
-          "name": "Microsoft Corp",
           "ticker": "MSFT",
+          "name": "Microsoft Corp",
           "weight_pct": 5.7115
         },
         {
-          "name": "Amazon.com Inc",
           "ticker": "AMZN",
+          "name": "Amazon.com Inc",
           "weight_pct": 4.8334
         },
         {
-          "name": "Micron Technology Inc",
           "ticker": "MU",
+          "name": "Micron Technology Inc",
           "weight_pct": 4.2393
         },
         {
-          "name": "Advanced Micro Devices Inc",
           "ticker": "AMD",
+          "name": "Advanced Micro Devices Inc",
           "weight_pct": 3.5462
         },
         {
-          "name": "Alphabet Inc Class A",
           "ticker": "GOOGL",
+          "name": "Alphabet Inc Class A",
           "weight_pct": 3.4315
         },
         {
-          "name": "Alphabet Inc Class C",
           "ticker": "GOOG",
+          "name": "Alphabet Inc Class C",
           "weight_pct": 3.2194
         },
         {
-          "name": "Broadcom Inc",
           "ticker": "AVGO",
+          "name": "Broadcom Inc",
           "weight_pct": 3.0536
         },
         {
-          "name": "Meta Platforms Inc Class A",
           "ticker": "META",
+          "name": "Meta Platforms Inc Class A",
           "weight_pct": 2.7275
         }
       ],
       "holdings_status": "AVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T02:54:07.227731+00:00",
-      "sector_exposure": {
-        "basic_materials": 1.02,
-        "communication_services": 13.56,
-        "consumer_cyclical": 11.21,
-        "consumer_defensive": 6.66,
-        "energy": 0.54,
-        "financial_services": 0.23,
-        "healthcare": 3.8,
-        "industrials": 3.85,
-        "realestate": 0.0,
-        "technology": 57.95,
-        "utilities": 1.19
-      },
+      "evidence_timestamp": "2026-08-24T05:17:34.268226+00:00",
       "top_10_concentration_pct": 46.3065,
+      "sector_exposure": {
+        "realestate": 0.0,
+        "consumer_cyclical": 11.21,
+        "basic_materials": 1.02,
+        "consumer_defensive": 6.66,
+        "technology": 57.95,
+        "communication_services": 13.56,
+        "financial_services": 0.23,
+        "utilities": 1.19,
+        "industrials": 3.85,
+        "energy": 0.54,
+        "healthcare": 3.8
+      },
       "freshness": {
-        "status": "FRESH_CACHE",
-        "fetched_at": "2026-08-22T18:52:45.449253+00:00",
-        "age_seconds": 29283.167,
+        "status": "FETCHED",
+        "fetched_at": "2026-08-24T05:22:06.328717+00:00",
+        "age_seconds": 0.0,
         "ttl_seconds": 86400
       }
     },
-    "scan_time": "2026-08-23T02:54:07.227742+00:00",
+    "scan_time": "2026-08-24T05:17:34.268240+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 747.83,
@@ -469,7 +469,7 @@
     "deep_research_evidence": {
       "sma200": 651.74,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-23T02:54:07.228755+00:00"
+      "sma200_evidence_timestamp": "2026-08-24T05:17:34.269221+00:00"
     },
     "analyst_support_score": 41.0,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -718,81 +718,81 @@
       "assets_under_management": 80105422848.0,
       "top_holdings": [
         {
-          "name": "Moog Inc Class A",
           "ticker": "MOG-A",
+          "name": "Moog Inc Class A",
           "weight_pct": 0.3598
         },
         {
-          "name": "Hut 8 Corp",
           "ticker": "HUT",
+          "name": "Hut 8 Corp",
           "weight_pct": 0.3586
         },
         {
-          "name": "UMB Financial Corp",
           "ticker": "UMBF",
+          "name": "UMB Financial Corp",
           "weight_pct": 0.3508
         },
         {
-          "name": "Cytokinetics Inc",
           "ticker": "CYTK",
+          "name": "Cytokinetics Inc",
           "weight_pct": 0.3277
         },
         {
-          "name": "Viasat Inc",
           "ticker": "VSAT",
+          "name": "Viasat Inc",
           "weight_pct": 0.3146
         },
         {
-          "name": "BrightSpring Health Services Inc",
           "ticker": "BTSG",
+          "name": "BrightSpring Health Services Inc",
           "weight_pct": 0.3144
         },
         {
-          "name": "Glaukos Corp",
           "ticker": "GKOS",
+          "name": "Glaukos Corp",
           "weight_pct": 0.3091
         },
         {
-          "name": "CareTrust REIT Inc",
           "ticker": "CTRE",
+          "name": "CareTrust REIT Inc",
           "weight_pct": 0.3068
         },
         {
-          "name": "Old National Bancorp",
           "ticker": "ONB",
+          "name": "Old National Bancorp",
           "weight_pct": 0.3046
         },
         {
-          "name": "Brinker International Inc",
           "ticker": "EAT",
+          "name": "Brinker International Inc",
           "weight_pct": 0.2987
         }
       ],
       "holdings_status": "AVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T02:47:34.476151+00:00",
-      "sector_exposure": {
-        "basic_materials": 4.19,
-        "communication_services": 2.22,
-        "consumer_cyclical": 9.24,
-        "consumer_defensive": 2.73,
-        "energy": 6.01,
-        "financial_services": 18.6,
-        "healthcare": 20.04,
-        "industrials": 13.54,
-        "realestate": 6.86,
-        "technology": 13.78,
-        "utilities": 2.79
-      },
+      "evidence_timestamp": "2026-08-24T05:13:05.785199+00:00",
       "top_10_concentration_pct": 3.2451,
+      "sector_exposure": {
+        "realestate": 6.86,
+        "consumer_cyclical": 9.24,
+        "basic_materials": 4.19,
+        "consumer_defensive": 2.73,
+        "technology": 13.78,
+        "communication_services": 2.22,
+        "financial_services": 18.6,
+        "utilities": 2.79,
+        "industrials": 13.54,
+        "energy": 6.01,
+        "healthcare": 20.04
+      },
       "freshness": {
-        "status": "FRESH_CACHE",
-        "fetched_at": "2026-08-22T18:52:45.538237+00:00",
-        "age_seconds": 29283.079,
+        "status": "FETCHED",
+        "fetched_at": "2026-08-24T05:22:06.394052+00:00",
+        "age_seconds": 0.0,
         "ttl_seconds": 86400
       }
     },
-    "scan_time": "2026-08-23T02:47:34.476162+00:00",
+    "scan_time": "2026-08-24T05:13:05.785211+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 305.18,
@@ -814,7 +814,7 @@
     "deep_research_evidence": {
       "sma200": 269.12,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-23T02:47:34.477235+00:00"
+      "sma200_evidence_timestamp": "2026-08-24T05:13:05.786165+00:00"
     },
     "analyst_support_score": 40.9,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -1060,81 +1060,81 @@
       "assets_under_management": 1686884319232.0,
       "top_holdings": [
         {
-          "name": "NVIDIA Corp",
           "ticker": "NVDA",
+          "name": "NVIDIA Corp",
           "weight_pct": 7.5487
         },
         {
-          "name": "Apple Inc",
           "ticker": "AAPL",
+          "name": "Apple Inc",
           "weight_pct": 7.0442
         },
         {
-          "name": "Microsoft Corp",
           "ticker": "MSFT",
+          "name": "Microsoft Corp",
           "weight_pct": 5.3597
         },
         {
-          "name": "Amazon.com Inc",
           "ticker": "AMZN",
+          "name": "Amazon.com Inc",
           "weight_pct": 4.1276
         },
         {
-          "name": "Alphabet Inc Class A",
           "ticker": "GOOGL",
+          "name": "Alphabet Inc Class A",
           "weight_pct": 3.2421
         },
         {
-          "name": "Broadcom Inc",
           "ticker": "AVGO",
+          "name": "Broadcom Inc",
           "weight_pct": 2.8616
         },
         {
-          "name": "Alphabet Inc Class C",
           "ticker": "GOOG",
+          "name": "Alphabet Inc Class C",
           "weight_pct": 2.6171
         },
         {
-          "name": "Meta Platforms Inc Class A",
           "ticker": "META",
+          "name": "Meta Platforms Inc Class A",
           "weight_pct": 1.8982
         },
         {
-          "name": "JPMorgan Chase & Co",
           "ticker": "JPM",
+          "name": "JPMorgan Chase & Co",
           "weight_pct": 1.4634
         },
         {
-          "name": "Berkshire Hathaway Inc Class B",
           "ticker": "BRK-B",
+          "name": "Berkshire Hathaway Inc Class B",
           "weight_pct": 1.456
         }
       ],
       "holdings_status": "AVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T02:59:22.555958+00:00",
-      "sector_exposure": {
-        "basic_materials": 1.62,
-        "communication_services": 9.91,
-        "consumer_cyclical": 9.58,
-        "consumer_defensive": 4.61,
-        "energy": 3.36,
-        "financial_services": 12.19,
-        "healthcare": 9.1,
-        "industrials": 8.16,
-        "realestate": 1.88,
-        "technology": 37.43,
-        "utilities": 2.15
-      },
+      "evidence_timestamp": "2026-08-24T05:21:08.074824+00:00",
       "top_10_concentration_pct": 37.6186,
+      "sector_exposure": {
+        "realestate": 1.88,
+        "consumer_cyclical": 9.58,
+        "basic_materials": 1.62,
+        "consumer_defensive": 4.61,
+        "technology": 37.43,
+        "communication_services": 9.91,
+        "financial_services": 12.19,
+        "utilities": 2.15,
+        "industrials": 8.16,
+        "energy": 3.36,
+        "healthcare": 9.1
+      },
       "freshness": {
-        "status": "FRESH_CACHE",
-        "fetched_at": "2026-08-22T18:52:45.626616+00:00",
-        "age_seconds": 29282.99,
+        "status": "FETCHED",
+        "fetched_at": "2026-08-24T05:22:06.445316+00:00",
+        "age_seconds": 0.0,
         "ttl_seconds": 86400
       }
     },
-    "scan_time": "2026-08-23T02:59:22.555970+00:00",
+    "scan_time": "2026-08-24T05:21:08.074835+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 716.39,
@@ -1156,7 +1156,7 @@
     "deep_research_evidence": {
       "sma200": 647.88,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-23T02:59:22.556973+00:00"
+      "sma200_evidence_timestamp": "2026-08-24T05:21:08.075775+00:00"
     },
     "analyst_support_score": 40.9,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -1371,36 +1371,36 @@
       "assets_under_management": 17113127936.0,
       "top_holdings": [
         {
-          "name": "BlackRock Cash Funds Treasury SL Agency",
           "ticker": "XTSLA",
+          "name": "BlackRock Cash Funds Treasury SL Agency",
           "weight_pct": 1.0397
         }
       ],
       "holdings_status": "AVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T02:46:40.801697+00:00",
-      "sector_exposure": {
-        "basic_materials": 0.0,
-        "communication_services": 0.0,
-        "consumer_cyclical": 0.0,
-        "consumer_defensive": 0.0,
-        "energy": 0.0,
-        "financial_services": 0.0,
-        "healthcare": 0.0,
-        "industrials": 0.0,
-        "realestate": 0.41,
-        "technology": 0.0,
-        "utilities": 99.59
-      },
+      "evidence_timestamp": "2026-08-24T05:12:30.259700+00:00",
       "top_10_concentration_pct": 1.0397,
+      "sector_exposure": {
+        "realestate": 0.41,
+        "consumer_cyclical": 0.0,
+        "basic_materials": 0.0,
+        "consumer_defensive": 0.0,
+        "technology": 0.0,
+        "communication_services": 0.0,
+        "financial_services": 0.0,
+        "utilities": 99.59,
+        "industrials": 0.0,
+        "energy": 0.0,
+        "healthcare": 0.0
+      },
       "freshness": {
-        "status": "FRESH_CACHE",
-        "fetched_at": "2026-08-22T18:52:45.722206+00:00",
-        "age_seconds": 29282.895,
+        "status": "FETCHED",
+        "fetched_at": "2026-08-24T05:22:06.497224+00:00",
+        "age_seconds": 0.0,
         "ttl_seconds": 86400
       }
     },
-    "scan_time": "2026-08-23T02:46:40.801705+00:00",
+    "scan_time": "2026-08-24T05:12:30.259711+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 79.86,
@@ -1422,7 +1422,7 @@
     "deep_research_evidence": {
       "sma200": 78.41,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-23T02:46:40.802633+00:00"
+      "sma200_evidence_timestamp": "2026-08-24T05:12:30.260656+00:00"
     },
     "analyst_support_score": 40.9,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -1669,81 +1669,81 @@
       "assets_under_management": 45207846912.0,
       "top_holdings": [
         {
-          "name": "The Goldman Sachs Group Inc",
           "ticker": "GS",
+          "name": "The Goldman Sachs Group Inc",
           "weight_pct": 11.5221
         },
         {
-          "name": "Caterpillar Inc",
           "ticker": "CAT",
+          "name": "Caterpillar Inc",
           "weight_pct": 9.2189
         },
         {
-          "name": "Microsoft Corp",
           "ticker": "MSFT",
+          "name": "Microsoft Corp",
           "weight_pct": 5.2579
         },
         {
-          "name": "UnitedHealth Group Inc",
           "ticker": "UNH",
+          "name": "UnitedHealth Group Inc",
           "weight_pct": 4.6886
         },
         {
-          "name": "Amgen Inc",
           "ticker": "AMGN",
+          "name": "Amgen Inc",
           "weight_pct": 4.3578
         },
         {
-          "name": "The Travelers Companies Inc",
           "ticker": "TRV",
+          "name": "The Travelers Companies Inc",
           "weight_pct": 4.2356
         },
         {
-          "name": "Visa Inc Class A",
           "ticker": "V",
+          "name": "Visa Inc Class A",
           "weight_pct": 4.1424
         },
         {
-          "name": "Alphabet Inc Class A",
           "ticker": "GOOGL",
+          "name": "Alphabet Inc Class A",
           "weight_pct": 4.0293
         },
         {
-          "name": "JPMorgan Chase & Co",
           "ticker": "JPM",
+          "name": "JPMorgan Chase & Co",
           "weight_pct": 3.9802
         },
         {
-          "name": "Sherwin-Williams Co",
           "ticker": "SHW",
+          "name": "Sherwin-Williams Co",
           "weight_pct": 3.8564
         }
       ],
       "holdings_status": "AVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T02:42:18.075223+00:00",
-      "sector_exposure": {
-        "basic_materials": 3.86,
-        "communication_services": 5.12,
-        "consumer_cyclical": 10.37,
-        "consumer_defensive": 3.89,
-        "energy": 2.23,
-        "financial_services": 27.71,
-        "healthcare": 13.43,
-        "industrials": 16.42,
-        "realestate": 0.0,
-        "technology": 16.96,
-        "utilities": 0.0
-      },
+      "evidence_timestamp": "2026-08-24T05:09:29.709918+00:00",
       "top_10_concentration_pct": 55.2892,
+      "sector_exposure": {
+        "realestate": 0.0,
+        "consumer_cyclical": 10.37,
+        "basic_materials": 3.86,
+        "consumer_defensive": 3.89,
+        "technology": 16.96,
+        "communication_services": 5.12,
+        "financial_services": 27.71,
+        "utilities": 0.0,
+        "industrials": 16.42,
+        "energy": 2.23,
+        "healthcare": 13.43
+      },
       "freshness": {
-        "status": "FRESH_CACHE",
-        "fetched_at": "2026-08-22T18:52:45.810240+00:00",
-        "age_seconds": 29282.807,
+        "status": "FETCHED",
+        "fetched_at": "2026-08-24T05:22:06.549021+00:00",
+        "age_seconds": 0.0,
         "ttl_seconds": 86400
       }
     },
-    "scan_time": "2026-08-23T02:42:18.075234+00:00",
+    "scan_time": "2026-08-24T05:09:29.709929+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 546.3,
@@ -1765,7 +1765,7 @@
     "deep_research_evidence": {
       "sma200": 492.82,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-23T02:42:18.076300+00:00"
+      "sma200_evidence_timestamp": "2026-08-24T05:09:29.710842+00:00"
     },
     "analyst_support_score": 40.9,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -2015,81 +2015,81 @@
       "assets_under_management": 41749876736.0,
       "top_holdings": [
         {
-          "name": "Eli Lilly and Co",
           "ticker": "LLY",
+          "name": "Eli Lilly and Co",
           "weight_pct": 15.472
         },
         {
-          "name": "Johnson & Johnson",
           "ticker": "JNJ",
+          "name": "Johnson & Johnson",
           "weight_pct": 10.5057
         },
         {
-          "name": "AbbVie Inc",
           "ticker": "ABBV",
+          "name": "AbbVie Inc",
           "weight_pct": 7.5481
         },
         {
-          "name": "UnitedHealth Group Inc",
           "ticker": "UNH",
+          "name": "UnitedHealth Group Inc",
           "weight_pct": 6.407
         },
         {
-          "name": "Merck & Co Inc",
           "ticker": "MRK",
+          "name": "Merck & Co Inc",
           "weight_pct": 5.4746
         },
         {
-          "name": "Thermo Fisher Scientific Inc",
           "ticker": "TMO",
+          "name": "Thermo Fisher Scientific Inc",
           "weight_pct": 3.6334
         },
         {
-          "name": "Amgen Inc",
           "ticker": "AMGN",
+          "name": "Amgen Inc",
           "weight_pct": 3.539
         },
         {
-          "name": "Abbott Laboratories",
           "ticker": "ABT",
+          "name": "Abbott Laboratories",
           "weight_pct": 3.1344
         },
         {
-          "name": "Gilead Sciences Inc",
           "ticker": "GILD",
+          "name": "Gilead Sciences Inc",
           "weight_pct": 2.7523
         },
         {
-          "name": "Pfizer Inc",
           "ticker": "PFE",
+          "name": "Pfizer Inc",
           "weight_pct": 2.4268
         }
       ],
       "holdings_status": "AVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T03:00:23.658647+00:00",
-      "sector_exposure": {
-        "basic_materials": 0.0,
-        "communication_services": 0.0,
-        "consumer_cyclical": 0.0,
-        "consumer_defensive": 0.0,
-        "energy": 0.0,
-        "financial_services": 0.0,
-        "healthcare": 100.0,
-        "industrials": 0.0,
-        "realestate": 0.0,
-        "technology": 0.0,
-        "utilities": 0.0
-      },
+      "evidence_timestamp": "2026-08-24T05:21:49.648788+00:00",
       "top_10_concentration_pct": 60.8933,
+      "sector_exposure": {
+        "realestate": 0.0,
+        "consumer_cyclical": 0.0,
+        "basic_materials": 0.0,
+        "consumer_defensive": 0.0,
+        "technology": 0.0,
+        "communication_services": 0.0,
+        "financial_services": 0.0,
+        "utilities": 0.0,
+        "industrials": 0.0,
+        "energy": 0.0,
+        "healthcare": 100.0
+      },
       "freshness": {
-        "status": "FRESH_CACHE",
-        "fetched_at": "2026-08-22T18:52:45.897123+00:00",
-        "age_seconds": 29282.72,
+        "status": "FETCHED",
+        "fetched_at": "2026-08-24T05:22:06.599655+00:00",
+        "age_seconds": 0.0,
         "ttl_seconds": 86400
       }
     },
-    "scan_time": "2026-08-23T03:00:23.658657+00:00",
+    "scan_time": "2026-08-24T05:21:49.648798+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 176.6,
@@ -2111,7 +2111,7 @@
     "deep_research_evidence": {
       "sma200": 153.27,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-23T03:00:23.659687+00:00"
+      "sma200_evidence_timestamp": "2026-08-24T05:21:49.649737+00:00"
     },
     "analyst_support_score": 42.2,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -2327,81 +2327,81 @@
       "assets_under_management": 39209267200.0,
       "top_holdings": [
         {
-          "name": "ExxonMobil Holdings Corp",
           "ticker": "XOM",
+          "name": "ExxonMobil Holdings Corp",
           "weight_pct": 20.5811
         },
         {
-          "name": "Chevron Corp",
           "ticker": "CVX",
+          "name": "Chevron Corp",
           "weight_pct": 15.2557
         },
         {
-          "name": "ConocoPhillips",
           "ticker": "COP",
+          "name": "ConocoPhillips",
           "weight_pct": 6.0768
         },
         {
-          "name": "Marathon Petroleum Corp",
           "ticker": "MPC",
+          "name": "Marathon Petroleum Corp",
           "weight_pct": 4.93
         },
         {
-          "name": "Phillips 66",
           "ticker": "PSX",
+          "name": "Phillips 66",
           "weight_pct": 4.9112
         },
         {
-          "name": "Valero Energy Corp",
           "ticker": "VLO",
+          "name": "Valero Energy Corp",
           "weight_pct": 4.7444
         },
         {
-          "name": "EOG Resources Inc",
           "ticker": "EOG",
+          "name": "EOG Resources Inc",
           "weight_pct": 4.5512
         },
         {
-          "name": "SLB Ltd",
           "ticker": "SLB",
+          "name": "SLB Ltd",
           "weight_pct": 4.3176
         },
         {
-          "name": "Kinder Morgan Inc Class P",
           "ticker": "KMI",
+          "name": "Kinder Morgan Inc Class P",
           "weight_pct": 3.9077
         },
         {
-          "name": "Williams Companies Inc",
           "ticker": "WMB",
+          "name": "Williams Companies Inc",
           "weight_pct": 3.863
         }
       ],
       "holdings_status": "AVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T03:00:21.813796+00:00",
-      "sector_exposure": {
-        "basic_materials": 0.0,
-        "communication_services": 0.0,
-        "consumer_cyclical": 0.0,
-        "consumer_defensive": 0.0,
-        "energy": 100.0,
-        "financial_services": 0.0,
-        "healthcare": 0.0,
-        "industrials": 0.0,
-        "realestate": 0.0,
-        "technology": 0.0,
-        "utilities": 0.0
-      },
+      "evidence_timestamp": "2026-08-24T05:21:48.494876+00:00",
       "top_10_concentration_pct": 73.1387,
+      "sector_exposure": {
+        "realestate": 0.0,
+        "consumer_cyclical": 0.0,
+        "basic_materials": 0.0,
+        "consumer_defensive": 0.0,
+        "technology": 0.0,
+        "communication_services": 0.0,
+        "financial_services": 0.0,
+        "utilities": 0.0,
+        "industrials": 0.0,
+        "energy": 100.0,
+        "healthcare": 0.0
+      },
       "freshness": {
-        "status": "FRESH_CACHE",
-        "fetched_at": "2026-08-22T18:52:45.988760+00:00",
-        "age_seconds": 29282.628,
+        "status": "FETCHED",
+        "fetched_at": "2026-08-24T05:22:06.660744+00:00",
+        "age_seconds": 0.0,
         "ttl_seconds": 86400
       }
     },
-    "scan_time": "2026-08-23T03:00:21.813841+00:00",
+    "scan_time": "2026-08-24T05:21:48.494889+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 64.7,
@@ -2423,7 +2423,7 @@
     "deep_research_evidence": {
       "sma200": 53.39,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-23T03:00:21.814846+00:00"
+      "sma200_evidence_timestamp": "2026-08-24T05:21:48.495857+00:00"
     },
     "analyst_support_score": 42.7,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -2639,81 +2639,81 @@
       "assets_under_management": 115410993152.0,
       "top_holdings": [
         {
-          "name": "NVIDIA Corp",
           "ticker": "NVDA",
+          "name": "NVIDIA Corp",
           "weight_pct": 13.7932
         },
         {
-          "name": "Apple Inc",
           "ticker": "AAPL",
+          "name": "Apple Inc",
           "weight_pct": 12.8706
         },
         {
-          "name": "Microsoft Corp",
           "ticker": "MSFT",
+          "name": "Microsoft Corp",
           "weight_pct": 9.793
         },
         {
-          "name": "Broadcom Inc",
           "ticker": "AVGO",
+          "name": "Broadcom Inc",
           "weight_pct": 5.2285
         },
         {
-          "name": "Advanced Micro Devices Inc",
           "ticker": "AMD",
+          "name": "Advanced Micro Devices Inc",
           "weight_pct": 4.1966
         },
         {
-          "name": "Micron Technology Inc",
           "ticker": "MU",
+          "name": "Micron Technology Inc",
           "weight_pct": 3.6258
         },
         {
-          "name": "Cisco Systems Inc",
           "ticker": "CSCO",
+          "name": "Cisco Systems Inc",
           "weight_pct": 3.1733
         },
         {
-          "name": "Intel Corp",
           "ticker": "INTC",
+          "name": "Intel Corp",
           "weight_pct": 2.9516
         },
         {
-          "name": "Applied Materials Inc",
           "ticker": "AMAT",
+          "name": "Applied Materials Inc",
           "weight_pct": 2.7906
         },
         {
-          "name": "Lam Research Corp",
           "ticker": "LRCX",
+          "name": "Lam Research Corp",
           "weight_pct": 2.5381
         }
       ],
       "holdings_status": "AVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T03:00:22.660458+00:00",
-      "sector_exposure": {
-        "basic_materials": 0.0,
-        "communication_services": 0.74,
-        "consumer_cyclical": 0.0,
-        "consumer_defensive": 0.0,
-        "energy": 0.0,
-        "financial_services": 0.0,
-        "healthcare": 0.0,
-        "industrials": 0.0,
-        "realestate": 0.0,
-        "technology": 99.26,
-        "utilities": 0.0
-      },
+      "evidence_timestamp": "2026-08-24T05:21:48.955134+00:00",
       "top_10_concentration_pct": 60.9613,
+      "sector_exposure": {
+        "realestate": 0.0,
+        "consumer_cyclical": 0.0,
+        "basic_materials": 0.0,
+        "consumer_defensive": 0.0,
+        "technology": 99.26,
+        "communication_services": 0.74,
+        "financial_services": 0.0,
+        "utilities": 0.0,
+        "industrials": 0.0,
+        "energy": 0.0,
+        "healthcare": 0.0
+      },
       "freshness": {
-        "status": "FRESH_CACHE",
-        "fetched_at": "2026-08-22T18:52:46.080137+00:00",
-        "age_seconds": 29282.537,
+        "status": "FETCHED",
+        "fetched_at": "2026-08-24T05:22:06.709968+00:00",
+        "age_seconds": 0.0,
         "ttl_seconds": 86400
       }
     },
-    "scan_time": "2026-08-23T03:00:22.660469+00:00",
+    "scan_time": "2026-08-24T05:21:48.955145+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 198.49,
@@ -2735,7 +2735,7 @@
     "deep_research_evidence": {
       "sma200": 158.13,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-23T03:00:22.661509+00:00"
+      "sma200_evidence_timestamp": "2026-08-24T05:21:48.956054+00:00"
     },
     "analyst_support_score": 41.4,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -2951,81 +2951,81 @@
       "assets_under_management": 2289978572800.0,
       "top_holdings": [
         {
-          "name": "NVIDIA Corp",
           "ticker": "NVDA",
+          "name": "NVIDIA Corp",
           "weight_pct": 6.3959
         },
         {
-          "name": "Apple Inc",
           "ticker": "AAPL",
+          "name": "Apple Inc",
           "weight_pct": 6.2876
         },
         {
-          "name": "Microsoft Corp",
           "ticker": "MSFT",
+          "name": "Microsoft Corp",
           "weight_pct": 4.784
         },
         {
-          "name": "Amazon.com Inc",
           "ticker": "AMZN",
+          "name": "Amazon.com Inc",
           "weight_pct": 3.6437
         },
         {
-          "name": "Alphabet Inc Class A",
           "ticker": "GOOGL",
+          "name": "Alphabet Inc Class A",
           "weight_pct": 2.8944
         },
         {
-          "name": "Broadcom Inc",
           "ticker": "AVGO",
+          "name": "Broadcom Inc",
           "weight_pct": 2.5542
         },
         {
-          "name": "Alphabet Inc Class C",
           "ticker": "GOOG",
+          "name": "Alphabet Inc Class C",
           "weight_pct": 2.3083
         },
         {
-          "name": "Meta Platforms Inc Class A",
           "ticker": "META",
+          "name": "Meta Platforms Inc Class A",
           "weight_pct": 1.6942
         },
         {
-          "name": "Eli Lilly and Co",
           "ticker": "LLY",
+          "name": "Eli Lilly and Co",
           "weight_pct": 1.3494
         },
         {
-          "name": "JPMorgan Chase & Co",
           "ticker": "JPM",
+          "name": "JPMorgan Chase & Co",
           "weight_pct": 1.3063
         }
       ],
       "holdings_status": "AVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T02:59:34.024008+00:00",
-      "sector_exposure": {
-        "basic_materials": 1.84,
-        "communication_services": 9.15,
-        "consumer_cyclical": 9.49,
-        "consumer_defensive": 4.39,
-        "energy": 3.54,
-        "financial_services": 12.55,
-        "healthcare": 9.85,
-        "industrials": 9.62,
-        "realestate": 2.39,
-        "technology": 35.06,
-        "utilities": 2.13
-      },
+      "evidence_timestamp": "2026-08-24T05:21:15.737777+00:00",
       "top_10_concentration_pct": 33.218,
+      "sector_exposure": {
+        "realestate": 2.39,
+        "consumer_cyclical": 9.49,
+        "basic_materials": 1.84,
+        "consumer_defensive": 4.39,
+        "technology": 35.06,
+        "communication_services": 9.15,
+        "financial_services": 12.55,
+        "utilities": 2.13,
+        "industrials": 9.62,
+        "energy": 3.54,
+        "healthcare": 9.85
+      },
       "freshness": {
-        "status": "FRESH_CACHE",
-        "fetched_at": "2026-08-22T18:52:46.169974+00:00",
-        "age_seconds": 29282.447,
+        "status": "FETCHED",
+        "fetched_at": "2026-08-24T05:22:06.759923+00:00",
+        "age_seconds": 0.0,
         "ttl_seconds": 86400
       }
     },
-    "scan_time": "2026-08-23T02:59:34.024021+00:00",
+    "scan_time": "2026-08-24T05:21:15.737788+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 385.12,
@@ -3047,7 +3047,7 @@
     "deep_research_evidence": {
       "sma200": 347.49,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-23T02:59:34.025205+00:00"
+      "sma200_evidence_timestamp": "2026-08-24T05:21:15.738674+00:00"
     },
     "analyst_support_score": 40.9,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -3264,9 +3264,9 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T03:00:22.905955+00:00"
+      "evidence_timestamp": "2026-08-24T05:21:49.137314+00:00"
     },
-    "scan_time": "2026-08-23T03:00:22.905963+00:00",
+    "scan_time": "2026-08-24T05:21:49.137327+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 89.02,
@@ -3288,7 +3288,7 @@
     "deep_research_evidence": {
       "sma200": 82.12,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-23T03:00:22.906964+00:00"
+      "sma200_evidence_timestamp": "2026-08-24T05:21:49.139136+00:00"
     },
     "analyst_support_score": 41.1,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -3507,9 +3507,9 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T02:55:23.986719+00:00"
+      "evidence_timestamp": "2026-08-24T05:18:27.018561+00:00"
     },
-    "scan_time": "2026-08-23T02:55:23.986730+00:00",
+    "scan_time": "2026-08-24T05:18:27.018573+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 35.31,
@@ -3531,7 +3531,7 @@
     "deep_research_evidence": {
       "sma200": 30.39,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-23T02:55:23.987873+00:00"
+      "sma200_evidence_timestamp": "2026-08-24T05:18:27.019542+00:00"
     },
     "analyst_support_score": 41.5,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -3748,9 +3748,9 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T03:00:23.905073+00:00"
+      "evidence_timestamp": "2026-08-24T05:21:49.816057+00:00"
     },
-    "scan_time": "2026-08-23T03:00:23.905083+00:00",
+    "scan_time": "2026-08-24T05:21:49.816068+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 124.51,
@@ -3772,7 +3772,7 @@
     "deep_research_evidence": {
       "sma200": 116.71,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-23T03:00:23.906152+00:00"
+      "sma200_evidence_timestamp": "2026-08-24T05:21:49.816978+00:00"
     },
     "analyst_support_score": 40.9,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -3990,9 +3990,9 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T03:00:21.560249+00:00"
+      "evidence_timestamp": "2026-08-24T05:21:48.292242+00:00"
     },
-    "scan_time": "2026-08-23T03:00:21.560260+00:00",
+    "scan_time": "2026-08-24T05:21:48.292253+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 53.72,
@@ -4014,7 +4014,7 @@
     "deep_research_evidence": {
       "sma200": 49.3,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-23T03:00:21.561244+00:00"
+      "sma200_evidence_timestamp": "2026-08-24T05:21:48.293159+00:00"
     },
     "analyst_support_score": 41.4,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -4230,9 +4230,9 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T02:47:46.857851+00:00"
+      "evidence_timestamp": "2026-08-24T05:13:14.080619+00:00"
     },
-    "scan_time": "2026-08-23T02:47:46.857863+00:00",
+    "scan_time": "2026-08-24T05:13:14.080632+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 60.74,
@@ -4254,7 +4254,7 @@
     "deep_research_evidence": {
       "sma200": 56.04,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-23T02:47:46.858873+00:00"
+      "sma200_evidence_timestamp": "2026-08-24T05:13:14.081598+00:00"
     },
     "analyst_support_score": 40.9,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -4501,9 +4501,9 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T02:47:45.828639+00:00"
+      "evidence_timestamp": "2026-08-24T05:13:13.542469+00:00"
     },
-    "scan_time": "2026-08-23T02:47:45.828651+00:00",
+    "scan_time": "2026-08-24T05:13:13.542481+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 58.15,
@@ -4525,7 +4525,7 @@
     "deep_research_evidence": {
       "sma200": 55.51,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-23T02:47:45.829763+00:00"
+      "sma200_evidence_timestamp": "2026-08-24T05:13:13.543412+00:00"
     },
     "analyst_support_score": 40.9,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -4771,9 +4771,9 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T03:00:23.155447+00:00"
+      "evidence_timestamp": "2026-08-24T05:21:49.307706+00:00"
     },
-    "scan_time": "2026-08-23T03:00:23.155456+00:00",
+    "scan_time": "2026-08-24T05:21:49.307718+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 46.46,
@@ -4795,7 +4795,7 @@
     "deep_research_evidence": {
       "sma200": 42.41,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-23T03:00:23.156478+00:00"
+      "sma200_evidence_timestamp": "2026-08-24T05:21:49.308738+00:00"
     },
     "analyst_support_score": 41.0,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -5011,9 +5011,9 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T02:58:50.557865+00:00"
+      "evidence_timestamp": "2026-08-24T05:20:46.380726+00:00"
     },
-    "scan_time": "2026-08-23T02:58:50.557878+00:00",
+    "scan_time": "2026-08-24T05:20:46.380737+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 62.28,
@@ -5035,7 +5035,7 @@
     "deep_research_evidence": {
       "sma200": 48.14,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-23T02:58:50.558949+00:00"
+      "sma200_evidence_timestamp": "2026-08-24T05:20:46.381666+00:00"
     },
     "analyst_support_score": 43.6,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -5254,9 +5254,9 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T02:54:10.531796+00:00"
+      "evidence_timestamp": "2026-08-24T05:17:36.517234+00:00"
     },
-    "scan_time": "2026-08-23T02:54:10.531835+00:00",
+    "scan_time": "2026-08-24T05:17:36.517245+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 18.35,
@@ -5278,7 +5278,7 @@
     "deep_research_evidence": {
       "sma200": 17.03,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-23T02:54:10.532829+00:00"
+      "sma200_evidence_timestamp": "2026-08-24T05:17:36.518165+00:00"
     },
     "analyst_support_score": 40.9,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -5527,9 +5527,9 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T03:00:33.318446+00:00"
+      "evidence_timestamp": "2026-08-24T05:21:56.328128+00:00"
     },
-    "scan_time": "2026-08-23T03:00:33.318457+00:00",
+    "scan_time": "2026-08-24T05:21:56.328139+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 41.71,
@@ -5551,7 +5551,7 @@
     "deep_research_evidence": {
       "sma200": 38.98,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-23T03:00:33.319475+00:00"
+      "sma200_evidence_timestamp": "2026-08-24T05:21:56.329045+00:00"
     },
     "analyst_support_score": 40.9,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -5770,9 +5770,9 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T02:55:05.141320+00:00"
+      "evidence_timestamp": "2026-08-24T05:18:14.081540+00:00"
     },
-    "scan_time": "2026-08-23T02:55:05.141330+00:00",
+    "scan_time": "2026-08-24T05:18:14.081551+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 16.47,
@@ -5794,7 +5794,7 @@
     "deep_research_evidence": {
       "sma200": 14.96,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-23T02:55:05.142432+00:00"
+      "sma200_evidence_timestamp": "2026-08-24T05:18:14.082502+00:00"
     },
     "analyst_support_score": 40.9,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -6012,9 +6012,9 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T02:37:24.228053+00:00"
+      "evidence_timestamp": "2026-08-24T05:06:08.709650+00:00"
     },
-    "scan_time": "2026-08-23T02:37:24.228066+00:00",
+    "scan_time": "2026-08-24T05:06:08.709661+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 92.65,
@@ -6036,7 +6036,7 @@
     "deep_research_evidence": {
       "sma200": 76.69,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-23T02:37:24.229135+00:00"
+      "sma200_evidence_timestamp": "2026-08-24T05:06:08.710587+00:00"
     },
     "analyst_support_score": 44.6,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -6283,9 +6283,9 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T02:56:05.719933+00:00"
+      "evidence_timestamp": "2026-08-24T05:18:55.125377+00:00"
     },
-    "scan_time": "2026-08-23T02:56:05.719946+00:00",
+    "scan_time": "2026-08-24T05:18:55.125389+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 671.83,
@@ -6307,7 +6307,7 @@
     "deep_research_evidence": {
       "sma200": 466.97,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-23T02:56:05.721011+00:00"
+      "sma200_evidence_timestamp": "2026-08-24T05:18:55.126319+00:00"
     },
     "analyst_support_score": 42.0,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -6524,9 +6524,9 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T02:56:18.883772+00:00"
+      "evidence_timestamp": "2026-08-24T05:19:04.185970+00:00"
     },
-    "scan_time": "2026-08-23T02:56:18.883785+00:00",
+    "scan_time": "2026-08-24T05:19:04.185984+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 655.95,
@@ -6548,7 +6548,7 @@
     "deep_research_evidence": {
       "sma200": 420.48,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-23T02:56:18.884845+00:00"
+      "sma200_evidence_timestamp": "2026-08-24T05:19:04.186838+00:00"
     },
     "analyst_support_score": 42.5,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -6765,9 +6765,9 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T02:49:12.165060+00:00"
+      "evidence_timestamp": "2026-08-24T05:14:12.269438+00:00"
     },
-    "scan_time": "2026-08-23T02:49:12.165072+00:00",
+    "scan_time": "2026-08-24T05:14:12.269450+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 109.38,
@@ -6789,7 +6789,7 @@
     "deep_research_evidence": {
       "sma200": 107.42,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-23T02:49:12.166150+00:00"
+      "sma200_evidence_timestamp": "2026-08-24T05:14:12.270386+00:00"
     },
     "analyst_support_score": 40.9,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -7036,9 +7036,9 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T02:57:46.166590+00:00"
+      "evidence_timestamp": "2026-08-24T05:20:03.521637+00:00"
     },
-    "scan_time": "2026-08-23T02:57:46.166603+00:00",
+    "scan_time": "2026-08-24T05:20:03.521649+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 88.83,
@@ -7060,7 +7060,7 @@
     "deep_research_evidence": {
       "sma200": 85.1,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-23T02:57:46.167665+00:00"
+      "sma200_evidence_timestamp": "2026-08-24T05:20:03.522589+00:00"
     },
     "analyst_support_score": 40.9,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -7277,9 +7277,9 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T03:00:22.312468+00:00"
+      "evidence_timestamp": "2026-08-24T05:21:48.800469+00:00"
     },
-    "scan_time": "2026-08-23T03:00:22.312479+00:00",
+    "scan_time": "2026-08-24T05:21:48.800481+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 188.19,
@@ -7301,7 +7301,7 @@
     "deep_research_evidence": {
       "sma200": 168.95,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-23T03:00:22.313511+00:00"
+      "sma200_evidence_timestamp": "2026-08-24T05:21:48.801450+00:00"
     },
     "analyst_support_score": 41.4,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -7519,9 +7519,9 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T02:56:20.197229+00:00"
+      "evidence_timestamp": "2026-08-24T05:19:05.001883+00:00"
     },
-    "scan_time": "2026-08-23T02:56:20.197242+00:00",
+    "scan_time": "2026-08-24T05:19:05.001894+00:00",
     "history_days_available": 48,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 28.01,
@@ -7757,9 +7757,9 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T02:39:12.678639+00:00"
+      "evidence_timestamp": "2026-08-24T05:07:21.977912+00:00"
     },
-    "scan_time": "2026-08-23T02:39:12.678652+00:00",
+    "scan_time": "2026-08-24T05:07:21.977922+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 41.69,
@@ -7781,7 +7781,7 @@
     "deep_research_evidence": {
       "sma200": 36.86,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-23T02:39:12.679791+00:00"
+      "sma200_evidence_timestamp": "2026-08-24T05:07:21.978823+00:00"
     },
     "analyst_support_score": 41.7,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -8029,9 +8029,9 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T02:56:20.966272+00:00"
+      "evidence_timestamp": "2026-08-24T05:19:05.526104+00:00"
     },
-    "scan_time": "2026-08-23T02:56:20.966285+00:00",
+    "scan_time": "2026-08-24T05:19:05.526115+00:00",
     "history_days_available": 48,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 37.35,
@@ -8266,9 +8266,9 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T02:56:19.192731+00:00"
+      "evidence_timestamp": "2026-08-24T05:19:04.342792+00:00"
     },
-    "scan_time": "2026-08-23T02:56:19.192741+00:00",
+    "scan_time": "2026-08-24T05:19:04.342803+00:00",
     "history_days_available": 48,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 46.57,
@@ -8503,9 +8503,9 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T02:56:20.475316+00:00"
+      "evidence_timestamp": "2026-08-24T05:19:05.185505+00:00"
     },
-    "scan_time": "2026-08-23T02:56:20.475328+00:00",
+    "scan_time": "2026-08-24T05:19:05.185517+00:00",
     "history_days_available": 48,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 46.71,
@@ -8739,9 +8739,9 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T02:57:12.549244+00:00"
+      "evidence_timestamp": "2026-08-24T05:19:40.968874+00:00"
     },
-    "scan_time": "2026-08-23T02:57:12.549255+00:00",
+    "scan_time": "2026-08-24T05:19:40.968885+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 75.6,
@@ -8763,7 +8763,7 @@
     "deep_research_evidence": {
       "sma200": 55.19,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-23T02:57:12.550291+00:00"
+      "sma200_evidence_timestamp": "2026-08-24T05:19:40.969817+00:00"
     },
     "analyst_support_score": 42.6,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -8981,9 +8981,9 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T03:00:23.411890+00:00"
+      "evidence_timestamp": "2026-08-24T05:21:49.472198+00:00"
     },
-    "scan_time": "2026-08-23T03:00:23.411899+00:00",
+    "scan_time": "2026-08-24T05:21:49.472210+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 47.41,
@@ -9005,7 +9005,7 @@
     "deep_research_evidence": {
       "sma200": 44.33,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-23T03:00:23.412869+00:00"
+      "sma200_evidence_timestamp": "2026-08-24T05:21:49.473186+00:00"
     },
     "analyst_support_score": 42.4,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -9223,9 +9223,9 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T02:56:38.199949+00:00"
+      "evidence_timestamp": "2026-08-24T05:19:17.615002+00:00"
     },
-    "scan_time": "2026-08-23T02:56:38.199960+00:00",
+    "scan_time": "2026-08-24T05:19:17.615013+00:00",
     "history_days_available": 48,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 24.66,
@@ -9460,9 +9460,9 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T02:56:09.161838+00:00"
+      "evidence_timestamp": "2026-08-24T05:18:57.492016+00:00"
     },
-    "scan_time": "2026-08-23T02:56:09.161848+00:00",
+    "scan_time": "2026-08-24T05:18:57.492027+00:00",
     "history_days_available": 48,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 40.62,
@@ -9697,9 +9697,9 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-23T02:56:20.722280+00:00"
+      "evidence_timestamp": "2026-08-24T05:19:05.347798+00:00"
     },
-    "scan_time": "2026-08-23T02:56:20.722292+00:00",
+    "scan_time": "2026-08-24T05:19:05.347810+00:00",
     "history_days_available": 48,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 31.5,
