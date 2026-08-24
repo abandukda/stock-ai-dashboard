@@ -3951,6 +3951,7 @@ def build_live_research_row(ticker, force_refresh=False):
         ticker,
         force_refresh=bool(force_refresh),
         cache_ttl_seconds=900,
+        fmp_api_key=FMP_API_KEY,
     )
 
 def build_legacy_live_research_row(ticker):
@@ -4535,7 +4536,10 @@ def render_chat_helper(full_df):
         from engines.ask_atlas_engine import ask_atlas
         from engines.atlas_research_builder_v2 import build_atlas_research_v2
         source = matched.get("Raw") or matched.get("raw")
-        canonical_row = dict(source) if isinstance(source, dict) else dict(matched)
+        session_research = st.session_state.get(f"v8054_live_row_{ticker}") or st.session_state.get(f"v8053_live_row_{ticker}")
+        if not isinstance(session_research, dict) or session_research.get("error"):
+            session_research = build_live_research_row(ticker, force_refresh=False)
+        canonical_row = dict(session_research) if isinstance(session_research, dict) and not session_research.get("error") else (dict(source) if isinstance(source, dict) else dict(matched))
         canonical_row.update({
             "ticker": ticker,
             "committee_verdict": matched.get("committee_verdict") or canonical_row.get("committee_verdict"),
@@ -4557,9 +4561,15 @@ def render_chat_helper(full_df):
             _ask_context_summary = sanitize_research_context(report.get("research_context") if isinstance(report.get("research_context"), dict) else {})
             _ask_context_digest = stable_digest(_ask_context_summary)
             _ask_context_version = str(_ask_context_summary.get("context_version") or "")
+            _ask_decision_status = str(_ask_context_summary.get("production_decision_status") or "")
+            _ask_decision_digest = str(_ask_context_summary.get("production_decision_digest") or "")
+            _ask_security_type = str(_ask_context_summary.get("security_type") or "")
         except Exception:
             _ask_context_digest = ""
             _ask_context_version = ""
+            _ask_decision_status = ""
+            _ask_decision_digest = ""
+            _ask_security_type = ""
         st.markdown(
             f'<span data-atlas-qa="ask-ai-response" data-atlas-status="complete" '
             f'data-atlas-ticker="{html.escape(ticker)}" data-atlas-section="{html.escape(str(result.get("section") or "overview"))}" '
@@ -4568,6 +4578,9 @@ def render_chat_helper(full_df):
             f'data-atlas-framework="{html.escape(str(result.get("framework_version") or "ASK_ATLAS_GROUNDED_V1"))}" '
             f'data-atlas-context-version="{html.escape(_ask_context_version)}" '
             f'data-atlas-context-digest="{html.escape(_ask_context_digest)}" '
+            f'data-atlas-security-type="{html.escape(_ask_security_type)}" '
+            f'data-atlas-decision-status="{html.escape(_ask_decision_status)}" '
+            f'data-atlas-decision-digest="{html.escape(_ask_decision_digest)}" '
             f'data-atlas-response-length="{len(response)}" aria-hidden="true" style="display:none">ask-ai-complete</span>',
             unsafe_allow_html=True,
         )
@@ -27292,6 +27305,11 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
             _qa_context = merged.get("research_context") if isinstance(merged.get("research_context"), dict) else {}
             _qa_summary = sanitize_research_context(_qa_context)
             _qa_encoded = encode_context_summary(_qa_context)
+            _qa_context_ready = bool(
+                _qa_summary.get("context_version") == "RESEARCH_CONTEXT_V1"
+                and str(_qa_summary.get("ticker") or "").upper() == ticker
+                and _qa_summary.get("production_decision_digest")
+            )
             st.markdown(
                 f'<span data-atlas-qa="research-context-v1" data-atlas-ticker="{html.escape(ticker)}" '
                 f'data-atlas-context-version="{html.escape(str(_qa_summary.get("context_version") or ""))}" '
@@ -27300,8 +27318,16 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
                 f'data-atlas-context-summary="{html.escape(_qa_encoded)}" aria-hidden="true" style="display:none">research-context-v1</span>',
                 unsafe_allow_html=True,
             )
+            st.markdown(
+                f'<span data-atlas-qa="research-context" data-atlas-status="{"ready" if _qa_context_ready else "unavailable"}" '
+                f'data-atlas-ticker="{html.escape(ticker)}" data-atlas-context-version="{html.escape(str(_qa_summary.get("context_version") or ""))}" '
+                f'data-atlas-decision-digest="{html.escape(str(_qa_summary.get("production_decision_digest") or ""))}" '
+                f'aria-hidden="true" style="display:none">research-context-ready</span>',
+                unsafe_allow_html=True,
+            )
         except Exception:
             _qa_summary = {}
+            _qa_context_ready = False
         render_detail(pd.Series(merged))
         # Emit completion only after all report sections have been rendered.
         st.markdown(
@@ -27557,14 +27583,14 @@ from ui.developer_center import render_developer_center
 def _emit_page_certification_marker(page_name, source_df):
     """Emit a digest-only cross-page contract for Runtime QA."""
     try:
-        if source_df is None or getattr(source_df, "empty", True):
-            return
-        from agents.runtime_qa_architecture import protected_decision_digest
-        from engines.research_context import build_production_decision
-        row = dict(source_df.iloc[0])
-        ticker = str(row.get("ticker") or row.get("Ticker") or "").upper().strip()
-        digest = protected_decision_digest(build_production_decision(row))
         page_id = re.sub(r"[^a-z0-9]+", "-", str(page_name).lower()).strip("-")
+        ticker, digest = "", ""
+        if source_df is not None and not getattr(source_df, "empty", True):
+            from agents.runtime_qa_architecture import protected_decision_digest
+            from engines.research_context import build_production_decision
+            row = dict(source_df.iloc[0])
+            ticker = str(row.get("ticker") or row.get("Ticker") or "").upper().strip()
+            digest = protected_decision_digest(build_production_decision(row))
         st.markdown(
             f'<span data-atlas-qa="page-identity" data-atlas-page="{html.escape(page_id)}" '
             f'data-atlas-status="ready" aria-hidden="true" style="display:none">page-identity</span>'
@@ -27586,7 +27612,6 @@ def main():
     pages=["Home","Today's Opportunities","Volume Intelligence","Atlas Core Holdings","Research Any Ticker","Earnings Intelligence","Full Ranked Scan","Portfolio Intelligence","Watchlist Intelligence","Recovery","ETFs","Political Intelligence","Ask AI","Developer Center"]
     selected_page=render_v73_top_nav(pages)
     source_df=top_df if top_df is not None and not top_df.empty else full_df.head(25)
-    _emit_page_certification_marker(selected_page, source_df)
     if selected_page != "Home": render_v72_market_tape(always_show=False)
     if selected_page=="Home": v810_render_dynamic_home(full_df,source_df,recovery_df)
     elif selected_page=="Today's Opportunities": v810_render_today_page(full_df)
@@ -27610,6 +27635,8 @@ def main():
             navigation_pages=pages,
             app_version=APP_VERSION,
         )
+    # Settlement is emitted only after the selected route completes rendering.
+    _emit_page_certification_marker(selected_page, source_df)
 
 
 # ============================================================

@@ -935,6 +935,14 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
                 )
                 for step in user_journeys.get("steps", []):
                     if step.get("status") == "FAIL":
+                        step_evidence = step.get("evidence") or {}
+                        reconciliation = step_evidence.get("canonical_reconciliation") or {}
+                        supported_classification = reconciliation.get("classification")
+                        if supported_classification not in {
+                            "ARCHITECTURE_DRIFT", "PRODUCT_DEFECT", "DATA_PIPELINE_DEFECT",
+                            "QA_DEFECT", "PROVIDER_LIMITATION",
+                        }:
+                            supported_classification = "PRODUCT_DEFECT"
                         issues.append(QAIssue(
                             severity="HIGH",
                             category="User Journey Failure",
@@ -949,6 +957,8 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
                             likely_files=["app.py", "ui/research_report_v2.py", "engines/ask_atlas_engine.py"],
                             evidence=step,
                             regression_test="Keep this synthetic journey in the permanent QA suite.",
+                            classification=supported_classification,
+                            architecture_severity=reconciliation.get("severity") or "P1",
                         ).to_dict())
             except Exception as exc:
                 exception_category = type(exc).__name__

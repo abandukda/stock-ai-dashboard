@@ -742,6 +742,7 @@ def _family_from_values(
 
 def _explicit_fmp_research_context(
     symbol: str, production_row: Dict[str, Any] | None, *, force_refresh: bool = False,
+    api_key: str | None = None,
 ) -> tuple[Dict[str, Any] | None, Dict[str, Any]]:
     """Lazy explicit-Research adapter; never imported or called by the scanner."""
     try:
@@ -749,7 +750,7 @@ def _explicit_fmp_research_context(
         result = acquire_explicit_fmp_research(
             symbol,
             production_row=production_row,
-            api_key=os.getenv("FMP_API_KEY", "").strip(),
+            api_key=str(api_key if api_key is not None else os.getenv("FMP_API_KEY", "")).strip(),
             force_refresh=force_refresh,
         )
         context = result.get("research_context")
@@ -816,11 +817,32 @@ def _attach_canonical_research_context(
             "volume_ratio": row.get("Volume Ratio"),
         }),
     }
-    context = canonical_context or build_research_context(
+    legacy_context = build_research_context(
         symbol, production_row=production_row,
         market_snapshot={"current_price": row.get("price"), "fetched_at": fetched_at, "provider": "YAHOO"},
         evidence_families=families,
     )
+    context = canonical_context or legacy_context
+    if canonical_context:
+        canonical_families = canonical_context.get("evidence_families") or {}
+        legacy_families = legacy_context.get("evidence_families") or {}
+        resolved = {}
+        for family in dict.fromkeys((*canonical_families, *legacy_families)):
+            primary = canonical_families.get(family) or {}
+            fallback = legacy_families.get(family) or {}
+            if primary.get("semantic_status") == "AVAILABLE" or fallback.get("semantic_status") != "AVAILABLE":
+                resolved[family] = primary or fallback
+            else:
+                resolved[family] = {
+                    **fallback,
+                    "limitations": list(fallback.get("limitations") or ()) + [
+                        f"Canonical FMP {family} was unavailable; this unblended {fallback.get('provider') or 'legacy'} fallback is retained explicitly."
+                    ],
+                    "fallback_reason": "CANONICAL_FMP_FAMILY_UNAVAILABLE",
+                    "fallback_provider": fallback.get("provider"),
+                    "fallback_freshness": fallback.get("cache_status"),
+                }
+        context = {**canonical_context, "evidence_families": resolved}
     row["research_context"] = context
 
     decision = context["production_decision"]
@@ -855,12 +877,17 @@ def _attach_canonical_research_context(
     return row
 
 
-def build_live_research(ticker: str, force_refresh: bool = False, cache_ttl_seconds: int = 900) -> Dict[str, Any]:
+def build_live_research(
+    ticker: str, force_refresh: bool = False, cache_ttl_seconds: int = 900,
+    *, fmp_api_key: str | None = None,
+) -> Dict[str, Any]:
     symbol = str(ticker or "").upper().strip()
     if not symbol:
         return {"error": "Ticker is required"}
     production_row = load_production_row(symbol)
-    fmp_context, fmp_diagnostics = _explicit_fmp_research_context(symbol, production_row, force_refresh=force_refresh)
+    fmp_context, fmp_diagnostics = _explicit_fmp_research_context(
+        symbol, production_row, force_refresh=force_refresh, api_key=fmp_api_key,
+    )
     if not force_refresh:
         cached = load_cached_research(symbol, cache_ttl_seconds)
         if cached:

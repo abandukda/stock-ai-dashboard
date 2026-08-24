@@ -14,7 +14,6 @@ import streamlit as st
 
 from engines.atlas_research_builder_v2 import build_atlas_research_v2
 from engines.ask_atlas_engine import ask_atlas
-from engines.live_research_engine import fetch_analyst_action_history
 from services.policy_data import enrich_policy_for_research
 from services.ai_valuation_synthesis import get_ai_valuation_for_research
 
@@ -831,10 +830,21 @@ def _render_ask_atlas(report: Mapping[str, Any]) -> None:
 def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
     research_row = dict(row)
     symbol = str(research_row.get("ticker") or research_row.get("Ticker") or "").strip().upper()
-    retrieval = fetch_analyst_action_history(symbol) if symbol else {
-        "actions": [], "cache_hit": False, "retrieval_seconds": 0.0, "request_count": 0,
+    canonical_context = research_row.get("research_context") if isinstance(research_row.get("research_context"), Mapping) else {}
+    canonical_families = canonical_context.get("evidence_families") if isinstance(canonical_context.get("evidence_families"), Mapping) else {}
+    action_family = canonical_families.get("analyst_actions") if isinstance(canonical_families.get("analyst_actions"), Mapping) else {}
+    canonical_actions = ((action_family.get("data") or {}).get("actions") or []) if isinstance(action_family.get("data"), Mapping) else []
+    # FIRST.3 canonical actions are authoritative for explicit Research.  Do not
+    # reacquire or overwrite them with the legacy Yahoo action adapter.
+    retrieval = {
+        "actions": canonical_actions,
+        "cache_hit": action_family.get("cache_status") in {"FRESH_CACHE", "STALE_FALLBACK"},
+        "retrieval_seconds": 0.0,
+        "request_count": 0,
+        "provider": action_family.get("provider"),
+        "fallback_reason": action_family.get("fallback_reason"),
     }
-    research_row["analyst_actions"] = retrieval.get("actions") or research_row.get("analyst_actions") or []
+    research_row["analyst_actions"] = canonical_actions
     policy_retrieval = _load_policy_enrichment(symbol, research_row)
     research_row["policy_intelligence_external"] = policy_retrieval
     research_row["ai_valuation_external"] = _load_ai_valuation(symbol, research_row)

@@ -40,6 +40,8 @@ def test_research_and_ask_contexts_are_ticker_isolated():
         "framework": "ASK_ATLAS_GROUNDED_V1",
         "context-version": "RESEARCH_CONTEXT_V1",
         "context-digest": "digest",
+        "decision-status": "AVAILABLE",
+        "decision-digest": "decision-digest",
     }
     assert research_context_complete(research, "NVDA")
     assert ask_grounding_complete(ask, "NVDA")

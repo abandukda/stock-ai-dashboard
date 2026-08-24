@@ -110,6 +110,36 @@ def page_identity_settled(*, requested: str, rendered: str, selected: bool, page
     )
 
 
+def research_lifecycle_complete(
+    *, canonical_context_ready: bool, render_complete: bool, rendered_exception: bool,
+) -> bool:
+    """A finalized context is necessary but not sufficient for a rendered report."""
+    return bool(canonical_context_ready and render_complete and not rendered_exception)
+
+
+def research_content_sections(text: str) -> list[str]:
+    """Return legitimate section headings without treating them as errors."""
+    expected = (
+        "Executive Summary", "Live Price & Educational Trade Plan", "Atlas Rating",
+        "Investment Thesis", "Financial Analysis", "Final Decision", "Atlas AI Summary",
+        "AI Summary & Decision Insight", "Analyst Intelligence", "Earnings Intelligence",
+    )
+    return [section for section in expected if section.lower() in str(text or "").lower()]
+
+
+def cross_page_digest_result(ticker: str, page_digests: Mapping[str, str]) -> dict[str, Any]:
+    """Certify a non-empty set of page decision digests for one ticker."""
+    captured = {str(page): str(digest) for page, digest in page_digests.items() if digest}
+    unique = set(captured.values())
+    return {
+        "status": "PASS" if captured and len(unique) == 1 else "FAIL" if captured else "NOT_EXECUTED",
+        "reason": None if captured else "No dynamic Top-15 page decision markers were captured.",
+        "ticker": ticker,
+        "page_decision_digests": captured,
+        "consistent": len(unique) == 1 and bool(captured),
+    }
+
+
 async def _page_identity_matches(page: Page, label: str) -> bool:
     page_id = PAGE_QA_IDS.get(label) or re.sub(r"[^a-z0-9]+", "-", label.lower()).strip("-")
     selector = f'[data-atlas-qa="page-identity"][data-atlas-page="{page_id}"][data-atlas-status="ready"]'
@@ -137,6 +167,8 @@ def ask_grounding_complete(context: Mapping[str, Any], ticker: str) -> bool:
         and all(context.get(key) for key in ("section", "generated-at", "framework"))
         and context.get("context-version") == "RESEARCH_CONTEXT_V1"
         and context.get("context-digest")
+        and context.get("decision-status")
+        and context.get("decision-digest")
     )
 
 
@@ -592,6 +624,9 @@ async def _research_one(page: Page, ticker: str, output_dir: Path) -> JourneySte
             pass
 
     expected_status = "error" if ticker == INVALID_TICKER else "complete"
+    canonical_marker_ready = False
+    if expected_status == "complete":
+        canonical_marker_ready = await _wait_for_qa_state(page, "research-context", "ready", ticker, 45)
     marker_ready = await _wait_for_qa_state(page, "research-container", expected_status, ticker, 45)
     context = await _qa_state_metadata(page, "research-container", expected_status, ticker)
     canonical_summary = await _canonical_research_summary(page, ticker) if expected_status == "complete" else {}
@@ -616,19 +651,7 @@ async def _research_one(page: Page, ticker: str, output_dir: Path) -> JourneySte
             {"submit_control": clicked, "content_changed": changed, "qa_marker_ready": marker_ready},
         )
 
-    expected_markers = (
-        "Executive Summary",
-        "Live Price & Educational Trade Plan",
-        "Atlas Rating",
-        "Investment Thesis",
-        "Financial Analysis",
-        "Final Decision",
-        "Atlas AI Summary",
-        "AI Summary & Decision Insight",
-        "Analyst Intelligence",
-        "Earnings Intelligence",
-    )
-    markers = [marker for marker in expected_markers if marker.lower() in after.lower()]
+    markers = research_content_sections(after)
     ticker_present = context.get("ticker") == ticker or ticker.lower() in after.lower()
     context_ready = research_context_complete(context, ticker)
     reconciliation = certify_research_context(canonical_summary, rendered_families)
@@ -644,20 +667,27 @@ async def _research_one(page: Page, ticker: str, output_dir: Path) -> JourneySte
     if ticker == "SPY":
         special["etf"] = certify_etf_context(canonical_summary)
     special["analyst_action_readiness"] = canonical_summary.get("analyst_action_readiness") or {}
-    no_error = not await _has_rendered_exception(page)
-    passed = marker_ready and ticker_present and context_ready and no_error and len(markers) >= 2 and bool(canonical_summary) and decision_digest_matches
+    rendered_exception = await _has_rendered_exception(page)
+    lifecycle_complete = research_lifecycle_complete(
+        canonical_context_ready=canonical_marker_ready and context_ready,
+        render_complete=marker_ready,
+        rendered_exception=rendered_exception,
+    )
+    passed = lifecycle_complete and ticker_present and len(markers) >= 2 and bool(canonical_summary) and decision_digest_matches
     return JourneyStep(
         journey,
         "generate full research",
         "PASS" if passed else "FAIL",
         time.monotonic()-started,
         "Research Any Ticker",
-        f"Found markers: {', '.join(markers) or 'none'}",
+        f"Rendered content sections: {', '.join(markers) or 'none'}",
         screenshot,
         {
             "submit_control": clicked,
             "content_changed": changed,
             "qa_marker_ready": marker_ready,
+            "canonical_marker_ready": canonical_marker_ready,
+            "render_lifecycle_complete": lifecycle_complete,
             "ticker_present": ticker_present,
             "research_context_ready": context_ready,
             "research_context": context,
@@ -870,14 +900,7 @@ async def run_user_journeys(
         marker = (step.get("evidence") or {}).get("page_certification") or {}
         if marker.get("ticker") == CURRENT_TOP15_TICKER and marker.get("decision_digest"):
             cross_page[step.get("page") or step.get("step")] = marker.get("decision_digest")
-    unique_digests = set(cross_page.values())
-    cross_page_result = {
-        "status": "PASS" if cross_page and len(unique_digests) == 1 else "FAIL" if cross_page else "NOT_EXECUTED",
-        "reason": None if cross_page else "No dynamic Top-15 page decision markers were captured.",
-        "ticker": CURRENT_TOP15_TICKER,
-        "page_decision_digests": cross_page,
-        "consistent": len(unique_digests) == 1 and bool(cross_page),
-    }
+    cross_page_result = cross_page_digest_result(CURRENT_TOP15_TICKER, cross_page)
     selectors = {
         "navigation": lambda step: step["journey"] == "Navigation coverage",
         "research": lambda step: step["journey"].startswith("Research "),
