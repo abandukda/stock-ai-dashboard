@@ -3946,7 +3946,7 @@ def _safe_float_live(value, default=None):
 
 
 @st.cache_data(ttl=900, show_spinner=False)
-def build_live_research_row(ticker, force_refresh=False):
+def build_live_research_row(ticker, force_refresh=False, research_request_id="", _progress_callback=None):
     """V80.5 live research adapter for any paid-customer ticker request."""
     from engines.live_research_engine import build_live_research
     return build_live_research(
@@ -3954,6 +3954,8 @@ def build_live_research_row(ticker, force_refresh=False):
         force_refresh=bool(force_refresh),
         cache_ttl_seconds=900,
         fmp_api_key=FMP_API_KEY,
+        research_request_id=research_request_id,
+        progress_callback=_progress_callback,
     )
 
 def build_legacy_live_research_row(ticker):
@@ -27289,6 +27291,8 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
         st.session_state["research_error"]=""
         st.session_state["research_status"]="loading"
         st.session_state["research_request_generation"] = int(st.session_state.get("research_request_generation", 0)) + 1
+        _request_seed = f"{typed}:{st.session_state['research_request_generation']}:{dt.datetime.now(dt.timezone.utc).isoformat()}"
+        st.session_state[f"atlas_research_request_id_{typed}"] = hashlib.sha256(_request_seed.encode("utf-8")).hexdigest()[:20]
     ticker=str(st.session_state.get("active_research_ticker","") or "").upper()
     status=str(st.session_state.get("research_status","idle"))
     marker_ticker=ticker or typed
@@ -27307,15 +27311,49 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
     state_key=f"v8054_live_row_{ticker}"; auto_live=str(st.session_state.pop("v805_force_live_on_open","") or "").upper()==ticker
     if submitted or auto_live:
         _research_started = time.monotonic()
+        _request_id = str(st.session_state.get(f"atlas_research_request_id_{ticker}") or hashlib.sha256(f"{ticker}:auto".encode("utf-8")).hexdigest()[:20])
+        st.session_state[f"atlas_research_request_id_{ticker}"] = _request_id
         _invocation_key = f"atlas_research_acquisition_invocations_{ticker}"
         st.session_state[_invocation_key] = int(st.session_state.get(_invocation_key, 0)) + 1
+        _progress_slot = st.empty()
+        try:
+            from agents.runtime_qa_architecture import protected_decision_digest
+            from engines.research_context import build_production_decision
+            _shell_decision = build_production_decision(saved or {})
+            _shell_decision_digest = protected_decision_digest(_shell_decision)
+            _shell_decision_status = str(_shell_decision.get("semantic_status") or "DATA_UNAVAILABLE")
+        except Exception:
+            _shell_decision_digest = ""
+            _shell_decision_status = "DATA_UNAVAILABLE"
+        def _research_progress(checkpoint):
+            safe = dict(checkpoint or {})
+            st.session_state[f"atlas_research_progress_{ticker}"] = safe
+            _safe_progress_json = json.dumps({
+                "family_timings": dict(safe.get("family_seconds") or {}),
+                "outcomes": dict(safe.get("outcomes") or {}),
+                "elapsed_seconds": float(safe.get("elapsed_seconds") or 0.0),
+                "enrichment_status": str(safe.get("enrichment_status") or "ENRICHMENT_PARTIAL"),
+            }, sort_keys=True, separators=(",", ":"))
+            _progress_slot.markdown(
+                f'<span data-atlas-qa="research-progress" data-atlas-ticker="{html.escape(ticker)}" '
+                f'data-atlas-request-id="{html.escape(_request_id)}" data-atlas-readiness="SHELL_READY" '
+                f'data-atlas-decision-status="{html.escape(_shell_decision_status)}" '
+                f'data-atlas-decision-digest="{html.escape(_shell_decision_digest)}" '
+                f'data-atlas-current-stage="{html.escape(str(safe.get("current_stage") or "initializing"))}" '
+                f'data-atlas-last-completed-stage="{html.escape(str(safe.get("last_completed_stage") or "critical_shell"))}" '
+                f'data-atlas-provider-calls="{int(safe.get("requests") or 0)}" data-atlas-cache-hits="{int(safe.get("fresh_cache_hits") or 0)}" '
+                f'data-atlas-progress-summary="{html.escape(_safe_progress_json)}" '
+                f'aria-hidden="true" style="display:none">research-progress</span>', unsafe_allow_html=True,
+            )
+        _research_progress({"current_stage": "critical_shell", "last_completed_stage": "production_decision_loaded", "requests": 0, "fresh_cache_hits": 0})
         with st.spinner(f"Refreshing financials, valuation, analysts, earnings, news and policy evidence for {ticker}..."):
-            try: live=build_live_research_row(ticker,force_refresh=bool(submitted or auto_live))
+            try: live=build_live_research_row(ticker,force_refresh=bool(submitted or auto_live),research_request_id=_request_id,_progress_callback=_research_progress)
             except Exception as exc: live={"error":str(exc)}
         if isinstance(live,dict) and not live.get("research_refreshed_at"): live["research_refreshed_at"]=dt.datetime.now(dt.timezone.utc).isoformat()
         _fmp_diag = live.get("fmp_research_diagnostics") if isinstance(live, dict) and isinstance(live.get("fmp_research_diagnostics"), dict) else {}
         st.session_state[f"atlas_research_performance_{ticker}"] = {
             "ticker": ticker,
+            "research_request_id": _request_id,
             "context_build_count": 1,
             "fmp_acquisition_invocation_count": int(st.session_state.get(_invocation_key, 0)),
             "provider_calls": int(_fmp_diag.get("requests") or 0),
@@ -27324,6 +27362,9 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
             "total_acquisition_seconds": float(_fmp_diag.get("total_acquisition_seconds") or 0.0),
             "context_assembly_seconds": float(_fmp_diag.get("context_assembly_seconds") or 0.0),
             "render_seconds": round(max(0.0, time.monotonic() - _research_started), 6),
+            "enrichment_status": str(_fmp_diag.get("enrichment_status") or "ENRICHMENT_PARTIAL"),
+            "current_stage": str(_fmp_diag.get("current_stage") or "rendering"),
+            "last_completed_stage": str(_fmp_diag.get("last_completed_stage") or "context_assembled"),
         }
         st.session_state[state_key]=live
     live=st.session_state.get(state_key)
@@ -27359,6 +27400,7 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
             )
             st.markdown(
                 f'<span data-atlas-qa="research-context" data-atlas-status="{"ready" if _qa_context_ready else "unavailable"}" '
+                f'data-atlas-readiness="{"CANONICAL_READY" if _qa_context_ready else "SHELL_READY"}" '
                 f'data-atlas-ticker="{html.escape(ticker)}" data-atlas-context-version="{html.escape(str(_qa_summary.get("context_version") or ""))}" '
                 f'data-atlas-decision-digest="{html.escape(str(_qa_summary.get("production_decision_digest") or ""))}" '
                 f'aria-hidden="true" style="display:none">research-context-ready</span>',
@@ -27376,6 +27418,9 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
             f'data-atlas-acquisition-count="{int(_qa_performance.get("fmp_acquisition_invocation_count") or 0)}" '
             f'data-atlas-provider-calls="{int(_qa_performance.get("provider_calls") or 0)}" '
             f'data-atlas-cache-hits="{int(_qa_performance.get("cache_hits") or 0)}" '
+            f'data-atlas-request-id="{html.escape(str(_qa_performance.get("research_request_id") or ""))}" '
+            f'data-atlas-enrichment-status="{html.escape(str(_qa_performance.get("enrichment_status") or "ENRICHMENT_PARTIAL"))}" '
+            f'data-atlas-readiness="{html.escape(str(_qa_performance.get("enrichment_status") or "ENRICHMENT_PARTIAL"))}" '
             f'data-atlas-performance-digest="{_qa_performance_digest}" aria-hidden="true" style="display:none">research-performance</span>',
             unsafe_allow_html=True,
         )

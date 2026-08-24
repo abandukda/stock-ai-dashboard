@@ -26,6 +26,7 @@ RATE_LIMITED = "RATE_LIMITED"
 NETWORK_FAILURE = "TIMEOUT_OR_NETWORK_FAILURE"
 SCHEMA_FAILURE = "SCHEMA_FAILURE"
 HTTP_FAILURE = "HTTP_FAILURE"
+DEADLINE_EXPIRED = "DEADLINE_EXPIRED"
 
 
 @dataclass(frozen=True)
@@ -72,6 +73,7 @@ class FMPStableClient:
         params: Mapping[str, Any] | None = None,
         *,
         allow_csv: bool = False,
+        deadline_monotonic: float | None = None,
     ) -> FMPResponse:
         family = str(endpoint_family or "").strip().strip("/")
         fetched_at = datetime.now(timezone.utc).isoformat()
@@ -82,15 +84,20 @@ class FMPStableClient:
         request_params["apikey"] = self._api_key
         attempts = 0
         for attempt in range(self.retries + 1):
+            remaining = None if deadline_monotonic is None else deadline_monotonic - time.monotonic()
+            if remaining is not None and remaining <= 0:
+                return FMPResponse(None, DEADLINE_EXPIRED, family, fetched_at, attempts=attempts)
             attempts += 1
             try:
+                request_timeout = self.timeout_seconds if remaining is None else min(self.timeout_seconds, max(0.1, remaining))
                 response = self._session.get(
                     f"{FMP_STABLE_BASE_URL}/{family}",
                     params=request_params,
-                    timeout=self.timeout_seconds,
+                    timeout=request_timeout,
                 )
             except (requests.Timeout, requests.ConnectionError):
-                if attempt < self.retries:
+                retry_remaining = None if deadline_monotonic is None else deadline_monotonic - time.monotonic()
+                if attempt < self.retries and (retry_remaining is None or retry_remaining > 0.35):
                     time.sleep(min(0.25 * (2 ** attempt), 1.0))
                     continue
                 return FMPResponse(None, NETWORK_FAILURE, family, fetched_at, attempts=attempts)
@@ -101,7 +108,8 @@ class FMPStableClient:
             if status in {401, 402, 403}:
                 return FMPResponse(None, AUTHORIZATION_FAILURE, family, fetched_at, status, attempts)
             if status == 429:
-                if attempt < self.retries:
+                retry_remaining = None if deadline_monotonic is None else deadline_monotonic - time.monotonic()
+                if attempt < self.retries and (retry_remaining is None or retry_remaining > 0.35):
                     time.sleep(min(0.25 * (2 ** attempt), 1.0))
                     continue
                 return FMPResponse(None, RATE_LIMITED, family, fetched_at, status, attempts)
@@ -133,6 +141,6 @@ class FMPStableClient:
 
 __all__ = [
     "AUTHORIZED_EMPTY", "AUTHORIZATION_FAILURE", "FMPResponse", "FMPStableClient",
-    "FMP_STABLE_BASE_URL", "HTTP_FAILURE", "NETWORK_FAILURE", "RATE_LIMITED",
+    "DEADLINE_EXPIRED", "FMP_STABLE_BASE_URL", "HTTP_FAILURE", "NETWORK_FAILURE", "RATE_LIMITED",
     "SCHEMA_FAILURE", "SUCCESS",
 ]

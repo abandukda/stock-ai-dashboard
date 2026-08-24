@@ -742,17 +742,19 @@ def _family_from_values(
 
 def _explicit_fmp_research_context(
     symbol: str, production_row: Dict[str, Any] | None, *, force_refresh: bool = False,
-    api_key: str | None = None,
+    api_key: str | None = None, research_request_id: str = "", progress_callback=None,
 ) -> tuple[Dict[str, Any] | None, Dict[str, Any]]:
     """Lazy explicit-Research adapter; never imported or called by the scanner."""
     try:
         from services.fmp_research_acquisition import acquire_explicit_fmp_research
-        result = acquire_explicit_fmp_research(
-            symbol,
-            production_row=production_row,
-            api_key=str(api_key if api_key is not None else os.getenv("FMP_API_KEY", "")).strip(),
-            force_refresh=force_refresh,
-        )
+        kwargs = {
+            "production_row": production_row,
+            "api_key": str(api_key if api_key is not None else os.getenv("FMP_API_KEY", "")).strip(),
+            "force_refresh": force_refresh,
+        }
+        if research_request_id or progress_callback is not None:
+            kwargs.update(research_request_id=research_request_id, progress_callback=progress_callback)
+        result = acquire_explicit_fmp_research(symbol, **kwargs)
         context = result.get("research_context")
         diagnostics = result.get("diagnostics")
         return (context if isinstance(context, dict) else None, diagnostics if isinstance(diagnostics, dict) else {})
@@ -879,7 +881,7 @@ def _attach_canonical_research_context(
 
 def build_live_research(
     ticker: str, force_refresh: bool = False, cache_ttl_seconds: int = 900,
-    *, fmp_api_key: str | None = None,
+    *, fmp_api_key: str | None = None, research_request_id: str = "", progress_callback=None,
 ) -> Dict[str, Any]:
     symbol = str(ticker or "").upper().strip()
     if not symbol:
@@ -891,6 +893,7 @@ def build_live_research(
     # also makes reruns of one explicit request idempotent.
     fmp_context, fmp_diagnostics = _explicit_fmp_research_context(
         symbol, production_row, force_refresh=False, api_key=fmp_api_key,
+        research_request_id=research_request_id, progress_callback=progress_callback,
     )
     fmp_diagnostics["explicit_context_lookup_seconds"] = round(
         max(0.0, time.monotonic() - acquisition_started), 6
@@ -908,7 +911,8 @@ def build_live_research(
         and envelope.get("semantic_status") == "AVAILABLE"
         for envelope in (fmp_families or {}).values()
     )
-    if isinstance(fmp_context, dict) and configured_fmp and canonical_fmp_available:
+    canonical_partial_due_to_deadline = bool(fmp_diagnostics.get("deadline_expired"))
+    if isinstance(fmp_context, dict) and configured_fmp and (canonical_fmp_available or canonical_partial_due_to_deadline):
         legacy_cached = load_cached_research(symbol, cache_ttl_seconds)
         base = dict(legacy_cached or production_row or {})
         base.setdefault("Ticker", symbol)

@@ -27,7 +27,7 @@ from engines.research_context import (
     stable_evidence_id,
 )
 from engines.semantic_fields import AVAILABLE, DATA_UNAVAILABLE
-from services.fmp_stable_client import FMPResponse, FMPStableClient
+from services.fmp_stable_client import DEADLINE_EXPIRED, FMPResponse, FMPStableClient
 from services.research_family_cache import (
     DEFAULT_CACHE_ROOT, load_family_envelope, save_family_envelope,
 )
@@ -37,6 +37,13 @@ FMP_RESEARCH_ACQUISITION_VERSION = "FMP_RESEARCH_ACQUISITION_V1"
 MAX_EXPLICIT_RESEARCH_REQUESTS = 24
 MAX_ANALYST_ACTIONS = 25
 MAX_INSTITUTIONAL_HOLDERS = 50
+EXPLICIT_RESEARCH_DEADLINE_SECONDS = 28.0
+FAMILY_PRIORITY = (
+    "profile", "financial_statements", "ratios_key_metrics", "growth_segments",
+    "earnings_history", "analyst_estimates", "analyst_consensus_targets",
+    "analyst_actions", "institutional_ownership", "holders_13f",
+    "company_news", "press_releases",
+)
 
 _CORPORATE_FAMILIES = (
     "financial_statements", "ratios_key_metrics", "growth_segments",
@@ -115,9 +122,32 @@ def _envelope(
     )
 
 
+def _checkpoint(diagnostics: dict[str, Any], callback: Callable[[Mapping[str, Any]], None] | None) -> None:
+    if callback is None:
+        return
+    safe = {
+        key: diagnostics.get(key) for key in (
+            "symbol", "research_request_id", "current_stage", "last_completed_stage",
+            "requests", "provider_attempts", "fresh_cache_hits", "stale_fallbacks",
+            "temporarily_unavailable", "deadline_expired", "enrichment_status",
+        )
+    }
+    safe["family_seconds"] = dict(diagnostics.get("family_seconds") or {})
+    safe["outcomes"] = dict(diagnostics.get("outcomes") or {})
+    safe["elapsed_seconds"] = round(max(0.0, time.monotonic() - float(diagnostics["started_monotonic"])), 6)
+    try:
+        callback(safe)
+    except Exception:
+        pass
+
+
 class _Session:
-    def __init__(self, client: FMPStableClient) -> None:
+    def __init__(self, client: FMPStableClient, *, deadline_monotonic: float, diagnostics: dict[str, Any], progress_callback: Callable[[Mapping[str, Any]], None] | None) -> None:
         self.client = client
+        self.deadline_monotonic = deadline_monotonic
+        self.diagnostics = diagnostics
+        self.progress_callback = progress_callback
+        self.current_family = ""
         self.calls = 0
         self.provider_attempts = 0
         self.outcomes: dict[str, int] = {}
@@ -127,12 +157,25 @@ class _Session:
         if self.calls >= MAX_EXPLICIT_RESEARCH_REQUESTS:
             raise RuntimeError("explicit FMP Research request ceiling exceeded")
         started = time.monotonic()
-        response = self.client.get(endpoint, params)
+        if time.monotonic() >= self.deadline_monotonic:
+            self.diagnostics["deadline_expired"] = True
+            self.diagnostics["current_stage"] = f"deadline:{self.current_family or endpoint}"
+            _checkpoint(self.diagnostics, self.progress_callback)
+            return FMPResponse(None, DEADLINE_EXPIRED, endpoint, datetime.now(timezone.utc).isoformat(), attempts=0)
+        self.diagnostics["current_stage"] = f"provider:{self.current_family or endpoint}:{endpoint}"
+        _checkpoint(self.diagnostics, self.progress_callback)
+        response = self.client.get(endpoint, params, deadline_monotonic=self.deadline_monotonic)
         elapsed = max(0.0, time.monotonic() - started)
-        self.calls += 1
+        if response.attempts > 0:
+            self.calls += 1
         self.provider_attempts += response.attempts
         self.outcomes[response.outcome] = self.outcomes.get(response.outcome, 0) + 1
         self.endpoint_seconds[endpoint] = self.endpoint_seconds.get(endpoint, 0.0) + elapsed
+        self.diagnostics.update({
+            "requests": self.calls, "provider_attempts": self.provider_attempts,
+            "outcomes": dict(self.outcomes), "current_stage": f"provider_complete:{self.current_family or endpoint}:{endpoint}",
+        })
+        _checkpoint(self.diagnostics, self.progress_callback)
         return response
 
 
@@ -143,14 +186,34 @@ def _strip_cache_metadata(envelope: Mapping[str, Any]) -> dict[str, Any]:
 def _refresh_family(
     ticker: str, family: str, fetcher: Callable[[], tuple[dict[str, Any], bool]],
     *, cache_root: str | Path, diagnostics: dict[str, Any], force_refresh: bool,
+    session: _Session, progress_callback: Callable[[Mapping[str, Any]], None] | None,
+    preloaded_cache: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     started = time.monotonic()
-    cached = load_family_envelope(ticker, family, root=cache_root, allow_stale=True)
+    diagnostics["current_stage"] = f"cache_lookup:{family}"
+    cached = dict(preloaded_cache) if isinstance(preloaded_cache, Mapping) else None
+    _checkpoint(diagnostics, progress_callback)
     if cached and cached.get("cache_status") == "FRESH_CACHE" and not force_refresh:
         diagnostics["fresh_cache_hits"] += 1
         diagnostics["family_seconds"][family] = round(max(0.0, time.monotonic() - started), 6)
+        diagnostics["last_completed_stage"] = f"fresh_cache:{family}"
+        _checkpoint(diagnostics, progress_callback)
         return _strip_cache_metadata(cached)
     stale = cached if cached and cached.get("cache_status") == "STALE_FALLBACK" else None
+    if time.monotonic() >= session.deadline_monotonic:
+        diagnostics["deadline_expired"] = True
+        diagnostics["temporarily_unavailable"] += 0 if stale else 1
+        diagnostics["family_seconds"][family] = round(max(0.0, time.monotonic() - started), 6)
+        diagnostics["last_completed_stage"] = f"deadline_skipped:{family}"
+        _checkpoint(diagnostics, progress_callback)
+        semantic_family = "institutional_ownership" if family == "holders_13f" else family
+        return _strip_cache_metadata(stale) if stale else evidence_envelope(
+            ticker=ticker, family=semantic_family, semantic_status=DATA_UNAVAILABLE,
+            cache_status="TEMPORARILY_UNAVAILABLE",
+            limitations=("Explicit Research enrichment deadline expired before this optional family was refreshed.",),
+        )
+    session.current_family = family
+    diagnostics["current_stage"] = f"normalization:{family}"
     try:
         envelope, refresh_succeeded = fetcher()
     except Exception:
@@ -159,13 +222,19 @@ def _refresh_family(
         diagnostics["live_family_refreshes"] += 1
         save_family_envelope(ticker, family, envelope, root=cache_root)
         diagnostics["family_seconds"][family] = round(max(0.0, time.monotonic() - started), 6)
+        diagnostics["last_completed_stage"] = f"normalized:{family}"
+        _checkpoint(diagnostics, progress_callback)
         return envelope
     if stale:
         diagnostics["stale_fallbacks"] += 1
         diagnostics["family_seconds"][family] = round(max(0.0, time.monotonic() - started), 6)
+        diagnostics["last_completed_stage"] = f"stale_fallback:{family}"
+        _checkpoint(diagnostics, progress_callback)
         return _strip_cache_metadata(stale)
     diagnostics["temporarily_unavailable"] += 1
     diagnostics["family_seconds"][family] = round(max(0.0, time.monotonic() - started), 6)
+    diagnostics["last_completed_stage"] = f"unavailable:{family}"
+    _checkpoint(diagnostics, progress_callback)
     return envelope
 
 
@@ -186,6 +255,8 @@ def acquire_explicit_fmp_research(
     ticker: str, *, production_row: Mapping[str, Any] | None,
     api_key: str = "", client: FMPStableClient | None = None,
     cache_root: str | Path = DEFAULT_CACHE_ROOT, force_refresh: bool = False,
+    research_request_id: str = "", progress_callback: Callable[[Mapping[str, Any]], None] | None = None,
+    deadline_seconds: float = EXPLICIT_RESEARCH_DEADLINE_SECONDS,
 ) -> dict[str, Any]:
     """Acquire bounded FMP evidence for one explicitly researched ticker."""
     acquisition_started = time.monotonic()
@@ -194,6 +265,11 @@ def acquire_explicit_fmp_research(
         raise ValueError("explicit Research ticker is required")
     diagnostics = {
         "version": FMP_RESEARCH_ACQUISITION_VERSION, "symbol": symbol,
+        "research_request_id": str(research_request_id or f"{symbol}:explicit"),
+        "started_at": datetime.now(timezone.utc).isoformat(), "started_monotonic": acquisition_started,
+        "current_stage": "initializing", "last_completed_stage": "production_row_loaded",
+        "deadline_seconds": max(1.0, min(float(deadline_seconds), 40.0)), "deadline_expired": False,
+        "enrichment_status": "ENRICHMENT_PARTIAL",
         "request_ceiling": MAX_EXPLICIT_RESEARCH_REQUESTS,
         "requests": 0, "provider_attempts": 0, "fresh_cache_hits": 0,
         "live_family_refreshes": 0, "stale_fallbacks": 0,
@@ -203,30 +279,54 @@ def acquire_explicit_fmp_research(
     if client is None and not str(api_key or "").strip():
         context = build_research_context(symbol, production_row=production_row)
         diagnostics["temporarily_unavailable"] = len(_CORPORATE_FAMILIES) + 1
+        diagnostics["current_stage"] = "credentials_unavailable"
+        diagnostics["last_completed_stage"] = "critical_shell"
+        diagnostics["enrichment_status"] = "ENRICHMENT_PARTIAL"
         diagnostics["total_acquisition_seconds"] = round(max(0.0, time.monotonic() - acquisition_started), 6)
+        _checkpoint(diagnostics, progress_callback)
+        diagnostics.pop("started_monotonic", None)
         return {"research_context": context, "diagnostics": diagnostics}
 
-    session = _Session(client or FMPStableClient(api_key, timeout_seconds=12, retries=1))
+    deadline_monotonic = acquisition_started + diagnostics["deadline_seconds"]
+    session = _Session(client or FMPStableClient(api_key, timeout_seconds=12, retries=1), deadline_monotonic=deadline_monotonic, diagnostics=diagnostics, progress_callback=progress_callback)
     families: dict[str, dict[str, Any]] = {}
     profile_name: str | None = None
+    preclassified_security = security_type_of(production_row) if production_row else ""
+    preloaded_caches = {
+        family: load_family_envelope(symbol, family, root=cache_root, allow_stale=True)
+        for family in FAMILY_PRIORITY
+    }
+    diagnostics["current_stage"] = "all_family_caches_loaded"
+    diagnostics["last_completed_stage"] = "all_family_caches_loaded"
+    _checkpoint(diagnostics, progress_callback)
 
     def profile_fetch() -> tuple[dict[str, Any], bool]:
         nonlocal profile_name
         response, rows = _request_records(session, "profile", symbol)
         profiles = [normalize_profile(row, fetched_at=response.fetched_at) for row in rows]
-        peer_response, peer_rows = _request_records(session, "stock-peers", symbol)
-        peers = [normalize_peers(row, fetched_at=peer_response.fetched_at) for row in peer_rows]
+        if preclassified_security == "ETF":
+            peer_response, peer_rows, peers = None, [], []
+        else:
+            peer_response, peer_rows = _request_records(session, "stock-peers", symbol)
+            peers = [normalize_peers(row, fetched_at=peer_response.fetched_at) for row in peer_rows]
         good_profiles = [row for row in profiles if _available(row)]
         profile_name = good_profiles[0].get("company_name") if good_profiles else None
         data = {"profile": good_profiles[0] if good_profiles else None, "peers": peers[0].get("peers", []) if peers else []}
         env = _envelope(symbol, "profile", "profile+stock-peers", response.fetched_at, data, good_profiles + [p for p in peers if _available(p)])
-        return env, response.successful and peer_response.successful
+        return env, response.successful and (peer_response is None or peer_response.successful)
 
-    families["profile"] = _refresh_family(symbol, "profile", profile_fetch, cache_root=cache_root, diagnostics=diagnostics, force_refresh=force_refresh)
+    def refresh(family: str, fetcher: Callable[[], tuple[dict[str, Any], bool]]) -> dict[str, Any]:
+        return _refresh_family(
+            symbol, family, fetcher, cache_root=cache_root, diagnostics=diagnostics,
+            force_refresh=force_refresh, session=session, progress_callback=progress_callback,
+            preloaded_cache=preloaded_caches.get(family),
+        )
+
+    families["profile"] = refresh("profile", profile_fetch)
     cached_profile = (families["profile"].get("data") or {}).get("profile") if isinstance(families["profile"].get("data"), Mapping) else None
     if isinstance(cached_profile, Mapping):
         profile_name = cached_profile.get("company_name")
-    security = security_type_of(production_row or cached_profile)
+    security = preclassified_security or security_type_of(cached_profile)
 
     if security != "ETF":
         def statements_fetch() -> tuple[dict[str, Any], bool]:
@@ -239,7 +339,7 @@ def acquire_explicit_fmp_research(
             records = [row for values in normalized.values() for row in values]
             env = _envelope(symbol, "financial_statements", "income+balance+cash-flow", responses[0].fetched_at, normalized, records)
             return env, all(response.successful for response in responses)
-        families["financial_statements"] = _refresh_family(symbol, "financial_statements", statements_fetch, cache_root=cache_root, diagnostics=diagnostics, force_refresh=force_refresh)
+        families["financial_statements"] = refresh("financial_statements", statements_fetch)
 
         def ratios_fetch() -> tuple[dict[str, Any], bool]:
             metrics_response, metrics_rows = _request_records(session, "key-metrics", symbol, period="quarter", limit=8)
@@ -247,13 +347,13 @@ def acquire_explicit_fmp_research(
             metrics = [normalize_key_metrics(row, fetched_at=metrics_response.fetched_at) for row in metrics_rows]
             ratios = [normalize_ratios(row, fetched_at=ratios_response.fetched_at) for row in ratio_rows]
             return _envelope(symbol, "ratios_key_metrics", "key-metrics+ratios", metrics_response.fetched_at, {"key_metrics": metrics, "ratios": ratios}, metrics + ratios), metrics_response.successful and ratios_response.successful
-        families["ratios_key_metrics"] = _refresh_family(symbol, "ratios_key_metrics", ratios_fetch, cache_root=cache_root, diagnostics=diagnostics, force_refresh=force_refresh)
+        families["ratios_key_metrics"] = refresh("ratios_key_metrics", ratios_fetch)
 
         def growth_fetch() -> tuple[dict[str, Any], bool]:
             response, rows = _request_records(session, "financial-growth", symbol, period="quarter", limit=8)
             records = [normalize_financial_growth(row, fetched_at=response.fetched_at) for row in rows]
             return _envelope(symbol, "growth_segments", "financial-growth", response.fetched_at, {"growth_history": records, "segment_data": None}, records, limitations=("Revenue segment acquisition is not activated in FIRST.3.",)), response.successful
-        families["growth_segments"] = _refresh_family(symbol, "growth_segments", growth_fetch, cache_root=cache_root, diagnostics=diagnostics, force_refresh=force_refresh)
+        families["growth_segments"] = refresh("growth_segments", growth_fetch)
 
         def earnings_fetch() -> tuple[dict[str, Any], bool]:
             response, rows = _request_records(session, "earnings", symbol, limit=12)
@@ -264,13 +364,13 @@ def acquire_explicit_fmp_research(
             future_events.sort(key=lambda record: str(record.get("report_date") or ""))
             next_event = future_events[0] if future_events else None
             return _envelope(symbol, "earnings_history", "earnings", response.fetched_at, {"records": records, "earnings_intelligence": intelligence, "next_earnings_event": next_event}, records, available=intelligence.get("semantic_status") == AVAILABLE or next_event is not None), response.successful
-        families["earnings_history"] = _refresh_family(symbol, "earnings_history", earnings_fetch, cache_root=cache_root, diagnostics=diagnostics, force_refresh=force_refresh)
+        families["earnings_history"] = refresh("earnings_history", earnings_fetch)
 
         def estimates_fetch() -> tuple[dict[str, Any], bool]:
             response, rows = _request_records(session, "analyst-estimates", symbol, period="annual", limit=12)
             records = [normalize_analyst_estimate(row, fetched_at=response.fetched_at) for row in rows]
             return _envelope(symbol, "analyst_estimates", "analyst-estimates", response.fetched_at, {"estimates": records, "estimate_vintage_status": "NOT_POINT_IN_TIME_VINTAGE"}, records), response.successful
-        families["analyst_estimates"] = _refresh_family(symbol, "analyst_estimates", estimates_fetch, cache_root=cache_root, diagnostics=diagnostics, force_refresh=force_refresh)
+        families["analyst_estimates"] = refresh("analyst_estimates", estimates_fetch)
 
         def consensus_fetch() -> tuple[dict[str, Any], bool]:
             normalized: dict[str, Any] = {}
@@ -286,7 +386,7 @@ def acquire_explicit_fmp_research(
                 normalized[endpoint.replace("-", "_")] = values
                 records.extend(values)
             return _envelope(symbol, "analyst_consensus_targets", "+".join(("grades-consensus", "price-target-consensus", "price-target-summary")), responses[0].fetched_at, normalized, records, limitations=("Wall Street consensus is separate from canonical Atlas Fair Value.",)), all(response.successful for response in responses)
-        families["analyst_consensus_targets"] = _refresh_family(symbol, "analyst_consensus_targets", consensus_fetch, cache_root=cache_root, diagnostics=diagnostics, force_refresh=force_refresh)
+        families["analyst_consensus_targets"] = refresh("analyst_consensus_targets", consensus_fetch)
 
         def actions_fetch() -> tuple[dict[str, Any], bool]:
             response, rows = _request_records(session, "grades", symbol, limit=1000)
@@ -301,7 +401,7 @@ def acquire_explicit_fmp_research(
             records.sort(key=lambda row: (str(row.get("date") or ""), str(row.get("firm") or ""), str(row.get("action") or "")), reverse=True)
             records = records[:MAX_ANALYST_ACTIONS]
             return _envelope(symbol, "analyst_actions", "grades", response.fetched_at, {"actions": records, "retained_cap": MAX_ANALYST_ACTIONS}, records), response.successful
-        families["analyst_actions"] = _refresh_family(symbol, "analyst_actions", actions_fetch, cache_root=cache_root, diagnostics=diagnostics, force_refresh=force_refresh)
+        families["analyst_actions"] = refresh("analyst_actions", actions_fetch)
 
         def ownership_summary_fetch() -> tuple[dict[str, Any], bool]:
             summary_response, summary_rows = _request_records(session, "institutional-ownership/symbol-positions-summary", symbol)
@@ -321,8 +421,8 @@ def acquire_explicit_fmp_research(
             holders = holders[:MAX_INSTITUTIONAL_HOLDERS]
             return _envelope(symbol, "institutional_ownership", "funds/disclosure-holders-latest", holder_response.fetched_at, {"holders": holders, "holder_cap": MAX_INSTITUTIONAL_HOLDERS}, holders, limitations=("Holdings are available only from their filing date; missing filing dates fail closed.",)), holder_response.successful
 
-        summary_env = _refresh_family(symbol, "institutional_ownership", ownership_summary_fetch, cache_root=cache_root, diagnostics=diagnostics, force_refresh=force_refresh)
-        holder_env = _refresh_family(symbol, "holders_13f", holders_fetch, cache_root=cache_root, diagnostics=diagnostics, force_refresh=force_refresh)
+        summary_env = refresh("institutional_ownership", ownership_summary_fetch)
+        holder_env = refresh("holders_13f", holders_fetch)
         ownership_available = summary_env.get("semantic_status") == AVAILABLE or holder_env.get("semantic_status") == AVAILABLE
         ownership_data = {
             "summary": ((summary_env.get("data") or {}).get("summary") if isinstance(summary_env.get("data"), Mapping) else []) or [],
@@ -350,8 +450,8 @@ def acquire_explicit_fmp_research(
             records = [row for row in records if _available(row)]
             records.sort(key=lambda row: str(row.get("published_at") or ""), reverse=True)
             return _envelope(symbol, family, endpoint, response.fetched_at, {"articles": records[:20], "provider_rows": len(rows), "relevance_rejected": len(rows) - len(relevant)}, records[:20]), response.successful
-        families["company_news"] = _refresh_family(symbol, "company_news", lambda: news_fetch("news/stock", "company_news"), cache_root=cache_root, diagnostics=diagnostics, force_refresh=force_refresh)
-        families["press_releases"] = _refresh_family(symbol, "press_releases", lambda: news_fetch("news/press-releases", "press_releases"), cache_root=cache_root, diagnostics=diagnostics, force_refresh=force_refresh)
+        families["company_news"] = refresh("company_news", lambda: news_fetch("news/stock", "company_news"))
+        families["press_releases"] = refresh("press_releases", lambda: news_fetch("news/press-releases", "press_releases"))
 
     # SEC evidence is never acquired from FMP in FIRST.3.
     sec_available = bool((production_row or {}).get("v42_sec_available") or (production_row or {}).get("sec_filings"))
@@ -371,12 +471,17 @@ def acquire_explicit_fmp_research(
         "endpoint_seconds": {key: round(value, 6) for key, value in session.endpoint_seconds.items()},
         "total_provider_seconds": round(sum(session.endpoint_seconds.values()), 6),
         "total_acquisition_seconds": round(max(0.0, time.monotonic() - acquisition_started), 6),
+        "current_stage": "context_assembled",
+        "last_completed_stage": "context_assembled",
+        "enrichment_status": "ENRICHMENT_PARTIAL" if diagnostics.get("deadline_expired") or diagnostics.get("temporarily_unavailable") else "ENRICHMENT_COMPLETE",
     })
+    _checkpoint(diagnostics, progress_callback)
+    diagnostics.pop("started_monotonic", None)
     return {"research_context": context, "diagnostics": diagnostics}
 
 
 __all__ = [
-    "FMP_RESEARCH_ACQUISITION_VERSION", "MAX_ANALYST_ACTIONS",
+    "EXPLICIT_RESEARCH_DEADLINE_SECONDS", "FAMILY_PRIORITY", "FMP_RESEARCH_ACQUISITION_VERSION", "MAX_ANALYST_ACTIONS",
     "MAX_EXPLICIT_RESEARCH_REQUESTS", "MAX_INSTITUTIONAL_HOLDERS",
     "acquire_explicit_fmp_research",
 ]

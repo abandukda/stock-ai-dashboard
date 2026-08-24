@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, asdict
 import hashlib
+import json
 import re
 import time
 from pathlib import Path
@@ -504,6 +505,29 @@ async def _qa_state_metadata(page: Page, qa: str, status: str, ticker: str) -> d
     return {}
 
 
+async def _research_progress_metadata(page: Page, ticker: str) -> dict[str, Any]:
+    selector = f'[data-atlas-qa="research-progress"][data-atlas-ticker="{ticker}"]'
+    attributes = (
+        "data-atlas-ticker", "data-atlas-request-id", "data-atlas-readiness",
+        "data-atlas-current-stage", "data-atlas-last-completed-stage",
+        "data-atlas-provider-calls", "data-atlas-cache-hits",
+        "data-atlas-progress-summary",
+    )
+    for scope in _scopes(page):
+        try:
+            marker = scope.locator(selector).last
+            if await marker.count():
+                result = {name.removeprefix("data-atlas-"): (await marker.get_attribute(name) or "") for name in attributes}
+                try:
+                    result["progress_summary"] = json.loads(result.pop("progress-summary") or "{}")
+                except (TypeError, ValueError):
+                    result["progress_summary"] = {}
+                return result
+        except Exception:
+            continue
+    return {}
+
+
 async def _canonical_research_summary(page: Page, ticker: str) -> dict[str, Any]:
     selector = f'[data-atlas-qa="research-context-v1"][data-atlas-ticker="{ticker}"]'
     for scope in _scopes(page):
@@ -675,9 +699,31 @@ async def _research_one(page: Page, ticker: str, output_dir: Path) -> JourneySte
 
     expected_status = "error" if ticker == INVALID_TICKER else "complete"
     canonical_marker_ready = False
-    if expected_status == "complete":
-        canonical_marker_ready = await _wait_for_qa_state(page, "research-context", "ready", ticker, 45)
-    marker_ready = await _wait_for_qa_state(page, "research-container", expected_status, ticker, 45)
+    marker_ready = False
+    progress: dict[str, Any] = {}
+    exception_identity: dict[str, str] = {}
+    poll_deadline = time.monotonic() + 44.0
+    try:
+        while time.monotonic() < poll_deadline:
+            progress = await _research_progress_metadata(page, ticker) or progress
+            exception_identity = await _rendered_exception_identity(page, ticker=ticker, stage=str(progress.get("current-stage") or "research_render")) or exception_identity
+            if expected_status == "error":
+                marker_ready = await _wait_for_qa_state(page, "research-container", "error", ticker, 0.05)
+            else:
+                canonical_marker_ready = await _wait_for_qa_state(page, "research-context", "ready", ticker, 0.05)
+                marker_ready = await _wait_for_qa_state(page, "research-container", "complete", ticker, 0.05)
+            if marker_ready and (expected_status == "error" or canonical_marker_ready):
+                break
+            await asyncio.sleep(0.25)
+    except asyncio.CancelledError:
+        progress = await _research_progress_metadata(page, ticker) or progress
+        exception_identity = await _rendered_exception_identity(page, ticker=ticker, stage=str(progress.get("current-stage") or "research_timeout")) or exception_identity
+        screenshot = await _screenshot(page, output_dir, f"research_timeout_{ticker}")
+        return JourneyStep(
+            journey, "generate full research", "FAIL", time.monotonic()-started,
+            "Research Any Ticker", "Per-ticker Research budget exhausted with partial progress preserved.",
+            screenshot, {"research_progress": progress, "rendered_exception_identity": exception_identity},
+        )
     context = await _qa_state_metadata(page, "research-container", expected_status, ticker)
     canonical_summary = await _canonical_research_summary(page, ticker) if expected_status == "complete" else {}
     if canonical_summary:
@@ -718,7 +764,7 @@ async def _research_one(page: Page, ticker: str, output_dir: Path) -> JourneySte
         special["etf"] = certify_etf_context(canonical_summary)
     special["analyst_action_readiness"] = canonical_summary.get("analyst_action_readiness") or {}
     rendered_exception = await _has_rendered_exception(page)
-    exception_identity = await _rendered_exception_identity(page, ticker=ticker, stage="research_render")
+    exception_identity = await _rendered_exception_identity(page, ticker=ticker, stage="research_render") or exception_identity
     lifecycle_complete = research_lifecycle_complete(
         canonical_context_ready=canonical_marker_ready and context_ready,
         render_complete=marker_ready,
@@ -749,6 +795,7 @@ async def _research_one(page: Page, ticker: str, output_dir: Path) -> JourneySte
             "special_certification": special,
             "markers": markers,
             "rendered_exception_identity": exception_identity,
+            "research_progress": progress,
         },
     )
 
