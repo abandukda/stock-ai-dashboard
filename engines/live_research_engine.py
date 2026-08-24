@@ -885,9 +885,42 @@ def build_live_research(
     if not symbol:
         return {"error": "Ticker is required"}
     production_row = load_production_row(symbol)
+    acquisition_started = time.monotonic()
+    # A Streamlit form submission is not permission to bypass every independent
+    # family TTL.  Family freshness is owned by the canonical family cache; this
+    # also makes reruns of one explicit request idempotent.
     fmp_context, fmp_diagnostics = _explicit_fmp_research_context(
-        symbol, production_row, force_refresh=force_refresh, api_key=fmp_api_key,
+        symbol, production_row, force_refresh=False, api_key=fmp_api_key,
     )
+    fmp_diagnostics["explicit_context_lookup_seconds"] = round(
+        max(0.0, time.monotonic() - acquisition_started), 6
+    )
+
+    # FIRST.3 canonical evidence can render directly with the immutable
+    # production row.  Do not block a complete FMP context on a second legacy
+    # Yahoo acquisition.  A previously valid legacy cache remains available as
+    # an explicit fallback, but no fresh legacy provider work is started here.
+    configured_fmp = bool(str(fmp_api_key if fmp_api_key is not None else os.getenv("FMP_API_KEY", "")).strip())
+    fmp_families = fmp_context.get("evidence_families") if isinstance(fmp_context, dict) else {}
+    canonical_fmp_available = any(
+        isinstance(envelope, dict)
+        and envelope.get("provider") == "FMP"
+        and envelope.get("semantic_status") == "AVAILABLE"
+        for envelope in (fmp_families or {}).values()
+    )
+    if isinstance(fmp_context, dict) and configured_fmp and canonical_fmp_available:
+        legacy_cached = load_cached_research(symbol, cache_ttl_seconds)
+        base = dict(legacy_cached or production_row or {})
+        base.setdefault("Ticker", symbol)
+        base.setdefault("ticker", symbol)
+        base.setdefault("research_refreshed_at", fmp_context.get("generated_at") or datetime.now(timezone.utc).isoformat())
+        base["research_source"] = "canonical_fmp_context"
+        base["fmp_research_diagnostics"] = fmp_diagnostics
+        assembled = _attach_canonical_research_context(base, symbol, canonical_context=fmp_context)
+        fmp_diagnostics["context_assembly_seconds"] = round(
+            max(0.0, time.monotonic() - acquisition_started) - float(fmp_diagnostics.get("explicit_context_lookup_seconds") or 0.0), 6
+        )
+        return assembled
     if not force_refresh:
         cached = load_cached_research(symbol, cache_ttl_seconds)
         if cached:

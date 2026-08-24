@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, asdict
+import hashlib
 import re
 import time
 from pathlib import Path
@@ -235,6 +236,24 @@ async def _has_rendered_exception(page: Page) -> bool:
         except Exception:
             continue
     return False
+
+
+async def _rendered_exception_identity(page: Page, *, ticker: str, stage: str) -> dict[str, str]:
+    """Return only stable, sanitized exception identity; never a stack trace."""
+    for scope in _scopes(page):
+        try:
+            nodes = scope.locator('[data-testid="stException"]')
+            if not await nodes.count():
+                continue
+            text = _clean(await nodes.first.inner_text(timeout=1500))
+            class_match = re.search(r"\b([A-Za-z][A-Za-z0-9_]*(?:Error|Exception))\b", text)
+            category = class_match.group(1) if class_match else "STREAMLIT_RENDER_EXCEPTION"
+            sanitized = re.sub(r"(?:https?://|/)[^\s]+", "[redacted-location]", text)
+            fingerprint = hashlib.sha256(sanitized[:500].encode("utf-8")).hexdigest()[:16]
+            return {"category": category, "fingerprint": fingerprint, "ticker": ticker, "stage": stage}
+        except Exception:
+            continue
+    return {}
 
 
 async def _page_contract_ready(page: Page, label: str) -> bool:
@@ -631,6 +650,8 @@ async def _exercise_safe_controls(page: Page, page_name: str) -> dict[str, Any]:
 async def _research_one(page: Page, ticker: str, output_dir: Path) -> JourneyStep:
     journey = f"Research {ticker}"
     started = time.monotonic()
+    # Every ticker begins from a fresh route render.  This clears stale DOM
+    # exceptions without reusing any prior ticker's rendered state.
     ok, _, nav_detail = await _navigate(page, "Research Any Ticker", output_dir)
     if not ok:
         return JourneyStep(journey, "open research page", "FAIL", time.monotonic()-started, "Research Any Ticker", nav_detail)
@@ -697,6 +718,7 @@ async def _research_one(page: Page, ticker: str, output_dir: Path) -> JourneySte
         special["etf"] = certify_etf_context(canonical_summary)
     special["analyst_action_readiness"] = canonical_summary.get("analyst_action_readiness") or {}
     rendered_exception = await _has_rendered_exception(page)
+    exception_identity = await _rendered_exception_identity(page, ticker=ticker, stage="research_render")
     lifecycle_complete = research_lifecycle_complete(
         canonical_context_ready=canonical_marker_ready and context_ready,
         render_complete=marker_ready,
@@ -726,6 +748,7 @@ async def _research_one(page: Page, ticker: str, output_dir: Path) -> JourneySte
             "decision_digest_matches": decision_digest_matches,
             "special_certification": special,
             "markers": markers,
+            "rendered_exception_identity": exception_identity,
         },
     )
 
@@ -774,7 +797,9 @@ async def _ask_question(page: Page, ticker: str, prompt: str, output_dir: Path) 
         "ticker": grounding.get("ticker"), "context_digest": grounding.get("context-digest"),
     }) if ticker in _RESEARCH_SUMMARIES else {"classification": "ARCHITECTURE_DRIFT", "severity": "P1", "reason": "Research context was not captured for Ask comparison."}
     generic_only = bool(re.fullmatch(r".*(review the available data|unable to answer|try again).*", _clean(new_text), re.I))
-    passed = marker_ready and response_length > 0 and ticker_present and grounding_ready and len(_clean(new_text).split()) >= 18 and not await _has_rendered_exception(page) and not generic_only and not unsupported_numeric and canonical_ask.get("classification") == "PASS"
+    rendered_exception = await _has_rendered_exception(page)
+    exception_identity = await _rendered_exception_identity(page, ticker=ticker, stage="ask_render")
+    passed = marker_ready and response_length > 0 and ticker_present and grounding_ready and len(_clean(new_text).split()) >= 18 and not rendered_exception and not generic_only and not unsupported_numeric and canonical_ask.get("classification") == "PASS"
 
     return JourneyStep(
         journey,
@@ -796,6 +821,7 @@ async def _ask_question(page: Page, ticker: str, prompt: str, output_dir: Path) 
             "canonical_context_certification": canonical_ask,
             "response_word_count": len(_clean(new_text).split()),
             "response_length": response_length,
+            "rendered_exception_identity": exception_identity,
         },
     )
 

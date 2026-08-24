@@ -800,6 +800,15 @@ def settlement_failure_classification(detail: str) -> str:
     return "PRODUCT_DEFECT" if "rendered_exception=True" in str(detail or "") else "QA_DEFECT"
 
 
+def research_performance_classification(*, canonical_ready: bool, render_complete: bool, provider_seconds: float, wait_seconds: float) -> str:
+    """Separate a slow product path from a QA wait/marker defect."""
+    if canonical_ready and not render_complete and provider_seconds < wait_seconds:
+        return "QA_WAIT_DEFECT"
+    if provider_seconds >= wait_seconds or (not canonical_ready and provider_seconds > 0):
+        return "PRODUCT_PERFORMANCE_DEFECT"
+    return "QA_WAIT_DEFECT"
+
+
 async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
     output_dir.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()

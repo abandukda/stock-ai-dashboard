@@ -4,6 +4,8 @@ import xml.etree.ElementTree as ET
 import math
 import datetime as dt
 import json
+import hashlib
+import time
 import csv
 import html
 from pathlib import Path
@@ -4535,6 +4537,7 @@ def render_chat_helper(full_df):
     try:
         from engines.ask_atlas_engine import ask_atlas
         from engines.atlas_research_builder_v2 import build_atlas_research_v2
+        _ask_started = time.monotonic()
         source = matched.get("Raw") or matched.get("raw")
         session_research = st.session_state.get(f"v8054_live_row_{ticker}") or st.session_state.get(f"v8053_live_row_{ticker}")
         if not isinstance(session_research, dict) or session_research.get("error"):
@@ -4546,8 +4549,18 @@ def render_chat_helper(full_df):
             "opportunity_score": matched.get("opportunity_score") or canonical_row.get("opportunity_score"),
             "confidence_pct": matched.get("confidence_pct") or canonical_row.get("confidence_pct"),
         })
-        report = build_atlas_research_v2(canonical_row)
+        _context = canonical_row.get("research_context") if isinstance(canonical_row.get("research_context"), dict) else {}
+        _context_identity = hashlib.sha256(json.dumps(_context, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:24]
+        _report_key = f"atlas_ask_report_{ticker}_{_context_identity}"
+        report = st.session_state.get(_report_key)
+        _context_rebuilt = not isinstance(report, dict)
+        if _context_rebuilt:
+            report = build_atlas_research_v2(canonical_row)
+            st.session_state[_report_key] = report
+        _context_seconds = max(0.0, time.monotonic() - _ask_started)
+        _llm_started = time.monotonic()
         result = ask_atlas(question, report)
+        _llm_seconds = max(0.0, time.monotonic() - _llm_started)
         response = str(result.get("answer") or "").strip()
         if not response:
             raise ValueError("Atlas returned an empty response")
@@ -4582,6 +4595,14 @@ def render_chat_helper(full_df):
             f'data-atlas-decision-status="{html.escape(_ask_decision_status)}" '
             f'data-atlas-decision-digest="{html.escape(_ask_decision_digest)}" '
             f'data-atlas-response-length="{len(response)}" aria-hidden="true" style="display:none">ask-ai-complete</span>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            f'<span data-atlas-qa="ask-performance" data-atlas-ticker="{html.escape(ticker)}" '
+            f'data-atlas-context-digest="{html.escape(_context_identity)}" '
+            f'data-atlas-context-rebuilt="{str(_context_rebuilt).lower()}" '
+            f'data-atlas-context-seconds="{_context_seconds:.6f}" data-atlas-answer-seconds="{_llm_seconds:.6f}" '
+            f'aria-hidden="true" style="display:none">ask-performance</span>',
             unsafe_allow_html=True,
         )
         st.markdown(response)
@@ -27262,9 +27283,12 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
         # Static form label cannot become stale while the browser edits a batched form field.
         submitted=st.form_submit_button("Research ticker",type="primary")
     if submitted:
+        # A new request owns a new render lifecycle.  Never carry a prior
+        # ticker's error/exception state into this request.
         st.session_state["active_research_ticker"]=typed
         st.session_state["research_error"]=""
         st.session_state["research_status"]="loading"
+        st.session_state["research_request_generation"] = int(st.session_state.get("research_request_generation", 0)) + 1
     ticker=str(st.session_state.get("active_research_ticker","") or "").upper()
     status=str(st.session_state.get("research_status","idle"))
     marker_ticker=ticker or typed
@@ -27282,10 +27306,25 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
     saved=v8055_saved_ticker_record(ticker,full_df,recovery_df,watch_df,prescreen_df,etf_df)
     state_key=f"v8054_live_row_{ticker}"; auto_live=str(st.session_state.pop("v805_force_live_on_open","") or "").upper()==ticker
     if submitted or auto_live:
+        _research_started = time.monotonic()
+        _invocation_key = f"atlas_research_acquisition_invocations_{ticker}"
+        st.session_state[_invocation_key] = int(st.session_state.get(_invocation_key, 0)) + 1
         with st.spinner(f"Refreshing financials, valuation, analysts, earnings, news and policy evidence for {ticker}..."):
             try: live=build_live_research_row(ticker,force_refresh=bool(submitted or auto_live))
             except Exception as exc: live={"error":str(exc)}
         if isinstance(live,dict) and not live.get("research_refreshed_at"): live["research_refreshed_at"]=dt.datetime.now(dt.timezone.utc).isoformat()
+        _fmp_diag = live.get("fmp_research_diagnostics") if isinstance(live, dict) and isinstance(live.get("fmp_research_diagnostics"), dict) else {}
+        st.session_state[f"atlas_research_performance_{ticker}"] = {
+            "ticker": ticker,
+            "context_build_count": 1,
+            "fmp_acquisition_invocation_count": int(st.session_state.get(_invocation_key, 0)),
+            "provider_calls": int(_fmp_diag.get("requests") or 0),
+            "cache_hits": int(_fmp_diag.get("fresh_cache_hits") or 0),
+            "family_timings": dict(_fmp_diag.get("family_seconds") or {}),
+            "total_acquisition_seconds": float(_fmp_diag.get("total_acquisition_seconds") or 0.0),
+            "context_assembly_seconds": float(_fmp_diag.get("context_assembly_seconds") or 0.0),
+            "render_seconds": round(max(0.0, time.monotonic() - _research_started), 6),
+        }
         st.session_state[state_key]=live
     live=st.session_state.get(state_key)
     if (isinstance(live,dict) and not live.get("error")) or saved:
@@ -27329,6 +27368,17 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
             _qa_summary = {}
             _qa_context_ready = False
         render_detail(pd.Series(merged))
+        _qa_performance = st.session_state.get(f"atlas_research_performance_{ticker}") or {}
+        _qa_performance_digest = hashlib.sha256(json.dumps(_qa_performance, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:16]
+        st.markdown(
+            f'<span data-atlas-qa="research-performance" data-atlas-ticker="{html.escape(ticker)}" '
+            f'data-atlas-context-build-count="{int(_qa_performance.get("context_build_count") or 0)}" '
+            f'data-atlas-acquisition-count="{int(_qa_performance.get("fmp_acquisition_invocation_count") or 0)}" '
+            f'data-atlas-provider-calls="{int(_qa_performance.get("provider_calls") or 0)}" '
+            f'data-atlas-cache-hits="{int(_qa_performance.get("cache_hits") or 0)}" '
+            f'data-atlas-performance-digest="{_qa_performance_digest}" aria-hidden="true" style="display:none">research-performance</span>',
+            unsafe_allow_html=True,
+        )
         # Emit completion only after all report sections have been rendered.
         st.markdown(
             f'<span data-atlas-qa="research-container" data-atlas-status="complete" data-atlas-ticker="{html.escape(ticker)}" '
