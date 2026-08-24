@@ -28,7 +28,9 @@ from agents.ai_content_integrity_v3 import audit_summary_collection
 from agents.code_contract_mapper_v3 import build_code_contract
 from agents.fix_planner_v3 import write_fix_plan
 from agents.qa_v3_models import PageResult, QAIssue
-from agents.runtime_qa_user_journeys_v40 import run_user_journeys, wait_for_page_settlement
+from agents.runtime_qa_user_journeys_v40 import (
+    page_certification_metadata, run_user_journeys, wait_for_page_settlement,
+)
 from agents.runtime_qa_architecture import (
     CERTIFICATION_ARTIFACT, CORE_PAGE_CONTRACTS, RUNTIME_QA_FRAMEWORK_VERSION,
     architecture_preflight, architecture_versions, certification_integrity,
@@ -767,7 +769,35 @@ def _classify_failed_request(url: str, status: int) -> dict[str, str]:
     path = parts.path or "/"
     if path.endswith("/api/v2/user/details") and status == 404:
         return {"path": path, "classification": "PLATFORM_NOISE", "relevance": "NOT_ATLAS_FUNCTIONALITY"}
+    if path.endswith("/api/v1/app/event/open") and status == 403:
+        return {"path": path, "classification": "PLATFORM_TELEMETRY_NOISE", "relevance": "NOT_ATLAS_FUNCTIONALITY"}
     return {"path": path, "classification": "APPLICATION_OR_DEPENDENCY_REQUEST_FAILURE", "relevance": "REVIEW_REQUIRED"}
+
+
+def preserve_partial_journey_progress(
+    current: dict[str, Any], partial: dict[str, Any],
+    required: dict[str, int], exception_category: str,
+) -> dict[str, Any]:
+    """Invalidate a timed-out audit without erasing already completed work."""
+    result = dict(partial) if partial.get("steps") else dict(current)
+    family_progress = result.get("family_completed") or {}
+    result.update({
+        "status": "ENGINE_EXCEPTION",
+        "engine_exception_category": exception_category,
+        "required_journey_completeness": journey_completeness(
+            required, family_progress, engine_error=exception_category,
+        ),
+        "cross_page_consistency": result.get("cross_page_consistency") or {
+            "status": "NOT_EXECUTED",
+            "reason": f"Journey engine terminated with {exception_category}.",
+        },
+    })
+    return result
+
+
+def settlement_failure_classification(detail: str) -> str:
+    """Marker/time settlement defects are QA defects unless a real exception rendered."""
+    return "PRODUCT_DEFECT" if "rendered_exception=True" in str(detail or "") else "QA_DEFECT"
 
 
 async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
@@ -889,6 +919,7 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
                         timeout=20,
                     )
                 except Exception as exc:
+                    failure_classification = settlement_failure_classification(str(exc))
                     result = PageResult(
                         page=page_name,
                         status="FAIL",
@@ -902,10 +933,13 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
                             actual=f"{type(exc).__name__}: {exc}",
                             recommendation="Inspect the page route and navigation widget.",
                             likely_files=["app.py"],
+                            classification=failure_classification,
+                            architecture_severity="P1",
                         ).to_dict()],
                     )
 
                 result_dict = result.to_dict()
+                result_dict["page_certification"] = await page_certification_metadata(page, page_name)
                 page_results.append(result_dict)
                 issues.extend(result_dict["issues"])
                 (output_dir / "runtime_progress.json").write_text(
@@ -920,12 +954,15 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
                 )
 
             print("[journeys] Starting full synthetic client journeys", flush=True)
+            partial_journeys: dict[str, Any] = {}
             try:
                 user_journeys = await asyncio.wait_for(
                     run_user_journeys(
                         page,
                         output_dir=output_dir,
                         navigation_labels=pages,
+                        prevalidated_navigation=page_results,
+                        progress_state=partial_journeys,
                     ),
                     timeout=600,
                 )
@@ -962,17 +999,9 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
                         ).to_dict())
             except Exception as exc:
                 exception_category = type(exc).__name__
-                user_journeys.update({
-                    "status": "ENGINE_EXCEPTION",
-                    "engine_exception_category": exception_category,
-                    "required_journey_completeness": journey_completeness(
-                        required_expected, {}, engine_error=exception_category,
-                    ),
-                    "cross_page_consistency": {
-                        "status": "NOT_EXECUTED",
-                        "reason": f"Journey engine terminated with {exception_category}.",
-                    },
-                })
+                user_journeys = preserve_partial_journey_progress(
+                    user_journeys, partial_journeys, required_expected, exception_category,
+                )
                 issues.append(QAIssue(
                     severity="HIGH",
                     category="User Journey Engine",

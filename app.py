@@ -27592,13 +27592,26 @@ def _emit_page_certification_marker(page_name, source_df):
             ticker = str(row.get("ticker") or row.get("Ticker") or "").upper().strip()
             digest = protected_decision_digest(build_production_decision(row))
         st.markdown(
-            f'<span data-atlas-qa="page-identity" data-atlas-page="{html.escape(page_id)}" '
-            f'data-atlas-status="ready" aria-hidden="true" style="display:none">page-identity</span>'
-            f'<span data-atlas-qa="page-ready" data-atlas-page="{html.escape(page_id)}" '
-            f'data-atlas-status="ready" aria-hidden="true" style="display:none">page-ready</span>'
+            f'<span id="atlas-qa-page-{html.escape(page_id)}" data-atlas-qa="page-contract" '
+            f'data-atlas-page="{html.escape(page_id)}" data-atlas-page-ready="true" '
+            f'data-atlas-status="ready" aria-hidden="true" style="display:none">page-contract-ready</span>'
             f'<span data-atlas-qa="page-certification" data-atlas-page="{html.escape(page_id)}" '
             f'data-atlas-ticker="{html.escape(ticker)}" data-atlas-decision-digest="{html.escape(digest)}" '
             f'aria-hidden="true" style="display:none">page-certification</span>',
+            unsafe_allow_html=True,
+        )
+    except Exception:
+        return
+
+
+def _emit_page_identity_marker(page_name):
+    """Expose selected-route identity before its renderer begins."""
+    try:
+        page_id = re.sub(r"[^a-z0-9]+", "-", str(page_name).lower()).strip("-")
+        st.markdown(
+            f'<span id="atlas-qa-route-{html.escape(page_id)}" data-atlas-qa="page-route" '
+            f'data-atlas-page="{html.escape(page_id)}" data-atlas-status="selected" '
+            f'aria-hidden="true" style="display:none">page-route-selected</span>',
             unsafe_allow_html=True,
         )
     except Exception:
@@ -27612,6 +27625,7 @@ def main():
     pages=["Home","Today's Opportunities","Volume Intelligence","Atlas Core Holdings","Research Any Ticker","Earnings Intelligence","Full Ranked Scan","Portfolio Intelligence","Watchlist Intelligence","Recovery","ETFs","Political Intelligence","Ask AI","Developer Center"]
     selected_page=render_v73_top_nav(pages)
     source_df=top_df if top_df is not None and not top_df.empty else full_df.head(25)
+    _emit_page_identity_marker(selected_page)
     if selected_page != "Home": render_v72_market_tape(always_show=False)
     if selected_page=="Home": v810_render_dynamic_home(full_df,source_df,recovery_df)
     elif selected_page=="Today's Opportunities": v810_render_today_page(full_df)
@@ -30465,6 +30479,22 @@ def v93_specific_risk(row):
     add(50, v93_sector_risk(row))
     candidates.sort(key=lambda item: item[0], reverse=True)
     return candidates[0][1]
+
+
+def v66_money_short(value):
+    """Compact currency formatter retained for the active V93 evidence path."""
+    try:
+        amount = float(value)
+    except (TypeError, ValueError):
+        return "Unavailable"
+    magnitude = abs(amount)
+    if magnitude >= 1_000_000_000:
+        return f"${amount / 1_000_000_000:.1f}B"
+    if magnitude >= 1_000_000:
+        return f"${amount / 1_000_000:.1f}M"
+    if magnitude >= 1_000:
+        return f"${amount / 1_000:.1f}K"
+    return f"${amount:,.0f}"
 
 
 def v93_supporting_evidence(row, snapshot):

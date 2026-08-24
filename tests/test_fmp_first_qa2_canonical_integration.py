@@ -129,7 +129,8 @@ def test_home_global_ready_marker_is_not_conditional_on_nonempty_data():
     tree = ast.parse((ROOT / "app.py").read_text(encoding="utf-8"))
     function = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "_emit_page_certification_marker")
     source = ast.get_source_segment((ROOT / "app.py").read_text(encoding="utf-8"), function) or ""
-    assert 'data-atlas-qa="page-ready"' in source
+    assert 'data-atlas-qa="page-contract"' in source
+    assert 'data-atlas-page-ready="true"' in source
     assert "if source_df is None" not in source
     assert "return" not in source.split("except Exception:", 1)[0]
     app_source = (ROOT / "app.py").read_text(encoding="utf-8")

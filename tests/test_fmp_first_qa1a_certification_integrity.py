@@ -66,8 +66,9 @@ def test_user_details_404_is_explicit_platform_noise():
 
 def test_application_emits_canonical_page_identity_and_global_page_ready():
     source = Path("app.py").read_text(encoding="utf-8")
-    assert 'data-atlas-qa="page-identity"' in source
-    assert 'data-atlas-qa="page-ready"' in source
+    assert 'data-atlas-qa="page-route"' in source
+    assert 'data-atlas-qa="page-contract"' in source
+    assert 'data-atlas-page-ready="true"' in source
 
 
 def test_runtime_seeds_artifact_and_propagates_engine_exception():

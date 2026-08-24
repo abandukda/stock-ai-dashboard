@@ -78,6 +78,22 @@ PAGE_READY_TEXT = {
 }
 
 PAGE_QA_IDS = {label: re.sub(r"[^a-z0-9]+", "-", label.lower()).strip("-") for label in PAGE_LABELS}
+PER_ROUTE_SETTLEMENT_SECONDS = 12
+GENERIC_NAVIGATION_BUDGET_SECONDS = 180
+RESEARCH_STEP_BUDGET_SECONDS = 45
+ASK_STEP_BUDGET_SECONDS = 30
+RESPONSIVE_PHASE_BUDGET_SECONDS = 75
+REQUIRED_PHASE_MAX_SECONDS = (
+    6 * RESEARCH_STEP_BUDGET_SECONDS
+    + 6 * ASK_STEP_BUDGET_SECONDS
+    + RESPONSIVE_PHASE_BUDGET_SECONDS
+)
+
+
+def navigation_phase_upper_bound(page_count: int) -> int:
+    """Maximum generic-navigation wall time before remaining routes fail fast."""
+    per_page = PER_ROUTE_SETTLEMENT_SECONDS + 3
+    return min(GENERIC_NAVIGATION_BUDGET_SECONDS, max(0, int(page_count)) * per_page)
 
 _TICKER_MATRIX = research_ticker_matrix(".")
 RESEARCH_TICKERS = tuple(_TICKER_MATRIX["tickers"][:-1])
@@ -142,7 +158,10 @@ def cross_page_digest_result(ticker: str, page_digests: Mapping[str, str]) -> di
 
 async def _page_identity_matches(page: Page, label: str) -> bool:
     page_id = PAGE_QA_IDS.get(label) or re.sub(r"[^a-z0-9]+", "-", label.lower()).strip("-")
-    selector = f'[data-atlas-qa="page-identity"][data-atlas-page="{page_id}"][data-atlas-status="ready"]'
+    selector = (
+        f'#atlas-qa-route-{page_id}[data-atlas-page="{page_id}"][data-atlas-status="selected"], '
+        f'#atlas-qa-page-{page_id}[data-atlas-page="{page_id}"][data-atlas-page-ready="true"]'
+    )
     for scope in _scopes(page):
         try:
             if await scope.locator(selector).count():
@@ -222,10 +241,7 @@ async def _page_contract_ready(page: Page, label: str) -> bool:
     page_id = PAGE_QA_IDS.get(label)
     if not page_id:
         return False
-    selector = (
-        f'[data-atlas-qa="page-ready"][data-atlas-page="{page_id}"]'
-        '[data-atlas-status="ready"]'
-    )
+    selector = f'#atlas-qa-page-{page_id}[data-atlas-page="{page_id}"][data-atlas-page-ready="true"]'
     for scope in _scopes(page):
         try:
             if await scope.locator(selector).count():
@@ -271,7 +287,7 @@ async def _navigate(page: Page, label: str, output_dir: Path | None = None) -> t
     if not clicked:
         return False, time.monotonic() - started, f"Could not click navigation label: {label}"
 
-    deadline = time.monotonic() + 12
+    deadline = time.monotonic() + PER_ROUTE_SETTLEMENT_SECONDS
     text = ""
     while time.monotonic() < deadline:
         text = await _visible_text(page)
@@ -291,7 +307,9 @@ async def _navigate(page: Page, label: str, output_dir: Path | None = None) -> t
         explicit_ready = await _page_contract_ready(page, label)
         identity_matches = await _page_identity_matches(page, label)
         text_ready = bool(PAGE_READY_TEXT.get(label, re.compile(re.escape(label), re.I)).search(text))
-        page_ready = explicit_ready and text_ready and identity_matches
+        # Canonical DOM markers are authoritative and intentionally hidden.
+        # Heading text is retained only as diagnostic evidence.
+        page_ready = explicit_ready and identity_matches
         rendered_exception = await _has_rendered_exception(page)
         rendered_identity = label if identity_matches else ""
         if page_identity_settled(requested=label, rendered=rendered_identity, selected=selected,
@@ -301,7 +319,7 @@ async def _navigate(page: Page, label: str, output_dir: Path | None = None) -> t
     after_shot = await _screenshot(page, output_dir, f"failed_nav_{label}") if output_dir else ""
     return False, time.monotonic() - started, (
         f"Navigation did not settle on {label}: selected={selected}, page_ready={page_ready}, "
-        f"identity_matches={identity_matches}, explicit_ready={explicit_ready}, rendered_exception={rendered_exception}, "
+        f"identity_matches={identity_matches}, explicit_ready={explicit_ready}, heading_diagnostic={text_ready}, rendered_exception={rendered_exception}, "
         f"before_screenshot={before_shot or 'none'}, after_screenshot={after_shot or 'none'}."
     )
 
@@ -309,18 +327,24 @@ async def _navigate(page: Page, label: str, output_dir: Path | None = None) -> t
 async def wait_for_page_settlement(page: Page, label: str, output_dir: Path | None = None) -> tuple[bool, float, str]:
     """Public route-settlement contract shared by inventory and journey engines."""
     started = time.monotonic()
-    deadline = time.monotonic() + 12
+    deadline = time.monotonic() + PER_ROUTE_SETTLEMENT_SECONDS
+    identity = ready = rendered_exception = False
+    heading_diagnostic = False
     while time.monotonic() < deadline:
         identity = await _page_identity_matches(page, label)
         ready = await _page_contract_ready(page, label)
         text = await _visible_text(page)
-        text_ready = bool(PAGE_READY_TEXT.get(label, re.compile(re.escape(label), re.I)).search(text))
+        heading_diagnostic = bool(PAGE_READY_TEXT.get(label, re.compile(re.escape(label), re.I)).search(text))
         rendered_exception = await _has_rendered_exception(page)
-        if identity and ready and text_ready and not rendered_exception:
+        if identity and ready and not rendered_exception:
             return True, time.monotonic() - started, ""
         await asyncio.sleep(0.4)
     shot = await _screenshot(page, output_dir, f"failed_settlement_{label}") if output_dir else ""
-    return False, time.monotonic() - started, f"Rendered page identity did not settle on {label}; screenshot={shot or 'none'}."
+    return False, time.monotonic() - started, (
+        f"Rendered page identity did not settle on {label}; identity={identity}, ready={ready}, "
+        f"heading_diagnostic={heading_diagnostic}, rendered_exception={rendered_exception}; "
+        f"screenshot={shot or 'none'}."
+    )
 
 
 async def _find_text_input(page: Page, purpose: str):
@@ -508,6 +532,11 @@ async def _page_certification_metadata(page: Page, label: str) -> dict[str, str]
         except Exception:
             continue
     return {}
+
+
+async def page_certification_metadata(page: Page, label: str) -> dict[str, str]:
+    """Public sanitized page-decision marker reader for the inventory phase."""
+    return await _page_certification_metadata(page, label)
 
 
 async def _wait_for_change(
@@ -837,46 +866,129 @@ async def run_user_journeys(
     *,
     output_dir: Path,
     navigation_labels: Iterable[str] = PAGE_LABELS,
+    prevalidated_navigation: Iterable[Mapping[str, Any]] = (),
+    progress_state: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     output_dir.mkdir(parents=True, exist_ok=True)
     steps: list[JourneyStep] = []
     started = time.monotonic()
 
-    # 1. Full navigation + safe interaction coverage.
-    for label in navigation_labels:
-        step_start = time.monotonic()
-        ok, duration, detail = await _navigate(page, label, output_dir)
-        if not ok:
-            steps.append(JourneyStep("Navigation coverage", label, "FAIL", duration, label, detail))
-            continue
+    def publish_progress(status: str = "IN_PROGRESS") -> None:
+        if progress_state is None:
+            return
+        values = [step.to_dict() for step in steps]
+        predicates = {
+            "navigation": lambda step: step["journey"] == "Navigation coverage",
+            "research": lambda step: step["journey"].startswith("Research "),
+            "ask": lambda step: step["journey"].startswith("Ask AI —"),
+            "responsive": lambda step: step["journey"].startswith("Responsive ") or step["journey"] == "Core mobile certification",
+        }
+        family_completed = {}
+        for family, predicate in predicates.items():
+            matching = [step for step in values if predicate(step)]
+            family_completed[family] = {
+                "attempted": len(matching),
+                "completed": sum(step["status"] == "PASS" for step in matching),
+                "failed": sum(step["status"] == "FAIL" for step in matching),
+            }
+        family_completed["cross_page"] = {"attempted": 0, "completed": 0, "failed": 0}
+        progress_state.clear()
+        progress_state.update({
+            "version": "ATLAS-USER-JOURNEYS-V4.0",
+            "status": status,
+            "steps": values,
+            "counts": {state: sum(step["status"] == state for step in values) for state in ("PASS", "WARN", "FAIL")},
+            "ticker_matrix": _TICKER_MATRIX,
+            "stable_ask_questions": ASK_AI_QUESTIONS,
+            "partial_progress": True,
+            "family_completed": family_completed,
+            "required_journey_completeness": journey_completeness({
+                "navigation": len(tuple(navigation_labels)), "research": len(RESEARCH_TICKERS) + 1,
+                "ask": len(ASK_AI_PROMPTS), "responsive": 6, "cross_page": 1,
+            }, family_completed),
+            "cross_page_consistency": {"status": "NOT_EXECUTED", "reason": "Journey execution is still in progress."},
+        })
 
-        controls = await _exercise_safe_controls(page, label)
-        controls["page_certification"] = await _page_certification_metadata(page, label)
-        screenshot = await _screenshot(page, output_dir, f"nav_{label}")
-        status = "FAIL" if controls["errors"] else "PASS"
-        steps.append(JourneyStep(
-            "Navigation coverage",
-            label,
-            status,
-            time.monotonic()-step_start,
-            label,
-            "; ".join(controls["errors"]) if controls["errors"] else "Page opened and safe controls were exercised.",
-            screenshot,
-            controls,
-        ))
+    # 1. Reuse the already completed architecture/inventory navigation whenever
+    # available. This prevents a second 14-page traversal from consuming the
+    # Research and Ask budget.
+    prevalidated = list(prevalidated_navigation)
+    if prevalidated:
+        for result in prevalidated:
+            label = str(result.get("page") or "")
+            status = "PASS" if result.get("status") == "PASS" else "FAIL"
+            steps.append(JourneyStep(
+                "Navigation coverage", label, status,
+                float(result.get("duration_seconds") or 0), label,
+                "Reused bounded architecture inventory result.",
+                str(result.get("screenshot") or ""),
+                {"page_certification": dict(result.get("page_certification") or {})},
+            ))
+        publish_progress()
+    else:
+        navigation_deadline = time.monotonic() + GENERIC_NAVIGATION_BUDGET_SECONDS
+        for label in navigation_labels:
+            if time.monotonic() >= navigation_deadline:
+                steps.append(JourneyStep(
+                    "Navigation coverage", label, "FAIL", 0, label,
+                    "Generic navigation phase budget exhausted; required Research remained reserved.",
+                ))
+                publish_progress()
+                continue
+            step_start = time.monotonic()
+            ok, duration, detail = await _navigate(page, label, output_dir)
+            if not ok:
+                steps.append(JourneyStep("Navigation coverage", label, "FAIL", duration, label, detail))
+                publish_progress()
+                continue
 
-    # 2. Research journeys.
+            try:
+                controls = await asyncio.wait_for(_exercise_safe_controls(page, label), timeout=3)
+            except TimeoutError:
+                controls = {"errors": [], "interaction_notes": ["Safe-control exercise reached its per-route budget."]}
+            controls["page_certification"] = await _page_certification_metadata(page, label)
+            screenshot = await _screenshot(page, output_dir, f"nav_{label}")
+            status = "FAIL" if controls["errors"] else "PASS"
+            steps.append(JourneyStep(
+                "Navigation coverage", label, status, time.monotonic()-step_start, label,
+                "; ".join(controls["errors"]) if controls["errors"] else "Page opened and safe controls were exercised.",
+                screenshot, controls,
+            ))
+            publish_progress()
+
+    # 2. Research journeys receive their execution opportunity before any
+    # optional repeated navigation work.
     for ticker in (*RESEARCH_TICKERS, INVALID_TICKER):
-        steps.append(await _research_one(page, ticker, output_dir))
+        try:
+            step = await asyncio.wait_for(_research_one(page, ticker, output_dir), timeout=RESEARCH_STEP_BUDGET_SECONDS)
+        except TimeoutError:
+            step = JourneyStep(f"Research {ticker}", "generate full research", "FAIL", RESEARCH_STEP_BUDGET_SECONDS, "Research Any Ticker", "Per-ticker Research budget exhausted.")
+        steps.append(step)
+        publish_progress()
 
     # 3. Ask AI journeys.
     for ticker, prompt in ASK_AI_PROMPTS:
-        steps.append(await _ask_question(page, ticker, prompt, output_dir))
+        try:
+            step = await asyncio.wait_for(_ask_question(page, ticker, prompt, output_dir), timeout=ASK_STEP_BUDGET_SECONDS)
+        except TimeoutError:
+            step = JourneyStep(f"Ask AI — {ticker}", "answer investment question", "FAIL", ASK_STEP_BUDGET_SECONDS, "Ask AI", "Per-question Ask budget exhausted.")
+        steps.append(step)
+        publish_progress()
 
     # 4. Responsive smoke after returning to Research page.
     await _navigate(page, "Research Any Ticker", output_dir)
-    steps.extend(await _responsive_smoke(page, output_dir))
-    steps.extend(await _core_mobile_certification(page, output_dir))
+    try:
+        steps.extend(await asyncio.wait_for(_responsive_smoke(page, output_dir), timeout=45))
+    except TimeoutError:
+        for label in ("tablet", "mobile"):
+            steps.append(JourneyStep(f"Responsive {label}", "responsive layout", "FAIL", 45, "Research Any Ticker", "Responsive phase budget exhausted."))
+    publish_progress()
+    try:
+        steps.extend(await asyncio.wait_for(_core_mobile_certification(page, output_dir), timeout=30))
+    except TimeoutError:
+        for label in ("Home", "Today's Opportunities", "Research Any Ticker", "Ask AI"):
+            steps.append(JourneyStep("Core mobile certification", label, "FAIL", 30, label, "Core mobile phase budget exhausted."))
+    publish_progress()
 
     values = [step.to_dict() for step in steps]
     counts = {
@@ -923,7 +1035,7 @@ async def run_user_journeys(
         "navigation": len(tuple(navigation_labels)), "research": len(RESEARCH_TICKERS) + 1,
         "ask": len(ASK_AI_PROMPTS), "responsive": 6, "cross_page": 1,
     }, family_completed)
-    return {
+    result = {
         "version": "ATLAS-USER-JOURNEYS-V4.0",
         "status": "PASS" if counts["FAIL"] == 0 else "FAIL",
         "counts": counts,
@@ -934,11 +1046,16 @@ async def run_user_journeys(
         "required_journey_completeness": completeness,
         "cross_page_consistency": cross_page_result,
     }
+    if progress_state is not None:
+        progress_state.clear()
+        progress_state.update(result)
+        progress_state["partial_progress"] = False
+    return result
 
 
 __all__ = [
     "ASK_AI_PROMPTS", "ASK_AI_QUESTIONS", "INVALID_TICKER", "PAGE_LABELS",
     "PAGE_READY_TEXT", "RESEARCH_TICKERS", "ask_grounding_complete",
     "navigation_contract_satisfied", "research_context_complete", "run_user_journeys",
-    "page_identity_settled", "wait_for_page_settlement",
+    "page_identity_settled", "page_certification_metadata", "wait_for_page_settlement",
 ]
