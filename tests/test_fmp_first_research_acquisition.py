@@ -160,7 +160,7 @@ def test_etf_corporate_families_fail_not_applicable(tmp_path):
     row = {"ticker": "SPY", "security_type": "ETF", "Recommendation": "HOLD"}
     client = FakeFMP()
     result = acquire_explicit_fmp_research("SPY", production_row=row, client=client, cache_root=tmp_path)
-    assert [endpoint for endpoint, _ in client.calls] == ["profile", "stock-peers"]
+    assert [endpoint for endpoint, _ in client.calls] == ["profile"]
     for family in ("financial_statements", "earnings_history", "analyst_estimates", "company_news"):
         assert result["research_context"]["evidence_families"][family]["semantic_status"] == "NOT_APPLICABLE"
 
