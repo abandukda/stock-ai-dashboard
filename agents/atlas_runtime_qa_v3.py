@@ -29,7 +29,8 @@ from agents.code_contract_mapper_v3 import build_code_contract
 from agents.fix_planner_v3 import write_fix_plan
 from agents.qa_v3_models import PageResult, QAIssue
 from agents.runtime_qa_user_journeys_v40 import (
-    page_certification_metadata, run_user_journeys, wait_for_page_settlement,
+    page_certification_metadata, run_targeted_critical_journeys,
+    run_user_journeys, wait_for_page_settlement,
 )
 from agents.runtime_qa_architecture import (
     CERTIFICATION_ARTIFACT, CORE_PAGE_CONTRACTS, RUNTIME_QA_FRAMEWORK_VERSION,
@@ -1251,17 +1252,68 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
     return report
 
 
+async def run_targeted_preflight_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
+    """Authenticate through the existing QA path and run only six QA.4 journeys."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    started = time.monotonic()
+    architecture = architecture_preflight(".")
+    versions = architecture_versions(".")
+    artifact_path = output_dir / "atlas_targeted_preflight.json"
+    base = {
+        "version": "QA4_TARGETED_PREFLIGHT_V1",
+        "source_sha": versions["source_commit"],
+        "architecture_preflight": architecture.get("status"),
+        "authentication_success": False,
+        "expected": 6, "attempted": 0, "passed": 0, "failed": 0,
+        "status": "QA_INFRASTRUCTURE_BLOCKER" if architecture.get("status") != "PASS" else "IN_PROGRESS",
+        "total_duration_seconds": 0.0, "journeys": [],
+    }
+    if architecture.get("status") != "PASS":
+        artifact_path.write_text(json.dumps(base, indent=2), encoding="utf-8")
+        return base
+
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(headless=True)
+        context: BrowserContext = await browser.new_context(viewport={"width": 1440, "height": 1000})
+        page = await context.new_page()
+        page.set_default_timeout(ACTION_TIMEOUT_MS)
+        try:
+            authentication = await asyncio.wait_for(_open_and_authenticate(page, url, output_dir), timeout=300)
+            authenticated = bool(authentication.get("authenticated_dashboard_detected"))
+            if not authenticated:
+                base["status"] = "QA_INFRASTRUCTURE_BLOCKER"
+            else:
+                base["authentication_success"] = True
+                base.update(await run_targeted_critical_journeys(page, output_dir=output_dir))
+                base["source_sha"] = versions["source_commit"]
+                base["architecture_preflight"] = architecture.get("status")
+                base["authentication_success"] = True
+        except Exception:
+            # The artifact intentionally records no credential, raw exception,
+            # URL, payload, or stack trace.
+            base["status"] = "QA_INFRASTRUCTURE_BLOCKER"
+        finally:
+            await context.close()
+            await browser.close()
+    base["total_duration_seconds"] = round(time.monotonic() - started, 3)
+    artifact_path.write_text(json.dumps(base, indent=2, default=str), encoding="utf-8")
+    return base
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", default=DEFAULT_URL)
     parser.add_argument("--output", default="audit_results")
+    parser.add_argument("--mode", choices=("full", "targeted_preflight"), default="full")
     args = parser.parse_args()
-    asyncio.run(
-        run_runtime_qa_v3(
+    result = asyncio.run(
+        (run_targeted_preflight_v3 if args.mode == "targeted_preflight" else run_runtime_qa_v3)(
             url=args.url,
             output_dir=Path(args.output),
         )
     )
+    if args.mode == "targeted_preflight" and result.get("status") != "TARGETED_PREFLIGHT_PASS":
+        raise SystemExit(2)
 
 
 if __name__ == "__main__":

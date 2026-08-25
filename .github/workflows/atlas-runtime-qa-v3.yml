@@ -2,6 +2,15 @@ name: Atlas Runtime QA
 
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "QA execution mode"
+        required: true
+        default: "full"
+        type: choice
+        options:
+          - full
+          - targeted_preflight
 
   schedule:
     - cron: "30 11 * * 1-5"
@@ -63,11 +72,13 @@ jobs:
       - name: Run Atlas Runtime QA
         env:
           ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
+          ATLAS_QA_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'full' }}
           PYTHONUNBUFFERED: "1"
         run: |
           python -u -m agents.atlas_runtime_qa_v3 \
             --url https://stock-ai-dashboard.streamlit.app \
-            --output audit_results
+            --output audit_results \
+            --mode "$ATLAS_QA_MODE"
 
       - name: Upload QA Report
         if: always()

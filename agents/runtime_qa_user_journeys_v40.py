@@ -740,6 +740,8 @@ async def _research_one(page: Page, ticker: str, output_dir: Path) -> JourneySte
         invalid_handled = bool(
             re.search(r"invalid|not found|unable|no data|unsupported|enter a valid", after, re.I)
         ) and not ERROR_RE.search(after)
+        invalid_provider_calls = int(progress.get("provider-calls") or 0)
+        canonical_context_absent = not bool(await _canonical_research_summary(page, ticker))
         return JourneyStep(
             journey, "invalid ticker handling",
             "PASS" if invalid_handled and marker_ready else "FAIL",
@@ -747,7 +749,12 @@ async def _research_one(page: Page, ticker: str, output_dir: Path) -> JourneySte
             "Research Any Ticker",
             "Invalid ticker was handled without a crash." if invalid_handled else "Invalid ticker did not produce a clear validation message.",
             screenshot,
-            {"submit_control": clicked, "content_changed": changed, "qa_marker_ready": marker_ready},
+            {
+                "submit_control": clicked, "content_changed": changed,
+                "qa_marker_ready": marker_ready, "provider_calls": invalid_provider_calls,
+                "canonical_context_absent": canonical_context_absent,
+                "no_investment_decision": canonical_context_absent,
+            },
         )
 
     markers = research_content_sections(after)
@@ -966,7 +973,7 @@ async def _discover_interaction_markers(page: Page, source_page: str) -> list[In
     return discovered
 
 
-async def _certify_all_tabs(page: Page, page_label: str, output_dir: Path) -> dict[str, Any] | None:
+async def _certify_all_tabs(page: Page, page_label: str, output_dir: Path, expected_ticker: str = "") -> dict[str, Any] | None:
     """Exercise every rendered tab and reject stale/non-selected tab state."""
     tabs = None
     for scope in _scopes(page):
@@ -1003,18 +1010,22 @@ async def _certify_all_tabs(page: Page, page_label: str, output_dir: Path) -> di
                         break
             content_digest = hashlib.sha256(panel_text.encode("utf-8")).hexdigest()[:12] if panel_text else ""
             stale_content = bool(previous_digest and content_digest and previous_digest == content_digest)
+            ticker_retained = True
+            if expected_ticker:
+                ticker_retained = await _wait_for_qa_state(page, "research-container", "complete", expected_ticker, 0.2)
             rendered_exception = await _has_rendered_exception(page)
             states.append({
                 "label": label, "selected": selected,
                 "content_rendered": bool(panel_text), "content_digest": content_digest,
-                "stale_content": stale_content, "rendered_exception": rendered_exception,
+                "stale_content": stale_content, "ticker_retained": ticker_retained,
+                "rendered_exception": rendered_exception,
             })
             if content_digest:
                 previous_digest = content_digest
         except Exception:
-            states.append({"label": label, "selected": False, "content_rendered": False, "content_digest": "", "stale_content": False, "rendered_exception": False})
+            states.append({"label": label, "selected": False, "content_rendered": False, "content_digest": "", "stale_content": False, "ticker_retained": False, "rendered_exception": False})
     after_path = await _screenshot(page, output_dir, f"interaction_{page_label}_tabs_after")
-    passed = bool(states) and all(item["selected"] and item["content_rendered"] and not item["stale_content"] and not item["rendered_exception"] for item in states)
+    passed = bool(states) and all(item["selected"] and item["content_rendered"] and item["ticker_retained"] and not item["stale_content"] and not item["rendered_exception"] for item in states)
     registry_id = {
         "Home": "home-more-decisions-tabs",
         "Research Any Ticker": "research-all-tabs",
@@ -1168,6 +1179,192 @@ async def _interaction_crawler(page: Page, output_dir: Path, progress_state: dic
         progress_state.clear()
         progress_state.update(final)
     return final
+
+
+async def _targeted_home_research(page: Page, output_dir: Path) -> JourneyStep:
+    """Exercise one real rendered Home Research card and its declared contract."""
+    started = time.monotonic()
+    ok, _, detail = await _navigate(page, "Home", output_dir)
+    if not ok:
+        return JourneyStep("Home report card", "open Home", "FAIL", time.monotonic() - started, "Home", detail)
+    markers = []
+    for scope in _scopes(page):
+        try:
+            candidates = scope.locator('[data-atlas-interaction-id^="home-report-card-"]')
+            markers.extend(await candidates.all())
+        except Exception:
+            continue
+    if not markers:
+        return JourneyStep("Home report card", "discover Research card", "FAIL", time.monotonic() - started, "Home", "No rendered Home report-card interaction marker was found.")
+    marker = markers[0]
+    interaction_id = str(await marker.get_attribute("data-atlas-interaction-id") or "")
+    expected_ticker = str(await marker.get_attribute("data-atlas-expected-ticker") or "").upper()
+    expected_page = str(await marker.get_attribute("data-atlas-expected-page") or "")
+    before = await _screenshot(page, output_dir, f"targeted_{interaction_id}_before")
+    clicked = False
+    button = marker.locator("xpath=following::button[1]")
+    if await button.count():
+        try:
+            await button.first.click(timeout=6000)
+            clicked = True
+        except Exception:
+            clicked = False
+    destination_ok, _, settlement = await wait_for_page_settlement(page, "Research Any Ticker", output_dir) if clicked else (False, 0.0, "Click was not accepted.")
+    component_ready = await _wait_for_qa_state(page, "research-container", "complete", expected_ticker, 12) if destination_ok and expected_ticker else False
+    exception_identity = await _rendered_exception_identity(page, ticker=expected_ticker, stage="home_research_destination")
+    after = await _screenshot(page, output_dir, f"targeted_{interaction_id}_after")
+    passed = bool(clicked and destination_ok and component_ready and expected_ticker and not exception_identity)
+    return JourneyStep(
+        "Home report card", "click through to Research",
+        "PASS" if passed else "FAIL", time.monotonic() - started, "Home",
+        "Correct ticker Research context settled." if passed else settlement,
+        after,
+        {
+            "interaction_id": interaction_id, "expected_ticker": expected_ticker,
+            "actual_ticker": expected_ticker if component_ready else "",
+            "expected_destination": expected_page, "actual_destination": "research-any-ticker" if destination_ok else "",
+            "click_accepted": clicked, "page_ready": destination_ok,
+            "expected_component_rendered": component_ready,
+            "classification": "PASS" if passed else "DEAD_INTERACTION" if clicked and not destination_ok else "PRODUCT_DEFECT" if exception_identity else "QA_DEFECT",
+            "severity": "" if passed else "P1", "before_screenshot": before,
+            "after_screenshot": after, "rendered_exception_identity": exception_identity,
+        },
+    )
+
+
+def _targeted_step_summary(step: JourneyStep) -> dict[str, Any]:
+    """Keep targeted artifacts diagnostic but free of provider/financial payloads."""
+    evidence = dict(step.evidence or {})
+    canonical_summary = dict(evidence.get("canonical_research_summary") or {})
+    progress = dict(evidence.get("research_progress") or {})
+    progress_summary = dict(progress.get("progress_summary") or {})
+    special = dict(evidence.get("special_certification") or {})
+    safe = {
+        "journey": step.journey, "step": step.step, "status": step.status,
+        "duration_seconds": round(float(step.duration_seconds), 3), "page": step.page,
+        "detail": step.detail, "screenshot": step.screenshot,
+        "interaction_id": evidence.get("interaction_id"),
+        "expected_ticker": evidence.get("expected_ticker"), "actual_ticker": evidence.get("actual_ticker"),
+        "expected_destination": evidence.get("expected_destination"), "actual_destination": evidence.get("actual_destination"),
+        "before_screenshot": evidence.get("before_screenshot"), "after_screenshot": evidence.get("after_screenshot"),
+        "classification": evidence.get("classification"), "severity": evidence.get("severity"),
+        "research_request_id": progress.get("request-id"), "readiness": progress.get("readiness"),
+        "provider_calls": progress.get("provider-calls"), "cache_hits": progress.get("cache-hits"),
+        "family_timings": progress_summary.get("family_timings") or {},
+        "enrichment_status": progress_summary.get("enrichment_status"),
+        "exception_identity": evidence.get("rendered_exception_identity") or {},
+        "context_digest": stable_digest(canonical_summary) if canonical_summary else None,
+        "decision_digest_matches": evidence.get("decision_digest_matches"),
+        "invalid_provider_calls": evidence.get("provider_calls"),
+        "no_investment_decision": evidence.get("no_investment_decision"),
+        "etf": special.get("etf") or {},
+    }
+    if "tabs" in evidence:
+        safe["tabs"] = evidence["tabs"]
+    if "grounding" in evidence:
+        grounding = evidence.get("grounding") or {}
+        safe["ask_grounding"] = {
+            key: grounding.get(key) for key in (
+                "ticker", "context-version", "context-digest", "decision-digest",
+                "evidence-used", "evidence-missing",
+            )
+        }
+    return safe
+
+
+async def run_targeted_critical_journeys(page: Page, *, output_dir: Path) -> dict[str, Any]:
+    """Run exactly the six QA.4 deployed preflight journeys, stopping on failure."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    started = time.monotonic()
+    steps: list[JourneyStep] = []
+
+    async def record(step: JourneyStep) -> bool:
+        steps.append(step)
+        return step.status == "PASS"
+
+    async def with_screenshot_chain(name: str, operation) -> JourneyStep:
+        before = await _screenshot(page, output_dir, f"targeted_{name}_before")
+        step = await operation
+        after = step.screenshot or await _screenshot(page, output_dir, f"targeted_{name}_after")
+        evidence = dict(step.evidence or {})
+        evidence.setdefault("before_screenshot", before)
+        evidence.setdefault("after_screenshot", after)
+        step.evidence = evidence
+        step.screenshot = after
+        return step
+
+    nvda = await with_screenshot_chain("nvda_research", _research_one(page, "NVDA", output_dir))
+    if not await record(nvda):
+        return _targeted_result(steps, started)
+    home = await _targeted_home_research(page, output_dir)
+    if not await record(home):
+        return _targeted_result(steps, started)
+    nvda_reload = await _research_one(page, "NVDA", output_dir)
+    ok = nvda_reload.status == "PASS"
+    detail = nvda_reload.detail
+    tabs_result = await _certify_all_tabs(page, "Research Any Ticker", output_dir, "NVDA") if ok else None
+    tabs_step = JourneyStep(
+        "NVDA Research tabs", "exercise every rendered tab",
+        "PASS" if tabs_result and tabs_result.get("status") == "PASS" else "FAIL",
+        0.0, "Research Any Ticker", "All rendered NVDA Research tabs exercised." if tabs_result else detail,
+        str((tabs_result or {}).get("after_screenshot") or ""), {"tabs": (tabs_result or {}).get("tabs") or [], "before_screenshot": (tabs_result or {}).get("before_screenshot"), "after_screenshot": (tabs_result or {}).get("after_screenshot")},
+    )
+    if not await record(tabs_step):
+        return _targeted_result(steps, started)
+    ask = await with_screenshot_chain("nvda_ask", _ask_question(page, "NVDA", "Why does ATLAS like this company?", output_dir))
+    if not await record(ask):
+        return _targeted_result(steps, started)
+    spy = await with_screenshot_chain("spy_research", _research_one(page, "SPY", output_dir))
+    if not await record(spy):
+        return _targeted_result(steps, started)
+    invalid = await with_screenshot_chain("invalid123", _research_one(page, INVALID_TICKER, output_dir))
+    await record(invalid)
+    return _targeted_result(steps, started)
+
+
+def _targeted_result(steps: list[JourneyStep], started: float) -> dict[str, Any]:
+    summaries = [_targeted_step_summary(step) for step in steps]
+    passed = sum(item["status"] == "PASS" for item in summaries)
+    failed = sum(item["status"] == "FAIL" for item in summaries)
+    by_journey = {item["journey"]: item for item in summaries}
+    nvda = by_journey.get("Research NVDA") or {}
+    home = by_journey.get("Home report card") or {}
+    tab_step = by_journey.get("NVDA Research tabs") or {}
+    tab_rows = list(tab_step.get("tabs") or [])
+    ask = by_journey.get("Ask AI — NVDA") or {}
+    ask_grounding = dict(ask.get("ask_grounding") or {})
+    result = {
+        "version": "QA4_TARGETED_PREFLIGHT_V1", "expected": 6,
+        "attempted": len(summaries), "passed": passed, "failed": failed,
+        "status": "TARGETED_PREFLIGHT_PASS" if len(summaries) == 6 and failed == 0 else "TARGETED_PREFLIGHT_FAIL",
+        "total_duration_seconds": round(time.monotonic() - started, 3), "journeys": summaries,
+        "nvda_perf2_waterfall": {
+            key: nvda.get(key) for key in (
+                "research_request_id", "readiness", "provider_calls", "cache_hits",
+                "family_timings", "enrichment_status", "exception_identity",
+            )
+        },
+        "home_interaction": {
+            key: home.get(key) for key in (
+                "interaction_id", "expected_ticker", "actual_ticker",
+                "expected_destination", "actual_destination",
+                "before_screenshot", "after_screenshot", "classification", "severity",
+            )
+        },
+        "research_tabs": {
+            "discovered": len(tab_rows), "attempted": len(tab_rows),
+            "passed": sum(bool(row.get("selected") and row.get("content_rendered") and row.get("ticker_retained") and not row.get("stale_content") and not row.get("rendered_exception")) for row in tab_rows),
+            "failed": sum(not bool(row.get("selected") and row.get("content_rendered") and row.get("ticker_retained") and not row.get("stale_content") and not row.get("rendered_exception")) for row in tab_rows),
+            "results": tab_rows,
+        },
+        "ask_context_digest": {
+            "research": nvda.get("context_digest"), "ask": ask_grounding.get("context-digest"),
+            "matches": bool(nvda.get("context_digest") and nvda.get("context_digest") == ask_grounding.get("context-digest")),
+        },
+        "spy_result": by_journey.get("Research SPY") or {},
+        "invalid123_result": by_journey.get(f"Research {INVALID_TICKER}") or {},
+    }
+    return result
 
 
 async def run_user_journeys(
@@ -1383,5 +1580,6 @@ __all__ = [
     "ASK_AI_PROMPTS", "ASK_AI_QUESTIONS", "INVALID_TICKER", "PAGE_LABELS",
     "PAGE_READY_TEXT", "RESEARCH_TICKERS", "ask_grounding_complete",
     "navigation_contract_satisfied", "research_context_complete", "run_user_journeys",
-    "page_identity_settled", "page_certification_metadata", "wait_for_page_settlement",
+    "page_identity_settled", "page_certification_metadata", "run_targeted_critical_journeys",
+    "wait_for_page_settlement",
 ]
