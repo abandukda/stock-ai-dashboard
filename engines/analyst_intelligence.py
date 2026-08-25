@@ -12,12 +12,13 @@ import math
 from collections.abc import Iterable, Mapping
 from typing import Any
 
-from engines.semantic_fields import canonical_atlas_fair_value, first_present, number
+from engines.semantic_fields import (
+    canonical_atlas_fair_value, first_present, is_missing_scalar, number,
+)
 
 
 HIGH_AGREEMENT_MAX = 31.1
 MODERATE_AGREEMENT_MAX = 60.4
-_MISSING = {None, "", "Unknown", "Unavailable", "Under review", "—"}
 _BULLISH_RATINGS = {
     "buy", "strong buy", "outperform", "overweight", "positive",
     "market outperform", "sector outperform", "accumulate",
@@ -58,7 +59,7 @@ def _first(row: Mapping[str, Any], *keys: str) -> Any:
                 if value:
                     return value
                 continue
-            if value not in _MISSING:
+            if not is_missing_scalar(value):
                 return value
     return None
 
@@ -71,7 +72,10 @@ def _count(row: Mapping[str, Any], *keys: str) -> int | None:
 
 
 def _date(value: Any) -> datetime | None:
-    if value in _MISSING:
+    # Provider schemas occasionally surface malformed container-shaped date
+    # fields. They are unusable dates, but must fail closed without attempting
+    # hash-based sentinel membership.
+    if is_missing_scalar(value) or isinstance(value, (Mapping, list, tuple, set)):
         return None
     try:
         parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))

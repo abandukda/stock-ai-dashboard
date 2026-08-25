@@ -42,6 +42,24 @@ def present(value: Any) -> bool:
     return bool(value)
 
 
+def is_missing_scalar(value: Any) -> bool:
+    """Classify missing values without hashing caller-owned containers.
+
+    Zero and negative numbers are legitimate evidence. Empty containers are
+    treated as absent, while populated containers remain available for the
+    family-specific normalizer to validate.
+    """
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return value.strip().lower() in _MISSING
+    if isinstance(value, (list, dict, tuple, set, frozenset)):
+        return not value
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return not math.isfinite(float(value))
+    return False
+
+
 def first_present(row: Mapping[str, Any], *keys: str) -> Any:
     for source in sources(row):
         for key in keys:
@@ -169,5 +187,5 @@ __all__ = [
     "AVAILABLE", "DATA_UNAVAILABLE", "NOT_APPLICABLE", "NOT_PUBLISHED",
     "SEMANTIC_AVAILABILITY_STATES", "TEMPORARILY_UNAVAILABLE", "evidence_state",
     "ai_valuation_object", "analyst_consensus", "analyst_scenarios", "atlas_valuation_status", "canonical_atlas_fair_value",
-    "first_present", "number", "present", "scanner_trade_plan", "valuation_families",
+    "first_present", "is_missing_scalar", "number", "present", "scanner_trade_plan", "valuation_families",
 ]
