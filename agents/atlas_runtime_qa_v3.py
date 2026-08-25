@@ -838,6 +838,10 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
         "cross_page_consistency": {"status": "NOT_EXECUTED", "reason": "Browser journeys have not started."},
         "required_journey_completeness": journey_completeness(required_expected, {}, engine_error="NOT_EXECUTED"),
         "steps": [], "counts": {"PASS": 0, "WARN": 0, "FAIL": 0},
+        "interaction_certification": {
+            "coverage": {"full_certification_allowed": False, "coverage_pct": 0.0},
+            "results": [], "status": "NOT_EXECUTED",
+        },
     }
     (output_dir / CERTIFICATION_ARTIFACT).write_text(json.dumps({
         "version": RUNTIME_QA_FRAMEWORK_VERSION,
@@ -1102,7 +1106,12 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
         and len(page_results) >= 3
         and any((item.get("visible_text") or "").strip() for item in page_results)
     )
-    audit_valid = bool(base_audit_ready and integrity["audit_valid"])
+    interaction_certification = user_journeys.get("interaction_certification") or {}
+    interaction_coverage_result = interaction_certification.get("coverage") or {}
+    audit_valid = bool(
+        base_audit_ready and integrity["audit_valid"]
+        and interaction_coverage_result.get("full_certification_allowed")
+    )
 
     # De-duplicate failed requests by status/url/resource type.
     deduped_requests = list({
@@ -1173,6 +1182,7 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
         "summary_records_extracted": summaries,
         "user_journeys": user_journeys,
         "performance": (user_journeys or {}).get("performance", {}),
+        "interaction_certification": interaction_certification,
         "issues": issues,
         "code_contract": contract,
         "certifications": certifications,
@@ -1189,6 +1199,7 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
         "ticker_matrix": resolved_ticker_matrix,
         "required_journey_completeness": user_journeys.get("required_journey_completeness"),
         "cross_page_consistency": user_journeys.get("cross_page_consistency") or {"status": "NOT_EXECUTED", "reason": "No results."},
+        "interaction_certification": interaction_certification,
         "certifications": certifications,
     }
     (output_dir / CERTIFICATION_ARTIFACT).write_text(

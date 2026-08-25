@@ -47,8 +47,19 @@ def _sources(row: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
 def _first(row: Mapping[str, Any], *keys: str) -> Any:
     for source in _sources(row):
         for key in keys:
-            if key in source and source.get(key) not in _MISSING:
-                return source.get(key)
+            if key not in source:
+                continue
+            value = source.get(key)
+            # Containers are legitimate analyst evidence (notably the
+            # canonical firm-action list).  Set membership is only safe for
+            # scalar values; attempting it with a list raised the post-context
+            # Research render TypeError seen by Runtime QA.
+            if isinstance(value, (Mapping, list, tuple, set)):
+                if value:
+                    return value
+                continue
+            if value not in _MISSING:
+                return value
     return None
 
 

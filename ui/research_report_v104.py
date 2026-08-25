@@ -198,6 +198,17 @@ def render_candidate_card(
         unsafe_allow_html=True,
     )
 
+    interaction_id = "home-report-card-" + "".join(
+        character.lower() if character.isalnum() else "-" for character in ticker
+    ).strip("-")
+    st.markdown(
+        f'<span data-atlas-interaction-id="{escape(interaction_id)}" '
+        f'data-atlas-interaction-type="DRILL_DOWN" data-atlas-source-page="home" '
+        f'data-atlas-expected-page="research-any-ticker" data-atlas-expected-ticker="{escape(ticker)}" '
+        f'aria-hidden="true" style="display:none">research-report-link</span>',
+        unsafe_allow_html=True,
+    )
+
     if st.button(
         f"Open complete Atlas research — {ticker}",
         key=f"{key_prefix}_{ticker}_research",

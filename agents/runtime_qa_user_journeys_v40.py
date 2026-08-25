@@ -30,6 +30,9 @@ from agents.runtime_qa_architecture import (
     decode_context_summary, protected_decision_digest,
     journey_completeness, production_decision_for_ticker, research_ticker_matrix, stable_digest,
 )
+from agents.runtime_qa_interactions import (
+    InteractionContract, interaction_coverage, interaction_registry, interaction_result,
+)
 
 
 ERROR_RE = re.compile(
@@ -934,6 +937,239 @@ async def _core_mobile_certification(page: Page, output_dir: Path) -> list[Journ
     return steps
 
 
+async def _discover_interaction_markers(page: Page, source_page: str) -> list[InteractionContract]:
+    """Read sanitized interaction contracts emitted by the rendered product."""
+    discovered: list[InteractionContract] = []
+    seen: set[str] = set()
+    for scope in _scopes(page):
+        try:
+            markers = scope.locator("[data-atlas-interaction-id]")
+            for index in range(min(await markers.count(), 60)):
+                marker = markers.nth(index)
+                stable_id = str(await marker.get_attribute("data-atlas-interaction-id") or "")
+                if not stable_id or stable_id in seen:
+                    continue
+                seen.add(stable_id)
+                discovered.append(InteractionContract(
+                    stable_id=stable_id,
+                    source_page=source_page,
+                    interaction_type=str(await marker.get_attribute("data-atlas-interaction-type") or "READ_ONLY_ACTION"),
+                    visible_label=_clean(await marker.inner_text(timeout=500)) or stable_id,
+                    expected_result="Rendered interaction contract settles to its declared destination/state",
+                    expected_page=str(await marker.get_attribute("data-atlas-expected-page") or ""),
+                    expected_ticker=str(await marker.get_attribute("data-atlas-expected-ticker") or ""),
+                    required=False,
+                    failure_severity="P1" if stable_id.startswith(("home-report-card-", "home-research-")) else "P2",
+                ))
+        except Exception:
+            continue
+    return discovered
+
+
+async def _certify_all_tabs(page: Page, page_label: str, output_dir: Path) -> dict[str, Any] | None:
+    """Exercise every rendered tab and reject stale/non-selected tab state."""
+    tabs = None
+    for scope in _scopes(page):
+        candidate = scope.locator('[role="tab"]')
+        if await candidate.count():
+            tabs = candidate
+            break
+    if tabs is None:
+        return None
+    count = min(await tabs.count(), 30)
+    before_path = await _screenshot(page, output_dir, f"interaction_{page_label}_tabs_before")
+    states = []
+    previous_digest = ""
+    for index in range(count):
+        tab = tabs.nth(index)
+        label = _clean(await tab.inner_text(timeout=800))
+        try:
+            await tab.click(timeout=ACTION_TIMEOUT_MS if "ACTION_TIMEOUT_MS" in globals() else 6000)
+            await page.wait_for_timeout(250)
+            selected = str(await tab.get_attribute("aria-selected") or "").lower() == "true"
+            panel_text = ""
+            controls = str(await tab.get_attribute("aria-controls") or "")
+            if controls:
+                for scope in _scopes(page):
+                    panel = scope.locator(f'#{controls}')
+                    if await panel.count():
+                        panel_text = _clean(await panel.first.inner_text(timeout=1000))
+                        break
+            if not panel_text:
+                for scope in _scopes(page):
+                    panels = scope.locator('[role="tabpanel"]')
+                    if await panels.count() > index:
+                        panel_text = _clean(await panels.nth(index).inner_text(timeout=1000))
+                        break
+            content_digest = hashlib.sha256(panel_text.encode("utf-8")).hexdigest()[:12] if panel_text else ""
+            stale_content = bool(previous_digest and content_digest and previous_digest == content_digest)
+            rendered_exception = await _has_rendered_exception(page)
+            states.append({
+                "label": label, "selected": selected,
+                "content_rendered": bool(panel_text), "content_digest": content_digest,
+                "stale_content": stale_content, "rendered_exception": rendered_exception,
+            })
+            if content_digest:
+                previous_digest = content_digest
+        except Exception:
+            states.append({"label": label, "selected": False, "content_rendered": False, "content_digest": "", "stale_content": False, "rendered_exception": False})
+    after_path = await _screenshot(page, output_dir, f"interaction_{page_label}_tabs_after")
+    passed = bool(states) and all(item["selected"] and item["content_rendered"] and not item["stale_content"] and not item["rendered_exception"] for item in states)
+    registry_id = {
+        "Home": "home-more-decisions-tabs",
+        "Research Any Ticker": "research-all-tabs",
+        "Earnings Intelligence": "earnings-tabs",
+        "ETFs": "etf-tabs",
+    }.get(page_label, re.sub(r"[^a-z0-9]+", "-", page_label.lower()).strip("-") + "-all-tabs")
+    return {
+        "interaction_id": registry_id,
+        "source_page": page_label,
+        "interaction_type": "TAB",
+        "required": page_label in {"Home", "Research Any Ticker", "Earnings Intelligence", "ETFs"},
+        "status": "PASS" if passed else "FAIL",
+        "classification": "PASS" if passed else "PRODUCT_DEFECT" if any(item["rendered_exception"] for item in states) else "QA_DEFECT",
+        "severity": "" if passed else "P1",
+        "tabs": states,
+        "before_screenshot": before_path,
+        "after_screenshot": after_path,
+    }
+
+
+async def _certify_important_expanders(page: Page, page_label: str, output_dir: Path) -> dict[str, Any] | None:
+    controls = None
+    for scope in _scopes(page):
+        candidate = scope.locator('button[aria-expanded]')
+        if await candidate.count():
+            controls = candidate
+            break
+    if controls is None:
+        return None
+    states = []
+    before = await _screenshot(page, output_dir, f"interaction_{page_label}_expanders_before")
+    for index in range(min(await controls.count(), 10)):
+        control = controls.nth(index)
+        label = _clean(await control.inner_text(timeout=800))
+        if SAFE_DENY_RE.search(label):
+            continue
+        try:
+            if str(await control.get_attribute("aria-expanded") or "false").lower() != "true":
+                await control.click(timeout=3500)
+                await page.wait_for_timeout(200)
+            opened = str(await control.get_attribute("aria-expanded") or "false").lower() == "true"
+            rendered_exception = await _has_rendered_exception(page)
+            states.append({"label": label, "opened": opened, "rendered_exception": rendered_exception})
+            if opened:
+                await control.click(timeout=3500)
+        except Exception:
+            states.append({"label": label, "opened": False, "rendered_exception": False})
+    after = await _screenshot(page, output_dir, f"interaction_{page_label}_expanders_after")
+    passed = bool(states) and all(item["opened"] and not item["rendered_exception"] for item in states)
+    return {
+        "interaction_id": "research-important-expanders" if page_label == "Research Any Ticker" else re.sub(r"[^a-z0-9]+", "-", page_label.lower()).strip("-") + "-expanders",
+        "source_page": page_label, "interaction_type": "EXPANDER",
+        "required": page_label == "Research Any Ticker",
+        "status": "PASS" if passed else "FAIL",
+        "classification": "PASS" if passed else "PRODUCT_DEFECT" if any(item["rendered_exception"] for item in states) else "QA_DEFECT",
+        "severity": "" if passed else "P2", "expanders": states,
+        "before_screenshot": before, "after_screenshot": after,
+    }
+
+
+async def _interaction_crawler(page: Page, output_dir: Path, progress_state: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Bounded core-page interaction inventory and tab execution."""
+    dynamic: list[InteractionContract] = []
+    results: list[dict[str, Any]] = []
+    tab_inventory: dict[str, list[str]] = {}
+    def checkpoint() -> None:
+        if progress_state is None:
+            return
+        registry = interaction_registry(dynamic)
+        progress_state.clear()
+        progress_state.update({
+            "registry": registry, "results": list(results),
+            "coverage": interaction_coverage(registry, results),
+            "tab_inventory": dict(tab_inventory), "status": "IN_PROGRESS",
+        })
+    # Inventory every active page for tabs/declared interactions. Deep required
+    # contracts remain concentrated on the eight customer-critical pages.
+    for label in PAGE_LABELS:
+        ok, _, _ = await _navigate(page, label, output_dir)
+        if not ok:
+            continue
+        page_dynamic = await _discover_interaction_markers(page, label)
+        dynamic.extend(page_dynamic)
+        tab_result = await _certify_all_tabs(page, label, output_dir)
+        if tab_result:
+            results.append(tab_result)
+            tab_inventory[label] = [item["label"] for item in tab_result.get("tabs") or []]
+        expander_result = await _certify_important_expanders(page, label, output_dir)
+        if expander_result:
+            results.append(expander_result)
+        checkpoint()
+        # Deterministically sample first/middle/last dynamic controls.  Failed
+        # interactions retain before/after screenshots and never mutate known
+        # customer-owned state.
+        candidates = [item for item in page_dynamic if item.interaction_type in {"DRILL_DOWN", "NAVIGATION", "EXTERNAL_LINK", "READ_ONLY_ACTION"}]
+        sampled = list(dict.fromkeys([0, len(candidates) // 2, len(candidates) - 1])) if candidates else []
+        for index in sampled:
+            contract = candidates[index]
+            before = await _screenshot(page, output_dir, f"interaction_{contract.stable_id}_before")
+            before_text = await _visible_text(page)
+            clicked = False
+            for scope in _scopes(page):
+                marker = scope.locator(f'[data-atlas-interaction-id="{contract.stable_id}"]')
+                if not await marker.count():
+                    continue
+                button = marker.first.locator("xpath=following::button[1]")
+                if await button.count():
+                    try:
+                        await button.first.click(timeout=6000)
+                        clicked = True
+                    except Exception:
+                        pass
+                    break
+            if clicked:
+                await page.wait_for_timeout(600)
+            after_text = await _visible_text(page)
+            expected_ticker = contract.expected_ticker.upper()
+            ticker_matches = not expected_ticker or expected_ticker.lower() in after_text.lower()
+            expected_page_label = "Research Any Ticker" if contract.expected_page == "research-any-ticker" else contract.expected_page
+            destination_detail = "No route transition required."
+            if expected_page_label:
+                destination, _, destination_detail = await wait_for_page_settlement(page, expected_page_label, output_dir)
+            else:
+                destination = after_text != before_text
+            expected_component = True
+            if destination and expected_page_label == "Research Any Ticker" and expected_ticker:
+                expected_component = await _wait_for_qa_state(page, "research-container", "complete", expected_ticker, 4)
+            rendered_exception = await _has_rendered_exception(page)
+            after = await _screenshot(page, output_dir, f"interaction_{contract.stable_id}_after")
+            result = interaction_result(
+                contract.to_dict(), click_accepted=clicked,
+                state_changed=after_text != before_text,
+                destination_settled=destination and expected_component,
+                ticker_matches=ticker_matches,
+                rendered_exception=rendered_exception,
+                before_screenshot=before, after_screenshot=after,
+                detail=(destination_detail or "Destination settled.") + (" Expected component rendered." if expected_component else " Expected component missing."),
+            )
+            results.append(result)
+            if contract.stable_id.startswith("home-report-card-") and not any(
+                item.get("interaction_id") == "home-report-card-dynamic" for item in results
+            ):
+                results.append({**result, "interaction_id": "home-report-card-dynamic", "required": True})
+            if label != "Home":
+                await _navigate(page, label, output_dir)
+            checkpoint()
+    registry = interaction_registry(dynamic)
+    coverage = interaction_coverage(registry, results)
+    final = {"registry": registry, "results": results, "coverage": coverage, "tab_inventory": tab_inventory, "status": "COMPLETE"}
+    if progress_state is not None:
+        progress_state.clear()
+        progress_state.update(final)
+    return final
+
+
 async def run_user_journeys(
     page: Page,
     *,
@@ -1056,6 +1292,22 @@ async def run_user_journeys(
         for label in ("tablet", "mobile"):
             steps.append(JourneyStep(f"Responsive {label}", "responsive layout", "FAIL", 45, "Research Any Ticker", "Responsive phase budget exhausted."))
     publish_progress()
+
+    # 5. Interaction-level certification. Required interactions that were not
+    # attempted remain explicit and prevent a 100% certification result.
+    interaction_progress: dict[str, Any] = {}
+    try:
+        interactions = await asyncio.wait_for(_interaction_crawler(page, output_dir, interaction_progress), timeout=60)
+    except TimeoutError:
+        registry = interaction_progress.get("registry") or interaction_registry()
+        completed_results = list(interaction_progress.get("results") or [])
+        interactions = {
+            "registry": registry, "results": completed_results,
+            "coverage": interaction_coverage(registry, completed_results),
+            "tab_inventory": dict(interaction_progress.get("tab_inventory") or {}),
+            "status": "QA_WAIT_DEFECT",
+        }
+    publish_progress()
     try:
         steps.extend(await asyncio.wait_for(_core_mobile_certification(page, output_dir), timeout=30))
     except TimeoutError:
@@ -1118,6 +1370,7 @@ async def run_user_journeys(
         "stable_ask_questions": ASK_AI_QUESTIONS,
         "required_journey_completeness": completeness,
         "cross_page_consistency": cross_page_result,
+        "interaction_certification": interactions,
     }
     if progress_state is not None:
         progress_state.clear()

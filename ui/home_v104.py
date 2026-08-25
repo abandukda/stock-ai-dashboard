@@ -154,6 +154,16 @@ def _raw_value(row: Mapping[str, Any], *keys: str):
 
 
 def _open_research(ticker: str, key: str) -> None:
+    interaction_id = "home-research-" + "".join(
+        character.lower() if character.isalnum() else "-" for character in f"{key}-{ticker}"
+    ).strip("-")
+    st.markdown(
+        f'<span data-atlas-interaction-id="{html.escape(interaction_id)}" '
+        f'data-atlas-interaction-type="DRILL_DOWN" data-atlas-source-page="home" '
+        f'data-atlas-expected-page="research-any-ticker" data-atlas-expected-ticker="{html.escape(ticker)}" '
+        f'aria-hidden="true" style="display:none">research-link</span>',
+        unsafe_allow_html=True,
+    )
     if st.button("Open Full Research →", key=key, width="stretch", type="primary"):
         for state_key, state_value in research_navigation_state(ticker).items():
             st.session_state[state_key] = state_value
