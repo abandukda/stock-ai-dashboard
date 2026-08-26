@@ -27,6 +27,8 @@ from services.yahoo_dependency_registry import (
     EXPECTED_YAHOO_DEPENDENCY_COUNT_V1, YAHOO_DEPENDENCY_REGISTRY_VERSION,
     YAHOO_DEPENDENCIES, yahoo_migration_metrics,
 )
+from agents.runtime_qa_interactions import INTERACTION_REGISTRY_VERSION
+from agents.product_hardening_certification import PRODUCT_HARDENING_VERSION
 
 
 RUNTIME_QA_FRAMEWORK_VERSION: Final = "ATLAS-PRODUCT-CERTIFICATION-QA.1"
@@ -94,6 +96,11 @@ CORE_PAGE_CONTRACTS: Final = {
         "critical": ("ticker", "recommendation"),
         "freshness": "latest production scan",
     },
+    "Political Intelligence": {
+        "backend": "congressional transaction disclosures",
+        "critical": ("member", "ticker", "transaction_type", "transaction_date", "disclosure_date", "evidence_id"),
+        "freshness": "transaction and disclosure dates remain distinct",
+    },
     "Ask AI": {
         "backend": "Ask Atlas grounded report and canonical Research context",
         "critical": ("ticker", "evidence_used", "evidence_missing"),
@@ -127,6 +134,8 @@ def architecture_versions(root: str | Path = ".") -> dict[str, Any]:
         "yahoo_registry_version": YAHOO_DEPENDENCY_REGISTRY_VERSION,
         "research_context_version": RESEARCH_CONTEXT_VERSION,
         "runtime_qa_framework_version": RUNTIME_QA_FRAMEWORK_VERSION,
+        "interaction_registry_version": INTERACTION_REGISTRY_VERSION,
+        "product_hardening_version": PRODUCT_HARDENING_VERSION,
     }
 
 

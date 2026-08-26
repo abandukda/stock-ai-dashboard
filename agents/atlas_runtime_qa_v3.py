@@ -37,6 +37,10 @@ from agents.runtime_qa_architecture import (
     architecture_preflight, architecture_versions, certification_integrity,
     certification_record, journey_completeness, research_ticker_matrix,
 )
+from agents.product_hardening_certification import (
+    MOBILE_CRITICAL_JOURNEYS, screenshot_manifest_entry,
+    visual_certification_completeness,
+)
 
 
 DEFAULT_URL = "https://stock-ai-dashboard.streamlit.app"
@@ -81,6 +85,80 @@ INVALID_SUMMARY_IDENTIFIERS = {
     "POLITICAL", "DEVELOPER", "CENTER", "EARNINGS", "VOLUME", "RESEARCH",
     "PORTFOLIO", "INTELLIGENCE", "SUMMARY", "MONITOR", "ACCUMULATE", "AVOID",
 }
+
+
+def _visual_manifest(source_sha: str, page_results: list[dict[str, Any]], user_journeys: dict[str, Any]) -> list[dict[str, str]]:
+    """Build a sanitized screenshot manifest from full-certification evidence."""
+    manifest: list[dict[str, str]] = []
+    for page_result in page_results:
+        manifest.append(screenshot_manifest_entry(
+            source_sha=source_sha, page=str(page_result.get("page") or ""),
+            screenshot_path=str(page_result.get("screenshot") or ""),
+            status="PASS" if (
+                page_result.get("screenshot") and page_result.get("status") == "PASS"
+                and page_result.get("navigation_status") == "PASS"
+                and page_result.get("rendered_exception_status") == "PASS"
+            ) else "FAIL",
+            viewport="desktop", state="page", expected_state="page identity, ready state, no rendered exception",
+            observed_state=(
+                f"page={page_result.get('status') or 'NOT_EXECUTED'};"
+                f"navigation={page_result.get('navigation_status') or 'NOT_EXECUTED'};"
+                f"rendered_exception={page_result.get('rendered_exception_status') or 'NOT_EXECUTED'}"
+            ),
+        ))
+    interactions = (user_journeys.get("interaction_certification") or {}).get("results") or []
+    for result in interactions:
+        page = str(result.get("source_page") or "")
+        interaction_id = str(result.get("interaction_id") or "")
+        for state in ("before", "after"):
+            path = str(result.get(f"{state}_screenshot") or "")
+            if path or result.get("interaction_type") in {"DRILL_DOWN", "NAVIGATION", "EXPANDER"}:
+                manifest.append(screenshot_manifest_entry(
+                    source_sha=source_sha, page=page, screenshot_path=path,
+                    status="PASS" if path else "FAIL", interaction_id=interaction_id,
+                    state=state, expected_state=str(result.get("expected_state") or "required interaction evidence"),
+                    observed_state=str(result.get("status") or "NOT_EXECUTED"),
+                ))
+        for tab in result.get("tabs") or []:
+            path = str(tab.get("screenshot_path") or "")
+            manifest.append(screenshot_manifest_entry(
+                source_sha=source_sha, page=page, screenshot_path=path,
+                status="PASS" if path and tab.get("selected") and tab.get("content_rendered") else "FAIL",
+                interaction_id=interaction_id, tab_name=str(tab.get("label") or ""), state="tab-selected",
+                expected_state="selected tab renders distinct content without exception",
+                observed_state="PASS" if tab.get("selected") and tab.get("content_rendered") and not tab.get("rendered_exception") else "FAIL",
+            ))
+    for step in user_journeys.get("steps") or []:
+        if step.get("journey") != "Core mobile certification":
+            continue
+        manifest.append(screenshot_manifest_entry(
+            source_sha=source_sha, page=str(step.get("page") or step.get("step") or ""),
+            screenshot_path=str(step.get("screenshot") or ""),
+            status="PASS" if step.get("status") == "PASS" and step.get("screenshot") else "FAIL",
+            viewport="mobile", state=str(step.get("step") or "state"),
+            expected_state="mobile journey renders and remains interactive without exception",
+            observed_state=str(step.get("status") or "NOT_EXECUTED"),
+        ))
+        evidence = step.get("evidence") or {}
+        for state in ("before", "after"):
+            path = str(evidence.get(f"{state}_screenshot") or "")
+            if path or step.get("step") in {"home-card-to-research", "opportunities-to-research"}:
+                manifest.append(screenshot_manifest_entry(
+                    source_sha=source_sha, page=str(step.get("page") or step.get("step") or ""),
+                    screenshot_path=path, status="PASS" if path else "FAIL",
+                    viewport="mobile", state=state, interaction_id=str(step.get("step") or ""),
+                    expected_state="mobile navigation/drill-down evidence",
+                    observed_state=str(step.get("status") or "NOT_EXECUTED"),
+                ))
+    return manifest
+
+
+def _mobile_result_index(user_journeys: dict[str, Any]) -> dict[str, dict[str, str]]:
+    return {
+        str(step.get("step") or ""): {"status": str(step.get("status") or "NOT_EXECUTED")}
+        for step in user_journeys.get("steps") or []
+        if step.get("journey") == "Core mobile certification"
+    }
 VALID_TICKER_RE = re.compile(r"^[A-Z][A-Z0-9.-]{0,5}$")
 ERROR_TEXT = re.compile(
     r"traceback|modulenotfounderror|streamlitapiexception|uncaught exception",
@@ -111,6 +189,16 @@ async def _safe_count(locator: Locator) -> int:
         return await locator.count()
     except Exception:
         return 0
+
+
+async def _rendered_exception_present(page: Page) -> bool:
+    for scope in _all_scopes(page):
+        try:
+            if await scope.locator('[data-testid="stException"]').count():
+                return True
+        except Exception:
+            continue
+    return False
 
 
 async def _safe_text(scope: Page | Frame, timeout: int = 2500) -> str:
@@ -953,6 +1041,8 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
                     )
 
                 result_dict = result.to_dict()
+                result_dict["navigation_status"] = "PASS" if result.status == "PASS" else "FAIL"
+                result_dict["rendered_exception_status"] = "FAIL" if await _rendered_exception_present(page) else "PASS"
                 result_dict["page_certification"] = await page_certification_metadata(page, page_name)
                 page_results.append(result_dict)
                 issues.extend(result_dict["issues"])
@@ -1095,6 +1185,36 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
             responsive_status="PASS" if str(step.get("journey") or "").startswith(("Responsive ", "Core mobile")) and step.get("status") == "PASS" else "NOT_APPLICABLE",
         ))
 
+    screenshot_manifest = _visual_manifest(versions["source_commit"], page_results, user_journeys)
+    evidence_reconciliations: dict[str, dict[str, str]] = {}
+    for page_name in ("Research Any Ticker", "Earnings Intelligence", "Ask AI"):
+        matching = [item for item in certifications if item.get("page") == page_name]
+        complete = any(
+            item.get("canonical_reconciliation")
+            and item.get("classification") in {"PASS", "PASS_WITH_EVIDENCE_LIMITATIONS", "PROVIDER_LIMITATION"}
+            for item in matching
+        )
+        evidence_reconciliations[page_name] = {"status": "PASS" if complete else "NOT_EXECUTED"}
+    political_page = next((item for item in page_results if item.get("page") == "Political Intelligence"), {})
+    political_meta = political_page.get("page_certification") or {}
+    political_complete = bool(
+        political_meta.get("evidence_type") == "CONGRESSIONAL_TRANSACTION"
+        and int(political_meta.get("evidence_count") or 0) > 0
+        and int(political_meta.get("complete_evidence_count") or 0) == int(political_meta.get("evidence_count") or 0)
+        and political_meta.get("evidence_digest")
+        and political_meta.get("ownership_separation") == "true"
+    )
+    evidence_reconciliations["Political Intelligence"] = {"status": "PASS" if political_complete else "NOT_EXECUTED"}
+    visual_certification = visual_certification_completeness(
+        source_sha=versions["source_commit"], architecture_versions=versions,
+        page_results=page_results,
+        interaction_certification=user_journeys.get("interaction_certification") or {},
+        screenshot_manifest=screenshot_manifest,
+        evidence_reconciliations=evidence_reconciliations,
+        mobile_results=_mobile_result_index(user_journeys),
+        session_result=user_journeys.get("session_stability") or {},
+    )
+
     integrity = certification_integrity(
         authenticated=bool(authentication.get("authenticated_dashboard_detected")),
         page_count=len(page_results),
@@ -1112,6 +1232,7 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
     audit_valid = bool(
         base_audit_ready and integrity["audit_valid"]
         and interaction_coverage_result.get("full_certification_allowed")
+        and visual_certification.get("full_certification_allowed")
     )
 
     # De-duplicate failed requests by status/url/resource type.
@@ -1184,6 +1305,9 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
         "user_journeys": user_journeys,
         "performance": (user_journeys or {}).get("performance", {}),
         "interaction_certification": interaction_certification,
+        "visual_certification": visual_certification,
+        "screenshot_manifest": screenshot_manifest,
+        "evidence_reconciliations": evidence_reconciliations,
         "issues": issues,
         "code_contract": contract,
         "certifications": certifications,
@@ -1201,6 +1325,9 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
         "required_journey_completeness": user_journeys.get("required_journey_completeness"),
         "cross_page_consistency": user_journeys.get("cross_page_consistency") or {"status": "NOT_EXECUTED", "reason": "No results."},
         "interaction_certification": interaction_certification,
+        "visual_certification": visual_certification,
+        "screenshot_manifest": screenshot_manifest,
+        "evidence_reconciliations": evidence_reconciliations,
         "certifications": certifications,
     }
     (output_dir / CERTIFICATION_ARTIFACT).write_text(

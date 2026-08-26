@@ -127,11 +127,39 @@ def _grounding_metadata(question: str, report: Mapping[str, Any]) -> dict[str, A
         available = item.get("status") in {"available", "partial"}
         used = [section] if available else []
         missing = [] if available else [f"{section}:DATA_UNAVAILABLE"]
+    context = report.get("research_context") or {}
+    family_envelopes = context.get("evidence_families") if isinstance(context, Mapping) else {}
+    family_envelopes = family_envelopes if isinstance(family_envelopes, Mapping) else {}
+    evidence_ids: list[str] = []
+    as_of_dates: list[str] = []
+    limitations: list[str] = []
+    canonical_family_aliases = {
+        "news": ("company_news", "press_releases"),
+        "earnings": ("earnings_history",),
+        "analysts": ("analyst_estimates", "analyst_consensus_targets", "analyst_actions"),
+        "technical": ("technicals",),
+    }
+    resolved_families: list[str] = []
+    for family in used:
+        candidates = (family,) if family in family_envelopes else canonical_family_aliases.get(family, (family,))
+        resolved_families.extend(candidate for candidate in candidates if candidate in family_envelopes)
+    for family in resolved_families:
+        envelope = family_envelopes.get(family) if isinstance(family_envelopes.get(family), Mapping) else {}
+        evidence_ids.extend(str(item) for item in envelope.get("evidence_ids") or [] if str(item).strip())
+        for field in ("observation_date", "reporting_date", "filing_date", "fetched_at"):
+            value = str(envelope.get(field) or "").strip()
+            if value:
+                as_of_dates.append(value)
+                break
+        limitations.extend(str(item) for item in envelope.get("limitations") or [] if str(item).strip())
     return {
         "ticker": str(report.get("ticker") or "UNKNOWN").upper(),
         "section": section,
         "evidence_used": used,
+        "evidence_ids_used": sorted(set(evidence_ids)),
         "evidence_missing": missing,
+        "evidence_limitations": sorted(set(limitations)),
+        "as_of_date": max(as_of_dates, default=str(report.get("generated_at") or "")) or None,
         "generated_at": report.get("generated_at"),
         "framework_version": "ASK_ATLAS_GROUNDED_V1",
     }

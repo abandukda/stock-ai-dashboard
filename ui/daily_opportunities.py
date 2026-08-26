@@ -45,6 +45,16 @@ def _num(value: Any) -> str:
 
 
 def _open_research(ticker: str, key: str) -> None:
+    interaction_id = "opportunities-research-" + "".join(
+        character.lower() if character.isalnum() else "-" for character in f"{key}-{ticker}"
+    ).strip("-")
+    st.markdown(
+        f'<span data-atlas-interaction-id="{escape(interaction_id)}" '
+        f'data-atlas-interaction-type="DRILL_DOWN" data-atlas-source-page="today-s-opportunities" '
+        f'data-atlas-expected-page="research-any-ticker" data-atlas-expected-ticker="{escape(ticker)}" '
+        'aria-hidden="true" style="display:none">opportunity-research-link</span>',
+        unsafe_allow_html=True,
+    )
     if st.button(
         f"Open complete Atlas research — {ticker}",
         key=key,

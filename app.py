@@ -110,8 +110,11 @@ ADMIN_PASSWORD = (os.getenv("APP_PASSWORD") or os.getenv("ADMIN_PASSWORD") or ""
 
 
 def get_user_role():
-    if "user_role" not in st.session_state:
-        st.session_state["user_role"] = "admin" if not VIEWER_PASSWORD and not ADMIN_PASSWORD else None
+    if "user_role" not in st.session_state or st.session_state.get("user_role") is None:
+        authenticated_role = st.session_state.get("role") if st.session_state.get("authenticated") else None
+        st.session_state["user_role"] = authenticated_role or (
+            "admin" if not VIEWER_PASSWORD and not ADMIN_PASSWORD else None
+        )
     return st.session_state.get("user_role")
 
 
@@ -4571,6 +4574,9 @@ def render_chat_helper(full_df):
         st.session_state.update(ask_ai_status="complete", ask_ai_ticker=ticker, ask_ai_response=response, ask_ai_error="")
         evidence_used = len(result.get("evidence_used") or result.get("sources_used") or [])
         evidence_missing = len(result.get("evidence_missing") or [])
+        _ask_evidence_ids = ",".join(str(item) for item in result.get("evidence_ids_used") or [])
+        _ask_limitations = ",".join(str(item) for item in result.get("evidence_limitations") or [])
+        _ask_as_of = str(result.get("as_of_date") or "")
         try:
             from agents.runtime_qa_architecture import sanitize_research_context, stable_digest
             _ask_context_summary = sanitize_research_context(report.get("research_context") if isinstance(report.get("research_context"), dict) else {})
@@ -4589,6 +4595,9 @@ def render_chat_helper(full_df):
             f'<span data-atlas-qa="ask-ai-response" data-atlas-status="complete" '
             f'data-atlas-ticker="{html.escape(ticker)}" data-atlas-section="{html.escape(str(result.get("section") or "overview"))}" '
             f'data-atlas-evidence-used="{evidence_used}" data-atlas-evidence-missing="{evidence_missing}" '
+            f'data-atlas-evidence-ids="{html.escape(_ask_evidence_ids)}" '
+            f'data-atlas-evidence-limitations="{html.escape(_ask_limitations)}" '
+            f'data-atlas-evidence-as-of="{html.escape(_ask_as_of)}" '
             f'data-atlas-generated-at="{html.escape(str(result.get("generated_at") or result.get("generated_from") or ""))}" '
             f'data-atlas-framework="{html.escape(str(result.get("framework_version") or "ASK_ATLAS_GROUNDED_V1"))}" '
             f'data-atlas-context-version="{html.escape(_ask_context_version)}" '
@@ -4647,6 +4656,11 @@ def viewer_password_matches(password):
 
 def dashboard_login_gate():
     if st.session_state.get("authenticated"):
+        # Keep the legacy and canonical role aliases synchronized across every
+        # Streamlit rerun. Research/navigation must never turn a valid session
+        # into an apparent logout merely because one transient alias is absent.
+        from services.session_stability import stabilize_authenticated_session
+        stabilize_authenticated_session(st.session_state)
         return True
 
     viewer_passwords = get_configured_viewer_passwords()
@@ -4654,6 +4668,7 @@ def dashboard_login_gate():
     if not ADMIN_PASSWORD and not viewer_passwords:
         st.session_state["authenticated"] = True
         st.session_state["role"] = "admin"
+        st.session_state["user_role"] = "admin"
         return True
 
     st.title("🔐 AI Stock Dashboard Login")
@@ -4676,11 +4691,13 @@ def dashboard_login_gate():
         if ADMIN_PASSWORD and password == ADMIN_PASSWORD:
             st.session_state["authenticated"] = True
             st.session_state["role"] = "admin"
+            st.session_state["user_role"] = "admin"
             st.rerun()
 
         if viewer_password_matches(password):
             st.session_state["authenticated"] = True
             st.session_state["role"] = "viewer"
+            st.session_state["user_role"] = "viewer"
             st.rerun()
 
         st.error(f"Invalid password. Typed password length: {len(password)}. Match it to one of the configured viewer password lengths above.")
@@ -16098,21 +16115,26 @@ def v58_date_from_row(row, disclosure=False):
 
 
 def v58_political_dataframe(rows):
+    from engines.political_evidence import normalize_political_transaction
+
     normalized = []
     for row in rows or []:
-        ticker = v58_symbol_from_row(row)
-        if not ticker:
+        evidence = normalize_political_transaction(row)
+        if not evidence:
             continue
-        tx = v58_normalize_transaction(v58_first_value(row, "transaction", "transactionType", "type", default=""))
         normalized.append({
-            "Ticker": ticker,
-            "Company": v58_company_from_row(row, ticker),
-            "Politician": v58_politician_from_row(row),
-            "Chamber": safe_text(row.get("Chamber"), ""),
-            "Transaction": tx,
-            "Amount": v58_amount_from_row(row),
-            "Trade Date": v58_date_from_row(row, disclosure=False),
-            "Disclosure Date": v58_date_from_row(row, disclosure=True),
+            "Ticker": evidence["ticker"],
+            "Security": evidence["security"],
+            "Company": evidence["security"],
+            "Politician": evidence["member_name"],
+            "Chamber": evidence["chamber_or_office"],
+            "Transaction": evidence["transaction_type"],
+            "Amount": evidence["reported_amount_range"],
+            "Trade Date": evidence["transaction_date"],
+            "Disclosure Date": evidence["disclosure_date"],
+            "Provider": evidence["provider"],
+            "Evidence ID": evidence["evidence_id"],
+            "Source Link": evidence["source_url"],
         })
     return pd.DataFrame(normalized)
 
@@ -16167,6 +16189,18 @@ def render_v58_political_intelligence(full_df=None):
             st.caption("Check FMP endpoints: /stable/house-latest and /stable/senate-latest.")
         return
 
+    _political_required = ["Politician", "Ticker", "Security", "Transaction", "Trade Date", "Disclosure Date", "Provider", "Evidence ID"]
+    _political_complete = int(df[_political_required].fillna("").astype(str).apply(lambda column: column.str.strip().ne("")).all(axis=1).sum())
+    _political_ids = sorted(str(value) for value in df["Evidence ID"].tolist() if str(value).strip())
+    _political_digest = hashlib.sha256(json.dumps(_political_ids, separators=(",", ":")).encode("utf-8")).hexdigest()[:20]
+    st.markdown(
+        f'<span data-atlas-qa="political-evidence" data-atlas-evidence-type="CONGRESSIONAL_TRANSACTION" '
+        f'data-atlas-record-count="{len(df)}" data-atlas-complete-count="{_political_complete}" '
+        f'data-atlas-evidence-digest="{_political_digest}" data-atlas-ownership-separation="true" '
+        'aria-hidden="true" style="display:none">political-evidence</span>',
+        unsafe_allow_html=True,
+    )
+
     summary = v58_build_political_summary(df)
     buys = int((df["Transaction"] == "Buy").sum())
     sells = int((df["Transaction"] == "Sell").sum())
@@ -16200,10 +16234,26 @@ def render_v58_political_intelligence(full_df=None):
                 render_v574_scan_report(matches.iloc[0], title=f"Fast Ticker Reading: {selected}")
             else:
                 st.info("This ticker is not in the latest scan file. Use Research Any Ticker for a live report.")
+        interaction_id = f"political-research-{str(selected).lower()}"
+        st.markdown(
+            f'<span data-atlas-interaction-id="{html.escape(interaction_id)}" '
+            f'data-atlas-interaction-type="DRILL_DOWN" data-atlas-source-page="political-intelligence" '
+            f'data-atlas-expected-page="research-any-ticker" data-atlas-expected-ticker="{html.escape(str(selected))}" '
+            'aria-hidden="true" style="display:none">political-research-link</span>',
+            unsafe_allow_html=True,
+        )
+        if st.button(f"Open complete Atlas research — {selected}", key=f"v58_open_research_{selected}"):
+            from engines.research_engine import research_navigation_state
+            for state_key, state_value in research_navigation_state(selected).items():
+                st.session_state[state_key] = state_value
+            st.rerun()
 
     st.markdown("### 🧾 Most Recent Political Trades")
-    recent_cols = ["Ticker", "Company", "Politician", "Chamber", "Transaction", "Amount", "Trade Date", "Disclosure Date"]
-    st.dataframe(df[recent_cols].head(75), use_container_width=True, hide_index=True)
+    recent_cols = ["Ticker", "Security", "Politician", "Chamber", "Transaction", "Amount", "Trade Date", "Disclosure Date", "Provider", "Evidence ID", "Source Link"]
+    st.dataframe(
+        df[recent_cols].head(75), use_container_width=True, hide_index=True,
+        column_config={"Source Link": st.column_config.LinkColumn("Disclosure source")},
+    )
 
 
 # Optional ticker-level political card for research reports.
@@ -24857,7 +24907,20 @@ def render_v73_top_nav(pages):
   </div>
 </div>
 """, unsafe_allow_html=True)
-    return st.radio("Navigation", pages, horizontal=True, label_visibility="collapsed", key="v73_top_navigation")
+    from services.session_stability import consume_navigation_handoff
+    current, pending = consume_navigation_handoff(
+        st.session_state, pages, widget_key="v73_top_navigation"
+    )
+    # Synchronize before widget instantiation. This is the active navigation
+    # renderer, so every canonical Research handoff must be consumed here.
+    if pending or st.session_state.get("v73_top_navigation") not in pages:
+        st.session_state["v73_top_navigation"] = current
+    selected = st.radio(
+        "Navigation", pages, index=pages.index(current), horizontal=True,
+        label_visibility="collapsed", key="v73_top_navigation",
+    )
+    st.session_state["v73_page"] = selected
+    return selected
 
 
 
@@ -25342,23 +25405,27 @@ def render_v74_design_system():
 
 def render_v73_top_nav(pages):
     # sticky top navigation; no vertical sidebar feel
-    current = st.session_state.get("v73_page", pages[0])
-    if current not in pages:
-        current = pages[0]
+    from services.session_stability import consume_navigation_handoff
+    current, pending = consume_navigation_handoff(
+        st.session_state, pages, widget_key="v74_nav_radio"
+    )
     st.markdown("<div class='v74-topbar'><span class='v74-brand'>🧠 ATLAS</span>" + "".join([f"<span class='v74-navbtn {'v74-navbtn-active' if p==current else ''}'>{p}</span>" for p in pages]) + "</div>", unsafe_allow_html=True)
-    # query param support
-    try:
-        qp = st.query_params.get("page")
-        if qp and qp in pages:
-            current = qp
-            st.session_state["v73_page"] = current
-    except Exception:
-        pass
+    # A canonical in-session handoff takes precedence over an old URL query.
+    if not pending:
+        try:
+            qp = st.query_params.get("page")
+            if qp and qp in pages:
+                current = qp
+                st.session_state["v73_page"] = current
+        except Exception:
+            pass
     cols = st.columns(min(5, len(pages)))
     # compact radio fallback hidden-ish for Streamlit state reliability
-    current = st.radio("Navigate", pages, index=pages.index(current), horizontal=True, key="v74_nav_radio", label_visibility="collapsed")
-    st.session_state["v73_page"] = current
-    return current
+    if pending or st.session_state.get("v74_nav_radio") not in pages:
+        st.session_state["v74_nav_radio"] = current
+    selected = st.radio("Navigate", pages, index=pages.index(current), horizontal=True, key="v74_nav_radio", label_visibility="collapsed")
+    st.session_state["v73_page"] = selected
+    return selected
 
 def render_v74_home_dashboard(full_df=None, top_df=None, recovery_df=None):
     # Single home renderer only. No repeated marketing blocks lower on page.
@@ -26229,6 +26296,14 @@ def render_v73_earnings_page(full_df=None, top_df=None):
   <small><b>Atlas read:</b> {v73_esc(earnings_read)}</small>
 </div>
 """, unsafe_allow_html=True)
+                interaction_id = f"earnings-research-{ticker.lower()}-{pair_start}-{col_idx}"
+                st.markdown(
+                    f'<span data-atlas-interaction-id="{html.escape(interaction_id)}" '
+                    f'data-atlas-interaction-type="DRILL_DOWN" data-atlas-source-page="earnings-intelligence" '
+                    f'data-atlas-expected-page="research-any-ticker" data-atlas-expected-ticker="{html.escape(ticker)}" '
+                    'aria-hidden="true" style="display:none">earnings-research-link</span>',
+                    unsafe_allow_html=True,
+                )
                 if st.button(f"Open Earnings Research — {ticker}", key=f"v792_earnings_{ticker}_{pair_start}_{col_idx}", use_container_width=True):
                     st.session_state["v79_research_focus"] = "earnings"
                     v784_open_research(ticker)

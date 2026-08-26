@@ -819,12 +819,17 @@ def _render_ask_atlas(report: Mapping[str, Any]) -> None:
     if result:
         st.markdown(result.get("answer") or "")
         sources = result.get("sources_used") or []
+        evidence_ids = result.get("evidence_ids_used") or []
+        missing = result.get("evidence_missing") or []
         st.caption(
             f"Mode: {result.get('mode', 'Unknown')} · "
             f"Ticker: {result.get('ticker', ticker)} · "
             f"Section: {result.get('section', 'overview')} · "
             f"Atlas sections used: {', '.join(sources) if sources else 'None'} · "
             f"Report generated: {result.get('generated_at') or result.get('generated_from', 'Unknown')} · "
+            f"Evidence IDs: {', '.join(evidence_ids) if evidence_ids else 'None'} · "
+            f"Evidence missing: {', '.join(missing) if missing else 'None'} · "
+            f"Evidence as of: {result.get('as_of_date') or 'Unavailable'} · "
             f"Framework: {result.get('framework_version', 'Unknown')}"
         )
 

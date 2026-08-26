@@ -14,7 +14,7 @@ INTERACTION_TYPES = frozenset({
 CORE_INTERACTION_PAGES = (
     "Home", "Today's Opportunities", "Research Any Ticker",
     "Earnings Intelligence", "ETFs", "Watchlist Intelligence",
-    "Portfolio Intelligence", "Ask AI",
+    "Portfolio Intelligence", "Political Intelligence", "Ask AI",
 )
 
 
@@ -56,6 +56,8 @@ STATIC_INTERACTIONS = (
     InteractionContract("earnings-tabs", "Earnings Intelligence", "TAB", "Earnings tabs", "Every earnings tab renders"),
     InteractionContract("etf-research-link", "ETFs", "DRILL_DOWN", "ETF Research", "ETF context loads without corporate semantics", "Research Any Ticker"),
     InteractionContract("etf-tabs", "ETFs", "TAB", "ETF holdings and allocation tabs", "Every ETF tab renders"),
+    InteractionContract("political-transaction-details", "Political Intelligence", "READ_ONLY_ACTION", "Political transaction evidence", "Underlying congressional transaction rows expose dates, provider, evidence ID and permitted source link"),
+    InteractionContract("political-research-link", "Political Intelligence", "DRILL_DOWN", "Political ticker Research", "Selected political ticker reaches canonical Research", "Research Any Ticker"),
     InteractionContract("watchlist-safe-controls", "Watchlist Intelligence", "READ_ONLY_ACTION", "Watchlist inspection controls", "No real customer state is mutated"),
     InteractionContract("portfolio-safe-controls", "Portfolio Intelligence", "READ_ONLY_ACTION", "Portfolio inspection controls", "No real customer state is mutated"),
     InteractionContract("ask-submit", "Ask AI", "SEARCH", "Ask Atlas", "Ticker-grounded answer renders"),

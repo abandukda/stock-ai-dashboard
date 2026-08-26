@@ -583,10 +583,21 @@ async def _page_certification_metadata(page: Page, label: str) -> dict[str, str]
         try:
             marker = scope.locator(selector).last
             if await marker.count():
-                return {
+                result = {
                     "ticker": await marker.get_attribute("data-atlas-ticker") or "",
                     "decision_digest": await marker.get_attribute("data-atlas-decision-digest") or "",
                 }
+                if label == "Political Intelligence":
+                    evidence = scope.locator('[data-atlas-qa="political-evidence"]').last
+                    if await evidence.count():
+                        result.update({
+                            "evidence_type": await evidence.get_attribute("data-atlas-evidence-type") or "",
+                            "evidence_count": await evidence.get_attribute("data-atlas-record-count") or "0",
+                            "complete_evidence_count": await evidence.get_attribute("data-atlas-complete-count") or "0",
+                            "evidence_digest": await evidence.get_attribute("data-atlas-evidence-digest") or "",
+                            "ownership_separation": await evidence.get_attribute("data-atlas-ownership-separation") or "false",
+                        })
+                return result
         except Exception:
             continue
     return {}
@@ -940,7 +951,7 @@ async def _core_mobile_certification(page: Page, output_dir: Path) -> list[Journ
     steps: list[JourneyStep] = []
     original = page.viewport_size or {"width": 1440, "height": 1000}
     await page.set_viewport_size({"width": 390, "height": 844})
-    for label in ("Home", "Today's Opportunities", "Research Any Ticker", "Ask AI"):
+    for label in ("Home", "Today's Opportunities", "Research Any Ticker", "Ask AI", "Political Intelligence"):
         started = time.monotonic()
         ok, _, detail = await _navigate(page, label, output_dir)
         screenshot = await _screenshot(page, output_dir, f"mobile_{label}") if ok else ""
@@ -952,8 +963,99 @@ async def _core_mobile_certification(page: Page, output_dir: Path) -> list[Journ
             time.monotonic() - started, label, detail or "Mobile core page rendered.",
             screenshot, {"page_certification": metadata, "rendered_exception": rendered_exception},
         ))
+
+    home_research = await _targeted_home_research(page, output_dir)
+    home_research.journey = "Core mobile certification"
+    home_research.step = "home-card-to-research"
+    steps.append(home_research)
+
+    actual_ticker = str((home_research.evidence or {}).get("actual_ticker") or "")
+    tabs = await _certify_all_tabs(page, "Research Any Ticker", output_dir, actual_ticker)
+    steps.append(JourneyStep(
+        "Core mobile certification", "research-all-tabs-mobile",
+        "PASS" if tabs and tabs.get("status") == "PASS" else "FAIL", 0,
+        "Research Any Ticker", "Every rendered mobile Research tab was exercised.",
+        str((tabs or {}).get("after_screenshot") or ""),
+        {"tabs": (tabs or {}).get("tabs") or []},
+    ))
+
+    ask = await _ask_question(page, "NVDA", "Why does ATLAS like this company?", output_dir)
+    ask.journey = "Core mobile certification"
+    ask.step = "ask-question-mobile"
+    steps.append(ask)
+
+    started = time.monotonic()
+    await _navigate(page, "Today's Opportunities", output_dir)
+    marker = None
+    for scope in _scopes(page):
+        candidate = scope.locator('[data-atlas-interaction-id^="opportunities-research-"]')
+        if await candidate.count():
+            marker = candidate.first
+            break
+    clicked = False
+    expected_ticker = ""
+    before = await _screenshot(page, output_dir, "mobile_opportunities_research_before")
+    if marker is not None:
+        expected_ticker = str(await marker.get_attribute("data-atlas-expected-ticker") or "").upper()
+        button = marker.locator("xpath=following::button[1]")
+        if await button.count():
+            try:
+                await button.first.click(timeout=6000)
+                clicked = True
+            except Exception:
+                clicked = False
+    settled, _, detail = await wait_for_page_settlement(page, "Research Any Ticker", output_dir) if clicked else (False, 0.0, "No opportunity drill-down was clickable.")
+    ticker_ready = bool(
+        settled and expected_ticker
+        and await _wait_for_qa_state(page, "research-container", "complete", expected_ticker, 4)
+    )
+    after = await _screenshot(page, output_dir, "mobile_opportunities_research_after")
+    steps.append(JourneyStep(
+        "Core mobile certification", "opportunities-to-research",
+        "PASS" if clicked and ticker_ready and not await _has_rendered_exception(page) else "FAIL",
+        time.monotonic() - started, "Research Any Ticker", detail, after,
+        {"before_screenshot": before, "after_screenshot": after, "expected_ticker": expected_ticker},
+    ))
     await page.set_viewport_size(original)
     return steps
+
+
+async def _authenticated_session_stability(page: Page, output_dir: Path) -> dict[str, Any]:
+    """Exercise the permanent authenticated Home→Research→Ask→Home chain."""
+    sequence: list[dict[str, Any]] = []
+
+    async def record(label: str, ok: bool, screenshot: str = "", detail: str = "") -> None:
+        password_visible = False
+        for scope in _scopes(page):
+            try:
+                if await scope.locator('input[type="password"]').count():
+                    password_visible = True
+                    break
+            except Exception:
+                continue
+        sequence.append({
+            "step": label, "status": "PASS" if ok and not password_visible else "FAIL",
+            "authenticated": not password_visible, "screenshot": screenshot, "detail": detail,
+        })
+
+    home_ok, _, home_detail = await _navigate(page, "Home", output_dir)
+    await record("Home", home_ok, await _screenshot(page, output_dir, "session_home_before"), home_detail)
+    research = await _research_one(page, "NVDA", output_dir)
+    await record("Research Any Ticker", research.status == "PASS", research.screenshot, research.detail)
+    tabs = await _certify_all_tabs(page, "Research Any Ticker", output_dir, "NVDA")
+    await record("Research tabs", bool(tabs and tabs.get("status") == "PASS"), str((tabs or {}).get("after_screenshot") or ""))
+    ask = await _ask_question(page, "NVDA", "Why does ATLAS like this company?", output_dir)
+    await record("Ask AI", ask.status == "PASS", ask.screenshot, ask.detail)
+    research_ok, _, research_detail = await _navigate(page, "Research Any Ticker", output_dir)
+    await record("Return Research", research_ok, await _screenshot(page, output_dir, "session_research_return"), research_detail)
+    final_ok, _, final_detail = await _navigate(page, "Home", output_dir)
+    await record("Return Home", final_ok, await _screenshot(page, output_dir, "session_home_after"), final_detail)
+    return {
+        "status": "PASS" if len(sequence) == 6 and all(item["status"] == "PASS" for item in sequence) else "FAIL",
+        "classification": "PASS" if len(sequence) == 6 and all(item["status"] == "PASS" for item in sequence) else "SESSION_STABILITY_DEFECT",
+        "severity": "" if len(sequence) == 6 and all(item["status"] == "PASS" for item in sequence) else "P1",
+        "steps": sequence,
+    }
 
 
 async def _discover_interaction_markers(page: Page, source_page: str) -> list[InteractionContract]:
@@ -1026,16 +1128,21 @@ async def _certify_all_tabs(page: Page, page_label: str, output_dir: Path, expec
             if expected_ticker:
                 ticker_retained = await _wait_for_qa_state(page, "research-container", "complete", expected_ticker, 0.2)
             rendered_exception = await _has_rendered_exception(page)
+            tab_screenshot = await _screenshot(
+                page, output_dir,
+                f"interaction_{page_label}_tab_{index}_{label or 'unnamed'}",
+            )
             states.append({
                 "label": label, "selected": selected,
                 "content_rendered": bool(panel_text), "content_digest": content_digest,
                 "stale_content": stale_content, "ticker_retained": ticker_retained,
                 "rendered_exception": rendered_exception,
+                "screenshot_path": tab_screenshot,
             })
             if content_digest:
                 previous_digest = content_digest
         except Exception:
-            states.append({"label": label, "selected": False, "content_rendered": False, "content_digest": "", "stale_content": False, "ticker_retained": False, "rendered_exception": False})
+            states.append({"label": label, "selected": False, "content_rendered": False, "content_digest": "", "stale_content": False, "ticker_retained": False, "rendered_exception": False, "screenshot_path": ""})
     after_path = await _screenshot(page, output_dir, f"interaction_{page_label}_tabs_after")
     passed = bool(states) and all(item["selected"] and item["content_rendered"] and item["ticker_retained"] and not item["stale_content"] and not item["rendered_exception"] for item in states)
     registry_id = {
@@ -1493,6 +1600,19 @@ async def run_user_journeys(
         steps.append(step)
         publish_progress()
 
+    # Permanent authenticated continuity contract. This is intentionally part
+    # of full certification only; targeted preflight retains its six journeys.
+    try:
+        session_stability = await asyncio.wait_for(
+            _authenticated_session_stability(page, output_dir), timeout=150,
+        )
+    except TimeoutError:
+        session_stability = {
+            "status": "FAIL", "classification": "SESSION_STABILITY_DEFECT",
+            "severity": "P1", "steps": [], "reason": "Session journey budget exhausted.",
+        }
+    publish_progress()
+
     # 4. Responsive smoke after returning to Research page.
     await _navigate(page, "Research Any Ticker", output_dir)
     try:
@@ -1520,7 +1640,12 @@ async def run_user_journeys(
     try:
         steps.extend(await asyncio.wait_for(_core_mobile_certification(page, output_dir), timeout=30))
     except TimeoutError:
-        for label in ("Home", "Today's Opportunities", "Research Any Ticker", "Ask AI"):
+        for label in (
+            "Home", "home-card-to-research", "Today's Opportunities",
+            "opportunities-to-research", "Research Any Ticker",
+            "research-all-tabs-mobile", "Ask AI", "ask-question-mobile",
+            "Political Intelligence",
+        ):
             steps.append(JourneyStep("Core mobile certification", label, "FAIL", 30, label, "Core mobile phase budget exhausted."))
     publish_progress()
 
@@ -1580,6 +1705,7 @@ async def run_user_journeys(
         "required_journey_completeness": completeness,
         "cross_page_consistency": cross_page_result,
         "interaction_certification": interactions,
+        "session_stability": session_stability,
     }
     if progress_state is not None:
         progress_state.clear()
