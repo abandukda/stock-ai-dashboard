@@ -15,6 +15,7 @@ from utils.evidence_coverage_v1046 import calculate_evidence_coverage
 # Compatibility export retained for existing integrations/tests; candidate
 # rendering no longer uses its ambiguous validated-fair-value semantics.
 from utils.validated_return_v1046 import calculate_validated_return
+from services.research_render_diagnostics import checkpoint
 
 
 def _num(value: Any) -> str:
@@ -221,7 +222,9 @@ def render_candidate_card(
 
 
 def render_full_research_report(row: Mapping[str, Any]) -> None:
+    checkpoint("render_full_research_report:before")
     render_atlas_research_v2(row)
+    checkpoint("render_full_research_report:after")
 
     if st.button(
         "Close institutional research",

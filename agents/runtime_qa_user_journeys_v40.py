@@ -246,6 +246,18 @@ async def _rendered_exception_identity(page: Page, *, ticker: str, stage: str) -
     """Return only stable, sanitized exception identity; never a stack trace."""
     for scope in _scopes(page):
         try:
+            marker = scope.locator('[data-atlas-qa="research-render-exception"]')
+            if await marker.count():
+                node = marker.last
+                return {
+                    "category": await node.get_attribute("data-atlas-exception-category") or "STREAMLIT_RENDER_EXCEPTION",
+                    "filename": await node.get_attribute("data-atlas-exception-file") or "UNKNOWN",
+                    "function": await node.get_attribute("data-atlas-exception-function") or "UNKNOWN",
+                    "line": await node.get_attribute("data-atlas-exception-line") or "0",
+                    "fingerprint": await node.get_attribute("data-atlas-exception-fingerprint") or "",
+                    "ticker": await node.get_attribute("data-atlas-ticker") or ticker,
+                    "stage": await node.get_attribute("data-atlas-research-stage") or stage,
+                }
             nodes = scope.locator('[data-testid="stException"]')
             if not await nodes.count():
                 continue

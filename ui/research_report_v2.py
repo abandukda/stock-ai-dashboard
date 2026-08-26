@@ -14,6 +14,7 @@ import streamlit as st
 
 from engines.atlas_research_builder_v2 import build_atlas_research_v2
 from engines.ask_atlas_engine import ask_atlas
+from services.research_render_diagnostics import checkpoint
 from services.policy_data import enrich_policy_for_research
 from services.ai_valuation_synthesis import get_ai_valuation_for_research
 
@@ -828,6 +829,7 @@ def _render_ask_atlas(report: Mapping[str, Any]) -> None:
         )
 
 def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
+    checkpoint("render_atlas_research_v2:before")
     research_row = dict(row)
     symbol = str(research_row.get("ticker") or research_row.get("Ticker") or "").strip().upper()
     canonical_context = research_row.get("research_context") if isinstance(research_row.get("research_context"), Mapping) else {}
@@ -848,7 +850,9 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
     policy_retrieval = _load_policy_enrichment(symbol, research_row)
     research_row["policy_intelligence_external"] = policy_retrieval
     research_row["ai_valuation_external"] = _load_ai_valuation(symbol, research_row)
+    checkpoint("build_atlas_research_v2:call")
     report = build_atlas_research_v2(research_row)
+    checkpoint("build_atlas_research_v2:return")
     report["analyst_action_retrieval"] = retrieval
     report["policy_source_metrics"] = policy_retrieval.get("metrics") or {}
     _inject_visual_standards()
@@ -898,8 +902,12 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
     disclosure = _divergence_disclosure(report)
     if disclosure:
         st.warning(disclosure)
+    checkpoint("valuation_render:before")
     _render_hybrid_valuation(report)
+    checkpoint("valuation_render:after")
+    checkpoint("analyst_render:before")
     _render_analyst_intelligence(analyst)
+    checkpoint("analyst_render:after")
     support_col, risk_col = st.columns(2)
     with support_col:
         st.markdown("### Why")
@@ -929,6 +937,7 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
     gaps = guidance.get("unavailable_evidence") or []
     if gaps:
         st.caption("Important evidence unavailable: " + "; ".join(gaps))
+    checkpoint("earnings_render:before")
     earnings_brief = report.get("earnings_summary") or {}
     st.markdown("### Earnings Intelligence")
     if earnings_brief.get("semantic_status") == "AVAILABLE":
@@ -937,6 +946,8 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
         st.caption("Corporate Earnings Intelligence is not applicable to this ETF.")
     else:
         st.caption("Reported earnings history is unavailable for a grounded trend assessment.")
+    checkpoint("earnings_render:after")
+    checkpoint("research_tabs_render:before")
     tabs = st.tabs(
         [
             "Thesis",
@@ -1057,6 +1068,7 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
             st.info("No structured risk factors are currently available.")
         _render_interpretation(risk.get("interpretation", ""))
 
+    checkpoint("news_render:before")
     with tabs[4]:
         section = report["sections"]["news"]
         st.markdown("### Company News Intelligence")
@@ -1084,6 +1096,7 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
                     st.metric("Materiality / Impact", _score(item["impact"]))
         _render_interpretation(section.get("interpretation", ""))
 
+    checkpoint("news_render:after")
     with tabs[6]:
         section = report["sections"]["political"]
         data = section.get("data") or report.get("policy_intelligence") or {}
@@ -1094,6 +1107,7 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
             st.caption("Transactions are disclosure evidence, not policy support or government endorsement.")
             st.dataframe(pd.DataFrame(transactions), hide_index=True, use_container_width=True)
 
+    checkpoint("ownership_render:before")
     with tabs[5]:
         section = report["sections"]["ownership"]
         st.markdown("### Ownership, Institutions & Insiders")
@@ -1111,6 +1125,8 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
             st.dataframe(pd.DataFrame(data["insider_transactions"]), hide_index=True, use_container_width=True)
         _render_interpretation(section.get("interpretation", ""))
 
+    checkpoint("ownership_render:after")
+    checkpoint("technicals_render:before")
     with tabs[8]:
         section = report["sections"]["technical"]
         st.markdown("### Technical Intelligence")
@@ -1122,6 +1138,7 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
         _render_price_chart(report)
         _render_interpretation(section.get("interpretation", ""))
 
+    checkpoint("technicals_render:after")
     with tabs[7]:
         st.markdown("### Earnings Call / Transcript Intelligence")
         transcript = report.get("transcript_intelligence") or {}
@@ -1166,6 +1183,8 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
         _render_ask_atlas(report)
 
     _render_trade_plan(report)
+    checkpoint("research_tabs_render:after")
+    checkpoint("render_atlas_research_v2:after")
 
 
 __all__ = ["render_atlas_research_v2"]

@@ -27245,8 +27245,28 @@ def v8055_render_ai_summary(row):
 def render_detail(row):
     """Render the canonical Full Research contract for saved or live rows."""
     from ui.research_report_v104 import render_full_research_report
+    from services.research_render_diagnostics import checkpoint, sanitized_exception_location
 
-    render_full_research_report(dict(row))
+    ticker = str(row.get("ticker") or row.get("Ticker") or "").upper()
+    checkpoint("render_detail:before")
+    try:
+        render_full_research_report(dict(row))
+        checkpoint("render_detail:after")
+    except Exception as exc:
+        location = sanitized_exception_location(exc, ticker=ticker)
+        st.markdown(
+            '<span data-atlas-qa="research-render-exception" '
+            f'data-atlas-ticker="{html.escape(ticker)}" '
+            f'data-atlas-exception-category="{html.escape(str(location["category"]))}" '
+            f'data-atlas-exception-file="{html.escape(str(location["filename"]))}" '
+            f'data-atlas-exception-function="{html.escape(str(location["function"]))}" '
+            f'data-atlas-exception-line="{int(location["line"])}" '
+            f'data-atlas-exception-fingerprint="{html.escape(str(location["fingerprint"]))}" '
+            f'data-atlas-research-stage="{html.escape(str(location["stage"]))}" '
+            'aria-hidden="true" style="display:none">research-render-exception</span>',
+            unsafe_allow_html=True,
+        )
+        raise
 
 
 def v793_decision_rows(df):

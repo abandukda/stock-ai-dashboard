@@ -41,6 +41,7 @@ from engines.earnings_intelligence import (
 )
 from engines.market_context import build_market_context
 from engines.market_moving_news import build_market_moving_news
+from services.research_render_diagnostics import checkpoint
 
 
 Enricher = Callable[[str, Mapping[str, Any]], Mapping[str, Any]]
@@ -454,6 +455,7 @@ def build_atlas_research_v2(
     *,
     enrichers: Sequence[Enricher] = (),
 ) -> dict[str, Any]:
+    checkpoint("build_atlas_research_v2:before")
     ticker = _text(row.get("ticker") or row.get("Ticker"), "UNKNOWN")
     enriched_row = attach_price_history(row)
     # Normalize canonical valuation inputs before the institutional builder.
@@ -476,8 +478,12 @@ def build_atlas_research_v2(
         except Exception as exc:
             enricher_errors.append(str(exc))
 
+    checkpoint("fundamentals_preparation:before")
     enriched = build_enriched_research_report(enriched_row)
+    checkpoint("fundamentals_preparation:after")
+    checkpoint("ownership_preparation:before")
     institutional = build_institutional_research(enriched_row)
+    checkpoint("ownership_preparation:after")
     # Authoritative customer-facing V103 values pass through unchanged.  The
     # individualized calculator remains available to legacy/internal callers.
     scores = {
@@ -503,6 +509,7 @@ def build_atlas_research_v2(
             "UNKNOWN",
         ),
     }
+    checkpoint("valuation_preparation:before")
     trade_plan = build_trade_plan(enriched_row, quote)
 
     financial_data = _mapping(enriched["financials"].get("data"))
@@ -514,6 +521,7 @@ def build_atlas_research_v2(
     if not ai_valuation:
         ai_valuation = build_ai_valuation(enriched_row)
     ai_valuation = attach_valuation_comparison(ai_valuation, enriched_row)
+    checkpoint("valuation_preparation:after")
     analyst_data = _mapping(enriched["analysts"].get("data"))
     ownership_data = _mapping(enriched["ownership"].get("data"))
     technical_data = _mapping(enriched["technical"].get("data"))
@@ -521,6 +529,7 @@ def build_atlas_research_v2(
         _first(enriched_row, "security_type", "quote_type", "quoteType"), "EQUITY"
     ).upper()
     is_etf = security_type in {"ETF", "FUND", "MUTUALFUND"}
+    checkpoint("earnings_intelligence:before")
     earnings_history = _earnings_history(enriched_row)
     earnings_intelligence = build_earnings_intelligence(
         earnings_history, is_etf=is_etf
@@ -528,6 +537,7 @@ def build_atlas_research_v2(
     earnings_summary = build_earnings_summary(
         earnings_intelligence, ticker=ticker
     )
+    checkpoint("earnings_intelligence:after")
     management_guidance = build_management_guidance(
         enriched_row, is_etf=is_etf
     )
@@ -537,12 +547,15 @@ def build_atlas_research_v2(
     market_context = build_market_context(
         enriched_row.get("market_context_inputs")
     )
+    checkpoint("news_preparation:before")
     market_moving_news = build_market_moving_news(
         enriched_row.get("market_moving_news_candidates")
     )
+    checkpoint("news_preparation:after")
     analyst_details = _analyst_details(enriched_row, analyst_data)
     risk_rows = _risk_interpretations(institutional.get("risk_matrix") or [])
 
+    checkpoint("technical_ownership_section_preparation:before")
     sections = {
         "financials": {
             **enriched["financials"],
@@ -627,6 +640,7 @@ def build_atlas_research_v2(
             ),
         },
     }
+    checkpoint("technical_ownership_section_preparation:after")
 
     valuation = valuation_families(enriched_row)
     fair_value_cases = []
@@ -743,7 +757,9 @@ def build_atlas_research_v2(
         "atlas_fv_upside_pct": report.get("atlas_fv_upside_pct"),
         "current_price": report.get("current_price"),
     })
+    checkpoint("analyst_intelligence:before")
     report["analyst_intelligence"] = build_analyst_intelligence(analyst_input)
+    checkpoint("analyst_intelligence:after")
     report["executive_summary"] = guidance_summary_text(report["guidance_summary"])
     report["source_investment_thesis"] = report.get("investment_thesis")
     report["source_bull_case"] = report.get("bull_case")
@@ -757,6 +773,7 @@ def build_atlas_research_v2(
         f"{item.get('risk')} {item.get('consequence')}"
         for item in report["guidance_summary"].get("key_risks") or []
     ]
+    checkpoint("build_atlas_research_v2:after")
     return report
 
 
