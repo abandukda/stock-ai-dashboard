@@ -12,6 +12,7 @@ import math
 from typing import Any, Mapping, Sequence
 
 from engines.research_enrichment_v105 import accepted_company_news
+from engines.semantic_fields import safe_mapping, safe_scalar_display, safe_sequence
 
 
 _MISSING = {"", "n/a", "na", "none", "null", "nan", "unknown", "unavailable", "under review", "—", "-"}
@@ -19,7 +20,7 @@ _GENERIC_NEWS = ("no recent", "no high-confidence", "not returned", "unavailable
 
 
 def _mapping(value: Any) -> Mapping[str, Any]:
-    return value if isinstance(value, Mapping) else {}
+    return safe_mapping(value)
 
 
 def _sources(row: Mapping[str, Any]) -> list[Mapping[str, Any]]:
@@ -61,10 +62,7 @@ def _num(value: Any) -> float | None:
 
 
 def _text(value: Any, default: str = "") -> str:
-    if value is None:
-        return default
-    text = str(value).strip()
-    return default if text.lower() in _MISSING else text
+    return safe_scalar_display(value, default)
 
 
 def _ratio_pct(value: Any) -> float | None:
@@ -168,7 +166,7 @@ def _normalized_evidence(row: Mapping[str, Any]) -> dict[str, Any]:
         "analyst_low": _num(_first(row, "analyst_target_low", "Analyst Target Low")),
         "analyst_count": _num(_first(row, "analyst_count", "Analyst Count")),
         "analyst_recommendation": _text(_first(row, "analyst_recommendation", "recommendation_key", "Analyst Recommendation")),
-        "analyst_actions": list(_first(row, "analyst_actions", "recent_analyst_actions") or []),
+        "analyst_actions": safe_sequence(_first(row, "analyst_actions", "recent_analyst_actions")),
         "revenue_growth": _ratio_pct(_first(row, "revenue_growth", "Revenue Growth", "revenueGrowth")),
         "earnings_growth": _ratio_pct(_first(row, "earnings_growth", "eps_growth_pct", "Earnings Growth", "EPS Growth")),
         "gross_margin": _ratio_pct(_first(row, "gross_margin", "gross_profit_margin", "Gross Margin")),
@@ -200,8 +198,8 @@ def _normalized_evidence(row: Mapping[str, Any]) -> dict[str, Any]:
         "sma200": _num(_first(row, "sma200", "SMA200")),
         "valuation_status": _text(_first(row, "atlas_valuation_status", "Atlas Valuation Status")),
         "primary_risk": _text(_first(row, "primary_risk", "Primary Risk", "what_could_go_wrong")),
-        "upgrade_triggers": list(row.get("upgrade_triggers") or []),
-        "downgrade_triggers": list(row.get("downgrade_triggers") or []),
+        "upgrade_triggers": safe_sequence(row.get("upgrade_triggers")),
+        "downgrade_triggers": safe_sequence(row.get("downgrade_triggers")),
         "as_of": _as_of(row),
     }
 
@@ -560,8 +558,8 @@ def _conditions(e: Mapping[str, Any]) -> dict[str, list[str]]:
 def guidance_summary_text(guidance: Mapping[str, Any]) -> str:
     view = _mapping(guidance.get("atlas_view"))
     action = _mapping(guidance.get("action_now"))
-    facts = list(guidance.get("supporting_facts") or [])
-    risks = list(guidance.get("key_risks") or [])
+    facts = [item for item in safe_sequence(guidance.get("supporting_facts")) if isinstance(item, Mapping)]
+    risks = [item for item in safe_sequence(guidance.get("key_risks")) if isinstance(item, Mapping)]
     catalyst = _mapping(guidance.get("next_catalyst"))
     parts = [str(view.get("interpretation") or "Atlas evidence is under review.")]
     parts.append(f"Action now: {action.get('current_action', 'Monitor')}. {action.get('entry_timing_context', '')}".strip())

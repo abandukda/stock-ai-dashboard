@@ -5,6 +5,8 @@ from typing import Any, Mapping
 import math
 import re
 
+from engines.semantic_fields import safe_date_text, safe_mapping, safe_scalar_display, safe_sequence
+
 @dataclass(frozen=True)
 class ResearchSection:
     status: str
@@ -17,10 +19,7 @@ def _now():
     return datetime.now(timezone.utc).isoformat()
 
 def _text(v, d=""):
-    if v is None:
-        return d
-    s = str(v).strip()
-    return d if s.lower() in {"", "none", "null", "nan", "n/a", "unknown", "unavailable", "under review"} else s
+    return safe_scalar_display(v, d)
 
 def _num(v, d=None):
     try:
@@ -38,10 +37,10 @@ def _pct(v, d=None):
     return value * 100 if abs(value) <= 2 else value
 
 def _map(v):
-    return v if isinstance(v, Mapping) else {}
+    return safe_mapping(v)
 
 def _seq(v):
-    return list(v) if isinstance(v, (list, tuple)) else []
+    return safe_sequence(v)
 
 def _sources(row):
     return [x for x in (
@@ -119,7 +118,7 @@ def normalize_analyst_actions(value):
             continue
         firm = _text(item.get("firm") or item.get("brokerage") or item.get("company"))
         analyst = _text(item.get("analyst") or item.get("analyst_name"))
-        date = _text(item.get("date") or item.get("publishedDate") or item.get("gradingDate"))
+        date = safe_date_text(item.get("date") or item.get("publishedDate") or item.get("gradingDate"))
         current_target = _num(item.get("priceTarget") if item.get("priceTarget") is not None else item.get("current_target"))
         previous_target = _num(item.get("previousPriceTarget") if item.get("previousPriceTarget") is not None else item.get("previous_target"))
         if not (firm or analyst) or not date:

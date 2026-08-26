@@ -8,6 +8,7 @@ analyst-driven scenarios, and scanner trade levels from sharing aliases.
 from __future__ import annotations
 
 import math
+from datetime import date, datetime
 from typing import Any, Mapping
 
 
@@ -58,6 +59,61 @@ def is_missing_scalar(value: Any) -> bool:
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         return not math.isfinite(float(value))
     return False
+
+
+def safe_mapping(value: Any) -> Mapping[str, Any]:
+    """Return mapping evidence only; malformed shapes fail closed."""
+    return value if isinstance(value, Mapping) else {}
+
+
+def safe_sequence(value: Any) -> list[Any]:
+    """Return ordered row evidence without iterating text or mappings."""
+    return list(value) if isinstance(value, (list, tuple)) else []
+
+
+def safe_scalar_display(value: Any, default: str = "") -> str:
+    """Format scalar evidence without manufacturing text from containers."""
+    if isinstance(value, (Mapping, list, tuple, set, frozenset)):
+        return default
+    if is_missing_scalar(value):
+        return default
+    return str(value).strip()
+
+
+def safe_date_text(value: Any) -> str | None:
+    """Normalize scalar ISO date evidence; container-shaped dates fail closed."""
+    if isinstance(value, (Mapping, list, tuple, set, frozenset)) or is_missing_scalar(value):
+        return None
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    text = str(value).strip()
+    if len(text) == 10:
+        try:
+            return date.fromisoformat(text).isoformat()
+        except ValueError:
+            pass
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00")).isoformat()
+    except (TypeError, ValueError):
+        try:
+            return date.fromisoformat(text[:10]).isoformat()
+        except (TypeError, ValueError):
+            return None
+
+
+def semantic_identity(value: Any) -> tuple[Any, ...] | str | int | float | bool | None:
+    """Build a deterministic hashable identity without hashing evidence containers."""
+    if isinstance(value, Mapping):
+        return tuple(sorted((str(key), semantic_identity(item)) for key, item in value.items()))
+    if isinstance(value, (list, tuple)):
+        return tuple(semantic_identity(item) for item in value)
+    if isinstance(value, (set, frozenset)):
+        return tuple(sorted((semantic_identity(item) for item in value), key=repr))
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return safe_scalar_display(value) or None
 
 
 def first_present(row: Mapping[str, Any], *keys: str) -> Any:

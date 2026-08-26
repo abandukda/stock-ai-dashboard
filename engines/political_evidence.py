@@ -7,9 +7,11 @@ import json
 import re
 from typing import Any, Mapping
 
+from engines.semantic_fields import safe_scalar_display
+
 
 def _text(value: Any) -> str:
-    return str(value).strip() if value is not None else ""
+    return safe_scalar_display(value)
 
 
 def _first(row: Mapping[str, Any], *keys: str) -> Any:

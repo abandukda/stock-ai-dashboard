@@ -8,7 +8,7 @@ import json
 import re
 
 from engines.atlas_intelligence_engine import build_executive_intelligence
-from engines.semantic_fields import ai_valuation_object, valuation_families
+from engines.semantic_fields import ai_valuation_object, safe_sequence, valuation_families
 from engines.analyst_intelligence import grounded_analyst_context
 from engines.policy_intelligence import build_policy_intelligence, public_policy_context
 
@@ -145,13 +145,13 @@ def _grounding_metadata(question: str, report: Mapping[str, Any]) -> dict[str, A
         resolved_families.extend(candidate for candidate in candidates if candidate in family_envelopes)
     for family in resolved_families:
         envelope = family_envelopes.get(family) if isinstance(family_envelopes.get(family), Mapping) else {}
-        evidence_ids.extend(str(item) for item in envelope.get("evidence_ids") or [] if str(item).strip())
+        evidence_ids.extend(str(item) for item in safe_sequence(envelope.get("evidence_ids")) if str(item).strip())
         for field in ("observation_date", "reporting_date", "filing_date", "fetched_at"):
             value = str(envelope.get(field) or "").strip()
             if value:
                 as_of_dates.append(value)
                 break
-        limitations.extend(str(item) for item in envelope.get("limitations") or [] if str(item).strip())
+        limitations.extend(str(item) for item in safe_sequence(envelope.get("limitations")) if str(item).strip())
     return {
         "ticker": str(report.get("ticker") or "UNKNOWN").upper(),
         "section": section,

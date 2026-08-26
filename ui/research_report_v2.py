@@ -14,6 +14,7 @@ import streamlit as st
 
 from engines.atlas_research_builder_v2 import build_atlas_research_v2
 from engines.ask_atlas_engine import ask_atlas
+from engines.semantic_fields import is_missing_scalar, number, safe_mapping, safe_scalar_display, safe_sequence
 from services.research_render_diagnostics import checkpoint
 from services.policy_data import enrich_policy_for_research
 from services.ai_valuation_synthesis import get_ai_valuation_for_research
@@ -395,8 +396,10 @@ def _analyst_intelligence_html(intelligence: Mapping[str, Any]) -> str:
         metrics.append(("Median Target", _money(intelligence.get("wall_street_median_target"))))
     cards = "".join(
         f'<div class="atlas-analyst-card"><div class="atlas-analyst-label">{escape(str(label))}</div>'
-        f'<div class="atlas-analyst-value">{escape(str(value))}</div></div>'
-        for label, value in metrics if value not in {None, "Unavailable"}
+        f'<div class="atlas-analyst-value">{escape(safe_scalar_display(value))}</div></div>'
+        for label, value in metrics
+        if not isinstance(value, (Mapping, list, tuple, set, frozenset))
+        and not is_missing_scalar(value)
     )
     return f'<div class="atlas-analyst-grid">{cards}</div>'
 
@@ -425,22 +428,26 @@ def _render_analyst_intelligence(intelligence: Mapping[str, Any]) -> None:
         st.write(f"{_money(low)} — {_money(high)}")
         if intelligence.get("target_dispersion_pct") is not None:
             st.caption(f"Dispersion: {_pct(intelligence.get('target_dispersion_pct'))}")
-    if intelligence.get("recommendation_response_count") is not None:
+    response_count = number(intelligence.get("recommendation_response_count"))
+    sentiment_counts = [number(intelligence.get(key)) for key in (
+        "strong_buy_count", "buy_count", "hold_count", "sell_count", "strong_sell_count",
+    )]
+    sentiment_pcts = [number(intelligence.get(key)) for key in ("bullish_pct", "neutral_pct", "bearish_pct")]
+    if response_count is not None and all(value is not None for value in sentiment_counts + sentiment_pcts):
         labels = ("Strong Buy", "Buy", "Hold", "Sell", "Strong Sell")
-        keys = ("strong_buy_count", "buy_count", "hold_count", "sell_count", "strong_sell_count")
         st.markdown("### Analyst Sentiment")
         st.write(" | ".join(labels))
-        st.write(" | ".join(str(int(intelligence[key])) for key in keys))
+        st.write(" | ".join(str(int(value)) for value in sentiment_counts))
         st.caption(
-            f"{intelligence['bullish_pct']:.1f}% Bullish · {intelligence['neutral_pct']:.1f}% Neutral · "
-            f"{intelligence['bearish_pct']:.1f}% Bearish · Latest recommendation responses"
+            f"{sentiment_pcts[0]:.1f}% Bullish · {sentiment_pcts[1]:.1f}% Neutral · "
+            f"{sentiment_pcts[2]:.1f}% Bearish · Latest recommendation responses"
         )
-    actions = intelligence.get("recent_actions") or []
+    actions = [item for item in safe_sequence(intelligence.get("recent_actions")) if isinstance(item, Mapping)]
     if actions:
         st.markdown("### Analyst Trend")
         trend_cols = st.columns(2)
         for col, days in zip(trend_cols, (30, 90)):
-            trend = intelligence.get(f"trend_{days}d") or {}
+            trend = safe_mapping(intelligence.get(f"trend_{days}d"))
             col.metric(f"{days} Days", trend.get("classification", "STABLE"))
             col.caption(f"{trend.get('positive', 0)} positive · {trend.get('negative', 0)} negative · {trend.get('neutral', 0)} neutral")
         st.markdown("### Recent Analyst Actions")

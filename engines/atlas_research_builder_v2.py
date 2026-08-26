@@ -25,7 +25,8 @@ from engines.analyst_engine import build_analyst_snapshot, build_analyst_summary
 from engines.semantic_fields import (
     AVAILABLE, DATA_UNAVAILABLE, NOT_APPLICABLE, NOT_PUBLISHED,
     TEMPORARILY_UNAVAILABLE, ai_valuation_object, atlas_valuation_status,
-    canonical_atlas_fair_value, evidence_state, valuation_families,
+    canonical_atlas_fair_value, evidence_state, safe_date_text, safe_mapping,
+    safe_scalar_display, safe_sequence, semantic_identity, valuation_families,
 )
 from engines.ai_valuation import attach_valuation_comparison, build_ai_valuation
 from engines.trade_plan_v1052 import build_trade_plan
@@ -59,20 +60,15 @@ def _num(value: Any, default: float | None = None) -> float | None:
 
 
 def _text(value: Any, default: str = "") -> str:
-    if value is None:
-        return default
-    text = str(value).strip()
-    if text.lower() in {"", "none", "null", "nan", "n/a", "na", "unknown", "unavailable", "under review"}:
-        return default
-    return text
+    return safe_scalar_display(value, default)
 
 
 def _mapping(value: Any) -> Mapping[str, Any]:
-    return value if isinstance(value, Mapping) else {}
+    return safe_mapping(value)
 
 
 def _sequence(value: Any) -> list[Any]:
-    return list(value) if isinstance(value, (list, tuple)) else []
+    return safe_sequence(value)
 
 
 def _sources(row: Mapping[str, Any]) -> list[Mapping[str, Any]]:
@@ -255,9 +251,9 @@ def _earnings_history(row: Mapping[str, Any]) -> list[dict[str, Any]]:
             continue
         output.append(
             {
-                "period": _text(item_first(item, "fiscal_period", "period", "quarter", "report_date", "date")),
+                "period": safe_date_text(item_first(item, "report_date", "date")) or _text(item_first(item, "fiscal_period", "period", "quarter")),
                 "fiscal_period": _text(item_first(item, "fiscal_period", "period", "quarter")) or None,
-                "report_date": _text(item_first(item, "report_date", "date")) or None,
+                "report_date": safe_date_text(item_first(item, "report_date", "date")),
                 "eps_actual": _num(item_first(item, "eps_actual", "epsActual", "actual_eps")),
                 "eps_estimate": _num(item_first(item, "eps_estimate", "epsEstimated", "estimated_eps")),
                 "eps_surprise_pct": _num(item_first(item, "eps_surprise_pct", "epsSurprisePct")),
@@ -271,7 +267,7 @@ def _earnings_history(row: Mapping[str, Any]) -> list[dict[str, Any]]:
         )
     unique = {}
     for item in output:
-        key = (item.get("fiscal_period"), item.get("report_date"))
+        key = semantic_identity((item.get("fiscal_period"), item.get("report_date")))
         if not any(key):
             key = item.get("period") or repr(item)
         unique.setdefault(key, item)

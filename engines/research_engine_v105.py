@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any, Mapping
 
-from engines.semantic_fields import canonical_atlas_fair_value
+from engines.semantic_fields import canonical_atlas_fair_value, safe_sequence
 import math
 
 
@@ -152,8 +152,8 @@ def _executive_summary(row: Mapping[str, Any]) -> str:
     confidence = _num(row.get("confidence_pct"))
     return_pct = _num(row.get("expected_return_pct"))
 
-    positives = list(row.get("positive_drivers") or [])
-    blockers = list(row.get("reasons_to_wait") or [])
+    positives = safe_sequence(row.get("positive_drivers"))
+    blockers = safe_sequence(row.get("reasons_to_wait"))
 
     positive_text = (
         ", ".join(str(item).rstrip(".") for item in positives[:3])
@@ -457,8 +457,8 @@ def build_institutional_research(
             row.get("investment_thesis"),
             "A structured investment thesis was not included in the current saved scan.",
         ),
-        "bull_case": list(row.get("positive_drivers") or []),
-        "bear_case": list(row.get("reasons_to_wait") or []),
+        "bull_case": safe_sequence(row.get("positive_drivers")),
+        "bear_case": safe_sequence(row.get("reasons_to_wait")),
         "primary_blocker": _text(
             row.get("primary_blocker"),
             "No structured blocker is currently available.",

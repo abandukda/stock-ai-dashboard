@@ -14,6 +14,7 @@ from typing import Any
 
 from engines.semantic_fields import (
     canonical_atlas_fair_value, first_present, is_missing_scalar, number,
+    safe_scalar_display,
 )
 
 
@@ -85,7 +86,7 @@ def _date(value: Any) -> datetime | None:
 
 
 def _text(value: Any) -> str | None:
-    text = str(value or "").strip()
+    text = safe_scalar_display(value)
     return text or None
 
 
@@ -170,7 +171,8 @@ def normalize_analyst_actions(actions: Iterable[Mapping[str, Any]] | None, curre
             "original_fields": original,
         })
     priority = {"UPGRADED": 0, "DOWNGRADED": 0, "TARGET RAISED": 1, "TARGET LOWERED": 1, "INITIATED": 2, "TARGET MAINTAINED": 3, "REITERATED": 4, "OTHER": 5}
-    return sorted(normalized, key=lambda item: (-_date(item["date"]).timestamp(), priority[item["primary_action"]], item["firm"].lower()))
+    epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+    return sorted(normalized, key=lambda item: (-(_date(item["date"]) or epoch).timestamp(), priority[item["primary_action"]], item["firm"].lower()))
 
 
 def recent_meaningful_actions(actions: Iterable[Mapping[str, Any]], limit: int = 5) -> list[dict[str, Any]]:
@@ -180,7 +182,11 @@ def recent_meaningful_actions(actions: Iterable[Mapping[str, Any]], limit: int =
     # Keep chronology inside each class while preventing a page of reiterations
     # from hiding recent directional evidence.
     selected = (meaningful + neutral)[: max(0, limit)]
-    return sorted(selected, key=lambda item: -_date(item["date"]).timestamp())
+    epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+    return sorted(
+        selected,
+        key=lambda item: -(_date(item.get("date")) or epoch).timestamp(),
+    )
 
 
 def _trend(actions: Iterable[Mapping[str, Any]], days: int, now: datetime) -> dict[str, Any]:
