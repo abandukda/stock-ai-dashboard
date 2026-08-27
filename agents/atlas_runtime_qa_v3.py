@@ -54,7 +54,7 @@ TOTAL_TIMEOUT_SECONDS = 1_500
 
 DEPLOYED_HEALTH_STATES = {
     "APP_READY", "LOGIN_READY", "DEPLOYMENT_UPDATING",
-    "BOOTSTRAP_EXCEPTION", "UNAVAILABLE",
+    "BOOTSTRAP_EXCEPTION", "UNAVAILABLE", "SETTLING",
 }
 
 
@@ -334,6 +334,9 @@ def classify_deployed_health(
     marker_sha: str,
     expected_sha: str,
     password_ready: bool,
+    login_marker_ready: bool,
+    login_heading_ready: bool,
+    login_button_ready: bool,
     dashboard_ready: bool,
     fatal_exception: bool,
     updating: bool,
@@ -342,18 +345,25 @@ def classify_deployed_health(
     """Classify pre-authentication state without using provider/customer data."""
     if fatal_exception:
         return "BOOTSTRAP_EXCEPTION", "DEPLOYMENT_DEFECT"
-    if unavailable:
-        return "UNAVAILABLE", "APP_AVAILABILITY_DEFECT"
     if marker_sha and expected_sha and marker_sha != expected_sha:
         return "DEPLOYMENT_UPDATING", "DEPLOYMENT_NOT_READY"
+    if updating:
+        return "DEPLOYMENT_UPDATING", "DEPLOYMENT_NOT_READY"
+    if unavailable:
+        return "UNAVAILABLE", "APP_AVAILABILITY_DEFECT"
     if marker_sha == expected_sha:
         if dashboard_ready:
             return "APP_READY", "PASS"
-        if password_ready:
+        login_contract_ready = (
+            (login_button_ready and (login_marker_ready or login_heading_ready))
+            or (password_ready and (login_marker_ready or login_heading_ready or login_button_ready))
+        )
+        if login_contract_ready:
             return "LOGIN_READY", "PASS"
-    if updating or not marker_sha:
-        return "DEPLOYMENT_UPDATING", "DEPLOYMENT_NOT_READY"
-    return "UNAVAILABLE", "APP_AVAILABILITY_DEFECT"
+        return "SETTLING", "IN_PROGRESS"
+    if not marker_sha:
+        return "UNAVAILABLE", "APP_AVAILABILITY_DEFECT" if unavailable else "IN_PROGRESS"
+    return "SETTLING", "IN_PROGRESS"
 
 
 def _sanitized_bootstrap_location(visible: str) -> dict[str, Any]:
@@ -388,6 +398,26 @@ async def _deployment_marker_sha(page: Page) -> str:
     return ""
 
 
+async def _login_readiness_signals(page: Page, visible: str) -> dict[str, bool]:
+    marker_ready = False
+    password_ready = False
+    button_ready = False
+    for scope in _all_scopes(page):
+        if await _safe_count(scope.locator('[data-atlas-login-ready="true"]')):
+            marker_ready = True
+        if await _safe_count(scope.locator('input[type="password"]')):
+            password_ready = True
+        if await _safe_count(scope.get_by_role("button", name=re.compile(r"^login$", re.I))):
+            button_ready = True
+    heading_ready = bool(re.search(r"AI Stock Dashboard Login|Atlas.*Login", visible, re.I))
+    return {
+        "login_marker_ready": marker_ready,
+        "password_ready": password_ready,
+        "login_heading_ready": heading_ready,
+        "login_button_ready": button_ready,
+    }
+
+
 async def _rendered_streamlit_exception(page: Page) -> bool:
     for scope in _all_scopes(page):
         if await _safe_count(scope.locator('[data-testid="stException"]')):
@@ -401,7 +431,7 @@ async def _rendered_streamlit_exception(page: Page) -> bool:
 async def _capture_deployed_readiness(page: Page, expected_sha: str) -> dict[str, Any]:
     visible = await _combined_visible_text(page)
     marker_sha = await _deployment_marker_sha(page)
-    password_ready = await _find_password_target(page) is not None
+    login_signals = await _login_readiness_signals(page, visible)
     dashboard_ready = bool(await _known_navigation_visible(page))
     fatal_exception = await _rendered_streamlit_exception(page)
     updating = bool(re.search(
@@ -414,7 +444,7 @@ async def _capture_deployed_readiness(page: Page, expected_sha: str) -> dict[str
     ))
     state, classification = classify_deployed_health(
         marker_sha=marker_sha, expected_sha=expected_sha,
-        password_ready=password_ready, dashboard_ready=dashboard_ready,
+        dashboard_ready=dashboard_ready, **login_signals,
         fatal_exception=fatal_exception, updating=updating, unavailable=unavailable,
     )
     result: dict[str, Any] = {
@@ -422,12 +452,33 @@ async def _capture_deployed_readiness(page: Page, expected_sha: str) -> dict[str
         "classification": classification,
         "expected_source_sha": expected_sha,
         "deployed_source_sha": marker_sha or "UNKNOWN",
-        "password_ready": password_ready,
+        **login_signals,
         "dashboard_ready": dashboard_ready,
         "fatal_exception": fatal_exception,
+        "sha_mismatch": bool(marker_sha and expected_sha and marker_sha != expected_sha),
+        "login_signal_contradiction": bool(
+            (login_signals["login_marker_ready"] or login_signals["login_heading_ready"])
+            and not login_signals["password_ready"]
+            and not login_signals["login_button_ready"]
+        ),
     }
     if fatal_exception:
         result["exception"] = _sanitized_bootstrap_location(visible)
+    return result
+
+
+def _timeout_readiness_result(latest: dict[str, Any]) -> dict[str, Any]:
+    """Classify only after the bounded settling window is exhausted."""
+    result = dict(latest)
+    if result.get("login_signal_contradiction") or result.get("deployed_source_sha") not in {None, "", "UNKNOWN"}:
+        result["state"] = "SETTLING"
+        result["classification"] = "QA_DEFECT"
+    elif result.get("state") == "DEPLOYMENT_UPDATING":
+        result["classification"] = "DEPLOYMENT_NOT_READY"
+    else:
+        result["state"] = "UNAVAILABLE"
+        result["classification"] = "APP_AVAILABILITY_DEFECT"
+    result["status"] = "FAIL"
     return result
 
 
@@ -442,20 +493,27 @@ async def _deployed_readiness_gate(
     prior_identity: tuple[str, str] | None = None
     stable_checks = 0
     latest: dict[str, Any] = {}
+    observations: list[dict[str, Any]] = []
     while time.monotonic() - started < DEPLOYED_READINESS_TIMEOUT_SECONDS:
         latest = await _capture_deployed_readiness(page, expected_sha)
         latest["elapsed_seconds"] = round(time.monotonic() - started, 3)
         latest["stable_checks"] = stable_checks
+        observations.append({
+            "state": latest.get("state"),
+            "classification": latest.get("classification"),
+            "deployed_source_sha": latest.get("deployed_source_sha"),
+        })
+        latest["observations"] = observations[-20:]
         (output_dir / "deployed_readiness.json").write_text(
             json.dumps(latest, indent=2), encoding="utf-8",
         )
-        if latest["classification"] in {"DEPLOYMENT_DEFECT", "APP_AVAILABILITY_DEFECT"}:
+        if latest["classification"] == "DEPLOYMENT_DEFECT":
             try:
                 await page.screenshot(path=str(output_dir / "deployment_readiness_failure.png"), full_page=False)
             except Exception:
                 pass
             raise DeploymentReadinessError(latest["classification"], latest)
-        if latest["classification"] == "DEPLOYMENT_NOT_READY" and latest["deployed_source_sha"] != "UNKNOWN":
+        if latest.get("sha_mismatch"):
             raise DeploymentReadinessError("DEPLOYMENT_NOT_READY", latest)
         if latest["classification"] == "PASS":
             identity = (latest["state"], latest["deployed_source_sha"])
@@ -473,12 +531,17 @@ async def _deployed_readiness_gate(
         stable_checks = 0
         prior_identity = None
         await page.wait_for_timeout(750)
-    latest["classification"] = "DEPLOYMENT_NOT_READY"
-    latest["status"] = "FAIL"
+    latest = _timeout_readiness_result(latest)
     (output_dir / "deployed_readiness.json").write_text(
         json.dumps(latest, indent=2), encoding="utf-8",
     )
-    raise DeploymentReadinessError("DEPLOYMENT_NOT_READY", latest)
+    try:
+        await page.screenshot(
+            path=str(output_dir / "deployment_readiness_failure.png"), full_page=False,
+        )
+    except Exception:
+        pass
+    raise DeploymentReadinessError(latest["classification"], latest)
 
 
 async def _authenticate_and_confirm(

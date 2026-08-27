@@ -4706,6 +4706,11 @@ def dashboard_login_gate():
         st.session_state["user_role"] = "admin"
         return True
 
+    st.markdown(
+        '<span data-atlas-qa="login-ready" data-atlas-login-ready="true" '
+        'aria-hidden="true" style="display:none">atlas-login-ready</span>',
+        unsafe_allow_html=True,
+    )
     st.title("🔐 AI Stock Dashboard Login")
     st.caption(f"Running: {APP_VERSION}")
     st.info("Admin password opens admin mode. Any configured viewer password opens guest/viewer mode.")

@@ -25,6 +25,7 @@ def test_source_marker_precedes_diagnostic_import_and_login_gate():
     assert marker_source.index('data-atlas-qa="deployment-readiness"') < marker_source.index(
         "from services.research_render_diagnostics import ("
     ) < marker_source.index("def dashboard_login_gate")
+    assert 'data-atlas-login-ready="true"' in marker_source
 
 
 @pytest.mark.parametrize(
@@ -33,9 +34,11 @@ def test_source_marker_precedes_diagnostic_import_and_login_gate():
         ({"fatal_exception": True}, ("BOOTSTRAP_EXCEPTION", "DEPLOYMENT_DEFECT")),
         ({"unavailable": True}, ("UNAVAILABLE", "APP_AVAILABILITY_DEFECT")),
         ({"marker_sha": "a" * 40}, ("DEPLOYMENT_UPDATING", "DEPLOYMENT_NOT_READY")),
-        ({"password_ready": True}, ("LOGIN_READY", "PASS")),
+        ({"password_ready": True, "login_heading_ready": True}, ("LOGIN_READY", "PASS")),
+        ({"login_heading_ready": True, "login_button_ready": True}, ("LOGIN_READY", "PASS")),
         ({"dashboard_ready": True}, ("APP_READY", "PASS")),
         ({"updating": True, "marker_sha": ""}, ("DEPLOYMENT_UPDATING", "DEPLOYMENT_NOT_READY")),
+        ({}, ("SETTLING", "IN_PROGRESS")),
     ],
 )
 def test_bootstrap_health_contract(kwargs, expected):
@@ -43,6 +46,9 @@ def test_bootstrap_health_contract(kwargs, expected):
         "marker_sha": EXPECTED_SHA,
         "expected_sha": EXPECTED_SHA,
         "password_ready": False,
+        "login_marker_ready": False,
+        "login_heading_ready": False,
+        "login_button_ready": False,
         "dashboard_ready": False,
         "fatal_exception": False,
         "updating": False,
@@ -95,6 +101,93 @@ def test_readiness_requires_two_stable_checks(monkeypatch, tmp_path):
     assert len(checks) == 2
     assert result["stable_checks"] == 2
     assert result["status"] == "PASS"
+
+
+def test_first_probe_miss_then_stable_login_passes(monkeypatch, tmp_path):
+    sequence = [
+        {
+            "state": "SETTLING", "classification": "IN_PROGRESS",
+            "deployed_source_sha": EXPECTED_SHA, "expected_source_sha": EXPECTED_SHA,
+            "password_ready": False, "login_marker_ready": False,
+            "login_heading_ready": False, "login_button_ready": False,
+            "dashboard_ready": False, "fatal_exception": False,
+            "sha_mismatch": False, "login_signal_contradiction": False,
+        },
+        {
+            "state": "LOGIN_READY", "classification": "PASS",
+            "deployed_source_sha": EXPECTED_SHA, "expected_source_sha": EXPECTED_SHA,
+            "password_ready": False, "login_marker_ready": True,
+            "login_heading_ready": True, "login_button_ready": True,
+            "dashboard_ready": False, "fatal_exception": False,
+            "sha_mismatch": False, "login_signal_contradiction": False,
+        },
+        {
+            "state": "LOGIN_READY", "classification": "PASS",
+            "deployed_source_sha": EXPECTED_SHA, "expected_source_sha": EXPECTED_SHA,
+            "password_ready": True, "login_marker_ready": True,
+            "login_heading_ready": True, "login_button_ready": True,
+            "dashboard_ready": False, "fatal_exception": False,
+            "sha_mismatch": False, "login_signal_contradiction": False,
+        },
+    ]
+
+    async def capture(_page, _expected_sha):
+        return sequence.pop(0)
+
+    class Page:
+        async def wait_for_timeout(self, _milliseconds):
+            return None
+
+    monkeypatch.setattr(qa, "_capture_deployed_readiness", capture)
+    result = asyncio.run(qa._deployed_readiness_gate(
+        Page(), expected_sha=EXPECTED_SHA, output_dir=tmp_path,
+    ))
+    assert result["state"] == "LOGIN_READY"
+    assert result["stable_checks"] == 2
+    assert [item["state"] for item in result["observations"]] == [
+        "SETTLING", "LOGIN_READY", "LOGIN_READY",
+    ]
+
+
+def test_stable_authenticated_dashboard_passes(monkeypatch, tmp_path):
+    async def capture(_page, _expected_sha):
+        return {
+            "state": "APP_READY", "classification": "PASS",
+            "deployed_source_sha": EXPECTED_SHA, "expected_source_sha": EXPECTED_SHA,
+            "password_ready": False, "dashboard_ready": True,
+            "fatal_exception": False, "sha_mismatch": False,
+        }
+
+    class Page:
+        async def wait_for_timeout(self, _milliseconds):
+            return None
+
+    monkeypatch.setattr(qa, "_capture_deployed_readiness", capture)
+    result = asyncio.run(qa._deployed_readiness_gate(
+        Page(), expected_sha=EXPECTED_SHA, output_dir=tmp_path,
+    ))
+    assert result["state"] == "APP_READY"
+    assert result["stable_checks"] == 2
+
+
+def test_timeout_distinguishes_qa_contradiction_update_and_unavailable():
+    contradiction = qa._timeout_readiness_result({
+        "state": "SETTLING", "deployed_source_sha": EXPECTED_SHA,
+        "login_signal_contradiction": True,
+    })
+    assert (contradiction["state"], contradiction["classification"]) == ("SETTLING", "QA_DEFECT")
+
+    updating = qa._timeout_readiness_result({
+        "state": "DEPLOYMENT_UPDATING", "deployed_source_sha": "UNKNOWN",
+    })
+    assert updating["classification"] == "DEPLOYMENT_NOT_READY"
+
+    unavailable = qa._timeout_readiness_result({
+        "state": "UNAVAILABLE", "deployed_source_sha": "UNKNOWN",
+    })
+    assert (unavailable["state"], unavailable["classification"]) == (
+        "UNAVAILABLE", "APP_AVAILABILITY_DEFECT",
+    )
 
 
 def test_fatal_exception_fails_before_stability_or_login_timeout(monkeypatch, tmp_path):
