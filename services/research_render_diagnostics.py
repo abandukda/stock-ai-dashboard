@@ -84,12 +84,18 @@ def sanitized_exception_location(
     """Return source identity only—never messages, arguments, locals, or traces."""
     filename, function, line = _deepest_atlas_frame(exc.__traceback__, Path(root))
     category = type(exc).__name__
-    identity = f"{category}|{filename}|{function}|{line}"
+    operation = (
+        "SESSION_STATE_UPDATE"
+        if category == "StreamlitAPIException" and function == "begin_research_entry"
+        else "RESEARCH_RENDER"
+    )
+    identity = f"{category}|{filename}|{function}|{line}|{operation}"
     return {
         "category": category,
         "filename": filename,
         "function": function,
         "line": line,
+        "operation": operation,
         "fingerprint": hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16],
         "stage": current_stage(),
         "ticker": str(ticker or current_attempt().get("ticker") or "").upper(),

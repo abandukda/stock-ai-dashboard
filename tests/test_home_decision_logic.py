@@ -79,7 +79,10 @@ def test_recommendation_tiers_are_distinct_and_evidence_based():
 
 def test_research_navigation_handoff_is_single_and_query_param_free():
     state = research_navigation_state(" msft ")
-    assert state["v73_research_ticker"] == "MSFT"
+    assert state["v79_pending_research_ticker"] == "MSFT"
+    assert state["active_research_ticker"] == "MSFT"
+    assert "typed_ticker" not in state
+    assert "v73_research_ticker" not in state
     assert state["v79_pending_page"] == "Research Any Ticker"
     assert state["v73_page"] == "Research Any Ticker"
     assert "v784_single_nav" not in state

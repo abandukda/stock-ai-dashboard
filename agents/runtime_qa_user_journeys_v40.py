@@ -254,6 +254,7 @@ async def _rendered_exception_identity(page: Page, *, ticker: str, stage: str) -
                     "filename": await node.get_attribute("data-atlas-exception-file") or "UNKNOWN",
                     "function": await node.get_attribute("data-atlas-exception-function") or "UNKNOWN",
                     "line": await node.get_attribute("data-atlas-exception-line") or "0",
+                    "operation": await node.get_attribute("data-atlas-exception-operation") or "RESEARCH_RENDER",
                     "fingerprint": await node.get_attribute("data-atlas-exception-fingerprint") or "",
                     "ticker": await node.get_attribute("data-atlas-ticker") or ticker,
                     "stage": await node.get_attribute("data-atlas-research-stage") or stage,

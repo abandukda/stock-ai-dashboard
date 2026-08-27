@@ -30,7 +30,11 @@ def test_exception_location_contains_only_sanitized_source_identity():
     assert result["stage"] == "analyst_intelligence:before"
     assert result["ticker"] == "NVDA"
     assert len(result["fingerprint"]) == 16
-    assert set(result) == {"category", "filename", "function", "line", "fingerprint", "stage", "ticker"}
+    assert set(result) == {
+        "category", "filename", "function", "line", "operation",
+        "fingerprint", "stage", "ticker",
+    }
+    assert result["operation"] == "RESEARCH_RENDER"
 
 
 def test_active_builder_has_required_before_after_stage_boundaries():
@@ -55,7 +59,7 @@ def test_active_app_render_boundary_emits_only_safe_location_metadata():
 
 def test_targeted_reader_prefers_safe_location_marker_without_changing_journey_flow():
     source = inspect.getsource(journeys._rendered_exception_identity)
-    for field in ("exception-file", "exception-function", "exception-line", "exception-fingerprint", "research-stage"):
+    for field in ("exception-file", "exception-function", "exception-line", "exception-operation", "exception-fingerprint", "research-stage"):
         assert field in source
     targeted = inspect.getsource(journeys.run_targeted_critical_journeys)
     assert "run_user_journeys" not in targeted

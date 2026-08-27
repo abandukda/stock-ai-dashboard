@@ -71,7 +71,8 @@ def test_home_cta_uses_canonical_research_navigation(monkeypatch, ticker):
 
 def test_direct_research_state_contract_propagates_active_ticker():
     state = research_navigation_state(" nvda ")
-    assert state["typed_ticker"] == "NVDA"
+    assert state["v79_pending_research_ticker"] == "NVDA"
+    assert "typed_ticker" not in state
     assert state["active_research_ticker"] == "NVDA"
     assert state["v79_pending_page"] == "Research Any Ticker"
 

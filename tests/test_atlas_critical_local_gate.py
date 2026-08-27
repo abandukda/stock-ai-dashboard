@@ -30,7 +30,10 @@ from engines.semantic_fields import (
     is_missing_scalar, number, safe_date_text, safe_mapping,
     safe_scalar_display, safe_sequence, semantic_identity,
 )
-from services.session_stability import consume_navigation_handoff, stabilize_authenticated_session
+from services.session_stability import (
+    consume_navigation_handoff, consume_research_ticker_handoff,
+    stabilize_authenticated_session,
+)
 from ui.research_report_v2 import _analyst_intelligence_html
 from ui import institutional_experience
 
@@ -180,7 +183,9 @@ def test_home_research_session_and_ask_round_trip():
     state.update(research_navigation_state("CRM"))
     selected, pending = consume_navigation_handoff(state, PAGES, widget_key="nav")
     assert pending and selected == "Research Any Ticker"
-    assert state["v73_research_ticker"] == state["selected_ticker"] == "CRM"
+    assert state["selected_ticker"] == "CRM"
+    ticker, ticker_pending = consume_research_ticker_handoff(state, widget_key="typed_ticker")
+    assert ticker_pending and ticker == state["typed_ticker"] == "CRM"
     assert stabilize_authenticated_session(state)
     state["v79_pending_page"] = "Ask AI"
     assert consume_navigation_handoff(state, PAGES, widget_key="nav")[0] == "Ask AI"
@@ -202,6 +207,10 @@ def _assert_research_entry(state, ticker, *, source, control):
     assert pending and selected == "Research Any Ticker"
     assert state["nav"] == state["v73_page"] == "Research Any Ticker"
     assert state["active_research_ticker"] == ticker
+    consumed, ticker_pending = consume_research_ticker_handoff(
+        state, widget_key="typed_ticker",
+    )
+    assert ticker_pending and consumed == ticker
     assert state["typed_ticker"] == ticker
     assert state["selected_research_ticker"] == ticker
     assert state["research_status"] == "loading"

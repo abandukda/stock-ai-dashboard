@@ -185,7 +185,7 @@ def test_diagnostic_payload_never_contains_exception_message():
     assert payload["source_sha"] == "a" * 40
     assert "credential-like" not in serialized
     assert set(payload) == {
-        "category", "filename", "function", "line", "fingerprint",
+        "category", "filename", "function", "line", "operation", "fingerprint",
         "stage", "ticker", "attempt_id", "source_sha",
     }
 

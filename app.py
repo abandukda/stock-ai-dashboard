@@ -27367,6 +27367,7 @@ def _emit_research_failure_marker(location):
         f'data-atlas-exception-file="{html.escape(str(location["filename"]))}" '
         f'data-atlas-exception-function="{html.escape(str(location["function"]))}" '
         f'data-atlas-exception-line="{int(location["line"])}" '
+        f'data-atlas-exception-operation="{html.escape(str(location.get("operation") or "RESEARCH_RENDER"))}" '
         f'data-atlas-exception-fingerprint="{html.escape(str(location["fingerprint"]))}" '
         f'data-atlas-research-stage="{html.escape(str(location["stage"]))}" '
         'aria-hidden="true" style="display:none">research-render-exception</span>',
@@ -27423,8 +27424,10 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
         'data-atlas-status="ready" aria-hidden="true" style="display:none">research-page-ready</span>',
         unsafe_allow_html=True,
     )
-    pending_ticker=str(st.session_state.get("v805_force_live_on_open","") or "").upper().strip()
-    st.session_state.setdefault("typed_ticker", pending_ticker or st.session_state.get("v73_research_ticker", ""))
+    from services.session_stability import consume_research_ticker_handoff
+    pending_ticker, _ticker_handoff = consume_research_ticker_handoff(
+        st.session_state, widget_key="typed_ticker",
+    )
     st.session_state.setdefault("active_research_ticker", pending_ticker)
     st.session_state.setdefault("research_status", "idle")
     st.session_state.setdefault("research_error", "")

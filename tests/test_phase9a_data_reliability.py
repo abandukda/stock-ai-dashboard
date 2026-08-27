@@ -79,9 +79,10 @@ def test_ask_atlas_exposes_ticker_section_and_grounding(monkeypatch):
 def test_navigation_contract_is_ticker_isolated_for_stock_and_etf():
     nvda = research_navigation_state("nvda")
     spy = research_navigation_state("spy")
-    for key in ("v73_research_ticker", "selected_ticker", "active_research_ticker"):
+    for key in ("v79_pending_research_ticker", "selected_ticker", "active_research_ticker"):
         assert nvda[key] == "NVDA"
         assert spy[key] == "SPY"
+    assert "typed_ticker" not in nvda and "v73_research_ticker" not in nvda
     assert nvda["v73_page"] == spy["v73_page"] == "Research Any Ticker"
 
 

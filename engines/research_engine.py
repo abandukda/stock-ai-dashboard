@@ -259,19 +259,23 @@ def recommendation_tier(row: Mapping[str, Any], confidence: Any = None, expected
 
 
 def research_navigation_state(ticker: Any) -> dict[str, str]:
-    """Return the single canonical session-state handoff for Research navigation."""
+    """Return application-owned state for the canonical Research handoff.
+
+    Widget keys such as ``typed_ticker`` and navigation-radio keys are
+    deliberately excluded.  Streamlit forbids changing a widget-owned key
+    after that widget is instantiated in the current run.
+    """
     symbol = str(ticker or "").strip().upper()
     if not symbol:
         return {}
     return {
-        "v73_research_ticker": symbol,
         "selected_ticker": symbol,
         "selected_research_ticker": symbol,
-        "typed_ticker": symbol,
         "active_research_ticker": symbol,
         "v805_force_live_on_open": symbol,
         "v73_page": "Research Any Ticker",
         "v79_pending_page": "Research Any Ticker",
+        "v79_pending_research_ticker": symbol,
     }
 
 
@@ -315,13 +319,18 @@ def begin_research_entry(
     handoff = research_navigation_state(symbol)
     if not pending_navigation:
         handoff.pop("v79_pending_page", None)
-    state.update(handoff)
-    state.update({
-        "research_request_generation": generation,
-        f"atlas_research_request_id_{symbol}": request_id,
-        "research_status": "loading",
-        "research_error": "",
-        "research_entry_source": str(source or "UNKNOWN")[:80],
-        "research_entry_interaction_id": str(interaction_id or "")[:160],
-    })
+        handoff.pop("v79_pending_research_ticker", None)
+        handoff.pop("v805_force_live_on_open", None)
+    # Explicit assignments keep this transition limited to application-owned
+    # state.  Do not replace these with ``state.update``: a Streamlit
+    # SessionStateProxy implements bulk update through repeated __setitem__
+    # calls and raises when a mapping includes an instantiated widget key.
+    for key, value in handoff.items():
+        state[key] = value
+    state["research_request_generation"] = generation
+    state[f"atlas_research_request_id_{symbol}"] = request_id
+    state["research_status"] = "loading"
+    state["research_error"] = ""
+    state["research_entry_source"] = str(source or "UNKNOWN")[:80]
+    state["research_entry_interaction_id"] = str(interaction_id or "")[:160]
     return {"ticker": symbol, "request_id": request_id, **handoff}

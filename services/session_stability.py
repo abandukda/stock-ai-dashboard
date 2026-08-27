@@ -31,4 +31,31 @@ def consume_navigation_handoff(
     return str(current), bool(pending)
 
 
-__all__ = ["consume_navigation_handoff", "stabilize_authenticated_session"]
+def consume_research_ticker_handoff(
+    state: MutableMapping[str, Any], *, widget_key: str,
+) -> tuple[str, bool]:
+    """Initialize a Research ticker widget before the widget is created.
+
+    Home-card transitions write only ``v79_pending_research_ticker`` and
+    canonical application state.  The destination page consumes that value
+    before calling ``st.text_input``.  Direct form submissions do not rewrite
+    the already-instantiated input key.
+    """
+    pending = str(state.pop("v79_pending_research_ticker", "") or "").upper().strip()
+    current = str(
+        pending
+        or state.get("active_research_ticker")
+        or state.get("selected_research_ticker")
+        or ""
+    ).upper().strip()
+    if pending:
+        state[widget_key] = pending
+    elif widget_key not in state:
+        state[widget_key] = current
+    return current, bool(pending)
+
+
+__all__ = [
+    "consume_navigation_handoff", "consume_research_ticker_handoff",
+    "stabilize_authenticated_session",
+]
