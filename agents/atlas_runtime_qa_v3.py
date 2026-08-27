@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 from datetime import datetime, timezone
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -47,7 +48,23 @@ DEFAULT_URL = "https://stock-ai-dashboard.streamlit.app"
 PAGE_TIMEOUT_MS = 35_000
 ACTION_TIMEOUT_MS = 6_000
 LOGIN_TIMEOUT_SECONDS = 240
+DEPLOYED_READINESS_TIMEOUT_SECONDS = 60
+DEPLOYED_READINESS_STABILITY_SECONDS = 2
 TOTAL_TIMEOUT_SECONDS = 1_500
+
+DEPLOYED_HEALTH_STATES = {
+    "APP_READY", "LOGIN_READY", "DEPLOYMENT_UPDATING",
+    "BOOTSTRAP_EXCEPTION", "UNAVAILABLE",
+}
+
+
+class DeploymentReadinessError(RuntimeError):
+    """Sanitized pre-authentication deployment failure."""
+
+    def __init__(self, classification: str, diagnostics: dict[str, Any]):
+        super().__init__(classification)
+        self.classification = classification
+        self.diagnostics = diagnostics
 
 KNOWN_NAV_LABELS = (
     "Home",
@@ -312,7 +329,161 @@ async def _submit_login(
     await password_target.press("Enter")
 
 
-async def _authenticate_and_confirm(page: Page, output_dir: Path) -> dict[str, Any]:
+def classify_deployed_health(
+    *,
+    marker_sha: str,
+    expected_sha: str,
+    password_ready: bool,
+    dashboard_ready: bool,
+    fatal_exception: bool,
+    updating: bool,
+    unavailable: bool,
+) -> tuple[str, str]:
+    """Classify pre-authentication state without using provider/customer data."""
+    if fatal_exception:
+        return "BOOTSTRAP_EXCEPTION", "DEPLOYMENT_DEFECT"
+    if unavailable:
+        return "UNAVAILABLE", "APP_AVAILABILITY_DEFECT"
+    if marker_sha and expected_sha and marker_sha != expected_sha:
+        return "DEPLOYMENT_UPDATING", "DEPLOYMENT_NOT_READY"
+    if marker_sha == expected_sha:
+        if dashboard_ready:
+            return "APP_READY", "PASS"
+        if password_ready:
+            return "LOGIN_READY", "PASS"
+    if updating or not marker_sha:
+        return "DEPLOYMENT_UPDATING", "DEPLOYMENT_NOT_READY"
+    return "UNAVAILABLE", "APP_AVAILABILITY_DEFECT"
+
+
+def _sanitized_bootstrap_location(visible: str) -> dict[str, Any]:
+    """Extract only exception class and ATLAS source location from redacted UI text."""
+    category_match = re.search(r"\b([A-Za-z_][A-Za-z0-9_]*(?:Error|Exception))\s*:", visible)
+    frame_matches = list(re.finditer(
+        r'File\s+["\'](?:/mount/src/[^/]+/)?([^"\']+\.py)["\'],\s*line\s*(\d+)(?:,\s*in\s*([A-Za-z_][A-Za-z0-9_]*))?',
+        visible,
+    ))
+    category = category_match.group(1) if category_match else "STREAMLIT_BOOTSTRAP_EXCEPTION"
+    filename, line, function = "UNKNOWN", 0, "UNKNOWN"
+    if frame_matches:
+        frame = frame_matches[-1]
+        filename = frame.group(1).lstrip("/")
+        line = int(frame.group(2))
+        function = frame.group(3) or "<module>"
+    identity = f"{category}|{filename}|{function}|{line}"
+    return {
+        "exception_class": category,
+        "filename": filename,
+        "function": function,
+        "line": line,
+        "location_fingerprint": hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16],
+    }
+
+
+async def _deployment_marker_sha(page: Page) -> str:
+    for scope in _all_scopes(page):
+        marker = scope.locator('[data-atlas-qa="deployment-readiness"]')
+        if await _safe_count(marker):
+            return str(await marker.first.get_attribute("data-atlas-source-sha") or "").lower()
+    return ""
+
+
+async def _rendered_streamlit_exception(page: Page) -> bool:
+    for scope in _all_scopes(page):
+        if await _safe_count(scope.locator('[data-testid="stException"]')):
+            return True
+    return bool(re.search(
+        r"this app has encountered an error|\b(?:ImportError|ModuleNotFoundError)\s*:",
+        await _combined_visible_text(page), re.I,
+    ))
+
+
+async def _capture_deployed_readiness(page: Page, expected_sha: str) -> dict[str, Any]:
+    visible = await _combined_visible_text(page)
+    marker_sha = await _deployment_marker_sha(page)
+    password_ready = await _find_password_target(page) is not None
+    dashboard_ready = bool(await _known_navigation_visible(page))
+    fatal_exception = await _rendered_streamlit_exception(page)
+    updating = bool(re.search(
+        r"app is (?:sleeping|waking)|waking up|relaunch to update|please wait|loading",
+        visible, re.I,
+    ))
+    unavailable = bool(re.search(
+        r"connection error|unable to connect|site can.t be reached|application is unavailable",
+        visible, re.I,
+    ))
+    state, classification = classify_deployed_health(
+        marker_sha=marker_sha, expected_sha=expected_sha,
+        password_ready=password_ready, dashboard_ready=dashboard_ready,
+        fatal_exception=fatal_exception, updating=updating, unavailable=unavailable,
+    )
+    result: dict[str, Any] = {
+        "state": state,
+        "classification": classification,
+        "expected_source_sha": expected_sha,
+        "deployed_source_sha": marker_sha or "UNKNOWN",
+        "password_ready": password_ready,
+        "dashboard_ready": dashboard_ready,
+        "fatal_exception": fatal_exception,
+    }
+    if fatal_exception:
+        result["exception"] = _sanitized_bootstrap_location(visible)
+    return result
+
+
+async def _deployed_readiness_gate(
+    page: Page,
+    *,
+    expected_sha: str,
+    output_dir: Path,
+) -> dict[str, Any]:
+    """Require two stable ready observations before authentication starts."""
+    started = time.monotonic()
+    prior_identity: tuple[str, str] | None = None
+    stable_checks = 0
+    latest: dict[str, Any] = {}
+    while time.monotonic() - started < DEPLOYED_READINESS_TIMEOUT_SECONDS:
+        latest = await _capture_deployed_readiness(page, expected_sha)
+        latest["elapsed_seconds"] = round(time.monotonic() - started, 3)
+        latest["stable_checks"] = stable_checks
+        (output_dir / "deployed_readiness.json").write_text(
+            json.dumps(latest, indent=2), encoding="utf-8",
+        )
+        if latest["classification"] in {"DEPLOYMENT_DEFECT", "APP_AVAILABILITY_DEFECT"}:
+            try:
+                await page.screenshot(path=str(output_dir / "deployment_readiness_failure.png"), full_page=False)
+            except Exception:
+                pass
+            raise DeploymentReadinessError(latest["classification"], latest)
+        if latest["classification"] == "DEPLOYMENT_NOT_READY" and latest["deployed_source_sha"] != "UNKNOWN":
+            raise DeploymentReadinessError("DEPLOYMENT_NOT_READY", latest)
+        if latest["classification"] == "PASS":
+            identity = (latest["state"], latest["deployed_source_sha"])
+            stable_checks = stable_checks + 1 if identity == prior_identity else 1
+            prior_identity = identity
+            latest["stable_checks"] = stable_checks
+            if stable_checks >= 2:
+                latest["status"] = "PASS"
+                (output_dir / "deployed_readiness.json").write_text(
+                    json.dumps(latest, indent=2), encoding="utf-8",
+                )
+                return latest
+            await page.wait_for_timeout(DEPLOYED_READINESS_STABILITY_SECONDS * 1000)
+            continue
+        stable_checks = 0
+        prior_identity = None
+        await page.wait_for_timeout(750)
+    latest["classification"] = "DEPLOYMENT_NOT_READY"
+    latest["status"] = "FAIL"
+    (output_dir / "deployed_readiness.json").write_text(
+        json.dumps(latest, indent=2), encoding="utf-8",
+    )
+    raise DeploymentReadinessError("DEPLOYMENT_NOT_READY", latest)
+
+
+async def _authenticate_and_confirm(
+    page: Page, output_dir: Path, *, expected_sha: str,
+) -> dict[str, Any]:
     password = (
         os.getenv("ATLAS_AUDIT_PASSWORD")
         or os.getenv("GUEST_PASSWORD")
@@ -339,6 +510,21 @@ async def _authenticate_and_confirm(page: Page, output_dir: Path) -> dict[str, A
         if diagnostics["poll_count"] == 1 or diagnostics["poll_count"] % 14 == 0:
             print(f"[login] Waiting for login/dashboard ({elapsed}s elapsed)...", flush=True)
         diagnostics["frames_seen"] = [frame.url for frame in page.frames]
+
+        if await _rendered_streamlit_exception(page):
+            readiness = await _capture_deployed_readiness(page, expected_sha)
+            diagnostics["deployment_readiness"] = readiness
+            (output_dir / "login_diagnostics.json").write_text(
+                json.dumps(diagnostics, indent=2), encoding="utf-8",
+            )
+            try:
+                await page.screenshot(
+                    path=str(output_dir / "login_failure.png"), full_page=False,
+                    timeout=5000,
+                )
+            except Exception:
+                pass
+            raise DeploymentReadinessError("DEPLOYMENT_DEFECT", readiness)
 
         nav = await _known_navigation_visible(page)
         if nav:
@@ -411,12 +597,21 @@ async def _open_and_authenticate(
     page: Page,
     url: str,
     output_dir: Path,
+    *,
+    expected_sha: str,
 ) -> dict[str, Any]:
     print(f"[open] Opening {url}", flush=True)
     await page.goto(url, wait_until="domcontentloaded", timeout=PAGE_TIMEOUT_MS)
     await _wait_for_streamlit_shell(page)
     await _wake_if_needed(page)
-    return await _authenticate_and_confirm(page, output_dir)
+    readiness = await _deployed_readiness_gate(
+        page, expected_sha=expected_sha, output_dir=output_dir,
+    )
+    authentication = await _authenticate_and_confirm(
+        page, output_dir, expected_sha=expected_sha,
+    )
+    authentication["deployment_readiness"] = readiness
+    return authentication
 
 
 async def _discover_navigation(page: Page, expected_pages: Iterable[str]) -> list[str]:
@@ -977,7 +1172,9 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
 
         try:
             authentication = await asyncio.wait_for(
-                _open_and_authenticate(page, url, output_dir),
+                _open_and_authenticate(
+                    page, url, output_dir, expected_sha=versions["source_commit"],
+                ),
                 timeout=300,
             )
             pages = await _discover_navigation(
@@ -1119,10 +1316,15 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
                     architecture_severity="P1",
                 ).to_dict())
         except Exception as exc:
-            failure_trace = traceback.format_exc()
-            (output_dir / "initialization_error.txt").write_text(
-                failure_trace,
-                encoding="utf-8",
+            readiness_failure = isinstance(exc, DeploymentReadinessError)
+            failure_trace = "" if readiness_failure else traceback.format_exc()
+            if failure_trace:
+                (output_dir / "initialization_error.txt").write_text(
+                    failure_trace,
+                    encoding="utf-8",
+                )
+            classification = (
+                exc.classification if readiness_failure else "QA_DEFECT"
             )
             issues.append(QAIssue(
                 severity="CRITICAL",
@@ -1130,13 +1332,15 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
                 page="Application",
                 element="Authentication and navigation",
                 expected="The authenticated dashboard is reached and at least three pages are discovered.",
-                actual=f"{type(exc).__name__}: {exc}",
+                actual=classification if readiness_failure else type(exc).__name__,
                 recommendation=(
                     "Inspect initialization_error.txt and login_diagnostics.json. "
                     "Verify ATLAS_AUDIT_PASSWORD only if the trace reaches login handling."
                 ),
                 likely_files=["agents/atlas_runtime_qa_v3.py"],
-                evidence={"traceback": failure_trace[-8000:]},
+                evidence=(exc.diagnostics if readiness_failure else {"exception_class": type(exc).__name__}),
+                classification=classification,
+                architecture_severity="P0" if classification == "DEPLOYMENT_DEFECT" else "P1",
             ).to_dict())
         finally:
             await context.close()
@@ -1405,16 +1609,25 @@ async def run_targeted_preflight_v3(*, url: str, output_dir: Path) -> dict[str, 
         page = await context.new_page()
         page.set_default_timeout(ACTION_TIMEOUT_MS)
         try:
-            authentication = await asyncio.wait_for(_open_and_authenticate(page, url, output_dir), timeout=300)
+            authentication = await asyncio.wait_for(
+                _open_and_authenticate(
+                    page, url, output_dir, expected_sha=versions["source_commit"],
+                ),
+                timeout=300,
+            )
             authenticated = bool(authentication.get("authenticated_dashboard_detected"))
             if not authenticated:
                 base["status"] = "QA_INFRASTRUCTURE_BLOCKER"
             else:
                 base["authentication_success"] = True
+                base["deployed_readiness"] = authentication.get("deployment_readiness") or {}
                 base.update(await run_targeted_critical_journeys(page, output_dir=output_dir))
                 base["source_sha"] = versions["source_commit"]
                 base["architecture_preflight"] = architecture.get("status")
                 base["authentication_success"] = True
+        except DeploymentReadinessError as exc:
+            base["status"] = exc.classification
+            base["deployed_readiness"] = exc.diagnostics
         except Exception:
             # The artifact intentionally records no credential, raw exception,
             # URL, payload, or stack trace.

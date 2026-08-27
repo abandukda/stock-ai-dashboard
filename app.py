@@ -5,6 +5,7 @@ import math
 import datetime as dt
 import json
 import hashlib
+import subprocess
 import time
 import csv
 import html
@@ -25,12 +26,6 @@ from utils.data_integrity import (
     to_number as v952_to_number,
 )
 from services.http_client import robust_get as v952_robust_get
-from services.research_render_diagnostics import (
-    begin_attempt as begin_research_render_attempt,
-    checkpoint as research_render_checkpoint,
-    deployment_source_sha,
-    sanitized_failure_envelope,
-)
 import yfinance as yf
 import plotly.graph_objects as go
 
@@ -77,6 +72,40 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+
+def _bootstrap_source_sha():
+    """Resolve only the revision identity needed by pre-auth deployment QA."""
+    for name in ("ATLAS_SOURCE_SHA", "GITHUB_SHA", "COMMIT_SHA", "RENDER_GIT_COMMIT"):
+        value = str(os.getenv(name) or "").strip().lower()
+        if len(value) == 40 and all(character in "0123456789abcdef" for character in value):
+            return value
+    try:
+        value = subprocess.run(
+            ["git", "rev-parse", "HEAD"], check=True, capture_output=True,
+            text=True, timeout=2,
+        ).stdout.strip().lower()
+    except Exception:
+        return "UNKNOWN"
+    return value if len(value) == 40 and all(character in "0123456789abcdef" for character in value) else "UNKNOWN"
+
+
+BOOTSTRAP_SOURCE_SHA = _bootstrap_source_sha()
+st.markdown(
+    '<span id="atlas-deployment-readiness" data-atlas-qa="deployment-readiness" '
+    'data-atlas-health="APP_READY" '
+    f'data-atlas-source-sha="{html.escape(BOOTSTRAP_SOURCE_SHA)}" '
+    'aria-hidden="true" style="display:none">atlas-deployment-ready</span>',
+    unsafe_allow_html=True,
+)
+
+from services.research_render_diagnostics import (  # noqa: E402
+    begin_attempt as begin_research_render_attempt,
+    checkpoint as research_render_checkpoint,
+    deployment_source_sha,
+    sanitized_failure_envelope,
+)
+
 inject_css()
 DATA_DIR = Path(os.getenv("DATA_DIR", "."))
 FMP_API_KEY = os.getenv("FMP_API_KEY", "").strip()
