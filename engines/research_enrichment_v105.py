@@ -5,7 +5,10 @@ from typing import Any, Mapping
 import math
 import re
 
-from engines.semantic_fields import safe_date_text, safe_mapping, safe_scalar_display, safe_sequence
+from engines.semantic_fields import (
+    is_missing_scalar, safe_date_text, safe_mapping, safe_scalar_display,
+    safe_sequence,
+)
 
 @dataclass(frozen=True)
 class ResearchSection:
@@ -43,6 +46,9 @@ def _seq(v):
     return safe_sequence(v)
 
 def _sources(row):
+    row = _map(row)
+    if not row:
+        return []
     return [x for x in (
         row, _map(row.get("raw")), _map(row.get("Raw")),
         _map(row.get("financials")), _map(row.get("analysts")),
@@ -54,7 +60,7 @@ def _sources(row):
 def _first(src, *keys):
     for source in src:
         for key in keys:
-            if key in source and source.get(key) not in (None, ""):
+            if key in source and not is_missing_scalar(source.get(key)):
                 return source.get(key)
     return None
 
@@ -105,7 +111,7 @@ def build_analyst_section(row):
         "recent_rating_change": _text(_first(s,"recent_rating_change","Latest Upgrade/Downgrade")),
         "actions": normalize_analyst_actions(_first(s,"analyst_actions","analyst_ratings","ratings_actions","upgrades_downgrades")),
     }
-    data = {k:v for k,v in data.items() if v not in (None,"")}
+    data = {k:v for k,v in data.items() if not is_missing_scalar(v)}
     if data.get("high_target") is not None:
         data["highest_published_target"] = data["high_target"]
         data["label_note"] = "No analyst-performance ranking was supplied; aggregate high/low targets are not attributed to an individual."
@@ -137,7 +143,7 @@ def normalize_analyst_actions(value):
             "target_change": round(change, 2) if change is not None else None,
             "target_change_pct": round(change_pct, 1) if change_pct is not None else None,
         })
-    return sorted(actions, key=lambda item: item["date"], reverse=True)
+    return sorted(actions, key=lambda item: safe_date_text(item.get("date")) or "", reverse=True)
 
 
 def _entity_tokens(row):
@@ -256,7 +262,7 @@ def build_political_section(row):
         "transactions": normalized[:20],
         "policy_evidence": verified,
     }
-    data = {k:v for k,v in data.items() if v not in (None,"",[])}
+    data = {k:v for k,v in data.items() if not is_missing_scalar(v)}
     section = _section(data, _text(_first(s,"political_source","source"),"Current Atlas political payload"))
     evidence_backed = bool(normalized or verified or any(data.get(key) for key in (
         "government_contract_exposure", "regulatory_exposure",
@@ -285,7 +291,7 @@ def build_earnings_section(row):
         "transcript_summary": _text(_first(s,"transcript_summary","Latest Earnings Summary")) if has_guidance_evidence else "",
         "important_quote": _text(_first(s,"important_quote","Most Important Quote")),
     }
-    data = {k:v for k,v in data.items() if v not in (None,"")}
+    data = {k:v for k,v in data.items() if not is_missing_scalar(v)}
     return _section(data, _text(_first(s,"earnings_source","source"),"Current Atlas earnings payload"))
 
 def build_ownership_section(row):
@@ -302,7 +308,7 @@ def build_ownership_section(row):
         "insider_buy_count": _num(_first(s,"insider_buy_count")),
         "insider_sell_count": _num(_first(s,"insider_sell_count")),
     }
-    data = {k:v for k,v in data.items() if v not in (None,"",[])}
+    data = {k:v for k,v in data.items() if not is_missing_scalar(v)}
     return _section(data, _text(_first(s,"ownership_source","source"),"Current Atlas ownership payload"))
 
 def build_technical_section(row):
@@ -320,7 +326,7 @@ def build_technical_section(row):
         "volume_confirmation": _text(_first(s,"volume_confirmation","Volume Confirmation")),
         "trend": _text(_first(s,"technical_trend","Trend")),
     }
-    data = {k:v for k,v in data.items() if v not in (None,"")}
+    data = {k:v for k,v in data.items() if not is_missing_scalar(v)}
     return _section(data, _text(_first(s,"technical_source","source"),"Current Atlas technical payload"))
 
 def build_enriched_research_report(row):

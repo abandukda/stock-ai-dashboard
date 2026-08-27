@@ -16,6 +16,7 @@ from copy import deepcopy
 import pytest
 
 from engines.ask_atlas_engine import ask_atlas
+from engines.analyst_intelligence import build_analyst_intelligence
 from engines.atlas_research_builder_v2 import build_atlas_research_v2
 from engines.political_evidence import normalize_political_transaction
 from engines.research_context import CORPORATE_ONLY_FAMILIES, build_research_context
@@ -87,11 +88,18 @@ def test_local_gate_contract_precedes_targeted_deployed_qa():
     assert "must not be recommended" in (__doc__ or "")
 
 
-def test_nvda_crm_and_missing_production_research_complete():
-    for ticker in ("NVDA", "CRM", "MSFT"):
+def test_nvda_edu_crm_and_missing_production_research_complete():
+    for ticker in ("NVDA", "EDU", "CRM", "MSFT"):
         report = build_atlas_research_v2(equity(ticker))
         assert report["ticker"] == ticker
         assert report["analyst_intelligence"]["recent_actions"]
+        assert set(report["sections"]) >= {
+            "financials", "analysts", "earnings", "risk", "news",
+            "ownership", "political", "technical",
+        }
+        assert isinstance(report["valuation_families"], dict)
+        assert isinstance(report["earnings_intelligence"], dict)
+        assert isinstance(report["policy_intelligence"], dict)
     missing = build_research_context("MSFT", production_row=None)
     assert missing["production_decision"]["semantic_status"] == "DATA_UNAVAILABLE"
     assert set(missing["production_decision"]) == {"semantic_status"}
@@ -112,9 +120,12 @@ def test_spy_etf_and_invalid_ticker_boundaries():
 
 
 @pytest.mark.parametrize("family", (
-    "analyst_actions", "analyst_estimates", "earnings_history", "ratios",
-    "company_news", "institutional_holders", "press_releases",
-    "management_guidance", "transcript_intelligence", "market_context_inputs",
+    "profile", "financials", "ratios", "earnings_history",
+    "analyst_estimates", "analyst_recommendation_counts", "analyst_consensus",
+    "analyst_targets", "analyst_actions", "valuation_families", "technical",
+    "institutional_holders", "ownership", "company_news", "press_releases",
+    "political", "management_guidance", "transcript_intelligence",
+    "market_context_inputs",
 ))
 @pytest.mark.parametrize("value", STRUCTURAL_VALUES)
 def test_complete_research_builder_structural_fuzz(family, value):
@@ -148,6 +159,14 @@ def test_deployed_analyst_container_sentinel_regression():
     })
     assert "malformed-provider-shape" not in html
     assert "provider-shape" not in html
+
+
+@pytest.mark.parametrize("row", STRUCTURAL_VALUES)
+def test_deployed_analyst_source_traversal_accepts_only_mappings(row):
+    """Run #58 failed at analyst_intelligence._first source traversal."""
+    result = build_analyst_intelligence(row)
+    assert result["wall_street_mean_target"] is None
+    assert result["recent_actions"] == []
 
 
 def test_home_research_session_and_ask_round_trip():

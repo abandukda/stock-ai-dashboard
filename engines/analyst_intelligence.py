@@ -13,8 +13,8 @@ from collections.abc import Iterable, Mapping
 from typing import Any
 
 from engines.semantic_fields import (
-    canonical_atlas_fair_value, first_present, is_missing_scalar, number,
-    safe_scalar_display,
+    canonical_atlas_fair_value, is_missing_scalar, number, safe_mapping,
+    safe_scalar_display, safe_sequence, semantic_identity,
 )
 
 
@@ -37,16 +37,19 @@ _FIRM_NAMES = {
 }
 
 
-def _sources(row: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
-    values = [row]
+def _sources(row: Mapping[str, Any] | Any) -> tuple[Mapping[str, Any], ...]:
+    root = safe_mapping(row)
+    if not root:
+        return ()
+    values = [root]
     for key in ("analyst_recommendation_counts", "raw", "Raw"):
-        value = row.get(key)
+        value = root.get(key)
         if isinstance(value, Mapping):
             values.append(value)
     return tuple(values)
 
 
-def _first(row: Mapping[str, Any], *keys: str) -> Any:
+def _first(row: Mapping[str, Any] | Any, *keys: str) -> Any:
     for source in _sources(row):
         for key in keys:
             if key not in source:
@@ -56,8 +59,8 @@ def _first(row: Mapping[str, Any], *keys: str) -> Any:
             # canonical firm-action list).  Set membership is only safe for
             # scalar values; attempting it with a list raised the post-context
             # Research render TypeError seen by Runtime QA.
-            if isinstance(value, (Mapping, list, tuple, set)):
-                if value:
+            if isinstance(value, (Mapping, list, tuple, set, frozenset)):
+                if len(value) > 0:
                     return value
                 continue
             if not is_missing_scalar(value):
@@ -139,10 +142,10 @@ def normalize_analyst_actions(actions: Iterable[Mapping[str, Any]] | None, curre
         rating_action = _text(source.get("rating_action") or source.get("Action") or source.get("action") or source.get("gradingAction"))
         target_action = _text(source.get("target_action") or source.get("priceTargetAction"))
         analyst_name = _text(source.get("analyst_name") or source.get("analyst"))
-        key = (
+        key = semantic_identity((
             date_value.isoformat(), firm.lower(), current_rating, previous_rating,
             current_target, previous_target, rating_action, target_action,
-        )
+        ))
         if key in seen:
             continue
         seen.add(key)
@@ -176,9 +179,10 @@ def normalize_analyst_actions(actions: Iterable[Mapping[str, Any]] | None, curre
 
 
 def recent_meaningful_actions(actions: Iterable[Mapping[str, Any]], limit: int = 5) -> list[dict[str, Any]]:
-    values = list(actions)
-    meaningful = [item for item in values if item.get("primary_action") not in {"TARGET MAINTAINED", "REITERATED", "OTHER"}]
-    neutral = [item for item in values if item not in meaningful]
+    values = [item for item in safe_sequence(actions) if isinstance(item, Mapping)]
+    meaningful = [item for item in values if _text(item.get("primary_action")) not in {"TARGET MAINTAINED", "REITERATED", "OTHER"}]
+    meaningful_ids = {semantic_identity(item) for item in meaningful}
+    neutral = [item for item in values if semantic_identity(item) not in meaningful_ids]
     # Keep chronology inside each class while preventing a page of reiterations
     # from hiding recent directional evidence.
     selected = (meaningful + neutral)[: max(0, limit)]
@@ -239,7 +243,8 @@ def _relationship(atlas_upside: float | None, street_upside: float | None, atlas
     return "WALL STREET MORE CONSTRUCTIVE", f"Wall Street implied upside is {street_upside:+.1f}% versus Atlas-FV implied upside at {atlas_upside:+.1f}%."
 
 
-def build_analyst_intelligence(row: Mapping[str, Any], *, actions: Iterable[Mapping[str, Any]] | None = None, now: datetime | None = None) -> dict[str, Any]:
+def build_analyst_intelligence(row: Mapping[str, Any] | Any, *, actions: Iterable[Mapping[str, Any]] | None = None, now: datetime | None = None) -> dict[str, Any]:
+    row = safe_mapping(row)
     current_price = number(_first(row, "current_price", "price", "Price", "Current Price"))
     mean = number(_first(row, "analyst_target_mean", "Analyst Target", "targetMeanPrice"))
     # Mean is deliberately never a median fallback.

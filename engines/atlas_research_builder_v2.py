@@ -27,6 +27,7 @@ from engines.semantic_fields import (
     TEMPORARILY_UNAVAILABLE, ai_valuation_object, atlas_valuation_status,
     canonical_atlas_fair_value, evidence_state, safe_date_text, safe_mapping,
     safe_scalar_display, safe_sequence, semantic_identity, valuation_families,
+    is_missing_scalar,
 )
 from engines.ai_valuation import attach_valuation_comparison, build_ai_valuation
 from engines.trade_plan_v1052 import build_trade_plan
@@ -71,7 +72,10 @@ def _sequence(value: Any) -> list[Any]:
     return safe_sequence(value)
 
 
-def _sources(row: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+def _sources(row: Mapping[str, Any] | Any) -> list[Mapping[str, Any]]:
+    row = _mapping(row)
+    if not row:
+        return []
     values = [
         row,
         _mapping(row.get("raw")),
@@ -91,22 +95,22 @@ def _first(row: Mapping[str, Any], *keys: str) -> Any:
         for key in keys:
             if key in source:
                 value = source.get(key)
-                if value not in (None, ""):
+                if not is_missing_scalar(value):
                     return value
     return None
 
 
 def _section_status(data: Any, required: Sequence[str] = ()) -> dict[str, Any]:
     if isinstance(data, Mapping):
-        populated = sum(data.get(key) not in (None, "", [], {}) for key in required)
+        populated = sum(not is_missing_scalar(data.get(key)) for key in required)
         completeness = round(populated / len(required) * 100, 1) if required else (100.0 if data else 0.0)
-        has_evidence = any(value not in (None, "", [], {}) for value in data.values())
+        has_evidence = any(not is_missing_scalar(value) for value in data.values())
     elif isinstance(data, list):
         completeness = 100.0 if data else 0.0
         has_evidence = bool(data)
     else:
-        completeness = 100.0 if data not in (None, "") else 0.0
-        has_evidence = data not in (None, "")
+        completeness = 100.0 if not is_missing_scalar(data) else 0.0
+        has_evidence = not is_missing_scalar(data)
 
     status = "available" if completeness >= 70 else "partial" if completeness > 0 else "unavailable"
     return {
@@ -149,11 +153,11 @@ def _evidence_registry(
         published=_num(validated_fair_value) is not None,
     )
     guidance_status = evidence_state(any(
-        earnings_data.get(key) not in (None, "", [], {})
+        not is_missing_scalar(earnings_data.get(key))
         for key in ("guidance", "management_tone", "transcript_summary")
     ), applicable=not is_etf)
     insider_status = evidence_state(any(
-        ownership_data.get(key) not in (None, "", [], {})
+        not is_missing_scalar(ownership_data.get(key))
         for key in ("insider_transactions", "insider_buy_count", "insider_sell_count", "insider_support_score")
     ), applicable=not is_etf)
     return {
@@ -241,7 +245,7 @@ def _earnings_history(row: Mapping[str, Any]) -> list[dict[str, Any]]:
     )
     def item_first(item: Mapping[str, Any], *keys: str) -> Any:
         for key in keys:
-            if key in item and item.get(key) not in (None, ""):
+            if key in item and not is_missing_scalar(item.get(key)):
                 return item.get(key)
         return None
 
@@ -268,11 +272,11 @@ def _earnings_history(row: Mapping[str, Any]) -> list[dict[str, Any]]:
     unique = {}
     for item in output:
         key = semantic_identity((item.get("fiscal_period"), item.get("report_date")))
-        if not any(key):
+        if not any(part is not None and part != "" for part in key):
             key = item.get("period") or repr(item)
         unique.setdefault(key, item)
     return sorted(
-        unique.values(), key=lambda item: item.get("report_date") or item.get("period") or "", reverse=True
+        unique.values(), key=lambda item: safe_date_text(item.get("report_date")) or _text(item.get("period")), reverse=True
     )[:8]
 
 

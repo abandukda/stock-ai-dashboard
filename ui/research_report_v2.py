@@ -14,7 +14,10 @@ import streamlit as st
 
 from engines.atlas_research_builder_v2 import build_atlas_research_v2
 from engines.ask_atlas_engine import ask_atlas
-from engines.semantic_fields import is_missing_scalar, number, safe_mapping, safe_scalar_display, safe_sequence
+from engines.semantic_fields import (
+    is_missing_scalar, number, safe_date_text, safe_mapping,
+    safe_scalar_display, safe_sequence,
+)
 from services.research_render_diagnostics import checkpoint
 from services.policy_data import enrich_policy_for_research
 from services.ai_valuation_synthesis import get_ai_valuation_for_research
@@ -102,7 +105,7 @@ def _score(value: Any) -> str:
 
 def _customer_evidence_source(value: Any) -> str:
     """Translate internal feed provenance into a paid-client evidence label."""
-    text = str(value or "").strip()
+    text = safe_scalar_display(value)
     lowered = text.lower()
     if "analyst" in lowered or "consensus" in lowered:
         return "Wall Street consensus evidence"
@@ -117,7 +120,7 @@ def _customer_evidence_source(value: Any) -> str:
 
 def _clean_prose(value: Any) -> str:
     """Normalize generated prose so Markdown cannot create accidental code pills."""
-    text = str(value or "").replace("`", "")
+    text = safe_scalar_display(value).replace("`", "")
     text = text.replace("\u00a0", " ")
     text = re.sub(r"[ \t]+", " ", text)
     text = re.sub(r"\s*\n\s*", " ", text)
@@ -420,6 +423,7 @@ def _divergence_disclosure(report: Mapping[str, Any]) -> str | None:
 
 
 def _render_analyst_intelligence(intelligence: Mapping[str, Any]) -> None:
+    intelligence = safe_mapping(intelligence)
     st.markdown("## Wall Street Analyst Intelligence")
     st.markdown(_analyst_intelligence_html(intelligence), unsafe_allow_html=True)
     low, high = intelligence.get("wall_street_low_target"), intelligence.get("wall_street_high_target")
@@ -466,11 +470,12 @@ def _render_analyst_intelligence(intelligence: Mapping[str, Any]) -> None:
                 '</div>'
             )
         st.markdown(f'<div class="atlas-action-list">{"".join(action_html)}</div>', unsafe_allow_html=True)
-        all_actions = intelligence.get("all_actions") or []
+        all_actions = [item for item in safe_sequence(intelligence.get("all_actions")) if isinstance(item, Mapping)]
         if len(all_actions) > len(actions):
             with st.expander("View all analyst actions"):
                 for action in all_actions:
-                    st.write(f"{action.get('date', '')[:10]} · {action.get('firm')} · {action.get('primary_action')}")
+                    date_text = safe_date_text(action.get("date")) or ""
+                    st.write(f"{date_text[:10]} · {safe_scalar_display(action.get('firm'), 'Firm')} · {safe_scalar_display(action.get('primary_action'), 'Action')}")
     st.markdown("### Atlas vs Wall Street")
     atlas_value = intelligence.get("atlas_fair_value")
     street_value = intelligence.get("wall_street_mean_target")
@@ -517,12 +522,13 @@ def _metric_grid(
     money_keys: set[str] | None = None,
     pct_keys: set[str] | None = None,
 ) -> None:
+    data = safe_mapping(data)
     money_keys = money_keys or set()
     pct_keys = pct_keys or set()
     scalar = [
         (key, value)
         for key, value in data.items()
-        if not isinstance(value, (list, dict)) and value not in (None, "")
+        if not isinstance(value, (Mapping, list, tuple, set, frozenset)) and not is_missing_scalar(value)
     ]
     if not scalar:
         st.info("No populated metrics are available for this section.")

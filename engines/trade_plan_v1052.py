@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Any, Mapping
 import math
 
-from engines.semantic_fields import scanner_trade_plan
+from engines.semantic_fields import safe_mapping, scanner_trade_plan
 
 def _num(v: Any, d=None):
     try:
@@ -13,10 +13,10 @@ def _num(v: Any, d=None):
         return d
 
 def classify_horizon(row: Mapping[str, Any]) -> dict[str, Any]:
-    c=row.get("components") or {}
+    row=safe_mapping(row); c=safe_mapping(row.get("components"))
     f=_num(c.get("fundamentals"),50); t=_num(c.get("technical"),50)
     v=_num(c.get("valuation"),50); r=_num(c.get("risk"),50)
-    g=_num(row.get("revenue_growth_pct") or (row.get("financials") or {}).get("revenue_growth_pct"),0)
+    g=_num(row.get("revenue_growth_pct") or safe_mapping(row.get("financials")).get("revenue_growth_pct"),0)
     items=[]
     if t>=68: items.append({"label":"Swing","range":"2–8 weeks"})
     if t>=58 and v>=55: items.append({"label":"Position","range":"3–12 months"})
@@ -26,6 +26,7 @@ def classify_horizon(row: Mapping[str, Any]) -> dict[str, Any]:
     return {"primary":primary,"eligible_horizons":items}
 
 def build_trade_plan(row: Mapping[str, Any], quote: Mapping[str, Any]) -> dict[str, Any]:
+    row=safe_mapping(row); quote=safe_mapping(quote)
     p=_num(quote.get("price"))
     if not p or p<=0:
         return {"status":"UNAVAILABLE","actionable":False,"reason":"Valid current price required.","quote":dict(quote)}
@@ -53,13 +54,13 @@ def build_trade_plan(row: Mapping[str, Any], quote: Mapping[str, Any]) -> dict[s
                 "stop_loss":"Risk-control level, not a guaranteed execution price.",
             },
         }
-    tech=row.get("technical") or {}
+    tech=safe_mapping(row.get("technical"))
     atr=_num(row.get("atr") or tech.get("atr"),p*0.025)
     support=_num(row.get("support") or tech.get("support"),p-atr)
     resistance=_num(row.get("resistance") or tech.get("resistance"))
     atlas=_num(row.get("validated_fair_value") or row.get("atlas_fair_value"))
-    analysts=row.get("analysts") or {}
-    raw=row.get("raw") or {}
+    analysts=safe_mapping(row.get("analysts"))
+    raw=safe_mapping(row.get("raw"))
     analyst=_num(row.get("analyst_target_mean") or analysts.get("analyst_target_mean") or raw.get("Analyst Target"))
     entry_low=max(0.01,support-0.20*atr)
     entry_high=max(entry_low+0.10*atr,min(p+0.15*atr,support+0.55*atr))

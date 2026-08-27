@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import math
 from datetime import date, datetime
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 
 _MISSING = {"", "none", "null", "nan", "n/a", "na", "unknown", "unavailable", "under review", "—", "-"}
@@ -29,8 +30,11 @@ def _mapping(value: Any) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
 
 
-def sources(row: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
-    return tuple(source for source in (row, _mapping(row.get("raw")), _mapping(row.get("Raw"))) if source)
+def sources(row: Mapping[str, Any] | Any) -> tuple[Mapping[str, Any], ...]:
+    root = _mapping(row)
+    if not root:
+        return ()
+    return tuple(source for source in (root, _mapping(root.get("raw")), _mapping(root.get("Raw"))) if source)
 
 
 def present(value: Any) -> bool:
@@ -40,7 +44,18 @@ def present(value: Any) -> bool:
         return value.strip().lower() not in _MISSING
     if isinstance(value, (int, float)):
         return math.isfinite(float(value))
-    return bool(value)
+    if isinstance(value, Mapping):
+        return bool(value)
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return bool(value)
+    # Provider scalar wrappers (for example pandas/numpy objects) may reject
+    # truth testing.  They are not canonical scalar evidence until a family
+    # normalizer explicitly accepts them.
+    try:
+        result = bool(value)
+        return result if isinstance(result, bool) else False
+    except (TypeError, ValueError):
+        return False
 
 
 def is_missing_scalar(value: Any) -> bool:
