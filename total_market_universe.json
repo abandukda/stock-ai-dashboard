@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-27T15:18:12.962822+00:00",
-  "count": 3465,
+  "generated_at": "2026-08-27T20:50:52.265015+00:00",
+  "count": 3467,
   "symbols": [
     "A",
     "AA",
@@ -2549,6 +2549,7 @@
     "QUAD",
     "QUBT",
     "QURE",
+    "QVCG",
     "QXO",
     "QYLD",
     "R",
@@ -2882,6 +2883,7 @@
     "SRE",
     "SRFM",
     "SRG",
+    "SRG-PA",
     "SRI",
     "SRL",
     "SRPT",
