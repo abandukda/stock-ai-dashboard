@@ -502,6 +502,61 @@ def research_ticker_matrix(root: str | Path = ".") -> dict[str, Any]:
     }
 
 
+def full_certification_ticker_matrix(root: str | Path = ".") -> dict[str, Any]:
+    """Build the deduplicated dynamic full-certification population."""
+    root_path = Path(root)
+    full = _scan_rows(root_path / "market_full_scan.json")
+    recovery = _scan_rows(root_path / "recovery_scan.json")
+    etfs = _scan_rows(root_path / "etf_scan.json")
+    symbols = [str(row.get("ticker") or row.get("Ticker") or "").upper() for row in full]
+    top15 = [symbol for symbol in symbols[:15] if symbol]
+
+    def first(rows: list[Mapping[str, Any]], predicate=lambda _row: True) -> str:
+        for row in rows:
+            ticker = str(row.get("ticker") or row.get("Ticker") or row.get("symbol") or "").upper()
+            if ticker and predicate(row):
+                return ticker
+        return ""
+
+    roles: list[tuple[str, str]] = [("top15", ticker) for ticker in top15]
+    roles.extend((
+        ("top_idea", top15[0] if top15 else ""),
+        ("buy_now", first(full, lambda row: "BUY NOW" in str(row.get("Recommendation") or row.get("committee_verdict") or "").upper())),
+        ("recovery", first(recovery)),
+        ("earnings", first(full, lambda row: bool(row.get("next_earnings_date") or row.get("earnings_date") or row.get("Earnings Date"))) or first(full)),
+        ("home_first", top15[0] if top15 else ""),
+        ("home_middle", top15[len(top15) // 2] if top15 else ""),
+        ("home_last", top15[-1] if top15 else ""),
+        ("watchlist", first(_scan_rows(root_path / "market_scan_state.json"))),
+        ("portfolio", first(_scan_rows(root_path / "portfolio.json"))),
+        ("political", first(full, lambda row: bool(row.get("political_transactions") or row.get("congressional_transactions")))),
+        ("etf", first(etfs) or "SPY"),
+    ))
+    targeted = research_ticker_matrix(root_path)
+    roles.extend((
+        ("missing_production", str(targeted.get("missing_production") or "")),
+        ("invalid", "INVALID123"),
+    ))
+    entries: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for role, ticker in roles:
+        if not ticker or ticker in seen:
+            continue
+        seen.add(ticker)
+        entries.append({"role": role, "ticker": ticker})
+    return {
+        "version": "ATLAS_FULL_CERTIFICATION_TICKERS_V1",
+        "entries": entries,
+        "tickers": [entry["ticker"] for entry in entries],
+        "top15": top15,
+        "role_tickers": {role: ticker for role, ticker in roles if ticker},
+        "deep_research_subset": list(dict.fromkeys(
+            ticker for role, ticker in roles
+            if ticker and role in {"top_idea", "buy_now", "home_first", "home_middle", "home_last", "etf", "missing_production"}
+        )),
+    }
+
+
 def journey_completeness(expected: Mapping[str, int], completed: Mapping[str, Any], *, engine_error: str = "") -> dict[str, Any]:
     result: dict[str, Any] = {}
     for family, count in expected.items():
@@ -765,6 +820,6 @@ __all__ = [
     "certify_missing_production_ticker", "certify_research_context",
     "certify_sec_authority", "certify_valuation_separation",
     "decode_context_summary", "encode_context_summary", "protected_decision_digest",
-    "protected_decision_snapshot", "production_decision_for_ticker", "reconcile_family", "research_ticker_matrix",
+    "full_certification_ticker_matrix", "protected_decision_snapshot", "production_decision_for_ticker", "reconcile_family", "research_ticker_matrix",
     "sanitize_research_context", "stable_digest",
 ]

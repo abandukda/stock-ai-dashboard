@@ -31,7 +31,7 @@ from agents.fix_planner_v3 import write_fix_plan
 from agents.qa_v3_models import PageResult, QAIssue
 from agents.runtime_qa_user_journeys_v40 import (
     page_certification_metadata, run_targeted_critical_journeys,
-    run_user_journeys, wait_for_page_settlement,
+    run_user_journeys, wait_for_page_render_complete, wait_for_page_settlement,
 )
 from agents.runtime_qa_architecture import (
     CERTIFICATION_ARTIFACT, CORE_PAGE_CONTRACTS, RUNTIME_QA_FRAMEWORK_VERSION,
@@ -1280,6 +1280,11 @@ async def run_runtime_qa_v3(*, url: str, output_dir: Path) -> dict[str, Any]:
                         _inventory(page, page_name, output_dir),
                         timeout=20,
                     )
+                    render_complete, _, render_detail = await wait_for_page_render_complete(
+                        page, page_name, output_dir,
+                    )
+                    if not render_complete:
+                        raise TimeoutError(render_detail)
                 except Exception as exc:
                     failure_classification = settlement_failure_classification(str(exc))
                     result = PageResult(

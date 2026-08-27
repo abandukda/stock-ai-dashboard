@@ -172,6 +172,8 @@ def render_volume_momentum(rows: Sequence[Mapping[str, Any]]) -> None:
             index=1,
             key="volume_card_count",
         )
+    from services.session_stability import emit_page_interactive
+    emit_page_interactive(st, "Volume Intelligence")
 
     items = build_volume_momentum(
         rows,

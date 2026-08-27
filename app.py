@@ -4520,6 +4520,8 @@ def render_chat_helper(full_df):
             key="ask_ai_question",
         )
         submitted = st.form_submit_button("Ask Atlas", type="primary")
+    from services.session_stability import emit_page_interactive
+    emit_page_interactive(st, "Ask AI")
 
     if not submitted:
         status = st.session_state["ask_ai_status"]
@@ -16225,6 +16227,8 @@ def render_v58_political_intelligence(full_df=None):
 
     if df.empty:
         st.warning("Political disclosure data is temporarily unavailable or no clean ticker-level disclosures were returned.")
+        from services.session_stability import emit_page_interactive
+        emit_page_interactive(st, "Political Intelligence")
         if v55_is_admin() if "v55_is_admin" in globals() else False:
             st.caption("Check FMP endpoints: /stable/house-latest and /stable/senate-latest.")
         return
@@ -16263,6 +16267,8 @@ def render_v58_political_intelligence(full_df=None):
     cols = ["Ticker", "Company", "Political Signal", "Buys", "Sells", "Net Score", "Politicians", "Last_Trade", "Last_Disclosure", "Chamber"]
     cols = [c for c in cols if c in buy_radar.columns]
     st.dataframe(buy_radar[cols].head(50), use_container_width=True, hide_index=True)
+    from services.session_stability import emit_page_interactive
+    emit_page_interactive(st, "Political Intelligence")
 
     selected = None
     tickers = buy_radar["Ticker"].astype(str).tolist() if not buy_radar.empty and "Ticker" in buy_radar.columns else []
@@ -16742,6 +16748,8 @@ def render_v505_portfolio_analyzer(full_df, top_df, recovery_df, watch_df, presc
 
     if st.button("Analyze Portfolio", key="v505_analyze_btn"):
         st.session_state["v505_run"] = True
+    from services.session_stability import emit_page_interactive
+    emit_page_interactive(st, "Portfolio Intelligence")
 
     if not st.session_state.get("v505_run"):
         st.info("Enter your tickers and click Analyze Portfolio.")
@@ -17132,6 +17140,8 @@ def render_v506_watchlist_intelligence(full_df, top_df, recovery_df, watch_df, p
         analyze = st.button("Analyze Watchlist", key="v506_analyze_watchlist")
     with col_b:
         save_snapshot = st.button("Save Snapshot", key="v506_save_watchlist_snapshot")
+    from services.session_stability import emit_page_interactive
+    emit_page_interactive(st, "Watchlist Intelligence")
 
     if analyze:
         st.session_state["v506_run"] = True
@@ -26298,6 +26308,8 @@ def render_v73_earnings_page(full_df=None, top_df=None):
     df = top_df if top_df is not None and not getattr(top_df, "empty", True) else full_df
     if df is None or getattr(df, "empty", True):
         st.info("No earnings data is available in the latest saved scan.")
+        from services.session_stability import emit_page_interactive
+        emit_page_interactive(st, "Earnings Intelligence")
         return
 
     today = _v784_date.today()
@@ -26317,7 +26329,12 @@ def render_v73_earnings_page(full_df=None, top_df=None):
     candidates.sort(key=lambda item: (item[0] < today, item[0]))
     if not candidates:
         st.info("No upcoming or current-month earnings were found for the current Top Ideas universe.")
+        from services.session_stability import emit_page_interactive
+        emit_page_interactive(st, "Earnings Intelligence")
         return
+
+    from services.session_stability import emit_page_interactive
+    emit_page_interactive(st, "Earnings Intelligence")
 
     for pair_start in range(0, min(len(candidates), 8), 2):
         cols = st.columns(2)
@@ -27435,6 +27452,8 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
         typed=st.text_input("Ticker",placeholder="Example: NVDA, MSFT, OPRA",key="typed_ticker").strip().upper()
         # Static form label cannot become stale while the browser edits a batched form field.
         submitted=st.form_submit_button("Research ticker",type="primary")
+    from services.session_stability import emit_page_interactive
+    emit_page_interactive(st, "Research Any Ticker")
     if submitted:
         # A new request owns a new render lifecycle.  Never carry a prior
         # ticker's error/exception state into this request.
@@ -27930,18 +27949,33 @@ def main():
     _emit_page_identity_marker(selected_page)
     if selected_page != "Home": render_v72_market_tape(always_show=False)
     if selected_page=="Home": v810_render_dynamic_home(full_df,source_df,recovery_df)
-    elif selected_page=="Today's Opportunities": v810_render_today_page(full_df)
+    elif selected_page=="Today's Opportunities":
+        v810_render_today_page(full_df)
+        from services.session_stability import emit_page_interactive
+        emit_page_interactive(st, "Today's Opportunities")
     elif selected_page=="Volume Intelligence":
         _volume_pipeline = v104_pipeline_from_df(full_df)
         render_volume_momentum(_volume_pipeline.get("ranked_candidates") or [])
-    elif selected_page=="Atlas Core Holdings": v810_render_core_page(full_df)
+    elif selected_page=="Atlas Core Holdings":
+        v810_render_core_page(full_df)
+        from services.session_stability import emit_page_interactive
+        emit_page_interactive(st, "Atlas Core Holdings")
     elif selected_page=="Research Any Ticker": render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df)
     elif selected_page=="Earnings Intelligence": render_v73_earnings_page(full_df,source_df)
-    elif selected_page=="Full Ranked Scan": render_v56_ranked_table(full_df,title="Full Ranked AI Scan",max_rows=75,show_filters=True)
+    elif selected_page=="Full Ranked Scan":
+        render_v56_ranked_table(full_df,title="Full Ranked AI Scan",max_rows=75,show_filters=True)
+        from services.session_stability import emit_page_interactive
+        emit_page_interactive(st, "Full Ranked Scan")
     elif selected_page=="Portfolio Intelligence": render_v505_portfolio_analyzer(full_df,top_df,recovery_df,watch_df,prescreen_df,etf_df)
     elif selected_page=="Watchlist Intelligence": render_v506_watchlist_intelligence(full_df,top_df,recovery_df,watch_df,prescreen_df,etf_df)
-    elif selected_page=="Recovery": render_v56_ranked_table(recovery_df,title="Recovery Intelligence",max_rows=50,show_filters=True)
-    elif selected_page=="ETFs": render_v56_ranked_table(etf_df,title="ETF Intelligence",max_rows=50,show_filters=True)
+    elif selected_page=="Recovery":
+        render_v56_ranked_table(recovery_df,title="Recovery Intelligence",max_rows=50,show_filters=True)
+        from services.session_stability import emit_page_interactive
+        emit_page_interactive(st, "Recovery")
+    elif selected_page=="ETFs":
+        render_v56_ranked_table(etf_df,title="ETF Intelligence",max_rows=50,show_filters=True)
+        from services.session_stability import emit_page_interactive
+        emit_page_interactive(st, "ETFs")
     elif selected_page=="Political Intelligence": render_v58_political_intelligence(full_df)
     elif selected_page=="Ask AI": render_chat_helper(full_df)
     elif selected_page=="Developer Center":
@@ -32667,6 +32701,8 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
         watchlist_tickers=watchlist_tickers,
         signal_as_of=read_state().get("generated_at"),
     )
+    from services.session_stability import emit_page_interactive
+    emit_page_interactive(st, "Home")
 
     st.markdown("---")
     with st.expander(

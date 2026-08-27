@@ -81,6 +81,8 @@ def render_developer_center(
         "Controlled Fix Plan",
         "Run Instructions",
     ])
+    from services.session_stability import emit_page_interactive
+    emit_page_interactive(st, "Developer Center")
 
     with tabs[0]:
         st.caption("Checks whether the market, financial, analyst, earnings and other data Atlas needs are successfully reaching the research engine.")

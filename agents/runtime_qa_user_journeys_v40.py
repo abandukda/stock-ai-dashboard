@@ -28,7 +28,8 @@ from agents.runtime_qa_architecture import (
     certify_analyst_action_readiness, certify_ask_context, certify_etf_context,
     certify_missing_production_ticker, certify_research_context,
     decode_context_summary, protected_decision_digest,
-    journey_completeness, production_decision_for_ticker, research_ticker_matrix, stable_digest,
+    full_certification_ticker_matrix, journey_completeness,
+    production_decision_for_ticker, research_ticker_matrix, stable_digest,
 )
 from agents.runtime_qa_interactions import (
     InteractionContract, interaction_coverage, interaction_registry, interaction_result,
@@ -83,6 +84,7 @@ PAGE_READY_TEXT = {
 }
 
 PAGE_QA_IDS = {label: re.sub(r"[^a-z0-9]+", "-", label.lower()).strip("-") for label in PAGE_LABELS}
+_PAGE_SETTLEMENT_METRICS: dict[str, dict[str, float | None]] = {}
 PER_ROUTE_SETTLEMENT_SECONDS = 12
 GENERIC_NAVIGATION_BUDGET_SECONDS = 180
 RESEARCH_STEP_BUDGET_SECONDS = 45
@@ -102,6 +104,10 @@ def navigation_phase_upper_bound(page_count: int) -> int:
 
 _TICKER_MATRIX = research_ticker_matrix(".")
 RESEARCH_TICKERS = tuple(_TICKER_MATRIX["tickers"][:-1])
+_FULL_TICKER_MATRIX = full_certification_ticker_matrix(".")
+FULL_RESEARCH_TICKERS = tuple(
+    ticker for ticker in _FULL_TICKER_MATRIX["tickers"] if ticker != "INVALID123"
+)
 INVALID_TICKER = "INVALID123"
 MISSING_PRODUCTION_TICKER = str(_TICKER_MATRIX.get("missing_production") or "")
 CURRENT_TOP15_TICKER = str(_TICKER_MATRIX.get("dynamic_top15") or "")
@@ -275,7 +281,29 @@ async def _rendered_exception_identity(page: Page, *, ticker: str, stage: str) -
     return {}
 
 
+async def _page_interactive_ready(page: Page, label: str) -> bool:
+    page_id = PAGE_QA_IDS.get(label)
+    if not page_id:
+        return False
+    selector = (
+        f'#atlas-qa-interactive-{page_id}[data-atlas-page="{page_id}"]'
+        '[data-atlas-page-interactive="true"]'
+    )
+    for scope in _scopes(page):
+        try:
+            if await scope.locator(selector).count():
+                return True
+        except Exception:
+            continue
+    return False
+
+
 async def _page_contract_ready(page: Page, label: str) -> bool:
+    """Compatibility alias: settlement now means customer-interactive."""
+    return await _page_interactive_ready(page, label)
+
+
+async def _page_render_complete(page: Page, label: str) -> bool:
     page_id = PAGE_QA_IDS.get(label)
     if not page_id:
         return False
@@ -284,6 +312,24 @@ async def _page_contract_ready(page: Page, label: str) -> bool:
         try:
             if await scope.locator(selector).count():
                 return True
+        except Exception:
+            continue
+    return False
+
+
+async def _has_stale_page_fingerprint(page: Page, label: str) -> bool:
+    """Detect a prior route lifecycle marker after the new page is interactive."""
+    expected = PAGE_QA_IDS.get(label, "")
+    for scope in _scopes(page):
+        try:
+            markers = scope.locator(
+                '[data-atlas-qa="page-route"][data-atlas-status="selected"], '
+                '[data-atlas-qa="page-interactive"][data-atlas-page-interactive="true"]'
+            )
+            for index in range(await markers.count()):
+                identity = await markers.nth(index).get_attribute("data-atlas-page") or ""
+                if identity and identity != expected:
+                    return True
         except Exception:
             continue
     return False
@@ -327,6 +373,8 @@ async def _navigate(page: Page, label: str, output_dir: Path | None = None) -> t
 
     deadline = time.monotonic() + PER_ROUTE_SETTLEMENT_SECONDS
     text = ""
+    route_selected_at = page_interactive_at = render_complete_at = None
+    selected = explicit_ready = identity_matches = render_complete = rendered_exception = stale_page = False
     while time.monotonic() < deadline:
         text = await _visible_text(page)
         selected = False
@@ -344,12 +392,26 @@ async def _navigate(page: Page, label: str, output_dir: Path | None = None) -> t
                 break
         explicit_ready = await _page_contract_ready(page, label)
         identity_matches = await _page_identity_matches(page, label)
+        render_complete = await _page_render_complete(page, label)
+        stale_page = await _has_stale_page_fingerprint(page, label)
         text_ready = bool(PAGE_READY_TEXT.get(label, re.compile(re.escape(label), re.I)).search(text))
         # Canonical DOM markers are authoritative and intentionally hidden.
         # Heading text is retained only as diagnostic evidence.
-        page_ready = explicit_ready and identity_matches
+        page_ready = explicit_ready and identity_matches and not stale_page
         rendered_exception = await _has_rendered_exception(page)
         rendered_identity = label if identity_matches else ""
+        elapsed = time.monotonic() - started
+        if selected and identity_matches and route_selected_at is None:
+            route_selected_at = elapsed
+        if explicit_ready and identity_matches and page_interactive_at is None:
+            page_interactive_at = elapsed
+        if render_complete and identity_matches and render_complete_at is None:
+            render_complete_at = elapsed
+        _PAGE_SETTLEMENT_METRICS[label] = {
+            "route_selected_seconds": route_selected_at,
+            "page_interactive_seconds": page_interactive_at,
+            "render_complete_seconds": render_complete_at,
+        }
         if page_identity_settled(requested=label, rendered=rendered_identity, selected=selected,
                                  page_ready=page_ready, rendered_exception=rendered_exception):
             return True, time.monotonic() - started, ""
@@ -357,7 +419,7 @@ async def _navigate(page: Page, label: str, output_dir: Path | None = None) -> t
     after_shot = await _screenshot(page, output_dir, f"failed_nav_{label}") if output_dir else ""
     return False, time.monotonic() - started, (
         f"Navigation did not settle on {label}: selected={selected}, page_ready={page_ready}, "
-        f"identity_matches={identity_matches}, explicit_ready={explicit_ready}, heading_diagnostic={text_ready}, rendered_exception={rendered_exception}, "
+        f"identity_matches={identity_matches}, page_interactive={explicit_ready}, render_complete={render_complete}, stale_page={stale_page}, heading_diagnostic={text_ready}, rendered_exception={rendered_exception}, "
         f"before_screenshot={before_shot or 'none'}, after_screenshot={after_shot or 'none'}."
     )
 
@@ -370,7 +432,7 @@ async def wait_for_page_settlement(page: Page, label: str, output_dir: Path | No
     heading_diagnostic = False
     while time.monotonic() < deadline:
         identity = await _page_identity_matches(page, label)
-        ready = await _page_contract_ready(page, label)
+        ready = await _page_interactive_ready(page, label)
         text = await _visible_text(page)
         heading_diagnostic = bool(PAGE_READY_TEXT.get(label, re.compile(re.escape(label), re.I)).search(text))
         rendered_exception = await _has_rendered_exception(page)
@@ -382,6 +444,29 @@ async def wait_for_page_settlement(page: Page, label: str, output_dir: Path | No
         f"Rendered page identity did not settle on {label}; identity={identity}, ready={ready}, "
         f"heading_diagnostic={heading_diagnostic}, rendered_exception={rendered_exception}; "
         f"screenshot={shot or 'none'}."
+    )
+
+
+async def wait_for_page_render_complete(
+    page: Page, label: str, output_dir: Path | None = None,
+) -> tuple[bool, float, str]:
+    """Separately await final route certification after interactions may begin."""
+    started = time.monotonic()
+    deadline = time.monotonic() + PER_ROUTE_SETTLEMENT_SECONDS
+    while time.monotonic() < deadline:
+        if await _has_rendered_exception(page):
+            return False, time.monotonic() - started, "Rendered Streamlit exception blocked completion."
+        if await _page_render_complete(page, label):
+            elapsed = time.monotonic() - started
+            metrics = _PAGE_SETTLEMENT_METRICS.setdefault(label, {})
+            metrics["render_complete_seconds"] = (
+                float(metrics.get("page_interactive_seconds") or 0) + elapsed
+            )
+            return True, elapsed, ""
+        await asyncio.sleep(0.4)
+    shot = await _screenshot(page, output_dir, f"failed_render_complete_{label}") if output_dir else ""
+    return False, time.monotonic() - started, (
+        f"PAGE_RENDER_COMPLETE did not settle on {label}; screenshot={shot or 'none'}."
     )
 
 
@@ -1564,7 +1649,7 @@ async def run_user_journeys(
             "partial_progress": True,
             "family_completed": family_completed,
             "required_journey_completeness": journey_completeness({
-                "navigation": len(tuple(navigation_labels)), "research": len(RESEARCH_TICKERS) + 1,
+                "navigation": len(tuple(navigation_labels)), "research": len(FULL_RESEARCH_TICKERS) + 1,
                 "ask": len(ASK_AI_PROMPTS), "responsive": 6, "cross_page": 1,
             }, family_completed),
             "cross_page_consistency": {"status": "NOT_EXECUTED", "reason": "Journey execution is still in progress."},
@@ -1619,7 +1704,7 @@ async def run_user_journeys(
 
     # 2. Research journeys receive their execution opportunity before any
     # optional repeated navigation work.
-    for ticker in (*RESEARCH_TICKERS, INVALID_TICKER):
+    for ticker in (*FULL_RESEARCH_TICKERS, INVALID_TICKER):
         try:
             step = await asyncio.wait_for(_research_one(page, ticker, output_dir), timeout=RESEARCH_STEP_BUDGET_SECONDS)
         except TimeoutError:
@@ -1727,7 +1812,7 @@ async def run_user_journeys(
         "failed": 0 if cross_page_result["status"] == "PASS" else 1,
     }
     completeness = journey_completeness({
-        "navigation": len(tuple(navigation_labels)), "research": len(RESEARCH_TICKERS) + 1,
+        "navigation": len(tuple(navigation_labels)), "research": len(FULL_RESEARCH_TICKERS) + 1,
         "ask": len(ASK_AI_PROMPTS), "responsive": 6, "cross_page": 1,
     }, family_completed)
     result = {
@@ -1755,5 +1840,6 @@ __all__ = [
     "PAGE_READY_TEXT", "RESEARCH_TICKERS", "ask_grounding_complete",
     "navigation_contract_satisfied", "research_context_complete", "run_user_journeys",
     "page_identity_settled", "page_certification_metadata", "run_targeted_critical_journeys",
+    "wait_for_page_render_complete",
     "wait_for_page_settlement",
 ]

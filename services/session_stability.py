@@ -2,7 +2,34 @@
 
 from __future__ import annotations
 
-from typing import Any, MutableMapping, Sequence
+import html
+import re
+from typing import Any, Final, MutableMapping, Sequence
+
+
+PAGE_LIFECYCLE_VERSION: Final = "ATLAS_PAGE_LIFECYCLE_V1"
+PAGE_INTERACTIVE_CONTRACTS: Final = {
+    "Home": "PRIMARY_CARDS", "Today's Opportunities": "OPPORTUNITY_SURFACE",
+    "Volume Intelligence": "VOLUME_FILTERS", "Atlas Core Holdings": "CORE_HOLDINGS_SURFACE",
+    "Research Any Ticker": "TICKER_FORM", "Earnings Intelligence": "EARNINGS_SURFACE",
+    "Full Ranked Scan": "RANKED_SCAN_SURFACE", "Portfolio Intelligence": "PORTFOLIO_INPUT",
+    "Watchlist Intelligence": "WATCHLIST_INPUT", "Recovery": "RECOVERY_SURFACE",
+    "ETFs": "ETF_SURFACE", "Political Intelligence": "POLITICAL_EVIDENCE_SURFACE",
+    "Ask AI": "ASK_FORM", "Developer Center": "DEVELOPER_TABS",
+}
+
+
+def emit_page_interactive(st: Any, page: str) -> None:
+    """Emit lifecycle identity after a renderer establishes its primary surface."""
+    identifier = re.sub(r"[^a-z0-9]+", "-", str(page).lower()).strip("-")
+    surface = PAGE_INTERACTIVE_CONTRACTS[page]
+    st.markdown(
+        f'<span id="atlas-qa-interactive-{html.escape(identifier)}" '
+        f'data-atlas-qa="page-interactive" data-atlas-page="{html.escape(identifier)}" '
+        f'data-atlas-page-interactive="true" data-atlas-surface="{html.escape(surface)}" '
+        'aria-hidden="true" style="display:none">page-interactive</span>',
+        unsafe_allow_html=True,
+    )
 
 
 def stabilize_authenticated_session(state: MutableMapping[str, Any]) -> bool:
@@ -56,6 +83,7 @@ def consume_research_ticker_handoff(
 
 
 __all__ = [
+    "PAGE_INTERACTIVE_CONTRACTS", "PAGE_LIFECYCLE_VERSION", "emit_page_interactive",
     "consume_navigation_handoff", "consume_research_ticker_handoff",
     "stabilize_authenticated_session",
 ]
