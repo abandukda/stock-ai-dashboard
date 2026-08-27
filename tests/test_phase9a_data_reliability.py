@@ -88,7 +88,8 @@ def test_navigation_contract_is_ticker_isolated_for_stock_and_etf():
 def test_all_active_opportunity_links_use_canonical_navigation_contract():
     for path in ("ui/home_v104.py", "ui/daily_opportunities.py", "ui/morning_brief.py"):
         source = Path(path).read_text(encoding="utf-8")
-        assert "research_navigation_state(ticker)" in source
+        expected = "begin_research_entry(" if path == "ui/home_v104.py" else "research_navigation_state(ticker)"
+        assert expected in source
 
 
 def test_verified_company_news_preserves_working_link_metadata():

@@ -145,7 +145,7 @@ def test_all_home_research_ctas_use_canonical_navigation_contract():
         assert state["v79_pending_page"] == "Research Any Ticker"
         assert state["v805_force_live_on_open"] == ticker
     source = Path("ui/home_v104.py").read_text(encoding="utf-8")
-    assert "research_navigation_state(ticker)" in source
+    assert "begin_research_entry(" in source
     assert 'st.session_state["v104_research_ticker"] = ticker' not in source
 
 

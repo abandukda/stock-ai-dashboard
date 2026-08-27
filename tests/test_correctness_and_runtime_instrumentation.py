@@ -60,7 +60,10 @@ def test_home_cta_uses_canonical_research_navigation(monkeypatch, ticker):
 
     research_report_v104.render_candidate_card({"ticker": ticker}, key_prefix="test")
 
-    assert session == research_navigation_state(ticker)
+    assert all(session.get(key) == value for key, value in research_navigation_state(ticker).items())
+    assert session["research_status"] == "loading"
+    assert session["research_error"] == ""
+    assert session[f"atlas_research_request_id_{ticker}"]
     assert session["v73_page"] == "Research Any Ticker"
     assert session["active_research_ticker"] == ticker
     assert session["v805_force_live_on_open"] == ticker

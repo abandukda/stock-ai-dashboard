@@ -203,7 +203,7 @@ def test_home_source_has_compact_secondary_tabs_and_distinct_timestamps():
     assert '["My Stocks", "More Opportunities", "Catalysts", "What Is Moving Markets", "Calendar"]' in source
     assert "Delayed market context" in source
     assert "atlas-market-strip" in source
-    assert "research_navigation_state(ticker)" in source
+    assert "begin_research_entry(" in source
     assert "atlas-compact-grid" in source
     assert "WHY BUY NOW" in source
     assert source.index("WHY BUY NOW") < source.index("Position guidance:")

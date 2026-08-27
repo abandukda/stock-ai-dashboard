@@ -100,7 +100,7 @@ def test_home_research_controls_emit_stable_destination_markers():
     card_source = inspect.getsource(research_report_v104.render_candidate_card)
     for source in (home_source, card_source):
         assert "data-atlas-interaction-id" in source
-        assert 'data-atlas-expected-page="research-any-ticker"' in source
+        assert "data-atlas-expected-page=" in source
         assert "data-atlas-expected-ticker" in source
 
 

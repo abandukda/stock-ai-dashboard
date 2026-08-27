@@ -14,6 +14,8 @@ import math
 import pandas as pd
 import streamlit as st
 
+from engines.research_engine import begin_research_entry, research_interaction_contract
+
 MISSING = {"", "n/a", "na", "none", "null", "nan", "unavailable",
            "under review", "not available", "not reported", "unknown", "-", "—"}
 
@@ -168,6 +170,26 @@ def render_institutional_opportunity_card(row, *, transparency=None, ranking=Non
   <div class="atlas-section"><b>Primary risk</b><br>{_safe(vm["primary_risk"])}</div>
   {trigger_html}
 </div>""", unsafe_allow_html=True)
+    contract = research_interaction_contract(vm["ticker"], "institutional-tier-card")
+    st.markdown(
+        f'<span data-atlas-interaction-id="{html.escape(contract["interaction_id"])}" '
+        f'data-atlas-interaction-type="DRILL_DOWN" data-atlas-source-page="home" '
+        f'data-atlas-expected-page="{contract["expected_page"]}" '
+        f'data-atlas-expected-ticker="{html.escape(contract["expected_ticker"])}" '
+        'aria-hidden="true" style="display:none">institutional-research-link</span>',
+        unsafe_allow_html=True,
+    )
+    if st.button(
+        f'Details / Full Research — {vm["ticker"]}',
+        key=f'institutional_research_{vm["ticker"]}',
+        use_container_width=True,
+        type="primary",
+    ):
+        begin_research_entry(
+            st.session_state, vm["ticker"], source="HOME_INSTITUTIONAL_TIER_CARD",
+            interaction_id=contract["interaction_id"],
+        )
+        st.rerun()
 
 def render_decision_scorecard(transparency: Mapping[str, Any], title="Decision Scorecard"):
     st.markdown(f"### {title}")

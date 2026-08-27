@@ -6,7 +6,9 @@ logic can later power a React/FastAPI frontend.
 """
 from __future__ import annotations
 
-from typing import Any, Mapping
+import hashlib
+import re
+from typing import Any, Mapping, MutableMapping
 
 from engines.semantic_fields import canonical_atlas_fair_value
 
@@ -271,3 +273,55 @@ def research_navigation_state(ticker: Any) -> dict[str, str]:
         "v73_page": "Research Any Ticker",
         "v79_pending_page": "Research Any Ticker",
     }
+
+
+def research_interaction_contract(ticker: Any, control: Any) -> dict[str, str]:
+    """Return the stable customer interaction identity for a Research entry."""
+    symbol = str(ticker or "").strip().upper()
+    source = re.sub(r"[^a-z0-9]+", "-", str(control or "research").lower()).strip("-")
+    suffix = re.sub(r"[^a-z0-9]+", "-", symbol.lower()).strip("-")
+    return {
+        "interaction_id": f"home-research-{source}-{suffix}",
+        "expected_page": "research-any-ticker",
+        "expected_ticker": symbol,
+    }
+
+
+def begin_research_entry(
+    state: MutableMapping[str, Any],
+    ticker: Any,
+    *,
+    source: str,
+    interaction_id: str = "",
+    pending_navigation: bool = True,
+) -> dict[str, str]:
+    """Apply the single authenticated-session-safe Research entry transition.
+
+    Authentication is deliberately neither created nor cleared. Each accepted
+    entry owns a fresh ticker-scoped request lifecycle and replaces stale error
+    or prior-ticker state before the navigation widget is instantiated.
+    """
+    symbol = str(ticker or "").strip().upper()
+    if not re.fullmatch(r"[A-Z]{1,10}(?:[.-][A-Z]{1,3})?", symbol):
+        return {}
+    if bool(state.get("authenticated")):
+        role = str(state.get("role") or state.get("user_role") or "viewer")
+        state["role"] = role
+        state["user_role"] = role
+    generation = int(state.get("research_request_generation") or 0) + 1
+    request_id = hashlib.sha256(
+        f"RESEARCH_ENTRY_V1|{symbol}|{generation}".encode("utf-8")
+    ).hexdigest()[:20]
+    handoff = research_navigation_state(symbol)
+    if not pending_navigation:
+        handoff.pop("v79_pending_page", None)
+    state.update(handoff)
+    state.update({
+        "research_request_generation": generation,
+        f"atlas_research_request_id_{symbol}": request_id,
+        "research_status": "loading",
+        "research_error": "",
+        "research_entry_source": str(source or "UNKNOWN")[:80],
+        "research_entry_interaction_id": str(interaction_id or "")[:160],
+    })
+    return {"ticker": symbol, "request_id": request_id, **handoff}

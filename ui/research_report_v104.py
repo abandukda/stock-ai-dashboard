@@ -8,7 +8,7 @@ import streamlit as st
 
 from engines.individualized_scoring_v1052 import calculate_individualized_scores  # compatibility export only
 from engines.semantic_fields import canonical_atlas_fair_value
-from engines.research_engine import research_navigation_state
+from engines.research_engine import begin_research_entry, research_interaction_contract
 from engines.trade_plan_v1052 import classify_horizon
 from ui.research_report_v2 import render_atlas_research_v2
 from utils.evidence_coverage_v1046 import calculate_evidence_coverage
@@ -199,13 +199,12 @@ def render_candidate_card(
         unsafe_allow_html=True,
     )
 
-    interaction_id = "home-report-card-" + "".join(
-        character.lower() if character.isalnum() else "-" for character in ticker
-    ).strip("-")
+    contract = research_interaction_contract(ticker, "report-card")
+    interaction_id = contract["interaction_id"]
     st.markdown(
         f'<span data-atlas-interaction-id="{escape(interaction_id)}" '
         f'data-atlas-interaction-type="DRILL_DOWN" data-atlas-source-page="home" '
-        f'data-atlas-expected-page="research-any-ticker" data-atlas-expected-ticker="{escape(ticker)}" '
+        f'data-atlas-expected-page="{contract["expected_page"]}" data-atlas-expected-ticker="{escape(contract["expected_ticker"])}" '
         f'aria-hidden="true" style="display:none">research-report-link</span>',
         unsafe_allow_html=True,
     )
@@ -216,8 +215,10 @@ def render_candidate_card(
         use_container_width=True,
         type="primary",
     ):
-        for state_key, state_value in research_navigation_state(ticker).items():
-            st.session_state[state_key] = state_value
+        begin_research_entry(
+            st.session_state, ticker, source="HOME_REPORT_CARD",
+            interaction_id=interaction_id,
+        )
         st.rerun()
 
 

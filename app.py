@@ -26361,9 +26361,8 @@ def v793_open_research(ticker):
     ticker = str(ticker or "").strip().upper()
     if not ticker:
         return
-    from engines.research_engine import research_navigation_state
-    for key, value in research_navigation_state(ticker).items():
-        st.session_state[key] = value
+    from engines.research_engine import begin_research_entry
+    begin_research_entry(st.session_state, ticker, source="HOME_LEGACY_TIER_CARD")
     st.rerun()
 
 
@@ -27382,12 +27381,16 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
     if submitted:
         # A new request owns a new render lifecycle.  Never carry a prior
         # ticker's error/exception state into this request.
-        st.session_state["active_research_ticker"]=typed
-        st.session_state["research_error"]=""
-        st.session_state["research_status"]="loading"
-        st.session_state["research_request_generation"] = int(st.session_state.get("research_request_generation", 0)) + 1
-        _request_seed = f"{typed}:{st.session_state['research_request_generation']}:{dt.datetime.now(dt.timezone.utc).isoformat()}"
-        st.session_state[f"atlas_research_request_id_{typed}"] = hashlib.sha256(_request_seed.encode("utf-8")).hexdigest()[:20]
+        from engines.research_engine import begin_research_entry
+        _entry = begin_research_entry(
+            st.session_state, typed, source="DIRECT_TICKER_SUBMISSION",
+            pending_navigation=False,
+        )
+        if not _entry:
+            # Preserve the submitted identity long enough to render the
+            # existing fail-closed validation state; no acquisition begins.
+            st.session_state["active_research_ticker"] = typed
+            st.session_state["research_error"] = ""
     ticker=str(st.session_state.get("active_research_ticker","") or "").upper()
     status=str(st.session_state.get("research_status","idle"))
     marker_ticker=ticker or typed

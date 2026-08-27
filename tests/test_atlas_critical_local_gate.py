@@ -10,8 +10,10 @@ journey change until this local gate passes.
 
 from __future__ import annotations
 
+import ast
 import re
 from copy import deepcopy
+from pathlib import Path
 
 import pytest
 
@@ -20,13 +22,17 @@ from engines.analyst_intelligence import build_analyst_intelligence
 from engines.atlas_research_builder_v2 import build_atlas_research_v2
 from engines.political_evidence import normalize_political_transaction
 from engines.research_context import CORPORATE_ONLY_FAMILIES, build_research_context
-from engines.research_engine import research_navigation_state
+from engines.research_engine import (
+    begin_research_entry, research_interaction_contract,
+    research_navigation_state,
+)
 from engines.semantic_fields import (
     is_missing_scalar, number, safe_date_text, safe_mapping,
     safe_scalar_display, safe_sequence, semantic_identity,
 )
 from services.session_stability import consume_navigation_handoff, stabilize_authenticated_session
 from ui.research_report_v2 import _analyst_intelligence_html
+from ui import institutional_experience
 
 
 PAGES = ("Home", "Research Any Ticker", "Ask AI")
@@ -184,6 +190,128 @@ def test_home_research_session_and_ask_round_trip():
     state.update(research_navigation_state("CRM"))
     assert consume_navigation_handoff(state, PAGES, widget_key="nav")[0] == "Research Any Ticker"
     assert state["authenticated"] is True
+
+
+def _assert_research_entry(state, ticker, *, source, control):
+    contract = research_interaction_contract(ticker, control)
+    result = begin_research_entry(
+        state, ticker, source=source, interaction_id=contract["interaction_id"],
+    )
+    assert result["ticker"] == ticker
+    selected, pending = consume_navigation_handoff(state, PAGES, widget_key="nav")
+    assert pending and selected == "Research Any Ticker"
+    assert state["nav"] == state["v73_page"] == "Research Any Ticker"
+    assert state["active_research_ticker"] == ticker
+    assert state["typed_ticker"] == ticker
+    assert state["selected_research_ticker"] == ticker
+    assert state["research_status"] == "loading"
+    assert state["research_error"] == ""
+    assert state["research_entry_interaction_id"] == contract["interaction_id"]
+    assert state[f"atlas_research_request_id_{ticker}"] == result["request_id"]
+    assert state["authenticated"] is True
+    return result
+
+
+def test_direct_ticker_submission_and_home_cards_share_research_lifecycle():
+    direct = {"authenticated": True, "role": "viewer", "user_role": "stale-role", "v73_page": "Research Any Ticker"}
+    result = begin_research_entry(
+        direct, "NVDA", source="DIRECT_TICKER_SUBMISSION", pending_navigation=False,
+    )
+    assert result["ticker"] == direct["active_research_ticker"] == "NVDA"
+    assert direct["research_status"] == "loading"
+    assert "v79_pending_page" not in direct
+    assert direct["authenticated"] is True
+    assert direct["role"] == direct["user_role"] == "viewer"
+
+    for ticker, position in (("NVDA", "first"), ("CRM", "middle"), ("EDU", "last")):
+        state = {"authenticated": True, "role": "viewer", "user_role": "viewer", "v73_page": "Home", "nav": "Home"}
+        _assert_research_entry(
+            state, ticker, source="HOME_INSTITUTIONAL_TIER_CARD",
+            control=f"institutional-tier-card-{position}",
+        )
+
+
+def test_home_card_replaces_prior_ticker_exception_and_invalid_state():
+    state = {
+        "authenticated": True, "role": "viewer", "user_role": "viewer",
+        "v73_page": "Research Any Ticker", "nav": "Research Any Ticker",
+        "active_research_ticker": "NVDA", "typed_ticker": "NVDA",
+        "research_status": "error", "research_error": "sanitized prior exception",
+    }
+    first = _assert_research_entry(
+        state, "CRM", source="HOME_TIER_CARD", control="tier-card-first",
+    )
+    assert state["active_research_ticker"] == "CRM"
+    state.update({
+        "v73_page": "Home", "nav": "Home", "active_research_ticker": "INVALID123",
+        "typed_ticker": "INVALID123", "research_status": "error",
+        "research_error": "Ticker not recognized",
+    })
+    second = _assert_research_entry(
+        state, "EDU", source="HOME_TIER_CARD", control="tier-card-last",
+    )
+    assert first["request_id"] != second["request_id"]
+    assert state["active_research_ticker"] == "EDU"
+    assert state["authenticated"] is True
+
+
+def test_home_card_research_home_second_card_has_no_stale_ticker():
+    state = {"authenticated": True, "role": "viewer", "user_role": "viewer", "v73_page": "Home", "nav": "Home"}
+    _assert_research_entry(state, "CRM", source="HOME_TIER_CARD", control="tier-card-first")
+    state.update({"v73_page": "Home", "nav": "Home"})
+    _assert_research_entry(state, "EDU", source="HOME_TIER_CARD", control="tier-card-last")
+    assert state["active_research_ticker"] == state["selected_ticker"] == "EDU"
+    assert state["typed_ticker"] != "CRM"
+
+
+def test_home_tier_card_markers_publish_exact_destination_and_ticker():
+    contracts = [
+        research_interaction_contract(ticker, f"institutional-tier-card-{position}")
+        for ticker, position in (("NVDA", "first"), ("CRM", "middle"), ("EDU", "last"))
+    ]
+    assert len({item["interaction_id"] for item in contracts}) == 3
+    assert [item["expected_ticker"] for item in contracts] == ["NVDA", "CRM", "EDU"]
+    assert all(item["expected_page"] == "research-any-ticker" for item in contracts)
+    source = Path("ui/institutional_experience.py").read_text(encoding="utf-8")
+    assert 'data-atlas-interaction-id=' in source
+    assert 'data-atlas-expected-page=' in source
+    assert 'data-atlas-expected-ticker=' in source
+
+
+def test_active_direct_entry_and_navigation_widget_use_canonical_handoff():
+    tree = ast.parse(Path("app.py").read_text(encoding="utf-8"))
+    direct = [
+        node for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "render_research_any_ticker"
+    ][-1]
+    navigation = [
+        node for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "render_v73_top_nav"
+    ][-1]
+    assert "begin_research_entry" in ast.unparse(direct)
+    assert "consume_navigation_handoff" in ast.unparse(navigation)
+
+
+def test_rendered_institutional_tier_card_click_is_not_dead(monkeypatch):
+    state = {
+        "authenticated": True, "role": "viewer", "user_role": "viewer",
+        "v73_page": "Home", "v74_nav_radio": "Home",
+    }
+    markup = []
+    reruns = []
+    monkeypatch.setattr(institutional_experience.st, "session_state", state)
+    monkeypatch.setattr(
+        institutional_experience.st, "markdown",
+        lambda value, **kwargs: markup.append(str(value)),
+    )
+    monkeypatch.setattr(institutional_experience.st, "button", lambda *args, **kwargs: True)
+    monkeypatch.setattr(institutional_experience.st, "rerun", lambda: reruns.append(True))
+    institutional_experience.render_institutional_opportunity_card({"ticker": "CRM"})
+    assert reruns == [True]
+    assert state["v79_pending_page"] == "Research Any Ticker"
+    assert state["active_research_ticker"] == "CRM"
+    assert state["authenticated"] is True
+    assert any('data-atlas-expected-ticker="CRM"' in item for item in markup)
 
 
 @pytest.mark.parametrize("transaction", ("Purchase", "Sale"))
