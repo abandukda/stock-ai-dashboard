@@ -8,8 +8,11 @@ with browser-visible QA markers without acquiring provider data.
 from __future__ import annotations
 
 import argparse
+import ast
 import base64
 import hashlib
+import importlib
+import importlib.util
 import json
 import re
 import subprocess
@@ -33,6 +36,44 @@ from agents.product_hardening_certification import PRODUCT_HARDENING_VERSION
 
 RUNTIME_QA_FRAMEWORK_VERSION: Final = "ATLAS-PRODUCT-CERTIFICATION-QA.1"
 CERTIFICATION_ARTIFACT: Final = "atlas_product_certification.json"
+
+DEPLOYMENT_PARITY_GATE_COMMAND: Final = (
+    "python3 -m pytest -q tests/test_atlas_deployment_parity_gate.py"
+)
+
+ACTIVE_PAGE_RUNTIME_SYMBOLS: Final = {
+    "Home": ("app", "v810_render_dynamic_home"),
+    "Today's Opportunities": ("app", "v810_render_today_page"),
+    "Volume Intelligence": ("ui.daily_opportunities", "render_volume_momentum"),
+    "Atlas Core Holdings": ("app", "v810_render_core_page"),
+    "Research Any Ticker": ("app", "render_research_any_ticker"),
+    "Earnings Intelligence": ("app", "render_v73_earnings_page"),
+    "Full Ranked Scan": ("app", "render_v56_ranked_table"),
+    "Portfolio Intelligence": ("app", "render_v505_portfolio_analyzer"),
+    "Watchlist Intelligence": ("app", "render_v506_watchlist_intelligence"),
+    "Recovery": ("app", "render_v56_ranked_table"),
+    "ETFs": ("app", "render_v56_ranked_table"),
+    "Political Intelligence": ("app", "render_v58_political_intelligence"),
+    "Ask AI": ("app", "render_chat_helper"),
+    "Developer Center": ("ui.developer_center", "render_developer_center"),
+}
+
+RESEARCH_BOOTSTRAP_MODULES: Final = (
+    "services.research_render_diagnostics",
+    "services.session_stability",
+    "engines.research_engine",
+    "engines.research_context",
+    "engines.live_research_engine",
+    "engines.atlas_research_builder_v2",
+    "engines.analyst_intelligence",
+    "engines.earnings_intelligence",
+    "engines.ask_atlas_engine",
+    "engines.political_evidence",
+    "ui.research_report_v2",
+    "ui.research_report_v104",
+    "ui.home_v104",
+    "ui.institutional_experience",
+)
 
 CERTIFICATION_CLASSIFICATIONS: Final = (
     "PASS", "PASS_WITH_EVIDENCE_LIMITATIONS", "PRODUCT_DEFECT",
@@ -533,16 +574,177 @@ def certification_record(**values: Any) -> dict[str, Any]:
     return record
 
 
+def _module_source_path(module_name: str, root: Path) -> Path | None:
+    candidate = root.joinpath(*module_name.split(".")).with_suffix(".py")
+    if candidate.is_file():
+        return candidate
+    package = root.joinpath(*module_name.split("."), "__init__.py")
+    return package if package.is_file() else None
+
+
+def _research_local_import_graph(root: Path) -> tuple[set[str], list[dict[str, Any]]]:
+    """Walk local imports and verify every imported local symbol exists."""
+    pending = list(RESEARCH_BOOTSTRAP_MODULES)
+    visited: set[str] = set()
+    failures: list[dict[str, Any]] = []
+    while pending:
+        module_name = pending.pop(0)
+        if module_name in visited:
+            continue
+        visited.add(module_name)
+        source = _module_source_path(module_name, root)
+        if source is None:
+            failures.append({"module": module_name, "reason": "LOCAL_MODULE_MISSING"})
+            continue
+        try:
+            tree = ast.parse(source.read_text(encoding="utf-8"), filename=str(source))
+            imported_module = importlib.import_module(module_name)
+        except Exception as exc:
+            failures.append({"module": module_name, "reason": type(exc).__name__})
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module:
+                local_source = _module_source_path(node.module, root)
+                if local_source is None:
+                    continue
+                pending.append(node.module)
+                try:
+                    target = importlib.import_module(node.module)
+                except Exception as exc:
+                    failures.append({"module": node.module, "reason": type(exc).__name__})
+                    continue
+                for alias in node.names:
+                    if alias.name != "*" and not hasattr(target, alias.name):
+                        failures.append({
+                            "module": node.module, "symbol": alias.name,
+                            "reason": "IMPORTED_SYMBOL_MISSING", "importer": module_name,
+                        })
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    if _module_source_path(alias.name, root) is not None:
+                        pending.append(alias.name)
+        if imported_module is None:  # pragma: no cover - defensive only
+            failures.append({"module": module_name, "reason": "IMPORT_RETURNED_NONE"})
+    return visited, failures
+
+
+def deployment_parity_report(root: str | Path = ".") -> dict[str, Any]:
+    """Import and bootstrap active ATLAS surfaces from a tracked-source copy."""
+    root_path = Path(root).resolve()
+    manifest_path = root_path / ".atlas_tracked_manifest.json"
+    if manifest_path.is_file():
+        tracked = set(json.loads(manifest_path.read_text(encoding="utf-8")))
+    else:
+        tracked = set(subprocess.run(
+            ["git", "ls-files"], cwd=root_path, check=True,
+            capture_output=True, text=True,
+        ).stdout.splitlines())
+
+    failures: list[dict[str, Any]] = []
+    modules, graph_failures = _research_local_import_graph(root_path)
+    failures.extend(graph_failures)
+    local_dependencies = sorted(
+        path.relative_to(root_path).as_posix()
+        for name in modules
+        if (path := _module_source_path(name, root_path)) is not None
+    )
+    untracked_runtime_dependencies = [path for path in local_dependencies if path not in tracked]
+    failures.extend(
+        {"path": path, "reason": "UNTRACKED_RUNTIME_DEPENDENCY"}
+        for path in untracked_runtime_dependencies
+    )
+
+    page_results: dict[str, str] = {}
+    for page, (module_name, symbol) in ACTIVE_PAGE_RUNTIME_SYMBOLS.items():
+        try:
+            module = importlib.import_module(module_name)
+            value = getattr(module, symbol)
+            if not callable(value):
+                raise TypeError("runtime symbol is not callable")
+            page_results[page] = "PASS"
+        except Exception as exc:
+            page_results[page] = type(exc).__name__
+            failures.append({"page": page, "module": module_name, "symbol": symbol, "reason": type(exc).__name__})
+
+    app_module = importlib.import_module("app")
+    final_main = getattr(app_module, "main", None)
+    app_tree = ast.parse((root_path / "app.py").read_text(encoding="utf-8"))
+    final_main_line = max(
+        node.lineno for node in app_tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "main"
+    )
+    if not callable(final_main) or final_main.__code__.co_firstlineno != final_main_line:
+        failures.append({"reason": "FINAL_MAIN_RESOLUTION_FAILED"})
+
+    from engines import atlas_research_builder_v2 as builder
+    original_history = builder.attach_price_history
+    try:
+        builder.attach_price_history = lambda row: dict(row)
+        report = builder.build_atlas_research_v2({
+            "ticker": "NVDA", "company": "NVDA Deployment Fixture",
+            "security_type": "EQUITY", "current_price": 100.0,
+            "atlas_fair_value": 120.0, "analyst_actions": [],
+            "earnings_history": [], "company_news": [],
+        })
+    finally:
+        builder.attach_price_history = original_history
+    if report.get("ticker") != "NVDA" or not isinstance(report.get("sections"), Mapping):
+        failures.append({"reason": "NVDA_RESEARCH_BOOTSTRAP_FAILED"})
+
+    from engines.ask_atlas_engine import ask_atlas
+    from engines.political_evidence import normalize_political_transaction
+    from engines.research_engine import begin_research_entry
+    state = {"authenticated": True, "role": "viewer", "user_role": "viewer"}
+    entry = begin_research_entry(state, "CRM", source="DEPLOYMENT_PARITY_GATE")
+    bootstrap_results = {
+        "application_import": callable(final_main),
+        "final_main_line": final_main_line,
+        "nvda_research": report.get("ticker") == "NVDA",
+        "home_to_research": entry.get("ticker") == "CRM" and state.get("v79_pending_page") == "Research Any Ticker",
+        "ask": callable(ask_atlas),
+        "political": normalize_political_transaction({"symbol": "CRM", "transaction": "Purchase"}).get("ticker") == "CRM",
+    }
+    if not all(value for key, value in bootstrap_results.items() if key != "final_main_line"):
+        failures.append({"reason": "BOOTSTRAP_CONTRACT_FAILED", "results": bootstrap_results})
+
+    requirements = {
+        re.split(r"[<>=!~\[]", line.strip(), maxsplit=1)[0].lower().replace("_", "-")
+        for line in (root_path / "requirements.txt").read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    }
+    required_runtime_packages = {"streamlit", "pandas", "numpy", "plotly", "requests", "yfinance", "openai"}
+    missing_declarations = sorted(required_runtime_packages - requirements)
+    failures.extend({"package": name, "reason": "DEPENDENCY_NOT_DECLARED"} for name in missing_declarations)
+
+    return {
+        "version": "ATLAS_DEPLOYMENT_PARITY_GATE_V1",
+        "status": "PASS" if not failures else "FAIL",
+        "page_imports": page_results,
+        "page_count": len(page_results),
+        "research_modules": sorted(modules),
+        "tracked_runtime_dependencies": local_dependencies,
+        "untracked_runtime_dependencies": untracked_runtime_dependencies,
+        "missing_dependency_declarations": missing_declarations,
+        "bootstrap": bootstrap_results,
+        "failures": failures,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--preflight", action="store_true")
+    parser.add_argument("--deployment-parity", action="store_true")
     parser.add_argument("--output", default="audit_results/architecture_preflight.json")
     args = parser.parse_args()
-    result = architecture_preflight(".")
+    result = deployment_parity_report(".") if args.deployment_parity else architecture_preflight(".")
     path = Path(args.output)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(result, indent=2, default=str), encoding="utf-8")
-    print(json.dumps({"status": result["status"], "versions": result["versions"]}, sort_keys=True))
+    print(json.dumps({
+        "status": result["status"],
+        "versions": result.get("versions", {}),
+        "page_count": result.get("page_count"),
+    }, sort_keys=True))
     if result["status"] != "PASS":
         raise SystemExit(1)
 
@@ -554,8 +756,9 @@ if __name__ == "__main__":
 __all__ = [
     "CERTIFICATION_ARTIFACT", "CERTIFICATION_CLASSIFICATIONS",
     "CERTIFICATION_SEVERITIES", "CORE_PAGE_CONTRACTS", "FAMILY_RECONCILIATIONS",
+    "ACTIVE_PAGE_RUNTIME_SYMBOLS", "DEPLOYMENT_PARITY_GATE_COMMAND",
     "PROTECTED_DECISION_FIELDS", "ROLLOUT_STATE", "RUNTIME_QA_FRAMEWORK_VERSION",
-    "architecture_preflight", "architecture_versions", "certification_record",
+    "architecture_preflight", "architecture_versions", "certification_record", "deployment_parity_report",
     "certification_integrity", "journey_completeness",
     "certify_analyst_action_readiness", "certify_ask_context", "certify_etf_context",
     "certify_freshness", "certify_immutable_decision",

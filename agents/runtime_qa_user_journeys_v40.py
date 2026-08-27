@@ -257,6 +257,8 @@ async def _rendered_exception_identity(page: Page, *, ticker: str, stage: str) -
                     "fingerprint": await node.get_attribute("data-atlas-exception-fingerprint") or "",
                     "ticker": await node.get_attribute("data-atlas-ticker") or ticker,
                     "stage": await node.get_attribute("data-atlas-research-stage") or stage,
+                    "attempt_id": await node.get_attribute("data-atlas-attempt-id") or "",
+                    "source_sha": await node.get_attribute("data-atlas-source-sha") or "UNKNOWN",
                 }
             nodes = scope.locator('[data-testid="stException"]')
             if not await nodes.count():
@@ -543,6 +545,26 @@ async def _research_progress_metadata(page: Page, ticker: str) -> dict[str, Any]
     return {}
 
 
+async def _research_attempt_metadata(page: Page, ticker: str) -> dict[str, Any]:
+    """Read the envelope emitted before Research imports or acquisition."""
+    selector = f'[data-atlas-qa="research-attempt"][data-atlas-ticker="{ticker}"]'
+    attributes = (
+        "data-atlas-ticker", "data-atlas-attempt-id", "data-atlas-source-sha",
+        "data-atlas-stage",
+    )
+    for scope in _scopes(page):
+        try:
+            marker = scope.locator(selector).last
+            if await marker.count():
+                return {
+                    name.removeprefix("data-atlas-"): (await marker.get_attribute(name) or "")
+                    for name in attributes
+                }
+        except Exception:
+            continue
+    return {}
+
+
 async def _canonical_research_summary(page: Page, ticker: str) -> dict[str, Any]:
     selector = f'[data-atlas-qa="research-context-v1"][data-atlas-ticker="{ticker}"]'
     for scope in _scopes(page):
@@ -732,6 +754,19 @@ async def _research_one(page: Page, ticker: str, output_dir: Path) -> JourneySte
     try:
         while time.monotonic() < poll_deadline:
             progress = await _research_progress_metadata(page, ticker) or progress
+            if not progress:
+                attempt = await _research_attempt_metadata(page, ticker)
+                if attempt:
+                    progress = {
+                        **attempt,
+                        "request-id": attempt.get("attempt-id") or "",
+                        "current-stage": attempt.get("stage") or "RESEARCH_ROUTE_INITIALIZING",
+                        "last-completed-stage": "NONE",
+                        "provider-calls": "0",
+                        "cache-hits": "0",
+                        "readiness": "INITIALIZING",
+                        "progress_summary": {"enrichment_status": "NOT_STARTED"},
+                    }
             exception_identity = await _rendered_exception_identity(page, ticker=ticker, stage=str(progress.get("current-stage") or "research_render")) or exception_identity
             if expected_status == "error":
                 marker_ready = await _wait_for_qa_state(page, "research-container", "error", ticker, 0.05)

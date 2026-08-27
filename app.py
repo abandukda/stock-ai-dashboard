@@ -25,6 +25,12 @@ from utils.data_integrity import (
     to_number as v952_to_number,
 )
 from services.http_client import robust_get as v952_robust_get
+from services.research_render_diagnostics import (
+    begin_attempt as begin_research_render_attempt,
+    checkpoint as research_render_checkpoint,
+    deployment_source_sha,
+    sanitized_failure_envelope,
+)
 import yfinance as yf
 import plotly.graph_objects as go
 
@@ -27316,30 +27322,44 @@ def v8055_render_ai_summary(row):
     st.markdown("**What would change Atlas's mind:** weaker guidance, margin or cash-flow deterioration, loss of technical support, adverse policy developments, or valuation moving beyond justified fundamentals.")
 
 
+def _emit_research_failure_marker(location):
+    """Publish source identity only; never exception text, values, or a trace."""
+    st.markdown(
+        '<span data-atlas-qa="research-render-exception" '
+        f'data-atlas-ticker="{html.escape(str(location.get("ticker") or ""))}" '
+        f'data-atlas-attempt-id="{html.escape(str(location.get("attempt_id") or ""))}" '
+        f'data-atlas-source-sha="{html.escape(str(location.get("source_sha") or "UNKNOWN"))}" '
+        f'data-atlas-exception-category="{html.escape(str(location["category"]))}" '
+        f'data-atlas-exception-file="{html.escape(str(location["filename"]))}" '
+        f'data-atlas-exception-function="{html.escape(str(location["function"]))}" '
+        f'data-atlas-exception-line="{int(location["line"])}" '
+        f'data-atlas-exception-fingerprint="{html.escape(str(location["fingerprint"]))}" '
+        f'data-atlas-research-stage="{html.escape(str(location["stage"]))}" '
+        'aria-hidden="true" style="display:none">research-render-exception</span>',
+        unsafe_allow_html=True,
+    )
+
+
 def render_detail(row):
     """Render the canonical Full Research contract for saved or live rows."""
-    from ui.research_report_v104 import render_full_research_report
-    from services.research_render_diagnostics import checkpoint, sanitized_exception_location
-
     ticker = str(row.get("ticker") or row.get("Ticker") or "").upper()
-    checkpoint("render_detail:before")
+    request_id = str(st.session_state.get(f"atlas_research_request_id_{ticker}") or "")
+    begin_research_render_attempt(
+        ticker=ticker, attempt_id=request_id, source_sha=deployment_source_sha(),
+    )
     try:
+        research_render_checkpoint("render_detail:import_renderer")
+        from ui.research_report_v104 import render_full_research_report
+        research_render_checkpoint("render_detail:before")
         render_full_research_report(dict(row))
-        checkpoint("render_detail:after")
+        research_render_checkpoint("render_detail:after")
     except Exception as exc:
-        location = sanitized_exception_location(exc, ticker=ticker)
-        st.markdown(
-            '<span data-atlas-qa="research-render-exception" '
-            f'data-atlas-ticker="{html.escape(ticker)}" '
-            f'data-atlas-exception-category="{html.escape(str(location["category"]))}" '
-            f'data-atlas-exception-file="{html.escape(str(location["filename"]))}" '
-            f'data-atlas-exception-function="{html.escape(str(location["function"]))}" '
-            f'data-atlas-exception-line="{int(location["line"])}" '
-            f'data-atlas-exception-fingerprint="{html.escape(str(location["fingerprint"]))}" '
-            f'data-atlas-research-stage="{html.escape(str(location["stage"]))}" '
-            'aria-hidden="true" style="display:none">research-render-exception</span>',
-            unsafe_allow_html=True,
-        )
+        location = sanitized_failure_envelope(exc, ticker=ticker)
+        st.session_state[f"atlas_research_failure_{ticker}"] = dict(location)
+        # sanitized_exception_location is included by the failure envelope;
+        # data-atlas-qa="research-render-exception" is emitted by the shared
+        # outer-boundary helper so import failures and render failures agree.
+        _emit_research_failure_marker(location)
         raise
 
 
@@ -27541,6 +27561,58 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
         st.session_state["research_error"]=f"Ticker not recognized. Atlas could not retrieve a valid security for {ticker}. Check the symbol and try again."
     st.markdown(f'<span data-atlas-qa="research-container" data-atlas-status="error" data-atlas-ticker="{html.escape(ticker)}" data-atlas-error="unsupported-or-unavailable" aria-hidden="true" style="display:none">research-error</span>',unsafe_allow_html=True)
     st.error(st.session_state["research_error"])
+
+
+_research_route_without_deployment_boundary = render_research_any_ticker
+
+
+def _research_route_with_deployment_boundary(*args, **kwargs):
+    """Catch import/bootstrap failures before canonical lifecycle initialization."""
+    ticker = str(
+        st.session_state.get("active_research_ticker")
+        or st.session_state.get("typed_ticker")
+        or st.session_state.get("v73_research_ticker")
+        or ""
+    ).upper().strip()
+    generation = int(st.session_state.get("research_request_generation") or 0)
+    request_id = str(st.session_state.get(f"atlas_research_request_id_{ticker}") or "")
+    if not request_id:
+        request_id = hashlib.sha256(
+            f"RESEARCH_ATTEMPT_V1|{ticker}|{generation}".encode("utf-8")
+        ).hexdigest()[:20]
+        if ticker:
+            st.session_state[f"atlas_research_request_id_{ticker}"] = request_id
+    envelope = begin_research_render_attempt(
+        ticker=ticker, attempt_id=request_id, source_sha=deployment_source_sha(),
+    )
+    st.markdown(
+        '<span data-atlas-qa="research-attempt" '
+        f'data-atlas-ticker="{html.escape(envelope["ticker"])}" '
+        f'data-atlas-attempt-id="{html.escape(envelope["attempt_id"])}" '
+        f'data-atlas-source-sha="{html.escape(envelope["source_sha"])}" '
+        'data-atlas-stage="RESEARCH_ROUTE_INITIALIZING" '
+        'aria-hidden="true" style="display:none">research-attempt</span>',
+        unsafe_allow_html=True,
+    )
+    try:
+        research_render_checkpoint("research_route:before")
+        result = _research_route_without_deployment_boundary(*args, **kwargs)
+        research_render_checkpoint("research_route:after")
+        return result
+    except Exception as exc:
+        failure_ticker = str(st.session_state.get("active_research_ticker") or ticker).upper()
+        failure_request_id = str(st.session_state.get(f"atlas_research_request_id_{failure_ticker}") or request_id)
+        begin_research_render_attempt(
+            ticker=failure_ticker, attempt_id=failure_request_id,
+            source_sha=envelope["source_sha"],
+        )
+        location = sanitized_failure_envelope(exc, ticker=failure_ticker)
+        st.session_state[f"atlas_research_failure_{failure_ticker}"] = dict(location)
+        _emit_research_failure_marker(location)
+        raise
+
+
+render_research_any_ticker = _research_route_with_deployment_boundary
 
 
 
