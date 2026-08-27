@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-26T21:46:13.388846+00:00",
-  "count": 3463,
+  "generated_at": "2026-08-27T15:18:12.962822+00:00",
+  "count": 3465,
   "symbols": [
     "A",
     "AA",
@@ -272,6 +272,7 @@
     "ASPSW",
     "ASPSZ",
     "ASR",
+    "ASST",
     "ASTE",
     "ASTH",
     "ASTS",
@@ -2069,6 +2070,7 @@
     "MTDR",
     "MTG",
     "MTH",
+    "MTLS",
     "MTN",
     "MTR",
     "MTRN",
