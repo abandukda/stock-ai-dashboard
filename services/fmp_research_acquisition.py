@@ -253,6 +253,7 @@ def _relevant_news(row: Mapping[str, Any], symbol: str, company_name: str | None
 
 def acquire_explicit_fmp_research(
     ticker: str, *, production_row: Mapping[str, Any] | None,
+    security_type: str | None = None,
     api_key: str = "", client: FMPStableClient | None = None,
     cache_root: str | Path = DEFAULT_CACHE_ROOT, force_refresh: bool = False,
     research_request_id: str = "", progress_callback: Callable[[Mapping[str, Any]], None] | None = None,
@@ -277,7 +278,9 @@ def acquire_explicit_fmp_research(
         "family_seconds": {},
     }
     if client is None and not str(api_key or "").strip():
-        context = build_research_context(symbol, production_row=production_row)
+        context = build_research_context(
+            symbol, production_row=production_row, security_type=security_type,
+        )
         diagnostics["temporarily_unavailable"] = len(_CORPORATE_FAMILIES) + 1
         diagnostics["current_stage"] = "credentials_unavailable"
         diagnostics["last_completed_stage"] = "critical_shell"
@@ -291,7 +294,12 @@ def acquire_explicit_fmp_research(
     session = _Session(client or FMPStableClient(api_key, timeout_seconds=12, retries=1), deadline_monotonic=deadline_monotonic, diagnostics=diagnostics, progress_callback=progress_callback)
     families: dict[str, dict[str, Any]] = {}
     profile_name: str | None = None
-    preclassified_security = security_type_of(production_row) if production_row else ""
+    supplied_security = str(security_type or "").strip().upper()
+    preclassified_security = (
+        "ETF" if supplied_security in {"ETF", "FUND", "MUTUALFUND"}
+        else security_type_of(production_row) if production_row
+        else ""
+    )
     preloaded_caches = {
         family: load_family_envelope(symbol, family, root=cache_root, allow_stale=True)
         for family in FAMILY_PRIORITY

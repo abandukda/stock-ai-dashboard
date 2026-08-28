@@ -3984,7 +3984,10 @@ def _safe_float_live(value, default=None):
 
 
 @st.cache_data(ttl=900, show_spinner=False)
-def build_live_research_row(ticker, force_refresh=False, research_request_id="", _progress_callback=None):
+def build_live_research_row(
+    ticker, force_refresh=False, research_request_id="", _progress_callback=None,
+    security_type_hint=None,
+):
     """V80.5 live research adapter for any paid-customer ticker request."""
     from engines.live_research_engine import build_live_research
     return build_live_research(
@@ -3994,6 +3997,7 @@ def build_live_research_row(ticker, force_refresh=False, research_request_id="",
         fmp_api_key=FMP_API_KEY,
         research_request_id=research_request_id,
         progress_callback=_progress_callback,
+        security_type_hint=security_type_hint,
     )
 
 def build_legacy_live_research_row(ticker):
@@ -4581,7 +4585,11 @@ def render_chat_helper(full_df):
         from engines.atlas_research_builder_v2 import build_atlas_research_v2
         _ask_started = time.monotonic()
         source = matched.get("Raw") or matched.get("raw")
-        session_research = st.session_state.get(f"v8054_live_row_{ticker}") or st.session_state.get(f"v8053_live_row_{ticker}")
+        session_research = (
+            st.session_state.get(f"atlas_canonical_research_row_{ticker}")
+            or st.session_state.get(f"v8054_live_row_{ticker}")
+            or st.session_state.get(f"v8053_live_row_{ticker}")
+        )
         if not isinstance(session_research, dict) or session_research.get("error"):
             session_research = build_live_research_row(ticker, force_refresh=False)
         canonical_row = dict(session_research) if isinstance(session_research, dict) and not session_research.get("error") else (dict(source) if isinstance(source, dict) else dict(matched))
@@ -27521,7 +27529,22 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
             )
         _research_progress({"current_stage": "critical_shell", "last_completed_stage": "production_decision_loaded", "requests": 0, "fresh_cache_hits": 0})
         with st.spinner(f"Refreshing financials, valuation, analysts, earnings, news and policy evidence for {ticker}..."):
-            try: live=build_live_research_row(ticker,force_refresh=bool(submitted or auto_live),research_request_id=_request_id,_progress_callback=_research_progress)
+            try:
+                _saved_security = str(v8054_first_meaningful(
+                    saved, ["security_type", "Security Type", "quote_type", "quoteType"], ""
+                ) or "").upper()
+                _security_hint = "ETF" if (
+                    bool(saved.get("is_etf"))
+                    or _saved_security in {"ETF", "FUND", "MUTUALFUND"}
+                    or ticker == "SPY"
+                ) else None
+                live=build_live_research_row(
+                    ticker,
+                    force_refresh=bool(submitted or auto_live),
+                    research_request_id=_request_id,
+                    _progress_callback=_research_progress,
+                    security_type_hint=_security_hint,
+                )
             except Exception as exc: live={"error":str(exc)}
         if isinstance(live,dict) and not live.get("research_refreshed_at"): live["research_refreshed_at"]=dt.datetime.now(dt.timezone.utc).isoformat()
         _fmp_diag = live.get("fmp_research_diagnostics") if isinstance(live, dict) and isinstance(live.get("fmp_research_diagnostics"), dict) else {}
@@ -27583,6 +27606,9 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
         except Exception:
             _qa_summary = {}
             _qa_context_ready = False
+        # Ask ATLAS must consume the exact merged canonical row rendered here,
+        # not an unmerged acquisition row with a different context digest.
+        st.session_state[f"atlas_canonical_research_row_{ticker}"] = merged
         render_detail(pd.Series(merged))
         _qa_performance = st.session_state.get(f"atlas_research_performance_{ticker}") or {}
         _qa_performance_digest = hashlib.sha256(json.dumps(_qa_performance, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:16]

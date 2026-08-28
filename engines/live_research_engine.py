@@ -743,6 +743,7 @@ def _family_from_values(
 def _explicit_fmp_research_context(
     symbol: str, production_row: Dict[str, Any] | None, *, force_refresh: bool = False,
     api_key: str | None = None, research_request_id: str = "", progress_callback=None,
+    security_type: str | None = None,
 ) -> tuple[Dict[str, Any] | None, Dict[str, Any]]:
     """Lazy explicit-Research adapter; never imported or called by the scanner."""
     try:
@@ -752,6 +753,8 @@ def _explicit_fmp_research_context(
             "api_key": str(api_key if api_key is not None else os.getenv("FMP_API_KEY", "")).strip(),
             "force_refresh": force_refresh,
         }
+        if security_type is not None:
+            kwargs["security_type"] = security_type
         if research_request_id or progress_callback is not None:
             kwargs.update(research_request_id=research_request_id, progress_callback=progress_callback)
         result = acquire_explicit_fmp_research(symbol, **kwargs)
@@ -882,11 +885,16 @@ def _attach_canonical_research_context(
 def build_live_research(
     ticker: str, force_refresh: bool = False, cache_ttl_seconds: int = 900,
     *, fmp_api_key: str | None = None, research_request_id: str = "", progress_callback=None,
+    security_type_hint: str | None = None,
 ) -> Dict[str, Any]:
     symbol = str(ticker or "").upper().strip()
     if not symbol:
         return {"error": "Ticker is required"}
     production_row = load_production_row(symbol)
+    supplied_security = str(security_type_hint or "").strip().upper()
+    research_security_type = (
+        "ETF" if supplied_security in {"ETF", "FUND", "MUTUALFUND"} else None
+    )
     acquisition_started = time.monotonic()
     # A Streamlit form submission is not permission to bypass every independent
     # family TTL.  Family freshness is owned by the canonical family cache; this
@@ -894,10 +902,33 @@ def build_live_research(
     fmp_context, fmp_diagnostics = _explicit_fmp_research_context(
         symbol, production_row, force_refresh=False, api_key=fmp_api_key,
         research_request_id=research_request_id, progress_callback=progress_callback,
+        security_type=research_security_type,
     )
     fmp_diagnostics["explicit_context_lookup_seconds"] = round(
         max(0.0, time.monotonic() - acquisition_started), 6
     )
+
+    # An ETF classification supplied by the customer Research route is a hard
+    # semantic boundary.  Never fall through to the legacy corporate Yahoo
+    # acquisition path merely because FMP credentials/profile evidence are
+    # unavailable locally.  The bounded FMP acquisition above has already made
+    # the sole profile request when credentials were configured.
+    if research_security_type == "ETF":
+        legacy_cached = load_cached_research(symbol, cache_ttl_seconds)
+        base = dict(legacy_cached or production_row or {})
+        base.setdefault("Ticker", symbol)
+        base.setdefault("ticker", symbol)
+        base["security_type"] = "ETF"
+        base["is_etf"] = True
+        base["research_source"] = "canonical_etf_context"
+        base["fmp_research_diagnostics"] = fmp_diagnostics
+        base.setdefault(
+            "research_refreshed_at",
+            (fmp_context or {}).get("generated_at") or datetime.now(timezone.utc).isoformat(),
+        )
+        return _attach_canonical_research_context(
+            base, symbol, canonical_context=fmp_context,
+        )
 
     # FIRST.3 canonical evidence can render directly with the immutable
     # production row.  Do not block a complete FMP context on a second legacy
