@@ -1,301 +1,5 @@
 [
   {
-    "symbol": "HYG",
-    "ticker": "HYG",
-    "company": "iShares iBoxx $ High Yield Corp",
-    "company_name": "iShares iBoxx $ High Yield Corp",
-    "sector": "ETF",
-    "industry": "iShares",
-    "quote_type": "ETF",
-    "price": 79.87,
-    "current_price": 79.87,
-    "dollar_volume": 2364972362.2,
-    "avg_volume_20d": 29610270,
-    "volume_ratio": 1.09,
-    "conviction": 95,
-    "conviction_score": 95,
-    "score": 95,
-    "ai_score": 95,
-    "ai_confidence": 95,
-    "confidence": 95,
-    "rsi": 59.0,
-    "atr_pct": 0.21,
-    "sma20": 79.6,
-    "sma50": 79.35,
-    "twenty_day_pct": 0.99,
-    "sixty_day_pct": 0.91,
-    "entry_range": "$79.79 - $79.91",
-    "entry_low": 79.79,
-    "entry_high": 79.91,
-    "stop_loss": 79.54,
-    "target": 82.75,
-    "target_2": 84.18,
-    "risk_reward": 1.8,
-    "expected_upside_pct": 3.6,
-    "upside": 3.6,
-    "ai_base_target": 82.75,
-    "ai_bull_target": 84.18,
-    "ai_bear_target": 79.54,
-    "etf_preference_screen": "Passed non-financial / non-Israel / non-excluded-theme screen",
-    "what_looks_good": "strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; RSI is constructive; ETF volatility is controlled",
-    "what_could_go_wrong": "Main risk is a broad market or sector pullback.",
-    "investment_thesis": "iShares iBoxx $ High Yield Corp (HYG) is an ETF candidate that passed your preference screen. Score 95/100. Positive factors: strong ETF liquidity; price is above 20-day trend; price is above 50-day trend; RSI is constructive; ETF volatility is controlled. Risks: market pullback risk.",
-    "guidance": "HYG ETF score is 95/100. Preferred entry is $79.79 - $79.91. Use stop around $79.54 and first target near $82.75.",
-    "action_note": "ETF idea only. Review holdings/exposure before buying to ensure it aligns with your preferences.",
-    "summary": "HYG: ETF candidate, score 95/100, estimated trade upside 3.6%.",
-    "setup_tags": [
-      "strong ETF liquidity",
-      "price is above 20-day trend",
-      "price is above 50-day trend",
-      "RSI is constructive",
-      "ETF volatility is controlled"
-    ],
-    "risk_tags": [],
-    "etf_research": {
-      "status": "AVAILABLE",
-      "fund_family": "iShares",
-      "benchmark_or_category": "High Yield Bond",
-      "expense_ratio": null,
-      "distribution_yield": 0.0594,
-      "assets_under_management": 17113127936.0,
-      "top_holdings": [
-        {
-          "name": "BlackRock Cash Funds Treasury SL Agency",
-          "ticker": "XTSLA",
-          "weight_pct": 1.0397
-        }
-      ],
-      "holdings_status": "AVAILABLE",
-      "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-27T20:59:39.988033+00:00",
-      "sector_exposure": {
-        "basic_materials": 0.0,
-        "communication_services": 0.0,
-        "consumer_cyclical": 0.0,
-        "consumer_defensive": 0.0,
-        "energy": 0.0,
-        "financial_services": 0.0,
-        "healthcare": 0.0,
-        "industrials": 0.0,
-        "realestate": 0.41,
-        "technology": 0.0,
-        "utilities": 99.59
-      },
-      "top_10_concentration_pct": 1.0397,
-      "freshness": {
-        "status": "FRESH_CACHE",
-        "fetched_at": "2026-08-27T15:44:41.391459+00:00",
-        "age_seconds": 19285.087,
-        "ttl_seconds": 86400
-      }
-    },
-    "scan_time": "2026-08-27T20:59:39.988046+00:00",
-    "history_days_available": 251,
-    "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
-    "high_52w": 79.97,
-    "low_52w": 76.01,
-    "all_period_high": 79.97,
-    "all_period_low": 76.01,
-    "range_position_pct": 97.5,
-    "range_position_label": "Near 52-week highs",
-    "distance_from_52w_high_pct": -0.1,
-    "distance_from_52w_low_pct": 5.1,
-    "drawdown_from_period_high_pct": -0.1,
-    "drawdown_label": "Shallow drawdown",
-    "return_1m_pct": 1.3,
-    "return_3m_pct": 1.0,
-    "return_6m_pct": 1.7,
-    "return_1y_pct": null,
-    "return_3y_pct": null,
-    "return_5y_pct": null,
-    "deep_research_evidence": {
-      "sma200": 78.47,
-      "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-27T20:59:39.989144+00:00"
-    },
-    "analyst_support_score": 40.9,
-    "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
-    "analyst_support_label": "Mixed (41/100)",
-    "news_sentiment_source": "No recent NewsAPI headline returned; defaulted to neutral",
-    "top_news_headline": "No recent high-confidence company headline returned by NewsAPI",
-    "news_sentiment_label": "Neutral",
-    "news_sentiment_score": 0,
-    "thesis_strength": "Developing Thesis",
-    "evidence_confidence": "Low-Medium",
-    "ai_committee": {
-      "News Agent": {
-        "score": 45,
-        "status": "Unknown / insufficient data",
-        "impact": "Neutral",
-        "data_used": "No source returned recent data",
-        "summary": "Reviews headlines/catalysts. Confidence: Low.",
-        "findings": [],
-        "risks": [
-          "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
-        ],
-        "bottom_line": "News is mixed or insufficient."
-      },
-      "Finance Agent": {
-        "score": 50,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "FMP/Yahoo fundamentals, financial statements, balance sheet, cash flow",
-        "summary": "Checks revenue, EPS, margins, leverage, liquidity, cash flow, valuation, and execution.",
-        "findings": [
-          "Financial data limited."
-        ],
-        "risks": [
-          "No major finance-specific red flag detected."
-        ],
-        "bottom_line": "Financial profile reviewed."
-      },
-      "Analyst Agent": {
-        "score": 40,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Finnhub/Yahoo/FMP analyst targets and recommendation trends",
-        "summary": "Checks whether Wall Street estimates support the AI thesis.",
-        "findings": [
-          "Analyst support score: 41/100.",
-          "Analyst target: $N/A.",
-          "Analyst count: N/A."
-        ],
-        "risks": [
-          "Analyst data can lag fast-moving news."
-        ],
-        "bottom_line": "Analyst view is mixed/limited."
-      },
-      "Technical Agent": {
-        "score": 95,
-        "status": "Positive",
-        "impact": "Positive",
-        "data_used": "Price history, RSI, ATR, volume, SMA, support/resistance",
-        "summary": "Evaluates trend, momentum, volatility, support/resistance and entry quality.",
-        "findings": [
-          "Support 1: $78.86 \u00b7 Resistance 1: $79.97.",
-          "Price is above the 20-day trend.",
-          "Price is above the 50-day trend.",
-          "Price is above the 200-day trend.",
-          "RSI is 59.0."
-        ],
-        "risks": [
-          "No major technical risk detected."
-        ],
-        "bottom_line": "Near resistance. Avoid chasing unless breakout holds with volume."
-      },
-      "Insider Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "SEC EDGAR Form 4 framework; Finnhub insider-ready",
-        "summary": "Checks insider filing activity and prepares buy/sell classification.",
-        "findings": [
-          "No recent Form 4 activity retrieved."
-        ],
-        "risks": [
-          "SEC insider data unavailable: CIK not found"
-        ],
-        "bottom_line": "Insider signal is limited until transaction-level parsing is expanded."
-      },
-      "Institutional Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "SEC EDGAR filings plus FMP institutional ownership-ready",
-        "summary": "Checks institutional context and 13F availability.",
-        "findings": [
-          "Institutional data limited."
-        ],
-        "risks": [
-          "13F data is delayed by reporting schedule."
-        ],
-        "bottom_line": "Institutional signal is directional and should be confirmed with holder details."
-      },
-      "Competitor Agent": {
-        "score": 55,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "FMP peer list and company fundamentals",
-        "summary": "Compares company fundamentals and valuation context against peers.",
-        "findings": [
-          "Forward PE available for peer context: 1331.2."
-        ],
-        "risks": [
-          "Peer list unavailable in current scan."
-        ],
-        "bottom_line": "Peer context is limited/mixed."
-      },
-      "Political Agent": {
-        "score": 50,
-        "status": "Not connected yet",
-        "impact": "Neutral",
-        "data_used": "Capitol Trades public data planned; no API key required",
-        "summary": "Tracks congressional trading once public feed integration is enabled.",
-        "findings": [
-          "Political Agent framework is active."
-        ],
-        "risks": [
-          "Capitol Trades ingestion not enabled yet; no political score applied."
-        ],
-        "bottom_line": "No political trading signal applied yet."
-      },
-      "Recovery Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "52-week drawdown, growth, analyst support, technical recovery signals",
-        "summary": "Explains whether this is a recovery candidate or momentum setup.",
-        "findings": [
-          "Recovery framework active."
-        ],
-        "risks": [
-          "Recovery thesis requires business outlook to remain intact."
-        ],
-        "bottom_line": "Recovery setup exists only if fundamentals remain healthy."
-      },
-      "ETF / Ownership Agent": {
-        "score": 55,
-        "status": "Framework active",
-        "impact": "Neutral",
-        "data_used": "ETF inclusion and ownership flow framework",
-        "summary": "Checks ETF/index ownership support.",
-        "findings": [
-          "ETF/ownership framework is active."
-        ],
-        "risks": [
-          "Detailed ETF flow data not fully connected yet."
-        ],
-        "bottom_line": "ETF/ownership is not yet a primary scoring driver."
-      }
-    },
-    "v42_news_score": 45,
-    "v42_news_summary": "News is mixed or insufficient.",
-    "v42_news_status": "Unknown / insufficient data",
-    "v42_news_catalysts": [],
-    "v42_news_risks": [
-      "No recent high-confidence news retrieved; treat as insufficient data, not neutral."
-    ],
-    "v42_news_sources": [
-      "No source returned recent data"
-    ],
-    "news_evidence": [],
-    "latest_news_headline": "",
-    "latest_news_source": "",
-    "latest_news_date": "",
-    "latest_news_sentiment": "Unknown / insufficient data",
-    "v42_sec_available": false,
-    "v42_sec_cik": null,
-    "v42_support_1": 78.86,
-    "v42_support_2": 76.01,
-    "v42_resistance_1": 79.97,
-    "v42_resistance_2": 79.97,
-    "v42_breakout_level": 80.77,
-    "v42_pullback_zone": "$78.86 - $78.86",
-    "v42_chart_guidance": "Near resistance. Avoid chasing unless breakout holds with volume.",
-    "v42_committee_positive_agents": 1,
-    "v42_committee_total_agents": 10
-  },
-  {
     "symbol": "DIA",
     "ticker": "DIA",
     "company": "State Street SPDR Dow Jones Ind",
@@ -305,9 +9,9 @@
     "quote_type": "ETF",
     "price": 535.22,
     "current_price": 535.22,
-    "dollar_volume": 1771243697.59,
-    "avg_volume_20d": 3309375,
-    "volume_ratio": 0.68,
+    "dollar_volume": 1775051707.4,
+    "avg_volume_20d": 3316490,
+    "volume_ratio": 0.72,
     "conviction": 95,
     "conviction_score": 95,
     "score": 95,
@@ -409,7 +113,7 @@
       ],
       "holdings_status": "AVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-27T20:55:43.602698+00:00",
+      "evidence_timestamp": "2026-08-28T00:48:04.688978+00:00",
       "sector_exposure": {
         "basic_materials": 3.86,
         "communication_services": 5.12,
@@ -427,11 +131,11 @@
       "freshness": {
         "status": "FRESH_CACHE",
         "fetched_at": "2026-08-27T15:44:41.460354+00:00",
-        "age_seconds": 19285.018,
+        "age_seconds": 33174.591,
         "ttl_seconds": 86400
       }
     },
-    "scan_time": "2026-08-27T20:55:43.602707+00:00",
+    "scan_time": "2026-08-28T00:48:04.688992+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 546.3,
@@ -453,7 +157,7 @@
     "deep_research_evidence": {
       "sma200": 494.21,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-27T20:55:43.603704+00:00"
+      "sma200_evidence_timestamp": "2026-08-28T00:48:04.690056+00:00"
     },
     "analyst_support_score": 40.9,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -649,8 +353,8 @@
     "quote_type": "ETF",
     "price": 87.38,
     "current_price": 87.38,
-    "dollar_volume": 435582868.25,
-    "avg_volume_20d": 4984926,
+    "dollar_volume": 435649189.67,
+    "avg_volume_20d": 4985685,
     "volume_ratio": 0.58,
     "conviction": 95,
     "conviction_score": 95,
@@ -752,7 +456,7 @@
       ],
       "holdings_status": "AVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-27T20:52:05.389472+00:00",
+      "evidence_timestamp": "2026-08-28T00:44:30.144369+00:00",
       "sector_exposure": {
         "basic_materials": 0.0,
         "communication_services": 6.78,
@@ -768,13 +472,13 @@
       },
       "top_10_concentration_pct": 47.5211,
       "freshness": {
-        "status": "FRESH_CACHE",
+        "status": "STALE_FALLBACK",
         "fetched_at": "2026-08-26T22:15:51.797074+00:00",
-        "age_seconds": 82214.682,
+        "age_seconds": 96104.254,
         "ttl_seconds": 86400
       }
     },
-    "scan_time": "2026-08-27T20:52:05.389483+00:00",
+    "scan_time": "2026-08-28T00:44:30.144381+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 92.65,
@@ -796,7 +500,7 @@
     "deep_research_evidence": {
       "sma200": 76.75,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-27T20:52:05.390511+00:00"
+      "sma200_evidence_timestamp": "2026-08-28T00:44:30.145343+00:00"
     },
     "analyst_support_score": 43.8,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -990,9 +694,9 @@
     "quote_type": "ETF",
     "price": 36.14,
     "current_price": 36.14,
-    "dollar_volume": 23627438.94,
-    "avg_volume_20d": 653775,
-    "volume_ratio": 0.94,
+    "dollar_volume": 23646466.65,
+    "avg_volume_20d": 654301,
+    "volume_ratio": 0.96,
     "conviction": 45,
     "conviction_score": 45,
     "score": 45,
@@ -1096,7 +800,7 @@
       ],
       "holdings_status": "AVAILABLE",
       "provider": "YAHOO_INFO",
-      "evidence_timestamp": "2026-08-27T20:53:23.175743+00:00",
+      "evidence_timestamp": "2026-08-28T00:45:49.748387+00:00",
       "sector_exposure": {
         "basic_materials": 0.0,
         "communication_services": 4.34,
@@ -1114,11 +818,11 @@
       "freshness": {
         "status": "STALE_FALLBACK",
         "fetched_at": "2026-08-21T11:29:51.962573+00:00",
-        "age_seconds": 552974.516,
+        "age_seconds": 566864.105,
         "ttl_seconds": 86400
       }
     },
-    "scan_time": "2026-08-27T20:53:23.175756+00:00",
+    "scan_time": "2026-08-28T00:45:49.748398+00:00",
     "history_days_available": 251,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 41.69,
@@ -1140,7 +844,7 @@
     "deep_research_evidence": {
       "sma200": 36.85,
       "sma200_provider": "YAHOO_BATCH_HISTORY",
-      "sma200_evidence_timestamp": "2026-08-27T20:53:23.176900+00:00"
+      "sma200_evidence_timestamp": "2026-08-28T00:45:49.749373+00:00"
     },
     "analyst_support_score": 41.6,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
