@@ -27400,6 +27400,42 @@ def _emit_research_failure_marker(location):
     )
 
 
+_RESEARCH_ENTRY_STAGE_NAMES = {
+    "RESEARCH_ROUTE_ENTERED",
+    "TICKER_HANDOFF_CONSUMED",
+    "FORM_STARTED",
+    "TICKER_INPUT_EMITTED",
+    "SUBMIT_CONTROL_EMITTED",
+    "PAGE_INTERACTIVE",
+}
+
+
+def _emit_research_entry_stage(stage, *, ticker=""):
+    """Emit timing-only Research-entry diagnostics for deployment parity.
+
+    The marker deliberately excludes session values other than the already
+    normalized ticker identity. It must remain safe to expose before login or
+    provider acquisition diagnostics exist.
+    """
+    if stage not in _RESEARCH_ENTRY_STAGE_NAMES:
+        raise ValueError("unsupported Research entry stage")
+    timer_key = "atlas_research_route_entry_monotonic"
+    if stage == "RESEARCH_ROUTE_ENTERED":
+        st.session_state[timer_key] = time.monotonic()
+    started = float(st.session_state.get(timer_key) or time.monotonic())
+    elapsed = max(0.0, time.monotonic() - started)
+    normalized_ticker = str(ticker or "").upper().strip()
+    st.markdown(
+        '<span data-atlas-qa="research-entry-stage" '
+        f'data-atlas-stage="{html.escape(stage)}" '
+        f'data-atlas-elapsed-seconds="{elapsed:.6f}" '
+        f'data-atlas-source-sha="{html.escape(deployment_source_sha())}" '
+        f'data-atlas-ticker="{html.escape(normalized_ticker)}" '
+        'aria-hidden="true" style="display:none">research-entry-stage</span>',
+        unsafe_allow_html=True,
+    )
+
+
 def render_detail(row):
     """Render the canonical Full Research contract for saved or live rows."""
     ticker = str(row.get("ticker") or row.get("Ticker") or "").upper()
@@ -27441,6 +27477,7 @@ def v793_decision_rows(df):
 
 
 def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=None):
+    _emit_research_entry_stage("RESEARCH_ROUTE_ENTERED")
     v8055_inject_research_css()
     st.markdown("<div class='v65-section-title'>🔎 Live Atlas Research</div>",unsafe_allow_html=True)
     st.markdown("<div class='v65-subtitle'>Paid-client research combines current retrieval with the richest verified saved evidence across all Atlas datasets.</div>",unsafe_allow_html=True)
@@ -27453,15 +27490,20 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
     pending_ticker, _ticker_handoff = consume_research_ticker_handoff(
         st.session_state, widget_key="typed_ticker",
     )
+    _emit_research_entry_stage("TICKER_HANDOFF_CONSUMED", ticker=pending_ticker)
     st.session_state.setdefault("active_research_ticker", pending_ticker)
     st.session_state.setdefault("research_status", "idle")
     st.session_state.setdefault("research_error", "")
+    _emit_research_entry_stage("FORM_STARTED", ticker=pending_ticker)
     with st.form("research_ticker_form", clear_on_submit=False):
         typed=st.text_input("Ticker",placeholder="Example: NVDA, MSFT, OPRA",key="typed_ticker").strip().upper()
+        _emit_research_entry_stage("TICKER_INPUT_EMITTED", ticker=typed or pending_ticker)
         # Static form label cannot become stale while the browser edits a batched form field.
         submitted=st.form_submit_button("Research ticker",type="primary")
+        _emit_research_entry_stage("SUBMIT_CONTROL_EMITTED", ticker=typed or pending_ticker)
     from services.session_stability import emit_page_interactive
     emit_page_interactive(st, "Research Any Ticker")
+    _emit_research_entry_stage("PAGE_INTERACTIVE", ticker=typed or pending_ticker)
     if submitted:
         # A new request owns a new render lifecycle.  Never carry a prior
         # ticker's error/exception state into this request.
