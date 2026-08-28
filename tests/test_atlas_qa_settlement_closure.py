@@ -9,7 +9,7 @@ from pathlib import Path
 from agents.product_hardening_certification import ACTIVE_PAGES, DEEP_CERTIFICATION_PAGES
 from agents.runtime_qa_architecture import full_certification_ticker_matrix
 from agents.runtime_qa_user_journeys_v40 import (
-    _has_stale_page_fingerprint, _navigate, _page_interactive_ready,
+    _has_stale_page_fingerprint, _navigate, _page_interactive_conditions, _page_interactive_ready,
     _page_render_complete,
 )
 from services.session_stability import PAGE_INTERACTIVE_CONTRACTS
@@ -118,6 +118,30 @@ def test_navigation_uses_interactive_state_and_tracks_render_completion_separate
         "route_selected_seconds", "page_interactive_seconds", "render_complete_seconds",
     ):
         assert metric in source
+
+
+def test_run67_optional_market_tape_cannot_block_route_interaction():
+    """Run #67: Research identity appeared but its form/marker missed settlement."""
+    source = (ROOT / "app.py").read_text(encoding="utf-8")
+    start = source.rfind("def main():")
+    end = source.find("\n\n# ", start)
+    body = source[start:end]
+    slot = body.index('_market_tape_slot = st.container()')
+    research = body.index('elif selected_page=="Research Any Ticker"')
+    fill = body.index("with _market_tape_slot:")
+    complete = body.index("_emit_page_certification_marker")
+    assert slot < research < fill < complete
+    assert 'if selected_page != "Home": render_v72_market_tape' not in body
+
+
+def test_research_failed_settlement_reports_each_primary_condition():
+    page = Page()
+    conditions = asyncio.run(_page_interactive_conditions(page, "Research Any Ticker"))
+    assert conditions == {
+        "interactive_marker": True,
+        "ticker_input": False,
+        "submit_control": False,
+    }
 
 
 def test_stale_prior_page_marker_blocks_settlement_fingerprint():

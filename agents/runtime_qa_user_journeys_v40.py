@@ -298,6 +298,27 @@ async def _page_interactive_ready(page: Page, label: str) -> bool:
     return False
 
 
+async def _page_interactive_conditions(page: Page, label: str) -> dict[str, bool]:
+    """Return sanitized primary-control evidence when interaction is not ready."""
+    conditions = {"interactive_marker": await _page_interactive_ready(page, label)}
+    if label != "Research Any Ticker":
+        return conditions
+    ticker_input = submit_control = False
+    for scope in _scopes(page):
+        try:
+            ticker_input = ticker_input or bool(
+                await scope.get_by_label("Ticker", exact=True).count()
+                or await scope.locator('input[placeholder*="NVDA"]').count()
+            )
+            submit_control = submit_control or bool(
+                await scope.get_by_role("button", name="Research ticker", exact=True).count()
+            )
+        except Exception:
+            continue
+    conditions.update({"ticker_input": ticker_input, "submit_control": submit_control})
+    return conditions
+
+
 async def _page_contract_ready(page: Page, label: str) -> bool:
     """Compatibility alias: settlement now means customer-interactive."""
     return await _page_interactive_ready(page, label)
@@ -417,10 +438,11 @@ async def _navigate(page: Page, label: str, output_dir: Path | None = None) -> t
             return True, time.monotonic() - started, ""
         await asyncio.sleep(0.5)
     after_shot = await _screenshot(page, output_dir, f"failed_nav_{label}") if output_dir else ""
+    interactive_conditions = await _page_interactive_conditions(page, label)
     return False, time.monotonic() - started, (
         f"Navigation did not settle on {label}: selected={selected}, page_ready={page_ready}, "
         f"identity_matches={identity_matches}, page_interactive={explicit_ready}, render_complete={render_complete}, stale_page={stale_page}, heading_diagnostic={text_ready}, rendered_exception={rendered_exception}, "
-        f"before_screenshot={before_shot or 'none'}, after_screenshot={after_shot or 'none'}."
+        f"interactive_conditions={interactive_conditions}, before_screenshot={before_shot or 'none'}, after_screenshot={after_shot or 'none'}."
     )
 
 

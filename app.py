@@ -27947,7 +27947,12 @@ def main():
     selected_page=render_v73_top_nav(pages)
     source_df=top_df if top_df is not None and not top_df.empty else full_df.head(25)
     _emit_page_identity_marker(selected_page)
-    if selected_page != "Home": render_v72_market_tape(always_show=False)
+    # Reserve the tape's established visual position, but do not let its
+    # optional live-provider refresh block the selected route's primary
+    # controls and PAGE_INTERACTIVE lifecycle marker.  Filling a Streamlit
+    # container after the route renderer preserves the layout while allowing
+    # navigation and customer interaction to settle first.
+    _market_tape_slot = st.container() if selected_page != "Home" else None
     if selected_page=="Home": v810_render_dynamic_home(full_df,source_df,recovery_df)
     elif selected_page=="Today's Opportunities":
         v810_render_today_page(full_df)
@@ -27985,6 +27990,9 @@ def main():
             navigation_pages=pages,
             app_version=APP_VERSION,
         )
+    if _market_tape_slot is not None:
+        with _market_tape_slot:
+            render_v72_market_tape(always_show=False)
     # Settlement is emitted only after the selected route completes rendering.
     _emit_page_certification_marker(selected_page, source_df)
 
