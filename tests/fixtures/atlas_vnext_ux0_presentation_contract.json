@@ -1,0 +1,13 @@
+{
+  "version": "ATLAS_VNEXT_PRESENTATION_CONTRACT_V1",
+  "contract_classification": "IMMUTABLE_CANONICAL_DATA_AND_BEHAVIOR",
+  "presentation_baseline_version": "ATLAS_V1_PRESENTATION_MIGRATION_BASELINE",
+  "presentation_classification": "VERSIONED_REPLACEABLE_MIGRATION_BASELINE",
+  "may_change_with_explicit_ux_approval": true,
+  "viewports": ["desktop", "mobile"],
+  "active_page_count": 14,
+  "research_tab_count": 12,
+  "visible_customer_evidence_primary": true,
+  "hidden_markers_supplemental_only": true,
+  "screenshot_manifest_required": true
+}
