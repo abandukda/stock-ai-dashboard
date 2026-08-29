@@ -11,6 +11,7 @@ on:
         options:
           - full
           - targeted_preflight
+          - visual_crawl
 
   schedule:
     - cron: "30 11 * * 1-5"
@@ -40,6 +41,7 @@ jobs:
           test -f agents/code_contract_mapper_v3.py
           test -f agents/fix_planner_v3.py
           test -f agents/qa_v3_models.py
+          test -f agents/atlas_visual_crawler_v1.py
 
       - name: Record source and verify architecture
         run: |
@@ -70,6 +72,7 @@ jobs:
           PY
 
       - name: Run Atlas Runtime QA
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.mode != 'visual_crawl' }}
         env:
           ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
           ATLAS_QA_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'full' }}
@@ -80,6 +83,63 @@ jobs:
             --output audit_results \
             --mode "$ATLAS_QA_MODE"
 
+      - name: Run non-blocking Atlas Visual Crawler
+        id: visual_crawl
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'visual_crawl' }}
+        continue-on-error: true
+        env:
+          ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
+          PYTHONUNBUFFERED: "1"
+        run: |
+          python -u -m agents.atlas_visual_crawler_v1 \
+            --url https://stock-ai-dashboard.streamlit.app \
+            --output audit_results/visual_crawl
+
+      - name: Summarize Visual Crawler certification
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.mode == 'visual_crawl' }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("audit_results/visual_crawl/atlas_visual_qa_summary.json")
+          if not path.exists():
+              print("VISUAL_CERTIFICATION_FAIL")
+              print("Visual crawler summary is missing; inspect uploaded diagnostics.")
+              raise SystemExit(0)
+          report = json.loads(path.read_text(encoding="utf-8"))
+          counts = report.get("counts") or {}
+          pages = counts.get("pages") or {}
+          interactions = counts.get("interactions") or {}
+          research = counts.get("research_tickers") or {}
+          tabs = counts.get("tabs") or {}
+          shots = counts.get("screenshots") or {}
+          defects = report.get("defects") or []
+          severity = {
+              label: sum(item.get("severity") == label for item in defects)
+              for label in ("P1", "P2", "P3")
+          }
+          failed = bool((counts.get("all") or {}).get("failed", 0))
+          status = "VISUAL_CERTIFICATION_FAIL" if failed else "VISUAL_CERTIFICATION_PASS"
+          lines = [
+              status,
+              f"pages: {pages.get('passed', 0)}/{pages.get('attempted', 0)}",
+              f"interactions: {interactions.get('passed', 0)}/{interactions.get('attempted', 0)}",
+              f"Research tickers: {research.get('passed', 0)}/{research.get('attempted', 0)}",
+              f"tabs: {tabs.get('passed', 0)}/{tabs.get('attempted', 0)}",
+              f"screenshots: {shots.get('generated', 0)}/{shots.get('expected', 0)}",
+              f"defects: P1={severity['P1']} P2={severity['P2']} P3={severity['P3']}",
+              "artifact: audit_results/visual_crawl",
+          ]
+          print("\n".join(lines))
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary_path:
+              with open(summary_path, "a", encoding="utf-8") as handle:
+                  handle.write("## ATLAS Visual Crawler V1\n\n")
+                  handle.write("\n\n".join(lines) + "\n")
+          PY
+
       - name: Upload QA Report
         if: always()
         uses: actions/upload-artifact@v4
@@ -88,3 +148,23 @@ jobs:
           path: audit_results
           if-no-files-found: warn
           retention-days: 14
+
+      - name: Set Visual Crawler certification result
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.mode == 'visual_crawl' }}
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("audit_results/visual_crawl/atlas_visual_qa_summary.json")
+          if not path.exists():
+              print("VISUAL_CERTIFICATION_FAIL: summary artifact missing")
+              raise SystemExit(1)
+          report = json.loads(path.read_text(encoding="utf-8"))
+          failed = int(((report.get("counts") or {}).get("all") or {}).get("failed", 0))
+          finished = bool(report.get("finished"))
+          if failed or not finished:
+              print(f"VISUAL_CERTIFICATION_FAIL: failures={failed} finished={finished}")
+              raise SystemExit(1)
+          print("VISUAL_CERTIFICATION_PASS")
+          PY
