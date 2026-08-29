@@ -20,7 +20,7 @@ SOURCE = ROOT / "agents" / "atlas_visual_crawler_v1.py"
 
 
 def test_visual_crawler_has_complete_non_blocking_product_scope():
-    assert VISUAL_CRAWLER_VERSION == "ATLAS_VISUAL_CRAWLER_V1"
+    assert VISUAL_CRAWLER_VERSION == "ATLAS_VISUAL_CRAWLER_V1_1"
     assert set(PRIMARY_VISIBLE_SIGNALS) == set(ACTIVE_PAGES)
     assert set(MOBILE_PAGES) == {
         "Home", "Research Any Ticker", "Today's Opportunities", "Ask AI",
@@ -71,7 +71,7 @@ def test_every_interaction_is_independently_recorded_and_no_stop_first_failure()
     source = SOURCE.read_text(encoding="utf-8")
     assert "for page_name in ACTIVE_PAGES" in source
     assert "for ticker in tickers" in source
-    assert "for name, tab in tabs" in source
+    assert "for name in tabs" in source
     assert "for name, node in candidates" in source
     assert "break" not in ast.get_source_segment(source, next(
         node for node in ast.walk(tree) if isinstance(node, ast.AsyncFunctionDef) and node.name == "_desktop"
@@ -94,6 +94,14 @@ def test_research_and_home_require_actual_visible_controls_and_exact_ticker():
     assert "destination and exact_ticker and not exception" in source
     assert "INVALID123" in source
     assert "top15" in source
+    assert "marker.scroll_into_view_if_needed" not in source
+    assert "visible_cta=true" in source
+    assert 'name=re.compile(r"Open Full Research"' in source
+    assert "exact_ticker.search" in source
+    assert "_discover_visible_home_cards" in source
+    assert "preceding::*[@data-atlas-interaction-id][1]" in source
+    assert "await self._exact_research_ticker(page, ticker)" in source
+    assert "prior in text" not in source
 
 
 def test_supporting_evidence_and_grounding_are_independently_certified():
@@ -104,6 +112,41 @@ def test_supporting_evidence_and_grounding_are_independently_certified():
     assert "_supporting_evidence" in source
     assert "unsupported_numeric" in source
     assert "evidence_metadata" in source
+    assert "supporting evidence" in source.lower()
+    assert "politician" in source.lower()
+    assert "trade date" in source.lower()
+    assert "temporarily unavailable" in source.lower()
+    assert "data-atlas-response-length" in source
+
+
+def test_tabs_are_reacquired_after_every_streamlit_rerender():
+    source = SOURCE.read_text(encoding="utf-8")
+    assert "_fresh_visible_tab" in source
+    assert "tab = await self._fresh_visible_tab(page, name)" in source
+    assert "_selected_tab_panel_has_content" in source
+    assert "selected or panel_identity" in source
+    assert "list[tuple[str, Any]]" not in ast.get_source_segment(
+        source,
+        next(
+            node for node in ast.walk(ast.parse(source))
+            if isinstance(node, ast.AsyncFunctionDef) and node.name == "_click_tabs"
+        ),
+    )
+
+
+def test_screenshots_capture_streamlit_scroll_surface_and_visible_card_cta():
+    source = SOURCE.read_text(encoding="utf-8")
+    assert "_stitched_streamlit_screenshot" in source
+    assert '"capture": "streamlit_stitched"' in source
+    assert "_shot_locator" in source
+    assert "full-report" in source
+
+
+def test_route_generation_recovery_requires_current_visible_healthy_page():
+    source = SOURCE.read_text(encoding="utf-8")
+    assert "_current_route_visible" in source
+    assert "route_current and visible and not rendered_exception" in source
+    assert "route-generation recovery" in source
 
 
 def test_browser_session_is_shared_between_desktop_and_mobile():
