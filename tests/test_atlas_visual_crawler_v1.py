@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import asyncio
 import json
 from pathlib import Path
 
@@ -163,3 +164,106 @@ def test_browser_session_is_shared_between_desktop_and_mobile():
     assert "await self._desktop(page)" in source
     assert "await self._mobile(page)" in source
     assert "await page.set_viewport_size(MOBILE)" in source
+
+
+class _LifecycleNode:
+    def __init__(self, status):
+        self.status = status
+
+    async def get_attribute(self, name):
+        return self.status if name == "data-atlas-status" else None
+
+
+class _LifecycleLocator:
+    def __init__(self, statuses):
+        self.statuses = list(statuses)
+
+    async def count(self):
+        return len(self.statuses)
+
+    def nth(self, index):
+        return _LifecycleNode(self.statuses[index])
+
+
+class _LifecycleScope:
+    def __init__(self, *, requested, statuses, context=True):
+        self.requested = requested
+        self.statuses = statuses
+        self.context = context
+
+    def locator(self, selector):
+        if 'data-atlas-qa="research-container"' in selector:
+            for ticker, statuses in self.statuses.items():
+                if f'data-atlas-ticker="{ticker}"' in selector:
+                    return _LifecycleLocator(statuses)
+            return _LifecycleLocator([])
+        if 'data-atlas-qa="research-context-v1"' in selector:
+            matched = self.context and f'data-atlas-ticker="{self.requested}"' in selector
+            return _LifecycleLocator(["context"] if matched else [])
+        return _LifecycleLocator([])
+
+
+def _completed_research_fixture(monkeypatch, tmp_path, *, statuses, exception=False):
+    monkeypatch.setattr(AtlasVisualCrawler, "_source_sha", lambda _self: "a" * 40)
+    monkeypatch.setattr(
+        "agents.atlas_visual_crawler_v1.full_certification_ticker_matrix",
+        lambda _root: {"top15": ["NVDA"], "role_tickers": {"etf": "SPY"}},
+    )
+    crawler = AtlasVisualCrawler(url="http://example.invalid", output_dir=tmp_path, root=ROOT)
+    scope = _LifecycleScope(requested="NVDA", statuses=statuses)
+    monkeypatch.setattr("agents.atlas_visual_crawler_v1._scopes", lambda _page: [scope])
+
+    async def vnext(_page, _ticker):
+        return {
+            "version": "ATLAS_RESEARCH_VNEXT_UX2",
+            "all_sections": True,
+            "ask_cta": True,
+        }
+
+    async def rendered_exception(_page):
+        return exception
+
+    monkeypatch.setattr(crawler, "_research_vnext_contract", vnext)
+    monkeypatch.setattr("agents.atlas_visual_crawler_v1._has_rendered_exception", rendered_exception)
+    return asyncio.run(crawler._completed_research(object(), "NVDA"))
+
+
+def test_completed_research_uses_later_exact_ticker_complete(monkeypatch, tmp_path):
+    result = _completed_research_fixture(
+        monkeypatch, tmp_path, statuses={"NVDA": ["loading", "complete"]},
+    )
+    assert result["complete"] is True
+    assert result["terminal_status"] == "complete"
+
+
+def test_completed_research_rejects_loading_without_completion(monkeypatch, tmp_path):
+    result = _completed_research_fixture(
+        monkeypatch, tmp_path, statuses={"NVDA": ["loading"]},
+    )
+    assert result["complete"] is False
+    assert result["terminal_status"] == "loading"
+
+
+def test_completed_research_ignores_other_ticker_completion(monkeypatch, tmp_path):
+    result = _completed_research_fixture(
+        monkeypatch, tmp_path, statuses={"NVDA": ["loading"], "AAPL": ["complete"]},
+    )
+    assert result["complete"] is False
+    assert result["terminal_status"] == "loading"
+
+
+def test_completed_research_rejects_stale_complete_followed_by_new_loading(monkeypatch, tmp_path):
+    result = _completed_research_fixture(
+        monkeypatch, tmp_path, statuses={"NVDA": ["complete", "loading"]},
+    )
+    assert result["complete"] is False
+    assert result["terminal_status"] == "loading"
+
+
+def test_completed_research_rejects_rendered_exception(monkeypatch, tmp_path):
+    result = _completed_research_fixture(
+        monkeypatch, tmp_path, statuses={"NVDA": ["loading", "complete"]}, exception=True,
+    )
+    assert result["complete"] is False
+    assert result["terminal_status"] == "complete"
+    assert result["rendered_exception"] is True

@@ -158,6 +158,7 @@ class AtlasVisualCrawler:
         result = {
             "ticker": False, "lifecycle_complete": False, "vnext": False,
             "five_sections": False, "loading": False, "ask_cta": False,
+            "terminal_status": "", "rendered_exception": False,
         }
         architecture = await self._research_vnext_contract(page, expected)
         result.update({
@@ -167,22 +168,29 @@ class AtlasVisualCrawler:
         })
         for scope in _scopes(page):
             try:
-                complete = scope.locator(
-                    f'[data-atlas-qa="research-container"][data-atlas-status="complete"][data-atlas-ticker="{expected}"]'
+                lifecycle = scope.locator(
+                    f'[data-atlas-qa="research-container"][data-atlas-ticker="{expected}"]'
                 )
-                result["lifecycle_complete"] = result["lifecycle_complete"] or bool(await complete.count())
+                for index in range(await lifecycle.count()):
+                    # Playwright preserves DOM order. The final exact-ticker
+                    # marker is the current lifecycle generation: an earlier
+                    # loading marker must not mask a later completion, and a
+                    # stale completion must not mask a later loading marker.
+                    result["terminal_status"] = (
+                        await lifecycle.nth(index).get_attribute("data-atlas-status") or ""
+                    ).strip().lower()
                 result["ticker"] = result["ticker"] or bool(await scope.locator(
                     f'[data-atlas-qa="research-context-v1"][data-atlas-ticker="{expected}"]'
                 ).count())
-                loading = scope.locator(
-                    '[data-atlas-qa="research-container"][data-atlas-status="loading"]'
-                )
-                result["loading"] = result["loading"] or bool(await loading.count())
             except Exception:
                 continue
+        result["lifecycle_complete"] = result["terminal_status"] == "complete"
+        result["loading"] = result["terminal_status"] == "loading"
+        result["rendered_exception"] = await _has_rendered_exception(page)
         result["complete"] = bool(
             result["ticker"] and result["lifecycle_complete"] and result["vnext"]
-            and result["five_sections"] and result["ask_cta"] and not result["loading"]
+            and result["five_sections"] and result["ask_cta"]
+            and not result["rendered_exception"]
         )
         return result
 
