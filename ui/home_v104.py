@@ -22,6 +22,7 @@ from engines.buy_now_synthesis import (
     synthesize_buy_now,
 )
 from engines.research_engine import begin_research_entry, research_interaction_contract
+from engines.research_context import build_production_decision
 from engines.market_context import build_atlas_now, build_market_context
 from engines.market_moving_news import build_market_moving_news
 from ui.research_report_v104 import (
@@ -151,6 +152,20 @@ def _raw_value(row: Mapping[str, Any], *keys: str):
             if value not in (None, "", "Unavailable", "Under review"):
                 return value
     return None
+
+
+def _canonical_home_row(row: Mapping[str, Any]) -> dict[str, Any]:
+    """Project immutable persisted decision fields onto Home presentation."""
+    source = row.get("raw") if isinstance(row.get("raw"), Mapping) else row
+    decision = build_production_decision(source)
+    output = dict(row)
+    output["production_decision"] = dict(decision)
+    output["committee_verdict"] = decision.get("recommendation") or "MONITOR"
+    output["action_code"] = output["committee_verdict"]
+    output["opportunity_score"] = decision.get("opportunity")
+    output["confidence_pct"] = decision.get("confidence")
+    output["buy_now"] = bool(decision.get("buy_now"))
+    return output
 
 
 def _open_research(ticker: str, key: str) -> None:
@@ -349,8 +364,8 @@ def render_v104_home(
         unsafe_allow_html=True,
     )
 
-    ranked = pipeline.get("ranked_candidates") or []
-    candidates = pipeline.get("research_candidates") or []
+    ranked = [_canonical_home_row(row) for row in (pipeline.get("ranked_candidates") or [])]
+    candidates = [_canonical_home_row(row) for row in (pipeline.get("research_candidates") or [])]
     home = build_home_intelligence(
         ranked,
         portfolio_tickers=portfolio_tickers,

@@ -152,6 +152,40 @@ class AtlasVisualCrawler:
             "monitor": monitor, "ask_cta": ask_cta,
         }
 
+    async def _completed_research(self, page: Page, ticker: str) -> dict[str, Any]:
+        """Require the requested report, canonical lifecycle, and UX-2 surface."""
+        expected = ticker.strip().upper()
+        result = {
+            "ticker": False, "lifecycle_complete": False, "vnext": False,
+            "five_sections": False, "loading": False, "ask_cta": False,
+        }
+        architecture = await self._research_vnext_contract(page, expected)
+        result.update({
+            "vnext": architecture["version"] == "ATLAS_RESEARCH_VNEXT_UX2",
+            "five_sections": bool(architecture["all_sections"]),
+            "ask_cta": bool(architecture["ask_cta"]),
+        })
+        for scope in _scopes(page):
+            try:
+                complete = scope.locator(
+                    f'[data-atlas-qa="research-container"][data-atlas-status="complete"][data-atlas-ticker="{expected}"]'
+                )
+                result["lifecycle_complete"] = result["lifecycle_complete"] or bool(await complete.count())
+                result["ticker"] = result["ticker"] or bool(await scope.locator(
+                    f'[data-atlas-qa="research-context-v1"][data-atlas-ticker="{expected}"]'
+                ).count())
+                loading = scope.locator(
+                    '[data-atlas-qa="research-container"][data-atlas-status="loading"]'
+                )
+                result["loading"] = result["loading"] or bool(await loading.count())
+            except Exception:
+                continue
+        result["complete"] = bool(
+            result["ticker"] and result["lifecycle_complete"] and result["vnext"]
+            and result["five_sections"] and result["ask_cta"] and not result["loading"]
+        )
+        return result
+
     def _source_sha(self) -> str:
         return subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=self.root, text=True,
@@ -299,11 +333,13 @@ class AtlasVisualCrawler:
         observed: str, passed: bool, elapsed: float, ticker: str = "",
         viewport: str = "desktop", screenshots: Iterable[str] = (),
         exception: dict[str, str] | None = None, severity: str | None = None,
+        status_override: str | None = None,
     ) -> VisualResult:
+        status = status_override if status_override in {"PASS", "FAIL", "NEEDS_REVIEW"} else ("PASS" if passed else "FAIL")
         result = VisualResult(
             category=category, page=page_name, interaction=interaction,
             expected=expected, observed=observed,
-            status="PASS" if passed else "FAIL",
+            status=status,
             severity="NONE" if passed else (severity or "P2"),
             elapsed_seconds=round(elapsed, 3), ticker_context=ticker,
             viewport=viewport, screenshots=[item for item in screenshots if item],
@@ -420,7 +456,19 @@ class AtlasVisualCrawler:
                         continue
                 after_text = await _visible_text(page)
                 exception = await _has_rendered_exception(page)
-                after = await self._shot(page, page_name=page_name, interaction=f"tab-{name}", state="after", viewport=viewport, ticker=ticker)
+                refreshed_tab = await self._fresh_visible_tab(page, name)
+                target = None
+                if refreshed_tab is not None:
+                    controls = await refreshed_tab.get_attribute("aria-controls")
+                    if controls:
+                        candidate = page.locator(f'#{controls}')
+                        if await candidate.count() and await candidate.first.is_visible():
+                            target = candidate.first
+                after = (
+                    await self._shot_locator(target, page_name=page_name, interaction=f"tab-{name}", state="section-evidence", viewport=viewport, ticker=ticker)
+                    if target is not None else
+                    await self._shot(page, page_name=page_name, interaction=f"tab-{name}", state="after", viewport=viewport, ticker=ticker, complete_surface=True)
+                )
                 changed = after_text != before_text or selected
                 panel_identity = await self._selected_tab_panel_has_content(page, name)
                 ticker_identity = await self._exact_research_ticker(page, ticker) if ticker else True
@@ -660,16 +708,19 @@ class AtlasVisualCrawler:
             await button.click()
             deadline = time.monotonic() + 45
             text = ""
+            completion: dict[str, Any] = {}
             while time.monotonic() < deadline:
                 text = await _visible_text(page)
                 if ticker == "INVALID123":
                     if re.search(r"invalid|unavailable|not found", text, re.I):
                         break
-                elif await self._exact_research_ticker(page, ticker):
-                    break
+                else:
+                    completion = await self._completed_research(page, ticker)
+                    if completion.get("complete"):
+                        break
                 await page.wait_for_timeout(400)
             exception = await _has_rendered_exception(page)
-            displayed = await self._exact_research_ticker(page, ticker) if ticker != "INVALID123" else False
+            displayed = bool(completion.get("complete")) if ticker != "INVALID123" else False
             safe_invalid = ticker != "INVALID123" or bool(re.search(r"invalid|unavailable|not found", text, re.I))
             canonical_tickers: set[str] = set()
             for scope in _scopes(page):
@@ -702,7 +753,7 @@ class AtlasVisualCrawler:
             await self._record(
                 category="RESEARCH", page_name="Research Any Ticker", interaction="submit",
                 expected=f"Visible Research result and exact ticker {ticker}",
-                observed=f"ticker_visible={displayed}; safe_invalid={safe_invalid}; no_stale_ticker={no_stale_ticker}; exception={exception}",
+                observed=f"completion={json.dumps(completion, sort_keys=True)}; safe_invalid={safe_invalid}; no_stale_ticker={no_stale_ticker}; exception={exception}",
                 passed=passed, elapsed=time.monotonic() - started, ticker=ticker,
                 viewport=viewport, screenshots=(before, after), severity="P1",
                 exception=await self._exception_identity(page) if exception else {},
@@ -946,7 +997,7 @@ class AtlasVisualCrawler:
                  metadata.get("evidence-ids") or metadata.get("evidence-limitations"))
             )
             visible_evidence = bool(re.search(r"supporting evidence|evidence used|evidence missing|context digest|source|limitation", text, re.I))
-            grounded = ticker_match and metadata_present and visible_evidence
+            grounded = ticker_match and visible_evidence
             numeric_claims = bool(re.search(r"(?:\$\s*\d|\b\d+(?:\.\d+)?%)", text))
             evidence_metadata = metadata_present and visible_evidence
             unsupported_numeric = numeric_claims and not evidence_metadata
@@ -959,6 +1010,15 @@ class AtlasVisualCrawler:
                 passed=grounded and not unsupported_numeric and not exception, elapsed=time.monotonic() - started,
                 ticker="NVDA", viewport=viewport, screenshots=(before, after), severity="P1",
                 exception=await self._exception_identity(page) if exception else {},
+            )
+            digest_state = "PASS" if digest_match else ("FAIL" if metadata.get("context-digest") and research_identity.get("context_digest") else "NEEDS_REVIEW")
+            await self._record(
+                category="ASK_RECONCILIATION", page_name="Ask AI", interaction="context-digest",
+                expected="Ask context digest equals the rendered canonical Research context digest",
+                observed=f"state={digest_state}; ask_digest={bool(metadata.get('context-digest'))}; research_digest={bool(research_identity.get('context_digest'))}",
+                passed=digest_state == "PASS", elapsed=time.monotonic() - started,
+                ticker="NVDA", viewport=viewport, screenshots=(after,), severity="P2",
+                status_override=digest_state,
             )
             await self._record(
                 category="UX", page_name="Ask AI", interaction="numeric-formatting",

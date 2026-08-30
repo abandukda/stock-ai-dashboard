@@ -143,7 +143,9 @@ def build_production_decision(production_row: Mapping[str, Any] | None) -> Froze
     decision = {
         "semantic_status": AVAILABLE,
         "recommendation": recommendation,
-        "opportunity": _first(production_row, "Opportunity", "opportunity_score", "Opportunity Score", "score"),
+        # Generic ``score`` is the legacy confidence/conviction value in the
+        # persisted scan. It is not canonical Opportunity authority.
+        "opportunity": _first(production_row, "Opportunity", "opportunity_score", "Opportunity Score"),
         "confidence": _first(production_row, "Confidence", "confidence", "confidence_pct"),
         "buy_now": buy_now,
         "ranking": _first(production_row, "ranking", "rank", "relative_rank_score"),

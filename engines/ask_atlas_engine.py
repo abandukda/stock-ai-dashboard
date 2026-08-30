@@ -103,6 +103,18 @@ def extract_requested_ticker(question: str, allowed_symbols: list[str]) -> str |
     return next((token for token in tokens if token in allowed), None)
 
 
+def format_customer_financial_numbers(text: str) -> str:
+    """Abbreviate large displayed numbers without altering canonical evidence."""
+    pattern = re.compile(r"(?P<currency>\$\s*)?(?P<number>\d{1,3}(?:,\d{3}){3,}|\d{10,})(?![\d,])")
+
+    def replace(match: re.Match[str]) -> str:
+        number = float(match.group("number").replace(",", ""))
+        suffix, divisor = (("T", 1_000_000_000_000) if number >= 1_000_000_000_000 else ("B", 1_000_000_000))
+        return f"{'$' if match.group('currency') else ''}{number / divisor:.2f}{suffix}"
+
+    return pattern.sub(replace, str(text or ""))
+
+
 def _grounding_metadata(question: str, report: Mapping[str, Any]) -> dict[str, Any]:
     section = _question_section(question)
     sections = report.get("sections") or {}
@@ -425,7 +437,7 @@ def ask_atlas(question: str, report: Mapping[str, Any]) -> dict[str, Any]:
         and section.get("status") in {"available", "partial"}
     ]
     return {
-        "answer": answer,
+        "answer": format_customer_financial_numbers(answer),
         "mode": mode,
         "sources_used": sources,
         "generated_from": report.get("generated_at"),

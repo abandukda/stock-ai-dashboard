@@ -16297,17 +16297,42 @@ def render_v58_political_intelligence(full_df=None):
             unsafe_allow_html=True,
         )
         if st.button(f"Open complete Atlas research — {selected}", key=f"v58_open_research_{selected}"):
-            from engines.research_engine import research_navigation_state
-            for state_key, state_value in research_navigation_state(selected).items():
-                st.session_state[state_key] = state_value
+            from engines.research_engine import begin_research_entry
+            begin_research_entry(
+                st.session_state, selected, source="POLITICAL_INTELLIGENCE",
+                interaction_id=interaction_id,
+            )
             st.rerun()
 
     st.markdown("### 🧾 Most Recent Political Trades")
     recent_cols = ["Ticker", "Security", "Politician", "Chamber", "Transaction", "Amount", "Trade Date", "Disclosure Date", "Provider", "Evidence ID", "Source Link"]
+    _political_cards = "".join(
+        '<article class="atlas-political-mobile-card">'
+        + "".join(
+            f'<div><small>{html.escape(label)}</small><strong>{html.escape(str(row.get(column) or "Unavailable"))}</strong></div>'
+            for label, column in (
+                ("Politician", "Politician"), ("Security / ticker", "Ticker"),
+                ("Action", "Transaction"), ("Trade Date", "Trade Date"),
+                ("Disclosure Date", "Disclosure Date"), ("Amount", "Amount"),
+                ("Provider", "Provider"),
+            )
+        ) + "</article>"
+        for _, row in df.head(20).iterrows()
+    )
+    st.markdown(
+        '<style>.atlas-political-mobile{display:none}@media(max-width:700px){.atlas-political-mobile{display:block}'
+        '.atlas-political-mobile-card{border:1px solid rgba(148,163,184,.25);border-radius:14px;padding:.75rem;margin:.6rem 0}'
+        '.atlas-political-mobile-card div{display:grid;grid-template-columns:7rem 1fr;gap:.5rem;padding:.25rem 0}'
+        '.atlas-political-mobile-card small{color:#94a3b8}.atlas-political-mobile-card strong{overflow-wrap:anywhere}'
+        '[data-atlas-political-desktop="true"]{display:none}}</style>'
+        f'<div class="atlas-political-mobile">{_political_cards}</div>', unsafe_allow_html=True,
+    )
+    st.markdown('<div data-atlas-political-desktop="true">', unsafe_allow_html=True)
     st.dataframe(
         df[recent_cols].head(75), use_container_width=True, hide_index=True,
         column_config={"Source Link": st.column_config.LinkColumn("Disclosure source")},
     )
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # Optional ticker-level political card for research reports.
@@ -26115,11 +26140,8 @@ def v784_open_research(ticker):
     ticker = str(ticker or "").strip().upper()
     if not ticker:
         return
-    st.session_state["v73_research_ticker"] = ticker
-    st.session_state["selected_ticker"] = ticker
-    st.session_state["selected_research_ticker"] = ticker
-    st.session_state["v73_page"] = "Research Any Ticker"
-    st.session_state["v79_pending_page"] = "Research Any Ticker"
+    from engines.research_engine import begin_research_entry
+    begin_research_entry(st.session_state, ticker, source="SUPPORTING_PAGE_RESEARCH")
     st.rerun()
 
 def v784_compact_thesis(row, ticker):

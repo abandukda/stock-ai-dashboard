@@ -98,11 +98,22 @@ def _technical_state(report: Mapping[str, Any]) -> Any:
     for key in ("technical_state", "technical_intelligence_state"):
         if key in report and not is_missing_scalar(report.get(key)):
             return report.get(key)
+    families = safe_mapping(_canonical_context(report).get("evidence_families"))
+    canonical_data = safe_mapping(safe_mapping(families.get("technicals")).get("data"))
+    for key in ("technical_state", "state", "setup_state", "breakout_state"):
+        if key in canonical_data and not is_missing_scalar(canonical_data.get(key)):
+            return canonical_data.get(key)
     return None
 
 
 def _canonical_context(report: Mapping[str, Any]) -> Mapping[str, Any]:
     return safe_mapping(report.get("research_context"))
+
+
+def _decision_value(report: Mapping[str, Any], canonical_key: str, report_key: str) -> Any:
+    """Resolve immutable decision authority without cross-field substitution."""
+    decision = safe_mapping(_canonical_context(report).get("production_decision"))
+    return decision.get(canonical_key) if decision else report.get(report_key)
 
 
 def _critical_gaps(report: Mapping[str, Any]) -> tuple[str, ...]:
@@ -143,7 +154,10 @@ def build_research_decision_view(report: Mapping[str, Any]) -> dict[str, Any]:
         _scalar_text(risk_item.get("consequence"), ""),
     ))) or _scalar_text((safe_sequence(report.get("bear_case")) or [None])[0])
     completeness = report.get("research_completeness_pct")
-    verdict = _scalar_text(report.get("committee_verdict"), "Monitor")
+    canonical_recommendation = _decision_value(report, "recommendation", "committee_verdict")
+    canonical_opportunity = _decision_value(report, "opportunity", "opportunity_score")
+    canonical_confidence = _decision_value(report, "confidence", "confidence_pct")
+    verdict = _scalar_text(canonical_recommendation, "Monitor")
     try:
         materially_incomplete = completeness is None or float(completeness) < 70.0
     except (TypeError, ValueError):
@@ -158,9 +172,9 @@ def build_research_decision_view(report: Mapping[str, Any]) -> dict[str, Any]:
         limitations=gaps,
     )
     header = decision_header(
-        recommendation=report.get("committee_verdict"),
-        opportunity=report.get("opportunity_score"),
-        confidence=report.get("confidence_pct"),
+        recommendation=canonical_recommendation,
+        opportunity=canonical_opportunity,
+        confidence=canonical_confidence,
         research_completeness=completeness,
         actionability_label="Monitor — Not currently actionable" if monitor else _scalar_text(action.get("current_action"), verdict.replace("_", " ").title()),
     )
