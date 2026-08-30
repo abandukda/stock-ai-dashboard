@@ -19,7 +19,7 @@ from engines.research_context import EVIDENCE_FAMILIES
 
 
 VNEXT_PRESENTATION_CONTRACT_VERSION: Final = "ATLAS_VNEXT_PRESENTATION_CONTRACT_V1"
-MIGRATION_BASELINE_VERSION: Final = "ATLAS_V1_PRESENTATION_MIGRATION_BASELINE"
+MIGRATION_BASELINE_VERSION: Final = "ATLAS_VNEXT_UX2_RESEARCH_MIGRATION_BASELINE"
 MIGRATION_BASELINE_CLASSIFICATION: Final = "VERSIONED_REPLACEABLE_MIGRATION_BASELINE"
 
 PROTECTED_INVESTMENT_OUTPUTS: Final = (
@@ -52,10 +52,8 @@ AVAILABILITY_SEMANTICS: Final = (
 )
 
 CURRENT_RESEARCH_TABS: Final = (
-    "Thesis", "Growth & Profitability", "Earnings Intelligence", "Risk",
-    "Catalysts & Company News", "Ownership",
-    "Political Intelligence Boundary", "Earnings Call Boundary",
-    "Chart & Technicals", "Final Decision", "AI Intelligence", "Ask Atlas AI",
+    "Decision", "Fundamentals & Valuation", "Technical & Trade State",
+    "Catalysts & Sentiment", "Risk & Evidence",
 )
 
 CURRENT_ACTIVE_PAGES: Final = (
@@ -81,8 +79,10 @@ PRESENTATION_BASELINE: Final = MappingProxyType({
     "active_pages": CURRENT_ACTIVE_PAGES,
     "research_tabs": CURRENT_RESEARCH_TABS,
     "required_journeys": (
-        "direct_research", "home_to_research", "research_tabs", "ask_grounding",
-        "etf_research", "invalid_ticker", "political_evidence",
+        "direct_research", "home_to_research", "research_vnext_sections",
+        "high_evidence_research", "monitor_incomplete_research",
+        "ask_contextual_cta", "ask_grounding", "etf_research",
+        "invalid_ticker", "political_evidence",
     ),
     "crawler_contract": MappingProxyType({
         "page_count": 14,

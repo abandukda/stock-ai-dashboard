@@ -10,6 +10,7 @@ from agents.atlas_visual_crawler_v1 import (
     MOBILE_PAGES,
     PRIMARY_VISIBLE_SIGNALS,
     VISUAL_CRAWLER_VERSION,
+    RESEARCH_VNEXT_SECTIONS,
     VisualResult,
 )
 from agents.product_hardening_certification import ACTIVE_PAGES
@@ -102,6 +103,13 @@ def test_research_and_home_require_actual_visible_controls_and_exact_ticker():
     assert "preceding::*[@data-atlas-interaction-id][1]" in source
     assert "await self._exact_research_ticker(page, ticker)" in source
     assert "prior in text" not in source
+    assert set(RESEARCH_VNEXT_SECTIONS) == {
+        "decision", "fundamentals-and-valuation", "technical-and-trade-state",
+        "catalysts-and-sentiment", "risk-and-evidence",
+    }
+    assert "_research_vnext_contract" in source
+    assert "vnext-five-section-contract" in source
+    assert "self.monitor_ticker" in source
 
 
 def test_supporting_evidence_and_grounding_are_independently_certified():

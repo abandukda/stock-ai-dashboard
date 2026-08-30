@@ -35,6 +35,10 @@ from agents.runtime_qa_user_journeys_v40 import (
 
 
 VISUAL_CRAWLER_VERSION = "ATLAS_VISUAL_CRAWLER_V1_1"
+RESEARCH_VNEXT_SECTIONS = (
+    "decision", "fundamentals-and-valuation", "technical-and-trade-state",
+    "catalysts-and-sentiment", "risk-and-evidence",
+)
 DESKTOP = {"width": 1440, "height": 1000}
 MOBILE = {"width": 390, "height": 844}
 GLOBAL_FATALS = {"APP_UNREACHABLE", "AUTHENTICATION_FAILED", "BROWSER_DIED"}
@@ -100,6 +104,49 @@ class AtlasVisualCrawler:
         self.ticker_matrix = full_certification_ticker_matrix(root)
         self._shot_number = 0
         self.research_contexts: dict[str, dict[str, str]] = {}
+        self.monitor_ticker = self._monitor_research_ticker()
+
+    def _monitor_research_ticker(self) -> str:
+        """Choose a current incomplete/Monitor archetype without provider work."""
+        try:
+            payload = json.loads((self.root / "market_full_scan.json").read_text(encoding="utf-8"))
+            rows = payload if isinstance(payload, list) else payload.get("rows", [])
+        except (OSError, ValueError, TypeError):
+            return "CRC"
+        normalized = [row for row in rows if isinstance(row, dict)]
+        for row in normalized:
+            ticker = str(row.get("ticker") or row.get("Ticker") or "").upper()
+            if ticker == "CRC":
+                return ticker
+        for row in normalized:
+            ticker = str(row.get("ticker") or row.get("Ticker") or "").upper()
+            if ticker and all(row.get(key) is None for key in ("atlas_fair_value", "opportunity_score", "confidence_pct")):
+                return ticker
+        return "CRC"
+
+    async def _research_vnext_contract(self, page: Page, ticker: str) -> dict[str, Any]:
+        sections: set[str] = set()
+        version = ""
+        monitor = False
+        ask_cta = False
+        for scope in _scopes(page):
+            try:
+                roots = scope.locator(f'[data-atlas-qa="research-vnext"][data-atlas-ticker="{ticker}"]')
+                if await roots.count():
+                    version = await roots.first.get_attribute("data-atlas-version") or ""
+                    monitor = (await roots.first.get_attribute("data-atlas-monitor") or "").lower() == "true"
+                nodes = scope.locator(f'[data-atlas-qa="research-vnext-section"][data-atlas-ticker="{ticker}"]')
+                for index in range(await nodes.count()):
+                    sections.add(await nodes.nth(index).get_attribute("data-atlas-section") or "")
+                cta = scope.locator(f'[data-atlas-qa="research-ask-cta"][data-atlas-ticker="{ticker}"]')
+                ask_cta = ask_cta or bool(await cta.count())
+            except Exception:
+                continue
+        return {
+            "version": version, "sections": sorted(sections),
+            "all_sections": set(RESEARCH_VNEXT_SECTIONS) <= sections,
+            "monitor": monitor, "ask_cta": ask_cta,
+        }
 
     def _source_sha(self) -> str:
         return subprocess.check_output(
@@ -632,6 +679,17 @@ class AtlasVisualCrawler:
             passed = bool((displayed or ticker == "INVALID123") and safe_invalid and no_stale_ticker and not exception)
             if displayed:
                 self.research_contexts[ticker] = await self._research_identity(page, ticker)
+                architecture = await self._research_vnext_contract(page, ticker)
+                architecture_passed = bool(architecture["all_sections"] and architecture["ask_cta"])
+                await self._record(
+                    category="RESEARCH_ARCHITECTURE", page_name="Research Any Ticker",
+                    interaction="vnext-five-section-contract",
+                    expected="Decision plus four supporting sections and grounded Ask CTA",
+                    observed=json.dumps(architecture, sort_keys=True), passed=architecture_passed,
+                    elapsed=time.monotonic() - started, ticker=ticker, viewport=viewport,
+                    severity="P1", screenshots=(),
+                )
+                passed = passed and architecture_passed
             after = await self._shot(page, page_name="Research Any Ticker", interaction=f"submit-{ticker}", state="after", viewport=viewport, ticker=ticker, complete_surface=ticker != "INVALID123")
             await self._record(
                 category="RESEARCH", page_name="Research Any Ticker", interaction="submit",
@@ -913,7 +971,7 @@ class AtlasVisualCrawler:
                 await self._supporting_evidence(page, page_name=page_name)
         await self._home_cards(page)
         roles = self.ticker_matrix.get("role_tickers", {})
-        minimum = ["NVDA", roles.get("top_idea"), roles.get("home_first"), roles.get("home_middle"), roles.get("home_last"), roles.get("etf") or "SPY", roles.get("missing_production"), "INVALID123"]
+        minimum = ["NVDA", roles.get("top_idea"), roles.get("home_first"), roles.get("home_middle"), roles.get("home_last"), self.monitor_ticker, roles.get("etf") or "SPY", roles.get("missing_production"), "INVALID123"]
         tickers = list(dict.fromkeys(ticker for ticker in [*minimum, *self.ticker_matrix.get("top15", [])] if ticker))
         deep = set(ticker for ticker in minimum if ticker and ticker != "INVALID123")
         for ticker in tickers:
@@ -928,6 +986,7 @@ class AtlasVisualCrawler:
                 await self._home_cards(page, viewport="mobile")
             elif page_name == "Research Any Ticker":
                 await self._submit_research(page, "NVDA", tabs=True, viewport="mobile")
+                await self._submit_research(page, self.monitor_ticker, tabs=True, viewport="mobile")
             elif page_name == "Ask AI":
                 await self._ask(page, viewport="mobile")
             elif page_name == "Political Intelligence":

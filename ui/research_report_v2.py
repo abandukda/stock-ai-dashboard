@@ -21,6 +21,7 @@ from engines.semantic_fields import (
 from services.research_render_diagnostics import checkpoint
 from services.policy_data import enrich_policy_for_research
 from services.ai_valuation_synthesis import get_ai_valuation_for_research
+from ui.vnext_presentation import CanonicalNumberFormatter
 
 
 _QA_FAMILY_SECTION = {
@@ -81,19 +82,11 @@ def _render_architecture_qa_markers(report: Mapping[str, Any]) -> None:
 
 
 def _money(value: Any) -> str:
-    try:
-        return f"${float(value):,.2f}"
-    except (TypeError, ValueError):
-        return "Unavailable"
+    return CanonicalNumberFormatter.currency(value).display
 
 
 def _pct(value: Any, signed: bool = False) -> str:
-    try:
-        number = float(value)
-        prefix = "+" if signed and number > 0 else ""
-        return f"{prefix}{number:.1f}%"
-    except (TypeError, ValueError):
-        return "Unavailable"
+    return CanonicalNumberFormatter.percent(value, signed=signed).display
 
 
 def _score(value: Any) -> str:
@@ -895,6 +888,26 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
         """,
         unsafe_allow_html=True,
     )
+
+    # UX-2 replaces the V1 twelve-tab presentation baseline. The canonical
+    # builder and every evidence object above remain unchanged; only their
+    # customer-facing hierarchy is migrated into five decision sections.
+    from ui.research_vnext import render_research_vnext
+    render_research_vnext(
+        report,
+        legacy={
+            "valuation": _render_hybrid_valuation,
+            "analyst": _render_analyst_intelligence,
+            "meta": _meta,
+            "metric_grid": _metric_grid,
+            "interpretation": _render_interpretation,
+            "trade_plan": _render_trade_plan,
+            "price_chart": _render_price_chart,
+            "policy": _render_policy_intelligence,
+        },
+    )
+    checkpoint("render_atlas_research_v2:after")
+    return
 
     c = st.columns(5)
     c[0].metric("Verdict", str(report.get("committee_verdict") or "Monitor").replace("_", " ").title())

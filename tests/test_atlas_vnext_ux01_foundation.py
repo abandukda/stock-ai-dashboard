@@ -62,7 +62,7 @@ def test_desktop_mobile_and_current_surface_snapshot_contract():
     assert fixture["may_change_with_explicit_ux_approval"] is snapshot["presentation"]["may_change_with_explicit_ux_approval"] is True
     assert fixture["viewports"] == snapshot["presentation"]["viewports"]
     assert fixture["active_page_count"] == len(CURRENT_ACTIVE_PAGES) == 14
-    assert fixture["research_tab_count"] == len(CURRENT_RESEARCH_TABS) == 12
+    assert fixture["research_tab_count"] == len(CURRENT_RESEARCH_TABS) == 5
     assert fixture["screenshot_manifest_required"] is snapshot["presentation"]["crawler_contract"]["screenshot_manifest_required"]
 
 
@@ -80,7 +80,7 @@ def test_current_pages_tabs_navigation_and_journeys_are_replaceable_migration_ba
     # These assertions record V1 coverage. They are intentionally replaceable
     # when an approved UX phase consolidates pages, tabs, or navigation.
     assert len(presentation["active_pages"]) == 14
-    assert len(presentation["research_tabs"]) == 12
+    assert len(presentation["research_tabs"]) == 5
 
 
 def test_contract_snapshot_is_detached_from_immutable_inventory():
