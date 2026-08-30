@@ -841,6 +841,14 @@ def _render_ask_atlas(report: Mapping[str, Any]) -> None:
 
 def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
     checkpoint("render_atlas_research_v2:before")
+    # Compatibility entry point only. The legacy implementation remains below
+    # for rollback/migration reference, but the active customer path always
+    # resolves UX-2 dynamically and returns before the twelve-tab baseline.
+    from ui.research_vnext import render_full_research_vnext
+    render_full_research_vnext(row)
+    checkpoint("render_atlas_research_v2:after")
+    return
+
     research_row = dict(row)
     symbol = str(research_row.get("ticker") or research_row.get("Ticker") or "").strip().upper()
     canonical_context = research_row.get("research_context") if isinstance(research_row.get("research_context"), Mapping) else {}

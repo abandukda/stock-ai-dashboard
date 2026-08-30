@@ -587,8 +587,90 @@ def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Cal
     _render_ask_cta(report)
 
 
+def render_full_research_vnext(row: Mapping[str, Any]) -> None:
+    """Build and render the canonical report through the active UX-2 surface.
+
+    This is the single runtime activation boundary used by the final app route,
+    V104 compatibility entry points, and the preserved V2 adapter.  Importing
+    the legacy module at call time intentionally avoids retaining a stale
+    pre-deployment renderer function in a long-lived Streamlit process.
+    """
+    from engines.atlas_research_builder_v2 import build_atlas_research_v2
+    from services.research_render_diagnostics import checkpoint
+    import ui.research_report_v2 as legacy_report
+
+    research_row = dict(row)
+    symbol = str(research_row.get("ticker") or research_row.get("Ticker") or "").strip().upper()
+    canonical_context = (
+        research_row.get("research_context")
+        if isinstance(research_row.get("research_context"), Mapping) else {}
+    )
+    canonical_families = (
+        canonical_context.get("evidence_families")
+        if isinstance(canonical_context.get("evidence_families"), Mapping) else {}
+    )
+    action_family = (
+        canonical_families.get("analyst_actions")
+        if isinstance(canonical_families.get("analyst_actions"), Mapping) else {}
+    )
+    action_data = action_family.get("data") if isinstance(action_family.get("data"), Mapping) else {}
+    canonical_actions = action_data.get("actions") or []
+    retrieval = {
+        "actions": canonical_actions,
+        "cache_hit": action_family.get("cache_status") in {"FRESH_CACHE", "STALE_FALLBACK"},
+        "retrieval_seconds": 0.0,
+        "request_count": 0,
+        "provider": action_family.get("provider"),
+        "fallback_reason": action_family.get("fallback_reason"),
+    }
+    research_row["analyst_actions"] = canonical_actions
+    policy_retrieval = legacy_report._load_policy_enrichment(symbol, research_row)
+    research_row["policy_intelligence_external"] = policy_retrieval
+    research_row["ai_valuation_external"] = legacy_report._load_ai_valuation(symbol, research_row)
+    checkpoint("build_atlas_research_v2:call")
+    report = build_atlas_research_v2(research_row)
+    checkpoint("build_atlas_research_v2:return")
+    report["analyst_action_retrieval"] = retrieval
+    report["policy_source_metrics"] = policy_retrieval.get("metrics") or {}
+    legacy_report._inject_visual_standards()
+    legacy_report._render_architecture_qa_markers(report)
+
+    st.markdown(
+        f"""
+        <div style="border:1px solid rgba(95,159,226,.32);border-radius:24px;padding:24px;
+        background:linear-gradient(145deg,rgba(14,39,65,.98),rgba(7,18,34,.98));margin-bottom:18px">
+          <div style="color:#8fa8c4;font-size:.75rem;font-weight:850;letter-spacing:.14em;text-transform:uppercase">
+            Atlas V2 Institutional Intelligence
+          </div>
+          <div style="color:#f8faff;font-size:2.5rem;font-weight:900;margin-top:8px">
+            {escape(str(report.get("ticker") or "UNKNOWN"))}
+          </div>
+          <div style="color:#aebbd0;margin-top:9px">
+            {escape(str(report.get("company") or ""))} ·
+            {escape(str(report.get("sector") or "Unknown"))} ·
+            {escape(str(report.get("committee_verdict") or "Monitor").replace("_", " ").title())}
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    render_research_vnext(
+        report,
+        legacy={
+            "valuation": legacy_report._render_hybrid_valuation,
+            "analyst": legacy_report._render_analyst_intelligence,
+            "meta": legacy_report._meta,
+            "metric_grid": legacy_report._metric_grid,
+            "interpretation": legacy_report._render_interpretation,
+            "trade_plan": legacy_report._render_trade_plan,
+            "price_chart": legacy_report._render_price_chart,
+            "policy": legacy_report._render_policy_intelligence,
+        },
+    )
+
+
 __all__ = [
     "RESEARCH_EVIDENCE_MIGRATION", "RESEARCH_VNEXT_SECTIONS",
     "RESEARCH_VNEXT_VERSION", "build_research_decision_view",
-    "render_research_vnext",
+    "render_full_research_vnext", "render_research_vnext",
 ]

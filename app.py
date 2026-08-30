@@ -27445,7 +27445,10 @@ def render_detail(row):
     )
     try:
         research_render_checkpoint("render_detail:import_renderer")
-        from ui.research_report_v104 import render_full_research_report
+        # The final active Research route resolves the UX-2 adapter directly.
+        # This bypasses stale renderer aliases retained by long-lived Streamlit
+        # module state while preserving V104/V2 compatibility entry points.
+        from ui.research_vnext import render_full_research_vnext as render_full_research_report
         research_render_checkpoint("render_detail:before")
         render_full_research_report(dict(row))
         research_render_checkpoint("render_detail:after")

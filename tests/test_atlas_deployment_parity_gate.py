@@ -118,7 +118,7 @@ def test_early_import_error_retains_safe_location_and_attempt(monkeypatch):
     real_import = __import__
 
     def fail_renderer(name, *args, **kwargs):
-        if name == "ui.research_report_v104":
+        if name == "ui.research_vnext":
             raise ImportError("deliberately redacted deployment fixture")
         return real_import(name, *args, **kwargs)
 

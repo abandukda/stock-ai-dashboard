@@ -10,7 +10,6 @@ from engines.individualized_scoring_v1052 import calculate_individualized_scores
 from engines.semantic_fields import canonical_atlas_fair_value
 from engines.research_engine import begin_research_entry, research_interaction_contract
 from engines.trade_plan_v1052 import classify_horizon
-from ui.research_report_v2 import render_atlas_research_v2
 from utils.evidence_coverage_v1046 import calculate_evidence_coverage
 # Compatibility export retained for existing integrations/tests; candidate
 # rendering no longer uses its ambiguous validated-fair-value semantics.
@@ -224,7 +223,10 @@ def render_candidate_card(
 
 def render_full_research_report(row: Mapping[str, Any]) -> None:
     checkpoint("render_full_research_report:before")
-    render_atlas_research_v2(row)
+    # Resolve the active UX-2 adapter at call time.  A long-lived Streamlit
+    # process must not retain a pre-deployment twelve-tab function alias.
+    from ui.research_vnext import render_full_research_vnext
+    render_full_research_vnext(row)
     checkpoint("render_full_research_report:after")
 
     if st.button(

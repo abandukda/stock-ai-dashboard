@@ -39,6 +39,10 @@ RESEARCH_VNEXT_SECTIONS = (
     "decision", "fundamentals-and-valuation", "technical-and-trade-state",
     "catalysts-and-sentiment", "risk-and-evidence",
 )
+RESEARCH_VNEXT_SECTION_LABELS = (
+    "Decision", "Fundamentals & Valuation", "Technical & Trade State",
+    "Catalysts & Sentiment", "Risk & Evidence",
+)
 DESKTOP = {"width": 1440, "height": 1000}
 MOBILE = {"width": 390, "height": 844}
 GLOBAL_FATALS = {"APP_UNREACHABLE", "AUTHENTICATION_FAILED", "BROWSER_DIED"}
@@ -375,17 +379,21 @@ class AtlasVisualCrawler:
         text = await _visible_text(page)
         return page_name.lower() in text.lower()
 
-    async def _click_tabs(self, page: Page, *, page_name: str, ticker: str = "", viewport: str = "desktop") -> None:
-        tabs: list[str] = []
-        for scope in _scopes(page):
-            try:
-                locator = scope.get_by_role("tab")
-                for index in range(await locator.count()):
-                    tab = locator.nth(index)
-                    if await tab.is_visible():
-                        tabs.append((await tab.inner_text()).strip() or f"tab-{index + 1}")
-            except Exception:
-                continue
+    async def _click_tabs(
+        self, page: Page, *, page_name: str, ticker: str = "",
+        viewport: str = "desktop", expected_tabs: Iterable[str] | None = None,
+    ) -> None:
+        tabs: list[str] = list(expected_tabs or ())
+        if not tabs:
+            for scope in _scopes(page):
+                try:
+                    locator = scope.get_by_role("tab")
+                    for index in range(await locator.count()):
+                        tab = locator.nth(index)
+                        if await tab.is_visible():
+                            tabs.append((await tab.inner_text()).strip() or f"tab-{index + 1}")
+                except Exception:
+                    continue
         seen: set[str] = set()
         for name in tabs:
             if name in seen:
@@ -700,7 +708,12 @@ class AtlasVisualCrawler:
                 exception=await self._exception_identity(page) if exception else {},
             )
             if passed and tabs and ticker != "INVALID123":
-                await self._click_tabs(page, page_name="Research Any Ticker", ticker=ticker, viewport=viewport)
+                # UX-2 is authoritative. Never rediscover/certify the preserved
+                # legacy twelve-tab presentation for an active Research result.
+                await self._click_tabs(
+                    page, page_name="Research Any Ticker", ticker=ticker,
+                    viewport=viewport, expected_tabs=RESEARCH_VNEXT_SECTION_LABELS,
+                )
             return passed
         except Exception as exc:
             after = await self._shot(page, page_name="Research Any Ticker", interaction=f"submit-{ticker}", state="failure", viewport=viewport, ticker=ticker)
