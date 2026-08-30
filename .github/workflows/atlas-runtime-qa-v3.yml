@@ -55,6 +55,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements-runtime-qa.txt
+          python -c "from PIL import Image; assert Image is not None"
 
       - name: Install and verify Chromium
         timeout-minutes: 8
@@ -89,11 +90,77 @@ jobs:
         continue-on-error: true
         env:
           ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
+          ATLAS_QA_MODE: visual_crawl
           PYTHONUNBUFFERED: "1"
         run: |
+          mkdir -p audit_results/visual_crawl
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          Path("audit_results/visual_crawl/visual_crawler_step_status.json").write_text(
+              json.dumps({
+                  "status": "VISUAL_CRAWLER_EXECUTION_DEFECT",
+                  "phase": "INITIALIZED",
+                  "crawler_exit_code": None,
+                  "summary_present": False,
+              }, indent=2),
+              encoding="utf-8",
+          )
+          PY
+          set +e
           python -u -m agents.atlas_visual_crawler_v1 \
             --url https://stock-ai-dashboard.streamlit.app \
             --output audit_results/visual_crawl
+          crawler_exit_code=$?
+          set -e
+          CRAWLER_EXIT_CODE="$crawler_exit_code" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          output = Path("audit_results/visual_crawl")
+          summary_path = output / "atlas_visual_qa_summary.json"
+          required = (
+              "atlas_visual_qa_summary.json",
+              "atlas_visual_qa_matrix.csv",
+              "screenshot_manifest.json",
+              "atlas_visual_qa_summary.md",
+              "atlas_visual_qa_summary.html",
+              "screenshots",
+          )
+          exit_code = int(os.environ["CRAWLER_EXIT_CODE"])
+          missing = [name for name in required if not (output / name).exists()]
+          status = "VISUAL_CRAWLER_EXECUTION_DEFECT"
+          finished = False
+          failures = None
+          if summary_path.exists() and exit_code in {0, 2}:
+              try:
+                  report = json.loads(summary_path.read_text(encoding="utf-8"))
+                  finished = bool(report.get("finished"))
+                  failures = int(((report.get("counts") or {}).get("all") or {}).get("failed", 0))
+                  if missing or not finished:
+                      status = "VISUAL_CRAWLER_ARTIFACT_DEFECT"
+                  else:
+                      status = "VISUAL_CERTIFICATION_FAIL" if failures else "VISUAL_CERTIFICATION_PASS"
+              except (OSError, ValueError, TypeError):
+                  status = "VISUAL_CRAWLER_ARTIFACT_DEFECT"
+          elif summary_path.exists():
+              status = "VISUAL_CRAWLER_EXECUTION_DEFECT"
+          record = {
+              "status": status,
+              "phase": "CRAWLER_FINISHED",
+              "crawler_exit_code": exit_code,
+              "summary_present": summary_path.exists(),
+              "finished": finished,
+              "failure_count": failures,
+              "missing_artifacts": missing,
+          }
+          (output / "visual_crawler_step_status.json").write_text(
+              json.dumps(record, indent=2), encoding="utf-8"
+          )
+          print(json.dumps(record, sort_keys=True))
+          PY
 
       - name: Summarize Visual Crawler certification
         if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.mode == 'visual_crawl' }}
@@ -104,9 +171,16 @@ jobs:
           from pathlib import Path
 
           path = Path("audit_results/visual_crawl/atlas_visual_qa_summary.json")
+          status_path = Path("audit_results/visual_crawl/visual_crawler_step_status.json")
+          if not status_path.exists():
+              print("VISUAL_CRAWLER_EXECUTION_DEFECT")
+              print("Visual crawler execution status is missing.")
+              raise SystemExit(0)
+          execution = json.loads(status_path.read_text(encoding="utf-8"))
+          infrastructure_status = execution.get("status")
           if not path.exists():
-              print("VISUAL_CERTIFICATION_FAIL")
-              print("Visual crawler summary is missing; inspect uploaded diagnostics.")
+              print(infrastructure_status or "VISUAL_CRAWLER_EXECUTION_DEFECT")
+              print("Visual crawler summary is missing; product certification was not evaluated.")
               raise SystemExit(0)
           report = json.loads(path.read_text(encoding="utf-8"))
           counts = report.get("counts") or {}
@@ -121,7 +195,7 @@ jobs:
               for label in ("P1", "P2", "P3")
           }
           failed = bool((counts.get("all") or {}).get("failed", 0))
-          status = "VISUAL_CERTIFICATION_FAIL" if failed else "VISUAL_CERTIFICATION_PASS"
+          status = str(infrastructure_status or ("VISUAL_CERTIFICATION_FAIL" if failed else "VISUAL_CERTIFICATION_PASS"))
           lines = [
               status,
               f"pages: {pages.get('passed', 0)}/{pages.get('attempted', 0)}",
@@ -157,14 +231,26 @@ jobs:
           from pathlib import Path
 
           path = Path("audit_results/visual_crawl/atlas_visual_qa_summary.json")
+          status_path = Path("audit_results/visual_crawl/visual_crawler_step_status.json")
+          if not status_path.exists():
+              print("VISUAL_CRAWLER_EXECUTION_DEFECT: execution status missing")
+              raise SystemExit(1)
+          execution = json.loads(status_path.read_text(encoding="utf-8"))
+          status = execution.get("status")
+          if status in {"VISUAL_CRAWLER_EXECUTION_DEFECT", "VISUAL_CRAWLER_ARTIFACT_DEFECT"}:
+              print(f"{status}: exit={execution.get('crawler_exit_code')} summary={execution.get('summary_present')}")
+              raise SystemExit(1)
           if not path.exists():
-              print("VISUAL_CERTIFICATION_FAIL: summary artifact missing")
+              print("VISUAL_CRAWLER_ARTIFACT_DEFECT: summary artifact missing")
               raise SystemExit(1)
           report = json.loads(path.read_text(encoding="utf-8"))
           failed = int(((report.get("counts") or {}).get("all") or {}).get("failed", 0))
           finished = bool(report.get("finished"))
-          if failed or not finished:
+          if status == "VISUAL_CERTIFICATION_FAIL" or failed or not finished:
               print(f"VISUAL_CERTIFICATION_FAIL: failures={failed} finished={finished}")
               raise SystemExit(1)
-          print("VISUAL_CERTIFICATION_PASS")
+          if status != "VISUAL_CERTIFICATION_PASS":
+              print(f"VISUAL_CRAWLER_ARTIFACT_DEFECT: unexpected status={status}")
+              raise SystemExit(1)
+          print(status)
           PY
