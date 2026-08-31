@@ -102,12 +102,86 @@ def _conditions(row: Mapping[str, Any], key: str) -> list[str]:
     )
 
 
+def _records(source: Mapping[str, Any], *keys: str, limit: int = 10) -> list[dict[str, Any]]:
+    for key in keys:
+        value = source.get(key)
+        rows = [dict(item) for item in safe_sequence(value) if isinstance(item, Mapping)]
+        if rows:
+            return rows[:limit]
+    return []
+
+
+def _family_data(context: Mapping[str, Any], family: str) -> Any:
+    envelope = safe_mapping(safe_mapping(context.get("evidence_families")).get(family))
+    return envelope.get("data")
+
+
+def _prefer(primary: Any, fallback: Any) -> Any:
+    return fallback if primary is None or (isinstance(primary, str) and not primary.strip()) else primary
+
+
+def _deep_evidence(source: Mapping[str, Any], context: Mapping[str, Any]) -> dict[str, Any]:
+    action_data = _family_data(context, "analyst_actions")
+    action_source = safe_mapping(action_data)
+    analyst_actions = (
+        _records(source, "analyst_actions", "analyst_grades", "analyst_details")
+        or _records(action_source, "actions", "items", "records")
+        or [dict(item) for item in safe_sequence(action_data) if isinstance(item, Mapping)][:10]
+    )
+    consensus_data = safe_mapping(_family_data(context, "analyst_consensus_targets"))
+    analyst_consensus = {
+        "mean_target": _number(_prefer(_first(consensus_data, "analyst_target_mean", "target_mean_price", "consensus_target", "mean"), _first(source, "analyst_target_mean", "target_mean_price", "consensus_target"))),
+        "low_target": _number(_prefer(_first(consensus_data, "analyst_target_low", "target_low_price", "low"), _first(source, "analyst_target_low", "target_low_price"))),
+        "high_target": _number(_prefer(_first(consensus_data, "analyst_target_high", "target_high_price", "high"), _first(source, "analyst_target_high", "target_high_price"))),
+        "analyst_count": _number(_prefer(_first(consensus_data, "analyst_count", "count"), _first(source, "analyst_count", "finnhub_analyst_total"))),
+    }
+    analyst_available = bool(analyst_actions or any(value is not None for value in analyst_consensus.values()))
+    news_data = _family_data(context, "company_news")
+    news_source = safe_mapping(news_data)
+    news = (
+        _records(source, "company_news", "news_evidence", "market_moving_news", "v42_news_catalysts")
+        or _records(news_source, "news", "items", "articles", "records")
+        or [dict(item) for item in safe_sequence(news_data) if isinstance(item, Mapping)][:10]
+    )
+    ownership_data = safe_mapping(_family_data(context, "institutional_ownership"))
+    ownership = {
+        "institutional_ownership_pct": _number(_prefer(_first(ownership_data, "institutional_ownership_pct", "institutional_pct"), source.get("institutional_ownership_pct"))),
+        "insider_ownership_pct": _number(_prefer(_first(ownership_data, "insider_ownership_pct", "insider_pct"), source.get("insider_ownership_pct"))),
+        "major_holders": _records(ownership_data, "major_holders", "institutional_holders", "holders", "records") or _records(source, "major_holders", "institutional_holders", "ownership_records"),
+    }
+    ownership_available = any(
+        value is not None and value != [] for value in ownership.values()
+    )
+    political = _records(
+        source, "congressional_transactions", "political_transactions",
+        "political_evidence", "congressional_trades",
+    )
+    return {
+        "analyst": {
+            "semantic_status": "AVAILABLE" if analyst_available else DATA_UNAVAILABLE,
+            "actions": analyst_actions,
+            "consensus": analyst_consensus,
+        },
+        "news": {"semantic_status": "AVAILABLE" if news else DATA_UNAVAILABLE, "items": news},
+        "ownership": {
+            "semantic_status": "AVAILABLE" if ownership_available else DATA_UNAVAILABLE,
+            **ownership,
+        },
+        "political": {
+            "semantic_status": "AVAILABLE" if political else DATA_UNAVAILABLE,
+            "transactions": political,
+            "scoring_authority": "CONTEXT_ONLY",
+        },
+    }
+
+
 def build_earnings_decision_story(row: Mapping[str, Any]) -> dict[str, Any]:
     """Build presentation-only Earnings story from one persisted canonical row."""
     nested = safe_mapping(row.get("Raw") or row.get("raw"))
-    # The display-normalized scan row can contain authoritative decision
-    # aliases while Raw retains the deep evidence graph.  Merge for read-only
-    # presentation so neither family is silently discarded.
+    # Display normalization can add convenience labels such as a generic
+    # ``Recommendation=buy``. Those labels are useful nowhere in the immutable
+    # decision boundary. Merge only for evidence presentation; decision fields
+    # come from an existing canonical context or the preserved production row.
     source = {**dict(nested), **dict(row)} if nested else dict(row)
     ticker = str(_first(row, "ticker", "Ticker") or _first(source, "ticker", "Ticker") or "UNKNOWN").upper()
     company = str(_first(row, "company", "Company", "company_name", "Name") or _first(source, "company", "Company", "company_name", "Name") or ticker)
@@ -119,7 +193,11 @@ def build_earnings_decision_story(row: Mapping[str, Any]) -> dict[str, Any]:
     summary = build_earnings_summary(intelligence, ticker=ticker)
     guidance = build_management_guidance(source, is_etf=is_etf)
     transcript = build_transcript_intelligence(source, is_etf=is_etf)
-    decision = dict(build_production_decision(source))
+    context = safe_mapping(row.get("research_context")) or safe_mapping(nested.get("research_context"))
+    canonical_decision = safe_mapping(context.get("production_decision"))
+    decision = dict(canonical_decision) if canonical_decision else dict(
+        build_production_decision(nested if nested else row)
+    )
     latest = safe_mapping(intelligence.get("latest_quarter"))
     event_date = latest.get("report_date")
     next_date = _date_text(_first(source, "next_earnings_date", "Next Earnings Date", "earnings_date"))
@@ -164,7 +242,8 @@ def build_earnings_decision_story(row: Mapping[str, Any]) -> dict[str, Any]:
         "thesis_weakeners": _conditions(source, "thesis_weakeners"),
         "thesis_invalidators": _conditions(source, "thesis_invalidators"),
         "watch_next": (_conditions(source, "watch_next") or _as_list(summary.get("watch_next")))[:7],
-        "analyst_actions": [dict(item) for item in safe_sequence(source.get("analyst_actions")) if isinstance(item, Mapping)][:10],
+        "analyst_actions": _records(source, "analyst_actions", "analyst_grades", "analyst_details"),
+        "deep_evidence": _deep_evidence(source, context),
         "history": intelligence.get("history", []),
         "limitations": limitations,
         "evidence_ids": evidence_ids,

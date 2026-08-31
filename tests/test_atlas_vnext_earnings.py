@@ -10,7 +10,10 @@ from engines.earnings_decision_story import (
     build_earnings_decision_story,
     normalized_earnings_history,
 )
-from ui.earnings_vnext import EARNINGS_VNEXT_SECTIONS, EARNINGS_VNEXT_VERSION, _stories
+from ui.earnings_vnext import (
+    EARNINGS_VNEXT_SECTIONS, EARNINGS_VNEXT_VERSION, _markdown_money,
+    _row_payload, _stories, _unsigned_pct,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -100,6 +103,76 @@ def test_decision_authority_and_field_separation_are_preserved():
     assert story["wall_street_consensus"] == 155
 
 
+def test_nested_production_row_defeats_display_buy_fallback():
+    canonical = _row(recommendation=None)
+    canonical.update({
+        "ticker": "GAP", "company": "Gap Inc.", "Opportunity": None,
+        "Confidence": 97, "atlas_fair_value": 39.86,
+        "decision_expected_return_pct": 76.6,
+    })
+    wrapper = {
+        "ticker": "GAP", "company": "Gap Inc.", "Recommendation": "buy",
+        "Opportunity": None, "Confidence": None, "atlas_fair_value": None,
+        "decision_expected_return_pct": None, "Raw": canonical,
+    }
+    story = build_earnings_decision_story(wrapper)
+    decision = story["production_decision"]
+    assert decision["recommendation"] is None
+    assert decision["opportunity"] is None
+    assert decision["confidence"] == 97
+    assert decision["atlas_fair_value"] == 39.86
+    assert decision["decision_expected_return"] == 76.6
+    assert _row_payload(wrapper)["Raw"] is canonical
+
+
+def test_existing_research_context_is_the_exact_decision_authority():
+    canonical = {
+        "semantic_status": "DATA_UNAVAILABLE", "recommendation": None,
+        "opportunity": None, "confidence": 97, "atlas_fair_value": 39.86,
+        "decision_expected_return": 76.6, "decision_digest": "gap-canonical",
+    }
+    row = _row(recommendation="buy")
+    row["research_context"] = {"production_decision": canonical}
+    story = build_earnings_decision_story(row)
+    assert story["production_decision"] == canonical
+
+
+def test_deep_evidence_is_progressive_and_never_invented():
+    available = _row()
+    available.update({
+        "analyst_target_mean": 145, "analyst_target_low": 120,
+        "analyst_target_high": 170, "analyst_count": 12,
+        "analyst_actions": [{"firm": "Example", "action": "Reiterated", "date": "2026-07-30"}],
+        "news_evidence": [{"title": "Quarter reported", "source": "filing", "date": "2026-07-29"}],
+        "institutional_ownership_pct": 61.2,
+        "congressional_transactions": [{"member": "Example", "transaction_type": "Purchase", "date": "2026-07-01"}],
+    })
+    deep = build_earnings_decision_story(available)["deep_evidence"]
+    assert deep["analyst"]["semantic_status"] == "AVAILABLE"
+    assert deep["news"]["semantic_status"] == "AVAILABLE"
+    assert deep["ownership"]["semantic_status"] == "AVAILABLE"
+    assert deep["political"]["semantic_status"] == "AVAILABLE"
+    assert deep["political"]["scoring_authority"] == "CONTEXT_ONLY"
+
+    unavailable = build_earnings_decision_story(_row())["deep_evidence"]
+    assert unavailable["news"]["semantic_status"] == "DATA_UNAVAILABLE"
+    assert unavailable["ownership"]["semantic_status"] == "DATA_UNAVAILABLE"
+    assert unavailable["political"]["semantic_status"] == "DATA_UNAVAILABLE"
+
+    canonical = _row()
+    canonical["research_context"] = {"evidence_families": {
+        "analyst_consensus_targets": {"data": {"mean": 0, "low": -5, "high": 8, "count": 3}},
+        "company_news": {"data": {"items": [{"title": "Filed update", "source": "filing"}]}},
+        "institutional_ownership": {"data": {"institutional_pct": 0, "insider_pct": -1}},
+    }}
+    deep = build_earnings_decision_story(canonical)["deep_evidence"]
+    assert deep["analyst"]["consensus"]["mean_target"] == 0
+    assert deep["analyst"]["consensus"]["low_target"] == -5
+    assert deep["news"]["items"][0]["title"] == "Filed update"
+    assert deep["ownership"]["institutional_ownership_pct"] == 0
+    assert deep["ownership"]["insider_ownership_pct"] == -1
+
+
 def test_active_final_route_invokes_vnext_and_leaves_legacy_unreachable():
     source = (ROOT / "app.py").read_text(encoding="utf-8")
     final_main = source[source.rfind("def main():"):]
@@ -128,6 +201,40 @@ render_earnings_vnext(pd.DataFrame(rows), open_research=lambda ticker: None)
     assert "Recently Reported" in markdown
     assert "Upcoming Earnings" in markdown
     assert any(button.label == "View Investment Case — BEAT" for button in app.button)
+
+
+def test_renderer_exposes_progressive_evidence_and_targeted_mobile_safe_zone():
+    harness = r'''
+import pandas as pd
+from ui.earnings_vnext import render_earnings_vnext
+rows = [{
+    "ticker": "DEEP", "company": "Deep Evidence Corp", "Recommendation": None,
+    "Confidence": 71, "analyst_target_mean": 125, "institutional_ownership_pct": 62,
+    "earnings_history": [{"report_date": "2026-07-29", "eps_actual": 1.2, "eps_estimate": 1.0, "revenue_actual": 110, "revenue_estimate": 100}],
+    "news_evidence": [{"title": "Quarter reported", "source": "filing", "date": "2026-07-29"}],
+    "congressional_transactions": [{"member": "Example", "transaction_type": "Purchase", "date": "2026-07-01"}],
+}]
+render_earnings_vnext(pd.DataFrame(rows), open_research=lambda ticker: None)
+'''
+    app = AppTest.from_string(harness, default_timeout=10).run()
+    assert not app.exception
+    markdown = "\n".join(item.value for item in app.markdown)
+    assert "Analyst evidence" in markdown
+    assert "Relevant company news" in markdown
+    assert "Ownership" in markdown
+    assert "Political context · non-scoring" in markdown
+    source = (ROOT / "ui" / "earnings_vnext.py").read_text(encoding="utf-8")
+    assert "atlas-earnings-card-anchor" in source
+    assert "@media (max-width:700px)" in source
+    assert '[data-testid="stRadio"] [role="radiogroup"]' in source
+    assert '[data-testid="stElementContainer"]:has(style)' in source
+    assert ':has([data-atlas-qa][aria-hidden="true"])' in source
+    assert "overflow-x:hidden" in source
+    assert "padding-right:6.25rem" in source
+    assert "font-size:2.1rem" in source
+    assert "atlas-earnings-mobile-snapshot" in source
+    assert _markdown_money(125) == r"\$125.00"
+    assert _unsigned_pct(62) == "62.0%"
 
 
 def test_normalizer_accepts_raw_aliases_without_inventing_values():

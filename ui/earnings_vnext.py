@@ -47,12 +47,80 @@ def _metric(value: Any, *, pct: bool = False, money: bool = False) -> str:
     return f"{number:,.2f}"
 
 
+def _unsigned_pct(value: Any) -> str:
+    if value is None or isinstance(value, (Mapping, list, tuple, set)):
+        return "Unavailable"
+    try:
+        return f"{float(value):.1f}%"
+    except (TypeError, ValueError):
+        return _display(value)
+
+
+def _markdown_money(value: Any) -> str:
+    return _metric(value, money=True).replace("$", r"\$")
+
+
 def _row_payload(row: Any) -> dict[str, Any]:
-    payload = dict(row) if hasattr(row, "items") else {}
-    raw = payload.get("Raw")
-    if isinstance(raw, Mapping):
-        return {**dict(raw), **payload}
-    return payload
+    # Preserve the wrapper boundary. The story builder reads canonical
+    # decision authority from Raw while merging evidence separately.
+    return dict(row) if hasattr(row, "items") else {}
+
+
+def _inject_earnings_css() -> None:
+    st.markdown(
+        """
+        <style>
+        body:has([data-atlas-earnings-version]) .stApp,
+        body:has([data-atlas-earnings-version]) [data-testid="stAppViewContainer"] { overflow-x:hidden; }
+        body:has([data-atlas-earnings-version]) [data-testid="stMainBlockContainer"] {
+          padding-bottom:max(6rem, calc(1rem + env(safe-area-inset-bottom))) !important;
+        }
+        body:has([data-atlas-earnings-version])
+        [data-testid="stVerticalBlockBorderWrapper"]:has(.atlas-earnings-card-anchor)
+        [data-testid="stButton"] { margin-right:5.5rem; }
+        .atlas-earnings-mobile-snapshot { display:none; }
+        @media (max-width:700px) {
+          body:has([data-atlas-earnings-version])
+          [data-testid="stElementContainer"]:has(style),
+          body:has([data-atlas-earnings-version])
+          [data-testid="stElementContainer"]:has([data-atlas-qa][aria-hidden="true"]) {
+            display:none !important;
+          }
+          body:has([data-atlas-earnings-version]) [data-testid="stRadio"] [role="radiogroup"] {
+            flex-wrap:nowrap !important; overflow-x:auto !important;
+            padding-bottom:.2rem; scrollbar-width:thin;
+          }
+          body:has([data-atlas-earnings-version]) [data-testid="stRadio"] [role="radiogroup"] label {
+            flex:0 0 auto !important; white-space:nowrap; padding:.28rem .52rem !important;
+            min-height:30px !important;
+          }
+          body:has([data-atlas-earnings-version]) [data-testid="stMainBlockContainer"] {
+            padding-bottom:max(6.5rem, calc(1rem + env(safe-area-inset-bottom))) !important;
+          }
+          body:has([data-atlas-earnings-version]) [data-testid="stMetric"] { padding-right:6.25rem !important; }
+          body:has([data-atlas-earnings-version])
+          [data-testid="stVerticalBlockBorderWrapper"]:has(.atlas-earnings-card-anchor)
+          [data-testid="stButton"] { margin-right:7rem; }
+          body:has([data-atlas-earnings-version]) h1 {
+            font-size:2.1rem !important; line-height:1.08 !important; margin:.2rem 0 .15rem !important;
+          }
+          body:has([data-atlas-earnings-version]) h2#recently-reported {
+            font-size:1.6rem !important; line-height:1.15 !important; margin:.45rem 0 .2rem !important;
+          }
+          body:has([data-atlas-earnings-version])
+          [data-testid="stVerticalBlockBorderWrapper"]:has(.atlas-earnings-card-anchor) h3 {
+            font-size:1.35rem !important; line-height:1.15 !important; margin:.15rem 0 !important;
+          }
+          .atlas-earnings-mobile-snapshot {
+            display:grid; gap:.18rem; margin:.15rem 0 .35rem; padding:.55rem .65rem;
+            border:1px solid rgba(148,163,184,.22); border-radius:.7rem;
+            background:rgba(15,23,42,.42); font-size:.82rem; line-height:1.25;
+          }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def _stories(full_df: Any) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -100,8 +168,20 @@ def _open_button(story: Mapping[str, Any], open_research: Callable[[str], Any], 
 
 def _reported_card(story: Mapping[str, Any], open_research: Callable[[str], Any], index: int) -> None:
     latest = story.get("latest_quarter") or {}
+    st.markdown('<span class="atlas-earnings-card-anchor" aria-hidden="true"></span>', unsafe_allow_html=True)
     st.markdown(f"### {story['ticker']} · {_display(story.get('company'))}")
     st.caption(f"Reported · {_display(story['event_identity'].get('report_date'))} · {_display(story['event_identity'].get('fiscal_period'))}")
+    st.markdown(
+        '<div class="atlas-earnings-mobile-snapshot">'
+        f'<div><strong>Quarter:</strong> {escape(_display(story.get("event_result")))}</div>'
+        f'<div><strong>EPS:</strong> {escape(_metric(latest.get("eps_actual")))} vs '
+        f'{escape(_metric(latest.get("eps_estimate")))} ({escape(_metric(latest.get("eps_surprise_pct"), pct=True))})</div>'
+        f'<div><strong>Revenue:</strong> {escape(_metric(latest.get("revenue_actual"), money=True))} vs '
+        f'{escape(_metric(latest.get("revenue_estimate"), money=True))} ({escape(_metric(latest.get("revenue_surprise_pct"), pct=True))})</div>'
+        f'<div><strong>ATLAS:</strong> {escape(_decision_label(story))}</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
     cols = st.columns(4)
     cols[0].metric("Quarter", _display(story.get("event_result")))
     cols[1].metric("EPS actual", _metric(latest.get("eps_actual")))
@@ -151,6 +231,47 @@ def _reported_card(story: Mapping[str, Any], open_research: Callable[[str], Any]
         history = story.get("history") or []
         if history:
             st.dataframe(pd.DataFrame(history), width="stretch", hide_index=True)
+        deep = story.get("deep_evidence") or {}
+        analyst = deep.get("analyst") or {}
+        st.markdown("**Analyst evidence**")
+        if analyst.get("semantic_status") == "AVAILABLE":
+            consensus = analyst.get("consensus") or {}
+            st.write(
+                f"Consensus target: {_markdown_money(consensus.get('mean_target'))} · "
+                f"Range: {_markdown_money(consensus.get('low_target'))}–{_markdown_money(consensus.get('high_target'))} · "
+                f"Analysts: {_display(consensus.get('analyst_count'))}"
+            )
+            if analyst.get("actions"):
+                with st.expander("Dated analyst actions"):
+                    st.dataframe(pd.DataFrame(analyst["actions"]), width="stretch", hide_index=True)
+        else:
+            st.caption("Analyst actions and consensus are unavailable.")
+        news = deep.get("news") or {}
+        st.markdown("**Relevant company news**")
+        if news.get("semantic_status") == "AVAILABLE":
+            with st.expander("Sourced company news"):
+                st.dataframe(pd.DataFrame(news.get("items") or []), width="stretch", hide_index=True)
+        else:
+            st.caption("No verified relevant company news is available.")
+        ownership = deep.get("ownership") or {}
+        st.markdown("**Ownership**")
+        if ownership.get("semantic_status") == "AVAILABLE":
+            st.write(
+                f"Institutional ownership: {_unsigned_pct(ownership.get('institutional_ownership_pct'))} · "
+                f"Insider ownership: {_unsigned_pct(ownership.get('insider_ownership_pct'))}"
+            )
+            if ownership.get("major_holders"):
+                with st.expander("Authoritative holder detail"):
+                    st.dataframe(pd.DataFrame(ownership["major_holders"]), width="stretch", hide_index=True)
+        else:
+            st.caption("Authoritative ownership evidence is unavailable.")
+        political = deep.get("political") or {}
+        st.markdown("**Political context · non-scoring**")
+        if political.get("semantic_status") == "AVAILABLE":
+            with st.expander("Verified contextual transactions"):
+                st.dataframe(pd.DataFrame(political.get("transactions") or []), width="stretch", hide_index=True)
+        else:
+            st.caption("No verified company-specific political transactions are available.")
         st.write("Transcript: " + _display((story.get("transcript_intelligence") or {}).get("status_detail"), "Available"))
         st.write("Limitations: " + " ".join(story.get("limitations") or []))
         st.caption(f"Evidence IDs: {', '.join(story.get('evidence_ids') or []) or 'Unavailable'} · As of: {_display(story.get('as_of'))}")
@@ -158,6 +279,7 @@ def _reported_card(story: Mapping[str, Any], open_research: Callable[[str], Any]
 
 
 def _upcoming_card(story: Mapping[str, Any], open_research: Callable[[str], Any], index: int) -> None:
+    st.markdown('<span class="atlas-earnings-card-anchor" aria-hidden="true"></span>', unsafe_allow_html=True)
     st.markdown(f"### {story['ticker']} · {_display(story.get('company'))}")
     st.caption(f"Upcoming · {_display(story['event_identity'].get('next_event_date'))}")
     st.metric("ATLAS state", _decision_label(story))
@@ -168,6 +290,7 @@ def _upcoming_card(story: Mapping[str, Any], open_research: Callable[[str], Any]
 
 def render_earnings_vnext(full_df: Any, *, open_research: Callable[[str], Any]) -> None:
     st.markdown('<span data-atlas-earnings-version="ATLAS_EARNINGS_VNEXT_V1" style="display:none">earnings-vnext</span>', unsafe_allow_html=True)
+    _inject_earnings_css()
     st.title("Earnings Intelligence")
     st.caption("What happened, why it matters, what remains unverified, and the current canonical ATLAS decision.")
     emit_page_interactive(st, "Earnings Intelligence")
