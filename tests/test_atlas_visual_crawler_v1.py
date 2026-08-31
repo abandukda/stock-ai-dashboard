@@ -9,6 +9,7 @@ from agents.atlas_visual_crawler_v1 import (
     AtlasVisualCrawler,
     GLOBAL_FATALS,
     MOBILE_PAGES,
+    EARNINGS_VNEXT_SECTION_LABELS,
     PRIMARY_VISIBLE_SIGNALS,
     VISUAL_CRAWLER_VERSION,
     RESEARCH_VNEXT_SECTIONS,
@@ -26,7 +27,7 @@ def test_visual_crawler_has_complete_non_blocking_product_scope():
     assert set(PRIMARY_VISIBLE_SIGNALS) == set(ACTIVE_PAGES)
     assert set(MOBILE_PAGES) == {
         "Home", "Research Any Ticker", "Today's Opportunities", "Ask AI",
-        "Political Intelligence",
+        "Political Intelligence", "Earnings Intelligence",
     }
     assert GLOBAL_FATALS == {"APP_UNREACHABLE", "AUTHENTICATION_FAILED", "BROWSER_DIED"}
 
@@ -86,6 +87,18 @@ def test_visible_customer_evidence_is_primary_and_markers_are_supplemental():
     assert "_visible_primary" in source
     assert "visible and not rendered_exception" in source
     assert "_page_render_complete" in source
+
+
+def test_earnings_vnext_crawler_contract_is_visible_and_non_blocking():
+    source = SOURCE.read_text(encoding="utf-8")
+    assert set(EARNINGS_VNEXT_SECTION_LABELS) >= {
+        "Recently Reported", "Upcoming Earnings", "Guidance & Estimate Changes",
+        "Market Reaction", "ATLAS Decision After Earnings", "Deep Evidence",
+    }
+    assert "_earnings_vnext_contract" in source
+    assert 'data-atlas-earnings-version="ATLAS_EARNINGS_VNEXT_V1"' in source
+    assert "Estimate revision direction" in source
+    assert "Event-aligned market reaction" in source
 
 
 def test_research_and_home_require_actual_visible_controls_and_exact_ticker():

@@ -31,6 +31,10 @@ from services.research_render_diagnostics import (
 
 ROOT = Path(__file__).resolve().parents[1]
 CRITICAL_GATE_COMMAND = "python3 -m pytest -q tests/test_atlas_critical_local_gate.py"
+RELEASE_CANDIDATE_RUNTIME_FILES = (
+    "engines/earnings_decision_story.py",
+    "ui/earnings_vnext.py",
+)
 
 
 def _tracked_copy(destination: Path) -> list[str]:
@@ -38,6 +42,9 @@ def _tracked_copy(destination: Path) -> list[str]:
         ["git", "ls-files"], cwd=ROOT, check=True,
         capture_output=True, text=True,
     ).stdout.splitlines()
+    # Pre-commit validation must reconstruct approved new runtime modules too.
+    # Once committed these entries naturally deduplicate with git ls-files.
+    tracked = list(dict.fromkeys([*tracked, *RELEASE_CANDIDATE_RUNTIME_FILES]))
     for relative in tracked:
         source = ROOT / relative
         if not source.is_file():

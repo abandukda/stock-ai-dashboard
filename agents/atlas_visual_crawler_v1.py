@@ -43,12 +43,18 @@ RESEARCH_VNEXT_SECTION_LABELS = (
     "Decision", "Fundamentals & Valuation", "Technical & Trade State",
     "Catalysts & Sentiment", "Risk & Evidence",
 )
+EARNINGS_VNEXT_SECTION_LABELS = (
+    "Recently Reported", "Upcoming Earnings", "What Happened", "Why It Matters",
+    "Guidance & Estimate Changes", "Market Reaction",
+    "ATLAS Decision After Earnings", "What Changes the Thesis",
+    "What ATLAS Is Watching Next", "Deep Evidence",
+)
 DESKTOP = {"width": 1440, "height": 1000}
 MOBILE = {"width": 390, "height": 844}
 GLOBAL_FATALS = {"APP_UNREACHABLE", "AUTHENTICATION_FAILED", "BROWSER_DIED"}
 MOBILE_PAGES = (
     "Home", "Research Any Ticker", "Today's Opportunities", "Ask AI",
-    "Political Intelligence",
+    "Political Intelligence", "Earnings Intelligence",
 )
 PRIMARY_VISIBLE_SIGNALS = {
     "Home": ("Atlas Morning Decision", "Home"),
@@ -419,6 +425,38 @@ class AtlasVisualCrawler:
                 exception={"category": type(exc).__name__, "fingerprint": hashlib.sha256(type(exc).__name__.encode()).hexdigest()[:16]},
             )
             return False
+
+    async def _earnings_vnext_contract(self, page: Page, *, viewport: str) -> None:
+        """Certify visible Earnings VNext evidence without treating gaps as facts."""
+        started = time.monotonic()
+        text = await _visible_text(page)
+        version = False
+        for scope in _scopes(page):
+            try:
+                version = version or bool(await scope.locator('[data-atlas-earnings-version="ATLAS_EARNINGS_VNEXT_V1"]').count())
+            except Exception:
+                continue
+        required = {label: label.lower() in text.lower() for label in EARNINGS_VNEXT_SECTION_LABELS[:2]}
+        evidence = any(token.lower() in text.lower() for token in (
+            "EPS actual", "Revenue actual", "No normalized reported-quarter evidence",
+        ))
+        limitations = all(token.lower() in text.lower() for token in (
+            "Estimate revision direction", "Event-aligned market reaction",
+        )) if evidence and "EPS actual" in text else True
+        exception = await _has_rendered_exception(page)
+        shot = await self._shot(
+            page, page_name="Earnings Intelligence", interaction="vnext-contract",
+            state="evidence", viewport=viewport, complete_surface=True,
+        )
+        passed = bool(version and all(required.values()) and evidence and limitations and not exception)
+        await self._record(
+            category="EARNINGS", page_name="Earnings Intelligence", interaction="vnext-decision-story",
+            expected="Reported/upcoming separation, visible canonical earnings evidence, explicit limitations, and no exception",
+            observed=f"version={version}; sections={required}; evidence={evidence}; limitations={limitations}; exception={exception}",
+            passed=passed, elapsed=time.monotonic() - started, viewport=viewport,
+            screenshots=(shot,), severity="P1",
+            exception=await self._exception_identity(page) if exception else {},
+        )
 
     async def _current_route_visible(self, page: Page, page_name: str) -> bool:
         """Prefer the current radio selection over stale lifecycle nodes from old reruns."""
@@ -1056,6 +1094,8 @@ class AtlasVisualCrawler:
         await page.set_viewport_size(DESKTOP)
         for page_name in ACTIVE_PAGES:
             await self._page_visit(page, page_name)
+            if page_name == "Earnings Intelligence":
+                await self._earnings_vnext_contract(page, viewport="desktop")
             if page_name in {"Earnings Intelligence", "Political Intelligence"}:
                 await self._click_expanders(page, page_name=page_name)
                 await self._supporting_evidence(page, page_name=page_name)
@@ -1082,6 +1122,8 @@ class AtlasVisualCrawler:
             elif page_name == "Political Intelligence":
                 await self._click_expanders(page, page_name=page_name, viewport="mobile")
                 await self._supporting_evidence(page, page_name=page_name, viewport="mobile")
+            elif page_name == "Earnings Intelligence":
+                await self._earnings_vnext_contract(page, viewport="mobile")
 
     async def run(self) -> dict[str, Any]:
         self.output_dir.mkdir(parents=True, exist_ok=True)

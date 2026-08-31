@@ -28082,6 +28082,7 @@ def v810_render_core_page(full_df):
 
 from ui.daily_opportunities import render_volume_momentum
 from ui.developer_center import render_developer_center
+from ui.earnings_vnext import render_earnings_vnext
 
 
 def _emit_page_certification_marker(page_name, source_df):
@@ -28149,7 +28150,7 @@ def main():
         from services.session_stability import emit_page_interactive
         emit_page_interactive(st, "Atlas Core Holdings")
     elif selected_page=="Research Any Ticker": render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df)
-    elif selected_page=="Earnings Intelligence": render_v73_earnings_page(full_df,source_df)
+    elif selected_page=="Earnings Intelligence": render_earnings_vnext(full_df, open_research=v784_open_research)
     elif selected_page=="Full Ranked Scan":
         render_v56_ranked_table(full_df,title="Full Ranked AI Scan",max_rows=75,show_filters=True)
         from services.session_stability import emit_page_interactive
@@ -28175,9 +28176,9 @@ def main():
         )
     if _market_tape_slot is not None:
         with _market_tape_slot:
-            if selected_page == "Ask AI":
+            if selected_page in {"Ask AI", "Earnings Intelligence"}:
                 # Preserve market context without letting optional tape cards
-                # dominate the primary mobile Ask interaction.
+                # dominate the primary mobile Ask/Earnings interaction.
                 with st.expander("Market context", expanded=False):
                     render_v72_market_tape(always_show=False)
             else:

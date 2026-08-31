@@ -1,0 +1,193 @@
+"""Decision-oriented Earnings Intelligence presentation."""
+
+from __future__ import annotations
+
+from datetime import date
+from html import escape
+from typing import Any, Callable, Final, Mapping
+
+import pandas as pd
+import streamlit as st
+
+from engines.earnings_decision_story import build_earnings_decision_story
+from services.session_stability import emit_page_interactive
+
+
+EARNINGS_VNEXT_VERSION: Final = "ATLAS_EARNINGS_VNEXT_V1"
+EARNINGS_VNEXT_SECTIONS: Final = (
+    "Earnings Snapshot", "What Happened", "Why It Matters",
+    "Guidance & Estimate Changes", "Market Reaction",
+    "ATLAS Decision After Earnings", "What Changes the Thesis",
+    "What ATLAS Is Watching Next", "Deep Evidence",
+)
+
+
+def _display(value: Any, fallback: str = "Unavailable") -> str:
+    if value is None or isinstance(value, (Mapping, list, tuple, set)) or (isinstance(value, str) and not value.strip()):
+        return fallback
+    return str(value)
+
+
+def _metric(value: Any, *, pct: bool = False, money: bool = False) -> str:
+    if value is None or isinstance(value, (Mapping, list, tuple, set)):
+        return "Unavailable"
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return _display(value)
+    if pct:
+        return f"{number:+.1f}%"
+    if money:
+        magnitude = abs(number)
+        if magnitude >= 1_000_000_000:
+            return f"${number / 1_000_000_000:,.2f}B"
+        if magnitude >= 1_000_000:
+            return f"${number / 1_000_000:,.2f}M"
+        return f"${number:,.2f}"
+    return f"{number:,.2f}"
+
+
+def _row_payload(row: Any) -> dict[str, Any]:
+    payload = dict(row) if hasattr(row, "items") else {}
+    raw = payload.get("Raw")
+    if isinstance(raw, Mapping):
+        return {**dict(raw), **payload}
+    return payload
+
+
+def _stories(full_df: Any) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    if full_df is None or getattr(full_df, "empty", True):
+        return [], []
+    reported, upcoming = [], []
+    seen = set()
+    for _, row in full_df.iterrows():
+        story = build_earnings_decision_story(_row_payload(row))
+        ticker = story["ticker"]
+        if ticker in seen or story.get("security_type") == "ETF":
+            continue
+        seen.add(ticker)
+        identity = story["event_identity"]
+        if story.get("latest_quarter"):
+            reported.append(story)
+        next_date = identity.get("next_event_date")
+        if next_date and next_date > date.today().isoformat():
+            upcoming.append(story)
+    reported.sort(key=lambda item: item["event_identity"].get("report_date") or "", reverse=True)
+    upcoming.sort(key=lambda item: item["event_identity"].get("next_event_date") or "9999")
+    return reported, upcoming
+
+
+def _decision_label(story: Mapping[str, Any]) -> str:
+    decision = story.get("production_decision") or {}
+    if decision.get("semantic_status") != "AVAILABLE" or not decision.get("recommendation"):
+        return "Unavailable — no actionable recommendation published"
+    return str(decision["recommendation"])
+
+
+def _open_button(story: Mapping[str, Any], open_research: Callable[[str], Any], suffix: str) -> None:
+    ticker = story["ticker"]
+    interaction_id = f"earnings-vnext-research-{ticker.lower()}-{suffix}"
+    st.markdown(
+        f'<span data-atlas-interaction-id="{escape(interaction_id)}" data-atlas-interaction-type="DRILL_DOWN" '
+        f'data-atlas-source-page="earnings-intelligence" data-atlas-expected-page="research-any-ticker" '
+        f'data-atlas-expected-ticker="{escape(ticker)}" aria-hidden="true" style="display:none">earnings-research-link</span>',
+        unsafe_allow_html=True,
+    )
+    if st.button(f"View Investment Case — {ticker}", key=interaction_id, width="stretch"):
+        st.session_state["v79_research_focus"] = "earnings"
+        open_research(ticker)
+
+
+def _reported_card(story: Mapping[str, Any], open_research: Callable[[str], Any], index: int) -> None:
+    latest = story.get("latest_quarter") or {}
+    st.markdown(f"### {story['ticker']} · {_display(story.get('company'))}")
+    st.caption(f"Reported · {_display(story['event_identity'].get('report_date'))} · {_display(story['event_identity'].get('fiscal_period'))}")
+    cols = st.columns(4)
+    cols[0].metric("Quarter", _display(story.get("event_result")))
+    cols[1].metric("EPS actual", _metric(latest.get("eps_actual")))
+    cols[2].metric("EPS estimate", _metric(latest.get("eps_estimate")))
+    cols[3].metric("EPS surprise", _metric(latest.get("eps_surprise_pct"), pct=True))
+    cols = st.columns(4)
+    cols[0].metric("Revenue actual", _metric(latest.get("revenue_actual"), money=True))
+    cols[1].metric("Revenue estimate", _metric(latest.get("revenue_estimate"), money=True))
+    cols[2].metric("Revenue surprise", _metric(latest.get("revenue_surprise_pct"), pct=True))
+    cols[3].metric("ATLAS state", _decision_label(story))
+    st.markdown("#### What Happened")
+    st.write(_display(story.get("what_happened"), "Reported-quarter evidence is incomplete."))
+    st.markdown("#### Why It Matters")
+    for item in story.get("why_it_matters") or ["No additional grounded implication is available."]:
+        st.markdown(f"- {item}")
+    with st.expander("Guidance & Estimate Changes"):
+        guidance = story.get("management_guidance") or {}
+        st.write(guidance.get("status_detail") if guidance.get("semantic_status") != "AVAILABLE" else guidance)
+        st.info("Estimate revision direction cannot be verified from the available point-in-time evidence.")
+        actions = story.get("analyst_actions") or []
+        if actions:
+            st.dataframe(pd.DataFrame(actions), width="stretch", hide_index=True)
+        else:
+            st.caption("No dated analyst actions are available in this persisted evidence row.")
+    with st.expander("Market Reaction"):
+        st.info("Event-aligned market reaction: Unavailable")
+    with st.expander("ATLAS Decision After Earnings"):
+        decision = story.get("production_decision") or {}
+        cols = st.columns(3)
+        cols[0].metric("Recommendation", _decision_label(story))
+        cols[1].metric("Opportunity", _display(decision.get("opportunity")))
+        cols[2].metric("Confidence", _display(decision.get("confidence")))
+        cols = st.columns(3)
+        cols[0].metric("Atlas FV", _metric(decision.get("atlas_fair_value"), money=True))
+        cols[1].metric("Expected Return", _metric(decision.get("decision_expected_return"), pct=True))
+        cols[2].metric("Technical state", _display(story.get("technical_state"), "State not published"))
+        st.caption(f"Wall Street consensus: {_metric(story.get('wall_street_consensus'), money=True)} · separate from Atlas FV")
+    with st.expander("What Changes the Thesis"):
+        for label, key in (("Strengthens", "thesis_strengtheners"), ("Weakens", "thesis_weakeners"), ("Invalidates", "thesis_invalidators")):
+            st.markdown(f"**{label}**")
+            items = story.get(key) or []
+            st.write(" · ".join(items) if items else "No grounded condition published.")
+    with st.expander("What ATLAS Is Watching Next"):
+        for item in story.get("watch_next") or ["Next reported EPS and revenue evidence."]:
+            st.markdown(f"- {item}")
+    with st.expander("Deep Evidence"):
+        history = story.get("history") or []
+        if history:
+            st.dataframe(pd.DataFrame(history), width="stretch", hide_index=True)
+        st.write("Transcript: " + _display((story.get("transcript_intelligence") or {}).get("status_detail"), "Available"))
+        st.write("Limitations: " + " ".join(story.get("limitations") or []))
+        st.caption(f"Evidence IDs: {', '.join(story.get('evidence_ids') or []) or 'Unavailable'} · As of: {_display(story.get('as_of'))}")
+    _open_button(story, open_research, f"reported-{index}")
+
+
+def _upcoming_card(story: Mapping[str, Any], open_research: Callable[[str], Any], index: int) -> None:
+    st.markdown(f"### {story['ticker']} · {_display(story.get('company'))}")
+    st.caption(f"Upcoming · {_display(story['event_identity'].get('next_event_date'))}")
+    st.metric("ATLAS state", _decision_label(story))
+    st.info("Actual EPS, actual revenue, quarter classification, and post-event thesis impact are not available before the report.")
+    st.write("**What ATLAS is watching:** " + " · ".join(story.get("watch_next") or ["The reported EPS and revenue result."]))
+    _open_button(story, open_research, f"upcoming-{index}")
+
+
+def render_earnings_vnext(full_df: Any, *, open_research: Callable[[str], Any]) -> None:
+    st.markdown('<span data-atlas-earnings-version="ATLAS_EARNINGS_VNEXT_V1" style="display:none">earnings-vnext</span>', unsafe_allow_html=True)
+    st.title("Earnings Intelligence")
+    st.caption("What happened, why it matters, what remains unverified, and the current canonical ATLAS decision.")
+    emit_page_interactive(st, "Earnings Intelligence")
+    reported, upcoming = _stories(full_df)
+    st.markdown("## Recently Reported")
+    if not reported:
+        st.info("No normalized reported-quarter evidence is available in the current persisted universe.")
+    for index, story in enumerate(reported[:8]):
+        with st.container(border=True):
+            _reported_card(story, open_research, index)
+    if len(reported) > 8:
+        with st.expander(f"More recently reported companies ({len(reported) - 8})"):
+            for index, story in enumerate(reported[8:20], 8):
+                _reported_card(story, open_research, index)
+    st.markdown("## Upcoming Earnings")
+    if not upcoming:
+        st.info("No upcoming earnings events are verified in the current persisted universe.")
+    for index, story in enumerate(upcoming[:8]):
+        with st.container(border=True):
+            _upcoming_card(story, open_research, index)
+
+
+__all__ = ["EARNINGS_VNEXT_SECTIONS", "EARNINGS_VNEXT_VERSION", "render_earnings_vnext"]
