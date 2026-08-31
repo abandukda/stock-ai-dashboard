@@ -4512,6 +4512,37 @@ def render_chat_helper(full_df):
         'data-atlas-status="ready" aria-hidden="true" style="display:none">ask-ai-ready</span>',
         unsafe_allow_html=True,
     )
+    st.markdown(
+        """
+        <style>
+        @media (max-width: 700px) {
+          /* Keep the functional navigation, but remove the duplicate decorative
+             rail so the primary Ask surface arrives in the first viewport. */
+          .v74-topbar { display:none !important; }
+          div[data-testid="stRadio"] [role="radiogroup"] { gap:.25rem !important; }
+          div[data-testid="stRadio"] label { padding:.3rem .55rem !important; min-height:32px !important; }
+          [class*="st-key-ask_suggestion"] [data-testid="stButton"],
+          [data-testid="stMarkdownContainer"] ul { margin-right:6.5rem; max-width:calc(100% - 6.5rem); }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    def _customer_evidence_label(value):
+        from engines.ask_atlas_engine import customer_evidence_label
+        return customer_evidence_label(value)
+
+    def _ask_completion_marker(status, ticker, grounding):
+        attrs = {
+            "data-atlas-status": status,
+            "data-atlas-ticker": ticker,
+            "data-atlas-context-digest": grounding.get("context_digest", ""),
+            "data-atlas-decision-status": grounding.get("canonical_decision_status", ""),
+            "data-atlas-decision-digest": grounding.get("canonical_decision_digest", ""),
+        }
+        encoded = " ".join(f'{key}="{html.escape(str(value or ""))}"' for key, value in attrs.items())
+        return f'<span data-atlas-qa="ask-ai-response" {encoded} aria-hidden="true" style="display:none">ask-ai-{html.escape(status)}</span>'
 
     st.session_state.setdefault("ask_ai_status", "idle")
     st.session_state.setdefault("ask_ai_ticker", "")
@@ -4560,20 +4591,15 @@ def render_chat_helper(full_df):
     if not submitted:
         status = st.session_state["ask_ai_status"]
         ticker = st.session_state["ask_ai_ticker"]
-        st.markdown(
-            f'<span data-atlas-qa="ask-ai-response" data-atlas-status="{html.escape(status)}" '
-            f'data-atlas-ticker="{html.escape(ticker)}" aria-hidden="true" style="display:none">'
-            f'ask-ai-{html.escape(status)}</span>',
-            unsafe_allow_html=True,
-        )
+        _grounding = st.session_state.get("ask_ai_grounding") or {}
+        st.markdown(_ask_completion_marker(status, ticker, _grounding), unsafe_allow_html=True)
         if status == "complete" and st.session_state["ask_ai_response"]:
             st.markdown(st.session_state["ask_ai_response"])
-            _grounding = st.session_state.get("ask_ai_grounding") or {}
             st.markdown("### Supporting evidence")
-            st.write(", ".join(_grounding.get("evidence_used") or []) or "No supporting evidence family was registered.")
+            st.write(", ".join(_customer_evidence_label(item) for item in (_grounding.get("evidence_used") or [])) or "No supporting evidence family was registered.")
             st.markdown("### Missing evidence & limitations")
             _missing = list(_grounding.get("evidence_missing") or []) + list(_grounding.get("evidence_limitations") or [])
-            st.write("\n".join(f"- {item}" for item in _missing) or "No material limitation was registered.")
+            st.write("\n".join(f"- {_customer_evidence_label(item)}" for item in _missing) or "No material limitation was registered.")
             if _grounding.get("as_of_date"):
                 st.caption(f"Evidence as of {_grounding['as_of_date']}")
         elif status == "error" and st.session_state["ask_ai_error"]:
@@ -4659,7 +4685,9 @@ def render_chat_helper(full_df):
                 "evidence_limitations": list(result.get("evidence_limitations") or []),
                 "as_of_date": result.get("as_of_date"),
                 "canonical_decision_state": result.get("canonical_decision_state"),
+                "canonical_decision_status": result.get("canonical_decision_status"),
                 "canonical_decision_digest": result.get("canonical_decision_digest"),
+                "context_digest": _context_identity,
             },
         )
         evidence_used = len(result.get("evidence_used") or result.get("sources_used") or [])
@@ -4681,6 +4709,13 @@ def render_chat_helper(full_df):
             _ask_decision_status = ""
             _ask_decision_digest = ""
             _ask_security_type = ""
+        # Preserve the same sanitized identities in session state so the
+        # retained post-rerun completion marker remains fully reconcilable.
+        st.session_state["ask_ai_grounding"].update(
+            context_digest=_ask_context_digest,
+            canonical_decision_status=_ask_decision_status or result.get("canonical_decision_status"),
+            canonical_decision_digest=_ask_decision_digest or result.get("canonical_decision_digest"),
+        )
         st.markdown(
             f'<span data-atlas-qa="ask-ai-response" data-atlas-status="complete" '
             f'data-atlas-ticker="{html.escape(ticker)}" data-atlas-section="{html.escape(str(result.get("section") or "overview"))}" '
@@ -4708,10 +4743,10 @@ def render_chat_helper(full_df):
         )
         st.markdown(response)
         st.markdown("### Supporting evidence")
-        st.write(", ".join(result.get("evidence_used") or result.get("sources_used") or []) or "No supporting evidence family was registered.")
+        st.write(", ".join(_customer_evidence_label(item) for item in (result.get("evidence_used") or result.get("sources_used") or [])) or "No supporting evidence family was registered.")
         st.markdown("### Missing evidence & limitations")
         _visible_limitations = list(result.get("evidence_missing") or []) + list(result.get("evidence_limitations") or [])
-        st.write("\n".join(f"- {item}" for item in _visible_limitations) or "No material limitation was registered.")
+        st.write("\n".join(f"- {_customer_evidence_label(item)}" for item in _visible_limitations) or "No material limitation was registered.")
         if result.get("as_of_date"):
             st.caption(f"Evidence as of {result['as_of_date']}")
     except Exception as exc:
@@ -28137,7 +28172,13 @@ def main():
         )
     if _market_tape_slot is not None:
         with _market_tape_slot:
-            render_v72_market_tape(always_show=False)
+            if selected_page == "Ask AI":
+                # Preserve market context without letting optional tape cards
+                # dominate the primary mobile Ask interaction.
+                with st.expander("Market context", expanded=False):
+                    render_v72_market_tape(always_show=False)
+            else:
+                render_v72_market_tape(always_show=False)
     # Settlement is emitted only after the selected route completes rendering.
     _emit_page_certification_marker(selected_page, source_df)
 

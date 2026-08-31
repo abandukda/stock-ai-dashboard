@@ -208,7 +208,8 @@ def test_monitor_trade_levels_are_only_inside_collapsed_technical_scenario_contr
     source = (ROOT / "ui/research_vnext.py").read_text(encoding="utf-8")
     assert 'with st.expander(scenario.label, expanded=False)' in source
     assert "do not represent a high-confidence ATLAS recommendation" in (ROOT / "ui/vnext_presentation.py").read_text(encoding="utf-8")
-    assert 'st.warning("Monitor — Not currently actionable")' in source
+    assert 'technical_state in {"MONITOR", "WATCH"}' in source
+    assert "No actionable technical state is currently published." in source
 
 
 def test_ask_is_contextual_cta_not_sixth_research_tab():

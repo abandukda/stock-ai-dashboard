@@ -7,6 +7,7 @@ states, or trade levels.
 
 from __future__ import annotations
 
+from datetime import date, datetime
 from html import escape
 from typing import Any, Callable, Final, Mapping
 
@@ -200,6 +201,41 @@ def _display_status(status: str) -> str:
     return str(status or "DATA_UNAVAILABLE").replace("_", " ").title()
 
 
+def _canonical_financial_value(report: Mapping[str, Any], data: Mapping[str, Any], *keys: str) -> Any:
+    """Use one alias order for displayed canonical financial evidence."""
+    for source in (data, report):
+        for key in keys:
+            value = source.get(key)
+            if not is_missing_scalar(value) and not isinstance(value, (Mapping, list, tuple, set, frozenset)):
+                return value
+    return None
+
+
+def _customer_event_label(event: Any, event_date: Any, *, today: date | None = None) -> str:
+    """Describe event timing without changing the provider's date."""
+    label = _scalar_text(event, "No verified catalyst is available")
+    raw = _scalar_text(event_date, "")
+    parsed: date | None = None
+    if raw:
+        try:
+            parsed = datetime.fromisoformat(raw.replace("Z", "+00:00")).date()
+        except ValueError:
+            try:
+                parsed = date.fromisoformat(raw[:10])
+            except ValueError:
+                parsed = None
+    reference = today or date.today()
+    if parsed is not None and "earnings" in label.lower():
+        direction = "Next scheduled" if parsed >= reference else "Latest scheduled/reported"
+        return f"{direction} earnings report"
+    return label
+
+
+def _clean_customer_prose(value: Any) -> str:
+    text = _scalar_text(value, "")
+    return text.replace("Atlas views revenue growth is ", "ATLAS views revenue growth of ")
+
+
 def _block_marker(name: str, ticker: str) -> None:
     st.markdown(
         f'<span data-atlas-qa="research-ux3b-block" data-atlas-block="{escape(name)}" '
@@ -323,10 +359,11 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
     st.markdown(f"### {header.actionability_label}")
     _block_marker("decision-why", ticker)
     st.markdown("#### Why")
-    why = _clip_words(
-        f"{view['evidence'].support} The principal constraint is {view['evidence'].contradiction_or_risk}",
-        55,
-    )
+    support = _clean_customer_prose(view["evidence"].support)
+    constraint = _clean_customer_prose(view["evidence"].contradiction_or_risk)
+    if constraint.lower().startswith("main risk is "):
+        constraint = constraint[13:].strip()
+    why = _clip_words(" ".join(filter(None, (support, f"Primary constraint: {constraint}" if constraint else ""))), 55)
     st.write(why or "ATLAS does not have enough canonical evidence to publish a decision explanation.")
 
     guidance = safe_mapping(report.get("guidance_summary"))
@@ -386,7 +423,7 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
     catalyst = safe_mapping(guidance.get("next_catalyst"))
     st.markdown("#### What happens next")
     st.write(
-        _scalar_text(catalyst.get("event"), "No verified next catalyst is available")
+        _customer_event_label(catalyst.get("event"), catalyst.get("date"))
         + (f" — {_scalar_text(catalyst.get('date'), '')}" if catalyst.get("date") else "")
         + (f". {_scalar_text(catalyst.get('what_atlas_will_watch'), '')}" if catalyst.get("what_atlas_will_watch") else "")
     )
@@ -475,15 +512,15 @@ def _render_financial_direction(report: Mapping[str, Any], legacy: Mapping[str, 
     direction_cols[2].metric("Margin Direction", "Stable" if margins else "Unavailable")
     fcf = data.get("free_cash_flow")
     direction_cols[3].metric("Cash Generation", _direction(fcf))
-    st.write(_clip_words(section.get("interpretation"), 60) or "No grounded financial interpretation is populated.")
+    st.write(_clip_words(_clean_customer_prose(section.get("interpretation")), 60) or "No grounded financial interpretation is populated.")
     metrics = st.columns(6)
     values = (
         ("Revenue Growth", CanonicalNumberFormatter.percent(data.get("revenue_growth_pct"), signed=True).display),
         ("EPS Growth", CanonicalNumberFormatter.percent(data.get("eps_growth_pct"), signed=True).display),
         ("Operating Margin", CanonicalNumberFormatter.percent(data.get("operating_margin_pct")).display),
         ("Free Cash Flow", CanonicalNumberFormatter.currency(data.get("free_cash_flow")).display),
-        ("Cash", CanonicalNumberFormatter.currency(data.get("cash")).display),
-        ("Debt", CanonicalNumberFormatter.currency(data.get("debt")).display),
+        ("Cash", CanonicalNumberFormatter.currency(_canonical_financial_value(report, data, "cash", "total_cash", "cash_and_equivalents", "Cash")).display),
+        ("Debt", CanonicalNumberFormatter.currency(_canonical_financial_value(report, data, "debt", "total_debt", "Total Debt")).display),
     )
     for column, (label, value) in zip(metrics, values):
         column.metric(label, value)
@@ -578,7 +615,11 @@ def _render_technical(report: Mapping[str, Any], view: Mapping[str, Any], legacy
             entry_low=plan.get("entry_low"), entry_high=plan.get("entry_high"),
             invalidation=plan.get("stop_loss"),
         )
-        st.warning("Monitor — Not currently actionable")
+        technical_state = _scalar_text(technical.get("state"), "").upper().replace(" ", "_")
+        if technical_state in {"MONITOR", "WATCH"}:
+            st.warning(f"{technical_state.replace('_', ' ').title()} — Not currently actionable")
+        else:
+            st.info("No actionable technical state is currently published.")
         with st.expander(scenario.label, expanded=False):
             st.caption(scenario.explanation)
             values = st.columns(4)
@@ -635,7 +676,7 @@ def _render_catalysts(report: Mapping[str, Any], legacy: Mapping[str, Callable[.
     catalyst = safe_mapping(guidance.get("next_catalyst"))
     _block_marker("catalyst-next", ticker)
     st.markdown("### What could move this security next?")
-    st.info(_scalar_text(catalyst.get("event"), "No verified next catalyst is available."))
+    st.info(_customer_event_label(catalyst.get("event"), catalyst.get("date")))
 
     earnings_summary = safe_mapping(report.get("earnings_summary"))
     earnings = safe_mapping(report.get("earnings_intelligence"))
@@ -947,6 +988,10 @@ def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Cal
           [data-testid="stTabs"] [role="tablist"] { flex-wrap: wrap; overflow-x: visible; }
           [data-testid="stTabs"] [role="tab"] { flex: 1 1 46%; min-height: 44px; white-space: normal; }
           [data-testid="stDataFrame"] { max-width: 100%; overflow-x: auto; }
+          /* Decision prose and alerts can cross the Cloud host-control
+             footprint; reserve only those exposed customer surfaces. */
+          [class*="st-key-vnext_ask_atlas"],
+          [data-testid="stAlert"] { margin-right:6.5rem; max-width:calc(100% - 6.5rem); }
         }
         </style>
         """,

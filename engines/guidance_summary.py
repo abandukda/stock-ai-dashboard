@@ -7,7 +7,7 @@ valuation, expected returns, trade levels, rankings, or provider data.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 import math
 from typing import Any, Mapping, Sequence
 
@@ -507,8 +507,18 @@ def _action(e: Mapping[str, Any]) -> dict[str, Any]:
 
 def _catalyst(e: Mapping[str, Any]) -> dict[str, Any]:
     if e["next_earnings_date"]:
+        parsed = None
+        try:
+            parsed = datetime.fromisoformat(str(e["next_earnings_date"]).replace("Z", "+00:00")).date()
+        except (TypeError, ValueError):
+            pass
+        event = (
+            "Next scheduled earnings report" if parsed is not None and parsed >= date.today()
+            else "Latest scheduled/reported earnings report" if parsed is not None
+            else "Scheduled earnings report"
+        )
         return {
-            "event": "Next scheduled earnings report",
+            "event": event,
             "date": e["next_earnings_date"],
             "verification_status": "Verified provider date",
             "what_atlas_will_watch": "Revenue and earnings growth, margins, cash conversion, surprises, and estimate revisions.",

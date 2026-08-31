@@ -410,8 +410,8 @@ def _risk_interpretations(risk_rows: Sequence[Mapping[str, Any]]) -> list[dict[s
         detail = _text(item.get("detail") or item.get("description") or item.get("reason"))
         if not detail:
             detail = (
-                f"{factor} is rated {level}. Atlas recommends monitoring changes in this factor "
-                "because deterioration could weaken the thesis or require a smaller position."
+                f"{factor} is rated {level}. Evidence changes in this factor are relevant because "
+                "deterioration would weaken the documented risk profile."
             )
         output.append({"factor": factor, "level": level, "atlas_interpretation": detail})
     return output

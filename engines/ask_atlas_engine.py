@@ -155,7 +155,7 @@ def _canonical_unavailable_answer(report: Mapping[str, Any]) -> str:
         str(item) for item in safe_sequence(grounding.get("evidence_missing"))
         if str(item).strip() and not str(item).upper().endswith(":AVAILABLE")
     ]
-    why = [*supports[:2], *risks[:1], *missing[:2]]
+    why = [*supports[:2], *risks[:1], *(customer_evidence_label(item) for item in missing[:2])]
     return "\n\n".join((
         "### Current ATLAS status",
         f"ATLAS does not currently publish an actionable recommendation for {ticker}.",
@@ -213,6 +213,23 @@ def format_customer_financial_numbers(text: str) -> str:
         return f"{'$' if match.group('currency') else ''}{number / divisor:.2f}{suffix}"
 
     return pattern.sub(replace, str(text or ""))
+
+
+def customer_evidence_label(value: Any) -> str:
+    """Translate internal family/status identifiers for customer display only."""
+    text = str(value or "").strip()
+    family, separator, status = text.partition(":")
+    if not separator:
+        return text.replace("_", " ").strip().title()
+    family_aliases = {
+        "guidance": "Management guidance",
+        "news": "Company news",
+        "analysts": "Analyst evidence",
+        "technical": "Technical evidence",
+        "policy": "Political and policy evidence",
+    }
+    family_label = family_aliases.get(family.strip().lower(), family.replace("_", " ").strip().title())
+    return f"{family_label}: {status.replace('_', ' ').strip().lower()}"
 
 
 def _grounding_metadata(question: str, report: Mapping[str, Any]) -> dict[str, Any]:
