@@ -592,8 +592,11 @@ def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Cal
           padding-bottom:max(6rem, calc(1rem + env(safe-area-inset-bottom))) !important;
         }
         [data-testid="stMetric"] { padding-right:5.5rem !important; }
-        [data-testid="stAlert"] { padding-right:6.75rem !important; }
-        [data-testid="stExpander"] { margin-right:6.75rem !important; }
+        [data-testid="stAlert"] [data-testid="stMarkdownContainer"],
+        [data-testid="stExpander"] summary {
+          box-sizing:border-box;
+          padding-right:3.5rem !important;
+        }
         [class*="st-key-vnext_ask_atlas"] [data-testid="stButton"] { margin-right:5.5rem; }
         [data-testid="stTabs"] [role="tablist"] { gap: .35rem; }
         @media (max-width: 700px) {
@@ -601,8 +604,8 @@ def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Cal
             padding-bottom:max(6.5rem, calc(1rem + env(safe-area-inset-bottom))) !important;
           }
           [data-testid="stMetric"] { padding-right:7rem !important; }
-          [data-testid="stAlert"] { padding-right:7rem !important; }
-          [data-testid="stExpander"] { margin-right:7rem !important; }
+          [data-testid="stAlert"] [data-testid="stMarkdownContainer"],
+          [data-testid="stExpander"] summary { padding-right:7.5rem !important; }
           [class*="st-key-vnext_ask_atlas"] [data-testid="stButton"] { margin-right:7rem; }
           [data-testid="stTabs"] [role="tablist"] { flex-wrap: wrap; overflow-x: visible; }
           [data-testid="stTabs"] [role="tab"] { flex: 1 1 46%; min-height: 44px; white-space: normal; }

@@ -109,7 +109,7 @@ def test_platform_owned_overlay_safe_area_is_reserved_without_hiding_controls():
         assert "padding-bottom:max(6.5rem" in source
         assert "display:none" not in source[source.index("Streamlit Community Cloud") if "Streamlit Community Cloud" in source else source.index("fixed Streamlit Cloud"):][:800]
     assert ':has(> [data-testid="stElementContainer"] .atlas-ux3-card-head)' in home
-    assert "padding-right:7rem" in home
+    assert "padding-right:7.5rem" in home
     assert "margin-right:7rem" in home
     assert '[data-testid="stMetric"] { padding-right:7rem' in research
 
@@ -117,14 +117,17 @@ def test_platform_owned_overlay_safe_area_is_reserved_without_hiding_controls():
 def test_host_overlay_clearance_targets_only_exposed_home_and_research_surfaces():
     home = open("ui/home_v104.py", encoding="utf-8").read()
     research = open("ui/research_vnext.py", encoding="utf-8").read()
-    assert "h2#best-opportunities-right-now { margin-top:4rem" in home
-    assert '[data-testid="column"]:last-child' in home
-    assert ".atlas-ux3-action-label" in home
-    assert ".atlas-ux3-action-copy" in home
-    assert "margin-right:6.75rem" in home
-    assert '[data-testid="stAlert"] { padding-right:6.75rem' in research
-    assert '[data-testid="stExpander"] { margin-right:6.75rem' in research
-    assert '[data-testid="stAlert"] { padding-right:7rem' in research
-    assert '[data-testid="stExpander"] { margin-right:7rem' in research
+    assert "h2#best-opportunities-right-now" in home
+    assert "max-width:calc(100% - 7.5rem)" in home
+    assert '[data-testid="stColumn"]:last-child' in home
+    assert '[data-testid="column"]:last-child' not in home
+    assert 'class="atlas-ux3-action-label"' in home
+    assert 'class="atlas-ux3-action-copy"' in home
+    assert "padding-right:3.5rem" in home
+    assert "padding-right:7.5rem" in home
+    assert '[data-testid="stAlert"] [data-testid="stMarkdownContainer"]' in research
+    assert '[data-testid="stExpander"] summary' in research
+    assert "padding-right:3.5rem" in research
+    assert "padding-right:7.5rem" in research
     assert '[data-testid="stMainBlockContainer"] {\n          padding-right' not in home
     assert '[data-testid="stMainBlockContainer"] {\n          padding-right' not in research

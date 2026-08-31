@@ -524,20 +524,10 @@ def render_v104_home(
         [class*="st-key-home_watchlist"] [data-testid="stButton"],
         [class*="st-key-home_portfolio"] [data-testid="stButton"] { margin-right:5.5rem; }
         @media (min-width: 901px) {
-          [data-testid="stHorizontalBlock"] > [data-testid="column"]:last-child
-          [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .atlas-ux3-card-head)
-          :is(.atlas-ux3-thesis,.atlas-ux3-metrics,.atlas-ux3-action-label,.atlas-ux3-action-copy,.atlas-ux3-entry-context) {
-            margin-right:6.75rem !important;
-          }
-          [data-testid="stHorizontalBlock"] > [data-testid="column"]:last-child
-          [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .atlas-ux3-card-head)
-          [data-testid="stHorizontalBlock"] > [data-testid="column"]:last-child {
-            padding-right:6.75rem !important;
-          }
-          [data-testid="stHorizontalBlock"] > [data-testid="column"]:last-child
-          [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .atlas-ux3-card-head)
-          [data-testid="stButton"] {
-            margin-right:6.75rem !important;
+          [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child
+          [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .atlas-ux3-card-head) {
+            box-sizing:border-box;
+            padding-right:3.5rem !important;
           }
         }
         @media (max-width: 900px) {
@@ -575,7 +565,10 @@ def render_v104_home(
         .atlas-ux3-empty-section h3 { margin:0 0 .15rem; font-size:1.15rem; }
         .atlas-ux3-empty-section p { margin:0; color:#94A3B8; font-size:.86rem; }
         @media (max-width: 430px) {
-          h2#best-opportunities-right-now { margin-top:4rem !important; }
+          h2#best-opportunities-right-now {
+            box-sizing:border-box;
+            max-width:calc(100% - 7.5rem);
+          }
           [data-testid="stRadio"] [role="radiogroup"] { flex-wrap:nowrap !important; overflow-x:auto !important; padding-bottom:.2rem; scrollbar-width:thin; }
           [data-testid="stRadio"] [role="radiogroup"] label { flex:0 0 auto !important; white-space:nowrap; }
           .atlas-compact-grid { gap:.35rem; margin:.35rem 0 .6rem; }
@@ -591,7 +584,8 @@ def render_v104_home(
             padding-bottom:max(6.5rem, calc(1rem + env(safe-area-inset-bottom))) !important;
           }
           [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .atlas-ux3-card-head) {
-            padding-right:7rem !important;
+            box-sizing:border-box;
+            padding-right:7.5rem !important;
           }
         }
         </style>""",
