@@ -198,22 +198,23 @@ def test_deterministic_synthesis_is_company_specific_and_acknowledges_gaps():
     assert growth_text != cash_text
 
 
-def test_home_source_has_compact_secondary_tabs_and_distinct_timestamps():
+def test_home_source_has_ux3a_hierarchy_and_distinct_timestamps():
     source = open("ui/home_v104.py", encoding="utf-8").read()
-    assert '["My Stocks", "More Opportunities", "Catalysts", "What Is Moving Markets", "Calendar"]' in source
+    assert '["All Opportunities", "Catalysts", "Market News", "Calendar"]' in source
     assert "Delayed market context" in source
     assert "atlas-market-strip" in source
     assert "begin_research_entry(" in source
-    assert "atlas-compact-grid" in source
-    assert "WHY BUY NOW" in source
-    assert source.index("WHY BUY NOW") < source.index("Position guidance:")
+    assert "Best Opportunities Right Now" in source
+    assert "Watch Closely / Near Breakout" in source
+    assert "Deeper Market Detail" in source
+    assert "View Investment Case" in source
 
 
-def test_all_buy_now_view_and_zero_headline_explanation_are_customer_visible():
+def test_home_surfaces_ranked_opportunities_without_designating_a_flagship():
     source = open("ui/home_v104.py", encoding="utf-8").read()
-    assert "View all {expected_count} BUY NOW" in source
-    assert "supporting research evidence to designate a flagship idea" in source
-    assert "home_all_buy_now_" in source
+    assert "Best Opportunities Right Now" in source
+    assert "select_best_opportunities(ranked, limit=8)" in source
+    assert "flagship idea" not in source
     assert "buy_now_accessible_count" in open("engines/home_discovery.py", encoding="utf-8").read()
 
 

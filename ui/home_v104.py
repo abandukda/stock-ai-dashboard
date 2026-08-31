@@ -144,11 +144,30 @@ def _pct(value: Any) -> str:
         return "Unavailable"
 
 
+def _score(value: Any) -> str:
+    try:
+        number = float(value)
+        return f"{number:.0f}" if number.is_integer() else f"{number:.1f}"
+    except (TypeError, ValueError):
+        return "Unavailable"
+
+
+def _bounded_copy(value: Any, *, words: int, fallback: str = "Unavailable") -> str:
+    if isinstance(value, (Mapping, list, tuple, set)) or value in (None, "", "Unavailable", "Under review"):
+        return fallback
+    tokens = str(value).strip().split()
+    if not tokens:
+        return fallback
+    return " ".join(tokens[:words]) + ("…" if len(tokens) > words else "")
+
+
 def _raw_value(row: Mapping[str, Any], *keys: str):
     raw = row.get("raw") if isinstance(row.get("raw"), Mapping) else {}
     for source in (row, raw):
         for key in keys:
             value = source.get(key)
+            if isinstance(value, (Mapping, list, tuple, set)):
+                continue
             if value not in (None, "", "Unavailable", "Under review"):
                 return value
     return None
@@ -156,8 +175,10 @@ def _raw_value(row: Mapping[str, Any], *keys: str):
 
 def _canonical_home_row(row: Mapping[str, Any]) -> dict[str, Any]:
     """Project immutable persisted decision fields onto Home presentation."""
-    source = row.get("raw") if isinstance(row.get("raw"), Mapping) else row
-    decision = build_production_decision(source)
+    # The V104 pipeline appends its authoritative committee decision to the
+    # normalized row while retaining the persisted scanner row under ``raw``.
+    # Read the complete canonical row so those outputs are not discarded.
+    decision = build_production_decision(row)
     output = dict(row)
     output["production_decision"] = dict(decision)
     output["committee_verdict"] = decision.get("recommendation") or "MONITOR"
@@ -166,6 +187,86 @@ def _canonical_home_row(row: Mapping[str, Any]) -> dict[str, Any]:
     output["confidence_pct"] = decision.get("confidence")
     output["buy_now"] = bool(decision.get("buy_now"))
     return output
+
+
+def _canonical_technical_state(row: Mapping[str, Any]) -> str | None:
+    value = _raw_value(
+        row, "technical_state", "technical_intelligence_state",
+        "setup_state", "breakout_state", "Technical State",
+    )
+    if isinstance(value, (Mapping, list, tuple, set)) or value in (None, "", "Unavailable"):
+        return None
+    return str(value).strip().upper().replace(" ", "_")
+
+
+def build_home_opportunity_card(row: Mapping[str, Any]) -> dict[str, Any]:
+    """Build a concise Home card without calculating an investment output."""
+    canonical = _canonical_home_row(row)
+    decision = canonical.get("production_decision") or {}
+    view = canonical.get("client_evidence_view") or build_client_evidence_view(canonical)
+    guidance = canonical.get("guidance_summary") or view.get("guidance_summary") or {}
+    facts = guidance.get("supporting_facts") or []
+    risks = guidance.get("key_risks") or []
+    catalyst = guidance.get("next_catalyst") or {}
+    action = guidance.get("action_now") or {}
+    support = (facts[0] or {}).get("fact") if facts and isinstance(facts[0], Mapping) else None
+    risk = (risks[0] or {}).get("risk") if risks and isinstance(risks[0], Mapping) else None
+    thesis = _bounded_copy(support, words=30, fallback="Grounded thesis unavailable")
+    low, high = view.get("preferred_entry_low"), view.get("preferred_entry_high")
+    entry = f"{_money(low)}–{_money(high)}" if low is not None and high is not None else "Entry context unavailable"
+    preferred_action = (
+        action.get("current_action") if isinstance(action, Mapping) else None
+    ) or (view.get("entry_status") or {}).get("action") or entry
+    return {
+        "ticker": str(view.get("ticker") or canonical.get("ticker") or "UNKNOWN").upper(),
+        "company": str(view.get("company") or _raw_value(canonical, "company", "company_name", "Company") or "Unavailable"),
+        "state": decision.get("recommendation") or "Unavailable",
+        "opportunity": decision.get("opportunity"),
+        "confidence": decision.get("confidence"),
+        "supported_upside": decision.get("decision_expected_return"),
+        "thesis": thesis,
+        "preferred_action": _bounded_copy(preferred_action, words=18, fallback="Preferred action unavailable"),
+        "entry_context": entry,
+        "catalyst": _bounded_copy(catalyst.get("event") if isinstance(catalyst, Mapping) else None, words=18),
+        "risk": _bounded_copy(risk, words=18),
+        "technical_state": _canonical_technical_state(canonical),
+        "production_decision": dict(decision),
+    }
+
+
+def select_best_opportunities(rows: list[Mapping[str, Any]], *, limit: int = 8) -> list[dict[str, Any]]:
+    """Preserve the canonical ranking order; this is only a presentation slice."""
+    return [build_home_opportunity_card(row) for row in rows[: max(0, min(int(limit), 8))]]
+
+
+def select_watch_closely(rows: list[Mapping[str, Any]], *, limit: int = 5) -> list[dict[str, Any]]:
+    states = {"SETUP_FORMING", "NEAR_BREAKOUT", "BREAKOUT_CONFIRMED", "EXTENDED", "FAILED_BREAKOUT"}
+    selected = []
+    for row in rows:
+        card = build_home_opportunity_card(row)
+        if card["technical_state"] in states:
+            selected.append(card)
+        if len(selected) >= limit:
+            break
+    return selected
+
+
+def _market_brief_items(home: Mapping[str, Any], atlas_now: Mapping[str, Any]) -> list[str]:
+    items = []
+    if home.get("morning_view"):
+        items.append(_bounded_copy(home.get("morning_view"), words=25))
+    regime = str(atlas_now.get("market_regime") or "").replace("_", " ").strip()
+    if regime and regime.upper() != "UNAVAILABLE":
+        items.append(_bounded_copy(f"Market regime is {regime.lower()}.", words=25))
+    earnings = atlas_now.get("upcoming_earnings") or []
+    if earnings:
+        symbols = ", ".join(str(item.get("ticker")) for item in earnings[:4] if isinstance(item, Mapping) and item.get("ticker"))
+        if symbols:
+            items.append(_bounded_copy(f"Upcoming earnings require attention for {symbols}.", words=25))
+    changes = atlas_now.get("major_research_changes") or []
+    if changes:
+        items.append(_bounded_copy(f"Material Research change: {changes[0]}", words=25))
+    return items[:4]
 
 
 def _open_research(ticker: str, key: str) -> None:
@@ -178,7 +279,7 @@ def _open_research(ticker: str, key: str) -> None:
         f'aria-hidden="true" style="display:none">research-link</span>',
         unsafe_allow_html=True,
     )
-    if st.button("Open Full Research →", key=key, width="stretch", type="primary"):
+    if st.button("View Investment Case →", key=key, width="stretch", type="primary"):
         begin_research_entry(
             st.session_state, ticker, source="HOME_TIER_CARD",
             interaction_id=interaction_id,
@@ -281,6 +382,52 @@ def _render_discovery_card(row: Mapping[str, Any], rank: int) -> None:
         _open_research(ticker, f"home_discovery_{rank}_{ticker}")
 
 
+def _render_ux3_opportunity_card(card: Mapping[str, Any], rank: int) -> None:
+    ticker = str(card.get("ticker") or "UNKNOWN")
+    company = str(card.get("company") or ticker)
+    state = str(card.get("state") or "MONITOR").replace("_", " ")
+    with st.container(border=True):
+        st.markdown(
+            f'<div class="atlas-ux3-card-head"><div><small>#{rank}</small>'
+            f'<h3>{html.escape(ticker)} — {html.escape(company)}</h3></div>'
+            f'<span>{html.escape(state)}</span></div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(f'<p class="atlas-ux3-thesis">{html.escape(str(card.get("thesis") or "Grounded thesis unavailable"))}</p>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="atlas-ux3-metrics">'
+            f'<span><small>Opportunity</small><b>{html.escape(_score(card.get("opportunity")))}</b></span>'
+            f'<span><small>Confidence</small><b>{html.escape(_pct(card.get("confidence")))}</b></span>'
+            f'<span><small>Supported upside</small><b>{html.escape(_pct(card.get("supported_upside")))}</b></span>'
+            '</div>', unsafe_allow_html=True,
+        )
+        st.markdown("**Preferred action**")
+        st.write(card.get("preferred_action") or "Preferred action unavailable")
+        st.caption(card.get("entry_context") or "Entry context unavailable")
+        insight_cols = st.columns(2)
+        insight_cols[0].markdown("**Catalyst**")
+        insight_cols[0].write(card.get("catalyst") or "Unavailable")
+        insight_cols[1].markdown("**Primary risk**")
+        insight_cols[1].write(card.get("risk") or "Unavailable")
+        _open_research(ticker, f"home_ux3_best_{rank}_{ticker}")
+
+
+def _render_compact_cards(title: str, cards: list[Mapping[str, Any]], key_prefix: str) -> None:
+    st.markdown(f"## {title}")
+    if not cards:
+        st.caption("No current names meet this canonical presentation condition.")
+        return
+    for index, card in enumerate(cards, start=1):
+        c1, c2 = st.columns([4, 1])
+        state = str(card.get("technical_state") or card.get("state") or "Unavailable").replace("_", " ").title()
+        c1.markdown(
+            f"**{card.get('ticker')} — {card.get('company')} · {state}**  \n"
+            f"{card.get('thesis') or 'Grounded thesis unavailable'}"
+        )
+        with c2:
+            _open_research(str(card.get("ticker") or ""), f"{key_prefix}_{index}_{card.get('ticker')}")
+
+
 def _render_all_buy_now(rows: list[Mapping[str, Any]], expected_count: int) -> None:
     if len(rows) != expected_count:
         st.error("BUY NOW ideas are temporarily unavailable. Please open Daily Opportunities.")
@@ -355,10 +502,24 @@ def render_v104_home(
         .atlas-valuation-row span { flex:1 1 9rem; padding:.45rem .55rem; border-left:2px solid rgba(148,163,184,.35); }
         .atlas-valuation-row small,.atlas-valuation-row b,.atlas-valuation-row em { display:block; }
         .atlas-valuation-row em { color:#94A3B8; font-size:.72rem; font-style:normal; }
+        .atlas-ux3-card-head { display:flex; align-items:flex-start; justify-content:space-between; gap:.8rem; }
+        .atlas-ux3-card-head h3 { margin:.1rem 0 .25rem; font-size:1.18rem; line-height:1.2; overflow-wrap:anywhere; }
+        .atlas-ux3-card-head small { color:#94A3B8; font-weight:800; }
+        .atlas-ux3-card-head > span { border:1px solid rgba(96,165,250,.45); background:rgba(37,99,235,.13); border-radius:999px; padding:.25rem .55rem; font-size:.72rem; font-weight:900; white-space:nowrap; }
+        .atlas-ux3-thesis { line-height:1.42; margin:.35rem 0 .7rem; min-height:2.8rem; }
+        .atlas-ux3-metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.4rem; margin:.4rem 0 .8rem; }
+        .atlas-ux3-metrics span { border:1px solid rgba(148,163,184,.2); border-radius:10px; padding:.45rem .5rem; min-width:0; }
+        .atlas-ux3-metrics small,.atlas-ux3-metrics b { display:block; }
+        .atlas-ux3-metrics small { color:#94A3B8; font-size:.65rem; text-transform:uppercase; letter-spacing:.035em; }
+        .atlas-ux3-metrics b { margin-top:.12rem; font-size:.95rem; overflow-wrap:anywhere; }
         @media (max-width: 430px) {
           .atlas-compact-grid { gap:.35rem; margin:.35rem 0 .6rem; }
           .atlas-compact-metric { padding:.45rem .5rem; border-radius:10px; }
           .atlas-card-title { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; font-size:1.25rem; }
+          .atlas-ux3-card-head { display:block; }
+          .atlas-ux3-card-head > span { display:inline-block; margin:.15rem 0 .35rem; }
+          .atlas-ux3-thesis { min-height:0; }
+          .atlas-ux3-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
         }
         </style>""",
         unsafe_allow_html=True,
@@ -382,9 +543,6 @@ def render_v104_home(
             else str(query)
         )
 
-    st.markdown("# Atlas Morning Decision")
-    _render_market_tape()
-
     market_context = build_market_context(pipeline.get("market_context_inputs"))
     atlas_now = build_atlas_now(
         ranked,
@@ -392,48 +550,56 @@ def render_v104_home(
         watchlist_tickers=watchlist_tickers,
         as_of=signal_as_of,
     )
-    st.markdown("## ATLAS NOW")
+    st.markdown("# ATLAS Today")
     st.caption(
         f"{atlas_now['freshness_label']}"
         + (f" · As of {atlas_now['as_of']}" if atlas_now.get("as_of") else "")
     )
-    now_columns = st.columns(4)
-    now_columns[0].metric("BUY NOW", atlas_now["buy_now_count"])
-    now_columns[1].metric("Developing", atlas_now["developing_opportunity_count"])
-    now_columns[2].metric("Upcoming earnings", len(atlas_now["upcoming_earnings"]))
-    now_columns[3].metric("Market regime", str(atlas_now["market_regime"]).replace("_", " ").title())
-    if atlas_now["upcoming_earnings"]:
-        upcoming = ", ".join(
-            f"{item['ticker']} ({item['date'][:10]})"
-            for item in atlas_now["upcoming_earnings"][:5]
-        )
-        st.caption(f"Promoted/watchlist earnings: {upcoming}")
-    if atlas_now["major_research_changes"]:
-        st.caption("Major research changes: " + "; ".join(str(item) for item in atlas_now["major_research_changes"]))
 
-    st.markdown("## Atlas Morning View")
-    st.info(home["morning_view"])
+    st.markdown("## Market Brief")
+    brief_col, status_col = st.columns([1.55, 1])
+    with brief_col:
+        st.markdown("### What matters today")
+        brief_items = _market_brief_items(home, atlas_now)
+        if brief_items:
+            for item in brief_items:
+                st.markdown(f"- {item}")
+        else:
+            st.caption("Verified market context is currently unavailable.")
+    with status_col:
+        first = st.columns(2)
+        first[0].metric("Market regime", str(atlas_now["market_regime"]).replace("_", " ").title())
+        first[1].metric("BUY NOW", atlas_now["buy_now_count"])
+        second = st.columns(2)
+        second[0].metric("Developing", atlas_now["developing_opportunity_count"])
+        second[1].metric("Upcoming earnings", len(atlas_now["upcoming_earnings"]))
+    _render_market_tape()
 
-    counts = home["counts"]
-    st.markdown(f"## {counts['buy_now']} BUY NOW Today")
+    st.markdown("## Best Opportunities Right Now")
+    st.caption("Canonical ranking order · concise presentation only")
+    best_cards = select_best_opportunities(ranked, limit=8)
+    if not best_cards:
+        st.info("No ranked opportunities are currently available.")
+    for offset in range(0, len(best_cards), 2):
+        columns = st.columns(2)
+        for local_index, card in enumerate(best_cards[offset:offset + 2]):
+            with columns[local_index]:
+                _render_ux3_opportunity_card(card, offset + local_index + 1)
 
-    discoveries = home["discoveries"]["selected"]
-    for discovery in discoveries:
-        discovery["signal_as_of"] = signal_as_of
-    st.markdown("### Top Supported Ideas")
-    if not discoveries and counts["buy_now"]:
-        st.info(
-            f"{counts['buy_now']} BUY NOW signals were identified, but Atlas does not currently have enough "
-            "supporting research evidence to designate a flagship idea."
-        )
-    elif len(discoveries) < 3:
-        st.caption(f"{len(discoveries)} ideas currently meet the stricter flagship research standard.")
-    if discoveries:
-        discovery_columns = st.columns(len(discoveries))
-        for index, row in enumerate(discoveries, start=1):
-            with discovery_columns[index - 1]:
-                _render_discovery_card(row, index)
-    _render_all_buy_now(home["all_buy_now"], counts["buy_now"])
+    _render_compact_cards(
+        "Watch Closely / Near Breakout",
+        select_watch_closely(ranked),
+        "home_ux3_watch",
+    )
+
+    recovery_cards = []
+    for row in ranked:
+        recovery = str(_raw_value(row, "Recovery Signal", "recovery_signal", "recovery_status") or "").lower()
+        if recovery in {"true", "yes", "1"} or "recovery" in recovery:
+            recovery_cards.append(build_home_opportunity_card(row))
+        if len(recovery_cards) >= 5:
+            break
+    _render_compact_cards("Recovery Opportunities", recovery_cards, "home_ux3_recovery")
 
     selected_ticker = st.session_state.get(
         "v104_research_ticker"
@@ -458,33 +624,39 @@ def render_v104_home(
                 "in the current scan."
             )
 
-    st.markdown("## More Decisions")
-    tabs = st.tabs(["My Stocks", "More Opportunities", "Catalysts", "What Is Moving Markets", "Calendar"])
-    with tabs[0]:
+    st.markdown("## Watchlist & Holdings")
+    monitoring = st.columns(2)
+    with monitoring[0]:
         if home["portfolio_actions"]:
             _render_action_rows("Portfolio Actions", home["portfolio_actions"], "home_portfolio")
         else:
             st.caption("No holdings configured. Add holdings in Portfolio Intelligence.")
+    with monitoring[1]:
         _render_action_rows("Watchlist Actions", home["watchlist_actions"], "home_watchlist")
-    with tabs[1]:
-        render_today_opportunities(ranked)
-    with tabs[2]:
-        st.caption(f"{counts['scheduled_earnings']} scheduled earnings · {counts['company_news_events']} company-news events")
-        for item in home["catalysts"][:8]:
-            catalyst = (item.get("guidance_summary") or {}).get("next_catalyst") or {}
-            st.markdown(f"**{item.get('ticker')} · {catalyst.get('date')} · {item.get('catalyst_type')}** — {catalyst.get('event')}")
-    with tabs[3]:
-        moving = build_market_moving_news(pipeline.get("market_moving_news_candidates"))
-        stories = moving.get("stories") or []
-        if not stories:
-            st.caption(moving.get("status_detail") or "Verified market-moving evidence is unavailable.")
-        for story in stories:
-            st.markdown(f"**{story['impact']} · {story['headline']}**")
-            st.caption(f"{story['source']} · {story['timestamp']} · {story['direction']}")
-            st.write(story["why_it_matters"])
-            st.markdown(f"[Open verified source]({story['url']})")
-    with tabs[4]:
-        st.caption("Open Market & Economic Calendar below for the full verified calendar.")
+
+    st.markdown("## Deeper Market Detail")
+    with st.expander("Open detailed opportunities, news, catalysts, and calendar", expanded=False):
+        detail_tabs = st.tabs(["All Opportunities", "Catalysts", "Market News", "Calendar"])
+        with detail_tabs[0]:
+            render_today_opportunities(ranked)
+        with detail_tabs[1]:
+            counts = home["counts"]
+            st.caption(f"{counts['scheduled_earnings']} scheduled earnings · {counts['company_news_events']} company-news events")
+            for item in home["catalysts"][:8]:
+                catalyst = (item.get("guidance_summary") or {}).get("next_catalyst") or {}
+                st.markdown(f"**{item.get('ticker')} · {catalyst.get('date')} · {item.get('catalyst_type')}** — {catalyst.get('event')}")
+        with detail_tabs[2]:
+            moving = build_market_moving_news(pipeline.get("market_moving_news_candidates"))
+            stories = moving.get("stories") or []
+            if not stories:
+                st.caption(moving.get("status_detail") or "Verified market-moving evidence is unavailable.")
+            for story in stories:
+                st.markdown(f"**{story['impact']} · {story['headline']}**")
+                st.caption(f"{story['source']} · {story['timestamp']} · {story['direction']}")
+                st.write(story["why_it_matters"])
+                st.markdown(f"[Open verified source]({story['url']})")
+        with detail_tabs[3]:
+            st.caption("Open Market & Economic Calendar below for the full verified calendar.")
 
 
 __all__ = ["render_v104_home"]

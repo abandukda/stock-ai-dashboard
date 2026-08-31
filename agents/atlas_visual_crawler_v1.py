@@ -873,7 +873,7 @@ class AtlasVisualCrawler:
         seen: set[str] = set()
         for scope in _scopes(page):
             try:
-                buttons = scope.get_by_role("button", name=re.compile(r"Open Full Research", re.I))
+                buttons = scope.get_by_role("button", name=re.compile(r"(?:Open Full Research|View Investment Case)", re.I))
                 for index in range(await buttons.count()):
                     button = buttons.nth(index)
                     if not await button.is_visible():
@@ -918,7 +918,7 @@ class AtlasVisualCrawler:
         exact_ticker = re.compile(rf"(?<![A-Z0-9]){re.escape(ticker)}(?![A-Z0-9])", re.I)
         for scope in _scopes(page):
             try:
-                buttons = scope.get_by_role("button", name=re.compile(r"Open Full Research", re.I))
+                buttons = scope.get_by_role("button", name=re.compile(r"(?:Open Full Research|View Investment Case)", re.I))
                 for index in range(await buttons.count()):
                     button = buttons.nth(index)
                     if not await button.is_visible():

@@ -98,7 +98,7 @@ def test_research_and_home_require_actual_visible_controls_and_exact_ticker():
     assert "top15" in source
     assert "marker.scroll_into_view_if_needed" not in source
     assert "visible_cta=true" in source
-    assert 'name=re.compile(r"Open Full Research"' in source
+    assert 'name=re.compile(r"(?:Open Full Research|View Investment Case)"' in source
     assert "exact_ticker.search" in source
     assert "_discover_visible_home_cards" in source
     assert "preceding::*[@data-atlas-interaction-id][1]" in source
