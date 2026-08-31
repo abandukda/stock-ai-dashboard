@@ -4700,7 +4700,8 @@ def render_chat_helper(full_df):
             _ask_context_summary = sanitize_research_context(report.get("research_context") if isinstance(report.get("research_context"), dict) else {})
             _ask_context_digest = stable_digest(_ask_context_summary)
             _ask_context_version = str(_ask_context_summary.get("context_version") or "")
-            _ask_decision_status = str(_ask_context_summary.get("production_decision_status") or "")
+            from engines.ask_atlas_engine import canonical_ask_decision
+            _ask_decision_status = str(canonical_ask_decision(report).get("status") or "DATA_UNAVAILABLE")
             _ask_decision_digest = str(_ask_context_summary.get("production_decision_digest") or "")
             _ask_security_type = str(_ask_context_summary.get("security_type") or "")
         except Exception:
@@ -27735,6 +27736,8 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
             from agents.runtime_qa_architecture import encode_context_summary, sanitize_research_context
             _qa_context = merged.get("research_context") if isinstance(merged.get("research_context"), dict) else {}
             _qa_summary = sanitize_research_context(_qa_context)
+            from engines.ask_atlas_engine import canonical_ask_decision
+            _qa_decision_status = str(canonical_ask_decision({"research_context": _qa_context}).get("status") or "DATA_UNAVAILABLE")
             _qa_encoded = encode_context_summary(_qa_context)
             _qa_context_ready = bool(
                 _qa_summary.get("context_version") == "RESEARCH_CONTEXT_V1"
@@ -27744,7 +27747,7 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
             st.markdown(
                 f'<span data-atlas-qa="research-context-v1" data-atlas-ticker="{html.escape(ticker)}" '
                 f'data-atlas-context-version="{html.escape(str(_qa_summary.get("context_version") or ""))}" '
-                f'data-atlas-decision-status="{html.escape(str(_qa_summary.get("production_decision_status") or ""))}" '
+                f'data-atlas-decision-status="{html.escape(_qa_decision_status)}" '
                 f'data-atlas-decision-digest="{html.escape(str(_qa_summary.get("production_decision_digest") or ""))}" '
                 f'data-atlas-context-summary="{html.escape(_qa_encoded)}" aria-hidden="true" style="display:none">research-context-v1</span>',
                 unsafe_allow_html=True,

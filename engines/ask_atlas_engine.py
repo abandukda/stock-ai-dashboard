@@ -104,9 +104,13 @@ def canonical_ask_decision(report: Mapping[str, Any]) -> dict[str, Any]:
     """Resolve Ask decision authority exclusively from RESEARCH_CONTEXT_V1."""
     context = report.get("research_context") if isinstance(report.get("research_context"), Mapping) else {}
     decision = context.get("production_decision") if isinstance(context.get("production_decision"), Mapping) else {}
-    status = str(decision.get("semantic_status") or "DATA_UNAVAILABLE").strip().upper()
+    source_status = str(decision.get("semantic_status") or "DATA_UNAVAILABLE").strip().upper()
     recommendation = str(decision.get("recommendation") or "").strip().upper().replace(" ", "_")
-    state = recommendation if status == "AVAILABLE" and recommendation else "DATA_UNAVAILABLE"
+    # A populated production row can still lack canonical recommendation
+    # authority. Observability must report that as unavailable without
+    # changing the underlying decision or its protected digest.
+    status = source_status if source_status == "AVAILABLE" and recommendation else "DATA_UNAVAILABLE"
+    state = recommendation if status == "AVAILABLE" else "DATA_UNAVAILABLE"
     protected_fields = (
         "recommendation", "opportunity", "confidence", "buy_now", "ranking",
         "atlas_fair_value", "decision_expected_return", "entry_low", "entry_high",
@@ -118,6 +122,7 @@ def canonical_ask_decision(report: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "state": state,
         "status": status,
+        "source_semantic_status": source_status,
         "production_decision": dict(decision),
         "digest": hashlib.sha256(payload.encode("utf-8")).hexdigest(),
         "reason": decision.get("reason") or decision.get("limitation") or decision.get("status_detail"),

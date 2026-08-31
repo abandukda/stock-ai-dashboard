@@ -10,7 +10,7 @@ from engines.ask_atlas_engine import ask_atlas, customer_evidence_label
 from engines.guidance_summary import build_guidance_summary
 from tests.test_atlas_vnext_ux3b_research_ask import _report
 from ui.research_vnext import (
-    _canonical_financial_value,
+    _canonical_financial_value, build_investment_brief,
     _customer_event_label,
     _clean_customer_prose,
     technical_availability,
@@ -54,6 +54,44 @@ def test_cash_alias_is_consistent_and_preserves_zero_and_negative_values():
     assert _canonical_financial_value({"total_cash": 12}, {"cash": -3}, "cash", "total_cash") == -3
 
 
+def test_nested_raw_total_cash_reaches_financial_direction_without_calculation():
+    from engines.research_enrichment_v105 import build_financial_section
+
+    section = build_financial_section({"raw": {"total_cash": 78_200_000_000, "total_debt": 125_400_000_000}})
+    assert section["data"]["cash"] == 78_200_000_000
+    assert section["data"]["debt"] == 125_400_000_000
+    assert build_financial_section({"raw": {"total_cash": 0}})["data"]["cash"] == 0
+    assert build_financial_section({"raw": {"total_cash": -3}})["data"]["cash"] == -3
+
+
+def test_brief_uses_structured_templates_not_stale_interpretation_prose():
+    report = _report(status="DATA_UNAVAILABLE")
+    report["sections"]["financials"].update({
+        "semantic_status": "AVAILABLE",
+        "interpretation": "Atlas views revenue growth is 17.7% as supportive.",
+        "data": {"revenue_growth_pct": 17.7},
+    })
+    report["guidance_summary"] = {"key_risks": [{"risk": "Main risk is debt remains above cash."}]}
+    brief = build_investment_brief(report)
+    assert "Current evidence reports revenue growth of 17.7%." in brief
+    assert "Primary constraint: debt remains above cash." in brief
+    assert "Atlas views revenue growth is" not in brief
+    assert "The principal constraint is Main risk is" not in brief
+
+
+def test_decision_observability_is_unavailable_when_canonical_recommendation_is_absent():
+    from engines.ask_atlas_engine import canonical_ask_decision
+
+    report = _report(status="DATA_UNAVAILABLE")
+    report["research_context"]["production_decision"]["semantic_status"] = "AVAILABLE"
+    resolved = canonical_ask_decision(report)
+    assert resolved["status"] == "DATA_UNAVAILABLE"
+    assert resolved["state"] == "DATA_UNAVAILABLE"
+    source = (ROOT / "app.py").read_text(encoding="utf-8")
+    assert 'canonical_ask_decision(report).get("status")' in source
+    assert 'canonical_ask_decision({"research_context": _qa_context}).get("status")' in source
+
+
 def test_customer_prose_repairs_known_deterministic_grammar_only():
     assert _clean_customer_prose("Atlas views revenue growth is 17.7% as supportive.") == "ATLAS views revenue growth of 17.7% as supportive."
 
@@ -78,6 +116,8 @@ def test_mobile_cleanup_is_targeted_not_a_global_page_gutter():
     app = (ROOT / "app.py").read_text(encoding="utf-8")
     assert '[class*="st-key-vnext_ask_atlas"]' in research
     assert '[data-testid="stAlert"]' in research
+    assert 'st-key-vnext_decision_action' in research
+    assert 'max-width:100% !important' in research
     assert ".v74-topbar { display:none !important; }" in app
     assert '[class*="st-key-ask_suggestion"]' in app
     assert 'if selected_page == "Ask AI":' in app

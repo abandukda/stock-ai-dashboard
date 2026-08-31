@@ -85,7 +85,7 @@ def build_financial_section(row):
         "operating_cash_flow": _num(_first(s,"operating_cash_flow","Operating Cash Flow","operatingCashFlow")),
         "roe_pct": _pct(_first(s,"roe_pct","return_on_equity","ROE","returnOnEquity")),
         "roic_pct": _pct(_first(s,"roic_pct","roic","ROIC","returnOnInvestedCapital")),
-        "cash": _num(_first(s,"cash","cash_and_equivalents","Cash","cashAndCashEquivalents")),
+        "cash": _num(_first(s,"cash","total_cash","cash_and_equivalents","Cash","cashAndCashEquivalents")),
         "debt": _num(_first(s,"debt","total_debt","Total Debt","totalDebt")),
         "current_ratio": _num(_first(s,"current_ratio","Current Ratio","currentRatio")),
         "forward_pe": _num(_first(s,"forward_pe","Forward P/E","Forward PE","forwardPE")),

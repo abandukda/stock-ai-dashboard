@@ -370,12 +370,13 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
     action = safe_mapping(guidance.get("action_now"))
     decision = _canonical_decision(report)
     st.markdown("#### What I Would Do")
-    if decision.get("semantic_status") == "DATA_UNAVAILABLE" or is_missing_scalar(decision.get("recommendation")):
-        st.info("ATLAS does not currently publish an actionable recommendation for this security.")
-    elif view["monitor_or_incomplete"]:
-        st.info(f"{_scalar_text(decision.get('recommendation')).replace('_', ' ')} — Not currently actionable.")
-    else:
-        st.info(_scalar_text(action.get("current_action"), _scalar_text(decision.get("recommendation"))))
+    with st.container(key=f"vnext_decision_action_{ticker}"):
+        if decision.get("semantic_status") == "DATA_UNAVAILABLE" or is_missing_scalar(decision.get("recommendation")):
+            st.info("ATLAS does not currently publish an actionable recommendation for this security.")
+        elif view["monitor_or_incomplete"]:
+            st.info(f"{_scalar_text(decision.get('recommendation')).replace('_', ' ')} — Not currently actionable.")
+        else:
+            st.info(_scalar_text(action.get("current_action"), _scalar_text(decision.get("recommendation"))))
 
     _block_marker("decision-core-metrics", ticker)
     columns = st.columns(5)
@@ -457,19 +458,28 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
 
 
 def build_investment_brief(report: Mapping[str, Any]) -> str:
-    """Deterministic 60-second brief assembled only from existing interpretations."""
+    """Deterministic 60-second brief assembled from canonical structured fields."""
     parts: list[str] = []
     decision = _canonical_decision(report)
     recommendation = _scalar_text(decision.get("recommendation"), "")
     if recommendation:
         parts.append(f"ATLAS currently classifies the security as {recommendation.replace('_', ' ')}.")
     sections = safe_mapping(report.get("sections"))
-    for name in ("financials", "earnings"):
-        section = safe_mapping(sections.get(name))
-        if _normalized_status(section.get("semantic_status") or section.get("status")) in {"AVAILABLE", "PARTIAL"}:
-            interpretation = _clip_words(section.get("interpretation"), 26)
-            if interpretation:
-                parts.append(interpretation)
+    financials = safe_mapping(sections.get("financials"))
+    financial_data = safe_mapping(financials.get("data"))
+    if _normalized_status(financials.get("semantic_status") or financials.get("status")) in {"AVAILABLE", "PARTIAL"}:
+        revenue_growth = CanonicalNumberFormatter.percent(financial_data.get("revenue_growth_pct"), signed=False)
+        eps_growth = CanonicalNumberFormatter.percent(financial_data.get("eps_growth_pct"), signed=False)
+        if revenue_growth.exact_value is not None:
+            parts.append(f"Current evidence reports revenue growth of {revenue_growth.display}.")
+        if eps_growth.exact_value is not None:
+            parts.append(f"Current evidence reports EPS growth of {eps_growth.display}.")
+    earnings = safe_mapping(sections.get("earnings"))
+    if _normalized_status(earnings.get("semantic_status") or earnings.get("status")) in {"AVAILABLE", "PARTIAL"}:
+        earnings_data = safe_mapping(earnings.get("data"))
+        eps_surprise = CanonicalNumberFormatter.percent(earnings_data.get("eps_surprise_pct"), signed=True)
+        if eps_surprise.exact_value is not None:
+            parts.append(f"The latest reported EPS surprise was {eps_surprise.display}.")
     analyst = safe_mapping(report.get("analyst_intelligence"))
     divergence = _clip_words(analyst.get("atlas_street_divergence_message"), 20)
     if divergence:
@@ -480,7 +490,11 @@ def build_investment_brief(report: Mapping[str, Any]) -> str:
     guidance = safe_mapping(report.get("guidance_summary"))
     risk = _first_mapping_item(guidance.get("key_risks"))
     if risk:
-        parts.append(f"The principal constraint is {_clip_words(risk.get('risk'), 20)}")
+        constraint = _clean_customer_prose(risk.get("risk"))
+        if constraint.lower().startswith("main risk is "):
+            constraint = constraint[13:].strip()
+        if constraint:
+            parts.append(f"Primary constraint: {_clip_words(constraint, 20).rstrip('.')}.")
     text = " ".join(part for part in parts if part)
     return _clip_words(text, 100) if len(text.split()) >= 20 else "Available evidence is not yet sufficient for a grounded 60-second investment brief."
 
@@ -990,8 +1004,16 @@ def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Cal
           [data-testid="stDataFrame"] { max-width: 100%; overflow-x: auto; }
           /* Decision prose and alerts can cross the Cloud host-control
              footprint; reserve only those exposed customer surfaces. */
-          [class*="st-key-vnext_ask_atlas"],
-          [data-testid="stAlert"] { margin-right:6.5rem; max-width:calc(100% - 6.5rem); }
+          [class*="st-key-vnext_ask_atlas"] { margin-right:6.5rem; max-width:calc(100% - 6.5rem); }
+          /* Protect the action text from the host controls without narrowing
+             the alert component itself. */
+          [class*="st-key-vnext_decision_action"] [data-testid="stAlert"] {
+            margin-right:0 !important;
+            max-width:100% !important;
+          }
+          [class*="st-key-vnext_decision_action"] [data-testid="stAlert"] [data-testid="stMarkdownContainer"] {
+            padding-right:4.25rem !important;
+          }
         }
         </style>
         """,
