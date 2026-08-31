@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from copy import deepcopy
 from pathlib import Path
+import re
 
+import pytest
+
+import engines.ask_atlas_engine as ask_engine
 from engines.ask_atlas_engine import ask_atlas, canonical_ask_decision
 from agents.runtime_qa_architecture import protected_decision_digest
 from tests.test_atlas_vnext_ux2_research import report_fixture
@@ -47,10 +51,64 @@ def test_ask_decision_uses_only_research_context_authority():
 def test_missing_production_decision_is_data_unavailable_not_monitor():
     report = _report(status="DATA_UNAVAILABLE")
     report["committee_verdict"] = "MONITOR"
-    result = ask_atlas("What should I do?", report)
-    assert result["canonical_decision_state"] == "DATA_UNAVAILABLE"
-    assert "DATA_UNAVAILABLE" in result["answer"]
-    assert "No actionable recommendation" in result["answer"]
+    for question in ("What should I do?", "What is the ATLAS view?", "Give me the generic view"):
+        result = ask_atlas(question, report)
+        answer = result["answer"].lower()
+        assert result["canonical_decision_state"] == "DATA_UNAVAILABLE"
+        assert "does not currently publish an actionable recommendation" in answer
+        assert re.search(r"\b(?:monitor|buy now|accumulate|hold)\b", answer) is None
+        assert result["authority_guard_passed"] is True
+        assert result["answer_mode"] == "deterministic"
+        assert result["canonical_decision_digest"] == protected_decision_digest(
+            report["research_context"]["production_decision"]
+        )
+
+
+@pytest.mark.parametrize(
+    ("state", "expected"),
+    (("MONITOR", "MONITOR"), ("BUY_NOW", "BUY NOW")),
+)
+def test_canonical_available_states_remain_exact(state, expected):
+    result = ask_atlas("What is the ATLAS view?", _report(state))
+    assert result["canonical_decision_state"] == state
+    assert expected in result["answer"].upper()
+    assert result["authority_guard_passed"] is True
+
+
+def test_unsafe_llm_monitor_is_rejected_for_unavailable_authority(monkeypatch):
+    report = _report(status="DATA_UNAVAILABLE")
+    report["committee_verdict"] = "MONITOR"
+    monkeypatch.setattr(ask_engine, "llm_is_configured", lambda: True)
+    monkeypatch.setattr(
+        ask_engine,
+        "answer_ticker_question",
+        lambda _question, _context: "ATLAS rates MSFT Monitor and recommends watching the position.",
+    )
+    result = ask_engine.ask_atlas("Give me the generic view", report)
+    assert result["answer_mode"] == "llm_fallback"
+    assert result["authority_guard_passed"] is True
+    assert re.search(r"\bmonitor\b", result["answer"], re.IGNORECASE) is None
+    assert "does not currently publish an actionable recommendation" in result["answer"].lower()
+
+
+def test_llm_context_neutralizes_legacy_monitor_for_unavailable(monkeypatch):
+    report = _report(status="DATA_UNAVAILABLE")
+    report["committee_verdict"] = "MONITOR"
+    captured = {}
+    monkeypatch.setattr(ask_engine, "llm_is_configured", lambda: True)
+
+    def fake_answer(_question, context):
+        captured.update(context)
+        return "ATLAS does not currently publish an actionable recommendation for NVDA."
+
+    monkeypatch.setattr(ask_engine, "answer_ticker_question", fake_answer)
+    result = ask_engine.ask_atlas("Give me the generic view", report)
+    assert captured["canonical_semantic_status"] == "DATA_UNAVAILABLE"
+    assert captured["canonical_recommendation"] is None
+    assert captured["committee_conclusion"] is None
+    assert captured["decision_digest"] == result["canonical_decision_digest"]
+    assert "missing_evidence" in captured
+    assert "evidence_limitations" in captured
 
 
 def test_technical_evidence_and_state_are_separate():

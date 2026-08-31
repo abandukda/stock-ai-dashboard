@@ -30,11 +30,17 @@ def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
     policy = report.get("policy_intelligence") or build_policy_intelligence(report)
     ai_valuation = ai_valuation_object(report)
     decision = canonical_ask_decision(report)
+    grounding = _grounding_metadata("", report)
     return {
         "ticker": report.get("ticker"),
         "company": report.get("company"),
         "decision": decision["state"],
         "decision_status": decision["status"],
+        "canonical_semantic_status": decision["status"],
+        "canonical_recommendation": (
+            decision["production_decision"].get("recommendation")
+            if decision["state"] != "DATA_UNAVAILABLE" else None
+        ),
         "decision_digest": decision["digest"],
         "opportunity": decision["production_decision"].get("opportunity"),
         "conviction": decision["production_decision"].get("confidence"),
@@ -73,7 +79,15 @@ def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
         "political_summary": (sections.get("political") or {}).get("interpretation"),
         "news_summary": (sections.get("news") or {}).get("interpretation"),
         "primary_risk": (intelligence.get("key_risks") or [""])[0],
-        "committee_conclusion": intelligence.get("executive_summary"),
+        # Legacy committee narrative may carry a recommendation that is not
+        # published by RESEARCH_CONTEXT_V1. Never present it to synthesis as
+        # decision authority when the canonical decision is unavailable.
+        "committee_conclusion": (
+            intelligence.get("executive_summary")
+            if decision["state"] != "DATA_UNAVAILABLE" else None
+        ),
+        "missing_evidence": grounding.get("evidence_missing") or [],
+        "evidence_limitations": grounding.get("evidence_limitations") or [],
         "upgrade_triggers": intelligence.get("upgrade_triggers"),
         "downgrade_triggers": intelligence.get("downgrade_triggers"),
         "today_move": intelligence.get("today_move"),
@@ -121,6 +135,51 @@ def _decision_sentence(report: Mapping[str, Any]) -> str:
             f"{reason}"
         )
     return f"ATLAS decision for {ticker}: {decision['state'].replace('_', ' ')}."
+
+
+def _canonical_unavailable_answer(report: Mapping[str, Any]) -> str:
+    """Explain unavailable authority without manufacturing a substitute action."""
+    ticker = str(report.get("ticker") or "This security").upper()
+    intelligence = report.get("intelligence") or build_executive_intelligence(report)
+    supports = [str(item) for item in safe_sequence(intelligence.get("why_atlas_supports_it")) if str(item).strip()]
+    risks = [str(item) for item in safe_sequence(intelligence.get("key_risks")) if str(item).strip()]
+    guidance = report.get("guidance_summary") if isinstance(report.get("guidance_summary"), Mapping) else {}
+    conditions = guidance.get("thesis_change_conditions") if isinstance(guidance.get("thesis_change_conditions"), Mapping) else {}
+    monitoring = [
+        *safe_sequence(conditions.get("strengthen"))[:2],
+        *safe_sequence(conditions.get("weaken"))[:2],
+        *safe_sequence(conditions.get("invalidate"))[:1],
+    ]
+    grounding = _grounding_metadata("", report)
+    missing = [
+        str(item) for item in safe_sequence(grounding.get("evidence_missing"))
+        if str(item).strip() and not str(item).upper().endswith(":AVAILABLE")
+    ]
+    why = [*supports[:2], *risks[:1], *missing[:2]]
+    return "\n\n".join((
+        "### Current ATLAS status",
+        f"ATLAS does not currently publish an actionable recommendation for {ticker}.",
+        "### Why",
+        "\n".join(f"- {item}" for item in why) or "- The canonical decision evidence is incomplete.",
+        "### What ATLAS is monitoring",
+        "\n".join(f"- {item}" for item in monitoring if str(item).strip())
+        or "- The missing canonical evidence and the conditions that could strengthen or weaken the thesis.",
+    ))
+
+
+_UNSUPPORTED_ACTION = re.compile(
+    r"\b(?:buy(?:\s+now)?|hold|accumulate|monitor)\b|"
+    r"\bwatch\b(?=.{0,32}\b(?:action|recommendation|rating|instruction|position)\b)|"
+    r"\b(?:action|recommendation|rating|decision|instruction)\b.{0,32}\bwatch\b",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _answer_respects_canonical_authority(answer: str, decision: Mapping[str, Any]) -> bool:
+    """Bounded final guard against invented decision labels or instructions."""
+    if decision.get("state") != "DATA_UNAVAILABLE":
+        return True
+    return _UNSUPPORTED_ACTION.search(str(answer or "")) is None
 
 
 def _question_section(question: str) -> str:
@@ -227,6 +286,9 @@ def _deterministic_answer(question: str, report: Mapping[str, Any]) -> str:
     ai_valuation = ai_valuation_object(report)
     decision = canonical_ask_decision(report)
     decision_sentence = _decision_sentence(report)
+
+    if decision["state"] == "DATA_UNAVAILABLE":
+        return _canonical_unavailable_answer(report)
 
     if any(term in q for term in ("what changed", "what has changed", "changed since", "thesis change")):
         changes = report.get("thesis_change_conditions") or (report.get("guidance_summary") or {}).get("thesis_change_conditions") or {}
@@ -541,6 +603,17 @@ def ask_atlas(question: str, report: Mapping[str, Any]) -> dict[str, Any]:
         answer = _deterministic_answer(question, report)
         mode = "deterministic"
 
+    authority_guard_passed = _answer_respects_canonical_authority(answer, decision)
+    if not authority_guard_passed:
+        answer = _canonical_unavailable_answer(report)
+        mode = "llm_fallback" if mode == "llm_grounded" else "deterministic"
+    final_authority_guard_passed = _answer_respects_canonical_authority(answer, decision)
+    answer_mode = (
+        "llm" if mode == "llm_grounded"
+        else "llm_fallback" if mode in {"llm_fallback", "deterministic_fallback"}
+        else "deterministic"
+    )
+
     sections = report.get("sections") or {}
     sources = [
         name
@@ -551,10 +624,13 @@ def ask_atlas(question: str, report: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "answer": format_customer_financial_numbers(answer),
         "mode": mode,
+        "answer_mode": answer_mode,
+        "authority_guard_passed": final_authority_guard_passed,
         "sources_used": sources,
         "generated_from": report.get("generated_at"),
         "canonical_decision_state": decision["state"],
         "canonical_decision_status": decision["status"],
+        "canonical_recommendation": decision["production_decision"].get("recommendation"),
         "canonical_decision_digest": decision["digest"],
         **grounding,
     }

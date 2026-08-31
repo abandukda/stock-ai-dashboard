@@ -236,6 +236,10 @@ def _llm_prompt(question: str, context: Mapping[str, Any]) -> list[dict[str, str
                 "Policy intelligence must use only the supplied normalized policy_intelligence object. Never invent a contract, award value, agency action, regulation, tariff, sanction, lobbying activity, date, company linkage, partisan alignment, political support, influence, favoritism, or endorsement. Never treat an award ceiling as revenue or lobbying as favorable treatment. "
                 "ATLAS AI Valuation, Atlas Quant Fair Value, Wall Street Consensus, decision targets, scenarios, and trade targets are independent. Never substitute or relabel one as another, and never expose rejected raw Quant values. "
                 "If a fact is unavailable, say so plainly. Write in clear, professional language for retail investors. "
+                "The supplied canonical_semantic_status, canonical_recommendation, and decision_digest are the only decision authority. "
+                "Never override them with a committee conclusion, legacy summary, scanner row, or other narrative field. "
+                "When canonical_semantic_status is DATA_UNAVAILABLE or canonical_recommendation is absent, state that ATLAS does not currently publish an actionable recommendation. "
+                "Do not reinterpret that state as Monitor and do not invent Buy, Buy Now, Hold, Accumulate, Watch, or another action or recommendation. "
                 "Separate facts from interpretation. Do not provide personalized financial advice or tell the user they must trade."
             ),
         },
