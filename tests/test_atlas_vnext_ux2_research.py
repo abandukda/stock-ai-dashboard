@@ -245,7 +245,9 @@ def test_real_streamlit_high_evidence_renderer_has_five_sections_and_ask_cta():
     assert [tab.label for tab in app.tabs] == list(RESEARCH_VNEXT_SECTIONS)
     assert any(button.label == "Ask ATLAS about this research" for button in app.button)
     assert any(metric.label == "Confidence" and metric.value == "78.0%" for metric in app.metric)
-    assert any(metric.label == "Research Completeness" and metric.value == "92.0%" for metric in app.metric)
+    # UX-3B intentionally limits the executive strip to five decision metrics;
+    # completeness remains visible in Evidence Health rather than as a sixth metric.
+    assert not any(metric.label == "Research Completeness" for metric in app.metric)
 
 
 def test_real_streamlit_monitor_renderer_collapses_technical_scenario():

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from typing import Any, Mapping
+import hashlib
 import json
 import re
 
@@ -28,12 +29,15 @@ def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
     analyst = report.get("analyst_intelligence") or {}
     policy = report.get("policy_intelligence") or build_policy_intelligence(report)
     ai_valuation = ai_valuation_object(report)
+    decision = canonical_ask_decision(report)
     return {
         "ticker": report.get("ticker"),
         "company": report.get("company"),
-        "decision": report.get("committee_verdict"),
-        "opportunity": report.get("opportunity_score"),
-        "conviction": report.get("confidence_pct"),
+        "decision": decision["state"],
+        "decision_status": decision["status"],
+        "decision_digest": decision["digest"],
+        "opportunity": decision["production_decision"].get("opportunity"),
+        "conviction": decision["production_decision"].get("confidence"),
         "current_price": report.get("current_price"),
         "atlas_fair_value": valuation.get("atlas_fair_value"),
         "atlas_valuation_status": valuation.get("atlas_valuation_status"),
@@ -80,6 +84,43 @@ def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
         # Ask does not calculate or replace any protected decision field.
         "research_context": report.get("research_context") or {},
     }
+
+
+def canonical_ask_decision(report: Mapping[str, Any]) -> dict[str, Any]:
+    """Resolve Ask decision authority exclusively from RESEARCH_CONTEXT_V1."""
+    context = report.get("research_context") if isinstance(report.get("research_context"), Mapping) else {}
+    decision = context.get("production_decision") if isinstance(context.get("production_decision"), Mapping) else {}
+    status = str(decision.get("semantic_status") or "DATA_UNAVAILABLE").strip().upper()
+    recommendation = str(decision.get("recommendation") or "").strip().upper().replace(" ", "_")
+    state = recommendation if status == "AVAILABLE" and recommendation else "DATA_UNAVAILABLE"
+    protected_fields = (
+        "recommendation", "opportunity", "confidence", "buy_now", "ranking",
+        "atlas_fair_value", "decision_expected_return", "entry_low", "entry_high",
+        "decision_target", "trade_target_1", "trade_target_2", "stop", "position_sizing",
+    )
+    digest_snapshot = {key: decision.get(key) for key in protected_fields}
+    digest_snapshot["semantic_status"] = decision.get("semantic_status", "DATA_UNAVAILABLE")
+    payload = json.dumps(digest_snapshot, sort_keys=True, separators=(",", ":"), default=str)
+    return {
+        "state": state,
+        "status": status,
+        "production_decision": dict(decision),
+        "digest": hashlib.sha256(payload.encode("utf-8")).hexdigest(),
+        "reason": decision.get("reason") or decision.get("limitation") or decision.get("status_detail"),
+    }
+
+
+def _decision_sentence(report: Mapping[str, Any]) -> str:
+    decision = canonical_ask_decision(report)
+    ticker = str(report.get("ticker") or "This security").upper()
+    if decision["state"] == "DATA_UNAVAILABLE":
+        reason = f" Canonical limitation: {decision['reason']}." if decision.get("reason") else ""
+        return (
+            f"ATLAS decision for {ticker}: DATA_UNAVAILABLE. "
+            "ATLAS does not currently publish an actionable recommendation for this security."
+            f"{reason}"
+        )
+    return f"ATLAS decision for {ticker}: {decision['state'].replace('_', ' ')}."
 
 
 def _question_section(question: str) -> str:
@@ -184,6 +225,67 @@ def _deterministic_answer(question: str, report: Mapping[str, Any]) -> str:
     analyst = report.get("analyst_intelligence") or {}
     policy = report.get("policy_intelligence") or build_policy_intelligence(report)
     ai_valuation = ai_valuation_object(report)
+    decision = canonical_ask_decision(report)
+    decision_sentence = _decision_sentence(report)
+
+    if any(term in q for term in ("what changed", "what has changed", "changed since", "thesis change")):
+        changes = report.get("thesis_change_conditions") or (report.get("guidance_summary") or {}).get("thesis_change_conditions") or {}
+        strengthen = safe_sequence(changes.get("strengthen")) if isinstance(changes, Mapping) else []
+        weaken = safe_sequence(changes.get("weaken")) if isinstance(changes, Mapping) else []
+        return "\n\n".join((
+            f"### What changed for {ticker}", decision_sentence,
+            "**Evidence that would strengthen the thesis**\n" + ("\n".join(f"- {item}" for item in strengthen[:3]) or "- No grounded strengthening change is available."),
+            "**Evidence that would weaken it**\n" + ("\n".join(f"- {item}" for item in weaken[:3]) or "- No grounded weakening change is available."),
+        ))
+
+    if any(term in q for term in ("make this actionable", "become actionable", "what would make")):
+        conditions = (report.get("guidance_summary") or {}).get("thesis_change_conditions") or {}
+        strengthen = safe_sequence(conditions.get("strengthen")) if isinstance(conditions, Mapping) else []
+        return f"### What could make {ticker} actionable?\n\n{decision_sentence}\n\n" + (
+            "\n".join(f"- {item}" for item in strengthen[:5]) or "- No grounded actionability condition is available."
+        )
+
+    if any(term in q for term in ("watch next", "watching next", "what should i watch")):
+        guidance = report.get("guidance_summary") if isinstance(report.get("guidance_summary"), Mapping) else {}
+        catalyst = guidance.get("next_catalyst") if isinstance(guidance.get("next_catalyst"), Mapping) else {}
+        conditions = guidance.get("thesis_change_conditions") if isinstance(guidance.get("thesis_change_conditions"), Mapping) else {}
+        items = [catalyst.get("event"), *safe_sequence(conditions.get("strengthen"))[:2], *safe_sequence(conditions.get("invalidate"))[:2]]
+        items = [str(item) for item in items if item]
+        return f"### What ATLAS is watching next for {ticker}\n\n{decision_sentence}\n\n" + (
+            "\n".join(f"- {item}" for item in items[:5]) or "- No grounded next-watch item is available."
+        )
+
+    if any(term in q for term in ("insider", "politician", "political", "congress")):
+        sections = report.get("sections") if isinstance(report.get("sections"), Mapping) else {}
+        ownership = sections.get("ownership") if isinstance(sections.get("ownership"), Mapping) else {}
+        political = sections.get("political") if isinstance(sections.get("political"), Mapping) else {}
+        return (
+            f"### Insider and political context for {ticker}\n\n{decision_sentence}\n\n"
+            f"**Insider evidence:** {ownership.get('semantic_status') or 'DATA_UNAVAILABLE'}.\n\n"
+            f"**Political evidence:** {political.get('semantic_status') or 'DATA_UNAVAILABLE'}. "
+            "Political activity is contextual only and does not change ATLAS scoring."
+        )
+
+    if (
+        any(term in q for term in ("actionable now", "what should i do", "should i buy", "preferred action"))
+        and not any(term in q for term in ("risk-off", "risk off", "market-wide", "market wide", "broad market", "buy the dip", "don't panic"))
+    ):
+        plan = report.get("trade_plan") if isinstance(report.get("trade_plan"), Mapping) else {}
+        if decision["state"] == "DATA_UNAVAILABLE":
+            action = "No actionable recommendation is available. Review the evidence and missing-data boundaries; do not infer a trade plan."
+        else:
+            action = str(plan.get("preferred_action") or plan.get("entry_status") or "Use the canonical decision and published trade levels; no new action is calculated here.")
+        return f"### Is {ticker} actionable now?\n\n{decision_sentence}\n\n**What I would do:** {action}"
+
+    if any(term in q for term in ("what is missing", "missing evidence", "evidence missing", "data missing")):
+        grounding = _grounding_metadata(question, report)
+        missing = safe_sequence(grounding.get("evidence_missing")) or safe_sequence((report.get("guidance_summary") or {}).get("unavailable_evidence"))
+        return f"### Missing evidence for {ticker}\n\n{decision_sentence}\n\n" + ("\n".join(f"- {item}" for item in missing) or "No material missing-evidence item is registered.")
+
+    if any(term in q for term in ("invalidate", "break the thesis", "what breaks", "downside case")):
+        conditions = (report.get("guidance_summary") or {}).get("thesis_change_conditions") or {}
+        invalidates = safe_sequence(conditions.get("invalidate")) if isinstance(conditions, Mapping) else []
+        return f"### What would invalidate {ticker}?\n\n{decision_sentence}\n\n" + ("\n".join(f"- {item}" for item in invalidates[:5]) or "- No grounded invalidation condition is available.")
 
     earnings_terms = (
         "earnings getting", "earnings better", "earnings worse", "quarters has",
@@ -325,7 +427,7 @@ def _deterministic_answer(question: str, report: Mapping[str, Any]) -> str:
                 lines.append(f"- {firm}: {label}{target_text} ({str(action.get('date') or '')[:10]}).")
         lines.append(f"**Atlas/Street relationship:** {relationship}. {analyst.get('atlas_street_divergence_message') or ''}")
         lines.append(
-            f"**Decision context:** Atlas's {str(report.get('committee_verdict') or 'MONITOR').replace('_', ' ')} "
+            f"**Decision context:** {decision_sentence} "
             "decision is produced by the existing multi-component decision model; Wall Street consensus and canonical Atlas valuation remain separate evidence."
         )
         return "\n\n".join(lines)
@@ -347,7 +449,8 @@ def _deterministic_answer(question: str, report: Mapping[str, Any]) -> str:
         upgrades = "\n".join(f"- {item}" for item in intelligence.get("upgrade_triggers") or [])
         downgrades = "\n".join(f"- {item}" for item in intelligence.get("downgrade_triggers") or [])
         return (
-            f"### Why Atlas rates {ticker} {str(report.get('committee_verdict') or 'MONITOR').replace('_', ' ').title()}\n"
+            f"### Why Atlas rates {ticker} {decision['state'].replace('_', ' ').title()}\n"
+            f"{decision_sentence}\n\n"
             f"{intelligence.get('executive_summary')}\n\n"
             f"**What could upgrade the rating**\n{upgrades}\n\n"
             f"**What could downgrade the rating**\n{downgrades}"
@@ -367,9 +470,10 @@ def _deterministic_answer(question: str, report: Mapping[str, Any]) -> str:
 
     supports = "\n".join(f"- {item}" for item in intelligence.get("why_atlas_supports_it") or [])
     risks = "\n".join(f"- {item}" for item in intelligence.get("key_risks") or [])
+    summary = intelligence.get("executive_summary") or report.get("executive_summary") or "No grounded executive summary is available."
     return (
         f"### Atlas answer for {ticker}\n"
-        f"{intelligence.get('executive_summary')}\n\n"
+        f"{_decision_sentence(report)}\n\n{summary}\n\n"
         f"**Supporting evidence**\n{supports}\n\n"
         f"**Key risks**\n{risks}"
     )
@@ -387,6 +491,7 @@ def ask_atlas(question: str, report: Mapping[str, Any]) -> dict[str, Any]:
         }
 
     context = _compact_context(report)
+    decision = canonical_ask_decision(report)
     analyst_terms = (
         "wall street", "analyst", "target change", "target raise", "target cut",
         "more bullish", "more bearish", "agree with", "consensus",
@@ -418,6 +523,13 @@ def ask_atlas(question: str, report: Mapping[str, Any]) -> dict[str, Any]:
     elif analyst_question or policy_question:
         answer = _deterministic_answer(question, report)
         mode = "deterministic_analyst_grounding" if analyst_question else "deterministic_policy_grounding"
+    elif any(term in question.lower() for term in (
+        "what changed", "actionable", "what should i do", "should i buy", "what would make",
+        "what is missing", "missing evidence", "invalidate", "what breaks", "watch next",
+        "watching next", "insider", "politician", "political", "congress",
+    )):
+        answer = _deterministic_answer(question, report)
+        mode = "deterministic_decision_story"
     elif llm_is_configured() and callable(answer_ticker_question):
         try:
             answer = answer_ticker_question(question, context)
@@ -441,8 +553,11 @@ def ask_atlas(question: str, report: Mapping[str, Any]) -> dict[str, Any]:
         "mode": mode,
         "sources_used": sources,
         "generated_from": report.get("generated_at"),
+        "canonical_decision_state": decision["state"],
+        "canonical_decision_status": decision["status"],
+        "canonical_decision_digest": decision["digest"],
         **grounding,
     }
 
 
-__all__ = ["ask_atlas", "extract_requested_ticker"]
+__all__ = ["ask_atlas", "canonical_ask_decision", "extract_requested_ticker"]

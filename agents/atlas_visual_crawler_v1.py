@@ -130,6 +130,7 @@ class AtlasVisualCrawler:
 
     async def _research_vnext_contract(self, page: Page, ticker: str) -> dict[str, Any]:
         sections: set[str] = set()
+        story_blocks: set[str] = set()
         version = ""
         monitor = False
         ask_cta = False
@@ -142,6 +143,9 @@ class AtlasVisualCrawler:
                 nodes = scope.locator(f'[data-atlas-qa="research-vnext-section"][data-atlas-ticker="{ticker}"]')
                 for index in range(await nodes.count()):
                     sections.add(await nodes.nth(index).get_attribute("data-atlas-section") or "")
+                blocks = scope.locator(f'[data-atlas-qa="research-ux3b-block"][data-atlas-ticker="{ticker}"]')
+                for index in range(await blocks.count()):
+                    story_blocks.add(await blocks.nth(index).get_attribute("data-atlas-block") or "")
                 cta = scope.locator(f'[data-atlas-qa="research-ask-cta"][data-atlas-ticker="{ticker}"]')
                 ask_cta = ask_cta or bool(await cta.count())
             except Exception:
@@ -150,6 +154,11 @@ class AtlasVisualCrawler:
             "version": version, "sections": sorted(sections),
             "all_sections": set(RESEARCH_VNEXT_SECTIONS) <= sections,
             "monitor": monitor, "ask_cta": ask_cta,
+            "story_blocks": sorted(story_blocks),
+            "decision_story": {
+                "decision-why", "decision-core-metrics", "why-atlas-likes-it",
+                "what-stops-atlas", "what-changes-the-thesis", "watching-next",
+            } <= story_blocks,
         }
 
     async def _completed_research(self, page: Page, ticker: str) -> dict[str, Any]:

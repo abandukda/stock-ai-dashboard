@@ -4505,8 +4505,8 @@ def render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf
 
 
 def render_chat_helper(full_df):
-    st.subheader("Ask Atlas AI")
-    st.caption("Ask a ticker-specific question. Atlas uses saved scan facts first, then an optional LLM synthesis layer when OPENAI_API_KEY is configured.")
+    st.subheader("Ask ATLAS — Continue the Decision Story")
+    st.caption("Ask about the canonical Research context. Ask can explain existing evidence and decisions, but cannot calculate a new recommendation, value, expected return, or trade plan.")
     st.markdown(
         '<span data-atlas-qa="page-ready" data-atlas-page="ask-ai" '
         'data-atlas-status="ready" aria-hidden="true" style="display:none">ask-ai-ready</span>',
@@ -4517,6 +4517,36 @@ def render_chat_helper(full_df):
     st.session_state.setdefault("ask_ai_ticker", "")
     st.session_state.setdefault("ask_ai_response", "")
     st.session_state.setdefault("ask_ai_error", "")
+    st.session_state.setdefault("ask_ai_grounding", {})
+    _header_ticker = str(st.session_state.get("ask_ai_ticker") or "").strip().upper()
+    _header_row = st.session_state.get(f"atlas_canonical_research_row_{_header_ticker}") if _header_ticker else None
+    if isinstance(_header_row, dict):
+        try:
+            from engines.ask_atlas_engine import canonical_ask_decision
+            _header_decision = canonical_ask_decision(_header_row)
+            _header_state = _header_decision["state"].replace("_", " ")
+            st.markdown(f"### {_header_ticker} · {_header_state}")
+            if _header_decision.get("reason"):
+                st.caption(str(_header_decision["reason"]))
+            _header_context = _header_row.get("research_context") if isinstance(_header_row.get("research_context"), dict) else {}
+            _header_as_of = _header_context.get("generated_at") or _header_row.get("generated_at")
+            if _header_as_of:
+                st.caption(f"Research as of {_header_as_of}")
+        except Exception:
+            # The question flow remains available if a hot-reloaded worker has
+            # not yet loaded the UX-3B presentation helper.
+            pass
+    _suggestions = (
+        "What changed?", "What would make this actionable?",
+        "What evidence is missing?", "What would invalidate the thesis?",
+        "What are analysts saying?", "What happened in the latest earnings?",
+        "Are politicians or insiders active?", "What should I watch next?",
+    )
+    _suggestion_cols = st.columns(2)
+    for _index, _suggestion in enumerate(_suggestions):
+        if _suggestion_cols[_index % 2].button(_suggestion, key=f"ask_suggestion_{_index}", use_container_width=True):
+            st.session_state["ask_ai_question"] = _suggestion
+            st.rerun()
     with st.form("ask_ai_form", clear_on_submit=False):
         question = st.text_input(
             "Ask about a ticker or ranking",
@@ -4538,6 +4568,14 @@ def render_chat_helper(full_df):
         )
         if status == "complete" and st.session_state["ask_ai_response"]:
             st.markdown(st.session_state["ask_ai_response"])
+            _grounding = st.session_state.get("ask_ai_grounding") or {}
+            st.markdown("### Supporting evidence")
+            st.write(", ".join(_grounding.get("evidence_used") or []) or "No supporting evidence family was registered.")
+            st.markdown("### Missing evidence & limitations")
+            _missing = list(_grounding.get("evidence_missing") or []) + list(_grounding.get("evidence_limitations") or [])
+            st.write("\n".join(f"- {item}" for item in _missing) or "No material limitation was registered.")
+            if _grounding.get("as_of_date"):
+                st.caption(f"Evidence as of {_grounding['as_of_date']}")
         elif status == "error" and st.session_state["ask_ai_error"]:
             st.error(st.session_state["ask_ai_error"])
         return
@@ -4593,12 +4631,9 @@ def render_chat_helper(full_df):
         if not isinstance(session_research, dict) or session_research.get("error"):
             session_research = build_live_research_row(ticker, force_refresh=False)
         canonical_row = dict(session_research) if isinstance(session_research, dict) and not session_research.get("error") else (dict(source) if isinstance(source, dict) else dict(matched))
-        canonical_row.update({
-            "ticker": ticker,
-            "committee_verdict": matched.get("committee_verdict") or canonical_row.get("committee_verdict"),
-            "opportunity_score": matched.get("opportunity_score") or canonical_row.get("opportunity_score"),
-            "confidence_pct": matched.get("confidence_pct") or canonical_row.get("confidence_pct"),
-        })
+        # Preserve the exact canonical Research row that the customer saw.
+        # Scan-table aliases must never overwrite RESEARCH_CONTEXT_V1 decision authority.
+        canonical_row["ticker"] = ticker
         _context = canonical_row.get("research_context") if isinstance(canonical_row.get("research_context"), dict) else {}
         _context_identity = hashlib.sha256(json.dumps(_context, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:24]
         _report_key = f"atlas_ask_report_{ticker}_{_context_identity}"
@@ -4616,7 +4651,17 @@ def render_chat_helper(full_df):
             raise ValueError("Atlas returned an empty response")
         if not re.search(rf"(?<![A-Z0-9]){re.escape(ticker)}(?![A-Z0-9])", response.upper()):
             response = f"### {ticker} Atlas answer\n\n{response}"
-        st.session_state.update(ask_ai_status="complete", ask_ai_ticker=ticker, ask_ai_response=response, ask_ai_error="")
+        st.session_state.update(
+            ask_ai_status="complete", ask_ai_ticker=ticker, ask_ai_response=response, ask_ai_error="",
+            ask_ai_grounding={
+                "evidence_used": list(result.get("evidence_used") or result.get("sources_used") or []),
+                "evidence_missing": list(result.get("evidence_missing") or []),
+                "evidence_limitations": list(result.get("evidence_limitations") or []),
+                "as_of_date": result.get("as_of_date"),
+                "canonical_decision_state": result.get("canonical_decision_state"),
+                "canonical_decision_digest": result.get("canonical_decision_digest"),
+            },
+        )
         evidence_used = len(result.get("evidence_used") or result.get("sources_used") or [])
         evidence_missing = len(result.get("evidence_missing") or [])
         _ask_evidence_ids = ",".join(str(item) for item in result.get("evidence_ids_used") or [])
@@ -4662,6 +4707,13 @@ def render_chat_helper(full_df):
             unsafe_allow_html=True,
         )
         st.markdown(response)
+        st.markdown("### Supporting evidence")
+        st.write(", ".join(result.get("evidence_used") or result.get("sources_used") or []) or "No supporting evidence family was registered.")
+        st.markdown("### Missing evidence & limitations")
+        _visible_limitations = list(result.get("evidence_missing") or []) + list(result.get("evidence_limitations") or [])
+        st.write("\n".join(f"- {item}" for item in _visible_limitations) or "No material limitation was registered.")
+        if result.get("as_of_date"):
+            st.caption(f"Evidence as of {result['as_of_date']}")
     except Exception as exc:
         message = f"Verified Atlas evidence for {ticker} is temporarily unavailable. No valuation or target was substituted."
         st.session_state.update(ask_ai_status="error", ask_ai_ticker=ticker, ask_ai_response="", ask_ai_error=message)

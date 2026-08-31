@@ -110,10 +110,102 @@ def _canonical_context(report: Mapping[str, Any]) -> Mapping[str, Any]:
     return safe_mapping(report.get("research_context"))
 
 
+def _canonical_decision(report: Mapping[str, Any]) -> Mapping[str, Any]:
+    return safe_mapping(_canonical_context(report).get("production_decision"))
+
+
 def _decision_value(report: Mapping[str, Any], canonical_key: str, report_key: str) -> Any:
     """Resolve immutable decision authority without cross-field substitution."""
     decision = safe_mapping(_canonical_context(report).get("production_decision"))
     return decision.get(canonical_key) if decision else report.get(report_key)
+
+
+def _normalized_status(value: Any) -> str:
+    status = str(value or "DATA_UNAVAILABLE").strip().upper().replace(" ", "_")
+    if status in {"AVAILABLE", "PARTIAL", "DATA_UNAVAILABLE", "NOT_APPLICABLE", "TEMPORARILY_UNAVAILABLE"}:
+        return status
+    if status == "UNAVAILABLE":
+        return "DATA_UNAVAILABLE"
+    return "DATA_UNAVAILABLE"
+
+
+def _family_availability(report: Mapping[str, Any], *family_names: str, section_name: str | None = None) -> str:
+    """Resolve evidence availability without treating a populated container as evidence."""
+    statuses: list[str] = []
+    families = safe_mapping(_canonical_context(report).get("evidence_families"))
+    for name in family_names:
+        envelope = safe_mapping(families.get(name))
+        if envelope:
+            statuses.append(_normalized_status(envelope.get("semantic_status")))
+    if section_name:
+        section = safe_mapping(safe_mapping(report.get("sections")).get(section_name))
+        if section:
+            raw = section.get("semantic_status") or section.get("status")
+            statuses.append(_normalized_status(raw))
+    if "AVAILABLE" in statuses:
+        return "AVAILABLE"
+    if "PARTIAL" in statuses:
+        return "PARTIAL"
+    if statuses and all(item == "NOT_APPLICABLE" for item in statuses):
+        return "NOT_APPLICABLE"
+    if "TEMPORARILY_UNAVAILABLE" in statuses:
+        return "TEMPORARILY_UNAVAILABLE"
+    return "DATA_UNAVAILABLE"
+
+
+def technical_availability(report: Mapping[str, Any]) -> dict[str, Any]:
+    state = _technical_state(report)
+    evidence = _family_availability(report, "technicals", section_name="technical")
+    badge = technical_state_badge(state)
+    if badge.canonical_value:
+        label = badge.label
+    elif evidence == "AVAILABLE":
+        label = "Technical evidence available · State not published"
+    elif evidence == "PARTIAL":
+        label = "Technical evidence partial · State not published"
+    elif evidence == "NOT_APPLICABLE":
+        label = "Technical evidence not applicable"
+    else:
+        label = "Technical evidence unavailable"
+    return {"state": state, "evidence_status": evidence, "badge": badge, "label": label}
+
+
+def risk_evidence_availability(report: Mapping[str, Any]) -> dict[str, str]:
+    """Presentation-only factor availability; never changes risk conclusions."""
+    registry = safe_mapping(report.get("evidence_registry"))
+    valuation_status = _normalized_status(safe_mapping(registry.get("valuation")).get("status"))
+    if valuation_status == "DATA_UNAVAILABLE" and report.get("atlas_valuation_status") not in {None, "", "NOT_PUBLISHED"}:
+        valuation_status = "AVAILABLE"
+    market = safe_mapping(report.get("market_context"))
+    macro_status = "AVAILABLE" if any(not is_missing_scalar(value) for value in market.values()) else "DATA_UNAVAILABLE"
+    return {
+        "Financial": _family_availability(
+            report, "financial_statements", "ratios_key_metrics", "growth_segments", section_name="financials"
+        ),
+        "Valuation": valuation_status,
+        "Technical": _family_availability(report, "technicals", section_name="technical"),
+        "Institutional": _family_availability(report, "institutional_ownership", section_name="ownership"),
+        "Political / Regulatory": _family_availability(report, section_name="political"),
+        "Macro": macro_status,
+    }
+
+
+def _clip_words(value: Any, limit: int) -> str:
+    text = _scalar_text(value, "")
+    words = text.split()
+    return text if len(words) <= limit else " ".join(words[:limit]).rstrip(" ,;:") + "…"
+
+
+def _display_status(status: str) -> str:
+    return str(status or "DATA_UNAVAILABLE").replace("_", " ").title()
+
+
+def _block_marker(name: str, ticker: str) -> None:
+    st.markdown(
+        f'<span data-atlas-qa="research-ux3b-block" data-atlas-block="{escape(name)}" '
+        f'data-atlas-ticker="{escape(ticker)}" aria-hidden="true" style="display:none">ux3b</span>',
+        unsafe_allow_html=True,
+    )
 
 
 def _critical_gaps(report: Mapping[str, Any]) -> tuple[str, ...]:
@@ -193,9 +285,11 @@ def build_research_decision_view(report: Mapping[str, Any]) -> dict[str, Any]:
     change = report.get("change_since_last_scan") or report.get("material_change")
     if isinstance(change, (Mapping, list, tuple, set, frozenset)):
         change = None
+    technical = technical_availability(report)
     return {
         "header": header, "prices": prices, "evidence": evidence,
-        "health": health, "technical_badge": technical_state_badge(_technical_state(report)),
+        "health": health, "technical_badge": technical["badge"],
+        "technical_availability": technical,
         "monitor_or_incomplete": monitor, "critical_gaps": gaps,
         "material_change": _scalar_text(change, "") or None,
     }
@@ -227,30 +321,55 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
     badge = view["technical_badge"]
     st.markdown("## Decision")
     st.markdown(f"### {header.actionability_label}")
-    columns = st.columns(5)
-    columns[0].metric("ATLAS State", _scalar_text(header.recommendation, "Unavailable").replace("_", " ").title())
-    columns[1].metric("Opportunity", _scalar_text(header.opportunity))
-    columns[2].metric("Confidence", CanonicalNumberFormatter.percent(header.confidence).display)
-    columns[3].metric("Research Completeness", CanonicalNumberFormatter.percent(header.research_completeness).display)
-    columns[4].metric("Technical State", badge.label)
+    _block_marker("decision-why", ticker)
+    st.markdown("#### Why")
+    why = _clip_words(
+        f"{view['evidence'].support} The principal constraint is {view['evidence'].contradiction_or_risk}",
+        55,
+    )
+    st.write(why or "ATLAS does not have enough canonical evidence to publish a decision explanation.")
 
+    guidance = safe_mapping(report.get("guidance_summary"))
+    action = safe_mapping(guidance.get("action_now"))
+    decision = _canonical_decision(report)
+    st.markdown("#### What I Would Do")
+    if decision.get("semantic_status") == "DATA_UNAVAILABLE" or is_missing_scalar(decision.get("recommendation")):
+        st.info("ATLAS does not currently publish an actionable recommendation for this security.")
+    elif view["monitor_or_incomplete"]:
+        st.info(f"{_scalar_text(decision.get('recommendation')).replace('_', ' ')} — Not currently actionable.")
+    else:
+        st.info(_scalar_text(action.get("current_action"), _scalar_text(decision.get("recommendation"))))
+
+    _block_marker("decision-core-metrics", ticker)
+    columns = st.columns(5)
+    columns[0].metric("Opportunity", _scalar_text(header.opportunity))
+    columns[1].metric("Confidence", CanonicalNumberFormatter.percent(header.confidence).display)
     prices = view["prices"]
-    price_cols = st.columns(4)
-    price_cols[0].metric("Current Price", prices.current_price.display)
-    entry = _metric_currency_range(prices.entry_low.exact_value, prices.entry_high.exact_value)
-    price_cols[1].metric("Preferred Action Zone", entry)
+    columns[2].metric("Current Price", prices.current_price.display)
     canonical_expected_return = _decision_value(report, "decision_expected_return", "atlas_expected_return_pct")
-    price_cols[2].metric("Supported Upside", CanonicalNumberFormatter.percent(canonical_expected_return, signed=True).display)
-    price_cols[3].metric("Downside / Invalidation", prices.invalidation.display)
+    columns[3].metric("Atlas-FV Expected Return", CanonicalNumberFormatter.percent(canonical_expected_return, signed=True).display)
+    columns[4].metric("Stop / Invalidation", prices.invalidation.display)
 
     evidence = view["evidence"]
+    support_facts = [item for item in safe_sequence(guidance.get("supporting_facts")) if isinstance(item, Mapping)]
+    risk_facts = [item for item in safe_sequence(guidance.get("key_risks")) if isinstance(item, Mapping)]
     support_col, risk_col = st.columns(2)
     with support_col:
-        st.markdown("#### Strongest support")
-        st.success(evidence.support)
+        _block_marker("why-atlas-likes-it", ticker)
+        st.markdown("#### Why ATLAS Likes It")
+        if support_facts:
+            for item in support_facts[:3]:
+                st.write(f"- {_clip_words(item.get('fact'), 24)}")
+        else:
+            st.caption("No grounded supporting evidence is currently available.")
     with risk_col:
-        st.markdown("#### Strongest contradiction / primary risk")
-        st.warning(evidence.contradiction_or_risk)
+        _block_marker("what-stops-atlas", ticker)
+        st.markdown("#### What Stops ATLAS")
+        if risk_facts:
+            for item in risk_facts[:3]:
+                st.write(f"- {_clip_words(item.get('risk'), 24)}")
+        else:
+            st.caption("No grounded constraint is currently available.")
 
     if view.get("material_change"):
         st.markdown("#### What changed")
@@ -264,7 +383,6 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
     if view["critical_gaps"]:
         st.warning("Missing critical evidence: " + "; ".join(view["critical_gaps"][:4]))
 
-    guidance = safe_mapping(report.get("guidance_summary"))
     catalyst = safe_mapping(guidance.get("next_catalyst"))
     st.markdown("#### What happens next")
     st.write(
@@ -273,12 +391,15 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
         + (f". {_scalar_text(catalyst.get('what_atlas_will_watch'), '')}" if catalyst.get("what_atlas_will_watch") else "")
     )
     changes = safe_mapping(guidance.get("thesis_change_conditions"))
-    with st.expander("What strengthens, weakens, or invalidates the thesis", expanded=False):
-        for label in ("strengthen", "weaken", "invalidate"):
+    _block_marker("what-changes-the-thesis", ticker)
+    st.markdown("#### What Changes the Thesis")
+    change_cols = st.columns(3)
+    for column, label in zip(change_cols, ("strengthen", "weaken", "invalidate")):
+        with column:
             st.markdown(f"**{label.title()}**")
             items = safe_sequence(changes.get(label))
             if items:
-                for item in items:
+                for item in items[:3]:
                     st.write(f"- {_scalar_text(item)}")
             else:
                 st.caption("No grounded condition is populated.")
@@ -298,29 +419,119 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
                 st.warning(_scalar_text(item))
 
 
+def build_investment_brief(report: Mapping[str, Any]) -> str:
+    """Deterministic 60-second brief assembled only from existing interpretations."""
+    parts: list[str] = []
+    decision = _canonical_decision(report)
+    recommendation = _scalar_text(decision.get("recommendation"), "")
+    if recommendation:
+        parts.append(f"ATLAS currently classifies the security as {recommendation.replace('_', ' ')}.")
+    sections = safe_mapping(report.get("sections"))
+    for name in ("financials", "earnings"):
+        section = safe_mapping(sections.get(name))
+        if _normalized_status(section.get("semantic_status") or section.get("status")) in {"AVAILABLE", "PARTIAL"}:
+            interpretation = _clip_words(section.get("interpretation"), 26)
+            if interpretation:
+                parts.append(interpretation)
+    analyst = safe_mapping(report.get("analyst_intelligence"))
+    divergence = _clip_words(analyst.get("atlas_street_divergence_message"), 20)
+    if divergence:
+        parts.append(divergence)
+    technical = technical_availability(report)
+    if technical["badge"].canonical_value:
+        parts.append(f"The deterministic technical state is {technical['badge'].label}.")
+    guidance = safe_mapping(report.get("guidance_summary"))
+    risk = _first_mapping_item(guidance.get("key_risks"))
+    if risk:
+        parts.append(f"The principal constraint is {_clip_words(risk.get('risk'), 20)}")
+    text = " ".join(part for part in parts if part)
+    return _clip_words(text, 100) if len(text.split()) >= 20 else "Available evidence is not yet sufficient for a grounded 60-second investment brief."
+
+
+def _direction(value: Any, *, positive_is_improving: bool = True) -> str:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return "Unavailable"
+    if number == 0:
+        return "Stable"
+    improving = number > 0 if positive_is_improving else number < 0
+    return "Improving" if improving else "Weakening"
+
+
+def _render_financial_direction(report: Mapping[str, Any], legacy: Mapping[str, Callable[..., Any]]) -> None:
+    ticker = str(report.get("ticker") or "UNKNOWN")
+    section = safe_mapping(safe_mapping(report.get("sections")).get("financials"))
+    data = safe_mapping(section.get("data"))
+    _block_marker("financial-direction", ticker)
+    st.markdown("### Financial Direction")
+    if _normalized_status(section.get("semantic_status") or section.get("status")) not in {"AVAILABLE", "PARTIAL"}:
+        st.info("Financial direction is unavailable from the current canonical evidence.")
+        return
+    direction_cols = st.columns(4)
+    direction_cols[0].metric("Revenue Direction", _direction(data.get("revenue_growth_pct")))
+    direction_cols[1].metric("EPS Direction", _direction(data.get("eps_growth_pct")))
+    margins = [data.get(key) for key in ("gross_margin_pct", "operating_margin_pct", "net_margin_pct") if data.get(key) is not None]
+    direction_cols[2].metric("Margin Direction", "Stable" if margins else "Unavailable")
+    fcf = data.get("free_cash_flow")
+    direction_cols[3].metric("Cash Generation", _direction(fcf))
+    st.write(_clip_words(section.get("interpretation"), 60) or "No grounded financial interpretation is populated.")
+    metrics = st.columns(6)
+    values = (
+        ("Revenue Growth", CanonicalNumberFormatter.percent(data.get("revenue_growth_pct"), signed=True).display),
+        ("EPS Growth", CanonicalNumberFormatter.percent(data.get("eps_growth_pct"), signed=True).display),
+        ("Operating Margin", CanonicalNumberFormatter.percent(data.get("operating_margin_pct")).display),
+        ("Free Cash Flow", CanonicalNumberFormatter.currency(data.get("free_cash_flow")).display),
+        ("Cash", CanonicalNumberFormatter.currency(data.get("cash")).display),
+        ("Debt", CanonicalNumberFormatter.currency(data.get("debt")).display),
+    )
+    for column, (label, value) in zip(metrics, values):
+        column.metric(label, value)
+    with st.expander("View full financials", expanded=False):
+        legacy["metric_grid"](
+            data,
+            money_keys={"free_cash_flow", "operating_cash_flow", "cash", "debt"},
+            pct_keys={"revenue_growth_pct", "eps_growth_pct", "gross_margin_pct", "operating_margin_pct", "net_margin_pct", "roe_pct", "roic_pct"},
+        )
+
+
 def _render_fundamentals(report: Mapping[str, Any], legacy: Mapping[str, Callable[..., Any]]) -> None:
     ticker = str(report.get("ticker") or "UNKNOWN")
     _section_marker("Fundamentals & Valuation", ticker)
     st.markdown("## Fundamentals & Valuation")
-    legacy["valuation"](report)
-    analyst = safe_mapping(report.get("analyst_intelligence"))
-    st.markdown("### Wall Street comparison — separate methodology")
-    st.caption("Wall Street consensus is external analyst evidence and is not a substitute for Atlas Fair Value.")
-    cols = st.columns(3)
-    cols[0].metric("Wall Street Consensus", CanonicalNumberFormatter.price(analyst.get("wall_street_mean_target")).display)
-    cols[1].metric("Wall Street Implied Upside", CanonicalNumberFormatter.percent(analyst.get("wall_street_implied_upside_pct"), signed=True).display)
-    cols[2].metric("Analyst Coverage", CanonicalNumberFormatter.count(analyst.get("analyst_coverage")).display)
-    st.write(_scalar_text(analyst.get("atlas_street_divergence_message"), "Valuation comparison unavailable."))
+    _block_marker("sixty-second-investment-brief", ticker)
+    st.markdown("### 60-Second Investment Brief")
+    st.write(build_investment_brief(report))
 
-    financials = safe_mapping(safe_mapping(report.get("sections")).get("financials"))
-    st.markdown("### Financial Intelligence")
-    legacy["meta"](financials)
-    legacy["metric_grid"](
-        safe_mapping(financials.get("data")),
-        money_keys={"free_cash_flow", "cash", "debt"},
-        pct_keys={"revenue_growth_pct", "eps_growth_pct", "gross_margin_pct", "operating_margin_pct", "net_margin_pct", "roe_pct", "roic_pct"},
+    valuation = safe_mapping(report.get("valuation_families"))
+    analyst = safe_mapping(report.get("analyst_intelligence"))
+    st.markdown("### Valuation")
+    valuation_cols = st.columns(3)
+    valuation_cols[0].metric("Current Price", CanonicalNumberFormatter.price(report.get("current_price")).display)
+    valuation_cols[1].metric("Atlas Quant Fair Value", CanonicalNumberFormatter.price(_decision_value(report, "atlas_fair_value", "atlas_fair_value")).display)
+    valuation_cols[2].metric("Atlas-FV Expected Return", CanonicalNumberFormatter.percent(_decision_value(report, "decision_expected_return", "atlas_expected_return_pct"), signed=True).display)
+    street_cols = st.columns(2)
+    street_cols[0].metric("Wall Street Mean Target", CanonicalNumberFormatter.price(analyst.get("wall_street_mean_target")).display)
+    street_cols[1].metric(
+        "Wall Street Low / High",
+        _metric_currency_range(analyst.get("wall_street_low_target"), analyst.get("wall_street_high_target")),
     )
-    legacy["interpretation"](_scalar_text(financials.get("interpretation"), ""))
+    st.markdown("#### Valuation Interpretation")
+    st.caption("Wall Street consensus is external analyst evidence and is not a substitute for Atlas Fair Value.")
+    st.write(_scalar_text(analyst.get("atlas_street_divergence_message"), "Valuation comparison unavailable."))
+    with st.expander("Valuation assumptions, scenarios, evidence gaps, and methodology", expanded=False):
+        legacy["valuation"](report)
+        scenario_rows = [
+            {"Scenario": label, "Value": valuation.get(key)}
+            for label, key in (("Bear", "scenario_bear"), ("Base", "scenario_base"), ("Bull", "scenario_bull"))
+            if valuation.get(key) is not None
+        ]
+        if scenario_rows:
+            st.dataframe(pd.DataFrame(scenario_rows), hide_index=True, use_container_width=True)
+        else:
+            st.caption("Canonical valuation scenarios are unavailable.")
+
+    _render_financial_direction(report, legacy)
 
     earnings = safe_mapping(safe_mapping(report.get("sections")).get("earnings"))
     intelligence = safe_mapping(report.get("earnings_intelligence"))
@@ -351,11 +562,17 @@ def _render_technical(report: Mapping[str, Any], view: Mapping[str, Any], legacy
     ticker = str(report.get("ticker") or "UNKNOWN")
     _section_marker("Technical & Trade State", ticker)
     st.markdown("## Technical & Trade State")
-    st.markdown(f"### {view['technical_badge'].label}")
+    technical = view["technical_availability"]
+    _block_marker("deterministic-technical-state", ticker)
+    st.markdown("### Deterministic Technical State")
+    st.info(technical["label"])
     section = safe_mapping(safe_mapping(report.get("sections")).get("technical"))
     legacy["meta"](section)
+    interpretation = _clip_words(section.get("interpretation"), 45)
+    if interpretation:
+        st.write(interpretation)
+    plan = safe_mapping(report.get("trade_plan"))
     if view["monitor_or_incomplete"]:
-        plan = safe_mapping(report.get("trade_plan"))
         scenario = monitor_technical_scenario(
             current_price=plan.get("current_price", report.get("current_price")),
             entry_low=plan.get("entry_low"), entry_high=plan.get("entry_high"),
@@ -373,6 +590,7 @@ def _render_technical(report: Mapping[str, Any], view: Mapping[str, Any], legacy
             targets[0].metric("Target 1", CanonicalNumberFormatter.price(plan.get("target_1")).display)
             targets[1].metric("Target 2", CanonicalNumberFormatter.price(plan.get("target_2")).display)
             targets[2].metric("Risk / Reward", _scalar_text(plan.get("risk_reward_target_1")))
+            st.caption(f"Entry status: {_display_status(_scalar_text(plan.get('entry_status'), 'DATA_UNAVAILABLE'))}")
             st.caption(
                 " · ".join(filter(None, (
                     f"Horizon: {_scalar_text(plan.get('time_horizon'), '')}" if plan.get("time_horizon") else "",
@@ -381,13 +599,30 @@ def _render_technical(report: Mapping[str, Any], view: Mapping[str, Any], legacy
                 ))) or "No grounded horizon or position guidance is populated."
             )
     else:
-        legacy["trade_plan"](report)
-    st.markdown("### Technical evidence")
-    legacy["metric_grid"](
-        safe_mapping(section.get("data")),
-        money_keys={"price", "sma20", "sma50", "sma200", "support", "resistance"},
-    )
-    legacy["interpretation"](_scalar_text(section.get("interpretation"), ""))
+        levels = st.columns(6)
+        levels[0].metric("Entry Status", _display_status(_scalar_text(plan.get("entry_status"), "DATA_UNAVAILABLE")))
+        levels[1].metric("Action Zone", _metric_currency_range(plan.get("entry_low"), plan.get("entry_high")))
+        levels[2].metric("Target 1", CanonicalNumberFormatter.price(plan.get("target_1")).display)
+        levels[3].metric("Target 2", CanonicalNumberFormatter.price(plan.get("target_2")).display)
+        levels[4].metric("Stop", CanonicalNumberFormatter.price(plan.get("stop_loss")).display)
+        levels[5].metric("Risk / Reward", _scalar_text(plan.get("risk_reward_target_1")))
+    changes = safe_mapping(safe_mapping(report.get("guidance_summary")).get("thesis_change_conditions"))
+    confirm, breaks = st.columns(2)
+    with confirm:
+        st.markdown("### What confirms the setup?")
+        items = safe_sequence(changes.get("strengthen"))
+        st.write("\n".join(f"- {_scalar_text(item)}" for item in items[:3]) if items else "No grounded confirmation condition is available.")
+    with breaks:
+        st.markdown("### What breaks the setup?")
+        items = safe_sequence(changes.get("invalidate"))
+        st.write("\n".join(f"- {_scalar_text(item)}" for item in items[:3]) if items else "No grounded invalidation condition is available.")
+    with st.expander("Technical indicators and chart", expanded=False):
+        st.markdown("### Technical evidence")
+        legacy["metric_grid"](
+            safe_mapping(section.get("data")),
+            money_keys={"price", "sma20", "sma50", "sma200", "support", "resistance"},
+        )
+        legacy["interpretation"](_scalar_text(section.get("interpretation"), ""))
     with st.expander("Chart and historical evidence", expanded=False):
         legacy["price_chart"](report)
 
@@ -398,13 +633,26 @@ def _render_catalysts(report: Mapping[str, Any], legacy: Mapping[str, Callable[.
     st.markdown("## Catalysts & Sentiment")
     guidance = safe_mapping(report.get("guidance_summary"))
     catalyst = safe_mapping(guidance.get("next_catalyst"))
+    _block_marker("catalyst-next", ticker)
     st.markdown("### What could move this security next?")
     st.info(_scalar_text(catalyst.get("event"), "No verified next catalyst is available."))
 
     earnings_summary = safe_mapping(report.get("earnings_summary"))
-    if earnings_summary:
-        st.markdown("### Earnings / event watch")
-        st.write(_scalar_text(earnings_summary.get("watch_next") or earnings_summary.get("summary")))
+    earnings = safe_mapping(report.get("earnings_intelligence"))
+    latest = safe_mapping(earnings.get("latest_quarter"))
+    st.markdown("### Latest Earnings")
+    if earnings.get("semantic_status") == "AVAILABLE":
+        earnings_cols = st.columns(4)
+        earnings_cols[0].metric("Reported quarter", _scalar_text(latest.get("fiscal_period") or latest.get("report_date")))
+        earnings_cols[1].metric("EPS surprise", CanonicalNumberFormatter.percent(latest.get("eps_surprise_pct"), signed=True).display)
+        earnings_cols[2].metric("Revenue surprise", CanonicalNumberFormatter.percent(latest.get("revenue_surprise_pct"), signed=True).display)
+        earnings_cols[3].metric("Classification", _display_status(_scalar_text(earnings.get("latest_quarter_classification"))))
+        st.write(_scalar_text(earnings_summary.get("trend_assessment") or earnings_summary.get("summary")))
+        st.caption("Watch next: " + _scalar_text(earnings_summary.get("watch_next"), "No verified next-quarter watch item."))
+    elif earnings.get("semantic_status") == "NOT_APPLICABLE":
+        st.info("Corporate earnings evidence is not applicable to this security.")
+    else:
+        st.info("Latest reported earnings evidence is unavailable.")
     guidance_object = safe_mapping(report.get("management_guidance"))
     st.markdown("### Management Guidance")
     if guidance_object.get("semantic_status") == "AVAILABLE":
@@ -413,8 +661,34 @@ def _render_catalysts(report: Mapping[str, Any], legacy: Mapping[str, Callable[.
     else:
         st.caption(_scalar_text(guidance_object.get("status_detail"), "Management guidance is unavailable."))
 
-    with st.expander("Analyst sentiment, trend, targets, and actions", expanded=False):
+    analyst = safe_mapping(report.get("analyst_intelligence"))
+    st.markdown("### Analyst Trend")
+    trend = safe_mapping(analyst.get("trend_90d"))
+    analyst_cols = st.columns(3)
+    analyst_cols[0].metric("90-day trend", _display_status(_scalar_text(trend.get("classification"))))
+    analyst_cols[1].metric("Wall Street consensus", CanonicalNumberFormatter.currency(analyst.get("wall_street_mean_target")).display)
+    analyst_cols[2].metric("Coverage", _scalar_text(analyst.get("analyst_coverage")))
+    recent_action = _first_mapping_item(analyst.get("recent_actions"))
+    if recent_action:
+        st.caption(
+            "Latest firm action: " + " · ".join(filter(None, (
+                _scalar_text(recent_action.get("firm"), ""), _scalar_text(recent_action.get("primary_action"), ""),
+                _scalar_text(recent_action.get("date"), ""),
+            )))
+        )
+    else:
+        st.caption("No verified firm-level analyst action is available.")
+    with st.expander("Analyst targets and firm-level actions", expanded=False):
         legacy["analyst"](safe_mapping(report.get("analyst_intelligence")))
+
+    ownership = safe_mapping(safe_mapping(safe_mapping(report.get("sections")).get("ownership")).get("data"))
+    st.markdown("### Ownership & Insider Context")
+    ownership_cols = st.columns(3)
+    ownership_cols[0].metric("Institutional ownership", CanonicalNumberFormatter.percent(ownership.get("institutional_ownership_pct")).display)
+    ownership_cols[1].metric("Institutional change", CanonicalNumberFormatter.percent(ownership.get("institutional_change_pct"), signed=True).display)
+    insider_rows = safe_sequence(ownership.get("insider_transactions"))
+    ownership_cols[2].metric("Verified insider records", str(len(insider_rows)) if insider_rows else "Unavailable")
+    st.caption("Insider evidence remains unavailable when no verified active family is present; ATLAS does not infer activity from absence.")
 
     news = safe_mapping(safe_mapping(report.get("sections")).get("news"))
     st.markdown("### Material company news")
@@ -437,6 +711,23 @@ def _render_catalysts(report: Mapping[str, Any], legacy: Mapping[str, Callable[.
                 st.caption(f"Relevance: {_scalar_text(item.get('relevance'))} · Category: {_scalar_text(item.get('classification'))} · Impact: {_scalar_text(item.get('impact'))}")
 
     policy = safe_mapping(safe_mapping(safe_mapping(report.get("sections")).get("political")).get("data")) or safe_mapping(report.get("policy_intelligence"))
+    st.markdown("### Congressional Activity")
+    transactions = safe_sequence(policy.get("policymaker_transactions"))
+    if transactions and isinstance(transactions[0], Mapping):
+        transaction = transactions[0]
+        st.write(" · ".join(filter(None, (
+            _scalar_text(transaction.get("politician") or transaction.get("member"), ""),
+            _scalar_text(transaction.get("action") or transaction.get("transaction_type"), ""),
+            _scalar_text(transaction.get("amount_range") or transaction.get("amount"), ""),
+        ))))
+        st.caption(" · ".join(filter(None, (
+            f"Trade Date: {_scalar_text(transaction.get('transaction_date') or transaction.get('trade_date'), '')}",
+            f"Disclosure Date: {_scalar_text(transaction.get('disclosure_date'), '')}",
+            f"Source: {_scalar_text(transaction.get('provider') or transaction.get('source'), '')}",
+        ))))
+    else:
+        st.caption("No verified security-level congressional activity is available.")
+    st.caption("Political activity is contextual only and never contributes to ATLAS scoring.")
     with st.expander("Material policy developments", expanded=False):
         legacy["policy"](policy)
         st.caption("Political activity is contextual evidence and does not change ATLAS scoring or conviction.")
@@ -464,16 +755,42 @@ def _render_risk_evidence(report: Mapping[str, Any], view: Mapping[str, Any], le
     _section_marker("Risk & Evidence", ticker)
     st.markdown("## Risk & Evidence")
     risk = safe_mapping(safe_mapping(report.get("sections")).get("risk"))
-    st.markdown("### Risk Center")
-    rows = [item for item in safe_sequence(risk.get("data")) if isinstance(item, Mapping)]
-    if rows:
-        for item in rows:
-            with st.container(border=True):
-                st.markdown(f"**{_scalar_text(item.get('factor'))} — {_scalar_text(item.get('level'))}**")
-                st.write(_scalar_text(item.get("atlas_interpretation")))
+    _block_marker("primary-risks", ticker)
+    st.markdown("### Primary Risks")
+    intelligence = safe_mapping(report.get("intelligence"))
+    primary_risks = safe_sequence(intelligence.get("key_risks"))
+    if primary_risks:
+        st.write("\n".join(f"- {_scalar_text(item)}" for item in primary_risks[:5]))
     else:
-        st.info("No structured risk factors are currently available.")
-    legacy["interpretation"](_scalar_text(risk.get("interpretation"), ""))
+        st.info("No grounded primary-risk summary is available.")
+    st.markdown("### Evidence Health")
+    health = view["health"]
+    health_cols = st.columns(3)
+    health_cols[0].metric("Evidence state", health.label)
+    health_cols[1].metric("Completeness", health.completeness.display)
+    health_cols[2].metric("Freshness", health.freshness or "Unavailable")
+    st.markdown("### What Is Missing")
+    if view["critical_gaps"]:
+        st.write("\n".join(f"- {item}" for item in view["critical_gaps"][:8]))
+    else:
+        st.caption("No critical missing-evidence item is registered.")
+
+    st.markdown("### Risk Evidence Availability")
+    st.dataframe(
+        pd.DataFrame([{"Evidence area": name, "Availability": _display_status(status)} for name, status in risk_evidence_availability(report).items()]),
+        hide_index=True, use_container_width=True,
+    )
+    with st.expander("Detailed Risk Center", expanded=False):
+        st.markdown("#### Structured risk taxonomy")
+        rows = [item for item in safe_sequence(risk.get("data")) if isinstance(item, Mapping)]
+        if rows:
+            for item in rows:
+                with st.container(border=True):
+                    st.markdown(f"**{_scalar_text(item.get('factor'))} — {_scalar_text(item.get('level'))}**")
+                    st.write(_scalar_text(item.get("atlas_interpretation")))
+        else:
+            st.info("No structured risk factors are currently available.")
+        legacy["interpretation"](_scalar_text(risk.get("interpretation"), ""))
 
     sections = safe_mapping(report.get("sections"))
     readiness = [
@@ -483,7 +800,6 @@ def _render_risk_evidence(report: Mapping[str, Any], view: Mapping[str, Any], le
     with st.expander("Research readiness, freshness, and limitations", expanded=False):
         if readiness:
             st.dataframe(pd.DataFrame(readiness), hide_index=True, use_container_width=True)
-        health = view["health"]
         st.write(f"Evidence state: {health.label}; completeness {health.completeness.display}; freshness {health.freshness or 'Unavailable'}.")
         for limitation in health.limitations:
             st.warning(limitation)
@@ -557,6 +873,22 @@ def _render_risk_evidence(report: Mapping[str, Any], view: Mapping[str, Any], le
     st.caption("ATLAS Research is decision support, not personalized financial advice. Evidence availability and market conditions can change.")
 
 
+def _render_watching_next(report: Mapping[str, Any]) -> None:
+    ticker = str(report.get("ticker") or "UNKNOWN").upper()
+    _block_marker("watching-next", ticker)
+    st.markdown("## What I’m Watching Next")
+    guidance = safe_mapping(report.get("guidance_summary"))
+    catalyst = safe_mapping(guidance.get("next_catalyst"))
+    conditions = safe_mapping(guidance.get("thesis_change_conditions"))
+    items = [
+        _scalar_text(catalyst.get("event"), ""),
+        *(_scalar_text(item, "") for item in safe_sequence(conditions.get("strengthen"))[:2]),
+        *(_scalar_text(item, "") for item in safe_sequence(conditions.get("invalidate"))[:2]),
+    ]
+    items = list(dict.fromkeys(item for item in items if item))
+    st.write("\n".join(f"- {item}" for item in items[:5]) if items else "No grounded next-watch item is available.")
+
+
 def _render_ask_cta(report: Mapping[str, Any]) -> None:
     ticker = str(report.get("ticker") or "UNKNOWN").upper()
     st.markdown(
@@ -599,6 +931,11 @@ def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Cal
         }
         [class*="st-key-vnext_ask_atlas"] [data-testid="stButton"] { margin-right:5.5rem; }
         [data-testid="stTabs"] [role="tablist"] { gap: .35rem; }
+        @media (min-width: 701px) {
+          /* Desktop decision metrics sit above the host-control footprint;
+             retain a compact readable inset instead of the mobile exclusion zone. */
+          [data-testid="stMetric"] { padding-right:.75rem !important; }
+        }
         @media (max-width: 700px) {
           [data-testid="stMainBlockContainer"] {
             padding-bottom:max(6.5rem, calc(1rem + env(safe-area-inset-bottom))) !important;
@@ -626,6 +963,7 @@ def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Cal
         _render_catalysts(report, legacy)
     with tabs[4]:
         _render_risk_evidence(report, view, legacy)
+    _render_watching_next(report)
     _render_ask_cta(report)
 
 

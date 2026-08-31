@@ -113,6 +113,17 @@ def test_research_and_home_require_actual_visible_controls_and_exact_ticker():
     assert "self.monitor_ticker" in source
 
 
+def test_crawler_tracks_ux3b_decision_story_without_restoring_legacy_tabs():
+    source = SOURCE.read_text(encoding="utf-8")
+    assert '"decision_story"' in source
+    for block in (
+        "decision-why", "decision-core-metrics", "why-atlas-likes-it",
+        "what-stops-atlas", "what-changes-the-thesis", "watching-next",
+    ):
+        assert block in source
+    assert len(RESEARCH_VNEXT_SECTIONS) == 5
+
+
 def test_supporting_evidence_and_grounding_are_independently_certified():
     source = SOURCE.read_text(encoding="utf-8")
     assert "transaction_date" in source
