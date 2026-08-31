@@ -96,6 +96,19 @@ def test_readable_freshness_and_compact_mobile_contracts():
     assert "flex-wrap:nowrap !important" in source
     assert "atlas-ux3-empty-section" in source
     assert "Catalyst unavailable" in source
-    assert "padding-right:3.6rem" in source
+    assert "margin-right:7rem" in source
     assert 'st.columns([3, 2])' in source
     assert 'row.get("committee_verdict") or "Unavailable"' in source
+
+
+def test_platform_owned_overlay_safe_area_is_reserved_without_hiding_controls():
+    home = open("ui/home_v104.py", encoding="utf-8").read()
+    research = open("ui/research_vnext.py", encoding="utf-8").read()
+    for source in (home, research):
+        assert '[data-testid="stMainBlockContainer"]' in source
+        assert "padding-bottom:max(6.5rem" in source
+        assert "display:none" not in source[source.index("Streamlit Community Cloud") if "Streamlit Community Cloud" in source else source.index("fixed Streamlit Cloud"):][:800]
+    assert ':has(> [data-testid="stElementContainer"] .atlas-ux3-card-head)' in home
+    assert "padding-right:7rem" in home
+    assert "margin-right:7rem" in home
+    assert '[data-testid="stMetric"] { padding-right:7rem' in research

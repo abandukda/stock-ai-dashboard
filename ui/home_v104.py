@@ -515,6 +515,17 @@ def render_v104_home(
         """<style>
         [data-testid="stHorizontalBlock"] { align-items: stretch; }
         .stApp, [data-testid="stAppViewContainer"] { overflow-x: hidden; }
+        /* Streamlit Community Cloud owns the fixed viewer/profile badges in
+           the outer host shell. Keep customer content out of that immutable
+           bottom-right overlay zone instead of hiding platform controls. */
+        [data-testid="stMainBlockContainer"] {
+          padding-bottom:max(6rem, calc(1rem + env(safe-area-inset-bottom))) !important;
+        }
+        [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .atlas-ux3-card-head) {
+          padding-right:5.5rem !important;
+        }
+        [class*="st-key-home_watchlist"] [data-testid="stButton"],
+        [class*="st-key-home_portfolio"] [data-testid="stButton"] { margin-right:5.5rem; }
         @media (max-width: 900px) {
           [data-testid="column"] { min-width: 100% !important; width: 100% !important; }
           [data-testid="stHorizontalBlock"] { flex-wrap: wrap; }
@@ -559,10 +570,14 @@ def render_v104_home(
           .atlas-ux3-card-head > span { display:inline-block; margin:.15rem 0 .35rem; }
           .atlas-ux3-thesis { min-height:0; }
           .atlas-ux3-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
-          [class*="st-key-home_ux3"] [data-testid="stButton"],
           [class*="st-key-home_watchlist"] [data-testid="stButton"],
-          [class*="st-key-home_portfolio"] [data-testid="stButton"] { padding-right:3.6rem; }
-          [data-testid="stAppViewBlockContainer"] { padding-bottom:5rem; }
+          [class*="st-key-home_portfolio"] [data-testid="stButton"] { margin-right:7rem; }
+          [data-testid="stMainBlockContainer"] {
+            padding-bottom:max(6.5rem, calc(1rem + env(safe-area-inset-bottom))) !important;
+          }
+          [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .atlas-ux3-card-head) {
+            padding-right:7rem !important;
+          }
         }
         </style>""",
         unsafe_allow_html=True,
