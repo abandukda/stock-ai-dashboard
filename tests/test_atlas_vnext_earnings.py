@@ -227,6 +227,8 @@ render_earnings_vnext(pd.DataFrame(rows), open_research=lambda ticker: None)
     assert "atlas-earnings-card-anchor" in source
     assert "@media (max-width:700px)" in source
     assert '[data-testid="stRadio"] [role="radiogroup"]' in source
+    assert '[data-testid="stRadio"]:has([role="radiogroup"])' in source
+    assert "top:3.75rem" in source
     assert '[data-testid="stElementContainer"]:has(style)' in source
     assert ':has([data-atlas-qa][aria-hidden="true"])' in source
     assert "overflow-x:hidden" in source
@@ -235,6 +237,22 @@ render_earnings_vnext(pd.DataFrame(rows), open_research=lambda ticker: None)
     assert "atlas-earnings-mobile-snapshot" in source
     assert _markdown_money(125) == r"\$125.00"
     assert _unsigned_pct(62) == "62.0%"
+
+
+def test_analyst_action_dates_are_readable_without_mutating_or_reordering_evidence():
+    from ui.earnings_vnext import _analyst_actions_for_display
+
+    actions = [
+        {"date": 1787961600, "firm": "First", "action": "Reiterated"},
+        {"date": "2026-08-28T13:30:00Z", "firm": "Second", "action": "Raised"},
+    ]
+    displayed = _analyst_actions_for_display(actions)
+
+    assert [row["firm"] for row in displayed] == ["First", "Second"]
+    assert displayed[0]["date"] == "Aug 29, 2026"
+    assert displayed[1]["date"] == "Aug 28, 2026"
+    assert actions[0]["date"] == 1787961600
+    assert actions[1]["date"] == "2026-08-28T13:30:00Z"
 
 
 def test_normalizer_accepts_raw_aliases_without_inventing_values():

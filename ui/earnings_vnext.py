@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 from html import escape
 from typing import Any, Callable, Final, Mapping
 
@@ -60,6 +60,52 @@ def _markdown_money(value: Any) -> str:
     return _metric(value, money=True).replace("$", r"\$")
 
 
+def _customer_date(value: Any) -> str:
+    """Format an evidence date for display without changing its source value."""
+    if value is None or isinstance(value, (Mapping, list, tuple, set)):
+        return _display(value)
+    parsed: datetime | None = None
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        try:
+            seconds = float(value)
+            if abs(seconds) >= 100_000_000_000:
+                seconds /= 1_000
+            parsed = datetime.fromtimestamp(seconds, tz=timezone.utc)
+        except (OverflowError, OSError, ValueError):
+            parsed = None
+    elif isinstance(value, str):
+        text = value.strip()
+        try:
+            if text and text.replace(".", "", 1).lstrip("-").isdigit():
+                seconds = float(text)
+                if abs(seconds) >= 100_000_000_000:
+                    seconds /= 1_000
+                parsed = datetime.fromtimestamp(seconds, tz=timezone.utc)
+            elif text:
+                parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except (OverflowError, OSError, ValueError):
+            parsed = None
+    if parsed is None:
+        return _display(value)
+    return parsed.strftime("%b %d, %Y").replace(" 0", " ")
+
+
+def _analyst_actions_for_display(actions: Any) -> list[dict[str, Any]]:
+    """Return presentation copies; preserve canonical rows and their ordering."""
+    if not isinstance(actions, (list, tuple)):
+        return []
+    displayed: list[dict[str, Any]] = []
+    for action in actions:
+        if not isinstance(action, Mapping):
+            continue
+        row = dict(action)
+        for key in ("date", "action_date", "published_at", "timestamp"):
+            if key in row:
+                row[key] = _customer_date(row[key])
+        displayed.append(row)
+    return displayed
+
+
 def _row_payload(row: Any) -> dict[str, Any]:
     # Preserve the wrapper boundary. The story builder reads canonical
     # decision authority from Raw while merging evidence separately.
@@ -85,6 +131,10 @@ def _inject_earnings_css() -> None:
           body:has([data-atlas-earnings-version])
           [data-testid="stElementContainer"]:has([data-atlas-qa][aria-hidden="true"]) {
             display:none !important;
+          }
+          body:has([data-atlas-earnings-version]) [data-testid="stRadio"]:has([role="radiogroup"]) {
+            position:sticky !important; top:3.75rem !important; z-index:990 !important;
+            background:var(--background-color, #0e1117); padding:.15rem 0 .2rem !important;
           }
           body:has([data-atlas-earnings-version]) [data-testid="stRadio"] [role="radiogroup"] {
             flex-wrap:nowrap !important; overflow-x:auto !important;
@@ -243,7 +293,7 @@ def _reported_card(story: Mapping[str, Any], open_research: Callable[[str], Any]
             )
             if analyst.get("actions"):
                 with st.expander("Dated analyst actions"):
-                    st.dataframe(pd.DataFrame(analyst["actions"]), width="stretch", hide_index=True)
+                    st.dataframe(pd.DataFrame(_analyst_actions_for_display(analyst["actions"])), width="stretch", hide_index=True)
         else:
             st.caption("Analyst actions and consensus are unavailable.")
         news = deep.get("news") or {}
