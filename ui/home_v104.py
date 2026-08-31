@@ -423,11 +423,11 @@ def _render_ux3_opportunity_card(card: Mapping[str, Any], rank: int) -> None:
             f'<span><small>Supported upside</small><b>{html.escape(_pct(card.get("supported_upside")))}</b></span>'
             '</div>', unsafe_allow_html=True,
         )
-        st.markdown("**Preferred action**")
+        st.markdown('<p class="atlas-ux3-action-label"><strong>Preferred action</strong></p>', unsafe_allow_html=True)
         preferred_action = str(card.get("preferred_action") or "Preferred action unavailable")
         # Streamlit treats paired dollar signs as LaTeX delimiters. Render the
         # escaped customer copy as HTML so price ranges remain ordinary text.
-        st.markdown(f"<p>{html.escape(preferred_action)}</p>", unsafe_allow_html=True)
+        st.markdown(f'<p class="atlas-ux3-action-copy">{html.escape(preferred_action)}</p>', unsafe_allow_html=True)
         entry_context = str(card.get("entry_context") or "Entry context unavailable")
         st.markdown(
             f'<p class="atlas-ux3-entry-context">{html.escape(entry_context)}</p>',
@@ -521,11 +521,25 @@ def render_v104_home(
         [data-testid="stMainBlockContainer"] {
           padding-bottom:max(6rem, calc(1rem + env(safe-area-inset-bottom))) !important;
         }
-        [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .atlas-ux3-card-head) {
-          padding-right:5.5rem !important;
-        }
         [class*="st-key-home_watchlist"] [data-testid="stButton"],
         [class*="st-key-home_portfolio"] [data-testid="stButton"] { margin-right:5.5rem; }
+        @media (min-width: 901px) {
+          [data-testid="stHorizontalBlock"] > [data-testid="column"]:last-child
+          [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .atlas-ux3-card-head)
+          :is(.atlas-ux3-thesis,.atlas-ux3-metrics,.atlas-ux3-action-label,.atlas-ux3-action-copy,.atlas-ux3-entry-context) {
+            margin-right:6.75rem !important;
+          }
+          [data-testid="stHorizontalBlock"] > [data-testid="column"]:last-child
+          [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .atlas-ux3-card-head)
+          [data-testid="stHorizontalBlock"] > [data-testid="column"]:last-child {
+            padding-right:6.75rem !important;
+          }
+          [data-testid="stHorizontalBlock"] > [data-testid="column"]:last-child
+          [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .atlas-ux3-card-head)
+          [data-testid="stButton"] {
+            margin-right:6.75rem !important;
+          }
+        }
         @media (max-width: 900px) {
           [data-testid="column"] { min-width: 100% !important; width: 100% !important; }
           [data-testid="stHorizontalBlock"] { flex-wrap: wrap; }
@@ -561,6 +575,7 @@ def render_v104_home(
         .atlas-ux3-empty-section h3 { margin:0 0 .15rem; font-size:1.15rem; }
         .atlas-ux3-empty-section p { margin:0; color:#94A3B8; font-size:.86rem; }
         @media (max-width: 430px) {
+          h2#best-opportunities-right-now { margin-top:4rem !important; }
           [data-testid="stRadio"] [role="radiogroup"] { flex-wrap:nowrap !important; overflow-x:auto !important; padding-bottom:.2rem; scrollbar-width:thin; }
           [data-testid="stRadio"] [role="radiogroup"] label { flex:0 0 auto !important; white-space:nowrap; }
           .atlas-compact-grid { gap:.35rem; margin:.35rem 0 .6rem; }
