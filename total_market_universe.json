@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-31T10:55:07.502256+00:00",
-  "count": 3473,
+  "generated_at": "2026-08-31T17:45:11.404913+00:00",
+  "count": 3476,
   "symbols": [
     "A",
     "AA",
@@ -1082,6 +1082,7 @@
     "EQT",
     "EQX",
     "ERAS",
+    "ERC",
     "ERIC",
     "ERIE",
     "ERII",
@@ -1814,6 +1815,7 @@
     "LFCR",
     "LFST",
     "LFT",
+    "LFT-PA",
     "LFTO",
     "LFUS",
     "LGIH",
@@ -2384,6 +2386,7 @@
     "PCAR",
     "PCB",
     "PCG",
+    "PCG-PA",
     "PCOR",
     "PCT",
     "PCTY",
