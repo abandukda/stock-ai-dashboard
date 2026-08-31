@@ -144,6 +144,21 @@ def _pct(value: Any) -> str:
         return "Unavailable"
 
 
+def _confidence(value: Any) -> str:
+    try:
+        return f"{float(value):.1f}%"
+    except (TypeError, ValueError):
+        return "Unavailable"
+
+
+def _customer_updated_at(value: Any) -> str | None:
+    try:
+        parsed = datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
+        return parsed.astimezone(ZoneInfo("America/New_York")).strftime("%b %-d, %-I:%M %p ET")
+    except (TypeError, ValueError):
+        return None
+
+
 def _score(value: Any) -> str:
     try:
         number = float(value)
@@ -175,13 +190,14 @@ def _raw_value(row: Mapping[str, Any], *keys: str):
 
 def _canonical_home_row(row: Mapping[str, Any]) -> dict[str, Any]:
     """Project immutable persisted decision fields onto Home presentation."""
-    # The V104 pipeline appends its authoritative committee decision to the
-    # normalized row while retaining the persisted scanner row under ``raw``.
-    # Read the complete canonical row so those outputs are not discarded.
-    decision = build_production_decision(row)
+    # The persisted scanner row is the immutable production-decision authority.
+    # V104 appends a fresh committee projection to the wrapper row at render
+    # time; that projection must not replace the saved production generation.
+    source = row.get("raw") if isinstance(row.get("raw"), Mapping) else row
+    decision = build_production_decision(source)
     output = dict(row)
     output["production_decision"] = dict(decision)
-    output["committee_verdict"] = decision.get("recommendation") or "MONITOR"
+    output["committee_verdict"] = decision.get("recommendation") or "Unavailable"
     output["action_code"] = output["committee_verdict"]
     output["opportunity_score"] = decision.get("opportunity")
     output["confidence_pct"] = decision.get("confidence")
@@ -214,9 +230,15 @@ def build_home_opportunity_card(row: Mapping[str, Any]) -> dict[str, Any]:
     thesis = _bounded_copy(support, words=30, fallback="Grounded thesis unavailable")
     low, high = view.get("preferred_entry_low"), view.get("preferred_entry_high")
     entry = f"{_money(low)}–{_money(high)}" if low is not None and high is not None else "Entry context unavailable"
-    preferred_action = (
-        action.get("current_action") if isinstance(action, Mapping) else None
-    ) or (view.get("entry_status") or {}).get("action") or entry
+    recommendation = decision.get("recommendation")
+    preferred_action = None
+    if recommendation is not None:
+        preferred_action = (
+            action.get("current_action") if isinstance(action, Mapping) else None
+        ) or (view.get("entry_status") or {}).get("action") or entry
+    catalyst_text = catalyst.get("event") if isinstance(catalyst, Mapping) else None
+    if catalyst_text and "no verified" in str(catalyst_text).lower():
+        catalyst_text = None
     return {
         "ticker": str(view.get("ticker") or canonical.get("ticker") or "UNKNOWN").upper(),
         "company": str(view.get("company") or _raw_value(canonical, "company", "company_name", "Company") or "Unavailable"),
@@ -225,9 +247,9 @@ def build_home_opportunity_card(row: Mapping[str, Any]) -> dict[str, Any]:
         "confidence": decision.get("confidence"),
         "supported_upside": decision.get("decision_expected_return"),
         "thesis": thesis,
-        "preferred_action": _bounded_copy(preferred_action, words=18, fallback="Preferred action unavailable"),
+        "preferred_action": _bounded_copy(preferred_action, words=18, fallback="Decision unavailable"),
         "entry_context": entry,
-        "catalyst": _bounded_copy(catalyst.get("event") if isinstance(catalyst, Mapping) else None, words=18),
+        "catalyst": _bounded_copy(catalyst_text, words=18, fallback="Catalyst unavailable"),
         "risk": _bounded_copy(risk, words=18),
         "technical_state": _canonical_technical_state(canonical),
         "production_decision": dict(decision),
@@ -397,26 +419,38 @@ def _render_ux3_opportunity_card(card: Mapping[str, Any], rank: int) -> None:
         st.markdown(
             '<div class="atlas-ux3-metrics">'
             f'<span><small>Opportunity</small><b>{html.escape(_score(card.get("opportunity")))}</b></span>'
-            f'<span><small>Confidence</small><b>{html.escape(_pct(card.get("confidence")))}</b></span>'
+            f'<span><small>Confidence</small><b>{html.escape(_confidence(card.get("confidence")))}</b></span>'
             f'<span><small>Supported upside</small><b>{html.escape(_pct(card.get("supported_upside")))}</b></span>'
             '</div>', unsafe_allow_html=True,
         )
         st.markdown("**Preferred action**")
-        st.write(card.get("preferred_action") or "Preferred action unavailable")
-        st.caption(card.get("entry_context") or "Entry context unavailable")
+        preferred_action = str(card.get("preferred_action") or "Preferred action unavailable")
+        # Streamlit treats paired dollar signs as LaTeX delimiters. Render the
+        # escaped customer copy as HTML so price ranges remain ordinary text.
+        st.markdown(f"<p>{html.escape(preferred_action)}</p>", unsafe_allow_html=True)
+        entry_context = str(card.get("entry_context") or "Entry context unavailable")
+        st.markdown(
+            f'<p class="atlas-ux3-entry-context">{html.escape(entry_context)}</p>',
+            unsafe_allow_html=True,
+        )
         insight_cols = st.columns(2)
         insight_cols[0].markdown("**Catalyst**")
-        insight_cols[0].write(card.get("catalyst") or "Unavailable")
+        insight_cols[0].caption(card.get("catalyst") or "Catalyst unavailable")
         insight_cols[1].markdown("**Primary risk**")
         insight_cols[1].write(card.get("risk") or "Unavailable")
         _open_research(ticker, f"home_ux3_best_{rank}_{ticker}")
 
 
 def _render_compact_cards(title: str, cards: list[Mapping[str, Any]], key_prefix: str) -> None:
-    st.markdown(f"## {title}")
     if not cards:
-        st.caption("No current names meet this canonical presentation condition.")
+        message = "No qualifying setups right now." if "Watch Closely" in title else "No recovery opportunities qualify right now."
+        st.markdown(
+            f'<div class="atlas-ux3-empty-section"><h3>{html.escape(title)}</h3>'
+            f'<p>{html.escape(message)}</p></div>',
+            unsafe_allow_html=True,
+        )
         return
+    st.markdown(f"## {title}")
     for index, card in enumerate(cards, start=1):
         c1, c2 = st.columns([4, 1])
         state = str(card.get("technical_state") or card.get("state") or "Unavailable").replace("_", " ").title()
@@ -456,14 +490,14 @@ def _render_action_rows(title: str, rows, key_prefix: str) -> None:
         return
     for index, row in enumerate(rows[:5], start=1):
         ticker = str(row.get("ticker") or "UNKNOWN")
-        verdict = str(row.get("committee_verdict") or "MONITOR").replace("_", " ")
+        verdict = str(row.get("committee_verdict") or "Unavailable").replace("_", " ")
         guidance = row.get("guidance_summary") or {}
         if not guidance:
             from engines.guidance_summary import build_guidance_summary
             guidance = build_guidance_summary(row)
         facts = guidance.get("supporting_facts") or []
         reason = (facts[0] or {}).get("fact") if facts else "Evidence detail is unavailable."
-        c1, c2 = st.columns([4, 1])
+        c1, c2 = st.columns([3, 2])
         c1.markdown(f"**{ticker} — {verdict}**  \n{reason}")
         with c2:
             _open_research(ticker, f"{key_prefix}_{index}_{ticker}")
@@ -503,7 +537,7 @@ def render_v104_home(
         .atlas-valuation-row small,.atlas-valuation-row b,.atlas-valuation-row em { display:block; }
         .atlas-valuation-row em { color:#94A3B8; font-size:.72rem; font-style:normal; }
         .atlas-ux3-card-head { display:flex; align-items:flex-start; justify-content:space-between; gap:.8rem; }
-        .atlas-ux3-card-head h3 { margin:.1rem 0 .25rem; font-size:1.18rem; line-height:1.2; overflow-wrap:anywhere; }
+        .atlas-ux3-card-head h3 { margin:.1rem 0 .25rem; font-size:1.18rem; line-height:1.2; overflow-wrap:break-word; }
         .atlas-ux3-card-head small { color:#94A3B8; font-weight:800; }
         .atlas-ux3-card-head > span { border:1px solid rgba(96,165,250,.45); background:rgba(37,99,235,.13); border-radius:999px; padding:.25rem .55rem; font-size:.72rem; font-weight:900; white-space:nowrap; }
         .atlas-ux3-thesis { line-height:1.42; margin:.35rem 0 .7rem; min-height:2.8rem; }
@@ -512,7 +546,12 @@ def render_v104_home(
         .atlas-ux3-metrics small,.atlas-ux3-metrics b { display:block; }
         .atlas-ux3-metrics small { color:#94A3B8; font-size:.65rem; text-transform:uppercase; letter-spacing:.035em; }
         .atlas-ux3-metrics b { margin-top:.12rem; font-size:.95rem; overflow-wrap:anywhere; }
+        .atlas-ux3-empty-section { margin:1rem 0; padding:.55rem .7rem; border-left:3px solid rgba(148,163,184,.3); }
+        .atlas-ux3-empty-section h3 { margin:0 0 .15rem; font-size:1.15rem; }
+        .atlas-ux3-empty-section p { margin:0; color:#94A3B8; font-size:.86rem; }
         @media (max-width: 430px) {
+          [data-testid="stRadio"] [role="radiogroup"] { flex-wrap:nowrap !important; overflow-x:auto !important; padding-bottom:.2rem; scrollbar-width:thin; }
+          [data-testid="stRadio"] [role="radiogroup"] label { flex:0 0 auto !important; white-space:nowrap; }
           .atlas-compact-grid { gap:.35rem; margin:.35rem 0 .6rem; }
           .atlas-compact-metric { padding:.45rem .5rem; border-radius:10px; }
           .atlas-card-title { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; font-size:1.25rem; }
@@ -520,6 +559,10 @@ def render_v104_home(
           .atlas-ux3-card-head > span { display:inline-block; margin:.15rem 0 .35rem; }
           .atlas-ux3-thesis { min-height:0; }
           .atlas-ux3-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+          [class*="st-key-home_ux3"] [data-testid="stButton"],
+          [class*="st-key-home_watchlist"] [data-testid="stButton"],
+          [class*="st-key-home_portfolio"] [data-testid="stButton"] { padding-right:3.6rem; }
+          [data-testid="stAppViewBlockContainer"] { padding-bottom:5rem; }
         }
         </style>""",
         unsafe_allow_html=True,
@@ -551,9 +594,10 @@ def render_v104_home(
         as_of=signal_as_of,
     )
     st.markdown("# ATLAS Today")
+    readable_as_of = _customer_updated_at(atlas_now.get("as_of"))
     st.caption(
         f"{atlas_now['freshness_label']}"
-        + (f" · As of {atlas_now['as_of']}" if atlas_now.get("as_of") else "")
+        + (f" · Updated {readable_as_of}" if readable_as_of else "")
     )
 
     st.markdown("## Market Brief")

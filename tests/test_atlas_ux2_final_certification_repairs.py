@@ -74,11 +74,11 @@ def test_home_uses_same_immutable_decision_authority_as_research():
         "raw": {"ticker": "BZ", "confidence": 96, "score": 96},
     }
     presented = _canonical_home_row(row)
-    assert presented["committee_verdict"] == "BUY_NOW"
-    assert presented["production_decision"]["recommendation"] == "BUY_NOW"
-    assert presented["opportunity_score"] == 96
-    assert presented["confidence_pct"] is None
-    assert presented["buy_now"] is True
+    assert presented["committee_verdict"] == "Unavailable"
+    assert presented["production_decision"]["recommendation"] is None
+    assert presented["opportunity_score"] is None
+    assert presented["confidence_pct"] == 96
+    assert presented["buy_now"] is False
 
 
 def test_supporting_navigation_creates_fresh_exact_ticker_lifecycle():

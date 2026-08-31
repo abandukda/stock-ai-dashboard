@@ -157,12 +157,12 @@ def build_research_decision_view(report: Mapping[str, Any]) -> dict[str, Any]:
     canonical_recommendation = _decision_value(report, "recommendation", "committee_verdict")
     canonical_opportunity = _decision_value(report, "opportunity", "opportunity_score")
     canonical_confidence = _decision_value(report, "confidence", "confidence_pct")
-    verdict = _scalar_text(canonical_recommendation, "Monitor")
+    verdict = _scalar_text(canonical_recommendation, "Unavailable")
     try:
         materially_incomplete = completeness is None or float(completeness) < 70.0
     except (TypeError, ValueError):
         materially_incomplete = True
-    monitor = verdict.upper().replace(" ", "_") in {"MONITOR", "WATCH", "RESEARCH_/_MONITOR"} or materially_incomplete
+    monitor = verdict.upper().replace(" ", "_") in {"MONITOR", "WATCH", "RESEARCH_/_MONITOR", "UNAVAILABLE"} or materially_incomplete
     status, cache_status = _freshness(report)
     gaps = _critical_gaps(report)
     health = evidence_health(
@@ -176,7 +176,13 @@ def build_research_decision_view(report: Mapping[str, Any]) -> dict[str, Any]:
         opportunity=canonical_opportunity,
         confidence=canonical_confidence,
         research_completeness=completeness,
-        actionability_label="Monitor — Not currently actionable" if monitor else _scalar_text(action.get("current_action"), verdict.replace("_", " ").title()),
+        actionability_label=(
+            "Research incomplete — not currently actionable"
+            if monitor and verdict.upper() == "UNAVAILABLE"
+            else "Monitor — Not currently actionable"
+            if monitor
+            else _scalar_text(action.get("current_action"), verdict.replace("_", " ").title())
+        ),
     )
     prices = price_action_strip(
         current_price=plan.get("current_price", report.get("current_price")),
@@ -209,6 +215,11 @@ def _render_metric(label: str, display: str, *, help_text: str | None = None) ->
     st.metric(label, display, help=help_text)
 
 
+def _metric_currency_range(low: Any, high: Any) -> str:
+    """Escape currency markers so Streamlit does not parse them as inline math."""
+    return CanonicalNumberFormatter.currency_range(low, high).display.replace("$", r"\$")
+
+
 def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None:
     ticker = str(report.get("ticker") or "UNKNOWN")
     _section_marker("Decision", ticker)
@@ -217,7 +228,7 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
     st.markdown("## Decision")
     st.markdown(f"### {header.actionability_label}")
     columns = st.columns(5)
-    columns[0].metric("ATLAS State", _scalar_text(header.recommendation, "Monitor").replace("_", " ").title())
+    columns[0].metric("ATLAS State", _scalar_text(header.recommendation, "Unavailable").replace("_", " ").title())
     columns[1].metric("Opportunity", _scalar_text(header.opportunity))
     columns[2].metric("Confidence", CanonicalNumberFormatter.percent(header.confidence).display)
     columns[3].metric("Research Completeness", CanonicalNumberFormatter.percent(header.research_completeness).display)
@@ -226,13 +237,10 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
     prices = view["prices"]
     price_cols = st.columns(4)
     price_cols[0].metric("Current Price", prices.current_price.display)
-    entry = (
-        f"{prices.entry_low.display}–{prices.entry_high.display}"
-        if prices.entry_low.exact_value is not None and prices.entry_high.exact_value is not None
-        else "Unavailable"
-    )
+    entry = _metric_currency_range(prices.entry_low.exact_value, prices.entry_high.exact_value)
     price_cols[1].metric("Preferred Action Zone", entry)
-    price_cols[2].metric("Supported Upside", CanonicalNumberFormatter.percent(report.get("atlas_expected_return_pct"), signed=True).display)
+    canonical_expected_return = _decision_value(report, "decision_expected_return", "atlas_expected_return_pct")
+    price_cols[2].metric("Supported Upside", CanonicalNumberFormatter.percent(canonical_expected_return, signed=True).display)
     price_cols[3].metric("Downside / Invalidation", prices.invalidation.display)
 
     evidence = view["evidence"]
@@ -648,6 +656,10 @@ def render_full_research_vnext(row: Mapping[str, Any]) -> None:
     report["policy_source_metrics"] = policy_retrieval.get("metrics") or {}
     legacy_report._inject_visual_standards()
     legacy_report._render_architecture_qa_markers(report)
+    banner_state = _scalar_text(
+        _decision_value(report, "recommendation", "committee_verdict"),
+        "Unavailable",
+    ).replace("_", " ").title()
 
     st.markdown(
         f"""
@@ -662,7 +674,7 @@ def render_full_research_vnext(row: Mapping[str, Any]) -> None:
           <div style="color:#aebbd0;margin-top:9px">
             {escape(str(report.get("company") or ""))} ·
             {escape(str(report.get("sector") or "Unknown"))} ·
-            {escape(str(report.get("committee_verdict") or "Monitor").replace("_", " ").title())}
+            {escape(banner_state)}
           </div>
         </div>
         """,

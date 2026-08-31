@@ -47,12 +47,16 @@ def test_ux3a_card_uses_immutable_distinct_decision_fields():
     assert "trade_plan" not in card
 
 
-def test_pipeline_decision_fields_are_not_shadowed_by_nested_raw_row():
-    source = _row(raw={"ticker": "NVDA", "confidence": 12})
+def test_nested_persisted_row_remains_immutable_decision_authority():
+    source = _row(raw={
+        "ticker": "NVDA", "Recommendation": "MONITOR", "Opportunity": 61,
+        "Confidence": 72, "decision_expected_return_pct": 9.5,
+    })
     card = build_home_opportunity_card(source)
-    assert card["state"] == "BUY_NOW"
-    assert card["opportunity"] == 84
-    assert card["confidence"] == 78
+    assert card["state"] == "MONITOR"
+    assert card["opportunity"] == 61
+    assert card["confidence"] == 72
+    assert card["supported_upside"] == 9.5
 
 
 def test_card_thesis_is_grounded_bounded_and_fails_closed():
@@ -60,7 +64,7 @@ def test_card_thesis_is_grounded_bounded_and_fails_closed():
     assert len(card["thesis"].split()) <= 30
     missing = build_home_opportunity_card(_row(guidance_summary={}))
     assert missing["thesis"] == "Grounded thesis unavailable"
-    assert missing["catalyst"] == "Unavailable"
+    assert missing["catalyst"] == "Catalyst unavailable"
     assert missing["risk"] == "Unavailable"
 
 
