@@ -134,6 +134,7 @@ def _inject_earnings_css() -> None:
           }
           body:has([data-atlas-earnings-version]) [data-testid="stRadio"]:has([role="radiogroup"]) {
             position:sticky !important; top:3.75rem !important; z-index:990 !important;
+            margin-top:3rem !important;
             background:var(--background-color, #0e1117); padding:.15rem 0 .2rem !important;
           }
           body:has([data-atlas-earnings-version]) [data-testid="stRadio"] [role="radiogroup"] {

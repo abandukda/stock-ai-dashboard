@@ -229,6 +229,7 @@ render_earnings_vnext(pd.DataFrame(rows), open_research=lambda ticker: None)
     assert '[data-testid="stRadio"] [role="radiogroup"]' in source
     assert '[data-testid="stRadio"]:has([role="radiogroup"])' in source
     assert "top:3.75rem" in source
+    assert "margin-top:3rem" in source
     assert '[data-testid="stElementContainer"]:has(style)' in source
     assert ':has([data-atlas-qa][aria-hidden="true"])' in source
     assert "overflow-x:hidden" in source
