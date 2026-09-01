@@ -11,6 +11,7 @@ import re
 
 import pandas as pd
 import streamlit as st
+from engines.news_link_integrity import news_source_presentation
 
 from engines.atlas_research_builder_v2 import build_atlas_research_v2
 from engines.ask_atlas_engine import ask_atlas
@@ -1127,8 +1128,11 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
                     st.caption(details)
                 if item.get("summary"):
                     st.write(item["summary"])
-                if item.get("url"):
-                    st.markdown(f"[Open verified source]({item['url']})")
+                source_link = news_source_presentation(item)
+                if source_link["href"]:
+                    st.markdown(f"[Open verified source]({source_link['href']})")
+                else:
+                    st.caption(f"Source: {source_link['source']} · {source_link['limitation']}")
                 if item.get("relevance"):
                     st.caption(f"Relevance: {item['relevance']} · Category: {item.get('classification', 'Other Company-Specific')}")
                 if item.get("impact") is not None:

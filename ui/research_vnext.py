@@ -15,6 +15,7 @@ import pandas as pd
 import streamlit as st
 
 from engines.semantic_fields import is_missing_scalar, safe_mapping, safe_sequence
+from engines.news_link_integrity import news_source_presentation
 from ui.vnext_presentation import (
     AvailabilityState, CanonicalNumberFormatter, decision_header,
     evidence_drawer, evidence_health, monitor_technical_scenario,
@@ -829,8 +830,11 @@ def _render_catalysts(report: Mapping[str, Any], legacy: Mapping[str, Callable[.
             st.caption(" · ".join(filter(None, (_scalar_text(item.get("source"), ""), _scalar_text(item.get("date"), ""), _scalar_text(item.get("sentiment"), "")))))
             if item.get("summary"):
                 st.write(_scalar_text(item.get("summary")))
-            if item.get("url"):
-                st.markdown(f"[Open verified source]({item['url']})")
+            source_link = news_source_presentation(item)
+            if source_link["href"]:
+                st.markdown(f"[Open verified source]({source_link['href']})")
+            else:
+                st.caption(f"Source: {source_link['source']} · {source_link['limitation']}")
     if len(items) > 3:
         with st.expander("All company news and classification evidence", expanded=False):
             for item in items[3:]:

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Mapping, Sequence
 
 from engines.semantic_fields import AVAILABLE, DATA_UNAVAILABLE
+from engines.news_link_integrity import normalize_news_link
 
 
 _HIGH = ("federal reserve", "fed ", "inflation", "employment", "jobs report", "geopolitical", "war", "sanction", "oil shock", "rate decision")
@@ -28,11 +29,17 @@ def build_market_moving_news(items: Sequence[Mapping[str, Any]] | None) -> dict[
         direction = str(item.get("direction") or "UNCLEAR").upper()
         if direction not in {"POSITIVE", "NEGATIVE", "MIXED", "UNCLEAR"}:
             direction = "UNCLEAR"
+        link = normalize_news_link(item, publisher_name=str(source))
         accepted.append({
             "headline": headline,
             "source": source,
             "timestamp": timestamp,
-            "url": url,
+            "url": link["article_url"],
+            "publisher_name": link["publisher_name"],
+            "publisher_domain": link["publisher_domain"],
+            "article_url": link["article_url"],
+            "article_url_status": link["article_url_status"],
+            "article_url_limitation": link["article_url_limitation"],
             "impact": impact,
             "direction": direction,
             "affected": list(affected) if isinstance(affected, (list, tuple, set)) else [str(affected)],

@@ -25,6 +25,7 @@ from engines.research_engine import begin_research_entry, research_interaction_c
 from engines.research_context import build_production_decision
 from engines.market_context import build_atlas_now, build_market_context
 from engines.market_moving_news import build_market_moving_news
+from engines.news_link_integrity import news_source_presentation
 from ui.research_report_v104 import (
     inject_v104_polish_css,
     render_candidate_card,
@@ -722,7 +723,11 @@ def render_v104_home(
                 st.markdown(f"**{story['impact']} · {story['headline']}**")
                 st.caption(f"{story['source']} · {story['timestamp']} · {story['direction']}")
                 st.write(story["why_it_matters"])
-                st.markdown(f"[Open verified source]({story['url']})")
+                source_link = news_source_presentation(story)
+                if source_link["href"]:
+                    st.markdown(f"[Open verified source]({source_link['href']})")
+                else:
+                    st.caption(f"Source: {source_link['source']} · {source_link['limitation']}")
         with detail_tabs[3]:
             st.caption("Open Market & Economic Calendar below for the full verified calendar.")
 

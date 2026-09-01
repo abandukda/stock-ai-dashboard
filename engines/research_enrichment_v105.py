@@ -159,6 +159,7 @@ def _entity_tokens(row):
 
 
 def accepted_company_news(row, value=None):
+    from engines.news_link_integrity import normalize_news_link
     raw = value
     if raw is None:
         raw = row.get("news") or row.get("recent_news") or row.get("news_items") or []
@@ -200,10 +201,17 @@ def accepted_company_news(row, value=None):
         if fingerprint in seen:
             continue
         seen.add(fingerprint)
+        link = normalize_news_link(item, publisher_name=publisher)
         accepted.append({
             "headline": headline, "publisher": publisher, "source": publisher,
             "date": date, "provider": _text(item.get("provider")) or None,
-            "url": _text(item.get("url")) or None,
+            "url": link["article_url"],
+            "publisher_name": link["publisher_name"],
+            "publisher_domain": link["publisher_domain"],
+            "article_url": link["article_url"],
+            "article_url_status": link["article_url_status"],
+            "article_url_limitation": link["article_url_limitation"],
+            "evidence_id": _text(item.get("evidence_id") or item.get("article_evidence_id")) or None,
             "sentiment": _text(item.get("sentiment")) or None,
             "summary": _text(item.get("summary")) or None,
             "relevance": _text(item.get("ticker_relevance") or item.get("relevance")) or "Accepted company/ticker match",
