@@ -1,29 +1,29 @@
 {
-  "generated_at": "2026-09-01T09:56:36.019575+00:00",
+  "generated_at": "2026-09-01T15:48:06.072634+00:00",
   "status": "success",
   "version": "V80.5",
-  "universe_count": 3476,
+  "universe_count": 3477,
   "prescreen_count": 650,
   "full_scan_count": 150,
   "recovery_count": 100,
-  "etf_count": 37,
+  "etf_count": 38,
   "fallback_rows_allowed": false,
   "data_dir": ".",
   "github_persisted": false,
   "git_persistence_owner": "GITHUB_ACTIONS_WORKFLOW",
-  "duration_seconds": 1809.5,
+  "duration_seconds": 1909.42,
   "fast_cron_mode": true,
   "full_committee_limit": 15,
-  "deep_enrichment_symbol_count": 22,
+  "deep_enrichment_symbol_count": 20,
   "pre_rank_deep_apis_skipped": true,
   "run_timings": {
-    "scanner_total_seconds": 1809.5,
-    "yahoo_broad_scan_seconds": 895.43,
+    "scanner_total_seconds": 1909.42,
+    "yahoo_broad_scan_seconds": 971.64,
     "yahoo_retry_count": 0,
     "yahoo_backoff_seconds": 0.0,
-    "yahoo_metadata_calls": 2862,
-    "yahoo_metadata_seconds": 733.28,
-    "yahoo_metadata_successes": 2862,
+    "yahoo_metadata_calls": 2847,
+    "yahoo_metadata_seconds": 779.41,
+    "yahoo_metadata_successes": 2847,
     "yahoo_metadata_failures": 0,
     "yahoo_metadata_empty": 0,
     "yahoo_metadata_rate_limited": 0,
@@ -32,35 +32,35 @@
     "yahoo_metadata_parsing_or_schema": 0,
     "yahoo_metadata_other_exceptions": 0,
     "yahoo_metadata_slow_calls": 0,
-    "yahoo_metadata_max_seconds": 0.57,
-    "yahoo_metadata_p95_seconds": 0.31,
-    "broad_row_processing_seconds": 22.37,
-    "prescreen_ranking_seconds": 0.1,
+    "yahoo_metadata_max_seconds": 1.01,
+    "yahoo_metadata_p95_seconds": 0.37,
+    "broad_row_processing_seconds": 21.12,
+    "prescreen_ranking_seconds": 0.21,
     "full_scan_construction_seconds": 0.01,
     "recovery_processing_seconds": 0.01,
-    "universe_construction_seconds": 1.88,
+    "universe_construction_seconds": 1.91,
     "universe_persistence_seconds": 0.0,
-    "finalist_row_processing_seconds": 20.9,
-    "finalist_provider_calls": 22,
-    "finalist_provider_seconds": 108.9,
-    "fmp_shadow_seconds": 44.19,
-    "etf_rows_processed": 37,
-    "etf_processing_seconds": 9.29,
+    "finalist_row_processing_seconds": 18.38,
+    "finalist_provider_calls": 20,
+    "finalist_provider_seconds": 90.17,
+    "fmp_shadow_seconds": 51.67,
+    "etf_rows_processed": 38,
+    "etf_processing_seconds": 9.36,
     "etf_full_committee_calls": 10,
-    "etf_full_committee_seconds": 9.22,
+    "etf_full_committee_seconds": 9.3,
     "etf_research_calls": 10,
-    "etf_research_seconds": 0.09,
+    "etf_research_seconds": 0.2,
     "etf_newsapi_calls": 10,
-    "etf_newsapi_seconds": 2.12,
+    "etf_newsapi_seconds": 2.02,
     "etf_finnhub_news_calls": 10,
-    "etf_finnhub_news_seconds": 1.83,
+    "etf_finnhub_news_seconds": 2.0,
     "etf_fmp_news_calls": 10,
-    "etf_fmp_news_seconds": 2.83,
-    "etf_sec_ticker_map_seconds": 1.94,
-    "etf_sec_submissions_seconds": 0.38,
+    "etf_fmp_news_seconds": 2.51,
+    "etf_sec_ticker_map_seconds": 2.16,
+    "etf_sec_submissions_seconds": 0.3,
     "sec_ticker_map_downloads": 26,
-    "output_persistence_seconds": 0.48,
-    "unattributed_seconds": 16.85
+    "output_persistence_seconds": 0.5,
+    "unattributed_seconds": 16.71
   },
   "filters": {
     "min_price": 2.0,
@@ -176,210 +176,197 @@
   },
   "provider_diagnostics": {
     "newsapi": {
-      "requests": 22,
+      "requests": 20,
       "by_status": {
-        "HTTP_RATE_LIMIT": 22
+        "ALL_ARTICLES_REJECTED_BY_RELEVANCE": 10,
+        "SUCCESS": 10
       },
-      "article_count": 0,
-      "accepted_count": 0,
-      "relevance_rejected_count": 0,
+      "article_count": 158,
+      "accepted_count": 43,
+      "relevance_rejected_count": 115,
       "results": [
         {
-          "ticker": "ORCL",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
-        },
-        {
           "ticker": "MU",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
+          "status": "SUCCESS",
+          "article_count": 8,
+          "accepted_count": 3,
+          "relevance_rejected_count": 5
         },
         {
           "ticker": "NVDA",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
-        },
-        {
-          "ticker": "ALNY",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
-        },
-        {
-          "ticker": "GAP",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
-        },
-        {
-          "ticker": "EXPE",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
-        },
-        {
-          "ticker": "BALL",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
-        },
-        {
-          "ticker": "DELL",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
+          "status": "SUCCESS",
+          "article_count": 8,
+          "accepted_count": 6,
+          "relevance_rejected_count": 2
         },
         {
           "ticker": "INTU",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
+          "status": "SUCCESS",
+          "article_count": 8,
+          "accepted_count": 7,
+          "relevance_rejected_count": 1
+        },
+        {
+          "ticker": "REGN",
+          "status": "SUCCESS",
+          "article_count": 8,
+          "accepted_count": 8,
           "relevance_rejected_count": 0
         },
         {
           "ticker": "J",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
+          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
+          "article_count": 8,
           "accepted_count": 0,
-          "relevance_rejected_count": 0
+          "relevance_rejected_count": 8
         },
         {
-          "ticker": "CHTR",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
+          "ticker": "WAY",
+          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
+          "article_count": 8,
           "accepted_count": 0,
-          "relevance_rejected_count": 0
+          "relevance_rejected_count": 8
         },
         {
-          "ticker": "SE",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
+          "ticker": "BALL",
+          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
+          "article_count": 8,
           "accepted_count": 0,
-          "relevance_rejected_count": 0
+          "relevance_rejected_count": 8
         },
         {
-          "ticker": "GPN",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
+          "ticker": "WWW",
+          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
+          "article_count": 8,
           "accepted_count": 0,
-          "relevance_rejected_count": 0
-        },
-        {
-          "ticker": "KR",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
-        },
-        {
-          "ticker": "JLL",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
+          "relevance_rejected_count": 8
         },
         {
           "ticker": "RGLD",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
+          "status": "SUCCESS",
+          "article_count": 8,
+          "accepted_count": 6,
+          "relevance_rejected_count": 2
         },
         {
-          "ticker": "AR",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
+          "ticker": "GPN",
+          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
+          "article_count": 8,
           "accepted_count": 0,
-          "relevance_rejected_count": 0
+          "relevance_rejected_count": 8
+        },
+        {
+          "ticker": "CVE",
+          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
+          "article_count": 8,
+          "accepted_count": 0,
+          "relevance_rejected_count": 8
+        },
+        {
+          "ticker": "LYFT",
+          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
+          "article_count": 8,
+          "accepted_count": 0,
+          "relevance_rejected_count": 8
+        },
+        {
+          "ticker": "PAAS",
+          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
+          "article_count": 8,
+          "accepted_count": 0,
+          "relevance_rejected_count": 8
+        },
+        {
+          "ticker": "ZBH",
+          "status": "SUCCESS",
+          "article_count": 8,
+          "accepted_count": 4,
+          "relevance_rejected_count": 4
         },
         {
           "ticker": "ALB",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
+          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
+          "article_count": 7,
           "accepted_count": 0,
-          "relevance_rejected_count": 0
+          "relevance_rejected_count": 7
         },
         {
-          "ticker": "KGC",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
+          "ticker": "SNPS",
+          "status": "SUCCESS",
+          "article_count": 8,
+          "accepted_count": 1,
+          "relevance_rejected_count": 7
         },
         {
-          "ticker": "CSGP",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
+          "ticker": "AGI",
+          "status": "SUCCESS",
+          "article_count": 7,
+          "accepted_count": 1,
+          "relevance_rejected_count": 6
+        },
+        {
+          "ticker": "B",
+          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
+          "article_count": 8,
           "accepted_count": 0,
-          "relevance_rejected_count": 0
+          "relevance_rejected_count": 8
         },
         {
           "ticker": "WPM",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
+          "status": "SUCCESS",
+          "article_count": 8,
+          "accepted_count": 1,
+          "relevance_rejected_count": 7
         },
         {
           "ticker": "PLTR",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
+          "status": "SUCCESS",
+          "article_count": 8,
+          "accepted_count": 6,
+          "relevance_rejected_count": 2
         }
       ]
     },
     "fmp_shadow": {
-      "symbols": 22,
-      "calls": 177,
-      "live_fetches": 89,
-      "fresh_cache_hits": 21,
+      "symbols": 20,
+      "calls": 176,
+      "live_fetches": 96,
+      "fresh_cache_hits": 4,
       "stale_fallbacks": 0,
-      "unavailable": 22,
+      "unavailable": 20,
       "outcomes": {
-        "SUCCESS": 155,
-        "HTTP_FAILURE": 22
+        "SUCCESS": 156,
+        "HTTP_FAILURE": 20
       },
-      "provider_rows_returned": 27569,
-      "normalized_rows": 27455,
-      "retained_rows": 2266,
-      "discarded_by_cap": 25189,
+      "provider_rows_returned": 33373,
+      "normalized_rows": 33277,
+      "retained_rows": 2038,
+      "discarded_by_cap": 31239,
       "families": {
         "fmp_shadow_analyst": {
-          "calls": 110,
-          "live_fetches": 22,
+          "calls": 100,
+          "live_fetches": 20,
           "fresh_cache_hits": 0,
           "stale_fallbacks": 0,
           "unavailable": 0,
-          "elapsed_seconds": 27.37,
+          "elapsed_seconds": 25.13,
           "outcomes": {
-            "SUCCESS": 110
+            "SUCCESS": 100
           },
-          "provider_rows_returned": 9256,
-          "normalized_rows": 9256,
-          "retained_rows": 879,
-          "discarded_by_cap": 8377
+          "provider_rows_returned": 7070,
+          "normalized_rows": 7070,
+          "retained_rows": 795,
+          "discarded_by_cap": 6275
         },
         "fmp_shadow_ownership_summary": {
-          "calls": 22,
-          "live_fetches": 22,
+          "calls": 20,
+          "live_fetches": 20,
           "fresh_cache_hits": 0,
           "stale_fallbacks": 0,
-          "unavailable": 22,
-          "elapsed_seconds": 5.14,
+          "unavailable": 20,
+          "elapsed_seconds": 4.87,
           "outcomes": {
-            "HTTP_FAILURE": 22
+            "HTTP_FAILURE": 20
           },
           "provider_rows_returned": 0,
           "normalized_rows": 0,
@@ -387,52 +374,52 @@
           "discarded_by_cap": 0
         },
         "fmp_shadow_fund_disclosures": {
-          "calls": 1,
-          "live_fetches": 1,
-          "fresh_cache_hits": 21,
+          "calls": 16,
+          "live_fetches": 16,
+          "fresh_cache_hits": 4,
           "stale_fallbacks": 0,
           "unavailable": 0,
-          "elapsed_seconds": 0.62,
+          "elapsed_seconds": 12.34,
           "outcomes": {
-            "SUCCESS": 1
+            "SUCCESS": 16
           },
-          "provider_rows_returned": 17912,
-          "normalized_rows": 17912,
-          "retained_rows": 1100,
-          "discarded_by_cap": 16812
+          "provider_rows_returned": 25963,
+          "normalized_rows": 25963,
+          "retained_rows": 999,
+          "discarded_by_cap": 24964
         },
         "fmp_shadow_company_news": {
-          "calls": 22,
-          "live_fetches": 22,
+          "calls": 20,
+          "live_fetches": 20,
           "fresh_cache_hits": 0,
           "stale_fallbacks": 0,
           "unavailable": 0,
-          "elapsed_seconds": 5.34,
+          "elapsed_seconds": 4.58,
           "outcomes": {
-            "SUCCESS": 22
+            "SUCCESS": 20
           },
-          "provider_rows_returned": 220,
-          "normalized_rows": 151,
-          "retained_rows": 151,
+          "provider_rows_returned": 200,
+          "normalized_rows": 128,
+          "retained_rows": 128,
           "discarded_by_cap": 0
         },
         "fmp_shadow_press_releases": {
-          "calls": 22,
-          "live_fetches": 22,
+          "calls": 20,
+          "live_fetches": 20,
           "fresh_cache_hits": 0,
           "stale_fallbacks": 0,
           "unavailable": 0,
-          "elapsed_seconds": 5.72,
+          "elapsed_seconds": 4.76,
           "outcomes": {
-            "SUCCESS": 22
+            "SUCCESS": 20
           },
-          "provider_rows_returned": 181,
-          "normalized_rows": 136,
-          "retained_rows": 136,
+          "provider_rows_returned": 140,
+          "normalized_rows": 116,
+          "retained_rows": 116,
           "discarded_by_cap": 0
         }
       },
-      "fmp_shadow_seconds": 44.19
+      "fmp_shadow_seconds": 51.67
     }
   },
   "scanner_version": "V80.5",
