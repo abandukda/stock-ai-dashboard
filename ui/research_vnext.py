@@ -739,6 +739,7 @@ def _render_catalysts(report: Mapping[str, Any], legacy: Mapping[str, Callable[.
         target_rows = safe_sequence(safe_mapping(target_family.get("data")).get("actions"))
         if target_rows:
             st.dataframe(pd.DataFrame(target_rows), hide_index=True, use_container_width=True)
+            st.caption("Prior target was not provided by the source, so ATLAS does not calculate an individual target change.")
         else:
             st.caption("Individual price-target action evidence is unavailable.")
         snapshot_family = safe_mapping(safe_mapping(_canonical_context(report).get("evidence_families")).get("analyst_estimate_snapshots"))
@@ -754,6 +755,9 @@ def _render_catalysts(report: Mapping[str, Any], legacy: Mapping[str, Callable[.
                 st.markdown(f"**{label}**")
                 st.write("\n".join(f"- {_scalar_text(safe_mapping(item).get('text') or item)}" for item in items[:4]))
         st.caption("Grounded transcript evidence only; this evidence does not calculate ATLAS decisions or valuation.")
+        source_ids = safe_sequence(transcript_family.get("evidence_ids")) or safe_sequence(transcript_data.get("source_evidence_ids"))
+        if source_ids:
+            st.caption("Transcript evidence: " + ", ".join(_scalar_text(item) for item in source_ids))
     else:
         st.caption("Transcript intelligence has not been loaded for this ticker.")
 
@@ -767,6 +771,42 @@ def _render_catalysts(report: Mapping[str, Any], legacy: Mapping[str, Callable[.
         from services.fmp_phase1_intelligence import acquire_latest_transcript_intelligence
         acquire_latest_transcript_intelligence(ticker, api_key=api_key)
         st.rerun()
+    transcript_index = safe_mapping(safe_mapping(_canonical_context(report).get("evidence_families")).get("transcript_index"))
+    periods = [
+        item for item in safe_sequence(safe_mapping(transcript_index.get("data")).get("periods"))
+        if isinstance(item, Mapping) and item.get("fiscal_year") and item.get("fiscal_quarter")
+    ]
+    if periods:
+        with st.expander("Previous earnings calls", expanded=False):
+            labels = [f"Q{int(item['fiscal_quarter'])} {int(item['fiscal_year'])}" for item in periods]
+            selected_label = st.selectbox("Available transcript period", labels, key=f"phase1-transcript-period-{ticker}")
+            selected_period = periods[labels.index(selected_label)]
+            if st.button("Load selected earnings-call insight", key=f"phase1-transcript-history-{ticker}", disabled=not bool(api_key)):
+                from services.fmp_phase1_intelligence import acquire_transcript_intelligence
+                acquire_transcript_intelligence(
+                    ticker,
+                    year=int(selected_period["fiscal_year"]),
+                    quarter=int(selected_period["fiscal_quarter"]),
+                    api_key=api_key,
+                )
+                st.rerun()
+    operation = safe_mapping(transcript_family.get("operation_metadata"))
+    if operation:
+        st.markdown(
+            '<span data-atlas-transcript-ticker="{ticker}" data-atlas-transcript-year="{year}" '
+            'data-atlas-transcript-quarter="{quarter}" data-atlas-transcript-cache-status="{status}" '
+            'data-atlas-transcript-provider-calls="{calls}" data-atlas-transcript-evidence-id="{evidence}" '
+            'data-atlas-transcript-synthesis-version="{version}" style="display:none"></span>'.format(
+                ticker=_scalar_text(operation.get("ticker"), ticker),
+                year=_scalar_text(operation.get("selected_year"), ""),
+                quarter=_scalar_text(operation.get("selected_quarter"), ""),
+                status=_scalar_text(operation.get("cache_status"), "UNAVAILABLE"),
+                calls=_scalar_text(operation.get("provider_call_count"), "0"),
+                evidence=_scalar_text(operation.get("transcript_evidence_id"), ""),
+                version=_scalar_text(operation.get("synthesis_version"), ""),
+            ),
+            unsafe_allow_html=True,
+        )
 
     ownership = safe_mapping(safe_mapping(safe_mapping(report.get("sections")).get("ownership")).get("data"))
     st.markdown("### Ownership & Insider Context")

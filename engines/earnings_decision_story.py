@@ -177,6 +177,7 @@ def _deep_evidence(source: Mapping[str, Any], context: Mapping[str, Any]) -> dic
         "price_target_actions": {
             "semantic_status": target_family.get("semantic_status", DATA_UNAVAILABLE),
             "actions": safe_sequence(safe_mapping(target_family.get("data")).get("actions")),
+            "prior_target_status": safe_mapping(target_family.get("data")).get("prior_target_status"),
         },
         "insider_transactions": {
             "semantic_status": insider_family.get("semantic_status", DATA_UNAVAILABLE),
@@ -205,6 +206,7 @@ def build_earnings_decision_story(row: Mapping[str, Any]) -> dict[str, Any]:
     guidance = build_management_guidance(source, is_etf=is_etf)
     context = safe_mapping(row.get("research_context")) or safe_mapping(nested.get("research_context"))
     transcript_family = safe_mapping(safe_mapping(context.get("evidence_families")).get("transcript_intelligence"))
+    transcript_index_family = safe_mapping(safe_mapping(context.get("evidence_families")).get("transcript_index"))
     transcript = transcript_family if transcript_family else build_transcript_intelligence(source, is_etf=is_etf)
     snapshot_family = safe_mapping(safe_mapping(context.get("evidence_families")).get("analyst_estimate_snapshots"))
     canonical_decision = safe_mapping(context.get("production_decision"))
@@ -246,6 +248,7 @@ def build_earnings_decision_story(row: Mapping[str, Any]) -> dict[str, Any]:
         "primary_constraint": why[1] if len(why) > 1 else None,
         "management_guidance": guidance,
         "transcript_intelligence": transcript,
+        "transcript_index": transcript_index_family,
         "analyst_estimate_snapshots": safe_mapping(snapshot_family.get("data")),
         "estimate_revisions_status": DATA_UNAVAILABLE if not is_etf else NOT_APPLICABLE,
         "market_reaction": {"semantic_status": DATA_UNAVAILABLE, "status_detail": "Event-aligned market reaction: Unavailable"},

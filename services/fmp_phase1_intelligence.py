@@ -154,6 +154,49 @@ def acquire_latest_transcript_intelligence(
     client: FMPStableClient | None = None,
 ) -> dict[str, Any]:
     """Explicitly acquire the latest transcript; never called by ordinary Research."""
+    index = acquire_transcript_index(ticker, api_key=api_key, cache_root=cache_root, client=client)
+    periods = ((index.get("family") or {}).get("data") or {}).get("periods", [])
+    latest = latest_valid_transcript_period(periods)
+    if not latest:
+        return {
+            "provider_calls": index["provider_calls"],
+            "family": _unavailable(str(ticker).upper(), "transcript_intelligence", "No valid transcript period was returned."),
+            "operation_metadata": _transcript_operation_metadata(
+                ticker, None, None, index["provider_calls"], "UNAVAILABLE", None
+            ),
+        }
+    return acquire_transcript_intelligence(
+        ticker,
+        year=int(latest["fiscal_year"]),
+        quarter=int(latest["fiscal_quarter"]),
+        api_key=api_key,
+        cache_root=cache_root,
+        client=client,
+        _index_result=index,
+    )
+
+
+def _transcript_operation_metadata(
+    ticker: str, year: int | None, quarter: int | None, provider_calls: int,
+    cache_status: str, evidence_id: str | None,
+) -> dict[str, Any]:
+    """Sanitized operation evidence; never includes transcript/provider payloads."""
+    return {
+        "ticker": str(ticker or "").strip().upper(),
+        "selected_year": year,
+        "selected_quarter": quarter,
+        "transcript_evidence_id": evidence_id,
+        "cache_status": cache_status,
+        "provider_call_count": provider_calls,
+        "synthesis_version": TRANSCRIPT_SYNTHESIS_VERSION,
+    }
+
+
+def acquire_transcript_index(
+    ticker: str, *, api_key: str, cache_root: str | Path = DEFAULT_CACHE_ROOT,
+    client: FMPStableClient | None = None,
+) -> dict[str, Any]:
+    """Explicitly fetch/cache the transcript index without loading transcript bodies."""
     symbol = str(ticker or "").strip().upper()
     transport = client or FMPStableClient(api_key, timeout_seconds=12, retries=0)
     calls = 0
@@ -178,12 +221,36 @@ def acquire_latest_transcript_intelligence(
         )
         if response.successful:
             save_family_envelope(symbol, "transcript_index", index_env, root=cache_root)
-    latest = latest_valid_transcript_period(periods)
-    if not latest:
-        return {"provider_calls": calls, "family": _unavailable(symbol, "transcript_intelligence", "No valid transcript period was returned.")}
-    year, quarter = int(latest["fiscal_year"]), int(latest["fiscal_quarter"])
+    return {"provider_calls": calls, "family": index_env}
+
+
+def acquire_transcript_intelligence(
+    ticker: str, *, year: int, quarter: int, api_key: str,
+    cache_root: str | Path = DEFAULT_CACHE_ROOT, client: FMPStableClient | None = None,
+    _index_result: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Explicitly load one provider-indexed period and derive safe intelligence."""
+    symbol = str(ticker or "").strip().upper()
+    if quarter not in {1, 2, 3, 4}:
+        raise ValueError("quarter must be one of 1, 2, 3, 4")
+    transport = client or FMPStableClient(api_key, timeout_seconds=12, retries=0)
+    index_result = dict(_index_result or acquire_transcript_index(
+        symbol, api_key=api_key, cache_root=cache_root, client=transport
+    ))
+    calls = int(index_result.get("provider_calls") or 0)
+    periods = ((index_result.get("family") or {}).get("data") or {}).get("periods", [])
+    indexed = any(
+        int(item.get("fiscal_year") or 0) == int(year)
+        and int(item.get("fiscal_quarter") or 0) == int(quarter)
+        for item in periods if isinstance(item, Mapping)
+    )
+    if not indexed:
+        family = _unavailable(symbol, "transcript_intelligence", "Transcript commentary unavailable for this quarter.")
+        metadata = _transcript_operation_metadata(symbol, year, quarter, calls, "UNAVAILABLE", None)
+        return {"provider_calls": calls, "family": family, "period": f"{year}-Q{quarter}", "operation_metadata": metadata}
     period_key = f"{year}-Q{quarter}"
     content_cache = load_family_envelope(symbol, "transcript_content", root=cache_root, period_key=period_key)
+    content_cache_hit = bool(content_cache)
     if content_cache:
         transcript = content_cache.get("transcript") if isinstance(content_cache.get("transcript"), Mapping) else {}
     else:
@@ -194,7 +261,9 @@ def acquire_latest_transcript_intelligence(
         if transcript:
             save_family_envelope(symbol, "transcript_content", {"fetched_at": response.fetched_at, "transcript": transcript}, root=cache_root, period_key=period_key)
     if not transcript:
-        return {"provider_calls": calls, "family": _unavailable(symbol, "transcript_intelligence", "Transcript content was unavailable for the returned period.")}
+        family = _unavailable(symbol, "transcript_intelligence", "Transcript commentary unavailable for this quarter.")
+        metadata = _transcript_operation_metadata(symbol, year, quarter, calls, "UNAVAILABLE", None)
+        return {"provider_calls": calls, "family": family, "period": period_key, "operation_metadata": metadata}
     evidence_id = stable_evidence_id(
         ticker=symbol, family="transcript_intelligence", provider="FMP",
         semantic_identity=f"{year}:Q{quarter}:{transcript.get('call_date')}",
@@ -212,21 +281,34 @@ def acquire_latest_transcript_intelligence(
             limitations=intelligence.get("limitations", ()),
         )
         save_family_envelope(symbol, "transcript_intelligence", intelligence_env, root=cache_root, period_key=synthesis_key)
-        # The replaceable latest pointer contains derived evidence only, never raw text.
-        latest_pointer = dict(intelligence_env)
-        latest_pointer["fetched_at"] = datetime.now(timezone.utc).isoformat()
-        path = Path(cache_root) / "transcript_intelligence" / f"{symbol}.latest.json"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_suffix(".json.tmp")
-        temporary.write_text(json.dumps(latest_pointer, sort_keys=True, indent=2, default=str), encoding="utf-8")
-        temporary.replace(path)
     if calls > POST_SHELL_REQUEST_CEILING:
         raise RuntimeError("Phase 1 transcript request ceiling exceeded")
-    return {"provider_calls": calls, "family": intelligence_env, "period": period_key}
+    if calls == 0:
+        cache_status = "CACHE_HIT"
+    elif calls >= 2:
+        cache_status = "COLD_INDEX_AND_CONTENT"
+    elif content_cache_hit:
+        cache_status = "COLD_INDEX"
+    else:
+        cache_status = "COLD_CONTENT"
+    metadata = _transcript_operation_metadata(symbol, year, quarter, calls, cache_status, evidence_id)
+    intelligence_env = dict(intelligence_env)
+    intelligence_env["operation_metadata"] = metadata
+    # The replaceable selected-period pointer contains derived evidence and
+    # sanitized operation metadata only, never raw transcript text.
+    latest_pointer = dict(intelligence_env)
+    latest_pointer["fetched_at"] = datetime.now(timezone.utc).isoformat()
+    path = Path(cache_root) / "transcript_intelligence" / f"{symbol}.latest.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(".json.tmp")
+    temporary.write_text(json.dumps(latest_pointer, sort_keys=True, indent=2, default=str), encoding="utf-8")
+    temporary.replace(path)
+    return {"provider_calls": calls, "family": intelligence_env, "period": period_key, "operation_metadata": metadata}
 
 
 __all__ = [
     "MAX_INSIDER_TRANSACTIONS", "MAX_TARGET_ACTIONS", "PHASE1_INTELLIGENCE_VERSION",
     "POST_SHELL_REQUEST_CEILING", "acquire_latest_transcript_intelligence",
+    "acquire_transcript_index", "acquire_transcript_intelligence",
     "load_cached_phase1_families", "refresh_post_shell_evidence",
 ]

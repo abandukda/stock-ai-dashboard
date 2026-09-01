@@ -225,6 +225,64 @@ def _open_button(story: Mapping[str, Any], open_research: Callable[[str], Any], 
         open_research(ticker)
 
 
+def _render_transcript_intelligence(story: Mapping[str, Any], *, suffix: str) -> None:
+    """Render/load derived transcript evidence without exposing transcript bodies."""
+    transcript = story.get("transcript_intelligence") or {}
+    data = transcript.get("data") if isinstance(transcript.get("data"), Mapping) else transcript
+    st.markdown("#### What management emphasized")
+    if transcript.get("semantic_status") == "AVAILABLE":
+        for label, key in (
+            ("Management themes", "management_themes"),
+            ("Supported opportunities", "supported_opportunities"),
+            ("Supported risks", "supported_risks"),
+            ("Verified guidance", "verified_guidance_statements"),
+            ("What to watch next", "monitoring_items"),
+        ):
+            items = data.get(key) if isinstance(data, Mapping) else None
+            if items:
+                st.markdown(f"**{label}**")
+                for item in list(items)[:4]:
+                    st.markdown(f"- {_display(item.get('text') if isinstance(item, Mapping) else item)}")
+        evidence_ids = transcript.get("evidence_ids") or (data.get("source_evidence_ids") if isinstance(data, Mapping) else []) or []
+        if evidence_ids:
+            st.caption("Transcript evidence: " + ", ".join(str(item) for item in evidence_ids))
+    else:
+        st.caption("Transcript commentary unavailable for this quarter.")
+
+    import os
+    api_key = os.getenv("FMP_API_KEY", "")
+    index = story.get("transcript_index") or {}
+    periods = ((index.get("data") or {}).get("periods") or []) if isinstance(index.get("data"), Mapping) else []
+    periods = [item for item in periods if isinstance(item, Mapping) and item.get("fiscal_year") and item.get("fiscal_quarter")]
+    if not periods:
+        if st.button("Load earnings-call insight", key=f"earnings-transcript-latest-{suffix}", disabled=not bool(api_key)):
+            from services.fmp_phase1_intelligence import acquire_latest_transcript_intelligence
+            acquire_latest_transcript_intelligence(story["ticker"], api_key=api_key)
+            st.rerun()
+    else:
+        labels = [f"Q{int(item['fiscal_quarter'])} {int(item['fiscal_year'])}" for item in periods]
+        selected = st.selectbox("Earnings-call period", labels, key=f"earnings-transcript-period-{suffix}")
+        period = periods[labels.index(selected)]
+        if st.button("Load earnings-call insight", key=f"earnings-transcript-load-{suffix}", disabled=not bool(api_key)):
+            from services.fmp_phase1_intelligence import acquire_transcript_intelligence
+            acquire_transcript_intelligence(
+                story["ticker"], year=int(period["fiscal_year"]),
+                quarter=int(period["fiscal_quarter"]), api_key=api_key,
+            )
+            st.rerun()
+    operation = transcript.get("operation_metadata") if isinstance(transcript, Mapping) else {}
+    if isinstance(operation, Mapping) and operation:
+        st.markdown(
+            '<span data-atlas-transcript-year="{year}" data-atlas-transcript-quarter="{quarter}" '
+            'data-atlas-transcript-cache-status="{status}" data-atlas-transcript-provider-calls="{calls}" '
+            'data-atlas-transcript-evidence-id="{evidence}" style="display:none"></span>'.format(
+                year=_display(operation.get("selected_year"), ""), quarter=_display(operation.get("selected_quarter"), ""),
+                status=_display(operation.get("cache_status"), "UNAVAILABLE"), calls=_display(operation.get("provider_call_count"), "0"),
+                evidence=_display(operation.get("transcript_evidence_id"), ""),
+            ), unsafe_allow_html=True,
+        )
+
+
 def _reported_card(story: Mapping[str, Any], open_research: Callable[[str], Any], index: int) -> None:
     latest = story.get("latest_quarter") or {}
     st.markdown('<span class="atlas-earnings-card-anchor" aria-hidden="true"></span>', unsafe_allow_html=True)
@@ -256,6 +314,7 @@ def _reported_card(story: Mapping[str, Any], open_research: Callable[[str], Any]
     st.markdown("#### Why It Matters")
     for item in story.get("why_it_matters") or ["No additional grounded implication is available."]:
         st.markdown(f"- {item}")
+    _render_transcript_intelligence(story, suffix=f"reported-{index}-{story['ticker']}")
     with st.expander("Guidance & Estimate Changes"):
         guidance = story.get("management_guidance") or {}
         st.write(guidance.get("status_detail") if guidance.get("semantic_status") != "AVAILABLE" else guidance)
@@ -311,6 +370,7 @@ def _reported_card(story: Mapping[str, Any], open_research: Callable[[str], Any]
         st.markdown("**Individual price-target actions**")
         if target_actions.get("semantic_status") == "AVAILABLE":
             st.dataframe(pd.DataFrame(target_actions.get("actions") or []), width="stretch", hide_index=True)
+            st.caption("Prior target was not provided by the source, so ATLAS does not calculate an individual target change.")
         else:
             st.caption("Individual price-target actions are unavailable.")
         news = deep.get("news") or {}
@@ -345,7 +405,8 @@ def _reported_card(story: Mapping[str, Any], open_research: Callable[[str], Any]
                 st.dataframe(pd.DataFrame(political.get("transactions") or []), width="stretch", hide_index=True)
         else:
             st.caption("No verified company-specific political transactions are available.")
-        st.write("Transcript: " + _display((story.get("transcript_intelligence") or {}).get("status_detail"), "Available"))
+        transcript = story.get("transcript_intelligence") or {}
+        st.write("Transcript: " + ("Derived intelligence available" if transcript.get("semantic_status") == "AVAILABLE" else "Transcript commentary unavailable for this quarter."))
         st.write("Limitations: " + " ".join(story.get("limitations") or []))
         st.caption(f"Evidence IDs: {', '.join(story.get('evidence_ids') or []) or 'Unavailable'} · As of: {_display(story.get('as_of'))}")
     _open_button(story, open_research, f"reported-{index}")

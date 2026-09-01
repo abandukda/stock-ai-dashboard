@@ -17,7 +17,12 @@ from services.analyst_estimate_snapshot_store import (
     revision_summary,
 )
 from services.fmp_phase1_intelligence import load_cached_phase1_families
-from services.fmp_phase1_intelligence import acquire_latest_transcript_intelligence, refresh_post_shell_evidence
+from services.fmp_phase1_intelligence import (
+    acquire_latest_transcript_intelligence,
+    acquire_transcript_index,
+    acquire_transcript_intelligence,
+    refresh_post_shell_evidence,
+)
 from services.fmp_stable_client import FMPResponse, SUCCESS
 from services.research_family_cache import cache_path, load_family_envelope, save_family_envelope
 
@@ -132,6 +137,54 @@ def test_explicit_transcript_request_uses_returned_period_and_warm_repeat_uses_z
     warm_client = _FakeClient({})
     second = acquire_latest_transcript_intelligence("MSFT", api_key="unused", cache_root=tmp_path, client=warm_client)
     assert second["provider_calls"] == 0 and warm_client.calls == []
+    assert second["operation_metadata"] == {
+        "ticker": "MSFT", "selected_year": 2026, "selected_quarter": 4,
+        "transcript_evidence_id": second["family"]["evidence_ids"][0],
+        "cache_status": "CACHE_HIT", "provider_call_count": 0,
+        "synthesis_version": "TRANSCRIPT_SYNTHESIS_V1",
+    }
+
+
+def test_index_exposes_multiple_periods_and_explicit_historical_load_is_exact_and_cached(tmp_path):
+    client = _FakeClient({
+        "earning-call-transcript-dates": [
+            {"symbol": "NVDA", "year": 2026, "quarter": 4, "date": "2026-08-20"},
+            {"symbol": "NVDA", "year": 2026, "quarter": 3, "date": "2026-05-20"},
+        ],
+        "earning-call-transcript": [{
+            "symbol": "NVDA", "year": 2026, "quarter": 3, "date": "2026-05-20",
+            "content": "Management emphasized product demand growth. Execution risk remains. We expect adoption to expand next quarter.",
+        }],
+    })
+    index = acquire_transcript_index("NVDA", api_key="unused", cache_root=tmp_path, client=client)
+    assert [(p["fiscal_year"], p["fiscal_quarter"]) for p in index["family"]["data"]["periods"]] == [(2026, 4), (2026, 3)]
+    result = acquire_transcript_intelligence(
+        "NVDA", year=2026, quarter=3, api_key="unused", cache_root=tmp_path,
+        client=client, _index_result=index,
+    )
+    assert client.calls[-1] == ("earning-call-transcript", {"symbol": "NVDA", "year": 2026, "quarter": 3})
+    assert result["period"] == "2026-Q3" and result["provider_calls"] == 2
+    assert result["family"]["evidence_ids"]
+    assert "content" not in json.dumps(result["family"])
+    warm = acquire_transcript_intelligence(
+        "NVDA", year=2026, quarter=3, api_key="unused", cache_root=tmp_path,
+        client=_FakeClient({}),
+    )
+    assert warm["provider_calls"] == 0
+    assert warm["operation_metadata"]["cache_status"] == "CACHE_HIT"
+
+
+def test_missing_indexed_historical_transcript_has_explicit_unavailable_state(tmp_path):
+    client = _FakeClient({
+        "earning-call-transcript-dates": [{"symbol": "MSFT", "year": 2025, "quarter": 2, "date": "2025-04-30"}],
+        "earning-call-transcript": [],
+    })
+    result = acquire_transcript_intelligence(
+        "MSFT", year=2025, quarter=2, api_key="unused", cache_root=tmp_path, client=client,
+    )
+    assert result["family"]["semantic_status"] == "DATA_UNAVAILABLE"
+    assert result["family"]["limitations"] == ["Transcript commentary unavailable for this quarter."]
+    assert result["operation_metadata"]["cache_status"] == "UNAVAILABLE"
 
 
 def test_research_and_earnings_ui_destinations_are_present():
@@ -141,6 +194,13 @@ def test_research_and_earnings_ui_destinations_are_present():
     assert "Refresh analyst targets & insider evidence" in research
     assert "Individual price-target actions" in earnings
     assert "Insider transactions · contextual only" in earnings
+    assert "Previous earnings calls" in research
+    assert "What management emphasized" in earnings
+    assert "Load earnings-call insight" in earnings
+    limitation = "Prior target was not provided by the source, so ATLAS does not calculate an individual target change."
+    assert limitation in research and limitation in earnings
+    assert "data-atlas-transcript-provider-calls" in research
+    assert "data-atlas-transcript-provider-calls" in earnings
 
 
 def test_phase1_is_absent_from_explicit_research_critical_path_and_perf_contract_unchanged():
