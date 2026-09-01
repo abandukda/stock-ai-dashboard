@@ -28083,6 +28083,7 @@ def v810_render_core_page(full_df):
 from ui.daily_opportunities import render_volume_momentum
 from ui.developer_center import render_developer_center
 from ui.earnings_vnext import render_earnings_vnext
+from ui.recovery_vnext import render_recovery_vnext
 
 
 def _emit_page_certification_marker(page_name, source_df):
@@ -28158,9 +28159,7 @@ def main():
     elif selected_page=="Portfolio Intelligence": render_v505_portfolio_analyzer(full_df,top_df,recovery_df,watch_df,prescreen_df,etf_df)
     elif selected_page=="Watchlist Intelligence": render_v506_watchlist_intelligence(full_df,top_df,recovery_df,watch_df,prescreen_df,etf_df)
     elif selected_page=="Recovery":
-        render_v56_ranked_table(recovery_df,title="Recovery Intelligence",max_rows=50,show_filters=True)
-        from services.session_stability import emit_page_interactive
-        emit_page_interactive(st, "Recovery")
+        render_recovery_vnext(recovery_df, open_research=v784_open_research)
     elif selected_page=="ETFs":
         render_v56_ranked_table(etf_df,title="ETF Intelligence",max_rows=50,show_filters=True)
         from services.session_stability import emit_page_interactive
@@ -28176,9 +28175,9 @@ def main():
         )
     if _market_tape_slot is not None:
         with _market_tape_slot:
-            if selected_page in {"Ask AI", "Earnings Intelligence"}:
+            if selected_page in {"Ask AI", "Earnings Intelligence", "Recovery"}:
                 # Preserve market context without letting optional tape cards
-                # dominate the primary mobile Ask/Earnings interaction.
+                # dominate the primary mobile decision interaction.
                 with st.expander("Market context", expanded=False):
                     render_v72_market_tape(always_show=False)
             else:

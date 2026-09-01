@@ -10,6 +10,7 @@ from agents.atlas_visual_crawler_v1 import (
     GLOBAL_FATALS,
     MOBILE_PAGES,
     EARNINGS_VNEXT_SECTION_LABELS,
+    RECOVERY_VNEXT_SECTION_LABELS,
     PRIMARY_VISIBLE_SIGNALS,
     VISUAL_CRAWLER_VERSION,
     RESEARCH_VNEXT_SECTIONS,
@@ -28,6 +29,7 @@ def test_visual_crawler_has_complete_non_blocking_product_scope():
     assert set(MOBILE_PAGES) == {
         "Home", "Research Any Ticker", "Today's Opportunities", "Ask AI",
         "Political Intelligence", "Earnings Intelligence",
+        "Recovery",
     }
     assert GLOBAL_FATALS == {"APP_UNREACHABLE", "AUTHENTICATION_FAILED", "BROWSER_DIED"}
 
@@ -99,6 +101,19 @@ def test_earnings_vnext_crawler_contract_is_visible_and_non_blocking():
     assert 'data-atlas-earnings-version="ATLAS_EARNINGS_VNEXT_V1"' in source
     assert "Estimate revision direction" in source
     assert "Event-aligned market reaction" in source
+
+
+def test_recovery_vnext_crawler_contract_is_visible_and_non_blocking():
+    source = SOURCE.read_text(encoding="utf-8")
+    assert len(RECOVERY_VNEXT_SECTION_LABELS) == 12
+    assert set(RECOVERY_VNEXT_SECTION_LABELS) >= {
+        "Recovery Snapshot", "Why It Fell", "Evidence of Recovery",
+        "Technical Confirmation", "What Invalidates Recovery", "Deep Evidence",
+    }
+    assert "_recovery_vnext_contract" in source
+    assert 'data-atlas-recovery-version="ATLAS_RECOVERY_VNEXT_V1"' in source
+    assert "section_count == len(RECOVERY_VNEXT_SECTION_LABELS)" in source
+    assert '"Recovery"' in source
 
 
 def test_research_and_home_require_actual_visible_controls_and_exact_ticker():

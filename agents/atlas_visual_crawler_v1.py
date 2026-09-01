@@ -49,12 +49,19 @@ EARNINGS_VNEXT_SECTION_LABELS = (
     "ATLAS Decision After Earnings", "What Changes the Thesis",
     "What ATLAS Is Watching Next", "Deep Evidence",
 )
+RECOVERY_VNEXT_SECTION_LABELS = (
+    "Recovery Snapshot", "Why It Fell", "Evidence of Recovery",
+    "Financial & Earnings Direction", "Management / Analyst Intelligence",
+    "Valuation Support", "Technical Confirmation", "Catalysts",
+    "Primary Risks", "What Invalidates Recovery",
+    "What ATLAS Is Watching Next", "Deep Evidence",
+)
 DESKTOP = {"width": 1440, "height": 1000}
 MOBILE = {"width": 390, "height": 844}
 GLOBAL_FATALS = {"APP_UNREACHABLE", "AUTHENTICATION_FAILED", "BROWSER_DIED"}
 MOBILE_PAGES = (
     "Home", "Research Any Ticker", "Today's Opportunities", "Ask AI",
-    "Political Intelligence", "Earnings Intelligence",
+    "Political Intelligence", "Earnings Intelligence", "Recovery",
 )
 PRIMARY_VISIBLE_SIGNALS = {
     "Home": ("Atlas Morning Decision", "Home"),
@@ -66,7 +73,7 @@ PRIMARY_VISIBLE_SIGNALS = {
     "Full Ranked Scan": ("Full Ranked Scan", "Rank"),
     "Portfolio Intelligence": ("Portfolio Intelligence", "Portfolio"),
     "Watchlist Intelligence": ("Watchlist Intelligence", "Watchlist"),
-    "Recovery": ("Recovery",),
+    "Recovery": ("Recovery Intelligence", "Recovery Snapshot"),
     "ETFs": ("ETF",),
     "Political Intelligence": ("Political Intelligence", "Transaction"),
     "Ask AI": ("Ask", "ATLAS"),
@@ -453,6 +460,50 @@ class AtlasVisualCrawler:
             category="EARNINGS", page_name="Earnings Intelligence", interaction="vnext-decision-story",
             expected="Reported/upcoming separation, visible canonical earnings evidence, explicit limitations, and no exception",
             observed=f"version={version}; sections={required}; evidence={evidence}; limitations={limitations}; exception={exception}",
+            passed=passed, elapsed=time.monotonic() - started, viewport=viewport,
+            screenshots=(shot,), severity="P1",
+            exception=await self._exception_identity(page) if exception else {},
+        )
+
+    async def _recovery_vnext_contract(self, page: Page, *, viewport: str) -> None:
+        """Certify the visible Recovery story while keeping evidence gaps honest."""
+        started = time.monotonic()
+        text = await _visible_text(page)
+        version = False
+        section_count = 0
+        exact_ticker = False
+        for scope in _scopes(page):
+            try:
+                version = version or bool(await scope.locator(
+                    '[data-atlas-recovery-version="ATLAS_RECOVERY_VNEXT_V1"]'
+                ).count())
+                section_count = max(section_count, await scope.locator(
+                    '[data-atlas-recovery-section]'
+                ).count())
+                exact_ticker = exact_ticker or bool(await scope.locator(
+                    '[data-atlas-recovery-ticker]'
+                ).count())
+            except Exception:
+                continue
+        visible_contract = all(label.lower() in text.lower() for label in (
+            "Recovery Snapshot", "Why It Fell", "Evidence of Recovery",
+            "Technical Confirmation", "What Invalidates Recovery",
+        ))
+        cta = "View Investment Case" in text
+        exception = await _has_rendered_exception(page)
+        shot = await self._shot(
+            page, page_name="Recovery", interaction="vnext-contract",
+            state="evidence", viewport=viewport, complete_surface=True,
+        )
+        passed = bool(
+            version and section_count == len(RECOVERY_VNEXT_SECTION_LABELS)
+            and visible_contract and exact_ticker and cta and not exception
+        )
+        await self._record(
+            category="RECOVERY", page_name="Recovery", interaction="vnext-decision-story",
+            expected="Twelve-section Recovery story, exact-ticker Research CTA, and no exception",
+            observed=(f"version={version}; sections={section_count}; visible={visible_contract}; "
+                      f"ticker={exact_ticker}; cta={cta}; exception={exception}"),
             passed=passed, elapsed=time.monotonic() - started, viewport=viewport,
             screenshots=(shot,), severity="P1",
             exception=await self._exception_identity(page) if exception else {},
@@ -1096,6 +1147,8 @@ class AtlasVisualCrawler:
             await self._page_visit(page, page_name)
             if page_name == "Earnings Intelligence":
                 await self._earnings_vnext_contract(page, viewport="desktop")
+            if page_name == "Recovery":
+                await self._recovery_vnext_contract(page, viewport="desktop")
             if page_name in {"Earnings Intelligence", "Political Intelligence"}:
                 await self._click_expanders(page, page_name=page_name)
                 await self._supporting_evidence(page, page_name=page_name)
@@ -1124,6 +1177,8 @@ class AtlasVisualCrawler:
                 await self._supporting_evidence(page, page_name=page_name, viewport="mobile")
             elif page_name == "Earnings Intelligence":
                 await self._earnings_vnext_contract(page, viewport="mobile")
+            elif page_name == "Recovery":
+                await self._recovery_vnext_contract(page, viewport="mobile")
 
     async def run(self) -> dict[str, Any]:
         self.output_dir.mkdir(parents=True, exist_ok=True)
