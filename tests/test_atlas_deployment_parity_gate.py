@@ -33,11 +33,13 @@ ROOT = Path(__file__).resolve().parents[1]
 CRITICAL_GATE_COMMAND = "python3 -m pytest -q tests/test_atlas_critical_local_gate.py"
 RELEASE_CANDIDATE_RUNTIME_FILES = (
     "engines/earnings_decision_story.py",
+    "engines/full_scan_decision_story.py",
     "engines/recovery_decision_story.py",
     "engines/transcript_intelligence.py",
     "services/analyst_estimate_snapshot_store.py",
     "services/fmp_phase1_intelligence.py",
     "ui/earnings_vnext.py",
+    "ui/full_scan_vnext.py",
     "ui/recovery_vnext.py",
 )
 

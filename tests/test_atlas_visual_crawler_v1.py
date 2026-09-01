@@ -29,7 +29,7 @@ def test_visual_crawler_has_complete_non_blocking_product_scope():
     assert set(PRIMARY_VISIBLE_SIGNALS) == set(ACTIVE_PAGES)
     assert set(MOBILE_PAGES) == {
         "Home", "Research Any Ticker", "Today's Opportunities", "Ask AI",
-        "Political Intelligence", "Earnings Intelligence",
+        "Political Intelligence", "Earnings Intelligence", "Full Ranked Scan",
         "Recovery",
     }
     assert GLOBAL_FATALS == {"APP_UNREACHABLE", "AUTHENTICATION_FAILED", "BROWSER_DIED"}
@@ -335,3 +335,30 @@ def test_completed_research_rejects_rendered_exception(monkeypatch, tmp_path):
     assert result["complete"] is False
     assert result["terminal_status"] == "complete"
     assert result["rendered_exception"] is True
+
+
+def test_visual_crawler_certifies_full_scan_vnext_on_desktop_and_mobile():
+    source = SOURCE.read_text(encoding="utf-8")
+    assert '"Full Ranked Scan", "Recovery"' in source
+    assert "_full_scan_vnext_contract" in source
+    assert "_full_scan_candidate_journeys" in source
+    assert 'data-atlas-full-scan-version="ATLAS_FULL_SCAN_VNEXT_V1"' in source
+    assert "data-atlas-production-rank" in source
+    assert "data-atlas-filtered-position" in source
+    assert "first_mid_last" in source
+    assert '("high-evidence", high)' in source
+    assert '("partial-evidence", partial)' in source
+
+
+def test_full_scan_crawler_clicks_visible_exact_ticker_cta_and_reconciles_state():
+    source = SOURCE.read_text(encoding="utf-8")
+    block = source.split("async def _full_scan_candidate_journeys", 1)[1].split(
+        "async def _current_route_visible", 1
+    )[0]
+    assert 'name=f"View Investment Case — {ticker}"' in block
+    assert "scroll_into_view_if_needed" in block
+    assert "await button.click" in block
+    assert 'self._current_route_visible(page, "Research Any Ticker")' in block
+    assert "self._exact_research_ticker(page, ticker)" in block
+    assert "candidate[\"decision_status\"] == research_status" in block
+    assert 'await self._page_visit(page, "Full Ranked Scan"' in block

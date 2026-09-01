@@ -1084,7 +1084,41 @@ def load_file(path: Path):
 
 
 def load_full_scan():
-    return load_file(FULL_SCAN_FILE)
+    # Preserve the immutable file-order identity before ``load_file`` applies
+    # its legacy presentation sort.  Existing callers still receive that same
+    # sorted DataFrame; Full Scan VNext alone consumes this rank column.
+    artifact_rows = [
+        row for row in normalize_rows(read_json_file(FULL_SCAN_FILE))
+        if isinstance(row, dict)
+    ]
+    ranks_by_signature = {}
+    ranks_by_ticker = {}
+    for production_rank, raw in enumerate(artifact_rows, start=1):
+        signature = json.dumps(raw, sort_keys=True, separators=(",", ":"), default=str)
+        ranks_by_signature.setdefault(signature, []).append(production_rank)
+        ticker = safe_text(pick(raw, "ticker", "symbol", "Ticker", default=""), "").upper()
+        if ticker:
+            ranks_by_ticker.setdefault(ticker, []).append(production_rank)
+
+    frame = load_file(FULL_SCAN_FILE)
+    if frame.empty:
+        frame["Production Rank"] = pd.Series(dtype="Int64")
+        return frame
+
+    used_ranks = set()
+    immutable_ranks = []
+    for fallback_rank, (_, row) in enumerate(frame.iterrows(), start=1):
+        raw = row.get("Raw") if isinstance(row.get("Raw"), dict) else {}
+        signature = json.dumps(raw, sort_keys=True, separators=(",", ":"), default=str)
+        candidates = ranks_by_signature.get(signature, [])
+        if not candidates:
+            ticker = safe_text(row.get("Ticker"), "").upper()
+            candidates = ranks_by_ticker.get(ticker, [])
+        production_rank = next((rank for rank in candidates if rank not in used_ranks), fallback_rank)
+        used_ranks.add(production_rank)
+        immutable_ranks.append(production_rank)
+    frame["Production Rank"] = pd.Series(immutable_ranks, index=frame.index, dtype="Int64")
+    return frame
 
 
 def actionable(df, min_score=35, require_upside=True):
@@ -28083,6 +28117,7 @@ def v810_render_core_page(full_df):
 from ui.daily_opportunities import render_volume_momentum
 from ui.developer_center import render_developer_center
 from ui.earnings_vnext import render_earnings_vnext
+from ui.full_scan_vnext import render_full_scan_vnext
 from ui.recovery_vnext import render_recovery_vnext
 
 
@@ -28153,9 +28188,11 @@ def main():
     elif selected_page=="Research Any Ticker": render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df)
     elif selected_page=="Earnings Intelligence": render_earnings_vnext(full_df, open_research=v784_open_research)
     elif selected_page=="Full Ranked Scan":
-        render_v56_ranked_table(full_df,title="Full Ranked AI Scan",max_rows=75,show_filters=True)
-        from services.session_stability import emit_page_interactive
-        emit_page_interactive(st, "Full Ranked Scan")
+            render_full_scan_vnext(
+                full_df,
+                open_research=v784_open_research,
+                emit_interactive=lambda: emit_page_interactive(st, "Full Ranked Scan"),
+            )
     elif selected_page=="Portfolio Intelligence": render_v505_portfolio_analyzer(full_df,top_df,recovery_df,watch_df,prescreen_df,etf_df)
     elif selected_page=="Watchlist Intelligence": render_v506_watchlist_intelligence(full_df,top_df,recovery_df,watch_df,prescreen_df,etf_df)
     elif selected_page=="Recovery":

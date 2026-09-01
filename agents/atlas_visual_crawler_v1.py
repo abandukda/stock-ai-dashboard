@@ -92,7 +92,7 @@ MOBILE = {"width": 390, "height": 844}
 GLOBAL_FATALS = {"APP_UNREACHABLE", "AUTHENTICATION_FAILED", "BROWSER_DIED"}
 MOBILE_PAGES = (
     "Home", "Research Any Ticker", "Today's Opportunities", "Ask AI",
-    "Political Intelligence", "Earnings Intelligence", "Recovery",
+    "Political Intelligence", "Earnings Intelligence", "Full Ranked Scan", "Recovery",
 )
 PRIMARY_VISIBLE_SIGNALS = {
     "Home": ("Atlas Morning Decision", "Home"),
@@ -526,6 +526,186 @@ class AtlasVisualCrawler:
             page, page_name="Recovery", interaction="vnext-contract",
             state="evidence", viewport=viewport, complete_surface=True,
         )
+
+    async def _full_scan_candidates(self, page: Page) -> list[dict[str, Any]]:
+        """Read sanitized Full Scan VNext candidate markers in production order."""
+        candidates: list[dict[str, Any]] = []
+        for scope in _scopes(page):
+            try:
+                nodes = scope.locator("[data-atlas-full-scan-candidate]")
+                for index in range(await nodes.count()):
+                    node = nodes.nth(index)
+                    ticker = (await node.get_attribute("data-atlas-ticker") or "").upper()
+                    if not ticker or any(item["ticker"] == ticker for item in candidates):
+                        continue
+                    candidates.append({
+                        "ticker": ticker,
+                        "production_rank": int(await node.get_attribute("data-atlas-production-rank") or 0),
+                        "filtered_position": int(await node.get_attribute("data-atlas-filtered-position") or 0),
+                        "decision_status": await node.get_attribute("data-atlas-decision-status") or "",
+                        "recommendation": await node.get_attribute("data-atlas-recommendation") or "",
+                        "opportunity": await node.get_attribute("data-atlas-opportunity") or "",
+                        "confidence": await node.get_attribute("data-atlas-confidence") or "",
+                        "evidence_available": int(await node.get_attribute("data-atlas-evidence-available") or 0),
+                        "evidence_total": int(await node.get_attribute("data-atlas-evidence-total") or 0),
+                    })
+            except Exception:
+                continue
+        return candidates
+
+    async def _full_scan_vnext_contract(self, page: Page, *, viewport: str) -> None:
+        """Certify Full Scan rank semantics, authority separation, and evidence."""
+        started = time.monotonic()
+        text = await _visible_text(page)
+        version = population = 0
+        for scope in _scopes(page):
+            try:
+                root = scope.locator('[data-atlas-full-scan-version="ATLAS_FULL_SCAN_VNEXT_V1"]')
+                if await root.count():
+                    version = max(version, await root.count())
+                    population = max(population, int(await root.first.get_attribute("data-atlas-production-population") or 0))
+            except Exception:
+                continue
+        candidates = await self._full_scan_candidates(page)
+        positions = [item["production_rank"] for item in candidates]
+        filtered = [item["filtered_position"] for item in candidates]
+        first_mid_last = bool(candidates) and all(
+            candidates[index]["ticker"] for index in {0, len(candidates) // 2, len(candidates) - 1}
+        )
+        high = any(
+            item["evidence_total"] > 0
+            and item["evidence_available"] >= item["evidence_total"] - 1
+            for item in candidates
+        )
+        partial = any(
+            item["evidence_total"] > 1
+            and 0 < item["evidence_available"] < item["evidence_total"] - 1
+            for item in candidates
+        )
+        authority = all(
+            item["opportunity"] != item["confidence"]
+            or not item["opportunity"] or not item["confidence"]
+            for item in candidates
+        )
+        visible = all(token.lower() in text.lower() for token in (
+            "Production Rank", "Filtered Position", "Why Ranked Here",
+            "Prior Full Scan comparison is not available", "Atlas FV", "Wall Street consensus",
+        ))
+        exception = await _has_rendered_exception(page)
+        shot = await self._shot(
+            page, page_name="Full Ranked Scan", interaction="vnext-contract",
+            state="evidence", viewport=viewport, complete_surface=True,
+        )
+        passed = bool(
+            version and population and candidates and positions == sorted(positions)
+            and filtered == list(range(1, len(filtered) + 1)) and first_mid_last
+            and high and partial and authority and visible and not exception
+        )
+        await self._record(
+            category="FULL_SCAN", page_name="Full Ranked Scan", interaction="vnext-decision-story",
+            expected="Persisted population, production/filtered rank separation, dynamic archetypes, authority separation, honest movement state, and no exception",
+            observed=(f"version={bool(version)}; population={population}; rendered={len(candidates)}; "
+                      f"ordered={positions == sorted(positions)}; filtered_positions={filtered == list(range(1, len(filtered)+1))}; "
+                      f"first_mid_last={first_mid_last}; high={high}; partial={partial}; authority={authority}; "
+                      f"visible={visible}; exception={exception}"),
+            passed=passed, elapsed=time.monotonic() - started, viewport=viewport,
+            screenshots=(shot,), severity="P1",
+            exception=await self._exception_identity(page) if exception else {},
+        )
+
+    async def _full_scan_candidate_journeys(self, page: Page, *, viewport: str) -> None:
+        """Exercise dynamic Full Scan representatives and exact Research handoffs."""
+        candidates = await self._full_scan_candidates(page)
+        if not candidates:
+            return
+        representatives = [
+            ("first", candidates[0]), ("middle", candidates[len(candidates) // 2]),
+            ("last", candidates[-1]),
+        ]
+        high = next((item for item in candidates if (
+            item["evidence_total"] > 0
+            and item["evidence_available"] >= item["evidence_total"] - 1
+        )), None)
+        partial = next((item for item in candidates if (
+            item["evidence_total"] > 1
+            and 0 < item["evidence_available"] < item["evidence_total"] - 1
+        )), None)
+        if high:
+            representatives.append(("high-evidence", high))
+        if partial:
+            representatives.append(("partial-evidence", partial))
+        seen: set[tuple[str, str]] = set()
+        for role, candidate in representatives:
+            identity = (role, candidate["ticker"])
+            if identity in seen:
+                continue
+            seen.add(identity)
+            started = time.monotonic()
+            ticker = candidate["ticker"]
+            before = await self._shot(
+                page, page_name="Full Ranked Scan", interaction=f"candidate-{role}",
+                state="before", viewport=viewport, ticker=ticker,
+            )
+            try:
+                button = page.get_by_role("button", name=f"View Investment Case — {ticker}", exact=True)
+                await button.scroll_into_view_if_needed(timeout=5000)
+                visible = await button.is_visible()
+                journey = role in {"high-evidence", "partial-evidence"}
+                if not journey:
+                    await self._record(
+                        category="FULL_SCAN_CANDIDATE", page_name="Full Ranked Scan", interaction=role,
+                        expected=f"Dynamic {role} candidate exposes exact-ticker CTA and immutable production rank",
+                        observed=(f"ticker={ticker}; rank={candidate['production_rank']}; "
+                                  f"filtered={candidate['filtered_position']}; cta={visible}"),
+                        passed=bool(visible and candidate["production_rank"] > 0),
+                        elapsed=time.monotonic() - started, ticker=ticker, viewport=viewport,
+                        screenshots=(before,), severity="P1",
+                    )
+                    continue
+                await button.click(timeout=6000)
+                deadline = time.monotonic() + 45
+                destination = exact_ticker = settled = False
+                research_status = ""
+                while time.monotonic() < deadline:
+                    destination = await self._current_route_visible(page, "Research Any Ticker")
+                    exact_ticker = await self._exact_research_ticker(page, ticker)
+                    settled = await _page_render_complete(page, "Research Any Ticker")
+                    research_status = await self._research_decision_status(page, ticker)
+                    if destination and exact_ticker and settled and research_status:
+                        break
+                    await page.wait_for_timeout(300)
+                text = await _visible_text(page)
+                exception = await _has_rendered_exception(page)
+                stale = "Full Scan Intelligence" in text
+                reconciled = candidate["decision_status"] == research_status
+                after = await self._shot(
+                    page, page_name="Research Any Ticker", interaction=f"full-scan-{role}-handoff",
+                    state="after", viewport=viewport, ticker=ticker, complete_surface=True,
+                )
+                await self._record(
+                    category="FULL_SCAN_DRILLDOWN", page_name="Full Ranked Scan", interaction=role,
+                    expected=f"Visible CTA opens exact {ticker} Research with canonical state reconciliation",
+                    observed=(f"destination={destination}; exact_ticker={exact_ticker}; settled={settled}; "
+                              f"full_scan_status={candidate['decision_status']}; research_status={research_status}; "
+                              f"reconciled={reconciled}; stale={stale}; exception={exception}"),
+                    passed=destination and exact_ticker and settled and reconciled and not stale and not exception,
+                    elapsed=time.monotonic() - started, ticker=ticker, viewport=viewport,
+                    screenshots=(before, after), severity="P1",
+                    exception=await self._exception_identity(page) if exception else {},
+                )
+                await self._page_visit(page, "Full Ranked Scan", viewport=viewport)
+            except Exception as exc:
+                failure = await self._shot(
+                    page, page_name="Full Ranked Scan", interaction=f"candidate-{role}",
+                    state="failure", viewport=viewport, ticker=ticker,
+                )
+                await self._record(
+                    category="FULL_SCAN_CANDIDATE", page_name="Full Ranked Scan", interaction=role,
+                    expected="Independent candidate failure is recorded and crawl continues",
+                    observed=type(exc).__name__, passed=False, elapsed=time.monotonic() - started,
+                    ticker=ticker, viewport=viewport, screenshots=(before, failure), severity="P1",
+                )
+                await self._page_visit(page, "Full Ranked Scan", viewport=viewport)
         passed = bool(
             version and section_count == len(RECOVERY_VNEXT_SECTION_LABELS)
             and visible_contract and exact_ticker and cta and not exception
@@ -1326,6 +1506,9 @@ class AtlasVisualCrawler:
             await self._page_visit(page, page_name)
             if page_name == "Earnings Intelligence":
                 await self._earnings_vnext_contract(page, viewport="desktop")
+            if page_name == "Full Ranked Scan":
+                await self._full_scan_vnext_contract(page, viewport="desktop")
+                await self._full_scan_candidate_journeys(page, viewport="desktop")
             if page_name == "Recovery":
                 await self._recovery_vnext_contract(page, viewport="desktop")
                 await self._recovery_candidate_journeys(page, viewport="desktop", drill_down=True)
@@ -1357,6 +1540,8 @@ class AtlasVisualCrawler:
                 await self._supporting_evidence(page, page_name=page_name, viewport="mobile")
             elif page_name == "Earnings Intelligence":
                 await self._earnings_vnext_contract(page, viewport="mobile")
+            elif page_name == "Full Ranked Scan":
+                await self._full_scan_vnext_contract(page, viewport="mobile")
             elif page_name == "Recovery":
                 await self._recovery_vnext_contract(page, viewport="mobile")
                 await self._recovery_candidate_journeys(page, viewport="mobile", drill_down=False)
