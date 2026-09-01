@@ -1,0 +1,48 @@
+name: FMP Phase 1 Sanitized Entitlement Probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+    steps:
+      - name: Checkout diagnostic source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run sanitized entitlement probe
+        id: entitlement_probe
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +x
+          echo "::add-mask::${FMP_API_KEY}"
+          python -m analysis.phase1.fmp_intelligence_entitlement_probe
+
+      - name: Upload sanitized probe artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fmp-phase1-entitlement-probe
+          path: |
+            fmp_phase1_entitlement_matrix.json
+            fmp_phase1_entitlement_report.md
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Enforce probe infrastructure status
+        if: always()
+        shell: bash
+        run: |
+          test "${{ steps.entitlement_probe.outcome }}" = "success"
