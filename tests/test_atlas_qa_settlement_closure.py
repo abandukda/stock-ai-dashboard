@@ -92,10 +92,10 @@ def test_all_fourteen_pages_and_nine_deep_pages_have_interactive_contracts():
     assert set(DEEP_CERTIFICATION_PAGES).issubset(PAGE_INTERACTIVE_CONTRACTS)
     emitters = "\n".join(
         (ROOT / path).read_text(encoding="utf-8")
-        for path in (
-            "app.py", "ui/daily_opportunities.py", "ui/developer_center.py",
-            "ui/recovery_vnext.py",
-        )
+            for path in (
+                "app.py", "ui/daily_opportunities.py", "ui/developer_center.py",
+                "ui/recovery_vnext.py", "ui/full_scan_vnext.py",
+            )
     )
     for page in ACTIVE_PAGES:
         assert f'emit_page_interactive(st, "{page}")' in emitters

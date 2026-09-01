@@ -28188,11 +28188,7 @@ def main():
     elif selected_page=="Research Any Ticker": render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df)
     elif selected_page=="Earnings Intelligence": render_earnings_vnext(full_df, open_research=v784_open_research)
     elif selected_page=="Full Ranked Scan":
-            render_full_scan_vnext(
-                full_df,
-                open_research=v784_open_research,
-                emit_interactive=lambda: emit_page_interactive(st, "Full Ranked Scan"),
-            )
+            render_full_scan_vnext(full_df, open_research=v784_open_research)
     elif selected_page=="Portfolio Intelligence": render_v505_portfolio_analyzer(full_df,top_df,recovery_df,watch_df,prescreen_df,etf_df)
     elif selected_page=="Watchlist Intelligence": render_v506_watchlist_intelligence(full_df,top_df,recovery_df,watch_df,prescreen_df,etf_df)
     elif selected_page=="Recovery":

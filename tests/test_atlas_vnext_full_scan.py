@@ -162,8 +162,66 @@ def test_final_active_route_uses_only_full_scan_vnext():
         'elif selected_page=="Portfolio Intelligence":', 1
     )[0]
     assert "render_full_scan_vnext(" in branch
-    assert 'emit_interactive=lambda: emit_page_interactive(st, "Full Ranked Scan")' in branch
+    assert "emit_interactive=" not in branch
     assert "render_v56_ranked_table" not in branch
+
+
+def _final_app_full_scan_script(rows):
+    return f'''\
+import pandas as pd
+import app
+rows = {repr(rows)}
+app.dashboard_login_gate = lambda: True
+for name in (
+    "render_v59_design_system", "render_v65_design_system", "render_v70_design_system",
+    "render_v72_design_system", "render_v73_design_system", "render_v74_design_system",
+    "v775_design_system", "v793_design_system", "v8055_inject_research_css",
+):
+    setattr(app, name, lambda: None)
+app.load_full_scan = lambda: pd.DataFrame(rows)
+app.latest_top_ideas = lambda: pd.DataFrame()
+app.latest_recovery = lambda: pd.DataFrame()
+app.latest_watchlist_scan = lambda: pd.DataFrame()
+app.load_file = lambda path: pd.DataFrame()
+app.render_v73_top_nav = lambda pages: "Full Ranked Scan"
+app._emit_page_identity_marker = lambda page: None
+app.render_v72_market_tape = lambda always_show=False: None
+app._emit_page_certification_marker = lambda *args: None
+app.v784_open_research = lambda ticker: None
+app.main()
+'''
+
+
+def test_final_app_route_executes_default_lifecycle_between_first_two_candidates():
+    rows = [
+        {**_raw(ticker="AAA"), "Production Rank": 1},
+        {**_raw(ticker="BBB", company="Beta Corp"), "Production Rank": 2},
+    ]
+    at = AppTest.from_string(_final_app_full_scan_script(rows), default_timeout=15).run()
+    assert not at.exception
+    markdown = "\n".join(item.value for item in at.markdown)
+    assert markdown.count('data-atlas-page-interactive="true"') == 1
+    first_candidate = markdown.index('data-atlas-production-rank="1"')
+    page_interactive = markdown.index('data-atlas-page-interactive="true"')
+    second_candidate = markdown.index('data-atlas-production-rank="2"')
+    assert first_candidate < page_interactive < second_candidate
+
+
+def test_final_app_filtered_empty_state_precedes_single_lifecycle_marker():
+    rows = [
+        {**_raw(ticker="AAA"), "Production Rank": 1},
+        {**_raw(ticker="BBB", company="Beta Corp"), "Production Rank": 2},
+    ]
+    at = AppTest.from_string(_final_app_full_scan_script(rows), default_timeout=15).run()
+    assert not at.exception
+    at.text_input(key="full_scan_vnext_search").set_value("ZZZ")
+    at.run()
+    assert not at.exception
+    markdown = "\n".join(item.value for item in at.markdown)
+    warnings = "\n".join(item.value for item in at.warning)
+    assert "No persisted candidates match" in warnings
+    assert markdown.count('data-atlas-page-interactive="true"') == 1
+    assert not any(button.label.startswith("View Investment Case") for button in at.button)
 
 
 def test_real_streamlit_surface_emits_contract_rank_and_exact_ticker_cta():
