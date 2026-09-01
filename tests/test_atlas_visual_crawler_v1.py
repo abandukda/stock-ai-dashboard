@@ -11,6 +11,7 @@ from agents.atlas_visual_crawler_v1 import (
     MOBILE_PAGES,
     EARNINGS_VNEXT_SECTION_LABELS,
     RECOVERY_VNEXT_SECTION_LABELS,
+    recovery_candidate_archetypes,
     PRIMARY_VISIBLE_SIGNALS,
     VISUAL_CRAWLER_VERSION,
     RESEARCH_VNEXT_SECTIONS,
@@ -114,6 +115,34 @@ def test_recovery_vnext_crawler_contract_is_visible_and_non_blocking():
     assert 'data-atlas-recovery-version="ATLAS_RECOVERY_VNEXT_V1"' in source
     assert "section_count == len(RECOVERY_VNEXT_SECTION_LABELS)" in source
     assert '"Recovery"' in source
+    assert "_recovery_candidate_journeys" in source
+    assert 'get_by_role("button", name=f"View Investment Case — {ticker}", exact=True)' in source
+    assert "recovery_status == research_status" in source
+    assert "recommendation_match" in source
+
+
+def test_recovery_candidate_archetypes_cover_population_and_evidence_dynamically():
+    candidates = [
+        {"ticker": "AAA", "score": "91", "evidence": "Complete"},
+        {"ticker": "BBB", "score": "70", "evidence": "Complete"},
+        {"ticker": "CCC", "score": "55", "evidence": "Partial evidence"},
+        {"ticker": "DDD", "score": "40", "evidence": "Incomplete"},
+    ]
+    selected = recovery_candidate_archetypes(candidates)
+    by_role = {role: item["ticker"] for role, item in selected}
+    assert by_role == {
+        "first": "AAA", "middle": "CCC", "last": "DDD",
+        "high-evidence": "AAA", "partial-evidence": "CCC",
+    }
+
+
+def test_recovery_crawler_records_independent_candidate_failures_and_continues():
+    source = SOURCE.read_text(encoding="utf-8")
+    method = source.split("async def _recovery_candidate_journeys", 1)[1].split("async def _current_route_visible", 1)[0]
+    assert "for role, candidate in archetypes" in method
+    assert "except Exception as exc" in method
+    assert 'await self._page_visit(page, "Recovery", viewport=viewport)' in method
+    assert "if not drill_down or role not in drill_roles:\n                    continue" in method
 
 
 def test_research_and_home_require_actual_visible_controls_and_exact_ticker():

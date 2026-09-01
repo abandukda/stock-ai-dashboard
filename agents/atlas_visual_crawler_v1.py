@@ -56,6 +56,37 @@ RECOVERY_VNEXT_SECTION_LABELS = (
     "Primary Risks", "What Invalidates Recovery",
     "What ATLAS Is Watching Next", "Deep Evidence",
 )
+
+
+def recovery_candidate_archetypes(candidates: list[dict[str, Any]]) -> list[tuple[str, dict[str, Any]]]:
+    """Select population positions and evidence archetypes without hardcoded tickers."""
+    if not candidates:
+        return []
+    def score(item: dict[str, Any], fallback: float) -> float:
+        try:
+            return float(item.get("score"))
+        except (TypeError, ValueError):
+            return fallback
+
+    selected: list[tuple[str, dict[str, Any]]] = [
+        ("first", candidates[0]),
+        ("middle", candidates[len(candidates) // 2]),
+        ("last", candidates[-1]),
+        ("high-evidence", max(candidates, key=lambda item: score(item, float("-inf")))),
+    ]
+    partial = next(
+        (item for item in candidates if any(token in str(item.get("evidence") or "").lower() for token in ("partial", "incomplete", "unavailable"))),
+        min(candidates, key=lambda item: score(item, float("inf"))),
+    )
+    selected.append(("partial-evidence", partial))
+    output: list[tuple[str, dict[str, Any]]] = []
+    seen: set[tuple[str, str]] = set()
+    for role, candidate in selected:
+        identity = (role, str(candidate.get("ticker") or ""))
+        if identity not in seen:
+            seen.add(identity)
+            output.append((role, candidate))
+    return output
 DESKTOP = {"width": 1440, "height": 1000}
 MOBILE = {"width": 390, "height": 844}
 GLOBAL_FATALS = {"APP_UNREACHABLE", "AUTHENTICATION_FAILED", "BROWSER_DIED"}
@@ -508,6 +539,154 @@ class AtlasVisualCrawler:
             screenshots=(shot,), severity="P1",
             exception=await self._exception_identity(page) if exception else {},
         )
+
+    async def _recovery_marker(self, page: Page) -> dict[str, str]:
+        for scope in _scopes(page):
+            try:
+                nodes = scope.locator("[data-atlas-recovery-ticker]")
+                if await nodes.count():
+                    node = nodes.last
+                    return {
+                        "ticker": (await node.get_attribute("data-atlas-recovery-ticker") or "").upper(),
+                        "score": await node.get_attribute("data-atlas-recovery-score") or "",
+                        "label": await node.get_attribute("data-atlas-recovery-label") or "",
+                        "evidence": await node.get_attribute("data-atlas-recovery-evidence") or "",
+                        "decision_status": await node.get_attribute("data-atlas-recovery-decision-status") or "",
+                        "recommendation": await node.get_attribute("data-atlas-recovery-recommendation") or "",
+                    }
+            except Exception:
+                continue
+        return {}
+
+    async def _select_recovery_candidate(self, page: Page, label: str) -> dict[str, str]:
+        control = page.get_by_label("Recovery candidate", exact=True)
+        await control.click(timeout=5000)
+        option = page.get_by_role("option", name=label, exact=True)
+        await option.click(timeout=5000)
+        expected = label.split("·", 1)[0].strip().upper()
+        deadline = time.monotonic() + 12
+        marker: dict[str, str] = {}
+        while time.monotonic() < deadline:
+            marker = await self._recovery_marker(page)
+            if marker.get("ticker") == expected:
+                return marker
+            await page.wait_for_timeout(200)
+        return marker
+
+    async def _discover_recovery_candidates(self, page: Page) -> list[dict[str, Any]]:
+        control = page.get_by_label("Recovery candidate", exact=True)
+        await control.click(timeout=5000)
+        labels = [text.strip() for text in await page.get_by_role("option").all_inner_texts() if text.strip()]
+        await page.keyboard.press("Escape")
+        candidates: list[dict[str, Any]] = []
+        for label in labels:
+            try:
+                marker = await self._select_recovery_candidate(page, label)
+                if marker.get("ticker"):
+                    candidates.append({"selector_label": label, **marker})
+            except Exception:
+                continue
+        return candidates
+
+    async def _research_decision_status(self, page: Page, ticker: str) -> str:
+        for scope in _scopes(page):
+            try:
+                nodes = scope.locator(f'[data-atlas-ticker="{ticker}"][data-atlas-decision-status]')
+                if await nodes.count():
+                    return await nodes.last.get_attribute("data-atlas-decision-status") or ""
+            except Exception:
+                continue
+        return ""
+
+    async def _recovery_candidate_journeys(self, page: Page, *, viewport: str, drill_down: bool) -> None:
+        """Certify dynamic Recovery population/archetypes and real Research handoffs."""
+        candidates = await self._discover_recovery_candidates(page)
+        archetypes = recovery_candidate_archetypes(candidates)
+        drill_roles = {"high-evidence", "partial-evidence"}
+        for role, candidate in archetypes:
+            started = time.monotonic()
+            ticker = str(candidate.get("ticker") or "")
+            before = ""
+            try:
+                marker = await self._select_recovery_candidate(page, str(candidate["selector_label"]))
+                text = await _visible_text(page)
+                exception = await _has_rendered_exception(page)
+                section_count = max([
+                    await scope.locator("[data-atlas-recovery-section]").count() for scope in _scopes(page)
+                ] or [0])
+                before = await self._shot(
+                    page, page_name="Recovery", interaction=f"candidate-{role}", state="selected",
+                    viewport=viewport, ticker=ticker, complete_surface=True,
+                )
+                visible = all(token.lower() in text.lower() for token in ("Recovery Snapshot", ticker, "View Investment Case"))
+                passed = marker.get("ticker") == ticker and section_count == len(RECOVERY_VNEXT_SECTION_LABELS) and visible and not exception
+                await self._record(
+                    category="RECOVERY_CANDIDATE", page_name="Recovery", interaction=role,
+                    expected=f"Dynamic {role} candidate renders complete Recovery VNext story",
+                    observed=(f"ticker={ticker}; score={marker.get('score')}; label={marker.get('label')}; "
+                              f"evidence={marker.get('evidence')}; sections={section_count}; exception={exception}"),
+                    passed=passed, elapsed=time.monotonic() - started, ticker=ticker, viewport=viewport,
+                    screenshots=(before,), severity="P1", exception=await self._exception_identity(page) if exception else {},
+                )
+                if not drill_down or role not in drill_roles:
+                    continue
+                button = page.get_by_role("button", name=f"View Investment Case — {ticker}", exact=True)
+                await button.scroll_into_view_if_needed(timeout=5000)
+                await button.click(timeout=6000)
+                deadline = time.monotonic() + 45
+                destination = exact_ticker = settled = False
+                research_status = ""
+                while time.monotonic() < deadline:
+                    destination = await self._current_route_visible(page, "Research Any Ticker")
+                    exact_ticker = await self._exact_research_ticker(page, ticker)
+                    settled = await _page_render_complete(page, "Research Any Ticker")
+                    research_status = await self._research_decision_status(page, ticker)
+                    if destination and exact_ticker and settled and research_status:
+                        break
+                    await page.wait_for_timeout(300)
+                research_text = await _visible_text(page)
+                exception = await _has_rendered_exception(page)
+                stale_recovery = "Recovery Snapshot" in research_text
+                after = await self._shot(
+                    page, page_name="Research Any Ticker", interaction=f"recovery-{role}-handoff",
+                    state="settled", viewport=viewport, ticker=ticker, complete_surface=True,
+                )
+                recovery_status = marker.get("decision_status") or ""
+                recovery_recommendation = str(marker.get("recommendation") or "").strip()
+                normalized_recommendation = recovery_recommendation.replace("_", " ").lower()
+                recommendation_match = (
+                    recovery_status != "AVAILABLE"
+                    or not recovery_recommendation
+                    or normalized_recommendation in research_text.replace("_", " ").lower()
+                )
+                reconciled = bool(
+                    recovery_status and research_status
+                    and recovery_status == research_status and recommendation_match
+                )
+                await self._record(
+                    category="RECOVERY_DRILLDOWN", page_name="Recovery", interaction=role,
+                    expected=f"Actual Recovery CTA opens exact {ticker} Research with canonical state reconciliation",
+                    observed=(f"recovery_ticker={ticker}; recovery_status={recovery_status}; destination={destination}; "
+                              f"research_ticker={ticker if exact_ticker else ''}; research_status={research_status}; "
+                              f"recommendation_match={recommendation_match}; reconciled={reconciled}; "
+                              f"stale_recovery={stale_recovery}; exception={exception}"),
+                    passed=destination and exact_ticker and settled and reconciled and not stale_recovery and not exception,
+                    elapsed=time.monotonic() - started, ticker=ticker, viewport=viewport,
+                    screenshots=(before, after), severity="P1", exception=await self._exception_identity(page) if exception else {},
+                )
+                await self._page_visit(page, "Recovery", viewport=viewport)
+            except Exception as exc:
+                failure = await self._shot(
+                    page, page_name="Recovery", interaction=f"candidate-{role}", state="failure",
+                    viewport=viewport, ticker=ticker,
+                )
+                await self._record(
+                    category="RECOVERY_CANDIDATE", page_name="Recovery", interaction=role,
+                    expected=f"Continue after independent {role} Recovery journey failure",
+                    observed=type(exc).__name__, passed=False, elapsed=time.monotonic() - started,
+                    ticker=ticker, viewport=viewport, screenshots=(before, failure), severity="P1",
+                )
+                await self._page_visit(page, "Recovery", viewport=viewport)
 
     async def _current_route_visible(self, page: Page, page_name: str) -> bool:
         """Prefer the current radio selection over stale lifecycle nodes from old reruns."""
@@ -1149,6 +1328,7 @@ class AtlasVisualCrawler:
                 await self._earnings_vnext_contract(page, viewport="desktop")
             if page_name == "Recovery":
                 await self._recovery_vnext_contract(page, viewport="desktop")
+                await self._recovery_candidate_journeys(page, viewport="desktop", drill_down=True)
             if page_name in {"Earnings Intelligence", "Political Intelligence"}:
                 await self._click_expanders(page, page_name=page_name)
                 await self._supporting_evidence(page, page_name=page_name)
@@ -1179,6 +1359,7 @@ class AtlasVisualCrawler:
                 await self._earnings_vnext_contract(page, viewport="mobile")
             elif page_name == "Recovery":
                 await self._recovery_vnext_contract(page, viewport="mobile")
+                await self._recovery_candidate_journeys(page, viewport="mobile", drill_down=False)
 
     async def run(self) -> dict[str, Any]:
         self.output_dir.mkdir(parents=True, exist_ok=True)

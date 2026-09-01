@@ -10,7 +10,10 @@ from engines.recovery_decision_story import (
     RECOVERY_DECISION_STORY_VERSION,
     build_recovery_decision_story,
 )
-from ui.recovery_vnext import RECOVERY_VNEXT_SECTIONS, RECOVERY_VNEXT_VERSION
+from ui.recovery_vnext import (
+    RECOVERY_VNEXT_SECTIONS, RECOVERY_VNEXT_VERSION,
+    _deep_mapping_rows, _growth_pct, _literal_currency_markdown,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -136,3 +139,38 @@ def test_recovery_builder_has_no_provider_or_scanner_dependencies():
     assert "FMPStableClient" not in source
     assert "requests." not in source
     assert "build_recovery_case" not in source
+
+
+def test_currency_ranges_are_markdown_safe_without_changing_values():
+    original = "$120 - $145"
+    assert _literal_currency_markdown(original) == r"\$120 - \$145"
+    assert original == "$120 - $145"
+    source = (ROOT / "ui" / "recovery_vnext.py").read_text(encoding="utf-8")
+    assert "st.markdown(_literal_currency_markdown(" in source
+    assert "st.caption(_literal_currency_markdown(target_range))" in source
+    assert "st.caption(_literal_currency_markdown(trade_boundary))" in source
+
+
+def test_deep_financial_evidence_is_human_readable_and_preserves_zero():
+    rows = _deep_mapping_rows("financials", {
+        "revenue_growth": 98.602,
+        "operating_margin": 0,
+        "free_cash_flow": 0,
+        "internal_unknown_object": {"raw": "not customer-facing"},
+    })
+    assert {row["Evidence"] for row in rows} == {"Revenue growth", "Operating margin", "Free cash flow"}
+    assert next(row["Value"] for row in rows if row["Evidence"] == "Revenue growth") == "+9,860.2%"
+    assert next(row["Value"] for row in rows if row["Evidence"] == "Operating margin") == "0.0%"
+    assert next(row["Value"] for row in rows if row["Evidence"] == "Free cash flow") == "$0.00"
+    assert _growth_pct(98.602) == "+9,860.2%"
+    source = (ROOT / "ui" / "recovery_vnext.py").read_text(encoding="utf-8")
+    assert "st.json(value)" not in source
+
+
+def test_recovery_mobile_css_compacts_only_recovery_route_and_keeps_host_safety():
+    source = (ROOT / "ui" / "recovery_vnext.py").read_text(encoding="utf-8")
+    assert "body:has([data-atlas-recovery-version])" in source
+    assert "gap:.35rem !important" in source
+    assert ".atlas-recovery-section-title { margin:.35rem 0 .2rem !important" in source
+    assert "overflow-x:hidden" in source
+    assert "margin-right:5.25rem" in source

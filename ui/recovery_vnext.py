@@ -59,9 +59,56 @@ def _number(value: Any, *, money: bool = False, pct: bool = False, signed: bool 
 def _growth_pct(value: Any) -> str:
     """Format persisted growth ratios without changing their underlying value."""
     try:
-        return _number(float(value) * 100.0, pct=True, signed=True)
+        return f"{float(value) * 100.0:+,.1f}%"
     except (TypeError, ValueError):
         return "Unavailable"
+
+
+def _is_extreme_growth(value: Any) -> bool:
+    try:
+        return abs(float(value) * 100.0) >= 1_000
+    except (TypeError, ValueError):
+        return False
+
+
+def _literal_currency_markdown(value: str) -> str:
+    """Escape currency delimiters without changing customer-visible values."""
+    return str(value).replace("$", r"\$")
+
+
+_DEEP_FIELD_LABELS: Final = {
+    "financials": {
+        "revenue_growth": "Revenue growth", "earnings_growth": "Earnings growth",
+        "operating_margin": "Operating margin", "gross_margin": "Gross margin",
+        "free_cash_flow": "Free cash flow", "cash": "Cash", "total_cash": "Cash",
+        "total_debt": "Total debt", "debt": "Total debt",
+    },
+    "ownership": {
+        "institutional_ownership": "Institutional ownership",
+        "institutional_ownership_pct": "Institutional ownership",
+        "institutional_change": "Institutional change",
+        "institutional_change_pct": "Institutional change",
+    },
+}
+
+
+def _deep_mapping_rows(family: str, value: Mapping[str, Any]) -> list[dict[str, str]]:
+    """Present approved canonical scalars; never dump raw mapping representations."""
+    rows: list[dict[str, str]] = []
+    for key, label in _DEEP_FIELD_LABELS.get(family, {}).items():
+        if key not in value or value[key] is None or isinstance(value[key], (Mapping, list, tuple, set)):
+            continue
+        raw = value[key]
+        if key in {"revenue_growth", "earnings_growth"}:
+            display = _growth_pct(raw)
+        elif "margin" in key or key.endswith("_pct"):
+            display = _number(raw, pct=True, signed=key.endswith("change_pct"))
+        elif key in {"free_cash_flow", "cash", "total_cash", "total_debt", "debt"}:
+            display = _number(raw, money=True)
+        else:
+            display = _display(raw)
+        rows.append({"Evidence": label, "Value": display})
+    return rows
 
 
 def _section(name: str) -> None:
@@ -71,7 +118,7 @@ def _section(name: str) -> None:
         f'<span data-atlas-recovery-section="{escape(section_id)}" style="display:none"></span>',
         unsafe_allow_html=True,
     )
-    st.markdown(f"### {name}")
+    st.markdown(f'<h3 class="atlas-recovery-section-title">{escape(name)}</h3>', unsafe_allow_html=True)
 
 
 def _bullets(items: Any, *, fallback: str) -> None:
@@ -98,6 +145,11 @@ def _inject_css() -> None:
           padding:.9rem 1rem; margin:.25rem 0 .8rem; background:rgba(15,23,42,.38);
         }
         .atlas-recovery-summary strong { font-size:1.05rem; }
+        .atlas-recovery-metric-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.5rem; margin:.2rem 0 .45rem; }
+        .atlas-recovery-metric { border:1px solid rgba(148,163,184,.18); border-radius:.65rem; padding:.5rem .6rem; min-width:0; }
+        .atlas-recovery-metric-label { color:#94a3b8; font-size:.78rem; }
+        .atlas-recovery-metric-value { font-size:1rem; font-weight:650; overflow-wrap:anywhere; }
+        .atlas-recovery-section-title { margin:1.15rem 0 .45rem; }
         @media (max-width:700px) {
           body:has([data-atlas-recovery-version]) [data-testid="stRadio"]:has([role="radiogroup"]) {
             position:sticky !important; top:3.75rem !important; z-index:990 !important;
@@ -112,7 +164,14 @@ def _inject_css() -> None:
             flex:0 0 auto !important; white-space:nowrap; padding:.28rem .52rem !important;
             min-height:30px !important;
           }
-          body:has([data-atlas-recovery-version]) [data-testid="stMainBlockContainer"] { padding-top:.4rem !important; }
+          body:has([data-atlas-recovery-version]) [data-testid="stMainBlockContainer"] { padding-top:.2rem !important; }
+          body:has([data-atlas-recovery-version]) [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] {
+            gap:.35rem !important;
+          }
+          body:has([data-atlas-recovery-version]) h1 { margin:.1rem 0 .1rem !important; line-height:1.12 !important; font-size:1.65rem !important; }
+          body:has([data-atlas-recovery-version]) [data-testid="stSelectbox"] { margin-bottom:0 !important; }
+          .atlas-recovery-section-title { margin:.35rem 0 .2rem !important; line-height:1.18; }
+          .atlas-recovery-metric-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:.35rem; }
           body:has([data-atlas-recovery-version]) [data-testid="stHorizontalBlock"] { gap:.45rem !important; }
           body:has([data-atlas-recovery-version]) [data-testid="stMetric"] { min-width:0 !important; }
           body:has([data-atlas-recovery-version]) [data-testid="stButton"] { margin-right:5.25rem; }
@@ -144,6 +203,9 @@ def _render_snapshot(story: Mapping[str, Any], open_research: Callable[[str], An
         f'<span data-atlas-recovery-ticker="{escape(story["ticker"])}" '
         f'data-atlas-recovery-score="{escape(_display(snapshot.get("recovery_score"), ""))}" '
         f'data-atlas-recovery-label="{escape(_display(snapshot.get("recovery_label"), ""))}" '
+        f'data-atlas-recovery-evidence="{escape(_display(snapshot.get("evidence_completeness"), ""))}" '
+        f'data-atlas-recovery-decision-status="{escape(_display(decision.get("semantic_status"), ""))}" '
+        f'data-atlas-recovery-recommendation="{escape(_display(decision.get("recommendation"), ""))}" '
         'style="display:none"></span>',
         unsafe_allow_html=True,
     )
@@ -156,15 +218,19 @@ def _render_snapshot(story: Mapping[str, Any], open_research: Callable[[str], An
         '</div>',
         unsafe_allow_html=True,
     )
-    cols = st.columns(4)
-    cols[0].metric("ATLAS state", recommendation)
-    cols[1].metric("Recovery score", _number(snapshot.get("recovery_score")))
-    cols[2].metric("Drawdown", _number(snapshot.get("drawdown_pct"), pct=True, signed=True))
-    cols[3].metric("Current price", _number(snapshot.get("current_price"), money=True))
-    cols = st.columns(3)
-    cols[0].metric("Expected Return", _number(snapshot.get("expected_return"), pct=True, signed=True))
-    cols[1].metric("Opportunity", _number(snapshot.get("opportunity")))
-    cols[2].metric("Confidence", _number(snapshot.get("confidence"), pct=True))
+    primary_metrics = (
+        ("ATLAS state", recommendation),
+        ("Recovery score", _number(snapshot.get("recovery_score"))),
+        ("Drawdown", _number(snapshot.get("drawdown_pct"), pct=True, signed=True)),
+        ("Current price", _number(snapshot.get("current_price"), money=True)),
+    )
+    metric_html = "".join(
+        '<div class="atlas-recovery-metric">'
+        f'<div class="atlas-recovery-metric-label">{escape(label)}</div>'
+        f'<div class="atlas-recovery-metric-value">{escape(value)}</div></div>'
+        for label, value in primary_metrics
+    )
+    st.markdown(f'<div class="atlas-recovery-metric-grid">{metric_html}</div>', unsafe_allow_html=True)
     interaction_id = f"recovery-vnext-research-{story['ticker'].lower()}"
     st.markdown(
         f'<span data-atlas-interaction-id="{escape(interaction_id)}" data-atlas-interaction-type="DRILL_DOWN" '
@@ -174,6 +240,10 @@ def _render_snapshot(story: Mapping[str, Any], open_research: Callable[[str], An
     )
     if st.button(f"View Investment Case — {story['ticker']}", key=interaction_id, width="stretch"):
         open_research(story["ticker"])
+    cols = st.columns(3)
+    cols[0].metric("Expected Return", _number(snapshot.get("expected_return"), pct=True, signed=True))
+    cols[1].metric("Opportunity", _number(snapshot.get("opportunity")))
+    cols[2].metric("Confidence", _number(snapshot.get("confidence"), pct=True))
 
 
 def _render_phase1_controls(story: Mapping[str, Any]) -> None:
@@ -251,6 +321,12 @@ def render_recovery_vnext(recovery_df: Any, *, open_research: Callable[[str], An
         cols[1].metric("Earnings growth", _growth_pct(financial.get("earnings_growth")))
         cols[2].metric("Free cash flow", _number(financial.get("free_cash_flow"), money=True))
         cols[3].metric("Total debt", _number(financial.get("total_debt"), money=True))
+        extreme = [
+            label for label, value in (("Revenue growth", financial.get("revenue_growth")), ("Earnings growth", financial.get("earnings_growth")))
+            if _is_extreme_growth(value)
+        ]
+        if extreme:
+            st.caption("Very large year-over-year change; interpret against the prior-period base.")
         st.caption("Unavailable metrics remain unavailable; partial evidence is expected outside deep finalists.")
     with st.expander("Latest earnings direction", expanded=False):
         earnings = story["earnings_direction"]
@@ -272,11 +348,11 @@ def render_recovery_vnext(recovery_df: Any, *, open_research: Callable[[str], An
         _bullets(transcript.get("supported_risks"), fallback="No transcript-supported risk is available.")
         consensus = context["analyst_consensus"]
         st.markdown("**Wall Street consensus**")
-        st.write(
+        st.markdown(_literal_currency_markdown(
             f"Mean {_number(consensus.get('mean'), money=True)} · "
             f"Range {_number(consensus.get('low'), money=True)}–{_number(consensus.get('high'), money=True)} · "
             f"Coverage {_number(consensus.get('count'))}"
-        )
+        ))
         if context.get("target_actions"):
             st.dataframe(pd.DataFrame(context["target_actions"]), hide_index=True, use_container_width=True)
             st.caption(context["prior_target_limitation"])
@@ -299,7 +375,7 @@ def render_recovery_vnext(recovery_df: Any, *, open_research: Callable[[str], An
             f"Range: {_number(valuation.get('wall_street_low'), money=True)}–"
             f"{_number(valuation.get('wall_street_high'), money=True)}"
         )
-        st.caption(target_range.replace("$", r"\$"))
+        st.caption(_literal_currency_markdown(target_range))
     st.caption("Wall Street consensus is contextual and remains separate from Atlas FV.")
 
     _section("Technical Confirmation")
@@ -314,7 +390,7 @@ def render_recovery_vnext(recovery_df: Any, *, open_research: Callable[[str], An
         f"Entry {_number(technical.get('entry_low'), money=True)}–{_number(technical.get('entry_high'), money=True)} · "
         f"Stop {_number(technical.get('stop'), money=True)} · Targets {_number(technical.get('target_1'), money=True)} / {_number(technical.get('target_2'), money=True)}"
     )
-    st.caption(trade_boundary.replace("$", r"\$"))
+    st.caption(_literal_currency_markdown(trade_boundary))
 
     _section("Catalysts")
     _bullets(story["catalysts"], fallback="No verified Recovery catalyst is currently available.")
@@ -338,7 +414,11 @@ def render_recovery_vnext(recovery_df: Any, *, open_research: Callable[[str], An
             st.markdown(f"**{label}**")
             value = deep.get(key)
             if isinstance(value, Mapping):
-                st.json(value)
+                rows = _deep_mapping_rows(key, value)
+                if rows:
+                    st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+                else:
+                    st.caption("Unavailable")
             elif value:
                 st.dataframe(pd.DataFrame(value), hide_index=True, use_container_width=True)
             else:
