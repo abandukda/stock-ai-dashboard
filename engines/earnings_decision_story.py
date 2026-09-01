@@ -156,6 +156,8 @@ def _deep_evidence(source: Mapping[str, Any], context: Mapping[str, Any]) -> dic
         source, "congressional_transactions", "political_transactions",
         "political_evidence", "congressional_trades",
     )
+    target_family = safe_mapping(safe_mapping(context.get("evidence_families")).get("analyst_price_target_actions"))
+    insider_family = safe_mapping(safe_mapping(context.get("evidence_families")).get("insider_transactions"))
     return {
         "analyst": {
             "semantic_status": "AVAILABLE" if analyst_available else DATA_UNAVAILABLE,
@@ -170,6 +172,15 @@ def _deep_evidence(source: Mapping[str, Any], context: Mapping[str, Any]) -> dic
         "political": {
             "semantic_status": "AVAILABLE" if political else DATA_UNAVAILABLE,
             "transactions": political,
+            "scoring_authority": "CONTEXT_ONLY",
+        },
+        "price_target_actions": {
+            "semantic_status": target_family.get("semantic_status", DATA_UNAVAILABLE),
+            "actions": safe_sequence(safe_mapping(target_family.get("data")).get("actions")),
+        },
+        "insider_transactions": {
+            "semantic_status": insider_family.get("semantic_status", DATA_UNAVAILABLE),
+            "transactions": safe_sequence(safe_mapping(insider_family.get("data")).get("transactions")),
             "scoring_authority": "CONTEXT_ONLY",
         },
     }
@@ -192,8 +203,10 @@ def build_earnings_decision_story(row: Mapping[str, Any]) -> dict[str, Any]:
     intelligence = build_earnings_intelligence(history, is_etf=is_etf)
     summary = build_earnings_summary(intelligence, ticker=ticker)
     guidance = build_management_guidance(source, is_etf=is_etf)
-    transcript = build_transcript_intelligence(source, is_etf=is_etf)
     context = safe_mapping(row.get("research_context")) or safe_mapping(nested.get("research_context"))
+    transcript_family = safe_mapping(safe_mapping(context.get("evidence_families")).get("transcript_intelligence"))
+    transcript = transcript_family if transcript_family else build_transcript_intelligence(source, is_etf=is_etf)
+    snapshot_family = safe_mapping(safe_mapping(context.get("evidence_families")).get("analyst_estimate_snapshots"))
     canonical_decision = safe_mapping(context.get("production_decision"))
     decision = dict(canonical_decision) if canonical_decision else dict(
         build_production_decision(nested if nested else row)
@@ -233,6 +246,7 @@ def build_earnings_decision_story(row: Mapping[str, Any]) -> dict[str, Any]:
         "primary_constraint": why[1] if len(why) > 1 else None,
         "management_guidance": guidance,
         "transcript_intelligence": transcript,
+        "analyst_estimate_snapshots": safe_mapping(snapshot_family.get("data")),
         "estimate_revisions_status": DATA_UNAVAILABLE if not is_etf else NOT_APPLICABLE,
         "market_reaction": {"semantic_status": DATA_UNAVAILABLE, "status_detail": "Event-aligned market reaction: Unavailable"},
         "production_decision": decision,

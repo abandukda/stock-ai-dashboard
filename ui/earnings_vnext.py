@@ -180,7 +180,15 @@ def _stories(full_df: Any) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     reported, upcoming = [], []
     seen = set()
     for _, row in full_df.iterrows():
-        story = build_earnings_decision_story(_row_payload(row))
+        payload = _row_payload(row)
+        ticker_hint = str(payload.get("ticker") or payload.get("Ticker") or "").upper()
+        from services.fmp_phase1_intelligence import load_cached_phase1_families
+        context = dict(payload.get("research_context") or {})
+        families = dict(context.get("evidence_families") or {})
+        families.update(load_cached_phase1_families(ticker_hint, security_type=str(payload.get("security_type") or "EQUITY")))
+        context["evidence_families"] = families
+        payload["research_context"] = context
+        story = build_earnings_decision_story(payload)
         ticker = story["ticker"]
         if ticker in seen or story.get("security_type") == "ETF":
             continue
@@ -252,6 +260,8 @@ def _reported_card(story: Mapping[str, Any], open_research: Callable[[str], Any]
         guidance = story.get("management_guidance") or {}
         st.write(guidance.get("status_detail") if guidance.get("semantic_status") != "AVAILABLE" else guidance)
         st.info("Estimate revision direction cannot be verified from the available point-in-time evidence.")
+        snapshot = (story.get("analyst_estimate_snapshots") or {})
+        st.caption(snapshot.get("status_detail") or "Estimate revision history is still being accumulated.")
         actions = story.get("analyst_actions") or []
         if actions:
             st.dataframe(pd.DataFrame(actions), width="stretch", hide_index=True)
@@ -297,6 +307,12 @@ def _reported_card(story: Mapping[str, Any], open_research: Callable[[str], Any]
                     st.dataframe(pd.DataFrame(_analyst_actions_for_display(analyst["actions"])), width="stretch", hide_index=True)
         else:
             st.caption("Analyst actions and consensus are unavailable.")
+        target_actions = deep.get("price_target_actions") or {}
+        st.markdown("**Individual price-target actions**")
+        if target_actions.get("semantic_status") == "AVAILABLE":
+            st.dataframe(pd.DataFrame(target_actions.get("actions") or []), width="stretch", hide_index=True)
+        else:
+            st.caption("Individual price-target actions are unavailable.")
         news = deep.get("news") or {}
         st.markdown("**Relevant company news**")
         if news.get("semantic_status") == "AVAILABLE":
@@ -316,6 +332,12 @@ def _reported_card(story: Mapping[str, Any], open_research: Callable[[str], Any]
                     st.dataframe(pd.DataFrame(ownership["major_holders"]), width="stretch", hide_index=True)
         else:
             st.caption("Authoritative ownership evidence is unavailable.")
+        insider = deep.get("insider_transactions") or {}
+        st.markdown("**Insider transactions · contextual only**")
+        if insider.get("semantic_status") == "AVAILABLE":
+            st.dataframe(pd.DataFrame(insider.get("transactions") or []), width="stretch", hide_index=True)
+        else:
+            st.caption("Verified insider transaction evidence is unavailable.")
         political = deep.get("political") or {}
         st.markdown("**Political context · non-scoring**")
         if political.get("semantic_status") == "AVAILABLE":

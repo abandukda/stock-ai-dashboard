@@ -36,6 +36,9 @@ EVIDENCE_FAMILIES: Final[tuple[str, ...]] = (
     "sec_filings",
     "transcript_index",
     "transcript_intelligence",
+    "analyst_price_target_actions",
+    "insider_transactions",
+    "analyst_estimate_snapshots",
     "management_guidance",
     "technicals",
     "etf_research",
@@ -54,6 +57,9 @@ CORPORATE_ONLY_FAMILIES: Final = frozenset({
     "press_releases",
     "transcript_index",
     "transcript_intelligence",
+    "analyst_price_target_actions",
+    "insider_transactions",
+    "analyst_estimate_snapshots",
     "management_guidance",
 })
 

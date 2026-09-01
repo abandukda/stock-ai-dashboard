@@ -26,7 +26,11 @@ FAMILY_TTLS_SECONDS: Final[dict[str, int | None]] = {
     "press_releases": 3600,
     "sec_filings": 8 * 3600,
     "transcript_index": 24 * 3600,
+    "transcript_content": None,
     "transcript_intelligence": None,
+    "analyst_price_target_actions": 12 * 3600,
+    "insider_transactions": 12 * 3600,
+    "analyst_estimate_snapshots": 24 * 3600,
     "etf_research": 24 * 3600,
 }
 
@@ -50,7 +54,7 @@ def cache_path(
     *,
     period_key: str | None = None,
 ) -> Path:
-    if family == "transcript_intelligence":
+    if family in {"transcript_content", "transcript_intelligence"}:
         period = _safe(period_key or "")
         if not period:
             raise ValueError("transcript cache requires a symbol/year/quarter period_key")
@@ -69,7 +73,7 @@ def save_family_envelope(
     period_key: str | None = None,
 ) -> Path:
     path = cache_path(ticker, family, root, period_key=period_key)
-    if family == "transcript_intelligence" and path.exists():
+    if family in {"transcript_content", "transcript_intelligence"} and path.exists():
         raise FileExistsError("transcript content cache is immutable")
     payload = dict(envelope)
     payload["cache_version"] = RESEARCH_FAMILY_CACHE_VERSION

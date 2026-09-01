@@ -735,6 +735,38 @@ def _render_catalysts(report: Mapping[str, Any], legacy: Mapping[str, Callable[.
         st.caption("No verified firm-level analyst action is available.")
     with st.expander("Analyst targets and firm-level actions", expanded=False):
         legacy["analyst"](safe_mapping(report.get("analyst_intelligence")))
+        target_family = safe_mapping(safe_mapping(_canonical_context(report).get("evidence_families")).get("analyst_price_target_actions"))
+        target_rows = safe_sequence(safe_mapping(target_family.get("data")).get("actions"))
+        if target_rows:
+            st.dataframe(pd.DataFrame(target_rows), hide_index=True, use_container_width=True)
+        else:
+            st.caption("Individual price-target action evidence is unavailable.")
+        snapshot_family = safe_mapping(safe_mapping(_canonical_context(report).get("evidence_families")).get("analyst_estimate_snapshots"))
+        st.caption(_scalar_text(safe_mapping(snapshot_family.get("data")).get("status_detail"), "Estimate revision history is still being accumulated."))
+
+    transcript_family = safe_mapping(safe_mapping(_canonical_context(report).get("evidence_families")).get("transcript_intelligence"))
+    transcript_data = safe_mapping(transcript_family.get("data"))
+    st.markdown("### Management / Transcript Insight")
+    if transcript_family.get("semantic_status") == "AVAILABLE":
+        for label, key in (("What management emphasized", "management_themes"), ("Supported opportunities", "supported_opportunities"), ("Supported risks", "supported_risks"), ("What to watch next", "monitoring_items")):
+            items = safe_sequence(transcript_data.get(key))
+            if items:
+                st.markdown(f"**{label}**")
+                st.write("\n".join(f"- {_scalar_text(safe_mapping(item).get('text') or item)}" for item in items[:4]))
+        st.caption("Grounded transcript evidence only; this evidence does not calculate ATLAS decisions or valuation.")
+    else:
+        st.caption("Transcript intelligence has not been loaded for this ticker.")
+
+    import os
+    api_key = os.getenv("FMP_API_KEY", "")
+    if st.button("Refresh analyst targets & insider evidence", key=f"phase1-post-shell-{ticker}", disabled=not bool(api_key)):
+        from services.fmp_phase1_intelligence import refresh_post_shell_evidence
+        refresh_post_shell_evidence(ticker, api_key=api_key, security_type=_scalar_text(report.get("security_type"), "EQUITY"))
+        st.rerun()
+    if st.button("Load latest management transcript", key=f"phase1-transcript-{ticker}", disabled=not bool(api_key)):
+        from services.fmp_phase1_intelligence import acquire_latest_transcript_intelligence
+        acquire_latest_transcript_intelligence(ticker, api_key=api_key)
+        st.rerun()
 
     ownership = safe_mapping(safe_mapping(safe_mapping(report.get("sections")).get("ownership")).get("data"))
     st.markdown("### Ownership & Insider Context")
@@ -870,6 +902,12 @@ def _render_risk_evidence(report: Mapping[str, Any], view: Mapping[str, Any], le
         if safe_sequence(data.get("insider_transactions")):
             st.markdown("#### Insider Transactions")
             st.dataframe(pd.DataFrame(safe_sequence(data.get("insider_transactions"))), hide_index=True, use_container_width=True)
+        phase1_insider = safe_mapping(safe_mapping(_canonical_context(report).get("evidence_families")).get("insider_transactions"))
+        phase1_rows = safe_sequence(safe_mapping(phase1_insider.get("data")).get("transactions"))
+        if phase1_rows:
+            st.markdown("#### Canonical Insider Transactions")
+            st.dataframe(pd.DataFrame(phase1_rows), hide_index=True, use_container_width=True)
+            st.caption("Context only; insider activity does not contribute to scoring, ranking, or recommendation.")
 
     political = safe_mapping(sections.get("political"))
     political_data = safe_mapping(political.get("data")) or safe_mapping(report.get("policy_intelligence"))
@@ -1056,6 +1094,15 @@ def render_full_research_vnext(row: Mapping[str, Any]) -> None:
         canonical_context.get("evidence_families")
         if isinstance(canonical_context.get("evidence_families"), Mapping) else {}
     )
+    from services.fmp_phase1_intelligence import load_cached_phase1_families
+    cached_phase1 = load_cached_phase1_families(
+        symbol,
+        security_type=str(research_row.get("security_type") or research_row.get("Security Type") or "EQUITY"),
+    )
+    canonical_context = dict(canonical_context)
+    canonical_context["evidence_families"] = {**dict(canonical_families), **cached_phase1}
+    research_row["research_context"] = canonical_context
+    canonical_families = canonical_context["evidence_families"]
     action_family = (
         canonical_families.get("analyst_actions")
         if isinstance(canonical_families.get("analyst_actions"), Mapping) else {}

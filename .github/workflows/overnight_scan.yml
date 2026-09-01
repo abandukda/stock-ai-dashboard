@@ -70,9 +70,26 @@ jobs:
           restore-keys: |
             atlas-fmp-bulk-metadata-v1-
 
+      - name: Restore analyst-estimate snapshot history
+        uses: actions/cache@v4
+        with:
+          path: .atlas_research_cache/analyst_estimate_snapshots_v1
+          key: atlas-analyst-estimate-snapshots-v1-${{ github.run_id }}
+          restore-keys: |
+            atlas-analyst-estimate-snapshots-v1-
+
       - name: Run overnight scan
         run: |
           python overnight_market_scan.py
+
+      - name: Upload analyst-estimate snapshot history
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-analyst-estimate-snapshots-${{ github.run_id }}
+          path: .atlas_research_cache/analyst_estimate_snapshots_v1
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: Commit updated scan output
         run: |

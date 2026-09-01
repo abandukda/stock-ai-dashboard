@@ -403,14 +403,14 @@ def normalize_fmp_news(
 
 
 def normalize_transcript_period(row: Mapping[str, Any], *, fetched_at: str | None = None) -> dict[str, Any]:
-    year = _integer(_first(row, "year", "fiscalYear", "calendarYear"))
-    quarter = _integer(_first(row, "quarter", "fiscalQuarter"))
+    year = _integer(_first(row, "year", "fiscalYear", "calendarYear", "fiscal_year"))
+    quarter = _integer(_first(row, "quarter", "fiscalQuarter", "fiscal_quarter"))
     valid = bool(year and 1900 <= year <= datetime.now(timezone.utc).year + 1 and quarter in {1, 2, 3, 4})
     result = {
         "symbol": (_text(_first(row, "symbol", "ticker")) or "").upper() or None,
         "fiscal_year": year if valid else None,
         "fiscal_quarter": quarter if valid else None,
-        "transcript_date": _text(_first(row, "date", "publishedDate", "transcriptDate")),
+        "transcript_date": _text(_first(row, "date", "publishedDate", "transcriptDate", "transcript_date")),
     }
     result["provenance"] = _provenance(
         "earning-call-transcript-dates", fetched_at=fetched_at,
@@ -427,10 +427,96 @@ def latest_valid_transcript_period(rows: Sequence[Mapping[str, Any]], *, fetched
     return max(valid, key=lambda row: (row["fiscal_year"], row["fiscal_quarter"], row.get("transcript_date") or ""))
 
 
+def normalize_transcript_content(
+    row: Mapping[str, Any], *, requested_year: int, requested_quarter: int,
+    fetched_at: str | None = None,
+) -> dict[str, Any]:
+    """Normalize one explicitly addressed transcript without interpreting it."""
+    content = row.get("content") if isinstance(row.get("content"), str) else None
+    symbol = (_text(_first(row, "symbol", "ticker")) or "").upper() or None
+    year = _integer(_first(row, "year", "fiscalYear"))
+    period = _text(_first(row, "period", "quarter", "fiscalQuarter"))
+    response_quarter = _integer(_first(row, "quarter", "fiscalQuarter"))
+    quarter_matches = response_quarter is None or response_quarter == requested_quarter
+    valid = bool(content and symbol and year == requested_year and quarter_matches and requested_quarter in {1, 2, 3, 4})
+    result = {
+        "ticker": symbol,
+        "year": requested_year if valid else None,
+        "quarter": requested_quarter if valid else None,
+        "period": period,
+        "call_date": _text(_first(row, "date", "publishedDate", "transcriptDate")),
+        "content": content if valid else None,
+        "provider": PROVIDER,
+        "schema_version": "FMP_TRANSCRIPT_CONTENT_V1",
+        "semantic_status": AVAILABLE if valid else DATA_UNAVAILABLE,
+        "limitations": ["FMP supplies transcript text without a proven structured speaker schema."],
+    }
+    return result
+
+
+def normalize_price_target_action(row: Mapping[str, Any], *, fetched_at: str | None = None) -> dict[str, Any]:
+    """Normalize only fields proven by the Phase 1 entitlement artifact."""
+    values = {
+        "ticker": (_text(row.get("symbol")) or "").upper() or None,
+        "analyst_name": _text(row.get("analystName")),
+        "firm_or_publisher": _text(_first(row, "analystCompany", "newsPublisher")),
+        "action_date": _text(row.get("publishedDate")),
+        "price_target": _number(row.get("priceTarget")),
+        "adjusted_price_target": _number(row.get("adjPriceTarget")),
+        "source_title": _text(row.get("newsTitle")),
+        "source_publisher": _text(row.get("newsPublisher")),
+        "source_identity": _text(row.get("newsURL")),
+        "provider": PROVIDER,
+        "schema_version": "FMP_PRICE_TARGET_ACTION_V1",
+        "prior_target_status": "PRIOR_TARGET_NOT_PROVEN",
+        "limitations": ["The provider schema did not prove a prior target or target currency."],
+    }
+    available = bool(values["ticker"] and values["action_date"] and values["price_target"] is not None)
+    values["semantic_status"] = AVAILABLE if available else DATA_UNAVAILABLE
+    values["provenance"] = _provenance(
+        "price-target-news", fetched_at=fetched_at,
+        observation_date=values["action_date"], available=available,
+    )
+    return values
+
+
+def normalize_insider_transaction(row: Mapping[str, Any], *, fetched_at: str | None = None) -> dict[str, Any]:
+    """Normalize contextual insider evidence without calculating transaction value."""
+    values = {
+        "ticker": (_text(row.get("symbol")) or "").upper() or None,
+        "security_name": _text(row.get("securityName")),
+        "company_cik": _text(row.get("companyCik")),
+        "reporting_person": _text(row.get("reportingName")),
+        "reporting_cik": _text(row.get("reportingCik")),
+        "role": _text(row.get("typeOfOwner")),
+        "transaction_date": _text(row.get("transactionDate")),
+        "filing_date": _text(row.get("filingDate")),
+        "acquisition_disposition": _text(row.get("acquisitionOrDisposition")),
+        "transaction_type": _text(row.get("transactionType")),
+        "shares": _number(row.get("securitiesTransacted")),
+        "price": _number(row.get("price")),
+        "post_transaction_holdings": _number(row.get("securitiesOwned")),
+        "form_type": _text(row.get("formType")),
+        "filing_identity": _text(row.get("url")),
+        "provider": PROVIDER,
+        "schema_version": "FMP_INSIDER_TRANSACTION_V1",
+        "context_authority": "CONTEXT_ONLY",
+        "limitations": ["No explicit transaction-value or issuer-name field was proven; neither is inferred."],
+    }
+    available = bool(values["ticker"] and values["transaction_date"] and values["filing_date"])
+    values["semantic_status"] = AVAILABLE if available else DATA_UNAVAILABLE
+    values["provenance"] = _provenance(
+        "insider-trading/search", fetched_at=fetched_at,
+        observation_date=values["transaction_date"], filing_date=values["filing_date"], available=available,
+    )
+    return values
+
+
 __all__ = [
     "latest_valid_transcript_period", "normalize_analyst_action", "normalize_analyst_consensus",
     "normalize_analyst_estimate", "normalize_fmp_news", "normalize_fund_disclosure",
     "normalize_earnings_record", "normalize_financial_growth", "normalize_financial_statement",
     "normalize_institutional_ownership_summary", "normalize_price_target", "normalize_ratios",
     "normalize_key_metrics", "normalize_peers", "normalize_profile", "normalize_transcript_period",
+    "normalize_transcript_content", "normalize_price_target_action", "normalize_insider_transaction",
 ]

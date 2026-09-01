@@ -47,6 +47,7 @@ from services.fmp_bulk_metadata_shadow import (
     compare_yahoo_fmp_metadata,
     persist_bulk_shadow_analysis,
 )
+from services.analyst_estimate_snapshot_store import capture_daily_estimates
 
 
 def v42_safe_float(value, default=0.0):
@@ -5160,6 +5161,23 @@ def scan_market() -> Dict[str, Any]:
             watchlist=watchlist,
         )
         finalist_symbols = set(ordered_finalists)
+        if os.getenv("FMP_API_KEY"):
+            try:
+                snapshot_result = capture_daily_estimates(
+                    ordered_finalists,
+                    api_key=os.environ["FMP_API_KEY"],
+                )
+                print(
+                    "Analyst-estimate snapshots: "
+                    f"calls={snapshot_result['provider_calls']} "
+                    f"added={snapshot_result['snapshots_added']} "
+                    f"skipped={snapshot_result['daily_skips']} "
+                    f"unavailable={snapshot_result['unavailable']}"
+                )
+            except Exception:
+                # Snapshot history is evidence-only and must never change or
+                # prevent publication of the authoritative production scan.
+                print("Analyst-estimate snapshots: unavailable (scan unaffected)")
         legacy_finalist_symbols = {
             str(row.get("symbol") or row.get("ticker") or "").upper()
             for row in full_rows[:FULL_COMMITTEE_LIMIT]
