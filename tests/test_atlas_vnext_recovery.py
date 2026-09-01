@@ -170,7 +170,27 @@ def test_deep_financial_evidence_is_human_readable_and_preserves_zero():
 def test_recovery_mobile_css_compacts_only_recovery_route_and_keeps_host_safety():
     source = (ROOT / "ui" / "recovery_vnext.py").read_text(encoding="utf-8")
     assert "body:has([data-atlas-recovery-version])" in source
-    assert "gap:.35rem !important" in source
+    assert "@media (max-width:480px)" in source
+    assert "margin-top:.35rem !important" in source
     assert ".atlas-recovery-section-title { margin:.35rem 0 .2rem !important" in source
+    assert ".atlas-recovery-section-recovery-snapshot" in source
+    assert "font-size:1rem !important" in source
+    assert ".atlas-recovery-metric:first-child { grid-column:1 / -1; }" in source
+    assert "grid-template-columns:repeat(3,minmax(0,1fr))" in source
     assert "overflow-x:hidden" in source
     assert "margin-right:5.25rem" in source
+
+
+def test_recovery_mobile_snapshot_prioritizes_primary_state_and_cta_before_secondary_metrics():
+    source = (ROOT / "ui" / "recovery_vnext.py").read_text(encoding="utf-8")
+    snapshot = source.split("def _render_snapshot", 1)[1].split("def _render_phase1_controls", 1)[0]
+    assert snapshot.index("st.markdown(f\"## {story['ticker']}") < snapshot.index("primary_metrics =")
+    assert snapshot.index("primary_metrics =") < snapshot.index("atlas-recovery-metric-grid")
+    assert snapshot.index("atlas-recovery-metric-grid") < snapshot.index("View Investment Case")
+    assert snapshot.index("View Investment Case") < snapshot.index("atlas-recovery-secondary-mobile")
+    assert snapshot.index("atlas-recovery-secondary-mobile") < snapshot.index("cols = st.columns(3)")
+    assert snapshot.index("View Investment Case") < snapshot.index("cols = st.columns(3)")
+    assert "atlas-recovery-evidence-inline" in snapshot
+    render = source.split("def render_recovery_vnext", 1)[1]
+    active_story = render.split("_render_snapshot(story, open_research)", 1)[1]
+    assert active_story.index('emit_page_interactive(st, "Recovery")') < active_story.index('_section("Why It Fell")')

@@ -118,7 +118,11 @@ def _section(name: str) -> None:
         f'<span data-atlas-recovery-section="{escape(section_id)}" style="display:none"></span>',
         unsafe_allow_html=True,
     )
-    st.markdown(f'<h3 class="atlas-recovery-section-title">{escape(name)}</h3>', unsafe_allow_html=True)
+    st.markdown(
+        f'<h3 class="atlas-recovery-section-title atlas-recovery-section-{escape(section_id)}">'
+        f'{escape(name)}</h3>',
+        unsafe_allow_html=True,
+    )
 
 
 def _bullets(items: Any, *, fallback: str) -> None:
@@ -150,6 +154,7 @@ def _inject_css() -> None:
         .atlas-recovery-metric-label { color:#94a3b8; font-size:.78rem; }
         .atlas-recovery-metric-value { font-size:1rem; font-weight:650; overflow-wrap:anywhere; }
         .atlas-recovery-section-title { margin:1.15rem 0 .45rem; }
+        .atlas-recovery-secondary-mobile { display:none; }
         @media (max-width:700px) {
           body:has([data-atlas-recovery-version]) [data-testid="stRadio"]:has([role="radiogroup"]) {
             position:sticky !important; top:3.75rem !important; z-index:990 !important;
@@ -168,7 +173,7 @@ def _inject_css() -> None:
           body:has([data-atlas-recovery-version]) [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] {
             gap:.35rem !important;
           }
-          body:has([data-atlas-recovery-version]) h1 { margin:.1rem 0 .1rem !important; line-height:1.12 !important; font-size:1.65rem !important; }
+          body:has([data-atlas-recovery-version]) h1 { margin:.1rem 0 !important; line-height:1.12 !important; font-size:1.65rem !important; }
           body:has([data-atlas-recovery-version]) [data-testid="stSelectbox"] { margin-bottom:0 !important; }
           .atlas-recovery-section-title { margin:.35rem 0 .2rem !important; line-height:1.18; }
           .atlas-recovery-metric-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:.35rem; }
@@ -176,6 +181,39 @@ def _inject_css() -> None:
           body:has([data-atlas-recovery-version]) [data-testid="stMetric"] { min-width:0 !important; }
           body:has([data-atlas-recovery-version]) [data-testid="stButton"] { margin-right:5.25rem; }
           .atlas-recovery-summary { margin-right:4.75rem; padding:.7rem .75rem; }
+        }
+        @media (max-width:480px) {
+          body:has([data-atlas-recovery-version]) [data-testid="stRadio"]:has([role="radiogroup"]) {
+            margin-top:.35rem !important;
+          }
+          body:has([data-atlas-recovery-version]) h1 {
+            margin:.1rem 0 !important; padding:.15rem 0 .1rem !important;
+          }
+          body:has([data-atlas-recovery-version]) h2 {
+            margin:.05rem 0 !important; padding:.15rem 0 !important;
+            line-height:1.12 !important; font-size:1.55rem !important;
+          }
+          .atlas-recovery-section-recovery-snapshot {
+            margin:0 !important; padding:.1rem 0 !important;
+            font-size:1rem !important; line-height:1.1 !important;
+          }
+          .atlas-recovery-metric-grid {
+            grid-template-columns:repeat(3,minmax(0,1fr)); gap:.25rem;
+            margin:.1rem 0 .25rem;
+          }
+          .atlas-recovery-metric:first-child { grid-column:1 / -1; }
+          .atlas-recovery-metric { padding:.35rem .45rem; }
+          .atlas-recovery-metric-label { font-size:.72rem; line-height:1.1; }
+          .atlas-recovery-metric-value { font-size:.9rem; line-height:1.2; }
+          .atlas-recovery-summary {
+            margin:.1rem 0 .3rem; padding:.45rem .6rem;
+            font-size:.9rem; line-height:1.25;
+          }
+          .atlas-recovery-evidence-inline { display:none; }
+          .atlas-recovery-secondary-mobile {
+            display:block; margin:.05rem 0 .2rem; color:#94a3b8;
+            font-size:.75rem; line-height:1.2;
+          }
         }
         </style>
         """,
@@ -213,8 +251,9 @@ def _render_snapshot(story: Mapping[str, Any], open_research: Callable[[str], An
     st.markdown(
         '<div class="atlas-recovery-summary">'
         f'<strong>{escape(_display(snapshot.get("recovery_label"), "Recovery state unavailable"))}</strong><br>'
-        f'Recovery score: {escape(_number(snapshot.get("recovery_score")))}/100 · '
-        f'{escape(_display(snapshot.get("evidence_completeness")))}'
+        f'Recovery score: {escape(_number(snapshot.get("recovery_score")))}/100'
+        f'<span class="atlas-recovery-evidence-inline"> · '
+        f'{escape(_display(snapshot.get("evidence_completeness")))}</span>'
         '</div>',
         unsafe_allow_html=True,
     )
@@ -240,6 +279,11 @@ def _render_snapshot(story: Mapping[str, Any], open_research: Callable[[str], An
     )
     if st.button(f"View Investment Case — {story['ticker']}", key=interaction_id, width="stretch"):
         open_research(story["ticker"])
+    st.markdown(
+        '<div class="atlas-recovery-secondary-mobile">Evidence completeness: '
+        f'{escape(_display(snapshot.get("evidence_completeness")))}</div>',
+        unsafe_allow_html=True,
+    )
     cols = st.columns(3)
     cols[0].metric("Expected Return", _number(snapshot.get("expected_return"), pct=True, signed=True))
     cols[1].metric("Opportunity", _number(snapshot.get("opportunity")))
