@@ -10,7 +10,7 @@ from engines.research_context import (
     build_decision_availability, build_production_decision, build_research_context,
 )
 from ui.full_scan_vnext import _filter_stories, _production_stories
-from ui.home_v104 import build_home_opportunity_card
+from ui.home_v104 import _home_decision_presentation, build_home_opportunity_card
 
 
 def _no_decision_row(ticker="MU", *, partial=False):
@@ -110,3 +110,60 @@ def test_missing_technical_state_does_not_invent_a_decision_gate():
     availability = build_production_decision(row)["availability"]
     assert availability["reason_code"] == "CANONICAL_RECOMMENDATION_NOT_PUBLISHED"
     assert "technical gate" not in str(availability).lower()
+
+
+def test_home_decision_not_issued_renders_full_shared_contract():
+    card = build_home_opportunity_card(_no_decision_row())
+    availability = card["decision_availability"]
+    assert card["state"] == "Decision not issued"
+    assert card["preferred_action"] == "No canonical action issued"
+    assert availability["decision_status"] == "DECISION_NOT_ISSUED"
+    assert availability["confidence_label"] == "Scan Conviction"
+    assert availability["customer_reason"]
+    assert availability["evidence_present"]
+    assert availability["missing_confirmation"] == (
+        "Canonical ATLAS Recommendation", "Canonical Opportunity",
+    )
+    assert availability["what_atlas_is_waiting_for"]
+    rendered = str(card).upper()
+    assert "MONITOR" not in rendered
+    assert "STRONG_BUY" not in str(card["state"]).upper()
+
+
+def test_home_insufficient_source_data_is_distinct():
+    card = build_home_opportunity_card({"ticker": "EMPTY", "company": "Empty"})
+    assert card["state"] == "Decision unavailable"
+    assert card["preferred_action"] == "Required source evidence missing"
+    assert card["decision_availability"]["decision_status"] == "INSUFFICIENT_SOURCE_DATA"
+
+
+def test_home_available_decision_preserves_action_and_zero_negative_values():
+    row = _no_decision_row("ZERO") | {
+        "Recommendation": "BUY NOW", "Opportunity": 0, "Confidence": -1,
+        "guidance_summary": {"action_now": {"current_action": "Use the canonical action."}},
+    }
+    card = build_home_opportunity_card(row)
+    assert card["state"] == "BUY NOW"
+    assert card["preferred_action"] == "Use the canonical action."
+    assert card["opportunity"] == 0
+    assert card["confidence"] == -1
+    assert card["decision_availability"]["decision_status"] == "DECISION_AVAILABLE"
+
+
+def test_home_presentation_consumes_contract_without_reclassifying_it():
+    decision = build_production_decision(_no_decision_row())
+    presentation = _home_decision_presentation(decision)
+    assert presentation["availability"] == decision["availability"]
+    full = build_full_scan_decision_story(_no_decision_row(), production_rank=1)
+    context = build_research_context(ticker="MU", production_row=_no_decision_row())
+    assert presentation["availability"] == full["decision_availability"]
+    assert presentation["availability"] == context["production_decision"]["availability"]
+
+
+def test_home_source_renders_every_structured_availability_field():
+    source = open("ui/home_v104.py", encoding="utf-8").read()
+    for field in (
+        "customer_reason", "evidence_present", "missing_confirmation",
+        "what_atlas_is_waiting_for", "confidence_label",
+    ):
+        assert field in source

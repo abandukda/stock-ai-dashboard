@@ -111,7 +111,8 @@ def test_home_investment_case_handoff_preserves_exact_ticker_and_session():
 
 def test_missing_production_and_etf_inputs_remain_fail_closed():
     missing = build_home_opportunity_card({"ticker": "MISSING", "company": "Missing"})
-    assert missing["state"] == "Unavailable"
+    assert missing["state"] == "Decision unavailable"
+    assert missing["preferred_action"] == "Required source evidence missing"
     assert missing["opportunity"] is None
     assert missing["confidence"] is None
     assert missing["supported_upside"] is None

@@ -216,6 +216,27 @@ def _canonical_technical_state(row: Mapping[str, Any]) -> str | None:
     return str(value).strip().upper().replace(" ", "_")
 
 
+def _home_decision_presentation(decision: Mapping[str, Any]) -> dict[str, Any]:
+    """Map the shared availability contract to Home copy without new semantics."""
+    availability = decision.get("availability") if isinstance(decision.get("availability"), Mapping) else {}
+    status = str(availability.get("decision_status") or "").upper()
+    recommendation = decision.get("recommendation")
+    if status == "DECISION_AVAILABLE" and recommendation is not None:
+        state = str(recommendation)
+        action_fallback = None
+    elif status == "DECISION_NOT_ISSUED":
+        state = "Decision not issued"
+        action_fallback = "No canonical action issued"
+    else:
+        state = "Decision unavailable"
+        action_fallback = "Required source evidence missing"
+    return {
+        "state": state,
+        "action_fallback": action_fallback,
+        "availability": dict(availability),
+    }
+
+
 def build_home_opportunity_card(row: Mapping[str, Any]) -> dict[str, Any]:
     """Build a concise Home card without calculating an investment output."""
     canonical = _canonical_home_row(row)
@@ -232,6 +253,7 @@ def build_home_opportunity_card(row: Mapping[str, Any]) -> dict[str, Any]:
     low, high = view.get("preferred_entry_low"), view.get("preferred_entry_high")
     entry = f"{_money(low)}–{_money(high)}" if low is not None and high is not None else "Entry context unavailable"
     recommendation = decision.get("recommendation")
+    decision_presentation = _home_decision_presentation(decision)
     preferred_action = None
     if recommendation is not None:
         preferred_action = (
@@ -243,18 +265,21 @@ def build_home_opportunity_card(row: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "ticker": str(view.get("ticker") or canonical.get("ticker") or "UNKNOWN").upper(),
         "company": str(view.get("company") or _raw_value(canonical, "company", "company_name", "Company") or "Unavailable"),
-        "state": decision.get("recommendation") or "Unavailable",
+        "state": decision_presentation["state"],
         "opportunity": decision.get("opportunity"),
         "confidence": decision.get("confidence"),
         "supported_upside": decision.get("decision_expected_return"),
         "thesis": thesis,
-        "preferred_action": _bounded_copy(preferred_action, words=18, fallback="Decision unavailable"),
+        "preferred_action": _bounded_copy(
+            preferred_action, words=18,
+            fallback=decision_presentation["action_fallback"] or "Preferred action unavailable",
+        ),
         "entry_context": entry,
         "catalyst": _bounded_copy(catalyst_text, words=18, fallback="Catalyst unavailable"),
         "risk": _bounded_copy(risk, words=18),
         "technical_state": _canonical_technical_state(canonical),
         "production_decision": dict(decision),
-        "decision_availability": dict(decision.get("availability") or {}),
+        "decision_availability": decision_presentation["availability"],
     }
 
 
@@ -428,6 +453,18 @@ def _render_ux3_opportunity_card(card: Mapping[str, Any], rank: int) -> None:
         )
         if not availability.get("decision_available"):
             st.caption(availability.get("customer_reason") or "ATLAS has not issued a canonical decision.")
+            evidence_present = list(availability.get("evidence_present") or ())
+            missing_confirmation = list(availability.get("missing_confirmation") or ())
+            waiting_for = list(availability.get("what_atlas_is_waiting_for") or ())
+            if evidence_present:
+                st.markdown("**Evidence present**")
+                st.caption(" · ".join(str(item) for item in evidence_present))
+            if missing_confirmation:
+                st.markdown("**Missing confirmation**")
+                st.caption(" · ".join(str(item) for item in missing_confirmation))
+            if waiting_for:
+                st.markdown("**What ATLAS is waiting for**")
+                st.caption(" · ".join(str(item) for item in waiting_for))
         st.markdown('<p class="atlas-ux3-action-label"><strong>Preferred action</strong></p>', unsafe_allow_html=True)
         preferred_action = str(card.get("preferred_action") or "Preferred action unavailable")
         # Streamlit treats paired dollar signs as LaTeX delimiters. Render the
