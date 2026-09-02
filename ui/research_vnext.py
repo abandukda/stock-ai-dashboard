@@ -370,10 +370,23 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
     guidance = safe_mapping(report.get("guidance_summary"))
     action = safe_mapping(guidance.get("action_now"))
     decision = _canonical_decision(report)
+    availability = safe_mapping(decision.get("availability"))
     st.markdown("#### What I Would Do")
     with st.container(key=f"vnext_decision_action_{ticker}"):
         if decision.get("semantic_status") == "DATA_UNAVAILABLE" or is_missing_scalar(decision.get("recommendation")):
-            st.info("ATLAS does not currently publish an actionable recommendation for this security.")
+            st.info(_scalar_text(
+                availability.get("customer_reason"),
+                "ATLAS does not currently publish an actionable recommendation for this security.",
+            ))
+            present = safe_sequence(availability.get("evidence_present"))
+            missing = safe_sequence(availability.get("missing_confirmation"))
+            waiting = safe_sequence(availability.get("what_atlas_is_waiting_for"))
+            if present:
+                st.caption("Evidence present: " + " · ".join(map(str, present)))
+            if missing:
+                st.caption("Missing confirmation: " + " · ".join(map(str, missing)))
+            if waiting:
+                st.caption("What ATLAS is waiting for: " + " · ".join(map(str, waiting)))
         elif view["monitor_or_incomplete"]:
             st.info(f"{_scalar_text(decision.get('recommendation')).replace('_', ' ')} — Not currently actionable.")
         else:
@@ -382,7 +395,10 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
     _block_marker("decision-core-metrics", ticker)
     columns = st.columns(5)
     columns[0].metric("Opportunity", _scalar_text(header.opportunity))
-    columns[1].metric("Confidence", CanonicalNumberFormatter.percent(header.confidence).display)
+    columns[1].metric(
+        _scalar_text(availability.get("confidence_label"), "Confidence"),
+        CanonicalNumberFormatter.percent(header.confidence).display,
+    )
     prices = view["prices"]
     columns[2].metric("Current Price", prices.current_price.display)
     canonical_expected_return = _decision_value(report, "decision_expected_return", "atlas_expected_return_pct")

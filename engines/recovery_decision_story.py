@@ -296,6 +296,7 @@ def build_recovery_decision_story(
         "company": company,
         "security_type": "ETF" if etf else "EQUITY",
         "production_decision": dict(production_decision),
+        "decision_availability": dict(production_decision.get("availability") or {}),
         "recovery_snapshot": {
             "recovery_score": recovery_score,
             "recovery_label": recovery_label,

@@ -330,14 +330,17 @@ def _reported_card(story: Mapping[str, Any], open_research: Callable[[str], Any]
         st.info("Event-aligned market reaction: Unavailable")
     with st.expander("ATLAS Decision After Earnings"):
         decision = story.get("production_decision") or {}
+        availability = story.get("decision_availability") or {}
         cols = st.columns(3)
         cols[0].metric("Recommendation", _decision_label(story))
         cols[1].metric("Opportunity", _display(decision.get("opportunity")))
-        cols[2].metric("Confidence", _display(decision.get("confidence")))
+        cols[2].metric(_display(availability.get("confidence_label"), "Confidence"), _display(decision.get("confidence")))
         cols = st.columns(3)
         cols[0].metric("Atlas FV", _metric(decision.get("atlas_fair_value"), money=True))
         cols[1].metric("Expected Return", _metric(decision.get("decision_expected_return"), pct=True))
         cols[2].metric("Technical state", _display(story.get("technical_state"), "State not published"))
+        if not availability.get("decision_available"):
+            st.info(availability.get("customer_reason") or "ATLAS has not issued a canonical decision.")
         st.caption(f"Wall Street consensus: {_metric(story.get('wall_street_consensus'), money=True)} · separate from Atlas FV")
     with st.expander("What Changes the Thesis"):
         for label, key in (("Strengthens", "thesis_strengtheners"), ("Weakens", "thesis_weakeners"), ("Invalidates", "thesis_invalidators")):

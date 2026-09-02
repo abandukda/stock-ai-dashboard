@@ -160,6 +160,7 @@ def _render_story(story: Mapping[str, Any], *, total_filtered: int, open_researc
     decision = story["production_decision"]
     valuation = story["valuation"]
     technical = story["technical_state"]
+    availability = story.get("decision_availability") or {}
     why = list(story.get("why_ranked") or ())
     constraints = list(story.get("constraints") or ())
     st.markdown(
@@ -184,7 +185,7 @@ def _render_story(story: Mapping[str, Any], *, total_filtered: int, open_researc
         f'{escape(story["actionability"]["state"])}</div>'
         '<div class="atlas-full-scan-metrics">'
         + _metric("Opportunity", _number(story.get("opportunity")))
-        + _metric("Confidence", _number(story.get("confidence"), pct=True))
+        + _metric(_display(availability.get("confidence_label"), "Confidence"), _number(story.get("confidence"), pct=True))
         + _metric("Atlas FV", _number(valuation.get("atlas_fair_value"), money=True))
         + _metric("Expected Return", _number(valuation.get("expected_return"), pct=True, signed=True))
         + _metric("Technical state", _display(technical.get("state"), "State not published"))
@@ -196,6 +197,17 @@ def _render_story(story: Mapping[str, Any], *, total_filtered: int, open_researc
         f'{escape(constraints[0] if constraints else "No specific persisted constraint is available.")}</div>'
         '</div>', unsafe_allow_html=True,
     )
+    if not availability.get("decision_available"):
+        st.info(_display(availability.get("customer_reason"), story["actionability"]["explanation"]))
+        evidence_present = list(availability.get("evidence_present") or ())
+        missing = list(availability.get("missing_confirmation") or ())
+        waiting = list(availability.get("what_atlas_is_waiting_for") or ())
+        if evidence_present:
+            st.caption("Evidence present: " + " · ".join(map(str, evidence_present)))
+        if missing:
+            st.caption("Missing confirmation: " + " · ".join(map(str, missing)))
+        if waiting:
+            st.caption("What ATLAS is waiting for: " + " · ".join(map(str, waiting)))
     if st.button(f"View Investment Case — {ticker}", key=f"full_scan_research_{ticker}_{story['production_rank']}", width="stretch"):
         open_research(ticker)
     with st.expander(f"Evidence details — {ticker}", expanded=False):

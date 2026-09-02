@@ -20,6 +20,7 @@ from engines.semantic_fields import AVAILABLE, DATA_UNAVAILABLE, NOT_APPLICABLE
 RESEARCH_CONTEXT_VERSION: Final = "RESEARCH_CONTEXT_V1"
 TOP_ANALYST_ACTIONS_VERSION: Final = "TOP_ANALYST_ACTIONS_V1"
 RESEARCH_SYNTHESIS_VERSION: Final = "ATLAS_RESEARCH_SYNTHESIS_V2"
+DECISION_AVAILABILITY_VERSION: Final = "DECISION_AVAILABILITY_V1"
 
 EVIDENCE_FAMILIES: Final[tuple[str, ...]] = (
     "profile",
@@ -127,6 +128,61 @@ def _finite(value: Any) -> Any:
     return value
 
 
+def _decision_present(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return value.strip().lower() not in {"", "n/a", "na", "none", "null", "unknown", "unavailable"}
+    if isinstance(value, (Mapping, list, tuple, set, frozenset)):
+        return bool(value)
+    return True
+
+
+def build_decision_availability(
+    source: Mapping[str, Any] | None, *, recommendation: Any = None,
+    opportunity: Any = None, confidence: Any = None,
+) -> dict[str, Any]:
+    """Explain persisted authority without calculating or substituting it."""
+    row = source if isinstance(source, Mapping) else {}
+    has = lambda *keys: any(_decision_present(row.get(key)) for key in keys)
+    evidence = tuple(label for label, present in (
+        ("Fundamentals", has("revenue_growth", "earnings_growth", "free_cash_flow", "operating_profit_margin")),
+        ("Earnings", has("eps_surprise_pct", "revenue_surprise_pct", "earnings_history")),
+        ("Valuation context", has("atlas_fair_value", "ai_base_target", "expected_upside_pct")),
+        ("Technical evidence", has("rsi", "sma20", "sma50", "deterministic_technical_state", "technical_state")),
+        ("Wall Street context", has("analyst_target_mean", "analyst_count", "recommendation_key")),
+        ("News / catalysts", has("news_evidence", "recent_headlines", "top_news_headline")),
+        ("Risk evidence", has("what_could_go_wrong", "risk_tags", "finance_agent_risks")),
+        ("Trade-plan context", has("entry_low", "entry_high", "stop_loss", "trade_target_1")),
+    ) if present)
+    base = {"version": DECISION_AVAILABILITY_VERSION, "evidence_present": evidence}
+    if _decision_present(recommendation):
+        return {**base, "decision_status": "DECISION_AVAILABLE", "decision_available": True,
+                "semantic_status": AVAILABLE, "reason_code": "CANONICAL_RECOMMENDATION_PUBLISHED",
+                "customer_reason": "ATLAS has published a canonical investment decision for this security.",
+                "missing_confirmation": (), "what_atlas_is_waiting_for": (),
+                "confidence_label": "Decision Confidence", "provenance": ("production_decision.recommendation",)}
+    if row and evidence:
+        missing = ["Canonical ATLAS Recommendation"]
+        if not _decision_present(opportunity):
+            missing.append("Canonical Opportunity")
+        return {**base, "decision_status": "DECISION_NOT_ISSUED", "decision_available": False,
+                "semantic_status": DATA_UNAVAILABLE, "reason_code": "CANONICAL_RECOMMENDATION_NOT_PUBLISHED",
+                "customer_reason": ("ATLAS has persisted supporting evidence for this security, but the production "
+                                    "snapshot does not publish a canonical investment decision."),
+                "missing_confirmation": tuple(missing),
+                "what_atlas_is_waiting_for": ("A canonical Recommendation must be published by the approved decision process.",),
+                "confidence_label": "Scan Conviction" if _decision_present(confidence) else "Confidence",
+                "provenance": ("market_full_scan.json", "production_decision.recommendation", "production_decision.opportunity")}
+    return {**base, "decision_status": "INSUFFICIENT_SOURCE_DATA", "decision_available": False,
+            "semantic_status": DATA_UNAVAILABLE, "reason_code": "SOURCE_DATA_MISSING",
+            "customer_reason": "Decision unavailable — required source evidence is missing.",
+            "missing_confirmation": (("Persisted production evidence", "Canonical ATLAS Recommendation") if row else
+                                     ("Persisted production row", "Canonical ATLAS Recommendation")),
+            "what_atlas_is_waiting_for": ("Required source evidence and a canonical Recommendation must be published.",),
+            "confidence_label": "Confidence", "provenance": ()}
+
+
 def security_type_of(row: Mapping[str, Any] | None) -> str:
     source = row or {}
     value = str(_first(source, "security_type", "quote_type", "quoteType") or "EQUITY").upper()
@@ -142,12 +198,14 @@ def build_production_decision(production_row: Mapping[str, Any] | None) -> Froze
         production_row, "Recommendation", "recommendation", "committee_verdict",
         "action_code",
     )
+    if not _decision_present(recommendation):
+        recommendation = None
     buy_now = _first(production_row, "buy_now", "is_buy_now", "BUY NOW")
     if buy_now is None and recommendation is not None:
         buy_now = str(recommendation).upper().replace(" ", "_") == "BUY_NOW"
 
     decision = {
-        "semantic_status": AVAILABLE,
+        "semantic_status": AVAILABLE if _decision_present(recommendation) else DATA_UNAVAILABLE,
         "recommendation": recommendation,
         # Generic ``score`` is the legacy confidence/conviction value in the
         # persisted scan. It is not canonical Opportunity authority.
@@ -171,7 +229,12 @@ def build_production_decision(production_row: Mapping[str, Any] | None) -> Froze
             production_row, "scan_time", "generated_at", "production_scan_timestamp",
         ),
     }
-    return FrozenDict({key: _finite(value) for key, value in decision.items()})
+    normalized = {key: _finite(value) for key, value in decision.items()}
+    normalized["availability"] = build_decision_availability(
+        production_row, recommendation=recommendation,
+        opportunity=normalized.get("opportunity"), confidence=normalized.get("confidence"),
+    )
+    return FrozenDict(normalized)
 
 
 def load_production_row(ticker: str, scan_path: str | Path = "market_full_scan.json") -> dict[str, Any] | None:
@@ -344,7 +407,8 @@ def build_research_context(
 __all__ = [
     "CORPORATE_ONLY_FAMILIES", "EVIDENCE_FAMILIES", "FrozenDict",
     "RESEARCH_CONTEXT_VERSION", "RESEARCH_SYNTHESIS_VERSION", "SYNTHESIS_SECTIONS",
-    "TOP_ANALYST_ACTIONS_VERSION", "build_production_decision", "build_research_context",
+    "TOP_ANALYST_ACTIONS_VERSION", "DECISION_AVAILABILITY_VERSION", "build_decision_availability",
+    "build_production_decision", "build_research_context",
     "customer_freshness_label", "evidence_envelope", "load_production_row",
     "research_synthesis_contract", "security_type_of", "stable_evidence_id",
     "top_analyst_actions_contract",

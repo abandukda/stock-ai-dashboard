@@ -96,7 +96,8 @@ def test_decision_authority_and_field_separation_are_preserved():
     row["analyst_target_mean"] = 155
     story = build_earnings_decision_story(row)
     assert story["production_decision"]["recommendation"] is None
-    assert story["production_decision"]["semantic_status"] == "AVAILABLE"
+    assert story["production_decision"]["semantic_status"] == "DATA_UNAVAILABLE"
+    assert story["decision_availability"]["reason_code"] == "CANONICAL_RECOMMENDATION_NOT_PUBLISHED"
     assert story["production_decision"]["opportunity"] == 82
     assert story["production_decision"]["confidence"] == 74
     assert story["production_decision"]["atlas_fair_value"] == 140

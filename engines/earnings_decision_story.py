@@ -253,6 +253,7 @@ def build_earnings_decision_story(row: Mapping[str, Any]) -> dict[str, Any]:
         "estimate_revisions_status": DATA_UNAVAILABLE if not is_etf else NOT_APPLICABLE,
         "market_reaction": {"semantic_status": DATA_UNAVAILABLE, "status_detail": "Event-aligned market reaction: Unavailable"},
         "production_decision": decision,
+        "decision_availability": dict(decision.get("availability") or {}),
         "technical_state": _first(source, "technical_state", "deterministic_technical_state"),
         "wall_street_consensus": _first(source, "analyst_target_mean", "target_mean_price", "consensus_target"),
         "thesis_strengtheners": _conditions(source, "thesis_strengtheners"),

@@ -219,6 +219,7 @@ def build_full_scan_decision_story(
         "production_conviction": _number(raw, "conviction", "conviction_score", "Final Conviction"),
         "relative_rank_score": _number(raw, "relative_rank_score"),
         "production_decision": decision,
+        "decision_availability": dict(decision.get("availability") or {}),
         "canonical_state_status": (
             decision.get("semantic_status", DATA_UNAVAILABLE)
             if decision.get("recommendation") else DATA_UNAVAILABLE

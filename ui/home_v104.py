@@ -254,6 +254,7 @@ def build_home_opportunity_card(row: Mapping[str, Any]) -> dict[str, Any]:
         "risk": _bounded_copy(risk, words=18),
         "technical_state": _canonical_technical_state(canonical),
         "production_decision": dict(decision),
+        "decision_availability": dict(decision.get("availability") or {}),
     }
 
 
@@ -408,7 +409,8 @@ def _render_discovery_card(row: Mapping[str, Any], rank: int) -> None:
 def _render_ux3_opportunity_card(card: Mapping[str, Any], rank: int) -> None:
     ticker = str(card.get("ticker") or "UNKNOWN")
     company = str(card.get("company") or ticker)
-    state = str(card.get("state") or "MONITOR").replace("_", " ")
+    state = str(card.get("state") or "Decision not issued").replace("_", " ")
+    availability = card.get("decision_availability") or {}
     with st.container(border=True):
         st.markdown(
             f'<div class="atlas-ux3-card-head"><div><small>#{rank}</small>'
@@ -420,10 +422,12 @@ def _render_ux3_opportunity_card(card: Mapping[str, Any], rank: int) -> None:
         st.markdown(
             '<div class="atlas-ux3-metrics">'
             f'<span><small>Opportunity</small><b>{html.escape(_score(card.get("opportunity")))}</b></span>'
-            f'<span><small>Confidence</small><b>{html.escape(_confidence(card.get("confidence")))}</b></span>'
+            f'<span><small>{html.escape(str(availability.get("confidence_label") or "Confidence"))}</small><b>{html.escape(_confidence(card.get("confidence")))}</b></span>'
             f'<span><small>Supported upside</small><b>{html.escape(_pct(card.get("supported_upside")))}</b></span>'
             '</div>', unsafe_allow_html=True,
         )
+        if not availability.get("decision_available"):
+            st.caption(availability.get("customer_reason") or "ATLAS has not issued a canonical decision.")
         st.markdown('<p class="atlas-ux3-action-label"><strong>Preferred action</strong></p>', unsafe_allow_html=True)
         preferred_action = str(card.get("preferred_action") or "Preferred action unavailable")
         # Streamlit treats paired dollar signs as LaTeX delimiters. Render the

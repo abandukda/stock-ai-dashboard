@@ -912,7 +912,10 @@ def normalize_scan_row(raw):
         "Analyst High": safe_number(pick(raw, "Analyst High", "analyst_target_high", "target_high_price", default=None), None),
         "Analyst Low": safe_number(pick(raw, "Analyst Low", "analyst_target_low", "target_low_price", default=None), None),
         "Analyst Count": safe_number(pick(raw, "Analyst Count", "analyst_count", default=None), None),
-        "Recommendation": safe_text(pick(raw, "Recommendation", "recommendation_key", default="N/A"), "N/A"),
+        # ``recommendation_key`` is Yahoo/analyst context, not ATLAS decision
+        # authority.  Never promote it into the canonical Recommendation field.
+        "Recommendation": safe_text(pick(raw, "Recommendation", default="N/A"), "N/A"),
+        "Analyst Recommendation": safe_text(pick(raw, "recommendation_key", default="N/A"), "N/A"),
         "Analyst Support": safe_text(pick(raw, "analyst_support_label", default=""), "") or analyst_support_label(pick(raw, "analyst_support_score", "Analyst Support", default=None)),
         "Analyst Support Source": safe_text(pick(raw, "analyst_support_source", default=""), ""),
         "News Sentiment": sentiment_badge(pick(raw, "news_sentiment_label", "News Sentiment", default="Neutral")),

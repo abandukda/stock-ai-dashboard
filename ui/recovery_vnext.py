@@ -232,6 +232,7 @@ def _story_for_row(row: Any) -> dict[str, Any]:
 def _render_snapshot(story: Mapping[str, Any], open_research: Callable[[str], Any]) -> None:
     snapshot = story["recovery_snapshot"]
     decision = story["production_decision"]
+    availability = story.get("decision_availability") or {}
     recommendation = (
         _display(decision.get("recommendation"))
         if decision.get("semantic_status") == "AVAILABLE" and decision.get("recommendation")
@@ -270,6 +271,8 @@ def _render_snapshot(story: Mapping[str, Any], open_research: Callable[[str], An
         for label, value in primary_metrics
     )
     st.markdown(f'<div class="atlas-recovery-metric-grid">{metric_html}</div>', unsafe_allow_html=True)
+    if not availability.get("decision_available"):
+        st.caption(availability.get("customer_reason") or "ATLAS has not issued a canonical decision.")
     interaction_id = f"recovery-vnext-research-{story['ticker'].lower()}"
     st.markdown(
         f'<span data-atlas-interaction-id="{escape(interaction_id)}" data-atlas-interaction-type="DRILL_DOWN" '
@@ -287,7 +290,10 @@ def _render_snapshot(story: Mapping[str, Any], open_research: Callable[[str], An
     cols = st.columns(3)
     cols[0].metric("Expected Return", _number(snapshot.get("expected_return"), pct=True, signed=True))
     cols[1].metric("Opportunity", _number(snapshot.get("opportunity")))
-    cols[2].metric("Confidence", _number(snapshot.get("confidence"), pct=True))
+    cols[2].metric(
+        _display(availability.get("confidence_label"), "Confidence"),
+        _number(snapshot.get("confidence"), pct=True),
+    )
 
 
 def _render_phase1_controls(story: Mapping[str, Any]) -> None:
