@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import datetime
 from typing import Any, Iterable, Mapping
 
@@ -33,6 +35,11 @@ HOME_FIELD_AUTHORITY = {
     "recovery_score": "recovery_scan.json exact-ticker row",
     "analyst_consensus": "persisted analyst consensus family",
     "trade_plan": "canonical evaluation trade_plan",
+    "last_known_price": "persisted Full Scan price observation (never promoted to current quote)",
+    "technical_evidence": "persisted Full Scan indicators (context only; never technical state)",
+    "volume_evidence": "persisted Full Scan volume observations (context only; never volume state)",
+    "fundamentals_evidence": "persisted Full Scan fundamental observations",
+    "snapshot_evidence_health": "persisted Full Scan evidence-confidence label",
 }
 
 
@@ -92,10 +99,50 @@ def _evidence_health(evaluation: Mapping[str, Any]) -> str:
     return "LIMITED"
 
 
+def _first_number(row: Mapping[str, Any], *keys: str) -> float | None:
+    for key in keys:
+        value = number(row.get(key))
+        if value is not None:
+            return value
+    return None
+
+
+def _snapshot_evidence(row: Mapping[str, Any], price: float | None) -> dict[str, Any]:
+    """Expose persisted observations without promoting them to decision authority."""
+    deep = row.get("deep_research_evidence") if isinstance(row.get("deep_research_evidence"), Mapping) else {}
+    return {
+        "technical": {
+            "price": price,
+            "rsi": _first_number(row, "rsi"),
+            "sma20": _first_number(row, "sma20"),
+            "sma50": _first_number(row, "sma50"),
+            "sma200": _first_number(row, "sma200") if row.get("sma200") is not None else number(deep.get("sma200")),
+            "support": _first_number(row, "v42_support_1", "support"),
+            "resistance": _first_number(row, "v42_resistance_1", "resistance"),
+            "breakout_setup": row.get("breakout_status") or row.get("setup_status"),
+        },
+        "volume": {
+            "relative_volume": _first_number(row, "volume_ratio", "relative_volume"),
+            "average_volume": _first_number(row, "avg_volume_20d", "average_volume"),
+            "average_dollar_volume": _first_number(row, "avg_dollar_volume", "dollar_volume"),
+        },
+        "fundamentals": {
+            "revenue_growth": _first_number(row, "revenue_growth"),
+            "operating_margin": _first_number(row, "operating_profit_margin"),
+            "free_cash_flow": _first_number(row, "free_cash_flow"),
+            "cash": _first_number(row, "cash", "cash_and_equivalents"),
+            "debt": _first_number(row, "total_debt", "debt"),
+        },
+        "completeness": row.get("evidence_confidence") or row.get("evidence_completeness"),
+    }
+
+
 def build_home_guidance_candidate(
     row: Mapping[str, Any], *, production_rank: int,
     recovery_row: Mapping[str, Any] | None = None,
     current_evaluation: Mapping[str, Any] | None = None,
+    production_snapshot_id: str | None = None,
+    production_snapshot_timestamp: Any = None,
 ) -> dict[str, Any]:
     """Resolve one Home card without ranking or decision recalculation."""
     ticker = _ticker(row)
@@ -110,7 +157,8 @@ def build_home_guidance_candidate(
     fair_value = valuation.get("fair_value") if valuation_status == "PUBLISHED" else None
     expected_return = valuation.get("expected_return") if valuation_status == "PUBLISHED" and fair_value is not None else None
     street = analyst_consensus(row)
-    price = number(row.get("current_price") if row.get("current_price") is not None else row.get("price"))
+    price = _first_number(row, "current_price", "price", "last_price")
+    snapshot = _snapshot_evidence(row, price)
     street_upside = (
         round(((street["mean"] / price) - 1) * 100, 1)
         if street.get("mean") is not None and price is not None and price > 0 else None
@@ -126,6 +174,10 @@ def build_home_guidance_candidate(
         "ticker": ticker,
         "company": str(company),
         "production_rank": int(production_rank),
+        "production_snapshot_id": production_snapshot_id,
+        "production_snapshot_timestamp": production_snapshot_timestamp,
+        "production_source_artifact": "market_full_scan.json",
+        "snapshot_membership": "CURRENT_FULL_SCAN",
         "guidance": str(guidance.get("state") or "DATA_LIMITED"),
         "guidance_status": str(guidance.get("status") or "DATA_UNAVAILABLE"),
         "actionability": str(actionability.get("status") or guidance.get("actionability") or "UNAVAILABLE"),
@@ -151,6 +203,12 @@ def build_home_guidance_candidate(
         "evaluation_timestamp": evaluation.get("evaluated_at"),
         "market_source_type": str((evaluation.get("market_snapshot") or {}).get("source_type") or "UNAVAILABLE"),
         "market_customer_label": str((evaluation.get("market_snapshot") or {}).get("customer_label") or "Market evidence unavailable"),
+        "last_known_price": price,
+        "last_known_price_label": "Persisted / last-known price" if price is not None else "Persisted price unavailable",
+        "technical_evidence": snapshot["technical"],
+        "volume_evidence": snapshot["volume"],
+        "fundamentals_evidence": snapshot["fundamentals"],
+        "snapshot_evidence_health": snapshot["completeness"],
         "trade_plan": dict(evaluation.get("trade_plan") or {}),
         "wall_street": {
             "rating": row.get("recommendation_key"), "analyst_count": street.get("count"),
@@ -176,12 +234,21 @@ def build_home_guidance_story(
     scan_timestamp: Any = None,
 ) -> dict[str, Any]:
     full_rows = _rows(full_scan_payload)
-    recovery_rows = {_ticker(row): row for row in _rows(recovery_payload) if _ticker(row)}
+    recovery_payload_rows = _rows(recovery_payload)
+    recovery_rows = {_ticker(row): row for row in recovery_payload_rows if _ticker(row)}
     evaluations = {str(key).upper(): value for key, value in (current_evaluations or {}).items()}
+    timestamp = scan_timestamp or next((row.get("scan_time") or row.get("generated_at") for row in full_rows if row.get("scan_time") or row.get("generated_at")), None)
+    payload_identity = full_scan_payload if isinstance(full_scan_payload, Mapping) else {}
+    snapshot_id = str(
+        payload_identity.get("snapshot_id") or payload_identity.get("scan_id") or
+        payload_identity.get("artifact_id") or
+        hashlib.sha256(json.dumps(full_rows, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:16]
+    )
     cards = [
         build_home_guidance_candidate(
             row, production_rank=index, recovery_row=recovery_rows.get(_ticker(row)),
             current_evaluation=evaluations.get(_ticker(row)),
+            production_snapshot_id=snapshot_id, production_snapshot_timestamp=timestamp,
         )
         for index, row in enumerate(full_rows, start=1)
         if _ticker(row)
@@ -191,8 +258,31 @@ def build_home_guidance_story(
         for title, states in GUIDANCE_GROUPS
     ]
     watched = {str(value).strip().upper() for value in watchlist_tickers if str(value).strip()}
-    recovery_cards = [card for card in cards if card["recovery"]["score"] is not None]
-    timestamp = scan_timestamp or next((row.get("scan_time") or row.get("generated_at") for row in full_rows if row.get("scan_time") or row.get("generated_at")), None)
+    cards_by_ticker = {card["ticker"]: card for card in cards}
+    recovery_cards = []
+    for recovery_row in recovery_payload_rows:
+        ticker = _ticker(recovery_row)
+        if not ticker:
+            continue
+        if ticker in cards_by_ticker:
+            recovery_cards.append(cards_by_ticker[ticker])
+            continue
+        recovery_cards.append({
+            "ticker": ticker,
+            "company": str(recovery_row.get("company") or recovery_row.get("company_name") or ticker),
+            "production_rank": None,
+            "snapshot_membership": "CURRENT_RECOVERY_ONLY",
+            "production_snapshot_id": None,
+            "production_snapshot_timestamp": None,
+            "production_source_artifact": None,
+            "recovery": {
+                "score": recovery_row.get("recovery_score"),
+                "state": recovery_row.get("recovery_label") or recovery_row.get("recovery_state"),
+                "reason": recovery_row.get("recovery_rebound_reason") or recovery_row.get("recovery_thesis"),
+                "snapshot_timestamp": recovery_row.get("scan_time") or recovery_row.get("generated_at"),
+                "source_artifact": "recovery_scan.json",
+            },
+        })
     active = founder_guidance_v1_enabled() and bool(evaluations)
     return {
         "version": HOME_GUIDANCE_STORY_VERSION,
@@ -201,6 +291,8 @@ def build_home_guidance_story(
         "status_label": "Current ATLAS Guidance" if active else "Founder Guidance Preview",
         "freshness_label": "Snapshot Guidance — based on latest available ATLAS evidence",
         "scan_timestamp": timestamp,
+        "production_snapshot_id": snapshot_id,
+        "production_source_artifact": "market_full_scan.json",
         "candidate_count": len(cards),
         "groups": groups,
         "cards": cards,

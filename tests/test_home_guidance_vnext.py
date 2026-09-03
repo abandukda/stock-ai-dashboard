@@ -60,6 +60,33 @@ def test_recovery_joins_exact_ticker_without_full_scan_recovery_alias():
     assert story["recovery_cards"][0]["ticker"] == "MU"
 
 
+def test_recovery_only_membership_never_invents_full_scan_rank():
+    story = build_home_guidance_story(
+        [row("AAA")],
+        [{"ticker": "MU", "recovery_score": 69, "recovery_label": "Recovery Candidate", "scan_time": "2026-09-03"}],
+    )
+    assert [card["ticker"] for card in story["cards"]] == ["AAA"]
+    recovery = story["recovery_cards"][0]
+    assert recovery["ticker"] == "MU"
+    assert recovery["production_rank"] is None
+    assert recovery["snapshot_membership"] == "CURRENT_RECOVERY_ONLY"
+    assert recovery["recovery"]["source_artifact"] == "recovery_scan.json"
+
+
+def test_current_candidates_retain_one_snapshot_identity_and_artifact_rank():
+    story = build_home_guidance_story(
+        [row("AAA"), row("BBB")], [], scan_timestamp="2026-09-03T01:00:00+00:00",
+    )
+    assert story["production_source_artifact"] == "market_full_scan.json"
+    assert story["production_snapshot_id"]
+    for rank, card in enumerate(story["cards"], 1):
+        assert card["production_rank"] == rank
+        assert card["production_snapshot_id"] == story["production_snapshot_id"]
+        assert card["production_snapshot_timestamp"] == story["scan_timestamp"]
+        assert card["production_source_artifact"] == "market_full_scan.json"
+        assert card["snapshot_membership"] == "CURRENT_FULL_SCAN"
+
+
 def test_rejected_fv_suppresses_atlas_expected_return_but_preserves_wall_street():
     card = build_home_guidance_candidate(
         row("MU", atlas_valuation_status="REJECTED_EXTREME_UPSIDE", expected_upside_pct=107.8),
@@ -88,7 +115,64 @@ def test_home_authority_table_covers_every_customer_decision_field():
         "decision_confidence", "scan_conviction", "atlas_fair_value",
         "atlas_expected_return", "technical_state", "volume_state",
         "recovery_score", "analyst_consensus", "trade_plan",
+        "last_known_price", "technical_evidence", "volume_evidence",
+        "fundamentals_evidence", "snapshot_evidence_health",
     }
+
+
+def test_snapshot_evidence_never_promotes_raw_indicators_or_price_to_canonical_states():
+    card = build_home_guidance_candidate(
+        row("MU", current_price=0, rsi=0, sma20=95, sma50=110, sma200=120,
+            volume_ratio=0, avg_volume_20d=0, dollar_volume=-1),
+        production_rank=1, current_evaluation=canonical_evaluation(),
+    )
+    assert card["last_known_price"] == 0
+    assert card["last_known_price_label"] == "Persisted / last-known price"
+    assert card["technical_state"] == "UNAVAILABLE"
+    assert card["technical_status"] == "DATA_UNAVAILABLE"
+    assert card["technical_evidence"] == {
+        "price": 0.0, "rsi": 0.0, "sma20": 95.0, "sma50": 110.0,
+        "sma200": 120.0, "support": None, "resistance": None,
+        "breakout_setup": None,
+    }
+    assert card["volume_state"] == "UNAVAILABLE"
+    assert card["volume_status"] == "DATA_UNAVAILABLE"
+    assert card["volume_evidence"]["relative_volume"] == 0
+    assert card["volume_evidence"]["average_volume"] == 0
+    assert card["volume_evidence"]["average_dollar_volume"] == -1
+
+
+def test_snapshot_authorities_remain_separate_and_missing_stays_missing():
+    card = build_home_guidance_candidate(
+        row("MU", price=80, analyst_target_mean=125, expected_upside_pct=107.8,
+            atlas_valuation_status="REJECTED_EXTREME_UPSIDE"),
+        production_rank=1, current_evaluation=canonical_evaluation(fv=None, expected=107.8),
+    )
+    assert card["last_known_price"] == 80
+    assert card["wall_street"]["mean_target"] == 125
+    assert card["atlas_fair_value"] is None
+    assert card["atlas_expected_return"] is None
+    assert card["technical_evidence"]["rsi"] is None
+    assert card["volume_evidence"]["relative_volume"] is None
+
+
+def test_renderer_exposes_available_evidence_and_limited_context_before_cta():
+    source = '''
+import streamlit as st
+from engines.home_guidance_story_v1 import build_home_guidance_story
+from ui.home_guidance_vnext import render_home_guidance_vnext
+rows = [{"ticker":"MU","company":"Micron","price":80,"conviction":97,"rsi":55,"sma20":75,"volume_ratio":1.2,"avg_volume_20d":1000000,"dollar_volume":80000000,"forward_eps":5,"forward_eps_source":"CANONICAL_ESTIMATE","revenue_growth":10,"revenue_growth_source":"CANONICAL_FINANCIALS","revenue_growth_horizon":"TTM","operating_profit_margin":.2,"risk_reward":1.8,"entry_low":75,"entry_high":82,"stop_loss":70,"target_1":100,"analyst_target_mean":115}]
+render_home_guidance_vnext(build_home_guidance_story(rows, [{"ticker":"MU","recovery_score":69}]), emit_interactive=lambda: None)
+'''
+    app = AppTest.from_string(source, default_timeout=30).run()
+    assert not app.exception
+    rendered = "\n".join(str(item.value) for item in app.markdown)
+    assert 'data-atlas-qa="home-guidance-available-evidence"' in rendered
+    assert "Technical:</b> State Unavailable · Evidence RSI 55.0" in rendered
+    assert "Volume:</b> State Unavailable · Evidence Relative volume 1.2×" in rendered
+    assert "Why Guidance is limited" in rendered
+    assert "What ATLAS needs next" in rendered
+    assert rendered.index("home-guidance-available-evidence") < rendered.index("home-guidance-research-cta")
 
 
 def test_preview_is_explicit_and_data_limited_remains_truthful(monkeypatch):
@@ -142,6 +226,22 @@ def test_current_production_representatives_keep_artifact_rank_and_authority_sep
         assert cards[ticker]["wall_street"].get("consensus") != cards[ticker]["guidance"]
 
 
+def test_current_artifact_membership_and_archetypes_are_resolved_dynamically(monkeypatch):
+    monkeypatch.setenv("ATLAS_FOUNDER_GUIDANCE_V1_ENABLED", "false")
+    payload = json.loads((ROOT / "market_full_scan.json").read_text(encoding="utf-8"))
+    rows = payload if isinstance(payload, list) else payload.get("rows") or payload.get("data") or []
+    recovery_payload = json.loads((ROOT / "recovery_scan.json").read_text(encoding="utf-8"))
+    story = build_home_guidance_story(rows, recovery_payload)
+    assert story["cards"][0]["ticker"] == str(rows[0].get("ticker") or rows[0].get("symbol")).upper()
+    assert story["cards"][0]["production_rank"] == 1
+    assert {card["ticker"] for card in story["cards"]} == {
+        str(item.get("ticker") or item.get("symbol")).upper() for item in rows
+    }
+    assert any(card["atlas_fair_value"] is not None for card in story["cards"])
+    assert any(card["atlas_fair_value"] is None for card in story["cards"])
+    assert any(card["snapshot_evidence_health"] in {"Low", "Medium", "PARTIAL", "Partial"} for card in story["cards"])
+
+
 def test_final_renderer_first_card_precedes_page_interactive_and_secondary_context():
     source = '''
 import streamlit as st
@@ -157,6 +257,8 @@ render_home_guidance_vnext(story, emit_interactive=lambda: st.markdown('<span da
     assert rendered.index('data-atlas-first="true"') < rendered.index('data-atlas-page-interactive="true"')
     assert rendered.index('data-atlas-page-interactive="true"') < rendered.index('data-atlas-section="atlas-vs-wall-street"')
     assert rendered.count('data-atlas-page-interactive="true"') == 1
+    assert 'data-atlas-qa="home-guidance-evidence-status"' in rendered
+    assert "Why ATLAS / What Changes Guidance" in "\n".join(str(item.label) for item in app.expander)
     assert "Founder Guidance Preview" in rendered
     assert "Snapshot Guidance — based on latest available ATLAS evidence" in "\n".join(str(item.value) for item in app.markdown) + "\n".join(str(item.value) for item in app.text)
 
@@ -198,3 +300,12 @@ def test_research_cta_uses_exact_ticker_handoff_contract():
     assert "begin_research_entry" in source
     assert 'source="HOME_GUIDANCE_VNEXT"' in source
     assert 'View Investment Case — {ticker}' in source
+
+
+def test_compact_card_css_preserves_three_and_four_column_strips():
+    source = (ROOT / "ui" / "home_guidance_vnext.py").read_text(encoding="utf-8")
+    assert ".atlas-home-guidance-core" in source
+    assert "grid-template-columns:repeat(3,minmax(0,1fr))" in source
+    assert ".atlas-home-guidance-status" in source
+    assert "grid-template-columns:repeat(4,minmax(0,1fr))" in source
+    assert '.stButton>button[kind="primary"]' in source
