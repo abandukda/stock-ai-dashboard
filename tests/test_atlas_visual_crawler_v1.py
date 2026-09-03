@@ -170,6 +170,25 @@ def test_research_and_home_require_actual_visible_controls_and_exact_ticker():
     assert "self.monitor_ticker" in source
 
 
+def test_home_crawler_certifies_guidance_vnext_authority_and_layout_contract():
+    source = SOURCE.read_text(encoding="utf-8")
+    assert "_home_guidance_vnext_contract" in source
+    for marker in (
+        'home-guidance-vnext', 'home-guidance-card', 'data-atlas-production-rank',
+        'data-atlas-guidance', 'data-atlas-actionability', 'data-atlas-opportunity',
+        'data-atlas-decision-confidence', 'data-atlas-scan-conviction',
+    ):
+        assert marker in source
+    assert "ATLAS vs Wall Street" in source
+    assert "Technical Opportunities" in source
+    assert "Recovery Opportunities" in source
+    assert "What Changed is not yet available for this evaluation snapshot" in source
+    assert "document.documentElement.scrollWidth > window.innerWidth" in source
+    method = source.split("async def _home_cards", 1)[1].split("async def _open_buy_now_expander", 1)[0]
+    assert "except Exception as exc" in method
+    assert 'await self._page_visit(page, "Home", viewport=viewport)' in method
+
+
 def test_crawler_tracks_ux3b_decision_story_without_restoring_legacy_tabs():
     source = SOURCE.read_text(encoding="utf-8")
     assert '"decision_story"' in source

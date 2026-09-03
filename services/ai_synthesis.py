@@ -95,8 +95,18 @@ def build_ticker_context(row: Mapping[str, Any]) -> dict[str, Any]:
     analyst = build_analyst_intelligence(row)
     policy = build_policy_intelligence(row)
     ai_valuation = ai_valuation_object(row)
+    research_context = row.get("research_context") if isinstance(row.get("research_context"), Mapping) else {}
+    from engines.atlas_guidance_v1 import founder_guidance_v1_enabled
+    current_evaluation = (
+        research_context.get("current_evaluation")
+        if founder_guidance_v1_enabled() and isinstance(research_context.get("current_evaluation"), Mapping)
+        else {}
+    )
     return {
         "ticker": _clean(_pick(row, "Ticker", "ticker", default="Unknown")),
+        "current_canonical_evaluation": dict(current_evaluation),
+        "atlas_guidance": dict(current_evaluation.get("guidance") or {}),
+        "atlas_actionability": dict(current_evaluation.get("actionability") or {}),
         "company": _clean(_pick(row, "Company", "company", "Name", "name", default=""), default=""),
         "decision": _clean(_pick(row, "committee_verdict", "action_code", "Recommendation", "Decision", "Action", "recommendation", default="Review")),
         "recommendation": _clean(_pick(row, "committee_verdict", "action_code", "Recommendation", "recommendation", default="Review")),
@@ -237,6 +247,8 @@ def _llm_prompt(question: str, context: Mapping[str, Any]) -> list[dict[str, str
                 "ATLAS AI Valuation, Atlas Quant Fair Value, Wall Street Consensus, decision targets, scenarios, and trade targets are independent. Never substitute or relabel one as another, and never expose rejected raw Quant values. "
                 "If a fact is unavailable, say so plainly. Write in clear, professional language for retail investors. "
                 "The supplied canonical_semantic_status, canonical_recommendation, and decision_digest are the only decision authority. "
+                "The supplied atlas_guidance and atlas_actionability are the only current Guidance authority. "
+                "Do not alter, translate, or replace the current Guidance state or Actionability status. "
                 "Never override them with a committee conclusion, legacy summary, scanner row, or other narrative field. "
                 "When canonical_semantic_status is DATA_UNAVAILABLE or canonical_recommendation is absent, state that ATLAS does not currently publish an actionable recommendation. "
                 "Do not reinterpret that state as Monitor and do not invent Buy, Buy Now, Hold, Accumulate, Watch, or another action or recommendation. "

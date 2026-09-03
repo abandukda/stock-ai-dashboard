@@ -1243,6 +1243,14 @@ class AtlasVisualCrawler:
 
     async def _home_cards(self, page: Page, *, viewport: str = "desktop") -> None:
         await self._page_visit(page, "Home", viewport=viewport)
+        contract = await self._home_guidance_vnext_contract(page)
+        await self._record(
+            category="HOME_GUIDANCE_VNEXT", page_name="Home", interaction="guidance-contract",
+            expected="Guidance-first Home with separated authorities and bounded supporting sections",
+            observed=json.dumps(contract, sort_keys=True), passed=bool(contract.get("passed")),
+            elapsed=0.0, ticker=str(contract.get("first_ticker") or ""), viewport=viewport,
+            screenshots=(), severity="P1",
+        )
         await self._open_buy_now_expander(page)
         unique = await self._discover_visible_home_cards(page)
         indexes = sorted(set((0, len(unique) // 2, len(unique) - 1))) if unique else []
@@ -1308,6 +1316,48 @@ class AtlasVisualCrawler:
                 )
             await self._page_visit(page, "Home", viewport=viewport)
 
+    async def _home_guidance_vnext_contract(self, page: Page) -> dict[str, Any]:
+        result: dict[str, Any] = {
+            "vnext": False, "preview": False, "first_ticker": "", "production_rank": "",
+            "guidance": "", "actionability": "", "separate_metrics": False,
+            "atlas_vs_wall_street": False, "technical": False, "recovery": False,
+            "what_changed": False, "horizontal_overflow": False, "exception": False,
+        }
+        text = await _visible_text(page)
+        for scope in _scopes(page):
+            marker = scope.locator('[data-atlas-qa="home-guidance-vnext"]')
+            if await marker.count():
+                result["vnext"] = True
+                result["preview"] = (await marker.first.get_attribute("data-atlas-mode") or "") == "PREVIEW"
+            cards = scope.locator('[data-atlas-qa="home-guidance-card"]')
+            if await cards.count():
+                first = cards.first
+                result["first_ticker"] = await first.get_attribute("data-atlas-ticker") or ""
+                result["production_rank"] = await first.get_attribute("data-atlas-production-rank") or ""
+                result["guidance"] = await first.get_attribute("data-atlas-guidance") or ""
+                result["actionability"] = await first.get_attribute("data-atlas-actionability") or ""
+                result["separate_metrics"] = all(
+                    await first.get_attribute(name) is not None for name in (
+                        "data-atlas-opportunity", "data-atlas-decision-confidence", "data-atlas-scan-conviction",
+                    )
+                )
+        result["atlas_vs_wall_street"] = "ATLAS vs Wall Street" in text
+        result["technical"] = "Technical Opportunities" in text
+        result["recovery"] = "Recovery Opportunities" in text
+        result["what_changed"] = "What Changed is not yet available for this evaluation snapshot" in text
+        try:
+            result["horizontal_overflow"] = bool(await page.evaluate("document.documentElement.scrollWidth > window.innerWidth"))
+        except Exception:
+            result["horizontal_overflow"] = False
+        result["exception"] = await _has_rendered_exception(page)
+        result["passed"] = bool(
+            result["vnext"] and result["first_ticker"] and result["production_rank"] == "1"
+            and result["guidance"] and result["actionability"] and result["separate_metrics"]
+            and result["atlas_vs_wall_street"] and result["technical"] and result["recovery"]
+            and result["what_changed"] and not result["horizontal_overflow"] and not result["exception"]
+        )
+        return result
+
     async def _open_buy_now_expander(self, page: Page) -> bool:
         for scope in _scopes(page):
             try:
@@ -1347,7 +1397,8 @@ class AtlasVisualCrawler:
                         card = button.locator(f"xpath=ancestor::*[@data-testid='{test_id}'][1]")
                         if await card.count():
                             card_text += " " + await card.first.inner_text()
-                    if "BUY NOW" not in card_text.upper():
+                    vnext = scope.locator('[data-atlas-qa="home-guidance-vnext"]')
+                    if "BUY NOW" not in card_text.upper() and not await vnext.count():
                         continue
                     seen.add(ticker)
                     cards.append((interaction_id, ticker))

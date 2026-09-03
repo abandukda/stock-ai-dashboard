@@ -116,6 +116,13 @@ def _canonical_decision(report: Mapping[str, Any]) -> Mapping[str, Any]:
     return safe_mapping(_canonical_context(report).get("production_decision"))
 
 
+def _current_evaluation(report: Mapping[str, Any]) -> Mapping[str, Any]:
+    from engines.atlas_guidance_v1 import founder_guidance_v1_enabled
+    if not founder_guidance_v1_enabled():
+        return {}
+    return safe_mapping(_canonical_context(report).get("current_evaluation"))
+
+
 def _decision_value(report: Mapping[str, Any], canonical_key: str, report_key: str) -> Any:
     """Resolve immutable decision authority without cross-field substitution."""
     decision = safe_mapping(_canonical_context(report).get("production_decision"))
@@ -283,15 +290,21 @@ def build_research_decision_view(report: Mapping[str, Any]) -> dict[str, Any]:
         _scalar_text(risk_item.get("consequence"), ""),
     ))) or _scalar_text((safe_sequence(report.get("bear_case")) or [None])[0])
     completeness = report.get("research_completeness_pct")
-    canonical_recommendation = _decision_value(report, "recommendation", "committee_verdict")
-    canonical_opportunity = _decision_value(report, "opportunity", "opportunity_score")
-    canonical_confidence = _decision_value(report, "confidence", "confidence_pct")
+    current = _current_evaluation(report)
+    current_guidance = safe_mapping(current.get("guidance"))
+    canonical_recommendation = current_guidance.get("state") or _decision_value(report, "recommendation", "committee_verdict")
+    canonical_opportunity = current.get("opportunity") if current else _decision_value(report, "opportunity", "opportunity_score")
+    canonical_confidence = current.get("decision_confidence") if current else _decision_value(report, "confidence", "confidence_pct")
     verdict = _scalar_text(canonical_recommendation, "Unavailable")
     try:
         materially_incomplete = completeness is None or float(completeness) < 70.0
     except (TypeError, ValueError):
         materially_incomplete = True
-    monitor = verdict.upper().replace(" ", "_") in {"MONITOR", "WATCH", "RESEARCH_/_MONITOR", "UNAVAILABLE"} or materially_incomplete
+    monitor = (
+        str(safe_mapping(current.get("actionability")).get("status") or "") != "ACTIONABLE"
+        if current else
+        verdict.upper().replace(" ", "_") in {"MONITOR", "WATCH", "RESEARCH_/_MONITOR", "UNAVAILABLE"} or materially_incomplete
+    )
     status, cache_status = _freshness(report)
     gaps = _critical_gaps(report)
     health = evidence_health(
@@ -329,6 +342,7 @@ def build_research_decision_view(report: Mapping[str, Any]) -> dict[str, Any]:
         "technical_availability": technical,
         "monitor_or_incomplete": monitor, "critical_gaps": gaps,
         "material_change": _scalar_text(change, "") or None,
+        "current_evaluation": current,
     }
 
 
@@ -357,6 +371,17 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
     header = view["header"]
     badge = view["technical_badge"]
     st.markdown("## Decision")
+    current = safe_mapping(view.get("current_evaluation"))
+    current_guidance = safe_mapping(current.get("guidance"))
+    if current_guidance:
+        actionability = _scalar_text(safe_mapping(current.get("actionability")).get("status"), "UNAVAILABLE")
+        st.markdown(
+            f"**ATLAS Guidance:** {_display_status(_scalar_text(current_guidance.get('state'), 'DATA_LIMITED'))}  "
+            f"· **Actionability:** {_display_status(actionability)}"
+        )
+        reasons = safe_sequence(current_guidance.get("reason_codes"))
+        if reasons:
+            st.caption("Deterministic reasons: " + " · ".join(_display_status(str(item)) for item in reasons))
     st.markdown(f"### {header.actionability_label}")
     _block_marker("decision-why", ticker)
     st.markdown("#### Why")
@@ -373,7 +398,12 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
     availability = safe_mapping(decision.get("availability"))
     st.markdown("#### What I Would Do")
     with st.container(key=f"vnext_decision_action_{ticker}"):
-        if decision.get("semantic_status") == "DATA_UNAVAILABLE" or is_missing_scalar(decision.get("recommendation")):
+        if current_guidance:
+            st.info(
+                f"{_display_status(_scalar_text(current_guidance.get('state'), 'DATA_LIMITED'))} — "
+                f"{_display_status(_scalar_text(safe_mapping(current.get('actionability')).get('status'), 'UNAVAILABLE'))}."
+            )
+        elif decision.get("semantic_status") == "DATA_UNAVAILABLE" or is_missing_scalar(decision.get("recommendation")):
             st.info(_scalar_text(
                 availability.get("customer_reason"),
                 "ATLAS does not currently publish an actionable recommendation for this security.",

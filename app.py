@@ -32909,51 +32909,29 @@ def v104_pipeline_from_df(full_df):
 
 
 def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
-    pipeline = v104_pipeline_from_df(full_df)
-    watchlist_tickers = read_watchlist_symbols()
-    portfolio_tickers = []
+    # Home VNext reads immutable artifact order directly. The legacy V104
+    # committee pipeline remains available above as a rollback implementation,
+    # but is not ranking or decision authority for the active Home route.
+    from engines.home_guidance_story_v1 import build_home_guidance_story
+    from ui.home_guidance_vnext import render_home_guidance_vnext
     try:
-        portfolio_payload = read_json_file(DATA_DIR / "portfolio.json")
-        portfolio_rows = (
-            portfolio_payload
-            if isinstance(portfolio_payload, list)
-            else portfolio_payload.get("holdings", [])
-            if isinstance(portfolio_payload, dict)
-            else []
-        )
-        portfolio_tickers = [
-            row.get("ticker") or row.get("symbol")
-            for row in portfolio_rows
-            if isinstance(row, dict) and (row.get("ticker") or row.get("symbol"))
-        ]
+        full_payload = read_json_file(DATA_DIR / "market_full_scan.json")
     except Exception:
-        portfolio_tickers = []
-    render_v104_home(
-        pipeline,
-        portfolio_tickers=portfolio_tickers,
+        full_payload = []
+    try:
+        recovery_payload = read_json_file(DATA_DIR / "recovery_scan.json")
+    except Exception:
+        recovery_payload = []
+    watchlist_tickers = read_watchlist_symbols()
+    story = build_home_guidance_story(
+        full_payload, recovery_payload,
         watchlist_tickers=watchlist_tickers,
-        signal_as_of=read_state().get("generated_at"),
+        scan_timestamp=read_state().get("generated_at"),
     )
     from services.session_stability import emit_page_interactive
-    emit_page_interactive(st, "Home")
-
-    st.markdown("---")
-    with st.expander(
-        "Market & Economic Calendar",
-        expanded=False,
-    ):
-        st.caption(
-            "Collapsed by default to keep Home concise. "
-            "Open for completed releases, upcoming events, consensus, "
-            "and Atlas market interpretation."
-        )
-        try:
-            render_v811_market_calendar_terminal(full_df)
-        except Exception as exc:
-            st.warning(f"Calendar temporarily unavailable: {exc}")
-
-    st.markdown("---")
-    render_v104_earnings_briefing(pipeline)
+    def _home_guidance_interactive():
+        emit_page_interactive(st, "Home")
+    render_home_guidance_vnext(story, emit_interactive=_home_guidance_interactive)
     st.markdown(
         '<span data-atlas-qa="page-ready" data-atlas-page="home" '
         'data-atlas-status="ready" aria-hidden="true" style="display:none">home-ready</span>',

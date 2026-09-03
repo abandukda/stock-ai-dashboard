@@ -362,6 +362,7 @@ def build_research_context(
     evidence_families: Mapping[str, Mapping[str, Any]] | None = None,
     generated_at: str | None = None,
     security_type: str | None = None,
+    current_evaluation: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     symbol = str(ticker or "").strip().upper()
     security = security_type or security_type_of(production_row or market_snapshot)
@@ -396,6 +397,7 @@ def build_research_context(
         "security_type": security,
         "generated_at": generated_at or _now_iso(),
         "production_decision": decision,
+        "current_evaluation": dict(current_evaluation or {}),
         "market_snapshot": dict(market_snapshot or {}),
         "evidence_families": families,
         "evidence_registry": registry,

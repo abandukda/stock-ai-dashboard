@@ -31,6 +31,13 @@ def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
     ai_valuation = ai_valuation_object(report)
     decision = canonical_ask_decision(report)
     grounding = _grounding_metadata("", report)
+    canonical_context = report.get("research_context") if isinstance(report.get("research_context"), Mapping) else {}
+    from engines.atlas_guidance_v1 import founder_guidance_v1_enabled
+    current_evaluation = (
+        canonical_context.get("current_evaluation")
+        if founder_guidance_v1_enabled() and isinstance(canonical_context.get("current_evaluation"), Mapping)
+        else {}
+    )
     return {
         "ticker": report.get("ticker"),
         "company": report.get("company"),
@@ -97,6 +104,9 @@ def _compact_context(report: Mapping[str, Any]) -> dict[str, Any]:
         # FIRST.3 exposes normalized evidence for future grounded synthesis;
         # Ask does not calculate or replace any protected decision field.
         "research_context": report.get("research_context") or {},
+        "current_canonical_evaluation": dict(current_evaluation),
+        "atlas_guidance": dict(current_evaluation.get("guidance") or {}),
+        "atlas_actionability": dict(current_evaluation.get("actionability") or {}),
     }
 
 
@@ -630,6 +640,14 @@ def ask_atlas(question: str, report: Mapping[str, Any]) -> dict[str, Any]:
         answer = _canonical_unavailable_answer(report)
         mode = "llm_fallback" if mode == "llm_grounded" else "deterministic"
     final_authority_guard_passed = _answer_respects_canonical_authority(answer, decision)
+    current_evaluation = context.get("current_canonical_evaluation") if isinstance(context.get("current_canonical_evaluation"), Mapping) else {}
+    guidance_integrity = {"accepted": True, "valid": True, "violations": ()}
+    if current_evaluation:
+        from services.llm_output_integrity import enforce_llm_integrity
+        guidance_integrity = enforce_llm_integrity(answer, current_evaluation)
+        answer = guidance_integrity["text"]
+        if not guidance_integrity["accepted"]:
+            mode = "llm_fallback" if mode == "llm_grounded" else "deterministic_guidance_fallback"
     answer_mode = (
         "llm" if mode == "llm_grounded"
         else "llm_fallback" if mode in {"llm_fallback", "deterministic_fallback"}
@@ -648,6 +666,10 @@ def ask_atlas(question: str, report: Mapping[str, Any]) -> dict[str, Any]:
         "mode": mode,
         "answer_mode": answer_mode,
         "authority_guard_passed": final_authority_guard_passed,
+        "guidance_integrity_passed": bool(guidance_integrity.get("valid")),
+        "guidance_integrity_violations": guidance_integrity.get("violations") or (),
+        "current_guidance_state": str((current_evaluation.get("guidance") or {}).get("state") or ""),
+        "current_evaluation_digest": current_evaluation.get("decision_digest"),
         "sources_used": sources,
         "generated_from": report.get("generated_at"),
         "canonical_decision_state": decision["state"],

@@ -8,7 +8,7 @@ import re
 import threading
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, Optional
+from typing import Any, Dict, Iterable, Mapping, Optional
 
 import pandas as pd
 import requests
@@ -849,6 +849,35 @@ def _attach_canonical_research_context(
                 }
         context = {**canonical_context, "evidence_families": resolved}
     row["research_context"] = context
+
+    from engines.atlas_guidance_v1 import founder_guidance_v1_enabled
+    if founder_guidance_v1_enabled():
+        # Founder Guidance V1 is an independent ON_DEMAND record. This call is
+        # calculation-only: it performs no provider acquisition or persistence.
+        try:
+            from services.on_demand_evaluation_service import evaluate_on_demand
+            previous = row.get("current_canonical_evaluation")
+            current_evaluation = evaluate_on_demand(
+                row, context=context,
+                previous_evaluation=previous if isinstance(previous, Mapping) else None,
+            )
+            context = {**context, "current_evaluation": current_evaluation}
+            row["research_context"] = context
+            row["current_canonical_evaluation"] = current_evaluation
+        except Exception as exc:
+            row["current_canonical_evaluation"] = {
+                "version": "CANONICAL_INVESTMENT_EVALUATION_V1",
+                "evaluation_mode": "ON_DEMAND",
+                "guidance": {
+                    "state": "DATA_LIMITED", "status": "DATA_UNAVAILABLE",
+                    "actionability": "UNAVAILABLE",
+                    "reason_codes": ("EVALUATION_ASSEMBLY_UNAVAILABLE",),
+                },
+                "limitations": (type(exc).__name__,),
+            }
+            row["research_context"] = {
+                **context, "current_evaluation": row["current_canonical_evaluation"],
+            }
 
     decision = context["production_decision"]
     legacy_map = {
