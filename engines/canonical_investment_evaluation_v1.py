@@ -48,6 +48,7 @@ def build_canonical_evaluation(
     valuation_inputs: Mapping[str, Any] | None = None,
     valuation_component_score: Any = None,
     evidence_ids: list[str] | tuple[str, ...] = (),
+    positive_action_volume_authority_required: bool = False,
     evaluated_at: str | None = None,
 ) -> dict[str, Any]:
     mode = str(evaluation_mode or "").upper()
@@ -76,6 +77,18 @@ def build_canonical_evaluation(
         "as_of": technical.get("as_of"),
     })
     volume = build_volume_intelligence(volume_evidence)
+    if positive_action_volume_authority_required:
+        # Twelve Data Phase 1 deliberately has no production intraday-volume
+        # authority. Persisted/raw volume fields must not leak through here.
+        volume = {
+            **volume,
+            "status": "DATA_UNAVAILABLE",
+            "state": "UNAVAILABLE",
+            "volume_confirmed": False,
+            "relative_volume": None,
+            "current_volume": None,
+            "reason_codes": ("TIME_ALIGNED_INTRADAY_VOLUME_BASELINE_NOT_IMPLEMENTED",),
+        }
     guidance_inputs = {
         "methodology_version": METHODOLOGY_VERSION,
         "threshold_version": THRESHOLD_VERSION,
@@ -90,6 +103,8 @@ def build_canonical_evaluation(
         "decision_confidence": decision_confidence,
         "coverage": coverage,
     }
+    if positive_action_volume_authority_required:
+        guidance_inputs["positive_action_volume_authority_required"] = True
     guidance = evaluate_guidance(guidance_inputs)
     timestamp = evaluated_at or datetime.now(timezone.utc).isoformat()
     evidence_as_of = {
@@ -108,6 +123,8 @@ def build_canonical_evaluation(
         "evidence_ids": list(evidence_ids), "methodology_version": METHODOLOGY_VERSION,
         "threshold_version": THRESHOLD_VERSION,
     }
+    if positive_action_volume_authority_required:
+        canonical_inputs["positive_action_volume_authority_required"] = True
     input_digest = _digest(canonical_inputs)
     record = {
         "version": EVALUATION_VERSION,

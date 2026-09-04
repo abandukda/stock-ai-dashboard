@@ -66,10 +66,35 @@ def _market_evidence(row: Mapping[str, Any]) -> dict[str, Any]:
 def evaluate_on_demand(
     row: Mapping[str, Any], *, context: Mapping[str, Any] | None = None,
     bars: Sequence[DailyBar] | None = None, previous_evaluation: Mapping[str, Any] | None = None,
+    twelve_data_phase1: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     symbol = str(_first(row, "ticker", "Ticker", "symbol") or "").upper()
-    market = build_market_snapshot(symbol, _market_evidence(row))
+    phase1 = dict(twelve_data_phase1 or {})
+    if phase1:
+        from services.live_market.twelve_data_phase1 import twelve_data_enabled
+        if not twelve_data_enabled():
+            phase1 = {}
+    market_source = phase1.get("current_price") if isinstance(phase1.get("current_price"), Mapping) else _market_evidence(row)
+    market = build_market_snapshot(symbol, market_source)
     technical = _technical_contract(row, bars)
+    bar_contract = phase1.get("completed_bars") if isinstance(phase1.get("completed_bars"), Mapping) else {}
+    if phase1 and bar_contract.get("confirmation_allowed") is not True:
+        technical = {
+            **technical, "status": "DATA_UNAVAILABLE", "completed_bar": False,
+            "feed_health": "DEGRADED",
+            "evidence": {
+                **dict(technical.get("evidence") or {}),
+                "bar_quality_reason_codes": tuple(bar_contract.get("reason_codes") or ()),
+                "bar_gap_metadata": tuple(bar_contract.get("gap_metadata") or ()),
+            },
+        }
+    elif phase1 and bar_contract.get("latest_completed_bar"):
+        latest = dict(bar_contract["latest_completed_bar"])
+        technical = {
+            **technical, "completed_bar": True, "feed_health": "HEALTHY",
+            "as_of": latest.get("timestamp"),
+            "evidence": {**dict(technical.get("evidence") or {}), "phase1_bar_quality": "VALIDATED"},
+        }
     components = build_components(row)
     fundamentals = dict(components.get("fundamentals") or {})
     risk_supplied = row.get("canonical_risk") if isinstance(row.get("canonical_risk"), Mapping) else {}
@@ -100,6 +125,7 @@ def evaluate_on_demand(
         valuation_inputs=row.get("canonical_valuation_inputs") if isinstance(row.get("canonical_valuation_inputs"), Mapping) else row,
         valuation_component_score=row.get("canonical_valuation_component_score"),
         evidence_ids=evidence_ids,
+        positive_action_volume_authority_required=bool(phase1),
     )
     return apply_guidance_hysteresis(previous_evaluation, evaluation)
 

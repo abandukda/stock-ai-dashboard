@@ -55,7 +55,9 @@ def build_market_snapshot(
     age = None if received_timestamp is None else max(0.0, (current - received_timestamp).total_seconds())
     feed_health = str(source.get("feed_health") or "UNAVAILABLE").upper()
     explicit_stale = source.get("stale")
-    live_source = source_type in {"CURRENT_QUOTE", "LIVE", "INTRADAY"}
+    live_source = source_type in {
+        "CURRENT_QUOTE", "LIVE", "INTRADAY", "TWELVE_DATA_WEBSOCKET",
+    }
     stale = bool(explicit_stale) if explicit_stale is not None else (
         not live_source or age is None or age > LIVE_FRESHNESS_SECONDS or feed_health != "HEALTHY"
     )

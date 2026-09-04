@@ -121,11 +121,14 @@ def evaluate_guidance(inputs: Mapping[str, Any]) -> dict[str, Any]:
 
     fresh = market.get("fresh_current_price") is True
     volume_confirmed = volume.get("volume_confirmed") is True
+    volume_authority_required = inputs.get("positive_action_volume_authority_required") is True
+    volume_authority_available = str(volume.get("status") or "").upper() == "AVAILABLE"
     positive_common = bool(
         fresh and opportunity is not None and confidence is not None and coverage is not None
         and fundamentals_score is not None and technical_score is not None
         and valuation_published and valuation_score is not None and expected_return is not None
         and complete_plan
+        and (not volume_authority_required or volume_authority_available)
     )
     buy_now = bool(
         positive_common and technical_state == "BREAKOUT_CONFIRMED" and volume_confirmed
@@ -157,6 +160,8 @@ def evaluate_guidance(inputs: Mapping[str, Any]) -> dict[str, Any]:
         confirmation.append("ACTIONABLE_TECHNICAL_CONFIRMATION_PENDING")
     elif not volume_confirmed:
         confirmation.append("BREAKOUT_VOLUME_NOT_CONFIRMED")
+    if volume_authority_required and not volume_authority_available:
+        confirmation.append("VOLUME_CONFIRMATION_UNAVAILABLE")
     if not valuation_published or expected_return is None:
         confirmation.append("VALUATION_CONFIRMATION_UNAVAILABLE")
     if opportunity is None:

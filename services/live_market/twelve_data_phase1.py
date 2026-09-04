@@ -1,0 +1,366 @@
+"""Dormant Twelve Data Phase 1 authority adapter.
+
+The adapter validates provider evidence; it never ranks securities or derives
+technical/volume states.  Network acquisition is explicit and remains disabled
+unless the single ``TWELVE_DATA_ENABLED`` activation boundary is true.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+import math
+import os
+from typing import Any, Callable, Mapping, Sequence
+from zoneinfo import ZoneInfo
+
+from services.live_market.models import classify_market_session, normalize_ticker
+
+
+TWELVE_DATA_ENABLED_FLAG = "TWELVE_DATA_ENABLED"
+ADAPTER_VERSION = "TWELVE_DATA_PHASE1_ADAPTER_V1"
+PUBLICATION_POLICY_VERSION = "TWELVE_DATA_1MIN_PUBLICATION_POLICY_V1"
+REST_BASE = "https://api.twelvedata.com"
+EASTERN = ZoneInfo("America/New_York")
+
+
+def _truthy(value: Any) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def load_twelve_data_setting(
+    name: str, *, secrets: Mapping[str, Any] | None = None,
+    environ: Mapping[str, str] | None = None,
+) -> str:
+    """Read a setting without ever logging or embedding its value."""
+    if secrets is None:
+        try:
+            import streamlit as st
+            secrets = st.secrets
+        except Exception:
+            secrets = {}
+    try:
+        secret_value = secrets.get(name) if secrets is not None else None
+    except Exception:
+        secret_value = None
+    if secret_value not in (None, ""):
+        return str(secret_value)
+    return str((environ or os.environ).get(name, ""))
+
+
+def twelve_data_enabled(
+    *, secrets: Mapping[str, Any] | None = None,
+    environ: Mapping[str, str] | None = None,
+) -> bool:
+    return _truthy(load_twelve_data_setting(
+        TWELVE_DATA_ENABLED_FLAG, secrets=secrets, environ=environ,
+    ))
+
+
+@dataclass(frozen=True)
+class Phase1Policy:
+    websocket_receipt_freshness_seconds: float = 15.0
+    websocket_extended_hours_freshness_seconds: float = 30.0
+    completed_bar_publication_safety_seconds: float = 90.0
+    publication_policy_version: str = PUBLICATION_POLICY_VERSION
+
+    @classmethod
+    def from_environment(cls, environ: Mapping[str, str] | None = None) -> "Phase1Policy":
+        source = environ or os.environ
+        return cls(
+            websocket_receipt_freshness_seconds=float(
+                source.get("TWELVE_DATA_PHASE1_WS_FRESHNESS_SECONDS", "15")
+            ),
+            websocket_extended_hours_freshness_seconds=float(
+                source.get("TWELVE_DATA_PHASE1_WS_EXTENDED_FRESHNESS_SECONDS", "30")
+            ),
+            completed_bar_publication_safety_seconds=float(
+                source.get("TWELVE_DATA_PHASE1_BAR_SAFETY_SECONDS", "90")
+            ),
+        )
+
+
+def _number(value: Any) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        result = float(value)
+        return result if math.isfinite(result) else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _aware(value: Any, *, local_zone: ZoneInfo = EASTERN) -> datetime | None:
+    if isinstance(value, (int, float)):
+        raw = float(value)
+        if raw > 10_000_000_000:
+            raw /= 1000.0
+        return datetime.fromtimestamp(raw, tz=timezone.utc)
+    if isinstance(value, datetime):
+        parsed = value
+    else:
+        try:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except (TypeError, ValueError):
+            return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=local_zone)
+    return parsed.astimezone(timezone.utc)
+
+
+def normalize_websocket_price(
+    ticker: str,
+    event: Mapping[str, Any] | None,
+    *,
+    received_timestamp: datetime,
+    now: datetime | None = None,
+    policy: Phase1Policy | None = None,
+) -> dict[str, Any]:
+    """Return a current-price candidate only for a fresh, same-symbol event."""
+    symbol = normalize_ticker(ticker)
+    source = dict(event or {})
+    configured = policy or Phase1Policy.from_environment()
+    received = _aware(received_timestamp)
+    current = _aware(now or datetime.now(timezone.utc))
+    supplied_symbol = source.get("symbol") or source.get("ticker")
+    price = _number(source.get("price"))
+    provider_time = _aware(source.get("timestamp") or source.get("provider_timestamp"))
+    reasons: list[str] = []
+    if not supplied_symbol or str(supplied_symbol).upper() != symbol:
+        reasons.append("WEBSOCKET_SYMBOL_MISMATCH")
+    if price is None or price <= 0:
+        reasons.append("WEBSOCKET_PRICE_INVALID")
+    session_time = provider_time or received
+    session = classify_market_session(session_time).value if session_time else "CLOSED"
+    freshness_limit = (
+        configured.websocket_extended_hours_freshness_seconds
+        if session in {"PRE_MARKET", "AFTER_HOURS"}
+        else configured.websocket_receipt_freshness_seconds
+    )
+    if received is None or current is None:
+        reasons.append("LOCAL_RECEIPT_TIMESTAMP_MISSING")
+        receipt_age = None
+    else:
+        receipt_age = max(0.0, (current - received).total_seconds())
+        if receipt_age > freshness_limit:
+            reasons.append("WEBSOCKET_RECEIPT_STALE")
+    if session in {"CLOSED", "OVERNIGHT"}:
+        reasons.append("NO_CURRENT_MARKET_SESSION")
+    available = not reasons
+    return {
+        "version": ADAPTER_VERSION,
+        "ticker": symbol,
+        "status": "AVAILABLE" if available else "DATA_UNAVAILABLE",
+        "price": price if available else None,
+        "provider": "TWELVE_DATA",
+        "provider_timestamp": provider_time.isoformat() if provider_time else None,
+        "received_timestamp": received.isoformat() if received else None,
+        "receipt_age_seconds": receipt_age,
+        "freshness_limit_seconds": freshness_limit,
+        "market_session": session,
+        "source_type": "TWELVE_DATA_WEBSOCKET",
+        "stale": not available,
+        "feed_health": "HEALTHY" if available else "DEGRADED",
+        "timestamp_precision": "PROVIDER_MINUTE_GRANULAR_LOCAL_RECEIPT_REQUIRED",
+        "reason_codes": tuple(reasons),
+    }
+
+
+def quote_as_non_authoritative(ticker: str, quote: Mapping[str, Any] | None) -> dict[str, Any]:
+    """Retain quote provenance while mechanically excluding it as CURRENT_PRICE."""
+    source = dict(quote or {})
+    return {
+        "version": ADAPTER_VERSION,
+        "ticker": normalize_ticker(ticker),
+        "status": "CONTEXT_ONLY" if source else "DATA_UNAVAILABLE",
+        "price": _number(source.get("close") or source.get("price")),
+        "provider_timestamp": source.get("timestamp"),
+        "source_type": "TWELVE_DATA_QUOTE_CONTEXT_ONLY",
+        "current_price_authority": False,
+        "reason_codes": ("QUOTE_NOT_APPROVED_AS_CURRENT_PRICE_AUTHORITY",),
+    }
+
+
+def _bar_time(value: Any, zone: ZoneInfo) -> datetime | None:
+    return _aware(value, local_zone=zone)
+
+
+def validate_time_series(
+    ticker: str,
+    payload: Mapping[str, Any] | None,
+    *,
+    received_timestamp: datetime,
+    now: datetime | None = None,
+    policy: Phase1Policy | None = None,
+) -> dict[str, Any]:
+    """Validate 1-minute bars without filling gaps or synthesizing observations."""
+    symbol = normalize_ticker(ticker)
+    source = dict(payload or {})
+    configured = policy or Phase1Policy.from_environment()
+    received = _aware(received_timestamp)
+    current = _aware(now or received_timestamp)
+    meta = source.get("meta") if isinstance(source.get("meta"), Mapping) else {}
+    zone_name = str(meta.get("exchange_timezone") or "America/New_York")
+    try:
+        zone = ZoneInfo(zone_name)
+    except Exception:
+        zone = EASTERN
+    rows = source.get("values") if isinstance(source.get("values"), Sequence) else []
+    parsed: list[dict[str, Any]] = []
+    invalid_count = 0
+    for row in rows:
+        if not isinstance(row, Mapping):
+            invalid_count += 1
+            continue
+        stamp = _bar_time(row.get("datetime") or row.get("timestamp"), zone)
+        open_, high, low, close = (_number(row.get(key)) for key in ("open", "high", "low", "close"))
+        volume = _number(row.get("volume"))
+        valid = bool(
+            stamp and open_ is not None and high is not None and low is not None and close is not None
+            and volume is not None and volume >= 0 and low <= min(open_, close) <= max(open_, close) <= high
+        )
+        if not valid:
+            invalid_count += 1
+            continue
+        parsed.append({
+            "ticker": symbol, "timestamp": stamp.isoformat(), "open": open_, "high": high,
+            "low": low, "close": close, "volume": volume,
+            "session": classify_market_session(stamp).value, "source_type": "TWELVE_DATA_TIME_SERIES_1MIN",
+        })
+    input_timestamps = [row["timestamp"] for row in parsed]
+    ordered_in_response = input_timestamps in (sorted(input_timestamps), sorted(input_timestamps, reverse=True))
+    parsed.sort(key=lambda row: row["timestamp"])
+    duplicate_count = len(parsed) - len({row["timestamp"] for row in parsed})
+    unique: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in parsed:
+        if row["timestamp"] not in seen:
+            seen.add(row["timestamp"])
+            unique.append(row)
+    gaps: list[dict[str, Any]] = []
+    for previous, following in zip(unique, unique[1:]):
+        left = _aware(previous["timestamp"])
+        right = _aware(following["timestamp"])
+        if not left or not right:
+            continue
+        if (
+            previous["session"] == following["session"] == "REGULAR"
+            and left.astimezone(EASTERN).date() == right.astimezone(EASTERN).date()
+            and right - left > timedelta(minutes=1)
+        ):
+            gaps.append({
+                "after": left.isoformat(), "before": right.isoformat(),
+                "missing_minutes": int((right - left).total_seconds() // 60) - 1,
+                "classification": "UNKNOWN_REGULAR_SESSION_GAP",
+            })
+    safety = timedelta(seconds=configured.completed_bar_publication_safety_seconds)
+    completed = []
+    for row in unique:
+        stamp = _aware(row["timestamp"])
+        eligible = bool(current and stamp and current >= stamp + timedelta(minutes=1) + safety)
+        completed.append({**row, "completed": eligible, "publication_observed_at": received.isoformat() if received else None})
+    eligible = [row for row in completed if row["completed"]]
+    degraded = bool(invalid_count or duplicate_count or gaps or not ordered_in_response)
+    status = "AVAILABLE" if eligible and not degraded else "DEGRADED" if eligible else "DATA_UNAVAILABLE"
+    confirmation_allowed = status == "AVAILABLE"
+    return {
+        "version": ADAPTER_VERSION,
+        "ticker": symbol,
+        "status": status,
+        "provider": "TWELVE_DATA",
+        "source_type": "TWELVE_DATA_TIME_SERIES_1MIN",
+        "received_timestamp": received.isoformat() if received else None,
+        "publication_policy_version": configured.publication_policy_version,
+        "publication_safety_seconds": configured.completed_bar_publication_safety_seconds,
+        "ordered_in_response": ordered_in_response,
+        "duplicate_count": duplicate_count,
+        "invalid_bar_count": invalid_count,
+        "gap_metadata": tuple(gaps),
+        "bars": tuple(completed),
+        "latest_completed_bar": eligible[-1] if eligible else None,
+        "confirmation_allowed": confirmation_allowed,
+        "reason_codes": tuple(
+            code for condition, code in (
+                (not eligible, "COMPLETED_BAR_UNAVAILABLE"),
+                (not ordered_in_response, "BAR_ORDER_INVALID"),
+                (duplicate_count > 0, "DUPLICATE_BAR_IDENTITY"),
+                (invalid_count > 0, "INVALID_OHLCV_BAR"),
+                (bool(gaps), "REGULAR_SESSION_GAPS_PRESENT"),
+            ) if condition
+        ),
+    }
+
+
+def build_phase1_bundle(
+    ticker: str,
+    *,
+    websocket_event: Mapping[str, Any] | None,
+    time_series_payload: Mapping[str, Any] | None,
+    received_timestamp: datetime,
+    now: datetime | None = None,
+    policy: Phase1Policy | None = None,
+) -> dict[str, Any]:
+    return {
+        "version": ADAPTER_VERSION,
+        "ticker": normalize_ticker(ticker),
+        "current_price": normalize_websocket_price(
+            ticker, websocket_event, received_timestamp=received_timestamp, now=now, policy=policy,
+        ),
+        "completed_bars": validate_time_series(
+            ticker, time_series_payload, received_timestamp=received_timestamp, now=now, policy=policy,
+        ),
+        "intraday_volume": {
+            "status": "DATA_UNAVAILABLE",
+            "authority": False,
+            "reason_codes": ("TIME_ALIGNED_INTRADAY_VOLUME_BASELINE_NOT_IMPLEMENTED",),
+        },
+        "breakout_volume_confirmation": {
+            "status": "DATA_UNAVAILABLE",
+            "authority": False,
+            "reason_codes": ("PHASE2_VOLUME_METHODOLOGY_REQUIRED",),
+        },
+    }
+
+
+class TwelveDataPhase1Adapter:
+    """Explicit REST adapter; never called implicitly by customer routes."""
+
+    def __init__(self, api_key: str, *, enabled: bool, get: Callable[..., Any]) -> None:
+        if not enabled:
+            raise RuntimeError("TWELVE_DATA_ENABLED is false")
+        if not str(api_key or "").strip():
+            raise RuntimeError("TWELVE_DATA_API_KEY is unavailable")
+        self._api_key = str(api_key)
+        self._get = get
+
+    def fetch_time_series(self, ticker: str, *, outputsize: int = 120) -> Mapping[str, Any]:
+        response = self._get(
+            f"{REST_BASE}/time_series",
+            params={"symbol": normalize_ticker(ticker), "interval": "1min", "outputsize": int(outputsize)},
+            headers={"Authorization": f"apikey {self._api_key}"}, timeout=12,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        if not isinstance(payload, Mapping):
+            raise ValueError("malformed Twelve Data time_series response")
+        return payload
+
+
+def build_adapter_if_enabled(
+    *, get: Callable[..., Any], secrets: Mapping[str, Any] | None = None,
+    environ: Mapping[str, str] | None = None,
+) -> TwelveDataPhase1Adapter | None:
+    """Construct the explicit adapter only after the single flag permits it."""
+    if not twelve_data_enabled(secrets=secrets, environ=environ):
+        return None
+    key = load_twelve_data_setting("TWELVE_DATA_API_KEY", secrets=secrets, environ=environ)
+    return TwelveDataPhase1Adapter(key, enabled=True, get=get)
+
+
+__all__ = [
+    "ADAPTER_VERSION", "PUBLICATION_POLICY_VERSION", "Phase1Policy",
+    "TWELVE_DATA_ENABLED_FLAG", "TwelveDataPhase1Adapter", "build_adapter_if_enabled",
+    "build_phase1_bundle", "load_twelve_data_setting", "normalize_websocket_price",
+    "quote_as_non_authoritative", "twelve_data_enabled",
+    "validate_time_series",
+]
