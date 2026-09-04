@@ -156,7 +156,7 @@ def test_snapshot_authorities_remain_separate_and_missing_stays_missing():
     assert card["volume_evidence"]["relative_volume"] is None
 
 
-def test_renderer_exposes_available_evidence_and_limited_context_before_cta():
+def test_renderer_uses_summary_first_evidence_then_full_detail_after_cta():
     source = '''
 import streamlit as st
 from engines.home_guidance_story_v1 import build_home_guidance_story
@@ -171,9 +171,11 @@ render_home_guidance_vnext(build_home_guidance_story(rows, [{"ticker":"MU","reco
     assert "Technical:</b> State Unavailable · Evidence RSI 55.0" in rendered
     assert "Volume:</b> State Unavailable · Evidence Relative volume 1.2×" in rendered
     assert "What ATLAS knows" in rendered
-    assert "What ATLAS is missing" in rendered
-    assert "What would change Guidance" in rendered
-    assert rendered.index("home-guidance-available-evidence") < rendered.index("home-guidance-research-cta")
+    assert "What ATLAS needs" in rendered
+    assert 'data-atlas-qa="home-guidance-summary"' in rendered
+    assert rendered.index("home-guidance-quick-evidence") < rendered.index("home-guidance-research-cta")
+    assert rendered.index("home-guidance-research-cta") < rendered.index("home-guidance-available-evidence")
+    assert "Full Evidence" in "\n".join(str(item.label) for item in app.expander)
 
 
 def test_preview_is_explicit_and_data_limited_remains_truthful(monkeypatch):
@@ -258,8 +260,8 @@ render_home_guidance_vnext(story, emit_interactive=lambda: st.markdown('<span da
     assert rendered.index('data-atlas-first="true"') < rendered.index('data-atlas-page-interactive="true"')
     assert rendered.index('data-atlas-page-interactive="true"') < rendered.index('data-atlas-section="atlas-vs-wall-street"')
     assert rendered.count('data-atlas-page-interactive="true"') == 1
-    assert 'data-atlas-qa="home-guidance-evidence-status"' in rendered
-    assert "Why ATLAS / What Changes Guidance" in "\n".join(str(item.label) for item in app.expander)
+    assert 'data-atlas-qa="home-guidance-quick-evidence"' in rendered
+    assert "Full Evidence" in "\n".join(str(item.label) for item in app.expander)
     assert "Founder Guidance Preview" in rendered
     assert "Snapshot Guidance — based on latest available ATLAS evidence" in "\n".join(str(item.value) for item in app.markdown) + "\n".join(str(item.value) for item in app.text)
 
@@ -338,3 +340,52 @@ def test_dynamic_card_sections_remain_in_normal_document_flow():
     assert ".atlas-home-guidance-status{min-height:" not in source
     assert ".atlas-home-guidance-limited{min-height:" not in source
     assert 'details summary{height:' not in source
+
+
+def test_home_typography_keeps_supporting_evidence_readable():
+    source = (ROOT / "ui" / "home_guidance_vnext.py").read_text(encoding="utf-8")
+    assert ".atlas-home-guidance-core .atlas-home-guidance-metric b{font-size:1.15rem" in source
+    assert ".atlas-home-guidance-metric small{font-size:.82rem" in source
+    assert ".atlas-home-snapshot-lines h4{grid-column:1/-1;margin:0;font-size:.98rem" in source
+    assert ".atlas-home-snapshot-lines p{margin:0;font-size:.875rem;line-height:1.42" in source
+    assert ".atlas-home-guidance-limited code{font-size:.78rem" in source
+    assert ".atlas-home-snapshot-lines p{font-size:.825rem;line-height:1.4}" in source
+    assert ".atlas-home-guidance-limited small{font-size:.8125rem;line-height:1.4}" in source
+
+
+def test_summary_card_omits_unavailable_secondary_metrics_until_full_evidence():
+    source = (ROOT / "ui" / "home_guidance_vnext.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    card_fn = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "_card")
+    body = ast.get_source_segment(source, card_fn) or ""
+    summary, full = body.split('with st.expander("Full Evidence"', 1)
+    assert '_metric("Opportunity"' not in summary
+    assert '_metric("Decision Confidence"' not in summary
+    assert '_metric("Scan Conviction"' in summary
+    assert '_metric("Atlas FV"' in summary
+    assert '_metric("Wall Street Target"' in summary
+    assert '_metric("Opportunity"' in full
+    assert '_metric("Decision Confidence"' in full
+
+
+def test_data_limited_summary_is_bounded_and_reason_grounded():
+    from ui.home_guidance_vnext import _atlas_summary, _quick_needs
+
+    card = {
+        "guidance": "DATA_LIMITED",
+        "what_changes_guidance": (
+            "Fresh market evidence is required.",
+            "Canonical technical confirmation is required.",
+            "Canonical volume confirmation is required.",
+            "A fourth item must not appear.",
+        ),
+    }
+    assert _quick_needs(card) == (
+        "Fresh market evidence",
+        "Canonical technical confirmation",
+        "Canonical volume confirmation",
+    )
+    assert _atlas_summary(card) == (
+        "ATLAS has useful snapshot evidence, but fresh market evidence and "
+        "canonical technical confirmation are still required."
+    )

@@ -140,9 +140,74 @@ def _available_snapshot(card: Mapping[str, Any]) -> str:
         ("Trade Plan", " · ".join(trade_bits) or "Unavailable"),
         ("Evidence Health", f"Evaluation {_display(card.get('evidence_health'))} · Snapshot {_display(card.get('snapshot_evidence_health'))}"),
     )
-    return '<div class="atlas-home-snapshot-lines" data-atlas-qa="home-guidance-available-evidence"><h4>What ATLAS knows</h4>' + "".join(
+    return '<div class="atlas-home-snapshot-lines" data-atlas-qa="home-guidance-available-evidence"><h4>Canonical evidence detail</h4>' + "".join(
         f'<p><b>{html.escape(label)}:</b> {html.escape(value)}</p>' for label, value in rows
     ) + "</div>"
+
+
+def _clean_checkpoint(value: Any) -> str:
+    cleaned = str(value or "").strip().rstrip(".")
+    for suffix in (" is required", " must be published"):
+        if cleaned.lower().endswith(suffix):
+            cleaned = cleaned[:-len(suffix)]
+            break
+    return cleaned
+
+
+def _quick_known(card: Mapping[str, Any]) -> tuple[str, ...]:
+    """Select bounded factual evidence without promoting it into a canonical state."""
+    technical = card.get("technical_evidence") or {}
+    volume = card.get("volume_evidence") or {}
+    recovery = card.get("recovery") or {}
+    price = technical.get("price")
+    items: list[str] = []
+    if technical.get("rsi") is not None:
+        items.append(f"RSI {_score(technical.get('rsi'))}")
+    above = []
+    below = []
+    for label, key in (("SMA20", "sma20"), ("SMA50", "sma50"), ("SMA200", "sma200")):
+        average = technical.get(key)
+        if price is not None and average is not None:
+            (above if price >= average else below).append(label)
+    if above:
+        items.append("Above " + " / ".join(above))
+    if below:
+        items.append("Below " + " / ".join(below))
+    if volume.get("relative_volume") is not None:
+        items.append(f"Relative volume {_score(volume.get('relative_volume'))}×")
+    if recovery.get("score") is not None:
+        items.append(f"Recovery Score {_score(recovery.get('score'))}")
+    if card.get("trade_plan"):
+        items.append("Trade plan available")
+    return tuple(items[:5]) or ("Persisted snapshot evidence available",)
+
+
+def _quick_needs(card: Mapping[str, Any]) -> tuple[str, ...]:
+    values = card.get("what_changes_guidance") or ("Required canonical confirmation",)
+    return tuple(_clean_checkpoint(value) for value in values if _clean_checkpoint(value))[:3]
+
+
+def _atlas_summary(card: Mapping[str, Any]) -> str:
+    guidance = str(card.get("guidance") or "DATA_LIMITED").upper()
+    if guidance == "DATA_LIMITED":
+        needs = _quick_needs(card)[:2]
+        if needs:
+            joined = " and ".join(item[:1].lower() + item[1:] for item in needs)
+            verb = "is" if len(needs) == 1 else "are"
+            return f"ATLAS has useful snapshot evidence, but {joined} {verb} still required."
+        return "ATLAS has useful snapshot evidence, but current canonical confirmation is incomplete."
+    return f"ATLAS has published {_display(guidance)} guidance from the approved canonical evaluation."
+
+
+def _quick_evidence(card: Mapping[str, Any]) -> str:
+    known = "".join(f'<li>{html.escape(item)}</li>' for item in _quick_known(card))
+    needed = "".join(f'<li>{html.escape(item)}</li>' for item in _quick_needs(card))
+    return (
+        '<div class="atlas-home-guidance-quick" data-atlas-qa="home-guidance-quick-evidence">'
+        f'<section><h4>What ATLAS knows</h4><ul>{known}</ul></section>'
+        f'<section><h4>What ATLAS needs</h4><ul>{needed}</ul></section>'
+        '</div>'
+    )
 
 
 def _card(card: Mapping[str, Any], *, key: str, first: bool = False) -> None:
@@ -162,8 +227,15 @@ def _card(card: Mapping[str, Any], *, key: str, first: bool = False) -> None:
         'aria-hidden="true"></div>', unsafe_allow_html=True,
     )
     with st.container(border=True):
-        st.caption(f'PRODUCTION RANK #{card.get("production_rank")} · {card.get("market_customer_label")}')
+        st.caption(f'PRODUCTION RANK #{card.get("production_rank")}')
         st.markdown(f'### {ticker} — {html.escape(str(card.get("company") or ticker))}')
+        st.markdown(
+            '<div class="atlas-home-guidance-identity">'
+            f'<strong>{html.escape(_money(card.get("last_known_price")))}</strong>'
+            f'<span>{html.escape(str(card.get("market_customer_label") or "Last-known Price"))}</span>'
+            f'<em>{"ATLAS Guidance" if card.get("presentation_mode") == "ACTIVE" else "Founder Guidance Preview"}</em>'
+            '</div>', unsafe_allow_html=True,
+        )
         st.markdown(
             f'<div class="atlas-home-guidance-primary{guidance_tone}">'
             f'<span><small>{"ATLAS GUIDANCE" if card.get("presentation_mode") == "ACTIVE" else "FOUNDER GUIDANCE PREVIEW"}</small><strong>{html.escape(guidance.upper())}</strong></span>'
@@ -172,48 +244,37 @@ def _card(card: Mapping[str, Any], *, key: str, first: bool = False) -> None:
         )
         st.markdown(
             '<div class="atlas-home-guidance-core">'
-            + _metric("Opportunity", _score(card.get("opportunity")))
-            + _metric("Decision Confidence", _score(card.get("decision_confidence"), suffix="%"))
             + _metric("Scan Conviction", _score(card.get("scan_conviction"), suffix="%"))
+            + _metric("Atlas FV", _evidence_value(card.get("atlas_fair_value"), card.get("atlas_valuation_status"), money=True))
+            + _metric("Wall Street Target", _money((card.get("wall_street") or {}).get("mean_target")))
             + '</div>', unsafe_allow_html=True,
         )
         st.markdown(
-            '<div class="atlas-home-guidance-status" data-atlas-qa="home-guidance-evidence-status">'
-            + _metric("Last-known Price", _money(card.get("last_known_price")))
-            + _metric("Atlas FV", _evidence_value(card.get("atlas_fair_value"), card.get("atlas_valuation_status"), money=True))
-            + _metric("Wall St Target", _money((card.get("wall_street") or {}).get("mean_target")))
-            + _metric("Recovery", _score((card.get("recovery") or {}).get("score")))
-            + '</div>', unsafe_allow_html=True,
+            f'<p class="atlas-home-guidance-summary" data-atlas-qa="home-guidance-summary">{html.escape(_atlas_summary(card))}</p>',
+            unsafe_allow_html=True,
         )
-        st.markdown(_available_snapshot(card), unsafe_allow_html=True)
-        if str(card.get("guidance") or "").upper() == "DATA_LIMITED":
-            reasons = card.get("why_atlas") or ("Required canonical confirmation is unavailable.",)
-            reason_codes = card.get("reason_codes") or ()
-            needs = card.get("what_changes_guidance") or ("Required canonical confirmation must be published.",)
-            st.markdown(
-                '<div class="atlas-home-guidance-limited" data-atlas-qa="home-guidance-limited-context">'
-                '<span class="atlas-home-guidance-missing"><b>What ATLAS is missing</b><small><code>'
-                + ' · '.join(html.escape(str(code)) for code in reason_codes)
-                + '</code></small>' + "".join(f'<small>{html.escape(str(item))}</small>' for item in reasons) + '</span>'
-                '<span class="atlas-home-guidance-change"><b>What would change Guidance</b>' + "".join(f'<small>{html.escape(str(item))}</small>' for item in needs) + '</span>'
-                '</div>', unsafe_allow_html=True,
-            )
+        st.markdown(_quick_evidence(card), unsafe_allow_html=True)
         _open_research(ticker, f"home_guidance_{key}_{ticker}")
-        with st.expander("Why ATLAS / What Changes Guidance", expanded=False):
+        with st.expander("Full Evidence", expanded=False):
             st.markdown(
                 '<div class="atlas-home-guidance-evidence">'
+                + _metric("Opportunity", _score(card.get("opportunity")))
+                + _metric("Decision Confidence", _score(card.get("decision_confidence"), suffix="%"))
                 + _metric("Valuation Status", _display(card.get("atlas_valuation_status")))
                 + _metric("Atlas Expected Return", _score(card.get("atlas_expected_return"), suffix="%"))
                 + _metric("Expected Return Status", _display(card.get("atlas_expected_return_status")))
                 + _metric("Evidence Health", _display(card.get("evidence_health")))
                 + '</div>', unsafe_allow_html=True,
             )
+            st.markdown(_available_snapshot(card), unsafe_allow_html=True)
             st.markdown("**Why ATLAS**")
             for reason in card.get("why_atlas") or ("Required canonical confirmation is unavailable.",):
                 st.markdown(f"- {reason}")
             st.markdown("**What changes Guidance**")
             for checkpoint in card.get("what_changes_guidance") or ("Required canonical confirmation must be published.",):
                 st.markdown(f"- {checkpoint}")
+            reason_codes = card.get("reason_codes") or ()
+            st.caption("Canonical reason codes: " + (" · ".join(str(code) for code in reason_codes) or "Unavailable"))
             plan = card.get("trade_plan") or {}
             st.caption(
                 "Trade-plan evidence · "
@@ -289,10 +350,12 @@ def _inject_css() -> None:
     .atlas-home-guidance-hero{padding:.45rem 0 .7rem}.atlas-home-guidance-badge{display:inline-block;border:1px solid rgba(59,130,246,.5);border-radius:999px;padding:.25rem .6rem;font-size:.72rem;font-weight:800}
     .atlas-home-guidance-primary{display:grid;grid-template-columns:1.35fr 1fr;gap:.3rem;margin:.06rem 0 .14rem}.atlas-home-guidance-primary span{padding:.28rem .46rem;border-radius:10px;background:rgba(37,99,235,.12);border:1px solid rgba(96,165,250,.3)}
     .atlas-home-guidance-state-data-limited span:first-child{background:linear-gradient(135deg,rgba(245,158,11,.13),rgba(120,53,15,.08));border-color:rgba(245,158,11,.34)}
-    .atlas-home-guidance-primary small,.atlas-home-guidance-primary strong,.atlas-home-guidance-metric small,.atlas-home-guidance-metric b{display:block}.atlas-home-guidance-primary small,.atlas-home-guidance-metric small{font-size:.62rem;letter-spacing:.035em;color:#94a3b8}.atlas-home-guidance-primary strong{font-size:1.05rem;margin-top:.06rem;line-height:1.08}
-    .atlas-home-guidance-core,.atlas-home-guidance-evidence{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.1rem;margin:.06rem 0 .12rem}.atlas-home-guidance-core{padding:.03rem 0;background:rgba(15,23,42,.3);border-radius:8px}.atlas-home-guidance-evidence{grid-template-columns:repeat(4,minmax(0,1fr))}.atlas-home-guidance-metric{padding:.17rem .32rem;border-left:2px solid rgba(148,163,184,.35);min-width:0}.atlas-home-guidance-metric b{overflow-wrap:anywhere;line-height:1.08}.atlas-home-guidance-unavailable b{color:#7f8b9d!important;font-weight:600}.atlas-home-guidance-unavailable small{color:#64748b!important}
-    .atlas-home-guidance-status{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.08rem;margin:.02rem 0 .08rem;padding:.08rem .06rem;border-top:1px solid rgba(148,163,184,.18);border-bottom:1px solid rgba(148,163,184,.18)}.atlas-home-guidance-status .atlas-home-guidance-metric{padding:.1rem .24rem;border-left:0}.atlas-home-guidance-status .atlas-home-guidance-metric:nth-child(2){border-left:2px solid rgba(59,130,246,.35);background:rgba(37,99,235,.045)}.atlas-home-guidance-status .atlas-home-guidance-metric:nth-child(3){border-left:2px solid rgba(168,85,247,.35);background:rgba(126,34,206,.045)}.atlas-home-guidance-status small{font-size:.56rem}.atlas-home-guidance-status b{font-size:.7rem}
-    .atlas-home-snapshot-lines{display:grid;grid-template-columns:1fr 1fr;gap:.04rem .5rem;margin:.04rem 0 .07rem}.atlas-home-snapshot-lines h4{grid-column:1/-1;margin:0;font-size:.7rem;color:#dbeafe}.atlas-home-snapshot-lines p{margin:0;font-size:.63rem;line-height:1.15;color:#cbd5e1}.atlas-home-snapshot-lines b{color:#94a3b8}.atlas-home-guidance-limited{display:grid;grid-template-columns:1fr 1fr;gap:.35rem;margin:.03rem 0 .07rem;padding:.24rem .36rem;border-radius:8px;background:linear-gradient(135deg,rgba(245,158,11,.075),rgba(15,23,42,.12));border:1px solid rgba(245,158,11,.22)}.atlas-home-guidance-limited>span+span{border-left:1px solid rgba(148,163,184,.18);padding-left:.35rem}.atlas-home-guidance-limited b,.atlas-home-guidance-limited small{display:block}.atlas-home-guidance-limited b{font-size:.68rem;color:#fcd38d}.atlas-home-guidance-limited small{font-size:.56rem;line-height:1.12;margin-top:.06rem;color:#b8c2d1}.atlas-home-guidance-limited code{font-size:.5rem;color:#94a3b8}
+    .atlas-home-guidance-identity{display:flex;align-items:baseline;flex-wrap:wrap;gap:.25rem .55rem;margin:.02rem 0 .12rem;color:#cbd5e1}.atlas-home-guidance-identity strong{font-size:1.12rem;color:#f8fafc}.atlas-home-guidance-identity span{font-size:.82rem;color:#94a3b8}.atlas-home-guidance-identity em{margin-left:auto;padding:.16rem .48rem;border:1px solid rgba(96,165,250,.28);border-radius:999px;font-size:.72rem;font-style:normal;color:#bfdbfe;background:rgba(37,99,235,.07)}
+    .atlas-home-guidance-primary small,.atlas-home-guidance-primary strong,.atlas-home-guidance-metric small,.atlas-home-guidance-metric b{display:block}.atlas-home-guidance-primary small{font-size:.62rem;letter-spacing:.035em;color:#94a3b8}.atlas-home-guidance-metric small{font-size:.82rem;letter-spacing:.025em;color:#94a3b8;line-height:1.25}.atlas-home-guidance-primary strong{font-size:1.05rem;margin-top:.06rem;line-height:1.08}
+    .atlas-home-guidance-core,.atlas-home-guidance-evidence{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.1rem;margin:.06rem 0 .12rem}.atlas-home-guidance-core{padding:.03rem 0;background:rgba(15,23,42,.3);border-radius:8px}.atlas-home-guidance-core .atlas-home-guidance-metric b{font-size:1.15rem;line-height:1.25}.atlas-home-guidance-evidence{grid-template-columns:repeat(4,minmax(0,1fr))}.atlas-home-guidance-metric{padding:.24rem .36rem;border-left:2px solid rgba(148,163,184,.35);min-width:0}.atlas-home-guidance-metric b{overflow-wrap:anywhere;line-height:1.25}.atlas-home-guidance-unavailable b{color:#7f8b9d!important;font-weight:600}.atlas-home-guidance-unavailable small{color:#64748b!important}
+    .atlas-home-guidance-summary{margin:.08rem 0 .12rem!important;font-size:.9rem;line-height:1.42;color:#dbeafe;font-weight:500}.atlas-home-guidance-quick{display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin:.06rem 0 .14rem}.atlas-home-guidance-quick section{padding:.42rem .55rem;border:1px solid rgba(148,163,184,.18);border-radius:9px;background:rgba(15,23,42,.22)}.atlas-home-guidance-quick h4{margin:0 0 .22rem;font-size:.95rem;line-height:1.3;font-weight:650}.atlas-home-guidance-quick section:first-child h4{color:#bfdbfe}.atlas-home-guidance-quick section:last-child h4{color:#fcd38d}.atlas-home-guidance-quick ul{margin:0;padding-left:1.05rem}.atlas-home-guidance-quick li{margin:.08rem 0;font-size:.86rem;line-height:1.35;color:#cbd5e1}
+    .atlas-home-guidance-status{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.08rem;margin:.02rem 0 .08rem;padding:.08rem .06rem;border-top:1px solid rgba(148,163,184,.18);border-bottom:1px solid rgba(148,163,184,.18)}.atlas-home-guidance-status .atlas-home-guidance-metric{padding:.18rem .28rem;border-left:0}.atlas-home-guidance-status .atlas-home-guidance-metric:nth-child(2){border-left:2px solid rgba(59,130,246,.35);background:rgba(37,99,235,.045)}.atlas-home-guidance-status .atlas-home-guidance-metric:nth-child(3){border-left:2px solid rgba(168,85,247,.35);background:rgba(126,34,206,.045)}.atlas-home-guidance-status small{font-size:.8rem}.atlas-home-guidance-status b{font-size:.92rem;line-height:1.3}
+    .atlas-home-snapshot-lines{display:grid;grid-template-columns:1fr 1fr;gap:.18rem .65rem;margin:.08rem 0 .12rem}.atlas-home-snapshot-lines h4{grid-column:1/-1;margin:0;font-size:.98rem;font-weight:600;line-height:1.35;color:#dbeafe}.atlas-home-snapshot-lines p{margin:0;font-size:.875rem;line-height:1.42;color:#cbd5e1}.atlas-home-snapshot-lines b{color:#a8b3c4}.atlas-home-guidance-limited{display:grid;grid-template-columns:1fr 1fr;gap:.45rem;margin:.08rem 0 .12rem;padding:.42rem .5rem;border-radius:8px;background:linear-gradient(135deg,rgba(245,158,11,.075),rgba(15,23,42,.12));border:1px solid rgba(245,158,11,.22)}.atlas-home-guidance-limited>span+span{border-left:1px solid rgba(148,163,184,.18);padding-left:.45rem}.atlas-home-guidance-limited b,.atlas-home-guidance-limited small{display:block}.atlas-home-guidance-limited b{font-size:.95rem;font-weight:600;line-height:1.35;color:#fcd38d}.atlas-home-guidance-limited small{font-size:.85rem;line-height:1.4;margin-top:.12rem;color:#c6cfdd}.atlas-home-guidance-limited code{font-size:.78rem;line-height:1.35;color:#a8b3c4;overflow-wrap:anywhere}
     .atlas-home-guidance-card-marker{height:0}
     body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stMarkdownContainer"]{margin-bottom:0!important}
     body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stMainBlockContainer"]>[data-testid="stVerticalBlock"]{gap:.3rem}
@@ -303,8 +366,9 @@ def _inject_css() -> None:
     body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stExpander"] details summary{min-height:2.1rem!important;padding:.12rem .65rem!important}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stExpander"] details summary p{font-size:.82rem;margin:0}
     @media(min-width:481px){body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stLayoutWrapper"]>[data-testid="stVerticalBlock"]{gap:.1rem}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stLayoutWrapper"] h3{font-size:1.35rem!important;line-height:1.08!important;padding:.1rem 0!important;margin:0!important}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stLayoutWrapper"] [data-testid="stElementContainer"]{margin-top:0!important;margin-bottom:0!important}}
     @media(max-width:700px){body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stRadio"]:has([role="radiogroup"]){position:sticky!important;top:3.75rem!important;z-index:990!important;margin-top:.35rem!important;background:var(--background-color,#0e1117);padding:.15rem 0 .2rem!important}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stRadio"] [role="radiogroup"]{flex-wrap:nowrap!important;overflow-x:auto!important;padding-bottom:.2rem;scrollbar-width:thin}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stRadio"] [role="radiogroup"] label{flex:0 0 auto!important;white-space:nowrap;padding:.28rem .52rem!important;min-height:30px!important}}
-    @media(max-width:480px){body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stMainBlockContainer"]{padding-top:.2rem!important}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stMainBlockContainer"]>[data-testid="stVerticalBlock"]{gap:.24rem!important}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stElementContainer"]:has([data-atlas-qa][aria-hidden="true"]){display:none!important}.atlas-home-guidance-hero{padding:.04rem 0 .11rem}.atlas-home-guidance-hero h1{font-size:1.5rem;line-height:1.16;margin:.02rem 0 .08rem}.atlas-home-guidance-hero p{margin:.08rem 0}.atlas-home-guidance-primary{grid-template-columns:1fr 1fr;gap:.18rem;margin:.01rem 0 .06rem}.atlas-home-guidance-primary span{padding:.2rem .3rem}.atlas-home-guidance-primary small{font-size:.55rem}.atlas-home-guidance-primary strong{font-size:.92rem;line-height:1.18}.atlas-home-guidance-core{grid-template-columns:repeat(3,minmax(0,1fr));gap:.03rem;margin:.01rem 0 .06rem}.atlas-home-guidance-core .atlas-home-guidance-metric{padding:.09rem .1rem}.atlas-home-guidance-core small{font-size:.53rem;line-height:1.2}.atlas-home-guidance-core b{font-size:.8rem;line-height:1.18}.atlas-home-guidance-status{grid-template-columns:repeat(2,minmax(0,1fr));gap:.08rem;margin:0 0 .06rem;padding:.08rem .04rem}.atlas-home-guidance-status .atlas-home-guidance-metric{padding:.1rem .12rem}.atlas-home-guidance-status small{font-size:.52rem}.atlas-home-guidance-status b{font-size:.68rem;line-height:1.18}.atlas-home-guidance-evidence{grid-template-columns:repeat(2,minmax(0,1fr))}h2{margin:.2rem 0!important;font-size:1.25rem!important;line-height:1.2!important}h3{font-size:1rem!important;line-height:1.2!important;margin:.04rem 0!important;padding:.05rem 0!important}.atlas-home-guidance-card-marker+div [data-testid="stVerticalBlock"]{gap:.12rem}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stExpander"] details summary{min-height:1.9rem!important;padding:.08rem .5rem!important}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stExpander"] details summary p{font-size:.74rem;white-space:normal;line-height:1.2}}
-    @media(max-width:480px){body:has([data-atlas-qa="home-guidance-vnext"]) h2{margin:.1rem 0!important;padding:.02rem 0!important}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stMainBlockContainer"]>[data-testid="stVerticalBlock"]{gap:.18rem!important}.atlas-home-snapshot-lines{grid-template-columns:1fr;gap:.08rem;margin:.04rem 0 .08rem}.atlas-home-snapshot-lines h4{font-size:.68rem}.atlas-home-snapshot-lines p{font-size:.61rem;line-height:1.24}.atlas-home-guidance-limited{grid-template-columns:1fr;padding:.18rem .28rem;gap:.14rem;margin:.04rem 0 .08rem}.atlas-home-guidance-limited>span+span{border-left:0;border-top:1px solid rgba(148,163,184,.18);padding-left:0;padding-top:.14rem}.atlas-home-guidance-limited small{font-size:.56rem;line-height:1.22}.atlas-home-guidance-limited code{font-size:.49rem;overflow-wrap:anywhere}}
+    @media(max-width:480px){body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stMainBlockContainer"]{padding-top:.2rem!important}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stMainBlockContainer"]>[data-testid="stVerticalBlock"]{gap:.24rem!important}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stElementContainer"]:has([data-atlas-qa][aria-hidden="true"]){display:none!important}.atlas-home-guidance-hero{padding:.04rem 0 .11rem}.atlas-home-guidance-hero h1{font-size:1.5rem;line-height:1.16;margin:.02rem 0 .08rem}.atlas-home-guidance-hero p{margin:.08rem 0}.atlas-home-guidance-primary{grid-template-columns:1fr 1fr;gap:.18rem;margin:.01rem 0 .06rem}.atlas-home-guidance-primary span{padding:.2rem .3rem}.atlas-home-guidance-primary small{font-size:.68rem}.atlas-home-guidance-primary strong{font-size:.92rem;line-height:1.22}.atlas-home-guidance-core{grid-template-columns:repeat(3,minmax(0,1fr));gap:.06rem;margin:.04rem 0 .08rem}.atlas-home-guidance-core .atlas-home-guidance-metric{padding:.14rem .12rem}.atlas-home-guidance-core small{font-size:.8125rem;line-height:1.25}.atlas-home-guidance-core .atlas-home-guidance-metric b{font-size:1.125rem;line-height:1.25}.atlas-home-guidance-status{grid-template-columns:repeat(2,minmax(0,1fr));gap:.1rem;margin:.02rem 0 .08rem;padding:.1rem .05rem}.atlas-home-guidance-status .atlas-home-guidance-metric{padding:.15rem .16rem}.atlas-home-guidance-status small{font-size:.8125rem}.atlas-home-guidance-status b{font-size:.88rem;line-height:1.3}.atlas-home-guidance-evidence{grid-template-columns:repeat(2,minmax(0,1fr))}h2{margin:.2rem 0!important;font-size:1.25rem!important;line-height:1.2!important}h3{font-size:1rem!important;line-height:1.2!important;margin:.04rem 0!important;padding:.05rem 0!important}.atlas-home-guidance-card-marker+div [data-testid="stVerticalBlock"]{gap:.14rem}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stExpander"] details summary{min-height:1.9rem!important;padding:.08rem .5rem!important}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stExpander"] details summary p{font-size:.82rem;white-space:normal;line-height:1.3}}
+    @media(max-width:480px){body:has([data-atlas-qa="home-guidance-vnext"]) h2{margin:.1rem 0!important;padding:.02rem 0!important}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stMainBlockContainer"]>[data-testid="stVerticalBlock"]{gap:.2rem!important}.atlas-home-snapshot-lines{grid-template-columns:1fr;gap:.14rem;margin:.08rem 0 .12rem}.atlas-home-snapshot-lines h4{font-size:.95rem;line-height:1.35}.atlas-home-snapshot-lines p{font-size:.825rem;line-height:1.4}.atlas-home-guidance-limited{grid-template-columns:1fr;padding:.3rem .36rem;gap:.22rem;margin:.08rem 0 .12rem}.atlas-home-guidance-limited>span+span{border-left:0;border-top:1px solid rgba(148,163,184,.18);padding-left:0;padding-top:.22rem}.atlas-home-guidance-limited b{font-size:.92rem}.atlas-home-guidance-limited small{font-size:.8125rem;line-height:1.4}.atlas-home-guidance-limited code{font-size:.75rem;line-height:1.35;overflow-wrap:anywhere}}
+    @media(max-width:480px){.atlas-home-guidance-identity{gap:.2rem .42rem;margin:.02rem 0 .1rem}.atlas-home-guidance-identity strong{font-size:1rem}.atlas-home-guidance-identity span{font-size:.8rem}.atlas-home-guidance-identity em{width:100%;margin-left:0;font-size:.72rem}.atlas-home-guidance-summary{font-size:.84rem;line-height:1.4;margin:.08rem 0 .12rem!important}.atlas-home-guidance-quick{grid-template-columns:1fr;gap:.28rem;margin:.06rem 0 .14rem}.atlas-home-guidance-quick section{padding:.36rem .46rem}.atlas-home-guidance-quick h4{font-size:.92rem}.atlas-home-guidance-quick li{font-size:.825rem;line-height:1.38}}
     </style>""", unsafe_allow_html=True)
 
 
