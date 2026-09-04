@@ -167,14 +167,16 @@ render_home_guidance_vnext(build_home_guidance_story(rows, [{"ticker":"MU","reco
     app = AppTest.from_string(source, default_timeout=30).run()
     assert not app.exception
     rendered = "\n".join(str(item.value) for item in app.markdown)
-    assert 'data-atlas-qa="home-guidance-available-evidence"' in rendered
-    assert "Technical:</b> State Unavailable · Evidence RSI 55.0" in rendered
-    assert "Volume:</b> State Unavailable · Evidence Relative volume 1.2×" in rendered
+    assert 'data-atlas-qa="home-guidance-full-evidence"' in rendered
+    assert "Technical State:</b> Unavailable" in rendered
+    assert "Technical Evidence:</b> RSI 55.0" in rendered
+    assert "Volume State:</b> Unavailable" in rendered
+    assert "Volume Evidence:</b> Relative volume 1.2×" in rendered
     assert "What ATLAS knows" in rendered
     assert "What ATLAS needs" in rendered
     assert 'data-atlas-qa="home-guidance-summary"' in rendered
     assert rendered.index("home-guidance-quick-evidence") < rendered.index("home-guidance-research-cta")
-    assert rendered.index("home-guidance-research-cta") < rendered.index("home-guidance-available-evidence")
+    assert rendered.index("home-guidance-research-cta") < rendered.index("home-guidance-full-evidence")
     assert "Full Evidence" in "\n".join(str(item.label) for item in app.expander)
 
 
@@ -346,10 +348,10 @@ def test_home_typography_keeps_supporting_evidence_readable():
     source = (ROOT / "ui" / "home_guidance_vnext.py").read_text(encoding="utf-8")
     assert ".atlas-home-guidance-core .atlas-home-guidance-metric b{font-size:1.15rem" in source
     assert ".atlas-home-guidance-metric small{font-size:.82rem" in source
-    assert ".atlas-home-snapshot-lines h4{grid-column:1/-1;margin:0;font-size:.98rem" in source
-    assert ".atlas-home-snapshot-lines p{margin:0;font-size:.875rem;line-height:1.42" in source
+    assert ".atlas-home-full-evidence h4{margin:0 0 .4rem;font-size:1rem" in source
+    assert ".atlas-home-full-evidence p{margin:.22rem 0;font-size:.875rem;line-height:1.48" in source
     assert ".atlas-home-guidance-limited code{font-size:.78rem" in source
-    assert ".atlas-home-snapshot-lines p{font-size:.825rem;line-height:1.4}" in source
+    assert ".atlas-home-full-evidence p,.atlas-home-full-reasons li{font-size:.825rem;line-height:1.45}" in source
     assert ".atlas-home-guidance-limited small{font-size:.8125rem;line-height:1.4}" in source
 
 
@@ -364,8 +366,11 @@ def test_summary_card_omits_unavailable_secondary_metrics_until_full_evidence():
     assert '_metric("Scan Conviction"' in summary
     assert '_metric("Atlas FV"' in summary
     assert '_metric("Wall Street Target"' in summary
-    assert '_metric("Opportunity"' in full
-    assert '_metric("Decision Confidence"' in full
+    assert "_full_evidence(card)" in full
+    full_fn = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "_full_evidence")
+    full_body = ast.get_source_segment(source, full_fn) or ""
+    assert '_metric("Opportunity"' in full_body
+    assert '_metric("Decision Confidence"' in full_body
 
 
 def test_data_limited_summary_is_bounded_and_reason_grounded():
@@ -389,3 +394,51 @@ def test_data_limited_summary_is_bounded_and_reason_grounded():
         "ATLAS has useful snapshot evidence, but fresh market evidence and "
         "canonical technical confirmation are still required."
     )
+
+
+def test_quick_evidence_is_four_items_and_trade_plan_stays_in_full_evidence():
+    from ui.home_guidance_vnext import _quick_known
+
+    card = {
+        "technical_evidence": {"price": 100, "rsi": 50.9, "sma20": 90, "sma50": 80, "sma200": 70},
+        "volume_evidence": {"relative_volume": .8},
+        "recovery": {"score": 69},
+        "trade_plan": {"entry_low": 95, "entry_high": 100, "stop": 90, "target_1": 120},
+    }
+    assert _quick_known(card) == (
+        "RSI 50.9",
+        "Above SMA20 / SMA50 / SMA200",
+        "Relative volume 0.8×",
+        "Recovery Score 69.0",
+    )
+    source = (ROOT / "ui" / "home_guidance_vnext.py").read_text(encoding="utf-8")
+    assert 'data-atlas-trade-segment="entry"' in source
+    assert 'data-atlas-trade-segment="stop"' in source
+    assert 'data-atlas-trade-segment="target"' in source
+    assert 'margin-left:auto' not in source
+
+
+def test_full_evidence_has_one_semantic_hierarchy_and_protected_trade_segments():
+    from ui.home_guidance_vnext import _full_evidence
+
+    rendered = _full_evidence({
+        "opportunity": None,
+        "decision_confidence": None,
+        "evidence_health": "PARTIAL",
+        "trade_plan": {"entry_low": 932.81, "entry_high": 967.72, "stop": 890.91, "target_1": 1073.39},
+    })
+    headings = ("Decision Evidence", "Valuation", "Technical &amp; Volume", "External Context", "Trade Plan", "Why ATLAS / What Changes Guidance")
+    assert all(heading in rendered for heading in headings)
+    assert rendered.index("Decision Evidence") < rendered.index("Valuation") < rendered.index("Technical &amp; Volume")
+    assert '<span data-atlas-trade-segment="entry"><b>Entry</b> $932.81–$967.72</span>' in rendered
+    assert '<span data-atlas-trade-segment="stop"><b>Stop</b> $890.91</span>' in rendered
+    assert '<span data-atlas-trade-segment="target"><b>Target</b> $1,073.39</span>' in rendered
+    assert "Trade-plan evidence" not in rendered
+
+
+def test_full_evidence_css_preserves_natural_flow_and_wrapping():
+    source = (ROOT / "ui" / "home_guidance_vnext.py").read_text(encoding="utf-8")
+    assert ".atlas-home-full-evidence{display:block" in source
+    assert ".atlas-home-trade-row{display:flex;flex-wrap:wrap" in source
+    assert ".atlas-home-trade-row span{white-space:nowrap}" in source
+    assert ".atlas-home-full-metrics{grid-template-columns:1fr" in source
