@@ -170,8 +170,9 @@ render_home_guidance_vnext(build_home_guidance_story(rows, [{"ticker":"MU","reco
     assert 'data-atlas-qa="home-guidance-available-evidence"' in rendered
     assert "Technical:</b> State Unavailable · Evidence RSI 55.0" in rendered
     assert "Volume:</b> State Unavailable · Evidence Relative volume 1.2×" in rendered
-    assert "Why Guidance is limited" in rendered
-    assert "What ATLAS needs next" in rendered
+    assert "What ATLAS knows" in rendered
+    assert "What ATLAS is missing" in rendered
+    assert "What would change Guidance" in rendered
     assert rendered.index("home-guidance-available-evidence") < rendered.index("home-guidance-research-cta")
 
 
@@ -309,3 +310,16 @@ def test_compact_card_css_preserves_three_and_four_column_strips():
     assert ".atlas-home-guidance-status" in source
     assert "grid-template-columns:repeat(4,minmax(0,1fr))" in source
     assert '.stButton>button[kind="primary"]' in source
+    assert ".atlas-home-guidance-unavailable b" in source
+    assert ".atlas-home-guidance-status .atlas-home-guidance-metric:nth-child(2)" in source
+    assert ".atlas-home-guidance-status .atlas-home-guidance-metric:nth-child(3)" in source
+
+
+def test_unavailable_metrics_are_subdued_without_remapping_values():
+    from ui.home_guidance_vnext import _metric
+
+    unavailable = _metric("Opportunity", "Unavailable")
+    available = _metric("Scan Conviction", "0.0%")
+    assert "atlas-home-guidance-unavailable" in unavailable
+    assert "atlas-home-guidance-unavailable" not in available
+    assert ">0.0%</b>" in available
