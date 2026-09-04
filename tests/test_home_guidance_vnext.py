@@ -323,3 +323,18 @@ def test_unavailable_metrics_are_subdued_without_remapping_values():
     assert "atlas-home-guidance-unavailable" in unavailable
     assert "atlas-home-guidance-unavailable" not in available
     assert ">0.0%</b>" in available
+
+
+def test_dynamic_card_sections_remain_in_normal_document_flow():
+    source = (ROOT / "ui" / "home_guidance_vnext.py").read_text(encoding="utf-8")
+    assert '[data-testid="stMarkdownContainer"]{margin-bottom:0!important}' in source
+    assert "position:absolute" not in source
+    assert "translateY(" not in source
+    assert "overflow:hidden" not in source
+    assert "margin-top:-" not in source
+    assert "margin-bottom:-" not in source
+    assert ".atlas-home-guidance-primary{min-height:" not in source
+    assert ".atlas-home-guidance-core{min-height:" not in source
+    assert ".atlas-home-guidance-status{min-height:" not in source
+    assert ".atlas-home-guidance-limited{min-height:" not in source
+    assert 'details summary{height:' not in source
