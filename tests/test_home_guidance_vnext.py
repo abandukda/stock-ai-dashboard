@@ -441,4 +441,5 @@ def test_full_evidence_css_preserves_natural_flow_and_wrapping():
     assert ".atlas-home-full-evidence{display:block" in source
     assert ".atlas-home-trade-row{display:flex;flex-wrap:wrap" in source
     assert ".atlas-home-trade-row span{white-space:nowrap}" in source
+    assert '.atlas-home-trade-row span+span::before{content:"·"' in source
     assert ".atlas-home-full-metrics{grid-template-columns:1fr" in source
