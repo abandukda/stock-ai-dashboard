@@ -21,7 +21,8 @@ TECHNICAL_STATES = {
 def _valuation_comparison(card: Mapping[str, Any]) -> dict[str, Any]:
     atlas = card.get("atlas_fair_value") if str(card.get("atlas_valuation_status") or "").upper() == "PUBLISHED" else None
     street = dict(card.get("wall_street") or {})
-    street_target = street.get("mean_target") if street.get("commercial_display_status") == "DISPLAY_ALLOWED" else None
+    street_visible = street.get("commercial_display_status") == "DISPLAY_ALLOWED" or street.get("display_scope") == "INTERNAL_TRIAL"
+    street_target = street.get("mean_target") if street_visible else None
     if atlas is None:
         state = "ATLAS_VALUATION_UNAVAILABLE"
     elif street_target is None:
@@ -66,6 +67,8 @@ def build_summary_payload(card: Mapping[str, Any]) -> dict[str, Any]:
     fundamentals = dict(card.get("fundamentals_evidence") or {})
     company = dict(card.get("company_evidence") or {})
     wall_street = dict(card.get("wall_street") or {})
+    context = dict(card.get("context_evidence") or {})
+    internal_lanes = dict(card.get("internal_evidence_lanes") or {})
     evaluation = dict(card.get("evaluation") or {})
     risk = dict(evaluation.get("risk") or {})
     valuation = dict(evaluation.get("atlas_valuation") or {})
@@ -115,6 +118,8 @@ def build_summary_payload(card: Mapping[str, Any]) -> dict[str, Any]:
             "rejection_reasons": list(valuation.get("reason_codes") or valuation.get("reasons") or ()),
         },
         "wall_street": wall_street,
+        "insider_ownership_political_context": context,
+        "internal_trial_evidence": internal_lanes,
         "valuation_comparison": _valuation_comparison(card),
         "risk_evidence": {
             "status": card.get("risk_status"), "canonical": risk.get("evidence"),
@@ -181,12 +186,18 @@ def deterministic_summary(payload: Mapping[str, Any]) -> str:
         method = str(drivers.get("method") or "").lower()
         model_context = "growth-adjusted forward earnings framework" if "growth-adjusted" in method else "published valuation framework"
         second = f"The ATLAS {model_context} derives its upside from {support}, although realizing that potential still requires durable execution."
+        comparison = str((payload.get("valuation_comparison") or {}).get("state") or "")
+        second += {
+            "ALIGNED": " ATLAS and Wall Street are aligned on valuation.",
+            "ATLAS_MORE_BULLISH": " ATLAS is more bullish than Wall Street, while Street remains context rather than a decision input.",
+            "WALL_STREET_MORE_BULLISH": " Wall Street is more bullish than ATLAS, while Street remains context rather than a decision input.",
+        }.get(comparison, "")
     elif evidence:
         second = f"The clearest financial support is {support}, while ATLAS has not published a valuation target."
     else:
         second = "ATLAS has not published a valuation target because the available evidence is not sufficient to ground one."
     if catalyst.get("headline"):
-        headline = re.sub(r"[.!?]+", "", str(catalyst["headline"]).strip())
+        headline = str(catalyst["headline"]).strip().rstrip(".!?")
         third = f"The recent company-specific development, “{headline},” is the most relevant catalyst to monitor."
     else:
         third = "No company-specific catalyst is included in the current evidence, so the case rests on existing financial and market evidence."
@@ -284,7 +295,8 @@ def validate_summary(text: str, payload: Mapping[str, Any]) -> dict[str, Any]:
     if catalyst_claim and not catalyst_absence and not payload.get("commercial_catalysts"):
         violations.append("UNSUPPORTED_CATALYST_CLAIM")
     street = dict(payload.get("wall_street") or {})
-    if re.search(r"\b(Wall Street|analysts?|consensus|upgrade|downgrade)\b", copy, re.I) and street.get("commercial_display_status") != "DISPLAY_ALLOWED":
+    street_visible = street.get("commercial_display_status") == "DISPLAY_ALLOWED" or street.get("display_scope") == "INTERNAL_TRIAL"
+    if re.search(r"\b(Wall Street|analysts?|consensus|upgrade|downgrade)\b", copy, re.I) and not street_visible:
         violations.append("UNSUPPORTED_ANALYST_CLAIM")
     atlas = dict(payload.get("atlas_valuation") or {})
     atlas_claim = re.search(r"\bATLAS (?:target|valuation|upside)\b", copy, re.I)
@@ -315,7 +327,7 @@ def _default_llm(payloads: Sequence[Mapping[str, Any]]) -> Sequence[str] | None:
     try:
         from openai import OpenAI
         client = OpenAI(api_key=api_key)
-        system_prompt = "You are writing an investment thesis, not summarizing a dashboard. In 3-5 concise sentences begin with the company name or ticker and answer: what could cause this COMPANY to outperform; what financial or business evidence supports that upside; what recent catalyst matters; how ATLAS valuation compares with Wall Street when both are legally available; the most important downside risk; and why ATLAS recommends customer_action. Select only the most decision-relevant evidence and vary emphasis and structure when evidence differs. Prioritize company/business, earnings, revisions, valuation and catalysts before technical context. Technical evidence alone cannot support business claims; if company evidence is absent, transparently write a market-setup thesis. Every company-specific and numerical claim must exist in the payload. Wall Street never determines the action. Never mention rank, setup score, Recovery Score, contextual RVOL, reason codes, provider/canonical terminology, or internal state names. Use customer_action verbatim when naming the stance. Return JSON {\"summaries\":[...]} in input order."
+        system_prompt = "You are writing an investment thesis, not summarizing a dashboard. In 3-5 concise sentences begin with the company name or ticker and answer: what could cause this COMPANY to outperform; what specifically supports future revenue, EPS, or cash-flow growth; what recent catalyst matters; what Wall Street expects and how ATLAS valuation compares when visible in this data mode; what insider, institutional, or political context is relevant; the most important downside risk; and why ATLAS recommends customer_action. Select only the most decision-relevant evidence and vary emphasis and structure when evidence differs. Prioritize company/business, earnings, revisions, valuation and catalysts before technical context. Technical evidence alone cannot support business claims; if company evidence is absent, transparently write a market-setup thesis. Every company-specific and numerical claim must exist in the payload. Wall Street and insider/ownership/political evidence are non-scoring context and never determine the action. Never mention rank, setup score, Recovery Score, contextual RVOL, reason codes, provider/canonical terminology, or internal state names. Use customer_action verbatim when naming the stance. Return JSON {\"summaries\":[...]} in input order."
         output: list[str] = []
         for start in range(0, len(payloads), 5):
             batch = list(payloads[start:start + 5])

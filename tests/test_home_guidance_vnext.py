@@ -62,13 +62,58 @@ def test_canonical_guidance_maps_to_customer_action_without_mutating_guidance(gu
     assert card["customer_action"]["stars"] == stars
 
 
-def test_wall_street_and_catalysts_fail_closed_without_commercial_display_rights():
+def test_wall_street_and_catalysts_fail_closed_without_commercial_display_rights(monkeypatch):
+    monkeypatch.setenv("ATLAS_DATA_MODE", "COMMERCIAL_CUSTOMER")
     source = row("MU", analyst_targets_commercial_display_allowed=False, analyst_target_mean=150)
     source["recent_catalysts"] = [{"headline": "Material event", "evidence_id": "NEWS-1"}]
     card = build_home_guidance_candidate(source, production_rank=1, current_evaluation=canonical_evaluation())
     assert card["wall_street"]["mean_target"] is None
     assert card["wall_street"]["commercial_display_status"] == "COMMERCIAL_LICENSE_UNCONFIRMED"
     assert card["recent_catalysts"] == ()
+
+
+def test_internal_trial_exposes_returned_analyst_and_context_data(monkeypatch):
+    monkeypatch.setenv("ATLAS_DATA_MODE", "INTERNAL_TRIAL")
+    source = row("MU", analyst_targets_commercial_display_allowed=False, insider_activity_label="Positive", insider_buy_count=3, institutional_ownership_pct=72)
+    card = build_home_guidance_candidate(source, production_rank=1, current_evaluation=canonical_evaluation())
+    assert card["display_scope"] == "INTERNAL_TRIAL"
+    assert card["wall_street"]["mean_target"] == 115
+    assert card["wall_street"]["display_scope"] == "INTERNAL_TRIAL"
+    assert card["context_evidence"]["insider"]["activity"] == "Positive"
+    assert card["context_evidence"]["institutional"]["ownership_pct"] == 72
+    assert card["context_evidence"]["non_scoring"] is True
+
+
+def test_internal_context_renders_without_licensing_language(monkeypatch):
+    from ui.home_guidance_vnext import _trial_context
+    monkeypatch.setenv("ATLAS_DATA_MODE", "INTERNAL_TRIAL")
+    card = build_home_guidance_candidate(
+        row("MU", analyst_targets_commercial_display_allowed=False, insider_activity_label="Positive", insider_buy_count=3, insider_sell_count=1, institutional_ownership_pct=72),
+        production_rank=1, current_evaluation=canonical_evaluation(),
+    )
+    rendered = _trial_context(card)
+    assert "Analyst outlook" in rendered and "12 analysts" in rendered
+    assert "Insider activity" in rendered and "3 buys / 1 sells" in rendered
+    assert "Institutional ownership" in rendered and "72.0%" in rendered
+    assert "license" not in rendered.lower() and "non-scoring" not in rendered.lower()
+
+
+def test_commercial_context_remains_hidden(monkeypatch):
+    from ui.home_guidance_vnext import _trial_context
+    monkeypatch.setenv("ATLAS_DATA_MODE", "COMMERCIAL_CUSTOMER")
+    card = build_home_guidance_candidate(row("MU", insider_activity_label="Positive"), production_rank=1, current_evaluation=canonical_evaluation())
+    assert _trial_context(card) == ""
+
+
+def test_completed_daily_volume_can_satisfy_existing_positive_confirmation_gate():
+    from engines.volume_intelligence_v1 import build_volume_intelligence
+    volume = build_volume_intelligence({
+        "relative_volume": 1.5, "average_dollar_volume": 5_000_000,
+        "breakout_candidate": True, "completed_bar": True, "feed_health": "HEALTHY",
+    })
+    assert volume["status"] == "AVAILABLE"
+    assert volume["volume_confirmed"] is True
+    assert volume["reason_codes"] == ("COMPLETED_BREAKOUT_VOLUME_CONFIRMED",)
 
 
 def test_investment_dossier_materializes_approved_financial_and_earnings_fields():
@@ -95,11 +140,24 @@ def test_investment_dossier_materializes_approved_financial_and_earnings_fields(
     assert card["valuation_driver_evidence"]["justified_pe"] == 18
 
 
-def test_catalyst_requires_rights_source_evidence_id_and_why_it_matters():
+def test_catalyst_normalizes_source_evidence_id_and_why_it_matters():
     complete = {"headline": "New contract awarded", "publisher": "Licensed Wire", "published_at": "2026-09-01", "evidence_id": "NEWS-1", "why_it_matters": "The contract expands the approved backlog evidence.", "commercial_display_allowed": True}
-    incomplete = {**complete, "evidence_id": None}
+    incomplete = {**complete, "headline": "Second customer contract", "evidence_id": None}
     card = build_home_guidance_candidate(row("MU", news_evidence=[complete, incomplete]), production_rank=1, current_evaluation=canonical_evaluation())
-    assert card["recent_catalysts"] == (complete,)
+    assert len(card["recent_catalysts"]) == 2
+    assert card["recent_catalysts"][0]["evidence_id"] == "NEWS-1"
+    assert card["recent_catalysts"][1]["evidence_id"].startswith("NEWS-")
+    assert all(item["why_it_matters"] for item in card["recent_catalysts"])
+
+
+def test_internal_news_deduplicates_and_rejects_law_firm_alerts(monkeypatch):
+    monkeypatch.setenv("ATLAS_DATA_MODE", "INTERNAL_TRIAL")
+    material = {"headline": "Revenue rose 9.4% after the product launch", "publisher": "Trial Wire", "published_at": "2026-09-01", "ticker": "MU", "ticker_relevance": "VERIFIED_ENTITY"}
+    alert = {"headline": "Investor Alert: Law Firm Encourages MU Investors to Contact the Firm", "publisher": "Wire", "ticker": "MU", "ticker_relevance": "VERIFIED_ENTITY"}
+    card = build_home_guidance_candidate(row("MU", news_evidence=[material, material, alert]), production_rank=1, current_evaluation=canonical_evaluation())
+    assert len(card["recent_catalysts"]) == 1
+    assert "9.4%" in card["recent_catalysts"][0]["headline"]
+    assert "earnings trajectory" in card["recent_catalysts"][0]["why_it_matters"]
 
 
 def test_artifact_order_is_immutable_production_rank_and_never_resorted():

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import datetime
 from typing import Any, Iterable, Mapping
 
@@ -11,6 +12,7 @@ from engines.atlas_guidance_v1 import founder_guidance_v1_enabled
 from engines.research_context import build_production_decision
 from engines.semantic_fields import analyst_consensus, canonical_atlas_fair_value, atlas_valuation_status, number
 from services.on_demand_evaluation_service import evaluate_on_demand
+from services.data_mode_policy import display_scope, internal_trial_mode
 
 
 HOME_GUIDANCE_STORY_VERSION = "HOME_GUIDANCE_VNEXT_V1"
@@ -158,6 +160,46 @@ def _snapshot_evidence(row: Mapping[str, Any], price: float | None) -> dict[str,
     }
 
 
+def _internal_catalysts(row: Mapping[str, Any], *, internal: bool) -> tuple[dict[str, Any], ...]:
+    ticker = _ticker(row)
+    output = []
+    seen: set[str] = set()
+    for item in (row.get("recent_headlines") or row.get("news_evidence") or ()):
+        if not isinstance(item, Mapping):
+            continue
+        licensed = item.get("commercial_display_allowed") is True or str(item.get("commercial_status") or "").upper() in {"LICENSED", "DISPLAY_ALLOWED"}
+        if not internal and not licensed:
+            continue
+        headline = item.get("title") or item.get("headline")
+        source = item.get("publisher") or item.get("source")
+        published = item.get("published_at") or item.get("date")
+        relevance = str(item.get("ticker_relevance") or "").upper()
+        item_ticker = str(item.get("ticker") or "").upper()
+        identity = " ".join(str(headline or "").lower().split())
+        if (not headline or not source or identity in seen or
+                re.search(r"\b(investor alert|class action|law firm|litigation deadline|encourages? .*investors? to contact)\b", identity) or
+                (item_ticker and item_ticker != ticker) or (relevance and not relevance.startswith("VERIFIED"))):
+            continue
+        seen.add(identity)
+        evidence_id = item.get("evidence_id") or item.get("id") or "NEWS-" + hashlib.sha256(
+            json.dumps([ticker, headline, source, published], separators=(",", ":"), default=str).encode("utf-8")
+        ).hexdigest()[:16]
+        lowered = identity
+        why = item.get("why_it_matters") or item.get("summary")
+        if not why and any(term in lowered for term in ("earnings", "profit", "revenue", "guidance")):
+            why = "This update may change the company's earnings trajectory or forward estimates."
+        elif not why and any(term in lowered for term in ("fda", "regulatory", "drug", "product")):
+            why = "This development may change product demand, regulatory risk, or the revenue outlook."
+        elif not why and any(term in lowered for term in ("acquisition", "merger", "contract", "customer")):
+            why = "This event may change future revenue, cash flow, or execution risk."
+        elif not why:
+            why = "This company-specific development may affect future estimates, execution, or valuation."
+        output.append({**dict(item), "headline": headline, "publisher": source, "published_at": published,
+                       "evidence_id": evidence_id, "why_it_matters": why,
+                       "display_scope": "INTERNAL_TRIAL" if internal and not licensed else "COMMERCIAL_CUSTOMER"})
+    return tuple(output[:3])
+
+
 def build_home_guidance_candidate(
     row: Mapping[str, Any], *, production_rank: int,
     recovery_row: Mapping[str, Any] | None = None,
@@ -178,10 +220,12 @@ def build_home_guidance_candidate(
     fair_value = valuation.get("fair_value") if valuation_status == "PUBLISHED" else None
     expected_return = valuation.get("expected_return") if valuation_status == "PUBLISHED" and fair_value is not None else None
     street = analyst_consensus(row)
-    street_display_allowed = (
+    internal = internal_trial_mode()
+    commercial_street_allowed = (
         row.get("analyst_targets_commercial_display_allowed") is True
         or str(row.get("analyst_commercial_status") or "").upper() in {"LICENSED", "DISPLAY_ALLOWED"}
     )
+    street_display_allowed = internal or commercial_street_allowed
     price = _first_number(row, "current_price", "price", "last_price")
     snapshot = _snapshot_evidence(row, price)
     street_upside = (
@@ -212,6 +256,7 @@ def build_home_guidance_candidate(
     company = row.get("company") or row.get("company_name") or row.get("name") or ticker
     return {
         "ticker": ticker,
+        "display_scope": display_scope(),
         "company": str(company),
         "production_rank": int(production_rank),
         "production_snapshot_id": production_snapshot_id,
@@ -323,17 +368,40 @@ def build_home_guidance_candidate(
             "implied_upside": street_upside if street_display_allowed else None,
             "target_actions": tuple(row.get("phase1_target_actions") or ()),
             "recent_rating_action": _first_value(row, "recent_analyst_action", "latest_upgrade_downgrade"),
-            "commercial_display_status": "DISPLAY_ALLOWED" if street_display_allowed else "COMMERCIAL_LICENSE_UNCONFIRMED",
+            "commercial_display_status": "DISPLAY_ALLOWED" if commercial_street_allowed else "COMMERCIAL_LICENSE_UNCONFIRMED",
+            "display_scope": "INTERNAL_TRIAL" if internal and not commercial_street_allowed else "COMMERCIAL_CUSTOMER",
         },
-        "recent_catalysts": tuple(
-            item for item in (row.get("recent_headlines") or row.get("news_evidence") or ())
-            if isinstance(item, Mapping) and (
-                item.get("commercial_display_allowed") is True
-                or str(item.get("commercial_status") or "").upper() in {"LICENSED", "DISPLAY_ALLOWED"}
-            ) and (item.get("evidence_id") or item.get("id"))
-            and (item.get("publisher") or item.get("source"))
-            and (item.get("why_it_matters") or item.get("summary"))
-        )[:3],
+        "recent_catalysts": _internal_catalysts(row, internal=internal),
+        "context_evidence": {
+            "insider": {
+                "activity": _first_value(row, "insider_activity_label", "insider_activity") if internal else None,
+                "buy_count": _first_number(row, "insider_buy_count") if internal else None,
+                "sell_count": _first_number(row, "insider_sell_count") if internal else None,
+                "net_change": _first_number(row, "insider_net_change") if internal else None,
+                "source": "FINNHUB" if internal and row.get("source_finnhub_insider") else None,
+            },
+            "institutional": {
+                "ownership_pct": _first_number(row, "institutional_ownership_pct") if internal else None,
+                "trend": _first_value(row, "institutional_change", "institutional_trend") if internal else None,
+                "source": _first_value(row, "institutional_ownership_source", "institutional_source") if internal else None,
+            },
+            "political": {
+                "summary": _first_value(row, "political_support_summary", "political_support", "political_context") if internal else None,
+                "buy_count": _first_number(row, "political_buys", "congress_buys") if internal else None,
+                "sell_count": _first_number(row, "political_sells", "congress_sells") if internal else None,
+                "source": _first_value(row, "political_source", "congress_source") if internal else None,
+            },
+            "non_scoring": True, "display_scope": display_scope(),
+        },
+        "internal_evidence_lanes": ({
+            "company_press_releases": _first_value(row, "company_press_releases", "press_releases"),
+            "transcript_summary": _first_value(row, "transcript_summary", "earnings_call_summary"),
+            "institutional_holders": _first_value(row, "institutional_holders", "ownership_holders"),
+            "insider_transactions": _first_value(row, "insider_transactions", "insider_activity"),
+            "political_transactions": _first_value(row, "political_trades", "congress_trades", "senate_trades"),
+            "etf_evidence": _first_value(row, "etf_evidence", "etf_holdings", "fund_exposure"),
+            "display_scope": "INTERNAL_TRIAL", "non_scoring": True,
+        } if internal else {}),
         "recovery": {
             "score": recovery.get("recovery_score"),
             "state": recovery.get("recovery_label") or recovery.get("recovery_state"),

@@ -630,6 +630,40 @@ def _recent_catalysts(card: Mapping[str, Any]) -> str:
     return '<div class="atlas-home-catalysts" data-atlas-qa="home-catalysts">' + "".join(cells) + "</div>"
 
 
+def _trial_context(card: Mapping[str, Any]) -> str:
+    if str(card.get("display_scope") or "") != "INTERNAL_TRIAL":
+        return ""
+    street = dict(card.get("wall_street") or {})
+    context = dict(card.get("context_evidence") or {})
+    items: list[tuple[str, str]] = []
+    if street.get("rating") or street.get("analyst_count") is not None:
+        label = str(street.get("rating") or "Consensus available").replace("_", " ").title()
+        count = f" · {int(street['analyst_count'])} analysts" if street.get("analyst_count") is not None else ""
+        items.append(("Analyst outlook", label + count))
+    insider = dict(context.get("insider") or {})
+    if insider.get("activity"):
+        counts = ""
+        if insider.get("buy_count") is not None or insider.get("sell_count") is not None:
+            counts = f" · {int(insider.get('buy_count') or 0)} buys / {int(insider.get('sell_count') or 0)} sells"
+        items.append(("Insider activity", str(insider["activity"]).title() + counts))
+    institutional = dict(context.get("institutional") or {})
+    ownership = institutional.get("ownership_pct")
+    if institutional.get("trend"):
+        items.append(("Institutional trend", str(institutional["trend"])))
+    elif ownership is not None and 0 <= float(ownership) <= 100:
+        items.append(("Institutional ownership", f"{float(ownership):.1f}%"))
+    elif ownership is not None:
+        items.append(("Institutional ownership", "Reported data requires normalization review"))
+    political = dict(context.get("political") or {})
+    if political.get("summary"):
+        items.append(("Political context", str(political["summary"])))
+    if not items:
+        return ""
+    return '<div class="atlas-home-trial-context">' + "".join(
+        f'<span><small>{html.escape(label)}</small><b>{html.escape(value)}</b></span>' for label, value in items[:4]
+    ) + '</div><em class="atlas-home-context-note">Supporting context only; it does not determine the ATLAS rating.</em>'
+
+
 def _decisive_reason(card: Mapping[str, Any]) -> str:
     state = str(card.get("guidance") or "DATA_LIMITED").upper()
     title = {
@@ -698,6 +732,10 @@ def _card(card: Mapping[str, Any], *, key: str, first: bool = False, total: int 
         if catalysts:
             st.markdown('<h4 class="atlas-home-subhead">Recent Catalysts</h4>', unsafe_allow_html=True)
             st.markdown(catalysts, unsafe_allow_html=True)
+        trial_context = _trial_context(card)
+        if trial_context:
+            st.markdown('<h4 class="atlas-home-subhead">Analyst & Ownership Context</h4>', unsafe_allow_html=True)
+            st.markdown(trial_context, unsafe_allow_html=True)
         _open_research(ticker, f"home_guidance_{key}_{ticker}")
         with st.expander("Full Evidence", expanded=False):
             st.markdown(_full_evidence(card), unsafe_allow_html=True)
@@ -790,6 +828,7 @@ def _inject_css() -> None:
     .atlas-home-win{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.35rem}.atlas-home-win span{display:flex;align-items:center;gap:.45rem;padding:.5rem .6rem;border-radius:10px;background:rgba(47,183,164,.075);border:1px solid rgba(47,183,164,.18);font-size:.8rem;color:#cbd5e1}.atlas-home-win b{display:grid;place-items:center;width:1.5rem;height:1.5rem;border-radius:50%;background:rgba(47,183,164,.14);color:#70d2c3}
     .atlas-home-decisive{display:grid;gap:.18rem;margin:.5rem 0;padding:.58rem .68rem;border-radius:10px;border-left:3px solid var(--atlas-amber);background:rgba(109,77,22,.1)}.atlas-home-decisive b{font-size:.82rem;color:#edc878}.atlas-home-decisive span{font-size:.8rem;line-height:1.4;color:#bdc7d5}
     .atlas-home-catalysts{display:grid;grid-template-columns:1fr 1fr;gap:.42rem}.atlas-home-catalysts article{display:flex;flex-direction:column;gap:.22rem;padding:.58rem .65rem;border-radius:11px;border:1px solid rgba(93,145,214,.2);background:rgba(37,69,106,.1)}.atlas-home-catalysts small{font-size:.66rem;text-transform:uppercase;letter-spacing:.055em;color:#8fb4e3}.atlas-home-catalysts b{font-size:.82rem;line-height:1.3;color:#dce8f6}.atlas-home-catalysts span{font-size:.74rem;line-height:1.35;color:#95a3b6}
+    .atlas-home-trial-context{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.35rem}.atlas-home-trial-context span{display:grid;gap:.18rem;padding:.5rem .58rem;border-radius:10px;background:rgba(37,69,106,.09);border:1px solid rgba(93,145,214,.18)}.atlas-home-trial-context small{font-size:.66rem;color:#8fa5bf}.atlas-home-trial-context b{font-size:.78rem;line-height:1.3;color:#d5dfeb}.atlas-home-context-note{display:block;margin-top:.3rem;font-size:.65rem;font-style:normal;color:#778497}
     .atlas-home-guidance-primary{display:grid;grid-template-columns:1.35fr 1fr;gap:.3rem;margin:.06rem 0 .14rem}.atlas-home-guidance-primary span{padding:.28rem .46rem;border-radius:10px;background:rgba(37,99,235,.12);border:1px solid rgba(96,165,250,.3)}
     .atlas-home-guidance-state-data-limited span:first-child{background:linear-gradient(135deg,rgba(245,158,11,.13),rgba(120,53,15,.08));border-color:rgba(245,158,11,.34)}
     .atlas-home-guidance-identity{display:flex;align-items:baseline;flex-wrap:wrap;gap:.22rem .48rem;margin:.02rem 0 .12rem;color:#cbd5e1}.atlas-home-guidance-identity strong{font-size:1.12rem;color:#f8fafc}.atlas-home-guidance-identity span{font-size:.76rem;font-weight:400;color:#7f8b9d}.atlas-home-guidance-identity em{padding:.16rem .48rem;border:1px solid rgba(96,165,250,.28);border-radius:999px;font-size:.72rem;font-style:normal;color:#bfdbfe;background:rgba(37,99,235,.07)}
