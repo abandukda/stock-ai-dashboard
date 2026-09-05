@@ -71,6 +71,25 @@ def test_wall_street_and_catalysts_fail_closed_without_commercial_display_rights
     assert card["recent_catalysts"] == ()
 
 
+def test_investment_dossier_materializes_approved_financial_and_earnings_fields():
+    source = row(
+        "MU", description="Memory semiconductor producer.", latest_revenue=9_000,
+        latest_eps=1.2, gross_profit_margin=.4, net_profit_margin=.2,
+        operating_cash_flow=1_000, free_cash_flow=700, total_debt=300,
+        cash_and_equivalents=800, reported_eps=1.2, eps_estimate=1.0,
+        eps_surprise_pct=20, reported_revenue=9_000, revenue_estimate=8_000,
+        revenue_surprise_pct=12.5, latest_earnings_date="2026-08-01",
+        earnings_growth=.3, estimate_revision_trend="UP", industry="Semiconductors",
+    )
+    card = build_home_guidance_candidate(source, production_rank=1, current_evaluation=canonical_evaluation())
+    assert card["fundamentals_evidence"]["revenue"] == 9_000
+    assert card["fundamentals_evidence"]["operating_cash_flow"] == 1_000
+    assert card["company_evidence"]["business_summary"] == "Memory semiconductor producer."
+    assert card["company_evidence"]["reported_eps"] == 1.2
+    assert card["company_evidence"]["revenue_surprise_pct"] == 12.5
+    assert card["company_evidence"]["estimate_revision"] == "UP"
+
+
 def test_artifact_order_is_immutable_production_rank_and_never_resorted():
     story = build_home_guidance_story([row("AAA", 1), row("BBB", 99), row("CCC", 50)], [])
     assert [(card["ticker"], card["production_rank"]) for card in story["cards"]] == [

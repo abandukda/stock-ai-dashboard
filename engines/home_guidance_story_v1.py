@@ -120,6 +120,14 @@ def _first_number(row: Mapping[str, Any], *keys: str) -> float | None:
     return None
 
 
+def _first_value(row: Mapping[str, Any], *keys: str) -> Any:
+    for key in keys:
+        value = row.get(key)
+        if value is not None and value != "":
+            return value
+    return None
+
+
 def _snapshot_evidence(row: Mapping[str, Any], price: float | None) -> dict[str, Any]:
     """Expose persisted observations without promoting them to decision authority."""
     deep = row.get("deep_research_evidence") if isinstance(row.get("deep_research_evidence"), Mapping) else {}
@@ -258,16 +266,34 @@ def build_home_guidance_candidate(
         "technical_evidence": snapshot["technical"],
         "canonical_technical_evidence": dict((evaluation.get("technical_confirmation") or {}).get("evidence") or {}),
         "volume_evidence": snapshot["volume"],
-        "fundamentals_evidence": snapshot["fundamentals"],
+        "fundamentals_evidence": {
+            **snapshot["fundamentals"],
+            "revenue": _first_number(row, "latest_revenue", "reported_revenue", "revenue"),
+            "eps": _first_number(row, "latest_eps", "reported_eps", "eps"),
+            "gross_margin": _first_number(row, "gross_profit_margin", "gross_margin"),
+            "net_margin": _first_number(row, "net_profit_margin", "net_margin"),
+            "operating_cash_flow": _first_number(row, "operating_cash_flow"),
+            "net_cash": _first_number(row, "net_cash"),
+            "profitability_evidence": _first_value(row, "finance_agent_summary", "financial_summary"),
+        },
         "company_evidence": {
             "forward_eps": _first_number(row, "forward_eps", "eps_forward"),
+            "forward_revenue": _first_number(row, "forward_revenue", "revenue_forward"),
             "earnings_growth": _first_number(row, "earnings_growth", "eps_growth"),
-            "earnings_surprise": _first_number(row, "earnings_surprise", "eps_surprise_pct"),
+            "latest_earnings_date": _first_value(row, "latest_earnings_date", "earnings_date"),
+            "reported_eps": _first_number(row, "reported_eps"),
+            "eps_estimate": _first_number(row, "eps_estimate"),
+            "eps_surprise_pct": _first_number(row, "eps_surprise_pct", "earnings_surprise"),
+            "reported_revenue": _first_number(row, "reported_revenue"),
+            "revenue_estimate": _first_number(row, "revenue_estimate"),
+            "revenue_surprise_pct": _first_number(row, "revenue_surprise_pct"),
             "next_earnings_date": row.get("next_earnings_date") or row.get("earnings_date"),
-            "estimate_revision": row.get("estimate_revision") or row.get("estimate_revision_trend"),
+            "estimate_revision": _first_value(row, "estimate_revision", "estimate_revision_trend", "analyst_revision_trend"),
+            "estimate_contributor_count": _first_number(row, "estimate_contributor_count", "earnings_estimate_count"),
             "industry": row.get("industry"), "sector": row.get("sector"),
-            "business_summary": row.get("business_summary") or row.get("company_description"),
-            "primary_risk": row.get("primary_risk"),
+            "business_summary": _first_value(row, "business_summary", "company_description", "description"),
+            "business_kpis": _first_value(row, "approved_business_kpis", "business_kpis", "key_business_metrics"),
+            "primary_risk": _first_value(row, "primary_risk", "finance_agent_risks", "risk_tags"),
         },
         "snapshot_evidence_health": snapshot["completeness"],
         "trade_plan": trade_plan,
@@ -280,6 +306,7 @@ def build_home_guidance_candidate(
             "high_target": street.get("high") if street_display_allowed else None,
             "implied_upside": street_upside if street_display_allowed else None,
             "target_actions": tuple(row.get("phase1_target_actions") or ()),
+            "recent_rating_action": _first_value(row, "recent_analyst_action", "latest_upgrade_downgrade"),
             "commercial_display_status": "DISPLAY_ALLOWED" if street_display_allowed else "COMMERCIAL_LICENSE_UNCONFIRMED",
         },
         "recent_catalysts": tuple(
@@ -287,8 +314,9 @@ def build_home_guidance_candidate(
             if isinstance(item, Mapping) and (
                 item.get("commercial_display_allowed") is True
                 or str(item.get("commercial_status") or "").upper() in {"LICENSED", "DISPLAY_ALLOWED"}
-            )
-        ),
+            ) and (item.get("evidence_id") or item.get("id"))
+            and (item.get("publisher") or item.get("source"))
+        )[:3],
         "recovery": {
             "score": recovery.get("recovery_score"),
             "state": recovery.get("recovery_label") or recovery.get("recovery_state"),

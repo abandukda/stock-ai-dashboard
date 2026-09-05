@@ -1,4 +1,4 @@
-from services.atlas_view_summary import build_summary_payload, generate_summaries, validate_summary
+from services.atlas_view_summary import audit_summary_differentiation, build_summary_payload, generate_summaries, validate_summary
 
 
 def test_summary_service_supports_streamlit_secret_key_without_changing_secrets():
@@ -29,10 +29,10 @@ def _card():
 
 def test_validated_llm_summary_accepts_only_structured_facts():
     payload = build_summary_payload(_card())
-    text = "NVDA has a technical setup approaching breakout and remains near the preferred entry zone. Participation is still too weak for confirmation, so ATLAS rates it WAIT FOR CONFIRMATION."
+    text = "NVDA has a technical setup approaching breakout and remains near the preferred entry zone. The price structure could improve if the breakout confirms. Participation is still too weak for confirmation, so ATLAS rates it WAIT FOR CONFIRMATION."
     result = generate_summaries([payload], llm=lambda _: [text])[0]
     assert result["accepted"] is True
-    assert result["source"] == "VALIDATED_LLM"
+    assert result["source"] == "LLM_VALIDATED"
     assert result["text"] == text
 
 
@@ -57,7 +57,66 @@ def test_unsourced_number_or_guidance_is_rejected_to_ticker_fallback():
 def test_missing_llm_uses_deterministic_ticker_specific_fallback():
     result = generate_summaries([build_summary_payload(_card())], llm=lambda _: None)[0]
     assert result["source"] == "DETERMINISTIC_FALLBACK"
-    assert "may outperform if" in result["text"]
+    assert "market-setup thesis" in result["text"]
     assert "Recovery Score" not in result["text"]
     assert "0.45×" not in result["text"]
     assert "WAIT FOR CONFIRMATION" in result["text"]
+
+
+def test_dossier_carries_approved_company_earnings_valuation_and_risk_lanes():
+    card = _card()
+    card.update({
+        "fundamentals_evidence": {"revenue": 10_000, "revenue_growth": .2, "free_cash_flow": 500},
+        "company_evidence": {
+            "business_summary": "NVIDIA designs accelerated computing platforms.",
+            "latest_earnings_date": "2026-08-01", "reported_eps": 1.2, "eps_estimate": 1.0,
+            "eps_surprise_pct": 20, "forward_eps": 5.0, "estimate_revision": "UP",
+            "primary_risk": "Demand could slow.",
+        },
+        "atlas_valuation_status": "PUBLISHED", "atlas_fair_value": 250, "atlas_expected_return": 8.9,
+        "wall_street": {"commercial_display_status": "COMMERCIAL_LICENSE_UNCONFIRMED"},
+    })
+    payload = build_summary_payload(card)
+    assert payload["latest_earnings"]["reported_eps"] == 1.2
+    assert payload["forward_outlook"]["estimate_revision"] == "UP"
+    assert payload["atlas_valuation"]["target"] == 250
+    assert payload["valuation_comparison"]["state"] == "WALL_STREET_UNAVAILABLE"
+    assert payload["risk_evidence"]["strongest_fundamental_risk"] == "Demand could slow."
+
+
+def test_fallback_changes_with_company_specific_evidence():
+    first = _card()
+    first["company_evidence"] = {"business_summary": "NVIDIA designs accelerated computing platforms."}
+    second = {**_card(), "ticker": "BALL", "company": "Ball Corporation"}
+    second["company_evidence"] = {"business_summary": "Ball supplies aluminum packaging to beverage producers."}
+    texts = [generate_summaries([build_summary_payload(card)], llm=lambda _: None)[0]["text"] for card in (first, second)]
+    assert texts[0] != texts[1]
+    assert "accelerated computing" in texts[0]
+    assert "aluminum packaging" in texts[1]
+
+
+def test_unlicensed_wall_street_claim_is_rejected():
+    payload = build_summary_payload(_card())
+    text = "NVDA has a constructive market setup. Wall Street analysts expect material upside. ATLAS rates it WAIT FOR CONFIRMATION while confirmation develops."
+    validation = validate_summary(text, payload)
+    assert "UNSUPPORTED_ANALYST_CLAIM" in validation["violations"]
+
+
+def test_duplication_audit_flags_name_only_rewrites():
+    payloads = [build_summary_payload(_card()), build_summary_payload({**_card(), "ticker": "AMD", "company": "AMD"})]
+    results = [
+        {"text": "NVDA has a constructive setup. Its evidence needs confirmation. ATLAS rates it WAIT."},
+        {"text": "AMD has a constructive setup. Its evidence needs confirmation. ATLAS rates it WAIT."},
+    ]
+    audit = audit_summary_differentiation(payloads, results)
+    assert audit["passed"] is False
+    assert audit["flagged_pairs"][0]["left"] == "NVDA"
+
+
+def test_trade_target_cannot_be_substituted_for_atlas_fair_value():
+    card = _card()
+    card.update({"atlas_valuation_status": "PUBLISHED", "atlas_fair_value": 250, "atlas_expected_return": 8.9})
+    payload = build_summary_payload(card)
+    text = "NVDA has a constructive setup. Its earnings evidence supports the case. The ATLAS target is $120, so ATLAS rates it WAIT FOR CONFIRMATION."
+    validation = validate_summary(text, payload)
+    assert "TARGET_SUBSTITUTION" in validation["violations"]
