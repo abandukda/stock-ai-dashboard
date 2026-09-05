@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from engines.atlas_research_builder_v2 import build_atlas_research_v2
 from services.live_market.twelve_data_phase1 import Phase1Policy, build_phase1_bundle
@@ -28,6 +28,17 @@ def _bundle(event=None, payload=None):
         "NVDA", websocket_event=event or {}, time_series_payload=payload or _bars(),
         received_timestamp=NOW, now=NOW, policy=POLICY,
     )
+
+
+def _daily():
+    day = datetime(2025, 10, 20)
+    values = []
+    while len(values) < 220:
+        if day.weekday() < 5:
+            close = 80 + len(values) * .1
+            values.append({"datetime": day.date().isoformat(), "open": close - .2, "high": close + .5, "low": close - .5, "close": close, "volume": 1_000_000})
+        day += timedelta(days=1)
+    return {"meta": {"symbol": "NVDA", "exchange_timezone": "America/New_York"}, "values": values}
 
 
 def test_research_uses_fresh_websocket_for_current_and_completed_bars_for_chart():
@@ -70,6 +81,26 @@ def test_research_builder_preserves_twelve_chart_contract_and_provenance():
     assert provenance["evidence_id"].startswith("TD1-")
     assert report["canonical_chart_contract"]["session"] == "REGULAR"
     assert report["canonical_market_snapshot"]["fresh_current_price"] is False
+    assert set(report["canonical_chart_ranges"]) == {"1D", "5D", "1M", "3M", "6M", "1Y"}
+
+
+def test_research_reconciles_fresh_market_and_daily_canonical_technical_evaluation():
+    event = {"event": "price", "symbol": "NVDA", "price": 105, "timestamp": 1788533940}
+    bundle = build_phase1_bundle(
+        "NVDA", websocket_event=event, time_series_payload=_bars(), daily_time_series_payload=_daily(),
+        received_timestamp=NOW, now=NOW, policy=POLICY,
+    )
+    result = apply_research_phase1({
+        "Ticker": "NVDA", "Price": 100, "primary_risk": "Execution risk",
+        "canonical_on_demand_trade_plan": {"entry_low": 100, "entry_high": 110, "stop": 90, "target": 130},
+    }, bundle)
+    evaluation = result["research_context"]["current_evaluation"]
+    assert evaluation["market_snapshot"] == result["canonical_market_snapshot"]
+    assert evaluation["technical_confirmation"]["status"] == "AVAILABLE"
+    assert result["canonical_technical"] == evaluation["technical_confirmation"]
+    assert result["canonical_guidance"] == evaluation["guidance"]
+    assert result["atlas_ai_view"]["text"]
+    assert len(result["canonical_chart_ranges"]["1Y"]["bars"]) == 220
 
 
 def test_research_acquisition_calls_time_series_only():
@@ -89,5 +120,10 @@ def test_research_acquisition_calls_time_series_only():
         secrets={"TWELVE_DATA_ENABLED": "true", "TWELVE_DATA_API_KEY": "test"}, environ={},
     )
     assert result["status"] == "AVAILABLE"
-    assert len(calls) == 1 and calls[0][0].endswith("/time_series")
-    assert "/quote" not in calls[0][0]
+    assert len(calls) == 2 and all(call[0].endswith("/time_series") for call in calls)
+    assert [call[1]["params"]["interval"] for call in calls] == ["1min", "1day"]
+    assert calls[0][1]["params"]["outputsize"] == 5000
+    assert calls[1][1]["params"]["outputsize"] == 260
+    assert calls[1][1]["params"]["prepost"] == "false"
+    assert all(call[1]["params"]["adjust"] == "splits" for call in calls)
+    assert all("/quote" not in call[0] for call in calls)

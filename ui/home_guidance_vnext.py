@@ -277,7 +277,9 @@ def _clean_checkpoint(value: Any) -> str:
 
 def _atlas_observations(card: Mapping[str, Any]) -> tuple[str, ...]:
     """Select at most four sourced observations without promoting authority."""
-    technical = card.get("technical_evidence") or {}
+    persisted_technical = card.get("technical_evidence") or {}
+    canonical_technical = card.get("canonical_technical_evidence") or {}
+    technical = canonical_technical or persisted_technical
     volume = card.get("volume_evidence") or {}
     recovery = card.get("recovery") or {}
     trade = card.get("trade_plan") or {}
@@ -294,7 +296,11 @@ def _atlas_observations(card: Mapping[str, Any]) -> tuple[str, ...]:
         items.append(f'{card.get("display_price_label") or "Price"} {_money(price)} {relation} the {_money(low)}–{_money(high)} entry range')
     above = []
     below = []
-    persisted_price = technical.get("price")
+    canonical_state = (
+        str(card.get("technical_state") or "").replace("_", " ").title()
+        if str(card.get("technical_status") or "").upper() == "AVAILABLE" else ""
+    )
+    persisted_price = technical.get("close") if canonical_technical else technical.get("price")
     for label, key in (("SMA20", "sma20"), ("SMA50", "sma50"), ("SMA200", "sma200")):
         average = technical.get(key)
         if persisted_price is not None and average is not None:
@@ -303,7 +309,13 @@ def _atlas_observations(card: Mapping[str, Any]) -> tuple[str, ...]:
         structure = []
         if above: structure.append("above " + " / ".join(above))
         if below: structure.append("below " + " / ".join(below))
-        items.append("Persisted price structure is " + " and ".join(structure))
+        if canonical_state:
+            evidence_label = "canonical daily structure" if canonical_technical else "persisted price structure"
+            items.append(f"Canonical Technical State is {canonical_state}; {evidence_label} is " + " and ".join(structure))
+        else:
+            items.append("Persisted price structure is " + " and ".join(structure))
+    elif canonical_state:
+        items.append(f"Canonical Technical State is {canonical_state}")
     if recovery.get("score") is not None:
         state = str(recovery.get("state") or "").replace("🟢", "").replace("🟡", "").strip()
         items.append(f"Recovery Score is {_score(recovery.get('score'))}" + (f" — {state}" if state else ""))
@@ -352,10 +364,14 @@ def _what_changes_call(card: Mapping[str, Any]) -> str:
         return "Guidance will change only when an existing canonical gate produces a different governed result."
     readable = [value[:1].lower() + value[1:] for value in needs]
     conditions = readable[0] if len(readable) == 1 else ", ".join(readable[:-1]) + f" and {readable[-1]}"
-    return f"Guidance can advance only after {conditions} are available; remaining confirmation gates would then be evaluated normally."
+    verb = "is" if len(readable) == 1 else "are"
+    return f"Guidance can advance only after {conditions} {verb} available; remaining confirmation gates would then be evaluated normally."
 
 
 def _atlas_summary(card: Mapping[str, Any]) -> str:
+    ai_view = card.get("atlas_ai_view") if isinstance(card.get("atlas_ai_view"), Mapping) else {}
+    if ai_view.get("text"):
+        return str(ai_view["text"])
     ticker = str(card.get("ticker") or "This candidate")
     rank = card.get("production_rank")
     score = _atlas_score_presentation(card.get("scan_conviction"))
@@ -387,17 +403,21 @@ def _quick_evidence(card: Mapping[str, Any]) -> str:
 
 
 def _key_numbers(card: Mapping[str, Any]) -> str:
-    technical, volume = card.get("technical_evidence") or {}, card.get("volume_evidence") or {}
+    persisted_technical = card.get("technical_evidence") or {}
+    canonical_technical = card.get("canonical_technical_evidence") or {}
+    technical, volume = canonical_technical or persisted_technical, card.get("volume_evidence") or {}
     recovery, trade = card.get("recovery") or {}, card.get("trade_plan") or {}
     values: list[tuple[str, str]] = []
     if card.get("display_price") is not None:
         values.append((str(card.get("display_price_label") or "Price"), _money(card.get("display_price"))))
     if trade.get("entry_low") is not None and trade.get("entry_high") is not None:
         values.append(("Entry Range", f'{_money(trade.get("entry_low"))}–{_money(trade.get("entry_high"))}'))
-    if technical.get("rsi") is not None: values.append(("RSI", _score(technical.get("rsi"))))
+    rsi = technical.get("rsi14") if canonical_technical else technical.get("rsi")
+    if rsi is not None: values.append(("RSI", _score(rsi)))
     if recovery.get("score") is not None: values.append(("Recovery", _score(recovery.get("score"))))
     if volume.get("relative_volume") is not None: values.append(("Contextual RVOL", _ratio(volume.get("relative_volume")) + "×"))
-    if technical.get("resistance") is not None: values.append(("Resistance", _money(technical.get("resistance"))))
+    resistance = technical.get("pivot") if canonical_technical else technical.get("resistance")
+    if resistance is not None: values.append(("Resistance", _money(resistance)))
     stop = trade.get("stop") if trade.get("stop") is not None else trade.get("stop_loss")
     target = trade.get("target_1") if trade.get("target_1") is not None else trade.get("target")
     if stop is not None or target is not None:
@@ -500,7 +520,7 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
         if not cards:
             st.caption("No candidates currently meet this canonical Guidance state.")
             continue
-        visible_cards = cards[:6]
+        visible_cards = cards[:10]
         for index, card in enumerate(visible_cards):
             _card(card, key=f'{str(group.get("title")).lower().replace(" ", "_")}_{index}', first=not first_rendered)
             first_rendered = True

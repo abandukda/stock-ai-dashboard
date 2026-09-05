@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Mapping, Sequence
 
 from engines.canonical_investment_evaluation_v1 import build_canonical_evaluation
@@ -83,10 +84,28 @@ def evaluate_on_demand(
         phase1_last_known if phase1_last_known.get("status") == "AVAILABLE" else
         _market_evidence(row)
     )
-    market = build_market_snapshot(symbol, market_source)
+    supplied_market = row.get("canonical_market_snapshot") if isinstance(row.get("canonical_market_snapshot"), Mapping) else {}
+    market = (
+        dict(supplied_market)
+        if supplied_market and supplied_market.get("evidence_id") == market_source.get("evidence_id")
+        else build_market_snapshot(symbol, market_source)
+    )
+    daily_contract = phase1.get("canonical_technical_history") if isinstance(phase1.get("canonical_technical_history"), Mapping) else {}
+    if bars is None and daily_contract.get("status") == "AVAILABLE":
+        try:
+            bars = tuple(
+                DailyBar(
+                    symbol, datetime.fromisoformat(str(item["timestamp"]).replace("Z", "+00:00")),
+                    float(item["open"]), float(item["high"]), float(item["low"]),
+                    float(item["close"]), float(item["volume"]), bool(item.get("completed", True)),
+                )
+                for item in daily_contract.get("bars") or ()
+            )
+        except (KeyError, TypeError, ValueError):
+            bars = None
     technical = _technical_contract(row, bars)
     bar_contract = phase1.get("completed_bars") if isinstance(phase1.get("completed_bars"), Mapping) else {}
-    if phase1 and bar_contract.get("confirmation_allowed") is not True:
+    if phase1 and technical.get("status") != "AVAILABLE" and bar_contract.get("confirmation_allowed") is not True:
         technical = {
             **technical, "status": "DATA_UNAVAILABLE", "completed_bar": False,
             "feed_health": "DEGRADED",

@@ -304,11 +304,83 @@ def validate_time_series(
     }
 
 
+def validate_daily_time_series(
+    ticker: str,
+    payload: Mapping[str, Any] | None,
+    *,
+    received_timestamp: datetime,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Publish split-adjusted completed daily bars for the approved technical engine."""
+    symbol = normalize_ticker(ticker)
+    source = dict(payload or {})
+    received = _aware(received_timestamp)
+    current = _aware(now or received_timestamp)
+    meta = source.get("meta") if isinstance(source.get("meta"), Mapping) else {}
+    provider_symbol = normalize_ticker(str(meta.get("symbol") or ""))
+    zone_name = str(meta.get("exchange_timezone") or "America/New_York")
+    try:
+        zone = ZoneInfo(zone_name)
+    except Exception:
+        zone = EASTERN
+    invalid = 0
+    parsed: list[dict[str, Any]] = []
+    for row in source.get("values") if isinstance(source.get("values"), Sequence) else ():
+        if not isinstance(row, Mapping):
+            invalid += 1
+            continue
+        raw_stamp = row.get("datetime") or row.get("timestamp")
+        try:
+            day = datetime.fromisoformat(str(raw_stamp)).date()
+            stamp = datetime(day.year, day.month, day.day, 16, 0, tzinfo=zone).astimezone(timezone.utc)
+        except (TypeError, ValueError):
+            invalid += 1
+            continue
+        open_, high, low, close = (_number(row.get(key)) for key in ("open", "high", "low", "close"))
+        volume = _number(row.get("volume"))
+        if not (
+            open_ is not None and high is not None and low is not None and close is not None
+            and volume is not None and volume >= 0 and low <= min(open_, close) <= max(open_, close) <= high
+        ):
+            invalid += 1
+            continue
+        completed = bool(current and current >= stamp + timedelta(seconds=90))
+        if completed:
+            parsed.append({
+                "ticker": symbol, "timestamp": stamp.isoformat(), "open": open_, "high": high,
+                "low": low, "close": close, "volume": volume, "completed": True,
+                "session": "REGULAR", "source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
+            })
+    parsed.sort(key=lambda row: row["timestamp"])
+    duplicates = len(parsed) - len({row["timestamp"] for row in parsed})
+    unique = list({row["timestamp"]: row for row in parsed}.values())
+    enough = len(unique) >= 200
+    valid = provider_symbol == symbol and enough and not invalid and not duplicates
+    reasons = tuple(code for condition, code in (
+        (provider_symbol != symbol, "DAILY_SYMBOL_MISMATCH"),
+        (not enough, "INSUFFICIENT_DAILY_HISTORY"),
+        (invalid > 0, "INVALID_DAILY_OHLCV_BAR"),
+        (duplicates > 0, "DUPLICATE_DAILY_BAR_IDENTITY"),
+    ) if condition)
+    return {
+        "version": ADAPTER_VERSION, "ticker": symbol,
+        "status": "AVAILABLE" if valid else "DATA_UNAVAILABLE",
+        "provider": "TWELVE_DATA", "source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
+        "interval": "1day", "range": "1Y", "adjustment_mode": "splits",
+        "extended_hours_included": False, "received_timestamp": received.isoformat() if received else None,
+        "bars": tuple(unique), "records_found": len(unique), "minimum_history": 200,
+        "newest_completed_bar_timestamp": unique[-1]["timestamp"] if unique else None,
+        "evidence_id": _evidence_id(symbol, "TIME_SERIES_1DAY", unique[-1]["timestamp"] if unique else None, len(unique)),
+        "reason_codes": reasons,
+    }
+
+
 def build_phase1_bundle(
     ticker: str,
     *,
     websocket_event: Mapping[str, Any] | None,
     time_series_payload: Mapping[str, Any] | None,
+    daily_time_series_payload: Mapping[str, Any] | None = None,
     received_timestamp: datetime,
     now: datetime | None = None,
     policy: Phase1Policy | None = None,
@@ -316,6 +388,12 @@ def build_phase1_bundle(
     completed_bars = validate_time_series(
         ticker, time_series_payload, received_timestamp=received_timestamp, now=now, policy=policy,
     )
+    daily_history = validate_daily_time_series(
+        ticker, daily_time_series_payload, received_timestamp=received_timestamp, now=now,
+    ) if daily_time_series_payload is not None else {
+        "status": "DATA_UNAVAILABLE", "bars": (),
+        "reason_codes": ("DAILY_TECHNICAL_HISTORY_NOT_ACQUIRED",),
+    }
     latest = completed_bars.get("latest_completed_bar") or {}
     last_known_market = {
         "status": "AVAILABLE" if latest else "DATA_UNAVAILABLE",
@@ -338,6 +416,7 @@ def build_phase1_bundle(
             ticker, websocket_event, received_timestamp=received_timestamp, now=now, policy=policy,
         ),
         "completed_bars": completed_bars,
+        "canonical_technical_history": daily_history,
         "last_known_market": last_known_market,
         "intraday_volume": {
             "status": "DATA_UNAVAILABLE",
@@ -363,12 +442,15 @@ class TwelveDataPhase1Adapter:
         self._api_key = str(api_key)
         self._get = get
 
-    def fetch_time_series(self, ticker: str, *, outputsize: int = 120) -> Mapping[str, Any]:
+    def fetch_time_series(
+        self, ticker: str, *, interval: str = "1min", outputsize: int = 120,
+        prepost: bool = True,
+    ) -> Mapping[str, Any]:
         response = self._get(
             f"{REST_BASE}/time_series",
             params={
-                "symbol": normalize_ticker(ticker), "interval": "1min",
-                "outputsize": int(outputsize), "prepost": "true", "adjust": "splits",
+                "symbol": normalize_ticker(ticker), "interval": str(interval),
+                "outputsize": int(outputsize), "prepost": "true" if prepost else "false", "adjust": "splits",
             },
             headers={"Authorization": f"apikey {self._api_key}"}, timeout=12,
         )
@@ -395,5 +477,5 @@ __all__ = [
     "TWELVE_DATA_ENABLED_FLAG", "TwelveDataPhase1Adapter", "build_adapter_if_enabled",
     "build_phase1_bundle", "load_twelve_data_setting", "normalize_websocket_price",
     "quote_as_non_authoritative", "twelve_data_enabled",
-    "validate_time_series",
+    "validate_daily_time_series", "validate_time_series",
 ]

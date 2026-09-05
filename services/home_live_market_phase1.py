@@ -12,6 +12,7 @@ import json
 import ssl
 import time
 from typing import Any, Callable, Mapping, Sequence
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -99,6 +100,8 @@ def acquire_home_phase1_evaluations(
     now: datetime | None = None, policy: Phase1Policy | None = None,
     get: Callable[..., Any] = requests.get, connector: Callable[..., Any] | None = None,
     secrets: Mapping[str, Any] | None = None, environ: Mapping[str, str] | None = None,
+    daily_history_cache: Mapping[str, Mapping[str, Any]] | None = None,
+    recovery_payload: Any = None,
 ) -> dict[str, Any]:
     """Acquire a small Home cohort; failures return evidence, never exceptions."""
     started = time.monotonic()
@@ -119,6 +122,7 @@ def acquire_home_phase1_evaluations(
     events, websocket_meta = _websocket_events(symbols, api_key, wait_seconds=DEFAULT_WS_WAIT_SECONDS, connector=connector)
     evaluations: dict[str, Any] = {}
     diagnostics: dict[str, Any] = {}
+    history_cache = {str(key): dict(value) for key, value in (daily_history_cache or {}).items()}
     provider_calls = 1
     for row in rows:
         ticker_started = time.monotonic()
@@ -127,8 +131,16 @@ def acquire_home_phase1_evaluations(
         try:
             payload = adapter.fetch_time_series(symbol)
             provider_calls += 1
+            cache_day = (now or datetime.now(timezone.utc)).astimezone(ZoneInfo("America/New_York")).date().isoformat()
+            cache_key = f"{symbol}|TWELVE_DATA|1Y|1day|REGULAR|splits|BULL_RUN_RADAR_V1_PROVISIONAL|{cache_day}"
+            daily_payload = history_cache.get(cache_key)
+            if daily_payload is None:
+                daily_payload = dict(adapter.fetch_time_series(symbol, interval="1day", outputsize=260, prepost=False))
+                history_cache[cache_key] = daily_payload
+                provider_calls += 1
             bundle = build_phase1_bundle(
                 symbol, websocket_event=event, time_series_payload=payload,
+                daily_time_series_payload=daily_payload,
                 received_timestamp=received, now=now, policy=policy,
             )
             evaluation = evaluate_on_demand(
@@ -148,6 +160,7 @@ def acquire_home_phase1_evaluations(
             diagnostics[symbol] = {
                 "current_price_status": bundle["current_price"]["status"],
                 "completed_bar_status": bundle["completed_bars"]["status"],
+                "technical_history_status": bundle["canonical_technical_history"]["status"],
                 "volume_status": bundle["intraday_volume"]["status"],
                 "guidance": evaluation["guidance"]["state"],
                 "actionability": evaluation["actionability"]["status"],
@@ -159,6 +172,18 @@ def acquire_home_phase1_evaluations(
                 "status": "DATA_UNAVAILABLE", "reason_codes": (type(exc).__name__.upper(),),
                 "elapsed_seconds": round(time.monotonic() - ticker_started, 3),
             }
+    if evaluations:
+        from engines.home_guidance_story_v1 import build_home_guidance_story
+        from services.atlas_view_summary import build_summary_payload, generate_summaries
+        summary_story = build_home_guidance_story(
+            rows, recovery_payload or [], current_evaluations=evaluations,
+        )
+        summary_cards = summary_story.get("cards") or []
+        summaries = generate_summaries([build_summary_payload(card) for card in summary_cards])
+        for card, summary in zip(summary_cards, summaries):
+            symbol = str(card.get("ticker") or "")
+            if symbol in evaluations:
+                evaluations[symbol]["atlas_ai_view"] = summary
     return {
         "version": HOME_PHASE1_VERSION,
         "status": "AVAILABLE" if evaluations else "DATA_UNAVAILABLE",
@@ -166,6 +191,7 @@ def acquire_home_phase1_evaluations(
         "websocket": websocket_meta, "provider_calls": provider_calls,
         "elapsed_seconds": round(time.monotonic() - started, 3),
         "captured_at": (now or datetime.now(timezone.utc)).isoformat(),
+        "daily_history_cache": history_cache,
     }
 
 

@@ -236,6 +236,7 @@ def build_home_guidance_candidate(
         "last_known_price": price,
         "last_known_price_label": "Persisted / last-known price" if price is not None else "Persisted price unavailable",
         "technical_evidence": snapshot["technical"],
+        "canonical_technical_evidence": dict((evaluation.get("technical_confirmation") or {}).get("evidence") or {}),
         "volume_evidence": snapshot["volume"],
         "fundamentals_evidence": snapshot["fundamentals"],
         "snapshot_evidence_health": snapshot["completeness"],
@@ -255,6 +256,7 @@ def build_home_guidance_candidate(
         },
         "production_decision": dict(production_decision),
         "evaluation": evaluation,
+        "atlas_ai_view": dict(evaluation.get("atlas_ai_view") or {}),
         "presentation_mode": "ACTIVE" if founder_guidance_v1_enabled() and current_evaluation is not None else "PREVIEW",
     }
 

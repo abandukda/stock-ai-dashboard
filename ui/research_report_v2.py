@@ -504,11 +504,12 @@ def _render_trade_card_grid(items: list[tuple[str, Any, str]]) -> None:
 
 
 def _meta(section: Mapping[str, Any]) -> None:
+    as_of = format_market_timestamp_et(section.get("as_of"), unavailable=str(section.get("as_of") or "Unknown"))
     st.caption(
         f"Status: {section.get('status', 'unavailable')} · "
         f"Completeness: {_pct(section.get('completeness_pct'))} · "
         f"Source: {section.get('source', 'Unknown')} · "
-        f"As of: {section.get('as_of', 'Unknown')}"
+        f"As of: {as_of}"
     )
 
 
@@ -560,7 +561,17 @@ def _render_price_chart(report: Mapping[str, Any]) -> None:
             f"Provider time: {format_market_timestamp_et(market.get('provider_timestamp'), unavailable='Unavailable')} · "
             f"Evidence: {market.get('evidence_id') or 'Unavailable'}"
         )
-    history = section.get("history") or []
+    ranges = report.get("canonical_chart_ranges") if isinstance(report.get("canonical_chart_ranges"), Mapping) else {}
+    selected_range = "1D"
+    selected_contract: Mapping[str, Any] = {}
+    if ranges:
+        options = [value for value in ("1D", "5D", "1M", "3M", "6M", "1Y") if value in ranges]
+        selected_range = st.selectbox(
+            "Chart range", options, index=0,
+            key=f"atlas_chart_range_{report.get('ticker', 'UNKNOWN')}",
+        )
+        selected_contract = ranges.get(selected_range) if isinstance(ranges.get(selected_range), Mapping) else {}
+    history = list(selected_contract.get("bars") or ()) if selected_contract else section.get("history") or []
     if not history:
         provenance = section.get("history_provenance") or {}
         status = provenance.get("status") or "NOT_LOADED"
@@ -633,18 +644,16 @@ def _render_price_chart(report: Mapping[str, Any]) -> None:
         col=1,
     )
 
-    technical = section.get("data") or {}
+    current_evaluation = ((report.get("research_context") or {}).get("current_evaluation") or {})
+    canonical_technical = (current_evaluation.get("technical_confirmation") or {}).get("evidence") or {}
+    technical = canonical_technical or section.get("data") or {}
     lines = [
         ("Atlas Fair Value", report.get("validated_fair_value"), "dash"),
-        (
-            "Wall Street Average",
-            (report["sections"]["analysts"].get("data") or {}).get("average_target"),
-            "dot",
-        ),
+        ("SMA 20", technical.get("sma20"), "dash"),
         ("SMA 50", technical.get("sma50"), "dashdot"),
         ("SMA 200", technical.get("sma200"), "longdash"),
         ("Support", technical.get("support"), "dot"),
-        ("Resistance", technical.get("resistance"), "dot"),
+        ("Pivot / Breakout", technical.get("pivot") if technical.get("pivot") is not None else technical.get("resistance"), "dot"),
     ]
     plan = report.get("trade_plan") or {}
     lines.extend(
@@ -687,7 +696,18 @@ def _render_price_chart(report: Mapping[str, Any]) -> None:
         hovermode="x unified",
     )
     st.plotly_chart(fig, use_container_width=True)
-    provenance = section.get("history_provenance") or {}
+    provenance = dict(section.get("history_provenance") or {})
+    if selected_contract:
+        provenance.update({
+            "source": "Twelve Data /time_series", "provider": selected_contract.get("provider"),
+            "range": selected_range, "interval": selected_contract.get("interval"),
+            "adjustment_mode": selected_contract.get("adjustment_mode"),
+            "extended_hours_included": selected_contract.get("extended_hours_included"),
+            "as_of": selected_contract.get("newest_completed_bar_timestamp"),
+            "quality_status": selected_contract.get("quality_status") or selected_contract.get("status"),
+            "evidence_id": selected_contract.get("evidence_id"),
+            "records_found": len(history),
+        })
     if provenance:
         st.caption(
             f"History source: {provenance.get('source', 'Unknown')} · "

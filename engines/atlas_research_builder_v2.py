@@ -511,6 +511,14 @@ def build_atlas_research_v2(
     }
     checkpoint("valuation_preparation:before")
     trade_plan = build_trade_plan(enriched_row, quote)
+    current_evaluation = _mapping(_mapping(enriched_row.get("research_context")).get("current_evaluation"))
+    canonical_trade_plan = _mapping(current_evaluation.get("trade_plan"))
+    if canonical_trade_plan:
+        trade_plan = {
+            **canonical_trade_plan,
+            "stop_loss": canonical_trade_plan.get("stop_loss") if canonical_trade_plan.get("stop_loss") is not None else canonical_trade_plan.get("stop"),
+            "current_price": _mapping(enriched_row.get("canonical_market_snapshot")).get("price"),
+        }
 
     financial_data = _mapping(enriched["financials"].get("data"))
     earnings_data = _mapping(enriched["earnings"].get("data"))
@@ -664,16 +672,19 @@ def build_atlas_research_v2(
     completeness = _registry_coverage(evidence_registry)
     committee_verdict = institutional.get("committee_verdict") or enriched.get("committee_verdict")
 
+    canonical_market = _mapping(enriched_row.get("canonical_market_snapshot"))
     report = {
         "version": "V2.1-AI-INTELLIGENCE",
         "ticker": ticker,
         "company": (
             enriched.get("company")
-            or _text(_first(enriched_row, "company", "Company", "company_name", "name"), ticker)
+            if str(enriched.get("company") or "").strip().upper() not in {"", "UNKNOWN", "UNAVAILABLE"}
+            else _text(_first(enriched_row, "company", "Company", "company_name", "name"), ticker)
         ),
         "sector": (
             enriched.get("sector")
-            or _text(_first(enriched_row, "sector", "Sector", "industry", "Industry"))
+            if str(enriched.get("sector") or "").strip().upper() not in {"", "UNKNOWN", "UNAVAILABLE"}
+            else _text(_first(enriched_row, "sector", "Sector", "industry", "Industry"))
         ),
         "security_type": security_type,
         "committee_verdict": committee_verdict,
@@ -695,10 +706,14 @@ def build_atlas_research_v2(
         "scenario_base_upside_pct": valuation.get("scenario_base_upside_pct"),
         "expected_return_pct": valuation.get("atlas_expected_return_pct"),
         "valuation_families": valuation,
-        "current_price": quote.get("price"),
+        "current_price": canonical_market.get("price") if canonical_market.get("price") is not None else quote.get("price"),
+        "production_rank": _num(_first(enriched_row, "production_rank", "rank", "Rank")),
+        "scan_conviction": _num(_first(enriched_row, "conviction", "conviction_score", "Scan Conviction")),
         "quote": quote,
-        "canonical_market_snapshot": _mapping(enriched_row.get("canonical_market_snapshot")),
+        "canonical_market_snapshot": canonical_market,
         "canonical_chart_contract": _mapping(enriched_row.get("canonical_chart_contract")),
+        "canonical_chart_ranges": _mapping(enriched_row.get("canonical_chart_ranges")),
+        "atlas_ai_view": _mapping(enriched_row.get("atlas_ai_view")),
         "trade_plan": trade_plan,
         "policy_intelligence": policy_intelligence,
         "ai_valuation": ai_valuation,

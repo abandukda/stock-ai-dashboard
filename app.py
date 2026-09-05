@@ -27759,6 +27759,19 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
     live=st.session_state.get(state_key)
     if (isinstance(live,dict) and not live.get("error")) or saved:
         merged=v8054_merge_saved_live(saved,live if isinstance(live,dict) and not live.get("error") else {}); merged["Live Research"]=bool(isinstance(live,dict) and not live.get("error"))
+        # Reconcile explicit Research identity with the current authoritative
+        # Full Scan and Recovery artifacts without changing either artifact.
+        try:
+            _current_full_rows = read_json_file(DATA_DIR / "market_full_scan.json")
+            _current_full_rows = _current_full_rows if isinstance(_current_full_rows, list) else (_current_full_rows.get("rows") or _current_full_rows.get("data") or [])
+            _rank = next((index for index, item in enumerate(_current_full_rows, 1) if str(item.get("ticker") or item.get("Ticker") or "").upper() == ticker), None)
+            if _rank is not None:
+                merged["production_rank"] = _rank
+            _recovery_rows = read_json_file(DATA_DIR / "recovery_scan.json")
+            _recovery_rows = _recovery_rows if isinstance(_recovery_rows, list) else (_recovery_rows.get("rows") or _recovery_rows.get("data") or [])
+            merged["canonical_recovery_row"] = next((dict(item) for item in _recovery_rows if str(item.get("ticker") or item.get("Ticker") or "").upper() == ticker), {})
+        except Exception:
+            merged.setdefault("canonical_recovery_row", {})
         # The Research shell is already interactive above. Twelve enrichment is
         # optional and fail-closed, and never replaces the persisted fallback.
         if submitted or auto_live:
@@ -27778,7 +27791,10 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
         is_etf=bool(merged.get("is_etf") or str(v8054_first_meaningful(merged,["security_type","Security Type"],"")).upper()=="ETF")
         security_type="ETF" if is_etf else str(v8054_first_meaningful(merged,["security_type","Security Type"],"Equity") or "Equity")
         generated_at=str(v8054_first_meaningful(merged,["research_refreshed_at","generated_at","scan_timestamp","Generated At"],"") or "Unavailable")
-        st.caption(f"Research context · {ticker} · {company} · {security_type} · Generated {generated_at}")
+        _research_context_caption = f"Research context · {ticker} · {company} · {security_type}"
+        if generated_at not in {"", "Unavailable"}:
+            _research_context_caption += f" · Generated {v8055_format_et(generated_at)}"
+        st.caption(_research_context_caption)
         try:
             from agents.runtime_qa_architecture import encode_context_summary, sanitize_research_context
             _qa_context = merged.get("research_context") if isinstance(merged.get("research_context"), dict) else {}
@@ -32964,7 +32980,12 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
     if twelve_data_enabled() and attempt_due:
         st.session_state["home_twelve_phase1_attempted_at"] = dt.datetime.now(dt.timezone.utc).timestamp()
         from services.home_live_market_phase1 import acquire_home_phase1_evaluations
-        live_result = acquire_home_phase1_evaluations(full_payload)
+        live_result = acquire_home_phase1_evaluations(
+            full_payload,
+            daily_history_cache=st.session_state.get("home_twelve_daily_history_cache") or {},
+            recovery_payload=recovery_payload,
+        )
+        st.session_state["home_twelve_daily_history_cache"] = live_result.get("daily_history_cache") or {}
         st.session_state["home_twelve_phase1"] = live_result
         if live_result.get("evaluations"):
             st.rerun()

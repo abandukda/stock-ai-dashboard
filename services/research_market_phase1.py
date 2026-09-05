@@ -13,6 +13,7 @@ from services.live_market.twelve_data_phase1 import (
     Phase1Policy, build_adapter_if_enabled, build_phase1_bundle,
     load_twelve_data_setting, twelve_data_enabled,
 )
+from services.on_demand_evaluation_service import evaluate_on_demand
 
 
 RESEARCH_MARKET_PHASE1_VERSION = "RESEARCH_TWELVE_DATA_PHASE1_V1"
@@ -70,6 +71,16 @@ def apply_research_phase1(row: Mapping[str, Any], bundle: Mapping[str, Any]) -> 
         "gap_metadata": completed.get("gap_metadata") or (), "evidence_id": completed.get("evidence_id"),
     }
     output["canonical_chart_contract"] = chart_contract
+    daily = bundle.get("canonical_technical_history") if isinstance(bundle.get("canonical_technical_history"), Mapping) else {}
+    daily_bars = [dict(bar) for bar in daily.get("bars") or () if isinstance(bar, Mapping)]
+    output["canonical_chart_ranges"] = {
+        "1D": {**chart_contract, "range": "1D", "bars": bars[-960:]},
+        "5D": {**chart_contract, "range": "5D", "bars": bars[-5000:]},
+        "1M": {**dict(daily), "range": "1M", "bars": daily_bars[-23:]},
+        "3M": {**dict(daily), "range": "3M", "bars": daily_bars[-66:]},
+        "6M": {**dict(daily), "range": "6M", "bars": daily_bars[-132:]},
+        "1Y": {**dict(daily), "range": "1Y", "bars": daily_bars[-260:]},
+    }
     if use_twelve:
         output["price_history"] = bars
         output["history_provenance"] = {
@@ -84,6 +95,24 @@ def apply_research_phase1(row: Mapping[str, Any], bundle: Mapping[str, Any]) -> 
             "quality_status": chart_contract["quality_status"], "evidence_id": chart_contract["evidence_id"],
             "retrieval_status": "fresh_approved_twelve_evidence", "cache_status": "none", "error": "",
         }
+    context = dict(output.get("research_context") or {})
+    evaluation = evaluate_on_demand(output, context=context, twelve_data_phase1=bundle, phase1_enabled=True)
+    context["current_evaluation"] = evaluation
+    output["research_context"] = context
+    output["canonical_technical"] = dict(evaluation.get("technical_confirmation") or {})
+    output["canonical_guidance"] = dict(evaluation.get("guidance") or {})
+    output["canonical_actionability"] = dict(evaluation.get("actionability") or {})
+    from engines.home_guidance_story_v1 import build_home_guidance_candidate
+    from services.atlas_view_summary import build_summary_payload, generate_summaries
+    card = build_home_guidance_candidate(
+        output, production_rank=int(output.get("production_rank") or output.get("rank") or 0),
+        recovery_row=output.get("canonical_recovery_row") if isinstance(output.get("canonical_recovery_row"), Mapping) else None,
+        current_evaluation=evaluation,
+    )
+    summary = generate_summaries([build_summary_payload(card)])[0]
+    evaluation["atlas_ai_view"] = summary
+    context["current_evaluation"] = evaluation
+    output["atlas_ai_view"] = summary
     return output
 
 
@@ -103,8 +132,11 @@ def acquire_research_phase1(
             raise RuntimeError("TWELVE_DATA_ADAPTER_UNAVAILABLE")
         events, websocket = _websocket_events([symbol], key, wait_seconds=7.0, connector=connector)
         event, received = events.get(symbol, ({}, now or datetime.now(timezone.utc)))
+        minute_payload = adapter.fetch_time_series(symbol, outputsize=5000)
+        daily_payload = adapter.fetch_time_series(symbol, interval="1day", outputsize=260, prepost=False)
         bundle = build_phase1_bundle(
-            symbol, websocket_event=event, time_series_payload=adapter.fetch_time_series(symbol),
+            symbol, websocket_event=event, time_series_payload=minute_payload,
+            daily_time_series_payload=daily_payload,
             received_timestamp=received, now=now, policy=policy,
         )
         return {"version": RESEARCH_MARKET_PHASE1_VERSION, "status": "AVAILABLE", "bundle": bundle, "websocket": websocket}

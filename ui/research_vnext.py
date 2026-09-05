@@ -21,6 +21,7 @@ from ui.vnext_presentation import (
     evidence_drawer, evidence_health, monitor_technical_scenario,
     price_action_strip, primary_evidence_pair, technical_state_badge,
 )
+from ui.market_timestamp import format_market_timestamp_et
 
 
 RESEARCH_VNEXT_VERSION: Final = "ATLAS_RESEARCH_VNEXT_UX2"
@@ -92,6 +93,10 @@ def _first_mapping_item(value: Any) -> Mapping[str, Any]:
 
 
 def _technical_state(report: Mapping[str, Any]) -> Any:
+    current = _current_evaluation(report)
+    canonical = safe_mapping(current.get("technical_confirmation"))
+    if canonical.get("status") == "AVAILABLE" and not is_missing_scalar(canonical.get("state")):
+        return canonical.get("state")
     section = safe_mapping(safe_mapping(report.get("sections")).get("technical"))
     data = safe_mapping(section.get("data"))
     for key in ("technical_state", "state", "setup_state", "breakout_state"):
@@ -373,6 +378,23 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
     st.markdown("## Decision")
     current = safe_mapping(view.get("current_evaluation"))
     current_guidance = safe_mapping(current.get("guidance"))
+    market = safe_mapping(report.get("canonical_market_snapshot"))
+    setup = st.columns(4)
+    setup[0].metric("Production Rank", f"#{int(report['production_rank'])}" if report.get("production_rank") else "Unavailable")
+    setup[1].metric("ATLAS Setup Score", f"{float(report['scan_conviction']):g} / 100" if report.get("scan_conviction") is not None else "Unavailable")
+    setup[2].metric(_scalar_text(market.get("customer_label"), "Market Price"), CanonicalNumberFormatter.price(market.get("price")).display)
+    setup[3].metric("Technical State", _display_status(_scalar_text(safe_mapping(current.get("technical_confirmation")).get("state"), "Unavailable")))
+    if market:
+        st.caption(
+            f"{_scalar_text(market.get('market_session'), 'Unavailable').replace('_', ' ').title()} · "
+            f"{format_market_timestamp_et(market.get('provider_timestamp'), unavailable='Timestamp unavailable')} · "
+            f"{_scalar_text(market.get('provider'), 'Provider unavailable')} · "
+            f"{'Live' if market.get('fresh_current_price') is True else 'Last known'}"
+        )
+    atlas_view = safe_mapping(report.get("atlas_ai_view"))
+    if atlas_view.get("text"):
+        st.markdown("### ATLAS View")
+        st.write(_scalar_text(atlas_view.get("text")))
     if current_guidance:
         actionability = _scalar_text(safe_mapping(current.get("actionability")).get("status"), "UNAVAILABLE")
         st.markdown(
@@ -423,17 +445,23 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
             st.info(_scalar_text(action.get("current_action"), _scalar_text(decision.get("recommendation"))))
 
     _block_marker("decision-core-metrics", ticker)
-    columns = st.columns(5)
-    columns[0].metric("Opportunity", _scalar_text(header.opportunity))
-    columns[1].metric(
-        _scalar_text(availability.get("confidence_label"), "Confidence"),
-        CanonicalNumberFormatter.percent(header.confidence).display,
-    )
+    metric_values = []
+    if not is_missing_scalar(header.opportunity):
+        metric_values.append(("Opportunity", _scalar_text(header.opportunity)))
+    confidence_display = CanonicalNumberFormatter.percent(header.confidence).display
+    if confidence_display != "Unavailable":
+        metric_values.append((_scalar_text(availability.get("confidence_label"), "Confidence"), confidence_display))
     prices = view["prices"]
-    columns[2].metric("Current Price", prices.current_price.display)
+    if market.get("price") is not None:
+        metric_values.append((_scalar_text(market.get("customer_label"), "Market Price"), CanonicalNumberFormatter.price(market.get("price")).display))
     canonical_expected_return = _decision_value(report, "decision_expected_return", "atlas_expected_return_pct")
-    columns[3].metric("Atlas-FV Expected Return", CanonicalNumberFormatter.percent(canonical_expected_return, signed=True).display)
-    columns[4].metric("Stop / Invalidation", prices.invalidation.display)
+    if str(report.get("atlas_valuation_status") or "").upper() == "PUBLISHED" and canonical_expected_return is not None:
+        metric_values.append(("Atlas-FV Expected Return", CanonicalNumberFormatter.percent(canonical_expected_return, signed=True).display))
+    if prices.invalidation.display != "Unavailable":
+        metric_values.append(("Stop / Invalidation", prices.invalidation.display))
+    columns = st.columns(max(1, len(metric_values)))
+    for column, (label, value) in zip(columns, metric_values):
+        column.metric(label, value)
 
     evidence = view["evidence"]
     support_facts = [item for item in safe_sequence(guidance.get("supporting_facts")) if isinstance(item, Mapping)]

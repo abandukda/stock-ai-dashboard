@@ -8,8 +8,29 @@ from services.canonical_market_snapshot import build_market_snapshot
 from services.on_demand_evaluation_service import evaluate_on_demand
 from services.live_market.twelve_data_phase1 import (
     Phase1Policy, TwelveDataPhase1Adapter, build_adapter_if_enabled, build_phase1_bundle,
-    normalize_websocket_price, quote_as_non_authoritative, validate_time_series,
+    normalize_websocket_price, quote_as_non_authoritative, validate_daily_time_series, validate_time_series,
 )
+
+
+def test_daily_history_contract_requires_approved_minimum_and_preserves_authority():
+    from datetime import timedelta
+    day = datetime(2025, 10, 20)
+    values = []
+    while len(values) < 220:
+        if day.weekday() < 5:
+            close = 80 + len(values) * .1
+            values.append({"datetime": day.date().isoformat(), "open": close - .2, "high": close + .5, "low": close - .5, "close": close, "volume": 1_000_000})
+        day += timedelta(days=1)
+    result = validate_daily_time_series(
+        "NVDA", {"meta": {"symbol": "NVDA", "exchange_timezone": "America/New_York"}, "values": values},
+        received_timestamp=datetime(2026, 9, 4, 22, tzinfo=timezone.utc),
+        now=datetime(2026, 9, 4, 22, tzinfo=timezone.utc),
+    )
+    assert result["status"] == "AVAILABLE"
+    assert result["interval"] == "1day"
+    assert result["adjustment_mode"] == "splits"
+    assert result["records_found"] == 220
+    assert result["evidence_id"].startswith("TD1-")
 
 
 NOW = datetime(2026, 9, 4, 15, 0, tzinfo=timezone.utc)
