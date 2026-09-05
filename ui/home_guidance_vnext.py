@@ -706,6 +706,10 @@ def _card(card: Mapping[str, Any], *, key: str, first: bool = False, total: int 
         )
         st.markdown(_market_evidence_badge(card), unsafe_allow_html=True)
         st.markdown(_action_card(card), unsafe_allow_html=True)
+        st.caption(
+            f"Latest ATLAS Rating — {_timestamp(card.get('latest_rating_as_of'))} · "
+            f"Live Entry Status — {card.get('live_entry_status') or 'Current-session evidence unavailable'}"
+        )
         chart_contract = card.get("home_chart") if isinstance(card.get("home_chart"), Mapping) else {}
         if str(chart_contract.get("status") or "").upper() == "AVAILABLE" and len(chart_contract.get("bars") or ()) >= 2:
             st.markdown('<h4 class="atlas-home-view-title">Price Chart</h4>', unsafe_allow_html=True)

@@ -23,6 +23,7 @@ ENDPOINTS = (
     "profile", "statistics", "income_statement", "balance_sheet", "cash_flow",
     "earnings", "earnings_estimate", "revenue_estimate", "price_target",
     "insider_transactions", "institutional_holders", "press_releases",
+    "splits", "dividends", "etf",
 )
 
 
@@ -34,7 +35,7 @@ def _evidence_id(symbol: str, family: str, observed: str) -> str:
 def acquire_twelve_trial_dossiers(
     symbols: Sequence[str], *, get: Callable[..., Any] = requests.get,
     secrets: Mapping[str, Any] | None = None, environ: Mapping[str, str] | None = None,
-    max_workers: int = 6, timeout: float = 12,
+    max_workers: int = 6, timeout: float = 12, endpoints: Sequence[str] = ENDPOINTS,
 ) -> dict[str, Any]:
     if not internal_trial_mode(environ=environ, secrets=secrets):
         return {"version": VERSION, "status": "DISABLED", "dossiers": {}, "provider_calls": 0}
@@ -66,7 +67,8 @@ def acquire_twelve_trial_dossiers(
             return symbol, family, {"status": "DATA_UNAVAILABLE", "provider": "TWELVE_DATA", "endpoint": family, "observed_at": observed, "evidence_id": _evidence_id(symbol, family, observed), "payload": None, "reason_codes": (type(exc).__name__.upper(),)}, {"ticker": symbol, "endpoint": family, "success": False, "latency_seconds": round(time.monotonic()-started, 3)}
 
     with ThreadPoolExecutor(max_workers=max(1, int(max_workers))) as pool:
-        futures = [pool.submit(fetch, symbol, family) for symbol in clean for family in ENDPOINTS]
+        selected = tuple(family for family in endpoints if family in ENDPOINTS)
+        futures = [pool.submit(fetch, symbol, family) for symbol in clean for family in selected]
         for future in as_completed(futures):
             symbol, family, envelope, meta = future.result()
             dossiers[symbol]["families"][family] = envelope
@@ -79,9 +81,73 @@ def acquire_twelve_trial_dossiers(
         "dossiers": dossiers, "provider_calls": len(telemetry), "successful_calls": successes,
         "success_rate": successes / len(telemetry) if telemetry else 0,
         "latency_seconds": {"total": round(sum(item["latency_seconds"] for item in telemetry), 3), "max": max((item["latency_seconds"] for item in telemetry), default=0)},
-        "endpoint_success": {family: sum(item["success"] for item in telemetry if item["endpoint"] == family) for family in ENDPOINTS},
+        "endpoint_success": {family: sum(item["success"] for item in telemetry if item["endpoint"] == family) for family in selected},
         "observed_at": observed,
     }
 
 
-__all__ = ["ENDPOINTS", "VERSION", "acquire_twelve_trial_dossiers"]
+def _nested(source: Any, *path: str) -> Any:
+    current = source
+    for key in path:
+        if not isinstance(current, Mapping):
+            return None
+        current = current.get(key)
+    return current
+
+
+def _first_record(payload: Any, key: str) -> Mapping[str, Any]:
+    values = payload.get(key) if isinstance(payload, Mapping) else None
+    return values[0] if isinstance(values, list) and values and isinstance(values[0], Mapping) else {}
+
+
+def _pct(value: Any) -> float | None:
+    try:
+        number = float(value)
+        return number * 100 if abs(number) <= 2 else number
+    except (TypeError, ValueError):
+        return None
+
+
+def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) -> dict[str, Any]:
+    """Merge only missing evidence fields; never overwrite an ATLAS value."""
+    output = dict(row)
+    families = dossier.get("families") if isinstance(dossier.get("families"), Mapping) else {}
+    payload = lambda family: (families.get(family) or {}).get("payload") or {}
+    stats = _nested(payload("statistics"), "statistics") or {}
+    financials = _nested(stats, "financials") or {}
+    income_stats = _nested(financials, "income_statement") or {}
+    balance_stats = _nested(financials, "balance_sheet") or {}
+    cash_stats = _nested(financials, "cash_flow") or {}
+    income = _first_record(payload("income_statement"), "income_statement")
+    balance = _first_record(payload("balance_sheet"), "balance_sheet")
+    cash = _first_record(payload("cash_flow"), "cash_flow")
+    values = {
+        "revenue_growth": _pct(income_stats.get("quarterly_revenue_growth")),
+        "earnings_growth": _pct(income_stats.get("quarterly_earnings_growth_yoy")),
+        "operating_profit_margin": _pct(financials.get("operating_margin")),
+        "free_cash_flow": cash_stats.get("levered_free_cash_flow_ttm") or cash.get("free_cash_flow"),
+        "current_ratio": balance_stats.get("current_ratio_mrq"),
+        "latest_revenue": income_stats.get("revenue_ttm") or income.get("sales"),
+        "latest_operating_income": income.get("operating_income"),
+        "operating_cash_flow": cash_stats.get("operating_cash_flow_ttm") or _nested(cash, "operating_activities", "operating_cash_flow"),
+        "total_debt": balance_stats.get("total_debt_mrq") or _nested(balance, "liabilities", "total_liabilities"),
+        "cash_and_equivalents": balance_stats.get("total_cash_mrq") or _nested(balance, "assets", "current_assets", "cash_and_cash_equivalents"),
+    }
+    for key, value in values.items():
+        if output.get(key) in (None, "", "Unavailable") and value is not None:
+            output[key] = value
+    profile = payload("profile")
+    if isinstance(profile, Mapping):
+        for target, source in (("description", "description"), ("sector", "sector"), ("industry", "industry")):
+            if not output.get(target) and profile.get(source): output[target] = profile[source]
+    eps_est = _first_record(payload("earnings_estimate"), "earnings_estimate")
+    rev_est = _first_record(payload("revenue_estimate"), "revenue_estimate")
+    if output.get("forward_eps") is None and eps_est.get("avg_estimate") is not None: output["forward_eps"] = eps_est["avg_estimate"]
+    if output.get("forward_revenue") is None and rev_est.get("avg_estimate") is not None: output["forward_revenue"] = rev_est["avg_estimate"]
+    output["twelve_trial_dossier"] = dict(dossier)
+    output["twelve_trial_evidence_ids"] = tuple(dossier.get("evidence_ids") or ())
+    output["fundamental_source"] = output.get("fundamental_source") or "TWELVE_DATA_INTERNAL_TRIAL"
+    return output
+
+
+__all__ = ["ENDPOINTS", "VERSION", "acquire_twelve_trial_dossiers", "normalize_trial_dossier"]

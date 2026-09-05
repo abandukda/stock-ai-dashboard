@@ -213,6 +213,9 @@ def build_home_guidance_candidate(
     evaluation = dict(current_evaluation or evaluate_on_demand(
         row, context={"production_decision": production_decision, "evidence_registry": {}},
     ))
+    trial_fields = evaluation.get("trial_presentation_fields") if isinstance(evaluation.get("trial_presentation_fields"), Mapping) else {}
+    if trial_fields:
+        row = {**dict(row), **dict(trial_fields)}
     guidance = evaluation.get("guidance") if isinstance(evaluation.get("guidance"), Mapping) else {}
     actionability = evaluation.get("actionability") if isinstance(evaluation.get("actionability"), Mapping) else {}
     valuation = evaluation.get("atlas_valuation") if isinstance(evaluation.get("atlas_valuation"), Mapping) else {}
@@ -304,6 +307,12 @@ def build_home_guidance_candidate(
         "evidence_health": _evidence_health(evaluation),
         "methodology_version": evaluation.get("methodology_version"),
         "evaluation_timestamp": evaluation.get("evaluated_at"),
+        "latest_rating_as_of": market.get("provider_timestamp") or evaluation.get("evaluated_at"),
+        "live_entry_status": (
+            "LIVE — current-session evidence validated" if live_price is not None else
+            "MARKET CLOSED — revalidate next session" if market.get("latest_completed_session_valid") is True else
+            "CURRENT-SESSION EVIDENCE UNAVAILABLE"
+        ),
         "market_source_type": str((evaluation.get("market_snapshot") or {}).get("source_type") or "UNAVAILABLE"),
         "market_customer_label": str((evaluation.get("market_snapshot") or {}).get("customer_label") or "Market evidence unavailable"),
         "current_price": live_price,

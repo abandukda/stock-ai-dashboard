@@ -103,6 +103,7 @@ def acquire_home_phase1_evaluations(
     daily_history_cache: Mapping[str, Mapping[str, Any]] | None = None,
     recovery_payload: Any = None,
     latest_completed_session_only: bool = False,
+    trial_dossiers: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Acquire a small Home cohort; failures return evidence, never exceptions."""
     started = time.monotonic()
@@ -132,6 +133,11 @@ def acquire_home_phase1_evaluations(
     for row in rows:
         ticker_started = time.monotonic()
         symbol = _ticker(row)
+        evaluation_row = row
+        dossier = (trial_dossiers or {}).get(symbol)
+        if dossier:
+            from services.twelve_data_trial_intelligence import normalize_trial_dossier
+            evaluation_row = normalize_trial_dossier(row, dossier)
         event, received = events.get(symbol, ({}, now or datetime.now(timezone.utc)))
         try:
             payload = {} if latest_completed_session_only else adapter.fetch_time_series(symbol)
@@ -149,7 +155,7 @@ def acquire_home_phase1_evaluations(
                 received_timestamp=received, now=now, policy=policy,
             )
             evaluation = evaluate_on_demand(
-                row, context={"production_decision": build_production_decision(row), "evidence_registry": {}},
+                evaluation_row, context={"production_decision": build_production_decision(row), "evidence_registry": {}},
                 twelve_data_phase1=bundle, phase1_enabled=True,
             )
             # Presentation evidence only; excluded from canonical technical,
@@ -173,6 +179,16 @@ def acquire_home_phase1_evaluations(
                 "evidence_id": daily_history.get("evidence_id"),
                 "bars": tuple(daily_history.get("bars") or ())[-260:],
             }
+            if dossier:
+                evaluation["trial_intelligence"] = dict(dossier)
+                evaluation["trial_presentation_fields"] = {
+                    key: evaluation_row.get(key) for key in (
+                        "description", "sector", "industry", "revenue_growth", "earnings_growth",
+                        "operating_profit_margin", "free_cash_flow", "current_ratio", "latest_revenue",
+                        "latest_operating_income", "operating_cash_flow", "total_debt", "cash_and_equivalents",
+                        "forward_eps", "forward_revenue",
+                    ) if evaluation_row.get(key) is not None
+                }
             evaluations[symbol] = evaluation
             diagnostics[symbol] = {
                 "current_price_status": bundle["current_price"]["status"],
