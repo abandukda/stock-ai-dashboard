@@ -229,6 +229,22 @@ def build_home_guidance_candidate(
         "atlas_valuation_status": valuation_status,
         "atlas_expected_return": expected_return,
         "atlas_expected_return_status": "AVAILABLE" if expected_return is not None else "DATA_UNAVAILABLE",
+        "valuation_driver_evidence": {
+            "method": (
+                _first_value(row, "fair_value_method")
+                or (_first_value(row, "target_source") if street_display_allowed or "analyst" not in str(row.get("target_source") or "").lower() else None)
+            ),
+            "growth_input_pct": _first_number(row, "atlas_valuation_growth_value"),
+            "operating_margin_pct": _first_number(row, "atlas_valuation_operating_margin"),
+            "forward_eps": _first_number(row, "forward_eps", "eps_forward"),
+            "forward_pe": _first_number(row, "forward_pe"),
+            "justified_pe": _first_number(row, "atlas_valuation_justified_pe"),
+            "multiple_expansion_ratio": _first_number(row, "atlas_valuation_multiple_expansion_ratio"),
+            "multiple_expansion_band": _first_value(row, "atlas_valuation_multiple_expansion_band"),
+            "confidence": _first_number(row, "fair_value_confidence"),
+            "analyst_discrepancy": _first_value(row, "atlas_valuation_analyst_discrepancy") if street_display_allowed else None,
+            "assumption_flags": tuple(row.get("atlas_valuation_assumption_flags") or ()),
+        },
         "technical_state": technical_state,
         "technical_status": technical_status,
         "volume_state": str(volume.get("state") or "UNAVAILABLE"),
@@ -289,7 +305,7 @@ def build_home_guidance_candidate(
             "revenue_surprise_pct": _first_number(row, "revenue_surprise_pct"),
             "next_earnings_date": row.get("next_earnings_date") or row.get("earnings_date"),
             "estimate_revision": _first_value(row, "estimate_revision", "estimate_revision_trend", "analyst_revision_trend"),
-            "estimate_contributor_count": _first_number(row, "estimate_contributor_count", "earnings_estimate_count"),
+            "estimate_contributor_count": _first_number(row, "estimate_contributor_count", "earnings_estimate_count") if row.get("estimate_commercial_display_allowed") is True else None,
             "industry": row.get("industry"), "sector": row.get("sector"),
             "business_summary": _first_value(row, "business_summary", "company_description", "description"),
             "business_kpis": _first_value(row, "approved_business_kpis", "business_kpis", "key_business_metrics"),
@@ -316,6 +332,7 @@ def build_home_guidance_candidate(
                 or str(item.get("commercial_status") or "").upper() in {"LICENSED", "DISPLAY_ALLOWED"}
             ) and (item.get("evidence_id") or item.get("id"))
             and (item.get("publisher") or item.get("source"))
+            and (item.get("why_it_matters") or item.get("summary"))
         )[:3],
         "recovery": {
             "score": recovery.get("recovery_score"),

@@ -488,11 +488,11 @@ def _technical_cue(card: Mapping[str, Any]) -> str:
     return mapping.get(state, "Technical cue not published")
 
 
-def _mini_chart(card: Mapping[str, Any], selected_range: str = "3M") -> str:
+def _mini_chart(card: Mapping[str, Any], selected_range: str = "1Y") -> str:
     contract = card.get("home_chart") if isinstance(card.get("home_chart"), Mapping) else {}
     all_bars = [bar for bar in contract.get("bars") or () if isinstance(bar, Mapping) and bar.get("close") is not None]
     counts = {"1M": 23, "3M": 66, "1Y": 260}
-    selected_range = selected_range if selected_range in counts else "3M"
+    selected_range = selected_range if selected_range in counts else "1Y"
     bars = all_bars[-counts[selected_range]:]
     if str(contract.get("status") or "").upper() != "AVAILABLE" or len(bars) < 2:
         return ""
@@ -500,8 +500,9 @@ def _mini_chart(card: Mapping[str, Any], selected_range: str = "3M") -> str:
     low, high = min(closes), max(closes)
     span = high - low or 1.0
     width, height = 520.0, 148.0
+    plot_left, plot_right = 44.0, 518.0
     points = " ".join(
-        f"{index * width / (len(closes) - 1):.1f},{height - ((value - low) / span * (height - 18) + 9):.1f}"
+        f"{plot_left + index * (plot_right-plot_left) / (len(closes) - 1):.1f},{height - ((value - low) / span * (height - 18) + 9):.1f}"
         for index, value in enumerate(closes)
     )
     rising = closes[-1] >= closes[0]
@@ -509,6 +510,14 @@ def _mini_chart(card: Mapping[str, Any], selected_range: str = "3M") -> str:
     trade = card.get("trade_plan") or {}
     entry_low, entry_high = trade.get("entry_low"), trade.get("entry_high")
     chart_overlays = ""
+    for tick in range(4):
+        tick_value = low + span * tick / 3
+        tick_y = height - ((tick_value - low) / span * (height - 18) + 9)
+        chart_overlays += (
+            f'<line x1="{plot_left:g}" x2="{plot_right:g}" y1="{tick_y:.1f}" y2="{tick_y:.1f}" '
+            'stroke="rgba(148,163,184,.12)" stroke-width="1"/>'
+            f'<text x="2" y="{max(9, tick_y+3):.1f}" fill="#7f8da1" font-size="9">{html.escape(_money(tick_value))}</text>'
+        )
     technical = card.get("technical_evidence") or {}
     def add_level(value: Any, label: str, color: str, dash: str = "5 5") -> None:
         nonlocal chart_overlays
@@ -516,7 +525,7 @@ def _mini_chart(card: Mapping[str, Any], selected_range: str = "3M") -> str:
             return
         y = height - ((float(value) - low) / span * (height - 18) + 9)
         chart_overlays += (
-            f'<line x1="0" x2="{width:g}" y1="{y:.1f}" y2="{y:.1f}" stroke="{color}" '
+            f'<line x1="{plot_left:g}" x2="{plot_right:g}" y1="{y:.1f}" y2="{y:.1f}" stroke="{color}" '
             f'stroke-width="1.2" stroke-dasharray="{dash}" opacity=".72"/>'
             f'<text x="{width-5:g}" y="{max(10, y-3):.1f}" text-anchor="end" fill="{color}" font-size="9">{html.escape(label)}</text>'
         )
@@ -530,21 +539,26 @@ def _mini_chart(card: Mapping[str, Any], selected_range: str = "3M") -> str:
             top_y = height - ((min(zone_high, high) - low) / span * (height - 18) + 9)
             bottom_y = height - ((max(zone_low, low) - low) / span * (height - 18) + 9)
             chart_overlays += (
-                f'<rect x="0" y="{top_y:.1f}" width="{width:g}" height="{max(2.0, bottom_y-top_y):.1f}" '
-                'fill="rgba(93,145,214,.12)"/><text x="8" y="18" fill="#9fc2ed" font-size="12">Entry zone</text>'
+                f'<rect x="{plot_left:g}" y="{top_y:.1f}" width="{plot_right-plot_left:g}" height="{max(2.0, bottom_y-top_y):.1f}" '
+                f'fill="rgba(93,145,214,.12)"/><text x="{plot_left+6:g}" y="18" fill="#9fc2ed" font-size="12">Entry zone</text>'
             )
     target = card.get("atlas_fair_value") if str(card.get("atlas_valuation_status") or "").upper() == "PUBLISHED" else None
+    off_chart_target = ""
     if target is not None:
-        target_y = height - ((float(target) - low) / span * (height - 18) + 9) if low <= float(target) <= high else 7.0
-        chart_overlays += (
-            f'<line x1="0" x2="{width:g}" y1="{target_y:.1f}" y2="{target_y:.1f}" '
-            'stroke="#48b883" stroke-width="1.6" stroke-dasharray="7 7"/>'
-            f'<text x="{width-5:g}" y="{max(10, target_y+10):.1f}" text-anchor="end" fill="#78d7c8" font-size="9">ATLAS Target</text>'
-        )
+        if low <= float(target) <= high:
+            target_y = height - ((float(target) - low) / span * (height - 18) + 9)
+            chart_overlays += (
+                f'<line x1="{plot_left:g}" x2="{plot_right:g}" y1="{target_y:.1f}" y2="{target_y:.1f}" '
+                'stroke="#48b883" stroke-width="1.6" stroke-dasharray="7 7"/>'
+                f'<text x="{plot_right-5:g}" y="{max(10, target_y+10):.1f}" text-anchor="end" fill="#78d7c8" font-size="9">ATLAS Target {_money(target)}</text>'
+            )
+        else:
+            direction = "↑" if float(target) > high else "↓"
+            off_chart_target = f'<div class="atlas-home-offchart-target">{direction} ATLAS Target {_money(target)} · off chart</div>'
     current_y = height - ((closes[-1] - low) / span * (height - 18) + 9)
     chart_overlays += (
-        f'<circle cx="{width:g}" cy="{current_y:.1f}" r="4" fill="{stroke}"/>'
-        f'<text x="{width-5:g}" y="{max(10, current_y-7):.1f}" text-anchor="end" fill="#e2e8f0" font-size="9">Current {_money(closes[-1])}</text>'
+        f'<circle cx="{plot_right:g}" cy="{current_y:.1f}" r="4" fill="{stroke}"/>'
+        f'<text x="{plot_right-5:g}" y="{max(10, current_y-7):.1f}" text-anchor="end" fill="#e2e8f0" font-size="9">Current {_money(closes[-1])}</text>'
     )
     def date_label(bar: Mapping[str, Any]) -> str:
         raw = bar.get("datetime") or bar.get("timestamp") or bar.get("date")
@@ -567,6 +581,7 @@ def _mini_chart(card: Mapping[str, Any], selected_range: str = "3M") -> str:
         f'<svg viewBox="0 0 {width:g} {height:g}" role="img" aria-label="Twelve Data {html.escape(selected_range)} closing price trend">'
         f'{chart_overlays}'
         f'<polyline fill="none" stroke="{stroke}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" points="{points}"/></svg>'
+        f'{off_chart_target}'
         f'<div class="atlas-home-chart-dates"><span>{html.escape(start_label)}</span><span>{html.escape(end_label)}</span></div>'
         f'<small>Twelve Data · split-adjusted daily bars · through {html.escape(format_market_timestamp_et(contract.get("newest_completed_bar_timestamp")))}'
         f'{" · ATLAS target " + _money(target) if target is not None else ""}</small>'
@@ -603,7 +618,9 @@ def _recent_catalysts(card: Mapping[str, Any]) -> str:
         seen.add(identity)
         category = str(item.get("category") or "COMPANY_EVENT").replace("_", " ").title()
         stamp = format_market_timestamp_et(item.get("published_at"), unavailable="Date unavailable")
-        why = "Review whether this changes estimates, fundamentals, or the governed setup."
+        why = item.get("why_it_matters") or item.get("summary")
+        if not why:
+            continue
         cells.append(
             f'<article><small>{html.escape(category)} · {html.escape(stamp)}</small>'
             f'<b>{html.escape(str(headline))}</b><span>{html.escape(why)}</span></article>'
@@ -768,7 +785,7 @@ def _inject_css() -> None:
     .atlas-home-action{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:.18rem .85rem;padding:.78rem .92rem;border-radius:14px;border:1px solid;background:var(--atlas-panel)}.atlas-home-action>small{grid-column:1/-1;font-size:.68rem;font-weight:800;letter-spacing:.13em}.atlas-home-action-stars{grid-row:2/4;font-size:1.65rem;line-height:1;letter-spacing:.02em;white-space:nowrap}.atlas-home-action strong{font-size:1.3rem;line-height:1.12}.atlas-home-action span{font-size:.8rem;line-height:1.35;color:#cbd5e1}.atlas-home-action-positive,.atlas-home-action-buy,.atlas-home-action-build{border-color:rgba(47,183,164,.42);box-shadow:inset 4px 0 0 var(--atlas-teal);background:linear-gradient(125deg,rgba(47,183,164,.15),rgba(17,28,45,.62));color:#78d7c8}.atlas-home-action-waiting,.atlas-home-action-wait,.atlas-home-action-watch{border-color:rgba(215,165,66,.4);box-shadow:inset 4px 0 0 var(--atlas-amber);background:linear-gradient(125deg,rgba(215,165,66,.14),rgba(17,28,45,.62));color:#edc878}.atlas-home-action-negative,.atlas-home-action-avoid{border-color:rgba(214,107,114,.45);box-shadow:inset 4px 0 0 var(--atlas-red);background:linear-gradient(125deg,rgba(214,107,114,.14),rgba(17,28,45,.62));color:#ee9da2}.atlas-home-action-neutral{border-color:rgba(93,145,214,.4);box-shadow:inset 4px 0 0 var(--atlas-blue)}
     .atlas-home-view-title,.atlas-home-subhead{margin:.32rem 0 .15rem!important;padding:0!important;font-size:.96rem!important;letter-spacing:.01em;color:#dce8f6}.atlas-home-guidance-summary{padding:.55rem .65rem;border-left:3px solid var(--atlas-blue);border-radius:0 9px 9px 0;background:rgba(36,61,92,.2)}
     .atlas-home-chart{min-height:220px;padding:.65rem .7rem;border-radius:13px;background:linear-gradient(145deg,rgba(16,29,47,.92),rgba(20,38,55,.55));border:1px solid rgba(93,145,214,.22)}.atlas-home-chart>div{display:flex;justify-content:space-between;align-items:center;gap:.5rem}.atlas-home-chart b{font-size:.82rem;color:#dce8f6}.atlas-home-chart svg{display:block;width:100%;height:148px;margin:.25rem 0}.atlas-home-chart small{display:block;font-size:.68rem;line-height:1.3;color:var(--atlas-muted)}.atlas-home-chart-empty{display:flex;flex-direction:column;justify-content:center;gap:.35rem;color:var(--atlas-muted)}.atlas-home-chart-empty span{font-size:.78rem}.atlas-home-tech-cue{display:inline-flex;padding:.18rem .48rem;border-radius:999px;background:rgba(47,183,164,.11);border:1px solid rgba(47,183,164,.32);font-size:.72rem;font-weight:700;color:#82d7cb;white-space:nowrap}
-    .atlas-home-chart-dates{display:flex!important;justify-content:space-between!important;color:#718096;font-size:.64rem}.atlas-home-quality-warning{color:#94a3b8;font-style:normal;cursor:help}
+    .atlas-home-chart-dates{display:flex!important;justify-content:space-between!important;margin-left:44px;color:#718096;font-size:.64rem}.atlas-home-offchart-target{justify-content:flex-end!important;margin:-.05rem 0 .18rem!important;color:#78d7c8;font-size:.68rem;font-weight:750}.atlas-home-quality-warning{color:#94a3b8;font-style:normal;cursor:help}
     .atlas-home-comparison{display:grid;grid-template-columns:1fr 1fr;gap:.3rem;min-height:220px}.atlas-home-target{display:flex;flex-direction:column;justify-content:center;min-width:0;padding:.55rem .58rem;border-radius:11px;background:rgba(15,26,43,.72);border:1px solid rgba(148,163,184,.16)}.atlas-home-target small,.atlas-home-target b{display:block}.atlas-home-target small{font-size:.68rem;line-height:1.25;color:#9aa7b9}.atlas-home-target b{margin-top:.18rem;font-size:1rem;color:#f1f5f9}.atlas-home-target-atlas{border-color:rgba(47,183,164,.28);background:rgba(22,82,75,.12)}.atlas-home-target-atlas b{color:#7bd5c7}.atlas-home-target-street{border-color:rgba(93,145,214,.25);background:rgba(34,74,123,.11)}.atlas-home-target-street b{color:#9fc2ed}.atlas-home-target-muted b{font-size:.8rem;font-weight:600;color:#8995a5}.atlas-home-comparison em{grid-column:1/-1;font-size:.66rem;line-height:1.3;font-style:normal;color:#778497}
     .atlas-home-win{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.35rem}.atlas-home-win span{display:flex;align-items:center;gap:.45rem;padding:.5rem .6rem;border-radius:10px;background:rgba(47,183,164,.075);border:1px solid rgba(47,183,164,.18);font-size:.8rem;color:#cbd5e1}.atlas-home-win b{display:grid;place-items:center;width:1.5rem;height:1.5rem;border-radius:50%;background:rgba(47,183,164,.14);color:#70d2c3}
     .atlas-home-decisive{display:grid;gap:.18rem;margin:.5rem 0;padding:.58rem .68rem;border-radius:10px;border-left:3px solid var(--atlas-amber);background:rgba(109,77,22,.1)}.atlas-home-decisive b{font-size:.82rem;color:#edc878}.atlas-home-decisive span{font-size:.8rem;line-height:1.4;color:#bdc7d5}

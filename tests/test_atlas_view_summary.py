@@ -74,14 +74,17 @@ def test_dossier_carries_approved_company_earnings_valuation_and_risk_lanes():
             "primary_risk": "Demand could slow.",
         },
         "atlas_valuation_status": "PUBLISHED", "atlas_fair_value": 250, "atlas_expected_return": 8.9,
+        "valuation_driver_evidence": {"method": "Growth-adjusted forward earnings multiple", "growth_input_pct": 20, "justified_pe": 24},
         "wall_street": {"commercial_display_status": "COMMERCIAL_LICENSE_UNCONFIRMED"},
     })
     payload = build_summary_payload(card)
     assert payload["latest_earnings"]["reported_eps"] == 1.2
     assert payload["forward_outlook"]["estimate_revision"] == "UP"
     assert payload["atlas_valuation"]["target"] == 250
+    assert payload["atlas_valuation"]["driver_evidence"]["justified_pe"] == 24
     assert payload["valuation_comparison"]["state"] == "WALL_STREET_UNAVAILABLE"
     assert payload["risk_evidence"]["strongest_fundamental_risk"] == "Demand could slow."
+    assert "growth-adjusted forward earnings framework" in generate_summaries([payload], llm=lambda _: None)[0]["text"]
 
 
 def test_fallback_changes_with_company_specific_evidence():

@@ -80,6 +80,9 @@ def test_investment_dossier_materializes_approved_financial_and_earnings_fields(
         eps_surprise_pct=20, reported_revenue=9_000, revenue_estimate=8_000,
         revenue_surprise_pct=12.5, latest_earnings_date="2026-08-01",
         earnings_growth=.3, estimate_revision_trend="UP", industry="Semiconductors",
+        fair_value_method="Growth-adjusted forward earnings multiple",
+        atlas_valuation_growth_value=10, atlas_valuation_operating_margin=20,
+        atlas_valuation_justified_pe=18, atlas_valuation_multiple_expansion_ratio=1.2,
     )
     card = build_home_guidance_candidate(source, production_rank=1, current_evaluation=canonical_evaluation())
     assert card["fundamentals_evidence"]["revenue"] == 9_000
@@ -88,6 +91,15 @@ def test_investment_dossier_materializes_approved_financial_and_earnings_fields(
     assert card["company_evidence"]["reported_eps"] == 1.2
     assert card["company_evidence"]["revenue_surprise_pct"] == 12.5
     assert card["company_evidence"]["estimate_revision"] == "UP"
+    assert card["valuation_driver_evidence"]["method"] == "Growth-adjusted forward earnings multiple"
+    assert card["valuation_driver_evidence"]["justified_pe"] == 18
+
+
+def test_catalyst_requires_rights_source_evidence_id_and_why_it_matters():
+    complete = {"headline": "New contract awarded", "publisher": "Licensed Wire", "published_at": "2026-09-01", "evidence_id": "NEWS-1", "why_it_matters": "The contract expands the approved backlog evidence.", "commercial_display_allowed": True}
+    incomplete = {**complete, "evidence_id": None}
+    card = build_home_guidance_candidate(row("MU", news_evidence=[complete, incomplete]), production_rank=1, current_evaluation=canonical_evaluation())
+    assert card["recent_catalysts"] == (complete,)
 
 
 def test_artifact_order_is_immutable_production_rank_and_never_resorted():
@@ -701,6 +713,8 @@ def test_premium_decision_card_uses_governed_action_chart_and_separate_target_au
     assert "WATCH — NOT READY YET" in pending and "DATA_LIMITED" not in pending
     chart = _mini_chart(card)
     assert "Near breakout" in chart and "Twelve Data" in chart and "split-adjusted daily bars" in chart
+    assert "$100.00" in chart and "$105.00" in chart
+    assert "↑ ATLAS Target $120.00 · off chart" in chart
     comparison = _target_tiles(card)
     assert "$120.00" in comparison and "$115.00" in comparison
     assert "does not determine the ATLAS rating" in comparison

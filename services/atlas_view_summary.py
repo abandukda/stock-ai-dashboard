@@ -69,6 +69,7 @@ def build_summary_payload(card: Mapping[str, Any]) -> dict[str, Any]:
     evaluation = dict(card.get("evaluation") or {})
     risk = dict(evaluation.get("risk") or {})
     valuation = dict(evaluation.get("atlas_valuation") or {})
+    valuation_drivers = dict(card.get("valuation_driver_evidence") or {})
     catalysts = []
     for item in (card.get("recent_catalysts") or ())[:3]:
         if isinstance(item, Mapping):
@@ -110,6 +111,7 @@ def build_summary_payload(card: Mapping[str, Any]) -> dict[str, Any]:
         "atlas_valuation": {
             "status": card.get("atlas_valuation_status"), "target": card.get("atlas_fair_value"),
             "expected_return": card.get("atlas_expected_return"),
+            "driver_evidence": valuation_drivers,
             "rejection_reasons": list(valuation.get("reason_codes") or valuation.get("reasons") or ()),
         },
         "wall_street": wall_street,
@@ -175,7 +177,10 @@ def deterministic_summary(payload: Mapping[str, Any]) -> str:
     support = " and ".join(evidence[:2]) if evidence else "the available operating evidence"
     atlas = dict(payload.get("atlas_valuation") or {})
     if atlas.get("target") is not None and atlas.get("expected_return") is not None:
-        second = f"The published ATLAS valuation is economically supported by {support}, although realizing that potential still requires durable execution."
+        drivers = dict(atlas.get("driver_evidence") or {})
+        method = str(drivers.get("method") or "").lower()
+        model_context = "growth-adjusted forward earnings framework" if "growth-adjusted" in method else "published valuation framework"
+        second = f"The ATLAS {model_context} derives its upside from {support}, although realizing that potential still requires durable execution."
     elif evidence:
         second = f"The clearest financial support is {support}, while ATLAS has not published a valuation target."
     else:
