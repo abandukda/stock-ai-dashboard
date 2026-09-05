@@ -856,11 +856,18 @@ def _attach_canonical_research_context(
         # calculation-only: it performs no provider acquisition or persistence.
         try:
             from services.on_demand_evaluation_service import evaluate_on_demand
-            previous = row.get("current_canonical_evaluation")
-            current_evaluation = evaluate_on_demand(
-                row, context=context,
-                previous_evaluation=previous if isinstance(previous, Mapping) else None,
-            )
+            published = production_row.get("canonical_investment_evaluation") if isinstance(production_row, Mapping) else None
+            if isinstance(published, Mapping):
+                # Research starts from the exact scheduled canonical record.
+                # Post-PAGE_INTERACTIVE Twelve enrichment may replace it with
+                # a newer ON_DEMAND evaluation through the same contract.
+                current_evaluation = dict(published)
+            else:
+                previous = row.get("current_canonical_evaluation")
+                current_evaluation = evaluate_on_demand(
+                    row, context=context,
+                    previous_evaluation=previous if isinstance(previous, Mapping) else None,
+                )
             context = {**context, "current_evaluation": current_evaluation}
             row["research_context"] = context
             row["current_canonical_evaluation"] = current_evaluation

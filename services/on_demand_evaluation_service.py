@@ -7,6 +7,7 @@ from typing import Any, Mapping, Sequence
 
 from engines.canonical_investment_evaluation_v1 import build_canonical_evaluation
 from engines.component_builder import build_components
+from engines.semantic_fields import scanner_trade_plan
 from services.canonical_market_snapshot import build_market_snapshot
 from services.live_market.models import FeedHealth, SecurityType, TechnicalState
 from services.technical_intelligence.engine import DailyBar, TechnicalIntelligenceEngine
@@ -141,6 +142,7 @@ def evaluate_on_demand(
         }
     components = build_components(row)
     fundamentals = dict(components.get("fundamentals") or {})
+    fundamentals["evidence_ids"] = tuple(row.get("twelve_trial_evidence_ids") or ())
     risk_supplied = row.get("canonical_risk") if isinstance(row.get("canonical_risk"), Mapping) else {}
     risk = dict(risk_supplied) if risk_supplied else {
         "status": "AVAILABLE" if _first(row, "primary_risk", "Primary Risk", "risk_reward") is not None else "DATA_UNAVAILABLE",
@@ -155,11 +157,15 @@ def evaluate_on_demand(
     # Decision Metrics V1 calculates these inside the canonical evaluator.
     # No legacy scan, rank, analyst, or presentation values are accepted.
     opportunity = confidence = coverage = None
-    trade_plan = row.get("canonical_on_demand_trade_plan") if isinstance(row.get("canonical_on_demand_trade_plan"), Mapping) else {
-        "entry_low": decision.get("entry_low"), "entry_high": decision.get("entry_high"),
-        "stop": decision.get("stop"), "target": decision.get("decision_target"),
-        "target_1": decision.get("trade_target_1"), "target_2": decision.get("trade_target_2"),
-    }
+    if isinstance(row.get("canonical_on_demand_trade_plan"), Mapping):
+        trade_plan = dict(row["canonical_on_demand_trade_plan"])
+    else:
+        persisted_plan = scanner_trade_plan(row)
+        trade_plan = {
+            **persisted_plan,
+            "source": "PERSISTED_SCANNER_TRADE_PLAN",
+            "as_of": _first(row, "scan_time", "generated_at"),
+        }
     evidence_ids = [
         evidence_id for ids in ((context or {}).get("evidence_registry") or {}).values()
         for evidence_id in (ids or [])

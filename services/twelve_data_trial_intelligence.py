@@ -100,12 +100,26 @@ def _first_record(payload: Any, key: str) -> Mapping[str, Any]:
     return values[0] if isinstance(values, list) and values and isinstance(values[0], Mapping) else {}
 
 
+def _forward_estimate_record(payload: Any, key: str) -> Mapping[str, Any]:
+    values = payload.get(key) if isinstance(payload, Mapping) else None
+    records = [item for item in values or () if isinstance(item, Mapping)] if isinstance(values, list) else []
+    for period in ("next_year", "current_year"):
+        record = next((item for item in records if str(item.get("period") or "").lower() == period), None)
+        if record is not None:
+            return record
+    return {}
+
+
 def _pct(value: Any) -> float | None:
     try:
         number = float(value)
         return number * 100 if abs(number) <= 2 else number
     except (TypeError, ValueError):
         return None
+
+
+def _coalesce(*values: Any) -> Any:
+    return next((value for value in values if value is not None), None)
 
 
 def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) -> dict[str, Any]:
@@ -125,13 +139,13 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
         "revenue_growth": _pct(income_stats.get("quarterly_revenue_growth")),
         "earnings_growth": _pct(income_stats.get("quarterly_earnings_growth_yoy")),
         "operating_profit_margin": _pct(financials.get("operating_margin")),
-        "free_cash_flow": cash_stats.get("levered_free_cash_flow_ttm") or cash.get("free_cash_flow"),
+        "free_cash_flow": _coalesce(cash_stats.get("levered_free_cash_flow_ttm"), cash.get("free_cash_flow")),
         "current_ratio": balance_stats.get("current_ratio_mrq"),
-        "latest_revenue": income_stats.get("revenue_ttm") or income.get("sales"),
+        "latest_revenue": _coalesce(income_stats.get("revenue_ttm"), income.get("sales")),
         "latest_operating_income": income.get("operating_income"),
-        "operating_cash_flow": cash_stats.get("operating_cash_flow_ttm") or _nested(cash, "operating_activities", "operating_cash_flow"),
-        "total_debt": balance_stats.get("total_debt_mrq") or _nested(balance, "liabilities", "total_liabilities"),
-        "cash_and_equivalents": balance_stats.get("total_cash_mrq") or _nested(balance, "assets", "current_assets", "cash_and_cash_equivalents"),
+        "operating_cash_flow": _coalesce(cash_stats.get("operating_cash_flow_ttm"), _nested(cash, "operating_activities", "operating_cash_flow")),
+        "total_debt": _coalesce(balance_stats.get("total_debt_mrq"), _nested(balance, "liabilities", "total_liabilities")),
+        "cash_and_equivalents": _coalesce(balance_stats.get("total_cash_mrq"), _nested(balance, "assets", "current_assets", "cash_and_cash_equivalents")),
     }
     for key, value in values.items():
         if output.get(key) in (None, "", "Unavailable") and value is not None:
@@ -140,10 +154,14 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
     if isinstance(profile, Mapping):
         for target, source in (("description", "description"), ("sector", "sector"), ("industry", "industry")):
             if not output.get(target) and profile.get(source): output[target] = profile[source]
-    eps_est = _first_record(payload("earnings_estimate"), "earnings_estimate")
-    rev_est = _first_record(payload("revenue_estimate"), "revenue_estimate")
-    if output.get("forward_eps") is None and eps_est.get("avg_estimate") is not None: output["forward_eps"] = eps_est["avg_estimate"]
-    if output.get("forward_revenue") is None and rev_est.get("avg_estimate") is not None: output["forward_revenue"] = rev_est["avg_estimate"]
+    eps_est = _forward_estimate_record(payload("earnings_estimate"), "earnings_estimate")
+    rev_est = _forward_estimate_record(payload("revenue_estimate"), "revenue_estimate")
+    if output.get("forward_eps") is None and eps_est.get("avg_estimate") is not None:
+        output["forward_eps"] = eps_est["avg_estimate"]
+        output["forward_eps_period"] = eps_est.get("period")
+    if output.get("forward_revenue") is None and rev_est.get("avg_estimate") is not None:
+        output["forward_revenue"] = rev_est["avg_estimate"]
+        output["forward_revenue_period"] = rev_est.get("period")
     output["twelve_trial_dossier"] = dict(dossier)
     output["twelve_trial_evidence_ids"] = tuple(dossier.get("evidence_ids") or ())
     output["fundamental_source"] = output.get("fundamental_source") or "TWELVE_DATA_INTERNAL_TRIAL"

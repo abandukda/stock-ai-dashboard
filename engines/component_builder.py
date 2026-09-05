@@ -191,6 +191,7 @@ def _financial_component(row: Mapping[str, Any]) -> ComponentResult:
                 "Operating Margin %",
                 "operating_margin",
                 "operating_margin_pct",
+                "operating_profit_margin",
                 "operatingMargins",
             )
         ),

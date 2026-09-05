@@ -210,7 +210,8 @@ def build_home_guidance_candidate(
     """Resolve one Home card without ranking or decision recalculation."""
     ticker = _ticker(row)
     production_decision = build_production_decision(row)
-    evaluation = dict(current_evaluation or evaluate_on_demand(
+    persisted_evaluation = row.get("canonical_investment_evaluation") if isinstance(row.get("canonical_investment_evaluation"), Mapping) else None
+    evaluation = dict(current_evaluation or persisted_evaluation or evaluate_on_demand(
         row, context={"production_decision": production_decision, "evidence_registry": {}},
     ))
     trial_fields = evaluation.get("trial_presentation_fields") if isinstance(evaluation.get("trial_presentation_fields"), Mapping) else {}

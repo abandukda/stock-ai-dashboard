@@ -37,3 +37,28 @@ def test_statistics_normalize_missing_fundamentals_without_overwriting_atlas_val
     assert row["operating_profit_margin"] == 18
     assert row["current_ratio"] == 1.6
     assert row["free_cash_flow"] == 1000
+
+
+def test_zero_cash_flow_values_are_preserved_as_real_evidence():
+    dossier = {"families": {"statistics": {"payload": {"statistics": {"financials": {
+        "cash_flow": {"levered_free_cash_flow_ttm": 0, "operating_cash_flow_ttm": 0},
+    }}}}}}
+    row = normalize_trial_dossier({"ticker": "ZERO"}, dossier)
+    assert row["free_cash_flow"] == 0
+    assert row["operating_cash_flow"] == 0
+
+
+def test_forward_estimates_use_annual_forward_period_not_quarterly_record():
+    dossier = {"families": {
+        "earnings_estimate": {"payload": {"earnings_estimate": [
+            {"period": "current_quarter", "avg_estimate": -1},
+            {"period": "next_year", "avg_estimate": 8},
+        ]}},
+        "revenue_estimate": {"payload": {"revenue_estimate": [
+            {"period": "current_quarter", "avg_estimate": 10},
+            {"period": "next_year", "avg_estimate": 50},
+        ]}},
+    }}
+    row = normalize_trial_dossier({"ticker": "FWD"}, dossier)
+    assert row["forward_eps"] == 8 and row["forward_eps_period"] == "next_year"
+    assert row["forward_revenue"] == 50 and row["forward_revenue_period"] == "next_year"

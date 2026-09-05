@@ -60,7 +60,9 @@ def _technical(technical: Mapping[str, Any]) -> dict[str, Any]:
     score = _number(technical.get("score"))
     available = str(technical.get("status") or "").upper() == "AVAILABLE" and score is not None
     return _component("technical_quality", score if available else None, 1.0 if available else 0.0,
-                      status="AVAILABLE", evidence_ids=(technical.get("fingerprint"),))
+                      status="AVAILABLE", evidence_ids=(technical.get("fingerprint"),),
+                      details={"state": technical.get("state"), "as_of": technical.get("as_of"),
+                               "methodology_version": (technical.get("evidence") or {}).get("model_version")})
 
 
 def _fundamental(fundamentals: Mapping[str, Any]) -> dict[str, Any]:
@@ -79,6 +81,7 @@ def _fundamental(fundamentals: Mapping[str, Any]) -> dict[str, Any]:
     fraction = count / 5.0 if publishable else 0.0
     return _component("fundamental_quality", score if publishable else None, fraction,
                       status="AVAILABLE" if count == 5 else "PARTIAL",
+                      evidence_ids=tuple(fundamentals.get("evidence_ids") or ()),
                       details={"available_families": tuple(k for k, v in families.items() if _number(v) is not None),
                                "fundamental_subcoverage": round(count / 5.0, 2)})
 
@@ -180,7 +183,8 @@ def _volume(volume: Mapping[str, Any]) -> dict[str, Any]:
     if not valid:
         return _component("volume_quality", None, 0.0, status="DATA_UNAVAILABLE")
     score = 100 if rvol >= 1.4 else 80 if rvol >= 1.2 else 65 if rvol >= 1 else 50 if rvol >= .8 else 30 if rvol >= .6 else 15
-    return _component("volume_quality", score, 1.0, status="AVAILABLE", details={"daily_relative_volume": rvol})
+    return _component("volume_quality", score, 1.0, status="AVAILABLE",
+                      evidence_ids=(volume.get("evidence_id"),), details={"daily_relative_volume": rvol})
 
 
 def build_decision_metrics(*, technical: Mapping[str, Any], fundamentals: Mapping[str, Any],

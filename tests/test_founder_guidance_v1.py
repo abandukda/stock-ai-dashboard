@@ -225,6 +225,22 @@ def test_research_context_attachment_is_dormant_off_and_evaluates_on(monkeypatch
     assert active["current_canonical_evaluation"]["guidance"]["state"] == "BUY_NOW"
 
 
+def test_research_reuses_scheduled_canonical_evaluation_before_post_shell_refresh(monkeypatch):
+    import engines.live_research_engine as live
+    import services.on_demand_evaluation_service as service
+
+    published = evaluation()
+    context = {"production_decision": {"semantic_status": "DATA_UNAVAILABLE"},
+               "evidence_families": {}, "evidence_registry": {}}
+    monkeypatch.setenv("ATLAS_FOUNDER_GUIDANCE_V1_ENABLED", "true")
+    monkeypatch.setattr(live, "load_production_row", lambda symbol: {"ticker": symbol, "canonical_investment_evaluation": published})
+    monkeypatch.setattr(live, "build_research_context", lambda *args, **kwargs: context)
+    monkeypatch.setattr(service, "evaluate_on_demand", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("must reuse published record")))
+    result = live._attach_canonical_research_context({"ticker": "TEST"}, "TEST")
+    assert result["current_canonical_evaluation"] == published
+    assert result["research_context"]["current_evaluation"] == published
+
+
 def test_ui_and_ask_ignore_current_evaluation_while_flag_is_off(monkeypatch):
     from ui.research_vnext import _current_evaluation
     from engines.ask_atlas_engine import _compact_context

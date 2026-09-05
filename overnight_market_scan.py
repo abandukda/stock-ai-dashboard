@@ -5211,6 +5211,37 @@ def scan_market() -> Dict[str, Any]:
             - (float(_SCAN_TIMINGS["finalist_provider_seconds"]) - finalist_provider_before),
         )
 
+    # INTERNAL_TRIAL only: publish canonical six-pillar evidence after ranking.
+    # Failures never prevent scan publication and never change membership/order.
+    decision_publication = {"status": "DISABLED", "provider_calls": 0}
+    try:
+        from services.data_mode_policy import internal_trial_mode
+        from services.live_market.twelve_data_phase1 import twelve_data_enabled
+        if internal_trial_mode() and twelve_data_enabled():
+            from services.full_universe_decision_publication import (
+                acquire_full_universe_decisions, publish_evaluations,
+            )
+            before_order = [str(row.get("ticker") or row.get("symbol") or "").upper() for row in full_rows]
+            decision_publication = acquire_full_universe_decisions(full_rows)
+            full_rows = publish_evaluations(full_rows, decision_publication)
+            after_order = [str(row.get("ticker") or row.get("symbol") or "").upper() for row in full_rows]
+            if after_order != before_order:
+                raise RuntimeError("DECISION_PUBLICATION_CHANGED_PRODUCTION_ORDER")
+            print(
+                "[decision-metrics-publication] "
+                f"status={decision_publication.get('status')} "
+                f"calls={decision_publication.get('provider_calls', 0)} "
+                f"technical={decision_publication.get('technical_history_successes', 0)}/{len(full_rows)} "
+                f"seconds={decision_publication.get('latency_seconds', 0)}",
+                flush=True,
+            )
+    except Exception as exc:
+        decision_publication = {
+            "status": "DATA_UNAVAILABLE", "provider_calls": 0,
+            "reason_codes": (type(exc).__name__.upper(),),
+        }
+        print("[decision-metrics-publication] unavailable (scan publication unaffected)", flush=True)
+
     # V41.1: Recovery tab focuses on stocks that fell but still have a forward rebound case.
     recovery_started = time.monotonic()
     recovery_rows = build_recovery_rows(prescreen_rows)
@@ -5348,6 +5379,15 @@ def scan_market() -> Dict[str, Any]:
             "finnhub_insider_agent": True,
             "valuation_reconciliation": True,
             "thesis_strength_and_confidence": True,
+        },
+        "decision_metrics_publication": {
+            key: decision_publication.get(key) for key in (
+                "version", "status", "provider_calls", "fundamental_primary_calls",
+                "fundamental_fallback_calls", "estimate_calls", "technical_history_calls",
+                "technical_history_http_successes", "technical_history_successes",
+                "fundamental_family_counts", "valuation_status_counts", "endpoint_success",
+                "latency_seconds", "observed_at", "reason_codes",
+            ) if decision_publication.get(key) is not None
         },
     }
 
