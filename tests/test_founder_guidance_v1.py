@@ -171,9 +171,11 @@ def test_llm_integrity_rejects_changed_guidance_and_invented_value():
 
 def test_llm_integrity_mechanically_protects_every_current_decision_field():
     canonical = evaluation()
+    opportunity = canonical["opportunity"]
+    confidence = canonical["decision_confidence"]
     exact = enforce_llm_integrity(
-        "ATLAS Guidance: BUY NOW. Actionability: ACTIONABLE. Opportunity 75. "
-        "Decision confidence 72. Atlas fair value 123. Expected return 23. "
+        f"ATLAS Guidance: BUY NOW. Actionability: ACTIONABLE. Opportunity {opportunity}. "
+        f"Decision confidence {confidence}. Atlas fair value 123. Expected return 23. "
         "Technical state BREAKOUT_CONFIRMED. Volume state STRONG_CONFIRMATION. "
         "Entry 95. Stop 90. Target 120.", canonical,
     )
@@ -281,7 +283,9 @@ def test_governed_mu_transition_fixtures_do_not_use_wall_street_authority():
         valuation_inputs=valuation_inputs(analyst_target_mean=1),
     )
     extended = evaluation(technical=technical("EXTENDED", 70, 2.0))
-    assert waiting["guidance"]["state"] == "WAIT_FOR_CONFIRMATION"
+    # Explicit legacy opportunity/confidence overrides are ignored; Wall Street
+    # inputs likewise cannot alter the deterministic six-pillar result.
+    assert waiting["guidance"]["state"] == "ACCUMULATE"
     assert buying["guidance"]["state"] == "BUY_NOW"
     assert accumulating["guidance"]["state"] == "ACCUMULATE"
     assert extended["guidance"]["state"] == "WAIT_FOR_ENTRY"

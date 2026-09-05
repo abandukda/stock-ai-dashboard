@@ -203,6 +203,9 @@ def _financial_component(row: Mapping[str, Any]) -> ComponentResult:
                 "freeCashflow",
             )
         ),
+        "operating_cash_flow": _num(
+            _first(row, "Operating Cash Flow", "operating_cash_flow", "operatingCashFlow")
+        ),
         "current_ratio": _num(
             _first(
                 row,
@@ -210,6 +213,12 @@ def _financial_component(row: Mapping[str, Any]) -> ComponentResult:
                 "current_ratio",
                 "currentRatio",
             )
+        ),
+        "net_debt_to_ebitda": _num(
+            _first(row, "Net Debt / EBITDA", "net_debt_to_ebitda", "netDebtToEbitda")
+        ),
+        "debt_to_equity": _num(
+            _first(row, "Debt to Equity", "debt_to_equity", "debtToEquity")
         ),
         "roe_pct": _num(
             _first(row, "ROE", "roe", "roe_pct", "returnOnEquity")

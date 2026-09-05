@@ -10,6 +10,7 @@ from typing import Any, Mapping
 from engines.atlas_guidance_v1 import evaluate_guidance
 from engines.atlas_valuation import AtlasValuationInputs, calculate_atlas_fair_value
 from engines.volume_intelligence_v1 import build_volume_intelligence
+from engines.decision_metrics_v1 import build_decision_metrics
 
 
 EVALUATION_VERSION = "CANONICAL_INVESTMENT_EVALUATION_V1"
@@ -76,7 +77,25 @@ def build_canonical_evaluation(
         "breakout_candidate": technical.get("state") == "BREAKOUT_CONFIRMED",
         "as_of": technical.get("as_of"),
     })
+    if (technical.get("completed_bar") is True
+            and volume_evidence.get("confirmation_relative_volume") is not None
+            and not volume_evidence.get("volume_statistic")):
+        # TechnicalIntelligenceEngine's governed statistic is completed-daily
+        # volume divided by its 20-session daily baseline.
+        volume_evidence.update({
+            "completed_daily_evidence": True,
+            "valid_daily_volume_baseline": True,
+            "volume_statistic": "DAILY_RELATIVE_VOLUME",
+        })
     volume = build_volume_intelligence(volume_evidence)
+    volume = {
+        **volume,
+        "feed_health": volume_evidence.get("feed_health"),
+        "completed_daily_evidence": volume_evidence.get("completed_daily_evidence") is True,
+        "valid_daily_volume_baseline": volume_evidence.get("valid_daily_volume_baseline") is True,
+        "statistic": volume_evidence.get("volume_statistic") or "DAILY_RELATIVE_VOLUME",
+        "evidence_id": volume_evidence.get("volume_evidence_id"),
+    }
     approved_volume_authority = volume_evidence.get("approved_volume_authority") == "TWELVE_DATA_COMPLETED_DAILY_VOLUME"
     if positive_action_volume_authority_required and not approved_volume_authority:
         # Twelve Data Phase 1 deliberately has no production intraday-volume
@@ -90,6 +109,15 @@ def build_canonical_evaluation(
             "current_volume": None,
             "reason_codes": ("TIME_ALIGNED_INTRADAY_VOLUME_BASELINE_NOT_IMPLEMENTED",),
         }
+    decision_metrics = build_decision_metrics(
+        technical=technical, fundamentals=fundamentals, valuation=valuation,
+        risk=risk, trade_plan=dict(trade_plan or {}), volume=volume,
+        market_snapshot=market_snapshot,
+    )
+    opportunity = decision_metrics["opportunity"]
+    decision_confidence = decision_metrics["decision_confidence"]
+    coverage = decision_metrics["component_coverage"]
+    valuation["score"] = decision_metrics["valuation_quality"]["score"]
     guidance_inputs = {
         "methodology_version": METHODOLOGY_VERSION,
         "threshold_version": THRESHOLD_VERSION,
@@ -148,6 +176,14 @@ def build_canonical_evaluation(
         "opportunity": opportunity,
         "decision_confidence": decision_confidence,
         "component_coverage": coverage,
+        "decision_metrics": decision_metrics,
+        "decision_metrics_methodology": decision_metrics["decision_metrics_methodology"],
+        "technical_quality": decision_metrics["technical_quality"],
+        "fundamental_quality": decision_metrics["fundamental_quality"],
+        "valuation_quality": decision_metrics["valuation_quality"],
+        "risk_quality": decision_metrics["risk_quality"],
+        "entry_quality": decision_metrics["entry_quality"],
+        "volume_quality": decision_metrics["volume_quality"],
         "guidance": guidance,
         "actionability": {
             "status": guidance["actionability"],

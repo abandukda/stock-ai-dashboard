@@ -116,6 +116,9 @@ def evaluate_on_demand(
                 "average_dollar_volume": completed_daily_volume.get("average_dollar_volume"),
                 "volume_evidence_id": completed_daily_volume.get("evidence_id"),
                 "approved_volume_authority": "TWELVE_DATA_COMPLETED_DAILY_VOLUME",
+                "completed_daily_evidence": completed_daily_volume.get("completed_daily_evidence", True),
+                "valid_daily_volume_baseline": completed_daily_volume.get("valid_daily_volume_baseline", True),
+                "volume_statistic": completed_daily_volume.get("statistic", "DAILY_RELATIVE_VOLUME"),
             },
         }
     bar_contract = phase1.get("completed_bars") if isinstance(phase1.get("completed_bars"), Mapping) else {}
@@ -142,13 +145,16 @@ def evaluate_on_demand(
     risk = dict(risk_supplied) if risk_supplied else {
         "status": "AVAILABLE" if _first(row, "primary_risk", "Primary Risk", "risk_reward") is not None else "DATA_UNAVAILABLE",
         "as_of": _first(row, "risk_as_of", "scan_time"),
+        "net_debt_to_ebitda": _first(row, "net_debt_to_ebitda", "Net Debt / EBITDA"),
+        "evidence": {
+            "drawdown_label": _first(row, "drawdown_label"),
+            "volatility_risk": _first(row, "volatility_risk", "volatility_state"),
+        },
     }
     decision = (context or {}).get("production_decision") if isinstance((context or {}).get("production_decision"), Mapping) else {}
-    # Only explicit canonical on-demand values are accepted. Scan Conviction,
-    # analyst support and persisted production-decision outputs are not fallbacks.
-    opportunity = row.get("canonical_on_demand_opportunity")
-    confidence = row.get("canonical_on_demand_decision_confidence")
-    coverage = row.get("canonical_on_demand_component_coverage")
+    # Decision Metrics V1 calculates these inside the canonical evaluator.
+    # No legacy scan, rank, analyst, or presentation values are accepted.
+    opportunity = confidence = coverage = None
     trade_plan = row.get("canonical_on_demand_trade_plan") if isinstance(row.get("canonical_on_demand_trade_plan"), Mapping) else {
         "entry_low": decision.get("entry_low"), "entry_high": decision.get("entry_high"),
         "stop": decision.get("stop"), "target": decision.get("decision_target"),
