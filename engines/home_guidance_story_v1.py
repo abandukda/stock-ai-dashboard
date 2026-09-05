@@ -177,7 +177,7 @@ def _internal_catalysts(row: Mapping[str, Any], *, internal: bool) -> tuple[dict
         item_ticker = str(item.get("ticker") or "").upper()
         identity = " ".join(str(headline or "").lower().split())
         if (not headline or not source or identity in seen or
-                re.search(r"\b(investor alert|class action|law firm|litigation deadline|encourages? .*investors? to contact)\b", identity) or
+                re.search(r"\b(investor alert|class action|law firm|fraud investigation|shareholder investigation|litigation deadline|encourages? .*investors? to contact)\b", identity) or
                 (item_ticker and item_ticker != ticker) or (relevance and not relevance.startswith("VERIFIED"))):
             continue
         seen.add(identity)

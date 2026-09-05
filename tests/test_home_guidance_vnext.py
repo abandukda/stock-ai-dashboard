@@ -160,6 +160,13 @@ def test_internal_news_deduplicates_and_rejects_law_firm_alerts(monkeypatch):
     assert "earnings trajectory" in card["recent_catalysts"][0]["why_it_matters"]
 
 
+def test_internal_news_rejects_fraud_investigation_solicitations(monkeypatch):
+    monkeypatch.setenv("ATLAS_DATA_MODE", "INTERNAL_TRIAL")
+    alert = {"headline": "ALNY Investors Have Opportunity to Join Fraud Investigation with SBS Law", "publisher": "Wire", "published_at": "2026-09-01", "ticker": "ALNY", "ticker_relevance": "VERIFIED_ENTITY"}
+    card = build_home_guidance_candidate(row("ALNY", news_evidence=[alert]), production_rank=1, current_evaluation=canonical_evaluation())
+    assert card["recent_catalysts"] == ()
+
+
 def test_artifact_order_is_immutable_production_rank_and_never_resorted():
     story = build_home_guidance_story([row("AAA", 1), row("BBB", 99), row("CCC", 50)], [])
     assert [(card["ticker"], card["production_rank"]) for card in story["cards"]] == [
