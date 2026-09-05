@@ -5,7 +5,7 @@ from __future__ import annotations
 import html
 import json
 from datetime import datetime
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 from zoneinfo import ZoneInfo
 
 import streamlit as st
@@ -820,8 +820,19 @@ def _section_marker(name: str) -> None:
     )
 
 
+def _home_candidate_surface(all_cards: Sequence[Mapping[str, Any]], *, limit: int = 10) -> list[Mapping[str, Any]]:
+    """Keep every governed Buy Now, then fill by immutable production order."""
+    all_cards = list(all_cards)
+    actionable = [card for card in all_cards if str(card.get("guidance")) == "BUY_NOW"]
+    selected_tickers = {str(card.get("ticker") or "") for card in actionable}
+    return actionable + [
+        card for card in all_cards
+        if str(card.get("ticker") or "") not in selected_tickers
+    ][:max(0, limit - len(actionable))]
+
+
 def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
-    cards = list(story.get("cards") or ())[:10]
+    cards = _home_candidate_surface(story.get("cards") or ())
     _section_marker("customer-action-groups")
     if not cards:
         st.info("No persisted Home candidates are available.")

@@ -75,13 +75,24 @@ def test_breakout_thesis_requires_approved_volume_confirmation():
     base = {
         "technical": technical("BREAKOUT_CONFIRMED", 84, 1.4),
         "volume": {"status": "AVAILABLE", "volume_confirmed": True},
+        "fundamentals": {"status": "AVAILABLE", "score": 60},
+        "valuation": {"status": "PUBLISHED", "score": 60, "fair_value": 112, "expected_return": 12},
+        "decision_metrics": {"entry_quality": {"score": 60}},
+    }
+    assert classify_opportunity_thesis(base) == "BREAKOUT"
+    without_confirmation = {**base, "volume": {"status": "AVAILABLE", "volume_confirmed": False}}
+    assert classify_opportunity_thesis(without_confirmation) == "DEVELOPING_SETUP"
+
+
+def test_primary_quality_thesis_is_not_reclassified_by_breakout_context():
+    source = {
+        "technical": technical("BREAKOUT_CONFIRMED", 84, 1.4),
+        "volume": {"status": "AVAILABLE", "volume_confirmed": True},
         "fundamentals": {"status": "AVAILABLE", "score": 82.5},
         "valuation": {"status": "PUBLISHED", "score": 74.8, "fair_value": 124, "expected_return": 24},
         "decision_metrics": {"entry_quality": {"score": 100}},
     }
-    assert classify_opportunity_thesis(base) == "BREAKOUT"
-    without_confirmation = {**base, "volume": {"status": "AVAILABLE", "volume_confirmed": False}}
-    assert classify_opportunity_thesis(without_confirmation) == "QUALITY_GROWTH"
+    assert classify_opportunity_thesis(source) == "QUALITY_GROWTH"
 
 
 def test_volume_quality_changes_opportunity_at_locked_ten_percent_weight():

@@ -74,6 +74,27 @@ def test_home_action_exposes_canonical_thesis_without_reclassifying_action():
     assert card["guidance"] == "BUY_NOW"
 
 
+def test_home_surface_keeps_buy_now_candidates_beyond_top_ten_rank():
+    from ui.home_guidance_vnext import _home_candidate_surface
+    cards = [
+        {"ticker": f"T{rank}", "production_rank": rank, "guidance": "WAIT_FOR_CONFIRMATION"}
+        for rank in range(1, 16)
+    ]
+    cards[11]["guidance"] = "BUY_NOW"
+    selected = _home_candidate_surface(cards)
+    assert selected[0]["ticker"] == "T12"
+    assert len(selected) == 10
+    assert "T12" in {card["ticker"] for card in selected}
+
+
+def test_pre_policy_persisted_evaluation_cannot_override_current_home_contract():
+    stale = canonical_evaluation(guidance="ACCUMULATE")
+    stale["guidance"].pop("policy_version", None)
+    source = row("MU", canonical_investment_evaluation=stale)
+    card = build_home_guidance_candidate(source, production_rank=1)
+    assert card["guidance"] != "ACCUMULATE"
+
+
 def test_wall_street_and_catalysts_fail_closed_without_commercial_display_rights(monkeypatch):
     monkeypatch.setenv("ATLAS_DATA_MODE", "COMMERCIAL_CUSTOMER")
     source = row("MU", analyst_targets_commercial_display_allowed=False, analyst_target_mean=150)

@@ -61,9 +61,12 @@ def test_full_universe_publication_uses_engine_history_and_preserves_order():
         assert evaluation["technical_confirmation"]["fingerprint"]
         assert evaluation["decision_metrics_methodology"] == "ATLAS_DECISION_METRICS_V1"
         assert evaluation["fundamental_quality"]["status"] == "AVAILABLE"
+        assert evaluation["guidance"]["policy_version"] == "HOME_MULTI_THESIS_ACTION_V1"
+        assert evaluation["opportunity_thesis"] == evaluation["guidance"]["opportunity_thesis"]
     published = publish_evaluations(rows, result)
     assert [item["ticker"] for item in published] == ["AAA", "BBB"]
     assert all("canonical_investment_evaluation" in item for item in published)
+    assert all((item["canonical_investment_evaluation"].get("guidance") or {}).get("policy_version") == "HOME_MULTI_THESIS_ACTION_V1" for item in published)
     home = build_home_guidance_candidate(published[0], production_rank=1)
     assert home["opportunity"] == result["evaluations"]["AAA"]["opportunity"]
     assert home["decision_confidence"] == result["evaluations"]["AAA"]["decision_confidence"]

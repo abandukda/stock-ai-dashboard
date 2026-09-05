@@ -36,10 +36,10 @@ def validate_llm_explanation(text: str, evaluation: Mapping[str, Any]) -> dict[s
     if mentioned & LEGACY_OR_UNAPPROVED_STATES:
         violations.append("UNAPPROVED_GUIDANCE_STATE")
 
-    normalized = re.sub(r"[^A-Z0-9]+", "_", str(text or "").upper()).strip("_")
+    thesis_copy = str(text or "").upper()
     mentioned_theses = {
         thesis for thesis in OPPORTUNITY_THESES
-        if re.search(rf"(?:^|_){re.escape(thesis)}(?:_|$)", normalized)
+        if re.search(rf"\bOPPORTUNITY\s+THESIS\s*:\s*{re.escape(thesis.replace('_', ' '))}\b", thesis_copy)
     }
     canonical_thesis = str(evaluation.get("opportunity_thesis") or
                            (evaluation.get("guidance") or {}).get("opportunity_thesis") or "").upper()

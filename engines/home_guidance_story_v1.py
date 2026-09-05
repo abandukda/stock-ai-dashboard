@@ -211,6 +211,11 @@ def build_home_guidance_candidate(
     ticker = _ticker(row)
     production_decision = build_production_decision(row)
     persisted_evaluation = row.get("canonical_investment_evaluation") if isinstance(row.get("canonical_investment_evaluation"), Mapping) else None
+    if persisted_evaluation:
+        from engines.atlas_guidance_v1 import GUIDANCE_POLICY_VERSION
+        persisted_guidance = persisted_evaluation.get("guidance") if isinstance(persisted_evaluation.get("guidance"), Mapping) else {}
+        if persisted_guidance.get("policy_version") != GUIDANCE_POLICY_VERSION:
+            persisted_evaluation = None
     evaluation = dict(current_evaluation or persisted_evaluation or evaluate_on_demand(
         row, context={"production_decision": production_decision, "evidence_registry": {}},
     ))

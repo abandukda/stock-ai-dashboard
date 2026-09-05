@@ -32961,6 +32961,13 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
         live_state.get("evaluations", {})
         if isinstance(live_state, dict) and captured_age <= 12.0 else {}
     )
+    if current_evaluations:
+        from engines.atlas_guidance_v1 import GUIDANCE_POLICY_VERSION
+        if any(
+            (evaluation.get("guidance") or {}).get("policy_version") != GUIDANCE_POLICY_VERSION
+            for evaluation in current_evaluations.values() if isinstance(evaluation, dict)
+        ):
+            current_evaluations = {}
     story = build_home_guidance_story(
         full_payload, recovery_payload,
         watchlist_tickers=watchlist_tickers,

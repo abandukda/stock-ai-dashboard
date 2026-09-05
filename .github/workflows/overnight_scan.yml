@@ -27,6 +27,9 @@ jobs:
       FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
       NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
       ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
+      TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
+      TWELVE_DATA_ENABLED: "true"
+      ATLAS_DATA_MODE: "INTERNAL_TRIAL"
       SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
       GITHUB_REPO_URL: "abandukda/stock-ai-dashboard"
       DATA_DIR: "."

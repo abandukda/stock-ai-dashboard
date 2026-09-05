@@ -12,6 +12,7 @@ import math
 
 
 GUIDANCE_METHODOLOGY_VERSION = "ATLAS_GUIDANCE_V1"
+GUIDANCE_POLICY_VERSION = "HOME_MULTI_THESIS_ACTION_V1"
 BUY_NOW = "BUY_NOW"
 ACCUMULATE = "ACCUMULATE"
 WAIT_FOR_ENTRY = "WAIT_FOR_ENTRY"
@@ -80,14 +81,14 @@ def classify_opportunity_thesis(inputs: Mapping[str, Any]) -> str | None:
     recovery_score = _number(recovery.get("score"))
     volume_confirmed = (inputs.get("volume") or {}).get("volume_confirmed") is True
 
-    if state == "BREAKOUT_CONFIRMED" and volume_confirmed:
-        return "BREAKOUT"
     if recovery_score is not None and recovery_score >= 60:
         return "RECOVERY"
     if fundamental_score is not None and fundamental_score >= 75:
         return "QUALITY_GROWTH"
     if valuation_score is not None and valuation_score >= 70 and expected_return is not None and expected_return >= 15:
         return "VALUE_RERATING"
+    if state == "BREAKOUT_CONFIRMED" and volume_confirmed:
+        return "BREAKOUT"
     if entry_score is not None and entry_score >= 85:
         return "ATTRACTIVE_ENTRY"
     if state in CONSTRUCTIVE_TECHNICAL_STATES:
@@ -227,6 +228,7 @@ def evaluate_guidance(inputs: Mapping[str, Any]) -> dict[str, Any]:
 def _result(state: str, reasons: tuple[str, ...], negatives: tuple[str, ...], inputs: Mapping[str, Any], *, thesis: str | None = None) -> dict[str, Any]:
     return {
         "version": GUIDANCE_METHODOLOGY_VERSION,
+        "policy_version": GUIDANCE_POLICY_VERSION,
         "state": state,
         "status": "DATA_UNAVAILABLE" if state == DATA_LIMITED else "AVAILABLE",
         "actionability": ACTIONABILITY[state],
@@ -241,7 +243,7 @@ def _result(state: str, reasons: tuple[str, ...], negatives: tuple[str, ...], in
 __all__ = [
     "ACCUMULATE", "ACTIONABILITY", "AVOID", "BUY_NOW", "DATA_LIMITED",
     "FOUNDER_GUIDANCE_V1_FLAG", "founder_guidance_v1_enabled",
-    "GUIDANCE_METHODOLOGY_VERSION", "WAIT_FOR_CONFIRMATION", "WAIT_FOR_ENTRY",
+    "GUIDANCE_METHODOLOGY_VERSION", "GUIDANCE_POLICY_VERSION", "WAIT_FOR_CONFIRMATION", "WAIT_FOR_ENTRY",
     "classify_opportunity_thesis", "evaluate_guidance",
 ]
 FOUNDER_GUIDANCE_V1_FLAG = "ATLAS_FOUNDER_GUIDANCE_V1_ENABLED"
