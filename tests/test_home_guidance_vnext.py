@@ -50,10 +50,10 @@ def canonical_evaluation(*, guidance="DATA_LIMITED", opportunity=None, confidenc
 @pytest.mark.parametrize(("guidance", "label", "stars"), [
     ("BUY_NOW", "BUY NOW", "★★★★★"),
     ("ACCUMULATE", "BUILD A POSITION", "★★★★½"),
-    ("WAIT_FOR_ENTRY", "WAIT FOR A BETTER ENTRY", "★★★★☆"),
+    ("WAIT_FOR_ENTRY", "WAIT FOR BETTER ENTRY", "★★★★"),
     ("WAIT_FOR_CONFIRMATION", "WAIT FOR CONFIRMATION", "★★★½☆"),
     ("DATA_LIMITED", "WATCH — NOT READY YET", "★★½☆☆"),
-    ("AVOID", "AVOID", "★☆☆☆☆"),
+    ("AVOID", "AVOID", "★"),
 ])
 def test_canonical_guidance_maps_to_customer_action_without_mutating_guidance(guidance, label, stars):
     card = build_home_guidance_candidate(row("MU"), production_rank=1, current_evaluation=canonical_evaluation(guidance=guidance))

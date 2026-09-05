@@ -45,10 +45,10 @@ HOME_FIELD_AUTHORITY = {
 CUSTOMER_ACTION_PRESENTATION = {
     "BUY_NOW": {"label": "BUY NOW", "stars": "★★★★★", "rating": 5.0, "tone": "buy"},
     "ACCUMULATE": {"label": "BUILD A POSITION", "stars": "★★★★½", "rating": 4.5, "tone": "build"},
-    "WAIT_FOR_ENTRY": {"label": "WAIT FOR A BETTER ENTRY", "stars": "★★★★☆", "rating": 4.0, "tone": "wait"},
+    "WAIT_FOR_ENTRY": {"label": "WAIT FOR BETTER ENTRY", "stars": "★★★★", "rating": 4.0, "tone": "wait"},
     "WAIT_FOR_CONFIRMATION": {"label": "WAIT FOR CONFIRMATION", "stars": "★★★½☆", "rating": 3.5, "tone": "wait"},
     "DATA_LIMITED": {"label": "WATCH — NOT READY YET", "stars": "★★½☆☆", "rating": 2.5, "tone": "watch"},
-    "AVOID": {"label": "AVOID", "stars": "★☆☆☆☆", "rating": 1.0, "tone": "avoid"},
+    "AVOID": {"label": "AVOID", "stars": "★", "rating": 1.0, "tone": "avoid"},
 }
 
 

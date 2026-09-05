@@ -57,7 +57,7 @@ def test_unsourced_number_or_guidance_is_rejected_to_ticker_fallback():
 def test_missing_llm_uses_deterministic_ticker_specific_fallback():
     result = generate_summaries([build_summary_payload(_card())], llm=lambda _: None)[0]
     assert result["source"] == "DETERMINISTIC_FALLBACK"
-    assert "credible path to improve" in result["text"]
+    assert "may outperform if" in result["text"]
     assert "Recovery Score" not in result["text"]
     assert "0.45×" not in result["text"]
     assert "WAIT FOR CONFIRMATION" in result["text"]

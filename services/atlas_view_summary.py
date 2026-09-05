@@ -91,8 +91,8 @@ def deterministic_summary(payload: Mapping[str, Any]) -> str:
     catalyst = next(iter(payload.get("commercial_catalysts") or ()), {})
     if catalyst.get("headline"):
         evidence.append(f"the recent {str(catalyst.get('category') or 'company event').replace('_', ' ').lower()}")
-    support = " and ".join(evidence[:2]) if evidence else "the approved evidence that currently supports the setup"
-    first = f"{ticker}'s potential rests on {support}, giving the setup a credible path to improve if confirmation follows."
+    support = " and ".join(evidence[:2]) if evidence else "an early investment case that still needs stronger evidence"
+    first = f"{ticker} may outperform if {support} translates into durable business and market momentum."
     constraints = []
     if payload.get("contextual_rvol") is not None and float(payload["contextual_rvol"]) < 1:
         constraints.append("market participation remains too weak for confirmation")
@@ -105,8 +105,9 @@ def deterministic_summary(payload: Mapping[str, Any]) -> str:
         constraints.append("the remaining confirmation evidence has not cleared")
     guidance = str(payload.get("customer_action") or payload.get("guidance") or "WATCH — NOT READY YET").replace("_", " ")
     lead = " and ".join(constraints[:2]) or "the remaining confirmation gates have not cleared"
-    second = f"The main constraint is that {lead}."
-    third = f"ATLAS therefore remains at {guidance} until the evidence supports a stronger action."
+    catalyst_copy = " A recent material company development adds a catalyst to monitor." if catalyst.get("headline") else ""
+    second = f"The upside case still depends on stronger confirmation because {lead}.{catalyst_copy}"
+    third = f"ATLAS rates it {guidance} until that evidence is strong enough to support a more bullish action."
     return f"{first} {second} {third}"
 
 

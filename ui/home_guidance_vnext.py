@@ -445,13 +445,21 @@ def _action_card(card: Mapping[str, Any]) -> str:
 def _target_tiles(card: Mapping[str, Any]) -> str:
     street = card.get("wall_street") or {}
     published = str(card.get("atlas_valuation_status") or "").upper() == "PUBLISHED"
-    values = (
-        ("Current", _money(card.get("display_price")) if card.get("display_price") is not None else "Not Published", "current"),
-        ("ATLAS Target", _money(card.get("atlas_fair_value")) if published else "Not Published", "atlas"),
-        ("ATLAS Potential Upside", _score(card.get("atlas_expected_return"), suffix="%") if published and card.get("atlas_expected_return") is not None else "Not Published", "atlas"),
-        ("Wall Street Avg Target", _money(street.get("mean_target")) if street.get("mean_target") is not None else "Not Published", "street"),
-        ("Street Upside", _score(street.get("implied_upside"), suffix="%") if street.get("implied_upside") is not None else "Not Published", "street"),
-    )
+    values = [("Current", _money(card.get("display_price")) if card.get("display_price") is not None else "Not Published", "current")]
+    if published:
+        values.extend((
+            ("ATLAS Target", _money(card.get("atlas_fair_value")), "atlas"),
+            ("ATLAS Upside", _score(card.get("atlas_expected_return"), suffix="%"), "atlas"),
+        ))
+    else:
+        values.append(("ATLAS Target / Upside", "Not Published", "atlas"))
+    if street.get("mean_target") is not None:
+        values.extend((
+            ("Wall Street Avg Target", _money(street.get("mean_target")), "street"),
+            ("Wall Street Upside", _score(street.get("implied_upside"), suffix="%"), "street"),
+        ))
+    else:
+        values.append(("Wall Street Target / Upside", "Not Published", "street"))
     tiles = "".join(
         f'<span class="atlas-home-target atlas-home-target-{authority} {'atlas-home-target-muted' if value == "Not Published" else ''}">'
         f'<small>{html.escape(label)}</small><b>{html.escape(value)}</b></span>'
@@ -495,6 +503,21 @@ def _mini_chart(card: Mapping[str, Any], selected_range: str = "3M") -> str:
     trade = card.get("trade_plan") or {}
     entry_low, entry_high = trade.get("entry_low"), trade.get("entry_high")
     chart_overlays = ""
+    technical = card.get("technical_evidence") or {}
+    def add_level(value: Any, label: str, color: str, dash: str = "5 5") -> None:
+        nonlocal chart_overlays
+        if value is None or not low <= float(value) <= high:
+            return
+        y = height - ((float(value) - low) / span * (height - 18) + 9)
+        chart_overlays += (
+            f'<line x1="0" x2="{width:g}" y1="{y:.1f}" y2="{y:.1f}" stroke="{color}" '
+            f'stroke-width="1.2" stroke-dasharray="{dash}" opacity=".72"/>'
+            f'<text x="{width-5:g}" y="{max(10, y-3):.1f}" text-anchor="end" fill="{color}" font-size="9">{html.escape(label)}</text>'
+        )
+    add_level(technical.get("sma20"), "SMA20", "#72a7e8")
+    add_level(technical.get("sma50"), "SMA50", "#b58be8")
+    add_level(technical.get("support"), "Support", "#48b883", "3 5")
+    add_level(technical.get("resistance"), "Resistance", "#d7a542", "3 5")
     if entry_low is not None and entry_high is not None:
         zone_low, zone_high = float(entry_low), float(entry_high)
         if zone_high >= low and zone_low <= high:
@@ -505,11 +528,12 @@ def _mini_chart(card: Mapping[str, Any], selected_range: str = "3M") -> str:
                 'fill="rgba(93,145,214,.12)"/><text x="8" y="18" fill="#9fc2ed" font-size="12">Entry zone</text>'
             )
     target = card.get("atlas_fair_value") if str(card.get("atlas_valuation_status") or "").upper() == "PUBLISHED" else None
-    if target is not None and low <= float(target) <= high:
-        target_y = height - ((float(target) - low) / span * (height - 18) + 9)
+    if target is not None:
+        target_y = height - ((float(target) - low) / span * (height - 18) + 9) if low <= float(target) <= high else 7.0
         chart_overlays += (
             f'<line x1="0" x2="{width:g}" y1="{target_y:.1f}" y2="{target_y:.1f}" '
-            'stroke="#48b883" stroke-width="2" stroke-dasharray="7 7"/>'
+            'stroke="#48b883" stroke-width="1.6" stroke-dasharray="7 7"/>'
+            f'<text x="{width-5:g}" y="{max(10, target_y+10):.1f}" text-anchor="end" fill="#78d7c8" font-size="9">ATLAS Target</text>'
         )
     metadata = {
         "provider": contract.get("provider"), "range": selected_range,
@@ -723,7 +747,7 @@ def _inject_css() -> None:
     @media(max-width:480px){body:has([data-atlas-qa="home-guidance-vnext"]) h2{margin:.1rem 0!important;padding:.02rem 0!important}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stMainBlockContainer"]>[data-testid="stVerticalBlock"]{gap:.2rem!important}.atlas-home-snapshot-lines{grid-template-columns:1fr;gap:.14rem;margin:.08rem 0 .12rem}.atlas-home-snapshot-lines h4{font-size:.95rem;line-height:1.35}.atlas-home-snapshot-lines p{font-size:.825rem;line-height:1.4}.atlas-home-guidance-limited{grid-template-columns:1fr;padding:.3rem .36rem;gap:.22rem;margin:.08rem 0 .12rem}.atlas-home-guidance-limited>span+span{border-left:0;border-top:1px solid rgba(148,163,184,.18);padding-left:0;padding-top:.22rem}.atlas-home-guidance-limited b{font-size:.92rem}.atlas-home-guidance-limited small{font-size:.8125rem;line-height:1.4}.atlas-home-guidance-limited code{font-size:.75rem;line-height:1.35;overflow-wrap:anywhere}}
     @media(max-width:700px){.atlas-home-win{grid-template-columns:1fr}.atlas-home-catalysts{grid-template-columns:1fr}.atlas-home-chart,.atlas-home-comparison{min-height:unset}.atlas-home-chart svg{height:125px}}
     @media(max-width:480px){.atlas-home-card-head{grid-template-columns:1fr auto;align-items:end}.atlas-home-card-head>span{grid-column:1/-1}.atlas-home-card-head h3{font-size:1.35rem!important}.atlas-home-card-head aside strong{font-size:1.2rem}.atlas-home-guidance-identity{gap:.18rem .38rem;margin:.02rem 0 .1rem}.atlas-home-guidance-identity strong{font-size:1rem}.atlas-home-guidance-identity span{font-size:.74rem}.atlas-home-guidance-identity em{font-size:.72rem}.atlas-home-atlas-score{grid-template-columns:auto 1fr auto;gap:.1rem .42rem;padding:.55rem;margin:.03rem 0 .12rem;min-height:108px}.atlas-home-score-label{font-size:.7rem}.atlas-home-atlas-score strong{font-size:1.25rem}.atlas-home-score-stars{grid-row:2;grid-column:1/3;font-size:.88rem}.atlas-home-atlas-score b{grid-row:1;grid-column:3}.atlas-home-atlas-score small{grid-row:3;grid-column:1/-1;font-size:.76rem}.atlas-home-guidance-summary{font-size:.84rem;line-height:1.4;margin:.08rem 0 .12rem!important}.atlas-home-guidance-quick{grid-template-columns:1fr;gap:.28rem;margin:.06rem 0 .14rem}.atlas-home-guidance-quick section{padding:.36rem .46rem}.atlas-home-guidance-quick h4{font-size:.92rem}.atlas-home-guidance-quick li{font-size:.825rem;line-height:1.38}.atlas-home-key-numbers{grid-template-columns:repeat(2,minmax(0,1fr));gap:.12rem;padding:.18rem}.atlas-home-key-numbers .atlas-home-guidance-metric{padding:.18rem .22rem}.atlas-home-full-evidence section{padding:.58rem 0}.atlas-home-full-evidence h4{font-size:.95rem;margin-bottom:.32rem}.atlas-home-full-evidence p,.atlas-home-full-reasons li{font-size:.825rem;line-height:1.45}.atlas-home-full-metrics{grid-template-columns:1fr;gap:.18rem}.atlas-home-full-reasons{grid-template-columns:1fr;gap:.55rem}.atlas-home-trade-row{gap:.16rem .38rem;font-size:.84rem}.atlas-home-trade-row span+span::before{margin-right:.38rem}.atlas-home-comparison{grid-template-columns:1fr 1fr}.atlas-home-target{padding:.48rem}.atlas-home-target b{font-size:.92rem}}
-    .atlas-home-comparison{grid-template-columns:repeat(5,minmax(0,1fr));min-height:0}.atlas-home-win i{display:grid;gap:.12rem;font-style:normal;font-weight:700;color:#d9e3ef}.atlas-home-win i small{font-size:.72rem;line-height:1.3;font-weight:400;color:#96a4b6}
+    .atlas-home-comparison{grid-template-columns:repeat(auto-fit,minmax(125px,1fr));min-height:0}.atlas-home-win i{display:grid;gap:.12rem;font-style:normal;font-weight:700;color:#d9e3ef}.atlas-home-win i small{font-size:.72rem;line-height:1.3;font-weight:400;color:#96a4b6}
     @media(max-width:700px){.atlas-home-comparison{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-home-comparison .atlas-home-target-current{grid-column:1/-1}.atlas-home-action{grid-template-columns:1fr}.atlas-home-action-stars{grid-row:auto;font-size:1.45rem}.atlas-home-action>small{grid-column:auto}.atlas-home-card-head h3 i{display:block;margin-top:.18rem}}
     </style>""", unsafe_allow_html=True)
 
