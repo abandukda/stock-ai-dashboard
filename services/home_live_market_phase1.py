@@ -102,6 +102,7 @@ def acquire_home_phase1_evaluations(
     secrets: Mapping[str, Any] | None = None, environ: Mapping[str, str] | None = None,
     daily_history_cache: Mapping[str, Mapping[str, Any]] | None = None,
     recovery_payload: Any = None,
+    latest_completed_session_only: bool = False,
 ) -> dict[str, Any]:
     """Acquire a small Home cohort; failures return evidence, never exceptions."""
     started = time.monotonic()
@@ -119,18 +120,22 @@ def acquire_home_phase1_evaluations(
             "version": HOME_PHASE1_VERSION, "status": "DATA_UNAVAILABLE", "evaluations": {},
             "provider_calls": 0, "reason_codes": (type(exc).__name__.upper(),),
         }
-    events, websocket_meta = _websocket_events(symbols, api_key, wait_seconds=DEFAULT_WS_WAIT_SECONDS, connector=connector)
+    events, websocket_meta = (
+        ({}, {"status": "NOT_REQUIRED", "reason_codes": ("LATEST_COMPLETED_SESSION_MODE",)})
+        if latest_completed_session_only
+        else _websocket_events(symbols, api_key, wait_seconds=DEFAULT_WS_WAIT_SECONDS, connector=connector)
+    )
     evaluations: dict[str, Any] = {}
     diagnostics: dict[str, Any] = {}
     history_cache = {str(key): dict(value) for key, value in (daily_history_cache or {}).items()}
-    provider_calls = 1
+    provider_calls = 0 if latest_completed_session_only else 1
     for row in rows:
         ticker_started = time.monotonic()
         symbol = _ticker(row)
         event, received = events.get(symbol, ({}, now or datetime.now(timezone.utc)))
         try:
-            payload = adapter.fetch_time_series(symbol)
-            provider_calls += 1
+            payload = {} if latest_completed_session_only else adapter.fetch_time_series(symbol)
+            provider_calls += 0 if latest_completed_session_only else 1
             cache_day = (now or datetime.now(timezone.utc)).astimezone(ZoneInfo("America/New_York")).date().isoformat()
             cache_key = f"{symbol}|TWELVE_DATA|1Y|1day|REGULAR|splits|BULL_RUN_RADAR_V1_PROVISIONAL|{cache_day}"
             daily_payload = history_cache.get(cache_key)
@@ -173,7 +178,8 @@ def acquire_home_phase1_evaluations(
                 "current_price_status": bundle["current_price"]["status"],
                 "completed_bar_status": bundle["completed_bars"]["status"],
                 "technical_history_status": bundle["canonical_technical_history"]["status"],
-                "volume_status": bundle["intraday_volume"]["status"],
+                "volume_status": bundle["completed_daily_volume"]["status"],
+                "volume_relative": bundle["completed_daily_volume"].get("relative_volume"),
                 "guidance": evaluation["guidance"]["state"],
                 "actionability": evaluation["actionability"]["status"],
                 "reason_codes": evaluation["guidance"]["reason_codes"],

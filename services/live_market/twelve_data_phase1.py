@@ -394,7 +394,14 @@ def build_phase1_bundle(
         "status": "DATA_UNAVAILABLE", "bars": (),
         "reason_codes": ("DAILY_TECHNICAL_HISTORY_NOT_ACQUIRED",),
     }
-    latest = completed_bars.get("latest_completed_bar") or {}
+    latest_intraday = completed_bars.get("latest_completed_bar") or {}
+    daily_bars = tuple(daily_history.get("bars") or ())
+    latest_daily = daily_bars[-1] if daily_bars else {}
+    # A completed regular-session daily bar is the governed close used to retain
+    # a rating while the market is closed.  It is distinct from a live entry
+    # price and never becomes websocket/current-price authority.
+    latest = latest_intraday or latest_daily
+    completed_session = bool(latest_daily and daily_history.get("status") == "AVAILABLE")
     last_known_market = {
         "status": "AVAILABLE" if latest else "DATA_UNAVAILABLE",
         "price": latest.get("close"),
@@ -407,6 +414,7 @@ def build_phase1_bundle(
         "feed_health": "HEALTHY" if completed_bars.get("status") == "AVAILABLE" else "DEGRADED",
         "evidence_id": completed_bars.get("evidence_id"),
         "methodology_version": ADAPTER_VERSION,
+        "latest_completed_session_valid": completed_session,
         "reason_codes": tuple(completed_bars.get("reason_codes") or ()),
     }
     return {
@@ -423,11 +431,35 @@ def build_phase1_bundle(
             "authority": False,
             "reason_codes": ("TIME_ALIGNED_INTRADAY_VOLUME_BASELINE_NOT_IMPLEMENTED",),
         },
+        "completed_daily_volume": _completed_daily_volume(daily_history),
         "breakout_volume_confirmation": {
             "status": "DATA_UNAVAILABLE",
             "authority": False,
             "reason_codes": ("PHASE2_VOLUME_METHODOLOGY_REQUIRED",),
         },
+    }
+
+
+def _completed_daily_volume(daily_history: Mapping[str, Any]) -> dict[str, Any]:
+    bars = tuple(daily_history.get("bars") or ())
+    if daily_history.get("status") != "AVAILABLE" or len(bars) < 21:
+        return {"status": "DATA_UNAVAILABLE", "authority": False, "reason_codes": ("DAILY_VOLUME_BASELINE_UNAVAILABLE",)}
+    latest = bars[-1]
+    baseline = bars[-21:-1]
+    average = sum(float(item["volume"]) for item in baseline) / len(baseline)
+    average_dollar = sum(float(item["volume"]) * float(item["close"]) for item in baseline) / len(baseline)
+    relative = float(latest["volume"]) / average if average > 0 else None
+    return {
+        "status": "AVAILABLE" if relative is not None else "DATA_UNAVAILABLE",
+        "authority": relative is not None,
+        "source_type": "TWELVE_DATA_COMPLETED_DAILY_VOLUME",
+        "relative_volume": relative,
+        "current_volume": float(latest["volume"]),
+        "average_volume": average,
+        "average_dollar_volume": average_dollar,
+        "as_of": latest.get("timestamp"),
+        "evidence_id": daily_history.get("evidence_id"),
+        "reason_codes": ("COMPLETED_DAILY_VOLUME_BASELINE_VALIDATED",) if relative is not None else ("DAILY_VOLUME_BASELINE_UNAVAILABLE",),
     }
 
 

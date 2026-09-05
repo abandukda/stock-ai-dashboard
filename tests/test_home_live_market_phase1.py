@@ -69,7 +69,7 @@ def test_disabled_home_acquisition_has_zero_calls_and_does_not_read_key():
     assert calls == []
 
 
-def test_enabled_home_acquisition_uses_websocket_and_time_series_but_keeps_volume_closed():
+def test_enabled_home_acquisition_uses_websocket_and_approved_completed_daily_volume():
     calls = []
     event = {"event": "price", "symbol": "NVDA", "price": 105, "timestamp": 1788533940}
     result = acquire_home_phase1_evaluations(
@@ -86,7 +86,8 @@ def test_enabled_home_acquisition_uses_websocket_and_time_series_but_keeps_volum
     evaluation = result["evaluations"]["NVDA"]
     assert evaluation["market_snapshot"]["source_type"] == "TWELVE_DATA_WEBSOCKET"
     assert evaluation["market_snapshot"]["evidence_id"].startswith("TD1-")
-    assert evaluation["volume_intelligence"]["status"] == "DATA_UNAVAILABLE"
+    assert evaluation["volume_intelligence"]["status"] == "AVAILABLE"
+    assert evaluation["volume_intelligence"]["average_volume_lookback"] == 20
     assert evaluation["guidance"]["state"] not in {"BUY_NOW", "ACCUMULATE"}
     assert evaluation["phase1_completed_bar"]["completed"] is True
     assert evaluation["phase1_bar_quality"]["evidence_id"].startswith("TD1-")

@@ -77,7 +77,8 @@ def build_canonical_evaluation(
         "as_of": technical.get("as_of"),
     })
     volume = build_volume_intelligence(volume_evidence)
-    if positive_action_volume_authority_required:
+    approved_volume_authority = volume_evidence.get("approved_volume_authority") == "TWELVE_DATA_COMPLETED_DAILY_VOLUME"
+    if positive_action_volume_authority_required and not approved_volume_authority:
         # Twelve Data Phase 1 deliberately has no production intraday-volume
         # authority. Persisted/raw volume fields must not leak through here.
         volume = {
@@ -140,6 +141,8 @@ def build_canonical_evaluation(
         "input_digest": input_digest,
         "market_snapshot": dict(market_snapshot),
         "technical_confirmation": dict(technical),
+        "fundamentals": dict(fundamentals),
+        "risk": dict(risk),
         "volume_intelligence": volume,
         "atlas_valuation": valuation,
         "opportunity": opportunity,

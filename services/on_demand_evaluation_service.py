@@ -104,6 +104,20 @@ def evaluate_on_demand(
         except (KeyError, TypeError, ValueError):
             bars = None
     technical = _technical_contract(row, bars)
+    completed_daily_volume = phase1.get("completed_daily_volume") if isinstance(phase1.get("completed_daily_volume"), Mapping) else {}
+    if completed_daily_volume.get("authority") is True:
+        technical = {
+            **technical,
+            "evidence": {
+                **dict(technical.get("evidence") or {}),
+                "confirmation_relative_volume": completed_daily_volume.get("relative_volume"),
+                "current_volume": completed_daily_volume.get("current_volume"),
+                "average_volume": completed_daily_volume.get("average_volume"),
+                "average_dollar_volume": completed_daily_volume.get("average_dollar_volume"),
+                "volume_evidence_id": completed_daily_volume.get("evidence_id"),
+                "approved_volume_authority": "TWELVE_DATA_COMPLETED_DAILY_VOLUME",
+            },
+        }
     bar_contract = phase1.get("completed_bars") if isinstance(phase1.get("completed_bars"), Mapping) else {}
     if phase1 and technical.get("status") != "AVAILABLE" and bar_contract.get("confirmation_allowed") is not True:
         technical = {

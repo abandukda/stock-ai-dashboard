@@ -238,6 +238,7 @@ def build_home_guidance_candidate(
     volume = evaluation.get("volume_intelligence") if isinstance(evaluation.get("volume_intelligence"), Mapping) else {}
     risk = evaluation.get("risk") if isinstance(evaluation.get("risk"), Mapping) else {}
     fundamentals = evaluation.get("fundamentals") if isinstance(evaluation.get("fundamentals"), Mapping) else {}
+    trial_intelligence = evaluation.get("trial_intelligence") if isinstance(evaluation.get("trial_intelligence"), Mapping) else {}
     market = evaluation.get("market_snapshot") if isinstance(evaluation.get("market_snapshot"), Mapping) else {}
     market_price = number(market.get("price"))
     live_price = market_price if market.get("fresh_current_price") is True else None
@@ -381,7 +382,9 @@ def build_home_guidance_candidate(
                 "source": "FINNHUB" if internal and row.get("source_finnhub_insider") else None,
             },
             "institutional": {
-                "ownership_pct": _first_number(row, "institutional_ownership_pct") if internal else None,
+                "ownership_pct": (
+                    value if internal and (value := _first_number(row, "institutional_ownership_pct")) is not None and 0 <= value <= 100 else None
+                ),
                 "trend": _first_value(row, "institutional_change", "institutional_trend") if internal else None,
                 "source": _first_value(row, "institutional_ownership_source", "institutional_source") if internal else None,
             },
@@ -400,6 +403,7 @@ def build_home_guidance_candidate(
             "insider_transactions": _first_value(row, "insider_transactions", "insider_activity"),
             "political_transactions": _first_value(row, "political_trades", "congress_trades", "senate_trades"),
             "etf_evidence": _first_value(row, "etf_evidence", "etf_holdings", "fund_exposure"),
+            "twelve_trial_intelligence": trial_intelligence,
             "display_scope": "INTERNAL_TRIAL", "non_scoring": True,
         } if internal else {}),
         "recovery": {

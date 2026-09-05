@@ -62,6 +62,11 @@ def build_market_snapshot(
         not live_source or age is None or age > LIVE_FRESHNESS_SECONDS or feed_health != "HEALTHY"
     )
     fresh_current = bool(price is not None and price > 0 and live_source and not stale)
+    completed_session_valid = bool(
+        price is not None and price > 0
+        and source.get("latest_completed_session_valid") is True
+        and source_type == "TWELVE_DATA_LATEST_COMPLETED_BAR"
+    )
     return {
         "version": MARKET_SNAPSHOT_VERSION,
         "ticker": str(ticker or "").upper().strip(),
@@ -77,6 +82,7 @@ def build_market_snapshot(
         "stale": stale,
         "feed_health": feed_health,
         "fresh_current_price": fresh_current,
+        "latest_completed_session_valid": completed_session_valid,
         "customer_label": (
             "Current quote" if fresh_current else
             "Prior close" if source_type == "PRIOR_CLOSE" else

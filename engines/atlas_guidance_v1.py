@@ -68,7 +68,7 @@ def evaluate_guidance(inputs: Mapping[str, Any]) -> dict[str, Any]:
     price = _number(market.get("price"))
     if price is None or price <= 0 or not market.get("provider_timestamp"):
         minimum_missing.append("PRICE_EVIDENCE_UNAVAILABLE")
-    if market.get("fresh_current_price") is not True:
+    if market.get("fresh_current_price") is not True and market.get("latest_completed_session_valid") is not True:
         minimum_missing.append("CURRENT_MARKET_EVIDENCE_UNAVAILABLE")
     technical_status = str(technical.get("status") or "DATA_UNAVAILABLE").upper()
     technical_state = str(technical.get("state") or "UNAVAILABLE").upper()
@@ -119,7 +119,7 @@ def evaluate_guidance(inputs: Mapping[str, Any]) -> dict[str, Any]:
     if entry_reasons:
         return _result(WAIT_FOR_ENTRY, tuple(dict.fromkeys(entry_reasons)), tuple(negatives), inputs)
 
-    fresh = market.get("fresh_current_price") is True
+    fresh = market.get("fresh_current_price") is True or market.get("latest_completed_session_valid") is True
     volume_confirmed = volume.get("volume_confirmed") is True
     volume_authority_required = inputs.get("positive_action_volume_authority_required") is True
     volume_authority_available = str(volume.get("status") or "").upper() == "AVAILABLE"

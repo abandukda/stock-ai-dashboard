@@ -104,6 +104,39 @@ def test_bundle_keeps_volume_and_breakout_confirmation_unavailable():
     assert bundle["last_known_market"]["stale"] is True
 
 
+def test_completed_daily_session_retains_rating_authority_and_volume_context():
+    from datetime import timedelta
+    day = datetime(2025, 10, 20)
+    values = []
+    while len(values) < 220:
+        if day.weekday() < 5:
+            close = 80 + len(values) * .1
+            values.append({"datetime": day.date().isoformat(), "open": close - .2, "high": close + .5, "low": close - .5, "close": close, "volume": 2_000_000 + len(values) * 10_000})
+        day += timedelta(days=1)
+    bundle = build_phase1_bundle(
+        "MU", websocket_event={}, time_series_payload={},
+        daily_time_series_payload={"meta": {"symbol": "MU", "exchange_timezone": "America/New_York"}, "values": values},
+        received_timestamp=datetime(2026, 9, 4, 22, tzinfo=timezone.utc),
+        now=datetime(2026, 9, 4, 22, tzinfo=timezone.utc),
+    )
+    market = build_market_snapshot("MU", bundle["last_known_market"], now=datetime(2026, 9, 4, 22, tzinfo=timezone.utc))
+    assert market["fresh_current_price"] is False
+    assert market["latest_completed_session_valid"] is True
+    assert bundle["completed_daily_volume"]["status"] == "AVAILABLE"
+    assert bundle["completed_daily_volume"]["authority"] is True
+
+
+def test_latest_completed_session_satisfies_minimum_market_gate_but_not_live_status():
+    inputs = _guidance()
+    inputs["market_snapshot"] = {
+        "price": 105, "provider_timestamp": "2026-09-04T20:00:00+00:00",
+        "fresh_current_price": False, "latest_completed_session_valid": True,
+    }
+    result = evaluate_guidance(inputs)
+    assert result["state"] == "WAIT_FOR_CONFIRMATION"
+    assert "CURRENT_MARKET_EVIDENCE_UNAVAILABLE" not in result["reason_codes"]
+
+
 def _guidance(state="NEAR_BREAKOUT", *, extended=False):
     return {
         "methodology_version": "FOUNDER_GUIDANCE_V1", "threshold_version": "TEST",
