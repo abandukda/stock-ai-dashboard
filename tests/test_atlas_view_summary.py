@@ -157,3 +157,15 @@ def test_summary_dossier_carries_all_six_locked_pillars():
         "risk_quality", "entry_quality", "volume_quality",
     )
     assert payload["component_coverage"] == 95.5
+
+
+def test_summary_dossier_preserves_thesis_and_rejects_llm_reclassification():
+    card = _card()
+    card["opportunity_thesis"] = "QUALITY_GROWTH"
+    payload = build_summary_payload(card)
+    assert payload["opportunity_thesis"] == "QUALITY_GROWTH"
+    result = validate_summary(
+        "NVIDIA has a BREAKOUT opportunity. Its setup remains constructive. ATLAS rates it WAIT FOR CONFIRMATION.",
+        payload,
+    )
+    assert "ALTERED_OPPORTUNITY_THESIS" in result["violations"]

@@ -131,6 +131,7 @@ def build_canonical_evaluation(
         "opportunity": opportunity,
         "decision_confidence": decision_confidence,
         "coverage": coverage,
+        "decision_metrics": decision_metrics,
     }
     if positive_action_volume_authority_required:
         guidance_inputs["positive_action_volume_authority_required"] = True
@@ -185,6 +186,7 @@ def build_canonical_evaluation(
         "entry_quality": decision_metrics["entry_quality"],
         "volume_quality": decision_metrics["volume_quality"],
         "guidance": guidance,
+        "opportunity_thesis": guidance.get("opportunity_thesis"),
         "actionability": {
             "status": guidance["actionability"],
             "initiating_supported": guidance["actionability"] == "ACTIONABLE",

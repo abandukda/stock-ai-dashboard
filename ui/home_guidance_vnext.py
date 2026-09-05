@@ -352,7 +352,7 @@ def _quick_needs(card: Mapping[str, Any]) -> tuple[str, ...]:
 def _guidance_explanation(card: Mapping[str, Any]) -> str:
     codes = tuple(str(code) for code in card.get("reason_codes") or ())
     copy = {
-        "ALL_BUY_NOW_GATES_PASSED": "All governed Buy Now gates are satisfied, including confirmed participation and a valid trade plan.",
+        "ALL_BUY_NOW_GATES_PASSED": "The governed investment-quality, valuation, risk, entry and technical gates support initiating a position.",
         "ALL_ACCUMULATE_GATES_PASSED": "The governed evidence supports beginning with a partial position and adding only as the thesis confirms.",
         "CURRENT_MARKET_EVIDENCE_UNAVAILABLE": "The opportunity is worth watching, but ATLAS needs fresher market evidence before recommending a position.",
         "TECHNICAL_STRUCTURE_UNAVAILABLE": "The setup has not produced enough confirmed technical evidence for ATLAS to recommend an entry yet.",
@@ -442,11 +442,22 @@ def _action_card(card: Mapping[str, Any]) -> str:
     tone = str(action.get("tone") or _action_tone(guidance))
     action_label = str(action.get("label") or "WATCH — NOT READY YET")
     stars = str(action.get("stars") or "★★½☆☆")
+    thesis = str(card.get("opportunity_thesis") or "").upper()
+    thesis_label = {
+        "QUALITY_GROWTH": "Quality Growth Opportunity",
+        "VALUE_RERATING": "Value / Rerating Opportunity",
+        "RECOVERY": "Recovery Opportunity",
+        "ATTRACTIVE_ENTRY": "Attractive Entry",
+        "BREAKOUT": "Breakout Confirmed",
+        "DEVELOPING_SETUP": "Developing Setup",
+    }.get(thesis)
+    thesis_copy = f'<em>{html.escape(thesis_label)}</em>' if thesis_label else ""
     return (
         f'<div class="atlas-home-action atlas-home-action-{tone}" data-atlas-qa="home-action" '
-        f'data-atlas-action-tone="{tone}" data-atlas-star-rating="{html.escape(str(action.get("rating") or 2.5))}">'
+        f'data-atlas-action-tone="{tone}" data-atlas-star-rating="{html.escape(str(action.get("rating") or 2.5))}" '
+        f'data-atlas-opportunity-thesis="{html.escape(thesis)}">'
         f'<small>ATLAS RATING</small><b class="atlas-home-action-stars">{html.escape(stars)}</b><strong>{html.escape(action_label)}</strong>'
-        f'<span>{html.escape(str(action.get("instruction") or _guidance_explanation(card)))}</span></div>'
+        f'{thesis_copy}<span>{html.escape(str(action.get("instruction") or _guidance_explanation(card)))}</span></div>'
     )
 
 
@@ -881,7 +892,7 @@ def _inject_css() -> None:
     .atlas-home-guidance-hero{padding:.45rem 0 .7rem}.atlas-home-guidance-badge{display:inline-block;border:1px solid rgba(59,130,246,.5);border-radius:999px;padding:.25rem .6rem;font-size:.72rem;font-weight:800}
     .atlas-home-card-head{display:grid;grid-template-columns:1fr auto;align-items:end;gap:.35rem .75rem;margin:.06rem 0 .22rem}.atlas-home-card-head>span{grid-column:1/-1;font-size:.72rem;font-weight:850;letter-spacing:.13em;color:var(--atlas-blue)}.atlas-home-card-head h3{margin:0!important;padding:0!important;font-size:1.5rem!important;line-height:1.15!important;color:#f7fafc}.atlas-home-card-head h3 i{font-size:.9rem;font-style:normal;font-weight:500;color:#aab5c5}.atlas-home-card-head aside{text-align:right}.atlas-home-card-head aside strong,.atlas-home-card-head aside small{display:block}.atlas-home-card-head aside strong{font-size:1.4rem;color:#f7fafc}.atlas-home-card-head aside small{font-size:.72rem;color:var(--atlas-muted)}
     .atlas-home-action-counts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.35rem;margin:.6rem 0 1rem}.atlas-home-action-counts span{display:flex;justify-content:space-between;align-items:center;gap:.4rem;padding:.48rem .58rem;border-radius:10px;background:rgba(15,23,42,.46);border:1px solid rgba(148,163,184,.16)}.atlas-home-action-counts small{font-size:.7rem;color:#9aa7b9}.atlas-home-action-counts b{font-size:1.05rem}.atlas-home-count-buy b{color:var(--atlas-green)}.atlas-home-count-build b{color:var(--atlas-teal)}.atlas-home-count-wait b,.atlas-home-count-watch b{color:var(--atlas-amber)}
-    .atlas-home-action{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:.18rem .85rem;padding:.78rem .92rem;border-radius:14px;border:1px solid;background:var(--atlas-panel)}.atlas-home-action>small{grid-column:1/-1;font-size:.68rem;font-weight:800;letter-spacing:.13em}.atlas-home-action-stars{grid-row:2/4;font-size:1.65rem;line-height:1;letter-spacing:.02em;white-space:nowrap}.atlas-home-action strong{font-size:1.3rem;line-height:1.12}.atlas-home-action span{font-size:.8rem;line-height:1.35;color:#cbd5e1}.atlas-home-action-positive,.atlas-home-action-buy,.atlas-home-action-build{border-color:rgba(47,183,164,.42);box-shadow:inset 4px 0 0 var(--atlas-teal);background:linear-gradient(125deg,rgba(47,183,164,.15),rgba(17,28,45,.62));color:#78d7c8}.atlas-home-action-waiting,.atlas-home-action-wait,.atlas-home-action-watch{border-color:rgba(215,165,66,.4);box-shadow:inset 4px 0 0 var(--atlas-amber);background:linear-gradient(125deg,rgba(215,165,66,.14),rgba(17,28,45,.62));color:#edc878}.atlas-home-action-negative,.atlas-home-action-avoid{border-color:rgba(214,107,114,.45);box-shadow:inset 4px 0 0 var(--atlas-red);background:linear-gradient(125deg,rgba(214,107,114,.14),rgba(17,28,45,.62));color:#ee9da2}.atlas-home-action-neutral{border-color:rgba(93,145,214,.4);box-shadow:inset 4px 0 0 var(--atlas-blue)}
+    .atlas-home-action{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:.18rem .85rem;padding:.78rem .92rem;border-radius:14px;border:1px solid;background:var(--atlas-panel)}.atlas-home-action>small{grid-column:1/-1;font-size:.68rem;font-weight:800;letter-spacing:.13em}.atlas-home-action-stars{grid-row:2/5;font-size:1.65rem;line-height:1;letter-spacing:.02em;white-space:nowrap}.atlas-home-action strong{font-size:1.3rem;line-height:1.12}.atlas-home-action em{font-size:.8rem;font-style:normal;font-weight:700;color:#bfdbfe}.atlas-home-action span{font-size:.8rem;line-height:1.35;color:#cbd5e1}.atlas-home-action-positive,.atlas-home-action-buy,.atlas-home-action-build{border-color:rgba(47,183,164,.42);box-shadow:inset 4px 0 0 var(--atlas-teal);background:linear-gradient(125deg,rgba(47,183,164,.15),rgba(17,28,45,.62));color:#78d7c8}.atlas-home-action-waiting,.atlas-home-action-wait,.atlas-home-action-watch{border-color:rgba(215,165,66,.4);box-shadow:inset 4px 0 0 var(--atlas-amber);background:linear-gradient(125deg,rgba(215,165,66,.14),rgba(17,28,45,.62));color:#edc878}.atlas-home-action-negative,.atlas-home-action-avoid{border-color:rgba(214,107,114,.45);box-shadow:inset 4px 0 0 var(--atlas-red);background:linear-gradient(125deg,rgba(214,107,114,.14),rgba(17,28,45,.62));color:#ee9da2}.atlas-home-action-neutral{border-color:rgba(93,145,214,.4);box-shadow:inset 4px 0 0 var(--atlas-blue)}
     .atlas-home-view-title,.atlas-home-subhead{margin:.32rem 0 .15rem!important;padding:0!important;font-size:.96rem!important;letter-spacing:.01em;color:#dce8f6}.atlas-home-guidance-summary{padding:.55rem .65rem;border-left:3px solid var(--atlas-blue);border-radius:0 9px 9px 0;background:rgba(36,61,92,.2)}
     .atlas-home-chart{min-height:220px;padding:.65rem .7rem;border-radius:13px;background:linear-gradient(145deg,rgba(16,29,47,.92),rgba(20,38,55,.55));border:1px solid rgba(93,145,214,.22)}.atlas-home-chart>div{display:flex;justify-content:space-between;align-items:center;gap:.5rem}.atlas-home-chart b{font-size:.82rem;color:#dce8f6}.atlas-home-chart svg{display:block;width:100%;height:148px;margin:.25rem 0}.atlas-home-chart small{display:block;font-size:.68rem;line-height:1.3;color:var(--atlas-muted)}.atlas-home-chart-empty{display:flex;flex-direction:column;justify-content:center;gap:.35rem;color:var(--atlas-muted)}.atlas-home-chart-empty span{font-size:.78rem}.atlas-home-tech-cue{display:inline-flex;padding:.18rem .48rem;border-radius:999px;background:rgba(47,183,164,.11);border:1px solid rgba(47,183,164,.32);font-size:.72rem;font-weight:700;color:#82d7cb;white-space:nowrap}
     .atlas-home-chart-dates{display:flex!important;justify-content:space-between!important;margin-left:44px;color:#718096;font-size:.64rem}.atlas-home-offchart-target{justify-content:flex-end!important;margin:-.05rem 0 .18rem!important;color:#78d7c8;font-size:.68rem;font-weight:750}.atlas-home-quality-warning{color:#94a3b8;font-style:normal;cursor:help}

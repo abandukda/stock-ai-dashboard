@@ -62,6 +62,18 @@ def test_canonical_guidance_maps_to_customer_action_without_mutating_guidance(gu
     assert card["customer_action"]["stars"] == stars
 
 
+def test_home_action_exposes_canonical_thesis_without_reclassifying_action():
+    from ui.home_guidance_vnext import _action_card
+    source = canonical_evaluation(guidance="BUY_NOW")
+    source["guidance"]["opportunity_thesis"] = "VALUE_RERATING"
+    source["opportunity_thesis"] = "VALUE_RERATING"
+    card = build_home_guidance_candidate(row("MU"), production_rank=1, current_evaluation=source)
+    rendered = _action_card(card)
+    assert 'data-atlas-opportunity-thesis="VALUE_RERATING"' in rendered
+    assert "Value / Rerating Opportunity" in rendered
+    assert card["guidance"] == "BUY_NOW"
+
+
 def test_wall_street_and_catalysts_fail_closed_without_commercial_display_rights(monkeypatch):
     monkeypatch.setenv("ATLAS_DATA_MODE", "COMMERCIAL_CUSTOMER")
     source = row("MU", analyst_targets_commercial_display_allowed=False, analyst_target_mean=150)

@@ -28,6 +28,11 @@ ACTIONABILITY = {
 ACCUMULATE_TECHNICAL_STATES = {
     "SETUP_FORMING", "NEAR_BREAKOUT", "BREAKOUT_CONFIRMED",
 }
+CONSTRUCTIVE_TECHNICAL_STATES = ACCUMULATE_TECHNICAL_STATES
+OPPORTUNITY_THESES = {
+    "QUALITY_GROWTH", "VALUE_RERATING", "RECOVERY", "ATTRACTIVE_ENTRY",
+    "BREAKOUT", "DEVELOPING_SETUP",
+}
 
 
 def _number(value: Any) -> float | None:
@@ -53,6 +58,41 @@ def _complete_trade_plan(plan: Mapping[str, Any]) -> bool:
         low is not None and high is not None and stop is not None and target is not None
         and 0 < stop < low <= high < target
     )
+
+
+def classify_opportunity_thesis(inputs: Mapping[str, Any]) -> str | None:
+    """Classify the primary investment thesis from canonical evidence only.
+
+    This label is explanatory. It does not alter any pillar, Opportunity, or
+    Decision Confidence calculation. A BREAKOUT thesis is reserved for an
+    actually volume-confirmed canonical breakout.
+    """
+    technical = dict(inputs.get("technical") or {})
+    fundamentals = dict(inputs.get("fundamentals") or {})
+    valuation = dict(inputs.get("valuation") or {})
+    metrics = dict(inputs.get("decision_metrics") or {})
+    recovery = dict(inputs.get("recovery") or {})
+    state = str(technical.get("state") or "").upper()
+    fundamental_score = _number(fundamentals.get("score"))
+    valuation_score = _number(valuation.get("score"))
+    expected_return = _number(valuation.get("expected_return"))
+    entry_score = _number((metrics.get("entry_quality") or {}).get("score"))
+    recovery_score = _number(recovery.get("score"))
+    volume_confirmed = (inputs.get("volume") or {}).get("volume_confirmed") is True
+
+    if state == "BREAKOUT_CONFIRMED" and volume_confirmed:
+        return "BREAKOUT"
+    if recovery_score is not None and recovery_score >= 60:
+        return "RECOVERY"
+    if fundamental_score is not None and fundamental_score >= 75:
+        return "QUALITY_GROWTH"
+    if valuation_score is not None and valuation_score >= 70 and expected_return is not None and expected_return >= 15:
+        return "VALUE_RERATING"
+    if entry_score is not None and entry_score >= 85:
+        return "ATTRACTIVE_ENTRY"
+    if state in CONSTRUCTIVE_TECHNICAL_STATES:
+        return "DEVELOPING_SETUP"
+    return None
 
 
 def evaluate_guidance(inputs: Mapping[str, Any]) -> dict[str, Any]:
@@ -95,6 +135,7 @@ def evaluate_guidance(inputs: Mapping[str, Any]) -> dict[str, Any]:
     expected_return = _number(valuation.get("expected_return"))
     valuation_published = str(valuation.get("status") or "").upper() == "PUBLISHED" and _number(valuation.get("fair_value")) is not None
     complete_plan = _complete_trade_plan(plan)
+    thesis = classify_opportunity_thesis(inputs)
 
     negatives = []
     if valuation_published and expected_return is not None and expected_return < 0:
@@ -106,7 +147,7 @@ def evaluate_guidance(inputs: Mapping[str, Any]) -> dict[str, Any]:
     elif technical_state == "FAILED_BREAKOUT":
         negatives.append("CONFIRMED_TECHNICAL_FAILED_BREAKOUT")
     if len(negatives) >= 2:
-        return _result(AVOID, tuple(negatives), tuple(negatives), inputs)
+        return _result(AVOID, tuple(negatives), tuple(negatives), inputs, thesis=thesis)
 
     entry_reasons = []
     if technical_state == "EXTENDED":
@@ -117,7 +158,7 @@ def evaluate_guidance(inputs: Mapping[str, Any]) -> dict[str, Any]:
     if plan.get("entry_relationship_valid") is False:
         entry_reasons.append("TRADE_PLAN_ENTRY_RELATIONSHIP_INVALID")
     if entry_reasons:
-        return _result(WAIT_FOR_ENTRY, tuple(dict.fromkeys(entry_reasons)), tuple(negatives), inputs)
+        return _result(WAIT_FOR_ENTRY, tuple(dict.fromkeys(entry_reasons)), tuple(negatives), inputs, thesis=thesis)
 
     fresh = market.get("fresh_current_price") is True or market.get("latest_completed_session_valid") is True
     volume_confirmed = volume.get("volume_confirmed") is True
@@ -128,24 +169,28 @@ def evaluate_guidance(inputs: Mapping[str, Any]) -> dict[str, Any]:
         and fundamentals_score is not None and technical_score is not None
         and valuation_published and valuation_score is not None and expected_return is not None
         and complete_plan
-        and (not volume_authority_required or volume_authority_available)
+    )
+    breakout_gate_passed = bool(
+        thesis != "BREAKOUT" or (volume_authority_available and volume_confirmed)
     )
     buy_now = bool(
-        positive_common and technical_state == "BREAKOUT_CONFIRMED" and volume_confirmed
+        positive_common and technical_state in CONSTRUCTIVE_TECHNICAL_STATES
+        and breakout_gate_passed
         and opportunity >= 70 and confidence >= 66 and coverage >= 65
         and fundamentals_score >= 58 and technical_score >= 56
         and valuation_score >= 58 and 10 <= expected_return <= 55
     )
     if buy_now:
-        return _result(BUY_NOW, ("ALL_BUY_NOW_GATES_PASSED",), tuple(negatives), inputs)
+        return _result(BUY_NOW, ("ALL_BUY_NOW_GATES_PASSED",), tuple(negatives), inputs, thesis=thesis)
 
     accumulate = bool(
         positive_common and technical_state in ACCUMULATE_TECHNICAL_STATES
+        and breakout_gate_passed
         and opportunity >= 62 and confidence >= 56 and coverage >= 58
         and fundamentals_score >= 48 and valuation_score >= 55 and expected_return >= 8
     )
     if accumulate:
-        return _result(ACCUMULATE, ("ALL_ACCUMULATE_GATES_PASSED",), tuple(negatives), inputs)
+        return _result(ACCUMULATE, ("ALL_ACCUMULATE_GATES_PASSED",), tuple(negatives), inputs, thesis=thesis)
 
     confirmation = []
     if not fresh:
@@ -158,9 +203,9 @@ def evaluate_guidance(inputs: Mapping[str, Any]) -> dict[str, Any]:
         confirmation.append("NO_ACTIONABLE_TECHNICAL_SETUP")
     if technical_state != "BREAKOUT_CONFIRMED":
         confirmation.append("ACTIONABLE_TECHNICAL_CONFIRMATION_PENDING")
-    elif not volume_confirmed:
+    elif thesis == "BREAKOUT" and not volume_confirmed:
         confirmation.append("BREAKOUT_VOLUME_NOT_CONFIRMED")
-    if volume_authority_required and not volume_authority_available:
+    if thesis == "BREAKOUT" and volume_authority_required and not volume_authority_available:
         confirmation.append("VOLUME_CONFIRMATION_UNAVAILABLE")
     if not valuation_published or expected_return is None:
         confirmation.append("VALUATION_CONFIRMATION_UNAVAILABLE")
@@ -175,11 +220,11 @@ def evaluate_guidance(inputs: Mapping[str, Any]) -> dict[str, Any]:
     return _result(
         WAIT_FOR_CONFIRMATION,
         tuple(dict.fromkeys(confirmation or ("REQUIRED_CONFIRMATION_MISSING",))),
-        tuple(negatives), inputs,
+        tuple(negatives), inputs, thesis=thesis,
     )
 
 
-def _result(state: str, reasons: tuple[str, ...], negatives: tuple[str, ...], inputs: Mapping[str, Any]) -> dict[str, Any]:
+def _result(state: str, reasons: tuple[str, ...], negatives: tuple[str, ...], inputs: Mapping[str, Any], *, thesis: str | None = None) -> dict[str, Any]:
     return {
         "version": GUIDANCE_METHODOLOGY_VERSION,
         "state": state,
@@ -187,6 +232,7 @@ def _result(state: str, reasons: tuple[str, ...], negatives: tuple[str, ...], in
         "actionability": ACTIONABILITY[state],
         "reason_codes": reasons,
         "negative_confirmations": negatives,
+        "opportunity_thesis": thesis if thesis in OPPORTUNITY_THESES else None,
         "methodology_version": inputs.get("methodology_version"),
         "threshold_version": inputs.get("threshold_version"),
     }
@@ -196,7 +242,7 @@ __all__ = [
     "ACCUMULATE", "ACTIONABILITY", "AVOID", "BUY_NOW", "DATA_LIMITED",
     "FOUNDER_GUIDANCE_V1_FLAG", "founder_guidance_v1_enabled",
     "GUIDANCE_METHODOLOGY_VERSION", "WAIT_FOR_CONFIRMATION", "WAIT_FOR_ENTRY",
-    "evaluate_guidance",
+    "classify_opportunity_thesis", "evaluate_guidance",
 ]
 FOUNDER_GUIDANCE_V1_FLAG = "ATLAS_FOUNDER_GUIDANCE_V1_ENABLED"
 

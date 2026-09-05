@@ -133,6 +133,7 @@ def build_summary_payload(card: Mapping[str, Any]) -> dict[str, Any]:
             "technical_risk": list(card.get("why_atlas") or ())[:2],
         },
         "guidance": card.get("guidance"), "actionability": card.get("actionability"),
+        "opportunity_thesis": card.get("opportunity_thesis"),
         "customer_action": (card.get("customer_action") or {}).get("label"),
         "six_pillars": pillars,
         "opportunity": evaluation.get("opportunity", card.get("opportunity")),
@@ -291,6 +292,18 @@ def validate_summary(text: str, payload: Mapping[str, Any]) -> dict[str, Any]:
         violations.append("RAW_DASHBOARD_METRIC_RECITATION")
     if any(state != canonical_guidance for state in mentioned_guidance):
         violations.append("UNSUPPORTED_GUIDANCE")
+    thesis = str(payload.get("opportunity_thesis") or "").upper()
+    thesis_labels = {
+        "QUALITY_GROWTH": "QUALITY GROWTH", "VALUE_RERATING": "VALUE RERATING",
+        "RECOVERY": "RECOVERY", "ATTRACTIVE_ENTRY": "ATTRACTIVE ENTRY",
+        "BREAKOUT": "BREAKOUT", "DEVELOPING_SETUP": "DEVELOPING SETUP",
+    }
+    mentioned_theses = {
+        key for key, label in thesis_labels.items()
+        if re.search(rf"\b{re.escape(label)}\s+(?:OPPORTUNITY|THESIS)\b|\b(?:OPPORTUNITY|THESIS)\s*:\s*{re.escape(label)}\b", copy, re.I)
+    }
+    if any(item != thesis for item in mentioned_theses):
+        violations.append("ALTERED_OPPORTUNITY_THESIS")
     mentioned_technical = {state for state in TECHNICAL_STATES if state in upper}
     canonical_technical = str(payload.get("canonical_technical_state") or "UNAVAILABLE").upper()
     if any(state != canonical_technical for state in mentioned_technical):
@@ -337,7 +350,7 @@ def _default_llm(payloads: Sequence[Mapping[str, Any]]) -> Sequence[str] | None:
     try:
         from openai import OpenAI
         client = OpenAI(api_key=api_key)
-        system_prompt = "You are writing an investment thesis, not summarizing a dashboard. In 3-5 concise sentences begin with the company name or ticker and answer: what could cause this COMPANY to outperform; what specifically supports future revenue, EPS, or cash-flow growth; what recent catalyst matters; what Wall Street expects and how ATLAS valuation compares when visible in this data mode; what insider, institutional, or political context is relevant; the most important downside risk; and why ATLAS recommends customer_action. Select only the most decision-relevant evidence and vary emphasis and structure when evidence differs. Prioritize company/business, earnings, revisions, valuation and catalysts before technical context. Technical evidence alone cannot support business claims; if company evidence is absent, transparently write a market-setup thesis. Every company-specific and numerical claim must exist in the payload. Wall Street and insider/ownership/political evidence are non-scoring context and never determine the action. Never mention rank, setup score, Recovery Score, contextual RVOL, reason codes, provider/canonical terminology, or internal state names. Use customer_action verbatim when naming the stance. Return JSON {\"summaries\":[...]} in input order."
+        system_prompt = "You are writing an investment thesis, not summarizing a dashboard. In 3-5 concise sentences begin with the company name or ticker and answer: what could cause this COMPANY to outperform; what specifically supports future revenue, EPS, or cash-flow growth; what recent catalyst matters; what Wall Street expects and how ATLAS valuation compares when visible in this data mode; what insider, institutional, or political context is relevant; the most important downside risk; and why ATLAS recommends customer_action. Treat opportunity_thesis as immutable and explain that thesis when it is present; never select or change it. For non-breakout theses, ordinary volume may reduce near-term confirmation but is not a fatal investment veto. Only a BREAKOUT thesis may claim breakout confirmation. Select only the most decision-relevant evidence and vary emphasis and structure when evidence differs. Prioritize company/business, earnings, revisions, valuation and catalysts before technical context. Technical evidence alone cannot support business claims; if company evidence is absent, transparently write a market-setup thesis. Every company-specific and numerical claim must exist in the payload. Wall Street and insider/ownership/political evidence are non-scoring context and never determine the action. Never mention rank, setup score, Recovery Score, contextual RVOL, reason codes, provider/canonical terminology, or internal state names. Use customer_action verbatim when naming the stance. Return JSON {\"summaries\":[...]} in input order."
         output: list[str] = []
         for start in range(0, len(payloads), 5):
             batch = list(payloads[start:start + 5])

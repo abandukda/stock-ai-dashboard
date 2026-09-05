@@ -11,6 +11,10 @@ GUIDANCE_STATES = {
     "AVOID", "DATA_LIMITED",
 }
 LEGACY_OR_UNAPPROVED_STATES = {"MONITOR", "HOLD", "MAINTAIN"}
+OPPORTUNITY_THESES = {
+    "QUALITY_GROWTH", "VALUE_RERATING", "RECOVERY", "ATTRACTIVE_ENTRY",
+    "BREAKOUT", "DEVELOPING_SETUP",
+}
 
 
 def _normalized_tokens(text: str) -> set[str]:
@@ -31,6 +35,16 @@ def validate_llm_explanation(text: str, evaluation: Mapping[str, Any]) -> dict[s
         violations.append("CONFLICTING_GUIDANCE:" + ",".join(conflicting))
     if mentioned & LEGACY_OR_UNAPPROVED_STATES:
         violations.append("UNAPPROVED_GUIDANCE_STATE")
+
+    normalized = re.sub(r"[^A-Z0-9]+", "_", str(text or "").upper()).strip("_")
+    mentioned_theses = {
+        thesis for thesis in OPPORTUNITY_THESES
+        if re.search(rf"(?:^|_){re.escape(thesis)}(?:_|$)", normalized)
+    }
+    canonical_thesis = str(evaluation.get("opportunity_thesis") or
+                           (evaluation.get("guidance") or {}).get("opportunity_thesis") or "").upper()
+    if any(thesis != canonical_thesis for thesis in mentioned_theses):
+        violations.append("ALTERED_OPPORTUNITY_THESIS")
 
     action_match = re.search(r"actionability[^a-z0-9]{0,20}([a-z_ ]+)", str(text or ""), re.I)
     if action_match:
@@ -74,7 +88,9 @@ def deterministic_guidance_explanation(evaluation: Mapping[str, Any]) -> str:
     state = str(guidance.get("state") or "DATA_LIMITED").replace("_", " ")
     actionability = str((evaluation.get("actionability") or {}).get("status") or "UNAVAILABLE").replace("_", " ")
     reasons = ", ".join(str(item).replace("_", " ").lower() for item in guidance.get("reason_codes") or ())
-    return f"ATLAS Guidance: {state}. Actionability: {actionability}." + (f" Current reasons: {reasons}." if reasons else "")
+    thesis = str(evaluation.get("opportunity_thesis") or guidance.get("opportunity_thesis") or "").replace("_", " ")
+    thesis_copy = f" Opportunity thesis: {thesis}." if thesis else ""
+    return f"ATLAS Guidance: {state}. Actionability: {actionability}." + thesis_copy + (f" Current reasons: {reasons}." if reasons else "")
 
 
 def enforce_llm_integrity(text: str, evaluation: Mapping[str, Any]) -> dict[str, Any]:

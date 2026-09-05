@@ -133,7 +133,8 @@ def test_latest_completed_session_satisfies_minimum_market_gate_but_not_live_sta
         "fresh_current_price": False, "latest_completed_session_valid": True,
     }
     result = evaluate_guidance(inputs)
-    assert result["state"] == "WAIT_FOR_CONFIRMATION"
+    assert result["state"] == "BUY_NOW"
+    assert result["opportunity_thesis"] != "BREAKOUT"
     assert "CURRENT_MARKET_EVIDENCE_UNAVAILABLE" not in result["reason_codes"]
 
 
@@ -151,10 +152,10 @@ def _guidance(state="NEAR_BREAKOUT", *, extended=False):
     }
 
 
-def test_positive_states_cannot_pass_without_phase1_volume_authority_but_waits_can():
+def test_phase1_volume_unavailable_does_not_veto_non_breakout_investment_action():
     pending = evaluate_guidance(_guidance("NEAR_BREAKOUT"))
-    assert pending["state"] == "WAIT_FOR_CONFIRMATION"
-    assert "VOLUME_CONFIRMATION_UNAVAILABLE" in pending["reason_codes"]
+    assert pending["state"] == "BUY_NOW"
+    assert pending["opportunity_thesis"] != "BREAKOUT"
     assert evaluate_guidance(_guidance(extended=True))["state"] == "WAIT_FOR_ENTRY"
 
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from streamlit.testing.v1 import AppTest
 
-from engines.atlas_guidance_v1 import founder_guidance_v1_enabled, evaluate_guidance
+from engines.atlas_guidance_v1 import classify_opportunity_thesis, founder_guidance_v1_enabled, evaluate_guidance
 from engines.canonical_investment_evaluation_v1 import build_canonical_evaluation
 from engines.volume_intelligence_v1 import NORMAL, STRONG_CONFIRMATION, build_volume_intelligence
 from services.canonical_market_snapshot import build_market_snapshot
@@ -62,6 +62,38 @@ def test_buy_now_requires_every_affirmative_gate():
     result = evaluation()
     assert result["guidance"]["state"] == "BUY_NOW"
     assert result["actionability"]["status"] == "ACTIONABLE"
+
+
+def test_non_breakout_buy_now_does_not_require_breakout_volume_confirmation():
+    result = evaluation(technical=technical("NEAR_BREAKOUT", 84, .8))
+    assert result["guidance"]["state"] == "BUY_NOW"
+    assert result["opportunity_thesis"] != "BREAKOUT"
+    assert result["volume_quality"]["score"] == 50
+
+
+def test_breakout_thesis_requires_approved_volume_confirmation():
+    base = {
+        "technical": technical("BREAKOUT_CONFIRMED", 84, 1.4),
+        "volume": {"status": "AVAILABLE", "volume_confirmed": True},
+        "fundamentals": {"status": "AVAILABLE", "score": 82.5},
+        "valuation": {"status": "PUBLISHED", "score": 74.8, "fair_value": 124, "expected_return": 24},
+        "decision_metrics": {"entry_quality": {"score": 100}},
+    }
+    assert classify_opportunity_thesis(base) == "BREAKOUT"
+    without_confirmation = {**base, "volume": {"status": "AVAILABLE", "volume_confirmed": False}}
+    assert classify_opportunity_thesis(without_confirmation) == "QUALITY_GROWTH"
+
+
+def test_volume_quality_changes_opportunity_at_locked_ten_percent_weight():
+    low = evaluation(technical=technical("NEAR_BREAKOUT", 70, .6))
+    high = evaluation(technical=technical("NEAR_BREAKOUT", 70, 1.4))
+    assert low["volume_quality"]["pillar_weight"] == high["volume_quality"]["pillar_weight"] == 10
+    assert low["opportunity"] < high["opportunity"]
+
+
+def test_failed_breakout_and_extended_states_remain_fail_closed():
+    assert evaluation(technical=technical("FAILED_BREAKOUT", 60, 2))["guidance"]["state"] != "BUY_NOW"
+    assert evaluation(technical=technical("EXTENDED", 80, 2))["guidance"]["state"] == "WAIT_FOR_ENTRY"
 
 
 def test_accumulate_is_affirmative_and_uses_approved_technical_states():
@@ -167,6 +199,16 @@ def test_llm_integrity_rejects_changed_guidance_and_invented_value():
     assert good["accepted"] is True
     monitoring = enforce_llm_integrity("What ATLAS is monitoring: completed-bar confirmation.", canonical)
     assert monitoring["accepted"] is True
+
+
+def test_llm_integrity_rejects_changed_opportunity_thesis():
+    canonical = evaluation(technical=technical("NEAR_BREAKOUT", 84, .8))
+    assert canonical["opportunity_thesis"] != "BREAKOUT"
+    guarded = enforce_llm_integrity(
+        "ATLAS Guidance: BUY NOW. Opportunity thesis: BREAKOUT.", canonical,
+    )
+    assert guarded["accepted"] is False
+    assert "ALTERED_OPPORTUNITY_THESIS" in guarded["violations"]
 
 
 def test_llm_integrity_mechanically_protects_every_current_decision_field():

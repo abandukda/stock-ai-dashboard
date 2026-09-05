@@ -269,6 +269,7 @@ def build_home_guidance_candidate(
         "production_source_artifact": "market_full_scan.json",
         "snapshot_membership": "CURRENT_FULL_SCAN",
         "guidance": str(guidance.get("state") or "DATA_LIMITED"),
+        "opportunity_thesis": guidance.get("opportunity_thesis") or evaluation.get("opportunity_thesis"),
         "customer_action": customer_action,
         "guidance_status": str(guidance.get("status") or "DATA_UNAVAILABLE"),
         "actionability": str(actionability.get("status") or guidance.get("actionability") or "UNAVAILABLE"),
