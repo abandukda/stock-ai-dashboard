@@ -36,6 +36,8 @@ def build_summary_payload(card: Mapping[str, Any]) -> dict[str, Any]:
     recovery = dict(card.get("recovery") or {})
     trade = dict(card.get("trade_plan") or {})
     market = dict(card.get("market_evidence") or {})
+    fundamentals = dict(card.get("fundamentals_evidence") or {})
+    company = dict(card.get("company_evidence") or {})
     return {
         "ticker": card.get("ticker"), "company": card.get("company"),
         "production_rank": card.get("production_rank"), "setup_score": card.get("scan_conviction"),
@@ -56,6 +58,8 @@ def build_summary_payload(card: Mapping[str, Any]) -> dict[str, Any]:
         "contextual_rvol": volume.get("relative_volume"), "volume_status": card.get("volume_status"),
         "bar_quality": (card.get("completed_bar_quality") or {}).get("status"),
         "fundamentals_status": card.get("fundamentals_status"), "risk_status": card.get("risk_status"),
+        "company_evidence": company,
+        "fundamentals": fundamentals,
         "guidance": card.get("guidance"), "actionability": card.get("actionability"),
         "customer_action": (card.get("customer_action") or {}).get("label"),
         "reason_codes": list(card.get("reason_codes") or ()),
@@ -73,7 +77,20 @@ def build_summary_payload(card: Mapping[str, Any]) -> dict[str, Any]:
 
 def deterministic_summary(payload: Mapping[str, Any]) -> str:
     ticker = str(payload.get("ticker") or "This candidate")
+    company = str(payload.get("company") or ticker)
+    fundamentals = dict(payload.get("fundamentals") or {})
+    company_evidence = dict(payload.get("company_evidence") or {})
     evidence = []
+    revenue_growth = fundamentals.get("revenue_growth")
+    operating_margin = fundamentals.get("operating_margin")
+    if revenue_growth is not None and float(revenue_growth) > 0:
+        evidence.append("positive revenue growth")
+    if operating_margin is not None and float(operating_margin) > 0:
+        evidence.append("an established operating profit base")
+    if company_evidence.get("earnings_growth") is not None and float(company_evidence["earnings_growth"]) > 0:
+        evidence.append("improving earnings power")
+    if company_evidence.get("estimate_revision"):
+        evidence.append("a supportive change in forward estimates")
     state = str(payload.get("canonical_technical_state") or "UNAVAILABLE")
     if state != "UNAVAILABLE":
         evidence.append({
@@ -92,7 +109,7 @@ def deterministic_summary(payload: Mapping[str, Any]) -> str:
     if catalyst.get("headline"):
         evidence.append(f"the recent {str(catalyst.get('category') or 'company event').replace('_', ' ').lower()}")
     support = " and ".join(evidence[:2]) if evidence else "an early investment case that still needs stronger evidence"
-    first = f"{ticker} may outperform if {support} translates into durable business and market momentum."
+    first = f"{company} may outperform if its investment case is strengthened by {support}."
     constraints = []
     if payload.get("contextual_rvol") is not None and float(payload["contextual_rvol"]) < 1:
         constraints.append("market participation remains too weak for confirmation")
@@ -140,6 +157,8 @@ def validate_summary(text: str, payload: Mapping[str, Any]) -> dict[str, Any]:
     canonical_guidance = str(payload.get("guidance") or "DATA_LIMITED").upper()
     if "DATA LIMITED" in copy.upper() or "DATA_LIMITED" in upper:
         violations.append("INTERNAL_GUIDANCE_EXPOSED")
+    if re.search(r"\b(?:DISCOVERY\s+)?RANK\b|\bSETUP SCORE\b|\bSCAN CONVICTION\b", copy, re.I):
+        violations.append("PRIMARY_THESIS_DASHBOARD_LANGUAGE")
     if "RECOVERY SCORE" in copy.upper() or re.search(r"\b\d+(?:\.\d+)?×\s+(?:CONTEXTUAL\s+)?VOLUME\b", copy, re.I):
         violations.append("RAW_DASHBOARD_METRIC_RECITATION")
     if any(state != canonical_guidance for state in mentioned_guidance):
@@ -165,7 +184,7 @@ def _default_llm(payloads: Sequence[Mapping[str, Any]]) -> Sequence[str] | None:
             model=os.getenv("ATLAS_LLM_MODEL", "gpt-4o-mini"), temperature=0.1, max_tokens=1200,
             response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": "Write a genuinely analytical 2-4 sentence ATLAS investment thesis for each supplied record. Explain the strongest credible source of potential, the most relevant catalyst or differentiating evidence, the decisive blocker or risk, and why customer_action follows. Synthesize rather than list dashboard metrics; never name Recovery Score or quote contextual RVOL. Use only supplied facts, use customer_action verbatim when naming the stance, never expose internal guidance or reason codes, make no unsupported recommendation or prediction, and return JSON {\"summaries\":[...]} in input order."},
+                {"role": "system", "content": "Write a company-specific 2-4 sentence ATLAS investment thesis for each supplied record. Prioritize sourced business/revenue drivers, earnings trajectory, valuation, estimate revisions, material catalysts, industry dynamics, and fundamental risk; discuss technical setup last. Answer why the company's value could increase and why customer_action follows. Technical evidence alone cannot support business claims: when company-specific evidence is absent, transparently focus only on the market setup. Synthesize rather than list dashboard metrics; never mention rank, setup score, Recovery Score, contextual RVOL, reason codes, or internal state names. Use only supplied facts, use customer_action verbatim when naming the stance, make no unsupported recommendation or prediction, and return JSON {\"summaries\":[...]} in input order."},
                 {"role": "user", "content": json.dumps(list(payloads), sort_keys=True, default=str)},
             ],
         )

@@ -51,7 +51,7 @@ def test_unsourced_number_or_guidance_is_rejected_to_ticker_fallback():
     result = generate_summaries([payload], llm=lambda _: [invented])[0]
     assert result["accepted"] is False
     assert result["source"] == "DETERMINISTIC_FALLBACK"
-    assert "NVDA" in result["text"] and "WAIT FOR CONFIRMATION" in result["text"]
+    assert "NVIDIA" in result["text"] and "WAIT FOR CONFIRMATION" in result["text"]
 
 
 def test_missing_llm_uses_deterministic_ticker_specific_fallback():

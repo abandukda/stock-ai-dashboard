@@ -179,10 +179,16 @@ def _market_evidence_badge(card: Mapping[str, Any]) -> str:
         detail, tone = f"{session} · {timestamp} · Last known", "stale"
     else:
         label, detail, tone = "PRICE UNAVAILABLE", "Price context is not currently displayed", "unavailable"
+    quality = card.get("completed_bar_quality") if isinstance(card.get("completed_bar_quality"), Mapping) else {}
+    warning = (
+        '<i class="atlas-home-quality-warning" title="Some market observations may have gaps" '
+        'aria-label="Market evidence quality notice">ⓘ</i>'
+        if str(quality.get("status") or "").upper() == "DEGRADED" else ""
+    )
     return (
         f'<div class="atlas-home-market-badge atlas-home-market-{tone}" data-atlas-market-status="{status}" '
         f'data-atlas-market-source="{html.escape(str(evidence.get("source_type") or "UNAVAILABLE"))}">'
-        f'<b>{label}</b><span>{html.escape(detail)}</span></div>'
+        f'<b>{label}</b><span>{html.escape(detail)}</span>{warning}</div>'
     )
 def _full_evidence(card: Mapping[str, Any]) -> str:
     technical = card.get("technical_evidence") or {}
@@ -438,7 +444,7 @@ def _action_card(card: Mapping[str, Any]) -> str:
         f'<div class="atlas-home-action atlas-home-action-{tone}" data-atlas-qa="home-action" '
         f'data-atlas-action-tone="{tone}" data-atlas-star-rating="{html.escape(str(action.get("rating") or 2.5))}">'
         f'<small>ATLAS RATING</small><b class="atlas-home-action-stars">{html.escape(stars)}</b><strong>{html.escape(action_label)}</strong>'
-        f'<span>{html.escape(_guidance_explanation(card))}</span></div>'
+        f'<span>{html.escape(str(action.get("instruction") or _guidance_explanation(card)))}</span></div>'
     )
 
 
@@ -514,8 +520,8 @@ def _mini_chart(card: Mapping[str, Any], selected_range: str = "3M") -> str:
             f'stroke-width="1.2" stroke-dasharray="{dash}" opacity=".72"/>'
             f'<text x="{width-5:g}" y="{max(10, y-3):.1f}" text-anchor="end" fill="{color}" font-size="9">{html.escape(label)}</text>'
         )
-    add_level(technical.get("sma20"), "SMA20", "#72a7e8")
     add_level(technical.get("sma50"), "SMA50", "#b58be8")
+    add_level(technical.get("sma200"), "SMA200", "#72a7e8")
     add_level(technical.get("support"), "Support", "#48b883", "3 5")
     add_level(technical.get("resistance"), "Resistance", "#d7a542", "3 5")
     if entry_low is not None and entry_high is not None:
@@ -535,6 +541,19 @@ def _mini_chart(card: Mapping[str, Any], selected_range: str = "3M") -> str:
             'stroke="#48b883" stroke-width="1.6" stroke-dasharray="7 7"/>'
             f'<text x="{width-5:g}" y="{max(10, target_y+10):.1f}" text-anchor="end" fill="#78d7c8" font-size="9">ATLAS Target</text>'
         )
+    current_y = height - ((closes[-1] - low) / span * (height - 18) + 9)
+    chart_overlays += (
+        f'<circle cx="{width:g}" cy="{current_y:.1f}" r="4" fill="{stroke}"/>'
+        f'<text x="{width-5:g}" y="{max(10, current_y-7):.1f}" text-anchor="end" fill="#e2e8f0" font-size="9">Current {_money(closes[-1])}</text>'
+    )
+    def date_label(bar: Mapping[str, Any]) -> str:
+        raw = bar.get("datetime") or bar.get("timestamp") or bar.get("date")
+        try:
+            parsed = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+            return parsed.strftime("%b %Y")
+        except (TypeError, ValueError):
+            return ""
+    start_label, end_label = date_label(bars[0]), date_label(bars[-1])
     metadata = {
         "provider": contract.get("provider"), "range": selected_range,
         "interval": contract.get("interval"), "adjustment": contract.get("adjustment_mode"),
@@ -548,6 +567,7 @@ def _mini_chart(card: Mapping[str, Any], selected_range: str = "3M") -> str:
         f'<svg viewBox="0 0 {width:g} {height:g}" role="img" aria-label="Twelve Data {html.escape(selected_range)} closing price trend">'
         f'{chart_overlays}'
         f'<polyline fill="none" stroke="{stroke}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" points="{points}"/></svg>'
+        f'<div class="atlas-home-chart-dates"><span>{html.escape(start_label)}</span><span>{html.escape(end_label)}</span></div>'
         f'<small>Twelve Data · split-adjusted daily bars · through {html.escape(format_market_timestamp_et(contract.get("newest_completed_bar_timestamp")))}'
         f'{" · ATLAS target " + _money(target) if target is not None else ""}</small>'
         '</div>'
@@ -627,7 +647,7 @@ def _card(card: Mapping[str, Any], *, key: str, first: bool = False, total: int 
     with st.container(border=True):
         st.markdown(
             '<div class="atlas-home-card-head">'
-            f'<span>#{card.get("production_rank")} OF {total or "—"}</span>'
+            f'<span>DISCOVERY RANK #{card.get("production_rank")}</span>'
             f'<div><h3>{html.escape(ticker)} <i>— {html.escape(str(card.get("company") or ticker))}</i></h3></div>'
             f'<aside><strong>{html.escape(_money(card.get("display_price")))}</strong>'
             f'<small>{html.escape(str(card.get("display_price_label") or "Price unavailable"))}</small></aside>'
@@ -639,7 +659,7 @@ def _card(card: Mapping[str, Any], *, key: str, first: bool = False, total: int 
         if str(chart_contract.get("status") or "").upper() == "AVAILABLE" and len(chart_contract.get("bars") or ()) >= 2:
             st.markdown('<h4 class="atlas-home-view-title">Price Chart</h4>', unsafe_allow_html=True)
             selected_range = st.radio(
-                f"{ticker} chart range", ("1M", "3M", "1Y"), index=1, horizontal=True,
+                f"{ticker} chart range", ("1M", "3M", "1Y"), index=2, horizontal=True,
                 key=f"home_chart_range_{key}_{ticker}", label_visibility="collapsed",
             )
             chart_html = _mini_chart(card, selected_range)
@@ -675,15 +695,47 @@ def _section_marker(name: str) -> None:
 
 def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
     cards = list(story.get("cards") or ())[:10]
-    _section_marker("top-ranked-setups")
+    _section_marker("customer-action-groups")
     if not cards:
         st.info("No persisted Home candidates are available.")
         emit_interactive()
         return
-    for index, card in enumerate(cards):
-        _card(card, key=f"top_ranked_{index}", first=index == 0, total=int(story.get("candidate_count") or len(story.get("cards") or ())))
-        if index == 0:
-            emit_interactive()
+    groups = (
+        ("TOP ACTIONABLE OPPORTUNITIES", {"BUY_NOW", "ACCUMULATE"}),
+        ("WAITING FOR AN ENTRY", {"WAIT_FOR_ENTRY", "WAIT_FOR_CONFIRMATION"}),
+        ("WATCHLIST", {"DATA_LIMITED"}),
+        ("AVOID", {"AVOID"}),
+    )
+    emitted = False
+    for title, states in groups:
+        members = [card for card in cards if str(card.get("guidance")) in states]
+        if not members and title != "TOP ACTIONABLE OPPORTUNITIES":
+            continue
+        st.markdown(f"### {title}")
+        if title == "TOP ACTIONABLE OPPORTUNITIES" and not any(str(card.get("guidance")) == "BUY_NOW" for card in members):
+            st.caption("No opportunities currently meet ATLAS's 5-star Buy Now standard.")
+        for index, card in enumerate(members):
+            _card(card, key=f"action_{title}_{index}", first=not emitted, total=int(story.get("candidate_count") or len(story.get("cards") or ())))
+            if not emitted:
+                emit_interactive()
+                emitted = True
+    if not emitted:
+        emit_interactive()
+
+
+def _action_counts(story: Mapping[str, Any]) -> str:
+    states = [str(card.get("guidance") or "") for card in story.get("cards") or ()]
+    values = (
+        ("5★ Buy Now", states.count("BUY_NOW"), "buy"),
+        ("4.5★ Build", states.count("ACCUMULATE"), "build"),
+        ("4★ Wait for Entry", states.count("WAIT_FOR_ENTRY"), "wait"),
+        ("3.5★ Wait for Confirmation", states.count("WAIT_FOR_CONFIRMATION"), "wait"),
+        ("Watch", states.count("DATA_LIMITED"), "watch"),
+    )
+    return '<div class="atlas-home-action-counts">' + "".join(
+        f'<span class="atlas-home-count-{tone}"><small>{html.escape(label)}</small><b>{count}</b></span>'
+        for label, count, tone in values
+    ) + '</div>'
 
 
 def _comparison(card: Mapping[str, Any]) -> None:
@@ -712,9 +764,11 @@ def _inject_css() -> None:
     :root{--atlas-teal:#2fb7a4;--atlas-green:#48b883;--atlas-amber:#d7a542;--atlas-red:#d66b72;--atlas-blue:#5d91d6;--atlas-muted:#8b98aa;--atlas-panel:rgba(17,28,45,.72)}
     .atlas-home-guidance-hero{padding:.45rem 0 .7rem}.atlas-home-guidance-badge{display:inline-block;border:1px solid rgba(59,130,246,.5);border-radius:999px;padding:.25rem .6rem;font-size:.72rem;font-weight:800}
     .atlas-home-card-head{display:grid;grid-template-columns:1fr auto;align-items:end;gap:.35rem .75rem;margin:.06rem 0 .22rem}.atlas-home-card-head>span{grid-column:1/-1;font-size:.72rem;font-weight:850;letter-spacing:.13em;color:var(--atlas-blue)}.atlas-home-card-head h3{margin:0!important;padding:0!important;font-size:1.5rem!important;line-height:1.15!important;color:#f7fafc}.atlas-home-card-head h3 i{font-size:.9rem;font-style:normal;font-weight:500;color:#aab5c5}.atlas-home-card-head aside{text-align:right}.atlas-home-card-head aside strong,.atlas-home-card-head aside small{display:block}.atlas-home-card-head aside strong{font-size:1.4rem;color:#f7fafc}.atlas-home-card-head aside small{font-size:.72rem;color:var(--atlas-muted)}
+    .atlas-home-action-counts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.35rem;margin:.6rem 0 1rem}.atlas-home-action-counts span{display:flex;justify-content:space-between;align-items:center;gap:.4rem;padding:.48rem .58rem;border-radius:10px;background:rgba(15,23,42,.46);border:1px solid rgba(148,163,184,.16)}.atlas-home-action-counts small{font-size:.7rem;color:#9aa7b9}.atlas-home-action-counts b{font-size:1.05rem}.atlas-home-count-buy b{color:var(--atlas-green)}.atlas-home-count-build b{color:var(--atlas-teal)}.atlas-home-count-wait b,.atlas-home-count-watch b{color:var(--atlas-amber)}
     .atlas-home-action{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:.18rem .85rem;padding:.78rem .92rem;border-radius:14px;border:1px solid;background:var(--atlas-panel)}.atlas-home-action>small{grid-column:1/-1;font-size:.68rem;font-weight:800;letter-spacing:.13em}.atlas-home-action-stars{grid-row:2/4;font-size:1.65rem;line-height:1;letter-spacing:.02em;white-space:nowrap}.atlas-home-action strong{font-size:1.3rem;line-height:1.12}.atlas-home-action span{font-size:.8rem;line-height:1.35;color:#cbd5e1}.atlas-home-action-positive,.atlas-home-action-buy,.atlas-home-action-build{border-color:rgba(47,183,164,.42);box-shadow:inset 4px 0 0 var(--atlas-teal);background:linear-gradient(125deg,rgba(47,183,164,.15),rgba(17,28,45,.62));color:#78d7c8}.atlas-home-action-waiting,.atlas-home-action-wait,.atlas-home-action-watch{border-color:rgba(215,165,66,.4);box-shadow:inset 4px 0 0 var(--atlas-amber);background:linear-gradient(125deg,rgba(215,165,66,.14),rgba(17,28,45,.62));color:#edc878}.atlas-home-action-negative,.atlas-home-action-avoid{border-color:rgba(214,107,114,.45);box-shadow:inset 4px 0 0 var(--atlas-red);background:linear-gradient(125deg,rgba(214,107,114,.14),rgba(17,28,45,.62));color:#ee9da2}.atlas-home-action-neutral{border-color:rgba(93,145,214,.4);box-shadow:inset 4px 0 0 var(--atlas-blue)}
     .atlas-home-view-title,.atlas-home-subhead{margin:.32rem 0 .15rem!important;padding:0!important;font-size:.96rem!important;letter-spacing:.01em;color:#dce8f6}.atlas-home-guidance-summary{padding:.55rem .65rem;border-left:3px solid var(--atlas-blue);border-radius:0 9px 9px 0;background:rgba(36,61,92,.2)}
     .atlas-home-chart{min-height:220px;padding:.65rem .7rem;border-radius:13px;background:linear-gradient(145deg,rgba(16,29,47,.92),rgba(20,38,55,.55));border:1px solid rgba(93,145,214,.22)}.atlas-home-chart>div{display:flex;justify-content:space-between;align-items:center;gap:.5rem}.atlas-home-chart b{font-size:.82rem;color:#dce8f6}.atlas-home-chart svg{display:block;width:100%;height:148px;margin:.25rem 0}.atlas-home-chart small{display:block;font-size:.68rem;line-height:1.3;color:var(--atlas-muted)}.atlas-home-chart-empty{display:flex;flex-direction:column;justify-content:center;gap:.35rem;color:var(--atlas-muted)}.atlas-home-chart-empty span{font-size:.78rem}.atlas-home-tech-cue{display:inline-flex;padding:.18rem .48rem;border-radius:999px;background:rgba(47,183,164,.11);border:1px solid rgba(47,183,164,.32);font-size:.72rem;font-weight:700;color:#82d7cb;white-space:nowrap}
+    .atlas-home-chart-dates{display:flex!important;justify-content:space-between!important;color:#718096;font-size:.64rem}.atlas-home-quality-warning{color:#94a3b8;font-style:normal;cursor:help}
     .atlas-home-comparison{display:grid;grid-template-columns:1fr 1fr;gap:.3rem;min-height:220px}.atlas-home-target{display:flex;flex-direction:column;justify-content:center;min-width:0;padding:.55rem .58rem;border-radius:11px;background:rgba(15,26,43,.72);border:1px solid rgba(148,163,184,.16)}.atlas-home-target small,.atlas-home-target b{display:block}.atlas-home-target small{font-size:.68rem;line-height:1.25;color:#9aa7b9}.atlas-home-target b{margin-top:.18rem;font-size:1rem;color:#f1f5f9}.atlas-home-target-atlas{border-color:rgba(47,183,164,.28);background:rgba(22,82,75,.12)}.atlas-home-target-atlas b{color:#7bd5c7}.atlas-home-target-street{border-color:rgba(93,145,214,.25);background:rgba(34,74,123,.11)}.atlas-home-target-street b{color:#9fc2ed}.atlas-home-target-muted b{font-size:.8rem;font-weight:600;color:#8995a5}.atlas-home-comparison em{grid-column:1/-1;font-size:.66rem;line-height:1.3;font-style:normal;color:#778497}
     .atlas-home-win{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.35rem}.atlas-home-win span{display:flex;align-items:center;gap:.45rem;padding:.5rem .6rem;border-radius:10px;background:rgba(47,183,164,.075);border:1px solid rgba(47,183,164,.18);font-size:.8rem;color:#cbd5e1}.atlas-home-win b{display:grid;place-items:center;width:1.5rem;height:1.5rem;border-radius:50%;background:rgba(47,183,164,.14);color:#70d2c3}
     .atlas-home-decisive{display:grid;gap:.18rem;margin:.5rem 0;padding:.58rem .68rem;border-radius:10px;border-left:3px solid var(--atlas-amber);background:rgba(109,77,22,.1)}.atlas-home-decisive b{font-size:.82rem;color:#edc878}.atlas-home-decisive span{font-size:.8rem;line-height:1.4;color:#bdc7d5}
@@ -748,7 +802,7 @@ def _inject_css() -> None:
     @media(max-width:700px){.atlas-home-win{grid-template-columns:1fr}.atlas-home-catalysts{grid-template-columns:1fr}.atlas-home-chart,.atlas-home-comparison{min-height:unset}.atlas-home-chart svg{height:125px}}
     @media(max-width:480px){.atlas-home-card-head{grid-template-columns:1fr auto;align-items:end}.atlas-home-card-head>span{grid-column:1/-1}.atlas-home-card-head h3{font-size:1.35rem!important}.atlas-home-card-head aside strong{font-size:1.2rem}.atlas-home-guidance-identity{gap:.18rem .38rem;margin:.02rem 0 .1rem}.atlas-home-guidance-identity strong{font-size:1rem}.atlas-home-guidance-identity span{font-size:.74rem}.atlas-home-guidance-identity em{font-size:.72rem}.atlas-home-atlas-score{grid-template-columns:auto 1fr auto;gap:.1rem .42rem;padding:.55rem;margin:.03rem 0 .12rem;min-height:108px}.atlas-home-score-label{font-size:.7rem}.atlas-home-atlas-score strong{font-size:1.25rem}.atlas-home-score-stars{grid-row:2;grid-column:1/3;font-size:.88rem}.atlas-home-atlas-score b{grid-row:1;grid-column:3}.atlas-home-atlas-score small{grid-row:3;grid-column:1/-1;font-size:.76rem}.atlas-home-guidance-summary{font-size:.84rem;line-height:1.4;margin:.08rem 0 .12rem!important}.atlas-home-guidance-quick{grid-template-columns:1fr;gap:.28rem;margin:.06rem 0 .14rem}.atlas-home-guidance-quick section{padding:.36rem .46rem}.atlas-home-guidance-quick h4{font-size:.92rem}.atlas-home-guidance-quick li{font-size:.825rem;line-height:1.38}.atlas-home-key-numbers{grid-template-columns:repeat(2,minmax(0,1fr));gap:.12rem;padding:.18rem}.atlas-home-key-numbers .atlas-home-guidance-metric{padding:.18rem .22rem}.atlas-home-full-evidence section{padding:.58rem 0}.atlas-home-full-evidence h4{font-size:.95rem;margin-bottom:.32rem}.atlas-home-full-evidence p,.atlas-home-full-reasons li{font-size:.825rem;line-height:1.45}.atlas-home-full-metrics{grid-template-columns:1fr;gap:.18rem}.atlas-home-full-reasons{grid-template-columns:1fr;gap:.55rem}.atlas-home-trade-row{gap:.16rem .38rem;font-size:.84rem}.atlas-home-trade-row span+span::before{margin-right:.38rem}.atlas-home-comparison{grid-template-columns:1fr 1fr}.atlas-home-target{padding:.48rem}.atlas-home-target b{font-size:.92rem}}
     .atlas-home-comparison{grid-template-columns:repeat(auto-fit,minmax(125px,1fr));min-height:0}.atlas-home-win i{display:grid;gap:.12rem;font-style:normal;font-weight:700;color:#d9e3ef}.atlas-home-win i small{font-size:.72rem;line-height:1.3;font-weight:400;color:#96a4b6}
-    @media(max-width:700px){.atlas-home-comparison{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-home-comparison .atlas-home-target-current{grid-column:1/-1}.atlas-home-action{grid-template-columns:1fr}.atlas-home-action-stars{grid-row:auto;font-size:1.45rem}.atlas-home-action>small{grid-column:auto}.atlas-home-card-head h3 i{display:block;margin-top:.18rem}}
+    @media(max-width:700px){.atlas-home-action-counts{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-home-comparison{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-home-comparison .atlas-home-target-current{grid-column:1/-1}.atlas-home-action{grid-template-columns:1fr}.atlas-home-action-stars{grid-row:auto;font-size:1.45rem}.atlas-home-action>small{grid-column:auto}.atlas-home-card-head h3 i{display:block;margin-top:.18rem}}
     </style>""", unsafe_allow_html=True)
 
 
@@ -771,7 +825,8 @@ def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=Non
         f'<small>Production scan: {html.escape(_timestamp(story.get("scan_timestamp")))} · {int(story.get("candidate_count", 0))} candidates</small>'
         '</div>', unsafe_allow_html=True,
     )
-    st.markdown("## Top Ranked Setups")
+    st.markdown(_action_counts(story), unsafe_allow_html=True)
+    st.markdown("## Today's ATLAS Actions")
     _render_groups(story, emit_interactive=emit_interactive)
 
 

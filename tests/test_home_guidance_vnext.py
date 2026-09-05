@@ -51,8 +51,8 @@ def canonical_evaluation(*, guidance="DATA_LIMITED", opportunity=None, confidenc
     ("BUY_NOW", "BUY NOW", "★★★★★"),
     ("ACCUMULATE", "BUILD A POSITION", "★★★★½"),
     ("WAIT_FOR_ENTRY", "WAIT FOR BETTER ENTRY", "★★★★"),
-    ("WAIT_FOR_CONFIRMATION", "WAIT FOR CONFIRMATION", "★★★½☆"),
-    ("DATA_LIMITED", "WATCH — NOT READY YET", "★★½☆☆"),
+    ("WAIT_FOR_CONFIRMATION", "WAIT FOR CONFIRMATION", "★★★½"),
+    ("DATA_LIMITED", "WATCH", "★★½"),
     ("AVOID", "AVOID", "★"),
 ])
 def test_canonical_guidance_maps_to_customer_action_without_mutating_guidance(guidance, label, stars):

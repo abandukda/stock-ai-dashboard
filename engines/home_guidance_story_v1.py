@@ -43,12 +43,12 @@ HOME_FIELD_AUTHORITY = {
 }
 
 CUSTOMER_ACTION_PRESENTATION = {
-    "BUY_NOW": {"label": "BUY NOW", "stars": "★★★★★", "rating": 5.0, "tone": "buy"},
-    "ACCUMULATE": {"label": "BUILD A POSITION", "stars": "★★★★½", "rating": 4.5, "tone": "build"},
-    "WAIT_FOR_ENTRY": {"label": "WAIT FOR BETTER ENTRY", "stars": "★★★★", "rating": 4.0, "tone": "wait"},
-    "WAIT_FOR_CONFIRMATION": {"label": "WAIT FOR CONFIRMATION", "stars": "★★★½☆", "rating": 3.5, "tone": "wait"},
-    "DATA_LIMITED": {"label": "WATCH — NOT READY YET", "stars": "★★½☆☆", "rating": 2.5, "tone": "watch"},
-    "AVOID": {"label": "AVOID", "stars": "★", "rating": 1.0, "tone": "avoid"},
+    "BUY_NOW": {"label": "BUY NOW", "stars": "★★★★★", "rating": 5.0, "tone": "buy", "instruction": "Entry conditions are satisfied. ATLAS would initiate a position now."},
+    "ACCUMULATE": {"label": "BUILD A POSITION", "stars": "★★★★½", "rating": 4.5, "tone": "build", "instruction": "Begin with a partial position and add only as the thesis confirms."},
+    "WAIT_FOR_ENTRY": {"label": "WAIT FOR BETTER ENTRY", "stars": "★★★★", "rating": 4.0, "tone": "wait", "instruction": "Do not chase. Wait for price to return to ATLAS's preferred entry area."},
+    "WAIT_FOR_CONFIRMATION": {"label": "WAIT FOR CONFIRMATION", "stars": "★★★½", "rating": 3.5, "tone": "wait", "instruction": "Stay patient. The thesis is attractive, but confirmation is incomplete."},
+    "DATA_LIMITED": {"label": "WATCH", "stars": "★★½", "rating": 2.5, "tone": "watch", "instruction": "Do not enter yet. Keep it on the watchlist while the setup develops."},
+    "AVOID": {"label": "AVOID", "stars": "★", "rating": 1.0, "tone": "avoid", "instruction": "ATLAS would not deploy capital here under current conditions."},
 }
 
 
@@ -259,6 +259,16 @@ def build_home_guidance_candidate(
         "canonical_technical_evidence": dict((evaluation.get("technical_confirmation") or {}).get("evidence") or {}),
         "volume_evidence": snapshot["volume"],
         "fundamentals_evidence": snapshot["fundamentals"],
+        "company_evidence": {
+            "forward_eps": _first_number(row, "forward_eps", "eps_forward"),
+            "earnings_growth": _first_number(row, "earnings_growth", "eps_growth"),
+            "earnings_surprise": _first_number(row, "earnings_surprise", "eps_surprise_pct"),
+            "next_earnings_date": row.get("next_earnings_date") or row.get("earnings_date"),
+            "estimate_revision": row.get("estimate_revision") or row.get("estimate_revision_trend"),
+            "industry": row.get("industry"), "sector": row.get("sector"),
+            "business_summary": row.get("business_summary") or row.get("company_description"),
+            "primary_risk": row.get("primary_risk"),
+        },
         "snapshot_evidence_health": snapshot["completeness"],
         "trade_plan": trade_plan,
         "entry_relationship": entry_relationship,
