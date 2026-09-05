@@ -231,10 +231,14 @@ def test_reconnect_reapplies_unique_symbol_union():
     assert manager.applied_symbols == frozenset({"NVDA", "SPY"})
 
 
-def test_phase8a_is_not_wired_into_streamlit_or_scanner():
+def test_only_approved_phase1_home_seam_is_wired_and_scanner_remains_untouched():
     root = Path(__file__).resolve().parents[1]
-    for path in (root / "app.py", root / "overnight_market_scan.py"):
-        assert "services.live_market" not in path.read_text()
+    app = (root / "app.py").read_text()
+    scanner = (root / "overnight_market_scan.py").read_text()
+    assert "services.home_live_market_phase1" in app
+    assert "services.live_market.twelve_data_phase1" in app
+    assert "LiveMarketGateway" not in app
+    assert "services.live_market" not in scanner
 
 
 def test_ai_valuation_gate_remains_closed():

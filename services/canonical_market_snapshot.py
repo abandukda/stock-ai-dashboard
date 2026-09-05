@@ -67,6 +67,8 @@ def build_market_snapshot(
         "ticker": str(ticker or "").upper().strip(),
         "price": price,
         "provider": source.get("provider"),
+        "evidence_id": source.get("evidence_id"),
+        "source_methodology_version": source.get("methodology_version") or source.get("version"),
         "provider_timestamp": provider_timestamp.isoformat() if provider_timestamp else None,
         "received_timestamp": received_timestamp.isoformat() if received_timestamp else None,
         "market_session": session,
@@ -78,6 +80,9 @@ def build_market_snapshot(
         "customer_label": (
             "Current quote" if fresh_current else
             "Prior close" if source_type == "PRIOR_CLOSE" else
+            "Latest completed after-hours bar" if source_type == "TWELVE_DATA_LATEST_COMPLETED_BAR" and session == "AFTER_HOURS" else
+            "Latest completed premarket bar" if source_type == "TWELVE_DATA_LATEST_COMPLETED_BAR" and session == "PRE_MARKET" else
+            "Latest completed regular-session bar" if source_type == "TWELVE_DATA_LATEST_COMPLETED_BAR" and session == "REGULAR" else
             "Last known price" if price is not None else "Price unavailable"
         ),
     }

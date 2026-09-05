@@ -444,22 +444,23 @@ def attach_price_history(
     )
     if isinstance(existing, list) and existing:
         output["price_history"] = existing
-        output["history_provenance"] = {
-            "status": "AVAILABLE",
-            "provider_called": False,
-            "provider_success": True,
-            "records_found": len(existing),
-            "mapping_success": True,
-            "source": "Existing Atlas row",
-            "as_of": str(
-                output.get("history_as_of")
-                or output.get("updated_at")
-                or ""
-            ),
-            "retrieval_status": "existing_payload",
-            "cache_status": "row_payload",
-            "error": "",
-        }
+        if not isinstance(output.get("history_provenance"), Mapping):
+            output["history_provenance"] = {
+                "status": "AVAILABLE",
+                "provider_called": False,
+                "provider_success": True,
+                "records_found": len(existing),
+                "mapping_success": True,
+                "source": "Existing Atlas row",
+                "as_of": str(
+                    output.get("history_as_of")
+                    or output.get("updated_at")
+                    or ""
+                ),
+                "retrieval_status": "existing_payload",
+                "cache_status": "row_payload",
+                "error": "",
+            }
         return output
 
     ticker = (

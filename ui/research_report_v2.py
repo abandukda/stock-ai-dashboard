@@ -11,6 +11,8 @@ import re
 
 import pandas as pd
 import streamlit as st
+
+from ui.market_timestamp import format_market_timestamp_et
 from engines.news_link_integrity import news_source_presentation
 
 from engines.atlas_research_builder_v2 import build_atlas_research_v2
@@ -548,6 +550,16 @@ def _render_interpretation(text: str) -> None:
 
 def _render_price_chart(report: Mapping[str, Any]) -> None:
     section = report["sections"]["technical"]
+    market = report.get("canonical_market_snapshot") or {}
+    if market:
+        price = _money(market.get("price")) if market.get("price") is not None else "Unavailable"
+        st.caption(
+            f"Market evidence: {market.get('customer_label', 'Price unavailable')} {price} · "
+            f"Provider: {market.get('provider') or 'Unavailable'} · "
+            f"Session: {market.get('market_session') or 'Unavailable'} · "
+            f"Provider time: {format_market_timestamp_et(market.get('provider_timestamp'), unavailable='Unavailable')} · "
+            f"Evidence: {market.get('evidence_id') or 'Unavailable'}"
+        )
     history = section.get("history") or []
     if not history:
         provenance = section.get("history_provenance") or {}
@@ -681,7 +693,14 @@ def _render_price_chart(report: Mapping[str, Any]) -> None:
             f"History source: {provenance.get('source', 'Unknown')} · "
             f"Records: {provenance.get('records_found', len(history))} · "
             f"Status: {provenance.get('status', 'AVAILABLE')} · "
-            f"As of: {provenance.get('as_of', 'Unknown')}"
+            f"As of: {format_market_timestamp_et(provenance.get('as_of'), unavailable='Unknown')} · "
+            f"Session: {provenance.get('session', 'Unknown')} · "
+            f"Interval: {provenance.get('interval', 'Unknown')} · "
+            f"Adjustment: {provenance.get('adjustment_mode', 'Unknown')} · "
+            f"Extended hours: {provenance.get('extended_hours_included', 'Unknown')} · "
+            f"Quality: {provenance.get('quality_status', provenance.get('status', 'Unknown'))} · "
+            f"Gaps: {provenance.get('gap_status', 'Unknown')} · "
+            f"Evidence: {provenance.get('evidence_id', 'Unknown')}"
         )
 
 

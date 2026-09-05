@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 import streamlit as st
 
 from engines.research_engine import begin_research_entry, research_interaction_contract
+from ui.market_timestamp import format_market_timestamp_et
 
 
 def _display(value: Any) -> str:
@@ -86,6 +87,16 @@ def _evidence_value(value: Any, status: Any, *, money: bool = False) -> str:
 def _compact_number(value: Any) -> str:
     if value is None:
         return "Unavailable"
+
+
+def _ratio(value: Any) -> str:
+    """Preserve meaningful persisted ratio precision without inventing it."""
+    if value is None:
+        return "Unavailable"
+    try:
+        return f"{float(value):.2f}".rstrip("0").rstrip(".")
+    except (TypeError, ValueError):
+        return "Unavailable"
     try:
         amount = float(value)
         if abs(amount) >= 1_000_000_000:
@@ -97,6 +108,88 @@ def _compact_number(value: Any) -> str:
         return "Unavailable"
 
 
+def _atlas_score_presentation(value: Any) -> dict[str, Any]:
+    """Map canonical Scan Conviction into display-only Home score treatment."""
+    try:
+        score = float(value)
+    except (TypeError, ValueError):
+        return {
+            "available": False, "display": "Unavailable", "band": "Unavailable",
+            "tone": "unavailable", "stars": "☆☆☆☆☆", "filled_stars": 0,
+        }
+    if not (-1_000_000 < score < 1_000_000):
+        return {
+            "available": False, "display": "Unavailable", "band": "Unavailable",
+            "tone": "unavailable", "stars": "☆☆☆☆☆", "filled_stars": 0,
+        }
+    if score >= 90:
+        band, tone, filled = "Exceptional", "exceptional", 5
+    elif score >= 80:
+        band, tone, filled = "Strong", "strong", 4
+    elif score >= 70:
+        band, tone, filled = "Constructive", "constructive", 3
+    elif score >= 60:
+        band, tone, filled = "Developing", "developing", 2
+    else:
+        band, tone, filled = "Weak", "weak", 1
+    number = f"{score:,.1f}".rstrip("0").rstrip(".")
+    return {
+        "available": True, "display": f"{number} / 100", "band": band,
+        "tone": tone, "stars": "★" * filled + "☆" * (5 - filled),
+        "filled_stars": filled, "star_fill_percent": max(0.0, min(100.0, score)),
+    }
+
+
+def _atlas_score(card: Mapping[str, Any]) -> str:
+    score = _atlas_score_presentation(card.get("scan_conviction"))
+    limited = str(card.get("guidance") or "").upper() == "DATA_LIMITED"
+    unavailable = str(card.get("actionability") or "").upper() == "UNAVAILABLE"
+    sublabel = (
+        f'{score["band"]} setup quality, but not yet actionable.'
+        if score["available"] and (limited or unavailable)
+        else "Setup quality is shown separately from Guidance and Actionability."
+    )
+    canonical_value = card.get("scan_conviction")
+    return (
+        f'<div class="atlas-home-atlas-score atlas-home-score-{score["tone"]}" '
+        f'data-atlas-qa="home-atlas-score" data-atlas-score-source="SCAN_CONVICTION" '
+        f'data-atlas-score-value="{html.escape(str(canonical_value if canonical_value is not None else "UNAVAILABLE"))}" '
+        f'data-atlas-score-band="{html.escape(score["band"])}">'
+        '<span class="atlas-home-score-label">ATLAS Setup Score</span>'
+        f'<strong>{html.escape(score["display"])}</strong>'
+        f'<span class="atlas-home-score-stars" aria-hidden="true" data-atlas-display-only="true" '
+        f'style="--atlas-star-fill:{score.get("star_fill_percent", 0):.1f}%">★★★★★</span>'
+        f'<b>{html.escape(score["band"] + " Setup" if score["available"] else score["band"])}</b>'
+        f'<small>{html.escape(sublabel)}</small>'
+        '</div>'
+    )
+
+
+def _market_evidence_badge(card: Mapping[str, Any]) -> str:
+    evidence = card.get("market_evidence") if isinstance(card.get("market_evidence"), Mapping) else {}
+    status = str(evidence.get("status") or "UNAVAILABLE").upper()
+    if status == "LIVE":
+        age = _score(evidence.get("freshness_age_seconds"), suffix=" seconds ago")
+        label, detail, tone = "LIVE MARKET EVIDENCE", f"Updated {age}", "live"
+    elif status in {"STALE", "LAST_KNOWN"}:
+        session = str(evidence.get("market_session") or "UNKNOWN").replace("_", " ").title()
+        timestamp = format_market_timestamp_et(evidence.get("provider_timestamp"))
+        label = "LAST-KNOWN MARKET EVIDENCE" if status == "LAST_KNOWN" else "STALE MARKET EVIDENCE"
+        detail, tone = f"{session} · {timestamp} · Current-price authority withheld", "stale"
+    else:
+        label, detail, tone = "MARKET EVIDENCE UNAVAILABLE", "Persisted evidence shown where available", "unavailable"
+    quality = card.get("completed_bar_quality") if isinstance(card.get("completed_bar_quality"), Mapping) else {}
+    quality_status = str(quality.get("status") or "").upper()
+    quality_codes = tuple(str(code) for code in quality.get("reason_codes") or ())
+    quality_copy = ""
+    if quality_status == "DEGRADED":
+        detail_text = "Regular-session gaps detected" if "REGULAR_SESSION_GAPS_PRESENT" in quality_codes else "Validated bar quality is degraded"
+        quality_copy = f'<small>Data quality: Degraded — {html.escape(detail_text.lower())}</small>'
+    return (
+        f'<div class="atlas-home-market-badge atlas-home-market-{tone}" data-atlas-market-status="{status}" '
+        f'data-atlas-market-source="{html.escape(str(evidence.get("source_type") or "UNAVAILABLE"))}">'
+        f'<b>{label}</b><span>{html.escape(detail)}</span>{quality_copy}</div>'
+    )
 def _full_evidence(card: Mapping[str, Any]) -> str:
     technical = card.get("technical_evidence") or {}
     volume = card.get("volume_evidence") or {}
@@ -182,64 +275,148 @@ def _clean_checkpoint(value: Any) -> str:
     return cleaned
 
 
-def _quick_known(card: Mapping[str, Any]) -> tuple[str, ...]:
-    """Select bounded factual evidence without promoting it into a canonical state."""
+def _atlas_observations(card: Mapping[str, Any]) -> tuple[str, ...]:
+    """Select at most four sourced observations without promoting authority."""
     technical = card.get("technical_evidence") or {}
     volume = card.get("volume_evidence") or {}
     recovery = card.get("recovery") or {}
-    price = technical.get("price")
+    trade = card.get("trade_plan") or {}
+    price = card.get("display_price")
     items: list[str] = []
-    if technical.get("rsi") is not None:
-        items.append(f"RSI {_score(technical.get('rsi'))}")
+    low, high = trade.get("entry_low"), trade.get("entry_high")
+    relationship = str(card.get("entry_relationship") or "")
+    if price is not None and low is not None and high is not None:
+        relation = {
+            "WITHIN_ENTRY_RANGE": "remains within",
+            "BELOW_ENTRY_RANGE": "is below",
+            "ABOVE_ENTRY_RANGE": "is above",
+        }.get(relationship, "is measured against")
+        items.append(f'{card.get("display_price_label") or "Price"} {_money(price)} {relation} the {_money(low)}–{_money(high)} entry range')
     above = []
     below = []
+    persisted_price = technical.get("price")
     for label, key in (("SMA20", "sma20"), ("SMA50", "sma50"), ("SMA200", "sma200")):
         average = technical.get(key)
-        if price is not None and average is not None:
-            (above if price >= average else below).append(label)
-    if above:
-        items.append("Above " + " / ".join(above))
-    if below:
-        items.append("Below " + " / ".join(below))
-    if volume.get("relative_volume") is not None:
-        items.append(f"Relative volume {_score(volume.get('relative_volume'))}×")
+        if persisted_price is not None and average is not None:
+            (above if persisted_price >= average else below).append(label)
+    if above or below:
+        structure = []
+        if above: structure.append("above " + " / ".join(above))
+        if below: structure.append("below " + " / ".join(below))
+        items.append("Persisted price structure is " + " and ".join(structure))
     if recovery.get("score") is not None:
-        items.append(f"Recovery Score {_score(recovery.get('score'))}")
-    return tuple(items[:4]) or ("Persisted snapshot evidence available",)
+        state = str(recovery.get("state") or "").replace("🟢", "").replace("🟡", "").strip()
+        items.append(f"Recovery Score is {_score(recovery.get('score'))}" + (f" — {state}" if state else ""))
+    if volume.get("relative_volume") is not None:
+        items.append(f"Persisted contextual relative volume is {_ratio(volume.get('relative_volume'))}×")
+    return tuple(items[:4])
+
+
+def _quick_known(card: Mapping[str, Any]) -> tuple[str, ...]:
+    """Compatibility alias for the bounded sourced-observation contract."""
+    return _atlas_observations(card)
 
 
 def _quick_needs(card: Mapping[str, Any]) -> tuple[str, ...]:
-    values = card.get("what_changes_guidance") or ("Required canonical confirmation",)
+    labels = {
+        "CURRENT_MARKET_EVIDENCE_UNAVAILABLE": "Fresh exact-symbol current-price authority",
+        "TECHNICAL_STRUCTURE_UNAVAILABLE": "Canonical technical state",
+        "PRICE_EVIDENCE_UNAVAILABLE": "Valid approved price evidence",
+        "BASIC_FUNDAMENTALS_UNAVAILABLE": "Canonical fundamental evidence",
+        "RISK_EVIDENCE_UNAVAILABLE": "Canonical risk evidence",
+        "BREAKOUT_VOLUME_NOT_CONFIRMED": "Approved breakout-volume confirmation",
+        "VOLUME_CONFIRMATION_UNAVAILABLE": "Approved volume-confirmation authority",
+        "VALUATION_CONFIRMATION_UNAVAILABLE": "Published canonical valuation confirmation",
+        "TRADE_PLAN_INCOMPLETE": "Complete canonical trade plan",
+    }
+    codes = tuple(str(code) for code in card.get("reason_codes") or ())
+    if codes:
+        return tuple(labels[code] if code in labels else code.replace("_", " ").title() for code in codes)[:3]
+    values = card.get("what_changes_guidance") or ()
     return tuple(_clean_checkpoint(value) for value in values if _clean_checkpoint(value))[:3]
 
 
+def _guidance_explanation(card: Mapping[str, Any]) -> str:
+    needs = _quick_needs(card)
+    if not needs:
+        return "The governed Guidance state has no additional published blocker."
+    readable = [value[:1].lower() + value[1:] for value in needs]
+    if len(readable) == 1:
+        return f"ATLAS lacks {readable[0]}."
+    return "ATLAS lacks " + ", ".join(readable[:-1]) + f" and {readable[-1]}."
+
+
+def _what_changes_call(card: Mapping[str, Any]) -> str:
+    needs = _quick_needs(card)
+    if not needs:
+        return "Guidance will change only when an existing canonical gate produces a different governed result."
+    readable = [value[:1].lower() + value[1:] for value in needs]
+    conditions = readable[0] if len(readable) == 1 else ", ".join(readable[:-1]) + f" and {readable[-1]}"
+    return f"Guidance can advance only after {conditions} are available; remaining confirmation gates would then be evaluated normally."
+
+
 def _atlas_summary(card: Mapping[str, Any]) -> str:
-    guidance = str(card.get("guidance") or "DATA_LIMITED").upper()
-    if guidance == "DATA_LIMITED":
-        needs = _quick_needs(card)[:2]
-        if needs:
-            joined = " and ".join(item[:1].lower() + item[1:] for item in needs)
-            verb = "is" if len(needs) == 1 else "are"
-            return f"ATLAS has useful snapshot evidence, but {joined} {verb} still required."
-        return "ATLAS has useful snapshot evidence, but current canonical confirmation is incomplete."
-    return f"ATLAS has published {_display(guidance)} guidance from the approved canonical evaluation."
+    ticker = str(card.get("ticker") or "This candidate")
+    rank = card.get("production_rank")
+    score = _atlas_score_presentation(card.get("scan_conviction"))
+    first = f"{ticker} ranks #{rank} with an ATLAS Setup Score of {score['display']}" if rank else f"{ticker} has an ATLAS Setup Score of {score['display']}"
+    observations = list(_atlas_observations(card))
+    constructive = observations[:3]
+    second = "; ".join(constructive) if constructive else "Approved setup evidence is limited"
+    risks = []
+    rvol = (card.get("volume_evidence") or {}).get("relative_volume")
+    if rvol is not None and float(rvol) < 1:
+        risks.append(f"persisted participation is {_ratio(rvol)}×")
+    quality = card.get("completed_bar_quality") or {}
+    if str(quality.get("status") or "").upper() == "DEGRADED":
+        risks.append("the current bar stream is degraded by regular-session gaps" if "REGULAR_SESSION_GAPS_PRESENT" in tuple(quality.get("reason_codes") or ()) else "the current bar stream is degraded")
+    guidance = _display(card.get("guidance"))
+    constraint = " and ".join(risks) if risks else _guidance_explanation(card).rstrip(".")
+    return f"{first}. {second}. {constraint[:1].upper() + constraint[1:]}, so governed Guidance remains {guidance}."
 
 
 def _quick_evidence(card: Mapping[str, Any]) -> str:
-    known = "".join(f'<li>{html.escape(item)}</li>' for item in _quick_known(card))
+    known = "".join(f'<li>{html.escape(item)}</li>' for item in _atlas_observations(card))
     needed = "".join(f'<li>{html.escape(item)}</li>' for item in _quick_needs(card))
     return (
         '<div class="atlas-home-guidance-quick" data-atlas-qa="home-guidance-quick-evidence">'
-        f'<section><h4>What ATLAS knows</h4><ul>{known}</ul></section>'
+        f'<section><h4>What ATLAS sees</h4><ul>{known}</ul></section>'
         f'<section><h4>What ATLAS needs</h4><ul>{needed}</ul></section>'
         '</div>'
     )
+
+
+def _key_numbers(card: Mapping[str, Any]) -> str:
+    technical, volume = card.get("technical_evidence") or {}, card.get("volume_evidence") or {}
+    recovery, trade = card.get("recovery") or {}, card.get("trade_plan") or {}
+    values: list[tuple[str, str]] = []
+    if card.get("display_price") is not None:
+        values.append((str(card.get("display_price_label") or "Price"), _money(card.get("display_price"))))
+    if trade.get("entry_low") is not None and trade.get("entry_high") is not None:
+        values.append(("Entry Range", f'{_money(trade.get("entry_low"))}–{_money(trade.get("entry_high"))}'))
+    if technical.get("rsi") is not None: values.append(("RSI", _score(technical.get("rsi"))))
+    if recovery.get("score") is not None: values.append(("Recovery", _score(recovery.get("score"))))
+    if volume.get("relative_volume") is not None: values.append(("Contextual RVOL", _ratio(volume.get("relative_volume")) + "×"))
+    if technical.get("resistance") is not None: values.append(("Resistance", _money(technical.get("resistance"))))
+    stop = trade.get("stop") if trade.get("stop") is not None else trade.get("stop_loss")
+    target = trade.get("target_1") if trade.get("target_1") is not None else trade.get("target")
+    if stop is not None or target is not None:
+        values.append(("Stop / Target 1", f'{_money(stop)} / {_money(target)}'))
+    if card.get("atlas_fair_value") is not None and str(card.get("atlas_valuation_status") or "").upper() == "PUBLISHED":
+        values.append(("Atlas FV", _money(card.get("atlas_fair_value"))))
+    cells = "".join(_metric(label, value) for label, value in values[:7])
+    return f'<div class="atlas-home-key-numbers" data-atlas-qa="home-key-numbers">{cells}</div>'
 
 
 def _card(card: Mapping[str, Any], *, key: str, first: bool = False) -> None:
     ticker = str(card.get("ticker") or "UNKNOWN")
     guidance = _display(card.get("guidance"))
     actionability = _display(card.get("actionability"))
+    evidence_status = (
+        "DATA LIMITED"
+        if str(card.get("guidance_status") or "").upper() == "DATA_UNAVAILABLE"
+        else _display(card.get("evidence_health")).upper()
+    )
     guidance_tone = " atlas-home-guidance-state-data-limited" if str(card.get("guidance") or "").upper() == "DATA_LIMITED" else ""
     st.markdown(
         f'<div class="atlas-home-guidance-card-marker" data-atlas-qa="home-guidance-card" '
@@ -257,29 +434,41 @@ def _card(card: Mapping[str, Any], *, key: str, first: bool = False) -> None:
         st.markdown(f'### {ticker} — {html.escape(str(card.get("company") or ticker))}')
         st.markdown(
             '<div class="atlas-home-guidance-identity">'
-            f'<strong>{html.escape(_money(card.get("last_known_price")))}</strong>'
-            f'<span>{html.escape(str(card.get("market_customer_label") or "Last-known Price"))}</span>'
+            f'<strong>{html.escape(_money(card.get("display_price")))}</strong>'
+            f'<span>{html.escape(str(card.get("display_price_label") or "Price unavailable"))}</span>'
             f'<em>{"ATLAS Guidance" if card.get("presentation_mode") == "ACTIVE" else "Founder Guidance Preview"}</em>'
             '</div>', unsafe_allow_html=True,
+        )
+        st.markdown(_market_evidence_badge(card), unsafe_allow_html=True)
+        st.markdown(
+            _atlas_score(card), unsafe_allow_html=True,
+        )
+        st.markdown("#### ATLAS View")
+        st.markdown(
+            f'<p class="atlas-home-guidance-summary" data-atlas-qa="home-guidance-summary">{html.escape(_atlas_summary(card))}</p>',
+            unsafe_allow_html=True,
         )
         st.markdown(
             f'<div class="atlas-home-guidance-primary{guidance_tone}">'
             f'<span><small>{"ATLAS GUIDANCE" if card.get("presentation_mode") == "ACTIVE" else "FOUNDER GUIDANCE PREVIEW"}</small><strong>{html.escape(guidance.upper())}</strong></span>'
             f'<span><small>ACTIONABILITY</small><strong>{html.escape(actionability.upper())}</strong></span>'
-            '</div>', unsafe_allow_html=True,
+            '</div>'
+            f'<p class="atlas-home-guidance-explanation">{html.escape(_guidance_explanation(card))}</p>', unsafe_allow_html=True,
         )
         st.markdown(
-            '<div class="atlas-home-guidance-core">'
-            + _metric("Scan Conviction", _score(card.get("scan_conviction"), suffix="%"))
-            + _metric("Atlas FV", _evidence_value(card.get("atlas_fair_value"), card.get("atlas_valuation_status"), money=True))
-            + _metric("Wall Street Target", _money((card.get("wall_street") or {}).get("mean_target")))
-            + '</div>', unsafe_allow_html=True,
-        )
-        st.markdown(
-            f'<p class="atlas-home-guidance-summary" data-atlas-qa="home-guidance-summary">{html.escape(_atlas_summary(card))}</p>',
+            f'<span class="atlas-home-evidence-status" data-atlas-qa="home-evidence-status">'
+            f'<small>EVIDENCE STATUS</small><b>{html.escape(evidence_status)}</b></span>',
             unsafe_allow_html=True,
         )
+        st.markdown("#### Key Numbers")
+        st.markdown(_key_numbers(card), unsafe_allow_html=True)
         st.markdown(_quick_evidence(card), unsafe_allow_html=True)
+        st.markdown(
+            '<div class="atlas-home-change-call" data-atlas-qa="home-change-call">'
+            '<b>What changes the call</b>'
+            f'<span>{html.escape(_what_changes_call(card))}</span></div>',
+            unsafe_allow_html=True,
+        )
         _open_research(ticker, f"home_guidance_{key}_{ticker}")
         with st.expander("Full Evidence", expanded=False):
             st.markdown(_full_evidence(card), unsafe_allow_html=True)
@@ -352,8 +541,13 @@ def _inject_css() -> None:
     .atlas-home-guidance-primary{display:grid;grid-template-columns:1.35fr 1fr;gap:.3rem;margin:.06rem 0 .14rem}.atlas-home-guidance-primary span{padding:.28rem .46rem;border-radius:10px;background:rgba(37,99,235,.12);border:1px solid rgba(96,165,250,.3)}
     .atlas-home-guidance-state-data-limited span:first-child{background:linear-gradient(135deg,rgba(245,158,11,.13),rgba(120,53,15,.08));border-color:rgba(245,158,11,.34)}
     .atlas-home-guidance-identity{display:flex;align-items:baseline;flex-wrap:wrap;gap:.22rem .48rem;margin:.02rem 0 .12rem;color:#cbd5e1}.atlas-home-guidance-identity strong{font-size:1.12rem;color:#f8fafc}.atlas-home-guidance-identity span{font-size:.76rem;font-weight:400;color:#7f8b9d}.atlas-home-guidance-identity em{padding:.16rem .48rem;border:1px solid rgba(96,165,250,.28);border-radius:999px;font-size:.72rem;font-style:normal;color:#bfdbfe;background:rgba(37,99,235,.07)}
+    .atlas-home-market-badge{display:flex;align-items:center;flex-wrap:wrap;gap:.18rem .5rem;margin:.02rem 0 .14rem;padding:.25rem .48rem;border-radius:8px;border:1px solid rgba(100,116,139,.3);background:rgba(15,23,42,.32)}.atlas-home-market-badge b{font-size:.7rem;letter-spacing:.06em}.atlas-home-market-badge span{font-size:.75rem;color:#94a3b8}.atlas-home-market-badge small{flex-basis:100%;font-size:.72rem;color:#fbbf24}.atlas-home-market-live{border-color:rgba(20,184,166,.42)}.atlas-home-market-live b{color:#2dd4bf}.atlas-home-market-stale b{color:#f59e0b}.atlas-home-market-unavailable b{color:#94a3b8}
+    .atlas-home-atlas-score{--score-accent:#14b8a6;display:grid;grid-template-columns:auto auto 1fr auto;align-items:center;gap:.12rem .58rem;margin:.04rem 0 .18rem;padding:.48rem .62rem;border:1px solid color-mix(in srgb,var(--score-accent) 42%,transparent);border-radius:12px;background:linear-gradient(110deg,color-mix(in srgb,var(--score-accent) 16%,transparent),rgba(15,23,42,.18));box-shadow:inset 3px 0 0 var(--score-accent)}.atlas-home-score-label{font-size:.74rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#cbd5e1}.atlas-home-atlas-score strong{font-size:1.42rem;line-height:1;color:#f8fafc;white-space:nowrap}.atlas-home-score-stars{font-size:1rem;letter-spacing:.06em;white-space:nowrap;background:linear-gradient(90deg,var(--score-accent) 0 var(--atlas-star-fill,0%),rgba(148,163,184,.28) var(--atlas-star-fill,0%) 100%);background-clip:text;-webkit-background-clip:text;color:transparent}.atlas-home-atlas-score b{font-size:.82rem;line-height:1.2;color:var(--score-accent);text-transform:uppercase;letter-spacing:.045em}.atlas-home-atlas-score small{grid-column:2/-1;font-size:.78rem;line-height:1.3;color:#cbd5e1}.atlas-home-score-exceptional{--score-accent:#14b8a6}.atlas-home-score-strong{--score-accent:#3b82f6}.atlas-home-score-constructive{--score-accent:#eab308}.atlas-home-score-developing{--score-accent:#f97316}.atlas-home-score-weak{--score-accent:#c96a70}.atlas-home-score-unavailable{--score-accent:#64748b}
     .atlas-home-guidance-primary small,.atlas-home-guidance-primary strong,.atlas-home-guidance-metric small,.atlas-home-guidance-metric b{display:block}.atlas-home-guidance-primary small{font-size:.62rem;letter-spacing:.035em;color:#94a3b8}.atlas-home-guidance-metric small{font-size:.82rem;letter-spacing:.025em;color:#94a3b8;line-height:1.25}.atlas-home-guidance-primary strong{font-size:1.05rem;margin-top:.06rem;line-height:1.08}
     .atlas-home-guidance-core,.atlas-home-guidance-evidence{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.1rem;margin:.06rem 0 .12rem}.atlas-home-guidance-core{padding:.03rem 0;background:rgba(15,23,42,.3);border-radius:8px}.atlas-home-guidance-core .atlas-home-guidance-metric b{font-size:1.15rem;line-height:1.25}.atlas-home-guidance-evidence{grid-template-columns:repeat(4,minmax(0,1fr))}.atlas-home-guidance-metric{padding:.24rem .36rem;border-left:2px solid rgba(148,163,184,.35);min-width:0}.atlas-home-guidance-metric b{overflow-wrap:anywhere;line-height:1.25}.atlas-home-guidance-unavailable b{color:#7f8b9d!important;font-weight:600}.atlas-home-guidance-unavailable small{color:#64748b!important}
+    .atlas-home-key-numbers{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:.18rem;margin:.02rem 0 .14rem;padding:.24rem;border:1px solid rgba(96,165,250,.18);border-radius:10px;background:rgba(15,23,42,.24)}.atlas-home-key-numbers .atlas-home-guidance-metric{border-left-color:rgba(96,165,250,.42)}
+    .atlas-home-evidence-status{display:inline-flex;align-items:center;gap:.4rem;margin:.02rem 0 .12rem;padding:.16rem .42rem;border:1px solid rgba(245,158,11,.24);border-radius:999px;background:rgba(120,53,15,.08);color:#a8b3c4}.atlas-home-evidence-status small{font-size:.65rem;letter-spacing:.06em}.atlas-home-evidence-status b{font-size:.72rem;color:#fcd38d}
+    .atlas-home-guidance-explanation{margin:.02rem 0 .08rem!important;font-size:.8rem;color:#a8b3c4}.atlas-home-change-call{display:grid;gap:.12rem;margin:.04rem 0 .14rem;padding:.4rem .52rem;border-left:3px solid rgba(245,158,11,.5);background:rgba(120,53,15,.07)}.atlas-home-change-call b{font-size:.8rem;color:#fcd38d}.atlas-home-change-call span{font-size:.84rem;line-height:1.4;color:#cbd5e1}
     .atlas-home-guidance-summary{margin:.08rem 0 .12rem!important;font-size:.9rem;line-height:1.42;color:#dbeafe;font-weight:500}.atlas-home-guidance-quick{display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin:.06rem 0 .14rem}.atlas-home-guidance-quick section{padding:.42rem .55rem;border:1px solid rgba(148,163,184,.18);border-radius:9px;background:rgba(15,23,42,.22)}.atlas-home-guidance-quick h4{margin:0 0 .22rem;font-size:.95rem;line-height:1.3;font-weight:650}.atlas-home-guidance-quick section:first-child h4{color:#bfdbfe}.atlas-home-guidance-quick section:last-child h4{color:#fcd38d}.atlas-home-guidance-quick ul{margin:0;padding-left:1.05rem}.atlas-home-guidance-quick li{margin:.08rem 0;font-size:.86rem;line-height:1.35;color:#cbd5e1}
     .atlas-home-full-evidence{display:block;margin:0;color:#cbd5e1}.atlas-home-full-evidence section{display:block;padding:.72rem 0;border-top:1px solid rgba(148,163,184,.18)}.atlas-home-full-evidence section:first-child{padding-top:0;border-top:0}.atlas-home-full-evidence h4{margin:0 0 .4rem;font-size:1rem;line-height:1.35;font-weight:650;color:#dbeafe}.atlas-home-full-evidence p{margin:.22rem 0;font-size:.875rem;line-height:1.48}.atlas-home-full-evidence p>b,.atlas-home-full-reasons b,.atlas-home-trade-row b{color:#a8b3c4}.atlas-home-full-evidence small{color:#8793a6}.atlas-home-full-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.3rem}.atlas-home-full-metrics .atlas-home-guidance-metric{padding:.32rem .42rem}.atlas-home-full-note{color:#8793a6}.atlas-home-full-reasons{display:grid;grid-template-columns:1fr 1fr;gap:.8rem}.atlas-home-full-reasons ul{margin:.22rem 0 0;padding-left:1.05rem}.atlas-home-full-reasons li{margin:.16rem 0;font-size:.875rem;line-height:1.48}.atlas-home-reason-codes{font-size:.76rem!important;line-height:1.4!important;color:#718096!important;overflow-wrap:anywhere}.atlas-home-trade-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:.2rem .48rem;font-size:.9rem;line-height:1.5}.atlas-home-trade-row span{white-space:nowrap}.atlas-home-trade-row span+span::before{content:"·";margin-right:.48rem;color:#718096}
     .atlas-home-guidance-status{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.08rem;margin:.02rem 0 .08rem;padding:.08rem .06rem;border-top:1px solid rgba(148,163,184,.18);border-bottom:1px solid rgba(148,163,184,.18)}.atlas-home-guidance-status .atlas-home-guidance-metric{padding:.18rem .28rem;border-left:0}.atlas-home-guidance-status .atlas-home-guidance-metric:nth-child(2){border-left:2px solid rgba(59,130,246,.35);background:rgba(37,99,235,.045)}.atlas-home-guidance-status .atlas-home-guidance-metric:nth-child(3){border-left:2px solid rgba(168,85,247,.35);background:rgba(126,34,206,.045)}.atlas-home-guidance-status small{font-size:.8rem}.atlas-home-guidance-status b{font-size:.92rem;line-height:1.3}
@@ -370,7 +564,7 @@ def _inject_css() -> None:
     @media(max-width:700px){body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stRadio"]:has([role="radiogroup"]){position:sticky!important;top:3.75rem!important;z-index:990!important;margin-top:.35rem!important;background:var(--background-color,#0e1117);padding:.15rem 0 .2rem!important}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stRadio"] [role="radiogroup"]{flex-wrap:nowrap!important;overflow-x:auto!important;padding-bottom:.2rem;scrollbar-width:thin}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stRadio"] [role="radiogroup"] label{flex:0 0 auto!important;white-space:nowrap;padding:.28rem .52rem!important;min-height:30px!important}}
     @media(max-width:480px){body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stMainBlockContainer"]{padding-top:.2rem!important}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stMainBlockContainer"]>[data-testid="stVerticalBlock"]{gap:.24rem!important}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stElementContainer"]:has([data-atlas-qa][aria-hidden="true"]){display:none!important}.atlas-home-guidance-hero{padding:.04rem 0 .11rem}.atlas-home-guidance-hero h1{font-size:1.5rem;line-height:1.16;margin:.02rem 0 .08rem}.atlas-home-guidance-hero p{margin:.08rem 0}.atlas-home-guidance-primary{grid-template-columns:1fr 1fr;gap:.18rem;margin:.01rem 0 .06rem}.atlas-home-guidance-primary span{padding:.2rem .3rem}.atlas-home-guidance-primary small{font-size:.68rem}.atlas-home-guidance-primary strong{font-size:.92rem;line-height:1.22}.atlas-home-guidance-core{grid-template-columns:repeat(3,minmax(0,1fr));gap:.06rem;margin:.04rem 0 .08rem}.atlas-home-guidance-core .atlas-home-guidance-metric{padding:.14rem .12rem}.atlas-home-guidance-core small{font-size:.8125rem;line-height:1.25}.atlas-home-guidance-core .atlas-home-guidance-metric b{font-size:1.125rem;line-height:1.25}.atlas-home-guidance-status{grid-template-columns:repeat(2,minmax(0,1fr));gap:.1rem;margin:.02rem 0 .08rem;padding:.1rem .05rem}.atlas-home-guidance-status .atlas-home-guidance-metric{padding:.15rem .16rem}.atlas-home-guidance-status small{font-size:.8125rem}.atlas-home-guidance-status b{font-size:.88rem;line-height:1.3}.atlas-home-guidance-evidence{grid-template-columns:repeat(2,minmax(0,1fr))}h2{margin:.2rem 0!important;font-size:1.25rem!important;line-height:1.2!important}h3{font-size:1rem!important;line-height:1.2!important;margin:.04rem 0!important;padding:.05rem 0!important}.atlas-home-guidance-card-marker+div [data-testid="stVerticalBlock"]{gap:.14rem}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stExpander"] details summary{min-height:1.9rem!important;padding:.08rem .5rem!important}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stExpander"] details summary p{font-size:.82rem;white-space:normal;line-height:1.3}}
     @media(max-width:480px){body:has([data-atlas-qa="home-guidance-vnext"]) h2{margin:.1rem 0!important;padding:.02rem 0!important}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stMainBlockContainer"]>[data-testid="stVerticalBlock"]{gap:.2rem!important}.atlas-home-snapshot-lines{grid-template-columns:1fr;gap:.14rem;margin:.08rem 0 .12rem}.atlas-home-snapshot-lines h4{font-size:.95rem;line-height:1.35}.atlas-home-snapshot-lines p{font-size:.825rem;line-height:1.4}.atlas-home-guidance-limited{grid-template-columns:1fr;padding:.3rem .36rem;gap:.22rem;margin:.08rem 0 .12rem}.atlas-home-guidance-limited>span+span{border-left:0;border-top:1px solid rgba(148,163,184,.18);padding-left:0;padding-top:.22rem}.atlas-home-guidance-limited b{font-size:.92rem}.atlas-home-guidance-limited small{font-size:.8125rem;line-height:1.4}.atlas-home-guidance-limited code{font-size:.75rem;line-height:1.35;overflow-wrap:anywhere}}
-    @media(max-width:480px){.atlas-home-guidance-identity{gap:.18rem .38rem;margin:.02rem 0 .1rem}.atlas-home-guidance-identity strong{font-size:1rem}.atlas-home-guidance-identity span{font-size:.74rem}.atlas-home-guidance-identity em{font-size:.72rem}.atlas-home-guidance-summary{font-size:.84rem;line-height:1.4;margin:.08rem 0 .12rem!important}.atlas-home-guidance-quick{grid-template-columns:1fr;gap:.28rem;margin:.06rem 0 .14rem}.atlas-home-guidance-quick section{padding:.36rem .46rem}.atlas-home-guidance-quick h4{font-size:.92rem}.atlas-home-guidance-quick li{font-size:.825rem;line-height:1.38}.atlas-home-full-evidence section{padding:.58rem 0}.atlas-home-full-evidence h4{font-size:.95rem;margin-bottom:.32rem}.atlas-home-full-evidence p,.atlas-home-full-reasons li{font-size:.825rem;line-height:1.45}.atlas-home-full-metrics{grid-template-columns:1fr;gap:.18rem}.atlas-home-full-reasons{grid-template-columns:1fr;gap:.55rem}.atlas-home-trade-row{gap:.16rem .38rem;font-size:.84rem}.atlas-home-trade-row span+span::before{margin-right:.38rem}}
+    @media(max-width:480px){.atlas-home-guidance-identity{gap:.18rem .38rem;margin:.02rem 0 .1rem}.atlas-home-guidance-identity strong{font-size:1rem}.atlas-home-guidance-identity span{font-size:.74rem}.atlas-home-guidance-identity em{font-size:.72rem}.atlas-home-atlas-score{grid-template-columns:auto 1fr auto;gap:.1rem .42rem;padding:.4rem .48rem;margin:.03rem 0 .12rem}.atlas-home-score-label{font-size:.7rem}.atlas-home-atlas-score strong{font-size:1.25rem}.atlas-home-score-stars{grid-row:2;grid-column:1/3;font-size:.88rem}.atlas-home-atlas-score b{grid-row:1;grid-column:3}.atlas-home-atlas-score small{grid-row:3;grid-column:1/-1;font-size:.76rem}.atlas-home-guidance-summary{font-size:.84rem;line-height:1.4;margin:.08rem 0 .12rem!important}.atlas-home-guidance-quick{grid-template-columns:1fr;gap:.28rem;margin:.06rem 0 .14rem}.atlas-home-guidance-quick section{padding:.36rem .46rem}.atlas-home-guidance-quick h4{font-size:.92rem}.atlas-home-guidance-quick li{font-size:.825rem;line-height:1.38}.atlas-home-key-numbers{grid-template-columns:repeat(2,minmax(0,1fr));gap:.12rem;padding:.18rem}.atlas-home-key-numbers .atlas-home-guidance-metric{padding:.18rem .22rem}.atlas-home-full-evidence section{padding:.58rem 0}.atlas-home-full-evidence h4{font-size:.95rem;margin-bottom:.32rem}.atlas-home-full-evidence p,.atlas-home-full-reasons li{font-size:.825rem;line-height:1.45}.atlas-home-full-metrics{grid-template-columns:1fr;gap:.18rem}.atlas-home-full-reasons{grid-template-columns:1fr;gap:.55rem}.atlas-home-trade-row{gap:.16rem .38rem;font-size:.84rem}.atlas-home-trade-row span+span::before{margin-right:.38rem}}
     </style>""", unsafe_allow_html=True)
 
 

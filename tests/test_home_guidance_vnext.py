@@ -4,9 +4,11 @@ import ast
 import json
 from pathlib import Path
 
+import pytest
 from streamlit.testing.v1 import AppTest
 
 from engines.home_guidance_story_v1 import HOME_FIELD_AUTHORITY, build_home_guidance_candidate, build_home_guidance_story
+from services.on_demand_evaluation_service import evaluate_on_demand
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -172,7 +174,7 @@ render_home_guidance_vnext(build_home_guidance_story(rows, [{"ticker":"MU","reco
     assert "Technical Evidence:</b> RSI 55.0" in rendered
     assert "Volume State:</b> Unavailable" in rendered
     assert "Volume Evidence:</b> Relative volume 1.2×" in rendered
-    assert "What ATLAS knows" in rendered
+    assert "What ATLAS sees" in rendered
     assert "What ATLAS needs" in rendered
     assert 'data-atlas-qa="home-guidance-summary"' in rendered
     assert rendered.index("home-guidance-quick-evidence") < rendered.index("home-guidance-research-cta")
@@ -199,6 +201,25 @@ def test_active_mode_uses_governed_evaluation_without_changing_home_structure(mo
     assert story["cards"][0]["actionability"] == "NOT_ACTIONABLE"
     assert story["cards"][0]["opportunity"] == 0
     assert story["cards"][0]["decision_confidence"] == -1
+
+
+def test_live_price_and_provenance_are_separate_from_persisted_last_known_price():
+    evaluation = canonical_evaluation(guidance="WAIT_FOR_CONFIRMATION")
+    evaluation["market_snapshot"] = {
+        "price": 105, "fresh_current_price": True, "customer_label": "Current quote",
+        "provider": "TWELVE_DATA", "source_type": "TWELVE_DATA_WEBSOCKET",
+        "provider_timestamp": "2026-09-04T15:00:00+00:00",
+        "received_timestamp": "2026-09-04T15:00:01+00:00", "freshness_age_seconds": 1,
+        "feed_health": "HEALTHY", "evidence_id": "TD1-example",
+        "source_methodology_version": "TWELVE_DATA_PHASE1_ADAPTER_V1",
+    }
+    card = build_home_guidance_candidate(row("NVDA", price=100), production_rank=1, current_evaluation=evaluation)
+    assert card["current_price"] == 105
+    assert card["display_price"] == 105
+    assert card["display_price_label"] == "Current Price"
+    assert card["last_known_price"] == 100
+    assert card["market_evidence"]["status"] == "LIVE"
+    assert card["market_evidence"]["evidence_id"] == "TD1-example"
 
 
 def test_not_applicable_evidence_is_not_collapsed_to_unavailable():
@@ -363,9 +384,12 @@ def test_summary_card_omits_unavailable_secondary_metrics_until_full_evidence():
     summary, full = body.split('with st.expander("Full Evidence"', 1)
     assert '_metric("Opportunity"' not in summary
     assert '_metric("Decision Confidence"' not in summary
-    assert '_metric("Scan Conviction"' in summary
-    assert '_metric("Atlas FV"' in summary
-    assert '_metric("Wall Street Target"' in summary
+    assert "_atlas_score(card)" in summary
+    assert 'data-atlas-score-source="SCAN_CONVICTION"' in (ROOT / "ui" / "home_guidance_vnext.py").read_text(encoding="utf-8")
+    assert "_key_numbers(card)" in summary
+    assert 'data-atlas-qa="home-evidence-status"' in summary
+    assert '_metric("Atlas FV"' not in summary
+    assert '_metric("Wall Street Target"' not in summary
     assert "_full_evidence(card)" in full
     full_fn = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "_full_evidence")
     full_body = ast.get_source_segment(source, full_fn) or ""
@@ -378,6 +402,8 @@ def test_data_limited_summary_is_bounded_and_reason_grounded():
 
     card = {
         "guidance": "DATA_LIMITED",
+        "technical_evidence": {"price": 100, "rsi": 50.9, "sma20": 90, "sma50": 80, "sma200": 70},
+        "volume_evidence": {"relative_volume": .8},
         "what_changes_guidance": (
             "Fresh market evidence is required.",
             "Canonical technical confirmation is required.",
@@ -390,10 +416,215 @@ def test_data_limited_summary_is_bounded_and_reason_grounded():
         "Canonical technical confirmation",
         "Canonical volume confirmation",
     )
+    summary = _atlas_summary(card)
+    assert summary.count(". ") <= 2
+    assert "Persisted price structure is above SMA20 / SMA50 / SMA200" in summary
+    assert "Persisted participation is 0.8×" in summary
+    assert summary.endswith("governed Guidance remains Data Limited.")
+
+
+@pytest.mark.parametrize(("value", "band", "tone", "stars"), [
+    (100, "Exceptional", "exceptional", "★★★★★"),
+    (90, "Exceptional", "exceptional", "★★★★★"),
+    (89, "Strong", "strong", "★★★★☆"),
+    (80, "Strong", "strong", "★★★★☆"),
+    (79, "Constructive", "constructive", "★★★☆☆"),
+    (70, "Constructive", "constructive", "★★★☆☆"),
+    (69, "Developing", "developing", "★★☆☆☆"),
+    (60, "Developing", "developing", "★★☆☆☆"),
+    (59, "Weak", "weak", "★☆☆☆☆"),
+])
+def test_atlas_score_band_and_stars_are_display_only(value, band, tone, stars):
+    from ui.home_guidance_vnext import _atlas_score_presentation
+
+    result = _atlas_score_presentation(value)
+    assert result["display"] == f"{value} / 100"
+    assert result["band"] == band
+    assert result["tone"] == tone
+    assert result["stars"] == stars
+    assert result["star_fill_percent"] == value
+
+
+def test_atlas_score_preserves_real_decimal_precision_without_inventing_it():
+    from ui.home_guidance_vnext import _atlas_score_presentation
+
+    assert _atlas_score_presentation(97)["display"] == "97 / 100"
+    assert _atlas_score_presentation(97.36)["display"] == "97.4 / 100"
+    assert _atlas_score_presentation(97.36)["star_fill_percent"] == 97.36
+
+
+def test_atlas_score_is_scan_conviction_alias_without_guidance_or_actionability_remap():
+    from ui.home_guidance_vnext import _atlas_score
+
+    card = {
+        "scan_conviction": 97, "guidance": "DATA_LIMITED",
+        "actionability": "UNAVAILABLE", "opportunity": 12,
+    }
+    rendered = _atlas_score(card)
+    assert 'data-atlas-score-source="SCAN_CONVICTION"' in rendered
+    assert 'data-atlas-score-value="97"' in rendered
+    assert 'data-atlas-score-band="Exceptional"' in rendered
+    assert 'data-atlas-display-only="true"' in rendered
+    assert "ATLAS Setup Score" in rendered
+    assert "97 / 100" in rendered
+    assert "Exceptional Setup" in rendered
+    assert "Exceptional setup quality, but not yet actionable." in rendered
+    assert "DATA_LIMITED" not in rendered
+    assert "UNAVAILABLE" not in rendered
+    assert "12" not in rendered
+
+
+def test_atlas_score_precedes_guidance_and_canonical_values_keep_their_fields():
+    source = (ROOT / "ui" / "home_guidance_vnext.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    card_fn = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "_card")
+    body = ast.get_source_segment(source, card_fn) or ""
+    assert body.index("_atlas_score(card)") < body.index("atlas-home-guidance-primary")
+    assert body.index("#### ATLAS View") < body.index("atlas-home-guidance-primary")
+    assert "_key_numbers(card)" in body
+    assert '_metric("Atlas FV"' not in body
+    assert '_metric("Wall Street Target"' not in body
+    assert 'data-atlas-scan-conviction=' in body
+
+
+def test_live_market_badge_never_calls_stale_or_missing_evidence_live():
+    from ui.home_guidance_vnext import _market_evidence_badge
+
+    live = _market_evidence_badge({"market_evidence": {
+        "status": "LIVE", "source_type": "TWELVE_DATA_WEBSOCKET", "freshness_age_seconds": 3,
+    }})
+    stale = _market_evidence_badge({"market_evidence": {"status": "STALE"}})
+    missing = _market_evidence_badge({"market_evidence": {"status": "UNAVAILABLE"}})
+    assert "LIVE MARKET EVIDENCE" in live and "Updated 3.0 seconds ago" in live
+    assert "STALE MARKET EVIDENCE" in stale and "LIVE MARKET EVIDENCE" not in stale
+    assert "MARKET EVIDENCE UNAVAILABLE" in missing and "LIVE MARKET EVIDENCE" not in missing
+
+
+def test_completed_after_hours_bar_is_last_known_and_never_labeled_live():
+    from ui.home_guidance_vnext import _market_evidence_badge
+
+    badge = _market_evidence_badge({"market_evidence": {
+        "status": "LAST_KNOWN", "market_session": "AFTER_HOURS",
+        "provider_timestamp": "2026-09-04T23:59:00+00:00",
+        "source_type": "TWELVE_DATA_LATEST_COMPLETED_BAR", "stale": True,
+    }})
+    assert "LAST-KNOWN MARKET EVIDENCE" in badge
+    assert "After Hours" in badge
+    assert "Sep 4, 7:59 PM ET" in badge
+    assert "2026-09-04T23:59:00+00:00" not in badge
+    assert "Current-price authority withheld" in badge
+    assert "LIVE MARKET EVIDENCE" not in badge
+
+
+def test_summary_leads_with_freshest_approved_last_known_bar_without_calling_it_live():
+    from ui.home_guidance_vnext import _atlas_summary
+
+    card = {
+        "ticker": "NVDA", "production_rank": 2, "scan_conviction": 97,
+        "guidance": "DATA_LIMITED", "display_price": 229.5,
+        "display_price_label": "Latest completed after-hours bar",
+        "market_evidence": {"source_type": "TWELVE_DATA_LATEST_COMPLETED_BAR"},
+        "technical_evidence": {"price": 220, "sma20": 210, "sma50": 200, "sma200": 190},
+        "volume_evidence": {}, "recovery": {},
+        "atlas_valuation_status": "REJECTED_EXTREME_UPSIDE",
+        "reason_codes": ("CURRENT_MARKET_EVIDENCE_UNAVAILABLE", "TECHNICAL_STRUCTURE_UNAVAILABLE"),
+    }
+    summary = _atlas_summary(card)
+    assert summary.startswith("NVDA ranks #2 with an ATLAS Setup Score of 97 / 100.")
+    assert "Persisted price structure is above SMA20 / SMA50 / SMA200" in summary
+    assert "live" not in summary.lower()
+
+
+def test_home_card_preserves_completed_bar_and_entry_relationship_as_presentation_evidence():
+    evaluation = evaluate_on_demand(row("MU", 97))
+    evaluation["phase1_completed_bar"] = {
+        "timestamp": "2026-09-04T23:59:00+00:00", "open": 100, "high": 102,
+        "low": 99, "close": 101, "volume": 1000, "session": "AFTER_HOURS", "completed": True,
+    }
+    evaluation["phase1_bar_quality"] = {"status": "AVAILABLE", "evidence_id": "TD1-test"}
+    card = build_home_guidance_story([row("MU", 97)], [], current_evaluations={"MU": evaluation})["cards"][0]
+    assert card["latest_completed_bar"]["close"] == 101
+    assert card["completed_bar_quality"]["evidence_id"] == "TD1-test"
+    assert card["entry_relationship"] in {"WITHIN_ENTRY_RANGE", "BELOW_ENTRY_RANGE", "ABOVE_ENTRY_RANGE", "DATA_UNAVAILABLE"}
+
+
+def _bcrx_customer_card():
+    return {
+        "ticker": "BCRX", "company": "BioCryst Pharmaceuticals, Inc.",
+        "production_rank": 4, "scan_conviction": 97,
+        "display_price": 10.02, "display_price_label": "Latest completed after-hours bar",
+        "market_evidence": {
+            "status": "LAST_KNOWN", "market_session": "AFTER_HOURS",
+            "provider_timestamp": "2026-09-04T23:30:00+00:00",
+            "source_type": "TWELVE_DATA_LATEST_COMPLETED_BAR",
+        },
+        "completed_bar_quality": {
+            "status": "DEGRADED", "reason_codes": ("REGULAR_SESSION_GAPS_PRESENT",),
+        },
+        "guidance": "DATA_LIMITED", "guidance_status": "DATA_UNAVAILABLE",
+        "actionability": "UNAVAILABLE", "evidence_health": "PARTIAL",
+        "reason_codes": ("CURRENT_MARKET_EVIDENCE_UNAVAILABLE", "TECHNICAL_STRUCTURE_UNAVAILABLE"),
+        "technical_state": "UNAVAILABLE", "technical_status": "DATA_UNAVAILABLE",
+        "technical_evidence": {
+            "price": 9.99, "rsi": 51.2, "sma20": 9.91, "sma50": 9.75,
+            "sma200": 8.57, "resistance": 10.68,
+        },
+        "volume_state": "UNAVAILABLE", "volume_status": "DATA_UNAVAILABLE",
+        "volume_evidence": {"relative_volume": .08},
+        "recovery": {"score": 69, "state": "Recovery Watchlist"},
+        "trade_plan": {"entry_low": 9.83, "entry_high": 10.07, "stop": 9.54, "target_1": 10.8, "target_2": 11.2},
+        "entry_relationship": "WITHIN_ENTRY_RANGE",
+        "atlas_fair_value": None, "atlas_valuation_status": "REJECTED_EXTREME_UPSIDE",
+        "opportunity": None, "decision_confidence": None,
+    }
+
+
+def test_bcrx_customer_hierarchy_is_grounded_and_keeps_governed_status():
+    from ui.home_guidance_vnext import _atlas_summary, _guidance_explanation, _what_changes_call
+
+    card = _bcrx_customer_card()
+    assert card["guidance"] == "DATA_LIMITED"
+    assert card["actionability"] == "UNAVAILABLE"
     assert _atlas_summary(card) == (
-        "ATLAS has useful snapshot evidence, but fresh market evidence and "
-        "canonical technical confirmation are still required."
+        "BCRX ranks #4 with an ATLAS Setup Score of 97 / 100. Latest completed after-hours bar $10.02 remains within the $9.83–$10.07 entry range; "
+        "Persisted price structure is above SMA20 / SMA50 / SMA200; Recovery Score is 69.0 — Recovery Watchlist. "
+        "Persisted participation is 0.08× and the current bar stream is degraded by regular-session gaps, so governed Guidance remains Data Limited."
     )
+    assert _guidance_explanation(card) == "ATLAS lacks fresh exact-symbol current-price authority and canonical technical state."
+    assert _what_changes_call(card) == (
+        "Guidance can advance only after fresh exact-symbol current-price authority and canonical technical state are available; "
+        "remaining confirmation gates would then be evaluated normally."
+    )
+
+
+def test_bcrx_key_numbers_are_populated_only_and_authority_separation_is_explicit():
+    from ui.home_guidance_vnext import _key_numbers, _market_evidence_badge, _quick_known, _quick_needs
+
+    card = _bcrx_customer_card()
+    numbers = _key_numbers(card)
+    for expected in ("$10.02", "$9.83–$10.07", "51.2", "69.0", "0.08×", "$10.68", "$9.54 / $10.80"):
+        assert expected in numbers
+    assert "Atlas FV" not in numbers
+    assert "Opportunity" not in numbers
+    assert "Decision Confidence" not in numbers
+    assert _quick_needs(card) == ("Fresh exact-symbol current-price authority", "Canonical technical state")
+    assert len(_quick_known(card)) == 4
+    assert "Persisted price structure" in _quick_known(card)[1]
+    assert "Persisted contextual relative volume is 0.08×" in _quick_known(card)
+    badge = _market_evidence_badge(card)
+    assert "LAST-KNOWN MARKET EVIDENCE" in badge
+    assert "Data quality: Degraded — regular-session gaps detected" in badge
+    assert card["technical_state"] == "UNAVAILABLE"
+    assert card["volume_state"] == "UNAVAILABLE"
+
+
+def test_mobile_customer_hierarchy_has_two_column_key_numbers_and_secondary_evidence_status():
+    source = (ROOT / "ui" / "home_guidance_vnext.py").read_text(encoding="utf-8")
+    assert ".atlas-home-key-numbers{grid-template-columns:repeat(2,minmax(0,1fr))" in source
+    assert ".atlas-home-evidence-status{display:inline-flex" in source
+    card_body = source[source.index("def _card("):source.index("def _section_marker")]
+    assert card_body.index("#### ATLAS View") < card_body.index("atlas-home-guidance-primary")
+    assert card_body.index("atlas-home-guidance-primary") < card_body.index("home-evidence-status")
 
 
 def test_quick_evidence_is_four_items_and_trade_plan_stays_in_full_evidence():
@@ -406,10 +637,9 @@ def test_quick_evidence_is_four_items_and_trade_plan_stays_in_full_evidence():
         "trade_plan": {"entry_low": 95, "entry_high": 100, "stop": 90, "target_1": 120},
     }
     assert _quick_known(card) == (
-        "RSI 50.9",
-        "Above SMA20 / SMA50 / SMA200",
-        "Relative volume 0.8×",
-        "Recovery Score 69.0",
+        "Persisted price structure is above SMA20 / SMA50 / SMA200",
+        "Recovery Score is 69.0",
+        "Persisted contextual relative volume is 0.8×",
     )
     source = (ROOT / "ui" / "home_guidance_vnext.py").read_text(encoding="utf-8")
     assert 'data-atlas-trade-segment="entry"' in source

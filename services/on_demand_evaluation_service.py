@@ -67,14 +67,22 @@ def evaluate_on_demand(
     row: Mapping[str, Any], *, context: Mapping[str, Any] | None = None,
     bars: Sequence[DailyBar] | None = None, previous_evaluation: Mapping[str, Any] | None = None,
     twelve_data_phase1: Mapping[str, Any] | None = None,
+    phase1_enabled: bool | None = None,
 ) -> dict[str, Any]:
     symbol = str(_first(row, "ticker", "Ticker", "symbol") or "").upper()
     phase1 = dict(twelve_data_phase1 or {})
     if phase1:
         from services.live_market.twelve_data_phase1 import twelve_data_enabled
-        if not twelve_data_enabled():
+        enabled = twelve_data_enabled() if phase1_enabled is None else bool(phase1_enabled)
+        if not enabled:
             phase1 = {}
-    market_source = phase1.get("current_price") if isinstance(phase1.get("current_price"), Mapping) else _market_evidence(row)
+    phase1_current = phase1.get("current_price") if isinstance(phase1.get("current_price"), Mapping) else {}
+    phase1_last_known = phase1.get("last_known_market") if isinstance(phase1.get("last_known_market"), Mapping) else {}
+    market_source = (
+        phase1_current if phase1_current.get("status") == "AVAILABLE" else
+        phase1_last_known if phase1_last_known.get("status") == "AVAILABLE" else
+        _market_evidence(row)
+    )
     market = build_market_snapshot(symbol, market_source)
     technical = _technical_contract(row, bars)
     bar_contract = phase1.get("completed_bars") if isinstance(phase1.get("completed_bars"), Mapping) else {}

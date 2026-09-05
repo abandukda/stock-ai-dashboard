@@ -168,6 +168,20 @@ def build_home_guidance_candidate(
     volume = evaluation.get("volume_intelligence") if isinstance(evaluation.get("volume_intelligence"), Mapping) else {}
     risk = evaluation.get("risk") if isinstance(evaluation.get("risk"), Mapping) else {}
     fundamentals = evaluation.get("fundamentals") if isinstance(evaluation.get("fundamentals"), Mapping) else {}
+    market = evaluation.get("market_snapshot") if isinstance(evaluation.get("market_snapshot"), Mapping) else {}
+    market_price = number(market.get("price"))
+    live_price = market_price if market.get("fresh_current_price") is True else None
+    observed_price = live_price if live_price is not None else market_price if market_price is not None else price
+    completed_bar = evaluation.get("phase1_completed_bar") if isinstance(evaluation.get("phase1_completed_bar"), Mapping) else {}
+    bar_quality = evaluation.get("phase1_bar_quality") if isinstance(evaluation.get("phase1_bar_quality"), Mapping) else {}
+    trade_plan = dict(evaluation.get("trade_plan") or {})
+    entry_low, entry_high = number(trade_plan.get("entry_low")), number(trade_plan.get("entry_high"))
+    entry_relationship = (
+        "WITHIN_ENTRY_RANGE" if observed_price is not None and entry_low is not None and entry_high is not None and entry_low <= observed_price <= entry_high else
+        "BELOW_ENTRY_RANGE" if observed_price is not None and entry_low is not None and observed_price < entry_low else
+        "ABOVE_ENTRY_RANGE" if observed_price is not None and entry_high is not None and observed_price > entry_high else
+        "DATA_UNAVAILABLE"
+    )
     recovery = dict(recovery_row or {})
     company = row.get("company") or row.get("company_name") or row.get("name") or ticker
     return {
@@ -203,13 +217,30 @@ def build_home_guidance_candidate(
         "evaluation_timestamp": evaluation.get("evaluated_at"),
         "market_source_type": str((evaluation.get("market_snapshot") or {}).get("source_type") or "UNAVAILABLE"),
         "market_customer_label": str((evaluation.get("market_snapshot") or {}).get("customer_label") or "Market evidence unavailable"),
+        "current_price": live_price,
+        "display_price": observed_price,
+        "display_price_label": "Current Price" if live_price is not None else str(market.get("customer_label") or ("Last-known Price" if observed_price is not None else "Price unavailable")),
+        "market_evidence": {
+            "status": "LIVE" if live_price is not None else ("LAST_KNOWN" if market_price is not None else "UNAVAILABLE"),
+            "provider": market.get("provider"), "source_type": market.get("source_type"),
+            "market_session": market.get("market_session"), "stale": market.get("stale"),
+            "provider_timestamp": market.get("provider_timestamp"),
+            "received_timestamp": market.get("received_timestamp"),
+            "freshness_age_seconds": market.get("freshness_age_seconds"),
+            "feed_health": market.get("feed_health"),
+            "evidence_id": (market.get("evidence_id") or (evaluation.get("market_snapshot") or {}).get("evidence_id")),
+            "methodology_version": market.get("source_methodology_version") or market.get("version"),
+        },
+        "latest_completed_bar": dict(completed_bar),
+        "completed_bar_quality": dict(bar_quality),
         "last_known_price": price,
         "last_known_price_label": "Persisted / last-known price" if price is not None else "Persisted price unavailable",
         "technical_evidence": snapshot["technical"],
         "volume_evidence": snapshot["volume"],
         "fundamentals_evidence": snapshot["fundamentals"],
         "snapshot_evidence_health": snapshot["completeness"],
-        "trade_plan": dict(evaluation.get("trade_plan") or {}),
+        "trade_plan": trade_plan,
+        "entry_relationship": entry_relationship,
         "wall_street": {
             "rating": row.get("recommendation_key"), "analyst_count": street.get("count"),
             "mean_target": street.get("mean"), "low_target": street.get("low"),

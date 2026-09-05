@@ -697,6 +697,8 @@ def build_atlas_research_v2(
         "valuation_families": valuation,
         "current_price": quote.get("price"),
         "quote": quote,
+        "canonical_market_snapshot": _mapping(enriched_row.get("canonical_market_snapshot")),
+        "canonical_chart_contract": _mapping(enriched_row.get("canonical_chart_contract")),
         "trade_plan": trade_plan,
         "policy_intelligence": policy_intelligence,
         "ai_valuation": ai_valuation,

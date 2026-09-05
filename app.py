@@ -27759,6 +27759,16 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
     live=st.session_state.get(state_key)
     if (isinstance(live,dict) and not live.get("error")) or saved:
         merged=v8054_merge_saved_live(saved,live if isinstance(live,dict) and not live.get("error") else {}); merged["Live Research"]=bool(isinstance(live,dict) and not live.get("error"))
+        # The Research shell is already interactive above. Twelve enrichment is
+        # optional and fail-closed, and never replaces the persisted fallback.
+        if submitted or auto_live:
+            from services.research_market_phase1 import acquire_research_phase1
+            st.session_state[f"research_twelve_phase1_{ticker}"] = acquire_research_phase1(ticker)
+        _research_twelve = st.session_state.get(f"research_twelve_phase1_{ticker}") or {}
+        _research_bundle = _research_twelve.get("bundle") if isinstance(_research_twelve, dict) else {}
+        if isinstance(_research_bundle, dict) and _research_bundle:
+            from services.research_market_phase1 import apply_research_phase1
+            merged = apply_research_phase1(merged, _research_bundle)
         st.session_state["research_status"]="complete"
         if isinstance(live,dict) and live.get("error"):
             st.warning(f"Live refresh was unavailable for {ticker}; showing its verified saved Atlas research.")
@@ -32923,15 +32933,41 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
     except Exception:
         recovery_payload = []
     watchlist_tickers = read_watchlist_symbols()
+    live_state = st.session_state.get("home_twelve_phase1") or {}
+    captured_at = live_state.get("captured_at") if isinstance(live_state, dict) else None
+    try:
+        captured_age = max(0.0, (dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(str(captured_at).replace("Z", "+00:00"))).total_seconds())
+    except (TypeError, ValueError):
+        captured_age = float("inf")
+    # Never keep a previously-fresh Guidance evaluation alive after its market
+    # receipt has crossed the strict Phase 1 freshness window.
+    current_evaluations = (
+        live_state.get("evaluations", {})
+        if isinstance(live_state, dict) and captured_age <= 12.0 else {}
+    )
     story = build_home_guidance_story(
         full_payload, recovery_payload,
         watchlist_tickers=watchlist_tickers,
+        current_evaluations=current_evaluations,
         scan_timestamp=read_state().get("generated_at"),
     )
     from services.session_stability import emit_page_interactive
     def _home_guidance_interactive():
         emit_page_interactive(st, "Home")
     render_home_guidance_vnext(story, emit_interactive=_home_guidance_interactive)
+    # Optional Twelve Data work is intentionally after PAGE_INTERACTIVE. A
+    # completed result is consumed on the next rerun; the first shell never
+    # waits for live acquisition before becoming usable.
+    from services.live_market.twelve_data_phase1 import twelve_data_enabled
+    last_attempt = float(st.session_state.get("home_twelve_phase1_attempted_at") or 0.0)
+    attempt_due = dt.datetime.now(dt.timezone.utc).timestamp() - last_attempt > 12.0
+    if twelve_data_enabled() and attempt_due:
+        st.session_state["home_twelve_phase1_attempted_at"] = dt.datetime.now(dt.timezone.utc).timestamp()
+        from services.home_live_market_phase1 import acquire_home_phase1_evaluations
+        live_result = acquire_home_phase1_evaluations(full_payload)
+        st.session_state["home_twelve_phase1"] = live_result
+        if live_result.get("evaluations"):
+            st.rerun()
     st.markdown(
         '<span data-atlas-qa="page-ready" data-atlas-page="home" '
         'data-atlas-status="ready" aria-hidden="true" style="display:none">home-ready</span>',

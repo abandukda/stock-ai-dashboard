@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+import hashlib
 import math
 import os
 from typing import Any, Callable, Mapping, Sequence
@@ -52,6 +53,9 @@ def twelve_data_enabled(
     *, secrets: Mapping[str, Any] | None = None,
     environ: Mapping[str, str] | None = None,
 ) -> bool:
+    environment = environ if environ is not None else os.environ
+    if TWELVE_DATA_ENABLED_FLAG in environment:
+        return _truthy(environment.get(TWELVE_DATA_ENABLED_FLAG))
     return _truthy(load_twelve_data_setting(
         TWELVE_DATA_ENABLED_FLAG, secrets=secrets, environ=environ,
     ))
@@ -88,6 +92,11 @@ def _number(value: Any) -> float | None:
         return result if math.isfinite(result) else None
     except (TypeError, ValueError):
         return None
+
+
+def _evidence_id(*parts: Any) -> str:
+    identity = "|".join(str(part or "") for part in parts)
+    return "TD1-" + hashlib.sha256(identity.encode("utf-8")).hexdigest()[:20]
 
 
 def _aware(value: Any, *, local_zone: ZoneInfo = EASTERN) -> datetime | None:
@@ -162,6 +171,8 @@ def normalize_websocket_price(
         "stale": not available,
         "feed_health": "HEALTHY" if available else "DEGRADED",
         "timestamp_precision": "PROVIDER_MINUTE_GRANULAR_LOCAL_RECEIPT_REQUIRED",
+        "evidence_id": _evidence_id(symbol, "WEBSOCKET", provider_time, received, price),
+        "methodology_version": ADAPTER_VERSION,
         "reason_codes": tuple(reasons),
     }
 
@@ -271,6 +282,8 @@ def validate_time_series(
         "source_type": "TWELVE_DATA_TIME_SERIES_1MIN",
         "received_timestamp": received.isoformat() if received else None,
         "publication_policy_version": configured.publication_policy_version,
+        "evidence_id": _evidence_id(symbol, "TIME_SERIES_1MIN", received, len(completed)),
+        "methodology_version": ADAPTER_VERSION,
         "publication_safety_seconds": configured.completed_bar_publication_safety_seconds,
         "ordered_in_response": ordered_in_response,
         "duplicate_count": duplicate_count,
@@ -300,15 +313,32 @@ def build_phase1_bundle(
     now: datetime | None = None,
     policy: Phase1Policy | None = None,
 ) -> dict[str, Any]:
+    completed_bars = validate_time_series(
+        ticker, time_series_payload, received_timestamp=received_timestamp, now=now, policy=policy,
+    )
+    latest = completed_bars.get("latest_completed_bar") or {}
+    last_known_market = {
+        "status": "AVAILABLE" if latest else "DATA_UNAVAILABLE",
+        "price": latest.get("close"),
+        "provider": "TWELVE_DATA",
+        "provider_timestamp": latest.get("timestamp"),
+        "received_timestamp": completed_bars.get("received_timestamp"),
+        "market_session": latest.get("session"),
+        "source_type": "TWELVE_DATA_LATEST_COMPLETED_BAR",
+        "stale": True,
+        "feed_health": "HEALTHY" if completed_bars.get("status") == "AVAILABLE" else "DEGRADED",
+        "evidence_id": completed_bars.get("evidence_id"),
+        "methodology_version": ADAPTER_VERSION,
+        "reason_codes": tuple(completed_bars.get("reason_codes") or ()),
+    }
     return {
         "version": ADAPTER_VERSION,
         "ticker": normalize_ticker(ticker),
         "current_price": normalize_websocket_price(
             ticker, websocket_event, received_timestamp=received_timestamp, now=now, policy=policy,
         ),
-        "completed_bars": validate_time_series(
-            ticker, time_series_payload, received_timestamp=received_timestamp, now=now, policy=policy,
-        ),
+        "completed_bars": completed_bars,
+        "last_known_market": last_known_market,
         "intraday_volume": {
             "status": "DATA_UNAVAILABLE",
             "authority": False,
@@ -336,7 +366,10 @@ class TwelveDataPhase1Adapter:
     def fetch_time_series(self, ticker: str, *, outputsize: int = 120) -> Mapping[str, Any]:
         response = self._get(
             f"{REST_BASE}/time_series",
-            params={"symbol": normalize_ticker(ticker), "interval": "1min", "outputsize": int(outputsize)},
+            params={
+                "symbol": normalize_ticker(ticker), "interval": "1min",
+                "outputsize": int(outputsize), "prepost": "true", "adjust": "splits",
+            },
             headers={"Authorization": f"apikey {self._api_key}"}, timeout=12,
         )
         response.raise_for_status()

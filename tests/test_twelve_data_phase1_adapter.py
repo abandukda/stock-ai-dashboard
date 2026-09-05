@@ -79,6 +79,8 @@ def test_bundle_keeps_volume_and_breakout_confirmation_unavailable():
     assert bundle["intraday_volume"]["status"] == "DATA_UNAVAILABLE"
     assert bundle["breakout_volume_confirmation"]["status"] == "DATA_UNAVAILABLE"
     assert bundle["intraday_volume"]["authority"] is False
+    assert bundle["last_known_market"]["source_type"] == "TWELVE_DATA_LATEST_COMPLETED_BAR"
+    assert bundle["last_known_market"]["stale"] is True
 
 
 def _guidance(state="NEAR_BREAKOUT", *, extended=False):
@@ -170,6 +172,24 @@ def test_enabled_rest_adapter_calls_time_series_only_and_never_quote():
     assert calls[0][0].endswith("/time_series")
     assert "/quote" not in calls[0][0]
     assert "apikey" not in calls[0][0]
+    assert calls[0][1]["params"]["prepost"] == "true"
+    assert calls[0][1]["params"]["adjust"] == "splits"
+
+
+def test_zero_websocket_event_uses_completed_bar_as_explicit_last_known_not_current(monkeypatch):
+    monkeypatch.setenv("TWELVE_DATA_ENABLED", "true")
+    bundle = build_phase1_bundle(
+        "NVDA", websocket_event={}, time_series_payload=_bars("2026-09-04 10:50:00"),
+        received_timestamp=NOW, now=NOW, policy=POLICY,
+    )
+    result = evaluate_on_demand(
+        {"ticker": "NVDA", "price": 99}, twelve_data_phase1=bundle,
+    )
+    market = result["market_snapshot"]
+    assert market["price"] == 101
+    assert market["source_type"] == "TWELVE_DATA_LATEST_COMPLETED_BAR"
+    assert market["fresh_current_price"] is False
+    assert market["customer_label"] == "Latest completed regular-session bar"
 
 
 def test_on_demand_path_ignores_phase1_bundle_while_flag_is_off(monkeypatch):
