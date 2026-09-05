@@ -156,6 +156,18 @@ def acquire_home_phase1_evaluations(
                 "gap_metadata": tuple(bundle["completed_bars"].get("gap_metadata") or ()),
                 "evidence_id": bundle["completed_bars"].get("evidence_id"),
             }
+            daily_history = bundle.get("canonical_technical_history") or {}
+            evaluation["phase1_home_chart"] = {
+                "status": daily_history.get("status"),
+                "range": "3M",
+                "interval": daily_history.get("interval"),
+                "adjustment_mode": daily_history.get("adjustment_mode"),
+                "extended_hours_included": daily_history.get("extended_hours_included"),
+                "provider": daily_history.get("provider"),
+                "newest_completed_bar_timestamp": daily_history.get("newest_completed_bar_timestamp"),
+                "evidence_id": daily_history.get("evidence_id"),
+                "bars": tuple(daily_history.get("bars") or ())[-66:],
+            }
             evaluations[symbol] = evaluation
             diagnostics[symbol] = {
                 "current_price_status": bundle["current_price"]["status"],

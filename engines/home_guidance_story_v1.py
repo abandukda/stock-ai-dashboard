@@ -233,6 +233,7 @@ def build_home_guidance_candidate(
         },
         "latest_completed_bar": dict(completed_bar),
         "completed_bar_quality": dict(bar_quality),
+        "home_chart": dict(evaluation.get("phase1_home_chart") or {}),
         "last_known_price": price,
         "last_known_price_label": "Persisted / last-known price" if price is not None else "Persisted price unavailable",
         "technical_evidence": snapshot["technical"],
@@ -248,6 +249,13 @@ def build_home_guidance_candidate(
             "high_target": street.get("high"), "implied_upside": street_upside,
             "target_actions": tuple(row.get("phase1_target_actions") or ()),
         },
+        "recent_catalysts": tuple(
+            item for item in (row.get("recent_headlines") or row.get("news_evidence") or ())
+            if isinstance(item, Mapping) and (
+                item.get("commercial_display_allowed") is True
+                or str(item.get("commercial_status") or "").upper() in {"LICENSED", "DISPLAY_ALLOWED"}
+            )
+        ),
         "recovery": {
             "score": recovery.get("recovery_score"),
             "state": recovery.get("recovery_label") or recovery.get("recovery_state"),

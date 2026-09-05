@@ -1,6 +1,14 @@
 from services.atlas_view_summary import build_summary_payload, generate_summaries, validate_summary
 
 
+def test_summary_service_supports_streamlit_secret_key_without_changing_secrets():
+    import inspect
+    import services.atlas_view_summary as summary
+
+    source = inspect.getsource(summary._openai_key)
+    assert 'st.secrets.get("OPENAI_API_KEY", "")' in source
+
+
 def _card():
     return {
         "ticker": "NVDA", "company": "NVIDIA", "production_rank": 2, "scan_conviction": 97,
@@ -42,5 +50,6 @@ def test_unsourced_number_or_guidance_is_rejected_to_ticker_fallback():
 def test_missing_llm_uses_deterministic_ticker_specific_fallback():
     result = generate_summaries([build_summary_payload(_card())], llm=lambda _: None)[0]
     assert result["source"] == "DETERMINISTIC_FALLBACK"
-    assert "229.50" in result["text"]
-    assert "Recovery is 69" in result["text"]
+    assert "credible path to improve" in result["text"]
+    assert "Recovery Score of 69" in result["text"]
+    assert "WAIT FOR CONFIRMATION" in result["text"]

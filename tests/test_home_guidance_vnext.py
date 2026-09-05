@@ -174,10 +174,11 @@ render_home_guidance_vnext(build_home_guidance_story(rows, [{"ticker":"MU","reco
     assert "Technical Evidence:</b> RSI 55.0" in rendered
     assert "Volume State:</b> Unavailable" in rendered
     assert "Volume Evidence:</b> Relative volume 1.2×" in rendered
-    assert "What ATLAS sees" in rendered
-    assert "What ATLAS needs" in rendered
+    assert "ATLAS Investment View" in rendered
+    assert "What ATLAS sees" not in rendered
+    assert "What ATLAS needs" not in rendered
     assert 'data-atlas-qa="home-guidance-summary"' in rendered
-    assert rendered.index("home-guidance-quick-evidence") < rendered.index("home-guidance-research-cta")
+    assert rendered.index("home-decisive-reason") < rendered.index("home-guidance-research-cta")
     assert rendered.index("home-guidance-research-cta") < rendered.index("home-guidance-full-evidence")
     assert "Full Evidence" in "\n".join(str(item.label) for item in app.expander)
 
@@ -281,12 +282,13 @@ render_home_guidance_vnext(story, emit_interactive=lambda: st.markdown('<span da
     assert not app.exception
     rendered = "\n".join(str(item.value) for item in app.markdown)
     assert rendered.index('data-atlas-first="true"') < rendered.index('data-atlas-page-interactive="true"')
-    assert rendered.index('data-atlas-page-interactive="true"') < rendered.index('data-atlas-section="atlas-vs-wall-street"')
+    assert rendered.index('data-atlas-page-interactive="true"') < rendered.index('data-atlas-section="technical-opportunities"')
     assert rendered.count('data-atlas-page-interactive="true"') == 1
-    assert 'data-atlas-qa="home-guidance-quick-evidence"' in rendered
+    assert 'data-atlas-qa="home-guidance-quick-evidence"' not in rendered
     assert "Full Evidence" in "\n".join(str(item.label) for item in app.expander)
-    assert "Founder Guidance Preview" in rendered
-    assert "Snapshot Guidance — based on latest available ATLAS evidence" in "\n".join(str(item.value) for item in app.markdown) + "\n".join(str(item.value) for item in app.text)
+    assert "Founder Guidance Preview" not in rendered
+    assert "ATLAS Decision Dashboard" in rendered
+    assert "High-conviction setups, current stance, and the evidence that matters." in rendered
 
 
 def test_final_app_home_function_wires_vnext_without_v104_pipeline_authority():
@@ -325,7 +327,7 @@ def test_research_cta_uses_exact_ticker_handoff_contract():
     source = (ROOT / "ui" / "home_guidance_vnext.py").read_text(encoding="utf-8")
     assert "begin_research_entry" in source
     assert 'source="HOME_GUIDANCE_VNEXT"' in source
-    assert 'View Investment Case — {ticker}' in source
+    assert 'View Full Investment Case — {ticker}' in source
 
 
 def test_compact_card_css_preserves_three_and_four_column_strips():
@@ -386,8 +388,9 @@ def test_summary_card_omits_unavailable_secondary_metrics_until_full_evidence():
     assert '_metric("Decision Confidence"' not in summary
     assert "_atlas_score(card)" in summary
     assert 'data-atlas-score-source="SCAN_CONVICTION"' in (ROOT / "ui" / "home_guidance_vnext.py").read_text(encoding="utf-8")
-    assert "_key_numbers(card)" in summary
-    assert 'data-atlas-qa="home-evidence-status"' in summary
+    assert "_key_numbers(card)" not in summary
+    assert "_target_tiles(card)" in summary
+    assert 'data-atlas-qa="home-evidence-status"' not in summary
     assert '_metric("Atlas FV"' not in summary
     assert '_metric("Wall Street Target"' not in summary
     assert "_full_evidence(card)" in full
@@ -479,9 +482,10 @@ def test_atlas_score_precedes_guidance_and_canonical_values_keep_their_fields():
     tree = ast.parse(source)
     card_fn = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "_card")
     body = ast.get_source_segment(source, card_fn) or ""
-    assert body.index("_atlas_score(card)") < body.index("atlas-home-guidance-primary")
-    assert body.index("#### ATLAS View") < body.index("atlas-home-guidance-primary")
-    assert "_key_numbers(card)" in body
+    assert body.index("_atlas_score(card)") < body.index("_action_card(card)")
+    assert body.index("ATLAS Investment View") < body.index("_mini_chart(card)")
+    assert "_key_numbers(card)" not in body
+    assert "_decisive_reason(card)" in body
     assert '_metric("Atlas FV"' not in body
     assert '_metric("Wall Street Target"' not in body
     assert 'data-atlas-scan-conviction=' in body
@@ -512,7 +516,7 @@ def test_completed_after_hours_bar_is_last_known_and_never_labeled_live():
     assert "After Hours" in badge
     assert "Sep 4, 7:59 PM ET" in badge
     assert "2026-09-04T23:59:00+00:00" not in badge
-    assert "Current-price authority withheld" in badge
+    assert "Last known" in badge
     assert "LIVE MARKET EVIDENCE" not in badge
 
 
@@ -613,18 +617,45 @@ def test_bcrx_key_numbers_are_populated_only_and_authority_separation_is_explici
     assert "Persisted contextual relative volume is 0.08×" in _quick_known(card)
     badge = _market_evidence_badge(card)
     assert "LAST-KNOWN MARKET EVIDENCE" in badge
-    assert "Data quality: Degraded — regular-session gaps detected" in badge
+    assert "Limited bar continuity" in badge
     assert card["technical_state"] == "UNAVAILABLE"
     assert card["volume_state"] == "UNAVAILABLE"
 
 
-def test_mobile_customer_hierarchy_has_two_column_key_numbers_and_secondary_evidence_status():
+def test_mobile_customer_hierarchy_suppresses_diagnostic_matrix_and_evidence_status():
     source = (ROOT / "ui" / "home_guidance_vnext.py").read_text(encoding="utf-8")
     assert ".atlas-home-key-numbers{grid-template-columns:repeat(2,minmax(0,1fr))" in source
     assert ".atlas-home-evidence-status{display:inline-flex" in source
     card_body = source[source.index("def _card("):source.index("def _section_marker")]
-    assert card_body.index("#### ATLAS View") < card_body.index("atlas-home-guidance-primary")
-    assert card_body.index("atlas-home-guidance-primary") < card_body.index("home-evidence-status")
+    assert card_body.index("_action_card(card)") < card_body.index("ATLAS Investment View")
+    assert "home-evidence-status" not in card_body
+    assert "_key_numbers(card)" not in card_body
+    assert card_body.index("ATLAS Investment View") < card_body.index("_mini_chart(card)")
+
+
+def test_premium_decision_card_uses_governed_action_chart_and_separate_target_authorities():
+    from ui.home_guidance_vnext import _action_card, _mini_chart, _target_tiles
+
+    card = {
+        "guidance": "WAIT_FOR_CONFIRMATION", "guidance_status": "AVAILABLE",
+        "technical_state": "NEAR_BREAKOUT", "reason_codes": ("VOLUME_CONFIRMATION_UNAVAILABLE",),
+        "atlas_valuation_status": "PUBLISHED", "atlas_fair_value": 120,
+        "atlas_expected_return": 20, "wall_street": {"mean_target": 115, "implied_upside": 15},
+        "home_chart": {
+            "status": "AVAILABLE", "provider": "TWELVE_DATA", "range": "3M", "interval": "1day",
+            "adjustment_mode": "splits", "newest_completed_bar_timestamp": "2026-09-04T20:00:00+00:00",
+            "evidence_id": "TD-test", "bars": ({"close": 100}, {"close": 105}),
+        },
+    }
+    action = _action_card(card)
+    assert "WAIT FOR CONFIRMATION" in action and 'data-atlas-action-tone="waiting"' in action
+    pending = _action_card({**card, "guidance": "DATA_LIMITED"})
+    assert "DECISION PENDING" in pending and 'data-atlas-governed-guidance="DATA_LIMITED"' in pending
+    chart = _mini_chart(card)
+    assert "Near breakout" in chart and "Twelve Data" in chart and "split-adjusted daily bars" in chart
+    comparison = _target_tiles(card)
+    assert "$120.00" in comparison and "$115.00" in comparison
+    assert "does not determine ATLAS Guidance" in comparison
 
 
 def test_quick_evidence_is_four_items_and_trade_plan_stays_in_full_evidence():

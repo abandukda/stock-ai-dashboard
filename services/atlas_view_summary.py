@@ -17,6 +17,17 @@ TECHNICAL_STATES = {
 }
 
 
+def _openai_key() -> str:
+    key = os.getenv("OPENAI_API_KEY", "").strip()
+    if key:
+        return key
+    try:
+        import streamlit as st
+        return str(st.secrets.get("OPENAI_API_KEY", "")).strip()
+    except Exception:
+        return ""
+
+
 def build_summary_payload(card: Mapping[str, Any]) -> dict[str, Any]:
     persisted_technical = dict(card.get("technical_evidence") or {})
     canonical_technical = dict(card.get("canonical_technical_evidence") or {})
@@ -48,34 +59,52 @@ def build_summary_payload(card: Mapping[str, Any]) -> dict[str, Any]:
         "guidance": card.get("guidance"), "actionability": card.get("actionability"),
         "reason_codes": list(card.get("reason_codes") or ()),
         "allowed_change_conditions": list(card.get("what_changes_guidance") or ()),
+        "commercial_catalysts": [
+            {
+                "headline": item.get("title") or item.get("headline"),
+                "category": item.get("category"), "published_at": item.get("published_at"),
+            }
+            for item in (card.get("recent_catalysts") or ())[:2]
+            if isinstance(item, Mapping)
+        ],
     }
 
 
 def deterministic_summary(payload: Mapping[str, Any]) -> str:
     ticker = str(payload.get("ticker") or "This candidate")
-    rank, score = payload.get("production_rank"), payload.get("setup_score")
-    first = f"{ticker} ranks #{rank} with an ATLAS Setup Score of {float(score):g} / 100." if rank and score is not None else f"{ticker} has approved setup evidence."
     evidence = []
-    price = payload.get("price")
-    if price is not None:
-        evidence.append(f"{str(payload.get('price_label') or 'Price')} is ${float(price):,.2f}")
     state = str(payload.get("canonical_technical_state") or "UNAVAILABLE")
     if state != "UNAVAILABLE":
-        evidence.append(f"canonical Technical State is {state.replace('_', ' ')}")
+        evidence.append({
+            "SETUP_FORMING": "a technical setup that is still forming",
+            "NEAR_BREAKOUT": "a technical setup approaching breakout",
+            "BREAKOUT_CONFIRMED": "a confirmed technical breakout",
+            "EXTENDED": "an established but extended trend",
+            "FAILED_BREAKOUT": "a setup reassessing a failed breakout",
+            "NO_SETUP": "a still-unconfirmed technical structure",
+        }.get(state, f"the {state.replace('_', ' ').lower()} technical structure"))
     if payload.get("recovery_score") is not None:
-        evidence.append(f"Recovery is {float(payload['recovery_score']):g}")
-    second = ("; ".join(evidence[:3]) + ".") if evidence else "Canonical directional evidence remains limited."
+        evidence.append(f"a Recovery Score of {float(payload['recovery_score']):g}")
+    if payload.get("expected_return") is not None and str(payload.get("atlas_fv_status") or "").upper() == "PUBLISHED":
+        evidence.append(f"published ATLAS upside of {float(payload['expected_return']):g}%")
+    catalyst = next(iter(payload.get("commercial_catalysts") or ()), {})
+    if catalyst.get("headline"):
+        evidence.append(f"the recent {str(catalyst.get('category') or 'company event').replace('_', ' ').lower()}")
+    support = " and ".join(evidence[:2]) if evidence else "the approved evidence that currently supports the setup"
+    first = f"{ticker}'s potential rests on {support}, giving the setup a credible path to improve if confirmation follows."
     constraints = []
     if payload.get("contextual_rvol") is not None:
-        constraints.append(f"contextual RVOL is {float(payload['contextual_rvol']):g}×")
+        constraints.append(f"participation remains {float(payload['contextual_rvol']):g}× contextual volume")
     if str(payload.get("bar_quality") or "").upper() == "DEGRADED":
-        constraints.append("bar quality is degraded")
+        constraints.append("short-term bar continuity is limited")
     reasons = list(payload.get("reason_codes") or ())
     if reasons:
         constraints.append(str(reasons[0]).replace("_", " ").lower())
     guidance = str(payload.get("guidance") or "DATA_LIMITED").replace("_", " ")
-    lead = "; ".join(constraints[:2]) or "The remaining governed gates have not all cleared"
-    return f"{first} {second} {lead[:1].upper() + lead[1:]}, so ATLAS Guidance is {guidance}."
+    lead = " and ".join(constraints[:2]) or "the remaining confirmation gates have not cleared"
+    second = f"The main constraint is that {lead}."
+    third = f"ATLAS therefore remains at {guidance} until the evidence supports a stronger action."
+    return f"{first} {second} {third}"
 
 
 def _numbers(value: Any) -> list[float]:
@@ -119,15 +148,16 @@ def validate_summary(text: str, payload: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _default_llm(payloads: Sequence[Mapping[str, Any]]) -> Sequence[str] | None:
-    if not os.getenv("OPENAI_API_KEY", "").strip():
+    api_key = _openai_key()
+    if not api_key:
         return None
     try:
         from openai import OpenAI
-        completion = OpenAI(api_key=os.environ["OPENAI_API_KEY"]).chat.completions.create(
+        completion = OpenAI(api_key=api_key).chat.completions.create(
             model=os.getenv("ATLAS_LLM_MODEL", "gpt-4o-mini"), temperature=0.1, max_tokens=1200,
             response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": "Phrase each supplied ATLAS record as 2-4 concise analyst sentences. Use only supplied facts, preserve Guidance exactly, make no recommendation or prediction, and return JSON {\"summaries\":[...]} in input order."},
+                {"role": "system", "content": "Write a genuinely analytical 2-4 sentence ATLAS investment thesis for each supplied record. Explain the strongest credible source of potential, the most relevant catalyst or differentiating evidence, the decisive blocker or risk, and why the governed Guidance follows. Synthesize rather than list metrics. Use only supplied facts, preserve Guidance exactly, make no unsupported recommendation or prediction, and return JSON {\"summaries\":[...]} in input order."},
                 {"role": "user", "content": json.dumps(list(payloads), sort_keys=True, default=str)},
             ],
         )

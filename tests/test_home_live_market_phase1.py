@@ -92,6 +92,11 @@ def test_enabled_home_acquisition_uses_websocket_and_time_series_but_keeps_volum
     assert evaluation["phase1_bar_quality"]["evidence_id"].startswith("TD1-")
     assert evaluation["technical_confirmation"]["status"] == "AVAILABLE"
     assert evaluation["technical_confirmation"]["state"] in {"NO_SETUP", "SETUP_FORMING", "NEAR_BREAKOUT", "BREAKOUT_CONFIRMED", "EXTENDED", "FAILED_BREAKOUT"}
+    assert evaluation["phase1_home_chart"]["provider"] == "TWELVE_DATA"
+    assert evaluation["phase1_home_chart"]["range"] == "3M"
+    assert evaluation["phase1_home_chart"]["interval"] == "1day"
+    assert evaluation["phase1_home_chart"]["adjustment_mode"] == "splits"
+    assert len(evaluation["phase1_home_chart"]["bars"]) == 66
 
 
 def test_wrong_symbol_and_provider_failure_leave_home_fail_closed():
