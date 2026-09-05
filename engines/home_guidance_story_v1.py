@@ -42,6 +42,19 @@ HOME_FIELD_AUTHORITY = {
     "snapshot_evidence_health": "persisted Full Scan evidence-confidence label",
 }
 
+CUSTOMER_ACTION_PRESENTATION = {
+    "BUY_NOW": {"label": "BUY NOW", "stars": "★★★★★", "rating": 5.0, "tone": "buy"},
+    "ACCUMULATE": {"label": "BUILD A POSITION", "stars": "★★★★½", "rating": 4.5, "tone": "build"},
+    "WAIT_FOR_ENTRY": {"label": "WAIT FOR A BETTER ENTRY", "stars": "★★★★☆", "rating": 4.0, "tone": "wait"},
+    "WAIT_FOR_CONFIRMATION": {"label": "WAIT FOR CONFIRMATION", "stars": "★★★½☆", "rating": 3.5, "tone": "wait"},
+    "DATA_LIMITED": {"label": "WATCH — NOT READY YET", "stars": "★★½☆☆", "rating": 2.5, "tone": "watch"},
+    "AVOID": {"label": "AVOID", "stars": "★☆☆☆☆", "rating": 1.0, "tone": "avoid"},
+}
+
+
+def customer_action_presentation(guidance: Any) -> dict[str, Any]:
+    return dict(CUSTOMER_ACTION_PRESENTATION.get(str(guidance or "DATA_LIMITED").upper(), CUSTOMER_ACTION_PRESENTATION["DATA_LIMITED"]))
+
 
 def _rows(payload: Any) -> list[Mapping[str, Any]]:
     if isinstance(payload, list):
@@ -157,6 +170,10 @@ def build_home_guidance_candidate(
     fair_value = valuation.get("fair_value") if valuation_status == "PUBLISHED" else None
     expected_return = valuation.get("expected_return") if valuation_status == "PUBLISHED" and fair_value is not None else None
     street = analyst_consensus(row)
+    street_display_allowed = (
+        row.get("analyst_targets_commercial_display_allowed") is True
+        or str(row.get("analyst_commercial_status") or "").upper() in {"LICENSED", "DISPLAY_ALLOWED"}
+    )
     price = _first_number(row, "current_price", "price", "last_price")
     snapshot = _snapshot_evidence(row, price)
     street_upside = (
@@ -164,6 +181,7 @@ def build_home_guidance_candidate(
         if street.get("mean") is not None and price is not None and price > 0 else None
     )
     reasons = tuple(str(item) for item in guidance.get("reason_codes") or ())
+    customer_action = customer_action_presentation(guidance.get("state"))
     technical_state, technical_status = _technical_status(evaluation)
     volume = evaluation.get("volume_intelligence") if isinstance(evaluation.get("volume_intelligence"), Mapping) else {}
     risk = evaluation.get("risk") if isinstance(evaluation.get("risk"), Mapping) else {}
@@ -193,6 +211,7 @@ def build_home_guidance_candidate(
         "production_source_artifact": "market_full_scan.json",
         "snapshot_membership": "CURRENT_FULL_SCAN",
         "guidance": str(guidance.get("state") or "DATA_LIMITED"),
+        "customer_action": customer_action,
         "guidance_status": str(guidance.get("status") or "DATA_UNAVAILABLE"),
         "actionability": str(actionability.get("status") or guidance.get("actionability") or "UNAVAILABLE"),
         "opportunity": evaluation.get("opportunity"),
@@ -244,10 +263,14 @@ def build_home_guidance_candidate(
         "trade_plan": trade_plan,
         "entry_relationship": entry_relationship,
         "wall_street": {
-            "rating": row.get("recommendation_key"), "analyst_count": street.get("count"),
-            "mean_target": street.get("mean"), "low_target": street.get("low"),
-            "high_target": street.get("high"), "implied_upside": street_upside,
+            "rating": row.get("recommendation_key") if street_display_allowed else None,
+            "analyst_count": street.get("count") if street_display_allowed else None,
+            "mean_target": street.get("mean") if street_display_allowed else None,
+            "low_target": street.get("low") if street_display_allowed else None,
+            "high_target": street.get("high") if street_display_allowed else None,
+            "implied_upside": street_upside if street_display_allowed else None,
             "target_actions": tuple(row.get("phase1_target_actions") or ()),
+            "commercial_display_status": "DISPLAY_ALLOWED" if street_display_allowed else "COMMERCIAL_LICENSE_UNCONFIRMED",
         },
         "recent_catalysts": tuple(
             item for item in (row.get("recent_headlines") or row.get("news_evidence") or ())
@@ -346,6 +369,6 @@ def build_home_guidance_story(
 
 
 __all__ = [
-    "GUIDANCE_GROUPS", "HOME_FIELD_AUTHORITY", "HOME_GUIDANCE_STORY_VERSION",
-    "build_home_guidance_candidate", "build_home_guidance_story",
+    "CUSTOMER_ACTION_PRESENTATION", "GUIDANCE_GROUPS", "HOME_FIELD_AUTHORITY", "HOME_GUIDANCE_STORY_VERSION",
+    "build_home_guidance_candidate", "build_home_guidance_story", "customer_action_presentation",
 ]

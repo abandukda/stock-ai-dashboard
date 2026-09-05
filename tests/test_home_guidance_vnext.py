@@ -25,6 +25,7 @@ def row(ticker: str, conviction: float = 80, **extra):
         "stop_loss": 90, "target_1": 120, "analyst_target_mean": 115,
         "analyst_target_low": 90, "analyst_target_high": 140,
         "analyst_count": 12, "recommendation_key": "strong_buy",
+        "analyst_targets_commercial_display_allowed": True,
     }
     base.update(extra)
     return base
@@ -44,6 +45,30 @@ def canonical_evaluation(*, guidance="DATA_LIMITED", opportunity=None, confidenc
         "atlas_valuation": {"status": "PUBLISHED" if fv is not None else "REJECTED_EXTREME_UPSIDE", "fair_value": fv, "expected_return": expected},
         "trade_plan": {"entry_low": 95, "entry_high": 105, "stop": 90, "target_1": 120},
     }
+
+
+@pytest.mark.parametrize(("guidance", "label", "stars"), [
+    ("BUY_NOW", "BUY NOW", "★★★★★"),
+    ("ACCUMULATE", "BUILD A POSITION", "★★★★½"),
+    ("WAIT_FOR_ENTRY", "WAIT FOR A BETTER ENTRY", "★★★★☆"),
+    ("WAIT_FOR_CONFIRMATION", "WAIT FOR CONFIRMATION", "★★★½☆"),
+    ("DATA_LIMITED", "WATCH — NOT READY YET", "★★½☆☆"),
+    ("AVOID", "AVOID", "★☆☆☆☆"),
+])
+def test_canonical_guidance_maps_to_customer_action_without_mutating_guidance(guidance, label, stars):
+    card = build_home_guidance_candidate(row("MU"), production_rank=1, current_evaluation=canonical_evaluation(guidance=guidance))
+    assert card["guidance"] == guidance
+    assert card["customer_action"]["label"] == label
+    assert card["customer_action"]["stars"] == stars
+
+
+def test_wall_street_and_catalysts_fail_closed_without_commercial_display_rights():
+    source = row("MU", analyst_targets_commercial_display_allowed=False, analyst_target_mean=150)
+    source["recent_catalysts"] = [{"headline": "Material event", "evidence_id": "NEWS-1"}]
+    card = build_home_guidance_candidate(source, production_rank=1, current_evaluation=canonical_evaluation())
+    assert card["wall_street"]["mean_target"] is None
+    assert card["wall_street"]["commercial_display_status"] == "COMMERCIAL_LICENSE_UNCONFIRMED"
+    assert card["recent_catalysts"] == ()
 
 
 def test_artifact_order_is_immutable_production_rank_and_never_resorted():
@@ -282,7 +307,9 @@ render_home_guidance_vnext(story, emit_interactive=lambda: st.markdown('<span da
     assert not app.exception
     rendered = "\n".join(str(item.value) for item in app.markdown)
     assert rendered.index('data-atlas-first="true"') < rendered.index('data-atlas-page-interactive="true"')
-    assert rendered.index('data-atlas-page-interactive="true"') < rendered.index('data-atlas-section="technical-opportunities"')
+    assert 'data-atlas-section="technical-opportunities"' not in rendered
+    assert "Recovery Score" not in rendered
+    assert "Guidance Preview" not in rendered
     assert rendered.count('data-atlas-page-interactive="true"') == 1
     assert 'data-atlas-qa="home-guidance-quick-evidence"' not in rendered
     assert "Full Evidence" in "\n".join(str(item.label) for item in app.expander)
@@ -386,7 +413,8 @@ def test_summary_card_omits_unavailable_secondary_metrics_until_full_evidence():
     summary, full = body.split('with st.expander("Full Evidence"', 1)
     assert '_metric("Opportunity"' not in summary
     assert '_metric("Decision Confidence"' not in summary
-    assert "_atlas_score(card)" in summary
+    assert "_atlas_score(card)" not in summary
+    assert "_action_card(card)" in summary
     assert 'data-atlas-score-source="SCAN_CONVICTION"' in (ROOT / "ui" / "home_guidance_vnext.py").read_text(encoding="utf-8")
     assert "_key_numbers(card)" not in summary
     assert "_target_tiles(card)" in summary
@@ -421,9 +449,9 @@ def test_data_limited_summary_is_bounded_and_reason_grounded():
     )
     summary = _atlas_summary(card)
     assert summary.count(". ") <= 2
-    assert "Persisted price structure is above SMA20 / SMA50 / SMA200" in summary
-    assert "Persisted participation is 0.8×" in summary
-    assert summary.endswith("governed Guidance remains Data Limited.")
+    assert "developing technical opportunity" in summary
+    assert "watch — not ready yet" in summary.lower()
+    assert "Data Limited" not in summary
 
 
 @pytest.mark.parametrize(("value", "band", "tone", "stars"), [
@@ -477,13 +505,14 @@ def test_atlas_score_is_scan_conviction_alias_without_guidance_or_actionability_
     assert "12" not in rendered
 
 
-def test_atlas_score_precedes_guidance_and_canonical_values_keep_their_fields():
+def test_home_primary_uses_action_rating_and_keeps_setup_score_out_of_first_view():
     source = (ROOT / "ui" / "home_guidance_vnext.py").read_text(encoding="utf-8")
     tree = ast.parse(source)
     card_fn = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "_card")
     body = ast.get_source_segment(source, card_fn) or ""
-    assert body.index("_atlas_score(card)") < body.index("_action_card(card)")
-    assert body.index("ATLAS Investment View") < body.index("_mini_chart(card)")
+    assert "_atlas_score(card)" not in body
+    assert body.index("_action_card(card)") < body.index("Price Chart")
+    assert body.index("Price Outlook") < body.index("ATLAS Investment View")
     assert "_key_numbers(card)" not in body
     assert "_decisive_reason(card)" in body
     assert '_metric("Atlas FV"' not in body
@@ -499,9 +528,9 @@ def test_live_market_badge_never_calls_stale_or_missing_evidence_live():
     }})
     stale = _market_evidence_badge({"market_evidence": {"status": "STALE"}})
     missing = _market_evidence_badge({"market_evidence": {"status": "UNAVAILABLE"}})
-    assert "LIVE MARKET EVIDENCE" in live and "Updated 3.0 seconds ago" in live
-    assert "STALE MARKET EVIDENCE" in stale and "LIVE MARKET EVIDENCE" not in stale
-    assert "MARKET EVIDENCE UNAVAILABLE" in missing and "LIVE MARKET EVIDENCE" not in missing
+    assert ">LIVE<" in live and "Updated 3.0 seconds ago" in live
+    assert ">STALE<" in stale and ">LIVE<" not in stale
+    assert "PRICE UNAVAILABLE" in missing and ">LIVE<" not in missing
 
 
 def test_completed_after_hours_bar_is_last_known_and_never_labeled_live():
@@ -512,12 +541,12 @@ def test_completed_after_hours_bar_is_last_known_and_never_labeled_live():
         "provider_timestamp": "2026-09-04T23:59:00+00:00",
         "source_type": "TWELVE_DATA_LATEST_COMPLETED_BAR", "stale": True,
     }})
-    assert "LAST-KNOWN MARKET EVIDENCE" in badge
+    assert ">LAST KNOWN<" in badge
     assert "After Hours" in badge
     assert "Sep 4, 7:59 PM ET" in badge
     assert "2026-09-04T23:59:00+00:00" not in badge
     assert "Last known" in badge
-    assert "LIVE MARKET EVIDENCE" not in badge
+    assert ">LIVE<" not in badge
 
 
 def test_summary_leads_with_freshest_approved_last_known_bar_without_calling_it_live():
@@ -534,8 +563,8 @@ def test_summary_leads_with_freshest_approved_last_known_bar_without_calling_it_
         "reason_codes": ("CURRENT_MARKET_EVIDENCE_UNAVAILABLE", "TECHNICAL_STRUCTURE_UNAVAILABLE"),
     }
     summary = _atlas_summary(card)
-    assert summary.startswith("NVDA ranks #2 with an ATLAS Setup Score of 97 / 100.")
-    assert "Persisted price structure is above SMA20 / SMA50 / SMA200" in summary
+    assert summary.startswith("NVDA offers a developing technical opportunity")
+    assert "97" not in summary and "DATA_LIMITED" not in summary
     assert "live" not in summary.lower()
 
 
@@ -589,12 +618,11 @@ def test_bcrx_customer_hierarchy_is_grounded_and_keeps_governed_status():
     card = _bcrx_customer_card()
     assert card["guidance"] == "DATA_LIMITED"
     assert card["actionability"] == "UNAVAILABLE"
-    assert _atlas_summary(card) == (
-        "BCRX ranks #4 with an ATLAS Setup Score of 97 / 100. Latest completed after-hours bar $10.02 remains within the $9.83–$10.07 entry range; "
-        "Persisted price structure is above SMA20 / SMA50 / SMA200; Recovery Score is 69.0 — Recovery Watchlist. "
-        "Persisted participation is 0.08× and the current bar stream is degraded by regular-session gaps, so governed Guidance remains Data Limited."
-    )
-    assert _guidance_explanation(card) == "ATLAS lacks fresh exact-symbol current-price authority and canonical technical state."
+    summary = _atlas_summary(card)
+    assert summary.startswith("BCRX offers a developing technical opportunity")
+    assert "watch — not ready yet" in summary.lower()
+    assert "97" not in summary and "Data Limited" not in summary
+    assert _guidance_explanation(card) == "The opportunity is worth watching, but ATLAS needs fresher market evidence before recommending a position."
     assert _what_changes_call(card) == (
         "Guidance can advance only after fresh exact-symbol current-price authority and canonical technical state are available; "
         "remaining confirmation gates would then be evaluated normally."
@@ -616,8 +644,8 @@ def test_bcrx_key_numbers_are_populated_only_and_authority_separation_is_explici
     assert "Persisted price structure" in _quick_known(card)[1]
     assert "Persisted contextual relative volume is 0.08×" in _quick_known(card)
     badge = _market_evidence_badge(card)
-    assert "LAST-KNOWN MARKET EVIDENCE" in badge
-    assert "Limited bar continuity" in badge
+    assert ">LAST KNOWN<" in badge
+    assert "Limited bar continuity" not in badge
     assert card["technical_state"] == "UNAVAILABLE"
     assert card["volume_state"] == "UNAVAILABLE"
 
@@ -630,7 +658,7 @@ def test_mobile_customer_hierarchy_suppresses_diagnostic_matrix_and_evidence_sta
     assert card_body.index("_action_card(card)") < card_body.index("ATLAS Investment View")
     assert "home-evidence-status" not in card_body
     assert "_key_numbers(card)" not in card_body
-    assert card_body.index("ATLAS Investment View") < card_body.index("_mini_chart(card)")
+    assert card_body.index("Price Chart") < card_body.index("ATLAS Investment View")
 
 
 def test_premium_decision_card_uses_governed_action_chart_and_separate_target_authorities():
@@ -638,6 +666,7 @@ def test_premium_decision_card_uses_governed_action_chart_and_separate_target_au
 
     card = {
         "guidance": "WAIT_FOR_CONFIRMATION", "guidance_status": "AVAILABLE",
+        "customer_action": {"label": "WAIT FOR CONFIRMATION", "stars": "★★★½☆", "rating": 3.5, "tone": "wait"},
         "technical_state": "NEAR_BREAKOUT", "reason_codes": ("VOLUME_CONFIRMATION_UNAVAILABLE",),
         "atlas_valuation_status": "PUBLISHED", "atlas_fair_value": 120,
         "atlas_expected_return": 20, "wall_street": {"mean_target": 115, "implied_upside": 15},
@@ -648,14 +677,14 @@ def test_premium_decision_card_uses_governed_action_chart_and_separate_target_au
         },
     }
     action = _action_card(card)
-    assert "WAIT FOR CONFIRMATION" in action and 'data-atlas-action-tone="waiting"' in action
-    pending = _action_card({**card, "guidance": "DATA_LIMITED"})
-    assert "DECISION PENDING" in pending and 'data-atlas-governed-guidance="DATA_LIMITED"' in pending
+    assert "WAIT FOR CONFIRMATION" in action and 'data-atlas-action-tone="wait"' in action
+    pending = _action_card({**card, "guidance": "DATA_LIMITED", "customer_action": {"label": "WATCH — NOT READY YET", "stars": "★★½☆☆", "rating": 2.5, "tone": "watch"}})
+    assert "WATCH — NOT READY YET" in pending and "DATA_LIMITED" not in pending
     chart = _mini_chart(card)
     assert "Near breakout" in chart and "Twelve Data" in chart and "split-adjusted daily bars" in chart
     comparison = _target_tiles(card)
     assert "$120.00" in comparison and "$115.00" in comparison
-    assert "does not determine ATLAS Guidance" in comparison
+    assert "does not determine the ATLAS rating" in comparison
 
 
 def test_quick_evidence_is_four_items_and_trade_plan_stays_in_full_evidence():

@@ -29,11 +29,18 @@ def _card():
 
 def test_validated_llm_summary_accepts_only_structured_facts():
     payload = build_summary_payload(_card())
-    text = "NVDA ranks #2 with a 97 / 100 setup score and a NEAR BREAKOUT technical state. Contextual RVOL is 0.45×, so Guidance remains WAIT FOR CONFIRMATION."
+    text = "NVDA has a technical setup approaching breakout and remains near the preferred entry zone. Participation is still too weak for confirmation, so ATLAS rates it WAIT FOR CONFIRMATION."
     result = generate_summaries([payload], llm=lambda _: [text])[0]
     assert result["accepted"] is True
     assert result["source"] == "VALIDATED_LLM"
     assert result["text"] == text
+
+
+def test_raw_recovery_or_rvol_recitation_is_rejected():
+    payload = build_summary_payload(_card())
+    validation = validate_summary("NVDA has a Recovery Score of 69 and 0.45× contextual volume.", payload)
+    assert validation["valid"] is False
+    assert "RAW_DASHBOARD_METRIC_RECITATION" in validation["violations"]
 
 
 def test_unsourced_number_or_guidance_is_rejected_to_ticker_fallback():
@@ -51,5 +58,6 @@ def test_missing_llm_uses_deterministic_ticker_specific_fallback():
     result = generate_summaries([build_summary_payload(_card())], llm=lambda _: None)[0]
     assert result["source"] == "DETERMINISTIC_FALLBACK"
     assert "credible path to improve" in result["text"]
-    assert "Recovery Score of 69" in result["text"]
+    assert "Recovery Score" not in result["text"]
+    assert "0.45×" not in result["text"]
     assert "WAIT FOR CONFIRMATION" in result["text"]

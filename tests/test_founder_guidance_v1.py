@@ -263,7 +263,8 @@ app.render_detail({{"ticker": "MU", "research_context": report["research_context
     rendered = AppTest.from_string(source, default_timeout=30).run()
     assert not rendered.exception
     markdown = "\n".join(str(item.value) for item in rendered.markdown)
-    assert "ATLAS Guidance:" in markdown
+    assert "ATLAS Rating:" in markdown
+    assert "Data Limited" not in markdown
     assert "Actionability:" in markdown
     assert "Buy Now" in markdown
 

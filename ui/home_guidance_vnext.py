@@ -171,25 +171,18 @@ def _market_evidence_badge(card: Mapping[str, Any]) -> str:
     status = str(evidence.get("status") or "UNAVAILABLE").upper()
     if status == "LIVE":
         age = _score(evidence.get("freshness_age_seconds"), suffix=" seconds ago")
-        label, detail, tone = "LIVE MARKET EVIDENCE", f"Updated {age}", "live"
+        label, detail, tone = "LIVE", f"Updated {age}", "live"
     elif status in {"STALE", "LAST_KNOWN"}:
         session = str(evidence.get("market_session") or "UNKNOWN").replace("_", " ").title()
         timestamp = format_market_timestamp_et(evidence.get("provider_timestamp"))
-        label = "LAST-KNOWN MARKET EVIDENCE" if status == "LAST_KNOWN" else "STALE MARKET EVIDENCE"
+        label = "LAST KNOWN" if status == "LAST_KNOWN" else "STALE"
         detail, tone = f"{session} · {timestamp} · Last known", "stale"
     else:
-        label, detail, tone = "MARKET EVIDENCE UNAVAILABLE", "Persisted evidence shown where available", "unavailable"
-    quality = card.get("completed_bar_quality") if isinstance(card.get("completed_bar_quality"), Mapping) else {}
-    quality_status = str(quality.get("status") or "").upper()
-    quality_codes = tuple(str(code) for code in quality.get("reason_codes") or ())
-    quality_copy = ""
-    if quality_status == "DEGRADED":
-        detail_text = "Limited bar continuity" if "REGULAR_SESSION_GAPS_PRESENT" in quality_codes else "Chart continuity is limited"
-        quality_copy = f'<small>{html.escape(detail_text)}</small>'
+        label, detail, tone = "PRICE UNAVAILABLE", "Price context is not currently displayed", "unavailable"
     return (
         f'<div class="atlas-home-market-badge atlas-home-market-{tone}" data-atlas-market-status="{status}" '
         f'data-atlas-market-source="{html.escape(str(evidence.get("source_type") or "UNAVAILABLE"))}">'
-        f'<b>{label}</b><span>{html.escape(detail)}</span>{quality_copy}</div>'
+        f'<b>{label}</b><span>{html.escape(detail)}</span></div>'
     )
 def _full_evidence(card: Mapping[str, Any]) -> str:
     technical = card.get("technical_evidence") or {}
@@ -237,6 +230,7 @@ def _full_evidence(card: Mapping[str, Any]) -> str:
     return (
         '<div class="atlas-home-full-evidence" data-atlas-qa="home-guidance-full-evidence">'
         '<section><h4>Decision Evidence</h4><div class="atlas-home-full-metrics">'
+        + _metric("Setup Quality", _atlas_score_presentation(card.get("scan_conviction"))["display"])
         + _metric("Opportunity", _score(card.get("opportunity")))
         + _metric("Decision Confidence", _score(card.get("decision_confidence"), suffix="%"))
         + _metric("Evidence Health", _display(card.get("evidence_health")))
@@ -350,13 +344,19 @@ def _quick_needs(card: Mapping[str, Any]) -> tuple[str, ...]:
 
 
 def _guidance_explanation(card: Mapping[str, Any]) -> str:
-    needs = _quick_needs(card)
-    if not needs:
-        return "The governed Guidance state has no additional published blocker."
-    readable = [value[:1].lower() + value[1:] for value in needs]
-    if len(readable) == 1:
-        return f"ATLAS lacks {readable[0]}."
-    return "ATLAS lacks " + ", ".join(readable[:-1]) + f" and {readable[-1]}."
+    codes = tuple(str(code) for code in card.get("reason_codes") or ())
+    copy = {
+        "CURRENT_MARKET_EVIDENCE_UNAVAILABLE": "The opportunity is worth watching, but ATLAS needs fresher market evidence before recommending a position.",
+        "TECHNICAL_STRUCTURE_UNAVAILABLE": "The setup has not produced enough confirmed technical evidence for ATLAS to recommend an entry yet.",
+        "PRICE_EVIDENCE_UNAVAILABLE": "ATLAS is waiting for a reliable price observation before judging the entry.",
+        "BREAKOUT_VOLUME_NOT_CONFIRMED": "The price setup is constructive, but participation has not confirmed the move yet.",
+        "VOLUME_CONFIRMATION_UNAVAILABLE": "The setup still needs stronger participation before ATLAS can recommend an entry.",
+        "PRICE_ABOVE_ENTRY_RANGE": "The thesis remains constructive, but the current price is above ATLAS's preferred entry range.",
+        "TECHNICAL_STATE_EXTENDED": "Momentum is constructive, but the shares are extended and offer an unattractive entry today.",
+        "BASIC_FUNDAMENTALS_UNAVAILABLE": "ATLAS needs stronger business evidence before recommending capital.",
+        "RISK_EVIDENCE_UNAVAILABLE": "The downside case is not sufficiently defined for ATLAS to recommend a position.",
+    }
+    return next((copy[code] for code in codes if code in copy), "ATLAS is watching the setup, but the evidence is not strong enough for a position yet.")
 
 
 def _what_changes_call(card: Mapping[str, Any]) -> str:
@@ -374,22 +374,10 @@ def _atlas_summary(card: Mapping[str, Any]) -> str:
     if ai_view.get("text"):
         return str(ai_view["text"])
     ticker = str(card.get("ticker") or "This candidate")
-    rank = card.get("production_rank")
-    score = _atlas_score_presentation(card.get("scan_conviction"))
-    first = f"{ticker} ranks #{rank} with an ATLAS Setup Score of {score['display']}" if rank else f"{ticker} has an ATLAS Setup Score of {score['display']}"
-    observations = list(_atlas_observations(card))
-    constructive = observations[:3]
-    second = "; ".join(constructive) if constructive else "Approved setup evidence is limited"
-    risks = []
-    rvol = (card.get("volume_evidence") or {}).get("relative_volume")
-    if rvol is not None and float(rvol) < 1:
-        risks.append(f"persisted participation is {_ratio(rvol)}×")
-    quality = card.get("completed_bar_quality") or {}
-    if str(quality.get("status") or "").upper() == "DEGRADED":
-        risks.append("the current bar stream is degraded by regular-session gaps" if "REGULAR_SESSION_GAPS_PRESENT" in tuple(quality.get("reason_codes") or ()) else "the current bar stream is degraded")
-    guidance = _display(card.get("guidance"))
-    constraint = " and ".join(risks) if risks else _guidance_explanation(card).rstrip(".")
-    return f"{first}. {second}. {constraint[:1].upper() + constraint[1:]}, so governed Guidance remains {guidance}."
+    cue = _technical_cue(card).lower()
+    potential = "a developing technical opportunity" if cue == "technical cue not published" else cue
+    action = str((card.get("customer_action") or {}).get("label") or "WATCH — NOT READY YET").lower()
+    return f"{ticker} offers {potential} with room for the thesis to strengthen if confirmation follows. {_guidance_explanation(card)} That is why ATLAS currently rates it {action}."
 
 
 def _quick_evidence(card: Mapping[str, Any]) -> str:
@@ -442,12 +430,14 @@ def _action_tone(value: Any) -> str:
 
 def _action_card(card: Mapping[str, Any]) -> str:
     guidance = str(card.get("guidance") or "DATA_LIMITED")
-    tone = _action_tone(guidance)
-    action_label = "DECISION PENDING" if guidance.upper() == "DATA_LIMITED" else _display(guidance).upper()
+    action = card.get("customer_action") or {}
+    tone = str(action.get("tone") or _action_tone(guidance))
+    action_label = str(action.get("label") or "WATCH — NOT READY YET")
+    stars = str(action.get("stars") or "★★½☆☆")
     return (
         f'<div class="atlas-home-action atlas-home-action-{tone}" data-atlas-qa="home-action" '
-        f'data-atlas-action-tone="{tone}" data-atlas-governed-guidance="{html.escape(guidance.upper())}">'
-        f'<small>ATLAS ACTION</small><strong>{html.escape(action_label)}</strong>'
+        f'data-atlas-action-tone="{tone}" data-atlas-star-rating="{html.escape(str(action.get("rating") or 2.5))}">'
+        f'<small>ATLAS RATING</small><b class="atlas-home-action-stars">{html.escape(stars)}</b><strong>{html.escape(action_label)}</strong>'
         f'<span>{html.escape(_guidance_explanation(card))}</span></div>'
     )
 
@@ -456,10 +446,11 @@ def _target_tiles(card: Mapping[str, Any]) -> str:
     street = card.get("wall_street") or {}
     published = str(card.get("atlas_valuation_status") or "").upper() == "PUBLISHED"
     values = (
+        ("Current", _money(card.get("display_price")) if card.get("display_price") is not None else "Not Published", "current"),
         ("ATLAS Target", _money(card.get("atlas_fair_value")) if published else "Not Published", "atlas"),
         ("ATLAS Potential Upside", _score(card.get("atlas_expected_return"), suffix="%") if published and card.get("atlas_expected_return") is not None else "Not Published", "atlas"),
         ("Wall Street Avg Target", _money(street.get("mean_target")) if street.get("mean_target") is not None else "Not Published", "street"),
-        ("Wall Street Implied Upside", _score(street.get("implied_upside"), suffix="%") if street.get("implied_upside") is not None else "Not Published", "street"),
+        ("Street Upside", _score(street.get("implied_upside"), suffix="%") if street.get("implied_upside") is not None else "Not Published", "street"),
     )
     tiles = "".join(
         f'<span class="atlas-home-target atlas-home-target-{authority} {'atlas-home-target-muted' if value == "Not Published" else ''}">'
@@ -468,7 +459,7 @@ def _target_tiles(card: Mapping[str, Any]) -> str:
     )
     return (
         '<div class="atlas-home-comparison" data-atlas-qa="home-target-comparison">'
-        f'{tiles}<em>Wall Street is external context and does not determine ATLAS Guidance.</em></div>'
+        f'{tiles}<em>Wall Street is external context and does not determine the ATLAS rating.</em></div>'
     )
 
 
@@ -483,11 +474,14 @@ def _technical_cue(card: Mapping[str, Any]) -> str:
     return mapping.get(state, "Technical cue not published")
 
 
-def _mini_chart(card: Mapping[str, Any]) -> str:
+def _mini_chart(card: Mapping[str, Any], selected_range: str = "3M") -> str:
     contract = card.get("home_chart") if isinstance(card.get("home_chart"), Mapping) else {}
-    bars = [bar for bar in contract.get("bars") or () if isinstance(bar, Mapping) and bar.get("close") is not None]
+    all_bars = [bar for bar in contract.get("bars") or () if isinstance(bar, Mapping) and bar.get("close") is not None]
+    counts = {"1M": 23, "3M": 66, "1Y": 260}
+    selected_range = selected_range if selected_range in counts else "3M"
+    bars = all_bars[-counts[selected_range]:]
     if str(contract.get("status") or "").upper() != "AVAILABLE" or len(bars) < 2:
-        return '<div class="atlas-home-chart atlas-home-chart-empty"><b>3M price trend</b><span>Approved chart history not published</span></div>'
+        return ""
     closes = [float(bar["close"]) for bar in bars]
     low, high = min(closes), max(closes)
     span = high - low or 1.0
@@ -518,16 +512,16 @@ def _mini_chart(card: Mapping[str, Any]) -> str:
             'stroke="#48b883" stroke-width="2" stroke-dasharray="7 7"/>'
         )
     metadata = {
-        "provider": contract.get("provider"), "range": contract.get("range"),
+        "provider": contract.get("provider"), "range": selected_range,
         "interval": contract.get("interval"), "adjustment": contract.get("adjustment_mode"),
         "timestamp": contract.get("newest_completed_bar_timestamp"), "evidence_id": contract.get("evidence_id"),
     }
     return (
         '<div class="atlas-home-chart" data-atlas-qa="home-mini-chart" '
         f'data-atlas-chart-contract="{html.escape(json.dumps(metadata, sort_keys=True))}">'
-        '<div><b>3M price trend</b>'
+        f'<div><b>{html.escape(selected_range)} price trend</b>'
         f'<span class="atlas-home-tech-cue">{html.escape(_technical_cue(card))}</span></div>'
-        f'<svg viewBox="0 0 {width:g} {height:g}" role="img" aria-label="Approved Twelve Data 3 month closing price trend">'
+        f'<svg viewBox="0 0 {width:g} {height:g}" role="img" aria-label="Twelve Data {html.escape(selected_range)} closing price trend">'
         f'{chart_overlays}'
         f'<polyline fill="none" stroke="{stroke}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" points="{points}"/></svg>'
         f'<small>Twelve Data · split-adjusted daily bars · through {html.escape(format_market_timestamp_et(contract.get("newest_completed_bar_timestamp")))}'
@@ -540,13 +534,15 @@ def _why_it_could_win(card: Mapping[str, Any]) -> str:
     items: list[tuple[str, str]] = []
     recovery = card.get("recovery") or {}
     if recovery.get("score") is not None:
-        items.append(("↑", f"Recovery Score {_score(recovery.get('score'))}"))
+        items.append(("↑", "Trend recovery", "Shares are rebuilding after earlier weakness."))
     cue = _technical_cue(card)
     if cue != "Technical cue not published":
-        items.append(("↗", cue))
+        items.append(("↗", cue, "Price structure is moving toward a stronger technical setup."))
+    if str(card.get("entry_relationship") or "") == "WITHIN_ENTRY_RANGE":
+        items.append(("◎", "Attractive entry", "Price remains near ATLAS's preferred entry zone."))
     if str(card.get("atlas_valuation_status") or "").upper() == "PUBLISHED" and card.get("atlas_expected_return") is not None:
-        items.append(("$", f"ATLAS upside {_score(card.get('atlas_expected_return'), suffix='%')}"))
-    cells = "".join(f'<span><b>{icon}</b>{html.escape(copy)}</span>' for icon, copy in items[:3])
+        items.insert(0, ("$", "Valuation opportunity", "Published ATLAS valuation indicates meaningful potential upside."))
+    cells = "".join(f'<span><b>{icon}</b><i>{html.escape(title)}<small>{html.escape(copy)}</small></i></span>' for icon, title, copy in items[:3])
     return f'<div class="atlas-home-win" data-atlas-qa="home-why-win">{cells}</div>' if cells else ""
 
 
@@ -578,7 +574,10 @@ def _decisive_reason(card: Mapping[str, Any]) -> str:
     title = {
         "BUY_NOW": "Why Buy Now", "BUY": "Why Buy Now",
         "ACCUMULATE": "Why Build a Position", "BUILD_A_POSITION": "Why Build a Position",
-        "AVOID": "Key Risk",
+        "WAIT_FOR_ENTRY": "Why ATLAS Is Waiting for Price",
+        "WAIT_FOR_CONFIRMATION": "Why ATLAS Is Waiting",
+        "DATA_LIMITED": "Why It's Not Ready Yet",
+        "AVOID": "Why ATLAS Says Avoid",
     }.get(state, "Why ATLAS Is Waiting")
     return (
         '<div class="atlas-home-decisive" data-atlas-qa="home-decisive-reason">'
@@ -586,7 +585,7 @@ def _decisive_reason(card: Mapping[str, Any]) -> str:
     )
 
 
-def _card(card: Mapping[str, Any], *, key: str, first: bool = False) -> None:
+def _card(card: Mapping[str, Any], *, key: str, first: bool = False, total: int = 0) -> None:
     ticker = str(card.get("ticker") or "UNKNOWN")
     guidance = _display(card.get("guidance"))
     actionability = _display(card.get("actionability"))
@@ -604,28 +603,31 @@ def _card(card: Mapping[str, Any], *, key: str, first: bool = False) -> None:
     with st.container(border=True):
         st.markdown(
             '<div class="atlas-home-card-head">'
-            f'<span>PRODUCTION RANK #{card.get("production_rank")}</span>'
-            f'<div><h3>{html.escape(ticker)}</h3><p>{html.escape(str(card.get("company") or ticker))}</p></div>'
+            f'<span>#{card.get("production_rank")} OF {total or "—"}</span>'
+            f'<div><h3>{html.escape(ticker)} <i>— {html.escape(str(card.get("company") or ticker))}</i></h3></div>'
             f'<aside><strong>{html.escape(_money(card.get("display_price")))}</strong>'
             f'<small>{html.escape(str(card.get("display_price_label") or "Price unavailable"))}</small></aside>'
             '</div>', unsafe_allow_html=True,
         )
         st.markdown(_market_evidence_badge(card), unsafe_allow_html=True)
-        score_col, action_col = st.columns([1, 1.15])
-        with score_col:
-            st.markdown(_atlas_score(card), unsafe_allow_html=True)
-        with action_col:
-            st.markdown(_action_card(card), unsafe_allow_html=True)
+        st.markdown(_action_card(card), unsafe_allow_html=True)
+        chart_contract = card.get("home_chart") if isinstance(card.get("home_chart"), Mapping) else {}
+        if str(chart_contract.get("status") or "").upper() == "AVAILABLE" and len(chart_contract.get("bars") or ()) >= 2:
+            st.markdown('<h4 class="atlas-home-view-title">Price Chart</h4>', unsafe_allow_html=True)
+            selected_range = st.radio(
+                f"{ticker} chart range", ("1M", "3M", "1Y"), index=1, horizontal=True,
+                key=f"home_chart_range_{key}_{ticker}", label_visibility="collapsed",
+            )
+            chart_html = _mini_chart(card, selected_range)
+            if chart_html:
+                st.markdown(chart_html, unsafe_allow_html=True)
+        st.markdown('<h4 class="atlas-home-view-title">Price Outlook</h4>', unsafe_allow_html=True)
+        st.markdown(_target_tiles(card), unsafe_allow_html=True)
         st.markdown('<h4 class="atlas-home-view-title">ATLAS Investment View</h4>', unsafe_allow_html=True)
         st.markdown(
             f'<p class="atlas-home-guidance-summary" data-atlas-qa="home-guidance-summary">{html.escape(_atlas_summary(card))}</p>',
             unsafe_allow_html=True,
         )
-        visual_left, visual_right = st.columns([1.25, 1])
-        with visual_left:
-            st.markdown(_mini_chart(card), unsafe_allow_html=True)
-        with visual_right:
-            st.markdown(_target_tiles(card), unsafe_allow_html=True)
         win = _why_it_could_win(card)
         if win:
             st.markdown('<h4 class="atlas-home-subhead">Why It Could Win</h4>', unsafe_allow_html=True)
@@ -655,7 +657,7 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
         emit_interactive()
         return
     for index, card in enumerate(cards):
-        _card(card, key=f"top_ranked_{index}", first=index == 0)
+        _card(card, key=f"top_ranked_{index}", first=index == 0, total=int(story.get("candidate_count") or len(story.get("cards") or ())))
         if index == 0:
             emit_interactive()
 
@@ -685,8 +687,8 @@ def _inject_css() -> None:
     st.markdown("""<style>
     :root{--atlas-teal:#2fb7a4;--atlas-green:#48b883;--atlas-amber:#d7a542;--atlas-red:#d66b72;--atlas-blue:#5d91d6;--atlas-muted:#8b98aa;--atlas-panel:rgba(17,28,45,.72)}
     .atlas-home-guidance-hero{padding:.45rem 0 .7rem}.atlas-home-guidance-badge{display:inline-block;border:1px solid rgba(59,130,246,.5);border-radius:999px;padding:.25rem .6rem;font-size:.72rem;font-weight:800}
-    .atlas-home-card-head{display:grid;grid-template-columns:auto 1fr auto;align-items:end;gap:.35rem .75rem;margin:.06rem 0 .22rem}.atlas-home-card-head>span{grid-column:1/-1;font-size:.68rem;font-weight:800;letter-spacing:.13em;color:var(--atlas-blue)}.atlas-home-card-head h3{margin:0!important;padding:0!important;font-size:1.65rem!important;line-height:1!important;color:#f7fafc}.atlas-home-card-head p{margin:.15rem 0 0!important;font-size:.86rem;color:#aab5c5}.atlas-home-card-head aside{text-align:right}.atlas-home-card-head aside strong,.atlas-home-card-head aside small{display:block}.atlas-home-card-head aside strong{font-size:1.4rem;color:#f7fafc}.atlas-home-card-head aside small{font-size:.72rem;color:var(--atlas-muted)}
-    .atlas-home-action{min-height:108px;display:flex;flex-direction:column;justify-content:center;gap:.2rem;padding:.7rem .8rem;border-radius:14px;border:1px solid;background:var(--atlas-panel)}.atlas-home-action small{font-size:.68rem;font-weight:800;letter-spacing:.13em}.atlas-home-action strong{font-size:1.25rem;line-height:1.12}.atlas-home-action span{font-size:.78rem;line-height:1.35;color:#cbd5e1}.atlas-home-action-positive{border-color:rgba(47,183,164,.42);box-shadow:inset 4px 0 0 var(--atlas-teal);background:linear-gradient(125deg,rgba(47,183,164,.15),rgba(17,28,45,.62))}.atlas-home-action-positive small,.atlas-home-action-positive strong{color:#78d7c8}.atlas-home-action-waiting{border-color:rgba(215,165,66,.4);box-shadow:inset 4px 0 0 var(--atlas-amber);background:linear-gradient(125deg,rgba(215,165,66,.14),rgba(17,28,45,.62))}.atlas-home-action-waiting small,.atlas-home-action-waiting strong{color:#edc878}.atlas-home-action-negative{border-color:rgba(214,107,114,.45);box-shadow:inset 4px 0 0 var(--atlas-red);background:linear-gradient(125deg,rgba(214,107,114,.14),rgba(17,28,45,.62))}.atlas-home-action-negative small,.atlas-home-action-negative strong{color:#ee9da2}.atlas-home-action-neutral{border-color:rgba(93,145,214,.4);box-shadow:inset 4px 0 0 var(--atlas-blue)}
+    .atlas-home-card-head{display:grid;grid-template-columns:1fr auto;align-items:end;gap:.35rem .75rem;margin:.06rem 0 .22rem}.atlas-home-card-head>span{grid-column:1/-1;font-size:.72rem;font-weight:850;letter-spacing:.13em;color:var(--atlas-blue)}.atlas-home-card-head h3{margin:0!important;padding:0!important;font-size:1.5rem!important;line-height:1.15!important;color:#f7fafc}.atlas-home-card-head h3 i{font-size:.9rem;font-style:normal;font-weight:500;color:#aab5c5}.atlas-home-card-head aside{text-align:right}.atlas-home-card-head aside strong,.atlas-home-card-head aside small{display:block}.atlas-home-card-head aside strong{font-size:1.4rem;color:#f7fafc}.atlas-home-card-head aside small{font-size:.72rem;color:var(--atlas-muted)}
+    .atlas-home-action{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:.18rem .85rem;padding:.78rem .92rem;border-radius:14px;border:1px solid;background:var(--atlas-panel)}.atlas-home-action>small{grid-column:1/-1;font-size:.68rem;font-weight:800;letter-spacing:.13em}.atlas-home-action-stars{grid-row:2/4;font-size:1.65rem;line-height:1;letter-spacing:.02em;white-space:nowrap}.atlas-home-action strong{font-size:1.3rem;line-height:1.12}.atlas-home-action span{font-size:.8rem;line-height:1.35;color:#cbd5e1}.atlas-home-action-positive,.atlas-home-action-buy,.atlas-home-action-build{border-color:rgba(47,183,164,.42);box-shadow:inset 4px 0 0 var(--atlas-teal);background:linear-gradient(125deg,rgba(47,183,164,.15),rgba(17,28,45,.62));color:#78d7c8}.atlas-home-action-waiting,.atlas-home-action-wait,.atlas-home-action-watch{border-color:rgba(215,165,66,.4);box-shadow:inset 4px 0 0 var(--atlas-amber);background:linear-gradient(125deg,rgba(215,165,66,.14),rgba(17,28,45,.62));color:#edc878}.atlas-home-action-negative,.atlas-home-action-avoid{border-color:rgba(214,107,114,.45);box-shadow:inset 4px 0 0 var(--atlas-red);background:linear-gradient(125deg,rgba(214,107,114,.14),rgba(17,28,45,.62));color:#ee9da2}.atlas-home-action-neutral{border-color:rgba(93,145,214,.4);box-shadow:inset 4px 0 0 var(--atlas-blue)}
     .atlas-home-view-title,.atlas-home-subhead{margin:.32rem 0 .15rem!important;padding:0!important;font-size:.96rem!important;letter-spacing:.01em;color:#dce8f6}.atlas-home-guidance-summary{padding:.55rem .65rem;border-left:3px solid var(--atlas-blue);border-radius:0 9px 9px 0;background:rgba(36,61,92,.2)}
     .atlas-home-chart{min-height:220px;padding:.65rem .7rem;border-radius:13px;background:linear-gradient(145deg,rgba(16,29,47,.92),rgba(20,38,55,.55));border:1px solid rgba(93,145,214,.22)}.atlas-home-chart>div{display:flex;justify-content:space-between;align-items:center;gap:.5rem}.atlas-home-chart b{font-size:.82rem;color:#dce8f6}.atlas-home-chart svg{display:block;width:100%;height:148px;margin:.25rem 0}.atlas-home-chart small{display:block;font-size:.68rem;line-height:1.3;color:var(--atlas-muted)}.atlas-home-chart-empty{display:flex;flex-direction:column;justify-content:center;gap:.35rem;color:var(--atlas-muted)}.atlas-home-chart-empty span{font-size:.78rem}.atlas-home-tech-cue{display:inline-flex;padding:.18rem .48rem;border-radius:999px;background:rgba(47,183,164,.11);border:1px solid rgba(47,183,164,.32);font-size:.72rem;font-weight:700;color:#82d7cb;white-space:nowrap}
     .atlas-home-comparison{display:grid;grid-template-columns:1fr 1fr;gap:.3rem;min-height:220px}.atlas-home-target{display:flex;flex-direction:column;justify-content:center;min-width:0;padding:.55rem .58rem;border-radius:11px;background:rgba(15,26,43,.72);border:1px solid rgba(148,163,184,.16)}.atlas-home-target small,.atlas-home-target b{display:block}.atlas-home-target small{font-size:.68rem;line-height:1.25;color:#9aa7b9}.atlas-home-target b{margin-top:.18rem;font-size:1rem;color:#f1f5f9}.atlas-home-target-atlas{border-color:rgba(47,183,164,.28);background:rgba(22,82,75,.12)}.atlas-home-target-atlas b{color:#7bd5c7}.atlas-home-target-street{border-color:rgba(93,145,214,.25);background:rgba(34,74,123,.11)}.atlas-home-target-street b{color:#9fc2ed}.atlas-home-target-muted b{font-size:.8rem;font-weight:600;color:#8995a5}.atlas-home-comparison em{grid-column:1/-1;font-size:.66rem;line-height:1.3;font-style:normal;color:#778497}
@@ -721,6 +723,8 @@ def _inject_css() -> None:
     @media(max-width:480px){body:has([data-atlas-qa="home-guidance-vnext"]) h2{margin:.1rem 0!important;padding:.02rem 0!important}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stMainBlockContainer"]>[data-testid="stVerticalBlock"]{gap:.2rem!important}.atlas-home-snapshot-lines{grid-template-columns:1fr;gap:.14rem;margin:.08rem 0 .12rem}.atlas-home-snapshot-lines h4{font-size:.95rem;line-height:1.35}.atlas-home-snapshot-lines p{font-size:.825rem;line-height:1.4}.atlas-home-guidance-limited{grid-template-columns:1fr;padding:.3rem .36rem;gap:.22rem;margin:.08rem 0 .12rem}.atlas-home-guidance-limited>span+span{border-left:0;border-top:1px solid rgba(148,163,184,.18);padding-left:0;padding-top:.22rem}.atlas-home-guidance-limited b{font-size:.92rem}.atlas-home-guidance-limited small{font-size:.8125rem;line-height:1.4}.atlas-home-guidance-limited code{font-size:.75rem;line-height:1.35;overflow-wrap:anywhere}}
     @media(max-width:700px){.atlas-home-win{grid-template-columns:1fr}.atlas-home-catalysts{grid-template-columns:1fr}.atlas-home-chart,.atlas-home-comparison{min-height:unset}.atlas-home-chart svg{height:125px}}
     @media(max-width:480px){.atlas-home-card-head{grid-template-columns:1fr auto;align-items:end}.atlas-home-card-head>span{grid-column:1/-1}.atlas-home-card-head h3{font-size:1.35rem!important}.atlas-home-card-head aside strong{font-size:1.2rem}.atlas-home-guidance-identity{gap:.18rem .38rem;margin:.02rem 0 .1rem}.atlas-home-guidance-identity strong{font-size:1rem}.atlas-home-guidance-identity span{font-size:.74rem}.atlas-home-guidance-identity em{font-size:.72rem}.atlas-home-atlas-score{grid-template-columns:auto 1fr auto;gap:.1rem .42rem;padding:.55rem;margin:.03rem 0 .12rem;min-height:108px}.atlas-home-score-label{font-size:.7rem}.atlas-home-atlas-score strong{font-size:1.25rem}.atlas-home-score-stars{grid-row:2;grid-column:1/3;font-size:.88rem}.atlas-home-atlas-score b{grid-row:1;grid-column:3}.atlas-home-atlas-score small{grid-row:3;grid-column:1/-1;font-size:.76rem}.atlas-home-guidance-summary{font-size:.84rem;line-height:1.4;margin:.08rem 0 .12rem!important}.atlas-home-guidance-quick{grid-template-columns:1fr;gap:.28rem;margin:.06rem 0 .14rem}.atlas-home-guidance-quick section{padding:.36rem .46rem}.atlas-home-guidance-quick h4{font-size:.92rem}.atlas-home-guidance-quick li{font-size:.825rem;line-height:1.38}.atlas-home-key-numbers{grid-template-columns:repeat(2,minmax(0,1fr));gap:.12rem;padding:.18rem}.atlas-home-key-numbers .atlas-home-guidance-metric{padding:.18rem .22rem}.atlas-home-full-evidence section{padding:.58rem 0}.atlas-home-full-evidence h4{font-size:.95rem;margin-bottom:.32rem}.atlas-home-full-evidence p,.atlas-home-full-reasons li{font-size:.825rem;line-height:1.45}.atlas-home-full-metrics{grid-template-columns:1fr;gap:.18rem}.atlas-home-full-reasons{grid-template-columns:1fr;gap:.55rem}.atlas-home-trade-row{gap:.16rem .38rem;font-size:.84rem}.atlas-home-trade-row span+span::before{margin-right:.38rem}.atlas-home-comparison{grid-template-columns:1fr 1fr}.atlas-home-target{padding:.48rem}.atlas-home-target b{font-size:.92rem}}
+    .atlas-home-comparison{grid-template-columns:repeat(5,minmax(0,1fr));min-height:0}.atlas-home-win i{display:grid;gap:.12rem;font-style:normal;font-weight:700;color:#d9e3ef}.atlas-home-win i small{font-size:.72rem;line-height:1.3;font-weight:400;color:#96a4b6}
+    @media(max-width:700px){.atlas-home-comparison{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-home-comparison .atlas-home-target-current{grid-column:1/-1}.atlas-home-action{grid-template-columns:1fr}.atlas-home-action-stars{grid-row:auto;font-size:1.45rem}.atlas-home-action>small{grid-column:auto}.atlas-home-card-head h3 i{display:block;margin-top:.18rem}}
     </style>""", unsafe_allow_html=True)
 
 
@@ -745,53 +749,6 @@ def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=Non
     )
     st.markdown("## Top Ranked Setups")
     _render_groups(story, emit_interactive=emit_interactive)
-
-    _section_marker("technical-opportunities")
-    st.markdown("## Technical Opportunities")
-    technical = list(story.get("technical_cards") or ())
-    if not technical:
-        st.caption("Canonical technical state is unavailable for this snapshot. Raw indicators are not promoted into a technical state.")
-    else:
-        for card in technical[:5]:
-            st.write(f'**{card.get("ticker")}** · {_display(card.get("technical_state"))} · Volume {_display(card.get("volume_state"))}')
-
-    _section_marker("recovery-opportunities")
-    st.markdown("## Recovery Opportunities")
-    recovery = list(story.get("recovery_cards") or ())
-    if not recovery:
-        st.caption("No canonical Recovery evidence is available for current Home candidates.")
-    for card in recovery[:5]:
-        score = (card.get("recovery") or {}).get("score")
-        if card.get("snapshot_membership") == "CURRENT_RECOVERY_ONLY":
-            st.write(f'**{card.get("ticker")}** · Recovery candidate · Recovery Score {_score(score)}')
-            st.caption(f'Recovery snapshot: {_timestamp((card.get("recovery") or {}).get("snapshot_timestamp"))} · No current Full Scan Production Rank')
-        else:
-            st.write(f'**{card.get("ticker")}** · Recovery Score {_score(score)} · Guidance Preview {_display(card.get("guidance"))}')
-        _open_research(str(card.get("ticker")), f'home_recovery_{card.get("ticker")}')
-
-    _section_marker("what-changed")
-    st.markdown("## What Changed")
-    st.caption((story.get("what_changed") or {}).get("message"))
-
-    _section_marker("watchlist-follow-up")
-    st.markdown("## Watchlist / Follow-up")
-    watchlist = list(story.get("watchlist_cards") or ())
-    if not watchlist:
-        st.caption("No current watchlist names are present in the persisted Full Scan snapshot.")
-    for card in watchlist[:5]:
-        needed = next(iter(card.get("what_changes_guidance") or ()), "Canonical confirmation is required.")
-        st.write(f'**{card.get("ticker")}** · {_display(card.get("guidance"))} · {needed}')
-        _open_research(str(card.get("ticker")), f'home_watch_{card.get("ticker")}')
-
-    _section_marker("market-news-context")
-    st.markdown("## Market & News Context")
-    st.caption("Secondary context is available in Research and the dedicated market-intelligence pages. It does not determine Home Guidance.")
-
-    _section_marker("deeper-evidence")
-    st.markdown("## Deeper Evidence / Calendar")
-    with st.expander("Open methodology and provenance", expanded=False):
-        st.write("ATLAS uses governed investment evidence only. Snapshot presentation never promotes stale market data as live.")
-        st.caption(" · ".join(sorted(set(str(card.get("methodology_version") or "UNAVAILABLE") for card in story.get("cards") or ()))))
 
 
 __all__ = ["render_home_guidance_vnext"]

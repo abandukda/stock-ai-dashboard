@@ -57,6 +57,7 @@ def build_summary_payload(card: Mapping[str, Any]) -> dict[str, Any]:
         "bar_quality": (card.get("completed_bar_quality") or {}).get("status"),
         "fundamentals_status": card.get("fundamentals_status"), "risk_status": card.get("risk_status"),
         "guidance": card.get("guidance"), "actionability": card.get("actionability"),
+        "customer_action": (card.get("customer_action") or {}).get("label"),
         "reason_codes": list(card.get("reason_codes") or ()),
         "allowed_change_conditions": list(card.get("what_changes_guidance") or ()),
         "commercial_catalysts": [
@@ -83,24 +84,26 @@ def deterministic_summary(payload: Mapping[str, Any]) -> str:
             "FAILED_BREAKOUT": "a setup reassessing a failed breakout",
             "NO_SETUP": "a still-unconfirmed technical structure",
         }.get(state, f"the {state.replace('_', ' ').lower()} technical structure"))
-    if payload.get("recovery_score") is not None:
-        evidence.append(f"a Recovery Score of {float(payload['recovery_score']):g}")
     if payload.get("expected_return") is not None and str(payload.get("atlas_fv_status") or "").upper() == "PUBLISHED":
-        evidence.append(f"published ATLAS upside of {float(payload['expected_return']):g}%")
+        evidence.append("a published ATLAS valuation that indicates meaningful potential upside")
+    if str(payload.get("entry_relationship") or "").upper() == "WITHIN_ENTRY_RANGE":
+        evidence.append("a price still near ATLAS's preferred entry zone")
     catalyst = next(iter(payload.get("commercial_catalysts") or ()), {})
     if catalyst.get("headline"):
         evidence.append(f"the recent {str(catalyst.get('category') or 'company event').replace('_', ' ').lower()}")
     support = " and ".join(evidence[:2]) if evidence else "the approved evidence that currently supports the setup"
     first = f"{ticker}'s potential rests on {support}, giving the setup a credible path to improve if confirmation follows."
     constraints = []
-    if payload.get("contextual_rvol") is not None:
-        constraints.append(f"participation remains {float(payload['contextual_rvol']):g}× contextual volume")
+    if payload.get("contextual_rvol") is not None and float(payload["contextual_rvol"]) < 1:
+        constraints.append("market participation remains too weak for confirmation")
     if str(payload.get("bar_quality") or "").upper() == "DEGRADED":
         constraints.append("short-term bar continuity is limited")
     reasons = list(payload.get("reason_codes") or ())
-    if reasons:
-        constraints.append(str(reasons[0]).replace("_", " ").lower())
-    guidance = str(payload.get("guidance") or "DATA_LIMITED").replace("_", " ")
+    if "CURRENT_MARKET_EVIDENCE_UNAVAILABLE" in reasons:
+        constraints.append("the latest market evidence is not fresh enough for an entry decision")
+    elif reasons:
+        constraints.append("the remaining confirmation evidence has not cleared")
+    guidance = str(payload.get("customer_action") or payload.get("guidance") or "WATCH — NOT READY YET").replace("_", " ")
     lead = " and ".join(constraints[:2]) or "the remaining confirmation gates have not cleared"
     second = f"The main constraint is that {lead}."
     third = f"ATLAS therefore remains at {guidance} until the evidence supports a stronger action."
@@ -134,6 +137,10 @@ def validate_summary(text: str, payload: Mapping[str, Any]) -> dict[str, Any]:
     upper = re.sub(r"[^A-Z0-9]+", "_", copy.upper())
     mentioned_guidance = {state for state in GUIDANCE_STATES if state in upper}
     canonical_guidance = str(payload.get("guidance") or "DATA_LIMITED").upper()
+    if "DATA LIMITED" in copy.upper() or "DATA_LIMITED" in upper:
+        violations.append("INTERNAL_GUIDANCE_EXPOSED")
+    if "RECOVERY SCORE" in copy.upper() or re.search(r"\b\d+(?:\.\d+)?×\s+(?:CONTEXTUAL\s+)?VOLUME\b", copy, re.I):
+        violations.append("RAW_DASHBOARD_METRIC_RECITATION")
     if any(state != canonical_guidance for state in mentioned_guidance):
         violations.append("UNSUPPORTED_GUIDANCE")
     mentioned_technical = {state for state in TECHNICAL_STATES if state in upper}
@@ -157,7 +164,7 @@ def _default_llm(payloads: Sequence[Mapping[str, Any]]) -> Sequence[str] | None:
             model=os.getenv("ATLAS_LLM_MODEL", "gpt-4o-mini"), temperature=0.1, max_tokens=1200,
             response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": "Write a genuinely analytical 2-4 sentence ATLAS investment thesis for each supplied record. Explain the strongest credible source of potential, the most relevant catalyst or differentiating evidence, the decisive blocker or risk, and why the governed Guidance follows. Synthesize rather than list metrics. Use only supplied facts, preserve Guidance exactly, make no unsupported recommendation or prediction, and return JSON {\"summaries\":[...]} in input order."},
+                {"role": "system", "content": "Write a genuinely analytical 2-4 sentence ATLAS investment thesis for each supplied record. Explain the strongest credible source of potential, the most relevant catalyst or differentiating evidence, the decisive blocker or risk, and why customer_action follows. Synthesize rather than list dashboard metrics; never name Recovery Score or quote contextual RVOL. Use only supplied facts, use customer_action verbatim when naming the stance, never expose internal guidance or reason codes, make no unsupported recommendation or prediction, and return JSON {\"summaries\":[...]} in input order."},
                 {"role": "user", "content": json.dumps(list(payloads), sort_keys=True, default=str)},
             ],
         )

@@ -371,6 +371,7 @@ def _metric_currency_range(low: Any, high: Any) -> str:
 
 
 def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None:
+    from engines.home_guidance_story_v1 import customer_action_presentation
     ticker = str(report.get("ticker") or "UNKNOWN")
     _section_marker("Decision", ticker)
     header = view["header"]
@@ -378,6 +379,7 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
     st.markdown("## Decision")
     current = safe_mapping(view.get("current_evaluation"))
     current_guidance = safe_mapping(current.get("guidance"))
+    customer_action = customer_action_presentation(current_guidance.get("state"))
     market = safe_mapping(report.get("canonical_market_snapshot"))
     setup = st.columns(4)
     setup[0].metric("Production Rank", f"#{int(report['production_rank'])}" if report.get("production_rank") else "Unavailable")
@@ -398,12 +400,9 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
     if current_guidance:
         actionability = _scalar_text(safe_mapping(current.get("actionability")).get("status"), "UNAVAILABLE")
         st.markdown(
-            f"**ATLAS Guidance:** {_display_status(_scalar_text(current_guidance.get('state'), 'DATA_LIMITED'))}  "
+            f"**ATLAS Rating:** {customer_action['stars']} {customer_action['label']}  "
             f"· **Actionability:** {_display_status(actionability)}"
         )
-        reasons = safe_sequence(current_guidance.get("reason_codes"))
-        if reasons:
-            st.caption("Deterministic reasons: " + " · ".join(_display_status(str(item)) for item in reasons))
     st.markdown(f"### {header.actionability_label}")
     _block_marker("decision-why", ticker)
     st.markdown("#### Why")
@@ -422,7 +421,7 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
     with st.container(key=f"vnext_decision_action_{ticker}"):
         if current_guidance:
             st.info(
-                f"{_display_status(_scalar_text(current_guidance.get('state'), 'DATA_LIMITED'))} — "
+                f"{customer_action['label']} — "
                 f"{_display_status(_scalar_text(safe_mapping(current.get('actionability')).get('status'), 'UNAVAILABLE'))}."
             )
         elif decision.get("semantic_status") == "DATA_UNAVAILABLE" or is_missing_scalar(decision.get("recommendation")):

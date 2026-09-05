@@ -159,14 +159,14 @@ def acquire_home_phase1_evaluations(
             daily_history = bundle.get("canonical_technical_history") or {}
             evaluation["phase1_home_chart"] = {
                 "status": daily_history.get("status"),
-                "range": "3M",
+                "ranges": ("1M", "3M", "1Y"),
                 "interval": daily_history.get("interval"),
                 "adjustment_mode": daily_history.get("adjustment_mode"),
                 "extended_hours_included": daily_history.get("extended_hours_included"),
                 "provider": daily_history.get("provider"),
                 "newest_completed_bar_timestamp": daily_history.get("newest_completed_bar_timestamp"),
                 "evidence_id": daily_history.get("evidence_id"),
-                "bars": tuple(daily_history.get("bars") or ())[-66:],
+                "bars": tuple(daily_history.get("bars") or ())[-260:],
             }
             evaluations[symbol] = evaluation
             diagnostics[symbol] = {
