@@ -274,6 +274,13 @@ def build_home_guidance_candidate(
         "actionability": str(actionability.get("status") or guidance.get("actionability") or "UNAVAILABLE"),
         "opportunity": evaluation.get("opportunity"),
         "decision_confidence": evaluation.get("decision_confidence"),
+        "component_coverage": evaluation.get("component_coverage"),
+        "six_pillars": {
+            key: dict(evaluation.get(key) or {}) for key in (
+                "technical_quality", "fundamental_quality", "valuation_quality",
+                "risk_quality", "entry_quality", "volume_quality",
+            )
+        },
         "scan_conviction": number(row.get("conviction") if row.get("conviction") is not None else row.get("conviction_score")),
         "atlas_fair_value": fair_value,
         "atlas_valuation_status": valuation_status,

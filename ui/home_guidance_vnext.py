@@ -352,6 +352,8 @@ def _quick_needs(card: Mapping[str, Any]) -> tuple[str, ...]:
 def _guidance_explanation(card: Mapping[str, Any]) -> str:
     codes = tuple(str(code) for code in card.get("reason_codes") or ())
     copy = {
+        "ALL_BUY_NOW_GATES_PASSED": "All governed Buy Now gates are satisfied, including confirmed participation and a valid trade plan.",
+        "ALL_ACCUMULATE_GATES_PASSED": "The governed evidence supports beginning with a partial position and adding only as the thesis confirms.",
         "CURRENT_MARKET_EVIDENCE_UNAVAILABLE": "The opportunity is worth watching, but ATLAS needs fresher market evidence before recommending a position.",
         "TECHNICAL_STRUCTURE_UNAVAILABLE": "The setup has not produced enough confirmed technical evidence for ATLAS to recommend an entry yet.",
         "PRICE_EVIDENCE_UNAVAILABLE": "ATLAS is waiting for a reliable price observation before judging the entry.",
@@ -471,10 +473,42 @@ def _target_tiles(card: Mapping[str, Any]) -> str:
         f'<small>{html.escape(label)}</small><b>{html.escape(value)}</b></span>'
         for label, value, authority in values
     )
+    atlas, street_target = card.get("atlas_fair_value"), street.get("mean_target")
+    divergence = ""
+    if published and atlas is not None and street_target not in (None, 0):
+        gap = ((float(atlas) / float(street_target)) - 1.0) * 100.0
+        label = "ATLAS MORE BULLISH" if gap > 15 else "STREET MORE BULLISH" if gap < -15 else "ATLAS + STREET ALIGNED"
+        divergence = (
+            f'<strong class="atlas-home-divergence" data-atlas-target-gap="{gap:.2f}">{label} · '
+            f'{html.escape(_money(atlas))} vs Street {html.escape(_money(street_target))}</strong>'
+        )
     return (
         '<div class="atlas-home-comparison" data-atlas-qa="home-target-comparison">'
-        f'{tiles}<em>Wall Street is external context and does not determine the ATLAS rating.</em></div>'
+        f'{tiles}{divergence}<em>Wall Street is external context and does not determine the ATLAS rating.</em></div>'
     )
+
+
+def _pillar_band(value: Any, status: Any) -> str:
+    if str(status or "").upper() not in {"AVAILABLE", "PARTIAL"} or value is None:
+        return "Unavailable"
+    score = float(value)
+    return "Strong" if score >= 80 else "Good" if score >= 65 else "Moderate" if score >= 50 else "Weak"
+
+
+def _six_pillar_summary(card: Mapping[str, Any]) -> str:
+    pillars = card.get("six_pillars") if isinstance(card.get("six_pillars"), Mapping) else {}
+    labels = (
+        ("Technical", "technical_quality"), ("Fundamentals", "fundamental_quality"),
+        ("Valuation", "valuation_quality"), ("Risk", "risk_quality"),
+        ("Entry", "entry_quality"), ("Volume", "volume_quality"),
+    )
+    cells = []
+    for label, key in labels:
+        item = pillars.get(key) if isinstance(pillars.get(key), Mapping) else {}
+        band = _pillar_band(item.get("score"), item.get("status"))
+        tone = band.lower()
+        cells.append(f'<span class="atlas-home-pillar atlas-home-pillar-{tone}"><small>{label}</small><b>{band}</b></span>')
+    return '<div class="atlas-home-pillars" data-atlas-qa="home-six-pillars">' + "".join(cells) + '</div>'
 
 
 def _technical_cue(card: Mapping[str, Any]) -> str:
@@ -510,6 +544,8 @@ def _mini_chart(card: Mapping[str, Any], selected_range: str = "1Y") -> str:
     trade = card.get("trade_plan") or {}
     entry_low, entry_high = trade.get("entry_low"), trade.get("entry_high")
     chart_overlays = ""
+    right_labels: list[tuple[float, str, str, int]] = []
+    level_legend: list[tuple[str, str, str]] = []
     for tick in range(4):
         tick_value = low + span * tick / 3
         tick_y = height - ((tick_value - low) / span * (height - 18) + 9)
@@ -519,7 +555,7 @@ def _mini_chart(card: Mapping[str, Any], selected_range: str = "1Y") -> str:
             f'<text x="2" y="{max(9, tick_y+3):.1f}" fill="#7f8da1" font-size="9">{html.escape(_money(tick_value))}</text>'
         )
     technical = card.get("technical_evidence") or {}
-    def add_level(value: Any, label: str, color: str, dash: str = "5 5") -> None:
+    def add_level(value: Any, label: str, color: str, dash: str = "5 5", priority: int = 9) -> None:
         nonlocal chart_overlays
         if value is None or not low <= float(value) <= high:
             return
@@ -527,12 +563,12 @@ def _mini_chart(card: Mapping[str, Any], selected_range: str = "1Y") -> str:
         chart_overlays += (
             f'<line x1="{plot_left:g}" x2="{plot_right:g}" y1="{y:.1f}" y2="{y:.1f}" stroke="{color}" '
             f'stroke-width="1.2" stroke-dasharray="{dash}" opacity=".72"/>'
-            f'<text x="{width-5:g}" y="{max(10, y-3):.1f}" text-anchor="end" fill="{color}" font-size="9">{html.escape(label)}</text>'
         )
-    add_level(technical.get("sma50"), "SMA50", "#b58be8")
-    add_level(technical.get("sma200"), "SMA200", "#72a7e8")
-    add_level(technical.get("support"), "Support", "#48b883", "3 5")
-    add_level(technical.get("resistance"), "Resistance", "#d7a542", "3 5")
+        level_legend.append((label, _money(value), color))
+    add_level(technical.get("sma50"), "SMA50", "#b58be8", priority=6)
+    add_level(technical.get("sma200"), "SMA200", "#72a7e8", priority=7)
+    add_level(technical.get("support"), "Support", "#48b883", "3 5", 5)
+    add_level(technical.get("resistance"), "Resistance", "#d7a542", "3 5", 4)
     if entry_low is not None and entry_high is not None:
         zone_low, zone_high = float(entry_low), float(entry_high)
         if zone_high >= low and zone_low <= high:
@@ -550,16 +586,30 @@ def _mini_chart(card: Mapping[str, Any], selected_range: str = "1Y") -> str:
             chart_overlays += (
                 f'<line x1="{plot_left:g}" x2="{plot_right:g}" y1="{target_y:.1f}" y2="{target_y:.1f}" '
                 'stroke="#48b883" stroke-width="1.6" stroke-dasharray="7 7"/>'
-                f'<text x="{plot_right-5:g}" y="{max(10, target_y+10):.1f}" text-anchor="end" fill="#78d7c8" font-size="9">ATLAS Target {_money(target)}</text>'
             )
+            right_labels.append((target_y, f"ATLAS Target {_money(target)}", "#78d7c8", 2))
         else:
             direction = "↑" if float(target) > high else "↓"
-            off_chart_target = f'<div class="atlas-home-offchart-target">{direction} ATLAS Target {_money(target)} · off chart</div>'
+            upside = card.get("atlas_expected_return")
+            suffix = f' · {_score(upside, suffix="%")}' if upside is not None else ""
+            off_chart_target = f'<div class="atlas-home-offchart-target">{direction} ATLAS Target {_money(target)}{suffix}</div>'
     current_y = height - ((closes[-1] - low) / span * (height - 18) + 9)
     chart_overlays += (
         f'<circle cx="{plot_right:g}" cy="{current_y:.1f}" r="4" fill="{stroke}"/>'
-        f'<text x="{plot_right-5:g}" y="{max(10, current_y-7):.1f}" text-anchor="end" fill="#e2e8f0" font-size="9">Current {_money(closes[-1])}</text>'
     )
+    right_labels.append((current_y, f"Current {_money(closes[-1])}", "#e2e8f0", 1))
+    placed: list[float] = []
+    for raw_y, label, color, _priority in sorted(right_labels, key=lambda item: item[3]):
+        label_y = min(max(raw_y, 10.0), height - 5.0)
+        while any(abs(label_y - used) < 12 for used in placed) and label_y < height - 6:
+            label_y += 12
+        if any(abs(label_y - used) < 12 for used in placed):
+            label_y = max(10.0, min(placed) - 12)
+        placed.append(label_y)
+        chart_overlays += (
+            f'<line x1="{plot_right-22:g}" y1="{raw_y:.1f}" x2="{plot_right-18:g}" y2="{label_y:.1f}" stroke="{color}" opacity=".7"/>'
+            f'<text x="{plot_right-5:g}" y="{label_y:.1f}" text-anchor="end" fill="{color}" font-size="9">{html.escape(label)}</text>'
+        )
     def date_label(bar: Mapping[str, Any]) -> str:
         raw = bar.get("datetime") or bar.get("timestamp") or bar.get("date")
         try:
@@ -573,6 +623,10 @@ def _mini_chart(card: Mapping[str, Any], selected_range: str = "1Y") -> str:
         "interval": contract.get("interval"), "adjustment": contract.get("adjustment_mode"),
         "timestamp": contract.get("newest_completed_bar_timestamp"), "evidence_id": contract.get("evidence_id"),
     }
+    legend = "".join(
+        f'<span style="--atlas-level:{color}"><i></i>{html.escape(label)} <b>{html.escape(value)}</b></span>'
+        for label, value, color in level_legend
+    )
     return (
         '<div class="atlas-home-chart" data-atlas-qa="home-mini-chart" '
         f'data-atlas-chart-contract="{html.escape(json.dumps(metadata, sort_keys=True))}">'
@@ -581,6 +635,7 @@ def _mini_chart(card: Mapping[str, Any], selected_range: str = "1Y") -> str:
         f'<svg viewBox="0 0 {width:g} {height:g}" role="img" aria-label="Twelve Data {html.escape(selected_range)} closing price trend">'
         f'{chart_overlays}'
         f'<polyline fill="none" stroke="{stroke}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" points="{points}"/></svg>'
+        f'<div class="atlas-home-chart-legend">{legend}</div>'
         f'{off_chart_target}'
         f'<div class="atlas-home-chart-dates"><span>{html.escape(start_label)}</span><span>{html.escape(end_label)}</span></div>'
         f'<small>Twelve Data · split-adjusted daily bars · through {html.escape(format_market_timestamp_et(contract.get("newest_completed_bar_timestamp")))}'
@@ -727,6 +782,8 @@ def _card(card: Mapping[str, Any], *, key: str, first: bool = False, total: int 
             f'<p class="atlas-home-guidance-summary" data-atlas-qa="home-guidance-summary">{html.escape(_atlas_summary(card))}</p>',
             unsafe_allow_html=True,
         )
+        st.markdown('<h4 class="atlas-home-view-title">Six-Pillar Decision Evidence</h4>', unsafe_allow_html=True)
+        st.markdown(_six_pillar_summary(card), unsafe_allow_html=True)
         win = _why_it_could_win(card)
         if win:
             st.markdown('<h4 class="atlas-home-subhead">Why It Could Win</h4>', unsafe_allow_html=True)
@@ -828,7 +885,10 @@ def _inject_css() -> None:
     .atlas-home-view-title,.atlas-home-subhead{margin:.32rem 0 .15rem!important;padding:0!important;font-size:.96rem!important;letter-spacing:.01em;color:#dce8f6}.atlas-home-guidance-summary{padding:.55rem .65rem;border-left:3px solid var(--atlas-blue);border-radius:0 9px 9px 0;background:rgba(36,61,92,.2)}
     .atlas-home-chart{min-height:220px;padding:.65rem .7rem;border-radius:13px;background:linear-gradient(145deg,rgba(16,29,47,.92),rgba(20,38,55,.55));border:1px solid rgba(93,145,214,.22)}.atlas-home-chart>div{display:flex;justify-content:space-between;align-items:center;gap:.5rem}.atlas-home-chart b{font-size:.82rem;color:#dce8f6}.atlas-home-chart svg{display:block;width:100%;height:148px;margin:.25rem 0}.atlas-home-chart small{display:block;font-size:.68rem;line-height:1.3;color:var(--atlas-muted)}.atlas-home-chart-empty{display:flex;flex-direction:column;justify-content:center;gap:.35rem;color:var(--atlas-muted)}.atlas-home-chart-empty span{font-size:.78rem}.atlas-home-tech-cue{display:inline-flex;padding:.18rem .48rem;border-radius:999px;background:rgba(47,183,164,.11);border:1px solid rgba(47,183,164,.32);font-size:.72rem;font-weight:700;color:#82d7cb;white-space:nowrap}
     .atlas-home-chart-dates{display:flex!important;justify-content:space-between!important;margin-left:44px;color:#718096;font-size:.64rem}.atlas-home-offchart-target{justify-content:flex-end!important;margin:-.05rem 0 .18rem!important;color:#78d7c8;font-size:.68rem;font-weight:750}.atlas-home-quality-warning{color:#94a3b8;font-style:normal;cursor:help}
+    .atlas-home-chart-legend{display:flex!important;justify-content:flex-start!important;flex-wrap:wrap;gap:.25rem .65rem;margin:.05rem 0 .15rem;font-size:.66rem;color:#9aa7b9}.atlas-home-chart-legend span{display:inline-flex;align-items:center;gap:.22rem;white-space:nowrap}.atlas-home-chart-legend i{display:inline-block;width:.72rem;border-top:2px solid var(--atlas-level)}.atlas-home-chart-legend b{font-size:.66rem;color:#cbd5e1}
     .atlas-home-comparison{display:grid;grid-template-columns:1fr 1fr;gap:.3rem;min-height:220px}.atlas-home-target{display:flex;flex-direction:column;justify-content:center;min-width:0;padding:.55rem .58rem;border-radius:11px;background:rgba(15,26,43,.72);border:1px solid rgba(148,163,184,.16)}.atlas-home-target small,.atlas-home-target b{display:block}.atlas-home-target small{font-size:.68rem;line-height:1.25;color:#9aa7b9}.atlas-home-target b{margin-top:.18rem;font-size:1rem;color:#f1f5f9}.atlas-home-target-atlas{border-color:rgba(47,183,164,.28);background:rgba(22,82,75,.12)}.atlas-home-target-atlas b{color:#7bd5c7}.atlas-home-target-street{border-color:rgba(93,145,214,.25);background:rgba(34,74,123,.11)}.atlas-home-target-street b{color:#9fc2ed}.atlas-home-target-muted b{font-size:.8rem;font-weight:600;color:#8995a5}.atlas-home-comparison em{grid-column:1/-1;font-size:.66rem;line-height:1.3;font-style:normal;color:#778497}
+    .atlas-home-divergence{grid-column:1/-1;padding:.38rem .52rem;border-left:3px solid var(--atlas-blue);font-size:.78rem;color:#cfe2fa;background:rgba(37,99,235,.08)}
+    .atlas-home-pillars{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:.28rem}.atlas-home-pillar{display:grid;gap:.15rem;padding:.42rem .48rem;border:1px solid rgba(148,163,184,.18);border-radius:9px;background:rgba(15,23,42,.28)}.atlas-home-pillar small{font-size:.67rem;color:#8fa0b5}.atlas-home-pillar b{font-size:.78rem;color:#cbd5e1}.atlas-home-pillar-strong b,.atlas-home-pillar-good b{color:#76d2c3}.atlas-home-pillar-moderate b{color:#edc878}.atlas-home-pillar-weak b{color:#ee9da2}.atlas-home-pillar-unavailable b{color:#788599}
     .atlas-home-win{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.35rem}.atlas-home-win span{display:flex;align-items:center;gap:.45rem;padding:.5rem .6rem;border-radius:10px;background:rgba(47,183,164,.075);border:1px solid rgba(47,183,164,.18);font-size:.8rem;color:#cbd5e1}.atlas-home-win b{display:grid;place-items:center;width:1.5rem;height:1.5rem;border-radius:50%;background:rgba(47,183,164,.14);color:#70d2c3}
     .atlas-home-decisive{display:grid;gap:.18rem;margin:.5rem 0;padding:.58rem .68rem;border-radius:10px;border-left:3px solid var(--atlas-amber);background:rgba(109,77,22,.1)}.atlas-home-decisive b{font-size:.82rem;color:#edc878}.atlas-home-decisive span{font-size:.8rem;line-height:1.4;color:#bdc7d5}
     .atlas-home-catalysts{display:grid;grid-template-columns:1fr 1fr;gap:.42rem}.atlas-home-catalysts article{display:flex;flex-direction:column;gap:.22rem;padding:.58rem .65rem;border-radius:11px;border:1px solid rgba(93,145,214,.2);background:rgba(37,69,106,.1)}.atlas-home-catalysts small{font-size:.66rem;text-transform:uppercase;letter-spacing:.055em;color:#8fb4e3}.atlas-home-catalysts b{font-size:.82rem;line-height:1.3;color:#dce8f6}.atlas-home-catalysts span{font-size:.74rem;line-height:1.35;color:#95a3b6}
@@ -859,7 +919,7 @@ def _inject_css() -> None:
     @media(max-width:700px){body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stRadio"]:has([role="radiogroup"]){position:sticky!important;top:3.75rem!important;z-index:990!important;margin-top:.35rem!important;background:var(--background-color,#0e1117);padding:.15rem 0 .2rem!important}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stRadio"] [role="radiogroup"]{flex-wrap:nowrap!important;overflow-x:auto!important;padding-bottom:.2rem;scrollbar-width:thin}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stRadio"] [role="radiogroup"] label{flex:0 0 auto!important;white-space:nowrap;padding:.28rem .52rem!important;min-height:30px!important}}
     @media(max-width:480px){body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stMainBlockContainer"]{padding-top:.2rem!important}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stMainBlockContainer"]>[data-testid="stVerticalBlock"]{gap:.24rem!important}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stElementContainer"]:has([data-atlas-qa][aria-hidden="true"]){display:none!important}.atlas-home-guidance-hero{padding:.04rem 0 .11rem}.atlas-home-guidance-hero h1{font-size:1.5rem;line-height:1.16;margin:.02rem 0 .08rem}.atlas-home-guidance-hero p{margin:.08rem 0}.atlas-home-guidance-primary{grid-template-columns:1fr 1fr;gap:.18rem;margin:.01rem 0 .06rem}.atlas-home-guidance-primary span{padding:.2rem .3rem}.atlas-home-guidance-primary small{font-size:.68rem}.atlas-home-guidance-primary strong{font-size:.92rem;line-height:1.22}.atlas-home-guidance-core{grid-template-columns:repeat(3,minmax(0,1fr));gap:.06rem;margin:.04rem 0 .08rem}.atlas-home-guidance-core .atlas-home-guidance-metric{padding:.14rem .12rem}.atlas-home-guidance-core small{font-size:.8125rem;line-height:1.25}.atlas-home-guidance-core .atlas-home-guidance-metric b{font-size:1.125rem;line-height:1.25}.atlas-home-guidance-status{grid-template-columns:repeat(2,minmax(0,1fr));gap:.1rem;margin:.02rem 0 .08rem;padding:.1rem .05rem}.atlas-home-guidance-status .atlas-home-guidance-metric{padding:.15rem .16rem}.atlas-home-guidance-status small{font-size:.8125rem}.atlas-home-guidance-status b{font-size:.88rem;line-height:1.3}.atlas-home-guidance-evidence{grid-template-columns:repeat(2,minmax(0,1fr))}h2{margin:.2rem 0!important;font-size:1.25rem!important;line-height:1.2!important}h3{font-size:1rem!important;line-height:1.2!important;margin:.04rem 0!important;padding:.05rem 0!important}.atlas-home-guidance-card-marker+div [data-testid="stVerticalBlock"]{gap:.14rem}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stExpander"] details summary{min-height:1.9rem!important;padding:.08rem .5rem!important}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stExpander"] details summary p{font-size:.82rem;white-space:normal;line-height:1.3}}
     @media(max-width:480px){body:has([data-atlas-qa="home-guidance-vnext"]) h2{margin:.1rem 0!important;padding:.02rem 0!important}body:has([data-atlas-qa="home-guidance-vnext"]) [data-testid="stMainBlockContainer"]>[data-testid="stVerticalBlock"]{gap:.2rem!important}.atlas-home-snapshot-lines{grid-template-columns:1fr;gap:.14rem;margin:.08rem 0 .12rem}.atlas-home-snapshot-lines h4{font-size:.95rem;line-height:1.35}.atlas-home-snapshot-lines p{font-size:.825rem;line-height:1.4}.atlas-home-guidance-limited{grid-template-columns:1fr;padding:.3rem .36rem;gap:.22rem;margin:.08rem 0 .12rem}.atlas-home-guidance-limited>span+span{border-left:0;border-top:1px solid rgba(148,163,184,.18);padding-left:0;padding-top:.22rem}.atlas-home-guidance-limited b{font-size:.92rem}.atlas-home-guidance-limited small{font-size:.8125rem;line-height:1.4}.atlas-home-guidance-limited code{font-size:.75rem;line-height:1.35;overflow-wrap:anywhere}}
-    @media(max-width:700px){.atlas-home-win{grid-template-columns:1fr}.atlas-home-catalysts{grid-template-columns:1fr}.atlas-home-chart,.atlas-home-comparison{min-height:unset}.atlas-home-chart svg{height:125px}}
+    @media(max-width:700px){.atlas-home-win{grid-template-columns:1fr}.atlas-home-catalysts{grid-template-columns:1fr}.atlas-home-chart,.atlas-home-comparison{min-height:unset}.atlas-home-chart svg{height:125px}.atlas-home-pillars{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(max-width:480px){.atlas-home-card-head{grid-template-columns:1fr auto;align-items:end}.atlas-home-card-head>span{grid-column:1/-1}.atlas-home-card-head h3{font-size:1.35rem!important}.atlas-home-card-head aside strong{font-size:1.2rem}.atlas-home-guidance-identity{gap:.18rem .38rem;margin:.02rem 0 .1rem}.atlas-home-guidance-identity strong{font-size:1rem}.atlas-home-guidance-identity span{font-size:.74rem}.atlas-home-guidance-identity em{font-size:.72rem}.atlas-home-atlas-score{grid-template-columns:auto 1fr auto;gap:.1rem .42rem;padding:.55rem;margin:.03rem 0 .12rem;min-height:108px}.atlas-home-score-label{font-size:.7rem}.atlas-home-atlas-score strong{font-size:1.25rem}.atlas-home-score-stars{grid-row:2;grid-column:1/3;font-size:.88rem}.atlas-home-atlas-score b{grid-row:1;grid-column:3}.atlas-home-atlas-score small{grid-row:3;grid-column:1/-1;font-size:.76rem}.atlas-home-guidance-summary{font-size:.84rem;line-height:1.4;margin:.08rem 0 .12rem!important}.atlas-home-guidance-quick{grid-template-columns:1fr;gap:.28rem;margin:.06rem 0 .14rem}.atlas-home-guidance-quick section{padding:.36rem .46rem}.atlas-home-guidance-quick h4{font-size:.92rem}.atlas-home-guidance-quick li{font-size:.825rem;line-height:1.38}.atlas-home-key-numbers{grid-template-columns:repeat(2,minmax(0,1fr));gap:.12rem;padding:.18rem}.atlas-home-key-numbers .atlas-home-guidance-metric{padding:.18rem .22rem}.atlas-home-full-evidence section{padding:.58rem 0}.atlas-home-full-evidence h4{font-size:.95rem;margin-bottom:.32rem}.atlas-home-full-evidence p,.atlas-home-full-reasons li{font-size:.825rem;line-height:1.45}.atlas-home-full-metrics{grid-template-columns:1fr;gap:.18rem}.atlas-home-full-reasons{grid-template-columns:1fr;gap:.55rem}.atlas-home-trade-row{gap:.16rem .38rem;font-size:.84rem}.atlas-home-trade-row span+span::before{margin-right:.38rem}.atlas-home-comparison{grid-template-columns:1fr 1fr}.atlas-home-target{padding:.48rem}.atlas-home-target b{font-size:.92rem}}
     .atlas-home-comparison{grid-template-columns:repeat(auto-fit,minmax(125px,1fr));min-height:0}.atlas-home-win i{display:grid;gap:.12rem;font-style:normal;font-weight:700;color:#d9e3ef}.atlas-home-win i small{font-size:.72rem;line-height:1.3;font-weight:400;color:#96a4b6}
     @media(max-width:700px){.atlas-home-action-counts{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-home-comparison{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-home-comparison .atlas-home-target-current{grid-column:1/-1}.atlas-home-action{grid-template-columns:1fr}.atlas-home-action-stars{grid-row:auto;font-size:1.45rem}.atlas-home-action>small{grid-column:auto}.atlas-home-card-head h3 i{display:block;margin-top:.18rem}}

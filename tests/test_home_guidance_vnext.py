@@ -779,10 +779,62 @@ def test_premium_decision_card_uses_governed_action_chart_and_separate_target_au
     chart = _mini_chart(card)
     assert "Near breakout" in chart and "Twelve Data" in chart and "split-adjusted daily bars" in chart
     assert "$100.00" in chart and "$105.00" in chart
-    assert "↑ ATLAS Target $120.00 · off chart" in chart
+    assert "↑ ATLAS Target $120.00 · 20.0%" in chart
     comparison = _target_tiles(card)
     assert "$120.00" in comparison and "$115.00" in comparison
+    assert "ATLAS + STREET ALIGNED" in comparison
     assert "does not determine the ATLAS rating" in comparison
+
+
+def test_six_pillar_summary_is_qualitative_and_uses_only_canonical_scores():
+    from ui.home_guidance_vnext import _six_pillar_summary
+
+    rendered = _six_pillar_summary({"six_pillars": {
+        "technical_quality": {"status": "AVAILABLE", "score": 82},
+        "fundamental_quality": {"status": "AVAILABLE", "score": 67},
+        "valuation_quality": {"status": "DATA_UNAVAILABLE", "score": None},
+        "risk_quality": {"status": "AVAILABLE", "score": 52},
+        "entry_quality": {"status": "AVAILABLE", "score": 42},
+        "volume_quality": {"status": "AVAILABLE", "score": 80},
+    }})
+    assert "Technical" in rendered and "Strong" in rendered
+    assert "Fundamentals" in rendered and "Good" in rendered
+    assert "Valuation" in rendered and "Unavailable" in rendered
+    assert "Moderate" in rendered and "Weak" in rendered
+    for raw in ("82", "67", "52", "42", "80"):
+        assert raw not in rendered
+
+
+def test_build_action_explanation_does_not_contradict_canonical_action():
+    from ui.home_guidance_vnext import _guidance_explanation
+
+    copy = _guidance_explanation({
+        "guidance": "ACCUMULATE", "reason_codes": ("ALL_ACCUMULATE_GATES_PASSED",),
+    })
+    assert "partial position" in copy
+    assert "not strong enough" not in copy
+
+
+def test_chart_offsets_colliding_labels_and_keeps_off_chart_target_out_of_scale():
+    from ui.home_guidance_vnext import _mini_chart
+
+    card = {
+        "technical_state": "SETUP_FORMING", "atlas_valuation_status": "PUBLISHED",
+        "atlas_fair_value": 200, "atlas_expected_return": 79.4,
+        "technical_evidence": {"sma50": 101, "sma200": 100.5, "support": 100, "resistance": 101.5},
+        "trade_plan": {"entry_low": 99, "entry_high": 101},
+        "home_chart": {"status": "AVAILABLE", "provider": "TWELVE_DATA", "interval": "1day",
+            "adjustment_mode": "splits", "newest_completed_bar_timestamp": "2026-09-04T20:00:00+00:00",
+            "evidence_id": "TD-chart", "bars": ({"datetime": "2025-09-01", "close": 99}, {"datetime": "2026-09-04", "close": 102})},
+    }
+    rendered = _mini_chart(card)
+    assert "leader" not in rendered
+    assert rendered.count("<line") >= 8
+    assert "↑ ATLAS Target $200.00 · 79.4%" in rendered
+    assert 'class="atlas-home-chart-legend"' in rendered
+    assert "SMA50 <b>$101.00</b>" in rendered
+    assert "Support <b>$100.00</b>" in rendered
+    assert 'viewBox="0 0 520 148"' in rendered
 
 
 def test_quick_evidence_is_four_items_and_trade_plan_stays_in_full_evidence():

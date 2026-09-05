@@ -1,4 +1,7 @@
-from services.atlas_view_summary import audit_summary_differentiation, build_summary_payload, generate_summaries, validate_summary
+from services.atlas_view_summary import (
+    _valuation_comparison, audit_summary_differentiation, build_summary_payload,
+    generate_summaries, validate_summary,
+)
 
 
 def test_summary_service_supports_streamlit_secret_key_without_changing_secrets():
@@ -123,3 +126,34 @@ def test_trade_target_cannot_be_substituted_for_atlas_fair_value():
     text = "NVDA has a constructive setup. Its earnings evidence supports the case. The ATLAS target is $120, so ATLAS rates it WAIT FOR CONFIRMATION."
     validation = validate_summary(text, payload)
     assert "TARGET_SUBSTITUTION" in validation["violations"]
+
+
+def test_target_divergence_uses_governed_fifteen_percent_boundary():
+    base = _card()
+    base.update({
+        "atlas_valuation_status": "PUBLISHED", "atlas_fair_value": 115,
+        "wall_street": {"mean_target": 100, "display_scope": "INTERNAL_TRIAL"},
+    })
+    assert _valuation_comparison(base)["state"] == "ALIGNED"
+    assert _valuation_comparison({**base, "atlas_fair_value": 115.01})["state"] == "ATLAS_MORE_BULLISH"
+    assert _valuation_comparison({**base, "atlas_fair_value": 84.99})["state"] == "WALL_STREET_MORE_BULLISH"
+    assert _valuation_comparison(base)["target_gap_pct"] == 15.0
+
+
+def test_summary_dossier_carries_all_six_locked_pillars():
+    card = _card()
+    card["evaluation"] = {
+        "decision_metrics_methodology": "ATLAS_DECISION_METRICS_V1",
+        "component_coverage": 95.5, "opportunity": 72.4, "decision_confidence": 87.2,
+        **{key: {"status": "AVAILABLE", "score": score, "evidence_ids": (key,)} for key, score in (
+            ("technical_quality", 70), ("fundamental_quality", 60), ("valuation_quality", 80),
+            ("risk_quality", 75), ("entry_quality", 100), ("volume_quality", 50),
+        )},
+    }
+    payload = build_summary_payload(card)
+    assert payload["decision_metrics_methodology"] == "ATLAS_DECISION_METRICS_V1"
+    assert tuple(payload["six_pillars"]) == (
+        "technical_quality", "fundamental_quality", "valuation_quality",
+        "risk_quality", "entry_quality", "volume_quality",
+    )
+    assert payload["component_coverage"] == 95.5

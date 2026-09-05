@@ -9,7 +9,7 @@ from difflib import SequenceMatcher
 from typing import Any, Callable, Mapping, Sequence
 
 
-SUMMARY_VERSION = "ATLAS_VIEW_SUMMARY_V2"
+SUMMARY_VERSION = "ATLAS_VIEW_SUMMARY_V3"
 GUIDANCE_STATES = {
     "BUY_NOW", "ACCUMULATE", "WAIT_FOR_ENTRY", "WAIT_FOR_CONFIRMATION", "AVOID", "DATA_LIMITED",
 }
@@ -23,17 +23,16 @@ def _valuation_comparison(card: Mapping[str, Any]) -> dict[str, Any]:
     street = dict(card.get("wall_street") or {})
     street_visible = street.get("commercial_display_status") == "DISPLAY_ALLOWED" or street.get("display_scope") == "INTERNAL_TRIAL"
     street_target = street.get("mean_target") if street_visible else None
+    gap = None
     if atlas is None:
         state = "ATLAS_VALUATION_UNAVAILABLE"
-    elif street_target is None:
+    elif street_target is None or float(street_target) == 0:
         state = "WALL_STREET_UNAVAILABLE"
-    elif abs(float(atlas) - float(street_target)) <= max(abs(float(atlas)), 1) * .05:
-        state = "ALIGNED"
-    elif float(atlas) > float(street_target):
-        state = "ATLAS_MORE_BULLISH"
     else:
-        state = "WALL_STREET_MORE_BULLISH"
-    return {"state": state, "atlas_target": atlas, "street_target": street_target}
+        gap = ((float(atlas) / float(street_target)) - 1.0) * 100.0
+        state = "ATLAS_MORE_BULLISH" if gap > 15.0 else "WALL_STREET_MORE_BULLISH" if gap < -15.0 else "ALIGNED"
+    return {"state": state, "atlas_target": atlas, "street_target": street_target,
+            "target_gap_pct": round(gap, 2) if gap is not None else None}
 
 
 def _openai_key() -> str:
@@ -70,6 +69,12 @@ def build_summary_payload(card: Mapping[str, Any]) -> dict[str, Any]:
     context = dict(card.get("context_evidence") or {})
     internal_lanes = dict(card.get("internal_evidence_lanes") or {})
     evaluation = dict(card.get("evaluation") or {})
+    pillars = {
+        key: dict(evaluation.get(key) or {}) for key in (
+            "technical_quality", "fundamental_quality", "valuation_quality",
+            "risk_quality", "entry_quality", "volume_quality",
+        )
+    }
     risk = dict(evaluation.get("risk") or {})
     valuation = dict(evaluation.get("atlas_valuation") or {})
     valuation_drivers = dict(card.get("valuation_driver_evidence") or {})
@@ -129,6 +134,11 @@ def build_summary_payload(card: Mapping[str, Any]) -> dict[str, Any]:
         },
         "guidance": card.get("guidance"), "actionability": card.get("actionability"),
         "customer_action": (card.get("customer_action") or {}).get("label"),
+        "six_pillars": pillars,
+        "opportunity": evaluation.get("opportunity", card.get("opportunity")),
+        "component_coverage": evaluation.get("component_coverage"),
+        "decision_confidence": evaluation.get("decision_confidence", card.get("decision_confidence")),
+        "decision_metrics_methodology": evaluation.get("decision_metrics_methodology"),
         "reason_codes": list(card.get("reason_codes") or ()),
         "allowed_change_conditions": list(card.get("what_changes_guidance") or ()),
         "commercial_catalysts": catalysts,
