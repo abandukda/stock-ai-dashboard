@@ -27,7 +27,6 @@ jobs:
       FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
       NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
       ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
-      TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
       TWELVE_DATA_ENABLED: "true"
       ATLAS_DATA_MODE: "INTERNAL_TRIAL"
       SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
@@ -58,6 +57,8 @@ jobs:
           pip install -r requirements.txt
 
       - name: Verify canonical publication credentials
+        env:
+          TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
         run: |
           if [ -z "${TWELVE_DATA_API_KEY:-}" ]; then
             echo "::error::TWELVE_DATA_API_KEY is required; refusing to overwrite canonical production actions"
@@ -89,6 +90,8 @@ jobs:
             atlas-analyst-estimate-snapshots-v1-
 
       - name: Run overnight scan
+        env:
+          TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
         run: |
           python overnight_market_scan.py
 
