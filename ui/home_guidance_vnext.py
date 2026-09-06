@@ -203,6 +203,7 @@ def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
     trade = dict(card.get("trade_plan") or {})
     context = dict(card.get("context_evidence") or {})
     lanes = dict(card.get("internal_evidence_lanes") or {})
+    valuation_inputs = dict(evaluation.get("trial_presentation_fields") or {})
 
     def rows(values: Sequence[tuple[str, Any, str]]) -> str:
         rendered = []
@@ -280,6 +281,10 @@ def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
         "BEAR_BASE_GAP_HIGH": "The downside scenario sits materially below the base case.",
         "MODEL_CONCENTRATION_SINGLE_METHOD": "Only one complete professional method supports this valuation.",
         "SENSITIVITY_WIDE": "Fair value is highly sensitive to discount-rate and growth assumptions.",
+        "WACC_BELOW_RISK_FREE": "The blended discount rate is below the Treasury benchmark because lower after-tax debt cost reduces the weighted average.",
+        "WACC_G_SPREAD_BELOW_1PCT": "The discount rate is less than one percentage point above long-run growth, creating extreme terminal sensitivity.",
+        "WACC_G_SPREAD_BELOW_1_5PCT": "The discount-rate cushion above long-run growth is unusually narrow.",
+        "WACC_G_SPREAD_BELOW_2PCT": "The discount-rate cushion above long-run growth is narrow.",
     }
     uncertainty_items = [customer_flag_labels[flag] for flag in diagnostics.get("flags") or () if flag in customer_flag_labels]
     uncertainty = (
@@ -293,6 +298,16 @@ def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
         ("ATLAS vs Street", "atlas_vs_street"),
         ("Scenario Risk", "scenario_risk"),
     )))
+    dcf_model = next((model for model in professional.get("models") or () if model.get("methodology_id") == "VAL_FCFF_DCF_V1" and model.get("status") == "PUBLISHED"), {})
+    dcf_assumptions = dict(dcf_model.get("key_assumptions") or {})
+    discount_rate_evidence = rows((
+        ("WACC", dcf_assumptions.get("wacc") * 100 if dcf_assumptions.get("wacc") is not None else None, "pct"),
+        ("Risk-Free Rate", valuation_inputs.get("risk_free_rate") * 100 if valuation_inputs.get("risk_free_rate") is not None else None, "pct"),
+        ("Equity Risk Premium", valuation_inputs.get("equity_risk_premium") * 100 if valuation_inputs.get("equity_risk_premium") is not None else None, "pct"),
+        ("Beta", valuation_inputs.get("beta"), "score"), ("Cost of Equity", valuation_inputs.get("cost_of_equity") * 100 if valuation_inputs.get("cost_of_equity") is not None else None, "pct"),
+        ("Terminal Growth", dcf_assumptions.get("terminal_growth") * 100 if dcf_assumptions.get("terminal_growth") is not None else None, "pct"),
+        ("Terminal Value / EV", dcf_assumptions.get("terminal_value_pct_of_enterprise_value") * 100 if dcf_assumptions.get("terminal_value_pct_of_enterprise_value") is not None else None, "pct"),
+    ))
 
     street_visible = street.get("commercial_display_status") == "DISPLAY_ALLOWED" or street.get("display_scope") == "INTERNAL_TRIAL"
     street_section = rows((
@@ -401,6 +416,7 @@ def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
         f'<section><h4>ATLAS Professional Valuation</h4>{valuation}<p>{html.escape(driver_summary)}</p></section>'
         f'<section><h4>Valuation by Method</h4>{valuation_methods}</section><section><h4>Bear / Base / Bull</h4>{scenarios}</section><section><h4>Sensitivity</h4>{sensitivity}</section>'
         f'<section><h4>Valuation Drivers &amp; Uncertainty</h4>{explainability}{uncertainty}</section>'
+        f'<section><h4>Discount Rate &amp; Terminal Assumptions</h4>{discount_rate_evidence}</section>'
         f'<section><h4>Wall Street Analyst Outlook</h4>{street_section}</section>'
         f'<section><h4>Forward EPS Estimates</h4>{eps_estimates}</section><section><h4>Forward Revenue Estimates</h4>{revenue_estimates}</section>'
         f'<section><h4>Estimate Revisions</h4>{revision_section}</section>'

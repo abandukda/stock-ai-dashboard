@@ -189,6 +189,13 @@ def _valuation_diagnostics(
     if bear is not None and (base - bear) / base >= .35: flags.append("BEAR_BASE_GAP_HIGH")
     if len(valid) == 1: flags.append("MODEL_CONCENTRATION_SINGLE_METHOD")
     if sensitivity_width is not None and sensitivity_width >= 100: flags.append("SENSITIVITY_WIDE")
+    dcf_assumptions = next((model.get("key_assumptions") or {} for model in valid if model.get("methodology_id") == "VAL_FCFF_DCF_V1"), {})
+    wacc_value = _number(dcf_assumptions.get("wacc")); growth_value = _number(dcf_assumptions.get("terminal_growth")); risk_free = _number(row.get("risk_free_rate"))
+    spread = wacc_value - growth_value if wacc_value is not None and growth_value is not None else None
+    if wacc_value is not None and risk_free is not None and wacc_value < risk_free: flags.append("WACC_BELOW_RISK_FREE")
+    if spread is not None and spread < .01: flags.append("WACC_G_SPREAD_BELOW_1PCT")
+    elif spread is not None and spread < .015: flags.append("WACC_G_SPREAD_BELOW_1_5PCT")
+    elif spread is not None and spread < .02: flags.append("WACC_G_SPREAD_BELOW_2PCT")
 
     # Confidence remains descriptive and non-authoritative. Penalize only
     # observable valuation uncertainty; never change model values or weights.
@@ -199,6 +206,8 @@ def _valuation_diagnostics(
     if sensitivity_width is not None and sensitivity_width > 50:
         calibrated -= min(12.0, (sensitivity_width - 50) * .06)
     if len(valid) == 1: calibrated = min(calibrated, 55.0)
+    if "WACC_BELOW_RISK_FREE" in flags: calibrated -= 5
+    if spread is not None and spread < .02: calibrated -= min(15.0, (.02-spread)*750)
     calibrated = max(20.0, min(90.0, calibrated))
 
     primary = max(valid, key=lambda model: float(model.get("weight") or 0))
@@ -246,6 +255,11 @@ def _valuation_diagnostics(
         "terminal_value_pct_of_ev": round(terminal_share * 100, 1) if terminal_share is not None else None,
         "sensitivity_width_pct": round(sensitivity_width, 1) if sensitivity_width is not None else None,
         "street_target_context": street,
+        "wacc_minus_g_pct": round(spread*100, 2) if spread is not None else None,
+        "wacc_below_risk_free_attribution": {
+            "equity_weight": _number(row.get("equity_weight")), "cost_of_equity": _number(row.get("cost_of_equity")),
+            "debt_weight": _number(row.get("debt_weight")), "after_tax_cost_of_debt": _number(row.get("after_tax_cost_of_debt")),
+        } if "WACC_BELOW_RISK_FREE" in flags else None,
     }
     return calibrated, diagnostics, explanation
 

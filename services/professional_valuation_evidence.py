@@ -98,15 +98,20 @@ def enrich_professional_inputs(row: Mapping[str, Any]) -> dict[str, Any]:
     tax_rate=_num((forecast.get("forecast_detail") or [{}])[0].get("tax_rate"))
     if None not in (debt,cash,equity,beta,interest,tax_rate) and debt and debt>0 and equity and equity>0:
         cost_equity=capm_cost_of_equity(assumptions["risk_free_rate"],beta,assumptions["equity_risk_premium"])
-        cost_debt=max(0.0,interest/debt)
-        output.update({"risk_free_rate":assumptions["risk_free_rate"],"equity_risk_premium":assumptions["equity_risk_premium"],"cost_of_equity":cost_equity,"cost_of_debt":cost_debt,"tax_rate":tax_rate,"wacc":wacc(equity,debt,cost_equity,cost_debt,tax_rate),"terminal_growth":assumptions["terminal_growth"],"market_assumption_lineage":assumptions})
+        accounting_cost_debt=max(0.0,interest/debt)
+        # A historical accounting coupon proxy is not a current borrowing
+        # yield. In the absence of observable spread evidence it may not sit
+        # below the maturity-matched Treasury benchmark.
+        cost_debt=max(accounting_cost_debt, assumptions["risk_free_rate"])
+        capital_wacc=wacc(equity,debt,cost_equity,cost_debt,tax_rate)
+        output.update({"risk_free_rate":assumptions["risk_free_rate"],"equity_risk_premium":assumptions["equity_risk_premium"],"cost_of_equity":cost_equity,"cost_of_debt":cost_debt,"accounting_cost_of_debt_proxy":accounting_cost_debt,"cost_of_debt_method":"interest paid / current interest-bearing debt accounting proxy, floored at maturity-matched Treasury when no credit-spread evidence is available","after_tax_cost_of_debt":cost_debt*(1-tax_rate),"tax_rate":tax_rate,"wacc":capital_wacc,"wacc_minus_g":capital_wacc-assumptions["terminal_growth"],"equity_weight":equity/(equity+debt),"debt_weight":debt/(equity+debt),"market_equity_value":equity,"debt_value":debt,"terminal_growth":assumptions["terminal_growth"],"market_assumption_lineage":assumptions})
         base=output["wacc"]; output["sensitivity_wacc"]=[base-.01,base,base+.01]; output["sensitivity_terminal_growth"]=[max(0,assumptions["terminal_growth"]-.005),assumptions["terminal_growth"],assumptions["terminal_growth"]+.005]
         rev=(output.get("forward_estimate_evidence") or {}).get("revenue") or {}
         consensus=_num(rev.get("avg_estimate")); low=_num(rev.get("low_estimate")); high=_num(rev.get("high_estimate"))
         if output.get("forecast_fcff") and consensus and low and high and consensus>0:
             output["valuation_scenarios"]={
-                "bear":{"forecast_fcff":[value*low/consensus for value in output["forecast_fcff"]],"wacc":base+.01,"terminal_growth":max(0,assumptions["terminal_growth"]-.005)},
-                "bull":{"forecast_fcff":[value*high/consensus for value in output["forecast_fcff"]],"wacc":base-.01,"terminal_growth":assumptions["terminal_growth"]+.005},
+                "bear":{"forecast_fcff":[value*low/consensus for value in output["forecast_fcff"]],"wacc":base,"terminal_growth":max(0,assumptions["terminal_growth"]-.005)},
+                "bull":{"forecast_fcff":[value*high/consensus for value in output["forecast_fcff"]],"wacc":base,"terminal_growth":assumptions["terminal_growth"]+.005},
             }
     output["professional_input_version"]=VERSION
     return output

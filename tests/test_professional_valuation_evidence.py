@@ -32,8 +32,12 @@ def test_wacc_and_scenarios_use_versioned_market_and_company_evidence():
     result=enrich_professional_inputs(row())
     assert result["wacc"] > result["terminal_growth"]
     assert result["market_assumption_lineage"]["risk_free_rate_source"]
-    assert result["valuation_scenarios"]["bear"]["wacc"] > result["wacc"]
-    assert result["valuation_scenarios"]["bull"]["wacc"] < result["wacc"]
+    assert result["valuation_scenarios"]["bear"]["wacc"] == result["wacc"]
+    assert result["valuation_scenarios"]["bull"]["wacc"] == result["wacc"]
+    assert result["market_assumption_lineage"]["risk_free_rate_maturity"] == "10-year nominal CMT"
+    assert "floored at maturity-matched Treasury" in result["cost_of_debt_method"]
+    assert result["cost_of_debt"] >= result["risk_free_rate"]
+    assert result["equity_weight"] + result["debt_weight"] == pytest.approx(1)
 
 
 def test_peer_set_requires_three_comparables_and_is_deterministic():
