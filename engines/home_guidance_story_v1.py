@@ -222,6 +222,12 @@ def build_home_guidance_candidate(
     evaluation = dict(persisted_evaluation or current_evaluation or evaluate_on_demand(
         row, context={"production_decision": production_decision, "evidence_registry": {}},
     ))
+    if persisted_evaluation and current_evaluation:
+        # Optional synthesis/context may refresh independently, but it cannot
+        # replace any canonical completed-session decision field.
+        for presentation_key in ("atlas_ai_view", "trial_intelligence", "trial_presentation_fields"):
+            if current_evaluation.get(presentation_key):
+                evaluation[presentation_key] = current_evaluation[presentation_key]
     trial_fields = evaluation.get("trial_presentation_fields") if isinstance(evaluation.get("trial_presentation_fields"), Mapping) else {}
     if trial_fields:
         row = {**dict(row), **dict(trial_fields)}
@@ -366,7 +372,9 @@ def build_home_guidance_candidate(
         },
         "company_evidence": {
             "forward_eps": _first_number(row, "forward_eps", "eps_forward"),
+            "forward_eps_period": _first_value(row, "forward_eps_period"),
             "forward_revenue": _first_number(row, "forward_revenue", "revenue_forward"),
+            "forward_revenue_period": _first_value(row, "forward_revenue_period"),
             "earnings_growth": _first_number(row, "earnings_growth", "eps_growth"),
             "latest_earnings_date": _first_value(row, "latest_earnings_date", "earnings_date"),
             "reported_eps": _first_number(row, "reported_eps"),
@@ -378,6 +386,7 @@ def build_home_guidance_candidate(
             "next_earnings_date": row.get("next_earnings_date") or row.get("earnings_date"),
             "estimate_revision": _first_value(row, "estimate_revision", "estimate_revision_trend", "analyst_revision_trend"),
             "estimate_contributor_count": _first_number(row, "estimate_contributor_count", "earnings_estimate_count") if row.get("estimate_commercial_display_allowed") is True else None,
+            "forward_estimate_evidence": row.get("forward_estimate_evidence") if isinstance(row.get("forward_estimate_evidence"), Mapping) else {},
             "industry": row.get("industry"), "sector": row.get("sector"),
             "business_summary": _first_value(row, "business_summary", "company_description", "description"),
             "business_kpis": _first_value(row, "approved_business_kpis", "business_kpis", "key_business_metrics"),

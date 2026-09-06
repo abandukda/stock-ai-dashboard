@@ -60,7 +60,7 @@ def test_unsourced_number_or_guidance_is_rejected_to_ticker_fallback():
 def test_missing_llm_uses_deterministic_ticker_specific_fallback():
     result = generate_summaries([build_summary_payload(_card())], llm=lambda _: None)[0]
     assert result["source"] == "DETERMINISTIC_FALLBACK"
-    assert "market-setup thesis" in result["text"]
+    assert "limited to its developing market setup" in result["text"]
     assert "Recovery Score" not in result["text"]
     assert "0.45×" not in result["text"]
     assert "WAIT FOR CONFIRMATION" in result["text"]
@@ -87,7 +87,9 @@ def test_dossier_carries_approved_company_earnings_valuation_and_risk_lanes():
     assert payload["atlas_valuation"]["driver_evidence"]["justified_pe"] == 24
     assert payload["valuation_comparison"]["state"] == "WALL_STREET_UNAVAILABLE"
     assert payload["risk_evidence"]["strongest_fundamental_risk"] == "Demand could slow."
-    assert "growth-adjusted forward earnings framework" in generate_summaries([payload], llm=lambda _: None)[0]["text"]
+    fallback = generate_summaries([payload], llm=lambda _: None)[0]["text"]
+    assert "revenue growth of 20.0%" in fallback
+    assert "24.0× justified earnings multiple" in fallback
 
 
 def test_fallback_changes_with_company_specific_evidence():
@@ -99,6 +101,34 @@ def test_fallback_changes_with_company_specific_evidence():
     assert texts[0] != texts[1]
     assert "accelerated computing" in texts[0]
     assert "aluminum packaging" in texts[1]
+
+
+def test_fallback_explains_large_upside_and_material_street_gap_from_drivers():
+    card = _card()
+    card.update({
+        "opportunity_thesis": "VALUE_RERATING",
+        "fundamentals_evidence": {"revenue_growth": .12, "free_cash_flow": 900_000_000},
+        "company_evidence": {"business_summary": "Acme sells subscription software.", "forward_eps": 8.0},
+        "atlas_valuation_status": "PUBLISHED", "atlas_fair_value": 320, "atlas_expected_return": 39.4,
+        "valuation_driver_evidence": {"forward_eps": 8.0, "justified_pe": 40.0, "growth_input_pct": 12.0},
+        "wall_street": {"mean_target": 250, "display_scope": "INTERNAL_TRIAL"},
+    })
+    payload = build_summary_payload(card)
+    copy = generate_summaries([payload], llm=lambda _: None)[0]["text"]
+    assert "$320.00 fair value implies 39.4% upside" in copy
+    assert "forward EPS of $8.00" in copy
+    assert "more bullish than Wall Street's $250.00" in copy
+    assert validate_summary(copy, payload)["valid"] is True
+
+
+def test_validator_rejects_generic_gate_language_and_ignored_catalyst():
+    card = _card()
+    card["recent_catalysts"] = ({"headline": "Acme wins major renewal", "summary": "Supports recurring revenue."},)
+    payload = build_summary_payload(card)
+    copy = "NVDA has earnings potential. The governed gates remain incomplete. No catalyst is discussed. ATLAS rates it WAIT FOR CONFIRMATION."
+    violations = validate_summary(copy, payload)["violations"]
+    assert "GENERIC_GATE_LANGUAGE" in violations
+    assert "AVAILABLE_CATALYST_IGNORED" in violations
 
 
 def test_unlicensed_wall_street_claim_is_rejected():

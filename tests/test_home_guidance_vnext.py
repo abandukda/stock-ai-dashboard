@@ -339,10 +339,9 @@ render_home_guidance_vnext(build_home_guidance_story(rows, [{"ticker":"MU","reco
     assert not app.exception
     rendered = "\n".join(str(item.value) for item in app.markdown)
     assert 'data-atlas-qa="home-guidance-full-evidence"' in rendered
-    assert "Technical State:</b> Unavailable" in rendered
-    assert "Technical Evidence:</b> RSI 55.0" in rendered
-    assert "Volume State:</b> Unavailable" in rendered
-    assert "Volume Evidence:</b> Relative volume 1.2×" in rendered
+    assert "Technical &amp; Volume" in rendered
+    assert "Wall Street Analyst Outlook" in rendered
+    assert "Earnings &amp; Financial Snapshot" in rendered
     assert "ATLAS Investment View" in rendered
     assert "What ATLAS sees" not in rendered
     assert "What ATLAS needs" not in rendered
@@ -569,8 +568,7 @@ def test_summary_card_omits_unavailable_secondary_metrics_until_full_evidence():
     assert "_full_evidence(card)" in full
     full_fn = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "_full_evidence")
     full_body = ast.get_source_segment(source, full_fn) or ""
-    assert '_metric("Opportunity"' in full_body
-    assert '_metric("Decision Confidence"' in full_body
+    assert "_paid_client_full_evidence(card)" in full_body
 
 
 def test_data_limited_summary_is_bounded_and_reason_grounded():
@@ -593,10 +591,10 @@ def test_data_limited_summary_is_bounded_and_reason_grounded():
         "Canonical volume confirmation",
     )
     summary = _atlas_summary(card)
-    assert summary.count(". ") <= 2
-    assert "developing technical opportunity" in summary
-    assert "watch — not ready yet" in summary.lower()
-    assert "Data Limited" not in summary
+    assert summary.count(". ") <= 4
+    assert "developing market setup" in summary
+    assert "WATCH" in summary
+    assert "Data Limited" not in summary and "DATA LIMITED" not in summary
 
 
 @pytest.mark.parametrize(("value", "band", "tone", "stars"), [
@@ -708,7 +706,7 @@ def test_summary_leads_with_freshest_approved_last_known_bar_without_calling_it_
         "reason_codes": ("CURRENT_MARKET_EVIDENCE_UNAVAILABLE", "TECHNICAL_STRUCTURE_UNAVAILABLE"),
     }
     summary = _atlas_summary(card)
-    assert summary.startswith("NVDA offers a developing technical opportunity")
+    assert summary.startswith("Company-specific financial evidence is not available for NVDA")
     assert "97" not in summary and "DATA_LIMITED" not in summary
     assert "live" not in summary.lower()
 
@@ -764,8 +762,8 @@ def test_bcrx_customer_hierarchy_is_grounded_and_keeps_governed_status():
     assert card["guidance"] == "DATA_LIMITED"
     assert card["actionability"] == "UNAVAILABLE"
     summary = _atlas_summary(card)
-    assert summary.startswith("BCRX offers a developing technical opportunity")
-    assert "watch — not ready yet" in summary.lower()
+    assert summary.startswith("Company-specific financial evidence is not available for BioCryst Pharmaceuticals")
+    assert "WATCH" in summary
     assert "97" not in summary and "Data Limited" not in summary
     assert _guidance_explanation(card) == "The opportunity is worth watching, but ATLAS needs fresher market evidence before recommending a position."
     assert _what_changes_call(card) == (
@@ -901,9 +899,7 @@ def test_quick_evidence_is_four_items_and_trade_plan_stays_in_full_evidence():
         "Persisted contextual relative volume is 0.8×",
     )
     source = (ROOT / "ui" / "home_guidance_vnext.py").read_text(encoding="utf-8")
-    assert 'data-atlas-trade-segment="entry"' in source
-    assert 'data-atlas-trade-segment="stop"' in source
-    assert 'data-atlas-trade-segment="target"' in source
+    assert 'data-atlas-trade-segment="{kind}"' in source
     assert 'margin-left:auto' not in source
 
 
@@ -916,13 +912,15 @@ def test_full_evidence_has_one_semantic_hierarchy_and_protected_trade_segments()
         "evidence_health": "PARTIAL",
         "trade_plan": {"entry_low": 932.81, "entry_high": 967.72, "stop": 890.91, "target_1": 1073.39},
     })
-    headings = ("Decision Evidence", "Valuation", "Technical &amp; Volume", "External Context", "Trade Plan", "Why ATLAS / What Changes Guidance")
+    headings = ("Decision Summary", "Why ATLAS Likes It", "ATLAS Valuation", "Wall Street Analyst Outlook", "Earnings &amp; Financial Snapshot", "Technical &amp; Volume", "Trade Plan", "What Could Change the Rating")
     assert all(heading in rendered for heading in headings)
-    assert rendered.index("Decision Evidence") < rendered.index("Valuation") < rendered.index("Technical &amp; Volume")
-    assert '<span data-atlas-trade-segment="entry"><b>Entry</b> $932.81–$967.72</span>' in rendered
-    assert '<span data-atlas-trade-segment="stop"><b>Stop</b> $890.91</span>' in rendered
-    assert '<span data-atlas-trade-segment="target"><b>Target</b> $1,073.39</span>' in rendered
+    assert rendered.index("Decision Summary") < rendered.index("ATLAS Valuation") < rendered.index("Technical &amp; Volume")
+    assert 'data-atlas-trade-segment="entry"' in rendered and "$932.81–$967.72" in rendered
+    assert 'data-atlas-trade-segment="stop"' in rendered and "$890.91" in rendered
+    assert 'data-atlas-trade-segment="target"' in rendered and "$1,073.39" in rendered
     assert "Trade-plan evidence" not in rendered
+    assert "reason codes" not in rendered.lower()
+    assert "$None" not in rendered and ">None<" not in rendered
 
 
 def test_full_evidence_css_preserves_natural_flow_and_wrapping():

@@ -116,6 +116,7 @@ def build_summary_payload(card: Mapping[str, Any]) -> dict[str, Any]:
         "forward_outlook": {key: company.get(key) for key in (
             "forward_eps", "forward_revenue", "estimate_revision", "estimate_contributor_count", "next_earnings_date",
         )},
+        "forward_estimate_evidence": dict(company.get("forward_estimate_evidence") or {}),
         "atlas_valuation": {
             "status": card.get("atlas_valuation_status"), "target": card.get("atlas_fair_value"),
             "expected_return": card.get("atlas_expected_return"),
@@ -149,101 +150,92 @@ def build_summary_payload(card: Mapping[str, Any]) -> dict[str, Any]:
 def deterministic_summary(payload: Mapping[str, Any]) -> str:
     ticker = str(payload.get("ticker") or "This candidate")
     company = str(payload.get("company") or ticker)
-    fundamentals = dict(payload.get("fundamentals") or {})
-    company_evidence = dict(payload.get("company_evidence") or {})
-    evidence: list[str] = []
-    revenue_growth = fundamentals.get("revenue_growth")
-    operating_margin = fundamentals.get("operating_margin")
-    if company_evidence.get("eps_surprise_pct") is not None and float(company_evidence["eps_surprise_pct"]) >= 10:
-        evidence.append("a latest-quarter earnings beat")
-    if revenue_growth is not None and float(revenue_growth) > 0:
-        evidence.append("positive revenue growth")
-    if company_evidence.get("revenue_surprise_pct") is not None and float(company_evidence["revenue_surprise_pct"]) >= 5:
-        evidence.append("revenue ahead of expectations")
-    if company_evidence.get("earnings_growth") is not None and float(company_evidence["earnings_growth"]) > 0:
-        evidence.append("improving earnings power")
-    if fundamentals.get("free_cash_flow") is not None and float(fundamentals["free_cash_flow"]) > 0:
-        evidence.append("positive free cash flow")
-    if operating_margin is not None and float(operating_margin) > 0:
-        evidence.append("an established operating profit base")
-    if company_evidence.get("estimate_revision"):
-        evidence.append("a supportive change in forward estimates")
-    business_summary = str(company_evidence.get("business_summary") or "").strip()
-    industry = str(company_evidence.get("industry") or "").strip()
-    if business_summary:
-        business_focus = " ".join(business_summary.split())
-        sentence_end = re.search(r"[.!?](?=\s+[A-Z])", business_focus)
-        if sentence_end and sentence_end.end() <= 300:
-            business_focus = business_focus[:sentence_end.end()]
-        elif len(business_focus) > 240:
-            prefix = business_focus[:240]
-            cuts = [prefix.rfind(token) for token in (", ", "; ", ". ")]
-            cut = max((position for position in cuts if position >= 110), default=prefix.rfind(" "))
-            business_focus = prefix[:cut]
-        business_focus = re.sub(r"[!?]+", ",", business_focus)
-        business_focus = business_focus.strip(" ,.")
-        first = f"{company}'s upside case starts with its business: {business_focus}"
-    elif industry:
-        first = f"{company}'s upside case is tied to execution in {industry.lower()}."
+    fundamentals, company_evidence = dict(payload.get("fundamentals") or {}), dict(payload.get("company_evidence") or {})
+    atlas, comparison = dict(payload.get("atlas_valuation") or {}), dict(payload.get("valuation_comparison") or {})
+    drivers = dict(atlas.get("driver_evidence") or {})
+    thesis = str(payload.get("opportunity_thesis") or "DEVELOPING_SETUP").upper()
+
+    def pct(value: Any) -> str | None:
+        try:
+            number = float(value); number = number * 100 if abs(number) <= 2 else number
+            return f"{number:.1f}%"
+        except (TypeError, ValueError):
+            return None
+
+    financial = []
+    if pct(fundamentals.get("revenue_growth")): financial.append(f"revenue growth of {pct(fundamentals['revenue_growth'])}")
+    if pct(company_evidence.get("earnings_growth")): financial.append(f"earnings growth of {pct(company_evidence['earnings_growth'])}")
+    if company_evidence.get("eps_surprise_pct") is not None: financial.append(f"an EPS surprise of {pct(company_evidence['eps_surprise_pct'])}")
+    if fundamentals.get("free_cash_flow") is not None and float(fundamentals["free_cash_flow"]) > 0: financial.append("positive free cash flow")
+    support = " and ".join(financial[:2]) or "the available operating evidence"
+    raw_business_summary = str(company_evidence.get("business_summary") or "").strip()
+    # A profile can be several paragraphs long. The thesis needs the core
+    # business model, not a pasted company biography.
+    business_summary = next((part.strip() for part in re.split(r"(?<=[.!?])\s+", raw_business_summary) if part.strip()), "").rstrip(".")
+    industry = str(company_evidence.get("industry") or "").strip().lower()
+    domain = f" in {industry}" if industry else ""
+    company_context = f"{business_summary}; " if business_summary else ""
+    opening = {
+        "VALUE_RERATING": f"{company_context}{company} could rerate over the next 6–12 months if {support} translates into greater earnings power than the market currently reflects{domain}.",
+        "QUALITY_GROWTH": f"{company_context}{company}'s upside depends on sustaining {support}, which could compound future earnings power{domain}.",
+        "ATTRACTIVE_ENTRY": f"{company_context}{company} offers potential upside from {support} while the current price remains favorable relative to published value{domain}.",
+        "RECOVERY": f"{company_context}{company}'s recovery case depends on {support} developing into a durable improvement in operating performance{domain}.",
+        "BREAKOUT": f"{company_context}{company}'s near-term upside case is a confirmed market breakout supported by {support}{domain}.",
+    }.get(thesis, (
+        f"{company_context}{company}'s available business and financial evidence supports a developing market opportunity tied to {support}{domain}."
+        if business_summary or financial else
+        f"Company-specific financial evidence is not available for {company}, so this view is limited to its developing market setup."
+    ))
+
+    if atlas.get("status") == "PUBLISHED" and atlas.get("target") is not None:
+        inputs = []
+        if drivers.get("forward_eps") is not None: inputs.append(f"forward EPS of ${float(drivers['forward_eps']):.2f}")
+        if drivers.get("justified_pe") is not None: inputs.append(f"a {float(drivers['justified_pe']):.1f}× justified earnings multiple")
+        if pct(drivers.get("growth_input_pct")): inputs.append(f"a {pct(drivers['growth_input_pct'])} growth input")
+        rationale = " and ".join(inputs[:2]) or support
+        valuation_sentence = f"From a current price of ${float(payload.get('price')):.2f}, ATLAS's ${float(atlas['target']):.2f} fair value implies {float(atlas.get('expected_return') or 0):.1f}% upside, supported by {rationale}."
     else:
-        first = f"{company}'s available evidence supports a market-setup thesis rather than a fundamental growth claim."
-    if not first.endswith((".", "!", "?")):
-        first += "."
+        valuation_sentence = "ATLAS has not published a fair value because the available valuation evidence is insufficient."
+
+    street_target, gap = comparison.get("street_target"), comparison.get("target_gap_pct")
+    state = str(comparison.get("state") or "")
+    if street_target is not None:
+        relation = {"ATLAS_MORE_BULLISH":"more bullish than", "WALL_STREET_MORE_BULLISH":"less bullish than", "ALIGNED":"broadly aligned with"}.get(state, "compared with")
+        if abs(float(gap or 0)) > 15 and atlas.get("status") == "PUBLISHED":
+            explanation = (
+                "the difference is grounded in " + " and ".join(inputs[:2])
+                if inputs else "the currently available evidence does not fully explain the valuation gap"
+            )
+            street_sentence = f"ATLAS is {relation} Wall Street's ${float(street_target):.2f} average target; {explanation}."
+        else:
+            street_sentence = f"ATLAS is {relation} Wall Street's ${float(street_target):.2f} average target."
+    else:
+        street_sentence = "A commercially displayable Wall Street comparison is not available."
+
     catalyst = next(iter(payload.get("commercial_catalysts") or ()), {})
-    support = " and ".join(evidence[:2]) if evidence else "the available operating evidence"
-    atlas = dict(payload.get("atlas_valuation") or {})
-    if atlas.get("target") is not None and atlas.get("expected_return") is not None:
-        drivers = dict(atlas.get("driver_evidence") or {})
-        method = str(drivers.get("method") or "").lower()
-        model_context = "growth-adjusted forward earnings framework" if "growth-adjusted" in method else "published valuation framework"
-        second = f"The ATLAS {model_context} derives its upside from {support}, although realizing that potential still requires durable execution."
-        comparison = str((payload.get("valuation_comparison") or {}).get("state") or "")
-        second += {
-            "ALIGNED": " ATLAS and Wall Street are aligned on valuation.",
-            "ATLAS_MORE_BULLISH": " ATLAS is more bullish than Wall Street, while Street remains context rather than a decision input.",
-            "WALL_STREET_MORE_BULLISH": " Wall Street is more bullish than ATLAS, while Street remains context rather than a decision input.",
-        }.get(comparison, "")
-    elif evidence:
-        second = f"The clearest financial support is {support}, while ATLAS has not published a valuation target."
-    else:
-        second = "ATLAS has not published a valuation target because the available evidence is not sufficient to ground one."
-    if catalyst.get("headline"):
-        headline = str(catalyst["headline"]).strip().rstrip(".!?")
-        third = f"The recent company-specific development, “{headline},” is the most relevant catalyst to monitor."
-    else:
-        third = "No company-specific catalyst is included in the current evidence, so the case rests on existing financial and market evidence."
-    constraints = []
-    if payload.get("contextual_rvol") is not None and float(payload["contextual_rvol"]) < 1:
-        constraints.append("market participation remains too weak for confirmation")
-    if str(payload.get("bar_quality") or "").upper() == "DEGRADED":
-        constraints.append("short-term bar continuity is limited")
-    reasons = list(payload.get("reason_codes") or ())
-    if "CURRENT_MARKET_EVIDENCE_UNAVAILABLE" in reasons:
-        constraints.append("the latest market evidence is not fresh enough for an entry decision")
-    elif reasons:
-        constraints.append("the remaining confirmation evidence has not cleared")
-    state = str(payload.get("canonical_technical_state") or "UNAVAILABLE")
-    if not constraints and state in {"NO_SETUP", "SETUP_FORMING", "NEAR_BREAKOUT", "FAILED_BREAKOUT", "EXTENDED"}:
-        constraints.append({
-            "NO_SETUP": "the price structure has not formed a confirmed setup",
-            "SETUP_FORMING": "the price structure is still developing",
-            "NEAR_BREAKOUT": "the potential breakout is not yet confirmed",
-            "FAILED_BREAKOUT": "the prior breakout attempt failed",
-            "EXTENDED": "the price is extended beyond a preferred entry",
-        }[state])
-    guidance = str(payload.get("customer_action") or payload.get("guidance") or "WATCH — NOT READY YET").replace("_", " ")
-    lead = " and ".join(constraints[:2]) or "the remaining confirmation gates have not cleared"
+    catalyst_impact = str(catalyst.get('evidence_summary') or 'may affect forward estimates and execution').strip().rstrip('.')
+    catalyst_impact = catalyst_impact[:1].lower() + catalyst_impact[1:] if catalyst_impact else "may affect forward estimates and execution"
+    catalyst_sentence = f"The latest material catalyst is “{str(catalyst.get('headline')).strip().rstrip('.!?')},” which {catalyst_impact}." if catalyst.get("headline") else "No licensed company-specific catalyst is available, so the thesis rests on financial, valuation, and market evidence."
+    catalyst_sentence = catalyst_sentence.replace(" .", ".")
+
+    reasons = set(payload.get("reason_codes") or ())
+    technical_state = str(payload.get("canonical_technical_state") or "")
+    action = str(payload.get("customer_action") or payload.get("guidance") or "WATCH").replace("_", " ")
+    if action in {"DATA LIMITED", "UNAVAILABLE"}: action = "WATCH"
+    blocker = (
+        "price is above the preferred entry area" if "PRICE_ABOVE_ENTRY_RANGE" in reasons else
+        "technical confirmation remains incomplete" if action == "WAIT FOR CONFIRMATION" else
+        "the entry is not yet attractive" if action == "WAIT FOR BETTER ENTRY" else
+        "the setup is not yet actionable" if action == "WATCH" else
+        "the evidence supports only a staged initial position" if action == "BUILD A POSITION" else
+        "a break in operating or price evidence would invalidate the current entry"
+    )
     risk = dict(payload.get("risk_evidence") or {}).get("strongest_fundamental_risk")
-    if isinstance(risk, (list, tuple)):
-        risk = next((str(item) for item in risk if item), None)
-    if risk and re.search(r"no (?:major )?(?:financial )?(?:red flag|risk)", str(risk), re.I):
-        risk = None
-    if risk:
-        risk_copy = str(risk).strip().rstrip(".")
-        fourth = f"The key risk: {risk_copy}; ATLAS rates it {guidance} because {lead}."
-    else:
-        fourth = f"The principal limitation is {lead}; that is why ATLAS rates it {guidance}."
-    return f"{first} {second} {third} {fourth}"
+    if isinstance(risk, (list, tuple)): risk = next((str(item) for item in risk if item), None)
+    if risk and re.search(r"no (?:major )?(?:financial )?(?:red flag|risk)", str(risk), re.I): risk = None
+    risk_copy = str(risk).strip().rstrip(".") if risk else blocker
+    action_sentence = f"The key risk is {risk_copy}; ATLAS's {action} stance reflects that {blocker}."
+    return " ".join((opening, valuation_sentence, street_sentence, catalyst_sentence, action_sentence))
 
 
 def _numbers(value: Any) -> list[float]:
@@ -266,7 +258,9 @@ def validate_summary(text: str, payload: Mapping[str, Any]) -> dict[str, Any]:
     violations: list[str] = []
     if not 3 <= len([part for part in re.split(r"(?<=[.!?])\s+", copy) if part]) <= 5:
         violations.append("SENTENCE_COUNT")
-    allowed = _numbers(payload)
+    # The product contract permits the fixed investment horizon; it is not an
+    # evidence claim sourced from a ticker payload.
+    allowed = _numbers(payload) + [6.0, 12.0]
     for lane in (payload.get("fundamentals") or {}, payload.get("latest_earnings") or {}, payload.get("forward_outlook") or {}):
         for key, value in dict(lane).items():
             if any(token in str(key).lower() for token in ("growth", "margin", "surprise")):
@@ -288,6 +282,8 @@ def validate_summary(text: str, payload: Mapping[str, Any]) -> dict[str, Any]:
         violations.append("INTERNAL_GUIDANCE_EXPOSED")
     if re.search(r"\b(?:DISCOVERY\s+)?RANK\b|\bSETUP SCORE\b|\bSCAN CONVICTION\b", copy, re.I):
         violations.append("PRIMARY_THESIS_DASHBOARD_LANGUAGE")
+    if re.search(r"\b(?:governed|investment-quality|technical) gates?\b|\ball (?:buy|accumulate) gates passed\b", copy, re.I):
+        violations.append("GENERIC_GATE_LANGUAGE")
     if "RECOVERY SCORE" in copy.upper() or re.search(r"\b\d+(?:\.\d+)?×\s+(?:CONTEXTUAL\s+)?VOLUME\b", copy, re.I):
         violations.append("RAW_DASHBOARD_METRIC_RECITATION")
     if any(state != canonical_guidance for state in mentioned_guidance):
@@ -311,6 +307,9 @@ def validate_summary(text: str, payload: Mapping[str, Any]) -> dict[str, Any]:
     if re.search(r"\b(guaranteed|will certainly|should buy|should sell|we recommend)\b", copy, re.I):
         violations.append("UNSUPPORTED_RECOMMENDATION_OR_CERTAINTY")
     financial_lanes = {**dict(payload.get("fundamentals") or {}), **dict(payload.get("latest_earnings") or {}), **dict(payload.get("forward_outlook") or {})}
+    financial_available = any(value is not None and value != "" for value in financial_lanes.values())
+    if financial_available and not re.search(r"\b(revenue|sales|earnings|eps|margin|profit|cash flow|debt|forward estimate)\b", copy, re.I):
+        violations.append("AVAILABLE_FINANCIAL_EVIDENCE_IGNORED")
     if re.search(r"\b(revenue|sales|earnings|eps|margin|profit|cash flow|debt)\b", copy, re.I) and not any(value is not None and value != "" for value in financial_lanes.values()):
         violations.append("UNSUPPORTED_FINANCIAL_CLAIM")
     catalyst_claim = re.search(r"\b(catalyst|product launch|fda|contract|acquisition|merger)\b", copy, re.I)
@@ -336,6 +335,15 @@ def validate_summary(text: str, payload: Mapping[str, Any]) -> dict[str, Any]:
     }
     if any(phrase.lower() in copy.lower() and comparison != state for phrase, state in comparison_claims.items()):
         violations.append("UNSUPPORTED_VALUATION_COMPARISON")
+    target_gap = (payload.get("valuation_comparison") or {}).get("target_gap_pct")
+    if target_gap is not None and abs(float(target_gap)) > 15 and not re.search(r"\bWall Street\b", copy, re.I):
+        violations.append("MATERIAL_STREET_DIVERGENCE_IGNORED")
+    if payload.get("commercial_catalysts") and not any(str(item.get("headline") or "").lower() in copy.lower() for item in payload["commercial_catalysts"]):
+        violations.append("AVAILABLE_CATALYST_IGNORED")
+    if atlas.get("expected_return") is not None and float(atlas["expected_return"]) > 20:
+        driver_values = dict(atlas.get("driver_evidence") or {})
+        if driver_values and not re.search(r"\b(forward EPS|earnings multiple|growth input|revenue|cash flow|margin)\b", copy, re.I):
+            violations.append("LARGE_UPSIDE_DRIVER_UNEXPLAINED")
     ticker = str(payload.get("ticker") or "").upper()
     company = str(payload.get("company") or "").upper()
     if ticker not in copy.upper() and company not in copy.upper():

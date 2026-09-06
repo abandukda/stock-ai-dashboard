@@ -150,6 +150,18 @@ def acquire_full_universe_decisions(
                 twelve_data_phase1=bundle, phase1_enabled=True,
             )
             evaluation["publication_version"] = VERSION
+            # Presentation-only evidence survives artifact publication so the
+            # customer thesis can explain the canonical result. These fields
+            # are downstream of, and never inputs to, Guidance.
+            evaluation["trial_presentation_fields"] = {
+                key: enriched.get(key) for key in (
+                    "description", "sector", "industry", "revenue_growth", "earnings_growth",
+                    "operating_profit_margin", "free_cash_flow", "current_ratio", "latest_revenue",
+                    "latest_operating_income", "operating_cash_flow", "total_debt", "cash_and_equivalents",
+                    "forward_eps", "forward_eps_period", "forward_revenue", "forward_revenue_period",
+                    "forward_estimate_evidence",
+                ) if enriched.get(key) is not None
+            }
             evaluations[symbol] = evaluation
             metrics = dict(evaluation.get("decision_metrics") or {})
             diagnostics[symbol] = {

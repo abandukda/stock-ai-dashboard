@@ -49,7 +49,7 @@ def test_zero_cash_flow_values_are_preserved_as_real_evidence():
 
 
 def test_forward_estimates_use_annual_forward_period_not_quarterly_record():
-    dossier = {"families": {
+    dossier = {"observed_at": "2026-09-05T20:00:00Z", "evidence_ids": ("TD-EPS", "TD-REV"), "families": {
         "earnings_estimate": {"payload": {"earnings_estimate": [
             {"period": "current_quarter", "avg_estimate": -1},
             {"period": "next_year", "avg_estimate": 8},
@@ -62,3 +62,5 @@ def test_forward_estimates_use_annual_forward_period_not_quarterly_record():
     row = normalize_trial_dossier({"ticker": "FWD"}, dossier)
     assert row["forward_eps"] == 8 and row["forward_eps_period"] == "next_year"
     assert row["forward_revenue"] == 50 and row["forward_revenue_period"] == "next_year"
+    assert row["forward_estimate_evidence"]["eps"]["period"] == "next_year"
+    assert row["forward_estimate_evidence"]["evidence_ids"] == ("TD-EPS", "TD-REV")

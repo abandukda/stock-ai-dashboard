@@ -162,6 +162,11 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
     if output.get("forward_revenue") is None and rev_est.get("avg_estimate") is not None:
         output["forward_revenue"] = rev_est["avg_estimate"]
         output["forward_revenue_period"] = rev_est.get("period")
+    output["forward_estimate_evidence"] = {
+        "eps": dict(eps_est), "revenue": dict(rev_est),
+        "as_of": dossier.get("observed_at"),
+        "evidence_ids": tuple(dossier.get("evidence_ids") or ()),
+    }
     output["twelve_trial_dossier"] = dict(dossier)
     output["twelve_trial_evidence_ids"] = tuple(dossier.get("evidence_ids") or ())
     output["fundamental_source"] = output.get("fundamental_source") or "TWELVE_DATA_INTERNAL_TRIAL"
