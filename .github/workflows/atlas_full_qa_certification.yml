@@ -198,10 +198,19 @@ jobs:
           name: atlas-full-qa-${{ github.run_id }}
           path: |
             audit_results/full_qa/${{ github.run_id }}
-            audit_results/candidate_artifacts/publication_manifest.json
+            audit_results/candidate_artifacts
             failed_publication_run.json
           if-no-files-found: warn
           retention-days: 90
+
+      - name: Preserve exact generated candidate for deterministic reruns
+        if: always() && steps.candidate.outputs.run_id == ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-scan-candidate-${{ github.run_id }}
+          path: audit_results/candidate_artifacts
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Commit atomically certified production artifacts
         if: success()
