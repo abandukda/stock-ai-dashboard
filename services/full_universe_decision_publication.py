@@ -254,6 +254,8 @@ def publish_evaluations(rows: Sequence[Mapping[str, Any]], result: Mapping[str, 
         if isinstance(evaluation, Mapping):
             item["canonical_investment_evaluation"] = dict(evaluation)
             item["decision_metrics_methodology"] = evaluation.get("decision_metrics_methodology")
+            from services.canonical_data_validation import validate_valuation
+            item["canonical_investment_evaluation"]["valuation_validation"] = validate_valuation(item)
         output.append(item)
     return output
 

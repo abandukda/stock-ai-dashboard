@@ -70,6 +70,8 @@ def render_developer_center(
         matured_snapshot_count=len({row.get("snapshot_id") for row in outcome_rows})
         governed = methodology_health(artifact if isinstance(artifact, list) else [],performance_snapshot_count=snapshot_count,matured_performance_count=matured_snapshot_count)
         volume_rows=build_volume_screener(artifact if isinstance(artifact,list) else [])
+        from services.canonical_data_validation import validation_health
+        valuation_health=validation_health(artifact if isinstance(artifact,list) else [])
         with st.expander("Institutional Methodology Health", expanded=True):
             st.caption(f"Registry {governed['methodology_registry_version']} · Valuation {governed['valuation_methodology_version']} · Macro assumptions {governed['macro_assumption_version']}")
             columns=st.columns(4)
@@ -79,6 +81,21 @@ def render_developer_center(
             st.caption(f'High-volume population: {sum(x["volume_state"] in {"VOLUME_SURGE","HIGH_VOLUME_NO_ACTION","BREAKOUT_CONFIRMED","FAILED_BREAKOUT"} for x in volume_rows)}')
             if governed["matured_performance_count"] == 0:
                 st.info("Performance analytics will appear after the first completed trading-session horizon matures. No client performance claim is published before then.")
+        with st.expander("Canonical Valuation Data Health", expanded=True):
+            distribution=valuation_health["certification_distribution"]
+            columns=st.columns(5)
+            for index,(label,key) in enumerate((("Certified","CERTIFIED"),("High Uncertainty","CERTIFIED_HIGH_UNCERTAINTY"),("Review Required","REVIEW_REQUIRED"),("Insufficient Inputs","INSUFFICIENT_INPUTS"),("Not Applicable","NOT_APPLICABLE"))):
+                columns[index].metric(label,distribution.get(key,0))
+            checks=st.columns(4)
+            checks[0].metric("Source Divergence",valuation_health["input_source_divergence_count"])
+            checks[1].metric("Period Mismatch",valuation_health["period_mismatch_count"])
+            checks[2].metric("Market-Cap Bridge",valuation_health["market_cap_bridge_failure_count"])
+            checks[3].metric("EV Bridge",valuation_health["ev_bridge_failure_count"])
+            checks=st.columns(4)
+            checks[0].metric("FCF Reconciliation",valuation_health["fcf_reconciliation_failure_count"])
+            checks[1].metric("Extreme Dispersion",valuation_health["extreme_model_dispersion_count"])
+            checks[2].metric("Sector/Model Review",valuation_health["sector_model_applicability_warning_count"])
+            checks[3].metric("Published Audited",valuation_health["published_audited"])
         validation=validation_report(snapshot_rows,outcome_rows)
         st.markdown("### Model Validation — Internal Only")
         with st.container(border=True):

@@ -195,6 +195,7 @@ def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
     evaluation = dict(card.get("evaluation") or {})
     canonical_valuation = dict(evaluation.get("atlas_valuation") or {})
     professional = dict(canonical_valuation.get("professional_valuation_v2") or {})
+    validation = dict(evaluation.get("valuation_validation") or {})
     fundamentals = dict(card.get("fundamentals_evidence") or {})
     company = dict(card.get("company_evidence") or {})
     technical = dict(card.get("canonical_technical_evidence") or card.get("technical_evidence") or {})
@@ -230,14 +231,23 @@ def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
         ("Valuation Quality", "valuation_quality"), ("Risk Quality", "risk_quality"),
         ("Entry Quality", "entry_quality"), ("Volume Quality", "volume_quality"),
     )]
+    validation_state = str(validation.get("certification_state") or "")
+    validation_copy = {
+        "CERTIFIED": "Validated",
+        "CERTIFIED_HIGH_UNCERTAINTY": "Validated with high uncertainty",
+        "REVIEW_REQUIRED": "Under review — not displayed as a confident customer fair value",
+        "INSUFFICIENT_INPUTS": "Not published — supporting inputs are incomplete",
+        "NOT_APPLICABLE": "Not applicable for this company",
+    }.get(validation_state)
+    customer_value_allowed = validation.get("customer_publication_allowed") is not False
     valuation = rows((
         ("Current Price", card.get("display_price"), "money"),
-        ("ATLAS Base Fair Value", professional.get("atlas_base_fair_value") if professional.get("status") == "PUBLISHED" else card.get("atlas_fair_value") if str(card.get("atlas_valuation_status")).upper() == "PUBLISHED" else None, "money"),
-        ("Fair Value Range", f'{_money(professional.get("atlas_fair_value_low"))}–{_money(professional.get("atlas_fair_value_high"))}' if professional.get("atlas_fair_value_low") is not None and professional.get("atlas_fair_value_high") is not None else None, "text"),
-        ("Bear Case", professional.get("atlas_bear_case"), "money"),
-        ("Bull Case", professional.get("atlas_bull_case"), "money"),
-        ("Expected Return", card.get("atlas_expected_return"), "pct"),
+        ("ATLAS Base Fair Value", professional.get("atlas_base_fair_value") if professional.get("status") == "PUBLISHED" and customer_value_allowed else card.get("atlas_fair_value") if str(card.get("atlas_valuation_status")).upper() == "PUBLISHED" and customer_value_allowed else None, "money"),
+        ("Model Valuation Range", f'{_money(professional.get("atlas_fair_value_low"))}–{_money(professional.get("atlas_fair_value_high"))}' if customer_value_allowed and professional.get("atlas_fair_value_low") is not None and professional.get("atlas_fair_value_high") is not None else None, "text"),
+        ("Scenario Range", f'{_money(professional.get("atlas_bear_case"))}–{_money(professional.get("atlas_bull_case"))}' if customer_value_allowed and professional.get("atlas_bear_case") is not None and professional.get("atlas_bull_case") is not None else None, "text"),
+        ("Expected Return", card.get("atlas_expected_return") if customer_value_allowed else None, "pct"),
         ("Valuation Confidence", professional.get("valuation_confidence"), "pct"),
+        ("Valuation Review", validation_copy, "text"),
         ("Publication Status", "Published" if str(card.get("atlas_valuation_status")).upper() == "PUBLISHED" else "Not Published", "text"),
         ("Methodology", professional.get("valuation_methodology_version") or canonical_valuation.get("methodology_version"), "text"),
         ("Valuation As Of", _timestamp(card.get("evaluation_timestamp")), "text"),
@@ -256,7 +266,9 @@ def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
         if not isinstance(model, Mapping):
             continue
         label = str(model.get("name") or "Valuation method")
-        if model.get("status") == "PUBLISHED":
+        if model.get("status") == "PUBLISHED" and not customer_value_allowed:
+            value = "Withheld pending validation review"
+        elif model.get("status") == "PUBLISHED":
             assumptions = dict(model.get("key_assumptions") or {})
             key_assumption = assumptions.get("multiple_basis") or (f'WACC {_score(float(assumptions["wacc"])*100, suffix="%")}' if assumptions.get("wacc") is not None else None)
             period = f' · {model.get("fiscal_period")}' if model.get("fiscal_period") else ''
@@ -270,12 +282,12 @@ def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
     valuation_methods = rows(tuple(model_rows)) if model_rows else '<p class="atlas-home-muted">Professional valuation model detail is not yet published</p>'
     scenarios = rows((("Bear Case", professional.get("atlas_bear_case"), "money"),
                       ("Base Case", professional.get("atlas_base_fair_value"), "money"),
-                      ("Bull Case", professional.get("atlas_bull_case"), "money")))
+                      ("Bull Case", professional.get("atlas_bull_case"), "money"))) if customer_value_allowed else '<p class="atlas-home-muted">Scenario values are withheld pending validation review.</p>'
     sensitivity_rows = tuple(
         (f'WACC {_score(float(item.get("wacc")) * 100, suffix="%")} · growth {_score(float(item.get("terminal_growth")) * 100, suffix="%")}', item.get("fair_value"), "money")
         for item in (professional.get("sensitivity") or ()) if isinstance(item, Mapping)
     )
-    sensitivity = rows(sensitivity_rows) if sensitivity_rows else '<p class="atlas-home-muted">Sensitivity is not published without complete scenario inputs</p>'
+    sensitivity = rows(sensitivity_rows) if sensitivity_rows and customer_value_allowed else '<p class="atlas-home-muted">Sensitivity is not published without complete validated scenario inputs</p>'
     diagnostics = dict(professional.get("valuation_diagnostics") or {})
     explanation = dict(professional.get("valuation_explanation") or {})
     customer_flag_labels = {

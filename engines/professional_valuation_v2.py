@@ -32,6 +32,10 @@ def _first(row: Mapping[str, Any], *keys: str) -> Any:
 def classify_company(row: Mapping[str, Any]) -> str:
     security = str(_first(row, "security_type", "asset_type", "provider_security_type") or "").upper()
     sector = str(row.get("sector") or "").lower(); industry = str(row.get("industry") or "").lower()
+    # Provider classifications occasionally arrive as Unknown even when the
+    # approved company profile states an unambiguous professional sector. Use
+    # that sourced profile only as a routing fallback; it is never a model input.
+    routing_text = industry if industry not in {"", "unknown", "n/a"} else str(_first(row,"business_summary","company_description","description") or "").lower()
     profitable = (_number(_first(row, "forward_eps", "net_income", "latest_eps")) or 0) > 0
     if security == "ETF" or "exchange traded fund" in industry: return "ETF"
     if "reit" in industry or "real estate investment trust" in industry: return "REIT"
@@ -40,7 +44,7 @@ def classify_company(row: Mapping[str, Any]) -> str:
     if "biotech" in industry and ((_number(row.get("net_income")) or 0) <= 0): return "PRE_PROFIT_BIOTECH"
     if "pharma" in industry or "drug manufacturer" in industry: return "PROFITABLE_PHARMA" if profitable else "PRE_PROFIT_BIOTECH"
     if "software" in industry and (_number(row.get("revenue_growth")) or 0) > .15: return "HIGH_GROWTH_SOFTWARE"
-    if any(word in industry for word in ("gold", "copper", "oil & gas", "mining")): return "COMMODITY_PRODUCER"
+    if any(word in routing_text for word in ("gold", "copper", "oil & gas", "mining")): return "COMMODITY_PRODUCER"
     if "conglomerate" in industry: return "CONGLOMERATE"
     return "PROFITABLE_OPERATING_COMPANY" if profitable else "UNCLASSIFIED_OPERATING_COMPANY"
 
