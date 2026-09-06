@@ -72,6 +72,9 @@ FULL_SCAN_FILE = DATA_DIR / "market_full_scan.json"
 PRESCREEN_FILE = DATA_DIR / "market_prescreen.json"
 STATE_FILE = DATA_DIR / "market_scan_state.json"
 UNIVERSE_FILE = DATA_DIR / "total_market_universe.json"
+PUBLICATION_MANIFEST_FILE = DATA_DIR / "publication_manifest.json"
+PUBLICATION_AUDIT_FILE = DATA_DIR / "publication_audit.jsonl"
+FAILED_PUBLICATION_FILE = DATA_DIR / "failed_publication_run.json"
 
 # =========================
 # V50.8.4 SCANNER STATE VERSION LOCK
@@ -118,6 +121,8 @@ PRODUCTION_OUTPUT_FILES = (
     STATE_FILE,
     RECOVERY_SCAN_FILE,
     UNIVERSE_FILE,
+    PUBLICATION_MANIFEST_FILE,
+    PUBLICATION_AUDIT_FILE,
 )
 
 # V40.0 external research data sources
@@ -4847,9 +4852,7 @@ def scan_market() -> Dict[str, Any]:
         "count": len(universe),
         "symbols": universe,
     }
-    universe_persistence_started = time.monotonic()
-    write_json(UNIVERSE_FILE, universe_payload)
-    _record_scan_timing("universe_persistence_seconds", time.monotonic() - universe_persistence_started)
+    _record_scan_timing("universe_persistence_seconds", 0.0)
 
     prescreen_rows: List[Dict[str, Any]] = []
     full_rows: List[Dict[str, Any]] = []
@@ -5406,12 +5409,6 @@ def scan_market() -> Dict[str, Any]:
         },
     }
 
-    output_started = time.monotonic()
-    write_json(PRESCREEN_FILE, prescreen_rows)
-    write_json(FULL_SCAN_FILE, full_rows)
-    write_json(RECOVERY_SCAN_FILE, recovery_rows)
-    write_json(ETF_SCAN_FILE, etf_rows)
-    _record_scan_timing("output_persistence_seconds", time.monotonic() - output_started)
     _finalize_yahoo_metadata_percentiles()
     scanner_total = time.time() - start_time
     _SCAN_TIMINGS["scanner_total_seconds"] = scanner_total
@@ -5422,13 +5419,56 @@ def scan_market() -> Dict[str, Any]:
         "newsapi": _newsapi_diagnostic_summary(),
         "fmp_shadow": _persisted_fmp_shadow_diagnostics(),
     }
-    write_json(STATE_FILE, state)
+    output_started = time.monotonic()
+    hard_governance = os.getenv("ATLAS_HARD_PUBLICATION_GOVERNANCE_ENABLED", "true").lower() == "true"
+    if hard_governance:
+        from services.publication_governance import build_manifest, certify_rows, promote_atomically
+        prior_lkg = FULL_SCAN_FILE.with_name(f".{FULL_SCAN_FILE.name}.last_known_good")
+        prior_rows = json.loads(prior_lkg.read_text(encoding="utf-8")) if prior_lkg.exists() else None
+        full_rows = certify_rows(full_rows)
+        certification_counts: Dict[str, int] = {}
+        for row in full_rows:
+            certification_state = str((row.get("publication_certification") or {}).get("certification_state") or "INSUFFICIENT_INPUTS")
+            certification_counts[certification_state] = certification_counts.get(certification_state, 0) + 1
+        state["hard_publication_governance"] = {
+            "version": "ATLAS_HARD_PUBLICATION_GOVERNANCE_V1",
+            "certification_distribution": certification_counts,
+            "withheld_count": sum(not bool((row.get("publication_certification") or {}).get("customer_publication_allowed")) for row in full_rows),
+        }
+        artifact_payloads = {
+            PRESCREEN_FILE: prescreen_rows, FULL_SCAN_FILE: full_rows,
+            RECOVERY_SCAN_FILE: recovery_rows, ETF_SCAN_FILE: etf_rows,
+            UNIVERSE_FILE: universe_payload, STATE_FILE: state,
+        }
+        run_id = f"overnight-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
+        manifest = build_manifest(
+            full_rows, run_id=run_id, generated_at=state["generated_at"],
+            artifact_payloads={path.name: payload for path, payload in artifact_payloads.items()},
+            provider_status=decision_publication, prior_rows=prior_rows,
+        )
+        state["hard_publication_governance"]["publication_gate_status"] = manifest["publication_gate_status"]
+        manifest = build_manifest(
+            full_rows, run_id=run_id, generated_at=state["generated_at"],
+            artifact_payloads={path.name: payload for path, payload in artifact_payloads.items()},
+            provider_status=decision_publication, prior_rows=prior_rows,
+        )
+        promote_atomically(artifact_payloads, manifest=manifest,
+                           manifest_path=PUBLICATION_MANIFEST_FILE, audit_path=PUBLICATION_AUDIT_FILE)
+    else:
+        write_json(PRESCREEN_FILE, prescreen_rows)
+        write_json(FULL_SCAN_FILE, full_rows)
+        write_json(RECOVERY_SCAN_FILE, recovery_rows)
+        write_json(ETF_SCAN_FILE, etf_rows)
+        write_json(UNIVERSE_FILE, universe_payload)
+        write_json(STATE_FILE, state)
+    _record_scan_timing("output_persistence_seconds", time.monotonic() - output_started)
 
     persistence_started = time.monotonic()
     print("[persistence] start", flush=True)
     if GITHUB_PERSIST and not os.getenv("GITHUB_ACTIONS"):
         state["github_persisted"] = persist_to_github()
-        write_json(STATE_FILE, state)
+        if not hard_governance:
+            write_json(STATE_FILE, state)
     persistence_elapsed = time.monotonic() - persistence_started
     print(
         f"[persistence] end elapsed_seconds={persistence_elapsed:.2f} "
@@ -5535,7 +5575,8 @@ def main() -> None:
             "data_dir": str(DATA_DIR),
             "github_persisted": bool(os.getenv("GITHUB_ACTIONS")),
         }
-        write_json(STATE_FILE, error_state)
+        failure_path = FAILED_PUBLICATION_FILE if os.getenv("ATLAS_HARD_PUBLICATION_GOVERNANCE_ENABLED", "true").lower() == "true" else STATE_FILE
+        write_json(failure_path, error_state)
         print(json.dumps(error_state, indent=2))
         sys.exit(1)
 

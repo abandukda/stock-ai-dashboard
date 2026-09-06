@@ -379,6 +379,9 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
     st.markdown("## Decision")
     current = safe_mapping(view.get("current_evaluation"))
     current_guidance = safe_mapping(current.get("guidance"))
+    publication = safe_mapping(current.get("publication_certification"))
+    if publication and publication.get("action_publication_eligible") is not True:
+        current_guidance = {}
     customer_action = customer_action_presentation(current_guidance.get("state"))
     market = safe_mapping(report.get("canonical_market_snapshot"))
     setup = st.columns(4)

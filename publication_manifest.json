@@ -1,0 +1,69 @@
+{
+  "version": "ATLAS_PUBLICATION_MANIFEST_V1",
+  "run_id": "certify-2026-09-06T014920.238604_0000",
+  "generated_at": "2026-09-06T01:49:20.238604+00:00",
+  "methodology_versions": [
+    "FOUNDER_GUIDANCE_V1"
+  ],
+  "macro_assumption_versions": [
+    "ATLAS_US_MARKET_ASSUMPTIONS_2026_08_31"
+  ],
+  "provider_status": {
+    "version": "ATLAS_FULL_UNIVERSE_DECISION_PUBLICATION_V1",
+    "status": "AVAILABLE",
+    "provider_calls": 603,
+    "fundamental_primary_calls": 150,
+    "fundamental_fallback_calls": 3,
+    "estimate_calls": 300,
+    "technical_history_calls": 150,
+    "technical_history_http_successes": 150,
+    "technical_history_successes": 148,
+    "fundamental_family_counts": {
+      "revenue": 150,
+      "earnings": 149,
+      "profitability": 149,
+      "cash_flow": 150,
+      "balance_sheet": 150
+    },
+    "valuation_status_counts": {
+      "REJECTED_EXTREME_UPSIDE": 59,
+      "PUBLISHED": 87,
+      "REJECTED_EXTREME_DOWNSIDE": 2,
+      "FORMULA_NOT_APPLICABLE": 1,
+      "INSUFFICIENT_INPUTS": 1
+    },
+    "endpoint_success": {
+      "statistics": 150,
+      "income_statement": 1,
+      "balance_sheet": 1,
+      "cash_flow": 1,
+      "earnings_estimate": 150,
+      "revenue_estimate": 150,
+      "time_series_1day": 150
+    },
+    "latency_seconds": 23.333,
+    "observed_at": "2026-09-06T01:48:57.168271+00:00"
+  },
+  "universe_count": 150,
+  "certification_distribution": {
+    "REVIEW_REQUIRED": 84,
+    "CERTIFIED_HIGH_UNCERTAINTY": 50,
+    "CERTIFIED": 10,
+    "INSUFFICIENT_INPUTS": 6
+  },
+  "certified_count": 10,
+  "high_uncertainty_count": 50,
+  "withheld_count": 90,
+  "validation_failures": [],
+  "artifact_hashes": {
+    "market_full_scan.json": "616109a3d1f1a403c8b6c001a3a30811371b089a2656c3921589adb678cb0a03",
+    "market_prescreen.json": "addeff690da98b87c39c35498b0d81040949bbbd2ddd726521a03acd2eed99c3",
+    "recovery_scan.json": "15304515f20b07fcf6b12b20b05bec827e17f291c2e2a395a4d0c2d6d8bc85d0",
+    "etf_scan.json": "3496decf8bb7e04b6b8cfd9d1b7a41b5aa98c12b48e271d21db58dedb060e2c2",
+    "total_market_universe.json": "0a703bdc2875472f4f4600ef8fc79a80c99c1378a471a257f8533c94262fbd0b",
+    "market_scan_state.json": "15ddbf420d0da32f5a14b0aa7bf3d598f1e02308de4e78c67d70ed926acf3286"
+  },
+  "run_over_run_anomalies": [],
+  "freshness_status": "VALIDATED_BY_EVIDENCE_TYPE",
+  "publication_gate_status": "PASS"
+}

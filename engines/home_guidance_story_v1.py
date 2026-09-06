@@ -21,6 +21,7 @@ GUIDANCE_GROUPS = (
     ("Getting Close", {"WAIT_FOR_CONFIRMATION", "WAIT_FOR_ENTRY"}),
     ("Risk / Avoid", {"AVOID"}),
     ("Data Limited", {"DATA_LIMITED"}),
+    ("Certification Pending", {"WITHHELD"}),
 )
 
 HOME_FIELD_AUTHORITY = {
@@ -51,6 +52,7 @@ CUSTOMER_ACTION_PRESENTATION = {
     "WAIT_FOR_CONFIRMATION": {"label": "WAIT FOR CONFIRMATION", "stars": "★★★½", "rating": 3.5, "tone": "wait", "instruction": "Stay patient. The thesis is attractive, but confirmation is incomplete."},
     "DATA_LIMITED": {"label": "WATCH", "stars": "★★½", "rating": 2.5, "tone": "watch", "instruction": "Do not enter yet. Keep it on the watchlist while the setup develops."},
     "AVOID": {"label": "AVOID", "stars": "★", "rating": 1.0, "tone": "avoid", "instruction": "ATLAS would not deploy capital here under current conditions."},
+    "WITHHELD": {"label": "RATING NOT PUBLISHED", "stars": "", "rating": None, "tone": "neutral", "instruction": "ATLAS is refreshing the supporting evidence before publishing a rating."},
 }
 
 
@@ -260,7 +262,15 @@ def build_home_guidance_candidate(
         if street.get("mean") is not None and price is not None and price > 0 else None
     )
     reasons = tuple(str(item) for item in guidance.get("reason_codes") or ())
-    customer_action = customer_action_presentation(guidance.get("state"))
+    governed_guidance = str(guidance.get("state") or "DATA_LIMITED")
+    publication = row.get("publication_certification") if isinstance(row.get("publication_certification"), Mapping) else {}
+    publication = publication or (evaluation.get("publication_certification") if isinstance(evaluation.get("publication_certification"), Mapping) else {})
+    legacy_test_or_prepublication = not evaluation.get("decision_digest")
+    if not publication and not legacy_test_or_prepublication and not (current_evaluation is not None and persisted_evaluation is None):
+        from services.publication_governance import certify_record
+        publication = certify_record({**dict(row), "canonical_investment_evaluation": evaluation})
+    published_guidance = governed_guidance if not publication or publication.get("action_publication_eligible") is True else "WITHHELD"
+    customer_action = customer_action_presentation(published_guidance)
     technical_state, technical_status = _technical_status(evaluation)
     volume = evaluation.get("volume_intelligence") if isinstance(evaluation.get("volume_intelligence"), Mapping) else {}
     risk = evaluation.get("risk") if isinstance(evaluation.get("risk"), Mapping) else {}
@@ -291,7 +301,10 @@ def build_home_guidance_candidate(
         "production_snapshot_timestamp": production_snapshot_timestamp,
         "production_source_artifact": "market_full_scan.json",
         "snapshot_membership": "CURRENT_FULL_SCAN",
-        "guidance": str(guidance.get("state") or "DATA_LIMITED"),
+        "guidance": governed_guidance,
+        "customer_guidance": published_guidance,
+        "governed_guidance": governed_guidance,
+        "publication_certification": dict(publication),
         "opportunity_thesis": guidance.get("opportunity_thesis") or evaluation.get("opportunity_thesis"),
         "customer_action": customer_action,
         "guidance_status": str(guidance.get("status") or "DATA_UNAVAILABLE"),
@@ -500,7 +513,7 @@ def build_home_guidance_story(
         if _ticker(row)
     ]
     groups = [
-        {"title": title, "states": tuple(sorted(states)), "cards": [card for card in cards if card["guidance"] in states]}
+        {"title": title, "states": tuple(sorted(states)), "cards": [card for card in cards if card.get("customer_guidance", card["guidance"]) in states]}
         for title, states in GUIDANCE_GROUPS
     ]
     watched = {str(value).strip().upper() for value in watchlist_tickers if str(value).strip()}

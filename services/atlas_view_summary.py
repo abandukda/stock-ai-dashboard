@@ -70,6 +70,10 @@ def llm_configuration_status() -> dict[str, Any]:
 
 
 def build_summary_payload(card: Mapping[str, Any]) -> dict[str, Any]:
+    certification = dict(card.get("publication_certification") or {})
+    certified_components = dict(certification.get("components") or {})
+    def allowed(name: str) -> bool:
+        return str((certified_components.get(name) or {}).get("state")) in {"CERTIFIED", "CERTIFIED_HIGH_UNCERTAINTY"}
     persisted_technical = dict(card.get("technical_evidence") or {})
     canonical_technical = dict(card.get("canonical_technical_evidence") or {})
     technical = canonical_technical or persisted_technical
@@ -93,6 +97,18 @@ def build_summary_payload(card: Mapping[str, Any]) -> dict[str, Any]:
     valuation = dict(evaluation.get("atlas_valuation") or {})
     professional_valuation = dict(valuation.get("professional_valuation_v2") or {})
     valuation_drivers = dict(card.get("valuation_driver_evidence") or {})
+    if certification:
+        if not allowed("technical"): canonical_technical = persisted_technical = technical = {}
+        if not allowed("volume"): volume = {}
+        if not allowed("trade_plan"): trade = {}
+        if not allowed("market"): market = {}
+        if not allowed("fundamentals"): fundamentals = company = {}
+        if not allowed("risk"): risk = {}
+        if not allowed("valuation"):
+            valuation = professional_valuation = valuation_drivers = {}
+        context_state = dict(certification.get("optional_context") or {})
+        if context_state.get("wall_street") != "CONTEXT_VALIDATED": wall_street = {}
+        if context_state.get("news") != "CONTEXT_VALIDATED": card = {**dict(card), "recent_catalysts": ()}
     catalysts = []
     for item in (card.get("recent_catalysts") or ())[:3]:
         if isinstance(item, Mapping):
@@ -106,7 +122,7 @@ def build_summary_payload(card: Mapping[str, Any]) -> dict[str, Any]:
         "ticker": card.get("ticker"), "company": card.get("company"),
         "production_rank": card.get("production_rank"), "setup_score": card.get("scan_conviction"),
         "setup_score_scale": 100, "indicator_periods": [20, 50, 200],
-        "price": card.get("display_price"), "price_label": card.get("display_price_label"),
+        "price": card.get("display_price") if not certification or allowed("market") else None, "price_label": card.get("display_price_label"),
         "market_session": market.get("market_session"), "market_status": market.get("status"),
         "market_timestamp": market.get("provider_timestamp"),
         "canonical_technical_state": card.get("technical_state") if card.get("technical_status") == "AVAILABLE" else "UNAVAILABLE",
@@ -117,8 +133,8 @@ def build_summary_payload(card: Mapping[str, Any]) -> dict[str, Any]:
         "stop": trade.get("stop") if trade.get("stop") is not None else trade.get("stop_loss"),
         "target_1": trade.get("target_1") if trade.get("target_1") is not None else trade.get("target"),
         "recovery_score": recovery.get("score"), "recovery_state": recovery.get("state"),
-        "atlas_fair_value": card.get("atlas_fair_value"), "atlas_fv_status": card.get("atlas_valuation_status"),
-        "expected_return": card.get("atlas_expected_return"),
+        "atlas_fair_value": card.get("atlas_fair_value") if not certification or allowed("valuation") else None, "atlas_fv_status": card.get("atlas_valuation_status") if not certification or allowed("valuation") else "NOT_PUBLISHED",
+        "expected_return": card.get("atlas_expected_return") if not certification or allowed("valuation") else None,
         "contextual_rvol": volume.get("relative_volume"), "volume_status": card.get("volume_status"),
         "bar_quality": (card.get("completed_bar_quality") or {}).get("status"),
         "fundamentals_status": card.get("fundamentals_status"), "risk_status": card.get("risk_status"),
@@ -133,8 +149,8 @@ def build_summary_payload(card: Mapping[str, Any]) -> dict[str, Any]:
         )},
         "forward_estimate_evidence": dict(company.get("forward_estimate_evidence") or {}),
         "atlas_valuation": {
-            "status": card.get("atlas_valuation_status"), "target": card.get("atlas_fair_value"),
-            "expected_return": card.get("atlas_expected_return"),
+            "status": card.get("atlas_valuation_status") if not certification or allowed("valuation") else "NOT_PUBLISHED", "target": card.get("atlas_fair_value") if not certification or allowed("valuation") else None,
+            "expected_return": card.get("atlas_expected_return") if not certification or allowed("valuation") else None,
             "driver_evidence": valuation_drivers,
             "rejection_reasons": list(valuation.get("reason_codes") or valuation.get("reasons") or ()),
             "professional_valuation_v2": professional_valuation,
@@ -150,6 +166,7 @@ def build_summary_payload(card: Mapping[str, Any]) -> dict[str, Any]:
             "technical_risk": list(card.get("why_atlas") or ())[:2],
         },
         "guidance": card.get("guidance"), "actionability": card.get("actionability"),
+        "publication_certification_state": certification.get("certification_state"),
         "opportunity_thesis": card.get("opportunity_thesis"),
         "customer_action": (card.get("customer_action") or {}).get("label"),
         "six_pillars": pillars,

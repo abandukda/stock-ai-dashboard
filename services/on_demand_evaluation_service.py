@@ -180,7 +180,11 @@ def evaluate_on_demand(
         evidence_ids=evidence_ids,
         positive_action_volume_authority_required=bool(phase1),
     )
-    return apply_guidance_hysteresis(previous_evaluation, evaluation)
+    result = apply_guidance_hysteresis(previous_evaluation, evaluation)
+    from services.publication_governance import certify_record
+    certification = certify_record({**dict(row), "canonical_investment_evaluation": result})
+    result["publication_certification"] = certification
+    return result
 
 
 def apply_guidance_hysteresis(previous: Mapping[str, Any] | None, current: Mapping[str, Any]) -> dict[str, Any]:

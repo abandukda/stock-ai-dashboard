@@ -256,6 +256,9 @@ def publish_evaluations(rows: Sequence[Mapping[str, Any]], result: Mapping[str, 
             item["decision_metrics_methodology"] = evaluation.get("decision_metrics_methodology")
             from services.canonical_data_validation import validate_valuation
             item["canonical_investment_evaluation"]["valuation_validation"] = validate_valuation(item)
+            from services.publication_governance import certify_record
+            item["publication_certification"] = certify_record(item)
+            item["canonical_investment_evaluation"]["publication_certification"] = item["publication_certification"]
         output.append(item)
     return output
 

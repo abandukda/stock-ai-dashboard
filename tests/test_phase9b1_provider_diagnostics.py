@@ -153,7 +153,7 @@ def test_github_actions_never_invokes_scanner_git_persistence(monkeypatch):
     assert scanner.persist_to_github() is False
 
 
-def test_workflow_is_only_commit_push_owner_and_stages_six_outputs():
+def test_workflow_is_only_commit_push_owner_and_stages_atomic_publication_outputs():
     workflow = Path(".github/workflows/overnight_scan.yml").read_text(encoding="utf-8")
     expected = [path.name for path in scanner.PRODUCTION_OUTPUT_FILES]
     add_line = next(line.strip() for line in workflow.splitlines() if line.strip().startswith("git add --"))
@@ -162,7 +162,7 @@ def test_workflow_is_only_commit_push_owner_and_stages_six_outputs():
     assert "GITHUB_REPO_URL" not in add_line
 
 
-def test_production_output_contract_is_exactly_six_json_files():
+def test_production_output_contract_includes_manifest_and_immutable_audit():
     assert [path.name for path in scanner.PRODUCTION_OUTPUT_FILES] == [
         "etf_scan.json",
         "market_full_scan.json",
@@ -170,8 +170,10 @@ def test_production_output_contract_is_exactly_six_json_files():
         "market_scan_state.json",
         "recovery_scan.json",
         "total_market_universe.json",
+        "publication_manifest.json",
+        "publication_audit.jsonl",
     ]
-    assert all(path.suffix == ".json" for path in scanner.PRODUCTION_OUTPUT_FILES)
+    assert all(path.suffix in {".json", ".jsonl"} for path in scanner.PRODUCTION_OUTPUT_FILES)
 
 
 def test_news_diagnostic_summary_contains_no_raw_payload_fields():

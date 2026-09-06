@@ -44,7 +44,10 @@ def acquire_twelve_trial_dossiers(
         return {"version": VERSION, "status": "DATA_UNAVAILABLE", "dossiers": {}, "provider_calls": 0, "reason_codes": ("TWELVE_DATA_API_KEY_UNAVAILABLE",)}
     observed = datetime.now(timezone.utc).isoformat()
     clean = tuple(dict.fromkeys(normalize_ticker(symbol) for symbol in symbols))
-    dossiers = {symbol: {"ticker": symbol, "families": {}} for symbol in clean}
+    dossiers = {
+        symbol: {"ticker": symbol, "observed_at": observed, "families": {}}
+        for symbol in clean
+    }
     telemetry = []
 
     def fetch(symbol: str, family: str) -> tuple[str, str, dict[str, Any], dict[str, Any]]:
@@ -205,6 +208,48 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
         "forward_revenue": {"period": rev_est.get("date"), "provider_label": rev_est.get("period"), "period_type": "ANNUAL", "basis": output.get("forward_revenue_basis")},
         "financial_reporting_period": output.get("financial_reporting_period"),
     }
+    raw_candidates = {
+        "latest_revenue": (("statistics", "statistics.financials.income_statement.revenue_ttm", income_stats.get("revenue_ttm")), ("income_statement", "income_statement[0].sales", income.get("sales"))),
+        "latest_operating_income": (("income_statement", "income_statement[0].operating_income", income.get("operating_income")),),
+        "operating_cash_flow": (("statistics", "statistics.financials.cash_flow.operating_cash_flow_ttm", cash_stats.get("operating_cash_flow_ttm")), ("cash_flow", "cash_flow[0].operating_activities.operating_cash_flow", _nested(cash,"operating_activities","operating_cash_flow"))),
+        "free_cash_flow": (("statistics", "statistics.financials.cash_flow.levered_free_cash_flow_ttm", cash_stats.get("levered_free_cash_flow_ttm")), ("cash_flow", "cash_flow[0].free_cash_flow", cash.get("free_cash_flow"))),
+        "capital_expenditures": (("statistics", "statistics.financials.cash_flow.capital_expenditures_ttm", cash_stats.get("capital_expenditures_ttm")), ("cash_flow", "cash_flow[0].investing_activities.capital_expenditures", _nested(cash,"investing_activities","capital_expenditures"))),
+        "total_debt": (("statistics", "statistics.financials.balance_sheet.total_debt_mrq", balance_stats.get("total_debt_mrq")),),
+        "cash_and_equivalents": (("statistics", "statistics.financials.balance_sheet.total_cash_mrq", balance_stats.get("total_cash_mrq")), ("balance_sheet", "balance_sheet[0].assets.current_assets.cash_and_cash_equivalents", _nested(balance,"assets","current_assets","cash_and_cash_equivalents"))),
+        "market_cap": (("statistics", "statistics.valuations_metrics.market_capitalization", valuation_stats.get("market_capitalization")), ("statistics", "statistics.market_capitalization", stats.get("market_capitalization"))),
+        "diluted_shares": (("income_statement", "income_statement[0].diluted_shares_outstanding", income.get("diluted_shares_outstanding")), ("income_statement", "income_statement[0].weighted_average_shares_diluted", income.get("weighted_average_shares_diluted")), ("statistics", "statistics.stock_statistics.shares_outstanding", stock_stats.get("shares_outstanding"))),
+        "forward_ebitda": (("statistics", "statistics.financials.income_statement.ebitda", _nested(financials,"income_statement","ebitda")), ("statistics", "statistics.financials.ebitda_ttm", financials.get("ebitda_ttm")), ("income_statement", "income_statement[0].ebitda", income.get("ebitda"))),
+        "ebit": (("income_statement", "income_statement[0].ebit", income.get("ebit")), ("income_statement", "income_statement[0].operating_income", income.get("operating_income"))),
+    }
+    field_lineage = {}
+    for canonical_field, candidates in raw_candidates.items():
+        normalized = output.get(canonical_field)
+        selected = next(((endpoint, raw_field, raw) for endpoint, raw_field, raw in candidates if raw is not None and normalized == raw), None)
+        if selected:
+            endpoint, raw_field, raw = selected
+            field_lineage[canonical_field] = {
+                "provider": "TWELVE_DATA", "endpoint": endpoint, "raw_field": raw_field,
+                "raw_value": raw, "canonical_field": canonical_field, "normalized_value": normalized,
+                "ticker": str(output.get("ticker") or output.get("symbol") or "").upper(),
+                "period": output.get("financial_reporting_period"), "period_type": "TTM" if raw_field.endswith("_ttm") else "REPORTED",
+                "basis": "PROVIDER_REPORTED", "currency": "USD", "unit": "CURRENCY" if "shares" not in canonical_field else "SHARES",
+                "as_of": dossier.get("observed_at"), "transformation": "DIRECT_MAP",
+                "consuming_methodology": "ATLAS_PROFESSIONAL_VALUATION_V2",
+            }
+    output["professional_evidence_lineage"]["fields"] = field_lineage
+    for canonical_field, endpoint, estimate in (("forward_eps", "earnings_estimate", eps_est), ("forward_revenue", "revenue_estimate", rev_est)):
+        if output.get(canonical_field) is not None and estimate.get("avg_estimate") == output.get(canonical_field):
+            output["professional_evidence_lineage"]["fields"][canonical_field] = {
+                "provider": "TWELVE_DATA", "endpoint": endpoint,
+                "raw_field": f"{endpoint}[period={estimate.get('period')}].avg_estimate",
+                "raw_value": estimate.get("avg_estimate"), "canonical_field": canonical_field,
+                "normalized_value": output.get(canonical_field), "ticker": str(output.get("ticker") or output.get("symbol") or "").upper(),
+                "period": estimate.get("date"), "period_type": "ANNUAL", "basis": estimate.get("basis") or "UNKNOWN",
+                "currency": "USD", "unit": "PER_SHARE" if canonical_field == "forward_eps" else "CURRENCY",
+                "as_of": dossier.get("observed_at"), "transformation": "SELECT_NEXT_YEAR_THEN_CURRENT_YEAR",
+                "consuming_methodology": "ATLAS_PROFESSIONAL_VALUATION_V2",
+                "analyst_count": estimate.get("number_of_analysts") or estimate.get("analyst_count"),
+            }
     output["professional_evidence_as_of"] = dossier.get("observed_at")
     output["twelve_trial_dossier"] = dict(dossier)
     output["twelve_trial_evidence_ids"] = tuple(dossier.get("evidence_ids") or ())

@@ -72,6 +72,8 @@ def render_developer_center(
         volume_rows=build_volume_screener(artifact if isinstance(artifact,list) else [])
         from services.canonical_data_validation import validation_health
         valuation_health=validation_health(artifact if isinstance(artifact,list) else [])
+        manifest_path=Path("publication_manifest.json")
+        publication_manifest=json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else {}
         with st.expander("Institutional Methodology Health", expanded=True):
             st.caption(f"Registry {governed['methodology_registry_version']} · Valuation {governed['valuation_methodology_version']} · Macro assumptions {governed['macro_assumption_version']}")
             columns=st.columns(4)
@@ -96,6 +98,19 @@ def render_developer_center(
             checks[1].metric("Extreme Dispersion",valuation_health["extreme_model_dispersion_count"])
             checks[2].metric("Sector/Model Review",valuation_health["sector_model_applicability_warning_count"])
             checks[3].metric("Published Audited",valuation_health["published_audited"])
+        with st.expander("Hard Publication Governance", expanded=True):
+            run=st.columns(4)
+            run[0].metric("Evaluated",publication_manifest.get("universe_count",0))
+            run[1].metric("Publication Gate",publication_manifest.get("publication_gate_status","NOT AVAILABLE"))
+            run[2].metric("Withheld",publication_manifest.get("withheld_count",0))
+            run[3].metric("Last Known Good",publication_manifest.get("generated_at","Not available"))
+            provider=dict(publication_manifest.get("provider_status") or {})
+            quality=st.columns(4)
+            quality[0].metric("Provider Calls",provider.get("provider_calls",0))
+            quality[1].metric("Retries / Throttling",provider.get("retry_count",0))
+            quality[2].metric("Credential Failures",sum("KEY_UNAVAILABLE" in str(code) for code in provider.get("reason_codes") or ()))
+            quality[3].metric("Home / Research Mismatch",governed["home_research_mismatch_count"])
+            st.caption(f"Run {publication_manifest.get('run_id','Not available')} · Freshness {publication_manifest.get('freshness_status','Not available')} · Candidate status {publication_manifest.get('publication_gate_status','Not available')}")
         validation=validation_report(snapshot_rows,outcome_rows)
         st.markdown("### Model Validation — Internal Only")
         with st.container(border=True):

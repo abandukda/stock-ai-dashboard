@@ -143,7 +143,7 @@ def _atlas_score_presentation(value: Any) -> dict[str, Any]:
 
 def _atlas_score(card: Mapping[str, Any]) -> str:
     score = _atlas_score_presentation(card.get("scan_conviction"))
-    limited = str(card.get("guidance") or "").upper() == "DATA_LIMITED"
+    limited = _customer_state(card).upper() in {"DATA_LIMITED", "WITHHELD"}
     unavailable = str(card.get("actionability") or "").upper() == "UNAVAILABLE"
     sublabel = (
         f'{score["band"]} setup quality, but not yet actionable.'
@@ -406,7 +406,7 @@ def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
         "The completed-session technical structure remains constructive." if card.get("technical_status") == "AVAILABLE" else None,
     ) if text][:4]
     why_html = "".join(f"<li>{html.escape(item)}</li>" for item in why) or "<li>The current evidence does not support a stronger customer-readable reason.</li>"
-    state = str(card.get("guidance") or "")
+    state = _customer_state(card)
     change = {
         "BUY_NOW": "The rating would weaken if forward estimates deteriorate, support fails, or expected return falls below the governed threshold.",
         "ACCUMULATE": "The rating can improve as the thesis confirms; it would weaken if earnings, valuation, or support deteriorates.",
@@ -457,7 +457,7 @@ def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
 
 
 def _decisive_customer_constraint(card: Mapping[str, Any]) -> str:
-    state = str(card.get("guidance") or "")
+    state = _customer_state(card)
     if state == "BUY_NOW": return "Forward estimates, valuation support, and price structure must remain intact."
     if state == "ACCUMULATE": return "The thesis is attractive, but the evidence supports staged rather than full deployment."
     if state == "WAIT_FOR_ENTRY": return "The current price is outside the preferred entry area."
@@ -637,12 +637,16 @@ def _action_tone(value: Any) -> str:
     return "neutral"
 
 
+def _customer_state(card: Mapping[str, Any]) -> str:
+    return str(card.get("customer_guidance") or card.get("guidance") or "WITHHELD")
+
+
 def _action_card(card: Mapping[str, Any]) -> str:
-    guidance = str(card.get("guidance") or "DATA_LIMITED")
+    guidance = _customer_state(card)
     action = card.get("customer_action") or {}
     tone = str(action.get("tone") or _action_tone(guidance))
     action_label = str(action.get("label") or "WATCH — NOT READY YET")
-    stars = str(action.get("stars") or "★★½☆☆")
+    stars = str(action.get("stars") or "")
     thesis = str(card.get("opportunity_thesis") or "").upper()
     thesis_label = {
         "QUALITY_GROWTH": "Quality Growth Opportunity",
@@ -653,11 +657,12 @@ def _action_card(card: Mapping[str, Any]) -> str:
         "DEVELOPING_SETUP": "Developing Setup",
     }.get(thesis)
     thesis_copy = f'<em>{html.escape(thesis_label)}</em>' if thesis_label else ""
+    stars_copy = f'<b class="atlas-home-action-stars">{html.escape(stars)}</b>' if stars else ""
     return (
         f'<div class="atlas-home-action atlas-home-action-{tone}" data-atlas-qa="home-action" '
         f'data-atlas-action-tone="{tone}" data-atlas-star-rating="{html.escape(str(action.get("rating") or 2.5))}" '
         f'data-atlas-opportunity-thesis="{html.escape(thesis)}">'
-        f'<small>ATLAS RATING</small><b class="atlas-home-action-stars">{html.escape(stars)}</b><strong>{html.escape(action_label)}</strong>'
+        f'<small>ATLAS RATING</small>{stars_copy}<strong>{html.escape(action_label)}</strong>'
         f'{thesis_copy}<span>{html.escape(str(action.get("instruction") or _guidance_explanation(card)))}</span></div>'
     )
 
@@ -934,7 +939,7 @@ def _trial_context(card: Mapping[str, Any]) -> str:
 
 
 def _decisive_reason(card: Mapping[str, Any]) -> str:
-    state = str(card.get("guidance") or "DATA_LIMITED").upper()
+    state = _customer_state(card).upper()
     title = {
         "BUY_NOW": "Why Buy Now", "BUY": "Why Buy Now",
         "ACCUMULATE": "Why Build a Position", "BUILD_A_POSITION": "Why Build a Position",
@@ -951,13 +956,13 @@ def _decisive_reason(card: Mapping[str, Any]) -> str:
 
 def _card(card: Mapping[str, Any], *, key: str, first: bool = False, total: int = 0) -> None:
     ticker = str(card.get("ticker") or "UNKNOWN")
-    guidance = _display(card.get("guidance"))
+    guidance = _display(_customer_state(card))
     actionability = _display(card.get("actionability"))
     st.markdown(
         f'<div class="atlas-home-guidance-card-marker" data-atlas-qa="home-guidance-card" '
         f'data-atlas-first="{str(first).lower()}" data-atlas-ticker="{html.escape(ticker)}" '
         f'data-atlas-production-rank="{int(card.get("production_rank") or 0)}" '
-        f'data-atlas-guidance="{html.escape(str(card.get("guidance") or "DATA_LIMITED"))}" '
+        f'data-atlas-guidance="{html.escape(_customer_state(card))}" '
         f'data-atlas-actionability="{html.escape(str(card.get("actionability") or "UNAVAILABLE"))}" '
         f'data-atlas-opportunity="{html.escape(str(card.get("opportunity") if card.get("opportunity") is not None else "UNAVAILABLE"))}" '
         f'data-atlas-decision-confidence="{html.escape(str(card.get("decision_confidence") if card.get("decision_confidence") is not None else "UNAVAILABLE"))}" '
@@ -1026,7 +1031,7 @@ def _section_marker(name: str) -> None:
 def _home_candidate_surface(all_cards: Sequence[Mapping[str, Any]], *, limit: int = 10) -> list[Mapping[str, Any]]:
     """Keep every governed Buy Now, then fill by immutable production order."""
     all_cards = list(all_cards)
-    actionable = [card for card in all_cards if str(card.get("guidance")) == "BUY_NOW"]
+    actionable = [card for card in all_cards if _customer_state(card) == "BUY_NOW"]
     selected_tickers = {str(card.get("ticker") or "") for card in actionable}
     return actionable + [
         card for card in all_cards
@@ -1045,15 +1050,16 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
         ("TOP ACTIONABLE OPPORTUNITIES", {"BUY_NOW", "ACCUMULATE"}),
         ("WAITING FOR AN ENTRY", {"WAIT_FOR_ENTRY", "WAIT_FOR_CONFIRMATION"}),
         ("WATCHLIST", {"DATA_LIMITED"}),
+        ("RATINGS BEING REFRESHED", {"WITHHELD"}),
         ("AVOID", {"AVOID"}),
     )
     emitted = False
     for title, states in groups:
-        members = [card for card in cards if str(card.get("guidance")) in states]
+        members = [card for card in cards if _customer_state(card) in states]
         if not members and title != "TOP ACTIONABLE OPPORTUNITIES":
             continue
         st.markdown(f"### {title}")
-        if title == "TOP ACTIONABLE OPPORTUNITIES" and not any(str(card.get("guidance")) == "BUY_NOW" for card in members):
+        if title == "TOP ACTIONABLE OPPORTUNITIES" and not any(_customer_state(card) == "BUY_NOW" for card in members):
             st.caption("No opportunities currently meet ATLAS's 5-star Buy Now standard.")
         for index, card in enumerate(members):
             _card(card, key=f"action_{title}_{index}", first=not emitted, total=int(story.get("candidate_count") or len(story.get("cards") or ())))
@@ -1065,7 +1071,7 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
 
 
 def _action_counts(story: Mapping[str, Any]) -> str:
-    states = [str(card.get("guidance") or "") for card in story.get("cards") or ()]
+    states = [_customer_state(card) for card in story.get("cards") or ()]
     values = (
         ("5★ Buy Now", states.count("BUY_NOW"), "buy"),
         ("4.5★ Build", states.count("ACCUMULATE"), "build"),

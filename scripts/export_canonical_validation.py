@@ -9,6 +9,7 @@ from services.canonical_data_validation import validation_health
 from services.professional_valuation_evidence import enrich_professional_inputs
 from engines.professional_valuation_v2 import value_company
 from engines.canonical_investment_evaluation_v1 import build_canonical_evaluation
+from services.publication_governance import build_manifest, certify_rows
 
 
 def main() -> int:
@@ -18,10 +19,32 @@ def main() -> int:
     args = parser.parse_args()
     rows = json.loads(Path(args.input).read_text(encoding="utf-8"))
     report = validation_health(rows if isinstance(rows, list) else [])
+    all_records = list(report["records"])
     # The certification appendix is the complete set of currently published
     # Professional V2 valuations; universe-level state counts remain above.
     report["records"] = [record for record in report["records"]
                          if record["certification_state"] not in {"INSUFFICIENT_INPUTS", "NOT_APPLICABLE"}]
+    certified_rows = certify_rows(rows if isinstance(rows, list) else [])
+    report["hard_publication_distribution"] = {}
+    report["customer_outputs_withheld"] = []
+    for row in certified_rows:
+        certification = row["publication_certification"]
+        state = certification["certification_state"]
+        report["hard_publication_distribution"][state] = report["hard_publication_distribution"].get(state, 0) + 1
+        if not certification["customer_publication_allowed"]:
+            report["customer_outputs_withheld"].append({"ticker": row.get("ticker") or row.get("symbol"), "state": state, "blockers": certification["blockers"]})
+    report["remediation"] = {
+        "review_required": [{"ticker": record["ticker"], "root_causes": record["warnings"]} for record in all_records if record["certification_state"] == "REVIEW_REQUIRED"],
+        "market_cap_failures": [{"ticker": record["ticker"], **record["checks"]["market_cap_bridge"]} for record in all_records if (record.get("checks") or {}).get("market_cap_bridge", {}).get("status") == "FAIL"],
+        "fcf_failures": [{"ticker": record["ticker"], **record["checks"]["fcf_reconciliation"]} for record in all_records if (record.get("checks") or {}).get("fcf_reconciliation", {}).get("status") == "FAIL"],
+        "routing_reviews": [{"ticker": record["ticker"], "company_type": record.get("company_type"), "validated_domain": record.get("validated_company_domain"), "methods": record.get("model_applicability")} for record in all_records if "SECTOR_MODEL_APPLICABILITY_WARNING" in record.get("warnings", ())],
+        "extreme_dispersion": [{"ticker": record["ticker"], **record["checks"]["dispersion"]} for record in all_records if (record.get("checks") or {}).get("dispersion", {}).get("over_5x")],
+    }
+    report["source_reconciliation"] = {"status": "SECONDARY_VALIDATION_UNAVAILABLE", "approved_secondary_payload_count": sum(bool(row.get("approved_secondary_valuation_inputs")) for row in rows)}
+    report["publication_manifest_preview"] = build_manifest(
+        certified_rows, run_id="certification-preview", generated_at="CURRENT_ARTIFACT",
+        artifact_payloads={Path(args.input).name: certified_rows}, provider_status={"status": "AVAILABLE"},
+    )
     repairs = []
     for row in rows if isinstance(rows, list) else []:
         evaluation = dict(row.get("canonical_investment_evaluation") or {})

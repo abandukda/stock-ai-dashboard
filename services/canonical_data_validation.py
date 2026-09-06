@@ -41,8 +41,9 @@ def _inputs(row,evaluation,valuation):
     }
     output={}
     for key,value in values.items():
-        specific=dict(lineage.get(key) or {})
-        output[key]={"value":_num(value),"period":specific.get("period") or trial.get(f"{key}_period") or (provider_lineage.get(key) or {}).get("period") or trial.get("financial_reporting_period"),"basis":specific.get("basis") or trial.get(f"{key}_basis") or (provider_lineage.get(key) or {}).get("basis"),"unit":specific.get("unit") or ("PER_SHARE" if "eps" in key else "CURRENCY"),"currency":specific.get("currency") or (trial.get("market_assumption_lineage") or {}).get("currency") or "USD","source":specific.get("source") or trial.get(f"{key}_source") or provider_lineage.get("provider"),"as_of":specific.get("as_of") or provider_lineage.get("observed_at") or valuation.get("valuation_as_of")}
+        mapped=dict((provider_lineage.get("fields") or {}).get(key) or provider_lineage.get(key) or {})
+        specific={**mapped,**dict(lineage.get(key) or {})}
+        output[key]={"value":_num(value),"period":specific.get("period") or trial.get(f"{key}_period") or trial.get("financial_reporting_period"),"period_type":specific.get("period_type") or trial.get(f"{key}_period_type"),"basis":specific.get("basis") or trial.get(f"{key}_basis"),"unit":specific.get("unit") or ("PER_SHARE" if "eps" in key else "CURRENCY"),"currency":specific.get("currency") or (trial.get("market_assumption_lineage") or {}).get("currency") or "USD","source":specific.get("source") or specific.get("provider") or trial.get(f"{key}_source") or provider_lineage.get("provider"),"endpoint":specific.get("endpoint"),"raw_field":specific.get("raw_field"),"raw_value":specific.get("raw_value"),"canonical_field":specific.get("canonical_field") or key,"normalized_value":specific.get("normalized_value") if specific.get("normalized_value") is not None else _num(value),"transformation":specific.get("transformation"),"consuming_methodology":specific.get("consuming_methodology"),"as_of":specific.get("as_of") or provider_lineage.get("observed_at") or valuation.get("valuation_as_of")}
     return output,trial
 
 def _company_domain(row,trial,valuation):
@@ -58,11 +59,11 @@ def _applicability(method,domain):
     method_id=str(method.get("methodology_id") or "")
     if method.get("status")!="PUBLISHED":return "NOT_APPLICABLE" if method.get("status")=="NOT_APPLICABLE" else "WEAK_FOR_COMPANY_TYPE"
     if domain=="COMMODITY_PRODUCER":
-        return "PROFESSIONALLY_APPROPRIATE" if method_id=="VAL_FCFF_DCF_V1" else "APPROPRIATE_AS_CROSSCHECK" if method_id=="VAL_EV_EBITDA_V1" else "WEAK_FOR_COMPANY_TYPE"
-    if domain=="BANK":return "PROFESSIONALLY_APPROPRIATE" if method_id in {"VAL_P_TBV_V1","VAL_RESIDUAL_INCOME_V1"} else "APPROPRIATE_AS_CROSSCHECK" if method_id in {"VAL_FORWARD_PE_V1","VAL_DDM_GORDON_V1"} else "WEAK_FOR_COMPANY_TYPE"
-    if domain=="REIT":return "PROFESSIONALLY_APPROPRIATE" if method_id in {"VAL_P_AFFO_V1","VAL_NAV_V1"} else "WEAK_FOR_COMPANY_TYPE"
-    if domain=="BIOTECH":return "PROFESSIONALLY_APPROPRIATE" if method_id=="VAL_RNPV_V1" else "APPROPRIATE_AS_CROSSCHECK"
-    return "PROFESSIONALLY_APPROPRIATE" if method_id in {"VAL_FCFF_DCF_V1","VAL_FORWARD_PE_V1","VAL_EV_EBITDA_V1","VAL_P_FCF_V1"} else "APPROPRIATE_AS_CROSSCHECK"
+        return "PRIMARY_APPROPRIATE" if method_id=="VAL_FCFF_DCF_V1" else "SECONDARY_CROSSCHECK" if method_id=="VAL_EV_EBITDA_V1" else "WEAK_FOR_COMPANY_TYPE"
+    if domain=="BANK":return "PRIMARY_APPROPRIATE" if method_id in {"VAL_P_TBV_V1","VAL_RESIDUAL_INCOME_V1"} else "SECONDARY_CROSSCHECK" if method_id in {"VAL_FORWARD_PE_V1","VAL_DDM_GORDON_V1"} else "WEAK_FOR_COMPANY_TYPE"
+    if domain=="REIT":return "PRIMARY_APPROPRIATE" if method_id in {"VAL_P_AFFO_V1","VAL_NAV_V1"} else "WEAK_FOR_COMPANY_TYPE"
+    if domain=="BIOTECH":return "PRIMARY_APPROPRIATE" if method_id=="VAL_RNPV_V1" else "SECONDARY_CROSSCHECK"
+    return "PRIMARY_APPROPRIATE" if method_id in {"VAL_FCFF_DCF_V1","VAL_FORWARD_PE_V1","VAL_EV_EBITDA_V1","VAL_P_FCF_V1"} else "SECONDARY_CROSSCHECK"
 
 def validate_valuation(row:Mapping[str,Any])->dict[str,Any]:
     evaluation,valuation=_professional(row);ticker=str(row.get("ticker") or row.get("symbol") or "")
@@ -78,10 +79,14 @@ def validate_valuation(row:Mapping[str,Any])->dict[str,Any]:
         gap=_relative_gap(primary.get("value"),(other or {}).get("value"))
         if gap is not None and (other or {}).get("source")!=primary.get("source") and gap>tolerance:divergences.append({"metric":metric,"gap_pct":round(gap*100,2),"tolerance_pct":tolerance*100,"primary_source":primary.get("source"),"secondary_source":other.get("source")})
     if divergences:warnings.append("INPUT_SOURCE_DIVERGENCE")
-    checks["input_reconciliation"]={"status":"DIVERGENCE" if divergences else "NO_SECOND_SOURCE" if not secondary else "RECONCILED","divergences":divergences}
+    checks["input_reconciliation"]={"status":"DIVERGENCE" if divergences else "SECONDARY_VALIDATION_UNAVAILABLE" if not secondary else "RECONCILED","divergences":divergences}
     price=inputs["current_price"]["value"];shares=inputs["diluted_shares"]["value"];market_cap=inputs["market_cap"]["value"]
     implied_market_cap=price*shares if price is not None and shares is not None else None;market_gap=_relative_gap(implied_market_cap,market_cap)
-    checks["market_cap_bridge"]={"status":"PASS" if market_gap is not None and market_gap<=.15 else "FAIL" if market_gap is not None else "NOT_TESTABLE","reported":market_cap,"price_times_shares":implied_market_cap,"discrepancy_pct":round(market_gap*100,2) if market_gap is not None else None}
+    market_failure_classification = None
+    if market_gap is not None and market_gap>.15:
+        security=str(_first(row,"security_type","asset_type") or "").upper()
+        market_failure_classification="ADR_OR_SHARE_CLASS_REVIEW" if security in {"ADR","ADS"} else "STALE_OR_INCOMPATIBLE_SHARE_COUNT"
+    checks["market_cap_bridge"]={"status":"PASS" if market_gap is not None and market_gap<=.15 else "FAIL" if market_gap is not None else "NOT_TESTABLE","reported":market_cap,"price_times_shares":implied_market_cap,"discrepancy_pct":round(market_gap*100,2) if market_gap is not None else None,"failure_classification":market_failure_classification}
     if checks["market_cap_bridge"]["status"]=="FAIL":warnings.append("MARKET_CAP_BRIDGE_FAILURE")
     debt=inputs["debt"]["value"];cash=inputs["cash"]["value"];net_debt=debt-cash if debt is not None and cash is not None else None
     ev_checks=[]
@@ -96,7 +101,11 @@ def validate_valuation(row:Mapping[str,Any])->dict[str,Any]:
     if checks["ev_bridge"]["status"]=="FAIL":warnings.append("EV_BRIDGE_FAILURE")
     ocf=inputs["operating_cash_flow"]["value"];fcf=inputs["free_cash_flow"]["value"];capex=inputs["capex"]["value"]
     expected_fcf=ocf-abs(capex) if ocf is not None and capex is not None else None;fcf_gap=_relative_gap(expected_fcf,fcf)
-    checks["fcf_reconciliation"]={"status":"PASS" if fcf_gap is not None and fcf_gap<=.10 else "FAIL" if fcf_gap is not None else "NOT_TESTABLE","ocf":ocf,"capex":capex,"reported_fcf":fcf,"reconstructed_fcf":expected_fcf,"discrepancy_pct":round(fcf_gap*100,2) if fcf_gap is not None else None}
+    fcf_classification = None
+    if fcf_gap is not None and fcf_gap>.10:
+        same_period=inputs["operating_cash_flow"].get("period")==inputs["free_cash_flow"].get("period")
+        fcf_classification="PROVIDER_DEFINED_FCF_DIFFERS_FROM_STANDARD" if same_period or not inputs["free_cash_flow"].get("period") else "PERIOD_MISMATCH"
+    checks["fcf_reconciliation"]={"status":"PASS" if fcf_gap is not None and fcf_gap<=.10 else "FAIL" if fcf_gap is not None else "NOT_TESTABLE","ocf":ocf,"capex":capex,"reported_fcf":fcf,"reconstructed_fcf":expected_fcf,"discrepancy_pct":round(fcf_gap*100,2) if fcf_gap is not None else None,"failure_classification":fcf_classification,"standard":"FCF = OCF - abs(Capex)"}
     if checks["fcf_reconciliation"]["status"]=="FAIL":warnings.append("FCF_RECONCILIATION_FAILURE")
     period_issues=[]
     for model in models:
@@ -108,7 +117,8 @@ def validate_valuation(row:Mapping[str,Any])->dict[str,Any]:
     domain=_company_domain(row,trial,valuation);applicability=[{"methodology_id":m.get("methodology_id"),"status":m.get("status"),"applicability":_applicability(m,domain),"weight":m.get("weight")} for m in models]
     primary=max((x for x in applicability if x.get("status")=="PUBLISHED"),key=lambda x:x.get("weight") or 0,default={})
     routing_mismatch=domain!=valuation.get("company_type") and domain in {"COMMODITY_PRODUCER","BANK","REIT","BIOTECH"}
-    if routing_mismatch or primary.get("applicability")=="WEAK_FOR_COMPANY_TYPE":warnings.append("SECTOR_MODEL_APPLICABILITY_WARNING")
+    weak_weighted=any(x.get("applicability")=="WEAK_FOR_COMPANY_TYPE" and (_num(x.get("weight")) or 0)>0 for x in applicability)
+    if routing_mismatch or primary.get("applicability")=="WEAK_FOR_COMPANY_TYPE" or weak_weighted:warnings.append("SECTOR_MODEL_APPLICABILITY_WARNING")
     values=[_num(m.get("value")) for m in models if m.get("status")=="PUBLISHED" and _num(m.get("value")) not in (None,0)]
     ratio=max(values)/min(values) if values else None;checks["dispersion"]={"max_min_ratio":round(ratio,2) if ratio is not None else None,"over_2x":bool(ratio and ratio>2),"over_3x":bool(ratio and ratio>3),"over_5x":bool(ratio and ratio>5),"absolute_spread":max(values)-min(values) if values else None}
     if ratio and ratio>5:warnings.append("EXTREME_MODEL_DISPERSION")

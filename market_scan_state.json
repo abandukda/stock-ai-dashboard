@@ -482,5 +482,16 @@
   "scanner_version": "V80.5",
   "scanner_version_label": "V80.5 Discovery Engine",
   "v50_smart_money_analyst_revision_upgrade": true,
-  "v5084_app_hotfix_sync": true
+  "v5084_app_hotfix_sync": true,
+  "hard_publication_governance": {
+    "version": "ATLAS_HARD_PUBLICATION_GOVERNANCE_V1",
+    "publication_gate_status": "PASS",
+    "withheld_count": 90,
+    "certification_distribution": {
+      "REVIEW_REQUIRED": 84,
+      "CERTIFIED_HIGH_UNCERTAINTY": 50,
+      "CERTIFIED": 10,
+      "INSUFFICIENT_INPUTS": 6
+    }
+  }
 }
