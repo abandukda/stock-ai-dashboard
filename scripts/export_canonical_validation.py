@@ -10,6 +10,7 @@ from services.professional_valuation_evidence import enrich_professional_inputs
 from engines.professional_valuation_v2 import value_company
 from engines.canonical_investment_evaluation_v1 import build_canonical_evaluation
 from services.publication_governance import build_manifest, certify_rows
+from services.data_certification_remediation import classify_blockers, provider_quality
 
 
 def main() -> int:
@@ -34,13 +35,22 @@ def main() -> int:
         if not certification["customer_publication_allowed"]:
             report["customer_outputs_withheld"].append({"ticker": row.get("ticker") or row.get("symbol"), "state": state, "blockers": certification["blockers"]})
     report["remediation"] = {
-        "review_required": [{"ticker": record["ticker"], "root_causes": record["warnings"]} for record in all_records if record["certification_state"] == "REVIEW_REQUIRED"],
-        "market_cap_failures": [{"ticker": record["ticker"], **record["checks"]["market_cap_bridge"]} for record in all_records if (record.get("checks") or {}).get("market_cap_bridge", {}).get("status") == "FAIL"],
-        "fcf_failures": [{"ticker": record["ticker"], **record["checks"]["fcf_reconciliation"]} for record in all_records if (record.get("checks") or {}).get("fcf_reconciliation", {}).get("status") == "FAIL"],
+        "review_required": [{"ticker": record["ticker"], "root_causes": classify_blockers(record)} for record in all_records if record["certification_state"] == "REVIEW_REQUIRED"],
+        "insufficient_inputs": [{"ticker": record["ticker"], "root_causes": classify_blockers(record)} for record in all_records if record["certification_state"] == "INSUFFICIENT_INPUTS"],
+        "market_cap_failures": [{"ticker": record["ticker"], **record["checks"]["market_cap_bridge"]} for record in all_records if (record.get("checks") or {}).get("market_cap_bridge", {}).get("status") in {"FAIL","NOT_TESTABLE"}],
+        "fcf_failures": [{"ticker": record["ticker"], **record["checks"]["fcf_reconciliation"]} for record in all_records if (record.get("checks") or {}).get("fcf_reconciliation", {}).get("status") != "PASS"],
         "routing_reviews": [{"ticker": record["ticker"], "company_type": record.get("company_type"), "validated_domain": record.get("validated_company_domain"), "methods": record.get("model_applicability")} for record in all_records if "SECTOR_MODEL_APPLICABILITY_WARNING" in record.get("warnings", ())],
         "extreme_dispersion": [{"ticker": record["ticker"], **record["checks"]["dispersion"]} for record in all_records if (record.get("checks") or {}).get("dispersion", {}).get("over_5x")],
     }
     report["source_reconciliation"] = {"status": "SECONDARY_VALIDATION_UNAVAILABLE", "approved_secondary_payload_count": sum(bool(row.get("approved_secondary_valuation_inputs")) for row in rows)}
+    report["provider_quality"] = provider_quality(all_records)
+    report["filing_reconciliation"] = {
+        "provider": "SEC_EDGAR_EXISTING",
+        "records_with_filing_context": sum(bool(row.get("v42_sec_available") or row.get("sec_filings")) for row in rows),
+        "records_with_filing_derived_numeric_crosscheck": 0,
+        "status": "PROVIDER_SCHEMA_LIMITATION",
+        "limitation": "Existing governed SEC integration supplies filing identity/activity, not normalized XBRL financial facts.",
+    }
     report["publication_manifest_preview"] = build_manifest(
         certified_rows, run_id="certification-preview", generated_at="CURRENT_ARTIFACT",
         artifact_payloads={Path(args.input).name: certified_rows}, provider_status={"status": "AVAILABLE"},

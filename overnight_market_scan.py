@@ -5404,7 +5404,7 @@ def scan_market() -> Dict[str, Any]:
                 "fundamental_fallback_calls", "estimate_calls", "technical_history_calls",
                 "technical_history_http_successes", "technical_history_successes",
                 "fundamental_family_counts", "valuation_status_counts", "endpoint_success",
-                "latency_seconds", "observed_at", "reason_codes",
+                "secondary_validation", "latency_seconds", "observed_at", "reason_codes",
             ) if decision_publication.get(key) is not None
         },
     }

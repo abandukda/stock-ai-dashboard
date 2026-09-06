@@ -7,10 +7,11 @@ from __future__ import annotations
 import math
 from collections import Counter
 from typing import Any,Mapping,Sequence
+from engines.professional_valuation_v2 import classify_company
 
 VERSION="ATLAS_CANONICAL_DATA_VALIDATION_V1"
 CERTIFIED="CERTIFIED";CERTIFIED_HIGH_UNCERTAINTY="CERTIFIED_HIGH_UNCERTAINTY";REVIEW_REQUIRED="REVIEW_REQUIRED";INSUFFICIENT_INPUTS="INSUFFICIENT_INPUTS";NOT_APPLICABLE="NOT_APPLICABLE"
-TOLERANCES={"revenue":.05,"eps":.08,"ebitda":.08,"cash":.05,"debt":.05,"diluted_shares":.03,"free_cash_flow":.10,"forward_eps":.08,"forward_revenue":.05}
+TOLERANCES={"revenue":.03,"net_income":.05,"eps":.08,"ebitda":.08,"operating_cash_flow":.05,"capex":.08,"cash":.05,"debt":.05,"current_shares_outstanding":.03,"diluted_shares":.05,"free_cash_flow":.10,"forward_eps":.08,"forward_revenue":.05}
 
 def _num(value):
     try:
@@ -35,25 +36,21 @@ def _inputs(row,evaluation,valuation):
     trial=dict(evaluation.get("trial_presentation_fields") or {});lineage=dict(valuation.get("lineage") or {});provider_lineage=dict(trial.get("professional_evidence_lineage") or {})
     values={
         "current_price":_first(row,"current_price","price","Price"),"revenue":_first(trial,"latest_revenue","revenue"),"eps":_first(row,"latest_eps","reported_eps","eps"),
-        "ebitda":_first(trial,"forward_ebitda","ebitda"),"ebit":_first(trial,"ebit","latest_operating_income"),"operating_cash_flow":_first(trial,"operating_cash_flow"),"free_cash_flow":_first(trial,"free_cash_flow"),
-        "cash":_first(trial,"cash_and_equivalents"),"debt":_first(trial,"total_debt"),"diluted_shares":_first(trial,"diluted_shares"),"market_cap":_first(trial,"market_cap",),
-        "forward_eps":_first(trial,"forward_eps"),"forward_revenue":_first(trial,"forward_revenue"),"capex":_first(trial,"capital_expenditures","capex"),
+        "net_income":_first(trial,"net_income", "latest_net_income",),"ebitda":_first(trial,"forward_ebitda","ebitda"),"ebit":_first(trial,"ebit","latest_operating_income"),"operating_cash_flow":_first(trial,"operating_cash_flow") or _first(row,"operating_cash_flow"),"free_cash_flow":_first(trial,"free_cash_flow") or _first(row,"free_cash_flow"),
+        "cash":_first(trial,"cash_and_equivalents") or _first(row,"cash_and_equivalents"),"debt":_first(trial,"total_debt") or _first(row,"total_debt"),"current_shares_outstanding":_first(trial,"current_shares_outstanding") or _first(row,"current_shares_outstanding","shares_outstanding"),"diluted_shares":_first(trial,"diluted_shares") or _first(row,"diluted_shares","weighted_average_shares_diluted"),"market_cap":_first(trial,"market_cap",) or _first(row,"market_cap"),
+        "forward_eps":_first(trial,"forward_eps") or _first(row,"forward_eps"),"forward_revenue":_first(trial,"forward_revenue") or _first(row,"forward_revenue"),"capex":_first(trial,"capital_expenditures","capex") or _first(row,"capital_expenditures","capex"),
     }
     output={}
     for key,value in values.items():
         mapped=dict((provider_lineage.get("fields") or {}).get(key) or provider_lineage.get(key) or {})
         specific={**mapped,**dict(lineage.get(key) or {})}
-        output[key]={"value":_num(value),"period":specific.get("period") or trial.get(f"{key}_period") or trial.get("financial_reporting_period"),"period_type":specific.get("period_type") or trial.get(f"{key}_period_type"),"basis":specific.get("basis") or trial.get(f"{key}_basis"),"unit":specific.get("unit") or ("PER_SHARE" if "eps" in key else "CURRENCY"),"currency":specific.get("currency") or (trial.get("market_assumption_lineage") or {}).get("currency") or "USD","source":specific.get("source") or specific.get("provider") or trial.get(f"{key}_source") or provider_lineage.get("provider"),"endpoint":specific.get("endpoint"),"raw_field":specific.get("raw_field"),"raw_value":specific.get("raw_value"),"canonical_field":specific.get("canonical_field") or key,"normalized_value":specific.get("normalized_value") if specific.get("normalized_value") is not None else _num(value),"transformation":specific.get("transformation"),"consuming_methodology":specific.get("consuming_methodology"),"as_of":specific.get("as_of") or provider_lineage.get("observed_at") or valuation.get("valuation_as_of")}
+        share_unit="SHARES" if "shares" in key else "PER_SHARE" if "eps" in key else "CURRENCY"
+        output[key]={"value":_num(value),"period":specific.get("period") or trial.get(f"{key}_period") or trial.get("financial_reporting_period"),"period_type":specific.get("period_type") or trial.get(f"{key}_period_type"),"basis":specific.get("basis") or trial.get(f"{key}_basis"),"unit":share_unit,"currency":specific.get("currency") or (trial.get("market_assumption_lineage") or {}).get("currency") or "USD","source":specific.get("source") or specific.get("provider") or trial.get(f"{key}_source") or provider_lineage.get("provider"),"endpoint":specific.get("endpoint"),"raw_field":specific.get("raw_field"),"raw_value":specific.get("raw_value"),"canonical_field":specific.get("canonical_field") or key,"normalized_value":specific.get("normalized_value") if specific.get("normalized_value") is not None else _num(value),"transformation":specific.get("transformation"),"consuming_methodology":specific.get("consuming_methodology"),"as_of":specific.get("as_of") or provider_lineage.get("observed_at") or valuation.get("valuation_as_of")}
     return output,trial
 
 def _company_domain(row,trial,valuation):
-    text=" ".join(str(x or "") for x in (row.get("sector"),row.get("industry"),trial.get("sector"),trial.get("industry"),trial.get("description"))).lower()
-    if any(x in text for x in ("gold","copper","mining","oil & gas","commodity")):return "COMMODITY_PRODUCER"
-    if "bank" in text:return "BANK"
-    if "reit" in text or "real estate investment trust" in text:return "REIT"
-    if "biotech" in text:return "BIOTECH"
-    if "software" in text:return "SOFTWARE"
-    return valuation.get("company_type") or "UNKNOWN"
+    classified=classify_company({**dict(row),**dict(trial)})
+    return {"PRE_PROFIT_BIOTECH":"BIOTECH","HIGH_GROWTH_SOFTWARE":"SOFTWARE"}.get(classified,classified)
 
 def _applicability(method,domain):
     method_id=str(method.get("methodology_id") or "")
@@ -73,21 +70,27 @@ def validate_valuation(row:Mapping[str,Any])->dict[str,Any]:
     inputs,trial=_inputs(row,evaluation,valuation);warnings=[];checks={}
     # Explicit secondary-source values are compared only when source identity differs.
     secondary=dict(row.get("approved_secondary_valuation_inputs") or {})
-    divergences=[]
+    divergences=[];agreements=[];secondary_missing=[]
     for metric,tolerance in TOLERANCES.items():
         primary=inputs.get(metric,{});other=secondary.get(metric) if isinstance(secondary.get(metric),Mapping) else None
+        if not other:
+            secondary_missing.append(metric);continue
+        period_match=not primary.get("period") or not other.get("period") or str(primary.get("period"))==str(other.get("period"))
+        basis_match=not primary.get("basis") or not other.get("basis") or str(primary.get("basis")).upper()==str(other.get("basis")).upper()
         gap=_relative_gap(primary.get("value"),(other or {}).get("value"))
-        if gap is not None and (other or {}).get("source")!=primary.get("source") and gap>tolerance:divergences.append({"metric":metric,"gap_pct":round(gap*100,2),"tolerance_pct":tolerance*100,"primary_source":primary.get("source"),"secondary_source":other.get("source")})
+        detail={"metric":metric,"gap_pct":round(gap*100,2) if gap is not None else None,"tolerance_pct":tolerance*100,"primary_source":primary.get("source"),"secondary_source":other.get("source"),"primary_period":primary.get("period"),"secondary_period":other.get("period"),"period_match":period_match,"basis_match":basis_match}
+        if (other or {}).get("source")!=primary.get("source") and gap is not None and gap<=tolerance and period_match and basis_match:agreements.append(detail)
+        elif gap is not None and (other or {}).get("source")!=primary.get("source"):divergences.append(detail)
     if divergences:warnings.append("INPUT_SOURCE_DIVERGENCE")
-    checks["input_reconciliation"]={"status":"DIVERGENCE" if divergences else "SECONDARY_VALIDATION_UNAVAILABLE" if not secondary else "RECONCILED","divergences":divergences}
-    price=inputs["current_price"]["value"];shares=inputs["diluted_shares"]["value"];market_cap=inputs["market_cap"]["value"]
-    implied_market_cap=price*shares if price is not None and shares is not None else None;market_gap=_relative_gap(implied_market_cap,market_cap)
+    checks["input_reconciliation"]={"status":"DIVERGENCE" if divergences else "SECONDARY_VALIDATION_UNAVAILABLE" if not secondary else "RECONCILED","agreements":agreements,"divergences":divergences,"secondary_missing":secondary_missing}
+    price=inputs["current_price"]["value"];current_shares=inputs["current_shares_outstanding"]["value"];shares=inputs["diluted_shares"]["value"];market_cap=inputs["market_cap"]["value"]
+    implied_market_cap=price*current_shares if price is not None and current_shares is not None else None;market_gap=_relative_gap(implied_market_cap,market_cap)
     market_failure_classification = None
     if market_gap is not None and market_gap>.15:
         security=str(_first(row,"security_type","asset_type") or "").upper()
         market_failure_classification="ADR_OR_SHARE_CLASS_REVIEW" if security in {"ADR","ADS"} else "STALE_OR_INCOMPATIBLE_SHARE_COUNT"
-    checks["market_cap_bridge"]={"status":"PASS" if market_gap is not None and market_gap<=.15 else "FAIL" if market_gap is not None else "NOT_TESTABLE","reported":market_cap,"price_times_shares":implied_market_cap,"discrepancy_pct":round(market_gap*100,2) if market_gap is not None else None,"failure_classification":market_failure_classification}
-    if checks["market_cap_bridge"]["status"]=="FAIL":warnings.append("MARKET_CAP_BRIDGE_FAILURE")
+    checks["market_cap_bridge"]={"status":"PASS" if market_gap is not None and market_gap<=.15 else "FAIL" if market_gap is not None else "NOT_TESTABLE","reported":market_cap,"price_times_current_shares":implied_market_cap,"current_shares_outstanding":current_shares,"diluted_valuation_shares":shares,"discrepancy_pct":round(market_gap*100,2) if market_gap is not None else None,"failure_classification":market_failure_classification or ("CURRENT_SHARES_FIELD_MISSING" if current_shares is None else None)}
+    if checks["market_cap_bridge"]["status"] in {"FAIL","NOT_TESTABLE"}:warnings.append("MARKET_CAP_BRIDGE_FAILURE")
     debt=inputs["debt"]["value"];cash=inputs["cash"]["value"];net_debt=debt-cash if debt is not None and cash is not None else None
     ev_checks=[]
     models=[dict(x) for x in valuation.get("models") or ()]
@@ -105,8 +108,8 @@ def validate_valuation(row:Mapping[str,Any])->dict[str,Any]:
     if fcf_gap is not None and fcf_gap>.10:
         same_period=inputs["operating_cash_flow"].get("period")==inputs["free_cash_flow"].get("period")
         fcf_classification="PROVIDER_DEFINED_FCF_DIFFERS_FROM_STANDARD" if same_period or not inputs["free_cash_flow"].get("period") else "PERIOD_MISMATCH"
-    checks["fcf_reconciliation"]={"status":"PASS" if fcf_gap is not None and fcf_gap<=.10 else "FAIL" if fcf_gap is not None else "NOT_TESTABLE","ocf":ocf,"capex":capex,"reported_fcf":fcf,"reconstructed_fcf":expected_fcf,"discrepancy_pct":round(fcf_gap*100,2) if fcf_gap is not None else None,"failure_classification":fcf_classification,"standard":"FCF = OCF - abs(Capex)"}
-    if checks["fcf_reconciliation"]["status"]=="FAIL":warnings.append("FCF_RECONCILIATION_FAILURE")
+    checks["fcf_reconciliation"]={"status":"PASS" if expected_fcf is not None else "NOT_TESTABLE","ocf":ocf,"capex":capex,"provider_defined_fcf":fcf,"atlas_standard_fcf":expected_fcf,"provider_difference_pct":round(fcf_gap*100,2) if fcf_gap is not None else None,"difference_classification":fcf_classification,"standard":"ATLAS_STANDARD_FCF = OCF - abs(Capex)","canonical_authority":"ATLAS_STANDARD_FCF"}
+    if expected_fcf is None:warnings.append("FCF_RECONCILIATION_FAILURE")
     period_issues=[]
     for model in models:
         if model.get("status")=="PUBLISHED" and model.get("methodology_id")=="VAL_FORWARD_PE_V1":

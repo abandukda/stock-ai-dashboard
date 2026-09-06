@@ -9,7 +9,7 @@ def _row(**overrides):
     trial = {
         "forward_eps": 5.0, "forward_eps_period": "FY2027", "forward_revenue": 1_100.0,
         "operating_cash_flow": 120.0, "capital_expenditures": -20.0, "free_cash_flow": 100.0,
-        "cash_and_equivalents": 50.0, "total_debt": 150.0, "diluted_shares": 10.0,
+        "cash_and_equivalents": 50.0, "total_debt": 150.0, "current_shares_outstanding": 10.0, "diluted_shares": 10.0,
         "market_cap": 1_000.0, "forward_ebitda": 100.0, "description": "Industrial products company",
     }
     models = [
@@ -59,13 +59,15 @@ def test_period_mismatch_and_market_cap_bridge_fail_closed():
     assert result["customer_publication_allowed"] is False
 
 
-def test_fcf_reconciliation_and_ev_bridge_detect_mapping_errors():
+def test_provider_defined_fcf_is_preserved_while_standard_fcf_is_authoritative():
     row = _row()
     trial = row["canonical_investment_evaluation"]["trial_presentation_fields"]
     trial["free_cash_flow"] = 50
     row["canonical_investment_evaluation"]["atlas_valuation"]["professional_valuation_v2"]["models"][1]["value"] = 150
     result = validate_valuation(row)
-    assert "FCF_RECONCILIATION_FAILURE" in result["warnings"]
+    assert result["checks"]["fcf_reconciliation"]["provider_defined_fcf"] == 50
+    assert result["checks"]["fcf_reconciliation"]["atlas_standard_fcf"] == 100
+    assert result["checks"]["fcf_reconciliation"]["canonical_authority"] == "ATLAS_STANDARD_FCF"
     assert "EV_BRIDGE_FAILURE" in result["warnings"]
 
 
@@ -88,7 +90,7 @@ def test_unknown_provider_industry_uses_sourced_profile_for_nem_routing():
 
 
 def test_health_aggregates_certification_and_failures():
-    health = validation_health([_row(), _row(market_cap=999)])
+    health = validation_health([_row(), _row()])
     assert health["published_audited"] == 2
     assert health["certification_distribution"]["CERTIFIED"] == 2
 

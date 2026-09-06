@@ -98,6 +98,15 @@ def render_developer_center(
             checks[1].metric("Extreme Dispersion",valuation_health["extreme_model_dispersion_count"])
             checks[2].metric("Sector/Model Review",valuation_health["sector_model_applicability_warning_count"])
             checks[3].metric("Published Audited",valuation_health["published_audited"])
+            remediation_path=Path("audit_results/canonical_valuation_certification.json")
+            remediation=json.loads(remediation_path.read_text(encoding="utf-8")) if remediation_path.exists() else {}
+            provider_families=((remediation.get("provider_quality") or {}).get("families") or {})
+            if provider_families:
+                rows=[]
+                for metric,item in provider_families.items():
+                    rows.append({"Metric":metric,"Checked":item.get("records_checked"),"Agreement %":item.get("agreement_rate"),"Divergence %":item.get("divergence_rate"),"Missing %":item.get("missing_rate"),"Unresolved %":item.get("unresolved_rate")})
+                st.caption("Independent validator quality by critical data family")
+                st.dataframe(pd.DataFrame(rows),hide_index=True,use_container_width=True)
         with st.expander("Hard Publication Governance", expanded=True):
             run=st.columns(4)
             run[0].metric("Evaluated",publication_manifest.get("universe_count",0))

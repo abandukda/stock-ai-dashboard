@@ -21,13 +21,23 @@ def _production_row(ticker="UBER"):
     return deepcopy(next(row for row in rows if row.get("ticker") == ticker))
 
 
+def _certifiable_row(ticker="UBER"):
+    row = _production_row(ticker)
+    evaluation = row["canonical_investment_evaluation"]
+    fields = evaluation["trial_presentation_fields"]
+    fields["current_shares_outstanding"] = fields["market_cap"] / evaluation["market_snapshot"]["price"]
+    fields["capital_expenditures"] = fields["operating_cash_flow"] - fields["free_cash_flow"]
+    evaluation.pop("valuation_validation", None)
+    return row
+
+
 def _observed(row):
     value = row["canonical_investment_evaluation"]["market_snapshot"]["provider_timestamp"]
     return datetime.fromisoformat(value.replace("Z", "+00:00")) + timedelta(days=1)
 
 
 def test_valid_customer_action_requires_whole_record_certification():
-    row = _production_row()
+    row = _certifiable_row()
     result = certify_record(row, now=_observed(row))
     assert result["certification_state"] == "CERTIFIED"
     assert result["certified_action"] == row["canonical_investment_evaluation"]["guidance"]["state"]
@@ -44,7 +54,7 @@ def test_validation_failure_withholds_action_and_never_maps_to_investment_opinio
 
 
 def test_ticker_local_failure_does_not_withhold_healthy_ticker():
-    healthy, broken = _production_row(), _production_row()
+    healthy, broken = _certifiable_row(), _certifiable_row()
     broken["ticker"] = "WRONG"
     certified = certify_rows([healthy, broken], now=_observed(healthy))
     assert certified[0]["publication_certification"]["customer_publication_allowed"] is True
@@ -150,3 +160,10 @@ def test_run_over_run_anomaly_requires_attributable_evidence_change():
     assert anomalies[0]["field"] == "latest_revenue"
     new["professional_evidence_lineage"] = {"evidence_ids": ["changed"]}
     assert run_over_run_anomalies([new], [old]) == []
+
+
+def test_overnight_exposes_primary_and_secondary_validation_credentials():
+    workflow=(ROOT/".github/workflows/overnight_scan.yml").read_text()
+    assert "TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}" in workflow
+    assert "FMP_API_KEY: ${{ secrets.FMP_API_KEY }}" in workflow
+    assert 'ATLAS_HARD_PUBLICATION_GOVERNANCE_ENABLED: "true"' in workflow

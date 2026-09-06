@@ -133,6 +133,7 @@ def _coalesce(*values: Any) -> Any:
 def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) -> dict[str, Any]:
     """Merge only missing evidence fields; never overwrite an ATLAS value."""
     output = dict(row)
+    preexisting = dict(output)
     families = dossier.get("families") if isinstance(dossier.get("families"), Mapping) else {}
     payload = lambda family: (families.get(family) or {}).get("payload") or {}
     stats = _nested(payload("statistics"), "statistics") or {}
@@ -160,6 +161,7 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
         "market_cap": _coalesce(valuation_stats.get("market_capitalization"), stats.get("market_capitalization"), stats.get("market_cap")),
         "diluted_shares": _coalesce(income.get("diluted_shares_outstanding"), income.get("weighted_average_shares_diluted"), income.get("diluted_average_shares"), stock_stats.get("shares_outstanding")),
         "basic_shares": _coalesce(income.get("basic_shares_outstanding"), stock_stats.get("shares_outstanding")),
+        "current_shares_outstanding": stock_stats.get("shares_outstanding"),
         "forward_ebitda": _coalesce(_nested(financials,"income_statement","ebitda"), financials.get("ebitda_ttm"), income.get("ebitda")),
         "ebit": _coalesce(income.get("ebit"), income.get("operating_income")),
         "capital_expenditures": _coalesce(cash_stats.get("capital_expenditures_ttm"), _nested(cash,"investing_activities","capital_expenditures"), cash.get("capital_expenditures")),
@@ -168,9 +170,18 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
         "provider_forward_pe": valuation_stats.get("forward_pe"),
         "provider_ev_ebitda": valuation_stats.get("enterprise_to_ebitda"),
     }
+    twelve_populated_fields = set()
     for key, value in values.items():
         if output.get(key) in (None, "", "Unavailable") and value is not None:
             output[key] = value
+            twelve_populated_fields.add(key)
+    try:
+        ocf_value = float(output["operating_cash_flow"])
+        capex_value = float(output["capital_expenditures"])
+        output["provider_defined_fcf"] = output.get("free_cash_flow")
+        output["normalized_fcf"] = ocf_value - abs(capex_value)
+    except (KeyError, TypeError, ValueError):
+        pass
     profile = payload("profile")
     if isinstance(profile, Mapping):
         for target, source in (("description", "description"), ("sector", "sector"), ("industry", "industry")):
@@ -218,13 +229,14 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
         "cash_and_equivalents": (("statistics", "statistics.financials.balance_sheet.total_cash_mrq", balance_stats.get("total_cash_mrq")), ("balance_sheet", "balance_sheet[0].assets.current_assets.cash_and_cash_equivalents", _nested(balance,"assets","current_assets","cash_and_cash_equivalents"))),
         "market_cap": (("statistics", "statistics.valuations_metrics.market_capitalization", valuation_stats.get("market_capitalization")), ("statistics", "statistics.market_capitalization", stats.get("market_capitalization"))),
         "diluted_shares": (("income_statement", "income_statement[0].diluted_shares_outstanding", income.get("diluted_shares_outstanding")), ("income_statement", "income_statement[0].weighted_average_shares_diluted", income.get("weighted_average_shares_diluted")), ("statistics", "statistics.stock_statistics.shares_outstanding", stock_stats.get("shares_outstanding"))),
+        "current_shares_outstanding": (("statistics", "statistics.stock_statistics.shares_outstanding", stock_stats.get("shares_outstanding")),),
         "forward_ebitda": (("statistics", "statistics.financials.income_statement.ebitda", _nested(financials,"income_statement","ebitda")), ("statistics", "statistics.financials.ebitda_ttm", financials.get("ebitda_ttm")), ("income_statement", "income_statement[0].ebitda", income.get("ebitda"))),
         "ebit": (("income_statement", "income_statement[0].ebit", income.get("ebit")), ("income_statement", "income_statement[0].operating_income", income.get("operating_income"))),
     }
     field_lineage = {}
     for canonical_field, candidates in raw_candidates.items():
         normalized = output.get(canonical_field)
-        selected = next(((endpoint, raw_field, raw) for endpoint, raw_field, raw in candidates if raw is not None and normalized == raw), None)
+        selected = next(((endpoint, raw_field, raw) for endpoint, raw_field, raw in candidates if canonical_field in twelve_populated_fields and raw is not None and normalized == raw), None)
         if selected:
             endpoint, raw_field, raw = selected
             field_lineage[canonical_field] = {
@@ -237,6 +249,56 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
                 "consuming_methodology": "ATLAS_PROFESSIONAL_VALUATION_V2",
             }
     output["professional_evidence_lineage"]["fields"] = field_lineage
+    output["professional_evidence_lineage"]["preexisting_fields_not_attributed_to_twelve"] = sorted(
+        key for key, value in values.items() if value is not None and key not in twelve_populated_fields
+    )
+    fmp_provenance = dict(output.get("fundamentals_provenance") or {})
+    if str(fmp_provenance.get("provider") or "").upper() == "FMP":
+        fetched = fmp_provenance.get("evidence_timestamp")
+        primary_map = {
+            "latest_revenue": "revenue", "latest_eps": "eps", "latest_net_income": "net_income",
+            "forward_ebitda": "ebitda", "operating_cash_flow": "operating_cash_flow",
+            "free_cash_flow": "free_cash_flow", "capital_expenditures": "capex",
+            "cash_and_equivalents": "cash", "total_debt": "debt",
+            "diluted_shares": "diluted_shares", "current_shares_outstanding": "current_shares_outstanding",
+            "forward_eps": "forward_eps", "forward_revenue": "forward_revenue",
+        }
+        for row_field, canonical_field in primary_map.items():
+            value = preexisting.get(row_field)
+            if value is None:
+                continue
+            output["professional_evidence_lineage"]["fields"][canonical_field] = {
+                "provider": "FMP", "endpoint": "+".join(fmp_provenance.get("endpoint_families") or ()),
+                "raw_field": row_field, "raw_value": value, "canonical_field": canonical_field,
+                "normalized_value": value, "ticker": str(output.get("ticker") or output.get("symbol") or "").upper(),
+                "period": output.get("financial_reporting_period"), "period_type": "REPORTED",
+                "basis": "PROVIDER_REPORTED", "currency": "USD",
+                "unit": "SHARES" if "shares" in canonical_field else "PER_SHARE" if "eps" in canonical_field else "CURRENCY",
+                "as_of": fetched, "transformation": "FMP_NORMALIZED_ROW_FIELD",
+                "consuming_methodology": "ATLAS_PROFESSIONAL_VALUATION_V2",
+            }
+        output["professional_evidence_lineage"]["provider"] = "MIXED_VALIDATED"
+    secondary = dict(output.get("approved_secondary_valuation_inputs") or {})
+    secondary_map = {
+        "revenue": raw_candidates.get("latest_revenue"), "ebitda": raw_candidates.get("forward_ebitda"),
+        "operating_cash_flow": raw_candidates.get("operating_cash_flow"), "free_cash_flow": raw_candidates.get("free_cash_flow"),
+        "capex": raw_candidates.get("capital_expenditures"), "cash": raw_candidates.get("cash_and_equivalents"),
+        "debt": raw_candidates.get("total_debt"), "diluted_shares": raw_candidates.get("diluted_shares"),
+        "current_shares_outstanding": raw_candidates.get("current_shares_outstanding"),
+    }
+    for canonical_field, candidates in secondary_map.items():
+        chosen = next(((endpoint, raw_field, raw) for endpoint, raw_field, raw in candidates or () if raw is not None), None)
+        primary_lineage = output["professional_evidence_lineage"]["fields"].get(canonical_field) or {}
+        if chosen and primary_lineage.get("provider") == "FMP":
+            endpoint, raw_field, raw = chosen
+            endpoint_period={"income_statement":income.get("fiscal_date") or income.get("fiscal_year"),
+                             "balance_sheet":balance.get("fiscal_date") or balance.get("fiscal_year"),
+                             "cash_flow":cash.get("fiscal_date") or cash.get("fiscal_year")}.get(endpoint)
+            secondary[canonical_field] = {"value": raw, "source": "TWELVE_DATA", "endpoint": endpoint,
+                                          "raw_field": raw_field, "period": endpoint_period,
+                                          "as_of": dossier.get("observed_at"), "basis": "PROVIDER_REPORTED"}
+    if secondary:
+        output["approved_secondary_valuation_inputs"] = secondary
     for canonical_field, endpoint, estimate in (("forward_eps", "earnings_estimate", eps_est), ("forward_revenue", "revenue_estimate", rev_est)):
         if output.get(canonical_field) is not None and estimate.get("avg_estimate") == output.get(canonical_field):
             output["professional_evidence_lineage"]["fields"][canonical_field] = {

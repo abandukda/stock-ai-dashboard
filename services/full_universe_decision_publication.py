@@ -9,6 +9,7 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import Counter
 from datetime import datetime, timezone
+import os
 import time
 from typing import Any, Callable, Mapping, Sequence
 
@@ -105,6 +106,9 @@ def acquire_full_universe_decisions(
         )
         for symbol, dossier in (estimates.get("dossiers") or {}).items():
             dossiers[symbol] = _merge_dossiers(dossiers.get(symbol) or {}, dossier)
+    from services.secondary_financial_validation import acquire_secondary_fmp_inputs
+    environment=dict(os.environ if environ is None else environ)
+    secondary=acquire_secondary_fmp_inputs(symbols,api_key=str(environment.get("FMP_API_KEY") or ""),max_workers=max_workers)
 
     adapter = TwelveDataPhase1Adapter(key, enabled=True, get=get)
     histories: dict[str, Mapping[str, Any]] = {}
@@ -138,6 +142,11 @@ def acquire_full_universe_decisions(
     normalized = []
     for row in clean_rows:
         enriched = normalize_trial_dossier(row, dossiers.get(_ticker(row)) or {})
+        secondary_inputs=(secondary.get("inputs") or {}).get(_ticker(row)) or {}
+        if secondary_inputs:
+            existing=dict(enriched.get("approved_secondary_valuation_inputs") or {})
+            for metric,value in secondary_inputs.items(): existing.setdefault(metric,value)
+            enriched["approved_secondary_valuation_inputs"]=existing
         if enriched.get("beta") is None and _ticker(row) != "SPY":
             stock_returns = returns(histories.get(_ticker(row)) or {})
             aligned = sorted(set(stock_returns) & set(market_returns))
@@ -188,7 +197,9 @@ def acquire_full_universe_decisions(
                     "forward_eps_period_type", "forward_eps_basis", "forward_eps_source",
                     "forward_revenue_period_type", "forward_revenue_basis", "forward_revenue_source",
                     "forward_estimate_evidence", "financial_reporting_period", "professional_evidence_lineage",
-                    "market_cap", "diluted_shares", "forward_ebitda", "ebit", "capital_expenditures",
+                    "market_cap", "current_shares_outstanding", "basic_shares", "diluted_shares",
+                    "provider_defined_fcf", "normalized_fcf", "approved_secondary_valuation_inputs",
+                    "forward_ebitda", "ebit", "capital_expenditures",
                     "depreciation_amortization", "beta",
                     "forecast_fcff", "forecast_detail", "wacc", "terminal_growth", "cost_of_equity",
                     "cost_of_debt", "accounting_cost_of_debt_proxy", "cost_of_debt_method", "after_tax_cost_of_debt", "risk_free_rate", "equity_risk_premium", "market_assumption_lineage",
@@ -223,7 +234,8 @@ def acquire_full_universe_decisions(
     }
     valuation_status_counts = dict(Counter(item.get("valuation_status") or "DATA_UNAVAILABLE" for item in diagnostics.values()))
     provider_calls = (int(primary.get("provider_calls") or 0) + int(fallback.get("provider_calls") or 0)
-                      + int(estimates.get("provider_calls") or 0) + len(history_telemetry))
+                      + int(estimates.get("provider_calls") or 0) + len(history_telemetry)
+                      + int(secondary.get("provider_calls") or 0))
     return {
         "version": VERSION, "status": "AVAILABLE" if evaluations else "DATA_UNAVAILABLE",
         "evaluations": evaluations, "diagnostics": diagnostics, "provider_calls": provider_calls,
@@ -234,6 +246,7 @@ def acquire_full_universe_decisions(
         "technical_history_successes": successful_histories,
         "fundamental_family_counts": family_counts,
         "valuation_status_counts": valuation_status_counts,
+        "secondary_validation": {key: secondary.get(key) for key in ("version","status","provider_calls","symbol_coverage","observed_at")},
         "endpoint_success": {
             **dict(primary.get("endpoint_success") or {}),
             **dict(fallback.get("endpoint_success") or {}),

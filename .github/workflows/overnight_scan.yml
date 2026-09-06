@@ -59,6 +59,7 @@ jobs:
       - name: Verify canonical publication credentials
         env:
           TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
         run: |
           if [ -z "${TWELVE_DATA_API_KEY:-}" ]; then
             echo "::error::TWELVE_DATA_API_KEY is required; refusing to overwrite canonical production actions"
