@@ -1210,6 +1210,19 @@ def render_full_research_vnext(row: Mapping[str, Any]) -> None:
         research_row.get("research_context")
         if isinstance(research_row.get("research_context"), Mapping) else {}
     )
+    # Optional live enrichment is contextual.  Reconcile the immutable
+    # persisted production decision at the rendering boundary so a sparse or
+    # failed live refresh cannot downgrade a valid canonical Action.
+    from engines.research_context import build_production_decision, load_production_row
+    persisted_row = load_production_row(symbol)
+    persisted_evaluation = (
+        persisted_row.get("canonical_investment_evaluation")
+        if isinstance(persisted_row, Mapping) else None
+    )
+    if isinstance(persisted_evaluation, Mapping) and persisted_evaluation:
+        canonical_context = dict(canonical_context)
+        canonical_context["current_evaluation"] = dict(persisted_evaluation)
+        canonical_context["production_decision"] = build_production_decision(persisted_row)
     canonical_families = (
         canonical_context.get("evidence_families")
         if isinstance(canonical_context.get("evidence_families"), Mapping) else {}

@@ -39,7 +39,9 @@ def test_150_name_crawler_and_lineage_sheets_pass():
     assert report["gate"] == "PASS"
     assert report["summary"]["universe_count"] == 150
     assert len(report["sheets"]["Master"]) == 150
-    assert list(report["sheets"]) == ["Master", "Financials", "Financial_Reconciliation", "Estimates", "Valuation_Models", "Peer_Sets", "Source_Lineage", "Missing_Data", "Validation_Failures", "Street_Analyst", "Context", "Run_Over_Run", "Customer_Surface_Audit", "Universe_Summary", "Anomalies"]
+    assert list(report["sheets"]) == ["Master", "Financials", "Financial_Reconciliation", "Estimates", "Valuation_Models", "Valuation_Reconciliation", "Peer_Sets", "Source_Lineage", "Missing_Data", "Validation_Failures", "Street_Analyst", "Context", "Six_Pillar_QA", "Action_QA", "Run_Over_Run", "Customer_Surface_Audit", "Numerical_Anomalies", "ATLAS_vs_Street", "Screenshot_Index", "Universe_Summary"]
+    assert report["summary"]["qa_engine_status"] == "OPERATIONAL"
+    assert report["summary"]["dataset_certification_status"] == "PASS"
 
 
 @pytest.mark.parametrize("context,expected", [
@@ -130,8 +132,11 @@ def test_workflow_candidate_gate_contract_and_syntax():
     source = path.read_text()
     assert source.startswith("name: ATLAS Full QA Certification\n")
     assert "workflow_run" in source and "workflow_dispatch" in source and "workflow_call" in source
+    assert "schedule:" in source
     assert "atlas-scan-candidate-${{ steps.candidate.outputs.run_id }}" in source
     assert "--promote" in source and "atlas-full-qa-${{ github.run_id }}" in source
+    assert source.index("Capture and validate desktop/mobile customer surfaces") < source.index("--promote")
+    assert "agents.full_qa_visual_certification" in source
     overnight = Path(".github/workflows/overnight_scan.yml").read_text()
     assert "ATLAS_PUBLICATION_OUTPUT_MODE: \"CANDIDATE\"" in overnight
     assert "git push origin main" not in overnight
@@ -140,8 +145,35 @@ def test_workflow_candidate_gate_contract_and_syntax():
 def test_xlsx_exporter_uses_artifact_tool_and_all_required_sheets():
     source = Path("scripts/export_full_qa_xlsx.mjs").read_text()
     assert '@oai/artifact-tool' in source
-    for sheet in ("Master", "Financial_Reconciliation", "Valuation_Models", "Source_Lineage", "Universe_Summary", "Anomalies"):
+    for sheet in ("Master", "Financial_Reconciliation", "Valuation_Models", "Source_Lineage", "Universe_Summary", "Numerical_Anomalies", "Screenshot_Index"):
         assert sheet in Path("services/full_universe_qa.py").read_text()
+
+
+def test_intu_and_nem_permanent_accounting_fixtures():
+    rows = universe()
+    rows[0] = row("INTU")
+    rows[1] = row("NEM")
+    for item in rows[:2]:
+        item["canonical_investment_evaluation"]["trial_presentation_fields"].update({
+            "basic_shares": 100, "diluted_shares": 101, "operating_cash_flow": 50,
+            "capital_expenditure": -10, "free_cash_flow": 40, "cash_and_equivalents": 20,
+            "total_debt": 30, "net_debt": 10,
+        })
+    report = crawl_universe(rows)
+    fixtures = {item["ticker"]: item for item in report["sheets"]["Financial_Reconciliation"]}
+    assert fixtures["INTU"]["fcf_status"] == "PASS"
+    assert fixtures["NEM"]["net_debt_status"] == "PASS"
+    financials = {item["ticker"]: item for item in report["sheets"]["Financials"]}
+    assert financials["INTU"]["share_basis"] == "DILUTED"
+    assert financials["NEM"]["diluted_shares"] == 101
+
+
+def test_share_basis_inversion_is_blocking_p2():
+    rows = universe()
+    rows[0]["canonical_investment_evaluation"]["trial_presentation_fields"].update({"basic_shares": 110, "diluted_shares": 100})
+    report = crawl_universe(rows)
+    assert report["gate"] == "FAIL"
+    assert any(item["category"] == "SHARE_BASIS" for item in report["sheets"]["Validation_Failures"])
 
 
 def test_xlsx_export_smoke_when_artifact_tool_available(tmp_path):

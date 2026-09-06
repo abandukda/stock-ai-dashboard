@@ -57,9 +57,19 @@ def _markdown(report, path: Path) -> None:
         f"- FCF failures: {summary['fcf_failure_count']}",
         f"- Routing warnings: {summary['routing_warning_count']}",
         f"- Street-data gaps: {summary['street_data_gap_count']}", "",
+        "## Visual certification", "",
+        f"- Screenshots indexed: {summary.get('screenshot_count', 0)}",
+        f"- Visual failures: {summary.get('visual_failure_count', 0)}", "",
         "P0/P1/P2 findings block promotion. P3 provider gaps may be withheld; P4 context issues are nonblocking.",
     ]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _html(report, path: Path) -> None:
+    import html
+    summary = report["summary"]
+    rows = "".join(f"<tr><th>{html.escape(str(key))}</th><td>{html.escape(str(value))}</td></tr>" for key, value in summary.items())
+    path.write_text(f"<!doctype html><meta charset='utf-8'><title>ATLAS Full QA</title><style>body{{font:14px system-ui;max-width:1100px;margin:40px auto}}table{{border-collapse:collapse;width:100%}}th,td{{border:1px solid #ccd5df;padding:8px;text-align:left}}th{{background:#19324d;color:white}}</style><h1>ATLAS Full-Universe QA</h1><table>{rows}</table>", encoding="utf-8")
 
 
 def _verify_candidate(candidate_dir: Path, manifest: dict, payloads: dict[Path, object]) -> None:
@@ -78,6 +88,8 @@ def main(argv=None) -> int:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--promote", action="store_true")
     parser.add_argument("--artifact-link", default="")
+    parser.add_argument("--visual-summary", type=Path)
+    parser.add_argument("--screenshot-manifest", type=Path)
     parser.add_argument("--xlsx-exporter", type=Path, default=Path("scripts/export_full_qa_xlsx.mjs"))
     args = parser.parse_args(argv)
 
@@ -108,14 +120,47 @@ def main(argv=None) -> int:
         report["summary"]["severity_counts"]["P1"] += 1
         report["summary"]["publication_gate_status"] = "FAIL"
         report["gate"] = "FAIL"
+    screenshots = []
+    if args.screenshot_manifest and args.screenshot_manifest.exists():
+        screenshots = _read(args.screenshot_manifest)
+        if isinstance(screenshots, dict):
+            screenshots = screenshots.get("screenshots") or screenshots.get("manifest") or []
+    report["sheets"]["Screenshot_Index"] = [dict(item) for item in screenshots if isinstance(item, dict)]
+    visual_failures = []
+    if args.visual_summary and args.visual_summary.exists():
+        visual = _read(args.visual_summary)
+        visual_failures = [item for item in visual.get("defects", []) if item.get("severity") in {"P0", "P1", "P2"}]
+        for item in visual_failures:
+            report["sheets"]["Validation_Failures"].append({
+                "ticker": item.get("ticker_context") or "SURFACE", "severity": item.get("severity") or "P1",
+                "category": "VISUAL_QA", "field": item.get("page"), "message": item.get("observed"),
+                "reason": "VALIDATION_FAILED", "fixable_by_atlas": True,
+                "recommended_remediation": "Repair the customer surface and rerun screenshot certification.",
+            })
+    report["summary"]["screenshot_count"] = len(report["sheets"]["Screenshot_Index"])
+    report["summary"]["visual_failure_count"] = len(visual_failures)
+    if visual_failures:
+        for item in visual_failures:
+            level = item.get("severity") or "P1"
+            report["summary"]["severity_counts"][level] = report["summary"]["severity_counts"].get(level, 0) + 1
+        report["summary"]["publication_gate_status"] = "FAIL"
+        report["summary"]["dataset_certification_status"] = "FAIL"
+        report["gate"] = "FAIL"
     args.output_dir.mkdir(parents=True, exist_ok=True)
     date = report["summary"]["generated_at"][:10].replace("-", "")
-    stem = f"ATLAS_FULL_150_QA_{date}"
+    safe_run_id = "".join(character if character.isalnum() or character in "-_" else "_" for character in str(report["summary"]["run_id"]))
+    stem = f"ATLAS_FULL_150_QA_{safe_run_id}_{date}"
     json_path, csv_path = args.output_dir / f"{stem}.json", args.output_dir / f"{stem}.csv"
-    md_path, xlsx_path = args.output_dir / f"ATLAS_FULL_150_QA_SUMMARY_{date}.md", args.output_dir / f"{stem}.xlsx"
+    md_path, xlsx_path = args.output_dir / f"ATLAS_FULL_150_QA_SUMMARY_{safe_run_id}_{date}.md", args.output_dir / f"{stem}.xlsx"
+    html_path = args.output_dir / f"ATLAS_FULL_150_QA_SUMMARY_{safe_run_id}_{date}.html"
     write_json_report(report, json_path)
     _csv(report["sheets"]["Master"], csv_path)
+    csv_dir = args.output_dir / f"{stem}_csv"
+    csv_dir.mkdir(exist_ok=True)
+    for sheet_name, rows in report["sheets"].items():
+        _csv(rows, csv_dir / f"{sheet_name}.csv")
     _markdown(report, md_path)
+    _html(report, html_path)
     subprocess.run(["node", str(args.xlsx_exporter), str(json_path), str(xlsx_path)], check=True)
 
     certified_manifest = dict(candidate_manifest)

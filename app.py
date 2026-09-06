@@ -27035,7 +27035,17 @@ def v8054_is_missing(value, zero_is_missing=False):
 def v8054_merge_saved_live(saved, live):
     """Keep verified saved fundamentals when a live provider returns null/zero placeholders."""
     merged = dict(saved or {})
+    # The immutable production decision remains authoritative.  Optional live
+    # Research enrichment may refresh price, statements, estimates, and news,
+    # but a partial retrieval must never replace a valid persisted canonical
+    # evaluation or its publication certification.
+    protected = {
+        "canonical_investment_evaluation", "publication_certification",
+        "production_rank", "Production Rank",
+    }
     for key, value in (live or {}).items():
+        if key in protected and key in merged and merged.get(key) not in (None, "", {}, []):
+            continue
         zero_missing = key in _V8054_FINANCE_KEYS
         if not v8054_is_missing(value, zero_is_missing=zero_missing):
             merged[key] = value
@@ -27044,9 +27054,25 @@ def v8054_merge_saved_live(saved, live):
     if raw_saved or raw_live:
         merged_raw = dict(raw_saved)
         for key, value in raw_live.items():
+            if key in protected and key in merged_raw and merged_raw.get(key) not in (None, "", {}, []):
+                continue
             if not v8054_is_missing(value, zero_is_missing=(key in _V8054_FINANCE_KEYS)):
                 merged_raw[key] = value
         merged["Raw"] = merged_raw
+    persisted_evaluation = (
+        (saved or {}).get("canonical_investment_evaluation")
+        or raw_saved.get("canonical_investment_evaluation")
+    )
+    if isinstance(persisted_evaluation, dict) and persisted_evaluation:
+        context = dict(merged.get("research_context") or {})
+        context["current_evaluation"] = persisted_evaluation
+        try:
+            from engines.research_context import build_production_decision
+            context["production_decision"] = build_production_decision(raw_saved or saved)
+        except Exception:
+            pass
+        merged["research_context"] = context
+        merged["canonical_investment_evaluation"] = persisted_evaluation
     return merged
 
 

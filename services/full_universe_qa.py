@@ -15,14 +15,15 @@ from typing import Any, Mapping, Sequence
 
 from services.publication_governance import VERSION as GOVERNANCE_VERSION
 
-VERSION = "ATLAS_FULL_UNIVERSE_QA_V1"
+VERSION = "ATLAS_FULL_UNIVERSE_QA_V2"
 EXPECTED_UNIVERSE_SIZE = 150
 BLOCKING_SEVERITIES = {"P0", "P1", "P2"}
 MISSING_REASONS = {
     "PROVIDER_DID_NOT_RETURN", "PROVIDER_THROTTLED", "PROVIDER_ENDPOINT_UNAVAILABLE",
     "MAPPING_MISSING", "NORMALIZATION_FAILED", "PERIOD_MISMATCH", "BASIS_UNKNOWN",
     "UNIT_ERROR", "STALE", "MODEL_NOT_APPLICABLE", "VALIDATION_FAILED",
-    "SECONDARY_VALIDATION_UNAVAILABLE", "OTHER",
+    "SECONDARY_VALIDATION_UNAVAILABLE", "PROVIDER_FIELD_EMPTY", "CURRENCY_ERROR",
+    "FILING_VALIDATION_UNAVAILABLE", "OTHER",
 }
 
 
@@ -62,7 +63,13 @@ def classify_missing(*, field: str, context: Mapping[str, Any] | None = None) ->
     context = dict(context or {})
     reason_codes = " ".join(str(x) for x in context.get("reason_codes") or ())
     status = str(context.get("status") or "").upper()
-    if "THROTTL" in reason_codes or status == "THROTTLED":
+    if context.get("currency_error"):
+        reason, fixable, remediation = "CURRENCY_ERROR", True, "Correct currency normalization and rerun every dependent bridge."
+    elif context.get("filing_validation_unavailable"):
+        reason, fixable, remediation = "FILING_VALIDATION_UNAVAILABLE", False, "Retain provider lineage and retry SEC filing validation."
+    elif context.get("provider_field_empty"):
+        reason, fixable, remediation = "PROVIDER_FIELD_EMPTY", False, "Withhold the empty field and retry the approved endpoint."
+    elif "THROTTL" in reason_codes or status == "THROTTLED":
         reason, fixable, remediation = "PROVIDER_THROTTLED", False, "Retry under provider backoff and quota policy."
     elif "ENDPOINT" in reason_codes or status in {"UNSUPPORTED", "ENDPOINT_UNAVAILABLE"}:
         reason, fixable, remediation = "PROVIDER_ENDPOINT_UNAVAILABLE", False, "Withhold the field or use an already-approved provider endpoint."
@@ -140,6 +147,11 @@ def _qa_record(row: Mapping[str, Any], rank: int) -> tuple[dict[str, Any], dict[
     calculated_operating_margin = operating_income / revenue * 100 if operating_income is not None and revenue not in (None, 0) else None
     calculated_market_cap = price * shares if price is not None and shares is not None else None
     calculated_fcf = ocf - capex_normalized if ocf is not None and capex_normalized is not None else None
+    basic_shares = _num(trial.get("basic_shares"))
+    diluted_shares = _num(trial.get("diluted_shares"))
+    share_basis = "DILUTED" if diluted_shares is not None else ("BASIC" if basic_shares is not None else "UNKNOWN")
+    share_basis_value = diluted_shares if diluted_shares is not None else basic_shares
+    share_basis_delta = _pct_diff(diluted_shares, basic_shares)
 
     required = {"ticker": ticker}
     for field, value in required.items():
@@ -204,6 +216,20 @@ def _qa_record(row: Mapping[str, Any], rank: int) -> tuple[dict[str, Any], dict[
         issues.append(_issue(ticker, "P4", "ANOMALY_MODEL_DISPERSION", "model_values",
                              f"Published model dispersion is {max(model_values) / min(model_values):.2f}×.",
                              fixable=False, remediation="Expose model dispersion in valuation uncertainty."))
+    published_weights = [_num(m.get("weight")) for m in published_models]
+    weight_sum = sum(weight for weight in published_weights if weight is not None)
+    if published_models and all(weight is not None for weight in published_weights) and abs(weight_sum - 1) > .011:
+        issues.append(_issue(ticker, "P1", "VALUATION_WEIGHT_RECONCILIATION", "model_weights",
+                             f"Published model weights sum to {weight_sum:.4f}, not 1.0.",
+                             remediation="Normalize eligible model weights and rerun canonical valuation."))
+    bear, bull = _num(valuation.get("atlas_bear_case")), _num(valuation.get("atlas_bull_case"))
+    if bear is not None and base is not None and bull is not None and not bear <= base <= bull:
+        issues.append(_issue(ticker, "P1", "VALUATION_SCENARIO_ORDER", "bear_base_bull",
+                             "Published Bear/Base/Bull scenarios are not monotonically ordered."))
+    if any(value is not None and value <= 0 for value in (basic_shares, diluted_shares, shares)):
+        issues.append(_issue(ticker, "P0", "SHARE_DENOMINATOR", "shares",
+                             "A published share denominator is zero or negative.",
+                             remediation="Correct share units/basis before per-share publication."))
     if _num(trial.get("operating_profit_margin")) is not None and abs(_num(trial.get("operating_profit_margin"))) > 100:
         issues.append(_issue(ticker, "P2", "ANOMALY_MARGIN", "operating_profit_margin",
                              "Operating margin exceeds the plausible normalized percentage range.",
@@ -211,6 +237,10 @@ def _qa_record(row: Mapping[str, Any], rank: int) -> tuple[dict[str, Any], dict[
     if cash is not None and _num(trial.get("assets")) is not None and cash > _num(trial.get("assets")):
         issues.append(_issue(ticker, "P1", "ANOMALY_BALANCE_SHEET", "cash_and_equivalents",
                              "Cash exceeds total assets on the same reported basis."))
+    if basic_shares is not None and diluted_shares is not None and diluted_shares + 1e-9 < basic_shares:
+        issues.append(_issue(ticker, "P2", "SHARE_BASIS", "diluted_shares",
+                             "Diluted shares are below basic shares on the same period/basis.",
+                             remediation="Align basic and diluted weighted-average share periods."))
 
     pillars = {name: dict(evaluation.get(name) or {}) for name in (
         "technical_quality", "fundamental_quality", "valuation_quality", "risk_quality", "entry_quality", "volume_quality"
@@ -275,7 +305,9 @@ def _qa_record(row: Mapping[str, Any], rank: int) -> tuple[dict[str, Any], dict[
         **{name: _num(value.get("score")) for name, value in pillars.items()},
         "current_price": price, "completed_close": _num(tech_evidence.get("close")),
         "market_timestamp": market.get("provider_timestamp"), "market_session": market.get("market_session"),
-        "shares": shares, "market_cap": market_cap, "revenue": revenue,
+        "shares": shares, "basic_shares": basic_shares, "diluted_shares": diluted_shares,
+        "share_basis": share_basis, "share_basis_value": share_basis_value,
+        "share_basis_delta_pct": share_basis_delta, "market_cap": market_cap, "revenue": revenue,
         "eps": _num(_first(trial.get("latest_eps"), row.get("latest_eps"))), "ebit": _num(trial.get("ebit")),
         "ebitda": _num(trial.get("forward_ebitda")), "ocf": ocf, "capex": capex_raw, "fcf": fcf,
         "cash": cash, "debt": debt, "net_debt": net_debt, "equity": _num(trial.get("equity")),
@@ -289,7 +321,8 @@ def _qa_record(row: Mapping[str, Any], rank: int) -> tuple[dict[str, Any], dict[
         "forward_revenue_low": _num(revenue_est.get("low_estimate")), "forward_revenue_high": _num(revenue_est.get("high_estimate")),
         "forward_revenue_period": revenue_est.get("date"), "forward_revenue_analysts": revenue_est.get("number_of_analysts"),
         "forward_revenue_basis": trial.get("forward_revenue_basis"),
-        "valuation_status": valuation.get("status"), "base_fv": base, "fair_value_low": low, "fair_value_high": high,
+        "valuation_status": valuation.get("status"), "valuation_methodology": valuation.get("valuation_methodology_version"),
+        "valuation_as_of": valuation.get("valuation_as_of"), "base_fv": base, "fair_value_low": low, "fair_value_high": high,
         "bear_case": _num(valuation.get("atlas_bear_case")), "bull_case": _num(valuation.get("atlas_bull_case")),
         "valuation_confidence": _num(valuation.get("valuation_confidence")), "model_count": len(published_models),
         "wacc": _num(trial.get("wacc")), "terminal_growth": _num(trial.get("terminal_growth")),
@@ -305,6 +338,10 @@ def _qa_record(row: Mapping[str, Any], rank: int) -> tuple[dict[str, Any], dict[
         "street_target_high": row.get("analyst_target_high") if street_allowed else None,
         "insider_context": row.get("insider_activity_label"), "institutional_ownership": row.get("institutional_ownership_pct"),
         "congressional_context": row.get("political_support_summary"), "catalyst_status": row.get("v42_news_status"),
+        "canonical_policy_version": _nested(evaluation, "guidance", "policy_version"),
+        "canonical_input_digest": evaluation.get("input_digest"),
+        "canonical_decision_digest": evaluation.get("decision_digest"),
+        "evidence_as_of": evaluation.get("evidence_as_of"),
         "certification_state": certification.get("certification_state"),
         "publication_eligibility": bool(certification.get("customer_publication_allowed")),
         "missing_data_count": len(missing), "qa_issue_count": len(issues),
@@ -344,7 +381,7 @@ def _qa_record(row: Mapping[str, Any], rank: int) -> tuple[dict[str, Any], dict[
     record["qa_blocking_issue_count"] = sum(i["severity"] in BLOCKING_SEVERITIES for i in issues)
     record["qa_status"] = "FAIL" if record["qa_blocking_issue_count"] else "PASS"
     sheets = {
-        "Financials": [{k: record.get(k) for k in ("ticker", "revenue", "eps", "ebit", "ebitda", "ocf", "capex", "fcf", "cash", "debt", "net_debt", "equity", "assets", "operating_margin", "roe", "roa", "roic")}],
+        "Financials": [{k: record.get(k) for k in ("ticker", "revenue", "eps", "ebit", "ebitda", "ocf", "capex", "fcf", "cash", "debt", "net_debt", "equity", "assets", "operating_margin", "roe", "roa", "roic", "basic_shares", "diluted_shares", "share_basis", "share_basis_value", "share_basis_delta_pct")}],
         "Financial_Reconciliation": [{"ticker": ticker, "ocf": ocf, "capex_raw": capex_raw, "capex_normalized": capex_normalized,
             "calculated_fcf": calculated_fcf, "provider_fcf": fcf, "fcf_difference_pct": fcf_diff, "fcf_tolerance_pct": .05, "fcf_status": fcf_status,
             "price": price, "shares": shares, "calculated_market_cap": calculated_market_cap, "provider_market_cap": market_cap,
@@ -360,10 +397,28 @@ def _qa_record(row: Mapping[str, Any], rank: int) -> tuple[dict[str, Any], dict[
         "Valuation_Models": [{"ticker": ticker, "methodology_id": m.get("methodology_id"), "name": m.get("name"), "status": m.get("status"),
             "value": m.get("value"), "weight": m.get("weight"), "confidence": m.get("confidence"), "reason": m.get("reason"),
             **{f"assumption_{k}": v for k, v in dict(m.get("key_assumptions") or {}).items() if not isinstance(v, (dict, list))}} for m in models],
+        "Valuation_Reconciliation": [{"ticker": ticker, "status": valuation.get("status"), "base": base,
+            "low": low, "high": high, "bear": record.get("bear_case"), "bull": record.get("bull_case"),
+            "confidence": record.get("valuation_confidence"), "methodology": record.get("valuation_methodology"),
+            "as_of": record.get("valuation_as_of"), "model_count": len(published_models),
+            "weight_sum": weight_sum,
+            "range_contains_base": low is None or base is None or high is None or low <= base <= high,
+            "scenario_order_valid": record.get("bear_case") is None or base is None or record.get("bull_case") is None or record.get("bear_case") <= base <= record.get("bull_case")}],
         "Peer_Sets": [{"ticker": ticker, "peer": peer, "source": "deterministic_peer_set"} for peer in trial.get("deterministic_peer_set") or ()],
         "Source_Lineage": [{"ticker": ticker, "field": key, "lineage": json.dumps(value, sort_keys=True, default=str)} for key, value in lineage.items()],
         "Street_Analyst": [{k: record.get(k) for k in ("ticker", "street_display_allowed", "street_consensus", "street_analyst_count", "street_target", "street_target_low", "street_target_high")}],
         "Context": [{k: record.get(k) for k in ("ticker", "insider_context", "institutional_ownership", "congressional_context", "catalyst_status")}],
+        "Six_Pillar_QA": [{"ticker": ticker, **{name: _num(value.get("score")) for name, value in pillars.items()},
+            "opportunity": record.get("opportunity"), "decision_confidence": record.get("confidence"),
+            "component_coverage": record.get("coverage"), "methodology_version": evaluation.get("methodology_version")}],
+        "Action_QA": [{"ticker": ticker, "production_rank": rank, "action": action, "stars": _stars(action),
+            "opportunity_thesis": evaluation.get("opportunity_thesis"), "policy_version": record.get("canonical_policy_version"),
+            "publication_allowed": record.get("publication_eligibility"), "certification_state": record.get("certification_state")}],
+        "ATLAS_vs_Street": [{"ticker": ticker, "current_price": price, "atlas_target": base,
+            "atlas_upside_pct": ((base / price) - 1) if base is not None and price not in (None, 0) else None,
+            "street_display_allowed": street_allowed, "street_target": street_target,
+            "street_upside_pct": ((street_target / price) - 1) if street_target is not None and price not in (None, 0) else None,
+            "street_is_context_only": True}],
         "Customer_Surface_Audit": [{"ticker": ticker, "canonical_action": action, "home_action": home_action,
             "research_action": research_action, "certified_action": certified_action,
             "publication_allowed": certification.get("customer_publication_allowed"),
@@ -402,8 +457,8 @@ def crawl_universe(rows: Sequence[Mapping[str, Any]], *, prior_rows: Sequence[Ma
     generated_at = generated_at or datetime.now(timezone.utc).isoformat()
     records: list[dict[str, Any]] = []
     sheets: dict[str, list[dict[str, Any]]] = {name: [] for name in (
-        "Financials", "Financial_Reconciliation", "Estimates", "Valuation_Models", "Peer_Sets",
-        "Source_Lineage", "Street_Analyst", "Context", "Customer_Surface_Audit"
+        "Financials", "Financial_Reconciliation", "Estimates", "Valuation_Models", "Valuation_Reconciliation", "Peer_Sets",
+        "Source_Lineage", "Street_Analyst", "Context", "Six_Pillar_QA", "Action_QA", "ATLAS_vs_Street", "Customer_Surface_Audit"
     )}
     all_findings: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -426,7 +481,7 @@ def crawl_universe(rows: Sequence[Mapping[str, Any]], *, prior_rows: Sequence[Ma
     gate = "FAIL" if any(severities.get(level, 0) for level in BLOCKING_SEVERITIES) else "PASS"
     certification_counts = Counter(str(r.get("certification_state") or "UNKNOWN") for r in records)
     run_over_run = _run_over_run(records, prior_rows or ())
-    anomalies = [x for x in failures if x.get("category") in {"MARKET_CAP_RECONCILIATION", "FCF_RECONCILIATION", "NET_DEBT_RECONCILIATION", "DCF_SANITY", "VALUATION_RANGE", "EV_BRIDGE"} or str(x.get("category")).startswith("ANOMALY_")]
+    anomalies = [x for x in failures if x.get("category") in {"MARKET_CAP_RECONCILIATION", "FCF_RECONCILIATION", "NET_DEBT_RECONCILIATION", "DCF_SANITY", "VALUATION_RANGE", "EV_BRIDGE", "SHARE_BASIS"} or str(x.get("category")).startswith("ANOMALY_")]
     summary = {
         "version": VERSION, "run_id": run_id, "generated_at": generated_at,
         "universe_count": len(records), "publication_gate_status": gate,
@@ -440,15 +495,21 @@ def crawl_universe(rows: Sequence[Mapping[str, Any]], *, prior_rows: Sequence[Ma
         "fcf_failure_count": sum(x.get("category") == "FCF_RECONCILIATION" for x in failures),
         "routing_warning_count": sum(x.get("category") == "VALUATION_ROUTING" for x in failures),
         "street_data_gap_count": sum(r.get("street_target") is None for r in records),
+        "qa_engine_status": "OPERATIONAL",
+        "dataset_certification_status": gate,
+        "blocking_issue_count": sum(severities.get(level, 0) for level in BLOCKING_SEVERITIES),
+        "action_distribution": dict(Counter(str(r.get("action") or "UNKNOWN") for r in records)),
         "artifact_link": artifact_link,
     }
     sheets.update({
         "Master": records, "Missing_Data": missing, "Validation_Failures": failures,
-        "Run_Over_Run": run_over_run, "Universe_Summary": [summary], "Anomalies": anomalies,
+        "Run_Over_Run": run_over_run, "Universe_Summary": [summary], "Numerical_Anomalies": anomalies,
+        "Screenshot_Index": [],
     })
-    ordered = ["Master", "Financials", "Financial_Reconciliation", "Estimates", "Valuation_Models", "Peer_Sets",
-               "Source_Lineage", "Missing_Data", "Validation_Failures", "Street_Analyst", "Context", "Run_Over_Run",
-               "Customer_Surface_Audit", "Universe_Summary", "Anomalies"]
+    ordered = ["Master", "Financials", "Financial_Reconciliation", "Estimates", "Valuation_Models",
+               "Valuation_Reconciliation", "Peer_Sets", "Source_Lineage", "Missing_Data", "Validation_Failures",
+               "Street_Analyst", "Context", "Six_Pillar_QA", "Action_QA", "Run_Over_Run",
+               "Customer_Surface_Audit", "Numerical_Anomalies", "ATLAS_vs_Street", "Screenshot_Index", "Universe_Summary"]
     return {"summary": summary, "sheets": {name: sheets[name] for name in ordered}, "gate": gate}
 
 

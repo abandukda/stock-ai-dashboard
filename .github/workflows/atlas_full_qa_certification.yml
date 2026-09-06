@@ -1,6 +1,8 @@
 name: ATLAS Full QA Certification
 
 on:
+  schedule:
+    - cron: "15 12 * * 1-5"
   workflow_run:
     workflows: ["Overnight Market Scan"]
     types: [completed]
@@ -29,6 +31,8 @@ on:
         required: false
       SEC_USER_AGENT:
         required: false
+      ATLAS_AUDIT_PASSWORD:
+        required: false
 
 permissions:
   actions: read
@@ -47,6 +51,7 @@ jobs:
       ATLAS_DATA_MODE: INTERNAL_TRIAL
       TWELVE_DATA_ENABLED: "true"
       ATLAS_HARD_PUBLICATION_GOVERNANCE_ENABLED: "true"
+      ATLAS_FOUNDER_GUIDANCE_V1_ENABLED: "true"
       ATLAS_PUBLICATION_OUTPUT_MODE: CANDIDATE
       ATLAS_CANDIDATE_OUTPUT_DIR: audit_results/candidate_artifacts
       DATA_DIR: "."
@@ -66,7 +71,7 @@ jobs:
       - name: Checkout current production main
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || 'main' }}
           fetch-depth: 0
 
       - name: Set up Python
@@ -83,6 +88,8 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install -r requirements-browser-audit.txt
+          python -m playwright install --with-deps chromium
           npm install --no-save @oai/artifact-tool@2.8.58
 
       - name: Resolve candidate run
@@ -115,7 +122,47 @@ jobs:
         if: steps.candidate.outputs.run_id == ''
         run: python overnight_market_scan.py
 
-      - name: Run full-universe QA and promote only on PASS
+      - name: Run dataset and numerical certification
+        id: data_qa
+        continue-on-error: true
+        run: |
+          python scripts/run_full_qa_certification.py \
+            --candidate-dir audit_results/candidate_artifacts \
+            --production-dir . \
+            --output-dir audit_results/full_qa/${{ github.run_id }} \
+            --artifact-link https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Materialize exact candidate for customer-surface QA
+        run: |
+          cp audit_results/candidate_artifacts/market_full_scan.json market_full_scan.json
+          cp audit_results/candidate_artifacts/market_prescreen.json market_prescreen.json
+          cp audit_results/candidate_artifacts/recovery_scan.json recovery_scan.json
+          cp audit_results/candidate_artifacts/etf_scan.json etf_scan.json
+          cp audit_results/candidate_artifacts/total_market_universe.json total_market_universe.json
+          cp audit_results/candidate_artifacts/market_scan_state.json market_scan_state.json
+
+      - name: Launch exact-candidate Streamlit runtime
+        env:
+          ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
+        run: |
+          python -m streamlit run app.py --server.headless true --server.port 8501 > audit_results/full_qa/${{ github.run_id }}/streamlit.log 2>&1 &
+          echo $! > audit_results/full_qa/${{ github.run_id }}/streamlit.pid
+          for attempt in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:8501/_stcore/health && exit 0
+            sleep 1
+          done
+          exit 1
+
+      - name: Capture and validate desktop/mobile customer surfaces
+        env:
+          ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
+        run: |
+          python -m agents.full_qa_visual_certification \
+            --url http://127.0.0.1:8501 \
+            --root . \
+            --output audit_results/full_qa/${{ github.run_id }}/visual
+
+      - name: Finalize certification and promote atomically
         id: qa
         run: |
           python scripts/run_full_qa_certification.py \
@@ -123,6 +170,8 @@ jobs:
             --production-dir . \
             --output-dir audit_results/full_qa/${{ github.run_id }} \
             --artifact-link https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }} \
+            --visual-summary audit_results/full_qa/${{ github.run_id }}/visual/atlas_full_qa_visual_summary.json \
+            --screenshot-manifest audit_results/full_qa/${{ github.run_id }}/visual/screenshot_manifest.json \
             --promote
 
       - name: Upload QA certification bundle
