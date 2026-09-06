@@ -1,0 +1,137 @@
+#!/usr/bin/env python3
+"""Certify an exact scan candidate, export its QA bundle, and optionally promote."""
+from __future__ import annotations
+
+import argparse
+import csv
+from datetime import datetime, timezone
+import json
+from pathlib import Path
+import subprocess
+import sys
+
+from services.full_universe_qa import crawl_universe, report_digest, write_json_report
+from services.publication_governance import promote_atomically
+
+ARTIFACT_NAMES = (
+    "market_full_scan.json", "market_prescreen.json", "recovery_scan.json",
+    "etf_scan.json", "total_market_universe.json", "market_scan_state.json",
+)
+
+
+def _read(path: Path):
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _flatten(value):
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, sort_keys=True, default=str)
+    return value
+
+
+def _csv(rows, path: Path) -> None:
+    columns = list(dict.fromkeys(key for row in rows for key in row))
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=columns)
+        writer.writeheader()
+        writer.writerows({key: _flatten(row.get(key)) for key in columns} for row in rows)
+
+
+def _markdown(report, path: Path) -> None:
+    summary = report["summary"]
+    severity = summary["severity_counts"]
+    distribution = summary["certification_distribution"]
+    lines = [
+        f"# ATLAS Full-Universe QA — {summary['generated_at'][:10]}", "",
+        f"**Publication gate: {report['gate']}**", "",
+        f"Run `{summary['run_id']}` certified {summary['universe_count']} securities.", "",
+        "## Certification", "",
+        f"- Certified: {distribution.get('CERTIFIED', 0)}",
+        f"- High uncertainty: {distribution.get('CERTIFIED_HIGH_UNCERTAINTY', 0)}",
+        f"- Review required: {distribution.get('REVIEW_REQUIRED', 0)}",
+        f"- Withheld: {summary['withheld_count']}", "",
+        "## Severity", "",
+        *[f"- P{i}: {severity.get(f'P{i}', 0)}" for i in range(5)], "",
+        "## Reconciliation", "",
+        f"- Market-cap failures: {summary['market_cap_failure_count']}",
+        f"- FCF failures: {summary['fcf_failure_count']}",
+        f"- Routing warnings: {summary['routing_warning_count']}",
+        f"- Street-data gaps: {summary['street_data_gap_count']}", "",
+        "P0/P1/P2 findings block promotion. P3 provider gaps may be withheld; P4 context issues are nonblocking.",
+    ]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _verify_candidate(candidate_dir: Path, manifest: dict, payloads: dict[Path, object]) -> None:
+    expected = dict(manifest.get("artifact_hashes") or {})
+    import hashlib
+    for path, payload in payloads.items():
+        actual = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode()).hexdigest()
+        if expected.get(path.name) != actual:
+            raise RuntimeError(f"CANDIDATE_HASH_MISMATCH:{path.name}")
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--candidate-dir", type=Path, required=True)
+    parser.add_argument("--production-dir", type=Path, default=Path("."))
+    parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--promote", action="store_true")
+    parser.add_argument("--artifact-link", default="")
+    parser.add_argument("--xlsx-exporter", type=Path, default=Path("scripts/export_full_qa_xlsx.mjs"))
+    args = parser.parse_args(argv)
+
+    candidate_manifest = _read(args.candidate_dir / "publication_manifest.json")
+    payloads = {args.production_dir / name: _read(args.candidate_dir / name) for name in ARTIFACT_NAMES}
+    _verify_candidate(args.candidate_dir, candidate_manifest, payloads)
+    candidate_rows = payloads[args.production_dir / "market_full_scan.json"]
+    prior_path = args.production_dir / "market_full_scan.json"
+    prior_report = None
+    if prior_path.exists():
+        prior_rows = _read(prior_path)
+        prior_report = crawl_universe(prior_rows, run_id="prior-production")
+    report = crawl_universe(
+        candidate_rows,
+        prior_rows=((prior_report or {}).get("sheets") or {}).get("Master") or (),
+        run_id=str(candidate_manifest.get("run_id") or "candidate"),
+        generated_at=str(candidate_manifest.get("generated_at") or datetime.now(timezone.utc).isoformat()),
+        artifact_link=str(args.artifact_link or candidate_manifest.get("artifact_link") or ""),
+    )
+    if candidate_manifest.get("publication_gate_status") != "PASS":
+        report["sheets"]["Validation_Failures"].append({
+            "ticker": "UNIVERSE", "severity": "P1", "category": "UPSTREAM_PUBLICATION_GATE",
+            "field": "candidate_manifest.publication_gate_status",
+            "message": "The scan candidate failed upstream provider/schema governance.",
+            "reason": "VALIDATION_FAILED", "fixable_by_atlas": True,
+            "recommended_remediation": "Resolve the upstream manifest failures and regenerate the candidate.",
+        })
+        report["summary"]["severity_counts"]["P1"] += 1
+        report["summary"]["publication_gate_status"] = "FAIL"
+        report["gate"] = "FAIL"
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    date = report["summary"]["generated_at"][:10].replace("-", "")
+    stem = f"ATLAS_FULL_150_QA_{date}"
+    json_path, csv_path = args.output_dir / f"{stem}.json", args.output_dir / f"{stem}.csv"
+    md_path, xlsx_path = args.output_dir / f"ATLAS_FULL_150_QA_SUMMARY_{date}.md", args.output_dir / f"{stem}.xlsx"
+    write_json_report(report, json_path)
+    _csv(report["sheets"]["Master"], csv_path)
+    _markdown(report, md_path)
+    subprocess.run(["node", str(args.xlsx_exporter), str(json_path), str(xlsx_path)], check=True)
+
+    certified_manifest = dict(candidate_manifest)
+    certified_manifest["qa_certification"] = {**report["summary"], "report_digest": report_digest(report)}
+    certified_manifest["publication_gate_status"] = report["gate"]
+    certified_manifest["certification_report"] = str(json_path)
+    manifest_path = args.output_dir / "publication_manifest.json"
+    manifest_path.write_text(json.dumps(certified_manifest, indent=2, default=str) + "\n", encoding="utf-8")
+    if args.promote:
+        promote_atomically(payloads, manifest=certified_manifest,
+                           manifest_path=args.production_dir / "publication_manifest.json",
+                           audit_path=args.production_dir / "publication_audit.jsonl")
+    print(json.dumps({"gate": report["gate"], "run_id": report["summary"]["run_id"],
+                      "output_dir": str(args.output_dir), "promoted": bool(args.promote)}, sort_keys=True))
+    return 0 if report["gate"] == "PASS" else 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

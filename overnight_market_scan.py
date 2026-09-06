@@ -5422,7 +5422,7 @@ def scan_market() -> Dict[str, Any]:
     output_started = time.monotonic()
     hard_governance = os.getenv("ATLAS_HARD_PUBLICATION_GOVERNANCE_ENABLED", "true").lower() == "true"
     if hard_governance:
-        from services.publication_governance import build_manifest, certify_rows, promote_atomically
+        from services.publication_governance import build_manifest, certify_rows, promote_atomically, stage_candidate_artifacts
         prior_lkg = FULL_SCAN_FILE.with_name(f".{FULL_SCAN_FILE.name}.last_known_good")
         prior_rows = json.loads(prior_lkg.read_text(encoding="utf-8")) if prior_lkg.exists() else None
         full_rows = certify_rows(full_rows)
@@ -5452,8 +5452,13 @@ def scan_market() -> Dict[str, Any]:
             artifact_payloads={path.name: payload for path, payload in artifact_payloads.items()},
             provider_status=decision_publication, prior_rows=prior_rows,
         )
-        promote_atomically(artifact_payloads, manifest=manifest,
-                           manifest_path=PUBLICATION_MANIFEST_FILE, audit_path=PUBLICATION_AUDIT_FILE)
+        if os.getenv("ATLAS_PUBLICATION_OUTPUT_MODE", "PRODUCTION").upper() == "CANDIDATE":
+            candidate_dir = Path(os.getenv("ATLAS_CANDIDATE_OUTPUT_DIR", "audit_results/candidate_artifacts"))
+            stage_candidate_artifacts(artifact_payloads, manifest=manifest, candidate_dir=candidate_dir)
+            state["candidate_artifact_dir"] = str(candidate_dir)
+        else:
+            promote_atomically(artifact_payloads, manifest=manifest,
+                               manifest_path=PUBLICATION_MANIFEST_FILE, audit_path=PUBLICATION_AUDIT_FILE)
     else:
         write_json(PRESCREEN_FILE, prescreen_rows)
         write_json(FULL_SCAN_FILE, full_rows)

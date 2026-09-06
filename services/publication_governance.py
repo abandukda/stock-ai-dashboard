@@ -275,4 +275,17 @@ def promote_atomically(artifact_payloads: Mapping[Path, Any], *, manifest: Mappi
         handle.write(json.dumps({"event": "ATOMIC_PUBLICATION", "manifest": dict(manifest)}, sort_keys=True, default=str) + "\n")
 
 
-__all__ = ["MANIFEST_VERSION", "PUBLISHABLE", "VERSION", "build_manifest", "certify_record", "certify_rows", "promote_atomically", "run_over_run_anomalies"]
+def stage_candidate_artifacts(artifact_payloads: Mapping[Path, Any], *, manifest: Mapping[str, Any],
+                              candidate_dir: Path) -> Path:
+    """Persist an exact, self-contained scan candidate without touching production."""
+    candidate_dir.mkdir(parents=True, exist_ok=True)
+    for source, payload in artifact_payloads.items():
+        (candidate_dir / source.name).write_text(
+            json.dumps(payload, indent=2, default=str) + "\n", encoding="utf-8"
+        )
+    manifest_path = candidate_dir / "publication_manifest.json"
+    manifest_path.write_text(json.dumps(dict(manifest), indent=2, default=str) + "\n", encoding="utf-8")
+    return manifest_path
+
+
+__all__ = ["MANIFEST_VERSION", "PUBLISHABLE", "VERSION", "build_manifest", "certify_record", "certify_rows", "promote_atomically", "run_over_run_anomalies", "stage_candidate_artifacts"]

@@ -1,0 +1,148 @@
+name: ATLAS Full QA Certification
+
+on:
+  workflow_run:
+    workflows: ["Overnight Market Scan"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      candidate_run_id:
+        description: "Overnight Market Scan run ID; leave blank to generate a candidate"
+        required: false
+        type: string
+  workflow_call:
+    inputs:
+      candidate_run_id:
+        description: "Overnight Market Scan run ID; leave blank to generate a candidate"
+        required: false
+        type: string
+    secrets:
+      TWELVE_DATA_API_KEY:
+        required: false
+      FMP_API_KEY:
+        required: false
+      FINNHUB_API_KEY:
+        required: false
+      NEWSAPI_KEY:
+        required: false
+      ALPHA_VANTAGE_API_KEY:
+        required: false
+      SEC_USER_AGENT:
+        required: false
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: atlas-production-publication
+  cancel-in-progress: false
+
+jobs:
+  certify-and-promote:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      ATLAS_DATA_MODE: INTERNAL_TRIAL
+      TWELVE_DATA_ENABLED: "true"
+      ATLAS_HARD_PUBLICATION_GOVERNANCE_ENABLED: "true"
+      ATLAS_PUBLICATION_OUTPUT_MODE: CANDIDATE
+      ATLAS_CANDIDATE_OUTPUT_DIR: audit_results/candidate_artifacts
+      DATA_DIR: "."
+      FAST_CRON_MODE: "true"
+      FAST_CRON_SKIP_PRE_RANK_DEEP_APIS: "true"
+      FULL_COMMITTEE_LIMIT: "15"
+      ETF_FULL_COMMITTEE_LIMIT: "10"
+      HTTP_TIMEOUT_FAST: "6"
+      TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
+      FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+      FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+      NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
+      ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
+      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+
+    steps:
+      - name: Checkout current production main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install certification dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          npm install --no-save @oai/artifact-tool@2.8.58
+
+      - name: Resolve candidate run
+        id: candidate
+        env:
+          WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+          DISPATCH_RUN_ID: ${{ inputs.candidate_run_id }}
+        run: |
+          candidate_run_id="${WORKFLOW_RUN_ID:-${DISPATCH_RUN_ID:-}}"
+          echo "run_id=${candidate_run_id}" >> "$GITHUB_OUTPUT"
+
+      - name: Download exact overnight candidate
+        if: steps.candidate.outputs.run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: atlas-scan-candidate-${{ steps.candidate.outputs.run_id }}
+          path: audit_results/candidate_artifacts
+          run-id: ${{ steps.candidate.outputs.run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Verify candidate-generation credential contract
+        if: steps.candidate.outputs.run_id == ''
+        run: |
+          if [ -z "${TWELVE_DATA_API_KEY:-}" ]; then
+            echo "::error::INTERNAL_TRIAL candidate generation requires TWELVE_DATA_API_KEY"
+            exit 1
+          fi
+
+      - name: Generate exact candidate for direct invocation
+        if: steps.candidate.outputs.run_id == ''
+        run: python overnight_market_scan.py
+
+      - name: Run full-universe QA and promote only on PASS
+        id: qa
+        run: |
+          python scripts/run_full_qa_certification.py \
+            --candidate-dir audit_results/candidate_artifacts \
+            --production-dir . \
+            --output-dir audit_results/full_qa/${{ github.run_id }} \
+            --artifact-link https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }} \
+            --promote
+
+      - name: Upload QA certification bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-full-qa-${{ github.run_id }}
+          path: |
+            audit_results/full_qa/${{ github.run_id }}
+            audit_results/candidate_artifacts/publication_manifest.json
+            failed_publication_run.json
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Commit atomically certified production artifacts
+        if: success()
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add -- etf_scan.json market_full_scan.json market_prescreen.json market_scan_state.json recovery_scan.json total_market_universe.json publication_manifest.json publication_audit.jsonl
+          git commit -m "Publish QA-certified overnight market scan - $(date -u +'%Y-%m-%d %H:%M UTC')" || echo "No production changes to commit"
+          git pull --rebase origin main
+          git push origin main

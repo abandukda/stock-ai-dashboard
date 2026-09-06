@@ -199,9 +199,10 @@ def test_shadow_snapshot_is_not_a_production_json_contract():
     }
     assert "latest.json" not in production
     workflow = Path(".github/workflows/overnight_scan.yml").read_text()
-    commit_block = workflow.split("- name: Commit updated scan output", 1)[1]
-    assert ".atlas_research_cache/fmp_bulk_metadata_v1" not in commit_block
-    assert "git add -A" not in commit_block
+    certification = Path(".github/workflows/atlas_full_qa_certification.yml").read_text()
+    assert "ATLAS_PUBLICATION_OUTPUT_MODE: \"CANDIDATE\"" in workflow
+    assert ".atlas_research_cache/fmp_bulk_metadata_v1" not in certification.split("Commit atomically certified production artifacts", 1)[1]
+    assert "git add -A" not in certification
 
 
 def test_no_eod_bulk_activation_and_methodology_gates_unchanged():

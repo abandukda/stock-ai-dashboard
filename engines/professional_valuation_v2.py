@@ -104,7 +104,8 @@ def _ev_ebitda(row: Mapping[str, Any], company_type: str) -> dict[str, Any]:
     value=(ebitda*multiple-debt+cash)/shares
     if value <= 0: return _model("VAL_EV_EBITDA_V1", status=VALIDATION_FAILED, reason="NONPOSITIVE_EQUITY_VALUE")
     return _model("VAL_EV_EBITDA_V1", status=PUBLISHED, value=value, confidence=75, coverage=1,
-                  assumptions={"forward_ebitda":ebitda,"multiple":multiple,"multiple_basis":basis,"net_debt":debt-cash})
+                  assumptions={"forward_ebitda":ebitda,"multiple":multiple,"multiple_basis":basis,
+                               "net_debt":debt-cash,"diluted_shares":shares})
 
 
 def _p_fcf(row: Mapping[str, Any], company_type: str) -> dict[str, Any]:

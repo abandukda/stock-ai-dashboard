@@ -98,12 +98,12 @@ def test_new_corporate_families_are_not_applicable_for_etf_context():
         assert context["evidence_families"][family]["semantic_status"] == "NOT_APPLICABLE"
 
 
-def test_workflow_persists_snapshot_cache_without_adding_it_to_production_commit():
+def test_workflow_persists_snapshot_cache_without_direct_production_commit():
     workflow = open(".github/workflows/overnight_scan.yml", encoding="utf-8").read()
     assert ".atlas_research_cache/analyst_estimate_snapshots_v1" in workflow
-    commit_line = next(line for line in workflow.splitlines() if "git add --" in line)
-    assert "analyst_estimate" not in commit_line
-    assert "market_full_scan.json" in commit_line
+    assert "ATLAS_PUBLICATION_OUTPUT_MODE: \"CANDIDATE\"" in workflow
+    assert "atlas-scan-candidate-${{ github.run_id }}" in workflow
+    assert "git push origin main" not in workflow
 
 
 class _FakeClient:

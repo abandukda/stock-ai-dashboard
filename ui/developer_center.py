@@ -120,6 +120,31 @@ def render_developer_center(
             quality[2].metric("Credential Failures",sum("KEY_UNAVAILABLE" in str(code) for code in provider.get("reason_codes") or ()))
             quality[3].metric("Home / Research Mismatch",governed["home_research_mismatch_count"])
             st.caption(f"Run {publication_manifest.get('run_id','Not available')} · Freshness {publication_manifest.get('freshness_status','Not available')} · Candidate status {publication_manifest.get('publication_gate_status','Not available')}")
+        with st.expander("Full-Universe QA Certification", expanded=True):
+            qa=dict(publication_manifest.get("qa_certification") or {})
+            if not qa:
+                st.info("No full-universe QA certification has been promoted yet.")
+            else:
+                headline=st.columns(4)
+                headline[0].metric("Last QA Run",qa.get("generated_at","Not available"))
+                headline[1].metric("Gate",qa.get("publication_gate_status","NOT AVAILABLE"))
+                headline[2].metric("Certified",qa.get("certified_count",0))
+                headline[3].metric("High Uncertainty",qa.get("high_uncertainty_count",0))
+                population=st.columns(3)
+                population[0].metric("Review Required",qa.get("review_required_count",0))
+                population[1].metric("Withheld",qa.get("withheld_count",0))
+                population[2].metric("Street-data Gaps",qa.get("street_data_gap_count",0))
+                severity=dict(qa.get("severity_counts") or {})
+                severity_columns=st.columns(5)
+                for index in range(5):
+                    severity_columns[index].metric(f"P{index}",severity.get(f"P{index}",0))
+                reconciliation=st.columns(3)
+                reconciliation[0].metric("Market-cap Failures",qa.get("market_cap_failure_count",0))
+                reconciliation[1].metric("FCF Failures",qa.get("fcf_failure_count",0))
+                reconciliation[2].metric("Routing Warnings",qa.get("routing_warning_count",0))
+                if qa.get("artifact_link"):
+                    st.link_button("Open QA Artifact Run",qa["artifact_link"],use_container_width=True)
+                st.caption(f"Certification engine {qa.get('version','Not available')} · Run {qa.get('run_id','Not available')}")
         validation=validation_report(snapshot_rows,outcome_rows)
         st.markdown("### Model Validation — Internal Only")
         with st.container(border=True):
