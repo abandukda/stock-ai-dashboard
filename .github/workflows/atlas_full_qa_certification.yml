@@ -89,8 +89,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install playwright==1.52.0
+          pip install XlsxWriter==3.2.9
           python -m playwright install --with-deps chromium
-          npm install --no-save @oai/artifact-tool@2.8.58
 
       - name: Resolve candidate run
         id: candidate

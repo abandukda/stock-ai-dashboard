@@ -90,7 +90,7 @@ def main(argv=None) -> int:
     parser.add_argument("--artifact-link", default="")
     parser.add_argument("--visual-summary", type=Path)
     parser.add_argument("--screenshot-manifest", type=Path)
-    parser.add_argument("--xlsx-exporter", type=Path, default=Path("scripts/export_full_qa_xlsx.mjs"))
+    parser.add_argument("--xlsx-exporter", type=Path, default=Path("scripts/export_full_qa_xlsx.py"))
     args = parser.parse_args(argv)
 
     candidate_manifest = _read(args.candidate_dir / "publication_manifest.json")
@@ -161,7 +161,7 @@ def main(argv=None) -> int:
         _csv(rows, csv_dir / f"{sheet_name}.csv")
     _markdown(report, md_path)
     _html(report, html_path)
-    subprocess.run(["node", str(args.xlsx_exporter), str(json_path), str(xlsx_path)], check=True)
+    subprocess.run([sys.executable, str(args.xlsx_exporter), str(json_path), str(xlsx_path)], check=True)
 
     certified_manifest = dict(candidate_manifest)
     certified_manifest["qa_certification"] = {**report["summary"], "report_digest": report_digest(report)}
