@@ -28208,8 +28208,13 @@ def main():
         from services.session_stability import emit_page_interactive
         emit_page_interactive(st, "Today's Opportunities")
     elif selected_page=="Volume Intelligence":
-        _volume_pipeline = v104_pipeline_from_df(full_df)
-        render_volume_momentum(_volume_pipeline.get("ranked_candidates") or [])
+        # The display-normalized DataFrame omits nested canonical evaluations.
+        # Volume discovery must consume the immutable production rows directly.
+        try:
+            volume_rows = read_json_file(DATA_DIR / "market_full_scan.json")
+        except Exception:
+            volume_rows = []
+        render_volume_momentum(volume_rows if isinstance(volume_rows, list) else [])
     elif selected_page=="Atlas Core Holdings":
         v810_render_core_page(full_df)
         from services.session_stability import emit_page_interactive

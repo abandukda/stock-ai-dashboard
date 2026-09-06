@@ -5224,6 +5224,13 @@ def scan_market() -> Dict[str, Any]:
             before_order = [str(row.get("ticker") or row.get("symbol") or "").upper() for row in full_rows]
             decision_publication = acquire_full_universe_decisions(full_rows)
             full_rows = publish_evaluations(full_rows, decision_publication)
+            # Capture the governed point-in-time decision before later presentation
+            # shaping. The append-only store is observational and cannot affect rank.
+            from services.performance_tracking import append_snapshots, build_snapshot
+            snapshots = [build_snapshot(row) for row in full_rows]
+            decision_publication["performance_snapshots_appended"] = append_snapshots(
+                Path("performance_snapshots.jsonl"), snapshots
+            )
             after_order = [str(row.get("ticker") or row.get("symbol") or "").upper() for row in full_rows]
             if after_order != before_order:
                 raise RuntimeError("DECISION_PUBLICATION_CHANGED_PRODUCTION_ORDER")

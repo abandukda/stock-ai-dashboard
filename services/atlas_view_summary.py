@@ -177,8 +177,22 @@ def deterministic_summary(payload: Mapping[str, Any]) -> str:
     industry = str(company_evidence.get("industry") or "").strip().lower()
     domain = f" in {industry}" if industry else ""
     company_context = f"{business_summary}; " if business_summary else ""
+    try: revenue_growth = float(fundamentals.get("revenue_growth"))
+    except (TypeError, ValueError): revenue_growth = None
+    try: earnings_growth = float(company_evidence.get("earnings_growth"))
+    except (TypeError, ValueError): earnings_growth = None
+    if thesis == "VALUE_RERATING" and revenue_growth is not None and revenue_growth < 0:
+        value_opening = f"{company_context}{company}'s rerating case depends on earnings and cash-flow improvement overcoming a {pct(revenue_growth)} revenue contraction{domain}."
+    elif thesis == "VALUE_RERATING" and earnings_growth is not None and earnings_growth < 0:
+        value_opening = f"{company_context}{company}'s rerating case rests on {pct(revenue_growth) + ' revenue growth' if revenue_growth is not None else 'revenue momentum'} eventually restoring earnings power after a {pct(earnings_growth)} earnings decline{domain}."
+    elif thesis == "VALUE_RERATING" and revenue_growth is not None and earnings_growth is not None and revenue_growth >= 20 and earnings_growth >= 20:
+        value_opening = f"{company_context}{company} could rerate if broad operating momentum—{pct(revenue_growth)} revenue growth and {pct(earnings_growth)} earnings growth—proves durable{domain}."
+    elif thesis == "VALUE_RERATING" and earnings_growth is not None and earnings_growth >= 20:
+        value_opening = f"{company_context}{company} could rerate as {pct(earnings_growth)} earnings growth outpaces {pct(revenue_growth) + ' revenue growth' if revenue_growth is not None else 'the current sales trend'}, signaling stronger operating leverage{domain}."
+    else:
+        value_opening = f"{company_context}{company} could rerate over the next 6–12 months if {support} translates into greater earnings power than the market currently reflects{domain}."
     opening = {
-        "VALUE_RERATING": f"{company_context}{company} could rerate over the next 6–12 months if {support} translates into greater earnings power than the market currently reflects{domain}.",
+        "VALUE_RERATING": value_opening,
         "QUALITY_GROWTH": f"{company_context}{company}'s upside depends on sustaining {support}, which could compound future earnings power{domain}.",
         "ATTRACTIVE_ENTRY": f"{company_context}{company} offers potential upside from {support} while the current price remains favorable relative to published value{domain}.",
         "RECOVERY": f"{company_context}{company}'s recovery case depends on {support} developing into a durable improvement in operating performance{domain}.",
@@ -188,6 +202,8 @@ def deterministic_summary(payload: Mapping[str, Any]) -> str:
         if business_summary or financial else
         f"Company-specific financial evidence is not available for {company}, so this view is limited to its developing market setup."
     ))
+    if industry:
+        opening += f" The central business lever is demand, pricing, and execution in {industry}, which directly shapes the earnings and valuation case."
     if atlas.get("status") == "PUBLISHED" and atlas.get("expected_return") is not None and float(atlas["expected_return"]) <= 0:
         opening = f"{company_context}{company}'s operating case is supported by {support}{domain}, but the current price already exceeds ATLAS's professionally derived base fair value."
 

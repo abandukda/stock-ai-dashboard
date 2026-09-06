@@ -150,72 +150,41 @@ def render_today_opportunities(rows: Sequence[Mapping[str, Any]]) -> None:
 
 
 def render_volume_momentum(rows: Sequence[Mapping[str, Any]]) -> None:
-    st.markdown("## Volume & Momentum")
+    st.markdown("## Volume Screener")
     st.caption(
-        "Highlights stocks trading on meaningful relative volume. "
-        "High volume alone never creates a BUY NOW rating."
+        "High volume identifies unusual market participation. ATLAS then evaluates whether the underlying investment case is attractive."
     )
-
-    c1, c2 = st.columns(2)
-    with c1:
-        threshold = st.selectbox(
-            "Minimum relative volume",
-            [1.25, 1.5, 2.0, 3.0],
-            index=0,
-            format_func=lambda value: f"{value:.2f}×",
-            key="volume_threshold",
-        )
-    with c2:
-        count = st.selectbox(
-            "Volume cards shown",
-            [5, 10, 15],
-            index=1,
-            key="volume_card_count",
-        )
+    from services.volume_screener import build_volume_screener
+    items=build_volume_screener(rows)
+    sort=st.selectbox("Sort by",("Volume intensity","Action","Opportunity","Expected return","Confidence"),key="volume_screener_sort")
+    key={"Volume intensity":"relative_volume","Action":"action","Opportunity":"opportunity","Expected return":"expected_return","Confidence":"confidence"}[sort]
+    items=sorted(items,key=lambda x:(x.get(key) is None,x.get(key) if isinstance(x.get(key),str) else -(float(x.get(key) or 0))))
     from services.session_stability import emit_page_interactive
     emit_page_interactive(st, "Volume Intelligence")
 
-    items = build_volume_momentum(
-        rows,
-        limit=int(count),
-        minimum_relative_volume=float(threshold),
-    )
     if not items:
-        st.info(
-            "No stocks meet the selected relative-volume threshold in the current scan. "
-            "This may also mean intraday volume data were not loaded."
-        )
+        st.info("No completed-session unusual-volume candidates are present in this scan.")
         return
-
-    signal_filter = st.radio(
-        "Volume interpretation",
-        [
-            "All",
-            "Potential accumulation",
-            "Potential distribution",
-            "Unusual volume",
-            "Above-average participation",
-        ],
-        horizontal=True,
-        key="volume_signal_filter",
-    )
-    if signal_filter != "All":
-        items = [
-            item
-            for item in items
-            if item.get("volume_signal") == signal_filter
-        ]
-
-    if not items:
-        st.info("No volume setups match the selected interpretation.")
-        return
-
-    for index, row in enumerate(items, start=1):
-        _card(
-            row,
-            key_prefix=f"volume_momentum_{index}",
-            volume_mode=True,
-        )
+    for index,item in enumerate(items[:30],1):
+        with st.container(border=True):
+            st.markdown(f"### {escape(str(item['ticker']))} — {escape(str(item.get('company') or item['ticker']))}")
+            primary=st.columns(2)
+            primary[0].metric("Volume State",str(item['volume_state']).replace("_"," ").title())
+            primary[1].metric("Completed-Daily RVOL",f"{float(item['relative_volume']):.2f}×")
+            secondary=st.columns(3)
+            stars={5.0:"★★★★★",4.5:"★★★★½",4.0:"★★★★",3.5:"★★★½",2.5:"★★½",1.0:"★"}.get(item.get('action_stars'),"")
+            secondary[0].metric("ATLAS Action",f"{stars} {str(item.get('action') or 'WATCH').replace('_',' ').title()}".strip())
+            secondary[1].metric("Price",_money(item.get('price')))
+            secondary[2].metric("ATLAS Base FV",_money(item.get('base_fair_value')))
+            st.caption(f"Technical: {str(item.get('technical_state') or 'Not published').replace('_',' ').title()} · Opportunity thesis: {str(item.get('opportunity_thesis') or 'Not published').replace('_',' ').title()} · As of {item.get('as_of') or 'not published'}")
+            entry=(f"{_money(item.get('entry_low'))}–{_money(item.get('entry_high'))}" if item.get('entry_low') is not None and item.get('entry_high') is not None else "Not published")
+            st.write(f"Expected return: {_pct(item.get('expected_return'),signed=True)} · Preferred entry: {entry} · Opportunity: {_num(item.get('opportunity'))} · Confidence: {_pct(item.get('confidence'))}")
+            st.caption(f"Average dollar volume: {_money(item.get('dollar_volume'))} · Primary risk: {escape(str(item.get('primary_risk') or 'No additional published risk context'))}")
+            catalyst=item.get("latest_catalyst")
+            if catalyst:
+                label=catalyst.get("headline") if isinstance(catalyst,Mapping) else catalyst
+                st.caption(f"Latest sourced catalyst: {escape(str(label))}")
+            _open_research(str(item['ticker']),f"volume_screener_{index}")
 
 
 __all__ = [

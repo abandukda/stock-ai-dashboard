@@ -11,7 +11,7 @@ from engines.professional_valuation_v2 import VERSION as VALUATION_VERSION
 VERSION = "ATLAS_METHODOLOGY_HEALTH_V1"
 
 
-def methodology_health(rows: Sequence[Mapping[str, Any]], *, now: datetime | None = None) -> dict[str, Any]:
+def methodology_health(rows: Sequence[Mapping[str, Any]], *, now: datetime | None = None, performance_snapshot_count: int = 0, matured_performance_count: int = 0) -> dict[str, Any]:
     observed = now or datetime.now(timezone.utc); counts=Counter(); stale=0; mismatches=0
     for row in rows:
         evaluation=dict(row.get("canonical_investment_evaluation") or {})
@@ -33,6 +33,7 @@ def methodology_health(rows: Sequence[Mapping[str, Any]], *, now: datetime | Non
             "high_model_dispersion_count":counts["HIGH_DISPERSION"],"high_terminal_dependence_count":counts["HIGH_TERMINAL"],
             "wacc_below_risk_free_count":counts["WACC_BELOW_RF"],"single_model_count":counts["SINGLE_MODEL"],
             "methodology_mismatch_count":mismatches,"home_research_mismatch_count":0,"thesis_validation_failure_count":0,
+            "performance_snapshot_count":performance_snapshot_count,"matured_performance_count":matured_performance_count,
             "status":"DEGRADED" if mismatches else "HEALTHY","observed_at":observed.isoformat()}
 
 __all__=["VERSION","methodology_health"]
