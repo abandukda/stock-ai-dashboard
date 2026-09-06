@@ -9,6 +9,8 @@ def test_overnight_scan_supplies_controlled_twelve_publication_environment():
     assert "TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}" in workflow
     assert 'TWELVE_DATA_ENABLED: "true"' in workflow
     assert 'ATLAS_DATA_MODE: "INTERNAL_TRIAL"' in workflow
+    assert "Verify canonical publication credentials" in workflow
+    assert "refusing to overwrite canonical production actions" in workflow
 
 
 def test_home_runtime_rejects_stale_policy_cache_and_consumes_published_evaluation():
