@@ -55,6 +55,7 @@ jobs:
       ATLAS_PUBLICATION_OUTPUT_MODE: CANDIDATE
       ATLAS_CANDIDATE_OUTPUT_DIR: audit_results/candidate_artifacts
       DATA_DIR: "."
+      PYTHONPATH: "."
       FAST_CRON_MODE: "true"
       FAST_CRON_SKIP_PRE_RANK_DEEP_APIS: "true"
       FULL_COMMITTEE_LIMIT: "15"
@@ -145,6 +146,7 @@ jobs:
         env:
           ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
         run: |
+          mkdir -p audit_results/full_qa/${{ github.run_id }}
           python -m streamlit run app.py --server.headless true --server.port 8501 > audit_results/full_qa/${{ github.run_id }}/streamlit.log 2>&1 &
           echo $! > audit_results/full_qa/${{ github.run_id }}/streamlit.pid
           for attempt in $(seq 1 60); do
