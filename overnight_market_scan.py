@@ -5231,6 +5231,14 @@ def scan_market() -> Dict[str, Any]:
             decision_publication["performance_snapshots_appended"] = append_snapshots(
                 Path("performance_snapshots.jsonl"), snapshots
             )
+            from services.model_validation import append_outcomes, mature_store, read_jsonl
+            def _performance_bars(frame):
+                if frame is None or getattr(frame,"empty",True): return []
+                normalized=frame.reset_index().rename(columns={"Date":"timestamp","Datetime":"timestamp","Close":"close","High":"high","Low":"low"})
+                return normalized.to_dict("records")
+            bars_by_ticker={symbol:_performance_bars(frame) for symbol,frame in history_cache.items()}
+            matured=mature_store(read_jsonl(Path("performance_snapshots.jsonl")),bars_by_ticker,bars_by_ticker.get("SPY",()))
+            decision_publication["performance_outcomes_appended"] = append_outcomes(Path("performance_outcomes.jsonl"),matured)
             after_order = [str(row.get("ticker") or row.get("symbol") or "").upper() for row in full_rows]
             if after_order != before_order:
                 raise RuntimeError("DECISION_PUBLICATION_CHANGED_PRODUCTION_ORDER")

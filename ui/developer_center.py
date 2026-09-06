@@ -65,7 +65,10 @@ def render_developer_center(
         from services.volume_screener import build_volume_screener
         snapshots_path=Path("performance_snapshots.jsonl")
         snapshot_count=sum(1 for line in snapshots_path.read_text().splitlines() if line.strip()) if snapshots_path.exists() else 0
-        governed = methodology_health(artifact if isinstance(artifact, list) else [],performance_snapshot_count=snapshot_count)
+        from services.model_validation import read_jsonl,regression_alerts,validation_report
+        snapshot_rows=read_jsonl(snapshots_path);outcome_rows=read_jsonl(Path("performance_outcomes.jsonl"))
+        matured_snapshot_count=len({row.get("snapshot_id") for row in outcome_rows})
+        governed = methodology_health(artifact if isinstance(artifact, list) else [],performance_snapshot_count=snapshot_count,matured_performance_count=matured_snapshot_count)
         volume_rows=build_volume_screener(artifact if isinstance(artifact,list) else [])
         with st.expander("Institutional Methodology Health", expanded=True):
             st.caption(f"Registry {governed['methodology_registry_version']} · Valuation {governed['valuation_methodology_version']} · Macro assumptions {governed['macro_assumption_version']}")
@@ -76,6 +79,25 @@ def render_developer_center(
             st.caption(f'High-volume population: {sum(x["volume_state"] in {"VOLUME_SURGE","HIGH_VOLUME_NO_ACTION","BREAKOUT_CONFIRMED","FAILED_BREAKOUT"} for x in volume_rows)}')
             if governed["matured_performance_count"] == 0:
                 st.info("Performance analytics will appear after the first completed trading-session horizon matures. No client performance claim is published before then.")
+        validation=validation_report(snapshot_rows,outcome_rows)
+        st.markdown("### Model Validation — Internal Only")
+        with st.container(border=True):
+            st.caption("Observational validation only. Customer-facing performance remains disabled and these results cannot alter methodology.")
+            overview=st.columns(4);overview[0].metric("Total Snapshots",validation["total_snapshots"]);overview[1].metric("Matured Snapshots",validation["matured_snapshots"]);overview[2].metric("Matured Records",validation["matured_records"]);overview[3].metric("Missing Prices",validation["missing_price_observations"])
+            st.markdown("**Sample size by horizon**")
+            horizon_columns=st.columns(6)
+            for index,horizon in enumerate(("1","5","20","63","126","252")):
+                horizon_columns[index].metric(f"{horizon}D",validation["sample_size_by_horizon"][horizon])
+            if not outcome_rows:
+                st.info("Insufficient matured sample")
+            else:
+                for key,label in (("action","By Action"),("opportunity_thesis","By Thesis Type"),("decision_confidence_bucket","By Confidence Bucket"),("valuation_confidence_bucket","By Valuation Confidence")):
+                    st.markdown(f"**{label}**")
+                    data=validation["aggregations"][key]
+                    st.dataframe(pd.DataFrame(data),hide_index=True,use_container_width=True) if data else st.caption("Insufficient matured sample")
+                st.write("Target / stop statistics",validation["target_stop"])
+            alerts=regression_alerts(validation)
+            st.warning(f"{len(alerts)} review-only validation alert(s)") if alerts else st.success("No governed validation regression alert is active.")
     except Exception:
         st.warning("Institutional methodology health is temporarily unavailable; canonical outputs remain unchanged.")
     deep_path = Path("audit_results/deep_qa/atlas_deep_qa.json")
