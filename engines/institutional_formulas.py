@@ -79,6 +79,58 @@ def terminal_value_perpetuity(fcfc_next: float, discount_rate: float, growth_rat
     return _finite(fcfc_next)/(discount-growth)
 
 
+def dividend_discount_model(dividend_next: float, cost_of_equity: float, growth_rate: float) -> float:
+    """Gordon growth value; inputs are decimal rates and next-period dividend."""
+    dividend = _finite(dividend_next)
+    if dividend < 0:
+        raise ValueError("NEGATIVE_DIVIDEND")
+    return terminal_value_perpetuity(dividend, cost_of_equity, growth_rate)
+
+
+def enterprise_to_equity_value(enterprise_value: float, debt: float, cash: float,
+                               diluted_shares: float, other_claims: float = 0) -> float:
+    shares = _finite(diluted_shares)
+    if shares <= 0:
+        raise ValueError("INVALID_DILUTED_SHARES")
+    equity = _finite(enterprise_value) - _finite(debt) + _finite(cash) - _finite(other_claims)
+    return equity / shares
+
+
+def reward_risk(entry: float, target: float, stop: float) -> float:
+    risk = _finite(entry) - _finite(stop)
+    if risk <= 0:
+        raise ValueError("NONPOSITIVE_PER_SHARE_RISK")
+    return (_finite(target) - _finite(entry)) / risk
+
+
+def sharpe_ratio(returns: Sequence[float], risk_free_returns: Sequence[float] | float = 0,
+                 periods: int = 252) -> float:
+    values = list(map(_finite, returns))
+    if len(values) < 2:
+        raise ValueError("INSUFFICIENT_RETURNS")
+    rf = ([float(risk_free_returns)] * len(values) if isinstance(risk_free_returns, (int, float))
+          else list(map(_finite, risk_free_returns)))
+    if len(rf) != len(values):
+        raise ValueError("RETURN_ALIGNMENT_REQUIRED")
+    excess = [value - rate for value, rate in zip(values, rf)]
+    deviation = statistics.stdev(excess)
+    if deviation == 0:
+        raise ValueError("ZERO_RETURN_DEVIATION")
+    return statistics.fmean(excess) / deviation * math.sqrt(periods)
+
+
+def sortino_ratio(returns: Sequence[float], minimum_acceptable_return: float = 0,
+                  periods: int = 252) -> float:
+    values = list(map(_finite, returns)); threshold = _finite(minimum_acceptable_return)
+    if len(values) < 2:
+        raise ValueError("INSUFFICIENT_RETURNS")
+    downside = [min(0.0, value - threshold) ** 2 for value in values]
+    deviation = math.sqrt(sum(downside) / len(values))
+    if deviation == 0:
+        raise ValueError("ZERO_DOWNSIDE_DEVIATION")
+    return (statistics.fmean(values) - threshold) / deviation * math.sqrt(periods)
+
+
 def dcf_equity_value(forecast_fcff: Sequence[float], discount_rate: float, terminal_growth: float,
                      debt: float, cash: float, diluted_shares: float, other_claims: float = 0) -> dict[str, float]:
     if not forecast_fcff or _finite(diluted_shares) <= 0:
@@ -133,4 +185,4 @@ def earnings_surprise(actual: float, consensus: float, *, near_zero: float = 1e-
     return (_finite(actual)-estimate)/abs(estimate)
 
 
-__all__ = ["annualized_volatility", "average_return", "beta", "cagr", "capm_cost_of_equity", "comparable_growth", "dcf_equity_value", "earnings_surprise", "fcfe", "fcff", "free_cash_flow", "margin", "max_drawdown", "ratio", "roic", "terminal_value_perpetuity", "wacc"]
+__all__ = ["annualized_volatility", "average_return", "beta", "cagr", "capm_cost_of_equity", "comparable_growth", "dcf_equity_value", "dividend_discount_model", "earnings_surprise", "enterprise_to_equity_value", "fcfe", "fcff", "free_cash_flow", "margin", "max_drawdown", "ratio", "reward_risk", "roic", "sharpe_ratio", "sortino_ratio", "terminal_value_perpetuity", "wacc"]

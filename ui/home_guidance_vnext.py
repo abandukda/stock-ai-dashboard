@@ -88,6 +88,15 @@ def _evidence_value(value: Any, status: Any, *, money: bool = False) -> str:
 def _compact_number(value: Any) -> str:
     if value is None:
         return "Unavailable"
+    try:
+        amount = float(value)
+        if abs(amount) >= 1_000_000_000:
+            return f"{amount / 1_000_000_000:,.1f}B"
+        if abs(amount) >= 1_000_000:
+            return f"{amount / 1_000_000:,.1f}M"
+        return f"{amount:,.1f}"
+    except (TypeError, ValueError):
+        return "Unavailable"
 
 
 def _ratio(value: Any) -> str:
@@ -96,15 +105,6 @@ def _ratio(value: Any) -> str:
         return "Unavailable"
     try:
         return f"{float(value):.2f}".rstrip("0").rstrip(".")
-    except (TypeError, ValueError):
-        return "Unavailable"
-    try:
-        amount = float(value)
-        if abs(amount) >= 1_000_000_000:
-            return f"{amount / 1_000_000_000:,.1f}B"
-        if abs(amount) >= 1_000_000:
-            return f"{amount / 1_000_000:,.1f}M"
-        return f"{amount:,.1f}"
     except (TypeError, ValueError):
         return "Unavailable"
 
@@ -262,6 +262,14 @@ def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
             value = "Not Published"
         model_rows.append((label, value, "text"))
     valuation_methods = rows(tuple(model_rows)) if model_rows else '<p class="atlas-home-muted">Professional valuation model detail is not yet published</p>'
+    scenarios = rows((("Bear Case", professional.get("atlas_bear_case"), "money"),
+                      ("Base Case", professional.get("atlas_base_fair_value"), "money"),
+                      ("Bull Case", professional.get("atlas_bull_case"), "money")))
+    sensitivity_rows = tuple(
+        (f'WACC {_score(float(item.get("wacc")) * 100, suffix="%")} · growth {_score(float(item.get("terminal_growth")) * 100, suffix="%")}', item.get("fair_value"), "money")
+        for item in (professional.get("sensitivity") or ()) if isinstance(item, Mapping)
+    )
+    sensitivity = rows(sensitivity_rows) if sensitivity_rows else '<p class="atlas-home-muted">Sensitivity is not published without complete scenario inputs</p>'
 
     street_visible = street.get("commercial_display_status") == "DISPLAY_ALLOWED" or street.get("display_scope") == "INTERNAL_TRIAL"
     street_section = rows((
@@ -283,6 +291,8 @@ def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
             for suffix, key in (("Low", "low_estimate"), ("High", "high_estimate"), ("Analysts", "analyst_count")):
                 if item.get(key) is not None: estimate_rows.append((f"{label} {suffix}", item.get(key), "score" if key == "analyst_count" else "money"))
     forward_estimates = rows(tuple(estimate_rows)) if estimate_rows else '<p class="atlas-home-muted">Forward estimate detail not available</p>'
+    eps_estimates = rows(tuple(item for item in estimate_rows if item[0].startswith("Forward EPS")))
+    revenue_estimates = rows(tuple(item for item in estimate_rows if item[0].startswith("Forward Revenue")))
     revision_history = dict(company.get("estimate_revision_history") or {})
     revision_rows = [
         (f'{item.get("metric")} · {item.get("estimate_period")} · {item.get("horizon_days")}D', item.get("revision_pct"), "pct")
@@ -365,13 +375,17 @@ def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
         '<div class="atlas-home-full-evidence atlas-home-paid-dossier" data-atlas-qa="home-guidance-full-evidence">'
         f'<section><h4>Decision Summary</h4>{decision}{rows(pillars)}</section>'
         f'<section><h4>Why ATLAS Likes It</h4><ul>{why_html}</ul><p><b>Primary constraint:</b> {html.escape(_decisive_customer_constraint(card))}</p></section>'
-        f'<section><h4>ATLAS Valuation</h4>{valuation}<p>{html.escape(driver_summary)}</p><h5>Valuation by Method</h5>{valuation_methods}</section>'
-        f'<section><h4>Wall Street Analyst Outlook</h4>{street_section}<h5>Forward Estimates</h5>{forward_estimates}</section>'
-        f'<section><h4>Estimate Revision History</h4>{revision_section}</section>'
-        f'<section><h4>Earnings &amp; Financial Snapshot</h4>{financial}</section><section><h4>Latest Earnings</h4>{earnings}</section>'
+        f'<section><h4>ATLAS Professional Valuation</h4>{valuation}<p>{html.escape(driver_summary)}</p></section>'
+        f'<section><h4>Valuation by Method</h4>{valuation_methods}</section><section><h4>Bear / Base / Bull</h4>{scenarios}</section><section><h4>Sensitivity</h4>{sensitivity}</section>'
+        f'<section><h4>Wall Street Analyst Outlook</h4>{street_section}</section>'
+        f'<section><h4>Forward EPS Estimates</h4>{eps_estimates}</section><section><h4>Forward Revenue Estimates</h4>{revenue_estimates}</section>'
+        f'<section><h4>Estimate Revisions</h4>{revision_section}</section>'
+        f'<section><h4>Latest Earnings</h4>{earnings}</section><section><h4>Financial Snapshot</h4>{financial}</section>'
         f'<section><h4>Recent Catalysts</h4><div class="atlas-home-catalysts">{catalysts}</div></section>'
         f'<section><h4>Technical &amp; Volume</h4>{technical_section}</section><section><h4>Trade Plan</h4>{trade_section}</section>'
-        f'<section><h4>Insider, Institutional &amp; Congressional Context</h4>{context_section}<p class="atlas-home-muted">Context only; these activities do not influence the ATLAS rating.</p></section>'
+        f'<section><h4>Insider Activity</h4>{rows((("Recent Insider Direction", insider.get("activity"), "text"), ("Open-Market Buys", insider.get("buy_count"), "score"), ("Open-Market Sells", insider.get("sell_count"), "score")))}</section>'
+        f'<section><h4>Institutional Ownership</h4>{rows((("Institutional Ownership", institutional.get("ownership_pct"), "pct"), ("Recent Direction", institutional.get("trend"), "text")))}</section>'
+        f'<section><h4>Congressional Activity</h4>{rows((("Recent Activity", political.get("summary"), "text"), ("Purchases", political.get("buy_count"), "score"), ("Sales", political.get("sell_count"), "score")))}<p class="atlas-home-muted">Congressional activity is contextual and does not influence the ATLAS rating.</p></section>'
         f'<section><h4>What Could Change the Rating</h4><p>{html.escape(change)}</p></section><section><h4>Evidence Sources</h4>{source_html}</section></div>'
     )
 

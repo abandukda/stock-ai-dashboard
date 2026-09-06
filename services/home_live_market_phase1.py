@@ -186,7 +186,11 @@ def acquire_home_phase1_evaluations(
                         "description", "sector", "industry", "revenue_growth", "earnings_growth",
                         "operating_profit_margin", "free_cash_flow", "current_ratio", "latest_revenue",
                         "latest_operating_income", "operating_cash_flow", "total_debt", "cash_and_equivalents",
-                        "forward_eps", "forward_revenue",
+                        "forward_eps", "forward_eps_period", "forward_eps_period_type", "forward_eps_basis",
+                        "forward_revenue", "forward_revenue_period", "forward_revenue_period_type", "forward_revenue_basis",
+                        "forward_estimate_evidence", "financial_reporting_period", "professional_evidence_lineage",
+                        "market_cap", "diluted_shares", "forward_ebitda", "ebit", "capital_expenditures",
+                        "depreciation_amortization", "beta",
                     ) if evaluation_row.get(key) is not None
                 }
             evaluations[symbol] = evaluation

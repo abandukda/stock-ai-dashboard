@@ -110,6 +110,11 @@ def _forward_estimate_record(payload: Any, key: str) -> Mapping[str, Any]:
     return {}
 
 
+def _forward_estimate_records(payload: Any, key: str) -> list[dict[str, Any]]:
+    values = payload.get(key) if isinstance(payload, Mapping) else None
+    return [dict(item) for item in values or () if isinstance(item, Mapping)] if isinstance(values, list) else []
+
+
 def _pct(value: Any) -> float | None:
     try:
         number = float(value)
@@ -146,6 +151,13 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
         "operating_cash_flow": _coalesce(cash_stats.get("operating_cash_flow_ttm"), _nested(cash, "operating_activities", "operating_cash_flow")),
         "total_debt": _coalesce(balance_stats.get("total_debt_mrq"), _nested(balance, "liabilities", "total_liabilities")),
         "cash_and_equivalents": _coalesce(balance_stats.get("total_cash_mrq"), _nested(balance, "assets", "current_assets", "cash_and_cash_equivalents")),
+        "market_cap": _coalesce(stats.get("market_capitalization"), stats.get("market_cap")),
+        "diluted_shares": _coalesce(income.get("weighted_average_shares_diluted"), income.get("diluted_average_shares"), stats.get("shares_outstanding")),
+        "forward_ebitda": _coalesce(financials.get("ebitda_ttm"), income.get("ebitda")),
+        "ebit": _coalesce(income.get("ebit"), income.get("operating_income")),
+        "capital_expenditures": _coalesce(cash_stats.get("capital_expenditures_ttm"), cash.get("capital_expenditures")),
+        "depreciation_amortization": _coalesce(cash.get("depreciation_and_amortization"), cash.get("depreciation")),
+        "beta": stats.get("beta"),
     }
     for key, value in values.items():
         if output.get(key) in (None, "", "Unavailable") and value is not None:
@@ -156,16 +168,33 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
             if not output.get(target) and profile.get(source): output[target] = profile[source]
     eps_est = _forward_estimate_record(payload("earnings_estimate"), "earnings_estimate")
     rev_est = _forward_estimate_record(payload("revenue_estimate"), "revenue_estimate")
+    eps_records = _forward_estimate_records(payload("earnings_estimate"), "earnings_estimate")
+    rev_records = _forward_estimate_records(payload("revenue_estimate"), "revenue_estimate")
     if output.get("forward_eps") is None and eps_est.get("avg_estimate") is not None:
         output["forward_eps"] = eps_est["avg_estimate"]
         output["forward_eps_period"] = eps_est.get("period")
+        output["forward_eps_period_type"] = "ANNUAL"
+        output["forward_eps_basis"] = str(eps_est.get("basis") or "UNKNOWN").upper()
+        output["forward_eps_source"] = "TWELVE_DATA"
     if output.get("forward_revenue") is None and rev_est.get("avg_estimate") is not None:
         output["forward_revenue"] = rev_est["avg_estimate"]
         output["forward_revenue_period"] = rev_est.get("period")
+        output["forward_revenue_period_type"] = "ANNUAL"
+        output["forward_revenue_basis"] = str(rev_est.get("basis") or "GAAP").upper()
+        output["forward_revenue_source"] = "TWELVE_DATA"
     output["forward_estimate_evidence"] = {
-        "eps": dict(eps_est), "revenue": dict(rev_est),
+        "eps": dict(eps_est), "revenue": dict(rev_est), "eps_periods": eps_records,
+        "revenue_periods": rev_records,
         "as_of": dossier.get("observed_at"),
         "evidence_ids": tuple(dossier.get("evidence_ids") or ()),
+    }
+    output["financial_reporting_period"] = _coalesce(income.get("fiscal_date"), income.get("fiscal_year"), balance.get("fiscal_date"))
+    output["professional_evidence_lineage"] = {
+        "provider": "TWELVE_DATA", "observed_at": dossier.get("observed_at"),
+        "evidence_ids": tuple(dossier.get("evidence_ids") or ()),
+        "forward_eps": {"period": eps_est.get("period"), "period_type": "ANNUAL", "basis": output.get("forward_eps_basis")},
+        "forward_revenue": {"period": rev_est.get("period"), "period_type": "ANNUAL", "basis": output.get("forward_revenue_basis")},
+        "financial_reporting_period": output.get("financial_reporting_period"),
     }
     output["twelve_trial_dossier"] = dict(dossier)
     output["twelve_trial_evidence_ids"] = tuple(dossier.get("evidence_ids") or ())

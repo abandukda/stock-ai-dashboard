@@ -341,7 +341,7 @@ render_home_guidance_vnext(build_home_guidance_story(rows, [{"ticker":"MU","reco
     assert 'data-atlas-qa="home-guidance-full-evidence"' in rendered
     assert "Technical &amp; Volume" in rendered
     assert "Wall Street Analyst Outlook" in rendered
-    assert "Earnings &amp; Financial Snapshot" in rendered
+    assert "Latest Earnings" in rendered and "Financial Snapshot" in rendered
     assert "ATLAS Investment View" in rendered
     assert "What ATLAS sees" not in rendered
     assert "What ATLAS needs" not in rendered
@@ -912,9 +912,9 @@ def test_full_evidence_has_one_semantic_hierarchy_and_protected_trade_segments()
         "evidence_health": "PARTIAL",
         "trade_plan": {"entry_low": 932.81, "entry_high": 967.72, "stop": 890.91, "target_1": 1073.39},
     })
-    headings = ("Decision Summary", "Why ATLAS Likes It", "ATLAS Valuation", "Wall Street Analyst Outlook", "Earnings &amp; Financial Snapshot", "Technical &amp; Volume", "Trade Plan", "What Could Change the Rating")
+    headings = ("Decision Summary", "Why ATLAS Likes It", "ATLAS Professional Valuation", "Wall Street Analyst Outlook", "Latest Earnings", "Financial Snapshot", "Technical &amp; Volume", "Trade Plan", "What Could Change the Rating")
     assert all(heading in rendered for heading in headings)
-    assert rendered.index("Decision Summary") < rendered.index("ATLAS Valuation") < rendered.index("Technical &amp; Volume")
+    assert rendered.index("Decision Summary") < rendered.index("ATLAS Professional Valuation") < rendered.index("Technical &amp; Volume")
     assert 'data-atlas-trade-segment="entry"' in rendered and "$932.81–$967.72" in rendered
     assert 'data-atlas-trade-segment="stop"' in rendered and "$890.91" in rendered
     assert 'data-atlas-trade-segment="target"' in rendered and "$1,073.39" in rendered

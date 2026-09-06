@@ -5,7 +5,9 @@ import pytest
 from engines.institutional_formulas import (
     annualized_volatility, average_return, beta, cagr, capm_cost_of_equity,
     comparable_growth, dcf_equity_value, earnings_surprise, fcfe, fcff,
-    free_cash_flow, margin, max_drawdown, roic, terminal_value_perpetuity, wacc,
+    dividend_discount_model, enterprise_to_equity_value, free_cash_flow, margin,
+    max_drawdown, reward_risk, roic, sharpe_ratio, sortino_ratio,
+    terminal_value_perpetuity, wacc,
 )
 from engines.methodology_registry import REGISTRY, assert_registered, methodology, registry_snapshot
 from engines.professional_valuation_v2 import INSUFFICIENT_INPUTS, NOT_APPLICABLE, PUBLISHED, classify_company, value_company
@@ -54,6 +56,11 @@ def test_registered_risk_and_performance_formulas():
     assert beta([.01,.02,.03], [.005,.01,.015]) == pytest.approx(2)
     assert max_drawdown([100,120,90,110]) == pytest.approx(-.25)
     assert cagr(100,121,2) == pytest.approx(.1)
+    assert dividend_discount_model(2, .10, .04) == pytest.approx(33.333333)
+    assert enterprise_to_equity_value(1000, 200, 50, 100) == pytest.approx(8.5)
+    assert reward_risk(100, 130, 90) == 3
+    assert sharpe_ratio([.01, -.01, .02]) == pytest.approx(6.928203, rel=.01)
+    assert sortino_ratio([.01, -.01, .02]) > 0
 
 
 @pytest.mark.parametrize(("row","expected"), [
@@ -80,6 +87,27 @@ def test_professional_valuation_reconciles_only_valid_models_and_has_no_outcome_
     assert result["models"][1]["methodology_id"] == "VAL_FORWARD_PE_V1"
     extreme = value_company(professional_row(justified_forward_pe=90))
     assert extreme["status"] == PUBLISHED and extreme["atlas_base_fair_value"] == 540
+
+
+def test_professional_scenarios_change_economic_inputs_and_dcf_sensitivity_is_explicit():
+    row = professional_row(
+        valuation_scenarios={
+            "bear": {"forward_eps": 5, "justified_forward_pe": 18},
+            "bull": {"forward_eps": 8, "justified_forward_pe": 25},
+        }
+    )
+    result = value_company(row, as_of="2026-09-05T20:00:00Z")
+    assert result["atlas_bear_case"] == 90 and result["atlas_bull_case"] == 200
+    assert result["scenario_status"] == "PUBLISHED"
+    assert result["weighting_basis"].startswith("Deterministic company-type")
+
+
+def test_ddm_routes_only_when_complete_and_never_uses_street_target():
+    row = {"ticker":"BANK","industry":"Banks - Regional","price":40,"forward_eps":None,
+           "dividend_next":2,"cost_of_equity":.10,"dividend_growth":.04}
+    result = value_company(row)
+    assert result["status"] == PUBLISHED
+    assert next(model for model in result["models"] if model["methodology_id"] == "VAL_DDM_GORDON_V1")["value"] == pytest.approx(33.3333)
 
 
 def test_wall_street_and_context_are_strictly_non_authoritative():
@@ -130,7 +158,7 @@ def test_estimate_revisions_require_same_metric_period_basis_and_real_dates(tmp_
     assert eps90["methodology_id"] == "FORECAST_REVISION_V1"
 
 
-def test_v2_shadow_is_persisted_without_changing_current_canonical_action():
+def test_certified_v2_is_activated_ticker_by_ticker_and_context_cannot_change_it():
     common = dict(
         ticker="TEST", evaluation_mode="ON_DEMAND",
         market_snapshot={"price":100,"provider_timestamp":"2026-09-05T20:00:00Z","latest_completed_session_valid":True},
@@ -142,5 +170,7 @@ def test_v2_shadow_is_persisted_without_changing_current_canonical_action():
     with_context = build_canonical_evaluation(**common)
     changed_context = build_canonical_evaluation(**{**common,"valuation_inputs":{**professional_row(),"analyst_target_mean":9999,"political_support":"BUY"}})
     assert with_context["atlas_valuation"]["professional_valuation_v2"]["status"] == PUBLISHED
-    assert with_context["atlas_valuation"]["professional_v2_activation"] == "SHADOW_NOT_CANONICAL"
+    assert with_context["atlas_valuation"]["professional_v2_activation"] == "CANONICAL_TICKER_LEVEL"
+    assert with_context["atlas_valuation"]["fair_value"] == 132
+    assert with_context["atlas_valuation"]["legacy_v1_audit"]["canonical"] is False
     assert with_context["guidance"] == changed_context["guidance"]

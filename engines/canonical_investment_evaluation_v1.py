@@ -65,15 +65,21 @@ def build_canonical_evaluation(
     valuation_source["price"] = market_snapshot.get("price")
     valuation_result = calculate_atlas_fair_value(AtlasValuationInputs.from_row(valuation_source))
     professional_valuation = value_company(valuation_source, as_of=timestamp)
+    professional_published = professional_valuation.get("status") == "PUBLISHED"
     valuation = {
-        "status": valuation_result.status,
-        "fair_value": valuation_result.fair_value,
-        "expected_return": valuation_result.upside_pct,
+        "status": "PUBLISHED" if professional_published else valuation_result.status,
+        "fair_value": professional_valuation.get("atlas_base_fair_value") if professional_published else valuation_result.fair_value,
+        "expected_return": professional_valuation.get("atlas_expected_return") if professional_published else valuation_result.upside_pct,
         "score": valuation_component_score,
-        "methodology_version": "ATLAS_VALUATION_V1",
+        "methodology_version": "ATLAS_PROFESSIONAL_VALUATION_V2" if professional_published else "ATLAS_VALUATION_V1",
         "input_authority": "CANONICAL_ATLAS_INPUTS_ONLY",
         "professional_valuation_v2": professional_valuation,
-        "professional_v2_activation": "SHADOW_NOT_CANONICAL",
+        "professional_v2_activation": "CANONICAL_TICKER_LEVEL" if professional_published else "INSUFFICIENT_INPUTS_LEGACY_V1_RETAINED_FOR_MIGRATION",
+        "canonical_valuation_version": "ATLAS_PROFESSIONAL_VALUATION_V2" if professional_published else "ATLAS_VALUATION_V1",
+        "legacy_v1_audit": {
+            "status": valuation_result.status, "fair_value": valuation_result.fair_value,
+            "expected_return": valuation_result.upside_pct, "canonical": not professional_published,
+        },
     }
     volume_evidence = dict(technical.get("evidence") or {})
     volume_evidence.update({

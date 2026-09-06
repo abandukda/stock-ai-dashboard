@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import math
 from typing import Any, Mapping
 
-from engines.institutional_formulas import dcf_equity_value
+from engines.institutional_formulas import dcf_equity_value, dividend_discount_model
 from engines.methodology_registry import assert_registered
 
 
@@ -14,6 +14,7 @@ VERSION = "ATLAS_PROFESSIONAL_VALUATION_V2"
 PUBLISHED = "PUBLISHED"
 INSUFFICIENT_INPUTS = "INSUFFICIENT_INPUTS"
 NOT_APPLICABLE = "NOT_APPLICABLE"
+VALIDATION_FAILED = "VALIDATION_FAILED"
 
 
 def _number(value: Any) -> float | None:
@@ -107,16 +108,70 @@ def _p_fcf(row: Mapping[str, Any], company_type: str) -> dict[str, Any]:
                   assumptions={"normalized_fcf":fcf,"multiple":multiple,"multiple_basis":basis,"diluted_shares":shares})
 
 
-def value_company(row: Mapping[str, Any], *, as_of: str | None = None) -> dict[str, Any]:
+def _ddm(row: Mapping[str, Any], company_type: str) -> dict[str, Any]:
+    if company_type not in {"BANK", "INSURER", "PROFITABLE_OPERATING_COMPANY", "PROFITABLE_PHARMA"}:
+        return _model("VAL_DDM_GORDON_V1", status=NOT_APPLICABLE, reason="COMPANY_TYPE_NOT_ELIGIBLE")
+    dividend = _number(row.get("dividend_next")); cost = _number(row.get("cost_of_equity")); growth = _number(row.get("dividend_growth"))
+    if None in (dividend, cost, growth):
+        return _model("VAL_DDM_GORDON_V1", status=INSUFFICIENT_INPUTS, reason="DIVIDEND_COST_OF_EQUITY_OR_GROWTH_MISSING")
+    try:
+        value = dividend_discount_model(dividend, cost, growth)
+    except ValueError as exc:
+        return _model("VAL_DDM_GORDON_V1", status=VALIDATION_FAILED, reason=str(exc))
+    return _model("VAL_DDM_GORDON_V1", status=PUBLISHED, value=value, confidence=70, coverage=1,
+                  assumptions={"dividend_next": dividend, "cost_of_equity": cost, "dividend_growth": growth})
+
+
+def _model_weight(company_type: str, methodology_id: str, confidence: float) -> float:
+    preferences = {
+        "BANK": {"VAL_FORWARD_PE_V1": 1.0, "VAL_DDM_GORDON_V1": 1.1},
+        "INSURER": {"VAL_FORWARD_PE_V1": 1.0, "VAL_DDM_GORDON_V1": 1.1},
+        "HIGH_GROWTH_SOFTWARE": {"VAL_FCFF_DCF_V1": 1.2, "VAL_FORWARD_PE_V1": .9},
+        "PROFITABLE_PHARMA": {"VAL_FCFF_DCF_V1": 1.1, "VAL_FORWARD_PE_V1": 1.0},
+        "COMMODITY_PRODUCER": {"VAL_FCFF_DCF_V1": 1.2, "VAL_EV_EBITDA_V1": 1.0},
+    }
+    return confidence * preferences.get(company_type, {}).get(methodology_id, 1.0)
+
+
+def _scenario_value(row: Mapping[str, Any], name: str, company_type: str) -> float | None:
+    scenarios = row.get("valuation_scenarios")
+    inputs = scenarios.get(name.lower()) if isinstance(scenarios, Mapping) else None
+    if not isinstance(inputs, Mapping):
+        return None
+    result = value_company({**dict(row), **dict(inputs), "valuation_scenarios": None}, _scenario_run=True)
+    return result.get("atlas_base_fair_value") if result.get("status") == PUBLISHED else None
+
+
+def _dcf_sensitivity(row: Mapping[str, Any]) -> list[dict[str, Any]]:
+    fcffs = row.get("forecast_fcff")
+    debt, cash, shares = (_number(row.get(key)) for key in ("total_debt", "cash_and_equivalents", "diluted_shares"))
+    wacc_values = row.get("sensitivity_wacc") or ()
+    growth_values = row.get("sensitivity_terminal_growth") or ()
+    if not isinstance(fcffs, (list, tuple)) or None in (debt, cash, shares): return []
+    cells = []
+    for discount in wacc_values if isinstance(wacc_values, (list, tuple)) else ():
+        for growth in growth_values if isinstance(growth_values, (list, tuple)) else ():
+            try:
+                value = dcf_equity_value(fcffs, float(discount), float(growth), debt, cash, shares)["per_share_value"]
+                cells.append({"wacc": float(discount), "terminal_growth": float(growth), "fair_value": round(value, 2)})
+            except (TypeError, ValueError):
+                continue
+    return cells
+
+
+def value_company(row: Mapping[str, Any], *, as_of: str | None = None, _scenario_run: bool = False) -> dict[str, Any]:
     company_type = classify_company(row); price = _number(_first(row,"current_price","price","Price"))
-    models = [_dcf(row,company_type),_forward_pe(row,company_type),_ev_ebitda(row,company_type),_p_fcf(row,company_type)]
+    models = [_dcf(row,company_type),_forward_pe(row,company_type),_ev_ebitda(row,company_type),_p_fcf(row,company_type),_ddm(row, company_type)]
     valid = [model for model in models if model["status"] == PUBLISHED and model["value"] is not None and model["value"] > 0]
     if company_type == "ETF": status, reason = NOT_APPLICABLE, "CORPORATE_FAIR_VALUE_NOT_APPLICABLE_TO_ETF"
     elif not valid: status, reason = INSUFFICIENT_INPUTS, "NO_ELIGIBLE_MODEL_HAS_COMPLETE_PROFESSIONAL_INPUTS"
     else: status, reason = PUBLISHED, None
     if valid:
-        total = sum(model["confidence"] for model in valid)
-        for model in valid: model["weight"] = round(model["confidence"]/total,4)
+        raw_weights = [_model_weight(company_type, model["methodology_id"], model["confidence"]) for model in valid]
+        total = sum(raw_weights)
+        for model, raw_weight in zip(valid, raw_weights):
+            model["weight"] = round(raw_weight/total,4)
+            model["weighting_justification"] = f"Deterministic {company_type} model preference adjusted by input confidence"
         base = sum(model["value"]*model["weight"] for model in valid)
         low, high = min(model["value"] for model in valid), max(model["value"] for model in valid)
         # Scenarios alter model inputs upstream. Until scenario inputs exist,
@@ -133,15 +188,23 @@ def value_company(row: Mapping[str, Any], *, as_of: str | None = None) -> dict[s
             lineage.setdefault(metric, {"source": row.get(source_key), "raw_field": metric,
                                         "period": row.get(period_key), "unit": "PER_SHARE" if metric == "forward_eps" else "CURRENCY",
                                         "normalization": "NONE", "methodology": None})
+    bear = bull = None
+    if valid and not _scenario_run:
+        bear = _scenario_value(row, "bear", company_type)
+        bull = _scenario_value(row, "bull", company_type)
+    blockers = tuple(dict.fromkeys(model.get("reason") for model in models if model.get("status") in {INSUFFICIENT_INPUTS, VALIDATION_FAILED} and model.get("reason")))
     return {"version":VERSION,"status":status,"company_type":company_type,
             "atlas_base_fair_value":round(base,2) if base else None,"atlas_fair_value_low":round(low,2) if low else None,
-            "atlas_fair_value_high":round(high,2) if high else None,"atlas_bear_case":None,"atlas_bull_case":None,
+            "atlas_fair_value_high":round(high,2) if high else None,"atlas_bear_case":bear,"atlas_bull_case":bull,
             "atlas_expected_return":round((base/price-1)*100,1) if base and price and price>0 else None,
             "valuation_confidence":round(confidence,1) if confidence is not None else None,
             "valuation_as_of":as_of or datetime.now(timezone.utc).isoformat(),"valuation_methodology_version":VERSION,
-            "models":models,"reason":reason,"wall_street_used":False,
+            "models":models,"model_weights": {model["methodology_id"]: model.get("weight") for model in valid},
+            "weighting_basis": f"Deterministic company-type reconciliation for {company_type}",
+            "reason":reason,"blockers":blockers,"wall_street_used":False,
             "lineage":lineage,
-            "scenario_status":"INSUFFICIENT_ECONOMIC_SCENARIO_INPUTS" if valid else "NOT_AVAILABLE"}
+            "scenario_status":"PUBLISHED" if bear is not None and bull is not None else "INSUFFICIENT_ECONOMIC_SCENARIO_INPUTS" if valid else "NOT_AVAILABLE",
+            "sensitivity": _dcf_sensitivity(row) if valid else []}
 
 
 __all__ = ["INSUFFICIENT_INPUTS", "NOT_APPLICABLE", "PUBLISHED", "VERSION", "classify_company", "value_company"]

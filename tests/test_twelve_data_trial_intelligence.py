@@ -64,3 +64,18 @@ def test_forward_estimates_use_annual_forward_period_not_quarterly_record():
     assert row["forward_revenue"] == 50 and row["forward_revenue_period"] == "next_year"
     assert row["forward_estimate_evidence"]["eps"]["period"] == "next_year"
     assert row["forward_estimate_evidence"]["evidence_ids"] == ("TD-EPS", "TD-REV")
+    assert row["forward_eps_period_type"] == "ANNUAL"
+    assert row["forward_eps_basis"] == "UNKNOWN"
+    assert len(row["forward_estimate_evidence"]["eps_periods"]) == 2
+
+
+def test_professional_capital_and_reporting_lineage_is_normalized_without_fabrication():
+    dossier = {"observed_at":"2026-09-05T20:00:00Z","evidence_ids":("TD-1",),"families":{
+        "statistics":{"payload":{"statistics":{"market_capitalization":1000,"shares_outstanding":50,"beta":1.2,"financials":{}}}},
+        "income_statement":{"payload":{"income_statement":[{"fiscal_date":"2025-12-31","weighted_average_shares_diluted":48,"ebitda":120,"ebit":100}]}},
+        "balance_sheet":{"payload":{"balance_sheet":[{}]}}, "cash_flow":{"payload":{"cash_flow":[{}]}},
+    }}
+    row = normalize_trial_dossier({"ticker":"LINEAGE"}, dossier)
+    assert row["diluted_shares"] == 48 and row["market_cap"] == 1000 and row["beta"] == 1.2
+    assert row["financial_reporting_period"] == "2025-12-31"
+    assert row["professional_evidence_lineage"]["evidence_ids"] == ("TD-1",)
