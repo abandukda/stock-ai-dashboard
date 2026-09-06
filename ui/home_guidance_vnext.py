@@ -193,6 +193,8 @@ def _market_evidence_badge(card: Mapping[str, Any]) -> str:
 def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
     """Customer research dossier; canonical values are displayed, never recalculated."""
     evaluation = dict(card.get("evaluation") or {})
+    canonical_valuation = dict(evaluation.get("atlas_valuation") or {})
+    professional = dict(canonical_valuation.get("professional_valuation_v2") or {})
     fundamentals = dict(card.get("fundamentals_evidence") or {})
     company = dict(card.get("company_evidence") or {})
     technical = dict(card.get("canonical_technical_evidence") or card.get("technical_evidence") or {})
@@ -228,9 +230,14 @@ def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
     )]
     valuation = rows((
         ("Current Price", card.get("display_price"), "money"),
-        ("ATLAS Fair Value", card.get("atlas_fair_value") if str(card.get("atlas_valuation_status")).upper() == "PUBLISHED" else None, "money"),
+        ("ATLAS Base Fair Value", professional.get("atlas_base_fair_value") if professional.get("status") == "PUBLISHED" else card.get("atlas_fair_value") if str(card.get("atlas_valuation_status")).upper() == "PUBLISHED" else None, "money"),
+        ("Fair Value Range", f'{_money(professional.get("atlas_fair_value_low"))}–{_money(professional.get("atlas_fair_value_high"))}' if professional.get("atlas_fair_value_low") is not None and professional.get("atlas_fair_value_high") is not None else None, "text"),
+        ("Bear Case", professional.get("atlas_bear_case"), "money"),
+        ("Bull Case", professional.get("atlas_bull_case"), "money"),
         ("Expected Return", card.get("atlas_expected_return"), "pct"),
+        ("Valuation Confidence", professional.get("valuation_confidence"), "pct"),
         ("Publication Status", "Published" if str(card.get("atlas_valuation_status")).upper() == "PUBLISHED" else "Not Published", "text"),
+        ("Methodology", professional.get("valuation_methodology_version") or canonical_valuation.get("methodology_version"), "text"),
         ("Valuation As Of", _timestamp(card.get("evaluation_timestamp")), "text"),
         ("Forward EPS", company.get("forward_eps"), "money"),
         ("Forward Revenue", company.get("forward_revenue"), "money"),
@@ -242,6 +249,19 @@ def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
     if drivers.get("justified_pe") is not None: driver_bits.append(f'a {_score(drivers["justified_pe"])}× justified earnings multiple')
     if drivers.get("growth_input_pct") is not None: driver_bits.append(f'a {_score(drivers["growth_input_pct"], suffix="%")} growth input')
     driver_summary = "ATLAS fair value is supported by " + ", ".join(driver_bits) + "." if driver_bits else "ATLAS valuation attribution is not detailed enough to publish an economic driver summary."
+    model_rows = []
+    for model in professional.get("models") or ():
+        if not isinstance(model, Mapping):
+            continue
+        label = str(model.get("name") or "Valuation method")
+        if model.get("status") == "PUBLISHED":
+            value = f'{_money(model.get("value"))} · {_score(float(model.get("weight") or 0) * 100, suffix="% weight")} · {_score(model.get("confidence"), suffix="% confidence")}'
+        elif model.get("status") == "NOT_APPLICABLE":
+            value = "Not Applicable"
+        else:
+            value = "Not Published"
+        model_rows.append((label, value, "text"))
+    valuation_methods = rows(tuple(model_rows)) if model_rows else '<p class="atlas-home-muted">Professional valuation model detail is not yet published</p>'
 
     street_visible = street.get("commercial_display_status") == "DISPLAY_ALLOWED" or street.get("display_scope") == "INTERNAL_TRIAL"
     street_section = rows((
@@ -252,6 +272,23 @@ def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
         ("High Target", street.get("high_target") if street_visible else None, "money"),
         ("Street Implied Upside", street.get("implied_upside") if street_visible else None, "pct"),
     )) if street_visible else '<p class="atlas-home-muted">Wall Street outlook not published in this display mode</p>'
+    estimate_evidence = dict(company.get("forward_estimate_evidence") or {})
+    estimate_rows = []
+    for label, item in (("Forward EPS", estimate_evidence.get("eps")), ("Forward Revenue", estimate_evidence.get("revenue"))):
+        if isinstance(item, Mapping):
+            period = item.get("period") or item.get("date")
+            average = item.get("avg_estimate") if item.get("avg_estimate") is not None else item.get("average")
+            if average is not None:
+                estimate_rows.append((f'{label} · {_display(period)}', average, "money"))
+            for suffix, key in (("Low", "low_estimate"), ("High", "high_estimate"), ("Analysts", "analyst_count")):
+                if item.get(key) is not None: estimate_rows.append((f"{label} {suffix}", item.get(key), "score" if key == "analyst_count" else "money"))
+    forward_estimates = rows(tuple(estimate_rows)) if estimate_rows else '<p class="atlas-home-muted">Forward estimate detail not available</p>'
+    revision_history = dict(company.get("estimate_revision_history") or {})
+    revision_rows = [
+        (f'{item.get("metric")} · {item.get("estimate_period")} · {item.get("horizon_days")}D', item.get("revision_pct"), "pct")
+        for item in revision_history.get("horizon_comparisons") or () if isinstance(item, Mapping) and item.get("revision_pct") is not None
+    ]
+    revision_section = rows(tuple(revision_rows)) if revision_rows else '<p class="atlas-home-muted">Revision history not yet sufficient</p>'
 
     financial = rows((
         ("Revenue", fundamentals.get("revenue"), "money"), ("YoY Revenue Growth", fundamentals.get("revenue_growth"), "pct"),
@@ -328,9 +365,9 @@ def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
         '<div class="atlas-home-full-evidence atlas-home-paid-dossier" data-atlas-qa="home-guidance-full-evidence">'
         f'<section><h4>Decision Summary</h4>{decision}{rows(pillars)}</section>'
         f'<section><h4>Why ATLAS Likes It</h4><ul>{why_html}</ul><p><b>Primary constraint:</b> {html.escape(_decisive_customer_constraint(card))}</p></section>'
-        f'<section><h4>ATLAS Valuation</h4>{valuation}<p>{html.escape(driver_summary)}</p></section>'
-        f'<section><h4>Wall Street Analyst Outlook</h4>{street_section}</section>'
-        '<section><h4>Estimate Trend / Revisions</h4><p class="atlas-home-muted">Comparable estimate history is still being accumulated; no revision direction is inferred.</p></section>'
+        f'<section><h4>ATLAS Valuation</h4>{valuation}<p>{html.escape(driver_summary)}</p><h5>Valuation by Method</h5>{valuation_methods}</section>'
+        f'<section><h4>Wall Street Analyst Outlook</h4>{street_section}<h5>Forward Estimates</h5>{forward_estimates}</section>'
+        f'<section><h4>Estimate Revision History</h4>{revision_section}</section>'
         f'<section><h4>Earnings &amp; Financial Snapshot</h4>{financial}</section><section><h4>Latest Earnings</h4>{earnings}</section>'
         f'<section><h4>Recent Catalysts</h4><div class="atlas-home-catalysts">{catalysts}</div></section>'
         f'<section><h4>Technical &amp; Volume</h4>{technical_section}</section><section><h4>Trade Plan</h4>{trade_section}</section>'

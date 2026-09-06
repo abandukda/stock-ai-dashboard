@@ -77,6 +77,7 @@ def build_summary_payload(card: Mapping[str, Any]) -> dict[str, Any]:
     }
     risk = dict(evaluation.get("risk") or {})
     valuation = dict(evaluation.get("atlas_valuation") or {})
+    professional_valuation = dict(valuation.get("professional_valuation_v2") or {})
     valuation_drivers = dict(card.get("valuation_driver_evidence") or {})
     catalysts = []
     for item in (card.get("recent_catalysts") or ())[:3]:
@@ -122,6 +123,7 @@ def build_summary_payload(card: Mapping[str, Any]) -> dict[str, Any]:
             "expected_return": card.get("atlas_expected_return"),
             "driver_evidence": valuation_drivers,
             "rejection_reasons": list(valuation.get("reason_codes") or valuation.get("reasons") or ()),
+            "professional_valuation_v2": professional_valuation,
         },
         "wall_street": wall_street,
         "insider_ownership_political_context": context,

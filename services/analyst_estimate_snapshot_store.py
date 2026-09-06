@@ -139,11 +139,41 @@ def revision_summary(ticker: str, *, root: str | Path = DEFAULT_SNAPSHOT_ROOT) -
             "prior_observed_at": prior.get("observed_at"), "current_observed_at": current.get("observed_at"),
             "prior_average": prior.get("average"), "current_average": current.get("average"),
             "source_evidence_ids": [prior.get("evidence_id"), current.get("evidence_id")],
+            "revision_pct": (
+                (float(current["average"]) / float(prior["average"]) - 1.0) * 100
+                if _number(current.get("average")) is not None and _number(prior.get("average")) not in (None, 0) else None
+            ),
         })
+    horizons = []
+    for key, values in groups.items():
+        ordered = sorted(values, key=lambda item: str(item.get("observed_at") or ""))
+        if not ordered or _number(ordered[-1].get("average")) is None:
+            continue
+        current = ordered[-1]
+        current_date = datetime.fromisoformat(str(current["observed_at"])[:10]).date()
+        for days in (7, 30, 90):
+            eligible = [item for item in ordered[:-1] if (
+                current_date - datetime.fromisoformat(str(item.get("observed_at"))[:10]).date()
+            ).days >= days]
+            if not eligible:
+                continue
+            prior = eligible[-1]; prior_average = _number(prior.get("average"))
+            if prior_average in (None, 0):
+                continue
+            horizons.append({
+                "ticker": key[0], "estimate_period": key[1], "period_type": key[2], "metric": key[3],
+                "horizon_days": days, "prior_observed_at": prior.get("observed_at"),
+                "current_observed_at": current.get("observed_at"), "prior_average": prior_average,
+                "current_average": _number(current.get("average")),
+                "revision_pct": round((_number(current.get("average"))/prior_average-1)*100, 2),
+                "source_evidence_ids": [prior.get("evidence_id"), current.get("evidence_id")],
+                "methodology_id": "FORECAST_REVISION_V1",
+            })
     return {
         "semantic_status": AVAILABLE if comparisons else DATA_UNAVAILABLE,
         "status_detail": None if comparisons else ACCUMULATION_MESSAGE,
         "comparisons": comparisons,
+        "horizon_comparisons": horizons,
         "snapshot_count": len(snapshots),
     }
 

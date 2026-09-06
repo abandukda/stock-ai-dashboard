@@ -76,10 +76,19 @@ def _true_ranges(bars: Sequence[DailyBar]) -> list[float]:
     return result
 
 
+def _wilder_average(values: Sequence[float], length: int) -> float:
+    if len(values) < length:
+        raise ValueError("INSUFFICIENT_WILDER_PERIODS")
+    average = statistics.fmean(values[:length])
+    for value in values[length:]:
+        average = ((length - 1) * average + float(value)) / length
+    return average
+
+
 def _rsi(values: Sequence[float], length: int = 14) -> float:
-    changes = [b - a for a, b in zip(values[-length - 1:-1], values[-length:])]
-    gains = statistics.fmean(max(change, 0.0) for change in changes)
-    losses = statistics.fmean(max(-change, 0.0) for change in changes)
+    changes = [b - a for a, b in zip(values, values[1:])]
+    gains = _wilder_average([max(change, 0.0) for change in changes], length)
+    losses = _wilder_average([max(-change, 0.0) for change in changes], length)
     if losses == 0:
         return 100.0
     return 100.0 - (100.0 / (1.0 + gains / losses))
@@ -147,8 +156,8 @@ class TechnicalIntelligenceEngine:
         sma20, sma50, sma200 = (_sma(closes, n) for n in (20, 50, 200))
         ema20 = _ema_series(closes, 20)[-1]
         atrs = _true_ranges(ordered)
-        atr14 = _sma(atrs, 14)
-        atr50 = _sma(atrs, 50)
+        atr14 = _wilder_average(atrs, 14)
+        atr50 = _wilder_average(atrs, 50)
         slope20 = (sma20 / _sma(closes[:-10], 20) - 1.0) if _sma(closes[:-10], 20) else 0.0
         slope50 = (sma50 / _sma(closes[:-20], 50) - 1.0) if _sma(closes[:-20], 50) else 0.0
         trend_flags = {
@@ -279,6 +288,10 @@ class TechnicalIntelligenceEngine:
         conflicts = tuple(name for group in (trend_flags, base_flags, volume_flags, momentum_flags) for name, active in group.items() if not active)
         evidence = {
             "model_version": TECHNICAL_MODEL_VERSION,
+            "methodology_version": "ATLAS_TECHNICAL_METHODS_V1",
+            "methodology_ids": ("TECH_SMA_V1", "TECH_RSI_WILDER_V1", "TECH_ATR_WILDER_V1", "TECH_COMPLETED_DAILY_RVOL_V1"),
+            "adjustment_mode": "PROVIDER_ADJUSTED_COMPLETED_DAILY",
+            "support_resistance_method": "ATLAS_DERIVED_BASE_LOW_AND_PRIOR_HIGH",
             "close": _round(latest.close), "sma20": _round(sma20), "ema20": _round(ema20),
             "sma50": _round(sma50), "sma200": _round(sma200), "slope20": _round(slope20),
             "slope50": _round(slope50), "atr14": _round(atr14), "atr_contraction": _round(atr_contraction),

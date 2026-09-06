@@ -387,6 +387,7 @@ def build_home_guidance_candidate(
             "estimate_revision": _first_value(row, "estimate_revision", "estimate_revision_trend", "analyst_revision_trend"),
             "estimate_contributor_count": _first_number(row, "estimate_contributor_count", "earnings_estimate_count") if row.get("estimate_commercial_display_allowed") is True else None,
             "forward_estimate_evidence": row.get("forward_estimate_evidence") if isinstance(row.get("forward_estimate_evidence"), Mapping) else {},
+            "estimate_revision_history": row.get("estimate_revision_history") if isinstance(row.get("estimate_revision_history"), Mapping) else {},
             "industry": row.get("industry"), "sector": row.get("sector"),
             "business_summary": _first_value(row, "business_summary", "company_description", "description"),
             "business_kpis": _first_value(row, "approved_business_kpis", "business_kpis", "key_business_metrics"),

@@ -9,6 +9,7 @@ from typing import Any, Mapping
 
 from engines.atlas_guidance_v1 import evaluate_guidance
 from engines.atlas_valuation import AtlasValuationInputs, calculate_atlas_fair_value
+from engines.professional_valuation_v2 import value_company
 from engines.volume_intelligence_v1 import build_volume_intelligence
 from engines.decision_metrics_v1 import build_decision_metrics
 
@@ -58,10 +59,12 @@ def build_canonical_evaluation(
     symbol = str(ticker or "").upper().strip()
     if not symbol:
         raise ValueError("ticker is required")
+    timestamp = evaluated_at or datetime.now(timezone.utc).isoformat()
 
     valuation_source = dict(valuation_inputs or {})
     valuation_source["price"] = market_snapshot.get("price")
     valuation_result = calculate_atlas_fair_value(AtlasValuationInputs.from_row(valuation_source))
+    professional_valuation = value_company(valuation_source, as_of=timestamp)
     valuation = {
         "status": valuation_result.status,
         "fair_value": valuation_result.fair_value,
@@ -69,6 +72,8 @@ def build_canonical_evaluation(
         "score": valuation_component_score,
         "methodology_version": "ATLAS_VALUATION_V1",
         "input_authority": "CANONICAL_ATLAS_INPUTS_ONLY",
+        "professional_valuation_v2": professional_valuation,
+        "professional_v2_activation": "SHADOW_NOT_CANONICAL",
     }
     volume_evidence = dict(technical.get("evidence") or {})
     volume_evidence.update({
@@ -136,7 +141,6 @@ def build_canonical_evaluation(
     if positive_action_volume_authority_required:
         guidance_inputs["positive_action_volume_authority_required"] = True
     guidance = evaluate_guidance(guidance_inputs)
-    timestamp = evaluated_at or datetime.now(timezone.utc).isoformat()
     evidence_as_of = {
         "market": market_snapshot.get("provider_timestamp"),
         "technical": technical.get("as_of"),
@@ -165,6 +169,7 @@ def build_canonical_evaluation(
         "evidence_as_of": evidence_as_of,
         "methodology_version": METHODOLOGY_VERSION,
         "valuation_methodology_version": "ATLAS_VALUATION_V1",
+        "professional_valuation_candidate_version": professional_valuation["valuation_methodology_version"],
         "technical_threshold_version": THRESHOLD_VERSION,
         "future_calibration_required": True,
         "input_digest": input_digest,
