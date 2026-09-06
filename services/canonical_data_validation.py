@@ -126,7 +126,10 @@ def validate_valuation(row:Mapping[str,Any])->dict[str,Any]:
     ratio=max(values)/min(values) if values else None;checks["dispersion"]={"max_min_ratio":round(ratio,2) if ratio is not None else None,"over_2x":bool(ratio and ratio>2),"over_3x":bool(ratio and ratio>3),"over_5x":bool(ratio and ratio>5),"absolute_spread":max(values)-min(values) if values else None}
     if ratio and ratio>5:warnings.append("EXTREME_MODEL_DISPERSION")
     diagnostics=dict(valuation.get("valuation_diagnostics") or {});high_uncertainty=bool(diagnostics.get("flags")) or bool(ratio and ratio>2)
-    hard_review=any(code in warnings for code in ("INPUT_SOURCE_DIVERGENCE","MARKET_CAP_BRIDGE_FAILURE","EV_BRIDGE_FAILURE","FCF_RECONCILIATION_FAILURE","PERIOD_MISMATCH","SECTOR_MODEL_APPLICABILITY_WARNING","EXTREME_MODEL_DISPERSION"))
+    # A fully reconciled but widely dispersed set of valid models is legitimate
+    # high uncertainty, not an unresolved data defect. Dispersion never changes
+    # model values or weights and remains visible in the explanation object.
+    hard_review=any(code in warnings for code in ("INPUT_SOURCE_DIVERGENCE","MARKET_CAP_BRIDGE_FAILURE","EV_BRIDGE_FAILURE","FCF_RECONCILIATION_FAILURE","PERIOD_MISMATCH","SECTOR_MODEL_APPLICABILITY_WARNING"))
     state=REVIEW_REQUIRED if hard_review else CERTIFIED_HIGH_UNCERTAINTY if high_uncertainty else CERTIFIED
     return {"version":VERSION,"ticker":ticker,"company_type":valuation.get("company_type"),"validated_company_domain":domain,"certification_state":state,"customer_publication_allowed":state in {CERTIFIED,CERTIFIED_HIGH_UNCERTAINTY},"base_fair_value":valuation.get("atlas_base_fair_value"),"model_values":{m.get("methodology_id"):m.get("value") for m in models if m.get("status")=="PUBLISHED"},"model_weights":dict(valuation.get("model_weights") or {}),"input_lineage":inputs,"checks":checks,"model_applicability":applicability,"warnings":list(dict.fromkeys(warnings)),"primary_warning":next(iter(warnings),None),"valuation_as_of":valuation.get("valuation_as_of")}
 

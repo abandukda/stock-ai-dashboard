@@ -41,7 +41,7 @@ def classify_company(row: Mapping[str, Any]) -> str:
     if "reit" in industry or "real estate investment trust" in industry: return "REIT"
     if "bank" in industry: return "BANK"
     if "insurance" in industry: return "INSURER"
-    if "biotech" in industry and ((_number(row.get("net_income")) or 0) <= 0): return "PRE_PROFIT_BIOTECH"
+    if "biotech" in industry: return "PROFITABLE_PHARMA" if profitable else "PRE_PROFIT_BIOTECH"
     if "pharma" in industry or "drug manufacturer" in industry: return "PROFITABLE_PHARMA" if profitable else "PRE_PROFIT_BIOTECH"
     if "software" in industry and (_number(row.get("revenue_growth")) or 0) > .15: return "HIGH_GROWTH_SOFTWARE"
     if any(word in routing_text for word in ("gold", "copper", "oil & gas", "mining")): return "COMMODITY_PRODUCER"

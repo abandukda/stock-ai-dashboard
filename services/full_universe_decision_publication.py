@@ -191,7 +191,7 @@ def acquire_full_universe_decisions(
             evaluation["trial_presentation_fields"] = {
                 key: enriched.get(key) for key in (
                     "description", "sector", "industry", "revenue_growth", "earnings_growth",
-                    "operating_profit_margin", "free_cash_flow", "current_ratio", "latest_revenue",
+                    "operating_profit_margin", "free_cash_flow", "current_ratio", "latest_revenue", "net_income",
                     "latest_operating_income", "operating_cash_flow", "total_debt", "cash_and_equivalents",
                     "forward_eps", "forward_eps_period", "forward_revenue", "forward_revenue_period",
                     "forward_eps_period_type", "forward_eps_basis", "forward_eps_source",

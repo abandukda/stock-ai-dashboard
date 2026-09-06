@@ -38,7 +38,7 @@ def main() -> int:
         "review_required": [{"ticker": record["ticker"], "root_causes": classify_blockers(record)} for record in all_records if record["certification_state"] == "REVIEW_REQUIRED"],
         "insufficient_inputs": [{"ticker": record["ticker"], "root_causes": classify_blockers(record)} for record in all_records if record["certification_state"] == "INSUFFICIENT_INPUTS"],
         "market_cap_failures": [{"ticker": record["ticker"], **record["checks"]["market_cap_bridge"]} for record in all_records if (record.get("checks") or {}).get("market_cap_bridge", {}).get("status") in {"FAIL","NOT_TESTABLE"}],
-        "fcf_failures": [{"ticker": record["ticker"], **record["checks"]["fcf_reconciliation"]} for record in all_records if (record.get("checks") or {}).get("fcf_reconciliation", {}).get("status") != "PASS"],
+        "fcf_failures": [{"ticker": record["ticker"], **record["checks"]["fcf_reconciliation"]} for record in all_records if (record.get("checks") or {}).get("fcf_reconciliation") and (record.get("checks") or {}).get("fcf_reconciliation", {}).get("status") != "PASS"],
         "routing_reviews": [{"ticker": record["ticker"], "company_type": record.get("company_type"), "validated_domain": record.get("validated_company_domain"), "methods": record.get("model_applicability")} for record in all_records if "SECTOR_MODEL_APPLICABILITY_WARNING" in record.get("warnings", ())],
         "extreme_dispersion": [{"ticker": record["ticker"], **record["checks"]["dispersion"]} for record in all_records if (record.get("checks") or {}).get("dispersion", {}).get("over_5x")],
     }
