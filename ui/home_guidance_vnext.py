@@ -354,12 +354,17 @@ def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
         ("Net Margin", fundamentals.get("net_margin"), "pct"), ("Operating Cash Flow", fundamentals.get("operating_cash_flow"), "money"),
         ("Free Cash Flow", fundamentals.get("free_cash_flow"), "money"), ("Cash", fundamentals.get("cash"), "money"),
         ("Total Debt", fundamentals.get("debt"), "money"),
+        ("EBITDA Margin", fundamentals.get("ebitda_margin"), "pct"),
+        ("Net Debt / EBITDA", fundamentals.get("net_debt_to_ebitda"), "score"),
+        ("Return on Equity", fundamentals.get("roe"), "pct"), ("Return on Invested Capital", fundamentals.get("roic"), "pct"),
+        ("Reporting Period", fundamentals.get("reporting_period"), "text"), ("Financial As Of", fundamentals.get("financial_as_of"), "text"),
     ))
     earnings = rows((
         ("Earnings Date", company.get("latest_earnings_date"), "text"), ("EPS Actual", company.get("reported_eps"), "money"),
         ("EPS Estimate", company.get("eps_estimate"), "money"), ("EPS Surprise", company.get("eps_surprise_pct"), "pct"),
         ("Revenue Actual", company.get("reported_revenue"), "money"), ("Revenue Estimate", company.get("revenue_estimate"), "money"),
         ("Revenue Surprise", company.get("revenue_surprise_pct"), "pct"),
+        ("Guidance Direction", company.get("guidance_direction"), "text"),
     ))
     technical_section = rows((
         ("Technical State", _display(card.get("technical_state")) if card.get("technical_status") == "AVAILABLE" else None, "text"),
@@ -367,6 +372,8 @@ def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
         ("SMA50", technical.get("sma50"), "money"), ("SMA200", technical.get("sma200"), "money"),
         ("Support", technical.get("support"), "money"), ("Resistance", technical.get("pivot") or technical.get("resistance"), "money"),
         ("Volume State", _display(card.get("volume_state")) if card.get("volume_state") not in {None, "DATA_UNAVAILABLE", "UNAVAILABLE"} else None, "text"), ("Relative Volume", volume.get("relative_volume"), "score"),
+        ("20-Day Average Volume", volume.get("average_volume_20d") or volume.get("average_volume"), "score"),
+        ("Average Dollar Volume", volume.get("average_dollar_volume"), "money"),
         ("Breakout Confirmation", "Confirmed" if card.get("technical_state") == "BREAKOUT_CONFIRMED" else "Not Confirmed", "text"),
     ))
     trade_values = (

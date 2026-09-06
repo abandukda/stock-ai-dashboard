@@ -23,20 +23,32 @@ def build_snapshot(row: Mapping[str,Any]) -> dict[str,Any]:
     return payload
 
 def append_snapshots(path: Path, snapshots: Sequence[Mapping[str,Any]]) -> int:
-    path.parent.mkdir(parents=True,exist_ok=True); existing=set()
+    path.parent.mkdir(parents=True,exist_ok=True); existing=set(); points={}
     if path.exists():
         for line in path.read_text().splitlines():
-            try: existing.add(json.loads(line)["snapshot_id"])
+            try:
+                prior=json.loads(line);existing.add(prior["snapshot_id"])
+                points[(prior.get("ticker"),prior.get("timestamp"))]=prior["snapshot_id"]
             except Exception: continue
-    fresh=[dict(s) for s in snapshots if s.get("snapshot_id") not in existing]
+    fresh=[]
+    for raw in snapshots:
+        s=dict(raw);point=(s.get("ticker"),s.get("timestamp"));prior_id=points.get(point)
+        if prior_id and prior_id!=s.get("snapshot_id"):
+            raise ValueError("IMMUTABLE_SNAPSHOT_CONFLICT")
+        if s.get("snapshot_id") not in existing:
+            fresh.append(s);existing.add(s.get("snapshot_id"));points[point]=s.get("snapshot_id")
     if fresh:
         with path.open("a",encoding="utf-8") as handle:
             for item in fresh: handle.write(json.dumps(item,sort_keys=True)+"\n")
     return len(fresh)
 
 def mature_snapshot(snapshot: Mapping[str,Any], bars: Sequence[Mapping[str,Any]], benchmark_bars: Sequence[Mapping[str,Any]]=()) -> list[dict[str,Any]]:
-    start=_num(snapshot.get("price")); prices=[_num(x.get("close")) for x in bars]; prices=[x for x in prices if x is not None]
-    bench=[_num(x.get("close")) for x in benchmark_bars]; bench=[x for x in bench if x is not None]
+    start=_num(snapshot.get("price")); stamp=str(snapshot.get("timestamp") or "")
+    def after_snapshot(item):
+        observed=str(item.get("timestamp") or item.get("date") or item.get("datetime") or "")
+        return not observed or not stamp or observed>stamp
+    prices=[_num(x.get("close")) for x in bars if after_snapshot(x)]; prices=[x for x in prices if x is not None]
+    bench=[_num(x.get("close")) for x in benchmark_bars if after_snapshot(x)]; bench=[x for x in bench if x is not None]
     if not start:return []
     out=[]
     for h in HORIZONS:
@@ -54,4 +66,8 @@ def aggregate(records: Sequence[Mapping[str,Any]], key="action") -> list[dict[st
         if _num(r.get("price_return")) is not None: groups.setdefault(r.get(key) or "UNKNOWN",[]).append(r)
     return [{key:k,"sample_count":len(v),"average_return":mean(x["price_return"] for x in v),"median_return":median(x["price_return"] for x in v),"win_rate":mean(x["price_return"]>0 for x in v),"average_relative_return":mean(x["benchmark_relative_return"] for x in v if x.get("benchmark_relative_return") is not None) if any(x.get("benchmark_relative_return") is not None for x in v) else None,"worst_drawdown":min(x["max_drawdown"] for x in v)} for k,v in groups.items()]
 
-__all__=["VERSION","HORIZONS","ACTION_STARS","aggregate","append_snapshots","build_snapshot","mature_snapshot"]
+def confidence_bucket(value: Any) -> str:
+    number=_num(value)
+    return "UNAVAILABLE" if number is None else "HIGH" if number>=85 else "MODERATE" if number>=70 else "LOW"
+
+__all__=["VERSION","HORIZONS","ACTION_STARS","aggregate","append_snapshots","build_snapshot","confidence_bucket","mature_snapshot"]

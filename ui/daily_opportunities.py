@@ -158,7 +158,8 @@ def render_volume_momentum(rows: Sequence[Mapping[str, Any]]) -> None:
     items=build_volume_screener(rows)
     sort=st.selectbox("Sort by",("Volume intensity","Action","Opportunity","Expected return","Confidence"),key="volume_screener_sort")
     key={"Volume intensity":"relative_volume","Action":"action","Opportunity":"opportunity","Expected return":"expected_return","Confidence":"confidence"}[sort]
-    items=sorted(items,key=lambda x:(x.get(key) is None,x.get(key) if isinstance(x.get(key),str) else -(float(x.get(key) or 0))))
+    action_order={"BUY_NOW":0,"ACCUMULATE":1,"WAIT_FOR_BETTER_ENTRY":2,"WAIT_FOR_CONFIRMATION":3,"DATA_LIMITED":4,"AVOID":5}
+    items=sorted(items,key=lambda x:(x.get(key) is None,action_order.get(x.get(key),99) if key=="action" else -(float(x.get(key) or 0))))
     from services.session_stability import emit_page_interactive
     emit_page_interactive(st, "Volume Intelligence")
 

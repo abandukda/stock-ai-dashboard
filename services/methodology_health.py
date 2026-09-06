@@ -27,7 +27,8 @@ def methodology_health(rows: Sequence[Mapping[str, Any]], *, now: datetime | Non
         try:
             parsed=datetime.fromisoformat(str(stamp).replace("Z","+00:00")); stale += (observed-parsed).total_seconds()>86400*180
         except Exception: stale += bool(valuation)
-    return {"version":VERSION,"methodology_registry_version":REGISTRY_VERSION,"valuation_methodology_version":VALUATION_VERSION,
+    macro_versions={str(((dict(row.get("canonical_investment_evaluation") or {}).get("trial_presentation_fields") or {}).get("macro_assumption_version"))) for row in rows if ((dict(row.get("canonical_investment_evaluation") or {}).get("trial_presentation_fields") or {}).get("macro_assumption_version"))}
+    return {"version":VERSION,"methodology_registry_version":REGISTRY_VERSION,"valuation_methodology_version":VALUATION_VERSION,"macro_assumption_version":next(iter(macro_versions),"Not published"),
             "published_count":counts["PUBLISHED"],"insufficient_count":counts["INSUFFICIENT_INPUTS"],
             "not_applicable_count":counts["NOT_APPLICABLE"],"stale_evidence_count":stale,
             "high_model_dispersion_count":counts["HIGH_DISPERSION"],"high_terminal_dependence_count":counts["HIGH_TERMINAL"],

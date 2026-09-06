@@ -11,8 +11,11 @@ def row(action='BUY_NOW',rvol=2.0,technical='SETUP_FORMING',confirmed=False):
 def test_snapshot_is_deterministic_append_only_and_horizons_do_not_look_ahead(tmp_path:Path):
  s=build_snapshot(row()); assert s==build_snapshot(row());p=tmp_path/'history.jsonl';assert append_snapshots(p,[s])==1 and append_snapshots(p,[s])==0
  assert s['action_stars']==5.0 and s['return_policy']['transaction_costs']=='excluded'
+ changed={**s,'action':'AVOID','snapshot_id':'different'}
+ with pytest.raises(ValueError,match='IMMUTABLE_SNAPSHOT_CONFLICT'): append_snapshots(p,[changed])
  assert [x['horizon_sessions'] for x in mature_snapshot(s,[{'close':11}]*4)]==[1]
  records=mature_snapshot(s,[{'close':11}]*5,[{'close':100},{'close':101},{'close':102},{'close':103},{'close':104}]);assert records[-1]['horizon_sessions']==5 and records[-1]['mfe']==pytest.approx(.1)
+ assert mature_snapshot(s,[{'timestamp':'2026-09-03T20:00:00Z','close':99}])==[]
 
 def test_volume_discovery_never_changes_canonical_action_and_breakout_requires_confirmation():
  wait=build_volume_screener([row(action='WAIT_FOR_CONFIRMATION')])[0];assert wait['volume_state']=='VOLUME_SURGE' and wait['action']=='WAIT_FOR_CONFIRMATION' and wait['action_stars']==3.5

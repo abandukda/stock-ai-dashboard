@@ -60,6 +60,28 @@ def roic(ebit: float, tax_rate: float, invested_capital_begin: float, invested_c
     return average_return(_finite(ebit) * (1-_finite(tax_rate)), invested_capital_begin, invested_capital_end)
 
 
+def return_on_equity(net_income: float, equity_begin: float, equity_end: float) -> float:
+    """Net income divided by average shareholders' equity."""
+    return average_return(net_income, equity_begin, equity_end)
+
+
+def return_on_assets(net_income: float, assets_begin: float, assets_end: float) -> float:
+    """Net income divided by average total assets."""
+    return average_return(net_income, assets_begin, assets_end)
+
+
+def interest_coverage(ebit: float, interest_expense: float) -> float:
+    return ratio(ebit, abs(_finite(interest_expense)))
+
+
+def downside_deviation(returns: Sequence[float], minimum_acceptable_return: float = 0,
+                       periods: int = 252) -> float:
+    values = list(map(_finite, returns)); threshold = _finite(minimum_acceptable_return)
+    if not values:
+        raise ValueError("INSUFFICIENT_RETURNS")
+    return math.sqrt(sum(min(0.0, value-threshold) ** 2 for value in values)/len(values))*math.sqrt(periods)
+
+
 def capm_cost_of_equity(risk_free_rate: float, beta: float, equity_risk_premium: float) -> float:
     return _finite(risk_free_rate) + _finite(beta) * _finite(equity_risk_premium)
 
@@ -185,4 +207,4 @@ def earnings_surprise(actual: float, consensus: float, *, near_zero: float = 1e-
     return (_finite(actual)-estimate)/abs(estimate)
 
 
-__all__ = ["annualized_volatility", "average_return", "beta", "cagr", "capm_cost_of_equity", "comparable_growth", "dcf_equity_value", "dividend_discount_model", "earnings_surprise", "enterprise_to_equity_value", "fcfe", "fcff", "free_cash_flow", "margin", "max_drawdown", "ratio", "reward_risk", "roic", "sharpe_ratio", "sortino_ratio", "terminal_value_perpetuity", "wacc"]
+__all__ = ["annualized_volatility", "average_return", "beta", "cagr", "capm_cost_of_equity", "comparable_growth", "dcf_equity_value", "dividend_discount_model", "downside_deviation", "earnings_surprise", "enterprise_to_equity_value", "fcfe", "fcff", "free_cash_flow", "interest_coverage", "margin", "max_drawdown", "ratio", "return_on_assets", "return_on_equity", "reward_risk", "roic", "sharpe_ratio", "sortino_ratio", "terminal_value_perpetuity", "wacc"]

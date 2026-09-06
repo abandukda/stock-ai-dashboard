@@ -1,6 +1,6 @@
 from services.atlas_view_summary import (
     _valuation_comparison, audit_summary_differentiation, build_summary_payload,
-    generate_summaries, validate_summary,
+    generate_summaries, thesis_style_violations, validate_summary,
 )
 
 
@@ -147,6 +147,11 @@ def test_duplication_audit_flags_name_only_rewrites():
     audit = audit_summary_differentiation(payloads, results)
     assert audit["passed"] is False
     assert audit["flagged_pairs"][0]["left"] == "NVDA"
+
+
+def test_client_style_validator_rejects_internal_mechanical_language_and_unexplained_jargon():
+    assert "MECHANICAL_INTERNAL_TONE" in thesis_style_violations("NVDA passed all gates passed. The risk remains material.")
+    assert "MISSING_EDUCATIONAL_INTERPRETATION" in thesis_style_violations("NVDA uses WACC and FCFF. The risk remains material.")
 
 
 def test_trade_target_cannot_be_substituted_for_atlas_fair_value():

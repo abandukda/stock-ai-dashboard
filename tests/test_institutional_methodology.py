@@ -6,7 +6,8 @@ from engines.institutional_formulas import (
     annualized_volatility, average_return, beta, cagr, capm_cost_of_equity,
     comparable_growth, dcf_equity_value, earnings_surprise, fcfe, fcff,
     dividend_discount_model, enterprise_to_equity_value, free_cash_flow, margin,
-    max_drawdown, reward_risk, roic, sharpe_ratio, sortino_ratio,
+    downside_deviation, interest_coverage, max_drawdown, return_on_assets,
+    return_on_equity, reward_risk, roic, sharpe_ratio, sortino_ratio,
     terminal_value_perpetuity, wacc,
 )
 from engines.methodology_registry import REGISTRY, assert_registered, methodology, registry_snapshot
@@ -61,6 +62,10 @@ def test_registered_risk_and_performance_formulas():
     assert reward_risk(100, 130, 90) == 3
     assert sharpe_ratio([.01, -.01, .02]) == pytest.approx(6.928203, rel=.01)
     assert sortino_ratio([.01, -.01, .02]) > 0
+    assert downside_deviation([.01, -.01, .02]) > 0
+    assert interest_coverage(100, -20) == 5
+    assert return_on_equity(20, 90, 110) == pytest.approx(.2)
+    assert return_on_assets(10, 190, 210) == pytest.approx(.05)
 
 
 @pytest.mark.parametrize(("row","expected"), [

@@ -17,6 +17,20 @@ TECHNICAL_STATES = {
     "NO_SETUP", "SETUP_FORMING", "NEAR_BREAKOUT", "BREAKOUT_CONFIRMED", "EXTENDED", "FAILED_BREAKOUT",
 }
 
+def thesis_style_violations(text: str) -> tuple[str, ...]:
+    """Client-language checks only; this function has no investment authority."""
+    copy=" ".join(str(text or "").split()); issues=[]
+    sentences=[part for part in re.split(r"(?<=[.!?])\s+",copy) if part]
+    if any(len(sentence.split())>65 for sentence in sentences): issues.append("OVERLY_LONG_SENTENCE")
+    if len(re.findall(r"\b(?:score|confidence|coverage|pillar)\b",copy,re.I))>=4: issues.append("EXCESSIVE_SCORE_LISTING")
+    if len(re.findall(r"\bATLAS sees\b",copy,re.I))>=2: issues.append("REPEATED_ATLAS_SEES")
+    if re.search(r"\b(?:all gates passed|governed gates|reason codes?|policy version)\b",copy,re.I): issues.append("MECHANICAL_INTERNAL_TONE")
+    jargon=set(re.findall(r"\b(?:WACC|FCFF|ROIC|beta|terminal value|terminal growth|EV/EBITDA|estimate revisions?)\b",copy,re.I))
+    if len(jargon)>5: issues.append("EXCESSIVE_JARGON_DENSITY")
+    if jargon and not re.search(r"\b(?:because|which|meaning|means|so |reflects|depends|sensitive)\b",copy,re.I): issues.append("MISSING_EDUCATIONAL_INTERPRETATION")
+    if copy and not re.search(r"\b(?:risk|uncertain|sensitive|could weaken|depends|but|too weak|incomplete|deteriorat)\b",copy,re.I): issues.append("MISSING_RISK_EXPLANATION")
+    return tuple(issues)
+
 
 def _valuation_comparison(card: Mapping[str, Any]) -> dict[str, Any]:
     atlas = card.get("atlas_fair_value") if str(card.get("atlas_valuation_status") or "").upper() == "PUBLISHED" else None
@@ -174,6 +188,8 @@ def deterministic_summary(payload: Mapping[str, Any]) -> str:
     # A profile can be several paragraphs long. The thesis needs the core
     # business model, not a pasted company biography.
     business_summary = next((part.strip() for part in re.split(r"(?<=[.!?])\s+", raw_business_summary) if part.strip()), "").rstrip(".")
+    if len(business_summary.split()) > 22:
+        business_summary = ""
     industry = str(company_evidence.get("industry") or "").strip().lower()
     domain = f" in {industry}" if industry else ""
     company_context = f"{business_summary}; " if business_summary else ""
@@ -202,8 +218,16 @@ def deterministic_summary(payload: Mapping[str, Any]) -> str:
         if business_summary or financial else
         f"Company-specific financial evidence is not available for {company}, so this view is limited to its developing market setup."
     ))
-    if industry:
-        opening += f" The central business lever is demand, pricing, and execution in {industry}, which directly shapes the earnings and valuation case."
+    industry_driver = (
+        "coal volumes, realized pricing, and mining costs are the operating variables to watch" if "coal" in industry else
+        "commodity realizations, refining economics, and capital discipline are the operating variables to watch" if "oil & gas" in industry else
+        "product demand, clinical execution, and portfolio durability are the operating variables to watch" if any(token in industry for token in ("drug", "biotech", "pharma")) else
+        "customer demand, recurring economics, and margin execution are the operating variables to watch" if "software" in industry else
+        "sales demand, pricing, and margin execution are the operating variables to watch" if "retail" in industry else
+        "industry demand, pricing, and execution are the operating variables to watch" if industry else ""
+    )
+    if industry_driver:
+        opening = opening.rstrip(".") + f"; {industry_driver}."
     if atlas.get("status") == "PUBLISHED" and atlas.get("expected_return") is not None and float(atlas["expected_return"]) <= 0:
         opening = f"{company_context}{company}'s operating case is supported by {support}{domain}, but the current price already exceeds ATLAS's professionally derived base fair value."
 
@@ -227,7 +251,8 @@ def deterministic_summary(payload: Mapping[str, Any]) -> str:
             " Only one complete professional method is available, limiting valuation confidence."
             if "MODEL_CONCENTRATION_SINGLE_METHOD" in uncertainty_flags else ""
         )
-        valuation_sentence = f"From a current price of ${float(payload.get('price')):.2f}, ATLAS's ${float(atlas['target']):.2f} fair value implies {float(atlas.get('expected_return') or 0):.1f}% upside, supported by {rationale}.{uncertainty_note}"
+        support_phrase = f"the model evidence that {rationale}" if "contributes" in rationale.lower() else rationale
+        valuation_sentence = f"From a current price of ${float(payload.get('price')):.2f}, ATLAS's ${float(atlas['target']):.2f} fair value implies {float(atlas.get('expected_return') or 0):.1f}% upside, supported by {support_phrase}.{uncertainty_note}"
     else:
         valuation_sentence = "ATLAS has not published a fair value because the available valuation evidence is insufficient."
 
@@ -249,7 +274,7 @@ def deterministic_summary(payload: Mapping[str, Any]) -> str:
     catalyst = next(iter(payload.get("commercial_catalysts") or ()), {})
     catalyst_impact = str(catalyst.get('evidence_summary') or 'may affect forward estimates and execution').strip().rstrip('.')
     catalyst_impact = catalyst_impact[:1].lower() + catalyst_impact[1:] if catalyst_impact else "may affect forward estimates and execution"
-    catalyst_sentence = f"The latest material catalyst is “{str(catalyst.get('headline')).strip().rstrip('.!?')},” which {catalyst_impact}." if catalyst.get("headline") else "No licensed company-specific catalyst is available, so the thesis rests on financial, valuation, and market evidence."
+    catalyst_sentence = f"The latest material catalyst is “{str(catalyst.get('headline')).strip().rstrip('.!?')},” which {catalyst_impact}." if catalyst.get("headline") else ""
     catalyst_sentence = catalyst_sentence.replace(" .", ".")
 
     reasons = set(payload.get("reason_codes") or ())
@@ -268,8 +293,13 @@ def deterministic_summary(payload: Mapping[str, Any]) -> str:
     if isinstance(risk, (list, tuple)): risk = next((str(item) for item in risk if item), None)
     if risk and re.search(r"no (?:major )?(?:financial )?(?:red flag|risk)", str(risk), re.I): risk = None
     risk_copy = str(risk).strip().rstrip(".") if risk else blocker
-    action_sentence = f"The key risk is {risk_copy}; ATLAS's {action} stance reflects that {blocker}."
-    return " ".join((opening, valuation_sentence, street_sentence, catalyst_sentence, action_sentence))
+    action_reason = (
+        "the financial, valuation, risk, and entry evidence currently align" if action == "BUY NOW" else
+        "the opportunity is attractive, but a staged position better reflects the remaining uncertainty" if action == "BUILD A POSITION" else
+        blocker
+    )
+    action_sentence = f"The risk to watch is {risk_copy}; ATLAS's {action} stance reflects that {action_reason}."
+    return " ".join(part for part in (opening, valuation_sentence, street_sentence, catalyst_sentence, action_sentence) if part)
 
 
 def _numbers(value: Any) -> list[float]:
@@ -289,7 +319,7 @@ def _numbers(value: Any) -> list[float]:
 
 def validate_summary(text: str, payload: Mapping[str, Any]) -> dict[str, Any]:
     copy = " ".join(str(text or "").split())
-    violations: list[str] = []
+    violations: list[str] = list(thesis_style_violations(copy))
     if not 3 <= len([part for part in re.split(r"(?<=[.!?])\s+", copy) if part]) <= 5:
         violations.append("SENTENCE_COUNT")
     # The product contract permits the fixed investment horizon; it is not an
@@ -463,4 +493,4 @@ def audit_summary_differentiation(
     return {"threshold": threshold, "flagged_pairs": flagged, "passed": not flagged}
 
 
-__all__ = ["SUMMARY_VERSION", "audit_summary_differentiation", "build_summary_payload", "deterministic_summary", "generate_summaries", "llm_configuration_status", "validate_summary"]
+__all__ = ["SUMMARY_VERSION", "audit_summary_differentiation", "build_summary_payload", "deterministic_summary", "generate_summaries", "llm_configuration_status", "thesis_style_violations", "validate_summary"]

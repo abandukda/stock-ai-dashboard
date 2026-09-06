@@ -68,11 +68,14 @@ def render_developer_center(
         governed = methodology_health(artifact if isinstance(artifact, list) else [],performance_snapshot_count=snapshot_count)
         volume_rows=build_volume_screener(artifact if isinstance(artifact,list) else [])
         with st.expander("Institutional Methodology Health", expanded=True):
-            st.caption(f"Registry {governed['methodology_registry_version']} · Valuation {governed['valuation_methodology_version']}")
+            st.caption(f"Registry {governed['methodology_registry_version']} · Valuation {governed['valuation_methodology_version']} · Macro assumptions {governed['macro_assumption_version']}")
             columns=st.columns(4)
             for index,(label,key) in enumerate((("V2 Published","published_count"),("Stale Evidence","stale_evidence_count"),("High Dispersion","high_model_dispersion_count"),("High Terminal Dependence","high_terminal_dependence_count"),("WACC Below Treasury","wacc_below_risk_free_count"),("Single Method","single_model_count"),("Version Mismatches","methodology_mismatch_count"),("Home/Research Mismatches","home_research_mismatch_count"))):
                 columns[index%4].metric(label,governed[key])
             more=st.columns(4);more[0].metric("Performance Snapshots",snapshot_count);more[1].metric("Matured Performance",governed["matured_performance_count"]);more[2].metric("Volume Candidates",len(volume_rows));more[3].metric("Breakouts",sum(x["volume_state"]=="BREAKOUT_CONFIRMED" for x in volume_rows))
+            st.caption(f'High-volume population: {sum(x["volume_state"] in {"VOLUME_SURGE","HIGH_VOLUME_NO_ACTION","BREAKOUT_CONFIRMED","FAILED_BREAKOUT"} for x in volume_rows)}')
+            if governed["matured_performance_count"] == 0:
+                st.info("Performance analytics will appear after the first completed trading-session horizon matures. No client performance claim is published before then.")
     except Exception:
         st.warning("Institutional methodology health is temporarily unavailable; canonical outputs remain unchanged.")
     deep_path = Path("audit_results/deep_qa/atlas_deep_qa.json")
