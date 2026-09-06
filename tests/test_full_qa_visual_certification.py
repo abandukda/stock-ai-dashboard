@@ -22,6 +22,7 @@ def test_master_visual_workflow_captures_required_surfaces_before_promotion():
     assert "Volume Intelligence" in Path("agents/full_qa_visual_certification.py").read_text()
     assert "Developer Center" in Path("agents/full_qa_visual_certification.py").read_text()
     assert 'ATLAS_FOUNDER_GUIDANCE_V1_ENABLED: "true"' in source
+    assert "atlas-full-qa-${{ steps.candidate.outputs.run_id }}" in source
     assert source.index("Capture and validate desktop/mobile customer surfaces") < source.index("Finalize certification and promote atomically")
 
 

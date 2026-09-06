@@ -9,13 +9,13 @@ on:
   workflow_dispatch:
     inputs:
       candidate_run_id:
-        description: "Overnight Market Scan run ID; leave blank to generate a candidate"
+        description: "Overnight run ID, or qa:<run ID> to reuse a QA candidate; blank generates"
         required: false
         type: string
   workflow_call:
     inputs:
       candidate_run_id:
-        description: "Overnight Market Scan run ID; leave blank to generate a candidate"
+        description: "Overnight run ID, or qa:<run ID> to reuse a QA candidate; blank generates"
         required: false
         type: string
     secrets:
@@ -100,14 +100,29 @@ jobs:
           DISPATCH_RUN_ID: ${{ inputs.candidate_run_id }}
         run: |
           candidate_run_id="${WORKFLOW_RUN_ID:-${DISPATCH_RUN_ID:-}}"
+          if [[ "$candidate_run_id" == qa:* ]]; then
+            echo "candidate_kind=qa" >> "$GITHUB_OUTPUT"
+            candidate_run_id="${candidate_run_id#qa:}"
+          else
+            echo "candidate_kind=overnight" >> "$GITHUB_OUTPUT"
+          fi
           echo "run_id=${candidate_run_id}" >> "$GITHUB_OUTPUT"
 
       - name: Download exact overnight candidate
-        if: steps.candidate.outputs.run_id != ''
+        if: steps.candidate.outputs.run_id != '' && steps.candidate.outputs.candidate_kind == 'overnight'
         uses: actions/download-artifact@v4
         with:
           name: atlas-scan-candidate-${{ steps.candidate.outputs.run_id }}
           path: audit_results/candidate_artifacts
+          run-id: ${{ steps.candidate.outputs.run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Reuse exact candidate from prior QA attempt
+        if: steps.candidate.outputs.run_id != '' && steps.candidate.outputs.candidate_kind == 'qa'
+        uses: actions/download-artifact@v4
+        with:
+          name: atlas-full-qa-${{ steps.candidate.outputs.run_id }}
+          path: .
           run-id: ${{ steps.candidate.outputs.run_id }}
           github-token: ${{ github.token }}
 
