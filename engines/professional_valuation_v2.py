@@ -30,14 +30,14 @@ def _first(row: Mapping[str, Any], *keys: str) -> Any:
 
 
 def classify_company(row: Mapping[str, Any]) -> str:
-    security = str(_first(row, "security_type", "asset_type") or "").upper()
+    security = str(_first(row, "security_type", "asset_type", "provider_security_type") or "").upper()
     sector = str(row.get("sector") or "").lower(); industry = str(row.get("industry") or "").lower()
     profitable = (_number(_first(row, "forward_eps", "net_income", "latest_eps")) or 0) > 0
     if security == "ETF" or "exchange traded fund" in industry: return "ETF"
     if "reit" in industry or "real estate investment trust" in industry: return "REIT"
     if "bank" in industry: return "BANK"
     if "insurance" in industry: return "INSURER"
-    if "biotech" in industry and not profitable: return "PRE_PROFIT_BIOTECH"
+    if "biotech" in industry and ((_number(row.get("net_income")) or 0) <= 0): return "PRE_PROFIT_BIOTECH"
     if "pharma" in industry or "drug manufacturer" in industry: return "PROFITABLE_PHARMA" if profitable else "PRE_PROFIT_BIOTECH"
     if "software" in industry and (_number(row.get("revenue_growth")) or 0) > .15: return "HIGH_GROWTH_SOFTWARE"
     if any(word in industry for word in ("gold", "copper", "oil & gas", "mining")): return "COMMODITY_PRODUCER"
@@ -49,7 +49,8 @@ def _model(methodology_id: str, *, status: str, value: float | None = None, conf
            coverage: float = 0, fiscal_period: str | None = None, assumptions: Mapping[str, Any] | None = None,
            reason: str | None = None) -> dict[str, Any]:
     method = assert_registered(methodology_id, standard_name=True)
-    return {"methodology_id": method.methodology_id, "name": method.name, "status": status,
+    eligibility = {PUBLISHED:"ELIGIBLE_COMPLETE", INSUFFICIENT_INPUTS:"ELIGIBLE_INCOMPLETE", NOT_APPLICABLE:"NOT_APPLICABLE", VALIDATION_FAILED:"FAILED_VALIDATION"}.get(status,"FAILED_VALIDATION")
+    return {"methodology_id": method.methodology_id, "name": method.name, "status": status, "eligibility_state": eligibility,
             "value": round(value, 4) if value is not None else None, "confidence": confidence,
             "evidence_coverage": coverage, "fiscal_period": fiscal_period,
             "key_assumptions": dict(assumptions or {}), "reason": reason}
@@ -82,6 +83,8 @@ def _dcf(row: Mapping[str, Any], company_type: str) -> dict[str, Any]:
     except ValueError as exc:
         return _model("VAL_FCFF_DCF_V1", status=INSUFFICIENT_INPUTS, reason=str(exc))
     terminal_share = result["terminal_value_pct_of_enterprise_value"]
+    if result["per_share_value"] <= 0:
+        return _model("VAL_FCFF_DCF_V1", status=VALIDATION_FAILED, reason="NONPOSITIVE_EQUITY_VALUE")
     confidence = 75 if terminal_share <= .75 else 55
     return _model("VAL_FCFF_DCF_V1", status=PUBLISHED, value=result["per_share_value"], confidence=confidence, coverage=1,
                   assumptions={**values, "forecast_fcff": tuple(fcffs), "terminal_value_pct_of_enterprise_value": terminal_share})
@@ -94,7 +97,9 @@ def _ev_ebitda(row: Mapping[str, Any], company_type: str) -> dict[str, Any]:
     debt = _number(row.get("total_debt")); cash = _number(row.get("cash_and_equivalents")); basis = row.get("justified_ev_ebitda_basis")
     if None in (ebitda,multiple,shares,debt,cash) or not basis or shares <= 0 or multiple <= 0:
         return _model("VAL_EV_EBITDA_V1", status=INSUFFICIENT_INPUTS, reason="FORWARD_EBITDA_MULTIPLE_OR_CAPITAL_INPUTS_MISSING")
-    return _model("VAL_EV_EBITDA_V1", status=PUBLISHED, value=(ebitda*multiple-debt+cash)/shares, confidence=75, coverage=1,
+    value=(ebitda*multiple-debt+cash)/shares
+    if value <= 0: return _model("VAL_EV_EBITDA_V1", status=VALIDATION_FAILED, reason="NONPOSITIVE_EQUITY_VALUE")
+    return _model("VAL_EV_EBITDA_V1", status=PUBLISHED, value=value, confidence=75, coverage=1,
                   assumptions={"forward_ebitda":ebitda,"multiple":multiple,"multiple_basis":basis,"net_debt":debt-cash})
 
 
@@ -177,7 +182,9 @@ def value_company(row: Mapping[str, Any], *, as_of: str | None = None, _scenario
         # Scenarios alter model inputs upstream. Until scenario inputs exist,
         # bear/bull are deliberately unavailable rather than ±% decorations.
         confidence = sum(model["confidence"]*model["weight"] for model in valid)
-    else: base=low=high=confidence=None
+        concentration = "SINGLE METHOD" if len(valid) == 1 else "MULTI METHOD"
+        if len(valid) == 1: confidence = min(confidence, 65)
+    else: base=low=high=confidence=None; concentration=None
     lineage = dict(row.get("valuation_lineage") or {}) if isinstance(row.get("valuation_lineage"), Mapping) else {}
     for metric, source_key, period_key in (
         ("forward_eps", "forward_eps_source", "forward_eps_period"),
@@ -192,6 +199,8 @@ def value_company(row: Mapping[str, Any], *, as_of: str | None = None, _scenario
     if valid and not _scenario_run:
         bear = _scenario_value(row, "bear", company_type)
         bull = _scenario_value(row, "bull", company_type)
+        if bear is not None and bear >= base: bear = None
+        if bull is not None and bull <= base: bull = None
     blockers = tuple(dict.fromkeys(model.get("reason") for model in models if model.get("status") in {INSUFFICIENT_INPUTS, VALIDATION_FAILED} and model.get("reason")))
     return {"version":VERSION,"status":status,"company_type":company_type,
             "atlas_base_fair_value":round(base,2) if base else None,"atlas_fair_value_low":round(low,2) if low else None,
@@ -200,6 +209,7 @@ def value_company(row: Mapping[str, Any], *, as_of: str | None = None, _scenario
             "valuation_confidence":round(confidence,1) if confidence is not None else None,
             "valuation_as_of":as_of or datetime.now(timezone.utc).isoformat(),"valuation_methodology_version":VERSION,
             "models":models,"model_weights": {model["methodology_id"]: model.get("weight") for model in valid},
+            "model_concentration": concentration,
             "weighting_basis": f"Deterministic company-type reconciliation for {company_type}",
             "reason":reason,"blockers":blockers,"wall_street_used":False,
             "lineage":lineage,

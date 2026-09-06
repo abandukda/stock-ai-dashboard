@@ -188,9 +188,15 @@ def deterministic_summary(payload: Mapping[str, Any]) -> str:
         if business_summary or financial else
         f"Company-specific financial evidence is not available for {company}, so this view is limited to its developing market setup."
     ))
+    if atlas.get("status") == "PUBLISHED" and atlas.get("expected_return") is not None and float(atlas["expected_return"]) <= 0:
+        opening = f"{company_context}{company}'s operating case is supported by {support}{domain}, but the current price already exceeds ATLAS's professionally derived base fair value."
 
     if atlas.get("status") == "PUBLISHED" and atlas.get("target") is not None:
         inputs = []
+        professional = dict(atlas.get("professional_valuation_v2") or {})
+        published_models = [model for model in professional.get("models") or () if model.get("status") == "PUBLISHED"]
+        if published_models:
+            inputs.append(" and ".join(str(model.get("name")) for model in published_models[:2]))
         if drivers.get("forward_eps") is not None: inputs.append(f"forward EPS of ${float(drivers['forward_eps']):.2f}")
         if drivers.get("justified_pe") is not None: inputs.append(f"a {float(drivers['justified_pe']):.1f}× justified earnings multiple")
         if pct(drivers.get("growth_input_pct")): inputs.append(f"a {pct(drivers['growth_input_pct'])} growth input")

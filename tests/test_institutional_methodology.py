@@ -174,3 +174,17 @@ def test_certified_v2_is_activated_ticker_by_ticker_and_context_cannot_change_it
     assert with_context["atlas_valuation"]["fair_value"] == 132
     assert with_context["atlas_valuation"]["legacy_v1_audit"]["canonical"] is False
     assert with_context["guidance"] == changed_context["guidance"]
+
+
+def test_unpublished_v2_never_falls_back_to_legacy_v1_canonical_value():
+    result = build_canonical_evaluation(
+        ticker="MISS", evaluation_mode="ON_DEMAND",
+        market_snapshot={"price":100,"provider_timestamp":"2026-09-05T20:00:00Z","latest_completed_session_valid":True},
+        technical={"status":"AVAILABLE","state":"SETUP_FORMING","score":70,"as_of":"2026-09-05","feed_health":"HEALTHY","completed_bar":True,"evidence":{}},
+        fundamentals={"status":"AVAILABLE","score":70,"data":{}}, risk={"status":"AVAILABLE","as_of":"2026-09-05"},
+        trade_plan={"entry_low":95,"entry_high":105,"stop":90,"target":125,"risk_reward":2},
+        valuation_inputs={"forward_eps":5,"atlas_valuation_justified_pe":25}, evaluated_at="2026-09-05T20:00:00Z",
+    )
+    valuation=result["atlas_valuation"]
+    assert valuation["status"] == "DATA_UNAVAILABLE" and valuation["fair_value"] is None
+    assert valuation["legacy_v1_audit"]["canonical"] is False

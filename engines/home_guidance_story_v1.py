@@ -234,8 +234,10 @@ def build_home_guidance_candidate(
     guidance = evaluation.get("guidance") if isinstance(evaluation.get("guidance"), Mapping) else {}
     actionability = evaluation.get("actionability") if isinstance(evaluation.get("actionability"), Mapping) else {}
     valuation = evaluation.get("atlas_valuation") if isinstance(evaluation.get("atlas_valuation"), Mapping) else {}
-    valuation_status = str(valuation.get("status") or atlas_valuation_status(row) or "DATA_UNAVAILABLE")
-    fair_value = valuation.get("fair_value") if valuation_status == "PUBLISHED" else None
+    professional = valuation.get("professional_valuation_v2") if isinstance(valuation.get("professional_valuation_v2"), Mapping) else {}
+    professional_governed = bool(professional)
+    valuation_status = str(professional.get("status") if professional_governed else valuation.get("status") or atlas_valuation_status(row) or "DATA_UNAVAILABLE")
+    fair_value = professional.get("atlas_base_fair_value") if valuation_status == "PUBLISHED" and professional_governed else valuation.get("fair_value") if valuation_status == "PUBLISHED" else None
     expected_return = valuation.get("expected_return") if valuation_status == "PUBLISHED" and fair_value is not None else None
     street = analyst_consensus(row)
     internal = internal_trial_mode()

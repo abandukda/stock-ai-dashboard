@@ -14,6 +14,7 @@ from typing import Any, Callable, Mapping, Sequence
 
 import requests
 
+from engines.institutional_formulas import beta as calculate_beta
 from engines.research_context import build_production_decision
 from services.data_mode_policy import internal_trial_mode
 from services.live_market.twelve_data_phase1 import (
@@ -25,7 +26,7 @@ from services.twelve_data_trial_intelligence import acquire_twelve_trial_dossier
 
 
 VERSION = "ATLAS_FULL_UNIVERSE_DECISION_PUBLICATION_V1"
-FUNDAMENTAL_PRIMARY_ENDPOINTS = ("statistics",)
+FUNDAMENTAL_PRIMARY_ENDPOINTS = ("profile", "statistics", "income_statement", "balance_sheet", "cash_flow")
 FUNDAMENTAL_FALLBACK_ENDPOINTS = ("income_statement", "balance_sheet", "cash_flow")
 ESTIMATE_ENDPOINTS = ("earnings_estimate", "revenue_estimate")
 
@@ -95,11 +96,7 @@ def acquire_full_universe_decisions(
         )
         for symbol, dossier in (fallback.get("dossiers") or {}).items():
             dossiers[symbol] = _merge_dossiers(dossiers.get(symbol) or {}, dossier)
-    estimate_symbols = []
-    for row in clean_rows:
-        enriched = normalize_trial_dossier(row, dossiers.get(_ticker(row)) or {})
-        if enriched.get("forward_eps") is None or enriched.get("forward_revenue") is None:
-            estimate_symbols.append(_ticker(row))
+    estimate_symbols = list(symbols)
     estimates = {"dossiers": {}, "provider_calls": 0, "successful_calls": 0}
     if estimate_symbols:
         estimates = acquire_twelve_trial_dossiers(
@@ -123,18 +120,43 @@ def acquire_full_universe_decisions(
                                 "reason_codes": (type(exc).__name__.upper(),)}
 
     with ThreadPoolExecutor(max_workers=max(1, int(max_workers))) as pool:
-        futures = [pool.submit(fetch_history, symbol) for symbol in symbols]
+        futures = [pool.submit(fetch_history, symbol) for symbol in tuple(dict.fromkeys((*symbols, "SPY")))]
         for future in as_completed(futures):
             symbol, payload, meta = future.result()
             histories[symbol] = payload
             history_telemetry[symbol] = meta
 
+    def returns(payload: Mapping[str, Any]) -> dict[str, float]:
+        closes = {}
+        for item in payload.get("values") or ():
+            try: closes[str(item["datetime"])[:10]] = float(item["close"])
+            except (KeyError, TypeError, ValueError): continue
+        dates = sorted(closes)
+        return {b: closes[b] / closes[a] - 1 for a, b in zip(dates, dates[1:]) if closes[a] > 0}
+
+    market_returns = returns(histories.get("SPY") or {})
+    normalized = []
+    for row in clean_rows:
+        enriched = normalize_trial_dossier(row, dossiers.get(_ticker(row)) or {})
+        if enriched.get("beta") is None and _ticker(row) != "SPY":
+            stock_returns = returns(histories.get(_ticker(row)) or {})
+            aligned = sorted(set(stock_returns) & set(market_returns))
+            if len(aligned) >= 60:
+                try:
+                    enriched["beta"] = calculate_beta([stock_returns[day] for day in aligned], [market_returns[day] for day in aligned])
+                    enriched["beta_methodology"] = "RISK_BETA_V1"
+                    enriched["beta_lookback_sessions"] = len(aligned)
+                except ValueError: pass
+        normalized.append(enriched)
+    from services.professional_valuation_evidence import apply_peer_multiple_evidence
+    prepared_rows = apply_peer_multiple_evidence(normalized)
+    prepared_by_symbol = {_ticker(row): row for row in prepared_rows}
     evaluations: dict[str, Any] = {}
     diagnostics: dict[str, Any] = {}
     for row in clean_rows:
         symbol = _ticker(row)
         try:
-            enriched = normalize_trial_dossier(row, dossiers.get(symbol) or {})
+            enriched = prepared_by_symbol[symbol]
             daily_payload = histories.get(symbol) or {}
             bundle = build_phase1_bundle(
                 symbol, websocket_event=None, time_series_payload=None,
@@ -164,6 +186,11 @@ def acquire_full_universe_decisions(
                     "forward_estimate_evidence", "financial_reporting_period", "professional_evidence_lineage",
                     "market_cap", "diluted_shares", "forward_ebitda", "ebit", "capital_expenditures",
                     "depreciation_amortization", "beta",
+                    "forecast_fcff", "forecast_detail", "wacc", "terminal_growth", "cost_of_equity",
+                    "cost_of_debt", "risk_free_rate", "equity_risk_premium", "market_assumption_lineage",
+                    "sensitivity_wacc", "sensitivity_terminal_growth", "deterministic_peer_set",
+                    "justified_forward_pe", "justified_forward_pe_basis", "justified_forward_pe_range",
+                    "justified_ev_ebitda", "justified_ev_ebitda_basis", "justified_ev_ebitda_range",
                 ) if enriched.get(key) is not None
             }
             evaluations[symbol] = evaluation
@@ -191,14 +218,14 @@ def acquire_full_universe_decisions(
     }
     valuation_status_counts = dict(Counter(item.get("valuation_status") or "DATA_UNAVAILABLE" for item in diagnostics.values()))
     provider_calls = (int(primary.get("provider_calls") or 0) + int(fallback.get("provider_calls") or 0)
-                      + int(estimates.get("provider_calls") or 0) + len(symbols))
+                      + int(estimates.get("provider_calls") or 0) + len(history_telemetry))
     return {
         "version": VERSION, "status": "AVAILABLE" if evaluations else "DATA_UNAVAILABLE",
         "evaluations": evaluations, "diagnostics": diagnostics, "provider_calls": provider_calls,
         "fundamental_primary_calls": int(primary.get("provider_calls") or 0),
         "fundamental_fallback_calls": int(fallback.get("provider_calls") or 0),
         "estimate_calls": int(estimates.get("provider_calls") or 0),
-        "technical_history_calls": len(symbols), "technical_history_http_successes": history_http_successes,
+        "technical_history_calls": len(history_telemetry), "technical_history_http_successes": history_http_successes,
         "technical_history_successes": successful_histories,
         "fundamental_family_counts": family_counts,
         "valuation_status_counts": valuation_status_counts,

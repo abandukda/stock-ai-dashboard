@@ -191,6 +191,11 @@ def acquire_home_phase1_evaluations(
                         "forward_estimate_evidence", "financial_reporting_period", "professional_evidence_lineage",
                         "market_cap", "diluted_shares", "forward_ebitda", "ebit", "capital_expenditures",
                         "depreciation_amortization", "beta",
+                        "forecast_fcff", "forecast_detail", "wacc", "terminal_growth", "cost_of_equity",
+                        "cost_of_debt", "risk_free_rate", "equity_risk_premium", "market_assumption_lineage",
+                        "sensitivity_wacc", "sensitivity_terminal_growth", "deterministic_peer_set",
+                        "justified_forward_pe", "justified_forward_pe_basis", "justified_forward_pe_range",
+                        "justified_ev_ebitda", "justified_ev_ebitda_basis", "justified_ev_ebitda_range",
                     ) if evaluation_row.get(key) is not None
                 }
             evaluations[symbol] = evaluation

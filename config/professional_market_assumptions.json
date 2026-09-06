@@ -1,0 +1,17 @@
+{
+  "version": "ATLAS_US_MARKET_ASSUMPTIONS_2026_07_01",
+  "currency": "USD",
+  "risk_free_rate": 0.0445,
+  "risk_free_rate_as_of": "2026-07-01",
+  "risk_free_rate_source": "U.S. Treasury 10-year par yield used by the ERP source",
+  "equity_risk_premium": 0.0418,
+  "equity_risk_premium_as_of": "2026-07-01",
+  "equity_risk_premium_source": "Aswath Damodaran implied ERP, trailing 12-month adjusted payout",
+  "terminal_growth": 0.025,
+  "terminal_growth_basis": "Long-run nominal growth assumption below the risk-free rate",
+  "maximum_assumption_age_days": 180,
+  "sources": [
+    "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?field_tdr_date_value=2026&type=daily_treasury_yield_curve",
+    "https://pages.stern.nyu.edu/~adamodar/New_Home_Page/home.htm"
+  ]
+}

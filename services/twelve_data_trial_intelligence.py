@@ -134,6 +134,8 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
     payload = lambda family: (families.get(family) or {}).get("payload") or {}
     stats = _nested(payload("statistics"), "statistics") or {}
     financials = _nested(stats, "financials") or {}
+    valuation_stats = _nested(stats, "valuations_metrics") or {}
+    stock_stats = _nested(stats, "stock_statistics") or {}
     income_stats = _nested(financials, "income_statement") or {}
     balance_stats = _nested(financials, "balance_sheet") or {}
     cash_stats = _nested(financials, "cash_flow") or {}
@@ -148,16 +150,20 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
         "current_ratio": balance_stats.get("current_ratio_mrq"),
         "latest_revenue": _coalesce(income_stats.get("revenue_ttm"), income.get("sales")),
         "latest_operating_income": income.get("operating_income"),
+        "net_income": income.get("net_income"),
         "operating_cash_flow": _coalesce(cash_stats.get("operating_cash_flow_ttm"), _nested(cash, "operating_activities", "operating_cash_flow")),
-        "total_debt": _coalesce(balance_stats.get("total_debt_mrq"), _nested(balance, "liabilities", "total_liabilities")),
+        "total_debt": _coalesce(balance_stats.get("total_debt_mrq"), _nested(balance, "liabilities", "current_liabilities", "short_term_debt") if _nested(balance, "liabilities", "non_current_liabilities", "long_term_debt") is None else (_nested(balance, "liabilities", "current_liabilities", "short_term_debt") or 0) + (_nested(balance, "liabilities", "non_current_liabilities", "long_term_debt") or 0)),
         "cash_and_equivalents": _coalesce(balance_stats.get("total_cash_mrq"), _nested(balance, "assets", "current_assets", "cash_and_cash_equivalents")),
-        "market_cap": _coalesce(stats.get("market_capitalization"), stats.get("market_cap")),
-        "diluted_shares": _coalesce(income.get("weighted_average_shares_diluted"), income.get("diluted_average_shares"), stats.get("shares_outstanding")),
-        "forward_ebitda": _coalesce(financials.get("ebitda_ttm"), income.get("ebitda")),
+        "market_cap": _coalesce(valuation_stats.get("market_capitalization"), stats.get("market_capitalization"), stats.get("market_cap")),
+        "diluted_shares": _coalesce(income.get("diluted_shares_outstanding"), income.get("weighted_average_shares_diluted"), income.get("diluted_average_shares"), stock_stats.get("shares_outstanding")),
+        "basic_shares": _coalesce(income.get("basic_shares_outstanding"), stock_stats.get("shares_outstanding")),
+        "forward_ebitda": _coalesce(_nested(financials,"income_statement","ebitda"), financials.get("ebitda_ttm"), income.get("ebitda")),
         "ebit": _coalesce(income.get("ebit"), income.get("operating_income")),
-        "capital_expenditures": _coalesce(cash_stats.get("capital_expenditures_ttm"), cash.get("capital_expenditures")),
-        "depreciation_amortization": _coalesce(cash.get("depreciation_and_amortization"), cash.get("depreciation")),
-        "beta": stats.get("beta"),
+        "capital_expenditures": _coalesce(cash_stats.get("capital_expenditures_ttm"), _nested(cash,"investing_activities","capital_expenditures"), cash.get("capital_expenditures")),
+        "depreciation_amortization": _coalesce(_nested(cash,"operating_activities","depreciation"), cash.get("depreciation_and_amortization"), cash.get("depreciation")),
+        "beta": _coalesce(stock_stats.get("beta"), stats.get("beta")),
+        "provider_forward_pe": valuation_stats.get("forward_pe"),
+        "provider_ev_ebitda": valuation_stats.get("enterprise_to_ebitda"),
     }
     for key, value in values.items():
         if output.get(key) in (None, "", "Unavailable") and value is not None:
@@ -166,19 +172,22 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
     if isinstance(profile, Mapping):
         for target, source in (("description", "description"), ("sector", "sector"), ("industry", "industry")):
             if not output.get(target) and profile.get(source): output[target] = profile[source]
+        if not output.get("security_type") and profile.get("type"): output["security_type"] = profile["type"]
     eps_est = _forward_estimate_record(payload("earnings_estimate"), "earnings_estimate")
     rev_est = _forward_estimate_record(payload("revenue_estimate"), "revenue_estimate")
     eps_records = _forward_estimate_records(payload("earnings_estimate"), "earnings_estimate")
     rev_records = _forward_estimate_records(payload("revenue_estimate"), "revenue_estimate")
     if output.get("forward_eps") is None and eps_est.get("avg_estimate") is not None:
         output["forward_eps"] = eps_est["avg_estimate"]
-        output["forward_eps_period"] = eps_est.get("period")
+        output["forward_eps_period"] = eps_est.get("date")
+        output["forward_eps_period_label"] = eps_est.get("period")
         output["forward_eps_period_type"] = "ANNUAL"
         output["forward_eps_basis"] = str(eps_est.get("basis") or "UNKNOWN").upper()
         output["forward_eps_source"] = "TWELVE_DATA"
     if output.get("forward_revenue") is None and rev_est.get("avg_estimate") is not None:
         output["forward_revenue"] = rev_est["avg_estimate"]
-        output["forward_revenue_period"] = rev_est.get("period")
+        output["forward_revenue_period"] = rev_est.get("date")
+        output["forward_revenue_period_label"] = rev_est.get("period")
         output["forward_revenue_period_type"] = "ANNUAL"
         output["forward_revenue_basis"] = str(rev_est.get("basis") or "GAAP").upper()
         output["forward_revenue_source"] = "TWELVE_DATA"
@@ -192,10 +201,11 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
     output["professional_evidence_lineage"] = {
         "provider": "TWELVE_DATA", "observed_at": dossier.get("observed_at"),
         "evidence_ids": tuple(dossier.get("evidence_ids") or ()),
-        "forward_eps": {"period": eps_est.get("period"), "period_type": "ANNUAL", "basis": output.get("forward_eps_basis")},
-        "forward_revenue": {"period": rev_est.get("period"), "period_type": "ANNUAL", "basis": output.get("forward_revenue_basis")},
+        "forward_eps": {"period": eps_est.get("date"), "provider_label": eps_est.get("period"), "period_type": "ANNUAL", "basis": output.get("forward_eps_basis")},
+        "forward_revenue": {"period": rev_est.get("date"), "provider_label": rev_est.get("period"), "period_type": "ANNUAL", "basis": output.get("forward_revenue_basis")},
         "financial_reporting_period": output.get("financial_reporting_period"),
     }
+    output["professional_evidence_as_of"] = dossier.get("observed_at")
     output["twelve_trial_dossier"] = dict(dossier)
     output["twelve_trial_evidence_ids"] = tuple(dossier.get("evidence_ids") or ())
     output["fundamental_source"] = output.get("fundamental_source") or "TWELVE_DATA_INTERNAL_TRIAL"

@@ -60,8 +60,8 @@ def test_forward_estimates_use_annual_forward_period_not_quarterly_record():
         ]}},
     }}
     row = normalize_trial_dossier({"ticker": "FWD"}, dossier)
-    assert row["forward_eps"] == 8 and row["forward_eps_period"] == "next_year"
-    assert row["forward_revenue"] == 50 and row["forward_revenue_period"] == "next_year"
+    assert row["forward_eps"] == 8 and row["forward_eps_period"] is None
+    assert row["forward_revenue"] == 50 and row["forward_revenue_period"] is None
     assert row["forward_estimate_evidence"]["eps"]["period"] == "next_year"
     assert row["forward_estimate_evidence"]["evidence_ids"] == ("TD-EPS", "TD-REV")
     assert row["forward_eps_period_type"] == "ANNUAL"

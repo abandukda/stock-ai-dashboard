@@ -800,7 +800,9 @@ def _why_it_could_win(card: Mapping[str, Any]) -> str:
         items.append(("↗", cue, "Price structure is moving toward a stronger technical setup."))
     if str(card.get("entry_relationship") or "") == "WITHIN_ENTRY_RANGE":
         items.append(("◎", "Attractive entry", "Price remains near ATLAS's preferred entry zone."))
-    if str(card.get("atlas_valuation_status") or "").upper() == "PUBLISHED" and card.get("atlas_expected_return") is not None:
+    if (str(card.get("atlas_valuation_status") or "").upper() == "PUBLISHED"
+            and card.get("atlas_expected_return") is not None
+            and float(card["atlas_expected_return"]) > 0):
         items.insert(0, ("$", "Valuation opportunity", "Published ATLAS valuation indicates meaningful potential upside."))
     cells = "".join(f'<span><b>{icon}</b><i>{html.escape(title)}<small>{html.escape(copy)}</small></i></span>' for icon, title, copy in items[:3])
     return f'<div class="atlas-home-win" data-atlas-qa="home-why-win">{cells}</div>' if cells else ""

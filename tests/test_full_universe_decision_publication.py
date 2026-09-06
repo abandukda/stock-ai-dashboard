@@ -52,7 +52,9 @@ def test_full_universe_publication_uses_engine_history_and_preserves_order():
         rows, get=getter, secrets={"TWELVE_DATA_API_KEY": "secret", "TWELVE_DATA_ENABLED": "true", "ATLAS_DATA_MODE": "INTERNAL_TRIAL"},
         environ={}, now=NOW,
     )
-    assert result["provider_calls"] == 4
+    # Four statement/statistics families, two estimate families and one
+    # completed-daily history request per ticker.
+    assert result["provider_calls"] == 17
     assert result["technical_history_successes"] == 2
     for symbol in ("AAA", "BBB"):
         evaluation = result["evaluations"][symbol]
