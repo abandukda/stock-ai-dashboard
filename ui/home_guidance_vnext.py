@@ -221,6 +221,7 @@ def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
         ("Decision Confidence", card.get("decision_confidence"), "pct"),
         ("Evidence Coverage", card.get("component_coverage"), "pct"),
         ("Opportunity Thesis", card.get("opportunity_thesis"), "text"),
+        ("Valuation Confidence", professional.get("valuation_confidence"), "pct"),
         ("Evaluated", _timestamp(card.get("evaluation_timestamp")), "text"),
         ("Discovery Setup Quality", _atlas_score_presentation(card.get("scan_conviction"))["display"], "text"),
     ))
@@ -256,7 +257,11 @@ def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
             continue
         label = str(model.get("name") or "Valuation method")
         if model.get("status") == "PUBLISHED":
-            value = f'{_money(model.get("value"))} · {_score(float(model.get("weight") or 0) * 100, suffix="% weight")} · {_score(model.get("confidence"), suffix="% confidence")}'
+            assumptions = dict(model.get("key_assumptions") or {})
+            key_assumption = assumptions.get("multiple_basis") or (f'WACC {_score(float(assumptions["wacc"])*100, suffix="%")}' if assumptions.get("wacc") is not None else None)
+            period = f' · {model.get("fiscal_period")}' if model.get("fiscal_period") else ''
+            detail = f' · {key_assumption}' if key_assumption else ''
+            value = f'{_money(model.get("value"))} · {_score(float(model.get("weight") or 0) * 100, suffix="% weight")} · {_score(model.get("confidence"), suffix="% confidence")}{period}{detail}'
         elif model.get("status") == "NOT_APPLICABLE":
             value = "Not Applicable"
         else:
@@ -317,17 +322,21 @@ def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
         ("Low Target", street.get("low_target") if street_visible else None, "money"),
         ("High Target", street.get("high_target") if street_visible else None, "money"),
         ("Street Implied Upside", street.get("implied_upside") if street_visible else None, "pct"),
+        ("ATLAS vs Street", explanation.get("atlas_vs_street") if street_visible else None, "text"),
+        ("Data As Of", _timestamp(card.get("evaluation_timestamp")) if street_visible else None, "text"),
     )) if street_visible else '<p class="atlas-home-muted">Wall Street outlook not published in this display mode</p>'
     estimate_evidence = dict(company.get("forward_estimate_evidence") or {})
     estimate_rows = []
-    for label, item in (("Forward EPS", estimate_evidence.get("eps")), ("Forward Revenue", estimate_evidence.get("revenue"))):
-        if isinstance(item, Mapping):
+    for label, singular, plural in (("Forward EPS", "eps", "eps_periods"), ("Forward Revenue", "revenue", "revenue_periods")):
+        period_items = estimate_evidence.get(plural) or ([estimate_evidence.get(singular)] if estimate_evidence.get(singular) else [])
+        for item in period_items:
+          if isinstance(item, Mapping):
             period = item.get("period") or item.get("date")
             average = item.get("avg_estimate") if item.get("avg_estimate") is not None else item.get("average")
             if average is not None:
                 estimate_rows.append((f'{label} · {_display(period)}', average, "money"))
-            for suffix, key in (("Low", "low_estimate"), ("High", "high_estimate"), ("Analysts", "analyst_count")):
-                if item.get(key) is not None: estimate_rows.append((f"{label} {suffix}", item.get(key), "score" if key == "analyst_count" else "money"))
+            for suffix, key in (("Low", "low_estimate"), ("High", "high_estimate"), ("Analysts", "number_of_analysts")):
+                if item.get(key) is not None: estimate_rows.append((f"{label} {suffix}", item.get(key), "score" if key == "number_of_analysts" else "money"))
     forward_estimates = rows(tuple(estimate_rows)) if estimate_rows else '<p class="atlas-home-muted">Forward estimate detail not available</p>'
     eps_estimates = rows(tuple(item for item in estimate_rows if item[0].startswith("Forward EPS")))
     revenue_estimates = rows(tuple(item for item in estimate_rows if item[0].startswith("Forward Revenue")))
@@ -412,14 +421,12 @@ def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
     return (
         '<div class="atlas-home-full-evidence atlas-home-paid-dossier" data-atlas-qa="home-guidance-full-evidence">'
         f'<section><h4>Decision Summary</h4>{decision}{rows(pillars)}</section>'
-        f'<section><h4>Why ATLAS Likes It</h4><ul>{why_html}</ul><p><b>Primary constraint:</b> {html.escape(_decisive_customer_constraint(card))}</p></section>'
-        f'<section><h4>ATLAS Professional Valuation</h4>{valuation}<p>{html.escape(driver_summary)}</p></section>'
+        f'<section><h4>{"Why ATLAS Dislikes It" if state == "AVOID" else "Why ATLAS Likes It"}</h4><ul>{why_html}</ul><p><b>Main Constraint / Risk:</b> {html.escape(_decisive_customer_constraint(card))}</p></section>'
+        f'<section><h4>ATLAS Professional Valuation</h4>{valuation}<p>{html.escape(driver_summary)}</p>{explainability}{uncertainty}{discount_rate_evidence}</section>'
         f'<section><h4>Valuation by Method</h4>{valuation_methods}</section><section><h4>Bear / Base / Bull</h4>{scenarios}</section><section><h4>Sensitivity</h4>{sensitivity}</section>'
-        f'<section><h4>Valuation Drivers &amp; Uncertainty</h4>{explainability}{uncertainty}</section>'
-        f'<section><h4>Discount Rate &amp; Terminal Assumptions</h4>{discount_rate_evidence}</section>'
         f'<section><h4>Wall Street Analyst Outlook</h4>{street_section}</section>'
         f'<section><h4>Forward EPS Estimates</h4>{eps_estimates}</section><section><h4>Forward Revenue Estimates</h4>{revenue_estimates}</section>'
-        f'<section><h4>Estimate Revisions</h4>{revision_section}</section>'
+        f'<section><h4>Estimate Revision History</h4>{revision_section}</section>'
         f'<section><h4>Latest Earnings</h4>{earnings}</section><section><h4>Financial Snapshot</h4>{financial}</section>'
         f'<section><h4>Recent Catalysts</h4><div class="atlas-home-catalysts">{catalysts}</div></section>'
         f'<section><h4>Technical &amp; Volume</h4>{technical_section}</section><section><h4>Trade Plan</h4>{trade_section}</section>'

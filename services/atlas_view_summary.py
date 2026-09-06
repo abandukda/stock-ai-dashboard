@@ -202,7 +202,16 @@ def deterministic_summary(payload: Mapping[str, Any]) -> str:
         if drivers.get("justified_pe") is not None: inputs.append(f"a {float(drivers['justified_pe']):.1f}× justified earnings multiple")
         if pct(drivers.get("growth_input_pct")): inputs.append(f"a {pct(drivers['growth_input_pct'])} growth input")
         rationale = str(professional_explanation.get("primary_valuation_driver") or " and ".join(inputs[:2]) or support).strip().rstrip(".")
-        valuation_sentence = f"From a current price of ${float(payload.get('price')):.2f}, ATLAS's ${float(atlas['target']):.2f} fair value implies {float(atlas.get('expected_return') or 0):.1f}% upside, supported by {rationale}."
+        uncertainty_flags = set((professional.get("valuation_diagnostics") or {}).get("flags") or ())
+        uncertainty_note = (
+            " The valuation is highly sensitive because most DCF value lies beyond the explicit forecast period."
+            if "TERMINAL_VALUE_DEPENDENCE_HIGH" in uncertainty_flags else
+            " ATLAS's professional methods disagree materially, which lowers valuation confidence."
+            if "MODEL_DISPERSION_HIGH" in uncertainty_flags else
+            " Only one complete professional method is available, limiting valuation confidence."
+            if "MODEL_CONCENTRATION_SINGLE_METHOD" in uncertainty_flags else ""
+        )
+        valuation_sentence = f"From a current price of ${float(payload.get('price')):.2f}, ATLAS's ${float(atlas['target']):.2f} fair value implies {float(atlas.get('expected_return') or 0):.1f}% upside, supported by {rationale}.{uncertainty_note}"
     else:
         valuation_sentence = "ATLAS has not published a fair value because the available valuation evidence is insufficient."
 
@@ -353,6 +362,9 @@ def validate_summary(text: str, payload: Mapping[str, Any]) -> dict[str, Any]:
         driver_values = dict(atlas.get("driver_evidence") or {})
         if driver_values and not re.search(r"\b(forward EPS|earnings multiple|growth input|revenue|cash flow|margin)\b", copy, re.I):
             violations.append("LARGE_UPSIDE_DRIVER_UNEXPLAINED")
+    uncertainty_flags=set(((atlas.get("professional_valuation_v2") or {}).get("valuation_diagnostics") or {}).get("flags") or ())
+    if uncertainty_flags.intersection({"MODEL_DISPERSION_HIGH","TERMINAL_VALUE_DEPENDENCE_HIGH","FAIR_VALUE_RANGE_WIDE","SENSITIVITY_WIDE","MODEL_CONCENTRATION_SINGLE_METHOD"}) and not re.search(r"\b(sensitiv|uncertain|disagree|dispersion|single|one complete|terminal|long-term assumption|forecast period|confidence)\b",copy,re.I):
+        violations.append("VALUATION_UNCERTAINTY_IGNORED")
     ticker = str(payload.get("ticker") or "").upper()
     company = str(payload.get("company") or "").upper()
     if ticker not in copy.upper() and company not in copy.upper():

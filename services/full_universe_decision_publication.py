@@ -172,6 +172,10 @@ def acquire_full_universe_decisions(
                 twelve_data_phase1=bundle, phase1_enabled=True,
             )
             evaluation["publication_version"] = VERSION
+            from engines.methodology_registry import REGISTRY_VERSION
+            evaluation["methodology_registry_version"] = REGISTRY_VERSION
+            evaluation["macro_assumption_version"] = (enriched.get("market_assumption_lineage") or {}).get("version")
+            evaluation["publication_timestamp"] = observed.isoformat()
             # Presentation-only evidence survives artifact publication so the
             # customer thesis can explain the canonical result. These fields
             # are downstream of, and never inputs to, Guidance.

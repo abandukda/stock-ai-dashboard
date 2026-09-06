@@ -59,6 +59,17 @@ def render_developer_center(
         "investment recommendations; it monitors whether Atlas itself is working correctly."
     )
     st.info("This administrator/developer workspace remains in primary navigation for operational visibility; investor-facing decisions are produced elsewhere in Atlas.")
+    try:
+        from services.methodology_health import methodology_health
+        artifact = json.loads(Path("market_full_scan.json").read_text(encoding="utf-8"))
+        governed = methodology_health(artifact if isinstance(artifact, list) else [])
+        with st.expander("Institutional Methodology Health", expanded=True):
+            st.caption(f"Registry {governed['methodology_registry_version']} · Valuation {governed['valuation_methodology_version']}")
+            columns=st.columns(4)
+            for index,(label,key) in enumerate((("V2 Published","published_count"),("Stale Evidence","stale_evidence_count"),("High Dispersion","high_model_dispersion_count"),("High Terminal Dependence","high_terminal_dependence_count"),("WACC Below Treasury","wacc_below_risk_free_count"),("Single Method","single_model_count"),("Version Mismatches","methodology_mismatch_count"),("Home/Research Mismatches","home_research_mismatch_count"))):
+                columns[index%4].metric(label,governed[key])
+    except Exception:
+        st.warning("Institutional methodology health is temporarily unavailable; canonical outputs remain unchanged.")
     deep_path = Path("audit_results/deep_qa/atlas_deep_qa.json")
     try:
         deep_report = json.loads(deep_path.read_text(encoding="utf-8")) if deep_path.exists() else None
