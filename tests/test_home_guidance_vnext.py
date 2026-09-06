@@ -95,6 +95,21 @@ def test_pre_policy_persisted_evaluation_cannot_override_current_home_contract()
     assert card["guidance"] != "ACCUMULATE"
 
 
+def test_valid_persisted_action_cannot_be_downgraded_by_optional_live_context():
+    persisted = canonical_evaluation(guidance="BUY_NOW")
+    persisted["guidance"]["policy_version"] = "HOME_MULTI_THESIS_ACTION_V1"
+    optional_live = canonical_evaluation(guidance="DATA_LIMITED")
+    optional_live["guidance"]["policy_version"] = "HOME_MULTI_THESIS_ACTION_V1"
+    source = row("ABBV", canonical_investment_evaluation=persisted)
+
+    card = build_home_guidance_candidate(
+        source, production_rank=30, current_evaluation=optional_live,
+    )
+
+    assert card["guidance"] == "BUY_NOW"
+    assert card["customer_action"]["stars"] == "★★★★★"
+
+
 def test_wall_street_and_catalysts_fail_closed_without_commercial_display_rights(monkeypatch):
     monkeypatch.setenv("ATLAS_DATA_MODE", "COMMERCIAL_CUSTOMER")
     source = row("MU", analyst_targets_commercial_display_allowed=False, analyst_target_mean=150)
@@ -390,7 +405,7 @@ def test_not_applicable_evidence_is_not_collapsed_to_unavailable():
     assert card["fundamentals_status"] == "NOT_APPLICABLE"
 
 
-def test_current_production_representatives_keep_artifact_rank_and_authority_separation(monkeypatch):
+def test_current_production_representatives_keep_artifact_rank_and_persisted_authority(monkeypatch):
     monkeypatch.setenv("ATLAS_FOUNDER_GUIDANCE_V1_ENABLED", "false")
     payload = json.loads((ROOT / "market_full_scan.json").read_text(encoding="utf-8"))
     rows = payload if isinstance(payload, list) else payload.get("rows") or payload.get("data") or []
@@ -401,7 +416,8 @@ def test_current_production_representatives_keep_artifact_rank_and_authority_sep
             continue
         raw_rank = next(index for index, item in enumerate(rows, 1) if str(item.get("ticker") or item.get("symbol")).upper() == ticker)
         assert cards[ticker]["production_rank"] == raw_rank
-        assert cards[ticker]["guidance"] == "DATA_LIMITED"
+        persisted = rows[raw_rank - 1].get("canonical_investment_evaluation") or {}
+        assert cards[ticker]["guidance"] == (persisted.get("guidance") or {}).get("state")
         assert cards[ticker]["atlas_expected_return"] is None or cards[ticker]["atlas_fair_value"] is not None
         assert isinstance(cards[ticker]["wall_street"], dict)
         assert cards[ticker]["wall_street"].get("consensus") != cards[ticker]["guidance"]

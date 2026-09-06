@@ -18,3 +18,4 @@ def test_home_runtime_rejects_stale_policy_cache_and_consumes_published_evaluati
     assert 'current_evaluations = {}' in app
     assert 'row.get("canonical_investment_evaluation")' in story
     assert 'persisted_guidance.get("policy_version") != GUIDANCE_POLICY_VERSION' in story
+    assert "persisted_evaluation or current_evaluation or evaluate_on_demand" in story

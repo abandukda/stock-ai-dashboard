@@ -216,7 +216,10 @@ def build_home_guidance_candidate(
         persisted_guidance = persisted_evaluation.get("guidance") if isinstance(persisted_evaluation.get("guidance"), Mapping) else {}
         if persisted_guidance.get("policy_version") != GUIDANCE_POLICY_VERSION:
             persisted_evaluation = None
-    evaluation = dict(current_evaluation or persisted_evaluation or evaluate_on_demand(
+    # A published completed-session evaluation is the canonical rating.  The
+    # short-lived Home acquisition is optional context and must not downgrade
+    # or replace that rating when its own enrichment is incomplete.
+    evaluation = dict(persisted_evaluation or current_evaluation or evaluate_on_demand(
         row, context={"production_decision": production_decision, "evidence_registry": {}},
     ))
     trial_fields = evaluation.get("trial_presentation_fields") if isinstance(evaluation.get("trial_presentation_fields"), Mapping) else {}

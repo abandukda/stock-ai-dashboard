@@ -432,5 +432,42 @@
   "scanner_version": "V80.5",
   "scanner_version_label": "V80.5 Discovery Engine",
   "v50_smart_money_analyst_revision_upgrade": true,
-  "v5084_app_hotfix_sync": true
+  "v5084_app_hotfix_sync": true,
+  "decision_metrics_publication": {
+    "version": "ATLAS_FULL_UNIVERSE_DECISION_PUBLICATION_V1",
+    "status": "AVAILABLE",
+    "provider_calls": 615,
+    "fundamental_primary_calls": 150,
+    "fundamental_fallback_calls": 15,
+    "estimate_calls": 300,
+    "technical_history_calls": 150,
+    "technical_history_http_successes": 150,
+    "technical_history_successes": 149,
+    "fundamental_family_counts": {
+      "revenue": 150,
+      "earnings": 145,
+      "profitability": 147,
+      "cash_flow": 150,
+      "balance_sheet": 150
+    },
+    "valuation_status_counts": {
+      "REJECTED_EXTREME_UPSIDE": 51,
+      "PUBLISHED": 90,
+      "FORMULA_NOT_APPLICABLE": 1,
+      "REJECTED_EXTREME_DOWNSIDE": 3,
+      "INSUFFICIENT_INPUTS": 5
+    },
+    "endpoint_success": {
+      "statistics": 150,
+      "income_statement": 5,
+      "balance_sheet": 5,
+      "cash_flow": 5,
+      "earnings_estimate": 150,
+      "revenue_estimate": 150,
+      "time_series_1day": 150
+    },
+    "latency_seconds": 16.805,
+    "observed_at": "2026-09-06T00:35:31.193998+00:00",
+    "reason_codes": null
+  }
 }
