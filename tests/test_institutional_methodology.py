@@ -102,6 +102,25 @@ def test_professional_scenarios_change_economic_inputs_and_dcf_sensitivity_is_ex
     assert result["weighting_basis"].startswith("Deterministic company-type")
 
 
+def test_professional_diagnostics_flag_dispersion_and_calibrate_confidence_without_capping_value():
+    result = value_company(professional_row(
+        forward_ebitda=10, justified_ev_ebitda=10,
+        justified_ev_ebitda_basis="median current peer multiple",
+        diluted_shares=1, total_debt=0, cash_and_equivalents=0,
+    ))
+    assert result["atlas_fair_value_high"] == 132
+    assert result["atlas_fair_value_low"] == 100
+    assert result["valuation_diagnostics"]["model_dispersion_pct"] > 20
+    assert result["valuation_confidence"] < 80
+    assert result["valuation_explanation"]["highest_weight_method"]
+
+
+def test_single_method_is_disclosed_and_cannot_have_high_confidence():
+    result = value_company(professional_row())
+    assert "MODEL_CONCENTRATION_SINGLE_METHOD" in result["valuation_diagnostics"]["flags"]
+    assert result["valuation_confidence"] <= 55
+
+
 def test_ddm_routes_only_when_complete_and_never_uses_street_target():
     row = {"ticker":"BANK","industry":"Banks - Regional","price":40,"forward_eps":None,
            "dividend_next":2,"cost_of_equity":.10,"dividend_growth":.04}

@@ -270,6 +270,29 @@ def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
         for item in (professional.get("sensitivity") or ()) if isinstance(item, Mapping)
     )
     sensitivity = rows(sensitivity_rows) if sensitivity_rows else '<p class="atlas-home-muted">Sensitivity is not published without complete scenario inputs</p>'
+    diagnostics = dict(professional.get("valuation_diagnostics") or {})
+    explanation = dict(professional.get("valuation_explanation") or {})
+    customer_flag_labels = {
+        "MODEL_DISPERSION_HIGH": "Professional methods produce materially different estimates.",
+        "FAIR_VALUE_RANGE_WIDE": "The published fair-value range is wide.",
+        "TERMINAL_VALUE_DEPENDENCE_HIGH": "A large share of DCF value depends on long-term assumptions.",
+        "BULL_CASE_EXTREME": "The bull case requires especially favorable assumptions.",
+        "BEAR_BASE_GAP_HIGH": "The downside scenario sits materially below the base case.",
+        "MODEL_CONCENTRATION_SINGLE_METHOD": "Only one complete professional method supports this valuation.",
+        "SENSITIVITY_WIDE": "Fair value is highly sensitive to discount-rate and growth assumptions.",
+    }
+    uncertainty_items = [customer_flag_labels[flag] for flag in diagnostics.get("flags") or () if flag in customer_flag_labels]
+    uncertainty = (
+        '<ul>' + ''.join(f'<li>{html.escape(item)}</li>' for item in uncertainty_items) + '</ul>'
+        if uncertainty_items else '<p class="atlas-home-muted">No elevated valuation-uncertainty signal was identified.</p>'
+    )
+    explainability = rows(tuple((label, explanation.get(key), "text") for label, key in (
+        ("Primary Driver", "primary_valuation_driver"),
+        ("Secondary Driver", "secondary_valuation_driver"),
+        ("Biggest Uncertainty", "biggest_valuation_uncertainty"),
+        ("ATLAS vs Street", "atlas_vs_street"),
+        ("Scenario Risk", "scenario_risk"),
+    )))
 
     street_visible = street.get("commercial_display_status") == "DISPLAY_ALLOWED" or street.get("display_scope") == "INTERNAL_TRIAL"
     street_section = rows((
@@ -377,6 +400,7 @@ def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
         f'<section><h4>Why ATLAS Likes It</h4><ul>{why_html}</ul><p><b>Primary constraint:</b> {html.escape(_decisive_customer_constraint(card))}</p></section>'
         f'<section><h4>ATLAS Professional Valuation</h4>{valuation}<p>{html.escape(driver_summary)}</p></section>'
         f'<section><h4>Valuation by Method</h4>{valuation_methods}</section><section><h4>Bear / Base / Bull</h4>{scenarios}</section><section><h4>Sensitivity</h4>{sensitivity}</section>'
+        f'<section><h4>Valuation Drivers &amp; Uncertainty</h4>{explainability}{uncertainty}</section>'
         f'<section><h4>Wall Street Analyst Outlook</h4>{street_section}</section>'
         f'<section><h4>Forward EPS Estimates</h4>{eps_estimates}</section><section><h4>Forward Revenue Estimates</h4>{revenue_estimates}</section>'
         f'<section><h4>Estimate Revisions</h4>{revision_section}</section>'

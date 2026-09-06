@@ -1,0 +1,151 @@
+# ATLAS Professional V2 Sanity Certification — 2026-09-05
+
+Thresholds: model dispersion ≥50%; fair-value range width ≥75%; terminal value ≥85% of DCF EV; bull/base ≥2×; bear gap ≥35%; sensitivity width ≥100%. Flags explain uncertainty and do not cap outcomes.
+
+| Rank | Ticker | Base | Low | High | Bear | Bull | Models (value @ weight) | Confidence | Dispersion | Terminal EV | Sensitivity | Street | Flags |
+|---:|---|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|---|
+| 1 | NVDA | $214.23 | $207.79 | $220.68 | $164.10 | $250.76 | FCFF Discounted Cash Flow: $220.68 @ 50.0%; EV / EBITDA: $207.79 @ 50.0% | 74.1% | 6.0% | 65.8% | 27.5% | $327.13 | NONE |
+| 2 | GAP | $60.02 | $41.83 | $73.36 | $51.94 | $68.66 | FCFF Discounted Cash Flow: $41.83 @ 42.3%; EV / EBITDA: $73.36 @ 57.7% | 57.2% | 52.5% | 77.4% | 48.6% | $26.74 | MODEL_DISPERSION_HIGH |
+| 3 | BCRX | $26.26 | $26.26 | $26.26 | — | $26.26 | EV / EBITDA: $26.26 @ 100.0% | 55.0% | 0.0% | — | 14.4% | $20.82 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 4 | INTU | $626.16 | $399.75 | $792.20 | $546.08 | $698.17 | FCFF Discounted Cash Flow: $399.75 @ 42.3%; EV / EBITDA: $792.20 @ 57.7% | 55.5% | 62.7% | 77.7% | 36.8% | $411.70 | MODEL_DISPERSION_HIGH |
+| 5 | DSP | $51.22 | $22.95 | $76.11 | $45.66 | $53.14 | FCFF Discounted Cash Flow: $22.95 @ 46.8%; EV / EBITDA: $76.11 @ 53.2% | 49.9% | 103.8% | 75.3% | 11.4% | $19.50 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE |
+| 6 | DCH | $168.27 | $95.32 | $267.75 | $109.62 | $761.64 | FCFF Discounted Cash Flow: $267.75 @ 42.3%; EV / EBITDA: $95.32 @ 57.7% | 29.2% | 102.5% | 91.6% | 892.9% | $9.10 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE, TERMINAL_VALUE_DEPENDENCE_HIGH, BULL_CASE_EXTREME, SENSITIVITY_WIDE |
+| 7 | META | $326.71 | $208.90 | $487.33 | $285.15 | $427.30 | FCFF Discounted Cash Flow: $487.33 @ 42.3%; EV / EBITDA: $208.90 @ 57.7% | 52.3% | 85.2% | 75.0% | 73.7% | $754.77 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE |
+| 8 | HL | $12.49 | $12.49 | $12.49 | $12.49 | — | EV / EBITDA: $12.49 @ 100.0% | 55.0% | 0.0% | — | 6.4% | $23.38 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 9 | HPE | $69.38 | $28.81 | $109.96 | $65.27 | $82.60 | FCFF Discounted Cash Flow: $28.81 @ 50.0%; EV / EBITDA: $109.96 @ 50.0% | 57.5% | 117.0% | 74.1% | 25.4% | $67.78 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE |
+| 10 | ARLP | $84.22 | $24.07 | $166.23 | $59.94 | $160.57 | FCFF Discounted Cash Flow: $166.23 @ 42.3%; EV / EBITDA: $24.07 @ 57.7% | 27.3% | 168.8% | 87.1% | 276.6% | $31.17 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE, TERMINAL_VALUE_DEPENDENCE_HIGH, SENSITIVITY_WIDE |
+| 11 | CVE | $80.56 | $79.54 | $81.45 | $64.99 | $120.60 | FCFF Discounted Cash Flow: $79.54 @ 46.8%; EV / EBITDA: $81.45 @ 53.2% | 55.7% | 2.4% | 84.4% | 116.1% | $36.77 | SENSITIVITY_WIDE |
+| 12 | CVS | $181.22 | $181.22 | $181.22 | — | — | EV / EBITDA: $181.22 @ 100.0% | 55.0% | 0.0% | — | — | $116.04 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 13 | BMRN | $69.89 | $30.90 | $98.48 | $59.60 | $376.22 | FCFF Discounted Cash Flow: $30.90 @ 42.3%; EV / EBITDA: $98.48 @ 57.7% | 29.3% | 96.7% | 92.9% | 1011.7% | $91.42 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE, TERMINAL_VALUE_DEPENDENCE_HIGH, BULL_CASE_EXTREME, SENSITIVITY_WIDE |
+| 14 | ALM | $1.56 | $1.56 | $1.56 | — | — | EV / EBITDA: $1.56 @ 100.0% | 55.0% | 0.0% | — | — | $26.09 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 15 | DAVE | $306.73 | $89.50 | $567.45 | $300.98 | $313.46 | FCFF Discounted Cash Flow: $89.50 @ 54.5%; EV / EBITDA: $567.45 @ 45.5% | 55.0% | 155.8% | 48.8% | 4.8% | $436.58 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE |
+| 16 | PFE | $55.24 | $47.20 | $61.71 | $46.28 | $84.90 | FCFF Discounted Cash Flow: $47.20 @ 44.6%; EV / EBITDA: $61.71 @ 55.4% | 49.3% | 26.3% | 86.9% | 144.6% | $28.61 | TERMINAL_VALUE_DEPENDENCE_HIGH, SENSITIVITY_WIDE |
+| 17 | KVYO | $1.41 | $1.41 | $1.41 | — | — | EV / EBITDA: $1.41 @ 100.0% | 55.0% | 0.0% | — | — | $26.65 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 18 | BBWI | $99.93 | $99.93 | $99.93 | — | — | EV / EBITDA: $99.93 @ 100.0% | 55.0% | 0.0% | — | — | $24.33 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 19 | CHTR | $1,169.42 | $511.36 | $2,066.68 | $630.68 | $8,062.47 | FCFF Discounted Cash Flow: $2,066.68 @ 42.3%; EV / EBITDA: $511.36 @ 57.7% | 24.5% | 133.0% | 91.7% | 1479.9% | $184.41 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE, TERMINAL_VALUE_DEPENDENCE_HIGH, BULL_CASE_EXTREME, BEAR_BASE_GAP_HIGH, SENSITIVITY_WIDE |
+| 20 | MATX | $375.65 | $341.09 | $401.00 | $336.10 | $425.30 | FCFF Discounted Cash Flow: $341.09 @ 42.3%; EV / EBITDA: $401.00 @ 57.7% | 63.7% | 15.9% | 75.7% | 48.8% | $261.67 | NONE |
+| 21 | BZ | $49.14 | $45.46 | $54.16 | $44.51 | $57.71 | FCFF Discounted Cash Flow: $54.16 @ 42.3%; EV / EBITDA: $45.46 @ 57.7% | 62.3% | 17.7% | 77.5% | 52.3% | $21.73 | NONE |
+| 22 | AG | $18.42 | $18.42 | $18.42 | — | — | EV / EBITDA: $18.42 @ 100.0% | 55.0% | 0.0% | — | — | $24.75 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 23 | EQX | $21.32 | $21.32 | $21.32 | — | — | EV / EBITDA: $21.32 @ 100.0% | 55.0% | 0.0% | — | — | $13.00 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 24 | BL | $60.27 | $39.24 | $88.94 | $47.14 | $98.70 | FCFF Discounted Cash Flow: $88.94 @ 42.3%; EV / EBITDA: $39.24 @ 57.7% | 38.5% | 82.5% | 86.9% | 192.7% | $38.80 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE, TERMINAL_VALUE_DEPENDENCE_HIGH, SENSITIVITY_WIDE |
+| 25 | EXLS | $83.61 | $66.06 | $107.53 | $62.20 | $296.15 | FCFF Discounted Cash Flow: $107.53 @ 42.3%; EV / EBITDA: $66.06 @ 57.7% | 37.0% | 49.6% | 91.9% | 647.0% | $44.62 | TERMINAL_VALUE_DEPENDENCE_HIGH, BULL_CASE_EXTREME, SENSITIVITY_WIDE |
+| 26 | MDT | $151.57 | $109.92 | $208.35 | $107.32 | $428.88 | FCFF Discounted Cash Flow: $208.35 @ 42.3%; EV / EBITDA: $109.92 @ 57.7% | 35.3% | 64.9% | 90.8% | 475.8% | $104.76 | MODEL_DISPERSION_HIGH, TERMINAL_VALUE_DEPENDENCE_HIGH, BULL_CASE_EXTREME, SENSITIVITY_WIDE |
+| 27 | HCA | $1,087.88 | $887.39 | $1,361.24 | $801.27 | $2,893.04 | FCFF Discounted Cash Flow: $1,361.24 @ 42.3%; EV / EBITDA: $887.39 @ 57.7% | 38.6% | 43.6% | 90.6% | 444.0% | $451.48 | TERMINAL_VALUE_DEPENDENCE_HIGH, BULL_CASE_EXTREME, SENSITIVITY_WIDE |
+| 28 | CHWY | $10.61 | $4.14 | $15.35 | $9.27 | $11.37 | FCFF Discounted Cash Flow: $4.14 @ 42.3%; EV / EBITDA: $15.35 @ 57.7% | 48.1% | 105.8% | 79.4% | 24.7% | $30.32 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE |
+| 29 | CRC | $42.10 | $42.10 | $42.10 | — | — | EV / EBITDA: $42.10 @ 100.0% | 55.0% | 0.0% | — | — | $76.73 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 30 | HURN | $4,156.19 | $166.98 | $9,595.50 | $320.84 | — | FCFF Discounted Cash Flow: $9,595.50 @ 42.3%; EV / EBITDA: $166.98 @ 57.7% | 24.5% | 226.9% | 99.5% | 217.9% | $190.75 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE, TERMINAL_VALUE_DEPENDENCE_HIGH, BEAR_BASE_GAP_HIGH, SENSITIVITY_WIDE |
+| 31 | PKX | $179,569.86 | $179,569.86 | $179,569.86 | — | — | EV / EBITDA: $179,569.86 @ 100.0% | 55.0% | 0.0% | — | — | $68.04 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 32 | FIS | $323.58 | $168.44 | $535.12 | $186.98 | — | FCFF Discounted Cash Flow: $535.12 @ 42.3%; EV / EBITDA: $168.44 @ 57.7% | 25.8% | 113.3% | 94.5% | 1143.9% | $50.35 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE, TERMINAL_VALUE_DEPENDENCE_HIGH, BEAR_BASE_GAP_HIGH, SENSITIVITY_WIDE |
+| 33 | DVN | $56.99 | $56.99 | $56.99 | — | — | EV / EBITDA: $56.99 @ 100.0% | 53.0% | 0.0% | — | 3085.2% | $59.81 | MODEL_CONCENTRATION_SINGLE_METHOD, SENSITIVITY_WIDE |
+| 34 | XOM | $146.67 | $146.67 | $146.67 | — | — | EV / EBITDA: $146.67 @ 100.0% | 53.0% | 0.0% | — | 1426.7% | $170.91 | MODEL_CONCENTRATION_SINGLE_METHOD, SENSITIVITY_WIDE |
+| 35 | DELL | $371.74 | $229.62 | $513.86 | $313.29 | $445.24 | FCFF Discounted Cash Flow: $229.62 @ 50.0%; EV / EBITDA: $513.86 @ 50.0% | 63.5% | 76.5% | 63.2% | 19.3% | $564.46 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE |
+| 36 | B | $76.69 | $76.69 | $76.69 | — | — | EV / EBITDA: $76.69 @ 100.0% | 55.0% | 0.0% | — | — | $51.71 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 37 | VZ | $680.55 | $16.33 | $1,586.22 | $119.61 | — | FCFF Discounted Cash Flow: $1,586.22 @ 42.3%; EV / EBITDA: $16.33 @ 57.7% | 25.9% | 230.7% | 98.3% | 193.8% | $51.58 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE, TERMINAL_VALUE_DEPENDENCE_HIGH, BEAR_BASE_GAP_HIGH, SENSITIVITY_WIDE |
+| 38 | HAL | $94.21 | $27.93 | $169.52 | $62.15 | $216.79 | FCFF Discounted Cash Flow: $169.52 @ 46.8%; EV / EBITDA: $27.93 @ 53.2% | 25.5% | 150.3% | 88.5% | 325.8% | $43.12 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE, TERMINAL_VALUE_DEPENDENCE_HIGH, BULL_CASE_EXTREME, SENSITIVITY_WIDE |
+| 39 | CVX | $293.76 | $293.76 | $293.76 | — | $293.76 | EV / EBITDA: $293.76 @ 100.0% | 53.0% | 0.0% | — | 561.1% | $221.21 | MODEL_CONCENTRATION_SINGLE_METHOD, SENSITIVITY_WIDE |
+| 40 | AGI | $30.49 | $30.49 | $30.49 | — | — | EV / EBITDA: $30.49 @ 100.0% | 55.0% | 0.0% | — | — | $46.25 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 41 | ZD | $81.85 | $81.85 | $81.85 | — | — | EV / EBITDA: $81.85 @ 100.0% | 55.0% | 0.0% | — | — | $64.40 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 42 | FRSH | $5.19 | $5.19 | $5.19 | — | — | EV / EBITDA: $5.19 @ 100.0% | 55.0% | 0.0% | — | — | $14.38 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 43 | AEM | $131.36 | $87.92 | $183.50 | $119.23 | $158.51 | FCFF Discounted Cash Flow: $87.92 @ 54.5%; EV / EBITDA: $183.50 @ 45.5% | 64.1% | 72.8% | 68.7% | 22.0% | $214.62 | MODEL_DISPERSION_HIGH |
+| 44 | IAG | $36.63 | $36.63 | $36.63 | — | — | EV / EBITDA: $36.63 @ 100.0% | 55.0% | 0.0% | — | — | $23.83 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 45 | EDU | $213.34 | $88.20 | $383.98 | $153.39 | $439.84 | FCFF Discounted Cash Flow: $383.98 @ 42.3%; EV / EBITDA: $88.20 @ 57.7% | 26.2% | 138.6% | 88.9% | 293.2% | $73.57 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE, TERMINAL_VALUE_DEPENDENCE_HIGH, BULL_CASE_EXTREME, SENSITIVITY_WIDE |
+| 46 | BP | $139.73 | $139.73 | $139.73 | — | — | EV / EBITDA: $139.73 @ 100.0% | 55.0% | 0.0% | — | — | $47.63 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 47 | APH | $105.56 | $79.83 | $131.30 | $96.98 | $118.07 | FCFF Discounted Cash Flow: $79.83 @ 50.0%; EV / EBITDA: $131.30 @ 50.0% | 67.7% | 48.8% | 69.6% | 30.2% | $96.06 | NONE |
+| 48 | AU | $124.72 | $124.72 | $124.72 | — | — | EV / EBITDA: $124.72 @ 100.0% | 55.0% | 0.0% | — | — | $113.12 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 49 | GDDY | $439.59 | $427.85 | $448.20 | $365.65 | $780.13 | FCFF Discounted Cash Flow: $427.85 @ 42.3%; EV / EBITDA: $448.20 @ 57.7% | 47.0% | 4.6% | 89.5% | 219.2% | $104.53 | TERMINAL_VALUE_DEPENDENCE_HIGH, SENSITIVITY_WIDE |
+| 50 | EXPE | $456.60 | $383.31 | $510.34 | $404.84 | $523.02 | FCFF Discounted Cash Flow: $383.31 @ 42.3%; EV / EBITDA: $510.34 @ 57.7% | 60.7% | 27.8% | 77.8% | 46.3% | $339.81 | NONE |
+| 51 | ABBV | $394.15 | $169.59 | $672.53 | $231.22 | — | FCFF Discounted Cash Flow: $672.53 @ 44.6%; EV / EBITDA: $169.59 @ 55.4% | 23.9% | 127.6% | 93.3% | 472.4% | $276.59 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE, TERMINAL_VALUE_DEPENDENCE_HIGH, BEAR_BASE_GAP_HIGH, SENSITIVITY_WIDE |
+| 52 | FOUR | $382.14 | $177.54 | $562.20 | $348.70 | $464.49 | FCFF Discounted Cash Flow: $177.54 @ 46.8%; EV / EBITDA: $562.20 @ 53.2% | 44.5% | 100.7% | 84.3% | 57.6% | $55.50 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE |
+| 53 | UBER | $102.46 | $77.66 | $120.66 | $86.76 | $117.73 | FCFF Discounted Cash Flow: $77.66 @ 42.3%; EV / EBITDA: $120.66 @ 57.7% | 57.9% | 42.0% | 78.8% | 47.1% | $101.81 | NONE |
+| 54 | EPD | $90.78 | $24.82 | $165.74 | $30.00 | — | FCFF Discounted Cash Flow: $165.74 @ 46.8%; EV / EBITDA: $24.82 @ 53.2% | 21.6% | 155.2% | 95.5% | 353.5% | $41.47 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE, TERMINAL_VALUE_DEPENDENCE_HIGH, BEAR_BASE_GAP_HIGH, SENSITIVITY_WIDE |
+| 55 | INCY | $310.05 | $136.39 | $437.41 | $295.69 | $347.02 | FCFF Discounted Cash Flow: $136.39 @ 42.3%; EV / EBITDA: $437.41 @ 57.7% | 46.8% | 97.1% | 83.7% | 33.1% | $127.12 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE |
+| 56 | COP | $101.80 | $101.80 | $101.80 | — | — | EV / EBITDA: $101.80 @ 100.0% | 53.0% | 0.0% | — | 1835.0% | $145.33 | MODEL_CONCENTRATION_SINGLE_METHOD, SENSITIVITY_WIDE |
+| 57 | CBRE | $87.72 | $87.72 | $87.72 | $57.34 | $157.09 | FCFF Discounted Cash Flow: $87.72 @ 100.0% | 48.1% | 0.0% | 81.6% | 99.0% | $182.92 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 58 | ET | $93.78 | $28.89 | $167.50 | $35.35 | $2,271.68 | FCFF Discounted Cash Flow: $167.50 @ 46.8%; EV / EBITDA: $28.89 @ 53.2% | 23.1% | 147.8% | 92.6% | 4318.7% | $24.55 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE, TERMINAL_VALUE_DEPENDENCE_HIGH, BULL_CASE_EXTREME, BEAR_BASE_GAP_HIGH, SENSITIVITY_WIDE |
+| 59 | STNG | $199.40 | $199.40 | $199.40 | — | — | EV / EBITDA: $199.40 @ 100.0% | 55.0% | 0.0% | — | — | $95.90 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 60 | EOG | $120.33 | $120.33 | $120.33 | — | — | EV / EBITDA: $120.33 @ 100.0% | 53.0% | 0.0% | — | 716.3% | $159.89 | MODEL_CONCENTRATION_SINGLE_METHOD, SENSITIVITY_WIDE |
+| 61 | HMY | $42.94 | $42.94 | $42.94 | — | — | EV / EBITDA: $42.94 @ 100.0% | 55.0% | 0.0% | — | — | $20.73 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 62 | CRGY | $36.02 | $36.02 | $36.02 | — | $36.02 | EV / EBITDA: $36.02 @ 100.0% | 53.0% | 0.0% | — | 387.6% | $16.12 | MODEL_CONCENTRATION_SINGLE_METHOD, SENSITIVITY_WIDE |
+| 63 | APA | $88.86 | $88.86 | $88.86 | — | — | EV / EBITDA: $88.86 @ 100.0% | 53.0% | 0.0% | — | 1849.3% | $44.08 | MODEL_CONCENTRATION_SINGLE_METHOD, SENSITIVITY_WIDE |
+| 64 | SM | $117.17 | $117.17 | $117.17 | — | — | EV / EBITDA: $117.17 @ 100.0% | 53.0% | 0.0% | — | 17455.9% | $40.75 | MODEL_CONCENTRATION_SINGLE_METHOD, SENSITIVITY_WIDE |
+| 65 | GFI | $50.30 | $50.30 | $50.30 | — | — | EV / EBITDA: $50.30 @ 100.0% | 55.0% | 0.0% | — | — | $48.46 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 66 | HSAI | $60.57 | $60.57 | $60.57 | — | $60.57 | EV / EBITDA: $60.57 @ 100.0% | 55.0% | 0.0% | — | 42.7% | $28.38 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 67 | RIO | $124.92 | $124.92 | $124.92 | — | — | EV / EBITDA: $124.92 @ 100.0% | 55.0% | 0.0% | — | — | $104.09 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 68 | FRO | $42.74 | $42.74 | $42.74 | — | $42.74 | EV / EBITDA: $42.74 @ 100.0% | 55.0% | 0.0% | — | 5.2% | $47.00 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 69 | BILL | $25.47 | $16.01 | $32.41 | $21.41 | $28.15 | FCFF Discounted Cash Flow: $16.01 @ 42.3%; EV / EBITDA: $32.41 @ 57.7% | 55.7% | 64.4% | 77.0% | 32.9% | $57.30 | MODEL_DISPERSION_HIGH |
+| 70 | DAR | $154.54 | $93.37 | $237.94 | $113.72 | $282.97 | FCFF Discounted Cash Flow: $237.94 @ 42.3%; EV / EBITDA: $93.37 @ 57.7% | 34.8% | 93.5% | 86.9% | 225.8% | $79.58 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE, TERMINAL_VALUE_DEPENDENCE_HIGH, SENSITIVITY_WIDE |
+| 71 | AVY | $270.76 | $256.58 | $281.17 | $229.55 | $390.56 | FCFF Discounted Cash Flow: $256.58 @ 42.3%; EV / EBITDA: $281.17 @ 57.7% | 53.2% | 9.1% | 86.3% | 137.1% | $201.80 | TERMINAL_VALUE_DEPENDENCE_HIGH, SENSITIVITY_WIDE |
+| 72 | CDE | $23.98 | $23.98 | $23.98 | — | — | EV / EBITDA: $23.98 @ 100.0% | 55.0% | 0.0% | — | — | $23.32 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 73 | FIVE | $160.54 | $142.68 | $173.65 | $139.41 | $189.86 | FCFF Discounted Cash Flow: $142.68 @ 42.3%; EV / EBITDA: $173.65 @ 57.7% | 61.3% | 19.3% | 78.2% | 57.2% | $310.00 | NONE |
+| 74 | GILD | $170.68 | $170.68 | $170.68 | — | — | EV / EBITDA: $170.68 @ 100.0% | 55.0% | 0.0% | — | — | $157.41 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 75 | CART | $40.62 | $40.62 | $40.62 | — | — | EV / EBITDA: $40.62 @ 100.0% | 55.0% | 0.0% | — | — | $57.46 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 76 | DOO | $239.48 | $239.48 | $239.48 | — | — | EV / EBITDA: $239.48 @ 100.0% | 55.0% | 0.0% | — | — | $72.00 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 77 | AMD | $111.53 | $74.36 | $148.71 | $97.75 | $130.29 | FCFF Discounted Cash Flow: $74.36 @ 50.0%; EV / EBITDA: $148.71 @ 50.0% | 65.0% | 66.7% | 63.7% | 16.0% | $613.84 | MODEL_DISPERSION_HIGH |
+| 78 | MEOH | $103.57 | $103.57 | $103.57 | — | — | EV / EBITDA: $103.57 @ 100.0% | 55.0% | 0.0% | — | — | $70.00 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 79 | ANDE | $128.61 | $128.61 | $128.61 | — | — | EV / EBITDA: $128.61 @ 100.0% | 55.0% | 0.0% | — | — | $88.33 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 80 | SIRI | $42.49 | $13.18 | $82.46 | $24.39 | $130.13 | FCFF Discounted Cash Flow: $82.46 @ 42.3%; EV / EBITDA: $13.18 @ 57.7% | 26.0% | 163.1% | 89.2% | 546.8% | $33.08 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE, TERMINAL_VALUE_DEPENDENCE_HIGH, BULL_CASE_EXTREME, BEAR_BASE_GAP_HIGH, SENSITIVITY_WIDE |
+| 81 | CCJ | $16.27 | $16.27 | $16.27 | — | — | EV / EBITDA: $16.27 @ 100.0% | 55.0% | 0.0% | — | — | $130.87 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 82 | AMZN | $122.55 | $64.39 | $180.72 | $114.65 | $141.42 | FCFF Discounted Cash Flow: $64.39 @ 50.0%; EV / EBITDA: $180.72 @ 50.0% | 60.8% | 94.9% | 72.1% | 25.5% | $328.17 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE |
+| 83 | KYIV | $24.93 | $24.93 | $24.93 | — | — | EV / EBITDA: $24.93 @ 100.0% | 55.0% | 0.0% | — | — | $17.95 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 84 | HUM | $547.25 | $547.25 | $547.25 | — | — | EV / EBITDA: $547.25 @ 100.0% | 55.0% | 0.0% | — | — | $418.61 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 85 | BTG | $16.22 | $16.22 | $16.22 | — | — | EV / EBITDA: $16.22 @ 100.0% | 55.0% | 0.0% | — | — | $6.20 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 88 | BG | $118.57 | $118.57 | $118.57 | — | — | EV / EBITDA: $118.57 @ 100.0% | 55.0% | 0.0% | — | — | $141.22 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 89 | NU | $1.92 | $1.92 | $1.92 | — | — | EV / EBITDA: $1.92 @ 100.0% | 55.0% | 0.0% | — | — | — | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 90 | CPAY | $1,161.15 | $912.53 | $1,379.94 | $1,028.93 | $1,441.21 | FCFF Discounted Cash Flow: $912.53 @ 46.8%; EV / EBITDA: $1,379.94 @ 53.2% | 54.2% | 40.3% | 82.2% | 68.3% | $461.00 | NONE |
+| 91 | FNV | $93.85 | $93.85 | $93.85 | — | — | EV / EBITDA: $93.85 @ 100.0% | 55.0% | 0.0% | — | — | $285.01 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 93 | BHC | $109.65 | $100.41 | $117.11 | $88.94 | $161.06 | FCFF Discounted Cash Flow: $100.41 @ 44.6%; EV / EBITDA: $117.11 @ 55.4% | 52.5% | 15.2% | 84.6% | 141.5% | $7.50 | SENSITIVITY_WIDE |
+| 94 | CXW | $50.45 | $46.80 | $55.43 | $41.10 | $78.00 | FCFF Discounted Cash Flow: $55.43 @ 42.3%; EV / EBITDA: $46.80 @ 57.7% | 50.7% | 17.1% | 86.3% | 157.9% | $41.80 | TERMINAL_VALUE_DEPENDENCE_HIGH, SENSITIVITY_WIDE |
+| 95 | DT | $29.78 | $25.13 | $35.06 | $25.91 | $37.95 | FCFF Discounted Cash Flow: $35.06 @ 46.8%; EV / EBITDA: $25.13 @ 53.2% | 54.5% | 33.4% | 82.1% | 80.3% | $58.88 | NONE |
+| 96 | CAH | $591.51 | $234.43 | $1,078.39 | $344.37 | — | FCFF Discounted Cash Flow: $1,078.39 @ 42.3%; EV / EBITDA: $234.43 @ 57.7% | 23.3% | 142.7% | 93.7% | 617.2% | $270.94 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE, TERMINAL_VALUE_DEPENDENCE_HIGH, BEAR_BASE_GAP_HIGH, SENSITIVITY_WIDE |
+| 97 | SNOW | $46.67 | $46.67 | $46.67 | — | — | Forward Earnings Multiple: $46.67 @ 100.0% | 55.0% | 0.0% | — | — | — | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 98 | TSM | $5,458.57 | $334.10 | $10,924.02 | — | — | Forward Earnings Multiple: $334.10 @ 51.6%; EV / EBITDA: $10,924.02 @ 48.4% | 57.6% | 194.0% | — | — | — | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE |
+| 99 | V | $212.29 | $149.08 | $240.50 | $198.78 | $250.84 | FCFF Discounted Cash Flow: $149.08 @ 26.2%; Forward Earnings Multiple: $229.31 @ 38.1%; EV / EBITDA: $240.50 @ 35.7% | 55.8% | 43.1% | 86.7% | 89.7% | — | TERMINAL_VALUE_DEPENDENCE_HIGH |
+| 100 | JNJ | $379.01 | $189.86 | $877.29 | $244.06 | — | FCFF Discounted Cash Flow: $877.29 @ 26.2%; Forward Earnings Multiple: $189.86 @ 38.1%; EV / EBITDA: $215.38 @ 35.7% | 27.7% | 181.4% | 95.0% | 2666.8% | — | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE, TERMINAL_VALUE_DEPENDENCE_HIGH, BEAR_BASE_GAP_HIGH, SENSITIVITY_WIDE |
+| 101 | WFC | $70.46 | $5.60 | $131.28 | — | — | Forward Earnings Multiple: $131.28 @ 51.6%; EV / EBITDA: $5.60 @ 48.4% | 57.6% | 178.4% | — | — | — | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE |
+| 102 | NEM | $158.57 | $22.06 | $286.91 | $157.06 | $162.15 | FCFF Discounted Cash Flow: $22.06 @ 32.6%; Forward Earnings Multiple: $166.22 @ 34.8%; EV / EBITDA: $286.91 @ 32.6% | 56.7% | 167.0% | 68.6% | 4.1% | — | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE |
+| 103 | AWI | $167.58 | $157.69 | $181.05 | $147.27 | $203.48 | FCFF Discounted Cash Flow: $181.05 @ 42.3%; EV / EBITDA: $157.69 @ 57.7% | 60.3% | 13.9% | 79.5% | 73.3% | $210.18 | NONE |
+| 104 | A | $94.02 | $93.58 | $94.33 | $82.38 | $111.91 | FCFF Discounted Cash Flow: $93.58 @ 42.3%; EV / EBITDA: $94.33 @ 57.7% | 63.0% | 0.8% | 79.0% | 67.1% | $175.45 | NONE |
+| 105 | CVNA | $38.52 | $30.42 | $46.62 | $33.77 | $43.04 | FCFF Discounted Cash Flow: $30.42 @ 50.0%; EV / EBITDA: $46.62 @ 50.0% | 68.7% | 42.1% | 62.3% | 22.4% | $82.97 | NONE |
+| 106 | ELAN | $23.31 | $23.31 | $23.31 | — | — | EV / EBITDA: $23.31 @ 100.0% | 55.0% | 0.0% | — | — | $31.21 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 107 | EHC | $216.03 | $209.04 | $225.55 | $171.94 | $485.18 | FCFF Discounted Cash Flow: $225.55 @ 42.3%; EV / EBITDA: $209.04 @ 57.7% | 44.0% | 7.6% | 90.6% | 339.5% | $148.17 | TERMINAL_VALUE_DEPENDENCE_HIGH, BULL_CASE_EXTREME, SENSITIVITY_WIDE |
+| 108 | EXE | $274.74 | $165.40 | $398.99 | $181.66 | $1,103.80 | FCFF Discounted Cash Flow: $398.99 @ 46.8%; EV / EBITDA: $165.40 @ 53.2% | 31.4% | 85.0% | 90.9% | 499.4% | $124.96 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE, TERMINAL_VALUE_DEPENDENCE_HIGH, BULL_CASE_EXTREME, SENSITIVITY_WIDE |
+| 109 | BOX | $28.02 | $24.80 | $30.37 | $24.02 | $41.72 | FCFF Discounted Cash Flow: $24.80 @ 42.3%; EV / EBITDA: $30.37 @ 57.7% | 49.9% | 19.9% | 88.1% | 145.8% | $37.50 | TERMINAL_VALUE_DEPENDENCE_HIGH, SENSITIVITY_WIDE |
+| 110 | EGY | $1,032.51 | $5.59 | $2,199.40 | $93.01 | — | FCFF Discounted Cash Flow: $2,199.40 @ 46.8%; EV / EBITDA: $5.59 @ 53.2% | 25.0% | 212.5% | 99.3% | 193.4% | $9.88 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE, TERMINAL_VALUE_DEPENDENCE_HIGH, BEAR_BASE_GAP_HIGH, SENSITIVITY_WIDE |
+| 111 | QSR | $168.94 | $88.71 | $278.33 | $106.36 | $568.65 | FCFF Discounted Cash Flow: $278.33 @ 42.3%; EV / EBITDA: $88.71 @ 57.7% | 28.4% | 112.2% | 90.6% | 597.9% | $85.92 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE, TERMINAL_VALUE_DEPENDENCE_HIGH, BULL_CASE_EXTREME, BEAR_BASE_GAP_HIGH, SENSITIVITY_WIDE |
+| 112 | BEKE | $110.69 | $110.69 | $110.69 | $75.88 | $186.48 | FCFF Discounted Cash Flow: $110.69 @ 100.0% | 50.5% | 0.0% | 80.8% | 67.9% | $23.68 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 113 | DGX | $497.42 | $269.21 | $808.59 | $303.49 | — | FCFF Discounted Cash Flow: $808.59 @ 42.3%; EV / EBITDA: $269.21 @ 57.7% | 26.9% | 108.4% | 93.9% | 659.9% | $245.87 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE, TERMINAL_VALUE_DEPENDENCE_HIGH, BEAR_BASE_GAP_HIGH, SENSITIVITY_WIDE |
+| 114 | ANET | $93.43 | $93.43 | $93.43 | — | — | EV / EBITDA: $93.43 @ 100.0% | 55.0% | 0.0% | — | — | $241.04 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 115 | TMO | $474.95 | $410.29 | $642.00 | $421.96 | $596.05 | FCFF Discounted Cash Flow: $642.00 @ 26.2%; Forward Earnings Multiple: $420.71 @ 38.1%; EV / EBITDA: $410.29 @ 35.7% | 54.4% | 48.8% | 83.1% | 135.0% | — | SENSITIVITY_WIDE |
+| 116 | SPOT | $250.85 | $237.08 | $265.53 | — | — | Forward Earnings Multiple: $237.08 @ 51.6%; EV / EBITDA: $265.53 @ 48.4% | 75.9% | 11.3% | — | — | — | NONE |
+| 117 | T | $162.44 | $42.26 | $396.66 | $88.99 | — | FCFF Discounted Cash Flow: $396.66 @ 26.2%; Forward Earnings Multiple: $42.26 @ 38.1%; EV / EBITDA: $118.90 @ 35.7% | 27.7% | 218.2% | 96.5% | 760.5% | — | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE, TERMINAL_VALUE_DEPENDENCE_HIGH, BEAR_BASE_GAP_HIGH, SENSITIVITY_WIDE |
+| 119 | REGN | $1,091.79 | $830.46 | $1,668.30 | $942.77 | $1,427.57 | FCFF Discounted Cash Flow: $1,668.30 @ 26.2%; Forward Earnings Multiple: $830.46 @ 38.1%; EV / EBITDA: $947.81 @ 35.7% | 49.8% | 76.7% | 83.9% | 133.8% | — | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE, SENSITIVITY_WIDE |
+| 120 | WDAY | $149.79 | $107.13 | $217.78 | $140.48 | $177.03 | FCFF Discounted Cash Flow: $107.13 @ 26.2%; Forward Earnings Multiple: $217.78 @ 38.1%; EV / EBITDA: $108.55 @ 35.7% | 51.3% | 73.9% | 86.6% | 88.8% | — | MODEL_DISPERSION_HIGH, TERMINAL_VALUE_DEPENDENCE_HIGH |
+| 121 | MMSI | $109.56 | $84.71 | $143.45 | $89.80 | $162.56 | FCFF Discounted Cash Flow: $143.45 @ 42.3%; EV / EBITDA: $84.71 @ 57.7% | 45.8% | 53.6% | 85.7% | 153.6% | $101.45 | MODEL_DISPERSION_HIGH, TERMINAL_VALUE_DEPENDENCE_HIGH, SENSITIVITY_WIDE |
+| 122 | MDLN | $45.73 | $45.73 | $45.73 | — | — | EV / EBITDA: $45.73 @ 100.0% | 55.0% | 0.0% | — | — | $44.60 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 123 | SAP | $283.92 | $283.92 | $283.92 | — | — | EV / EBITDA: $283.92 @ 100.0% | 55.0% | 0.0% | — | — | $247.25 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 124 | VST | $241.32 | $241.32 | $241.32 | $132.59 | $433.26 | FCFF Discounted Cash Flow: $241.32 @ 100.0% | 55.0% | 0.0% | 74.2% | 57.8% | $217.42 | BEAR_BASE_GAP_HIGH, MODEL_CONCENTRATION_SINGLE_METHOD |
+| 125 | AVPT | $4.11 | $3.65 | $4.51 | $3.82 | $4.43 | FCFF Discounted Cash Flow: $3.65 @ 46.8%; EV / EBITDA: $4.51 @ 53.2% | 60.5% | 20.8% | 78.3% | 23.9% | $16.71 | NONE |
+| 126 | NTNX | $20.74 | $20.74 | $20.74 | — | — | EV / EBITDA: $20.74 @ 100.0% | 55.0% | 0.0% | — | — | $76.41 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 127 | MRK | $174.57 | $152.85 | $197.74 | — | — | Forward Earnings Multiple: $152.85 @ 51.6%; EV / EBITDA: $197.74 @ 48.4% | 73.7% | 25.7% | — | — | — | NONE |
+| 128 | TGT | $304.21 | $145.59 | $547.31 | $251.62 | $459.31 | FCFF Discounted Cash Flow: $547.31 @ 26.2%; Forward Earnings Multiple: $145.59 @ 38.1%; EV / EBITDA: $295.15 @ 35.7% | 32.8% | 132.1% | 86.8% | 250.5% | — | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE, TERMINAL_VALUE_DEPENDENCE_HIGH, SENSITIVITY_WIDE |
+| 129 | MCK | $883.01 | $883.01 | $883.01 | — | $883.01 | EV / EBITDA: $883.01 @ 100.0% | 53.0% | 0.0% | — | 1507.4% | $986.94 | MODEL_CONCENTRATION_SINGLE_METHOD, SENSITIVITY_WIDE |
+| 130 | SLB | $56.31 | $33.56 | $82.16 | $41.84 | $78.28 | FCFF Discounted Cash Flow: $82.16 @ 46.8%; EV / EBITDA: $33.56 @ 53.2% | 45.3% | 86.3% | 81.1% | 112.0% | $62.03 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE, SENSITIVITY_WIDE |
+| 131 | ESTC | $17.26 | $17.26 | $17.26 | — | — | EV / EBITDA: $17.26 @ 100.0% | 55.0% | 0.0% | — | — | $107.19 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 132 | DSGX | $123.54 | $119.31 | $126.64 | $108.51 | $159.78 | FCFF Discounted Cash Flow: $119.31 @ 42.3%; EV / EBITDA: $126.64 @ 57.7% | 57.0% | 5.9% | 85.0% | 93.8% | $100.23 | TERMINAL_VALUE_DEPENDENCE_HIGH |
+| 133 | AAPL | $199.51 | $149.71 | $249.32 | $182.51 | $236.51 | FCFF Discounted Cash Flow: $149.71 @ 50.0%; EV / EBITDA: $249.32 @ 50.0% | 67.5% | 49.9% | 74.6% | 35.6% | $323.86 | NONE |
+| 134 | TYL | $510.94 | $273.74 | $834.37 | $347.28 | $2,368.06 | FCFF Discounted Cash Flow: $834.37 @ 42.3%; EV / EBITDA: $273.74 @ 57.7% | 27.9% | 109.7% | 92.0% | 922.4% | $426.64 | MODEL_DISPERSION_HIGH, FAIR_VALUE_RANGE_WIDE, TERMINAL_VALUE_DEPENDENCE_HIGH, BULL_CASE_EXTREME, SENSITIVITY_WIDE |
+| 135 | DHR | $129.20 | $129.20 | $129.20 | — | — | EV / EBITDA: $129.20 @ 100.0% | 55.0% | 0.0% | — | — | $229.09 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 136 | VRTX | $660.64 | $462.34 | $806.07 | $600.65 | $804.44 | FCFF Discounted Cash Flow: $462.34 @ 42.3%; EV / EBITDA: $806.07 @ 57.7% | 53.1% | 52.0% | 83.5% | 57.6% | $569.54 | MODEL_DISPERSION_HIGH |
+| 137 | IOT | $3.10 | $3.10 | $3.10 | — | — | EV / EBITDA: $3.10 @ 100.0% | 55.0% | 0.0% | — | — | $52.48 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 138 | WMB | $30.09 | $30.09 | $30.09 | — | — | EV / EBITDA: $30.09 @ 100.0% | 55.0% | 0.0% | — | — | $85.47 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 139 | ADP | $556.05 | $555.74 | $556.28 | $456.26 | $1,233.50 | FCFF Discounted Cash Flow: $555.74 @ 42.3%; EV / EBITDA: $556.28 @ 57.7% | 45.0% | 0.1% | 90.9% | 325.2% | $287.60 | TERMINAL_VALUE_DEPENDENCE_HIGH, BULL_CASE_EXTREME, SENSITIVITY_WIDE |
+| 140 | DXCM | $58.29 | $54.81 | $60.83 | $52.45 | $69.75 | FCFF Discounted Cash Flow: $54.81 @ 42.3%; EV / EBITDA: $60.83 @ 57.7% | 60.4% | 10.3% | 81.2% | 65.0% | $94.12 | NONE |
+| 141 | CMG | $21.17 | $21.17 | $21.17 | — | — | EV / EBITDA: $21.17 @ 100.0% | 55.0% | 0.0% | — | — | $43.77 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 142 | EXPO | $34.74 | $34.74 | $34.74 | — | — | EV / EBITDA: $34.74 @ 100.0% | 55.0% | 0.0% | — | — | $84.00 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 143 | CLH | $251.50 | $243.46 | $262.47 | $205.41 | $383.48 | FCFF Discounted Cash Flow: $262.47 @ 42.3%; EV / EBITDA: $243.46 @ 57.7% | 51.9% | 7.6% | 86.6% | 158.7% | $359.93 | TERMINAL_VALUE_DEPENDENCE_HIGH, SENSITIVITY_WIDE |
+| 144 | BE | $24.94 | $24.94 | $24.94 | — | — | EV / EBITDA: $24.94 @ 100.0% | 55.0% | 0.0% | — | — | $275.08 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 146 | CHEF | $46.08 | $32.22 | $56.25 | $39.00 | $65.14 | FCFF Discounted Cash Flow: $32.22 @ 42.3%; EV / EBITDA: $56.25 @ 57.7% | 47.4% | 52.1% | 85.9% | 129.5% | $119.44 | MODEL_DISPERSION_HIGH, TERMINAL_VALUE_DEPENDENCE_HIGH, SENSITIVITY_WIDE |
+| 147 | KRYS | $211.33 | $211.33 | $211.33 | — | — | EV / EBITDA: $211.33 @ 100.0% | 55.0% | 0.0% | — | — | $385.00 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 148 | MQ | $7.87 | $7.87 | $7.87 | $7.87 | — | EV / EBITDA: $7.87 @ 100.0% | 55.0% | 0.0% | — | 85.3% | $20.50 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 149 | DRD | $3.73 | $3.73 | $3.73 | — | — | EV / EBITDA: $3.73 @ 100.0% | 55.0% | 0.0% | — | — | $35.00 | MODEL_CONCENTRATION_SINGLE_METHOD |
+| 150 | AGYS | $55.19 | $55.19 | $55.19 | — | — | EV / EBITDA: $55.19 @ 100.0% | 55.0% | 0.0% | — | — | $134.50 | MODEL_CONCENTRATION_SINGLE_METHOD |

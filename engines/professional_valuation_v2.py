@@ -164,6 +164,92 @@ def _dcf_sensitivity(row: Mapping[str, Any]) -> list[dict[str, Any]]:
     return cells
 
 
+def _valuation_diagnostics(
+    row: Mapping[str, Any], valid: list[dict[str, Any]], *, base: float,
+    low: float, high: float, bear: float | None, bull: float | None,
+    sensitivity: list[dict[str, Any]], confidence: float,
+) -> tuple[float, dict[str, Any], dict[str, Any]]:
+    """Return deterministic risk diagnostics, calibrated confidence, and client explanation."""
+    values = [float(model["value"]) for model in valid]
+    dispersion = ((max(values) - min(values)) / base * 100) if base > 0 and len(values) > 1 else 0.0
+    range_width = ((high - low) / base * 100) if base > 0 else 0.0
+    sensitivity_values = [float(cell["fair_value"]) for cell in sensitivity if _number(cell.get("fair_value")) is not None]
+    sensitivity_width = ((max(sensitivity_values) - min(sensitivity_values)) / base * 100) if base > 0 and sensitivity_values else None
+    terminal_shares = [
+        float((model.get("key_assumptions") or {}).get("terminal_value_pct_of_enterprise_value"))
+        for model in valid
+        if _number((model.get("key_assumptions") or {}).get("terminal_value_pct_of_enterprise_value")) is not None
+    ]
+    terminal_share = max(terminal_shares) if terminal_shares else None
+    flags: list[str] = []
+    if dispersion >= 50: flags.append("MODEL_DISPERSION_HIGH")
+    if range_width >= 75: flags.append("FAIR_VALUE_RANGE_WIDE")
+    if terminal_share is not None and terminal_share >= .85: flags.append("TERMINAL_VALUE_DEPENDENCE_HIGH")
+    if bull is not None and bull >= base * 2: flags.append("BULL_CASE_EXTREME")
+    if bear is not None and (base - bear) / base >= .35: flags.append("BEAR_BASE_GAP_HIGH")
+    if len(valid) == 1: flags.append("MODEL_CONCENTRATION_SINGLE_METHOD")
+    if sensitivity_width is not None and sensitivity_width >= 100: flags.append("SENSITIVITY_WIDE")
+
+    # Confidence remains descriptive and non-authoritative. Penalize only
+    # observable valuation uncertainty; never change model values or weights.
+    calibrated = confidence
+    calibrated -= min(20.0, dispersion * .15)
+    if terminal_share is not None and terminal_share > .75:
+        calibrated -= min(12.0, (terminal_share - .75) * 60)
+    if sensitivity_width is not None and sensitivity_width > 50:
+        calibrated -= min(12.0, (sensitivity_width - 50) * .06)
+    if len(valid) == 1: calibrated = min(calibrated, 55.0)
+    calibrated = max(20.0, min(90.0, calibrated))
+
+    primary = max(valid, key=lambda model: float(model.get("weight") or 0))
+    secondary = sorted(valid, key=lambda model: float(model.get("weight") or 0), reverse=True)[1] if len(valid) > 1 else None
+    def driver(model: Mapping[str, Any]) -> str:
+        assumptions = model.get("key_assumptions") or {}
+        if model.get("methodology_id") == "VAL_FCFF_DCF_V1":
+            return f"forecast free cash flow discounted at {float(assumptions['wacc'])*100:.1f}% with {float(assumptions['terminal_growth'])*100:.1f}% terminal growth"
+        if model.get("methodology_id") == "VAL_EV_EBITDA_V1":
+            return f"forward EBITDA of ${float(assumptions['forward_ebitda']):,.0f} valued at {float(assumptions['multiple']):.1f}× before the net-debt bridge"
+        if model.get("methodology_id") == "VAL_FORWARD_PE_V1":
+            return f"forward EPS of ${float(assumptions['forward_eps']):.2f} valued at {float(assumptions['justified_forward_pe']):.1f}×"
+        if model.get("methodology_id") == "VAL_P_FCF_V1":
+            return f"normalized free cash flow valued at {float(assumptions['multiple']):.1f}×"
+        if model.get("methodology_id") == "VAL_DDM_GORDON_V1":
+            return f"next dividend discounted at {float(assumptions['cost_of_equity'])*100:.1f}% with {float(assumptions['dividend_growth'])*100:.1f}% growth"
+        return model["name"]
+    street = _number(_first(row, "analyst_target_mean", "wall_street_target", "street_target"))
+    if street is None:
+        street_reason = "A commercially usable Street target is not available for comparison."
+    elif abs(base / street - 1) <= .10:
+        street_reason = "ATLAS and Street are broadly aligned; model assumptions differ but not materially at the headline-value level."
+    elif base > street:
+        street_reason = f"ATLAS is above Street because its highest-weighted {primary['name']} evidence supports more value than the consensus target."
+    else:
+        street_reason = f"ATLAS is below Street because its highest-weighted {primary['name']} evidence is more conservative than the consensus target."
+    uncertainty = (
+        "Long-duration cash flows are highly sensitive to discount-rate and terminal-growth assumptions."
+        if "TERMINAL_VALUE_DEPENDENCE_HIGH" in flags else
+        "Independent valuation methods produce materially different estimates."
+        if "MODEL_DISPERSION_HIGH" in flags else
+        "The published methods are reasonably aligned, but forecast and market-multiple assumptions can still change."
+    )
+    explanation = {
+        "primary_valuation_driver": f"{primary['name']} contributes {float(primary.get('weight') or 0)*100:.1f}% of the reconciled value, driven by {driver(primary)}.",
+        "secondary_valuation_driver": f"{secondary['name']} provides the secondary cross-check through {driver(secondary)}." if secondary else "No second complete professional method is currently available.",
+        "biggest_valuation_uncertainty": uncertainty,
+        "highest_weight_method": primary["methodology_id"],
+        "atlas_vs_street": street_reason,
+        "scenario_risk": "The bull case is especially sensitive to optimistic discount-rate, growth, or revenue assumptions." if "BULL_CASE_EXTREME" in flags else "Bear and bull outcomes depend on the explicitly published scenario assumptions.",
+    }
+    diagnostics = {
+        "flags": flags, "model_dispersion_pct": round(dispersion, 1),
+        "fair_value_range_width_pct": round(range_width, 1),
+        "terminal_value_pct_of_ev": round(terminal_share * 100, 1) if terminal_share is not None else None,
+        "sensitivity_width_pct": round(sensitivity_width, 1) if sensitivity_width is not None else None,
+        "street_target_context": street,
+    }
+    return calibrated, diagnostics, explanation
+
+
 def value_company(row: Mapping[str, Any], *, as_of: str | None = None, _scenario_run: bool = False) -> dict[str, Any]:
     company_type = classify_company(row); price = _number(_first(row,"current_price","price","Price"))
     models = [_dcf(row,company_type),_forward_pe(row,company_type),_ev_ebitda(row,company_type),_p_fcf(row,company_type),_ddm(row, company_type)]
@@ -201,6 +287,13 @@ def value_company(row: Mapping[str, Any], *, as_of: str | None = None, _scenario
         bull = _scenario_value(row, "bull", company_type)
         if bear is not None and bear >= base: bear = None
         if bull is not None and bull <= base: bull = None
+    sensitivity = _dcf_sensitivity(row) if valid else []
+    diagnostics = explanation = {}
+    if valid:
+        confidence, diagnostics, explanation = _valuation_diagnostics(
+            row, valid, base=base, low=low, high=high, bear=bear, bull=bull,
+            sensitivity=sensitivity, confidence=confidence,
+        )
     blockers = tuple(dict.fromkeys(model.get("reason") for model in models if model.get("status") in {INSUFFICIENT_INPUTS, VALIDATION_FAILED} and model.get("reason")))
     return {"version":VERSION,"status":status,"company_type":company_type,
             "atlas_base_fair_value":round(base,2) if base else None,"atlas_fair_value_low":round(low,2) if low else None,
@@ -213,8 +306,10 @@ def value_company(row: Mapping[str, Any], *, as_of: str | None = None, _scenario
             "weighting_basis": f"Deterministic company-type reconciliation for {company_type}",
             "reason":reason,"blockers":blockers,"wall_street_used":False,
             "lineage":lineage,
+            "valuation_diagnostics": diagnostics,
+            "valuation_explanation": explanation,
             "scenario_status":"PUBLISHED" if bear is not None and bull is not None else "INSUFFICIENT_ECONOMIC_SCENARIO_INPUTS" if valid else "NOT_AVAILABLE",
-            "sensitivity": _dcf_sensitivity(row) if valid else []}
+            "sensitivity": sensitivity}
 
 
 __all__ = ["INSUFFICIENT_INPUTS", "NOT_APPLICABLE", "PUBLISHED", "VERSION", "classify_company", "value_company"]

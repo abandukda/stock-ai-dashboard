@@ -194,13 +194,14 @@ def deterministic_summary(payload: Mapping[str, Any]) -> str:
     if atlas.get("status") == "PUBLISHED" and atlas.get("target") is not None:
         inputs = []
         professional = dict(atlas.get("professional_valuation_v2") or {})
+        professional_explanation = dict(professional.get("valuation_explanation") or {})
         published_models = [model for model in professional.get("models") or () if model.get("status") == "PUBLISHED"]
         if published_models:
             inputs.append(" and ".join(str(model.get("name")) for model in published_models[:2]))
         if drivers.get("forward_eps") is not None: inputs.append(f"forward EPS of ${float(drivers['forward_eps']):.2f}")
         if drivers.get("justified_pe") is not None: inputs.append(f"a {float(drivers['justified_pe']):.1f}× justified earnings multiple")
         if pct(drivers.get("growth_input_pct")): inputs.append(f"a {pct(drivers['growth_input_pct'])} growth input")
-        rationale = " and ".join(inputs[:2]) or support
+        rationale = str(professional_explanation.get("primary_valuation_driver") or " and ".join(inputs[:2]) or support).strip().rstrip(".")
         valuation_sentence = f"From a current price of ${float(payload.get('price')):.2f}, ATLAS's ${float(atlas['target']):.2f} fair value implies {float(atlas.get('expected_return') or 0):.1f}% upside, supported by {rationale}."
     else:
         valuation_sentence = "ATLAS has not published a fair value because the available valuation evidence is insufficient."
@@ -210,10 +211,10 @@ def deterministic_summary(payload: Mapping[str, Any]) -> str:
     if street_target is not None:
         relation = {"ATLAS_MORE_BULLISH":"more bullish than", "WALL_STREET_MORE_BULLISH":"less bullish than", "ALIGNED":"broadly aligned with"}.get(state, "compared with")
         if abs(float(gap or 0)) > 15 and atlas.get("status") == "PUBLISHED":
-            explanation = (
+            explanation = str(professional_explanation.get("atlas_vs_street") or (
                 "the difference is grounded in " + " and ".join(inputs[:2])
                 if inputs else "the currently available evidence does not fully explain the valuation gap"
-            )
+            )).strip().rstrip(".")
             street_sentence = f"ATLAS is {relation} Wall Street's ${float(street_target):.2f} average target; {explanation}."
         else:
             street_sentence = f"ATLAS is {relation} Wall Street's ${float(street_target):.2f} average target."
