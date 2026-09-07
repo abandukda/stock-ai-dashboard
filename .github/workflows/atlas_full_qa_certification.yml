@@ -52,6 +52,7 @@ jobs:
       TWELVE_DATA_ENABLED: "true"
       ATLAS_HARD_PUBLICATION_GOVERNANCE_ENABLED: "true"
       ATLAS_FOUNDER_GUIDANCE_V1_ENABLED: "true"
+      ATLAS_QA_READINESS_TIMEOUT_SECONDS: "180"
       ATLAS_PUBLICATION_OUTPUT_MODE: CANDIDATE
       ATLAS_CANDIDATE_OUTPUT_DIR: audit_results/candidate_artifacts
       DATA_DIR: "."
@@ -179,6 +180,12 @@ jobs:
             --url http://127.0.0.1:8501 \
             --root . \
             --output audit_results/full_qa/${{ github.run_id }}/visual
+
+      - name: Emit sanitized local runtime diagnostics
+        if: failure()
+        run: |
+          tail -200 audit_results/full_qa/${{ github.run_id }}/streamlit.log || true
+          cat audit_results/full_qa/${{ github.run_id }}/visual/deployed_readiness.json || true
 
       - name: Finalize certification and promote atomically
         id: qa
