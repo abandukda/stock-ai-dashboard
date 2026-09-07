@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-07T16:10:06.424826+00:00",
+  "generated_at": "2026-09-07T19:32:31.008965+00:00",
   "count": 3490,
   "symbols": [
     "A",
@@ -3494,18 +3494,17 @@
     "ZYME"
   ],
   "eligibility": {
-    "eligible_count": 2192,
-    "excluded_count": 1261,
+    "eligible_count": 2461,
+    "excluded_count": 1026,
     "exclusion_reason_counts": {
-      "Financial Services sector": 443,
-      "DOLLAR_VOLUME_BELOW_MINIMUM": 420,
-      "Excluded financial/bank/lender/insurance/asset management industry": 16,
-      "Excluded business category": 41,
-      "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE": 123,
-      "GOVERNED_COMPANY_EXCLUSION": 120,
-      "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE": 93,
-      "INSUFFICIENT_TECHNICAL_HISTORY": 3,
-      "MARKET_CAP_BELOW_MINIMUM": 2
+      "Financial Services sector": 152,
+      "DOLLAR_VOLUME_BELOW_MINIMUM": 390,
+      "Excluded financial/bank/lender/insurance/asset management industry": 7,
+      "Excluded business category": 15,
+      "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE": 113,
+      "GOVERNED_COMPANY_EXCLUSION": 46,
+      "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE": 300,
+      "INSUFFICIENT_TECHNICAL_HISTORY": 3
     },
     "exclusions": [
       {
@@ -5073,14 +5072,6 @@
         "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
       {
-        "ticker": "EQH",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "EQIX",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
         "ticker": "EQR",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
@@ -5093,22 +5084,6 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "ERIE",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "ESNT",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "ESRT",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "ESS",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
         "ticker": "ETB",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -5117,20 +5092,8 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "ETOR",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "ETV",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "ETW",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "ETY",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "EVCM",
@@ -5153,68 +5116,16 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "EVR",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "EVTL",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
-      },
-      {
-        "ticker": "EWBC",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "EXFY",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "EXR",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "EZPW",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "FAF",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "FBK",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "FBNC",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "FBP",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "FC",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "FCFS",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "FCNCA",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "FCPT",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "FDS",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "FDUS",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "FEAM",
@@ -5229,64 +5140,12 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "FFBC",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "FFIN",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "FG",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "FHB",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "FHI",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "FHN",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "FI",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "FIBK",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "FIGR",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "FINV",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "FIRY",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "FITB",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "FIZZ",
-        "reason": "Excluded business category"
-      },
-      {
-        "ticker": "FLG",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "FLUT",
-        "reason": "Excluded business category"
       },
       {
         "ticker": "FLWS",
@@ -5295,14 +5154,6 @@
       {
         "ticker": "FLX",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
-      },
-      {
-        "ticker": "FNB",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "FNF",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "FNLC",
@@ -5329,22 +5180,6 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "FR",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "FRHC",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "FRME",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "FRMI",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
         "ticker": "FRT",
         "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
@@ -5361,44 +5196,12 @@
         "reason": "Financial Services sector"
       },
       {
-        "ticker": "FULT",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "FUTU",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "FVR",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
         "ticker": "FVRR",
         "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
       {
-        "ticker": "GAB",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "GABC",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "GAIN",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "GAM",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "GBCI",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "GBDC",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "GBLI",
@@ -5421,20 +5224,8 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "GDOT",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "GEG",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "GEMI",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "GEO",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
       {
         "ticker": "GEOS",
@@ -5447,14 +5238,6 @@
       {
         "ticker": "GETY",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
-      },
-      {
-        "ticker": "GGAL",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "GGN",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "GGT",
@@ -5473,10 +5256,6 @@
         "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
       {
-        "ticker": "GL",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "GLIBA",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -5487,10 +5266,6 @@
       {
         "ticker": "GLOO",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "GLPI",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
       {
         "ticker": "GLQ",
@@ -5505,20 +5280,8 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "GLXY",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "GNL",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
         "ticker": "GNT",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "GNW",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "GOF",
@@ -5561,28 +5324,12 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "GS",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "GSBD",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "GSHD",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "GSIT",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "GTN-A",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "GTY",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
       {
         "ticker": "GUT",
@@ -5593,20 +5340,8 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "HAFC",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "HAIN",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
-      },
-      {
-        "ticker": "HAPN",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "HASI",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "HBAN",
@@ -5615,10 +5350,6 @@
       {
         "ticker": "HCAT",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
-      },
-      {
-        "ticker": "HCI",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "HCKT",
@@ -5697,10 +5428,6 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "HOMB",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "HONAV",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
@@ -5709,20 +5436,8 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "HOOD",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "HOPE",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "HOWL",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
-      },
-      {
-        "ticker": "HPP",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
       {
         "ticker": "HQH",
@@ -5738,22 +5453,6 @@
       },
       {
         "ticker": "HRZN",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "HSBC",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "HST",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "HTGC",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "HTH",
         "reason": "Financial Services sector"
       },
       {
@@ -5777,36 +5476,96 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "HUT",
-        "reason": "Financial Services sector"
+        "ticker": "HUYA",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HVT",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "HVT-A",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "HWBK",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "HWC",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HWKN",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HWM",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HXL",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HY",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HYG",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HYMC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HZO",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "IAC",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "IBKR",
-        "reason": "Financial Services sector"
+        "ticker": "IAG",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "IBN",
-        "reason": "Financial Services sector"
+        "ticker": "IART",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "IBKR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "IBM",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "IBP",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "IBRX",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "IBTA",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "ICE",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "ICFI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "ICHR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "ICMB",
@@ -5821,20 +5580,12 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "IFS",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "IH",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "IHRT",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "IIPR",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
       {
         "ticker": "ILPT",
@@ -5849,20 +5600,8 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "INDB",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "ING",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "INGN",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "INN",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
       {
         "ticker": "INNV",
@@ -5871,14 +5610,6 @@
       {
         "ticker": "INSG",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "INTR",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "INVH",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
       {
         "ticker": "IOND",
@@ -5897,24 +5628,8 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "IREN",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "IRM",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
         "ticker": "IRS",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "IRT",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "ISNPY",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "ISSC",
@@ -5925,44 +5640,28 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "ITIC",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "ITUB",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "IVR",
-        "reason": "Excluded financial/bank/lender/insurance/asset management industry"
-      },
-      {
-        "ticker": "IVT",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
         "ticker": "IVZ",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "IX",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "JAN",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "JBGS",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
+        "ticker": "JBHT",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "JBLU",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "JCAP",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "JEF",
-        "reason": "Financial Services sector"
+        "ticker": "JEPQ",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "JHG",
@@ -5981,24 +5680,8 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "JPM",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "JRVR",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "JXN",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "KB",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "KDP",
-        "reason": "Excluded business category"
       },
       {
         "ticker": "KELYB",
@@ -6007,10 +5690,6 @@
       {
         "ticker": "KEN",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "KEY",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "KEY-PL",
@@ -6025,24 +5704,8 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "KIM",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
         "ticker": "KIM-PN",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "KKR",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "KKR-PD",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "KLAR",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "KLTR",
@@ -6061,10 +5724,6 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "KMPR",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "KNDI",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
@@ -6073,36 +5732,8 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "KNSL",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "KO",
-        "reason": "Excluded business category"
-      },
-      {
-        "ticker": "KOF",
-        "reason": "Excluded business category"
-      },
-      {
         "ticker": "KPTI",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
-      },
-      {
-        "ticker": "KRC",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "KREF",
-        "reason": "Excluded financial/bank/lender/insurance/asset management industry"
-      },
-      {
-        "ticker": "KRG",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "KRNY",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "KRSP",
@@ -6118,38 +5749,66 @@
       },
       {
         "ticker": "KYN",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "KYNB",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "KYTX",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "L",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "LAB",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "LAMR",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
+        "ticker": "LAC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "LAES",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "LANV",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "LASR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "LAUR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "LAW",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "LAZ",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "LB",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "LBRDK",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "LBRT",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "LBTYA",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -6161,8 +5820,12 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "LCLN",
-        "reason": "Financial Services sector"
+        "ticker": "LCID",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "LCII",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "LCUT",
@@ -6209,10 +5872,6 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "LIFE",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "LILAP",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -6221,28 +5880,12 @@
         "reason": "INSUFFICIENT_TECHNICAL_HISTORY"
       },
       {
-        "ticker": "LINE",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
         "ticker": "LITB",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "LMND",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "LMNR",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "LNC",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "LOB",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "LOCL",
@@ -6253,20 +5896,12 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "LPLA",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "LPSN",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "LSAK",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "LTC",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
       {
         "ticker": "LTGO",
@@ -6289,20 +5924,12 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "LVS",
-        "reason": "Excluded business category"
-      },
-      {
         "ticker": "LVWR",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "LX",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
-      },
-      {
-        "ticker": "LXP",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
       {
         "ticker": "LXP-PC",
@@ -6313,64 +5940,20 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "LYG",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "LZM",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "MA",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "MAA",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
       {
         "ticker": "MAA-PI",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "MAAS",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "MAC",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "MAIN",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "MARA",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "MBI",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "MBIN",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "MBLY",
         "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "MC",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "MCB",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "MCHB",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "MCHX",
@@ -6385,16 +5968,8 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "MCO",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "MCRB",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "MCRI",
-        "reason": "Excluded business category"
       },
       {
         "ticker": "MCW",
@@ -6402,39 +5977,83 @@
       },
       {
         "ticker": "MCY",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MD",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MDB",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MDGL",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MDLN",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MDLZ",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MDT",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MDU",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "MDV",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
+        "ticker": "MEC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
         "ticker": "MED",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MEDP",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MEOH",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "MERC",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
+        "ticker": "MESO",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
         "ticker": "MET",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "META",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "METC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "METCB",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "METQ",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "MFC",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "MFG",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "MFIN",
@@ -6449,84 +6068,120 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "MGM",
-        "reason": "Excluded business category"
-      },
-      {
         "ticker": "MGNX",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "MGPI",
-        "reason": "Excluded business category"
       },
       {
         "ticker": "MGX",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "MHD",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "MHF",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "MIAX",
-        "reason": "Financial Services sector"
+        "ticker": "MIDD",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "MIDDV",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
+        "ticker": "MIR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MIRM",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
         "ticker": "MIST",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "MITT",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "MIY",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MKC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "MKL",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MKSI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "MKTX",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MLAB",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "MLCO",
-        "reason": "Excluded business category"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MLI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MLKN",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MLM",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "MLP",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MLR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MLYS",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "MMC",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
+        "ticker": "MMED",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
         "ticker": "MMLP",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MMM",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MMS",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MMSI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "MNDY",
         "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "MNST",
-        "reason": "Excluded business category"
-      },
-      {
-        "ticker": "MO",
-        "reason": "Excluded business category"
       },
       {
         "ticker": "MOBI",
@@ -6541,48 +6196,16 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "MORN",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "MPAA",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "MPT",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "MQY",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "MRBK",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "MRP",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "MRSH",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "MRX",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "MS",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "MS-PL",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "MS-PO",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "MS-PQ",
@@ -6597,44 +6220,16 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "MSCI",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "MSD",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "MSIF",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "MTB",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "MTG",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "MTLS",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "MTN",
-        "reason": "Excluded business category"
-      },
-      {
         "ticker": "MTR",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "MUC",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "MUFG",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "MUJ",
@@ -6661,32 +6256,12 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "MYI",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "NAVI",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "NBH",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "NBHC",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "NBTB",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "NCZ",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "NDAQ",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "NDLS",
@@ -6701,16 +6276,8 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "NHI",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
         "ticker": "NHS",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "NIC",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "NICE",
@@ -6729,18 +6296,6 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "NLY",
-        "reason": "Excluded financial/bank/lender/insurance/asset management industry"
-      },
-      {
-        "ticker": "NLY-PI",
-        "reason": "Excluded financial/bank/lender/insurance/asset management industry"
-      },
-      {
-        "ticker": "NMCO",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "NMG",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
@@ -6749,24 +6304,8 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "NMIH",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "NMR",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "NMRA",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
-      },
-      {
-        "ticker": "NNI",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "NNN",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
       {
         "ticker": "NOA",
@@ -6777,20 +6316,12 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "NP",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "NPWR",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "NRDY",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "NRIM",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "NRT",
@@ -6809,24 +6340,8 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "NTB",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "NTRS",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "NTST",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
         "ticker": "NTZ",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "NU",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "NUVL",
@@ -6837,48 +6352,64 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "NWG",
-        "reason": "Financial Services sector"
+        "ticker": "NX",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "NXDR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "NXDT",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "NXG",
-        "reason": "Financial Services sector"
+        "ticker": "NXE",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "NXP",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "NXPI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "NXST",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "NXTC",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "NYAX",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "NYC",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "NYT",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "O",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "OAK-PB",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "OBDC",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "OBK",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "OBX",
@@ -6886,10 +6417,22 @@
       },
       {
         "ticker": "OCSL",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "OCTV",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "OCTVV",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "OCUL",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "ODC",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -6901,10 +6444,6 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "OFG",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "OFS",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -6913,20 +6452,8 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "OHI",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
         "ticker": "OM",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "OMF",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "ONB",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "ONIT",
@@ -6953,60 +6480,24 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "OPFI",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "OPK",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
-      },
-      {
-        "ticker": "OPRT",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "OPTU",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "OPY",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "ORC",
-        "reason": "Excluded financial/bank/lender/insurance/asset management industry"
-      },
-      {
-        "ticker": "ORI",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "ORLA",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "OSG",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "OSUR",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "OTF",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "OTLY",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "OUT",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "OWL",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "OWLT",
@@ -7017,20 +6508,12 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "OZK",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "PACB",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "PACK",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "PB",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "PBI-PB",
@@ -7049,32 +6532,8 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "PDI",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "PDM",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "PEB",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "PECO",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "PENN",
-        "reason": "Excluded business category"
-      },
-      {
         "ticker": "PEO",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "PEP",
-        "reason": "Excluded business category"
       },
       {
         "ticker": "PEPG",
@@ -7093,48 +6552,12 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "PFG",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "PFIS",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "PFS",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "PFSI",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "PGC",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "PGP",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "PGR",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "PHI",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "PIPR",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "PJT",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "PK",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
       {
         "ticker": "PLBL",
@@ -7145,40 +6568,12 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "PLD",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "PLGO",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "PLMR",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "PLRX",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "PM",
-        "reason": "Excluded business category"
-      },
-      {
-        "ticker": "PMT",
-        "reason": "Excluded financial/bank/lender/insurance/asset management industry"
-      },
-      {
         "ticker": "PMVP",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
-      },
-      {
-        "ticker": "PNC",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "PNFP",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "PPT",
@@ -7189,26 +6584,6 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "PRAA",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "PRCH",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "PRI",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "PRK",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "PRMB",
-        "reason": "Excluded business category"
-      },
-      {
         "ticker": "PRPL",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -7217,60 +6592,16 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "PRU",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "PS",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "PSA",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "PSEC",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "PSNY",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "PSQH",
-        "reason": "MARKET_CAP_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "PSTL",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "PUK",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "PURR",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "PVL",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "PWP",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "PXED",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "PYPL",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "QFIN",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "QH",
@@ -7317,28 +6648,12 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "RDN",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "REF",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "REXR",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "RF",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "RFL",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "RGA",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "RGC",
@@ -7349,18 +6664,6 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "RHP",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "RIOT",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "RITM",
-        "reason": "Excluded financial/bank/lender/insurance/asset management industry"
-      },
-      {
         "ticker": "RIVC",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
@@ -7369,28 +6672,12 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "RJF",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "RKT",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "RKX",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "RLI",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "RLX",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
-      },
-      {
-        "ticker": "RM",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "RMAX",
@@ -7405,40 +6692,12 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "RNR",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "RNWWW",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "ROOT",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "RPC",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "RPT",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "RRBI",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "RRR",
-        "reason": "Excluded business category"
-      },
-      {
-        "ticker": "RSI",
-        "reason": "Excluded business category"
-      },
-      {
-        "ticker": "RVI",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "RVII",
@@ -7453,56 +6712,84 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "RWAY",
-        "reason": "Financial Services sector"
+        "ticker": "SAIA",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "RWT",
-        "reason": "Excluded financial/bank/lender/insurance/asset management industry"
-      },
-      {
-        "ticker": "RYAN",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "RYN",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "SAFT",
-        "reason": "Financial Services sector"
+        "ticker": "SAIC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SAM",
-        "reason": "Excluded business category"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "SAN",
-        "reason": "Financial Services sector"
+        "ticker": "SANA",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SANG",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SANM",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SAP",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SARO",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SATS",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
+        "ticker": "SB",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
         "ticker": "SBAC",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SBCF",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SBGI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SBH",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SBI",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SBLK",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SBRA",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SBS",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SBUX",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SCCO",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SCD",
@@ -7510,11 +6797,15 @@
       },
       {
         "ticker": "SCGLY",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "SCHW",
-        "reason": "Financial Services sector"
+        "ticker": "SCHL",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SCI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SCM",
@@ -7522,11 +6813,15 @@
       },
       {
         "ticker": "SCOR",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SDGR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SDHC",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SEAT",
@@ -7534,7 +6829,7 @@
       },
       {
         "ticker": "SEATW",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SECZ",
@@ -7542,47 +6837,27 @@
       },
       {
         "ticker": "SEER",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SEG",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "SEIC",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SEM",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
+        "ticker": "SENEA",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
         "ticker": "SENEB",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SES",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
-      },
-      {
-        "ticker": "SEZL",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "SF",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "SFBS",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "SFNC",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "SGHC",
-        "reason": "Excluded business category"
       },
       {
         "ticker": "SGHT",
@@ -7601,18 +6876,6 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "SHBI",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "SHG",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "SHO",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
         "ticker": "SI",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -7621,24 +6884,12 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "SIGI",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "SIGIP",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "SII",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "SIM",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "SITC",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
       {
         "ticker": "SJT",
@@ -7658,31 +6909,55 @@
       },
       {
         "ticker": "SKIL",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SKLZ",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
+        "ticker": "SKM",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
         "ticker": "SKT",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SKWD",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SKY",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SKYW",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SLAI",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
+        "ticker": "SLB",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
         "ticker": "SLBT",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SLDB",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SLDE",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SLDP",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SLDPW",
@@ -7690,43 +6965,67 @@
       },
       {
         "ticker": "SLF",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "SLG",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
+        "ticker": "SLGN",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SLM",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SLP",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SLQT",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SLS",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SLVM",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SM",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SMA",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "SMBK",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SMC",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SMCI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SMFG",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SMHI",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SMP",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SMRT",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "SNAP",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SNBR",
@@ -7734,15 +7033,15 @@
       },
       {
         "ticker": "SND",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "SNEX",
-        "reason": "Financial Services sector"
+        "ticker": "SNDR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "SOFI",
-        "reason": "Financial Services sector"
+        "ticker": "SNDX",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SOHU",
@@ -7757,48 +7056,104 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
+        "ticker": "SPCM",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SPCU",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SPCX",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
         "ticker": "SPG",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SPGI",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SPH",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SPHR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SPIR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SPNT",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SPOT",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SPRO",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SPRU",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SPSC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SPTX",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SPWH",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SPXC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SPY",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SPYT",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SQ",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
+        "ticker": "SQM",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
         "ticker": "SQNS",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SRAD",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SRCE",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SRFM",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SRG",
@@ -7806,7 +7161,7 @@
       },
       {
         "ticker": "SRG-PA",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SRI",
@@ -7817,28 +7172,52 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
+        "ticker": "SRPT",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
         "ticker": "SSB",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SSD",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SSL",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SSMR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SSP",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
+        "ticker": "SSPC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
         "ticker": "SSSS",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "SST",
-        "reason": "MARKET_CAP_BELOW_MINIMUM"
+        "ticker": "SSTK",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SSYS",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "ST",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "STAG",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "STC",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "STDN",
@@ -7849,16 +7228,8 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "STEP",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "STG",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "STK",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "STKE",
@@ -7869,52 +7240,16 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "STT",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "STWD",
-        "reason": "Excluded financial/bank/lender/insurance/asset management industry"
-      },
-      {
-        "ticker": "SUI",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "SUJA",
-        "reason": "Excluded business category"
-      },
-      {
-        "ticker": "SUPV",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "SUTNY",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "SVC",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
       {
         "ticker": "SVCO",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "SYBT",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "SYF",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "SYF-PA",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "TBBK",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "TBI",
@@ -7923,26 +7258,6 @@
       {
         "ticker": "TBLAW",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "TCBI",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "TCBK",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "TCBX",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "TCPC",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "TD",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "TDF",
@@ -7961,18 +7276,6 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "TFC",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "TFIN",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "TFSL",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "TG",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -7981,24 +7284,32 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "THFF",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "THG",
-        "reason": "Financial Services sector"
+        "ticker": "THO",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "THR",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
+        "ticker": "THRM",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "TIC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
         "ticker": "TIGR",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "TISI",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "TLT",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "TLX",
@@ -8025,18 +7336,6 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "TOWN",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "TPB",
-        "reason": "Excluded business category"
-      },
-      {
-        "ticker": "TPG",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "TPVG",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -8045,36 +7344,8 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "TREE",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "TRIB",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "TRLV",
-        "reason": "Excluded business category"
-      },
-      {
-        "ticker": "TRNO",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "TROW",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "TRST",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "TRU",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "TRV",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "TRVG",
@@ -8109,18 +7380,6 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "TW",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "TWFG",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "TWN",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "TWO",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
@@ -8133,36 +7392,12 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "TYG",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "TZOO",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "UBS",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "UCB",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "UDR",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "UE",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
         "ticker": "UEIC",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "UFCS",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "UFI",
@@ -8177,44 +7412,12 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "UMBF",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "UNIT",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "UNM",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "UP",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "UPST",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "USB",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "UTG",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "UTSI",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "UVE",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "UVSP",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "UWMC",
@@ -8225,18 +7428,6 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "V",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "VAC",
-        "reason": "Excluded business category"
-      },
-      {
-        "ticker": "VACI",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "VALN",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -8245,20 +7436,8 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "VBNK",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "VCRE",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "VCTR",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "VCX",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "VEL",
@@ -8269,10 +7448,6 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "VICI",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
         "ticker": "VIOT",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
@@ -8281,43 +7456,27 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "VIRT",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "VLN",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
-      },
-      {
-        "ticker": "VLY",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "VMRK",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "VNO",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
       {
         "ticker": "VOC",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "VOYA",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "VRA",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "VRTS",
-        "reason": "Financial Services sector"
+        "ticker": "VSCO",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "VSCO",
+        "ticker": "VSEC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "VSTS",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -8325,28 +7484,16 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "VTR",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
+        "ticker": "VVV",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "VYGR",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "WABC",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "WAFD",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "WAL",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "WASH",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "WBS",
@@ -8357,10 +7504,6 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "WD",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "WDH",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
@@ -8369,20 +7512,8 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "WELL",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
         "ticker": "WEYS",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "WF",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "WFC",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "WGSWW",
@@ -8413,24 +7544,8 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "WPC",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
         "ticker": "WPRT",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
-      },
-      {
-        "ticker": "WRB",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "WRLD",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "WSBC",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "WSBCO",
@@ -8445,64 +7560,16 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "WT",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "WTBA",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "WTFC",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "WTM",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "WTW",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "WU",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "WULF",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "WY",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "WYNN",
-        "reason": "Excluded business category"
       },
       {
         "ticker": "XBIT",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "XHR",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "XLF",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
         "ticker": "XNET",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "XP",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "XRN",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
       {
         "ticker": "XRXDW",
@@ -8511,10 +7578,6 @@
       {
         "ticker": "XYF",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "XZO",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "YALA",
@@ -8539,10 +7602,6 @@
       {
         "ticker": "ZH",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "ZION",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "ZKH",
