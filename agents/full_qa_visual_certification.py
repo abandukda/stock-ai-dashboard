@@ -61,6 +61,20 @@ def certification_tickers(root: Path) -> list[str]:
             add(fixed)
     for row in rows[:3]:
         add(row.get("ticker"))
+    def action(row):
+        return str((((row.get("canonical_investment_evaluation") or {}).get("guidance") or {}).get("state") or ""))
+    # Permanent governed fixtures: every strongest positive/negative outcome,
+    # then the top BUILD names and numerical-risk exemplars.
+    for row in rows:
+        if action(row) in {"BUY_NOW", "AVOID"}:
+            add(row.get("ticker"))
+    for row in [item for item in rows if action(item) == "ACCUMULATE"][:5]:
+        add(row.get("ticker"))
+    def metric(row, key):
+        try: return float((row.get("canonical_investment_evaluation") or {}).get(key) or float("-inf"))
+        except (TypeError, ValueError): return float("-inf")
+    if rows:
+        add(max(rows, key=lambda row: metric(row, "opportunity")).get("ticker"))
     predicates = (
         lambda r: ((r.get("canonical_investment_evaluation") or {}).get("atlas_valuation") or {}).get("professional_valuation_v2", {}).get("status") == "PUBLISHED",
         lambda r: ((r.get("canonical_investment_evaluation") or {}).get("atlas_valuation") or {}).get("professional_valuation_v2", {}).get("status") != "PUBLISHED",
@@ -70,7 +84,13 @@ def certification_tickers(root: Path) -> list[str]:
         match = next((row for row in rows if predicate(row)), None)
         if match:
             add(match.get("ticker"))
-    return output[:8]
+    full_pool_path = root / "full_evaluation_pool.json"
+    if full_pool_path.exists():
+        full_pool = json.loads(full_pool_path.read_text(encoding="utf-8"))
+        outside = next((row for row in full_pool if str(row.get("ticker") or row.get("symbol") or "").upper() not in available), None)
+        if outside:
+            add(outside.get("ticker") or outside.get("symbol"))
+    return output
 
 
 async def _layout(page) -> dict[str, Any]:
@@ -91,6 +111,10 @@ async def run(args: argparse.Namespace) -> int:
     crawler = AtlasVisualCrawler(url=args.url, output_dir=output, root=root)
     source_rows = json.loads((root / "market_full_scan.json").read_text(encoding="utf-8"))
     by_ticker = {str(row.get("ticker") or "").upper(): row for row in source_rows}
+    full_pool_path = root / "full_evaluation_pool.json"
+    if full_pool_path.exists():
+        for row in json.loads(full_pool_path.read_text(encoding="utf-8")):
+            by_ticker.setdefault(str(row.get("ticker") or row.get("symbol") or "").upper(), row)
     defects: list[dict[str, Any]] = []
     checks: list[dict[str, Any]] = []
     async with async_playwright() as pw:
@@ -126,7 +150,9 @@ async def run(args: argparse.Namespace) -> int:
                 layout = await _layout(page)
                 text = (await _visible_text(page)).upper().replace("_", " ")
                 expected_action, publication_allowed = expected_customer_action(by_ticker[ticker])
-                action_match = customer_action_matches(text, expected_action, publication_allowed)
+                # Outside-Top-150 research is a fresh governed evaluation, not
+                # a promise that the earlier discovery snapshot Action persists.
+                action_match = customer_action_matches(text, expected_action, publication_allowed) if ticker in {str(row.get("ticker") or "").upper() for row in source_rows} else passed
                 checks.append({"page": "Research Any Ticker", "viewport": "desktop", "ticker": ticker,
                                "status": "PASS" if passed and action_match and not layout["horizontal_overflow"] else "FAIL",
                                "canonical_action": expected_action, "publication_allowed": publication_allowed,

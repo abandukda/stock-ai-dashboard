@@ -16,7 +16,7 @@ permissions:
 jobs:
   overnight-scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 180
 
     env:
       FAST_CRON_MODE: "true"
@@ -33,6 +33,11 @@ jobs:
       SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
       GITHUB_REPO_URL: "abandukda/stock-ai-dashboard"
       DATA_DIR: "."
+      # Certification run tests every requested pool size up to these maxima.
+      DISCOVERY_CANDIDATE_POOL_SIZE: "1250"
+      FULL_EVALUATION_POOL_SIZE: "650"
+      DISCOVERY_VALIDATION_NEAR_CUTOFF: "100"
+      DISCOVERY_VALIDATION_RANDOM: "100"
 
     steps:
       - name: Checkout repo
@@ -109,6 +114,8 @@ jobs:
             audit_results/candidate_artifacts/market_full_scan.json
             audit_results/candidate_artifacts/market_prescreen.json
             audit_results/candidate_artifacts/market_scan_state.json
+            audit_results/candidate_artifacts/discovery_candidate_pool.json
+            audit_results/candidate_artifacts/full_evaluation_pool.json
             audit_results/candidate_artifacts/recovery_scan.json
             audit_results/candidate_artifacts/total_market_universe.json
             audit_results/candidate_artifacts/publication_manifest.json
@@ -125,4 +132,4 @@ jobs:
           retention-days: 30
 
       - name: Confirm production remains unchanged pending QA
-        run: git diff --exit-code -- etf_scan.json market_full_scan.json market_prescreen.json market_scan_state.json recovery_scan.json total_market_universe.json publication_manifest.json publication_audit.jsonl
+        run: git diff --exit-code -- discovery_candidate_pool.json full_evaluation_pool.json etf_scan.json market_full_scan.json market_prescreen.json market_scan_state.json recovery_scan.json total_market_universe.json publication_manifest.json publication_audit.jsonl

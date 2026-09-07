@@ -12,10 +12,12 @@ def _read(path: Path):
 
 
 def main() -> int:
-    paths = {name: Path(name) for name in (
+    names = [
         "market_full_scan.json", "market_prescreen.json", "recovery_scan.json",
         "etf_scan.json", "total_market_universe.json", "market_scan_state.json",
-    )}
+    ]
+    names.extend(name for name in ("discovery_candidate_pool.json", "full_evaluation_pool.json") if Path(name).exists())
+    paths = {name: Path(name) for name in names}
     payloads = {path: _read(path) for path in paths.values()}
     prior_path = paths["market_full_scan.json"].with_name(".market_full_scan.json.last_known_good")
     prior_rows = _read(prior_path) if prior_path.exists() else None

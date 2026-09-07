@@ -67,6 +67,22 @@ def _render_full_qa_status(publication_manifest: Mapping[str, Any]) -> None:
         cols = st.columns(5)
         for index in range(5):
             cols[index].metric(f"P{index}", severity.get(f"P{index}", 0))
+        st.markdown("**Data + Discovery QA**")
+        funnel = st.columns(5)
+        funnel[0].metric("Market", qa.get("market_universe_count", "—"))
+        funnel[1].metric("Eligible", qa.get("eligible_count", "—"))
+        funnel[2].metric("Candidate Pool", qa.get("candidate_pool_count", "—"))
+        funnel[3].metric("Full Evaluation", qa.get("full_evaluation_pool_count", "—"))
+        funnel[4].metric("Customer 150", qa.get("customer_discovery_count", "—"))
+        recall = st.columns(4)
+        recall[0].metric("Discovery Gate", qa.get("discovery_certification_status", "NOT RUN"))
+        recall[1].metric("Recall Sample", qa.get("recall_validation_sample_size", 0))
+        recall[2].metric("BUY Recall", "—" if qa.get("buy_now_recall") is None else f"{qa['buy_now_recall']:.1%}")
+        recall[3].metric("BUILD+ Recall", "—" if qa.get("build_or_better_recall") is None else f"{qa['build_or_better_recall']:.1%}")
+        discovery_severity = dict(qa.get("discovery_severity_counts") or {})
+        dcols = st.columns(5)
+        for index in range(5):
+            dcols[index].metric(f"D{index}", discovery_severity.get(f"D{index}", 0))
         if qa.get("action_distribution"):
             st.caption("Canonical Action distribution")
             st.dataframe(pd.DataFrame([{"Action": key, "Count": value} for key, value in qa["action_distribution"].items()]), hide_index=True, use_container_width=True)

@@ -170,6 +170,8 @@ def test_production_output_contract_includes_manifest_and_immutable_audit():
         "etf_scan.json",
         "market_full_scan.json",
         "market_prescreen.json",
+        "discovery_candidate_pool.json",
+        "full_evaluation_pool.json",
         "market_scan_state.json",
         "recovery_scan.json",
         "total_market_universe.json",

@@ -46,7 +46,7 @@ jobs:
   certify-and-promote:
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    timeout-minutes: 180
     env:
       ATLAS_DATA_MODE: INTERNAL_TRIAL
       TWELVE_DATA_ENABLED: "true"
@@ -62,6 +62,11 @@ jobs:
       FULL_COMMITTEE_LIMIT: "15"
       ETF_FULL_COMMITTEE_LIMIT: "10"
       HTTP_TIMEOUT_FAST: "6"
+      # Certification run tests every requested pool size up to these maxima.
+      DISCOVERY_CANDIDATE_POOL_SIZE: "1250"
+      FULL_EVALUATION_POOL_SIZE: "650"
+      DISCOVERY_VALIDATION_NEAR_CUTOFF: "100"
+      DISCOVERY_VALIDATION_RANDOM: "100"
       TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
       FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
       FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
@@ -157,6 +162,8 @@ jobs:
           cp audit_results/candidate_artifacts/etf_scan.json etf_scan.json
           cp audit_results/candidate_artifacts/total_market_universe.json total_market_universe.json
           cp audit_results/candidate_artifacts/market_scan_state.json market_scan_state.json
+          cp audit_results/candidate_artifacts/discovery_candidate_pool.json discovery_candidate_pool.json
+          cp audit_results/candidate_artifacts/full_evaluation_pool.json full_evaluation_pool.json
 
       - name: Verify production Python grammar
         run: python -m compileall -q app.py ui services engines agents scripts
@@ -230,7 +237,7 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git add -- etf_scan.json market_full_scan.json market_prescreen.json market_scan_state.json recovery_scan.json total_market_universe.json publication_manifest.json publication_audit.jsonl
+          git add -- etf_scan.json market_full_scan.json market_prescreen.json discovery_candidate_pool.json full_evaluation_pool.json market_scan_state.json recovery_scan.json total_market_universe.json publication_manifest.json publication_audit.jsonl
           git commit -m "Publish QA-certified overnight market scan - $(date -u +'%Y-%m-%d %H:%M UTC')" || echo "No production changes to commit"
           git pull --rebase origin main
           # workflow_run checks out the triggering SHA in detached-HEAD mode.

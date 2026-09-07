@@ -12,9 +12,11 @@ def test_visual_ticker_matrix_keeps_permanent_fixtures_and_dynamic_categories(tm
         {"ticker": "GAP", "canonical_investment_evaluation": {"guidance": {"state": "DATA_LIMITED"}, "atlas_valuation": {"professional_valuation_v2": {"status": "INSUFFICIENT_INPUTS"}}}},
     ]
     (tmp_path / "market_full_scan.json").write_text(json.dumps(rows))
+    (tmp_path / "full_evaluation_pool.json").write_text(json.dumps([*rows, {"ticker": "OUTSIDE"}]))
     selected = certification_tickers(tmp_path)
     assert selected[:2] == ["INTU", "NEM"]
     assert "GAP" in selected
+    assert "OUTSIDE" in selected
 
 
 def test_master_visual_workflow_captures_required_surfaces_before_promotion():

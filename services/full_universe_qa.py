@@ -15,7 +15,7 @@ from typing import Any, Mapping, Sequence
 
 from services.publication_governance import VERSION as GOVERNANCE_VERSION
 
-VERSION = "ATLAS_FULL_UNIVERSE_QA_V2"
+VERSION = "ATLAS_MASTER_QA_V3_DISCOVERY"
 EXPECTED_UNIVERSE_SIZE = 150
 BLOCKING_SEVERITIES = {"P0", "P1", "P2"}
 MISSING_REASONS = {
@@ -25,6 +25,27 @@ MISSING_REASONS = {
     "SECONDARY_VALIDATION_UNAVAILABLE", "PROVIDER_FIELD_EMPTY", "CURRENCY_ERROR",
     "FILING_VALIDATION_UNAVAILABLE", "OTHER",
 }
+
+
+def _qa_category(finding: Mapping[str, Any]) -> str:
+    category = str(finding.get("category") or "")
+    if category in {"MARKET_CAP_RECONCILIATION", "FCF_RECONCILIATION", "NET_DEBT_RECONCILIATION", "MARGIN_RECONCILIATION", "EV_BRIDGE", "SHARE_BASIS"}:
+        return "QA-2 ACCOUNTING"
+    if "ESTIMATE" in category or "PERIOD" in category:
+        return "QA-3 ESTIMATES"
+    if category.startswith("VALUATION") or category.startswith("DCF") or category.startswith("ANOMALY_"):
+        return "QA-4 VALUATION"
+    if category.startswith("DISCOVERY"):
+        return "QA-5 DISCOVERY"
+    if category in {"GUIDANCE", "CANONICAL_ACTION", "PILLAR"}:
+        return "QA-6 SIX-PILLAR / ACTION"
+    if category == "CUSTOMER_SURFACE":
+        return "QA-7 CUSTOMER SURFACE"
+    if category == "VISUAL_QA":
+        return "QA-8 VISUAL"
+    if category == "RUN_OVER_RUN":
+        return "QA-9 RUN-OVER-RUN"
+    return "QA-1 DATA"
 
 
 def _num(value: Any) -> float | None:
@@ -488,7 +509,10 @@ def _run_over_run(current: Sequence[Mapping[str, Any]], prior: Sequence[Mapping[
 
 def crawl_universe(rows: Sequence[Mapping[str, Any]], *, prior_rows: Sequence[Mapping[str, Any]] | None = None,
                    run_id: str = "local", generated_at: str | None = None,
-                   artifact_link: str | None = None) -> dict[str, Any]:
+                   artifact_link: str | None = None,
+                   discovery_state: Mapping[str, Any] | None = None,
+                   full_evaluation_rows: Sequence[Mapping[str, Any]] | None = None,
+                   candidate_rows: Sequence[Mapping[str, Any]] | None = None) -> dict[str, Any]:
     """Crawl and certify one exact persisted candidate universe."""
     generated_at = generated_at or datetime.now(timezone.utc).isoformat()
     records: list[dict[str, Any]] = []
@@ -510,11 +534,27 @@ def crawl_universe(rows: Sequence[Mapping[str, Any]], *, prior_rows: Sequence[Ma
     if len(rows) != EXPECTED_UNIVERSE_SIZE:
         all_findings.append(_issue("UNIVERSE", "P1", "SCHEMA", "universe_count",
                                    f"Expected {EXPECTED_UNIVERSE_SIZE} securities, received {len(rows)}."))
+    customer_tickers = {_ticker(row) for row in rows}
+    certified_buys = {
+        _ticker(row) for row in full_evaluation_rows or ()
+        if bool((row.get("publication_certification") or {}).get("customer_publication_allowed"))
+        and _action(row.get("canonical_investment_evaluation") or {}) == "BUY_NOW"
+    }
+    omitted_buys = sorted(certified_buys - customer_tickers)
+    if omitted_buys:
+        all_findings.append(_issue("UNIVERSE", "P1", "DISCOVERY_TOP_150", "certified_buy_inclusion",
+                                   f"Certified BUY NOW omitted from Customer Discovery 150: {', '.join(omitted_buys)}."))
+    discovery = dict(discovery_state or {})
+    recall = dict(discovery.get("recall") or {})
+    discovery_severity = {f"D{i}": int((recall.get("severity_counts") or {}).get(f"D{i}") or 0) for i in range(5)}
     missing = [x for x in all_findings if x.get("reason") in MISSING_REASONS and x.get("category") is None]
     failures = [x for x in all_findings if x.get("category")]
+    for finding in failures:
+        finding["qa_category"] = _qa_category(finding)
     severities = Counter(x.get("severity") for x in failures)
     severities["P3"] += sum(x.get("severity") == "P3" for x in missing)
-    gate = "FAIL" if any(severities.get(level, 0) for level in BLOCKING_SEVERITIES) else "PASS"
+    discovery_failed = bool(discovery) and recall.get("discovery_gate") != "PASS"
+    gate = "FAIL" if any(severities.get(level, 0) for level in BLOCKING_SEVERITIES) or discovery_severity["D0"] or discovery_failed else "PASS"
     certification_counts = Counter(str(r.get("certification_state") or "UNKNOWN") for r in records)
     run_over_run = _run_over_run(records, prior_rows or ())
     anomalies = [x for x in failures if x.get("category") in {"MARKET_CAP_RECONCILIATION", "FCF_RECONCILIATION", "NET_DEBT_RECONCILIATION", "DCF_SANITY", "VALUATION_RANGE", "EV_BRIDGE", "SHARE_BASIS"} or str(x.get("category")).startswith("ANOMALY_")]
@@ -536,16 +576,87 @@ def crawl_universe(rows: Sequence[Mapping[str, Any]], *, prior_rows: Sequence[Ma
         "blocking_issue_count": sum(severities.get(level, 0) for level in BLOCKING_SEVERITIES),
         "action_distribution": dict(Counter(str(r.get("action") or "UNKNOWN") for r in records)),
         "artifact_link": artifact_link,
+        "discovery_certification_status": "FAILED" if discovery_severity["D0"] else (recall.get("discovery_gate") or "NOT_RUN"),
+        "discovery_severity_counts": discovery_severity,
+        "market_universe_count": discovery.get("market_universe_count"),
+        "eligible_count": discovery.get("eligible_count"),
+        "candidate_pool_count": discovery.get("candidate_pool_count"),
+        "full_evaluation_pool_count": discovery.get("full_evaluation_pool_count"),
+        "customer_discovery_count": discovery.get("customer_discovery_count", len(records)),
+        "buy_now_recall": (recall.get("metrics") or {}).get("buy_now_recall"),
+        "build_or_better_recall": (recall.get("metrics") or {}).get("build_or_better_recall"),
+        "recall_validation_sample_size": recall.get("validation_control_size", 0),
+        "qa_categories": [f"QA-{index}" for index in range(1, 13)],
     }
+    discovery_funnel = [{key: discovery.get(key) for key in (
+        "version", "market_universe_count", "eligible_count", "candidate_pool_count",
+        "full_evaluation_pool_count", "customer_discovery_count", "candidate_pool_limit",
+        "full_evaluation_pool_limit")}] if discovery else []
+    discovery_recall = [
+        {"metric": key, "value": value, "sample_size": (recall.get("metrics") or {}).get(key.replace("_recall", "_positive_sample"))}
+        for key, value in (recall.get("metrics") or {}).items() if key.endswith("_recall")
+    ] + [dict(item) for item in recall.get("misses") or ()]
+    discovery_recall.extend({"record_type": "ARCHITECTURE_SCENARIO", **dict(item)}
+                            for item in (discovery.get("architecture_experiment") or {}).get("scenarios") or ())
+    full_pool = []
+    for index, source in enumerate(full_evaluation_rows or (), 1):
+        evaluation = dict(source.get("canonical_investment_evaluation") or {})
+        full_pool.append({
+            "full_evaluation_rank": index, "ticker": _ticker(source),
+            "action": _action(evaluation), "opportunity": evaluation.get("opportunity"),
+            "decision_confidence": evaluation.get("decision_confidence"),
+            "component_coverage": evaluation.get("component_coverage"),
+            "certification_state": (source.get("publication_certification") or {}).get("certification_state"),
+            "prescreen_score": source.get("prescreen_score"),
+            "prescreen_channels": source.get("prescreen_channels"),
+            "medium_stage_score": source.get("medium_stage_score"),
+        })
+    sector_counts: dict[str, Counter[str]] = {stage: Counter() for stage in ("DISCOVERY_CANDIDATE_POOL", "FULL_EVALUATION_POOL", "CUSTOMER_DISCOVERY_150")}
+    for source in candidate_rows or ():
+        sector_counts["DISCOVERY_CANDIDATE_POOL"][str(source.get("sector") or "Unknown")] += 1
+    for source in full_evaluation_rows or ():
+        sector_counts["FULL_EVALUATION_POOL"][str(source.get("sector") or "Unknown")] += 1
+    for source in rows:
+        sector_counts["CUSTOMER_DISCOVERY_150"][str(source.get("sector") or "Unknown")] += 1
+    sector_analysis = [{"stage": stage, "sector": sector, "count": count}
+                       for stage, counts in sector_counts.items() for sector, count in sorted(counts.items())]
+    def price_bucket(source: Mapping[str, Any]) -> str:
+        value = _num(_first(source.get("current_price"), source.get("price")))
+        if value is None: return "MISSING"
+        if value < 10: return "UNDER_10"
+        if value < 50: return "10_TO_50"
+        if value < 200: return "50_TO_200"
+        return "200_PLUS"
+    for stage, population in (("DISCOVERY_CANDIDATE_POOL", candidate_rows or ()),
+                              ("FULL_EVALUATION_POOL", full_evaluation_rows or ()),
+                              ("CUSTOMER_DISCOVERY_150", rows)):
+        for bucket, count in Counter(price_bucket(source) for source in population).items():
+            sector_analysis.append({"stage": stage, "dimension": "PRICE_BUCKET", "bucket": bucket, "count": count})
+        for source in population:
+            completeness = sum(source.get(key) not in (None, "") for key in
+                               ("revenue_growth", "earnings_growth", "free_cash_flow", "market_cap", "forward_eps"))
+            sector_analysis.append({"stage": stage, "dimension": "OPTIONAL_EVIDENCE_COMPLETENESS",
+                                    "bucket": f"{completeness}_OF_5", "ticker": _ticker(source), "count": 1})
+    provider_quality = [{"provider_calls": discovery.get("provider_calls"),
+                         "candidate_pool": discovery.get("candidate_pool_count"),
+                         "full_evaluation_pool": discovery.get("full_evaluation_pool_count"),
+                         "recall_sample": recall.get("validation_control_size", 0)}]
     sheets.update({
-        "Master": records, "Missing_Data": missing, "Validation_Failures": failures,
-        "Run_Over_Run": run_over_run, "Universe_Summary": [summary], "Numerical_Anomalies": anomalies,
-        "Screenshot_Index": [],
+        "Executive_Summary": [summary], "Discovery_Funnel": discovery_funnel,
+        "Discovery_Recall": discovery_recall, "Master_150": records,
+        "Full_Evaluation_Pool": full_pool, "Missing_Data": missing,
+        "Validation_Failures": failures, "Run_Over_Run": run_over_run,
+        "Numerical_Anomalies": anomalies, "Screenshot_Index": [],
+        "Provider_Quality": provider_quality, "Manual_Research_QA": [],
+        "Universe_Sector_Analysis": sector_analysis,
     })
-    ordered = ["Master", "Financials", "Financial_Reconciliation", "Estimates", "Valuation_Models",
-               "Valuation_Reconciliation", "Peer_Sets", "Source_Lineage", "Missing_Data", "Validation_Failures",
-               "Street_Analyst", "Context", "Six_Pillar_QA", "Action_QA", "Run_Over_Run",
-               "Customer_Surface_Audit", "Numerical_Anomalies", "ATLAS_vs_Street", "Screenshot_Index", "Universe_Summary"]
+    ordered = ["Executive_Summary", "Discovery_Funnel", "Discovery_Recall", "Master_150",
+               "Full_Evaluation_Pool", "Financials", "Financial_Reconciliation", "Estimates",
+               "Valuation_Models", "Valuation_Reconciliation", "Peer_Sets", "Source_Lineage",
+               "Missing_Data", "Validation_Failures", "Six_Pillar_QA", "Action_QA",
+               "ATLAS_vs_Street", "Run_Over_Run", "Customer_Surface_Audit",
+               "Numerical_Anomalies", "Screenshot_Index", "Provider_Quality",
+               "Manual_Research_QA", "Universe_Sector_Analysis"]
     return {"summary": summary, "sheets": {name: sheets[name] for name in ordered}, "gate": gate}
 
 

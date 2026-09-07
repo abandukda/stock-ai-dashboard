@@ -70,6 +70,8 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 FULL_SCAN_FILE = DATA_DIR / "market_full_scan.json"
 PRESCREEN_FILE = DATA_DIR / "market_prescreen.json"
+DISCOVERY_CANDIDATE_FILE = DATA_DIR / "discovery_candidate_pool.json"
+FULL_EVALUATION_FILE = DATA_DIR / "full_evaluation_pool.json"
 STATE_FILE = DATA_DIR / "market_scan_state.json"
 UNIVERSE_FILE = DATA_DIR / "total_market_universe.json"
 PUBLICATION_MANIFEST_FILE = DATA_DIR / "publication_manifest.json"
@@ -104,6 +106,10 @@ ETF_SCAN_FILE = DATA_DIR / "etf_scan.json"
 MAX_UNIVERSE = int(os.getenv("MAX_UNIVERSE", "6500"))
 MAX_PRESCREEN = int(os.getenv("MAX_PRESCREEN", "650"))
 MAX_FULL_SCAN = int(os.getenv("MAX_FULL_SCAN", "150"))
+DISCOVERY_CANDIDATE_POOL_SIZE = int(os.getenv("DISCOVERY_CANDIDATE_POOL_SIZE", "1250"))
+FULL_EVALUATION_POOL_SIZE = int(os.getenv("FULL_EVALUATION_POOL_SIZE", "650"))
+DISCOVERY_VALIDATION_NEAR_CUTOFF = int(os.getenv("DISCOVERY_VALIDATION_NEAR_CUTOFF", "100"))
+DISCOVERY_VALIDATION_RANDOM = int(os.getenv("DISCOVERY_VALIDATION_RANDOM", "100"))
 BATCH_SIZE = int(os.getenv("SCAN_BATCH_SIZE", "25"))
 
 MIN_PRICE = float(os.getenv("MIN_PRICE", "2.00"))
@@ -118,6 +124,8 @@ PRODUCTION_OUTPUT_FILES = (
     ETF_SCAN_FILE,
     FULL_SCAN_FILE,
     PRESCREEN_FILE,
+    DISCOVERY_CANDIDATE_FILE,
+    FULL_EVALUATION_FILE,
     STATE_FILE,
     RECOVERY_SCAN_FILE,
     UNIVERSE_FILE,
@@ -4736,7 +4744,9 @@ def passes_basic_filter(ind: Dict[str, Any], meta: Dict[str, Any]) -> bool:
         return False
 
     price = ind.get("price")
-    if price is None or price < MIN_PRICE or price > MAX_PRICE:
+    # Share price is not investment quality.  Retain expensive liquid shares;
+    # the historical MAX_PRICE value remains telemetry only.
+    if price is None or price < MIN_PRICE:
         return False
 
     if (ind.get("dollar_volume") or 0) < MIN_DOLLAR_VOLUME:
@@ -4763,8 +4773,6 @@ def _shadow_filter_reason(ind: Dict[str, Any], meta: Dict[str, Any]) -> Optional
         return "MISSING_PRICE"
     if price < MIN_PRICE:
         return "PRICE_BELOW_MINIMUM"
-    if price > MAX_PRICE:
-        return "PRICE_ABOVE_MAXIMUM"
     if (ind.get("dollar_volume") or 0) < MIN_DOLLAR_VOLUME:
         return "DOLLAR_VOLUME_BELOW_MINIMUM"
     market_cap = meta.get("market_cap")
@@ -4885,6 +4893,17 @@ def scan_market() -> Dict[str, Any]:
 
     prescreen_rows: List[Dict[str, Any]] = []
     full_rows: List[Dict[str, Any]] = []
+    discovery_eligible_rows: List[Dict[str, Any]] = []
+    discovery_candidate_rows: List[Dict[str, Any]] = []
+    full_evaluation_rows: List[Dict[str, Any]] = []
+    discovery_recall = {"status": "NOT_RUN", "discovery_gate": "NOT_RUN", "severity_counts": {f"D{i}": 0 for i in range(5)}}
+    discovery_experiment = {"status": "NOT_RUN", "scenarios": []}
+    discovery_exclusions: Dict[str, int] = {}
+    discovery_exclusion_records: List[Dict[str, str]] = []
+    def record_discovery_exclusion(reason: str, symbol: str = "") -> None:
+        discovery_exclusions[reason] = discovery_exclusions.get(reason, 0) + 1
+        if symbol:
+            discovery_exclusion_records.append({"ticker": symbol, "reason": reason})
     etf_rows: List[Dict[str, Any]] = []
 
     metadata_cache: Dict[str, Dict[str, Any]] = {}
@@ -4910,12 +4929,15 @@ def scan_market() -> Dict[str, Any]:
             hist = extract_symbol_history(price_data, symbol)
             ind = compute_indicators(hist)
             if not ind:
+                record_discovery_exclusion("MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE", symbol)
                 continue
 
             # Light price/liquidity filter before metadata calls.
             if ind.get("price") is None or ind.get("price") < MIN_PRICE:
+                record_discovery_exclusion("PRICE_BELOW_MINIMUM_OR_UNAVAILABLE", symbol)
                 continue
             if (ind.get("dollar_volume") or 0) < MIN_DOLLAR_VOLUME:
+                record_discovery_exclusion("DOLLAR_VOLUME_BELOW_MINIMUM", symbol)
                 continue
             qualifying_candidates += 1
 
@@ -4959,6 +4981,7 @@ def scan_market() -> Dict[str, Any]:
 
                 # V41: apply hard exclusions after FMP profile enrichment and before extra API calls.
                 if exclusion_reason(meta):
+                    record_discovery_exclusion(str(exclusion_reason(meta)), symbol)
                     metadata_cache[symbol] = meta
                     continue
 
@@ -4994,6 +5017,7 @@ def scan_market() -> Dict[str, Any]:
                 metadata_cache[symbol] = meta
 
             if v42_is_excluded_company(symbol, meta):
+                record_discovery_exclusion("GOVERNED_COMPANY_EXCLUSION", symbol)
                 continue
 
             quote_type = str(meta.get("quote_type", "")).upper()
@@ -5030,6 +5054,7 @@ def scan_market() -> Dict[str, Any]:
                 continue
 
             if not passes_basic_filter(ind, meta):
+                record_discovery_exclusion(_shadow_filter_reason(ind, meta) or "BASIC_ELIGIBILITY_FAILED", symbol)
                 continue
             yahoo_authoritative_eligible.append(symbol)
 
@@ -5048,6 +5073,11 @@ def scan_market() -> Dict[str, Any]:
             row = v803_apply_complete_research_fields(row, meta)
             indicator_cache[symbol] = ind
             history_cache[symbol] = hist
+
+            # Discovery V2 retains the complete inexpensive eligible population.
+            # Multi-path qualification and deep-evaluation selection happen only
+            # after every broad-scan row is available.
+            discovery_eligible_rows.append(row)
 
             # Prescreen can include moderate setups, but weak fallback rows are reduced.
             if score >= 38:
@@ -5082,11 +5112,14 @@ def scan_market() -> Dict[str, Any]:
 
     ranking_started = time.monotonic()
 
-    prescreen_rows.sort(key=lambda r: (r.get("conviction") or 0, r.get("dollar_volume") or 0), reverse=True)
-    full_rows.sort(key=lambda r: (r.get("conviction") or 0, r.get("dollar_volume") or 0), reverse=True)
-
-    prescreen_rows = prescreen_rows[:MAX_PRESCREEN]
-    full_rows = full_rows[:MAX_FULL_SCAN]
+    from services.discovery_engine_v2 import select_candidate_pool, select_full_evaluation_pool
+    discovery_candidate_rows = select_candidate_pool(discovery_eligible_rows, DISCOVERY_CANDIDATE_POOL_SIZE)
+    full_evaluation_rows = select_full_evaluation_pool(discovery_candidate_rows, FULL_EVALUATION_POOL_SIZE)
+    # The legacy prescreen artifact remains available to existing consumers but
+    # now represents the governed medium candidate pool, capped by its legacy
+    # compatibility limit. The customer artifact is selected after evaluation.
+    prescreen_rows = [dict(row) for row in discovery_candidate_rows[:MAX_PRESCREEN]]
+    full_rows = [dict(row) for row in full_evaluation_rows]
     etf_rows.sort(key=lambda r: (r.get("conviction") or 0, r.get("dollar_volume") or 0), reverse=True)
     etf_rows = etf_rows[:150]
     # Separate ETF-only enrichment after ETF ranking.  Corporate earnings,
@@ -5253,13 +5286,41 @@ def scan_market() -> Dict[str, Any]:
             from services.full_universe_decision_publication import (
                 acquire_full_universe_decisions, publish_evaluations,
             )
-            before_order = [str(row.get("ticker") or row.get("symbol") or "").upper() for row in full_rows]
-            decision_publication = acquire_full_universe_decisions(full_rows)
-            full_rows = publish_evaluations(full_rows, decision_publication)
+            from services.discovery_engine_v2 import architecture_experiment, curate_customer_150, recall_report, validation_sample
+            selected_ids = {str(row.get("ticker") or row.get("symbol") or "").upper() for row in full_rows}
+            discarded = [row for row in discovery_candidate_rows if str(row.get("ticker") or row.get("symbol") or "").upper() not in selected_ids]
+            controls = validation_sample(
+                discarded,
+                near_cutoff=DISCOVERY_VALIDATION_NEAR_CUTOFF,
+                random_size=DISCOVERY_VALIDATION_RANDOM,
+                seed=now_iso()[:10],
+            )
+            candidate_ids = {str(row.get("ticker") or row.get("symbol") or "").upper() for row in discovery_candidate_rows}
+            candidate_cutoff = [row for row in discovery_eligible_rows if str(row.get("ticker") or row.get("symbol") or "").upper() not in candidate_ids]
+            outer_controls = validation_sample(candidate_cutoff, near_cutoff=100, random_size=0, seed=now_iso()[:10])
+            control_ids = {str(row.get("ticker") or row.get("symbol") or "").upper() for row in controls}
+            controls.extend(row for row in outer_controls if str(row.get("ticker") or row.get("symbol") or "").upper() not in control_ids)
+            evaluation_input = [*full_rows, *controls]
+            before_order = [str(row.get("ticker") or row.get("symbol") or "").upper() for row in evaluation_input]
+            decision_publication = acquire_full_universe_decisions(evaluation_input)
+            evaluated = publish_evaluations(evaluation_input, decision_publication)
+            from services.publication_governance import certify_rows
+            evaluated = certify_rows(evaluated)
+            evaluated_by_ticker = {str(row.get("ticker") or row.get("symbol") or "").upper(): row for row in evaluated}
+            full_evaluation_rows = [evaluated_by_ticker[ticker] for ticker in before_order[:len(full_rows)] if ticker in evaluated_by_ticker]
+            for evaluation_rank, row in enumerate(full_evaluation_rows, 1):
+                row["full_evaluation_complete"] = True
+                row["full_evaluation_rank"] = evaluation_rank
+            evaluated_controls = [evaluated_by_ticker[ticker] for ticker in before_order[len(full_rows):] if ticker in evaluated_by_ticker]
+            discovery_recall = recall_report(full_evaluation_rows, evaluated_controls)
+            discovery_recall["status"] = "COMPLETE"
+            discovery_experiment = architecture_experiment(discovery_eligible_rows, evaluated)
+            discovery_experiment["status"] = "COMPLETE"
+            full_rows = curate_customer_150(full_evaluation_rows, MAX_FULL_SCAN)
             # Capture the governed point-in-time decision before later presentation
             # shaping. The append-only store is observational and cannot affect rank.
             from services.performance_tracking import append_snapshots, build_snapshot
-            snapshots = [build_snapshot(row) for row in full_rows]
+            snapshots = [build_snapshot(row) for row in full_evaluation_rows]
             decision_publication["performance_snapshots_appended"] = append_snapshots(
                 Path("performance_snapshots.jsonl"), snapshots
             )
@@ -5271,14 +5332,11 @@ def scan_market() -> Dict[str, Any]:
             bars_by_ticker={symbol:_performance_bars(frame) for symbol,frame in history_cache.items()}
             matured=mature_store(read_jsonl(Path("performance_snapshots.jsonl")),bars_by_ticker,bars_by_ticker.get("SPY",()))
             decision_publication["performance_outcomes_appended"] = append_outcomes(Path("performance_outcomes.jsonl"),matured)
-            after_order = [str(row.get("ticker") or row.get("symbol") or "").upper() for row in full_rows]
-            if after_order != before_order:
-                raise RuntimeError("DECISION_PUBLICATION_CHANGED_PRODUCTION_ORDER")
             print(
                 "[decision-metrics-publication] "
                 f"status={decision_publication.get('status')} "
                 f"calls={decision_publication.get('provider_calls', 0)} "
-                f"technical={decision_publication.get('technical_history_successes', 0)}/{len(full_rows)} "
+                f"technical={decision_publication.get('technical_history_successes', 0)}/{len(evaluation_input)} "
                 f"seconds={decision_publication.get('latency_seconds', 0)}",
                 flush=True,
             )
@@ -5301,6 +5359,8 @@ def scan_market() -> Dict[str, Any]:
         "universe_count": len(universe),
         "prescreen_count": len(prescreen_rows),
         "full_scan_count": len(full_rows),
+        "discovery_candidate_count": len(discovery_candidate_rows),
+        "full_evaluation_count": len(full_evaluation_rows),
         "recovery_count": len(recovery_rows),
         "etf_count": len(etf_rows),
         "fallback_rows_allowed": False,
@@ -5436,6 +5496,34 @@ def scan_market() -> Dict[str, Any]:
                 "secondary_validation", "latency_seconds", "observed_at", "reason_codes",
             ) if decision_publication.get(key) is not None
         },
+        "discovery_v2": {
+            "version": "ATLAS_DISCOVERY_ENGINE_V2",
+            "market_universe_count": len(universe),
+            "eligible_count": len(discovery_eligible_rows),
+            "candidate_pool_count": len(discovery_candidate_rows),
+            "full_evaluation_pool_count": len(full_evaluation_rows),
+            "customer_discovery_count": len(full_rows),
+            "candidate_pool_limit": DISCOVERY_CANDIDATE_POOL_SIZE,
+            "full_evaluation_pool_limit": FULL_EVALUATION_POOL_SIZE,
+            "validation_evaluation_count": discovery_recall.get("validation_control_size", 0),
+            "full_evaluation_action_distribution": {
+                action_state: sum(
+                    str((((row.get("canonical_investment_evaluation") or {}).get("guidance") or {}).get("state") or "")) == action_state
+                    for row in full_evaluation_rows
+                )
+                for action_state in ("BUY_NOW", "ACCUMULATE", "WAIT_FOR_ENTRY", "WAIT_FOR_CONFIRMATION", "DATA_LIMITED", "AVOID")
+            },
+            "recall": discovery_recall,
+            "architecture_experiment": discovery_experiment,
+            "exclusion_reason_counts": discovery_exclusions,
+        },
+    }
+
+    universe_payload["eligibility"] = {
+        "eligible_count": len(discovery_eligible_rows),
+        "excluded_count": len(discovery_exclusion_records),
+        "exclusion_reason_counts": discovery_exclusions,
+        "exclusions": discovery_exclusion_records,
     }
 
     _finalize_yahoo_metadata_percentiles()
@@ -5466,6 +5554,8 @@ def scan_market() -> Dict[str, Any]:
         }
         artifact_payloads = {
             PRESCREEN_FILE: prescreen_rows, FULL_SCAN_FILE: full_rows,
+            DISCOVERY_CANDIDATE_FILE: discovery_candidate_rows,
+            FULL_EVALUATION_FILE: full_evaluation_rows,
             RECOVERY_SCAN_FILE: recovery_rows, ETF_SCAN_FILE: etf_rows,
             UNIVERSE_FILE: universe_payload, STATE_FILE: state,
         }
@@ -5491,6 +5581,8 @@ def scan_market() -> Dict[str, Any]:
     else:
         write_json(PRESCREEN_FILE, prescreen_rows)
         write_json(FULL_SCAN_FILE, full_rows)
+        write_json(DISCOVERY_CANDIDATE_FILE, discovery_candidate_rows)
+        write_json(FULL_EVALUATION_FILE, full_evaluation_rows)
         write_json(RECOVERY_SCAN_FILE, recovery_rows)
         write_json(ETF_SCAN_FILE, etf_rows)
         write_json(UNIVERSE_FILE, universe_payload)

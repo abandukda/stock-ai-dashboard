@@ -38,8 +38,8 @@ def test_150_name_crawler_and_lineage_sheets_pass():
     report = crawl_universe(universe(), run_id="test")
     assert report["gate"] == "PASS"
     assert report["summary"]["universe_count"] == 150
-    assert len(report["sheets"]["Master"]) == 150
-    assert list(report["sheets"]) == ["Master", "Financials", "Financial_Reconciliation", "Estimates", "Valuation_Models", "Valuation_Reconciliation", "Peer_Sets", "Source_Lineage", "Missing_Data", "Validation_Failures", "Street_Analyst", "Context", "Six_Pillar_QA", "Action_QA", "Run_Over_Run", "Customer_Surface_Audit", "Numerical_Anomalies", "ATLAS_vs_Street", "Screenshot_Index", "Universe_Summary"]
+    assert len(report["sheets"]["Master_150"]) == 150
+    assert list(report["sheets"]) == ["Executive_Summary", "Discovery_Funnel", "Discovery_Recall", "Master_150", "Full_Evaluation_Pool", "Financials", "Financial_Reconciliation", "Estimates", "Valuation_Models", "Valuation_Reconciliation", "Peer_Sets", "Source_Lineage", "Missing_Data", "Validation_Failures", "Six_Pillar_QA", "Action_QA", "ATLAS_vs_Street", "Run_Over_Run", "Customer_Surface_Audit", "Numerical_Anomalies", "Screenshot_Index", "Provider_Quality", "Manual_Research_QA", "Universe_Sector_Analysis"]
     assert report["summary"]["qa_engine_status"] == "OPERATIONAL"
     assert report["summary"]["dataset_certification_status"] == "PASS"
 
@@ -193,8 +193,23 @@ def test_workflow_candidate_gate_contract_and_syntax():
 def test_xlsx_exporter_uses_artifact_tool_and_all_required_sheets():
     source = Path("scripts/export_full_qa_xlsx.mjs").read_text()
     assert '@oai/artifact-tool' in source
-    for sheet in ("Master", "Financial_Reconciliation", "Valuation_Models", "Source_Lineage", "Universe_Summary", "Numerical_Anomalies", "Screenshot_Index"):
+    for sheet in ("Master_150", "Discovery_Funnel", "Discovery_Recall", "Full_Evaluation_Pool", "Financial_Reconciliation", "Valuation_Models", "Source_Lineage", "Executive_Summary", "Numerical_Anomalies", "Screenshot_Index"):
         assert sheet in Path("services/full_universe_qa.py").read_text()
+
+
+def test_d0_discovery_miss_blocks_qa_gate():
+    discovery = {"recall": {"discovery_gate": "FAIL", "severity_counts": {"D0": 1},
+                             "metrics": {"buy_now_recall": .8}, "validation_control_size": 200}}
+    report = crawl_universe(universe(), discovery_state=discovery)
+    assert report["gate"] == "FAIL"
+    assert report["summary"]["discovery_severity_counts"]["D0"] == 1
+
+
+def test_customer_150_cannot_omit_certified_buy_from_full_pool():
+    report = crawl_universe(universe(), full_evaluation_rows=[row("OUTSIDE", action="BUY_NOW")])
+    assert report["gate"] == "FAIL"
+    finding = next(item for item in report["sheets"]["Validation_Failures"] if item["category"] == "DISCOVERY_TOP_150")
+    assert finding["qa_category"] == "QA-5 DISCOVERY"
 
 
 def test_intu_and_nem_permanent_accounting_fixtures():

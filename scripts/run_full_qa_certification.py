@@ -16,6 +16,7 @@ from services.publication_governance import promote_atomically
 ARTIFACT_NAMES = (
     "market_full_scan.json", "market_prescreen.json", "recovery_scan.json",
     "etf_scan.json", "total_market_universe.json", "market_scan_state.json",
+    "discovery_candidate_pool.json", "full_evaluation_pool.json",
 )
 
 
@@ -60,6 +61,12 @@ def _markdown(report, path: Path) -> None:
         "## Visual certification", "",
         f"- Screenshots indexed: {summary.get('screenshot_count', 0)}",
         f"- Visual failures: {summary.get('visual_failure_count', 0)}", "",
+        "## Discovery", "",
+        f"- Discovery gate: {summary.get('discovery_certification_status', 'NOT_RUN')}",
+        f"- Market / candidate / full / customer: {summary.get('market_universe_count')} / {summary.get('candidate_pool_count')} / {summary.get('full_evaluation_pool_count')} / {summary.get('customer_discovery_count')}",
+        f"- BUY NOW recall: {summary.get('buy_now_recall')}",
+        f"- BUILD-or-better recall: {summary.get('build_or_better_recall')}",
+        *[f"- D{i}: {(summary.get('discovery_severity_counts') or {}).get(f'D{i}', 0)}" for i in range(5)], "",
         "P0/P1/P2 findings block promotion. P3 provider gaps may be withheld; P4 context issues are nonblocking.",
     ]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -102,12 +109,18 @@ def main(argv=None) -> int:
     if prior_path.exists():
         prior_rows = _read(prior_path)
         prior_report = crawl_universe(prior_rows, run_id="prior-production")
+    state = payloads[args.production_dir / "market_scan_state.json"]
+    discovery_state = dict(state.get("discovery_v2") or {})
+    discovery_state["provider_calls"] = (state.get("decision_metrics_publication") or {}).get("provider_calls")
     report = crawl_universe(
         candidate_rows,
-        prior_rows=((prior_report or {}).get("sheets") or {}).get("Master") or (),
+        prior_rows=((prior_report or {}).get("sheets") or {}).get("Master_150") or (),
         run_id=str(candidate_manifest.get("run_id") or "candidate"),
         generated_at=str(candidate_manifest.get("generated_at") or datetime.now(timezone.utc).isoformat()),
         artifact_link=str(args.artifact_link or candidate_manifest.get("artifact_link") or ""),
+        discovery_state=discovery_state,
+        full_evaluation_rows=payloads[args.production_dir / "full_evaluation_pool.json"],
+        candidate_rows=payloads[args.production_dir / "discovery_candidate_pool.json"],
     )
     if candidate_manifest.get("publication_gate_status") != "PASS":
         report["sheets"]["Validation_Failures"].append({
@@ -165,12 +178,12 @@ def main(argv=None) -> int:
     args.output_dir.mkdir(parents=True, exist_ok=True)
     date = report["summary"]["generated_at"][:10].replace("-", "")
     safe_run_id = "".join(character if character.isalnum() or character in "-_" else "_" for character in str(report["summary"]["run_id"]))
-    stem = f"ATLAS_FULL_150_QA_{safe_run_id}_{date}"
+    stem = f"ATLAS_MASTER_QA_{date}_{safe_run_id}"
     json_path, csv_path = args.output_dir / f"{stem}.json", args.output_dir / f"{stem}.csv"
-    md_path, xlsx_path = args.output_dir / f"ATLAS_FULL_150_QA_SUMMARY_{safe_run_id}_{date}.md", args.output_dir / f"{stem}.xlsx"
-    html_path = args.output_dir / f"ATLAS_FULL_150_QA_SUMMARY_{safe_run_id}_{date}.html"
+    md_path, xlsx_path = args.output_dir / f"ATLAS_MASTER_QA_SUMMARY_{date}_{safe_run_id}.md", args.output_dir / f"{stem}.xlsx"
+    html_path = args.output_dir / f"ATLAS_MASTER_QA_SUMMARY_{date}_{safe_run_id}.html"
     write_json_report(report, json_path)
-    _csv(report["sheets"]["Master"], csv_path)
+    _csv(report["sheets"]["Master_150"], csv_path)
     csv_dir = args.output_dir / f"{stem}_csv"
     csv_dir.mkdir(exist_ok=True)
     for sheet_name, rows in report["sheets"].items():
