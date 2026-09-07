@@ -99,3 +99,10 @@ def test_dual_class_bridge_is_explicit_and_does_not_replace_reported_shares():
     assert row["current_shares_outstanding"] == 60
     assert row["share_structure"]["classification"] == "DUAL_CLASS"
     assert row["share_structure"]["market_cap_reconciliation_shares"] == 100
+
+
+def test_onc_depositary_ratio_reconciles_ordinary_shares_to_ads_basis():
+    row = materialize_share_bridge({"ticker": "ONC", "current_price": 350, "market_cap": 39_550,
+                                    "current_shares_outstanding": 1_469})
+    assert row["share_structure"]["adr_ratio"] == 13
+    assert row["share_structure"]["market_cap_reconciliation_shares"] == 113

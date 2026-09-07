@@ -46,6 +46,38 @@ def _families(row: Mapping[str, Any]) -> dict[str, bool]:
     }
 
 
+def _apply_statement_margin_authority(row: Mapping[str, Any], enriched: dict[str, Any]) -> None:
+    """Use acquired same-period statement inputs for historical margin."""
+    evidence = row.get("deep_research_evidence")
+    if not isinstance(evidence, Mapping):
+        return
+    lineage = evidence.get("operating_margin_lineage")
+    if not isinstance(lineage, Mapping) or not lineage.get("comparable"):
+        return
+    if lineage.get("numerator_period") != lineage.get("denominator_period"):
+        return
+    margin = evidence.get("historical_operating_margin")
+    revenue = evidence.get("latest_revenue")
+    operating_income = evidence.get("latest_operating_income")
+    if margin is None or revenue in (None, 0) or operating_income is None:
+        return
+    # Preserve the Twelve/provider ratio as context; it is not required to
+    # equal the ATLAS-standard ratio when its definition or period differs.
+    if enriched.get("provider_defined_operating_profit_margin") is None:
+        enriched["provider_defined_operating_profit_margin"] = enriched.get("operating_profit_margin")
+    enriched.update({
+        "latest_revenue": revenue,
+        "latest_operating_income": operating_income,
+        "historical_operating_margin": margin,
+        "operating_profit_margin": margin,
+        "operating_margin_lineage": dict(lineage),
+        "financial_reporting_period": evidence.get("financial_reporting_period"),
+        "financial_reporting_period_type": evidence.get("financial_reporting_period_type"),
+        "financial_reporting_basis": evidence.get("financial_reporting_basis"),
+        "financial_reporting_currency": evidence.get("financial_reporting_currency"),
+    })
+
+
 def _merge_dossiers(primary: Mapping[str, Any], fallback: Mapping[str, Any]) -> dict[str, Any]:
     merged = {"ticker": primary.get("ticker") or fallback.get("ticker"), "families": {}}
     merged["families"].update(dict(primary.get("families") or {}))
@@ -142,6 +174,7 @@ def acquire_full_universe_decisions(
     normalized = []
     for row in clean_rows:
         enriched = normalize_trial_dossier(row, dossiers.get(_ticker(row)) or {})
+        _apply_statement_margin_authority(row, enriched)
         secondary_inputs=(secondary.get("inputs") or {}).get(_ticker(row)) or {}
         if secondary_inputs:
             existing=dict(enriched.get("approved_secondary_valuation_inputs") or {})

@@ -1,6 +1,10 @@
 from datetime import datetime, timedelta, timezone
 
-from services.full_universe_decision_publication import acquire_full_universe_decisions, publish_evaluations
+from services.full_universe_decision_publication import (
+    _apply_statement_margin_authority,
+    acquire_full_universe_decisions,
+    publish_evaluations,
+)
 from engines.home_guidance_story_v1 import build_home_guidance_candidate
 
 
@@ -88,6 +92,29 @@ def test_flag_off_makes_zero_calls_and_does_not_publish():
     )
     assert result["status"] == "DISABLED" and result["provider_calls"] == 0 and calls == []
     assert publish_evaluations(rows, result) == rows
+
+
+def test_same_period_statement_margin_replaces_mixed_provider_ratio_only():
+    source = {"deep_research_evidence": {
+        "latest_revenue": 200, "latest_operating_income": 50,
+        "historical_operating_margin": .25,
+        "financial_reporting_period": "2026-06-30",
+        "financial_reporting_period_type": "QUARTERLY",
+        "financial_reporting_basis": "GAAP", "financial_reporting_currency": "USD",
+        "operating_margin_lineage": {
+            "numerator_period": "2026-06-30", "denominator_period": "2026-06-30",
+            "period_type": "QUARTERLY", "basis": "GAAP", "currency": "USD",
+            "comparable": True,
+        },
+    }}
+    enriched = {"latest_revenue": 1000, "latest_operating_income": 100,
+                "operating_profit_margin": 10}
+    _apply_statement_margin_authority(source, enriched)
+    assert enriched["latest_revenue"] == 200
+    assert enriched["latest_operating_income"] == 50
+    assert enriched["operating_profit_margin"] == .25
+    assert enriched["provider_defined_operating_profit_margin"] == 10
+    assert enriched["operating_margin_lineage"]["comparable"] is True
 
 
 def test_one_bad_history_fails_closed_only_for_that_ticker():

@@ -25,6 +25,10 @@ STRUCTURES: dict[str, dict[str, Any]] = {
     "BILL": {"classification": "STALE_SHARES", "description": "point-in-time shares and provider market-cap basis require date alignment"},
     "QSR": {"classification": "DUAL_CLASS", "description": "common shares and exchangeable partnership units differ"},
     "CVNA": {"classification": "DUAL_CLASS", "description": "public Class A shares differ from total economic ownership"},
+    "EQX": {"classification": "PROVIDER_BASIS_DIFFERENCE", "description": "provider market capitalization uses a broader economic-share basis than reported current shares"},
+    "MDLN": {"classification": "PROVIDER_BASIS_DIFFERENCE", "description": "provider market capitalization and point-in-time reported shares use different bases"},
+    "ONC": {"classification": "ADR_RATIO", "adr_ratio": 13.0, "description": "ADS represents thirteen ordinary shares"},
+    "RPRX": {"classification": "DUAL_CLASS", "description": "public shares and non-listed economic interests require total economic shares"},
 }
 
 
