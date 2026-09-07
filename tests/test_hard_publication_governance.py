@@ -53,6 +53,17 @@ def test_validation_failure_withholds_action_and_never_maps_to_investment_opinio
     assert "WATCH" not in json.dumps(result)
 
 
+def test_market_cap_share_bridge_failure_is_withheld_before_customer_curation():
+    row = _certifiable_row("NEM")
+    fields = row["canonical_investment_evaluation"]["trial_presentation_fields"]
+    fields["current_shares_outstanding"] = fields["market_cap"] / row["canonical_investment_evaluation"]["market_snapshot"]["price"] * 0.80
+    fields["share_structure"] = {}
+    result = certify_record(row, now=_observed(row))
+    assert result["certification_state"] == "REVIEW_REQUIRED"
+    assert result["customer_publication_allowed"] is False
+    assert result["components"]["accounting_bridge"]["blockers"] == ["MARKET_CAP_RECONCILIATION_FAILED"]
+
+
 def test_ticker_local_failure_does_not_withhold_healthy_ticker():
     healthy, broken = _certifiable_row(), _certifiable_row()
     broken["ticker"] = "WRONG"

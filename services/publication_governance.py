@@ -46,6 +46,12 @@ def _timestamp(value: Any) -> datetime | None:
         return None
 
 
+def _relative_gap(left: float | None, right: float | None) -> float | None:
+    if left is None or right in (None, 0):
+        return None
+    return abs(left - right) / abs(right)
+
+
 def _component(state: str, blockers: Sequence[str] = (), *, lineage: Mapping[str, Any] | None = None) -> dict[str, Any]:
     return {"state": state, "blockers": list(dict.fromkeys(blockers)), "lineage": dict(lineage or {})}
 
@@ -96,6 +102,32 @@ def certify_record(row: Mapping[str, Any], *, now: datetime | None = None) -> di
         lineage={"provider": fundamentals.get("source"), "evidence_ids": fundamentals.get("evidence_ids"),
                  "as_of": fundamentals.get("as_of"), "basis": "MIXED_DISCLOSED_FIELDS",
                  "consuming_methodology": "ATLAS_DECISION_METRICS_V1"})
+
+    # Enforce the same price/share/market-cap bridge used by the master QA before
+    # a row can enter the customer 150.  This is publication certification only:
+    # it neither changes the provider values nor the canonical decision result.
+    trial = dict(evaluation.get("trial_presentation_fields") or {})
+    share_structure = dict(trial.get("share_structure") or {})
+    current_shares = _num(trial.get("current_shares_outstanding"))
+    reconciliation_shares = _num(share_structure.get("market_cap_reconciliation_shares"))
+    market_cap = _num(trial.get("market_cap") or row.get("market_cap"))
+    accounting_blockers = []
+    market_cap_gap = _relative_gap(price * current_shares, market_cap) if price is not None and current_shares is not None else None
+    reconciled_gap = _relative_gap(price * reconciliation_shares, market_cap) if price is not None and reconciliation_shares is not None else market_cap_gap
+    documented_basis = bool(share_structure.get("classification")) and reconciled_gap is not None and reconciled_gap <= 0.10
+    if market_cap_gap is not None and market_cap_gap > 0.10 and not documented_basis:
+        accounting_blockers.append("MARKET_CAP_RECONCILIATION_FAILED")
+    components["accounting_bridge"] = _component(
+        CERTIFIED if not accounting_blockers else REVIEW_REQUIRED,
+        accounting_blockers,
+        lineage={
+            "market_cap": market_cap,
+            "current_shares_outstanding": current_shares,
+            "market_cap_reconciliation_shares": reconciliation_shares,
+            "discrepancy_pct": round(market_cap_gap * 100, 2) if market_cap_gap is not None else None,
+            "consuming_methodology": "ATLAS_MASTER_QA_V3_DISCOVERY",
+        },
+    )
 
     risk = dict(evaluation.get("risk") or {})
     risk_blockers = []
