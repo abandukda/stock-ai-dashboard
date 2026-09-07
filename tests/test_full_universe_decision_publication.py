@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 from services.full_universe_decision_publication import (
+    _apply_secondary_statement_margin,
     _apply_statement_margin_authority,
     acquire_full_universe_decisions,
     publish_evaluations,
@@ -115,6 +116,23 @@ def test_same_period_statement_margin_replaces_mixed_provider_ratio_only():
     assert enriched["operating_profit_margin"] == .25
     assert enriched["provider_defined_operating_profit_margin"] == 10
     assert enriched["operating_margin_lineage"]["comparable"] is True
+
+
+def test_secondary_same_period_statement_materializes_canonical_margin():
+    enriched = {"operating_profit_margin": 40}
+    fields = {
+        "revenue": {"value": 1000, "source": "FMP", "endpoint": "income-statement",
+                    "raw_field": "revenue", "period": "2025-12-31", "period_type": "ANNUAL",
+                    "basis": "GAAP", "evidence_id": "REV"},
+        "operating_income": {"value": 250, "source": "FMP", "endpoint": "income-statement",
+                             "raw_field": "operatingIncome", "period": "2025-12-31",
+                             "period_type": "ANNUAL", "basis": "GAAP", "evidence_id": "OP"},
+    }
+    _apply_secondary_statement_margin(enriched, fields)
+    assert enriched["operating_profit_margin"] == .25
+    assert enriched["historical_operating_margin"] == .25
+    assert enriched["provider_defined_operating_profit_margin"] == 40
+    assert enriched["operating_margin_lineage"]["numerator_evidence_id"] == "OP"
 
 
 def test_one_bad_history_fails_closed_only_for_that_ticker():

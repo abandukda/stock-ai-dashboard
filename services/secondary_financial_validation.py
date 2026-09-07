@@ -52,6 +52,7 @@ def acquire_secondary_fmp_inputs(symbols: Sequence[str], *, api_key: str,
                     "evidence_id":_evidence_id(symbol,endpoint,item_period,as_of)}
         inputs={
             "revenue":item(income.get("revenue"),"income-statement","revenue",income_at),
+            "operating_income":item(income.get("operatingIncome"),"income-statement","operatingIncome",income_at),
             "net_income":item(income.get("netIncome"),"income-statement","netIncome",income_at),
             "eps":item(income.get("epsdiluted") or income.get("epsDiluted"),"income-statement","epsDiluted",income_at),
             "ebitda":item(income.get("ebitda"),"income-statement","ebitda",income_at),

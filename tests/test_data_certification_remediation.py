@@ -28,7 +28,7 @@ def test_provider_quality_uses_metric_specific_reconciliation_results():
 
 def test_bounded_fmp_secondary_preserves_share_concepts_and_lineage():
     payloads={
-        "income-statement":[{"date":"2025-12-31","revenue":1000,"netIncome":100,"epsDiluted":2,"ebitda":180,"weightedAverageShsOutDil":50}],
+        "income-statement":[{"date":"2025-12-31","revenue":1000,"operatingIncome":140,"netIncome":100,"epsDiluted":2,"ebitda":180,"weightedAverageShsOutDil":50}],
         "balance-sheet-statement":[{"date":"2025-12-31","cashAndCashEquivalents":80,"totalDebt":120}],
         "cash-flow-statement":[{"date":"2025-12-31","operatingCashFlow":150,"capitalExpenditure":-30,"freeCashFlow":120}],
         "enterprise-values":[{"date":"2026-09-05","numberOfShares":55}],
@@ -43,4 +43,6 @@ def test_bounded_fmp_secondary_preserves_share_concepts_and_lineage():
     values=result["inputs"]["ABC"]
     assert values["current_shares_outstanding"]["value"]==55
     assert values["diluted_shares"]["value"]==50
+    assert values["operating_income"]["value"]==140
+    assert values["operating_income"]["period"]==values["revenue"]["period"]
     assert values["free_cash_flow"]["evidence_id"].startswith("FMPVAL-")

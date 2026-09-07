@@ -78,6 +78,56 @@ def _apply_statement_margin_authority(row: Mapping[str, Any], enriched: dict[str
     })
 
 
+def _apply_secondary_statement_margin(
+    enriched: dict[str, Any], secondary_inputs: Mapping[str, Any]
+) -> None:
+    """Derive ATLAS historical margin from matching secondary statements."""
+    revenue = secondary_inputs.get("revenue")
+    operating = secondary_inputs.get("operating_income")
+    if not isinstance(revenue, Mapping) or not isinstance(operating, Mapping):
+        return
+    if not revenue.get("period") or revenue.get("period") != operating.get("period"):
+        return
+    if revenue.get("period_type") != operating.get("period_type"):
+        return
+    if revenue.get("basis") != operating.get("basis"):
+        return
+    try:
+        revenue_value = float(revenue["value"])
+        operating_value = float(operating["value"])
+        margin = operating_value / revenue_value
+    except (KeyError, TypeError, ValueError, ZeroDivisionError):
+        return
+    if enriched.get("provider_defined_operating_profit_margin") is None:
+        enriched["provider_defined_operating_profit_margin"] = enriched.get("operating_profit_margin")
+    enriched.update({
+        "latest_revenue": revenue_value,
+        "latest_operating_income": operating_value,
+        "historical_operating_margin": margin,
+        "operating_profit_margin": margin,
+        "financial_reporting_period": revenue.get("period"),
+        "financial_reporting_period_type": revenue.get("period_type"),
+        "financial_reporting_basis": revenue.get("basis"),
+        "operating_margin_lineage": {
+            "provider": revenue.get("source"),
+            "endpoint": revenue.get("endpoint"),
+            "numerator_raw_field": operating.get("raw_field"),
+            "numerator_raw_value": operating_value,
+            "denominator_raw_field": revenue.get("raw_field"),
+            "denominator_raw_value": revenue_value,
+            "numerator_period": operating.get("period"),
+            "denominator_period": revenue.get("period"),
+            "period_type": revenue.get("period_type"),
+            "basis": revenue.get("basis"),
+            "currency": "PROVIDER_REPORTED",
+            "scale": "PROVIDER_REPORTED",
+            "comparable": True,
+            "numerator_evidence_id": operating.get("evidence_id"),
+            "denominator_evidence_id": revenue.get("evidence_id"),
+        },
+    })
+
+
 def _merge_dossiers(primary: Mapping[str, Any], fallback: Mapping[str, Any]) -> dict[str, Any]:
     merged = {"ticker": primary.get("ticker") or fallback.get("ticker"), "families": {}}
     merged["families"].update(dict(primary.get("families") or {}))
@@ -180,6 +230,7 @@ def acquire_full_universe_decisions(
             existing=dict(enriched.get("approved_secondary_valuation_inputs") or {})
             for metric,value in secondary_inputs.items(): existing.setdefault(metric,value)
             enriched["approved_secondary_valuation_inputs"]=existing
+            _apply_secondary_statement_margin(enriched, secondary_inputs)
         if enriched.get("beta") is None and _ticker(row) != "SPY":
             stock_returns = returns(histories.get(_ticker(row)) or {})
             aligned = sorted(set(stock_returns) & set(market_returns))
