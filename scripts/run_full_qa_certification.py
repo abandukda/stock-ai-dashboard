@@ -43,8 +43,11 @@ def _markdown(report, path: Path) -> None:
     severity = summary["severity_counts"]
     distribution = summary["certification_distribution"]
     lines = [
-        f"# ATLAS Full-Universe QA — {summary['generated_at'][:10]}", "",
-        f"**Publication gate: {report['gate']}**", "",
+        f"# ATLAS Master QA — {summary['generated_at'][:10]}", "",
+        f"- QA Engine: {summary.get('qa_engine_status', 'FAILED')}",
+        f"- Dataset: {summary.get('dataset_certification_status', 'FAIL')}",
+        f"- Discovery: {summary.get('discovery_certification_status', 'NOT_RUN')}",
+        f"- Publication: {'PROMOTION ELIGIBLE' if report['gate'] == 'PASS' else 'BLOCKED'}", "",
         f"Run `{summary['run_id']}` certified {summary['universe_count']} securities.", "",
         "## Certification", "",
         f"- Certified: {distribution.get('CERTIFIED', 0)}",

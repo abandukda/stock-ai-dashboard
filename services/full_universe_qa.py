@@ -657,7 +657,18 @@ def crawl_universe(rows: Sequence[Mapping[str, Any]], *, prior_rows: Sequence[Ma
                "ATLAS_vs_Street", "Run_Over_Run", "Customer_Surface_Audit",
                "Numerical_Anomalies", "Screenshot_Index", "Provider_Quality",
                "Manual_Research_QA", "Universe_Sector_Analysis"]
-    return {"summary": summary, "sheets": {name: sheets[name] for name in ordered}, "gate": gate}
+    ordered_sheets = {name: sheets[name] for name in ordered}
+    return {
+        "run": {"id": run_id, "generated_at": generated_at, "engine_version": VERSION},
+        "candidate": {"customer_count": len(records), "artifact_link": artifact_link},
+        "universe": {"market_count": discovery.get("market_universe_count"),
+                     "eligible_count": discovery.get("eligible_count")},
+        "discovery": {"funnel": discovery_funnel, "recall": recall,
+                      "architecture_experiment": discovery.get("architecture_experiment") or {}},
+        "publication": {"gate": gate, "dataset": summary["dataset_certification_status"],
+                        "discovery": summary["discovery_certification_status"]},
+        "summary": summary, "sheets": ordered_sheets, "gate": gate,
+    }
 
 
 def report_digest(report: Mapping[str, Any]) -> str:
