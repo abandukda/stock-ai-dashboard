@@ -23638,7 +23638,9 @@ def render_v509_news_digest(row):
             st.markdown(f"Recent ticker-specific news was found for **{ticker}**. Review headlines as possible catalyst or sentiment drivers.")
             for r in rows[:5]:
                 title=v65_clean_text((r.get("title") or r.get("headline") or "News article") if isinstance(r,dict) else r,180); url=(r.get("url") or r.get("link") or r.get("article_url")) if isinstance(r,dict) else None; source=v65_clean_text((r.get("source") or r.get("publisher") or "News source") if isinstance(r,dict) else "News source",60); date=v65_clean_text((r.get("date") or r.get("publishedAt") or r.get("published") or "") if isinstance(r,dict) else "",40)
-                st.markdown(f'<div class="v65-news-card">{f"<a href=\"{url}\" target=\"_blank\">{title}</a>" if url else f"<b>{title}</b>"}<br><small>{source}{(" · "+date) if date else ""}</small></div>', unsafe_allow_html=True)
+                title_html = f'<a href="{url}" target="_blank">{title}</a>' if url else f"<b>{title}</b>"
+                date_html = f" · {date}" if date else ""
+                st.markdown(f'<div class="v65-news-card">{title_html}<br><small>{source}{date_html}</small></div>', unsafe_allow_html=True)
             st.markdown("**Impact Assessment:** News is a catalyst layer. Confirm whether headlines affect revenue, guidance, analyst estimates, regulation, or institutional positioning.")
         else:
             st.info("No company-specific catalyst was detected in the latest saved scan. This is neutral: the thesis is unchanged, but there is no fresh news boost.")

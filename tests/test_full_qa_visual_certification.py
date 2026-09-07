@@ -44,6 +44,12 @@ def test_research_render_boundary_reconciles_exact_persisted_decision():
     assert 'canonical_context["current_evaluation"] = dict(persisted_evaluation)' in function
 
 
+def test_app_news_markup_is_python_311_compatible():
+    source = Path("app.py").read_text()
+    assert "title_html =" in source
+    assert "{f\"<a href=\\\"" not in source
+
+
 def test_visual_action_expectation_respects_publication_certification():
     withheld = {
         "publication_certification": {"customer_publication_allowed": False},
