@@ -139,7 +139,9 @@ def _qa_record(row: Mapping[str, Any], rank: int) -> tuple[dict[str, Any], dict[
     issues: list[dict[str, Any]] = []
 
     price = _num(_first(market.get("price"), row.get("current_price"), row.get("price")))
-    shares = _num(_first(trial.get("current_shares_outstanding"), trial.get("diluted_shares"), trial.get("basic_shares")))
+    shares = _num(trial.get("current_shares_outstanding"))
+    share_structure = dict(trial.get("share_structure") or {})
+    reconciliation_shares = _num(share_structure.get("market_cap_reconciliation_shares"))
     market_cap = _num(_first(trial.get("market_cap"), row.get("market_cap")))
     ocf = _num(_first(trial.get("operating_cash_flow"), row.get("operating_cash_flow"), fdata.get("operating_cash_flow")))
     capex_raw = _num(_first(trial.get("capex"), trial.get("capital_expenditure")))
@@ -151,10 +153,14 @@ def _qa_record(row: Mapping[str, Any], rank: int) -> tuple[dict[str, Any], dict[
     provider_net_debt = _num(_first(trial.get("net_debt"), row.get("net_debt")))
     revenue = _num(_first(trial.get("latest_revenue"), row.get("latest_revenue")))
     operating_income = _num(_first(trial.get("latest_operating_income"), trial.get("ebit")))
-    provider_operating_margin_raw = _num(trial.get("operating_profit_margin"))
+    provider_operating_margin_raw = _num(_first(trial.get("provider_defined_operating_profit_margin"), trial.get("operating_profit_margin")))
     provider_operating_margin = _percentage_points(provider_operating_margin_raw)
+    canonical_operating_margin_raw = _num(_first(trial.get("historical_operating_margin"), trial.get("operating_profit_margin")))
+    canonical_operating_margin = _percentage_points(canonical_operating_margin_raw)
+    margin_lineage = dict(trial.get("operating_margin_lineage") or {})
     calculated_operating_margin = operating_income / revenue * 100 if operating_income is not None and revenue not in (None, 0) else None
     calculated_market_cap = price * shares if price is not None and shares is not None else None
+    reconciled_market_cap = price * reconciliation_shares if price is not None and reconciliation_shares is not None else calculated_market_cap
     calculated_fcf = ocf - capex_normalized if ocf is not None and capex_normalized is not None else None
     basic_shares = _num(trial.get("basic_shares"))
     diluted_shares = _num(trial.get("diluted_shares"))
@@ -170,9 +176,11 @@ def _qa_record(row: Mapping[str, Any], rank: int) -> tuple[dict[str, Any], dict[
             missing.append(miss)
 
     market_cap_diff = _pct_diff(calculated_market_cap, market_cap)
+    reconciled_market_cap_diff = _pct_diff(reconciled_market_cap, market_cap)
     market_cap_status = "NOT_TESTED"
     if market_cap_diff is not None:
-        market_cap_status = "PASS" if market_cap_diff <= 0.10 else "FAIL"
+        documented_basis = bool(share_structure.get("classification")) and reconciled_market_cap_diff is not None and reconciled_market_cap_diff <= 0.10
+        market_cap_status = "PASS" if market_cap_diff <= 0.10 else ("RECONCILED_PROVIDER_BASIS" if documented_basis else "FAIL")
         if market_cap_status == "FAIL":
             issues.append(_issue(ticker, "P0", "MARKET_CAP_RECONCILIATION", "market_cap",
                                  f"Price × shares differs from market cap by {market_cap_diff:.1%}.",
@@ -190,11 +198,18 @@ def _qa_record(row: Mapping[str, Any], rank: int) -> tuple[dict[str, Any], dict[
     if net_debt_status == "FAIL":
         issues.append(_issue(ticker, "P1", "NET_DEBT_RECONCILIATION", "net_debt",
                              "Debt − cash does not reconcile to published net debt."))
-    margin_difference = abs(calculated_operating_margin - provider_operating_margin) if calculated_operating_margin is not None and provider_operating_margin is not None else None
+    comparable = bool(margin_lineage.get("comparable"))
+    periods_match = margin_lineage.get("numerator_period") == margin_lineage.get("denominator_period")
+    same_basis = bool(margin_lineage.get("basis"))
+    margin_difference = abs(calculated_operating_margin - canonical_operating_margin) if calculated_operating_margin is not None and canonical_operating_margin is not None else None
     margin_status = "NOT_TESTED" if margin_difference is None else ("PASS" if margin_difference <= 2 else "FAIL")
+    if margin_lineage and not (comparable and periods_match and same_basis):
+        margin_status = "FAIL"
+        margin_difference = margin_difference if margin_difference is not None else 0.0
     if margin_status == "FAIL":
         issues.append(_issue(ticker, "P1", "MARGIN_RECONCILIATION", "operating_profit_margin",
                              f"Operating income ÷ revenue differs from published margin by {margin_difference:.1f} points.",
+                             reason="PERIOD_MISMATCH" if margin_lineage and not periods_match else "VALIDATION_FAILED",
                              remediation="Align statement period, numerator, and percentage normalization."))
 
     models = list(valuation.get("models") or ())
@@ -315,12 +330,13 @@ def _qa_record(row: Mapping[str, Any], rank: int) -> tuple[dict[str, Any], dict[
         "current_price": price, "completed_close": _num(tech_evidence.get("close")),
         "market_timestamp": market.get("provider_timestamp"), "market_session": market.get("market_session"),
         "shares": shares, "basic_shares": basic_shares, "diluted_shares": diluted_shares,
+        "share_structure_classification": share_structure.get("classification"), "adr_ratio": share_structure.get("adr_ratio"),
         "share_basis": share_basis, "share_basis_value": share_basis_value,
         "share_basis_delta_pct": share_basis_delta, "market_cap": market_cap, "revenue": revenue,
         "eps": _num(_first(trial.get("latest_eps"), row.get("latest_eps"))), "ebit": _num(trial.get("ebit")),
         "ebitda": _num(trial.get("forward_ebitda")), "ocf": ocf, "capex": capex_raw, "fcf": fcf,
         "cash": cash, "debt": debt, "net_debt": net_debt, "equity": _num(trial.get("equity")),
-        "assets": _num(trial.get("assets")), "operating_margin": provider_operating_margin,
+        "assets": _num(trial.get("assets")), "operating_margin": canonical_operating_margin,
         "roe": _num(_first(row.get("return_on_equity"), trial.get("return_on_equity"))),
         "roa": _num(trial.get("return_on_assets")), "roic": _num(_first(row.get("roic"), trial.get("roic"))),
         "forward_eps": _num(_first(eps_est.get("avg_estimate"), trial.get("forward_eps"))),
@@ -394,12 +410,22 @@ def _qa_record(row: Mapping[str, Any], rank: int) -> tuple[dict[str, Any], dict[
         "Financial_Reconciliation": [{"ticker": ticker, "ocf": ocf, "capex_raw": capex_raw, "capex_normalized": capex_normalized,
             "calculated_fcf": calculated_fcf, "provider_fcf": fcf, "fcf_difference_pct": fcf_diff, "fcf_tolerance_pct": .05, "fcf_status": fcf_status,
             "price": price, "shares": shares, "calculated_market_cap": calculated_market_cap, "provider_market_cap": market_cap,
+            "share_structure_classification": share_structure.get("classification"), "adr_ratio": share_structure.get("adr_ratio"),
+            "reconciliation_shares": reconciliation_shares, "reconciled_market_cap": reconciled_market_cap,
+            "reconciled_market_cap_difference_pct": reconciled_market_cap_diff,
             "market_cap_difference_pct": market_cap_diff, "market_cap_tolerance_pct": .10, "market_cap_status": market_cap_status,
             "cash": cash, "debt": debt, "calculated_net_debt": net_debt, "published_net_debt": provider_net_debt,
             "net_debt_difference_pct": net_debt_diff, "net_debt_status": net_debt_status,
             "operating_income": operating_income, "revenue": revenue, "calculated_operating_margin_pct": calculated_operating_margin,
             "provider_operating_margin_raw": provider_operating_margin_raw,
-            "provider_operating_margin_pct": provider_operating_margin, "margin_difference_points": margin_difference, "margin_status": margin_status,
+            "provider_operating_margin_pct": provider_operating_margin,
+            "canonical_operating_margin_raw": canonical_operating_margin_raw,
+            "canonical_operating_margin_pct": canonical_operating_margin,
+            "margin_numerator_period": margin_lineage.get("numerator_period"),
+            "margin_denominator_period": margin_lineage.get("denominator_period"),
+            "margin_period_type": margin_lineage.get("period_type"), "margin_basis": margin_lineage.get("basis"),
+            "margin_currency": margin_lineage.get("currency"), "margin_scale": margin_lineage.get("scale"),
+            "margin_difference_points": margin_difference, "margin_status": margin_status,
             "enterprise_value": enterprise_value, "ev_debt": debt, "ev_cash": cash, "other_claims": 0,
             "equity_value": equity_value, "ev_shares": ev_shares, "calculated_per_share": ev_per_share,
             "model_value": ev_model_value, "ev_difference_pct": ev_diff, "ev_status": ev_status}],

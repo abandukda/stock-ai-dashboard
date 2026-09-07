@@ -316,7 +316,8 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
     output["twelve_trial_dossier"] = dict(dossier)
     output["twelve_trial_evidence_ids"] = tuple(dossier.get("evidence_ids") or ())
     output["fundamental_source"] = output.get("fundamental_source") or "TWELVE_DATA_INTERNAL_TRIAL"
-    return output
+    from services.share_structure_governance import materialize_share_bridge
+    return materialize_share_bridge(output)
 
 
 __all__ = ["ENDPOINTS", "VERSION", "acquire_twelve_trial_dossiers", "normalize_trial_dossier"]

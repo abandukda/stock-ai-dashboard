@@ -73,6 +73,29 @@ def test_fmp_financials_parse_partial_zero_and_earnings(monkeypatch):
     assert result["return_on_equity"] == 0.18
 
 
+def test_fmp_statement_margin_remains_canonical_and_provider_ratio_is_context(monkeypatch):
+    monkeypatch.setattr(scan, "FMP_API_KEY", "test")
+    payloads = {
+        "income-statement": [{"date": "2026-06-30", "reportedCurrency": "USD", "revenue": 200,
+                              "operatingIncome": 50, "operatingIncomeRatio": 0.25}],
+        "balance-sheet-statement": [], "cash-flow-statement": [],
+        "ratios": [{"date": "2026-03-31", "operatingProfitMargin": 0.40}],
+        "key-metrics": [], "earnings": [], "stock-peers": [],
+    }
+    class FakeClient:
+        def __init__(self, *args, **kwargs): pass
+        def get(self, endpoint, params=None):
+            return type("FMPResult", (), {"outcome": "SUCCESS", "payload": payloads[endpoint]})()
+    monkeypatch.setattr(scan, "FMPStableClient", FakeClient)
+    result = scan.get_fmp_financial_intelligence("TEST")
+    assert result["operating_profit_margin"] == 0.25
+    assert result["historical_operating_margin"] == 0.25
+    assert result["provider_defined_operating_profit_margin"] == 0.40
+    assert result["operating_margin_lineage"]["numerator_period"] == "2026-06-30"
+    assert result["operating_margin_lineage"]["denominator_period"] == "2026-06-30"
+    assert result["operating_margin_lineage"]["comparable"] is True
+
+
 def test_yahoo_roe_decimal_is_mapped_without_double_scaling(monkeypatch):
     class _Ticker:
         def __init__(self, symbol):

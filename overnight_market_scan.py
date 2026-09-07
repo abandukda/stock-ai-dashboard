@@ -2767,6 +2767,25 @@ def get_fmp_financial_intelligence(symbol: str) -> Dict[str, Any]:
             "eps_quarters": eps_values,
             "net_income_quarters": net_income_values,
             "source_fmp_financials": True,
+            "financial_reporting_period": latest_income.get("date") or latest_income.get("fiscalDateEnding"),
+            "financial_reporting_period_type": "QUARTERLY",
+            "financial_reporting_basis": "GAAP",
+            "financial_reporting_currency": latest_income.get("reportedCurrency") or "USD",
+            "historical_operating_margin": (
+                safe_float(latest_income.get("operatingIncome")) / safe_float(latest_income.get("revenue"))
+                if safe_float(latest_income.get("operatingIncome")) is not None and safe_float(latest_income.get("revenue")) not in (None, 0)
+                else None
+            ),
+            "operating_margin_lineage": {
+                "provider": "FMP", "endpoint": "income-statement",
+                "numerator_raw_field": "operatingIncome", "numerator_raw_value": safe_float(latest_income.get("operatingIncome")),
+                "denominator_raw_field": "revenue", "denominator_raw_value": safe_float(latest_income.get("revenue")),
+                "numerator_period": latest_income.get("date") or latest_income.get("fiscalDateEnding"),
+                "denominator_period": latest_income.get("date") or latest_income.get("fiscalDateEnding"),
+                "period_type": "QUARTERLY", "basis": "GAAP",
+                "currency": latest_income.get("reportedCurrency") or "USD", "scale": "PROVIDER_REPORTED",
+                "comparable": True,
+            },
         })
 
     if isinstance(balance, list) and balance:
@@ -2802,13 +2821,21 @@ def get_fmp_financial_intelligence(symbol: str) -> Dict[str, Any]:
         latest_ratios = ratios[0] or {}
         canonical_ratios = normalize_ratios(latest_ratios, fetched_at=now_iso())
         result.update({
-            "gross_profit_margin": canonical_ratios.get("gross_profit_margin"),
-            "operating_profit_margin": canonical_ratios.get("operating_profit_margin"),
-            "net_profit_margin": canonical_ratios.get("net_profit_margin"),
+            "provider_defined_gross_profit_margin": canonical_ratios.get("gross_profit_margin"),
+            "provider_defined_operating_profit_margin": canonical_ratios.get("operating_profit_margin"),
+            "provider_defined_net_profit_margin": canonical_ratios.get("net_profit_margin"),
             "current_ratio": canonical_ratios.get("current_ratio"),
             "return_on_equity": canonical_ratios.get("return_on_equity"),
             "return_on_assets": canonical_ratios.get("return_on_assets"),
         })
+    if result.get("historical_operating_margin") is not None:
+        result["operating_profit_margin"] = result["historical_operating_margin"]
+    elif result.get("operating_profit_margin") is None:
+        result["operating_profit_margin"] = result.get("provider_defined_operating_profit_margin")
+    if result.get("gross_profit_margin") is None:
+        result["gross_profit_margin"] = result.get("provider_defined_gross_profit_margin")
+    if result.get("net_profit_margin") is None:
+        result["net_profit_margin"] = result.get("provider_defined_net_profit_margin")
 
     if isinstance(key_metrics, list) and key_metrics:
         latest_metrics = key_metrics[0] or {}

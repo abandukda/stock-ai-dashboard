@@ -100,6 +100,38 @@ def test_margin_reconciliation_normalizes_provider_ratio_to_percentage_points():
                    for item in report["sheets"]["Validation_Failures"])
 
 
+def test_statement_margin_is_authoritative_over_differently_defined_provider_ratio():
+    rows = universe()
+    fields = rows[0]["canonical_investment_evaluation"]["trial_presentation_fields"]
+    fields.update({"latest_revenue": 200, "latest_operating_income": 50,
+                   "historical_operating_margin": 0.25,
+                   "provider_defined_operating_profit_margin": 0.40,
+                   "operating_margin_lineage": {"numerator_period": "2026-06-30",
+                                                "denominator_period": "2026-06-30",
+                                                "period_type": "QUARTERLY", "basis": "GAAP",
+                                                "currency": "USD", "scale": "PROVIDER_REPORTED",
+                                                "comparable": True}})
+    report = crawl_universe(rows)
+    reconciliation = report["sheets"]["Financial_Reconciliation"][0]
+    assert reconciliation["canonical_operating_margin_pct"] == 25
+    assert reconciliation["provider_operating_margin_pct"] == 40
+    assert reconciliation["margin_status"] == "PASS"
+
+
+def test_documented_adr_basis_reconciles_without_replacing_current_shares():
+    rows = universe()
+    fields = rows[0]["canonical_investment_evaluation"]["trial_presentation_fields"]
+    fields.update({"current_shares_outstanding": 600, "market_cap": 1000,
+                   "share_structure": {"classification": "ADR_RATIO", "adr_ratio": 6,
+                                       "market_cap_reconciliation_shares": 100}})
+    report = crawl_universe(rows)
+    reconciliation = report["sheets"]["Financial_Reconciliation"][0]
+    assert reconciliation["shares"] == 600
+    assert reconciliation["market_cap_status"] == "RECONCILED_PROVIDER_BASIS"
+    assert not any(item["ticker"] == "T000" and item["category"] == "MARKET_CAP_RECONCILIATION"
+                   for item in report["sheets"]["Validation_Failures"])
+
+
 def test_p1_blocks_while_p3_p4_remain_nonblocking():
     rows = universe()
     valuation = {"status": "PUBLISHED", "atlas_base_fair_value": 20, "atlas_fair_value_low": 8,

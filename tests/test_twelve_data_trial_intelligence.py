@@ -1,4 +1,5 @@
 from services.twelve_data_trial_intelligence import ENDPOINTS, acquire_twelve_trial_dossiers, normalize_trial_dossier
+from services.share_structure_governance import materialize_share_bridge
 
 
 class Response:
@@ -79,3 +80,22 @@ def test_professional_capital_and_reporting_lineage_is_normalized_without_fabric
     assert row["diluted_shares"] == 48 and row["market_cap"] == 1000 and row["beta"] == 1.2
     assert row["financial_reporting_period"] == "2025-12-31"
     assert row["professional_evidence_lineage"]["evidence_ids"] == ("TD-1",)
+
+
+def test_adr_share_bridge_preserves_reported_values_and_applies_ratio():
+    row = materialize_share_bridge({"ticker": "BP", "current_price": 40, "market_cap": 1200,
+                                    "current_shares_outstanding": 180})
+    structure = row["share_structure"]
+    assert row["current_shares_outstanding"] == 180
+    assert row["market_cap"] == 1200
+    assert structure["adr_ratio"] == 6
+    assert structure["market_cap_reconciliation_shares"] == 30
+    assert structure["market_cap_reconciliation_method"] == "ADR_RATIO_ADJUSTED_ORDINARY_SHARES"
+
+
+def test_dual_class_bridge_is_explicit_and_does_not_replace_reported_shares():
+    row = materialize_share_bridge({"ticker": "CVNA", "current_price": 10, "market_cap": 1000,
+                                    "current_shares_outstanding": 60})
+    assert row["current_shares_outstanding"] == 60
+    assert row["share_structure"]["classification"] == "DUAL_CLASS"
+    assert row["share_structure"]["market_cap_reconciliation_shares"] == 100
