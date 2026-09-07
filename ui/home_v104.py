@@ -404,7 +404,10 @@ def _render_discovery_card(row: Mapping[str, Any], rank: int) -> None:
         st.markdown(metric_html, unsafe_allow_html=True)
         status = view["entry_status"]
         icon = "✓" if status["code"] == "INSIDE" else "•"
-        st.markdown(f'<div class="atlas-entry-status atlas-entry-{status["code"].lower()}"><b>{icon} {html.escape(status["label"])}</b>{f" · {html.escape(status["action"])}" if status.get("action") else ""}</div>', unsafe_allow_html=True)
+        status_code = str(status["code"]).lower()
+        status_label = html.escape(status["label"])
+        status_action = f" · {html.escape(status['action'])}" if status.get("action") else ""
+        st.markdown(f'<div class="atlas-entry-status atlas-entry-{status_code}"><b>{icon} {status_label}</b>{status_action}</div>', unsafe_allow_html=True)
         st.markdown("**WHY BUY NOW**")
         why_now = [str(item) for item in synthesis.get("why_now") or [] if item]
         if why_now:

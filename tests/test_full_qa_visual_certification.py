@@ -1,4 +1,5 @@
 from pathlib import Path
+import ast
 import json
 
 from agents.full_qa_visual_certification import certification_tickers, customer_action_matches, expected_customer_action
@@ -69,3 +70,8 @@ def test_visual_action_expectation_respects_publication_certification():
     assert customer_action_matches("RATING NOT PUBLISHED — MONITOR", "RATING NOT PUBLISHED", False)
     assert expected_customer_action(published) == ("BUY NOW", True)
     assert customer_action_matches("★★★★★ BUY NOW", "BUY NOW", True)
+
+
+def test_streamlit_entrypoints_parse_under_production_python_311_grammar():
+    for path in (Path("app.py"), Path("ui/home_v104.py")):
+        ast.parse(path.read_text(encoding="utf-8"), filename=str(path), feature_version=(3, 11))
