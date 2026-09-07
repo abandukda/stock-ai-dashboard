@@ -160,6 +160,7 @@ jobs:
       - name: Launch exact-candidate Streamlit runtime
         env:
           ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
+          GUEST_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
         run: |
           mkdir -p audit_results/full_qa/${{ github.run_id }}
           python -m streamlit run app.py --server.headless true --server.port 8501 > audit_results/full_qa/${{ github.run_id }}/streamlit.log 2>&1 &
