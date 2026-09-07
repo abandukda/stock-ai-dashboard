@@ -28,6 +28,15 @@ ANOMALY_FIELDS = {
     "free_cash_flow": 0.75, "cash_and_equivalents": 0.75,
     "total_debt": 0.75, "diluted_shares": 0.35,
 }
+_LARGE_COMPACT_ARTIFACTS = {"full_evaluation_pool.json"}
+_PROVIDER_MANIFEST_FIELDS = {
+    "version", "status", "provider_calls", "fundamental_primary_calls",
+    "fundamental_fallback_calls", "estimate_calls", "technical_history_calls",
+    "technical_history_http_successes", "technical_history_successes",
+    "fundamental_family_counts", "valuation_status_counts", "endpoint_success",
+    "secondary_validation", "latency_seconds", "observed_at",
+    "performance_snapshots_appended", "performance_outcomes_appended",
+}
 
 
 def _num(value: Any) -> float | None:
@@ -50,6 +59,15 @@ def _relative_gap(left: float | None, right: float | None) -> float | None:
     if left is None or right in (None, 0):
         return None
     return abs(left - right) / abs(right)
+
+
+def _artifact_json(name: str, payload: Any) -> str:
+    kwargs = {"default": str}
+    if name in _LARGE_COMPACT_ARTIFACTS:
+        kwargs["separators"] = (",", ":")
+    else:
+        kwargs["indent"] = 2
+    return json.dumps(payload, **kwargs) + "\n"
 
 
 def _component(state: str, blockers: Sequence[str] = (), *, lineage: Mapping[str, Any] | None = None) -> dict[str, Any]:
@@ -258,7 +276,11 @@ def build_manifest(rows: Sequence[Mapping[str, Any]], *, run_id: str, generated_
         states[state] = states.get(state, 0) + 1
     withheld = sum(not bool((row.get("publication_certification") or {}).get("customer_publication_allowed")) for row in rows)
     systemic = []
-    provider = dict(provider_status or {})
+    provider_source = dict(provider_status or {})
+    # Evaluations and request-level diagnostics already live in governed scan
+    # artifacts. Duplicating them in every manifest/audit record can exceed Git
+    # object limits without adding certification evidence.
+    provider = {key: provider_source[key] for key in _PROVIDER_MANIFEST_FIELDS if key in provider_source}
     if provider.get("status") not in {None, "AVAILABLE", "SUCCESS", "PUBLISHED"}: systemic.append("PROVIDER_ENRICHMENT_SYSTEMIC_FAILURE")
     if len(rows) == 0: systemic.append("EMPTY_UNIVERSE")
     anomalies = run_over_run_anomalies(rows, prior_rows)
@@ -288,7 +310,7 @@ def promote_atomically(artifact_payloads: Mapping[Path, Any], *, manifest: Mappi
     try:
         for destination, payload in payloads.items():
             candidate = destination.with_name(f".{destination.name}.{token}.candidate")
-            candidate.write_text(json.dumps(payload, indent=2, default=str) + "\n", encoding="utf-8")
+            candidate.write_text(_artifact_json(destination.name, payload), encoding="utf-8")
             staged[destination] = candidate
         for destination in payloads:
             backup = destination.with_name(f".{destination.name}.last_known_good")
@@ -312,9 +334,7 @@ def stage_candidate_artifacts(artifact_payloads: Mapping[Path, Any], *, manifest
     """Persist an exact, self-contained scan candidate without touching production."""
     candidate_dir.mkdir(parents=True, exist_ok=True)
     for source, payload in artifact_payloads.items():
-        (candidate_dir / source.name).write_text(
-            json.dumps(payload, indent=2, default=str) + "\n", encoding="utf-8"
-        )
+        (candidate_dir / source.name).write_text(_artifact_json(source.name, payload), encoding="utf-8")
     manifest_path = candidate_dir / "publication_manifest.json"
     manifest_path.write_text(json.dumps(dict(manifest), indent=2, default=str) + "\n", encoding="utf-8")
     return manifest_path

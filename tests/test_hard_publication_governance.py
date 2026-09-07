@@ -81,6 +81,30 @@ def test_manifest_blocks_systemic_provider_failure_and_hashes_candidates():
     assert manifest["artifact_hashes"]["market_full_scan.json"]
 
 
+def test_manifest_does_not_duplicate_bulk_evaluations_or_diagnostics():
+    rows = certify_rows([_certifiable_row("NEM")], now=_observed(_certifiable_row("NEM")))
+    manifest = build_manifest(
+        rows,
+        run_id="r1",
+        generated_at="2026-09-06T00:00:00Z",
+        artifact_payloads={"market_full_scan.json": rows},
+        provider_status={"status": "AVAILABLE", "provider_calls": 42, "evaluations": [{"large": "payload"}], "diagnostics": [{"large": "payload"}]},
+    )
+    assert manifest["provider_status"] == {"status": "AVAILABLE", "provider_calls": 42}
+
+
+def test_large_full_evaluation_artifact_uses_compact_json(tmp_path):
+    from services.publication_governance import stage_candidate_artifacts
+
+    stage_candidate_artifacts(
+        {tmp_path / "full_evaluation_pool.json": [{"ticker": "TEST", "nested": {"value": 1}}]},
+        manifest={"publication_gate_status": "PASS"},
+        candidate_dir=tmp_path / "candidate",
+    )
+    payload = (tmp_path / "candidate" / "full_evaluation_pool.json").read_text()
+    assert payload == '[{"ticker":"TEST","nested":{"value":1}}]\n'
+
+
 def test_atomic_promotion_retains_last_known_good_on_gate_failure(tmp_path):
     production = tmp_path / "market_full_scan.json"
     production.write_text('{"old": true}\n')
