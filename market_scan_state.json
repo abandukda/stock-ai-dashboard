@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-07T09:41:20.075473+00:00",
+  "generated_at": "2026-09-07T16:40:23.701857+00:00",
   "status": "success",
   "version": "V80.5",
   "universe_count": 3490,
@@ -8,61 +8,61 @@
   "discovery_candidate_count": 1500,
   "full_evaluation_count": 1250,
   "recovery_count": 100,
-  "etf_count": 3,
+  "etf_count": 37,
   "fallback_rows_allowed": false,
   "data_dir": ".",
   "github_persisted": false,
   "git_persistence_owner": "GITHUB_ACTIONS_WORKFLOW",
-  "duration_seconds": 1011.26,
+  "duration_seconds": 1833.74,
   "fast_cron_mode": true,
   "full_committee_limit": 15,
-  "deep_enrichment_symbol_count": 26,
+  "deep_enrichment_symbol_count": 41,
   "pre_rank_deep_apis_skipped": true,
   "run_timings": {
-    "scanner_total_seconds": 1011.26,
-    "yahoo_broad_scan_seconds": 373.75,
+    "scanner_total_seconds": 1833.74,
+    "yahoo_broad_scan_seconds": 627.06,
     "yahoo_retry_count": 0,
     "yahoo_backoff_seconds": 0.0,
-    "yahoo_metadata_calls": 2706,
-    "yahoo_metadata_seconds": 225.23,
-    "yahoo_metadata_successes": 1019,
-    "yahoo_metadata_failures": 1687,
+    "yahoo_metadata_calls": 2854,
+    "yahoo_metadata_seconds": 547.91,
+    "yahoo_metadata_successes": 2854,
+    "yahoo_metadata_failures": 0,
     "yahoo_metadata_empty": 0,
-    "yahoo_metadata_rate_limited": 1687,
+    "yahoo_metadata_rate_limited": 0,
     "yahoo_metadata_invalid_or_delisted": 0,
     "yahoo_metadata_timeout_or_network": 0,
     "yahoo_metadata_parsing_or_schema": 0,
     "yahoo_metadata_other_exceptions": 0,
     "yahoo_metadata_slow_calls": 0,
-    "yahoo_metadata_max_seconds": 1.09,
-    "yahoo_metadata_p95_seconds": 0.29,
-    "broad_row_processing_seconds": 22.88,
-    "prescreen_ranking_seconds": 0.1,
-    "full_scan_construction_seconds": 0.02,
-    "recovery_processing_seconds": 0.0,
-    "universe_construction_seconds": 1.27,
+    "yahoo_metadata_max_seconds": 1.78,
+    "yahoo_metadata_p95_seconds": 0.28,
+    "broad_row_processing_seconds": 22.53,
+    "prescreen_ranking_seconds": 0.05,
+    "full_scan_construction_seconds": 0.01,
+    "recovery_processing_seconds": 0.01,
+    "universe_construction_seconds": 2.01,
     "universe_persistence_seconds": 0.0,
-    "finalist_row_processing_seconds": 9.32,
-    "finalist_provider_calls": 26,
-    "finalist_provider_seconds": 15.69,
-    "fmp_shadow_seconds": 6.54,
-    "etf_rows_processed": 3,
-    "etf_processing_seconds": 1.53,
-    "etf_full_committee_calls": 3,
-    "etf_full_committee_seconds": 1.53,
-    "etf_research_calls": 3,
-    "etf_research_seconds": 0.02,
-    "etf_newsapi_calls": 3,
-    "etf_newsapi_seconds": 0.6,
-    "etf_finnhub_news_calls": 3,
-    "etf_finnhub_news_seconds": 0.16,
-    "etf_fmp_news_calls": 3,
-    "etf_fmp_news_seconds": 0.34,
-    "etf_sec_ticker_map_seconds": 0.29,
-    "etf_sec_submissions_seconds": 0.08,
-    "sec_ticker_map_downloads": 24,
+    "finalist_row_processing_seconds": 10.92,
+    "finalist_provider_calls": 41,
+    "finalist_provider_seconds": 108.78,
+    "fmp_shadow_seconds": 45.94,
+    "etf_rows_processed": 37,
+    "etf_processing_seconds": 5.51,
+    "etf_full_committee_calls": 10,
+    "etf_full_committee_seconds": 5.44,
+    "etf_research_calls": 10,
+    "etf_research_seconds": 0.0,
+    "etf_newsapi_calls": 10,
+    "etf_newsapi_seconds": 1.74,
+    "etf_finnhub_news_calls": 10,
+    "etf_finnhub_news_seconds": 0.98,
+    "etf_fmp_news_calls": 10,
+    "etf_fmp_news_seconds": 1.73,
+    "etf_sec_ticker_map_seconds": 0.67,
+    "etf_sec_submissions_seconds": 0.14,
+    "sec_ticker_map_downloads": 30,
     "output_persistence_seconds": 0.0,
-    "unattributed_seconds": 361.46
+    "unattributed_seconds": 508.95
   },
   "filters": {
     "min_price": 2.0,
@@ -179,49 +179,48 @@
   "decision_metrics_publication": {
     "version": "ATLAS_FULL_UNIVERSE_DECISION_PUBLICATION_V1",
     "status": "AVAILABLE",
-    "provider_calls": 21194,
+    "provider_calls": 20866,
     "fundamental_primary_calls": 7750,
-    "fundamental_fallback_calls": 2343,
+    "fundamental_fallback_calls": 2265,
     "estimate_calls": 3100,
     "technical_history_calls": 1551,
-    "technical_history_http_successes": 1545,
-    "technical_history_successes": 1489,
+    "technical_history_http_successes": 1544,
+    "technical_history_successes": 1498,
     "fundamental_family_counts": {
-      "revenue": 1506,
-      "earnings": 963,
-      "profitability": 1441,
-      "cash_flow": 833,
-      "balance_sheet": 833
+      "revenue": 1537,
+      "earnings": 1273,
+      "profitability": 1531,
+      "cash_flow": 1153,
+      "balance_sheet": 1147
     },
     "valuation_status_counts": {
-      "DATA_UNAVAILABLE": 529,
-      "PUBLISHED": 1010,
-      "NOT_APPLICABLE": 11
+      "PUBLISHED": 984,
+      "DATA_UNAVAILABLE": 566
     },
     "endpoint_success": {
-      "profile": 832,
-      "statistics": 832,
-      "income_statement": 0,
-      "balance_sheet": 0,
-      "cash_flow": 0,
-      "earnings_estimate": 1477,
-      "revenue_estimate": 1478,
-      "time_series_1day": 1545
+      "profile": 833,
+      "statistics": 833,
+      "income_statement": 333,
+      "balance_sheet": 332,
+      "cash_flow": 332,
+      "earnings_estimate": 1510,
+      "revenue_estimate": 1511,
+      "time_series_1day": 1544
     },
     "secondary_validation": {
       "version": "ATLAS_SECONDARY_FINANCIAL_VALIDATION_V1",
       "status": "AVAILABLE",
-      "provider_calls": 6450,
-      "symbol_coverage": 1470,
-      "observed_at": "2026-09-07T09:40:29.027367+00:00"
+      "provider_calls": 6200,
+      "symbol_coverage": 1547,
+      "observed_at": "2026-09-07T16:39:29.172813+00:00"
     },
-    "latency_seconds": 352.285,
-    "observed_at": "2026-09-07T09:35:19.133265+00:00"
+    "latency_seconds": 486.279,
+    "observed_at": "2026-09-07T16:32:09.644018+00:00"
   },
   "discovery_v2": {
     "version": "ATLAS_DISCOVERY_ENGINE_V2",
     "market_universe_count": 3490,
-    "eligible_count": 2514,
+    "eligible_count": 2192,
     "candidate_pool_count": 1500,
     "full_evaluation_pool_count": 1250,
     "customer_discovery_count": 150,
@@ -229,125 +228,35 @@
     "full_evaluation_pool_limit": 1250,
     "validation_evaluation_count": 300,
     "full_evaluation_action_distribution": {
-      "BUY_NOW": 19,
-      "ACCUMULATE": 142,
-      "WAIT_FOR_ENTRY": 34,
-      "WAIT_FOR_CONFIRMATION": 945,
-      "DATA_LIMITED": 70,
-      "AVOID": 36
+      "BUY_NOW": 6,
+      "ACCUMULATE": 274,
+      "WAIT_FOR_ENTRY": 31,
+      "WAIT_FOR_CONFIRMATION": 848,
+      "DATA_LIMITED": 39,
+      "AVOID": 49
     },
     "recall": {
       "version": "ATLAS_DISCOVERY_ENGINE_V2",
-      "evaluated_sample_size": 1544,
+      "evaluated_sample_size": 1543,
       "validation_control_size": 300,
       "metrics": {
         "buy_now_recall": 1.0,
-        "buy_now_positive_sample": 8,
-        "build_or_better_recall": 0.8649,
-        "build_or_better_positive_sample": 74,
-        "high_opportunity_recall": 0.9636,
-        "high_opportunity_positive_sample": 110,
-        "high_confidence_recall": 0.7063,
-        "high_confidence_positive_sample": 572,
-        "attractive_valuation_recall": 0.7889,
-        "attractive_valuation_positive_sample": 450,
-        "technical_opportunity_recall": 0.9506,
-        "technical_opportunity_positive_sample": 243
+        "buy_now_positive_sample": 4,
+        "build_or_better_recall": 1.0,
+        "build_or_better_positive_sample": 84,
+        "high_opportunity_recall": 1.0,
+        "high_opportunity_positive_sample": 68,
+        "high_confidence_recall": 1.0,
+        "high_confidence_positive_sample": 735,
+        "attractive_valuation_recall": 1.0,
+        "attractive_valuation_positive_sample": 475,
+        "technical_opportunity_recall": 0.9948,
+        "technical_opportunity_positive_sample": 193
       },
-      "misses": [
-        {
-          "ticker": "FAF",
-          "action": "ACCUMULATE",
-          "severity": "D1",
-          "cohort": "NEAR_CUTOFF",
-          "prescreen_channels": [
-            "ATTRACTIVE_ENTRY"
-          ]
-        },
-        {
-          "ticker": "KOP",
-          "action": "ACCUMULATE",
-          "severity": "D1",
-          "cohort": "NEAR_CUTOFF",
-          "prescreen_channels": [
-            "ATTRACTIVE_ENTRY"
-          ]
-        },
-        {
-          "ticker": "LXU",
-          "action": "ACCUMULATE",
-          "severity": "D1",
-          "cohort": "NEAR_CUTOFF",
-          "prescreen_channels": [
-            "ATTRACTIVE_ENTRY"
-          ]
-        },
-        {
-          "ticker": "INTU",
-          "action": "ACCUMULATE",
-          "severity": "D1",
-          "cohort": "NEAR_CUTOFF",
-          "prescreen_channels": [
-            "ATTRACTIVE_ENTRY"
-          ]
-        },
-        {
-          "ticker": "ROP",
-          "action": "ACCUMULATE",
-          "severity": "D1",
-          "cohort": "NEAR_CUTOFF",
-          "prescreen_channels": [
-            "ATTRACTIVE_ENTRY",
-            "MOMENTUM_QUALITY"
-          ]
-        },
-        {
-          "ticker": "TDC",
-          "action": "ACCUMULATE",
-          "severity": "D1",
-          "cohort": "RANDOM_CONTROL",
-          "prescreen_channels": [
-            "ATTRACTIVE_ENTRY",
-            "RECOVERY",
-            "MOMENTUM_QUALITY"
-          ]
-        },
-        {
-          "ticker": "RYAM",
-          "action": "ACCUMULATE",
-          "severity": "D1",
-          "cohort": "RANDOM_CONTROL",
-          "prescreen_channels": [
-            "ATTRACTIVE_ENTRY"
-          ]
-        },
-        {
-          "ticker": "STGW",
-          "action": "ACCUMULATE",
-          "severity": "D1",
-          "cohort": "RANDOM_CONTROL",
-          "prescreen_channels": [
-            "ATTRACTIVE_ENTRY"
-          ]
-        },
-        {
-          "ticker": "BH",
-          "action": "ACCUMULATE",
-          "severity": "D1",
-          "cohort": "NEAR_CUTOFF",
-          "prescreen_channels": []
-        },
-        {
-          "ticker": "ECHO",
-          "action": "ACCUMULATE",
-          "severity": "D1",
-          "cohort": "NEAR_CUTOFF",
-          "prescreen_channels": []
-        }
-      ],
+      "misses": [],
       "severity_counts": {
         "D0": 0,
-        "D1": 10,
+        "D1": 0,
         "D2": 0,
         "D3": 0,
         "D4": 0
@@ -364,12 +273,12 @@
           "full_evaluation_limit": 250,
           "evaluated_overlap": 250,
           "validation_population": 1550,
-          "buy_now_recall": 0.375,
-          "build_or_better_recall": 0.3919,
-          "high_opportunity_recall": 0.3,
-          "high_confidence_recall": 0.2902,
-          "missed_buy_now": 5,
-          "missed_build": 40,
+          "buy_now_recall": 0.5,
+          "build_or_better_recall": 0.4048,
+          "high_opportunity_recall": 0.3529,
+          "high_confidence_recall": 0.2612,
+          "missed_buy_now": 2,
+          "missed_build": 48,
           "discovery_gate": "FAIL"
         },
         {
@@ -377,12 +286,12 @@
           "full_evaluation_limit": 300,
           "evaluated_overlap": 300,
           "validation_population": 1550,
-          "buy_now_recall": 0.375,
-          "build_or_better_recall": 0.4459,
-          "high_opportunity_recall": 0.3182,
-          "high_confidence_recall": 0.3182,
-          "missed_buy_now": 5,
-          "missed_build": 36,
+          "buy_now_recall": 0.5,
+          "build_or_better_recall": 0.4167,
+          "high_opportunity_recall": 0.4412,
+          "high_confidence_recall": 0.3061,
+          "missed_buy_now": 2,
+          "missed_build": 47,
           "discovery_gate": "FAIL"
         },
         {
@@ -390,12 +299,12 @@
           "full_evaluation_limit": 350,
           "evaluated_overlap": 350,
           "validation_population": 1550,
-          "buy_now_recall": 0.5,
-          "build_or_better_recall": 0.4865,
-          "high_opportunity_recall": 0.3545,
-          "high_confidence_recall": 0.3514,
-          "missed_buy_now": 4,
-          "missed_build": 34,
+          "buy_now_recall": 0.75,
+          "build_or_better_recall": 0.4881,
+          "high_opportunity_recall": 0.5,
+          "high_confidence_recall": 0.351,
+          "missed_buy_now": 1,
+          "missed_build": 42,
           "discovery_gate": "FAIL"
         },
         {
@@ -403,90 +312,90 @@
           "full_evaluation_limit": 400,
           "evaluated_overlap": 400,
           "validation_population": 1550,
-          "buy_now_recall": 0.625,
-          "build_or_better_recall": 0.5,
-          "high_opportunity_recall": 0.4364,
-          "high_confidence_recall": 0.3741,
-          "missed_buy_now": 3,
-          "missed_build": 34,
+          "buy_now_recall": 0.75,
+          "build_or_better_recall": 0.5238,
+          "high_opportunity_recall": 0.5,
+          "high_confidence_recall": 0.3973,
+          "missed_buy_now": 1,
+          "missed_build": 39,
           "discovery_gate": "FAIL"
         },
         {
           "candidate_pool_limit": 500,
           "full_evaluation_limit": 500,
-          "evaluated_overlap": 497,
+          "evaluated_overlap": 496,
           "validation_population": 1550,
-          "buy_now_recall": 0.625,
-          "build_or_better_recall": 0.5405,
-          "high_opportunity_recall": 0.4727,
-          "high_confidence_recall": 0.3951,
-          "missed_buy_now": 3,
-          "missed_build": 31,
+          "buy_now_recall": 0.75,
+          "build_or_better_recall": 0.5833,
+          "high_opportunity_recall": 0.5882,
+          "high_confidence_recall": 0.4585,
+          "missed_buy_now": 1,
+          "missed_build": 34,
           "discovery_gate": "FAIL"
         },
         {
           "candidate_pool_limit": 500,
           "full_evaluation_limit": 650,
-          "evaluated_overlap": 497,
+          "evaluated_overlap": 496,
           "validation_population": 1550,
-          "buy_now_recall": 0.625,
-          "build_or_better_recall": 0.5405,
-          "high_opportunity_recall": 0.4727,
-          "high_confidence_recall": 0.3951,
-          "missed_buy_now": 3,
-          "missed_build": 31,
+          "buy_now_recall": 0.75,
+          "build_or_better_recall": 0.5833,
+          "high_opportunity_recall": 0.5882,
+          "high_confidence_recall": 0.4585,
+          "missed_buy_now": 1,
+          "missed_build": 34,
           "discovery_gate": "FAIL"
         },
         {
           "candidate_pool_limit": 500,
           "full_evaluation_limit": 750,
-          "evaluated_overlap": 497,
+          "evaluated_overlap": 496,
           "validation_population": 1550,
-          "buy_now_recall": 0.625,
-          "build_or_better_recall": 0.5405,
-          "high_opportunity_recall": 0.4727,
-          "high_confidence_recall": 0.3951,
-          "missed_buy_now": 3,
-          "missed_build": 31,
+          "buy_now_recall": 0.75,
+          "build_or_better_recall": 0.5833,
+          "high_opportunity_recall": 0.5882,
+          "high_confidence_recall": 0.4585,
+          "missed_buy_now": 1,
+          "missed_build": 34,
           "discovery_gate": "FAIL"
         },
         {
           "candidate_pool_limit": 500,
           "full_evaluation_limit": 800,
-          "evaluated_overlap": 497,
+          "evaluated_overlap": 496,
           "validation_population": 1550,
-          "buy_now_recall": 0.625,
-          "build_or_better_recall": 0.5405,
-          "high_opportunity_recall": 0.4727,
-          "high_confidence_recall": 0.3951,
-          "missed_buy_now": 3,
-          "missed_build": 31,
+          "buy_now_recall": 0.75,
+          "build_or_better_recall": 0.5833,
+          "high_opportunity_recall": 0.5882,
+          "high_confidence_recall": 0.4585,
+          "missed_buy_now": 1,
+          "missed_build": 34,
           "discovery_gate": "FAIL"
         },
         {
           "candidate_pool_limit": 500,
           "full_evaluation_limit": 1000,
-          "evaluated_overlap": 497,
+          "evaluated_overlap": 496,
           "validation_population": 1550,
-          "buy_now_recall": 0.625,
-          "build_or_better_recall": 0.5405,
-          "high_opportunity_recall": 0.4727,
-          "high_confidence_recall": 0.3951,
-          "missed_buy_now": 3,
-          "missed_build": 31,
+          "buy_now_recall": 0.75,
+          "build_or_better_recall": 0.5833,
+          "high_opportunity_recall": 0.5882,
+          "high_confidence_recall": 0.4585,
+          "missed_buy_now": 1,
+          "missed_build": 34,
           "discovery_gate": "FAIL"
         },
         {
           "candidate_pool_limit": 500,
           "full_evaluation_limit": 1250,
-          "evaluated_overlap": 497,
+          "evaluated_overlap": 496,
           "validation_population": 1550,
-          "buy_now_recall": 0.625,
-          "build_or_better_recall": 0.5405,
-          "high_opportunity_recall": 0.4727,
-          "high_confidence_recall": 0.3951,
-          "missed_buy_now": 3,
-          "missed_build": 31,
+          "buy_now_recall": 0.75,
+          "build_or_better_recall": 0.5833,
+          "high_opportunity_recall": 0.5882,
+          "high_confidence_recall": 0.4585,
+          "missed_buy_now": 1,
+          "missed_build": 34,
           "discovery_gate": "FAIL"
         },
         {
@@ -494,12 +403,12 @@
           "full_evaluation_limit": 250,
           "evaluated_overlap": 250,
           "validation_population": 1550,
-          "buy_now_recall": 0.375,
-          "build_or_better_recall": 0.3919,
-          "high_opportunity_recall": 0.3,
-          "high_confidence_recall": 0.2902,
-          "missed_buy_now": 5,
-          "missed_build": 40,
+          "buy_now_recall": 0.5,
+          "build_or_better_recall": 0.4048,
+          "high_opportunity_recall": 0.3529,
+          "high_confidence_recall": 0.2612,
+          "missed_buy_now": 2,
+          "missed_build": 48,
           "discovery_gate": "FAIL"
         },
         {
@@ -507,12 +416,12 @@
           "full_evaluation_limit": 300,
           "evaluated_overlap": 300,
           "validation_population": 1550,
-          "buy_now_recall": 0.375,
-          "build_or_better_recall": 0.4459,
-          "high_opportunity_recall": 0.3182,
-          "high_confidence_recall": 0.3182,
-          "missed_buy_now": 5,
-          "missed_build": 36,
+          "buy_now_recall": 0.5,
+          "build_or_better_recall": 0.4167,
+          "high_opportunity_recall": 0.4412,
+          "high_confidence_recall": 0.3061,
+          "missed_buy_now": 2,
+          "missed_build": 47,
           "discovery_gate": "FAIL"
         },
         {
@@ -520,12 +429,12 @@
           "full_evaluation_limit": 350,
           "evaluated_overlap": 350,
           "validation_population": 1550,
-          "buy_now_recall": 0.5,
-          "build_or_better_recall": 0.4865,
-          "high_opportunity_recall": 0.3545,
-          "high_confidence_recall": 0.3514,
-          "missed_buy_now": 4,
-          "missed_build": 34,
+          "buy_now_recall": 0.75,
+          "build_or_better_recall": 0.4881,
+          "high_opportunity_recall": 0.5,
+          "high_confidence_recall": 0.351,
+          "missed_buy_now": 1,
+          "missed_build": 42,
           "discovery_gate": "FAIL"
         },
         {
@@ -533,12 +442,12 @@
           "full_evaluation_limit": 400,
           "evaluated_overlap": 400,
           "validation_population": 1550,
-          "buy_now_recall": 0.625,
-          "build_or_better_recall": 0.5,
-          "high_opportunity_recall": 0.4364,
-          "high_confidence_recall": 0.3741,
-          "missed_buy_now": 3,
-          "missed_build": 34,
+          "buy_now_recall": 0.75,
+          "build_or_better_recall": 0.5238,
+          "high_opportunity_recall": 0.5,
+          "high_confidence_recall": 0.3973,
+          "missed_buy_now": 1,
+          "missed_build": 39,
           "discovery_gate": "FAIL"
         },
         {
@@ -547,76 +456,76 @@
           "evaluated_overlap": 500,
           "validation_population": 1550,
           "buy_now_recall": 0.75,
-          "build_or_better_recall": 0.5541,
-          "high_opportunity_recall": 0.5273,
-          "high_confidence_recall": 0.4231,
-          "missed_buy_now": 2,
-          "missed_build": 31,
+          "build_or_better_recall": 0.5952,
+          "high_opportunity_recall": 0.6029,
+          "high_confidence_recall": 0.4667,
+          "missed_buy_now": 1,
+          "missed_build": 33,
           "discovery_gate": "FAIL"
         },
         {
           "candidate_pool_limit": 650,
           "full_evaluation_limit": 650,
-          "evaluated_overlap": 645,
+          "evaluated_overlap": 646,
           "validation_population": 1550,
           "buy_now_recall": 0.75,
-          "build_or_better_recall": 0.6351,
-          "high_opportunity_recall": 0.6909,
-          "high_confidence_recall": 0.5035,
-          "missed_buy_now": 2,
-          "missed_build": 25,
+          "build_or_better_recall": 0.6786,
+          "high_opportunity_recall": 0.7206,
+          "high_confidence_recall": 0.5605,
+          "missed_buy_now": 1,
+          "missed_build": 26,
           "discovery_gate": "FAIL"
         },
         {
           "candidate_pool_limit": 650,
           "full_evaluation_limit": 750,
-          "evaluated_overlap": 645,
+          "evaluated_overlap": 646,
           "validation_population": 1550,
           "buy_now_recall": 0.75,
-          "build_or_better_recall": 0.6351,
-          "high_opportunity_recall": 0.6909,
-          "high_confidence_recall": 0.5035,
-          "missed_buy_now": 2,
-          "missed_build": 25,
+          "build_or_better_recall": 0.6786,
+          "high_opportunity_recall": 0.7206,
+          "high_confidence_recall": 0.5605,
+          "missed_buy_now": 1,
+          "missed_build": 26,
           "discovery_gate": "FAIL"
         },
         {
           "candidate_pool_limit": 650,
           "full_evaluation_limit": 800,
-          "evaluated_overlap": 645,
+          "evaluated_overlap": 646,
           "validation_population": 1550,
           "buy_now_recall": 0.75,
-          "build_or_better_recall": 0.6351,
-          "high_opportunity_recall": 0.6909,
-          "high_confidence_recall": 0.5035,
-          "missed_buy_now": 2,
-          "missed_build": 25,
+          "build_or_better_recall": 0.6786,
+          "high_opportunity_recall": 0.7206,
+          "high_confidence_recall": 0.5605,
+          "missed_buy_now": 1,
+          "missed_build": 26,
           "discovery_gate": "FAIL"
         },
         {
           "candidate_pool_limit": 650,
           "full_evaluation_limit": 1000,
-          "evaluated_overlap": 645,
+          "evaluated_overlap": 646,
           "validation_population": 1550,
           "buy_now_recall": 0.75,
-          "build_or_better_recall": 0.6351,
-          "high_opportunity_recall": 0.6909,
-          "high_confidence_recall": 0.5035,
-          "missed_buy_now": 2,
-          "missed_build": 25,
+          "build_or_better_recall": 0.6786,
+          "high_opportunity_recall": 0.7206,
+          "high_confidence_recall": 0.5605,
+          "missed_buy_now": 1,
+          "missed_build": 26,
           "discovery_gate": "FAIL"
         },
         {
           "candidate_pool_limit": 650,
           "full_evaluation_limit": 1250,
-          "evaluated_overlap": 645,
+          "evaluated_overlap": 646,
           "validation_population": 1550,
           "buy_now_recall": 0.75,
-          "build_or_better_recall": 0.6351,
-          "high_opportunity_recall": 0.6909,
-          "high_confidence_recall": 0.5035,
-          "missed_buy_now": 2,
-          "missed_build": 25,
+          "build_or_better_recall": 0.6786,
+          "high_opportunity_recall": 0.7206,
+          "high_confidence_recall": 0.5605,
+          "missed_buy_now": 1,
+          "missed_build": 26,
           "discovery_gate": "FAIL"
         },
         {
@@ -624,12 +533,12 @@
           "full_evaluation_limit": 250,
           "evaluated_overlap": 250,
           "validation_population": 1550,
-          "buy_now_recall": 0.375,
-          "build_or_better_recall": 0.3919,
-          "high_opportunity_recall": 0.3,
-          "high_confidence_recall": 0.2902,
-          "missed_buy_now": 5,
-          "missed_build": 40,
+          "buy_now_recall": 0.5,
+          "build_or_better_recall": 0.4048,
+          "high_opportunity_recall": 0.3529,
+          "high_confidence_recall": 0.2612,
+          "missed_buy_now": 2,
+          "missed_build": 48,
           "discovery_gate": "FAIL"
         },
         {
@@ -637,12 +546,12 @@
           "full_evaluation_limit": 300,
           "evaluated_overlap": 300,
           "validation_population": 1550,
-          "buy_now_recall": 0.375,
-          "build_or_better_recall": 0.4459,
-          "high_opportunity_recall": 0.3182,
-          "high_confidence_recall": 0.3182,
-          "missed_buy_now": 5,
-          "missed_build": 36,
+          "buy_now_recall": 0.5,
+          "build_or_better_recall": 0.4167,
+          "high_opportunity_recall": 0.4412,
+          "high_confidence_recall": 0.3061,
+          "missed_buy_now": 2,
+          "missed_build": 47,
           "discovery_gate": "FAIL"
         },
         {
@@ -650,12 +559,12 @@
           "full_evaluation_limit": 350,
           "evaluated_overlap": 350,
           "validation_population": 1550,
-          "buy_now_recall": 0.5,
-          "build_or_better_recall": 0.4865,
-          "high_opportunity_recall": 0.3545,
-          "high_confidence_recall": 0.3514,
-          "missed_buy_now": 4,
-          "missed_build": 34,
+          "buy_now_recall": 0.75,
+          "build_or_better_recall": 0.4881,
+          "high_opportunity_recall": 0.5,
+          "high_confidence_recall": 0.351,
+          "missed_buy_now": 1,
+          "missed_build": 42,
           "discovery_gate": "FAIL"
         },
         {
@@ -663,12 +572,12 @@
           "full_evaluation_limit": 400,
           "evaluated_overlap": 400,
           "validation_population": 1550,
-          "buy_now_recall": 0.625,
-          "build_or_better_recall": 0.5,
-          "high_opportunity_recall": 0.4364,
-          "high_confidence_recall": 0.3741,
-          "missed_buy_now": 3,
-          "missed_build": 34,
+          "buy_now_recall": 0.75,
+          "build_or_better_recall": 0.5238,
+          "high_opportunity_recall": 0.5,
+          "high_confidence_recall": 0.3973,
+          "missed_buy_now": 1,
+          "missed_build": 39,
           "discovery_gate": "FAIL"
         },
         {
@@ -677,11 +586,11 @@
           "evaluated_overlap": 500,
           "validation_population": 1550,
           "buy_now_recall": 0.75,
-          "build_or_better_recall": 0.5541,
-          "high_opportunity_recall": 0.5273,
-          "high_confidence_recall": 0.4231,
-          "missed_buy_now": 2,
-          "missed_build": 31,
+          "build_or_better_recall": 0.5952,
+          "high_opportunity_recall": 0.6029,
+          "high_confidence_recall": 0.4667,
+          "missed_buy_now": 1,
+          "missed_build": 33,
           "discovery_gate": "FAIL"
         },
         {
@@ -690,11 +599,11 @@
           "evaluated_overlap": 650,
           "validation_population": 1550,
           "buy_now_recall": 0.75,
-          "build_or_better_recall": 0.6757,
-          "high_opportunity_recall": 0.7364,
-          "high_confidence_recall": 0.5297,
-          "missed_buy_now": 2,
-          "missed_build": 22,
+          "build_or_better_recall": 0.6905,
+          "high_opportunity_recall": 0.75,
+          "high_confidence_recall": 0.5741,
+          "missed_buy_now": 1,
+          "missed_build": 25,
           "discovery_gate": "FAIL"
         },
         {
@@ -703,50 +612,50 @@
           "evaluated_overlap": 750,
           "validation_population": 1550,
           "buy_now_recall": 0.75,
-          "build_or_better_recall": 0.7432,
-          "high_opportunity_recall": 0.7818,
-          "high_confidence_recall": 0.5892,
-          "missed_buy_now": 2,
-          "missed_build": 17,
+          "build_or_better_recall": 0.7619,
+          "high_opportunity_recall": 0.8676,
+          "high_confidence_recall": 0.6585,
+          "missed_buy_now": 1,
+          "missed_build": 19,
           "discovery_gate": "FAIL"
         },
         {
           "candidate_pool_limit": 800,
           "full_evaluation_limit": 800,
-          "evaluated_overlap": 794,
+          "evaluated_overlap": 796,
           "validation_population": 1550,
           "buy_now_recall": 0.75,
-          "build_or_better_recall": 0.7432,
-          "high_opportunity_recall": 0.7818,
-          "high_confidence_recall": 0.5962,
-          "missed_buy_now": 2,
-          "missed_build": 17,
+          "build_or_better_recall": 0.7619,
+          "high_opportunity_recall": 0.9118,
+          "high_confidence_recall": 0.6925,
+          "missed_buy_now": 1,
+          "missed_build": 19,
           "discovery_gate": "FAIL"
         },
         {
           "candidate_pool_limit": 800,
           "full_evaluation_limit": 1000,
-          "evaluated_overlap": 794,
+          "evaluated_overlap": 796,
           "validation_population": 1550,
           "buy_now_recall": 0.75,
-          "build_or_better_recall": 0.7432,
-          "high_opportunity_recall": 0.7818,
-          "high_confidence_recall": 0.5962,
-          "missed_buy_now": 2,
-          "missed_build": 17,
+          "build_or_better_recall": 0.7619,
+          "high_opportunity_recall": 0.9118,
+          "high_confidence_recall": 0.6925,
+          "missed_buy_now": 1,
+          "missed_build": 19,
           "discovery_gate": "FAIL"
         },
         {
           "candidate_pool_limit": 800,
           "full_evaluation_limit": 1250,
-          "evaluated_overlap": 794,
+          "evaluated_overlap": 796,
           "validation_population": 1550,
           "buy_now_recall": 0.75,
-          "build_or_better_recall": 0.7432,
-          "high_opportunity_recall": 0.7818,
-          "high_confidence_recall": 0.5962,
-          "missed_buy_now": 2,
-          "missed_build": 17,
+          "build_or_better_recall": 0.7619,
+          "high_opportunity_recall": 0.9118,
+          "high_confidence_recall": 0.6925,
+          "missed_buy_now": 1,
+          "missed_build": 19,
           "discovery_gate": "FAIL"
         },
         {
@@ -754,12 +663,12 @@
           "full_evaluation_limit": 250,
           "evaluated_overlap": 250,
           "validation_population": 1550,
-          "buy_now_recall": 0.375,
-          "build_or_better_recall": 0.3919,
-          "high_opportunity_recall": 0.3,
-          "high_confidence_recall": 0.2902,
-          "missed_buy_now": 5,
-          "missed_build": 40,
+          "buy_now_recall": 0.5,
+          "build_or_better_recall": 0.4048,
+          "high_opportunity_recall": 0.3529,
+          "high_confidence_recall": 0.2612,
+          "missed_buy_now": 2,
+          "missed_build": 48,
           "discovery_gate": "FAIL"
         },
         {
@@ -767,12 +676,12 @@
           "full_evaluation_limit": 300,
           "evaluated_overlap": 300,
           "validation_population": 1550,
-          "buy_now_recall": 0.375,
-          "build_or_better_recall": 0.4459,
-          "high_opportunity_recall": 0.3182,
-          "high_confidence_recall": 0.3182,
-          "missed_buy_now": 5,
-          "missed_build": 36,
+          "buy_now_recall": 0.5,
+          "build_or_better_recall": 0.4167,
+          "high_opportunity_recall": 0.4412,
+          "high_confidence_recall": 0.3061,
+          "missed_buy_now": 2,
+          "missed_build": 47,
           "discovery_gate": "FAIL"
         },
         {
@@ -780,12 +689,12 @@
           "full_evaluation_limit": 350,
           "evaluated_overlap": 350,
           "validation_population": 1550,
-          "buy_now_recall": 0.5,
-          "build_or_better_recall": 0.4865,
-          "high_opportunity_recall": 0.3545,
-          "high_confidence_recall": 0.3514,
-          "missed_buy_now": 4,
-          "missed_build": 34,
+          "buy_now_recall": 0.75,
+          "build_or_better_recall": 0.4881,
+          "high_opportunity_recall": 0.5,
+          "high_confidence_recall": 0.351,
+          "missed_buy_now": 1,
+          "missed_build": 42,
           "discovery_gate": "FAIL"
         },
         {
@@ -793,12 +702,12 @@
           "full_evaluation_limit": 400,
           "evaluated_overlap": 400,
           "validation_population": 1550,
-          "buy_now_recall": 0.625,
-          "build_or_better_recall": 0.5,
-          "high_opportunity_recall": 0.4364,
-          "high_confidence_recall": 0.3741,
-          "missed_buy_now": 3,
-          "missed_build": 34,
+          "buy_now_recall": 0.75,
+          "build_or_better_recall": 0.5238,
+          "high_opportunity_recall": 0.5,
+          "high_confidence_recall": 0.3973,
+          "missed_buy_now": 1,
+          "missed_build": 39,
           "discovery_gate": "FAIL"
         },
         {
@@ -807,11 +716,11 @@
           "evaluated_overlap": 500,
           "validation_population": 1550,
           "buy_now_recall": 0.75,
-          "build_or_better_recall": 0.5541,
-          "high_opportunity_recall": 0.5273,
-          "high_confidence_recall": 0.4231,
-          "missed_buy_now": 2,
-          "missed_build": 31,
+          "build_or_better_recall": 0.5952,
+          "high_opportunity_recall": 0.6029,
+          "high_confidence_recall": 0.4667,
+          "missed_buy_now": 1,
+          "missed_build": 33,
           "discovery_gate": "FAIL"
         },
         {
@@ -820,11 +729,11 @@
           "evaluated_overlap": 650,
           "validation_population": 1550,
           "buy_now_recall": 0.75,
-          "build_or_better_recall": 0.6757,
-          "high_opportunity_recall": 0.7364,
-          "high_confidence_recall": 0.5297,
-          "missed_buy_now": 2,
-          "missed_build": 22,
+          "build_or_better_recall": 0.6905,
+          "high_opportunity_recall": 0.75,
+          "high_confidence_recall": 0.5741,
+          "missed_buy_now": 1,
+          "missed_build": 25,
           "discovery_gate": "FAIL"
         },
         {
@@ -833,11 +742,11 @@
           "evaluated_overlap": 750,
           "validation_population": 1550,
           "buy_now_recall": 0.75,
-          "build_or_better_recall": 0.7568,
-          "high_opportunity_recall": 0.8,
-          "high_confidence_recall": 0.5962,
-          "missed_buy_now": 2,
-          "missed_build": 16,
+          "build_or_better_recall": 0.7619,
+          "high_opportunity_recall": 0.8676,
+          "high_confidence_recall": 0.6585,
+          "missed_buy_now": 1,
+          "missed_build": 19,
           "discovery_gate": "FAIL"
         },
         {
@@ -846,50 +755,50 @@
           "evaluated_overlap": 800,
           "validation_population": 1550,
           "buy_now_recall": 0.75,
-          "build_or_better_recall": 0.7568,
-          "high_opportunity_recall": 0.8091,
-          "high_confidence_recall": 0.6031,
-          "missed_buy_now": 2,
-          "missed_build": 16,
+          "build_or_better_recall": 0.7738,
+          "high_opportunity_recall": 0.9118,
+          "high_confidence_recall": 0.6993,
+          "missed_buy_now": 1,
+          "missed_build": 18,
           "discovery_gate": "FAIL"
         },
         {
           "candidate_pool_limit": 1000,
           "full_evaluation_limit": 1000,
-          "evaluated_overlap": 993,
+          "evaluated_overlap": 996,
           "validation_population": 1550,
-          "buy_now_recall": 0.75,
-          "build_or_better_recall": 0.7568,
-          "high_opportunity_recall": 0.8182,
-          "high_confidence_recall": 0.6171,
-          "missed_buy_now": 2,
-          "missed_build": 16,
-          "discovery_gate": "FAIL"
+          "buy_now_recall": 1.0,
+          "build_or_better_recall": 0.9405,
+          "high_opportunity_recall": 0.9706,
+          "high_confidence_recall": 0.8395,
+          "missed_buy_now": 0,
+          "missed_build": 5,
+          "discovery_gate": "PASS"
         },
         {
           "candidate_pool_limit": 1000,
           "full_evaluation_limit": 1250,
-          "evaluated_overlap": 993,
+          "evaluated_overlap": 996,
           "validation_population": 1550,
-          "buy_now_recall": 0.75,
-          "build_or_better_recall": 0.7568,
-          "high_opportunity_recall": 0.8182,
-          "high_confidence_recall": 0.6171,
-          "missed_buy_now": 2,
-          "missed_build": 16,
-          "discovery_gate": "FAIL"
+          "buy_now_recall": 1.0,
+          "build_or_better_recall": 0.9405,
+          "high_opportunity_recall": 0.9706,
+          "high_confidence_recall": 0.8395,
+          "missed_buy_now": 0,
+          "missed_build": 5,
+          "discovery_gate": "PASS"
         },
         {
           "candidate_pool_limit": 1250,
           "full_evaluation_limit": 250,
           "evaluated_overlap": 250,
           "validation_population": 1550,
-          "buy_now_recall": 0.375,
-          "build_or_better_recall": 0.3919,
-          "high_opportunity_recall": 0.3,
-          "high_confidence_recall": 0.2902,
-          "missed_buy_now": 5,
-          "missed_build": 40,
+          "buy_now_recall": 0.5,
+          "build_or_better_recall": 0.4048,
+          "high_opportunity_recall": 0.3529,
+          "high_confidence_recall": 0.2612,
+          "missed_buy_now": 2,
+          "missed_build": 48,
           "discovery_gate": "FAIL"
         },
         {
@@ -897,12 +806,12 @@
           "full_evaluation_limit": 300,
           "evaluated_overlap": 300,
           "validation_population": 1550,
-          "buy_now_recall": 0.375,
-          "build_or_better_recall": 0.4459,
-          "high_opportunity_recall": 0.3182,
-          "high_confidence_recall": 0.3182,
-          "missed_buy_now": 5,
-          "missed_build": 36,
+          "buy_now_recall": 0.5,
+          "build_or_better_recall": 0.4167,
+          "high_opportunity_recall": 0.4412,
+          "high_confidence_recall": 0.3061,
+          "missed_buy_now": 2,
+          "missed_build": 47,
           "discovery_gate": "FAIL"
         },
         {
@@ -910,12 +819,12 @@
           "full_evaluation_limit": 350,
           "evaluated_overlap": 350,
           "validation_population": 1550,
-          "buy_now_recall": 0.5,
-          "build_or_better_recall": 0.4865,
-          "high_opportunity_recall": 0.3545,
-          "high_confidence_recall": 0.3514,
-          "missed_buy_now": 4,
-          "missed_build": 34,
+          "buy_now_recall": 0.75,
+          "build_or_better_recall": 0.4881,
+          "high_opportunity_recall": 0.5,
+          "high_confidence_recall": 0.351,
+          "missed_buy_now": 1,
+          "missed_build": 42,
           "discovery_gate": "FAIL"
         },
         {
@@ -923,12 +832,12 @@
           "full_evaluation_limit": 400,
           "evaluated_overlap": 400,
           "validation_population": 1550,
-          "buy_now_recall": 0.625,
-          "build_or_better_recall": 0.5,
-          "high_opportunity_recall": 0.4364,
-          "high_confidence_recall": 0.3741,
-          "missed_buy_now": 3,
-          "missed_build": 34,
+          "buy_now_recall": 0.75,
+          "build_or_better_recall": 0.5238,
+          "high_opportunity_recall": 0.5,
+          "high_confidence_recall": 0.3973,
+          "missed_buy_now": 1,
+          "missed_build": 39,
           "discovery_gate": "FAIL"
         },
         {
@@ -937,11 +846,11 @@
           "evaluated_overlap": 500,
           "validation_population": 1550,
           "buy_now_recall": 0.75,
-          "build_or_better_recall": 0.5541,
-          "high_opportunity_recall": 0.5273,
-          "high_confidence_recall": 0.4231,
-          "missed_buy_now": 2,
-          "missed_build": 31,
+          "build_or_better_recall": 0.5952,
+          "high_opportunity_recall": 0.6029,
+          "high_confidence_recall": 0.4667,
+          "missed_buy_now": 1,
+          "missed_build": 33,
           "discovery_gate": "FAIL"
         },
         {
@@ -950,11 +859,11 @@
           "evaluated_overlap": 650,
           "validation_population": 1550,
           "buy_now_recall": 0.75,
-          "build_or_better_recall": 0.6757,
-          "high_opportunity_recall": 0.7364,
-          "high_confidence_recall": 0.5297,
-          "missed_buy_now": 2,
-          "missed_build": 22,
+          "build_or_better_recall": 0.6905,
+          "high_opportunity_recall": 0.75,
+          "high_confidence_recall": 0.5741,
+          "missed_buy_now": 1,
+          "missed_build": 25,
           "discovery_gate": "FAIL"
         },
         {
@@ -963,11 +872,11 @@
           "evaluated_overlap": 750,
           "validation_population": 1550,
           "buy_now_recall": 0.75,
-          "build_or_better_recall": 0.7568,
-          "high_opportunity_recall": 0.8,
-          "high_confidence_recall": 0.5962,
-          "missed_buy_now": 2,
-          "missed_build": 16,
+          "build_or_better_recall": 0.7619,
+          "high_opportunity_recall": 0.8676,
+          "high_confidence_recall": 0.6585,
+          "missed_buy_now": 1,
+          "missed_build": 19,
           "discovery_gate": "FAIL"
         },
         {
@@ -976,11 +885,11 @@
           "evaluated_overlap": 800,
           "validation_population": 1550,
           "buy_now_recall": 0.75,
-          "build_or_better_recall": 0.7568,
-          "high_opportunity_recall": 0.8091,
-          "high_confidence_recall": 0.6031,
-          "missed_buy_now": 2,
-          "missed_build": 16,
+          "build_or_better_recall": 0.7738,
+          "high_opportunity_recall": 0.9118,
+          "high_confidence_recall": 0.6993,
+          "missed_buy_now": 1,
+          "missed_build": 18,
           "discovery_gate": "FAIL"
         },
         {
@@ -988,25 +897,25 @@
           "full_evaluation_limit": 1000,
           "evaluated_overlap": 1000,
           "validation_population": 1550,
-          "buy_now_recall": 0.75,
-          "build_or_better_recall": 0.7568,
-          "high_opportunity_recall": 0.8182,
-          "high_confidence_recall": 0.6101,
-          "missed_buy_now": 2,
-          "missed_build": 16,
-          "discovery_gate": "FAIL"
+          "buy_now_recall": 1.0,
+          "build_or_better_recall": 0.9405,
+          "high_opportunity_recall": 0.9706,
+          "high_confidence_recall": 0.8449,
+          "missed_buy_now": 0,
+          "missed_build": 5,
+          "discovery_gate": "PASS"
         },
         {
           "candidate_pool_limit": 1250,
           "full_evaluation_limit": 1250,
-          "evaluated_overlap": 1243,
+          "evaluated_overlap": 1246,
           "validation_population": 1550,
           "buy_now_recall": 1.0,
-          "build_or_better_recall": 0.8378,
-          "high_opportunity_recall": 0.9636,
-          "high_confidence_recall": 0.6976,
+          "build_or_better_recall": 1.0,
+          "high_opportunity_recall": 1.0,
+          "high_confidence_recall": 0.9932,
           "missed_buy_now": 0,
-          "missed_build": 12,
+          "missed_build": 0,
           "discovery_gate": "PASS"
         },
         {
@@ -1014,12 +923,12 @@
           "full_evaluation_limit": 250,
           "evaluated_overlap": 250,
           "validation_population": 1550,
-          "buy_now_recall": 0.375,
-          "build_or_better_recall": 0.3919,
-          "high_opportunity_recall": 0.3,
-          "high_confidence_recall": 0.2902,
-          "missed_buy_now": 5,
-          "missed_build": 40,
+          "buy_now_recall": 0.5,
+          "build_or_better_recall": 0.4048,
+          "high_opportunity_recall": 0.3529,
+          "high_confidence_recall": 0.2612,
+          "missed_buy_now": 2,
+          "missed_build": 48,
           "discovery_gate": "FAIL"
         },
         {
@@ -1027,12 +936,12 @@
           "full_evaluation_limit": 300,
           "evaluated_overlap": 300,
           "validation_population": 1550,
-          "buy_now_recall": 0.375,
-          "build_or_better_recall": 0.4459,
-          "high_opportunity_recall": 0.3182,
-          "high_confidence_recall": 0.3182,
-          "missed_buy_now": 5,
-          "missed_build": 36,
+          "buy_now_recall": 0.5,
+          "build_or_better_recall": 0.4167,
+          "high_opportunity_recall": 0.4412,
+          "high_confidence_recall": 0.3061,
+          "missed_buy_now": 2,
+          "missed_build": 47,
           "discovery_gate": "FAIL"
         },
         {
@@ -1040,12 +949,12 @@
           "full_evaluation_limit": 350,
           "evaluated_overlap": 350,
           "validation_population": 1550,
-          "buy_now_recall": 0.5,
-          "build_or_better_recall": 0.4865,
-          "high_opportunity_recall": 0.3545,
-          "high_confidence_recall": 0.3514,
-          "missed_buy_now": 4,
-          "missed_build": 34,
+          "buy_now_recall": 0.75,
+          "build_or_better_recall": 0.4881,
+          "high_opportunity_recall": 0.5,
+          "high_confidence_recall": 0.351,
+          "missed_buy_now": 1,
+          "missed_build": 42,
           "discovery_gate": "FAIL"
         },
         {
@@ -1053,12 +962,12 @@
           "full_evaluation_limit": 400,
           "evaluated_overlap": 400,
           "validation_population": 1550,
-          "buy_now_recall": 0.625,
-          "build_or_better_recall": 0.5,
-          "high_opportunity_recall": 0.4364,
-          "high_confidence_recall": 0.3741,
-          "missed_buy_now": 3,
-          "missed_build": 34,
+          "buy_now_recall": 0.75,
+          "build_or_better_recall": 0.5238,
+          "high_opportunity_recall": 0.5,
+          "high_confidence_recall": 0.3973,
+          "missed_buy_now": 1,
+          "missed_build": 39,
           "discovery_gate": "FAIL"
         },
         {
@@ -1067,11 +976,11 @@
           "evaluated_overlap": 500,
           "validation_population": 1550,
           "buy_now_recall": 0.75,
-          "build_or_better_recall": 0.5541,
-          "high_opportunity_recall": 0.5273,
-          "high_confidence_recall": 0.4231,
-          "missed_buy_now": 2,
-          "missed_build": 31,
+          "build_or_better_recall": 0.5952,
+          "high_opportunity_recall": 0.6029,
+          "high_confidence_recall": 0.4667,
+          "missed_buy_now": 1,
+          "missed_build": 33,
           "discovery_gate": "FAIL"
         },
         {
@@ -1080,11 +989,11 @@
           "evaluated_overlap": 650,
           "validation_population": 1550,
           "buy_now_recall": 0.75,
-          "build_or_better_recall": 0.6757,
-          "high_opportunity_recall": 0.7364,
-          "high_confidence_recall": 0.5297,
-          "missed_buy_now": 2,
-          "missed_build": 22,
+          "build_or_better_recall": 0.6905,
+          "high_opportunity_recall": 0.75,
+          "high_confidence_recall": 0.5741,
+          "missed_buy_now": 1,
+          "missed_build": 25,
           "discovery_gate": "FAIL"
         },
         {
@@ -1093,11 +1002,11 @@
           "evaluated_overlap": 750,
           "validation_population": 1550,
           "buy_now_recall": 0.75,
-          "build_or_better_recall": 0.7568,
-          "high_opportunity_recall": 0.8,
-          "high_confidence_recall": 0.5962,
-          "missed_buy_now": 2,
-          "missed_build": 16,
+          "build_or_better_recall": 0.7619,
+          "high_opportunity_recall": 0.8676,
+          "high_confidence_recall": 0.6585,
+          "missed_buy_now": 1,
+          "missed_build": 19,
           "discovery_gate": "FAIL"
         },
         {
@@ -1106,11 +1015,11 @@
           "evaluated_overlap": 800,
           "validation_population": 1550,
           "buy_now_recall": 0.75,
-          "build_or_better_recall": 0.7568,
-          "high_opportunity_recall": 0.8091,
-          "high_confidence_recall": 0.6031,
-          "missed_buy_now": 2,
-          "missed_build": 16,
+          "build_or_better_recall": 0.7738,
+          "high_opportunity_recall": 0.9118,
+          "high_confidence_recall": 0.6993,
+          "missed_buy_now": 1,
+          "missed_build": 18,
           "discovery_gate": "FAIL"
         },
         {
@@ -1118,13 +1027,13 @@
           "full_evaluation_limit": 1000,
           "evaluated_overlap": 1000,
           "validation_population": 1550,
-          "buy_now_recall": 0.75,
-          "build_or_better_recall": 0.7568,
-          "high_opportunity_recall": 0.8182,
-          "high_confidence_recall": 0.6101,
-          "missed_buy_now": 2,
-          "missed_build": 16,
-          "discovery_gate": "FAIL"
+          "buy_now_recall": 1.0,
+          "build_or_better_recall": 0.9405,
+          "high_opportunity_recall": 0.9706,
+          "high_confidence_recall": 0.8449,
+          "missed_buy_now": 0,
+          "missed_build": 5,
+          "discovery_gate": "PASS"
         },
         {
           "candidate_pool_limit": 1500,
@@ -1132,263 +1041,382 @@
           "evaluated_overlap": 1250,
           "validation_population": 1550,
           "buy_now_recall": 1.0,
-          "build_or_better_recall": 0.8649,
-          "high_opportunity_recall": 0.9636,
-          "high_confidence_recall": 0.7063,
+          "build_or_better_recall": 1.0,
+          "high_opportunity_recall": 1.0,
+          "high_confidence_recall": 1.0,
           "missed_buy_now": 0,
-          "missed_build": 10,
+          "missed_build": 0,
           "discovery_gate": "PASS"
         }
       ],
-      "recommended": null,
+      "recommended": {
+        "candidate_pool_limit": 1250,
+        "full_evaluation_limit": 1250,
+        "evaluated_overlap": 1246,
+        "validation_population": 1550,
+        "buy_now_recall": 1.0,
+        "build_or_better_recall": 1.0,
+        "high_opportunity_recall": 1.0,
+        "high_confidence_recall": 0.9932,
+        "missed_buy_now": 0,
+        "missed_build": 0,
+        "discovery_gate": "PASS"
+      },
       "confidence_limitation": "Recall is measured on the canonically evaluated governed validation population, not unevaluated securities.",
       "status": "COMPLETE"
     },
     "exclusion_reason_counts": {
-      "Financial Services sector": 129,
-      "DOLLAR_VOLUME_BELOW_MINIMUM": 392,
-      "Excluded financial/bank/lender/insurance/asset management industry": 6,
-      "Excluded business category": 14,
-      "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE": 114,
-      "GOVERNED_COMPANY_EXCLUSION": 38,
-      "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE": 278,
-      "INSUFFICIENT_TECHNICAL_HISTORY": 2
+      "Financial Services sector": 443,
+      "DOLLAR_VOLUME_BELOW_MINIMUM": 420,
+      "Excluded financial/bank/lender/insurance/asset management industry": 16,
+      "Excluded business category": 41,
+      "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE": 123,
+      "GOVERNED_COMPANY_EXCLUSION": 120,
+      "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE": 93,
+      "INSUFFICIENT_TECHNICAL_HISTORY": 3,
+      "MARKET_CAP_BELOW_MINIMUM": 2
     }
   },
   "provider_diagnostics": {
     "newsapi": {
-      "requests": 26,
+      "requests": 41,
       "by_status": {
-        "HTTP_RATE_LIMIT": 26
+        "ALL_ARTICLES_REJECTED_BY_RELEVANCE": 17,
+        "SUCCESS": 24
       },
-      "article_count": 0,
-      "accepted_count": 0,
-      "relevance_rejected_count": 0,
+      "article_count": 274,
+      "accepted_count": 74,
+      "relevance_rejected_count": 200,
       "results": [
         {
-          "ticker": "BCRX",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
+          "ticker": "MU",
+          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
+          "article_count": 8,
           "accepted_count": 0,
-          "relevance_rejected_count": 0
-        },
-        {
-          "ticker": "DCH",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
-        },
-        {
-          "ticker": "BZ",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
-        },
-        {
-          "ticker": "ARLP",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
-        },
-        {
-          "ticker": "CRSP",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
-        },
-        {
-          "ticker": "CVE",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
-        },
-        {
-          "ticker": "BMRN",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
-        },
-        {
-          "ticker": "ALM",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
-        },
-        {
-          "ticker": "DAVE",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
-        },
-        {
-          "ticker": "CHTR",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
-        },
-        {
-          "ticker": "ARVN",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
-        },
-        {
-          "ticker": "AG",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
-        },
-        {
-          "ticker": "BL",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
-        },
-        {
-          "ticker": "DELL",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
-        },
-        {
-          "ticker": "CHWY",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
-        },
-        {
-          "ticker": "CRC",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
-        },
-        {
-          "ticker": "ALNY",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
-        },
-        {
-          "ticker": "DVN",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
-        },
-        {
-          "ticker": "ARCO",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
-        },
-        {
-          "ticker": "AMD",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
+          "relevance_rejected_count": 8
         },
         {
           "ticker": "NVDA",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
+          "status": "SUCCESS",
+          "article_count": 8,
+          "accepted_count": 6,
+          "relevance_rejected_count": 2
+        },
+        {
+          "ticker": "ORCL",
+          "status": "SUCCESS",
+          "article_count": 8,
+          "accepted_count": 6,
+          "relevance_rejected_count": 2
+        },
+        {
+          "ticker": "TSM",
+          "status": "SUCCESS",
+          "article_count": 8,
+          "accepted_count": 2,
+          "relevance_rejected_count": 6
+        },
+        {
+          "ticker": "NEM",
+          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
+          "article_count": 8,
           "accepted_count": 0,
-          "relevance_rejected_count": 0
+          "relevance_rejected_count": 8
+        },
+        {
+          "ticker": "RGLD",
+          "status": "SUCCESS",
+          "article_count": 8,
+          "accepted_count": 7,
+          "relevance_rejected_count": 1
+        },
+        {
+          "ticker": "GAP",
+          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
+          "article_count": 8,
+          "accepted_count": 0,
+          "relevance_rejected_count": 8
+        },
+        {
+          "ticker": "BCRX",
+          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
+          "article_count": 1,
+          "accepted_count": 0,
+          "relevance_rejected_count": 1
+        },
+        {
+          "ticker": "DSP",
+          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
+          "article_count": 8,
+          "accepted_count": 0,
+          "relevance_rejected_count": 8
+        },
+        {
+          "ticker": "URBN",
+          "status": "SUCCESS",
+          "article_count": 7,
+          "accepted_count": 1,
+          "relevance_rejected_count": 6
+        },
+        {
+          "ticker": "REGN",
+          "status": "SUCCESS",
+          "article_count": 8,
+          "accepted_count": 7,
+          "relevance_rejected_count": 1
+        },
+        {
+          "ticker": "DCH",
+          "status": "SUCCESS",
+          "article_count": 8,
+          "accepted_count": 2,
+          "relevance_rejected_count": 6
+        },
+        {
+          "ticker": "KGC",
+          "status": "SUCCESS",
+          "article_count": 3,
+          "accepted_count": 1,
+          "relevance_rejected_count": 2
+        },
+        {
+          "ticker": "MUX",
+          "status": "SUCCESS",
+          "article_count": 8,
+          "accepted_count": 1,
+          "relevance_rejected_count": 7
+        },
+        {
+          "ticker": "META",
+          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
+          "article_count": 8,
+          "accepted_count": 0,
+          "relevance_rejected_count": 8
+        },
+        {
+          "ticker": "ALM",
+          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
+          "article_count": 8,
+          "accepted_count": 0,
+          "relevance_rejected_count": 8
+        },
+        {
+          "ticker": "HPE",
+          "status": "SUCCESS",
+          "article_count": 8,
+          "accepted_count": 1,
+          "relevance_rejected_count": 7
+        },
+        {
+          "ticker": "KVYO",
+          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
+          "article_count": 1,
+          "accepted_count": 0,
+          "relevance_rejected_count": 1
+        },
+        {
+          "ticker": "ARVN",
+          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
+          "article_count": 2,
+          "accepted_count": 0,
+          "relevance_rejected_count": 2
+        },
+        {
+          "ticker": "MTDR",
+          "status": "SUCCESS",
+          "article_count": 3,
+          "accepted_count": 1,
+          "relevance_rejected_count": 2
+        },
+        {
+          "ticker": "CRC",
+          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
+          "article_count": 8,
+          "accepted_count": 0,
+          "relevance_rejected_count": 8
+        },
+        {
+          "ticker": "ALNY",
+          "status": "SUCCESS",
+          "article_count": 4,
+          "accepted_count": 2,
+          "relevance_rejected_count": 2
+        },
+        {
+          "ticker": "PAM",
+          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
+          "article_count": 7,
+          "accepted_count": 0,
+          "relevance_rejected_count": 7
+        },
+        {
+          "ticker": "DVN",
+          "status": "SUCCESS",
+          "article_count": 8,
+          "accepted_count": 1,
+          "relevance_rejected_count": 7
+        },
+        {
+          "ticker": "GRNT",
+          "status": "SUCCESS",
+          "article_count": 3,
+          "accepted_count": 2,
+          "relevance_rejected_count": 1
+        },
+        {
+          "ticker": "SE",
+          "status": "SUCCESS",
+          "article_count": 7,
+          "accepted_count": 1,
+          "relevance_rejected_count": 6
+        },
+        {
+          "ticker": "SNX",
+          "status": "SUCCESS",
+          "article_count": 8,
+          "accepted_count": 4,
+          "relevance_rejected_count": 4
+        },
+        {
+          "ticker": "VNOM",
+          "status": "SUCCESS",
+          "article_count": 2,
+          "accepted_count": 1,
+          "relevance_rejected_count": 1
+        },
+        {
+          "ticker": "FIVE",
+          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
+          "article_count": 7,
+          "accepted_count": 0,
+          "relevance_rejected_count": 7
+        },
+        {
+          "ticker": "VIST",
+          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
+          "article_count": 8,
+          "accepted_count": 0,
+          "relevance_rejected_count": 8
+        },
+        {
+          "ticker": "HSAI",
+          "status": "SUCCESS",
+          "article_count": 8,
+          "accepted_count": 6,
+          "relevance_rejected_count": 2
+        },
+        {
+          "ticker": "ARCO",
+          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
+          "article_count": 8,
+          "accepted_count": 0,
+          "relevance_rejected_count": 8
+        },
+        {
+          "ticker": "MH",
+          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
+          "article_count": 8,
+          "accepted_count": 0,
+          "relevance_rejected_count": 8
+        },
+        {
+          "ticker": "AMD",
+          "status": "SUCCESS",
+          "article_count": 8,
+          "accepted_count": 1,
+          "relevance_rejected_count": 7
+        },
+        {
+          "ticker": "EXK",
+          "status": "SUCCESS",
+          "article_count": 4,
+          "accepted_count": 3,
+          "relevance_rejected_count": 1
+        },
+        {
+          "ticker": "FUBO",
+          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
+          "article_count": 8,
+          "accepted_count": 0,
+          "relevance_rejected_count": 8
         },
         {
           "ticker": "ATAT",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
-        },
-        {
-          "ticker": "TSLA",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
+          "status": "SUCCESS",
+          "article_count": 7,
+          "accepted_count": 2,
+          "relevance_rejected_count": 5
         },
         {
           "ticker": "AMZN",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
+          "status": "ALL_ARTICLES_REJECTED_BY_RELEVANCE",
+          "article_count": 8,
           "accepted_count": 0,
-          "relevance_rejected_count": 0
+          "relevance_rejected_count": 8
         },
         {
           "ticker": "AAPL",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
+          "status": "SUCCESS",
+          "article_count": 8,
+          "accepted_count": 4,
+          "relevance_rejected_count": 4
         },
         {
-          "ticker": "SOFI",
-          "status": "HTTP_RATE_LIMIT",
-          "article_count": 0,
-          "accepted_count": 0,
-          "relevance_rejected_count": 0
+          "ticker": "TSLA",
+          "status": "SUCCESS",
+          "article_count": 8,
+          "accepted_count": 6,
+          "relevance_rejected_count": 2
+        },
+        {
+          "ticker": "PLTR",
+          "status": "SUCCESS",
+          "article_count": 8,
+          "accepted_count": 6,
+          "relevance_rejected_count": 2
         }
       ]
     },
     "fmp_shadow": {
-      "symbols": 26,
-      "calls": 106,
-      "live_fetches": 54,
-      "fresh_cache_hits": 76,
+      "symbols": 41,
+      "calls": 328,
+      "live_fetches": 164,
+      "fresh_cache_hits": 41,
       "stale_fallbacks": 0,
-      "unavailable": 26,
+      "unavailable": 41,
       "outcomes": {
-        "SUCCESS": 80,
-        "HTTP_FAILURE": 26
+        "SUCCESS": 287,
+        "HTTP_FAILURE": 41
       },
-      "provider_rows_returned": 29238,
-      "normalized_rows": 29112,
-      "retained_rows": 2595,
-      "discarded_by_cap": 26517,
+      "provider_rows_returned": 39443,
+      "normalized_rows": 39286,
+      "retained_rows": 4088,
+      "discarded_by_cap": 35198,
       "families": {
         "fmp_shadow_analyst": {
-          "calls": 65,
-          "live_fetches": 13,
-          "fresh_cache_hits": 13,
-          "stale_fallbacks": 0,
-          "unavailable": 0,
-          "elapsed_seconds": 4.36,
-          "outcomes": {
-            "SUCCESS": 65
-          },
-          "provider_rows_returned": 10951,
-          "normalized_rows": 10951,
-          "retained_rows": 990,
-          "discarded_by_cap": 9961
-        },
-        "fmp_shadow_ownership_summary": {
-          "calls": 26,
-          "live_fetches": 26,
+          "calls": 205,
+          "live_fetches": 41,
           "fresh_cache_hits": 0,
           "stale_fallbacks": 0,
-          "unavailable": 26,
-          "elapsed_seconds": 1.4,
+          "unavailable": 0,
+          "elapsed_seconds": 28.17,
           "outcomes": {
-            "HTTP_FAILURE": 26
+            "SUCCESS": 205
+          },
+          "provider_rows_returned": 15484,
+          "normalized_rows": 15484,
+          "retained_rows": 1534,
+          "discarded_by_cap": 13950
+        },
+        "fmp_shadow_ownership_summary": {
+          "calls": 41,
+          "live_fetches": 41,
+          "fresh_cache_hits": 0,
+          "stale_fallbacks": 0,
+          "unavailable": 41,
+          "elapsed_seconds": 4.6,
+          "outcomes": {
+            "HTTP_FAILURE": 41
           },
           "provider_rows_returned": 0,
           "normalized_rows": 0,
@@ -1396,59 +1424,57 @@
           "discarded_by_cap": 0
         },
         "fmp_shadow_fund_disclosures": {
-          "calls": 1,
-          "live_fetches": 1,
-          "fresh_cache_hits": 25,
+          "calls": 0,
+          "live_fetches": 0,
+          "fresh_cache_hits": 41,
           "stale_fallbacks": 0,
           "unavailable": 0,
-          "elapsed_seconds": 0.09,
-          "outcomes": {
-            "SUCCESS": 1
-          },
-          "provider_rows_returned": 17833,
-          "normalized_rows": 17833,
-          "retained_rows": 1277,
-          "discarded_by_cap": 16556
+          "elapsed_seconds": 0.03,
+          "outcomes": {},
+          "provider_rows_returned": 23252,
+          "normalized_rows": 23252,
+          "retained_rows": 2004,
+          "discarded_by_cap": 21248
         },
         "fmp_shadow_company_news": {
-          "calls": 7,
-          "live_fetches": 7,
-          "fresh_cache_hits": 19,
+          "calls": 41,
+          "live_fetches": 41,
+          "fresh_cache_hits": 0,
           "stale_fallbacks": 0,
           "unavailable": 0,
-          "elapsed_seconds": 0.37,
+          "elapsed_seconds": 6.26,
           "outcomes": {
-            "SUCCESS": 7
+            "SUCCESS": 41
           },
-          "provider_rows_returned": 260,
-          "normalized_rows": 166,
-          "retained_rows": 166,
+          "provider_rows_returned": 410,
+          "normalized_rows": 289,
+          "retained_rows": 289,
           "discarded_by_cap": 0
         },
         "fmp_shadow_press_releases": {
-          "calls": 7,
-          "live_fetches": 7,
-          "fresh_cache_hits": 19,
+          "calls": 41,
+          "live_fetches": 41,
+          "fresh_cache_hits": 0,
           "stale_fallbacks": 0,
           "unavailable": 0,
-          "elapsed_seconds": 0.33,
+          "elapsed_seconds": 6.88,
           "outcomes": {
-            "SUCCESS": 7
+            "SUCCESS": 41
           },
-          "provider_rows_returned": 194,
-          "normalized_rows": 162,
-          "retained_rows": 162,
+          "provider_rows_returned": 297,
+          "normalized_rows": 261,
+          "retained_rows": 261,
           "discarded_by_cap": 0
         }
       },
-      "fmp_shadow_seconds": 6.54
+      "fmp_shadow_seconds": 45.94
     }
   },
   "hard_publication_governance": {
     "version": "ATLAS_HARD_PUBLICATION_GOVERNANCE_V1",
     "certification_distribution": {
-      "CERTIFIED_HIGH_UNCERTAINTY": 133,
-      "CERTIFIED": 17
+      "CERTIFIED_HIGH_UNCERTAINTY": 135,
+      "CERTIFIED": 15
     },
     "withheld_count": 0,
     "publication_gate_status": "PASS"
