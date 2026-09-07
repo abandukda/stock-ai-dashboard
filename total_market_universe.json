@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-07T05:16:17.484981+00:00",
+  "generated_at": "2026-09-07T09:24:30.154193+00:00",
   "count": 3490,
   "symbols": [
     "A",
@@ -3492,5 +3492,3913 @@
     "ZVRA",
     "ZWS",
     "ZYME"
-  ]
+  ],
+  "eligibility": {
+    "eligible_count": 2514,
+    "excluded_count": 973,
+    "exclusion_reason_counts": {
+      "Financial Services sector": 129,
+      "DOLLAR_VOLUME_BELOW_MINIMUM": 392,
+      "Excluded financial/bank/lender/insurance/asset management industry": 6,
+      "Excluded business category": 14,
+      "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE": 114,
+      "GOVERNED_COMPANY_EXCLUSION": 38,
+      "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE": 278,
+      "INSUFFICIENT_TECHNICAL_HISTORY": 2
+    },
+    "exclusions": [
+      {
+        "ticker": "AAMI",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "AARD",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ABOS",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ABR",
+        "reason": "Excluded financial/bank/lender/insurance/asset management industry"
+      },
+      {
+        "ticker": "ABX",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "ACEL",
+        "reason": "Excluded business category"
+      },
+      {
+        "ticker": "ACGL",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "ACGLN",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ACH",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "ACP",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ACR",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ACRE",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ACT",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "ACTG",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ADAM",
+        "reason": "Excluded financial/bank/lender/insurance/asset management industry"
+      },
+      {
+        "ticker": "ADC",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "ADCT",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "ADIG",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "ADV",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ADX",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "AEF",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "AEG",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "AFB",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "AFG",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "AFL",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "AFRM",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "AGBK",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "AGD",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "AGM",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "AGM-A",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "AGMB",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "AGNC",
+        "reason": "Excluded financial/bank/lender/insurance/asset management industry"
+      },
+      {
+        "ticker": "AGNCZ",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "AGO",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "AHR",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "AHT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "AHT-PD",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "AHT-PF",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "AHT-PG",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "AHT-PH",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "AHT-PI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "AIFU",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "AIG",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "AII",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "AIZ",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "AJG",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "AKA",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "AKR",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "ALCO",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ALL",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "ALL-PJ",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ALLO",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "ALLT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ALLY",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "ALTG",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ALX",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "ALXO",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "AMG",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "AMH",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "AMP",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "AMSF",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "AMT",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "AMTB",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "AMTD",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "AMWD",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "AMWL",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ANIK",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ANTX",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ANVS",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "AOD",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "AON",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "AP",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "APAM",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "API",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "APLE",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "APMD",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "APO",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "APO-PA",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "APYX",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ARAY",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "ARCC",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "ARE",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "ARES",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "ARL",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "AROW",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "ARR",
+        "reason": "Excluded financial/bank/lender/insurance/asset management industry"
+      },
+      {
+        "ticker": "ARX",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "ASA",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "ASB",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "ASG",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ASIC",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ASPS",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ASPSW",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "ASPSZ",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "ASST",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "ATLC",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "ATRA",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "AUB",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "AUDC",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "AUNA",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "AUROW",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "AVAL",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "AVBC",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "AVD",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "AVIR",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "AVK",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "AVXL",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "AX",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "AXIA",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "AXP",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "AXR",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "AXS",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "AXTQ",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "BAC",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BAC-PM",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BAC-PN",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BAC-PO",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BAC-PP",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BAC-PQ",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BAC-PS",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BAK",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "BALY",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BAM",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BANC",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BANF",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BANR",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BAP",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BARK",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BBAR",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BBBY",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "BBBYW",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "BBD",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BBDC",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BBT",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BBVA",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BCH",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BCS",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BCV",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BCYC",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BDJ",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BDTX",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BEN",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BF-A",
+        "reason": "Excluded business category"
+      },
+      {
+        "ticker": "BF-B",
+        "reason": "Excluded business category"
+      },
+      {
+        "ticker": "BFH",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BFH-PB",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BGC",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BGR",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BGSF",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BGY",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BHF",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BHFAM",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BHFAN",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BHFAP",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BHK",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BHR",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "BHV",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BIOX",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "BIRD",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BK",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "BKT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BKU",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BLD",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "BLK",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BLND",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "BLNK",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "BLSM",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "BLX",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BMA",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BME",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BMEZ",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BMNR",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BMO",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BMRC",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BN",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BNL",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "BNS",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BNY",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BNY-PK",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BOC",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BOE",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BOH",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BOKF",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BOLD",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BOOM",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BOW",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BPOP",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BPRE",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BPRN",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BPYPP",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BR",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "BRAG",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "BRAI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BRCC",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BRK-A",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BRK-B",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BRKRP",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BRO",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BRSL",
+        "reason": "Excluded business category"
+      },
+      {
+        "ticker": "BRVE",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "BRW",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BRX",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "BSAC",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BSBR",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BSET",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BSP",
+        "reason": "INSUFFICIENT_TECHNICAL_HISTORY"
+      },
+      {
+        "ticker": "BSTZ",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BSVN",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BTGO",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BTI",
+        "reason": "Excluded business category"
+      },
+      {
+        "ticker": "BTT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BTZ",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BUSE",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BVC",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BWIN",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BWMX",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BX",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BXBL",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BXDC",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "BXMT",
+        "reason": "Excluded financial/bank/lender/insurance/asset management industry"
+      },
+      {
+        "ticker": "BXP",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "BXSL",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "BYD",
+        "reason": "Excluded business category"
+      },
+      {
+        "ticker": "BZUN",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "C",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "C-PR",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CAC",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CACC",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CAMT",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "CANG",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CAPL",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CARE",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CARL",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CATO",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CB",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CBC",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CBL",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "CBNA",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CBNK",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CBOE",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CBU",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CCB",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CCEC",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CCEP",
+        "reason": "Excluded business category"
+      },
+      {
+        "ticker": "CCI",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "CCM",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CCNE",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CCRN",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "CCU",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CDLR",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CDP",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "CDR-PB",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CDR-PC",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CDXS",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "CEE",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CELH",
+        "reason": "Excluded business category"
+      },
+      {
+        "ticker": "CFFI",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CFFN",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CFG",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CFG-PE",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CFG-PI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CFND",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CG",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CGC",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "CHCO",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CHDN",
+        "reason": "Excluded business category"
+      },
+      {
+        "ticker": "CHGG",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "CHKP",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "CHMG",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CHMI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CHYM",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "CIA",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CIB",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CII",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CINF",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CINT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CION",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CLAR",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CLBK",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CLDT",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "CLM",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CLNE",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "CLPR",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CLSK",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CM",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CMCM",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CMDB",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CME",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CMTG",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "CMTL",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "CNA",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CNDT",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "CNF",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CNL",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CNOB",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CNS",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CNTA",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "COCO",
+        "reason": "Excluded business category"
+      },
+      {
+        "ticker": "COF",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "COHQ",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "COIN",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "COKE",
+        "reason": "Excluded business category"
+      },
+      {
+        "ticker": "COLB",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "COLD",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "COOK",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CORZW",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "CORZZ",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "CPAC",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CPF",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CPIX",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CPRX",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "CPT",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "CRBG",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CRBU",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "CRCL",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CRD-A",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CRD-B",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CRF",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CRMT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CRNT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CRT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CRVL",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CSHR",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CSQR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "CSTE",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CSWC",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CTRE",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "CUBE",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "CUBI",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "CURB",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "CURV",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CUVL",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CUZ",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "CVGI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "CVGW",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "CWAN",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "CZR",
+        "reason": "Excluded business category"
+      },
+      {
+        "ticker": "DAO",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "DAVA",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "DB",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "DBRG",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "DCBO",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "DCOM",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "DDI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "DDL",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "DEO",
+        "reason": "Excluded business category"
+      },
+      {
+        "ticker": "DFIN",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "DGICB",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "DH",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "DHC",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "DHX",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "DKNG",
+        "reason": "Excluded business category"
+      },
+      {
+        "ticker": "DLNG",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "DLR",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "DLR-PL",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "DLTH",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "DMRC",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "DOC",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "DOUG",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "DOYU",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "DRH",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "DSC",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "DUKE",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "DWSN",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "DX",
+        "reason": "Excluded financial/bank/lender/insurance/asset management industry"
+      },
+      {
+        "ticker": "DXYZ",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "EA",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "EAF",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "EBON",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ECF",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "EGHT",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "EGIEY",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "EHI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "EHTH",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "ELME",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "EMD",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "EMPD",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ENHA",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "EOI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "EPR-PG",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "EQR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "EQS",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "ERC",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ETB",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ETG",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ETV",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "EVCM",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "EVEX",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "EVGO",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "EVGOW",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "EVO",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "EVTL",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "EXFY",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "FC",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "FEAM",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "FEDU",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "FENG",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "FI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "FIRY",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "FLWS",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "FLX",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "FNLC",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "FOA",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "FOIL",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "FORR",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "FORTY",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "FPH",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "FVRR",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "GAM",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "GBLI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "GCL",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "GCLWW",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "GCTS",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "GCV",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "GEG",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "GEOS",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "GERN",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "GETY",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "GGT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "GHG",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "GHI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "GILT",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "GLIBA",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "GLO",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "GLOO",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "GLQ",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "GLRE",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "GLV",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "GNT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "GOSS",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "GOTU",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "GPMT",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "GPRO",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "GRABW",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "GREE",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "GROV",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "GSIT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "GTN-A",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "GUT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "GWH",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "HAIN",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "HCAT",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "HCKT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "HCM",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "HEPS",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "HGTY",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "HIX",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "HKD",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "HL-PB",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "HNVR",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "HOFT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "HOMB",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HONA",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HONAV",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HONIV",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HOWL",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HP",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HPE",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HQH",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HRB",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HRMY",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HRTG",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HRZN",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HTT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "HTZWW",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HUMA",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "HUMAW",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HURC",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "HVT-A",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "HWBK",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "IAC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "ICMB",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "ICR-PA",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "IFRX",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "IH",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "IHRT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ILPT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "IMSRW",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "INBK",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "INGN",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "INNV",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "INSG",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "IOND",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "IPHA",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "IQ",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "IQMXW",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "IRS",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ISSC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "ITG",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "IVZ",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "IWM",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "IX",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "J",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "JACK",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "JAKK",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "JAN",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "JAZZ",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "JBGS",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "JBHT",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "JBI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "JBL",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "JBS",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "JBTM",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "JCAP",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "JCI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "JD",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "JEF",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "JELD",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "JEPI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "JEPQ",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "JHG",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "JHX",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "JILL",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "JMKE",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "JOF",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "JRVR",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "KELYB",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "KEN",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "KEY-PL",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "KEYG",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "KF",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "KIM-PN",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "KLTR",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "KLXE",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "KLXER",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "KMDA",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "KNDI",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "KNOP",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "KPTI",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "KRSP",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "KVHI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "KWY",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "KYNB",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "LAB",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "LAES",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "LANV",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "LAUR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "LAW",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "LBRDK",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "LBTYB",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "LC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "LCID",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "LCUT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "LDI",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "LEE",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "LEG",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "LEGH",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "LEO",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "LESL",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "LFCR",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "LFT",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "LFT-PA",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "LGO",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "LILAP",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "LIME",
+        "reason": "INSUFFICIENT_TECHNICAL_HISTORY"
+      },
+      {
+        "ticker": "LITB",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "LMNR",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "LOCL",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "LOT",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "LPSN",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "LSAK",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "LTGO",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "LU",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "LUCK",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "LUNG",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "LUXE",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "LVWR",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "LX",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "LXP-PC",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "LYEL",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "LZM",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "MAA-PI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "MBI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "MBLY",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "MCHX",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "MCI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "MCN",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "MCRB",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "MCRI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MCW",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MCY",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MD",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MDA",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MDB",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MDGL",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MDLN",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MDT",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MDU",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MDV",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MEC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MED",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MEI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MELI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MERC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MESO",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MET",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "META",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "METC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "METCB",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "METQ",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MFIN",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "MFM",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "MFPVV",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MGNX",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "MGX",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "MHF",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "MIDD",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MIDDV",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MIR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MIST",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MITT",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MIY",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MKC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MKL",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MKSI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MLAB",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MLI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MLKN",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MLM",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MLP",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MLR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MLYS",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MMC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MMED",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MMLP",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MMM",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MMS",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MMSI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MNDY",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "MOBI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "MOGU",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "MOLN",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "MPAA",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "MRBK",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "MS-PL",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "MS-PQ",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "MSB",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "MSC",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "MSD",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "MTLS",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "MTR",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "MUJ",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "MVO",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MX",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "MXCT",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "MXLL",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MYFW",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "NBH",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "NCZ",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "NDLS",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "NFE",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "NGL-PB",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "NHS",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "NICE",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "NKTX",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "NL",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "NLOP",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "NMG",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "NMI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "NMRA",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "NOA",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "NOVTU",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "NPWR",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "NRDY",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "NRT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "NSA",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "NSA-PB",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "NSLR",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "NTZ",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "NUVL",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "NVA",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "NXDT",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "NXP",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "NXST",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "NXTC",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "NYAX",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "NYC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "OAK-PB",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "OBX",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "OCTV",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "OCTVV",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "OCUL",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "ODFL",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "ODV",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "OEC",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "OFS",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "OGI",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "OM",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ONIT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ONL",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "OPAD",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "OPENL",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "OPENW",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "OPENZ",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "OPK",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "OPTU",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "ORLA",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "OSUR",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "OTLY",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "OWLT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "OXSQ",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "PACB",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "PACK",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "PBI-PB",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "PCB",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "PCG-PA",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "PDCC",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "PEO",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "PEPG",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "PERF",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "PETS",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "PEW",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "PGP",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "PHI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "PLBL",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "PLCE",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "PLRX",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "PMVP",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "POST",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "PPT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "PRA",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "PRGO",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "PRPL",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "PRT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "PSNY",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "PVL",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "PXED",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "QH",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "QNCX",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "QQQY",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "QVCG",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "RAIL",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "RBB",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "RBBN",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "RC",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "RC-PC",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "RC-PE",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "RCKY",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "REF",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "RFL",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "RGC",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "RGP",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "RIVC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "RJET",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "RKX",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "RLX",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "RMAX",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "RMT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "RNA",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "RNWWW",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "RPT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "RVII",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "RVMDW",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "RVSB",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "SAN",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SANG",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "SANM",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SAP",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SATS",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SB",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SBH",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SBI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SCD",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SCHL",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SCHW",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SCM",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SCOR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SCSC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SDGR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SDHC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SEAT",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SEATW",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SECZ",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SEER",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SEG",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "SEI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SEIC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SEM",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SENEB",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SES",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "SGHT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "SGLD",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SGP",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "SGU",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "SI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "SID",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "SIGIP",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "SIM",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "SJT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "SKHX",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SKHY",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SKHYV",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SKIL",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SKLZ",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SKM",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SKY",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SKYW",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SLAI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SLB",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SLBT",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SLDE",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SLDPW",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SLF",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SLQT",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "SLVM",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SMA",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SMBK",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SMC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SMCI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SMCIP",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SMFG",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SMG",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SMH",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SMHI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "SMMT",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SMP",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SMR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SMRT",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SMTC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SMWB",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SN",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SNBR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SND",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SNDA",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SNDK",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SNDR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SNDX",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SNK",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SOHU",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "SOR",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "SOS",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "SPCQ",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SPGI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SPHR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SPIR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SPNT",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SPRO",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SPRU",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "SPSC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SPTX",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SPWH",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "SPY",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SPYT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "SQ",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SQNS",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SRAD",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SRE",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SRFM",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SRG",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "SRG-PA",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SRI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "SRL",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SRRK",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SSD",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SSP",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "SSPC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SSRM",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SSSS",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SSTK",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "ST",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "STDN",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "STEM",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "STG",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "STKE",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "STRR",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "SUTNY",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "SVCO",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "SYF-PA",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "TBI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "TBLAW",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "TDF",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "TEAD",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "TEI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "TEST",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "TG",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "TGE",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "THR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "TISI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "TLK",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "TLRY",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "TLX",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "TMCI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "TMCWW",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "TMHC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "TNYA",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "TOP",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "TPVG",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "TRAK",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "TRIB",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "TRVG",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "TSEM",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "TSQ",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "TTEC",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "TTGT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "TUSK",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "TUYA",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "TV",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "TWO",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "TWO-PB",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "TXMD",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "TZOO",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "UEIC",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "UFI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "UIS",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ULH",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "UP",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "UTSI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "UWMC",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "UXIN",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "VALN",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "VATE",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "VCRE",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "VEL",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "VHI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "VIOT",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "VIP",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "VLN",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "VOC",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "VRA",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "VSAT",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "VSCO",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "VSEC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "VSECU",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "VSH",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "VSNT",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "VST",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "VSTS",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "VSXY",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "VTEX",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "VTI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "VTMX",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "VTR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "VVV",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "VVX",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "VYGR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "VYX",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "VZ",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "W",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "WAB",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "WABC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "WAFD",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "WAL",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "WASH",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "WBS",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "WBX",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "WDH",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "WEA",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "WEYS",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "WGSWW",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "WHF",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "WHG",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "WIT",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "WIW",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "WIX",
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "WNEB",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "WPRT",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "WSBCO",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "WSBF",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "WSR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "WTBA",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "XBIT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "XNET",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "XRXDW",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "XYF",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "YALA",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "YQ",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "YRD",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "YSG",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ZEPP",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ZH",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ZKH",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ZVIA",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      }
+    ]
+  }
 }
