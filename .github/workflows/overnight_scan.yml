@@ -34,8 +34,8 @@ jobs:
       GITHUB_REPO_URL: "abandukda/stock-ai-dashboard"
       DATA_DIR: "."
       # Certification run tests every requested pool size up to these maxima.
-      DISCOVERY_CANDIDATE_POOL_SIZE: "1250"
-      FULL_EVALUATION_POOL_SIZE: "650"
+      DISCOVERY_CANDIDATE_POOL_SIZE: "1500"
+      FULL_EVALUATION_POOL_SIZE: "1250"
       DISCOVERY_VALIDATION_NEAR_CUTOFF: "100"
       DISCOVERY_VALIDATION_RANDOM: "100"
 

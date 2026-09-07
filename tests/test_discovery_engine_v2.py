@@ -72,6 +72,6 @@ def test_architecture_experiment_reports_every_governed_scenario():
     eligible = [broad(f"T{i:03}", revenue_growth=.1, free_cash_flow=100) for i in range(700)]
     evaluated_rows = [evaluated(f"T{i:03}", "BUY_NOW" if i < 3 else "ACCUMULATE") for i in range(250)]
     result = architecture_experiment(eligible, evaluated_rows)
-    assert len(result["scenarios"]) == 5 * 6
+    assert len(result["scenarios"]) == 6 * 10
     assert result["recommended"] is not None
     assert result["scenarios"][0]["validation_population"] == 250

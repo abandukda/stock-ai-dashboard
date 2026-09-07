@@ -13,8 +13,8 @@ import random
 from typing import Any, Iterable, Mapping, Sequence
 
 VERSION = "ATLAS_DISCOVERY_ENGINE_V2"
-CANDIDATE_SIZES = (500, 650, 800, 1000, 1250)
-FULL_EVALUATION_SIZES = (250, 300, 350, 400, 500, 650)
+CANDIDATE_SIZES = (500, 650, 800, 1000, 1250, 1500)
+FULL_EVALUATION_SIZES = (250, 300, 350, 400, 500, 650, 750, 800, 1000, 1250)
 ACTION_PRIORITY = {
     "BUY_NOW": 6, "ACCUMULATE": 5, "WAIT_FOR_ENTRY": 4,
     "WAIT_FOR_CONFIRMATION": 3, "DATA_LIMITED": 2, "AVOID": 1,
@@ -109,9 +109,30 @@ def decorate_candidate(row: Mapping[str, Any]) -> dict[str, Any]:
 
 def select_candidate_pool(rows: Sequence[Mapping[str, Any]], size: int) -> list[dict[str, Any]]:
     decorated = [decorate_candidate(row) for row in rows]
-    eligible = [row for row in decorated if row["prescreen_channels"] or (row.get("prescreen_score") or 0) >= 38]
-    eligible.sort(key=lambda row: (bool(row["protected_positive_lane"]), row["medium_stage_score"], _number(row.get("dollar_volume")) or 0), reverse=True)
-    return eligible[:max(0, size)]
+    qualified = [row for row in decorated if row["prescreen_channels"] or (row.get("prescreen_score") or 0) >= 38]
+    qualified_ids = {_ticker(row) for row in qualified}
+    exploratory = [row for row in decorated if _ticker(row) not in qualified_ids]
+    qualified.sort(key=lambda row: (bool(row["protected_positive_lane"]), row["medium_stage_score"], _number(row.get("dollar_volume")) or 0), reverse=True)
+    # Ten percent is an explicit false-negative control lane. Half protects
+    # liquid sparse-data names; half is stable random-like coverage by ticker
+    # digest so QA does not only inspect expected winners.
+    exploration_budget = min(len(exploratory), max(0, size // 10))
+    liquid = sorted(exploratory, key=lambda row: _number(row.get("dollar_volume")) or 0, reverse=True)
+    digest = sorted(exploratory, key=lambda row: hashlib.sha256(_ticker(row).encode()).hexdigest())
+    exploration: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for source in (liquid[:exploration_budget // 2], digest):
+        for row in source:
+            if _ticker(row) not in seen:
+                row["prescreen_channels"] = [*(row.get("prescreen_channels") or ()), "EXPLORATION_CONTROL"]
+                exploration.append(row); seen.add(_ticker(row))
+            if len(exploration) >= exploration_budget:
+                break
+        if len(exploration) >= exploration_budget:
+            break
+    result = qualified[:max(0, size - len(exploration))] + exploration
+    result.sort(key=lambda row: (bool(row["protected_positive_lane"]), row["medium_stage_score"], _number(row.get("dollar_volume")) or 0), reverse=True)
+    return result[:max(0, size)]
 
 
 def select_full_evaluation_pool(candidates: Sequence[Mapping[str, Any]], size: int) -> list[dict[str, Any]]:
