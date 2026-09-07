@@ -58,6 +58,14 @@ def _pct_diff(actual: float | None, expected: float | None) -> float | None:
     return abs(actual - expected) / abs(expected)
 
 
+def _percentage_points(value: Any) -> float | None:
+    """Normalize provider ratio-or-percent fields to percentage points."""
+    number = _num(value)
+    if number is None:
+        return None
+    return number * 100 if abs(number) <= 1 else number
+
+
 def classify_missing(*, field: str, context: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """Return one governed reason, ownership, and concrete remediation."""
     context = dict(context or {})
@@ -143,7 +151,8 @@ def _qa_record(row: Mapping[str, Any], rank: int) -> tuple[dict[str, Any], dict[
     provider_net_debt = _num(_first(trial.get("net_debt"), row.get("net_debt")))
     revenue = _num(_first(trial.get("latest_revenue"), row.get("latest_revenue")))
     operating_income = _num(_first(trial.get("latest_operating_income"), trial.get("ebit")))
-    provider_operating_margin = _num(trial.get("operating_profit_margin"))
+    provider_operating_margin_raw = _num(trial.get("operating_profit_margin"))
+    provider_operating_margin = _percentage_points(provider_operating_margin_raw)
     calculated_operating_margin = operating_income / revenue * 100 if operating_income is not None and revenue not in (None, 0) else None
     calculated_market_cap = price * shares if price is not None and shares is not None else None
     calculated_fcf = ocf - capex_normalized if ocf is not None and capex_normalized is not None else None
@@ -230,7 +239,7 @@ def _qa_record(row: Mapping[str, Any], rank: int) -> tuple[dict[str, Any], dict[
         issues.append(_issue(ticker, "P0", "SHARE_DENOMINATOR", "shares",
                              "A published share denominator is zero or negative.",
                              remediation="Correct share units/basis before per-share publication."))
-    if _num(trial.get("operating_profit_margin")) is not None and abs(_num(trial.get("operating_profit_margin"))) > 100:
+    if provider_operating_margin is not None and abs(provider_operating_margin) > 100:
         issues.append(_issue(ticker, "P2", "ANOMALY_MARGIN", "operating_profit_margin",
                              "Operating margin exceeds the plausible normalized percentage range.",
                              remediation="Correct percentage-vs-decimal normalization."))
@@ -389,6 +398,7 @@ def _qa_record(row: Mapping[str, Any], rank: int) -> tuple[dict[str, Any], dict[
             "cash": cash, "debt": debt, "calculated_net_debt": net_debt, "published_net_debt": provider_net_debt,
             "net_debt_difference_pct": net_debt_diff, "net_debt_status": net_debt_status,
             "operating_income": operating_income, "revenue": revenue, "calculated_operating_margin_pct": calculated_operating_margin,
+            "provider_operating_margin_raw": provider_operating_margin_raw,
             "provider_operating_margin_pct": provider_operating_margin, "margin_difference_points": margin_difference, "margin_status": margin_status,
             "enterprise_value": enterprise_value, "ev_debt": debt, "ev_cash": cash, "other_claims": 0,
             "equity_value": equity_value, "ev_shares": ev_shares, "calculated_per_share": ev_per_share,

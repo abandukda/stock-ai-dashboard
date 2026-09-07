@@ -87,6 +87,19 @@ def test_p3_and_p4_are_nonblocking_but_p2_blocks():
     assert report["gate"] == "FAIL"
 
 
+def test_margin_reconciliation_normalizes_provider_ratio_to_percentage_points():
+    rows = universe()
+    fields = rows[0]["canonical_investment_evaluation"]["trial_presentation_fields"]
+    fields.update({"latest_revenue": 200, "latest_operating_income": 50, "operating_profit_margin": 0.25})
+    report = crawl_universe(rows)
+    reconciliation = report["sheets"]["Financial_Reconciliation"][0]
+    assert reconciliation["provider_operating_margin_raw"] == 0.25
+    assert reconciliation["provider_operating_margin_pct"] == 25
+    assert reconciliation["margin_status"] == "PASS"
+    assert not any(item["ticker"] == "T000" and item["category"] == "MARGIN_RECONCILIATION"
+                   for item in report["sheets"]["Validation_Failures"])
+
+
 def test_p1_blocks_while_p3_p4_remain_nonblocking():
     rows = universe()
     valuation = {"status": "PUBLISHED", "atlas_base_fair_value": 20, "atlas_fair_value_low": 8,
