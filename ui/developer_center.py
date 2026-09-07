@@ -83,6 +83,17 @@ def _render_full_qa_status(publication_manifest: Mapping[str, Any]) -> None:
         dcols = st.columns(5)
         for index in range(5):
             dcols[index].metric(f"D{index}", discovery_severity.get(f"D{index}", 0))
+        evidence = st.columns(4)
+        evidence[0].metric("Sector Coverage", "—" if qa.get("sector_coverage_pct") is None else f"{qa['sector_coverage_pct']:.1f}%")
+        evidence[1].metric("Industry Coverage", "—" if qa.get("industry_coverage_pct") is None else f"{qa['industry_coverage_pct']:.1f}%")
+        evidence[2].metric("Provider Calls", qa.get("provider_calls", "—"))
+        evidence[3].metric("Calls Avoided", qa.get("calls_avoided", 0))
+        if qa.get("uncertainty_driver_distribution"):
+            st.caption("High-uncertainty drivers (classification only; standards unchanged)")
+            st.dataframe(pd.DataFrame([
+                {"Driver": key.replace("_", " ").title(), "Count": value}
+                for key, value in qa["uncertainty_driver_distribution"].items()
+            ]), hide_index=True, use_container_width=True)
         if qa.get("action_distribution"):
             st.caption("Canonical Action distribution")
             st.dataframe(pd.DataFrame([{"Action": key, "Count": value} for key, value in qa["action_distribution"].items()]), hide_index=True, use_container_width=True)

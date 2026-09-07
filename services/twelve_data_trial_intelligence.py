@@ -36,6 +36,7 @@ def acquire_twelve_trial_dossiers(
     symbols: Sequence[str], *, get: Callable[..., Any] = requests.get,
     secrets: Mapping[str, Any] | None = None, environ: Mapping[str, str] | None = None,
     max_workers: int = 6, timeout: float = 12, endpoints: Sequence[str] = ENDPOINTS,
+    evidence_cache: dict[tuple[str, str, str], Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     if not internal_trial_mode(environ=environ, secrets=secrets):
         return {"version": VERSION, "status": "DISABLED", "dossiers": {}, "provider_calls": 0}
@@ -49,6 +50,8 @@ def acquire_twelve_trial_dossiers(
         for symbol in clean
     }
     telemetry = []
+    cache = evidence_cache if evidence_cache is not None else {}
+    cache_hits = 0
 
     def fetch(symbol: str, family: str) -> tuple[str, str, dict[str, Any], dict[str, Any]]:
         started = time.monotonic()
@@ -71,10 +74,21 @@ def acquire_twelve_trial_dossiers(
 
     with ThreadPoolExecutor(max_workers=max(1, int(max_workers))) as pool:
         selected = tuple(family for family in endpoints if family in ENDPOINTS)
-        futures = [pool.submit(fetch, symbol, family) for symbol in clean for family in selected]
+        futures = []
+        for symbol in clean:
+            for family in selected:
+                cache_key = (VERSION, symbol, family)
+                cached = cache.get(cache_key)
+                if cached and cached.get("status") == "AVAILABLE":
+                    dossiers[symbol]["families"][family] = dict(cached)
+                    cache_hits += 1
+                else:
+                    futures.append(pool.submit(fetch, symbol, family))
         for future in as_completed(futures):
             symbol, family, envelope, meta = future.result()
             dossiers[symbol]["families"][family] = envelope
+            if envelope.get("status") == "AVAILABLE":
+                cache[(VERSION, symbol, family)] = dict(envelope)
             telemetry.append(meta)
     successes = sum(item["success"] for item in telemetry)
     for dossier in dossiers.values():
@@ -85,6 +99,7 @@ def acquire_twelve_trial_dossiers(
         "success_rate": successes / len(telemetry) if telemetry else 0,
         "latency_seconds": {"total": round(sum(item["latency_seconds"] for item in telemetry), 3), "max": max((item["latency_seconds"] for item in telemetry), default=0)},
         "endpoint_success": {family: sum(item["success"] for item in telemetry if item["endpoint"] == family) for family in selected},
+        "cache_hits": cache_hits, "cache_misses": len(telemetry), "calls_avoided": cache_hits,
         "observed_at": observed,
     }
 
@@ -128,6 +143,10 @@ def _pct(value: Any) -> float | None:
 
 def _coalesce(*values: Any) -> Any:
     return next((value for value in values if value is not None), None)
+
+
+def _missing_label(value: Any) -> bool:
+    return value is None or str(value).strip().upper() in {"", "UNKNOWN", "UNAVAILABLE", "N/A", "NONE"}
 
 
 def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) -> dict[str, Any]:
@@ -185,8 +204,16 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
     profile = payload("profile")
     if isinstance(profile, Mapping):
         for target, source in (("description", "description"), ("sector", "sector"), ("industry", "industry")):
-            if not output.get(target) and profile.get(source): output[target] = profile[source]
-        if not output.get("security_type") and profile.get("type"): output["security_type"] = profile["type"]
+            if _missing_label(output.get(target)) and not _missing_label(profile.get(source)):
+                output[target] = profile[source]
+                output[f"{target}_lineage"] = {
+                    "provider": "TWELVE_DATA", "endpoint": "profile",
+                    "evidence_id": ((families.get("profile") or {}).get("evidence_id")),
+                    "as_of": ((families.get("profile") or {}).get("observed_at")),
+                    "authority_order": "PRIMARY_PROFILE_SOURCE",
+                }
+        if _missing_label(output.get("security_type")) and not _missing_label(profile.get("type")):
+            output["security_type"] = profile["type"]
     eps_est = _forward_estimate_record(payload("earnings_estimate"), "earnings_estimate")
     rev_est = _forward_estimate_record(payload("revenue_estimate"), "revenue_estimate")
     eps_records = _forward_estimate_records(payload("earnings_estimate"), "earnings_estimate")

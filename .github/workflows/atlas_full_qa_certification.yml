@@ -64,7 +64,7 @@ jobs:
       HTTP_TIMEOUT_FAST: "6"
       # Certification run tests every requested pool size up to these maxima.
       DISCOVERY_CANDIDATE_POOL_SIZE: "1500"
-      FULL_EVALUATION_POOL_SIZE: "1250"
+      FULL_EVALUATION_POOL_SIZE: "1400"
       DISCOVERY_VALIDATION_NEAR_CUTOFF: "100"
       DISCOVERY_VALIDATION_RANDOM: "100"
       TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
@@ -78,7 +78,7 @@ jobs:
       - name: Checkout current production main
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || 'main' }}
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.ref }}
           fetch-depth: 0
 
       - name: Set up Python
@@ -239,6 +239,9 @@ jobs:
           git config user.email "github-actions@github.com"
           git add -- etf_scan.json market_full_scan.json market_prescreen.json discovery_candidate_pool.json full_evaluation_pool.json market_scan_state.json recovery_scan.json total_market_universe.json publication_manifest.json publication_audit.jsonl
           git commit -m "Publish QA-certified overnight market scan - $(date -u +'%Y-%m-%d %H:%M UTC')" || echo "No production changes to commit"
-          git pull --rebase origin main
+          # Visual/runtime QA intentionally creates diagnostics outside the
+          # approved release file list. Preserve them in the ephemeral runner
+          # while rebasing only the committed production artifacts.
+          git pull --rebase --autostash origin main
           # workflow_run checks out the triggering SHA in detached-HEAD mode.
           git push origin HEAD:main

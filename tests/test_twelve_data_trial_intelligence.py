@@ -19,6 +19,23 @@ def test_internal_trial_acquires_evidence_envelopes_without_scoring():
     assert "score" not in result["dossiers"]["MU"]
 
 
+def test_successful_same_run_evidence_is_reused_without_network_refetch():
+    calls, cache = [], {}
+    first = acquire_twelve_trial_dossiers(
+        ["mu"], endpoints=("statistics",), evidence_cache=cache,
+        get=lambda *args, **kwargs: calls.append((args, kwargs)) or Response(),
+        secrets={"TWELVE_DATA_API_KEY": "secret"}, environ={"ATLAS_DATA_MODE": "INTERNAL_TRIAL"},
+    )
+    second = acquire_twelve_trial_dossiers(
+        ["mu"], endpoints=("statistics",), evidence_cache=cache,
+        get=lambda *args, **kwargs: calls.append((args, kwargs)) or Response(),
+        secrets={"TWELVE_DATA_API_KEY": "secret"}, environ={"ATLAS_DATA_MODE": "INTERNAL_TRIAL"},
+    )
+    assert first["provider_calls"] == 1 and second["provider_calls"] == 0
+    assert second["cache_hits"] == 1 and second["calls_avoided"] == 1
+    assert len(calls) == 1
+
+
 def test_commercial_mode_disables_trial_intelligence_before_reading_key():
     result = acquire_twelve_trial_dossiers(["MU"], secrets={}, environ={"ATLAS_DATA_MODE": "COMMERCIAL_CUSTOMER"})
     assert result["status"] == "DISABLED"
@@ -80,6 +97,17 @@ def test_professional_capital_and_reporting_lineage_is_normalized_without_fabric
     assert row["diluted_shares"] == 48 and row["market_cap"] == 1000 and row["beta"] == 1.2
     assert row["financial_reporting_period"] == "2025-12-31"
     assert row["professional_evidence_lineage"]["evidence_ids"] == ("TD-1",)
+
+
+def test_approved_profile_replaces_unknown_sector_and_persists_lineage():
+    dossier = {"observed_at": "2026-09-07T00:00:00Z", "evidence_ids": ("TD-PROFILE",), "families": {
+        "profile": {"payload": {"sector": "Technology", "industry": "Software—Application"},
+                    "evidence_id": "TD-PROFILE", "observed_at": "2026-09-07T00:00:00Z"},
+    }}
+    row = normalize_trial_dossier({"ticker": "TEST", "sector": "Unknown", "industry": "Unknown"}, dossier)
+    assert row["sector"] == "Technology"
+    assert row["industry"] == "Software—Application"
+    assert row["sector_lineage"]["authority_order"] == "PRIMARY_PROFILE_SOURCE"
 
 
 def test_adr_share_bridge_preserves_reported_values_and_applies_ratio():

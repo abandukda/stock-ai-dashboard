@@ -114,7 +114,11 @@ def main(argv=None) -> int:
         prior_report = crawl_universe(prior_rows, run_id="prior-production")
     state = payloads[args.production_dir / "market_scan_state.json"]
     discovery_state = dict(state.get("discovery_v2") or {})
-    discovery_state["provider_calls"] = (state.get("decision_metrics_publication") or {}).get("provider_calls")
+    provider_publication = dict(state.get("decision_metrics_publication") or {})
+    discovery_state["provider_calls"] = provider_publication.get("provider_calls")
+    discovery_state["provider_profile"] = provider_publication
+    discovery_state["runtime_profile"] = state.get("run_timings") or {}
+    discovery_state["total_runtime_seconds"] = state.get("duration_seconds")
     report = crawl_universe(
         candidate_rows,
         prior_rows=((prior_report or {}).get("sheets") or {}).get("Master_150") or (),

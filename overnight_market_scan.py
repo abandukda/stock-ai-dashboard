@@ -107,7 +107,7 @@ MAX_UNIVERSE = int(os.getenv("MAX_UNIVERSE", "6500"))
 MAX_PRESCREEN = int(os.getenv("MAX_PRESCREEN", "650"))
 MAX_FULL_SCAN = int(os.getenv("MAX_FULL_SCAN", "150"))
 DISCOVERY_CANDIDATE_POOL_SIZE = int(os.getenv("DISCOVERY_CANDIDATE_POOL_SIZE", "1500"))
-FULL_EVALUATION_POOL_SIZE = int(os.getenv("FULL_EVALUATION_POOL_SIZE", "1250"))
+FULL_EVALUATION_POOL_SIZE = int(os.getenv("FULL_EVALUATION_POOL_SIZE", "1400"))
 DISCOVERY_VALIDATION_NEAR_CUTOFF = int(os.getenv("DISCOVERY_VALIDATION_NEAR_CUTOFF", "100"))
 DISCOVERY_VALIDATION_RANDOM = int(os.getenv("DISCOVERY_VALIDATION_RANDOM", "100"))
 BATCH_SIZE = int(os.getenv("SCAN_BATCH_SIZE", "25"))
@@ -5493,11 +5493,12 @@ def scan_market() -> Dict[str, Any]:
                 "fundamental_fallback_calls", "estimate_calls", "technical_history_calls",
                 "technical_history_http_successes", "technical_history_successes",
                 "fundamental_family_counts", "valuation_status_counts", "endpoint_success",
-                "secondary_validation", "latency_seconds", "observed_at", "reason_codes",
+                "secondary_validation", "cache_hits", "cache_misses", "calls_avoided",
+                "latency_seconds", "observed_at", "reason_codes",
             ) if decision_publication.get(key) is not None
         },
         "discovery_v2": {
-            "version": "ATLAS_DISCOVERY_ENGINE_V2",
+            "version": "ATLAS_DISCOVERY_ENGINE_V2_1",
             "market_universe_count": len(universe),
             "eligible_count": len(discovery_eligible_rows),
             "candidate_pool_count": len(discovery_candidate_rows),

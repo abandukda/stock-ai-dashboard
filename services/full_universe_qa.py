@@ -26,6 +26,47 @@ MISSING_REASONS = {
     "FILING_VALIDATION_UNAVAILABLE", "OTHER",
 }
 
+UNCERTAINTY_DRIVER_MAP = {
+    "MODEL_DISPERSION_HIGH": "MODEL_DISPERSION",
+    "FAIR_VALUE_RANGE_WIDE": "MODEL_DISPERSION",
+    "MODEL_CONCENTRATION_SINGLE_METHOD": "SINGLE_MODEL",
+    "TERMINAL_VALUE_DEPENDENCE_HIGH": "TERMINAL_VALUE_DEPENDENCE",
+    "WACC_G_SPREAD_BELOW_1PCT": "NARROW_WACC_G",
+    "WACC_G_SPREAD_BELOW_1_5PCT": "NARROW_WACC_G",
+    "WACC_G_SPREAD_BELOW_2PCT": "NARROW_WACC_G",
+    "SENSITIVITY_WIDE": "MODEL_DISPERSION",
+    "WACC_BELOW_RISK_FREE": "CAPITAL_STRUCTURE_UNCERTAINTY",
+}
+
+
+def _uncertainty_record(row: Mapping[str, Any]) -> dict[str, Any] | None:
+    certification = dict(row.get("publication_certification") or {})
+    if certification.get("certification_state") != "CERTIFIED_HIGH_UNCERTAINTY":
+        return None
+    evaluation = dict(row.get("canonical_investment_evaluation") or {})
+    valuation = dict(_nested(evaluation, "atlas_valuation", "professional_valuation_v2") or {})
+    diagnostics = dict(valuation.get("valuation_diagnostics") or {})
+    raw_flags = list(diagnostics.get("flags") or ())
+    drivers = list(dict.fromkeys(UNCERTAINTY_DRIVER_MAP.get(flag, "OTHER") for flag in raw_flags))
+    if not drivers:
+        validation = dict(evaluation.get("valuation_validation") or {})
+        ratio = _nested(validation, "checks", "dispersion", "max_min_ratio")
+        drivers = ["MODEL_DISPERSION"] if _num(ratio) is not None and _num(ratio) > 2 else ["OTHER"]
+    models = [dict(model) for model in valuation.get("models") or () if model.get("status") == "PUBLISHED"]
+    dcf = next((model for model in models if model.get("methodology_id") == "VAL_FCFF_DCF_V1"), {})
+    return {
+        "ticker": _ticker(row), "primary_driver": drivers[0],
+        "secondary_driver": drivers[1] if len(drivers) > 1 else None,
+        "driver_count": len(drivers), "drivers": drivers,
+        "raw_flags": raw_flags, "model_count": len(models),
+        "model_values": {model.get("methodology_id"): model.get("value") for model in models},
+        "model_weights": valuation.get("model_weights"),
+        "dispersion_ratio": _nested(evaluation, "valuation_validation", "checks", "dispersion", "max_min_ratio"),
+        "terminal_value_pct": _nested(dcf, "key_assumptions", "terminal_value_pct_of_ev"),
+        "wacc": _nested(dcf, "key_assumptions", "wacc"),
+        "terminal_growth": _nested(dcf, "key_assumptions", "terminal_growth"),
+    }
+
 
 def _qa_category(finding: Mapping[str, Any]) -> str:
     category = str(finding.get("category") or "")
@@ -576,6 +617,8 @@ def crawl_universe(rows: Sequence[Mapping[str, Any]], *, prior_rows: Sequence[Ma
         "blocking_issue_count": sum(severities.get(level, 0) for level in BLOCKING_SEVERITIES),
         "action_distribution": dict(Counter(str(r.get("action") or "UNKNOWN") for r in records)),
         "artifact_link": artifact_link,
+        "provider_calls": discovery.get("provider_calls"),
+        "calls_avoided": _nested(discovery, "provider_profile", "calls_avoided") or 0,
         "discovery_certification_status": "FAILED" if discovery_severity["D0"] else (recall.get("discovery_gate") or "NOT_RUN"),
         "discovery_severity_counts": discovery_severity,
         "market_universe_count": discovery.get("market_universe_count"),
@@ -641,6 +684,38 @@ def crawl_universe(rows: Sequence[Mapping[str, Any]], *, prior_rows: Sequence[Ma
                          "candidate_pool": discovery.get("candidate_pool_count"),
                          "full_evaluation_pool": discovery.get("full_evaluation_pool_count"),
                          "recall_sample": recall.get("validation_control_size", 0)}]
+    uncertainty_rows = [record for source in rows if (record := _uncertainty_record(source)) is not None]
+    sector_metadata = []
+    for source in rows:
+        sector = str(source.get("sector") or "Unknown")
+        industry = str(source.get("industry") or "Unknown")
+        sector_metadata.append({
+            "ticker": _ticker(source), "sector": sector, "industry": industry,
+            "sector_validated": sector.upper() not in {"UNKNOWN", "UNAVAILABLE", ""},
+            "industry_validated": industry.upper() not in {"UNKNOWN", "UNAVAILABLE", ""},
+            "sector_lineage": source.get("sector_lineage") or _nested(source, "canonical_investment_evaluation", "trial_presentation_fields", "sector_lineage"),
+            "industry_lineage": source.get("industry_lineage") or _nested(source, "canonical_investment_evaluation", "trial_presentation_fields", "industry_lineage"),
+        })
+    summary["sector_coverage_pct"] = round(
+        100 * sum(bool(item["sector_validated"]) for item in sector_metadata) / len(sector_metadata), 2
+    ) if sector_metadata else None
+    summary["industry_coverage_pct"] = round(
+        100 * sum(bool(item["industry_validated"]) for item in sector_metadata) / len(sector_metadata), 2
+    ) if sector_metadata else None
+    summary["uncertainty_driver_distribution"] = dict(Counter(
+        driver for item in uncertainty_rows for driver in item.get("drivers") or ()
+    ))
+    runtime_profile = [{"stage": key, "seconds": value} for key, value in dict(discovery.get("runtime_profile") or {}).items()]
+    runtime_profile.append({"stage": "TOTAL", "seconds": discovery.get("total_runtime_seconds")})
+    provider_profile = dict(discovery.get("provider_profile") or {})
+    endpoint_success = dict(provider_profile.get("endpoint_success") or {})
+    provider_call_profile = [{"endpoint": key, "successful_calls": value} for key, value in endpoint_success.items()]
+    provider_call_profile.append({"endpoint": "ALL", "total_calls": provider_profile.get("provider_calls"),
+                                  "latency_seconds": provider_profile.get("latency_seconds")})
+    cache_effectiveness = [{"evidence_family": "RUN_LEVEL_SHARED_EVIDENCE",
+                            "cache_hits": provider_profile.get("cache_hits", 0),
+                            "cache_misses": provider_profile.get("cache_misses", provider_profile.get("provider_calls")),
+                            "calls_avoided": provider_profile.get("calls_avoided", 0)}]
     sheets.update({
         "Executive_Summary": [summary], "Discovery_Funnel": discovery_funnel,
         "Discovery_Recall": discovery_recall, "Master_150": records,
@@ -649,6 +724,12 @@ def crawl_universe(rows: Sequence[Mapping[str, Any]], *, prior_rows: Sequence[Ma
         "Numerical_Anomalies": anomalies, "Screenshot_Index": [],
         "Provider_Quality": provider_quality, "Manual_Research_QA": [],
         "Universe_Sector_Analysis": sector_analysis,
+        "Discovery_Misses": [dict(item) for item in recall.get("misses") or ()],
+        "High_Uncertainty_Drivers": uncertainty_rows,
+        "Runtime_Profile": runtime_profile,
+        "Provider_Call_Profile": provider_call_profile,
+        "Cache_Effectiveness": cache_effectiveness,
+        "Sector_Metadata_QA": sector_metadata,
     })
     ordered = ["Executive_Summary", "Discovery_Funnel", "Discovery_Recall", "Master_150",
                "Full_Evaluation_Pool", "Financials", "Financial_Reconciliation", "Estimates",
@@ -656,7 +737,9 @@ def crawl_universe(rows: Sequence[Mapping[str, Any]], *, prior_rows: Sequence[Ma
                "Missing_Data", "Validation_Failures", "Six_Pillar_QA", "Action_QA",
                "ATLAS_vs_Street", "Run_Over_Run", "Customer_Surface_Audit",
                "Numerical_Anomalies", "Screenshot_Index", "Provider_Quality",
-               "Manual_Research_QA", "Universe_Sector_Analysis"]
+               "Manual_Research_QA", "Universe_Sector_Analysis", "Discovery_Misses",
+               "High_Uncertainty_Drivers", "Runtime_Profile", "Provider_Call_Profile",
+               "Cache_Effectiveness", "Sector_Metadata_QA"]
     ordered_sheets = {name: sheets[name] for name in ordered}
     return {
         "run": {"id": run_id, "generated_at": generated_at, "engine_version": VERSION},
