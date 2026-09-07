@@ -137,6 +137,22 @@ def main(argv=None) -> int:
                 "reason": "VALIDATION_FAILED", "fixable_by_atlas": True,
                 "recommended_remediation": "Repair the customer surface and rerun screenshot certification.",
             })
+    elif args.visual_summary:
+        visual_failures.append({"severity": "P1"})
+        report["sheets"]["Validation_Failures"].append({
+            "ticker": "SURFACE", "severity": "P1", "category": "VISUAL_QA",
+            "field": "visual_summary", "message": "Required visual QA summary was not produced.",
+            "reason": "VALIDATION_FAILED", "fixable_by_atlas": True,
+            "recommended_remediation": "Repair the visual crawler/runtime failure and rerun certification.",
+        })
+    if args.screenshot_manifest and not args.screenshot_manifest.exists():
+        visual_failures.append({"severity": "P1"})
+        report["sheets"]["Validation_Failures"].append({
+            "ticker": "SURFACE", "severity": "P1", "category": "VISUAL_QA",
+            "field": "screenshot_manifest", "message": "Required screenshot manifest was not produced.",
+            "reason": "VALIDATION_FAILED", "fixable_by_atlas": True,
+            "recommended_remediation": "Repair screenshot capture and rerun certification.",
+        })
     report["summary"]["screenshot_count"] = len(report["sheets"]["Screenshot_Index"])
     report["summary"]["visual_failure_count"] = len(visual_failures)
     if visual_failures:

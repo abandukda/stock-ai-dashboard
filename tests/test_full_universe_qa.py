@@ -137,6 +137,8 @@ def test_workflow_candidate_gate_contract_and_syntax():
     assert "--promote" in source and "atlas-full-qa-${{ github.run_id }}" in source
     assert source.index("Capture and validate desktop/mobile customer surfaces") < source.index("--promote")
     assert "agents.full_qa_visual_certification" in source
+    assert "id: visual_qa" in source and "continue-on-error: true" in source
+    assert "if: steps.visual_qa.outcome == 'failure'" in source
     overnight = Path(".github/workflows/overnight_scan.yml").read_text()
     assert "ATLAS_PUBLICATION_OUTPUT_MODE: \"CANDIDATE\"" in overnight
     assert "git push origin main" not in overnight

@@ -176,6 +176,8 @@ jobs:
           exit 1
 
       - name: Capture and validate desktop/mobile customer surfaces
+        id: visual_qa
+        continue-on-error: true
         env:
           ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
         run: |
@@ -185,7 +187,7 @@ jobs:
             --output audit_results/full_qa/${{ github.run_id }}/visual
 
       - name: Emit sanitized local runtime diagnostics
-        if: failure()
+        if: steps.visual_qa.outcome == 'failure'
         run: |
           tail -200 audit_results/full_qa/${{ github.run_id }}/streamlit.log || true
           cat audit_results/full_qa/${{ github.run_id }}/visual/deployed_readiness.json || true
