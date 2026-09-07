@@ -187,6 +187,7 @@ def test_workflow_candidate_gate_contract_and_syntax():
     overnight = Path(".github/workflows/overnight_scan.yml").read_text()
     assert "ATLAS_PUBLICATION_OUTPUT_MODE: \"CANDIDATE\"" in overnight
     assert "git push origin main" not in overnight
+    assert "git push origin HEAD:main" in source
 
 
 def test_xlsx_exporter_uses_artifact_tool_and_all_required_sheets():

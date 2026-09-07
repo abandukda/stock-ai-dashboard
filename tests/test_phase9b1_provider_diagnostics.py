@@ -159,7 +159,7 @@ def test_workflow_is_only_commit_push_owner_and_stages_atomic_publication_output
     expected = [path.name for path in scanner.PRODUCTION_OUTPUT_FILES]
     add_line = next(line.strip() for line in workflow.splitlines() if line.strip().startswith("git add --"))
     assert add_line.split()[3:] == expected
-    assert "git push origin main" in workflow
+    assert "git push origin HEAD:main" in workflow
     assert "git push origin main" not in scan_workflow
     assert "ATLAS_PUBLICATION_OUTPUT_MODE: \"CANDIDATE\"" in scan_workflow
     assert "GITHUB_REPO_URL" not in add_line
