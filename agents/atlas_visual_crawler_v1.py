@@ -924,18 +924,13 @@ class AtlasVisualCrawler:
                         continue
                 after_text = await _visible_text(page)
                 exception = await _has_rendered_exception(page)
-                refreshed_tab = await self._fresh_visible_tab(page, name)
-                target = None
-                if refreshed_tab is not None:
-                    controls = await refreshed_tab.get_attribute("aria-controls")
-                    if controls:
-                        candidate = page.locator(f'#{controls}')
-                        if await candidate.count() and await candidate.first.is_visible():
-                            target = candidate.first
-                after = (
-                    await self._shot_locator(target, page_name=page_name, interaction=f"tab-{name}", state="section-evidence", viewport=viewport, ticker=ticker)
-                    if target is not None else
-                    await self._shot(page, page_name=page_name, interaction=f"tab-{name}", state="after", viewport=viewport, ticker=ticker, complete_surface=True)
+                # Capture the complete selected surface. Streamlit regenerates
+                # tab-panel IDs across reruns, so retaining a panel locator solely
+                # for the screenshot can fail after the tab has rendered correctly.
+                after = await self._shot(
+                    page, page_name=page_name, interaction=f"tab-{name}",
+                    state="after", viewport=viewport, ticker=ticker,
+                    complete_surface=True,
                 )
                 changed = after_text != before_text or selected
                 panel_identity = await self._selected_tab_panel_has_content(page, name)
