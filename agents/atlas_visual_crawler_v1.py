@@ -948,7 +948,8 @@ class AtlasVisualCrawler:
                 after = await self._shot(page, page_name=page_name, interaction=f"tab-{name}", state="failure", viewport=viewport, ticker=ticker)
                 await self._record(
                     category="TAB", page_name=page_name, interaction=name,
-                    expected="Tab is independently operable", observed=type(exc).__name__,
+                    expected="Tab is independently operable",
+                    observed=f"{type(exc).__name__}: {str(exc)[:240]}",
                     passed=False, elapsed=time.monotonic() - started, ticker=ticker,
                     viewport=viewport, screenshots=(before, after), severity="P2",
                     exception={"category": type(exc).__name__, "fingerprint": hashlib.sha256(type(exc).__name__.encode()).hexdigest()[:16]},
@@ -970,11 +971,9 @@ class AtlasVisualCrawler:
         tab = await self._fresh_visible_tab(page, name)
         if tab is None:
             return False
-        controls = await tab.get_attribute("aria-controls")
-        if controls:
-            panel = page.locator(f'#{controls}')
-            if await panel.count() and (await panel.first.inner_text()).strip():
-                return True
+        # Streamlit's generated aria-controls value is not guaranteed to be a
+        # CSS-safe identifier. Validate the visible selected panel by role so a
+        # valid UI cannot fail certification because of selector escaping.
         for scope in _scopes(page):
             panels = scope.get_by_role("tabpanel")
             for index in range(await panels.count()):
