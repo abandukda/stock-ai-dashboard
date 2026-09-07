@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-07T19:32:31.008965+00:00",
+  "generated_at": "2026-09-07T21:57:56.724799+00:00",
   "count": 3490,
   "symbols": [
     "A",
@@ -3494,16 +3494,16 @@
     "ZYME"
   ],
   "eligibility": {
-    "eligible_count": 2461,
-    "excluded_count": 1026,
+    "eligible_count": 2464,
+    "excluded_count": 1023,
     "exclusion_reason_counts": {
-      "Financial Services sector": 152,
-      "DOLLAR_VOLUME_BELOW_MINIMUM": 390,
+      "Financial Services sector": 138,
+      "DOLLAR_VOLUME_BELOW_MINIMUM": 395,
       "Excluded financial/bank/lender/insurance/asset management industry": 7,
-      "Excluded business category": 15,
+      "Excluded business category": 14,
       "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE": 113,
-      "GOVERNED_COMPANY_EXCLUSION": 46,
-      "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE": 300,
+      "GOVERNED_COMPANY_EXCLUSION": 38,
+      "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE": 315,
       "INSUFFICIENT_TECHNICAL_HISTORY": 3
     },
     "exclusions": [
@@ -5020,10 +5020,6 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "EGP",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
         "ticker": "EHI",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -5034,10 +5030,6 @@
       {
         "ticker": "ELME",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
-      },
-      {
-        "ticker": "ELS",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
       {
         "ticker": "EMD",
@@ -5052,24 +5044,12 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "ENVA",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "EOI",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "EPR",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
         "ticker": "EPR-PG",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "EPRT",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
       {
         "ticker": "EQR",
@@ -5156,6 +5136,14 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
+        "ticker": "FNB",
+        "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "FNF",
+        "reason": "Financial Services sector"
+      },
+      {
         "ticker": "FNLC",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -5178,14 +5166,6 @@
       {
         "ticker": "FPH",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "FRT",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "FSBC",
-        "reason": "Financial Services sector"
       },
       {
         "ticker": "FSK",
@@ -5284,18 +5264,6 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "GOF",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "GOLD",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "GOOD",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
         "ticker": "GOSS",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
@@ -5344,10 +5312,6 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "HBAN",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "HCAT",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
@@ -5360,40 +5324,12 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "HDB",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "HEPS",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "HFWA",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "HG",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "HGTY",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "HGV",
-        "reason": "Excluded business category"
-      },
-      {
-        "ticker": "HIG",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "HIPO",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "HIW",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
       {
         "ticker": "HIX",
@@ -5408,24 +5344,28 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "HLI",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "HLNE",
-        "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "HMN",
-        "reason": "Financial Services sector"
-      },
-      {
         "ticker": "HNVR",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "HOFT",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "HOG",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HOMB",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HON",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HONA",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "HONAV",
@@ -5436,24 +5376,52 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "HOWL",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+        "ticker": "HOOD",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "HQH",
-        "reason": "Financial Services sector"
+        "ticker": "HOPE",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HOWL",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HPP",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HPQ",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HQ",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "HR",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "HRTG",
-        "reason": "Financial Services sector"
+        "ticker": "HRI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HRL",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HRMY",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "HRZN",
-        "reason": "Financial Services sector"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "HSAI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "HTT",
@@ -5476,24 +5444,12 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "HUYA",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "HVT",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
         "ticker": "HVT-A",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "HWBK",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "HWC",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "HWKN",
@@ -5505,10 +5461,6 @@
       },
       {
         "ticker": "HXL",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "HY",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -5532,15 +5484,7 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "IART",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
         "ticker": "IBKR",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "IBM",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -5553,18 +5497,6 @@
       },
       {
         "ticker": "IBTA",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "ICE",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "ICFI",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "ICHR",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -5640,15 +5572,7 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "IVZ",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "JAN",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "JBHT",
+        "ticker": "JACK",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -5656,11 +5580,15 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "JCAP",
+        "ticker": "JBS",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "JEPQ",
+        "ticker": "JBTM",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "JEPI",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -5748,52 +5676,24 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "KYN",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
         "ticker": "KYNB",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "KYTX",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "L",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
         "ticker": "LAB",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "LAC",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "LAES",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "LANV",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "LASR",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "LAUR",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "LAW",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "LAZ",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "LB",
@@ -5804,27 +5704,11 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "LBRT",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "LBTYA",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
         "ticker": "LBTYB",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "LC",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "LCID",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "LCII",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -5972,6 +5856,14 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
+        "ticker": "MCRI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MCS",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
         "ticker": "MCW",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
@@ -6024,12 +5916,20 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
+        "ticker": "MEI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "MELI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
         "ticker": "MEOH",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "MERC",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "MESO",
@@ -6116,19 +6016,11 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "MKSI",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
         "ticker": "MKTX",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "MLAB",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "MLCO",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -6145,10 +6037,6 @@
       },
       {
         "ticker": "MLP",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "MLR",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -6356,28 +6244,12 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "NXDR",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
         "ticker": "NXDT",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "NXE",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
         "ticker": "NXP",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "NXPI",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "NXST",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "NXTC",
@@ -6385,26 +6257,14 @@
       },
       {
         "ticker": "NYAX",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "NYC",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "NYT",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "O",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
         "ticker": "OAK-PB",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "OBDC",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -6416,23 +6276,7 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "OCSL",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "OCTV",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
         "ticker": "OCTVV",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "OCUL",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "ODC",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -6576,11 +6420,79 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
+        "ticker": "PODD",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "PONY",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "POOL",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "POST",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "POWI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "POWL",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "PPG",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "PPLC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
         "ticker": "PPT",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
+        "ticker": "PPTA",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
         "ticker": "PRA",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "PRAA",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "PRAX",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "PRCH",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "PRDO",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "PRG",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "PRGO",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "PRGS",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "PRI",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -6732,15 +6644,7 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "SANM",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
         "ticker": "SAP",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "SARO",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -6756,10 +6660,6 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "SBCF",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
         "ticker": "SBGI",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
@@ -6769,22 +6669,14 @@
       },
       {
         "ticker": "SBI",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "SBLK",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "SBRA",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "SBS",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "SBUX",
+        "ticker": "SBSW",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -6796,11 +6688,15 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "SCGLY",
+        "ticker": "SCHD",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SCHL",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SCHW",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -6809,10 +6705,14 @@
       },
       {
         "ticker": "SCM",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SCOR",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "SD",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -6821,6 +6721,10 @@
       },
       {
         "ticker": "SDHC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SDRL",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -6836,11 +6740,19 @@
         "reason": "INSUFFICIENT_TECHNICAL_HISTORY"
       },
       {
+        "ticker": "SEDG",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
         "ticker": "SEER",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SEG",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "SEIC",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -6848,12 +6760,8 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "SENEA",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
         "ticker": "SENEB",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "SES",
@@ -6916,23 +6824,7 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "SKM",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "SKT",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "SKWD",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
         "ticker": "SKY",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "SKYW",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -6940,19 +6832,7 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "SLB",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
         "ticker": "SLBT",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "SLDB",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "SLDE",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -6964,15 +6844,7 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "SLF",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "SLGN",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "SLM",
+        "ticker": "SLG",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -6981,22 +6853,14 @@
       },
       {
         "ticker": "SLQT",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "SLS",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "SLVM",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "SM",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "SMA",
+        "ticker": "SMBK",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -7012,7 +6876,15 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
+        "ticker": "SMG",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
         "ticker": "SMHI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SMMT",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -7020,8 +6892,24 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
+        "ticker": "SMR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
         "ticker": "SMRT",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SMTC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SMWB",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SN",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SNAP",
@@ -7036,11 +6924,27 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
+        "ticker": "SNDA",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SNDK",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
         "ticker": "SNDR",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "SNDX",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SNEX",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SNK",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -7060,6 +6964,10 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
+        "ticker": "SPCQ",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
         "ticker": "SPCU",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
@@ -7073,10 +6981,6 @@
       },
       {
         "ticker": "SPGI",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "SPH",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -7132,10 +7036,6 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "SQM",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
         "ticker": "SQNS",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
@@ -7165,18 +7065,14 @@
       },
       {
         "ticker": "SRI",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "SRL",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "SRPT",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "SSB",
+        "ticker": "SRL",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SRRK",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -7192,11 +7088,19 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
+        "ticker": "SSNC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
         "ticker": "SSP",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "SSPC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "SSRM",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -7220,7 +7124,15 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
+        "ticker": "STC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
         "ticker": "STDN",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "STE",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -7292,28 +7204,48 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "THRM",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "TIC",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
         "ticker": "TIGR",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "TISI",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "ticker": "TILE",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "TLT",
+        "ticker": "TISI",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "TK",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "TKC",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "TKR",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "TLK",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "TLN",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "TLRY",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "TLX",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "TLYS",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "TMCI",
@@ -7476,7 +7408,31 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
+        "ticker": "VSECU",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "VSH",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "VSNT",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "VST",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
         "ticker": "VSTS",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "VTEX",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "VTI",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
@@ -7484,15 +7440,47 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
+        "ticker": "VTRS",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
         "ticker": "VVV",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
+        "ticker": "VVX",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
         "ticker": "VYGR",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "VYX",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "VZ",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "W",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "WAB",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "WAFD",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "WAL",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "WASH",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
