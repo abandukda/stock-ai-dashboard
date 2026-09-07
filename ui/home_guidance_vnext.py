@@ -685,11 +685,14 @@ def _target_tiles(card: Mapping[str, Any]) -> str:
         ))
     else:
         values.append(("Wall Street Target / Upside", "Not Published", "street"))
-    tiles = "".join(
-        f'<span class="atlas-home-target atlas-home-target-{authority} {'atlas-home-target-muted' if value == "Not Published" else ''}">'
-        f'<small>{html.escape(label)}</small><b>{html.escape(value)}</b></span>'
-        for label, value, authority in values
-    )
+    tile_parts = []
+    for label, value, authority in values:
+        muted_class = "atlas-home-target-muted" if value == "Not Published" else ""
+        tile_parts.append(
+            f'<span class="atlas-home-target atlas-home-target-{authority} {muted_class}">'
+            f'<small>{html.escape(label)}</small><b>{html.escape(value)}</b></span>'
+        )
+    tiles = "".join(tile_parts)
     atlas, street_target = card.get("atlas_fair_value"), street.get("mean_target")
     divergence = ""
     if published and atlas is not None and street_target not in (None, 0):

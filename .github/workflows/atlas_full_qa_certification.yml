@@ -158,6 +158,9 @@ jobs:
           cp audit_results/candidate_artifacts/total_market_universe.json total_market_universe.json
           cp audit_results/candidate_artifacts/market_scan_state.json market_scan_state.json
 
+      - name: Verify production Python grammar
+        run: python -m compileall -q app.py ui services engines agents scripts
+
       - name: Launch exact-candidate Streamlit runtime
         env:
           ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}

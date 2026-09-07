@@ -73,5 +73,8 @@ def test_visual_action_expectation_respects_publication_certification():
 
 
 def test_streamlit_entrypoints_parse_under_production_python_311_grammar():
-    for path in (Path("app.py"), Path("ui/home_v104.py")):
+    paths = [Path("app.py")]
+    for package in ("ui", "services", "engines", "agents", "scripts"):
+        paths.extend(Path(package).rglob("*.py"))
+    for path in paths:
         ast.parse(path.read_text(encoding="utf-8"), filename=str(path), feature_version=(3, 11))
