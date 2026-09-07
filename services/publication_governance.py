@@ -34,7 +34,8 @@ _PROVIDER_MANIFEST_FIELDS = {
     "fundamental_fallback_calls", "estimate_calls", "technical_history_calls",
     "technical_history_http_successes", "technical_history_successes",
     "fundamental_family_counts", "valuation_status_counts", "endpoint_success",
-    "secondary_validation", "latency_seconds", "observed_at",
+    "secondary_validation", "cache_hits", "cache_misses", "calls_avoided",
+    "latency_seconds", "observed_at",
     "performance_snapshots_appended", "performance_outcomes_appended",
 }
 

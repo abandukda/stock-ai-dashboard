@@ -160,9 +160,10 @@ def acquire_full_universe_decisions(
         return {"version": VERSION, "status": "DATA_UNAVAILABLE", "evaluations": {}, "provider_calls": 0,
                 "reason_codes": ("TWELVE_DATA_API_KEY_UNAVAILABLE",)}
     observed = now or datetime.now(timezone.utc)
+    evidence_cache: dict[tuple[str, str, str], Mapping[str, Any]] = {}
     primary = acquire_twelve_trial_dossiers(
         symbols, get=get, secrets=secrets, environ=environ, max_workers=max_workers,
-        timeout=timeout, endpoints=FUNDAMENTAL_PRIMARY_ENDPOINTS,
+        timeout=timeout, endpoints=FUNDAMENTAL_PRIMARY_ENDPOINTS, evidence_cache=evidence_cache,
     )
     dossiers = dict(primary.get("dossiers") or {})
     missing_symbols = []
@@ -176,6 +177,7 @@ def acquire_full_universe_decisions(
         fallback = acquire_twelve_trial_dossiers(
             missing_symbols, get=get, secrets=secrets, environ=environ,
             max_workers=max_workers, timeout=timeout, endpoints=FUNDAMENTAL_FALLBACK_ENDPOINTS,
+            evidence_cache=evidence_cache,
         )
         for symbol, dossier in (fallback.get("dossiers") or {}).items():
             dossiers[symbol] = _merge_dossiers(dossiers.get(symbol) or {}, dossier)
@@ -185,6 +187,7 @@ def acquire_full_universe_decisions(
         estimates = acquire_twelve_trial_dossiers(
             estimate_symbols, get=get, secrets=secrets, environ=environ,
             max_workers=max_workers, timeout=timeout, endpoints=ESTIMATE_ENDPOINTS,
+            evidence_cache=evidence_cache,
         )
         for symbol, dossier in (estimates.get("dossiers") or {}).items():
             dossiers[symbol] = _merge_dossiers(dossiers.get(symbol) or {}, dossier)
@@ -274,7 +277,7 @@ def acquire_full_universe_decisions(
             # are downstream of, and never inputs to, Guidance.
             evaluation["trial_presentation_fields"] = {
                 key: enriched.get(key) for key in (
-                    "description", "sector", "industry", "revenue_growth", "earnings_growth",
+                    "description", "sector", "industry", "sector_lineage", "industry_lineage", "description_lineage", "security_type", "revenue_growth", "earnings_growth",
                     "operating_profit_margin", "free_cash_flow", "current_ratio", "latest_revenue", "net_income",
                     "historical_operating_margin", "provider_defined_operating_profit_margin", "operating_margin_lineage",
                     "financial_reporting_period_type", "financial_reporting_basis", "financial_reporting_currency",
@@ -323,6 +326,7 @@ def acquire_full_universe_decisions(
     provider_calls = (int(primary.get("provider_calls") or 0) + int(fallback.get("provider_calls") or 0)
                       + int(estimates.get("provider_calls") or 0) + len(history_telemetry)
                       + int(secondary.get("provider_calls") or 0))
+    dossier_results = (primary, fallback, estimates)
     return {
         "version": VERSION, "status": "AVAILABLE" if evaluations else "DATA_UNAVAILABLE",
         "evaluations": evaluations, "diagnostics": diagnostics, "provider_calls": provider_calls,
@@ -334,6 +338,9 @@ def acquire_full_universe_decisions(
         "fundamental_family_counts": family_counts,
         "valuation_status_counts": valuation_status_counts,
         "secondary_validation": {key: secondary.get(key) for key in ("version","status","provider_calls","symbol_coverage","observed_at")},
+        "cache_hits": sum(int(item.get("cache_hits") or 0) for item in dossier_results),
+        "cache_misses": sum(int(item.get("cache_misses") or 0) for item in dossier_results),
+        "calls_avoided": sum(int(item.get("calls_avoided") or 0) for item in dossier_results),
         "endpoint_success": {
             **dict(primary.get("endpoint_success") or {}),
             **dict(fallback.get("endpoint_success") or {}),
@@ -353,6 +360,14 @@ def publish_evaluations(rows: Sequence[Mapping[str, Any]], result: Mapping[str, 
         evaluation = evaluations.get(_ticker(row))
         if isinstance(evaluation, Mapping):
             item["canonical_investment_evaluation"] = dict(evaluation)
+            presentation = dict(evaluation.get("trial_presentation_fields") or {})
+            for field in ("sector", "industry", "security_type"):
+                value = presentation.get(field)
+                if value is not None and str(value).strip().upper() not in {"", "UNKNOWN", "UNAVAILABLE", "N/A", "NONE"}:
+                    item[field] = value
+                    lineage = presentation.get(f"{field}_lineage")
+                    if isinstance(lineage, Mapping):
+                        item[f"{field}_lineage"] = dict(lineage)
             item["decision_metrics_methodology"] = evaluation.get("decision_metrics_methodology")
             from services.canonical_data_validation import validate_valuation
             item["canonical_investment_evaluation"]["valuation_validation"] = validate_valuation(item)

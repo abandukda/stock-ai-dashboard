@@ -37,6 +37,32 @@ def test_protected_and_lane_candidates_receive_full_evaluation():
     assert len({row["ticker"] for row in selected}) == 5
 
 
+def test_attractive_entry_lane_is_protected_from_aggregate_cutoff():
+    candidates = []
+    for index in range(20):
+        row = broad(f"T{index}")
+        row.update({"medium_stage_score": 100 - index, "protected_positive_lane": index < 4,
+                    "prescreen_channels": ["TECHNICAL_SETUP"]})
+        candidates.append(row)
+    candidates[-1]["prescreen_channels"] = ["ATTRACTIVE_ENTRY"]
+    selected = select_full_evaluation_pool(candidates, 5)
+    assert "T19" in {row["ticker"] for row in selected}
+
+
+def test_governed_1400_pool_retains_late_entry_lane_without_skipping_full_evaluation():
+    candidates = []
+    for index in range(1500):
+        item = broad(f"T{index:04d}")
+        item.update({"medium_stage_score": 1500 - index,
+                     "protected_positive_lane": index < 1024,
+                     "prescreen_channels": ["ATTRACTIVE_ENTRY"] if index >= 1024 else ["QUALITY_GROWTH"]})
+        candidates.append(item)
+    selected = select_full_evaluation_pool(candidates, 1400)
+    assert len(selected) == 1400
+    assert "T1399" in {row["ticker"] for row in selected}
+    assert all(row.get("light_evaluation") is None for row in selected)
+
+
 def test_validation_sample_is_deterministic_and_has_cutoff_controls():
     rows = [broad(f"T{i:03}") for i in range(300)]
     one = validation_sample(rows, near_cutoff=100, random_size=100, seed="run")
@@ -72,6 +98,6 @@ def test_architecture_experiment_reports_every_governed_scenario():
     eligible = [broad(f"T{i:03}", revenue_growth=.1, free_cash_flow=100) for i in range(700)]
     evaluated_rows = [evaluated(f"T{i:03}", "BUY_NOW" if i < 3 else "ACCUMULATE") for i in range(250)]
     result = architecture_experiment(eligible, evaluated_rows)
-    assert len(result["scenarios"]) == 6 * 10
+    assert len(result["scenarios"]) == 6 * 13
     assert result["recommended"] is not None
     assert result["scenarios"][0]["validation_population"] == 250

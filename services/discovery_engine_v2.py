@@ -12,9 +12,9 @@ import math
 import random
 from typing import Any, Iterable, Mapping, Sequence
 
-VERSION = "ATLAS_DISCOVERY_ENGINE_V2"
+VERSION = "ATLAS_DISCOVERY_ENGINE_V2_1"
 CANDIDATE_SIZES = (500, 650, 800, 1000, 1250, 1500)
-FULL_EVALUATION_SIZES = (250, 300, 350, 400, 500, 650, 750, 800, 1000, 1250)
+FULL_EVALUATION_SIZES = (250, 300, 350, 400, 500, 650, 750, 800, 1000, 1100, 1250, 1400, 1500)
 ACTION_PRIORITY = {
     "BUY_NOW": 6, "ACCUMULATE": 5, "WAIT_FOR_ENTRY": 4,
     "WAIT_FOR_CONFIRMATION": 3, "DATA_LIMITED": 2, "AVOID": 1,
@@ -143,12 +143,17 @@ def select_full_evaluation_pool(candidates: Sequence[Mapping[str, Any]], size: i
     selected: list[dict[str, Any]] = []
     seen: set[str] = set()
     protected = [row for row in ordered if row.get("protected_positive_lane")]
+    # V2.1 recall repair: the governed validation sample showed a systemic
+    # cluster of BUILD outcomes whose only inexpensive signal was a favorable
+    # entry relationship. Preserve the entire entry lane before aggregate fill;
+    # this is an OR-based discovery protection, never a final Action rule.
+    attractive_entry = [row for row in ordered if "ATTRACTIVE_ENTRY" in (row.get("prescreen_channels") or ())]
     lane_budget = max(1, size // 20)
     by_lane: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in ordered:
         for lane in row.get("prescreen_channels") or ():
             by_lane[lane].append(row)
-    for source in (protected, *(by_lane[key][:lane_budget] for key in sorted(by_lane)), ordered):
+    for source in (protected, attractive_entry, *(by_lane[key][:lane_budget] for key in sorted(by_lane)), ordered):
         for row in source:
             ticker = _ticker(row)
             if ticker and ticker not in seen:
@@ -222,17 +227,45 @@ def recall_report(retained: Sequence[Mapping[str, Any]], controls: Sequence[Mapp
     for row in controls:
         action = canonical_action(row)
         if certified(row) and action in {"BUY_NOW", "ACCUMULATE"}:
+            channels = list(row.get("prescreen_channels") or ())
+            if "ATTRACTIVE_ENTRY" in channels:
+                root_cause = "CUTOFF_EFFECT"
+                reason = "Attractive-entry lane lost to the aggregate full-evaluation cutoff."
+            elif not channels:
+                root_cause = "MISSING_DISCOVERY_LANE"
+                reason = "No governed discovery lane retained the canonical positive outcome."
+            else:
+                root_cause = "RANKING_COMPRESSION"
+                reason = "Qualified discovery evidence ranked below the governed pool cutoff."
             misses.append({"ticker": _ticker(row), "action": action,
                            "severity": "D0" if action == "BUY_NOW" else "D1",
                            "cohort": row.get("discovery_validation_cohort"),
-                           "prescreen_channels": row.get("prescreen_channels") or []})
+                           "prescreen_channels": channels,
+                           "prescreen_score": row.get("prescreen_score"),
+                           "medium_stage_score": row.get("medium_stage_score"),
+                           "broad_prescan_rank": row.get("broad_prescan_rank"),
+                           "cutoff_position": row.get("full_evaluation_rank"),
+                           "root_cause": root_cause, "reason_dropped": reason})
     counts = Counter(item["severity"] for item in misses)
     if len(controls) < 200:
+        counts["D2"] += 1
+    recall_thresholds = {
+        "buy_now_recall": 1.0,
+        "build_or_better_recall": .95,
+        "high_opportunity_recall": .95,
+        "technical_opportunity_recall": .95,
+    }
+    threshold_failures = [
+        key for key, minimum in recall_thresholds.items()
+        if metrics.get(key) is not None and metrics[key] < minimum
+    ]
+    if threshold_failures:
         counts["D2"] += 1
     return {"version": VERSION, "evaluated_sample_size": len(evaluated),
             "validation_control_size": len(controls), "metrics": metrics,
             "misses": misses, "severity_counts": {f"D{i}": counts.get(f"D{i}", 0) for i in range(5)},
-            "discovery_gate": "FAIL" if counts.get("D0") or len(controls) < 200 else "PASS",
+            "discovery_gate": "FAIL" if counts.get("D0") or len(controls) < 200 or threshold_failures else "PASS",
+            "thresholds": recall_thresholds, "threshold_failures": threshold_failures,
             "minimum_validation_sample": 200}
 
 

@@ -39,7 +39,8 @@ def test_150_name_crawler_and_lineage_sheets_pass():
     assert report["gate"] == "PASS"
     assert report["summary"]["universe_count"] == 150
     assert len(report["sheets"]["Master_150"]) == 150
-    assert list(report["sheets"]) == ["Executive_Summary", "Discovery_Funnel", "Discovery_Recall", "Master_150", "Full_Evaluation_Pool", "Financials", "Financial_Reconciliation", "Estimates", "Valuation_Models", "Valuation_Reconciliation", "Peer_Sets", "Source_Lineage", "Missing_Data", "Validation_Failures", "Six_Pillar_QA", "Action_QA", "ATLAS_vs_Street", "Run_Over_Run", "Customer_Surface_Audit", "Numerical_Anomalies", "Screenshot_Index", "Provider_Quality", "Manual_Research_QA", "Universe_Sector_Analysis"]
+    assert list(report["sheets"])[-6:] == ["Discovery_Misses", "High_Uncertainty_Drivers", "Runtime_Profile", "Provider_Call_Profile", "Cache_Effectiveness", "Sector_Metadata_QA"]
+    assert len(report["sheets"]) == 30
     assert report["summary"]["qa_engine_status"] == "OPERATIONAL"
     assert report["summary"]["dataset_certification_status"] == "PASS"
 
@@ -184,6 +185,8 @@ def test_workflow_candidate_gate_contract_and_syntax():
     assert "agents.full_qa_visual_certification" in source
     assert "id: visual_qa" in source and "continue-on-error: true" in source
     assert "if: steps.visual_qa.outcome == 'failure'" in source
+    assert "github.event.workflow_run.head_sha || github.ref" in source
+    assert "git pull --rebase --autostash origin main" in source
     overnight = Path(".github/workflows/overnight_scan.yml").read_text()
     assert "ATLAS_PUBLICATION_OUTPUT_MODE: \"CANDIDATE\"" in overnight
     assert "git push origin main" not in overnight
