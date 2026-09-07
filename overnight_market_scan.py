@@ -4454,6 +4454,7 @@ DEEP_RESEARCH_TTLS = {
     "news": 60 * 60,
     "etf": 24 * 60 * 60,
 }
+DEEP_RESEARCH_EVIDENCE_SCHEMA_VERSION = "ATLAS_MARGIN_LINEAGE_V2"
 
 
 def get_etf_research(symbol: str) -> Dict[str, Any]:
@@ -4539,7 +4540,8 @@ def get_finalist_enrichment(symbol: str, company_name: str = "") -> Tuple[Dict[s
             fetcher,
             source_version=(
                 f"{getattr(source_functions[family], '__module__', '')}."
-                f"{getattr(source_functions[family], '__qualname__', '')}"
+                f"{getattr(source_functions[family], '__qualname__', '')}:"
+                f"{DEEP_RESEARCH_EVIDENCE_SCHEMA_VERSION}"
             ),
         )
     merged: Dict[str, Any] = {}
