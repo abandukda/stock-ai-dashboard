@@ -17,6 +17,15 @@ from agents.runtime_qa_user_journeys_v40 import _visible_text
 
 VERSION = "ATLAS_FULL_QA_VISUAL_V1"
 REQUIRED_PAGES = ("Home", "Research Any Ticker", "Full Ranked Scan", "Volume Intelligence", "Developer Center")
+CUSTOMER_ACTION_LABELS = {
+    "BUY_NOW": "BUY NOW",
+    "ACCUMULATE": "BUILD A POSITION",
+    "WAIT_FOR_ENTRY": "WAIT FOR BETTER ENTRY",
+    "WAIT_FOR_BETTER_ENTRY": "WAIT FOR BETTER ENTRY",
+    "WAIT_FOR_CONFIRMATION": "WAIT FOR CONFIRMATION",
+    "DATA_LIMITED": "WATCH",
+    "AVOID": "AVOID",
+}
 
 
 def expected_customer_action(row: dict[str, Any]) -> tuple[str, bool]:
@@ -30,7 +39,7 @@ def expected_customer_action(row: dict[str, Any]) -> tuple[str, bool]:
     if not publication_allowed:
         return "RATING NOT PUBLISHED", False
     action = str(((evaluation.get("guidance") or {}).get("state") or evaluation.get("action") or ""))
-    return action.replace("_", " "), True
+    return CUSTOMER_ACTION_LABELS.get(action, action.replace("_", " ")), True
 
 
 def customer_action_matches(text: str, expected: str, publication_allowed: bool) -> bool:
@@ -128,6 +137,15 @@ async def run(args: argparse.Namespace) -> int:
         finally:
             await context.close()
             await browser.close()
+    existing = {(item["page"], item.get("ticker_context", ""), item["observed"]) for item in defects}
+    for result in crawler.results:
+        if result.status == "FAIL" and result.severity in {"P0", "P1", "P2"}:
+            key = (result.page, result.ticker_context, result.observed)
+            if key not in existing:
+                defects.append({"severity": result.severity, "page": result.page,
+                                "viewport": result.viewport, "observed": result.observed,
+                                "ticker_context": result.ticker_context})
+                existing.add(key)
     summary = {"version": VERSION, "generated_at": datetime.now(timezone.utc).isoformat(),
                "status": "FAIL" if defects else "PASS", "checks": checks, "defects": defects,
                "screenshot_manifest": crawler.manifest, "ticker_fixtures": certification_tickers(root)}

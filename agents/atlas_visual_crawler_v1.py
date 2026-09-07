@@ -907,7 +907,10 @@ class AtlasVisualCrawler:
                 tab = await self._fresh_visible_tab(page, name)
                 if tab is None:
                     raise RuntimeError("TAB_NOT_REACQUIRED")
-                await tab.click(timeout=6000)
+                # Streamlit tabs can retain a transient rerun overlay after their
+                # visible DOM settles. The post-click panel checks remain the
+                # authority, so target the resolved tab without hit-test noise.
+                await tab.click(timeout=6000, force=True)
                 await page.wait_for_timeout(500)
                 selected = False
                 for scope in _scopes(page):
@@ -953,6 +956,7 @@ class AtlasVisualCrawler:
                     expected="Tab is independently operable", observed=type(exc).__name__,
                     passed=False, elapsed=time.monotonic() - started, ticker=ticker,
                     viewport=viewport, screenshots=(before, after), severity="P2",
+                    exception={"category": type(exc).__name__, "fingerprint": hashlib.sha256(type(exc).__name__.encode()).hexdigest()[:16]},
                 )
 
     async def _fresh_visible_tab(self, page: Page, name: str) -> Any | None:

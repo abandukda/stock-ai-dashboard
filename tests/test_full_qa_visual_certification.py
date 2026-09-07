@@ -70,6 +70,9 @@ def test_visual_action_expectation_respects_publication_certification():
     assert customer_action_matches("RATING NOT PUBLISHED — MONITOR", "RATING NOT PUBLISHED", False)
     assert expected_customer_action(published) == ("BUY NOW", True)
     assert customer_action_matches("★★★★★ BUY NOW", "BUY NOW", True)
+    published["canonical_investment_evaluation"]["guidance"]["state"] = "ACCUMULATE"
+    assert expected_customer_action(published) == ("BUILD A POSITION", True)
+    assert customer_action_matches("★★★★½ BUILD A POSITION", "BUILD A POSITION", True)
 
 
 def test_streamlit_entrypoints_parse_under_production_python_311_grammar():
