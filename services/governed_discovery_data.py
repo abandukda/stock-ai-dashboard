@@ -20,6 +20,33 @@ from services.live_market.twelve_data_phase1 import REST_BASE, load_twelve_data_
 PROVIDER_POLICY_VERSION = "GOVERNED_DISCOVERY_INPUTS_V1"
 
 
+def _normalize_daily_values(values: Sequence[Mapping[str, Any]]) -> tuple[pd.DataFrame, int]:
+    """Normalize one symbol without allowing duplicate dates to poison a batch."""
+    frame = pd.DataFrame(values)
+    if frame.empty or "datetime" not in frame or "close" not in frame:
+        return pd.DataFrame(), 0
+    frame = frame.loc[:, ~frame.columns.duplicated(keep="last")].copy()
+    frame["datetime"] = pd.to_datetime(frame["datetime"], errors="coerce", utc=True)
+    frame = frame.dropna(subset=["datetime"])
+    duplicate_count = int(frame["datetime"].duplicated(keep=False).sum())
+    frame = frame.sort_values("datetime", kind="stable")
+    for name in ("open", "high", "low", "close", "volume"):
+        if name in frame:
+            frame[name] = pd.to_numeric(frame[name], errors="coerce")
+    if duplicate_count:
+        aggregations = {
+            name: operation for name, operation in (
+                ("open", "first"), ("high", "max"), ("low", "min"),
+                ("close", "last"), ("volume", "max"),
+            ) if name in frame
+        }
+        frame = frame.groupby("datetime", sort=True, as_index=False).agg(aggregations)
+    frame = frame.set_index("datetime")
+    frame = frame.rename(columns={name: name.title() for name in ("open", "high", "low", "close", "volume")})
+    frame = frame.dropna(subset=["Close"])
+    return frame, duplicate_count
+
+
 def _rows(payload: Any) -> list[Mapping[str, Any]]:
     if isinstance(payload, list):
         return [row for row in payload if isinstance(row, Mapping)]
@@ -81,20 +108,35 @@ def fetch_twelve_daily_batch(
     if len(requested) == 1 and isinstance(payload, Mapping) and "values" in payload:
         bundles = {requested[0]: payload}
     frames: dict[str, pd.DataFrame] = {}
+    diagnostics: dict[str, Any] = {
+        "market_history_attempted": len(requested), "market_history_success": 0,
+        "market_history_unavailable": 0, "market_history_schema_failure": 0,
+        "market_history_duplicate_index_failure": 0, "per_symbol": {},
+    }
     for symbol in requested:
-        bundle = bundles.get(symbol) or bundles.get(symbol.replace("-", "."))
-        values = bundle.get("values") if isinstance(bundle, Mapping) else None
-        if not isinstance(values, list):
-            continue
-        frame = pd.DataFrame(values)
-        if frame.empty or "close" not in frame:
-            continue
-        frame.index = pd.to_datetime(frame.pop("datetime"), errors="coerce", utc=True)
-        frame = frame.rename(columns={name: name.title() for name in ("open", "high", "low", "close", "volume")})
-        for column in frame.columns:
-            frame[column] = pd.to_numeric(frame[column], errors="coerce")
-        frames[symbol] = frame
-    return pd.concat(frames, axis=1) if frames else pd.DataFrame()
+        try:
+            bundle = bundles.get(symbol) or bundles.get(symbol.replace("-", "."))
+            values = bundle.get("values") if isinstance(bundle, Mapping) else None
+            if not isinstance(values, list):
+                diagnostics["market_history_unavailable"] += 1
+                diagnostics["per_symbol"][symbol] = "UNAVAILABLE"
+                continue
+            frame, duplicate_count = _normalize_daily_values(values)
+            if frame.empty:
+                diagnostics["market_history_schema_failure"] += 1
+                diagnostics["per_symbol"][symbol] = "SCHEMA_FAILURE"
+                continue
+            if duplicate_count:
+                diagnostics["market_history_duplicate_index_failure"] += 1
+            frames[symbol] = frame
+            diagnostics["market_history_success"] += 1
+            diagnostics["per_symbol"][symbol] = "SUCCESS_DEDUPLICATED" if duplicate_count else "SUCCESS"
+        except Exception as exc:
+            diagnostics["market_history_schema_failure"] += 1
+            diagnostics["per_symbol"][symbol] = f"SCHEMA_FAILURE:{type(exc).__name__}"
+    result = pd.concat(frames, axis=1, sort=True) if frames else pd.DataFrame()
+    result.attrs["governed_market_diagnostics"] = diagnostics
+    return result
 
 
 __all__ = ["PROVIDER_POLICY_VERSION", "fetch_twelve_daily_batch", "load_governed_universe"]

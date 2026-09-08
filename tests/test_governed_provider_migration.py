@@ -43,6 +43,24 @@ def test_twelve_batch_normalizes_completed_daily_history():
     assert float(frame["MSFT"]["Close"].iloc[-1]) == 101.0
 
 
+def test_twelve_batch_deduplicates_dates_without_poisoning_other_symbols():
+    payload = {
+        "GOOD": {"values": [{"datetime": "2026-09-04", "open": "9", "high": "11", "low": "8", "close": "10", "volume": "100"}]},
+        "DUP": {"values": [
+            {"datetime": "2026-09-04", "open": "19", "high": "21", "low": "18", "close": "20", "volume": "200"},
+            {"datetime": "2026-09-04", "open": "20", "high": "22", "low": "19", "close": "21", "volume": "210"},
+        ]},
+        "BAD": {"values": [{"datetime": "not-a-date", "open": "x"}]},
+    }
+    frame = fetch_twelve_daily_batch(["GOOD", "DUP", "BAD"], api_key="secret", get=lambda *_a, **_k: Response(payload))
+    assert list(frame.columns.get_level_values(0).unique()) == ["GOOD", "DUP"]
+    assert frame["DUP"].index.is_unique and float(frame["DUP"]["Close"].iloc[-1]) == 21
+    diagnostics = frame.attrs["governed_market_diagnostics"]
+    assert diagnostics["market_history_success"] == 2
+    assert diagnostics["market_history_duplicate_index_failure"] == 1
+    assert diagnostics["market_history_schema_failure"] == 1
+
+
 def test_universe_comparison_never_hides_a_loss():
     result = compare_governed_universe(["A", "B"], ["B", "C"])
     assert result["old_count"] == 2 and result["new_count"] == 2 and result["overlap"] == 1
