@@ -18,6 +18,10 @@ from services.canonical_data_validation import (
     CERTIFIED, CERTIFIED_HIGH_UNCERTAINTY, INSUFFICIENT_INPUTS,
     NOT_APPLICABLE, REVIEW_REQUIRED, validate_valuation,
 )
+from services.evidence_lineage_governance import (
+    CACHE_GENERATION_VERSION, EVIDENCE_SNAPSHOT_VERSION, PROVIDER_ARCHITECTURE_VERSION,
+    disallowed_lineage_paths,
+)
 
 VERSION = "ATLAS_HARD_PUBLICATION_GOVERNANCE_V1"
 MANIFEST_VERSION = "ATLAS_PUBLICATION_MANIFEST_V1"
@@ -81,6 +85,13 @@ def certify_record(row: Mapping[str, Any], *, now: datetime | None = None) -> di
     ticker = str(row.get("ticker") or row.get("symbol") or "").strip().upper()
     evaluation = dict(row.get("canonical_investment_evaluation") or {})
     components: dict[str, Any] = {}
+
+    forbidden_paths = disallowed_lineage_paths(row)
+    components["provider_lineage"] = _component(
+        REVIEW_REQUIRED if forbidden_paths else CERTIFIED,
+        ["DISALLOWED_PROVIDER_LINEAGE"] if forbidden_paths else [],
+        lineage={"disallowed_paths": forbidden_paths, "provider_architecture_version": PROVIDER_ARCHITECTURE_VERSION},
+    )
 
     identity_blockers = []
     if not ticker: identity_blockers.append("TICKER_MISSING")
@@ -205,6 +216,9 @@ def certify_record(row: Mapping[str, Any], *, now: datetime | None = None) -> di
     eligible = overall in PUBLISHABLE and bool(action)
     return {
         "version": VERSION, "ticker": ticker, "certified_at": observed.isoformat(),
+        "provider_architecture_version": PROVIDER_ARCHITECTURE_VERSION,
+        "evidence_snapshot_version": EVIDENCE_SNAPSHOT_VERSION,
+        "cache_generation_version": CACHE_GENERATION_VERSION,
         "certification_state": overall, "components": components,
         "blockers": list(dict.fromkeys(blockers)), "action_publication_eligible": eligible,
         "certified_action": action if eligible else None,
@@ -276,6 +290,8 @@ def build_manifest(rows: Sequence[Mapping[str, Any]], *, run_id: str, generated_
         state = str((row.get("publication_certification") or {}).get("certification_state") or INSUFFICIENT_INPUTS)
         states[state] = states.get(state, 0) + 1
     withheld = sum(not bool((row.get("publication_certification") or {}).get("customer_publication_allowed")) for row in rows)
+    publishable_count = len(rows) - withheld
+    published_yahoo_lineage_count = sum(bool(disallowed_lineage_paths(row)) for row in rows)
     systemic = []
     provider_source = dict(provider_status or {})
     # Evaluations and request-level diagnostics already live in governed scan
@@ -284,15 +300,23 @@ def build_manifest(rows: Sequence[Mapping[str, Any]], *, run_id: str, generated_
     provider = {key: provider_source[key] for key in _PROVIDER_MANIFEST_FIELDS if key in provider_source}
     if provider.get("status") not in {None, "AVAILABLE", "SUCCESS", "PUBLISHED"}: systemic.append("PROVIDER_ENRICHMENT_SYSTEMIC_FAILURE")
     if len(rows) == 0: systemic.append("EMPTY_UNIVERSE")
+    if published_yahoo_lineage_count: systemic.append("PUBLISHED_YAHOO_LINEAGE_PRESENT")
     anomalies = run_over_run_anomalies(rows, prior_rows)
     gate = "FAIL" if systemic else "PASS"
     return {
         "version": MANIFEST_VERSION, "run_id": run_id, "generated_at": generated_at,
+        "source_commit_sha": os.getenv("GITHUB_SHA") or os.getenv("ATLAS_SOURCE_COMMIT_SHA") or "LOCAL_WORKTREE",
         "methodology_versions": sorted({str((row.get("canonical_investment_evaluation") or {}).get("methodology_version")) for row in rows}),
         "macro_assumption_versions": sorted({str((row.get("canonical_investment_evaluation") or {}).get("macro_assumption_version")) for row in rows}),
         "provider_status": provider, "universe_count": len(rows), "certification_distribution": states,
         "certified_count": states.get(CERTIFIED, 0), "high_uncertainty_count": states.get(CERTIFIED_HIGH_UNCERTAINTY, 0),
-        "withheld_count": withheld, "validation_failures": systemic,
+        "withheld_count": withheld, "publishable_count": publishable_count,
+        "customer_publication_count": publishable_count,
+        "published_yahoo_lineage_count": published_yahoo_lineage_count,
+        "provider_architecture_version": PROVIDER_ARCHITECTURE_VERSION,
+        "evidence_snapshot_version": EVIDENCE_SNAPSHOT_VERSION,
+        "cache_generation_version": CACHE_GENERATION_VERSION,
+        "validation_failures": systemic,
         "artifact_hashes": {name: _hash_payload(payload) for name, payload in artifact_payloads.items()},
         "run_over_run_anomalies": anomalies,
         "freshness_status": "VALIDATED_BY_EVIDENCE_TYPE", "publication_gate_status": gate,
