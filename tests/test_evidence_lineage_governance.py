@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from services.evidence_lineage_governance import disallowed_lineage_paths
 from services.publication_governance import build_manifest
 
@@ -44,3 +46,10 @@ def test_post_migration_cache_key_prevents_legacy_cache_reuse():
         secrets={"TWELVE_DATA_API_KEY": "secret"}, environ={"ATLAS_DATA_MODE": "INTERNAL_TRIAL"},
     )
     assert result["provider_calls"] == 1 and result["cache_hits"] == 0
+
+
+def test_publication_contract_requires_second_stage_buy_revalidation():
+    source = Path("services/publication_governance.py").read_text(encoding="utf-8")
+    publisher = Path("services/full_universe_decision_publication.py").read_text(encoding="utf-8")
+    assert 'action == "BUY_NOW"' in source and '"BUY_NOW_REVALIDATED"' in source
+    assert "revalidate_buy_now" in publisher

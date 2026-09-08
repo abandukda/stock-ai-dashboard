@@ -336,6 +336,11 @@ def _qa_record(row: Mapping[str, Any], rank: int) -> tuple[dict[str, Any], dict[
     if certification.get("customer_publication_allowed") and certified_action != action:
         issues.append(_issue(ticker, "P0", "CUSTOMER_SURFACE", "action",
                              "Certified customer Action does not match canonical Action."))
+    positive_revalidation = dict(evaluation.get("positive_action_revalidation") or {})
+    if (action == "BUY_NOW" and certification.get("customer_publication_allowed")
+            and positive_revalidation.get("status") != "BUY_NOW_REVALIDATED"):
+        issues.append(_issue(ticker, "P0", "BUY_NOW_REVALIDATION", "positive_action_revalidation",
+                             "BUY NOW reached customer publication without exact-snapshot second-stage revalidation."))
     if certification.get("version") not in (None, GOVERNANCE_VERSION):
         issues.append(_issue(ticker, "P1", "METHODOLOGY_VERSION", "publication_certification.version",
                              "Publication certification governance version is invalid."))
@@ -616,6 +621,9 @@ def crawl_universe(rows: Sequence[Mapping[str, Any]], *, prior_rows: Sequence[Ma
         "dataset_certification_status": gate,
         "blocking_issue_count": sum(severities.get(level, 0) for level in BLOCKING_SEVERITIES),
         "action_distribution": dict(Counter(str(r.get("action") or "UNKNOWN") for r in records)),
+        "unrevalidated_buy_now_count": sum(
+            finding.get("category") == "BUY_NOW_REVALIDATION" for finding in failures
+        ),
         "artifact_link": artifact_link,
         "provider_calls": discovery.get("provider_calls"),
         "calls_avoided": _nested(discovery, "provider_profile", "calls_avoided") or 0,

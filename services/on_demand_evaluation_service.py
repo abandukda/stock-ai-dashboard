@@ -181,6 +181,10 @@ def evaluate_on_demand(
         positive_action_volume_authority_required=bool(phase1),
     )
     result = apply_guidance_hysteresis(previous_evaluation, evaluation)
+    from services.canonical_data_validation import validate_valuation
+    result["valuation_validation"] = validate_valuation({**dict(row), "canonical_investment_evaluation": result})
+    from services.positive_action_revalidation import revalidate_buy_now
+    result["positive_action_revalidation"] = revalidate_buy_now(result)
     from services.publication_governance import certify_record
     certification = certify_record({**dict(row), "canonical_investment_evaluation": result})
     result["publication_certification"] = certification

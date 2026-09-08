@@ -202,6 +202,20 @@ def certify_record(row: Mapping[str, Any], *, now: datetime | None = None) -> di
         lineage={"methodology": evaluation.get("decision_metrics_methodology"), "digest": evaluation.get("decision_digest"),
                  "evaluated_at": evaluation.get("evaluated_at")})
 
+    action = dict(evaluation.get("guidance") or {}).get("state")
+    positive_revalidation = dict(evaluation.get("positive_action_revalidation") or {})
+    revalidation_blockers = []
+    if action == "BUY_NOW" and positive_revalidation.get("status") != "BUY_NOW_REVALIDATED":
+        revalidation_blockers.extend(positive_revalidation.get("blockers") or ("BUY_NOW_REVALIDATION_REQUIRED",))
+    elif action == "BUY_NOW" and positive_revalidation.get("source_decision_digest") != evaluation.get("decision_digest"):
+        revalidation_blockers.append("BUY_NOW_REVALIDATION_SNAPSHOT_MISMATCH")
+    components["positive_action_revalidation"] = _component(
+        REVIEW_REQUIRED if revalidation_blockers else CERTIFIED, revalidation_blockers,
+        lineage={"version": positive_revalidation.get("version"),
+                 "source_decision_digest": positive_revalidation.get("source_decision_digest"),
+                 "exact_snapshot_digest": positive_revalidation.get("exact_snapshot_digest")},
+    )
+
     states = [item["state"] for item in components.values()]
     if REVIEW_REQUIRED in states:
         overall = REVIEW_REQUIRED
@@ -212,7 +226,6 @@ def certify_record(row: Mapping[str, Any], *, now: datetime | None = None) -> di
     else:
         overall = CERTIFIED
     blockers = [blocker for item in components.values() for blocker in item["blockers"]]
-    action = dict(evaluation.get("guidance") or {}).get("state")
     eligible = overall in PUBLISHABLE and bool(action)
     return {
         "version": VERSION, "ticker": ticker, "certified_at": observed.isoformat(),
@@ -302,6 +315,13 @@ def build_manifest(rows: Sequence[Mapping[str, Any]], *, run_id: str, generated_
     if len(rows) == 0: systemic.append("EMPTY_UNIVERSE")
     if published_yahoo_lineage_count: systemic.append("PUBLISHED_YAHOO_LINEAGE_PRESENT")
     anomalies = run_over_run_anomalies(rows, prior_rows)
+    anomalous_tickers = {item.get("ticker") for item in anomalies}
+    if any(
+        str((((row.get("canonical_investment_evaluation") or {}).get("guidance") or {}).get("state") or "")) == "BUY_NOW"
+        and str(row.get("ticker") or row.get("symbol") or "").upper() in anomalous_tickers
+        for row in rows
+    ):
+        systemic.append("BUY_NOW_UNEXPLAINED_RUN_OVER_RUN_ANOMALY")
     gate = "FAIL" if systemic else "PASS"
     return {
         "version": MANIFEST_VERSION, "run_id": run_id, "generated_at": generated_at,
