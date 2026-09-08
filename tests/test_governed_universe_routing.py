@@ -8,7 +8,8 @@ import pandas as pd
 import overnight_market_scan as scan
 from services.fmp_stable_client import FMPResponse, SUCCESS
 from services.governed_discovery_data import (
-    canonical_security_ticker, load_governed_universe, twelve_symbol_route,
+    assert_governed_stock_universe, canonical_security_ticker, load_governed_universe,
+    normalize_listing_exchange, twelve_symbol_route,
 )
 from services.governed_market_cache import (
     append_history, cache_namespace, load_history, load_negative_cache, write_negative_cache,
@@ -47,12 +48,111 @@ def test_pre_acquisition_cleanup_and_separate_etf_routing():
     }
 
 
+def test_exchange_resolution_fails_closed_before_stock_or_etf_routing():
+    stock = [
+        {"symbol": "0001.HK", "name": "Foreign blank", "exchangeShortName": "", "country": "HK"},
+        {"symbol": "0001.KL", "exchange": "KLS", "type": "Common Stock"},
+        {"symbol": "VOD.L", "exchangeFullName": "London Stock Exchange", "country": "US"},
+        {"symbol": "TSM", "exchangeShortName": "NYSE", "country": "TW", "type": "ADR"},
+        {"symbol": "BEKE", "exchangeShortName": "NYSE", "country": "CN", "type": "ADS"},
+        {"symbol": "BP", "exchangeShortName": "NYSE", "country": "GB", "type": "ADR"},
+        {"symbol": "SHEL", "exchangeShortName": "NYSE", "country": "GB", "type": "ADR"},
+        {"symbol": "DRD", "exchangeShortName": "NYSE", "country": "ZA", "type": "ADR"},
+        {"symbol": "UMC", "exchangeShortName": "NYSE", "country": "TW", "type": "ADS"},
+        {"symbol": "PKX", "exchangeShortName": "NYSE", "country": "KR", "type": "ADR"},
+        {"symbol": "AAPL", "exchangeFullName": "NASDAQ Global Select", "country": "US", "type": "Common Stock"},
+    ]
+    etfs = [
+        {"symbol": "2800.HK", "exchange": "HKSE", "isEtf": True},
+        {"symbol": "SPY", "exchange": "NYSE Arca", "isEtf": True},
+    ]
+    result = load_governed_universe(fmp_key="x", client=Client(stock, etfs))
+    assert set(result["stock_symbols"]) == {"AAPL", "BEKE", "BP", "DRD", "PKX", "SHEL", "TSM", "UMC"}
+    assert result["etf_symbols"] == ["SPY"]
+    assert not ({"0001.HK", "0001.KL", "VOD.L", "2800.HK"} & set(result["symbols"]))
+    reasons = {row["ticker"]: row["reason"] for row in result["exclusions"]}
+    assert reasons["0001.HK"] == "UNRESOLVED_LISTING_IDENTITY"
+    assert reasons["0001.KL"] == reasons["VOD.L"] == reasons["2800.HK"] == "NON_US_EXCHANGE_OUTSIDE_STOCK_POLICY"
+    assert result["summary"]["raw_global_master_count"] == 13
+    assert result["summary"]["resolved_us_listing_count"] == 9
+    assert result["summary"]["unresolved_listing_identity_count"] == 1
+    assert result["summary"]["foreign_listing_removed_count"] == 3
+    assert result["summary"]["us_stock_universe_count"] == 8
+    assert result["summary"]["us_etf_universe_count"] == 1
+    assert result["summary"]["stock_exchange_distribution"] == {"NASDAQ": 1, "NYSE": 7}
+    assert result["summary"]["etf_exchange_distribution"] == {"ARCA": 1}
+    assert result["summary"]["representative_unresolved_symbols"][0]["ticker"] == "0001.HK"
+    assert {row["ticker"] for row in result["summary"]["representative_foreign_symbols"]} == {
+        "0001.KL", "VOD.L", "2800.HK",
+    }
+
+
+def test_exchange_field_priority_and_trace_are_deterministic():
+    resolved = normalize_listing_exchange({
+        "exchangeShortName": "NYSE", "exchange": "LSE", "exchangeFullName": "London Stock Exchange"
+    })
+    assert resolved == {
+        "source_exchange_value": "NYSE", "normalized_exchange": "NYSE",
+        "exchange_resolution_status": "RESOLVED_US",
+    }
+    assert normalize_listing_exchange({"country": "US"})["exchange_resolution_status"] == "UNRESOLVED"
+    assert normalize_listing_exchange({
+        "exchangeShortName": "   ", "exchange": "NYSE",
+    }) == {
+        "source_exchange_value": "NYSE", "normalized_exchange": "NYSE",
+        "exchange_resolution_status": "RESOLVED_US",
+    }
+
+
+def test_pre_twelve_assertion_rejects_unresolved_or_foreign_stock_identity():
+    for exchange, status in ((None, "UNRESOLVED"), ("HKSE", "RESOLVED_FOREIGN")):
+        result = {
+            "stock_symbols": ["BAD"],
+            "symbol_mappings": {"BAD": {
+                "exchange": exchange, "normalized_exchange": exchange,
+                "exchange_resolution_status": status,
+            }},
+        }
+        try:
+            assert_governed_stock_universe(result)
+        except RuntimeError as exc:
+            assert "GOVERNED_STOCK_EXCHANGE_ASSERTION_FAILED" in str(exc)
+        else:
+            raise AssertionError("invalid stock identity reached the Twelve acquisition boundary")
+
+
 def test_class_share_mapping_is_traceable_and_canonical_without_duplicates():
     aliases = ["BRK-A", "BRK.B", "BF-A", "BF-B", "BH-A", "CALY"]
     canonical = [canonical_security_ticker(value) for value in aliases]
     assert canonical == ["BRK.A", "BRK.B", "BF.A", "BF.B", "BH.A", "CALY"]
     assert twelve_symbol_route("BRK-B", exchange="NYSE")["provider_ticker"] == "BRK.B"
     assert len({canonical_security_ticker(value) for value in ["BRK-B", "BRK.B"]}) == 1
+
+
+def test_real_class_share_aliases_are_retained_once_after_us_exchange_resolution():
+    stock = [
+        {"symbol": symbol, "exchangeShortName": "NYSE", "type": "Common Stock"}
+        for symbol in ("BRK-B", "BRK.B", "BF-B", "BF.B")
+    ]
+    result = load_governed_universe(fmp_key="x", client=Client(stock, []))
+    assert result["stock_symbols"] == ["BF.B", "BRK.B"]
+    assert result["symbol_mappings"]["BRK.B"]["provider_ticker"] == "BRK.B"
+    assert result["symbol_mappings"]["BF.B"]["provider_ticker"] == "BF.B"
+
+
+def test_master_ordering_cannot_admit_foreign_and_cap_is_applied_after_policy(monkeypatch):
+    rows = [
+        {"symbol": "0001.HK", "exchange": "HKSE", "type": "Common Stock"},
+        {"symbol": "MSFT", "exchange": "NASDAQ", "type": "Common Stock"},
+        {"symbol": "AAPL", "exchange": "NASDAQ", "type": "Common Stock"},
+    ]
+    first = load_governed_universe(fmp_key="x", client=Client(rows, []))
+    second = load_governed_universe(fmp_key="x", client=Client(list(reversed(rows)), []))
+    assert first["stock_symbols"] == second["stock_symbols"] == ["AAPL", "MSFT"]
+    monkeypatch.setattr(scan, "load_governed_universe", lambda **_kwargs: first)
+    monkeypatch.setattr(scan, "MAX_UNIVERSE", 1)
+    assert scan.build_universe() == ["AAPL"]
+    assert "0001.HK" not in scan._GOVERNED_UNIVERSE_RESULT["stock_symbols"]
 
 
 def _empty_result(symbol: str, status: str, *, retryable: bool, http_status: int | None) -> pd.DataFrame:
