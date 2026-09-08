@@ -1,5 +1,6 @@
 from services.twelve_data_trial_intelligence import ENDPOINTS, acquire_twelve_trial_dossiers, normalize_trial_dossier
 from services.share_structure_governance import materialize_share_bridge
+import pytest
 
 
 class Response:
@@ -54,7 +55,8 @@ def test_statistics_normalize_missing_fundamentals_without_overwriting_atlas_val
     assert row["earnings_growth"] == 25
     assert row["operating_profit_margin"] == 18
     assert row["current_ratio"] == 1.6
-    assert row["free_cash_flow"] == 1000
+    assert "free_cash_flow" not in row
+    assert row["provider_defined_fcf"] == 1000
 
 
 def test_zero_cash_flow_values_are_preserved_as_real_evidence():
@@ -62,7 +64,8 @@ def test_zero_cash_flow_values_are_preserved_as_real_evidence():
         "cash_flow": {"levered_free_cash_flow_ttm": 0, "operating_cash_flow_ttm": 0},
     }}}}}}
     row = normalize_trial_dossier({"ticker": "ZERO"}, dossier)
-    assert row["free_cash_flow"] == 0
+    assert "free_cash_flow" not in row
+    assert row["provider_defined_fcf"] == 0
     assert row["operating_cash_flow"] == 0
 
 
@@ -85,6 +88,41 @@ def test_forward_estimates_use_annual_forward_period_not_quarterly_record():
     assert row["forward_eps_period_type"] == "ANNUAL"
     assert row["forward_eps_basis"] == "UNKNOWN"
     assert len(row["forward_estimate_evidence"]["eps_periods"]) == 2
+
+
+def test_stale_yahoo_forward_eps_is_rejected_and_refetched_from_governed_estimate():
+    dossier = {"observed_at": "2026-09-08T00:00:00Z", "evidence_ids": ("TD-EPS",), "families": {
+        "earnings_estimate": {"payload": {"earnings_estimate": [
+            {"period": "next_year", "date": "2027-12-31", "avg_estimate": 8, "number_of_analysts": 12}
+        ]}}
+    }}
+    row = normalize_trial_dossier({"ticker": "FWD", "forward_eps": 99, "forward_eps_source": "YAHOO_INFO"}, dossier)
+    assert row["forward_eps"] == 8 and row["forward_eps_source"] == "TWELVE_DATA"
+    lineage = row["professional_evidence_lineage"]["fields"]["forward_eps"]
+    assert lineage["period"] == "2027-12-31" and lineage["analyst_count"] == 12
+
+
+def test_cash_flow_statement_capex_variant_creates_canonical_fcf_without_backsolve():
+    dossier = {"observed_at": "2026-09-08T00:00:00Z", "evidence_ids": ("TD-CF",), "families": {
+        "cash_flow": {"payload": {"cash_flow": [{"date": "2025-12-31", "free_cash_flow": 999,
+            "capital_expenditure": -30, "operating_activities": {"operating_cash_flow": 150}}]}}
+    }}
+    row = normalize_trial_dossier({"ticker": "FCF"}, dossier)
+    assert row["capital_expenditures"] == -30 and row["free_cash_flow"] == 120
+    assert row["provider_defined_fcf"] == 999
+    assert row["professional_evidence_lineage"]["fields"]["free_cash_flow"]["transformation"] == "OCF_MINUS_ABS_CAPEX"
+
+
+def test_cash_flow_mixed_period_evidence_does_not_publish_canonical_fcf():
+    dossier = {"families": {
+        "statistics": {"payload": {"statistics": {"financials": {"cash_flow": {"operating_cash_flow_ttm": 150}}}}},
+        "cash_flow": {"payload": {"cash_flow": [{"date": "2025-12-31", "capital_expenditure": -30,
+                                                    "free_cash_flow": 120}]}}
+    }}
+    row = normalize_trial_dossier({"ticker": "MIXED"}, dossier)
+    assert row["operating_cash_flow"] == 150 and row["capital_expenditures"] == -30
+    assert "free_cash_flow" not in row
+    assert row["provider_defined_fcf"] == 120
 
 
 def test_professional_capital_and_reporting_lineage_is_normalized_without_fabrication():
@@ -119,6 +157,21 @@ def test_adr_share_bridge_preserves_reported_values_and_applies_ratio():
     assert structure["adr_ratio"] == 6
     assert structure["market_cap_reconciliation_shares"] == 30
     assert structure["market_cap_reconciliation_method"] == "ADR_RATIO_ADJUSTED_ORDINARY_SHARES"
+
+
+@pytest.mark.parametrize(("ticker", "ratio"), [("TSM", 5), ("BEKE", 3), ("DRD", 10)])
+def test_regression_sensitive_adr_ratios_use_economic_share_bridge(ticker, ratio):
+    row = materialize_share_bridge({"ticker": ticker, "current_price": 10, "market_cap": 100,
+                                    "current_shares_outstanding": 10 * ratio})
+    assert row["share_structure"]["market_cap_reconciliation_shares"] == 10
+    assert row["share_structure"]["classification"] == "ADR_RATIO"
+
+
+def test_qsr_dual_class_uses_provider_implied_total_economic_shares():
+    row = materialize_share_bridge({"ticker": "QSR", "current_price": 10, "market_cap": 150,
+                                    "current_shares_outstanding": 10})
+    assert row["share_structure"]["classification"] == "DUAL_CLASS"
+    assert row["share_structure"]["market_cap_reconciliation_shares"] == 15
 
 
 def test_dual_class_bridge_is_explicit_and_does_not_replace_reported_shares():

@@ -15,6 +15,7 @@ from typing import Any, Callable, Mapping, Sequence
 import requests
 
 from services.data_mode_policy import internal_trial_mode
+from services.evidence_lineage_governance import CACHE_GENERATION_VERSION, PROVIDER_ARCHITECTURE_VERSION
 from services.live_market.twelve_data_phase1 import REST_BASE, load_twelve_data_setting, normalize_ticker
 
 
@@ -36,7 +37,7 @@ def acquire_twelve_trial_dossiers(
     symbols: Sequence[str], *, get: Callable[..., Any] = requests.get,
     secrets: Mapping[str, Any] | None = None, environ: Mapping[str, str] | None = None,
     max_workers: int = 6, timeout: float = 12, endpoints: Sequence[str] = ENDPOINTS,
-    evidence_cache: dict[tuple[str, str, str], Mapping[str, Any]] | None = None,
+    evidence_cache: dict[tuple[str, str, str, str], Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     if not internal_trial_mode(environ=environ, secrets=secrets):
         return {"version": VERSION, "status": "DISABLED", "dossiers": {}, "provider_calls": 0}
@@ -62,6 +63,8 @@ def acquire_twelve_trial_dossiers(
             error = isinstance(payload, Mapping) and str(payload.get("status") or "").lower() == "error"
             envelope = {
                 "status": "DATA_UNAVAILABLE" if error else "AVAILABLE", "provider": "TWELVE_DATA",
+                "provider_architecture_version": PROVIDER_ARCHITECTURE_VERSION,
+                "cache_generation_version": CACHE_GENERATION_VERSION,
                 "endpoint": family, "observed_at": observed,
                 "evidence_id": _evidence_id(symbol, family, observed),
                 "payload": payload if not error else None,
@@ -77,7 +80,7 @@ def acquire_twelve_trial_dossiers(
         futures = []
         for symbol in clean:
             for family in selected:
-                cache_key = (VERSION, symbol, family)
+                cache_key = (CACHE_GENERATION_VERSION, VERSION, symbol, family)
                 cached = cache.get(cache_key)
                 if cached and cached.get("status") == "AVAILABLE":
                     dossiers[symbol]["families"][family] = dict(cached)
@@ -88,7 +91,7 @@ def acquire_twelve_trial_dossiers(
             symbol, family, envelope, meta = future.result()
             dossiers[symbol]["families"][family] = envelope
             if envelope.get("status") == "AVAILABLE":
-                cache[(VERSION, symbol, family)] = dict(envelope)
+                cache[(CACHE_GENERATION_VERSION, VERSION, symbol, family)] = dict(envelope)
             telemetry.append(meta)
     successes = sum(item["success"] for item in telemetry)
     for dossier in dossiers.values():
@@ -153,6 +156,15 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
     """Merge only missing evidence fields; never overwrite an ATLAS value."""
     output = dict(row)
     preexisting = dict(output)
+    from services.evidence_lineage_governance import is_disallowed_provider
+    # A pre-migration estimate may not survive merely because it is populated.
+    # Reject its value and provenance; replacement requires newly acquired evidence.
+    if is_disallowed_provider(output.get("forward_eps_source")) or is_disallowed_provider(
+        (output.get("forward_eps_lineage") or {}).get("provider") if isinstance(output.get("forward_eps_lineage"), Mapping) else None
+    ):
+        for key in tuple(output):
+            if key == "forward_eps" or key.startswith("forward_eps_"):
+                output.pop(key, None)
     families = dossier.get("families") if isinstance(dossier.get("families"), Mapping) else {}
     payload = lambda family: (families.get(family) or {}).get("payload") or {}
     stats = _nested(payload("statistics"), "statistics") or {}
@@ -165,16 +177,34 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
     income = _first_record(payload("income_statement"), "income_statement")
     balance = _first_record(payload("balance_sheet"), "balance_sheet")
     cash = _first_record(payload("cash_flow"), "cash_flow")
+    stats_ocf = cash_stats.get("operating_cash_flow_ttm")
+    stats_capex = cash_stats.get("capital_expenditures_ttm")
+    statement_ocf = _nested(cash, "operating_activities", "operating_cash_flow")
+    statement_capex = _coalesce(_nested(cash, "investing_activities", "capital_expenditures"), cash.get("capital_expenditures"), cash.get("capital_expenditure"))
+    cash_flow_pair_compatible = False
+    if stats_ocf is not None and stats_capex is not None:
+        canonical_ocf, canonical_capex, cash_period, cash_period_type = stats_ocf, stats_capex, "TTM", "TTM"
+        cash_flow_pair_compatible = True
+    elif statement_ocf is not None and statement_capex is not None:
+        canonical_ocf, canonical_capex = statement_ocf, statement_capex
+        cash_period = _coalesce(cash.get("fiscal_date"), cash.get("date"), cash.get("fiscal_year"))
+        cash_period_type = str(cash.get("period") or "REPORTED").upper()
+        cash_flow_pair_compatible = True
+    else:
+        canonical_ocf = _coalesce(stats_ocf, statement_ocf)
+        canonical_capex = _coalesce(stats_capex, statement_capex)
+        cash_period = "TTM" if stats_ocf is not None or stats_capex is not None else _coalesce(cash.get("fiscal_date"), cash.get("date"), cash.get("fiscal_year"))
+        cash_period_type = "TTM" if cash_period == "TTM" else str(cash.get("period") or "REPORTED").upper()
     values = {
         "revenue_growth": _pct(income_stats.get("quarterly_revenue_growth")),
         "earnings_growth": _pct(income_stats.get("quarterly_earnings_growth_yoy")),
         "operating_profit_margin": _pct(financials.get("operating_margin")),
-        "free_cash_flow": _coalesce(cash_stats.get("levered_free_cash_flow_ttm"), cash.get("free_cash_flow")),
+        "free_cash_flow": None,
         "current_ratio": balance_stats.get("current_ratio_mrq"),
         "latest_revenue": _coalesce(income_stats.get("revenue_ttm"), income.get("sales")),
         "latest_operating_income": income.get("operating_income"),
         "net_income": income.get("net_income"),
-        "operating_cash_flow": _coalesce(cash_stats.get("operating_cash_flow_ttm"), _nested(cash, "operating_activities", "operating_cash_flow")),
+        "operating_cash_flow": canonical_ocf,
         "total_debt": _coalesce(balance_stats.get("total_debt_mrq"), _nested(balance, "liabilities", "current_liabilities", "short_term_debt") if _nested(balance, "liabilities", "non_current_liabilities", "long_term_debt") is None else (_nested(balance, "liabilities", "current_liabilities", "short_term_debt") or 0) + (_nested(balance, "liabilities", "non_current_liabilities", "long_term_debt") or 0)),
         "cash_and_equivalents": _coalesce(balance_stats.get("total_cash_mrq"), _nested(balance, "assets", "current_assets", "cash_and_cash_equivalents")),
         "market_cap": _coalesce(valuation_stats.get("market_capitalization"), stats.get("market_capitalization"), stats.get("market_cap")),
@@ -183,7 +213,7 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
         "current_shares_outstanding": stock_stats.get("shares_outstanding"),
         "forward_ebitda": _coalesce(_nested(financials,"income_statement","ebitda"), financials.get("ebitda_ttm"), income.get("ebitda")),
         "ebit": _coalesce(income.get("ebit"), income.get("operating_income")),
-        "capital_expenditures": _coalesce(cash_stats.get("capital_expenditures_ttm"), _nested(cash,"investing_activities","capital_expenditures"), cash.get("capital_expenditures")),
+        "capital_expenditures": canonical_capex,
         "depreciation_amortization": _coalesce(_nested(cash,"operating_activities","depreciation"), cash.get("depreciation_and_amortization"), cash.get("depreciation")),
         "beta": _coalesce(stock_stats.get("beta"), stats.get("beta")),
         "provider_forward_pe": valuation_stats.get("forward_pe"),
@@ -194,13 +224,22 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
         if output.get(key) in (None, "", "Unavailable") and value is not None:
             output[key] = value
             twelve_populated_fields.add(key)
+    provider_fcf = _coalesce(cash_stats.get("levered_free_cash_flow_ttm"), cash.get("free_cash_flow"))
+    output["provider_defined_fcf"] = provider_fcf
+    statement_period = cash_period
     try:
+        if not cash_flow_pair_compatible:
+            raise ValueError("cash-flow period mismatch")
         ocf_value = float(output["operating_cash_flow"])
         capex_value = float(output["capital_expenditures"])
-        output["provider_defined_fcf"] = output.get("free_cash_flow")
-        output["normalized_fcf"] = ocf_value - abs(capex_value)
+        canonical_fcf = ocf_value - abs(capex_value)
+        output["normalized_fcf"] = canonical_fcf
+        output["free_cash_flow"] = canonical_fcf
+        output["free_cash_flow_period"] = statement_period
+        output["free_cash_flow_period_type"] = cash_period_type
+        output["free_cash_flow_basis"] = "OCF_MINUS_ABS_CAPEX"
     except (KeyError, TypeError, ValueError):
-        pass
+        output.pop("free_cash_flow", None)
     profile = payload("profile")
     if isinstance(profile, Mapping):
         for target, source in (("description", "description"), ("sector", "sector"), ("industry", "industry")):
@@ -225,6 +264,9 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
         output["forward_eps_period_type"] = "ANNUAL"
         output["forward_eps_basis"] = str(eps_est.get("basis") or "UNKNOWN").upper()
         output["forward_eps_source"] = "TWELVE_DATA"
+        output["forward_eps_observed_at"] = dossier.get("observed_at")
+        output["forward_eps_evidence_id"] = (families.get("earnings_estimate") or {}).get("evidence_id")
+        output["forward_eps_freshness"] = "OBSERVED_AT_RECORDED"
     if output.get("forward_revenue") is None and rev_est.get("avg_estimate") is not None:
         output["forward_revenue"] = rev_est["avg_estimate"]
         output["forward_revenue_period"] = rev_est.get("date")
@@ -250,8 +292,8 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
         "latest_revenue": (("statistics", "statistics.financials.income_statement.revenue_ttm", income_stats.get("revenue_ttm")), ("income_statement", "income_statement[0].sales", income.get("sales"))),
         "latest_operating_income": (("income_statement", "income_statement[0].operating_income", income.get("operating_income")),),
         "operating_cash_flow": (("statistics", "statistics.financials.cash_flow.operating_cash_flow_ttm", cash_stats.get("operating_cash_flow_ttm")), ("cash_flow", "cash_flow[0].operating_activities.operating_cash_flow", _nested(cash,"operating_activities","operating_cash_flow"))),
-        "free_cash_flow": (("statistics", "statistics.financials.cash_flow.levered_free_cash_flow_ttm", cash_stats.get("levered_free_cash_flow_ttm")), ("cash_flow", "cash_flow[0].free_cash_flow", cash.get("free_cash_flow"))),
-        "capital_expenditures": (("statistics", "statistics.financials.cash_flow.capital_expenditures_ttm", cash_stats.get("capital_expenditures_ttm")), ("cash_flow", "cash_flow[0].investing_activities.capital_expenditures", _nested(cash,"investing_activities","capital_expenditures"))),
+        "free_cash_flow": (),
+        "capital_expenditures": (("statistics", "statistics.financials.cash_flow.capital_expenditures_ttm", cash_stats.get("capital_expenditures_ttm")), ("cash_flow", "cash_flow[0].investing_activities.capital_expenditures", _nested(cash,"investing_activities","capital_expenditures")), ("cash_flow", "cash_flow[0].capital_expenditure", cash.get("capital_expenditure"))),
         "total_debt": (("statistics", "statistics.financials.balance_sheet.total_debt_mrq", balance_stats.get("total_debt_mrq")),),
         "cash_and_equivalents": (("statistics", "statistics.financials.balance_sheet.total_cash_mrq", balance_stats.get("total_cash_mrq")), ("balance_sheet", "balance_sheet[0].assets.current_assets.cash_and_cash_equivalents", _nested(balance,"assets","current_assets","cash_and_cash_equivalents"))),
         "market_cap": (("statistics", "statistics.valuations_metrics.market_capitalization", valuation_stats.get("market_capitalization")), ("statistics", "statistics.market_capitalization", stats.get("market_capitalization"))),
@@ -276,6 +318,16 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
                 "consuming_methodology": "ATLAS_PROFESSIONAL_VALUATION_V2",
             }
     output["professional_evidence_lineage"]["fields"] = field_lineage
+    if output.get("free_cash_flow") is not None:
+        output["professional_evidence_lineage"]["fields"]["free_cash_flow"] = {
+            "provider": "ATLAS_CALCULATED", "endpoint": "cash_flow", "raw_field": "operating_cash_flow,capital_expenditures",
+            "raw_value": {"operating_cash_flow": output.get("operating_cash_flow"), "capital_expenditures": output.get("capital_expenditures")},
+            "canonical_field": "free_cash_flow", "normalized_value": output.get("free_cash_flow"),
+            "ticker": str(output.get("ticker") or output.get("symbol") or "").upper(), "period": statement_period,
+            "period_type": "REPORTED", "basis": "OCF_MINUS_ABS_CAPEX", "currency": "USD", "unit": "CURRENCY",
+            "as_of": dossier.get("observed_at"), "transformation": "OCF_MINUS_ABS_CAPEX",
+            "evidence_ids": tuple(dossier.get("evidence_ids") or ()), "consuming_methodology": "ATLAS_PROFESSIONAL_VALUATION_V2",
+        }
     output["professional_evidence_lineage"]["preexisting_fields_not_attributed_to_twelve"] = sorted(
         key for key, value in values.items() if value is not None and key not in twelve_populated_fields
     )
@@ -292,7 +344,7 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
         }
         for row_field, canonical_field in primary_map.items():
             value = preexisting.get(row_field)
-            if value is None:
+            if value is None or output.get(row_field) != value:
                 continue
             output["professional_evidence_lineage"]["fields"][canonical_field] = {
                 "provider": "FMP", "endpoint": "+".join(fmp_provenance.get("endpoint_families") or ()),

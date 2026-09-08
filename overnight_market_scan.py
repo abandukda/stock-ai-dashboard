@@ -2585,7 +2585,7 @@ def score_etf_row(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any]) -> Opt
             "assets_under_management": meta.get("fund_total_assets"),
             "top_holdings": [],
             "holdings_status": "DATA_UNAVAILABLE",
-            "provider": "YAHOO_INFO",
+            "provider": "FMP",
             "evidence_timestamp": now_iso(),
         },
         # V41.6 price history fields are merged after row creation.
@@ -2715,10 +2715,18 @@ def get_fmp_financial_intelligence(symbol: str) -> Dict[str, Any]:
 
     if isinstance(cashflow, list) and cashflow:
         latest_cf = cashflow[0] or {}
+        capex = safe_float(latest_cf.get("capitalExpenditure"))
+        if capex is None:
+            capex = safe_float(latest_cf.get("capitalExpenditures"))
+        ocf = safe_float(latest_cf.get("operatingCashFlow"))
+        canonical_fcf = ocf - abs(capex) if ocf is not None and capex is not None else None
         result.update({
-            "operating_cash_flow": safe_float(latest_cf.get("operatingCashFlow")),
-            "free_cash_flow": safe_float(latest_cf.get("freeCashFlow")),
-            "capex": safe_float(latest_cf.get("capitalExpenditure")),
+            "operating_cash_flow": ocf,
+            "free_cash_flow": canonical_fcf,
+            "provider_defined_fcf": safe_float(latest_cf.get("freeCashFlow")),
+            "capex": capex,
+            "cash_flow_period": latest_cf.get("date") or latest_cf.get("fiscalDateEnding"),
+            "cash_flow_basis": "OCF_MINUS_ABS_CAPEX" if canonical_fcf is not None else "UNAVAILABLE",
         })
 
     if isinstance(ratios, list) and ratios:

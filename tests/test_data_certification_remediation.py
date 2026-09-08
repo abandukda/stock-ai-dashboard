@@ -24,6 +24,11 @@ def test_provider_quality_uses_metric_specific_reconciliation_results():
     assert quality["records_checked"]==1
     assert quality["agreement_rate"]==100
     assert quality["secondary_validators"]=={"TWELVE_DATA":1}
+    assert quality["secondary_validation_attempted"]==1
+    assert quality["secondary_validation_success"]==1
+    assert quality["secondary_validation_unavailable"]==0
+    assert quality["secondary_validation_incompatible"]==0
+    assert quality["secondary_validation_failure"]==0
 
 
 def test_bounded_fmp_secondary_preserves_share_concepts_and_lineage():

@@ -62,7 +62,7 @@ def provider_quality(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     metrics = ("revenue","net_income","eps","ebitda","operating_cash_flow","capex","free_cash_flow","cash","debt","current_shares_outstanding","diluted_shares","forward_eps","forward_revenue")
     output = {}
     for metric in metrics:
-        checked=agreed=diverged=missing=0; primary=Counter(); secondary=Counter()
+        checked=agreed=diverged=missing=incompatible=0; primary=Counter(); secondary=Counter()
         for record in records:
             lineage=(record.get("input_lineage") or {}).get(metric) or {}
             reconciliation=(record.get("checks") or {}).get("input_reconciliation") or {}
@@ -72,10 +72,17 @@ def provider_quality(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             if agreement:
                 checked+=1;agreed+=1;secondary[str(agreement.get("secondary_source"))]+=1
             elif divergence:
-                checked+=1;diverged+=1;secondary[str(divergence.get("secondary_source"))]+=1
+                if not divergence.get("period_match", True) or not divergence.get("basis_match", True): incompatible+=1
+                else: checked+=1;diverged+=1
+                secondary[str(divergence.get("secondary_source"))]+=1
             else: missing+=1
         total=len(records)
         output[metric]={"primary_providers":dict(primary),"secondary_validators":dict(secondary),"records_checked":checked,
+                        "secondary_validation_attempted":checked+incompatible,
+                        "secondary_validation_success":agreed,
+                        "secondary_validation_unavailable":missing,
+                        "secondary_validation_incompatible":incompatible,
+                        "secondary_validation_failure":diverged,
                         "agreement_rate":round(agreed/checked*100,2) if checked else None,
                         "divergence_rate":round(diverged/checked*100,2) if checked else None,
                         "missing_rate":round(missing/total*100,2) if total else None,

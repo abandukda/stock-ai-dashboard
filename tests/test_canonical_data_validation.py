@@ -68,7 +68,19 @@ def test_provider_defined_fcf_is_preserved_while_standard_fcf_is_authoritative()
     assert result["checks"]["fcf_reconciliation"]["provider_defined_fcf"] == 50
     assert result["checks"]["fcf_reconciliation"]["atlas_standard_fcf"] == 100
     assert result["checks"]["fcf_reconciliation"]["canonical_authority"] == "ATLAS_STANDARD_FCF"
+    assert result["checks"]["fcf_reconciliation"]["difference_classification"] == "VALID_PROVIDER_DEFINITION_DIFFERENCE"
     assert "EV_BRIDGE_FAILURE" in result["warnings"]
+
+
+def test_market_cap_bridge_uses_governed_adr_economic_share_basis_not_diluted_eps_shares():
+    row = _row(ticker="TSM")
+    trial = row["canonical_investment_evaluation"]["trial_presentation_fields"]
+    trial.update({"current_shares_outstanding": 50, "diluted_shares": 47, "market_cap": 1_000,
+                  "share_structure": {"classification": "ADR_RATIO", "adr_ratio": 5,
+                                      "market_cap_reconciliation_shares": 10}})
+    result = validate_valuation(row)
+    assert result["checks"]["market_cap_bridge"]["status"] == "PASS"
+    assert result["checks"]["market_cap_bridge"]["economic_reconciliation_shares"] == 10
 
 
 def test_extreme_dispersion_and_sector_routing_require_review():
