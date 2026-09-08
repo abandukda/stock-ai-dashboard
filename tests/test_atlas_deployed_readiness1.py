@@ -223,10 +223,80 @@ def test_targeted_and_full_paths_supply_checkout_sha_and_preserve_login_timeout(
     source = (ROOT / "agents/atlas_runtime_qa_v3.py").read_text(encoding="utf-8")
     assert source.count('expected_sha=versions["source_commit"]') == 2
     assert "LOGIN_TIMEOUT_SECONDS = 240" in source
-    assert "DEPLOYED_READINESS_TIMEOUT_SECONDS = 60" in source
+    assert 'DEPLOYED_READINESS_TIMEOUT_SECONDS = int(os.getenv("ATLAS_QA_READINESS_TIMEOUT_SECONDS", "180"))' in source
     assert 'except DeploymentReadinessError as exc:' in source
     assert 'base["status"] = exc.classification' in source
     auth_source = source[source.index("async def _authenticate_and_confirm"):source.index("async def _open_and_authenticate")]
     assert "_rendered_streamlit_exception(page)" in auth_source
     assert 'DeploymentReadinessError("DEPLOYMENT_DEFECT"' in auth_source
     assert "traceback.format_exc" not in auth_source
+
+
+def test_public_streamlit_url_is_normalized_without_inventing_host_route():
+    assert qa._canonical_streamlit_url("stock-ai-dashboard.streamlit.app?x=secret") == (
+        "https://stock-ai-dashboard.streamlit.app/"
+    )
+    assert qa._canonical_streamlit_url("http://stock-ai-dashboard.streamlit.app/research") == (
+        "https://stock-ai-dashboard.streamlit.app/research"
+    )
+
+
+def test_open_records_resolved_host_transition_and_wake(monkeypatch):
+    class Response:
+        status = 200
+
+    class Page:
+        url = "https://stock-ai-dashboard.streamlit.app/"
+        async def goto(self, url, **_kwargs):
+            self.url = url
+            return Response()
+
+    async def shell(_page): return None
+    async def wake(_page): return True
+    monkeypatch.setattr(qa, "_wait_for_streamlit_shell", shell)
+    monkeypatch.setattr(qa, "_wake_if_needed", wake)
+    result = asyncio.run(qa._open_streamlit_origin(Page(), "stock-ai-dashboard.streamlit.app"))
+    assert result == {
+        "requested_url": "https://stock-ai-dashboard.streamlit.app/",
+        "resolved_url": "https://stock-ai-dashboard.streamlit.app/",
+        "document_status": 200,
+        "streamlit_public_host": True,
+        "wake_control_used": True,
+        "navigation_attempts": 1,
+        "navigation_error_categories": [],
+    }
+
+
+def test_open_retries_transient_navigation_failure_without_skipping_login(monkeypatch):
+    class Response: status = 200
+    class Page:
+        url = ""
+        calls = 0
+        async def goto(self, url, **_kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                raise TimeoutError("transient hosting shell")
+            self.url = url
+            return Response()
+        async def wait_for_timeout(self, _milliseconds): return None
+    async def shell(_page): return None
+    async def wake(_page): return False
+    monkeypatch.setattr(qa, "_wait_for_streamlit_shell", shell)
+    monkeypatch.setattr(qa, "_wake_if_needed", wake)
+    result = asyncio.run(qa._open_streamlit_origin(Page(), qa.DEFAULT_URL))
+    assert result["navigation_attempts"] == 2
+    assert result["navigation_error_categories"] == ["TimeoutError"]
+
+
+@pytest.mark.parametrize("path,status", [
+    ("/api/v2/user/details", 401),
+    ("/api/v1/app/event/open", 404),
+    ("/_stcore/health", 404),
+    ("/_stcore/stream", 401),
+])
+def test_hosting_bootstrap_responses_are_not_product_defects(path, status):
+    result = qa._classify_failed_request(
+        f"https://stock-ai-dashboard.streamlit.app{path}?redacted=yes", status,
+    )
+    assert result["relevance"] in {"NOT_ATLAS_FUNCTIONALITY", "HOSTING_READINESS_ONLY"}
+    assert "redacted" not in str(result)
