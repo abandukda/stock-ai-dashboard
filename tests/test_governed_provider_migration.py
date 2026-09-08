@@ -26,11 +26,13 @@ def test_production_yahoo_dependency_count_is_zero():
 
 def test_governed_universe_validates_supported_listings():
     class Client:
-        def get(self, family, _params):
+        def get(self, family, params):
             payload = ([{"symbol": "MSFT", "exchangeShortName": "NASDAQ", "isActivelyTrading": True},
                         {"symbol": "OLD", "exchangeShortName": "NYSE", "isActivelyTrading": False},
                         {"symbol": "BAD.L", "exchangeShortName": "LSE", "isActivelyTrading": True}]
-                       if family == "stock-list" else [{"symbol": "SPY", "exchangeShortName": "ARCA"}])
+                       if params["exchange"] == "NASDAQ" and params["isEtf"] == "false"
+                       else ([{"symbol": "SPY", "exchangeShortName": "ARCA", "isEtf": True}]
+                             if params["exchange"] == "NASDAQ" else []))
             return type("R", (), {"payload": payload, "outcome": "SUCCESS", "attempts": 1})()
     result = load_governed_universe(fmp_key="secret", client=Client())
     assert result["symbols"] == ["MSFT", "SPY"]

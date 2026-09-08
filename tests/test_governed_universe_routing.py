@@ -19,9 +19,16 @@ from services.governed_market_cache import (
 class Client:
     def __init__(self, stock, etf):
         self.stock, self.etf = stock, etf
+        self.calls = []
 
-    def get(self, family, _params):
-        return FMPResponse(self.stock if family == "stock-list" else self.etf,
+    def get(self, family, params):
+        self.calls.append((family, dict(params)))
+        # One populated partition is enough to exercise malformed/foreign rows;
+        # the remaining exchange-scoped responses are valid empty partitions.
+        payload = []
+        if params["exchange"] == "NASDAQ":
+            payload = self.etf if params["isEtf"] == "true" else self.stock
+        return FMPResponse(payload,
                            SUCCESS, family, "2026-09-08T00:00:00Z", 200, 1)
 
 
@@ -48,6 +55,18 @@ def test_pre_acquisition_cleanup_and_separate_etf_routing():
     }
 
 
+def test_company_screener_is_exchange_scoped_and_stock_etf_routes_are_separate():
+    client = Client([], [])
+    load_governed_universe(fmp_key="x", client=client)
+    assert {family for family, _params in client.calls} == {"company-screener"}
+    assert {params["exchange"] for _family, params in client.calls} == {
+        "NASDAQ", "NYSE", "AMEX", "ARCA", "BATS",
+    }
+    assert {params["isEtf"] for _family, params in client.calls} == {"true", "false"}
+    assert all(params["isActivelyTrading"] == "true" for _family, params in client.calls)
+    assert all(params["isFund"] == "false" for _family, params in client.calls)
+
+
 def test_exchange_resolution_fails_closed_before_stock_or_etf_routing():
     stock = [
         {"symbol": "0001.HK", "name": "Foreign blank", "exchangeShortName": "", "country": "HK"},
@@ -60,27 +79,34 @@ def test_exchange_resolution_fails_closed_before_stock_or_etf_routing():
         {"symbol": "DRD", "exchangeShortName": "NYSE", "country": "ZA", "type": "ADR"},
         {"symbol": "UMC", "exchangeShortName": "NYSE", "country": "TW", "type": "ADS"},
         {"symbol": "PKX", "exchangeShortName": "NYSE", "country": "KR", "type": "ADR"},
-        {"symbol": "AAPL", "exchangeFullName": "NASDAQ Global Select", "country": "US", "type": "Common Stock"},
+        {"symbol": "AAPL", "exchangeFullName": "NASDAQ Global Select", "country": "US", "type": "Common Stock", "isActivelyTrading": True},
+        {"symbol": "MSFT", "exchangeShortName": "NASDAQ", "country": "US", "type": "Common Stock"},
+        {"symbol": "JNJ", "exchangeShortName": "NYSE", "country": "US", "type": "Common Stock"},
     ]
     etfs = [
         {"symbol": "2800.HK", "exchange": "HKSE", "isEtf": True},
         {"symbol": "SPY", "exchange": "NYSE Arca", "isEtf": True},
     ]
     result = load_governed_universe(fmp_key="x", client=Client(stock, etfs))
-    assert set(result["stock_symbols"]) == {"AAPL", "BEKE", "BP", "DRD", "PKX", "SHEL", "TSM", "UMC"}
+    assert set(result["stock_symbols"]) == {
+        "AAPL", "BEKE", "BP", "DRD", "JNJ", "MSFT", "PKX", "SHEL", "TSM", "UMC",
+    }
     assert result["etf_symbols"] == ["SPY"]
     assert not ({"0001.HK", "0001.KL", "VOD.L", "2800.HK"} & set(result["symbols"]))
     reasons = {row["ticker"]: row["reason"] for row in result["exclusions"]}
     assert reasons["0001.HK"] == "UNRESOLVED_LISTING_IDENTITY"
     assert reasons["0001.KL"] == reasons["VOD.L"] == reasons["2800.HK"] == "NON_US_EXCHANGE_OUTSIDE_STOCK_POLICY"
-    assert result["summary"]["raw_global_master_count"] == 13
-    assert result["summary"]["resolved_us_listing_count"] == 9
+    assert result["summary"]["raw_global_master_count"] == 15
+    assert result["summary"]["resolved_us_listing_count"] == 11
     assert result["summary"]["unresolved_listing_identity_count"] == 1
     assert result["summary"]["foreign_listing_removed_count"] == 3
-    assert result["summary"]["us_stock_universe_count"] == 8
+    assert result["summary"]["us_stock_universe_count"] == 10
     assert result["summary"]["us_etf_universe_count"] == 1
-    assert result["summary"]["stock_exchange_distribution"] == {"NASDAQ": 1, "NYSE": 7}
+    assert result["summary"]["stock_exchange_distribution"] == {"NASDAQ": 2, "NYSE": 8}
     assert result["summary"]["etf_exchange_distribution"] == {"ARCA": 1}
+    assert {"symbol", "exchangeShortName", "isActivelyTrading", "isEtf"} <= set(
+        result["diagnostics"]["observed_response_fields"]
+    )
     assert result["summary"]["representative_unresolved_symbols"][0]["ticker"] == "0001.HK"
     assert {row["ticker"] for row in result["summary"]["representative_foreign_symbols"]} == {
         "0001.KL", "VOD.L", "2800.HK",
@@ -119,6 +145,21 @@ def test_pre_twelve_assertion_rejects_unresolved_or_foreign_stock_identity():
             assert "GOVERNED_STOCK_EXCHANGE_ASSERTION_FAILED" in str(exc)
         else:
             raise AssertionError("invalid stock identity reached the Twelve acquisition boundary")
+
+
+def test_pre_twelve_stock_universe_contains_only_approved_resolved_us_exchanges():
+    result = load_governed_universe(fmp_key="x", client=Client([
+        {"symbol": "AAPL", "exchangeShortName": "NASDAQ", "isActivelyTrading": True},
+        {"symbol": "JNJ", "exchangeShortName": "NYSE", "isActivelyTrading": True},
+        {"symbol": "TSM", "exchangeShortName": "NYSE", "country": "TW", "type": "ADR"},
+        {"symbol": "0001.HK", "exchangeShortName": "HKSE", "isActivelyTrading": True},
+    ], []))
+    assert result["stock_symbols"] == ["AAPL", "JNJ", "TSM"]
+    assert all(
+        result["symbol_mappings"][symbol]["exchange_resolution_status"] == "RESOLVED_US"
+        and result["symbol_mappings"][symbol]["normalized_exchange"] in {"NASDAQ", "NYSE"}
+        for symbol in result["stock_symbols"]
+    )
 
 
 def test_class_share_mapping_is_traceable_and_canonical_without_duplicates():
