@@ -13,8 +13,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class Response:
-    status_code = 200
-    def __init__(self, payload): self.payload = payload
+    def __init__(self, payload, status_code=200):
+        self.payload = payload
+        self.status_code = status_code
     def json(self): return self.payload
 
 
@@ -59,6 +60,19 @@ def test_twelve_batch_deduplicates_dates_without_poisoning_other_symbols():
     assert diagnostics["market_history_success"] == 2
     assert diagnostics["market_history_duplicate_index_failure"] == 1
     assert diagnostics["market_history_schema_failure"] == 1
+
+
+def test_twelve_batch_retains_sanitized_http_failure_details():
+    frame = fetch_twelve_daily_batch(
+        ["MISS"], api_key="top-secret",
+        get=lambda *_a, **_k: Response({"message": "symbol unsupported top-secret"}, 400),
+    )
+    diagnostics = frame.attrs["governed_market_diagnostics"]
+    record = diagnostics["per_symbol_records"]["MISS"]
+    assert record["http_status"] == 400
+    assert record["failure_stage"] == "HTTP_RESPONSE"
+    assert record["provider_error_message"] == "symbol unsupported [REDACTED]"
+    assert "top-secret" not in str(diagnostics)
 
 
 def test_universe_comparison_never_hides_a_loss():

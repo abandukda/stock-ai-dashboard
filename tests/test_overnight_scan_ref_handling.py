@@ -19,3 +19,10 @@ def test_checkout_diagnostics_bind_audit_and_scan_to_same_commit():
         assert marker in WORKFLOW
     assert WORKFLOW.index("Record checkout diagnostics") < WORKFLOW.index("Enforce governed-provider boundary")
     assert WORKFLOW.index("Enforce governed-provider boundary") < WORKFLOW.index("Run overnight scan")
+
+
+def test_failed_scan_still_uploads_governed_market_diagnostics():
+    upload = WORKFLOW[WORKFLOW.index("- name: Upload exact scan candidate"):]
+    assert "if: always()" in upload
+    assert "governed_market_acquisition_diagnostics.json" in upload
+    assert "if-no-files-found: warn" in upload

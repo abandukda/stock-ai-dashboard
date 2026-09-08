@@ -77,6 +77,7 @@ UNIVERSE_FILE = DATA_DIR / "total_market_universe.json"
 PUBLICATION_MANIFEST_FILE = DATA_DIR / "publication_manifest.json"
 PUBLICATION_AUDIT_FILE = DATA_DIR / "publication_audit.jsonl"
 FAILED_PUBLICATION_FILE = DATA_DIR / "failed_publication_run.json"
+GOVERNED_MARKET_DIAGNOSTICS_FILE = DATA_DIR / "governed_market_acquisition_diagnostics.json"
 
 # =========================
 # V50.8.4 SCANNER STATE VERSION LOCK
@@ -457,10 +458,17 @@ def download_price_batch(symbols: List[str]) -> pd.DataFrame:
     aggregate_diagnostics = {"market_history_attempted": len(remaining), "market_history_success": 0,
         "market_history_unavailable": 0, "market_history_schema_failure": 0,
         "market_history_duplicate_index_failure": 0, "market_history_retry_success": 0,
-        "market_history_final_failure": 0, "per_symbol": {}}
+        "market_history_final_failure": 0, "per_symbol": {}, "per_symbol_records": {}}
+    attempts_by_symbol = {symbol: 0 for symbol in remaining}
     for attempt in range(3):
         try:
+            for symbol in remaining:
+                attempts_by_symbol[symbol] += 1
             data = fetch_twelve_daily_batch(remaining)
+            provider_diag = dict(getattr(data, "attrs", {}).get("governed_market_diagnostics") or {})
+            aggregate_diagnostics["market_history_duplicate_index_failure"] += int(provider_diag.get("market_history_duplicate_index_failure") or 0)
+            aggregate_diagnostics["per_symbol"].update(provider_diag.get("per_symbol") or {})
+            aggregate_diagnostics["per_symbol_records"].update(provider_diag.get("per_symbol_records") or {})
             if data is not None and not data.empty:
                 if not isinstance(data.columns, pd.MultiIndex):
                     return data
@@ -470,14 +478,21 @@ def download_price_batch(symbols: List[str]) -> pd.DataFrame:
                         collected[symbol] = data[symbol].copy()
                         if attempt:
                             aggregate_diagnostics["market_history_retry_success"] += 1
-                provider_diag = dict(data.attrs.get("governed_market_diagnostics") or {})
-                aggregate_diagnostics["market_history_duplicate_index_failure"] += int(provider_diag.get("market_history_duplicate_index_failure") or 0)
-                aggregate_diagnostics["per_symbol"].update(provider_diag.get("per_symbol") or {})
                 remaining = [symbol for symbol in remaining if symbol not in present]
                 if not remaining:
                     break
         except Exception as exc:
             print(f"Discovery batch attempt {attempt + 1} failed for {len(remaining)} symbols: {exc}")
+            for symbol in remaining:
+                aggregate_diagnostics["per_symbol"][symbol] = "REQUEST_EXCEPTION"
+                aggregate_diagnostics["per_symbol_records"][symbol] = {
+                    "requested_twelve_symbol": symbol,
+                    "requested_exchange": None,
+                    "acquisition_status": "REQUEST_EXCEPTION",
+                    "http_status": None,
+                    "provider_error_message": type(exc).__name__,
+                    "failure_stage": "HTTP_REQUEST",
+                }
         # Successful batches return immediately. Delay only after a failed or
         # empty governed-provider response, preserving exponential backoff without
         # charging every healthy batch a fixed sleep.
@@ -496,6 +511,15 @@ def download_price_batch(symbols: List[str]) -> pd.DataFrame:
     aggregate_diagnostics["market_history_final_failure"] = len(remaining)
     for symbol in remaining:
         aggregate_diagnostics["per_symbol"].setdefault(symbol, "FINAL_FAILURE")
+    for symbol in symbols:
+        record = dict(aggregate_diagnostics["per_symbol_records"].get(symbol) or {})
+        record.setdefault("requested_twelve_symbol", symbol)
+        record.setdefault("requested_exchange", None)
+        record["acquisition_status"] = aggregate_diagnostics["per_symbol"].get(symbol, "FINAL_FAILURE")
+        record["retry_count"] = max(0, attempts_by_symbol.get(symbol, 0) - 1)
+        if symbol in remaining:
+            record.setdefault("failure_stage", "FINAL_RETRY_EXHAUSTED")
+        aggregate_diagnostics["per_symbol_records"][symbol] = record
     aggregate_diagnostics["market_history_unavailable"] = sum(
         status == "UNAVAILABLE" for status in aggregate_diagnostics["per_symbol"].values()
     )
@@ -4008,8 +4032,85 @@ _GOVERNED_MARKET_COVERAGE: Dict[str, Any] = {
     "universe_count": 0, "market_history_attempted": 0, "market_history_success": 0,
     "market_history_unavailable": 0, "market_history_schema_failure": 0,
     "market_history_duplicate_index_failure": 0, "market_history_retry_success": 0,
-    "market_history_final_failure": 0, "per_symbol": {},
+    "market_history_final_failure": 0, "per_symbol": {}, "per_symbol_records": {},
 }
+_GOVERNED_MARKET_METADATA: Dict[str, Dict[str, Any]] = {}
+_GOVERNED_MARKET_EXCLUSION_REASONS: Dict[str, str] = {}
+_GOVERNED_MARKET_OBSERVATIONS: Dict[str, Dict[str, Any]] = {}
+
+
+def build_governed_market_acquisition_diagnostics(*, generated_at: str | None = None) -> Dict[str, Any]:
+    """Build the non-canonical, secret-free acquisition audit artifact."""
+    observed_at = generated_at or now_iso()
+    records: List[Dict[str, Any]] = []
+    statuses = _GOVERNED_MARKET_COVERAGE.get("per_symbol") or {}
+    details = _GOVERNED_MARKET_COVERAGE.get("per_symbol_records") or {}
+    attempted = sorted(set(statuses) | set(details))
+    success_states = {"SUCCESS", "SUCCESS_DEDUPLICATED"}
+    for symbol in attempted:
+        detail = dict(details.get(symbol) or {})
+        metadata = dict(_GOVERNED_MARKET_METADATA.get(symbol) or {})
+        observation = dict(_GOVERNED_MARKET_OBSERVATIONS.get(symbol) or {})
+        status = str(detail.get("acquisition_status") or statuses.get(symbol) or "FINAL_FAILURE")
+        average_volume = metadata.get("average_volume")
+        fmp_price = metadata.get("price")
+        dollar_volume = observation.get("dollar_volume")
+        if dollar_volume is None and fmp_price is not None and average_volume is not None:
+            try:
+                dollar_volume = float(fmp_price) * float(average_volume)
+            except (TypeError, ValueError):
+                dollar_volume = None
+        records.append({
+            "ticker": symbol,
+            "company_name": metadata.get("company_name"),
+            "exchange": metadata.get("exchange"),
+            "security_type": metadata.get("security_type"),
+            "security_subtype": metadata.get("security_subtype"),
+            "country": metadata.get("country"),
+            "requested_twelve_symbol": detail.get("requested_twelve_symbol") or symbol,
+            "requested_exchange": detail.get("requested_exchange"),
+            "acquisition_status": status,
+            "retry_count": int(detail.get("retry_count") or 0),
+            "http_status": detail.get("http_status"),
+            "provider_error_message": detail.get("provider_error_message"),
+            "failure_stage": detail.get("failure_stage"),
+            "final_classification": _GOVERNED_MARKET_EXCLUSION_REASONS.get(symbol),
+            "price": observation.get("price", fmp_price),
+            "market_cap": metadata.get("market_cap") or metadata.get("market_cap_ttm"),
+            "volume": observation.get("volume", metadata.get("volume")),
+            "average_volume": average_volume,
+            "dollar_volume": dollar_volume,
+            "is_actively_trading": metadata.get("is_actively_trading"),
+            "is_delisted": metadata.get("is_delisted"),
+            "is_etf": metadata.get("is_etf"),
+            "is_fund": metadata.get("is_fund"),
+            "timestamp": observed_at,
+        })
+    success_symbols = [row["ticker"] for row in records if row["acquisition_status"] in success_states]
+    failure_symbols = [row["ticker"] for row in records if row["acquisition_status"] not in success_states]
+    return {
+        "schema_version": "GOVERNED_MARKET_ACQUISITION_DIAGNOSTICS_V1",
+        "generated_at": observed_at,
+        "provider": "TWELVE_DATA",
+        "canonical_or_scoring_input": False,
+        "customer_publication_allowed": False,
+        "summary": {
+            "attempted_count": len(records),
+            "success_count": len(success_symbols),
+            "failure_count": len(failure_symbols),
+        },
+        "market_history_success_symbols": success_symbols,
+        "market_history_failure_symbols": failure_symbols,
+        "records": records,
+    }
+
+
+def persist_failure_safe_market_diagnostics(*, generated_at: str | None = None) -> Path:
+    candidate_dir = Path(os.getenv("ATLAS_CANDIDATE_OUTPUT_DIR", "audit_results/candidate_artifacts"))
+    candidate_dir.mkdir(parents=True, exist_ok=True)
+    destination = candidate_dir / GOVERNED_MARKET_DIAGNOSTICS_FILE.name
+    write_json(destination, build_governed_market_acquisition_diagnostics(generated_at=generated_at))
+    return destination
 _YAHOO_METADATA_LATENCIES: List[Tuple[str, float]] = []
 _ACTIVE_COMMITTEE_TIMING_SCOPE = ""
 def _empty_fmp_shadow_diagnostics() -> Dict[str, Any]:
@@ -4795,7 +4896,10 @@ def scan_market() -> Dict[str, Any]:
         _SCAN_TIMINGS[timing_key] = 0 if isinstance(_SCAN_TIMINGS[timing_key], int) else 0.0
     _YAHOO_METADATA_LATENCIES.clear()
     for key in tuple(_GOVERNED_MARKET_COVERAGE):
-        _GOVERNED_MARKET_COVERAGE[key] = {} if key == "per_symbol" else 0
+        _GOVERNED_MARKET_COVERAGE[key] = {} if key in {"per_symbol", "per_symbol_records"} else 0
+    _GOVERNED_MARKET_METADATA.clear()
+    _GOVERNED_MARKET_EXCLUSION_REASONS.clear()
+    _GOVERNED_MARKET_OBSERVATIONS.clear()
     _NEWSAPI_DIAGNOSTICS.clear()
     _FMP_SHADOW_RUN_DIAGNOSTICS.clear()
     _FMP_SHADOW_RUN_DIAGNOSTICS.update(_empty_fmp_shadow_diagnostics())
@@ -4816,6 +4920,11 @@ def scan_market() -> Dict[str, Any]:
             "freshness": {"status": "TEMPORARILY_UNAVAILABLE"},
             "run_diagnostics": {"requests": 0, "sanitized_outcome": "LOCAL_SHADOW_FAILURE"},
         }
+    _GOVERNED_MARKET_METADATA.update({
+        str(symbol).upper(): build_fmp_candidate_metadata(record)
+        for symbol, record in (fmp_bulk_shadow.get("records") or {}).items()
+        if isinstance(record, Mapping)
+    })
 
     universe_payload = {
         "generated_at": now_iso(),
@@ -4838,6 +4947,7 @@ def scan_market() -> Dict[str, Any]:
         discovery_exclusions[reason] = discovery_exclusions.get(reason, 0) + 1
         if symbol:
             discovery_exclusion_records.append({"ticker": symbol, "reason": reason})
+            _GOVERNED_MARKET_EXCLUSION_REASONS[symbol] = reason
     etf_rows: List[Dict[str, Any]] = []
 
     metadata_cache: Dict[str, Dict[str, Any]] = {}
@@ -4864,10 +4974,15 @@ def scan_market() -> Dict[str, Any]:
                     "market_history_retry_success", "market_history_final_failure"):
             _GOVERNED_MARKET_COVERAGE[key] += int(batch_diagnostics.get(key) or 0)
         _GOVERNED_MARKET_COVERAGE["per_symbol"].update(batch_diagnostics.get("per_symbol") or {})
+        _GOVERNED_MARKET_COVERAGE["per_symbol_records"].update(batch_diagnostics.get("per_symbol_records") or {})
 
         for symbol in batch:
             hist = extract_symbol_history(price_data, symbol)
             ind = compute_indicators(hist)
+            if ind:
+                _GOVERNED_MARKET_OBSERVATIONS[symbol] = {
+                    key: ind.get(key) for key in ("price", "volume", "dollar_volume")
+                }
             if not ind:
                 acquisition_status = _GOVERNED_MARKET_COVERAGE["per_symbol"].get(symbol)
                 record_discovery_exclusion(
@@ -5463,7 +5578,10 @@ def scan_market() -> Dict[str, Any]:
             "architecture_experiment": discovery_experiment,
             "exclusion_reason_counts": discovery_exclusions,
             "governed_market_coverage": {
-                **{key: value for key, value in _GOVERNED_MARKET_COVERAGE.items() if key != "per_symbol"},
+                **{
+                    key: value for key, value in _GOVERNED_MARKET_COVERAGE.items()
+                    if key not in {"per_symbol", "per_symbol_records"}
+                },
                 "coverage_pct": round(
                     100 * _GOVERNED_MARKET_COVERAGE["market_history_success"]
                     / max(1, _GOVERNED_MARKET_COVERAGE["market_history_attempted"]), 2
@@ -5494,6 +5612,9 @@ def scan_market() -> Dict[str, Any]:
         "newsapi": _newsapi_diagnostic_summary(),
         "fmp_shadow": _persisted_fmp_shadow_diagnostics(),
     }
+    governed_market_diagnostics = build_governed_market_acquisition_diagnostics(
+        generated_at=state["generated_at"]
+    )
     output_started = time.monotonic()
     hard_governance = os.getenv("ATLAS_HARD_PUBLICATION_GOVERNANCE_ENABLED", "true").lower() == "true"
     if hard_governance:
@@ -5516,6 +5637,7 @@ def scan_market() -> Dict[str, Any]:
             FULL_EVALUATION_FILE: full_evaluation_rows,
             RECOVERY_SCAN_FILE: recovery_rows, ETF_SCAN_FILE: etf_rows,
             UNIVERSE_FILE: universe_payload, STATE_FILE: state,
+            GOVERNED_MARKET_DIAGNOSTICS_FILE: governed_market_diagnostics,
         }
         run_id = f"overnight-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
         manifest = build_manifest(
@@ -5545,6 +5667,7 @@ def scan_market() -> Dict[str, Any]:
         write_json(ETF_SCAN_FILE, etf_rows)
         write_json(UNIVERSE_FILE, universe_payload)
         write_json(STATE_FILE, state)
+        write_json(GOVERNED_MARKET_DIAGNOSTICS_FILE, governed_market_diagnostics)
     _record_scan_timing("output_persistence_seconds", time.monotonic() - output_started)
 
     persistence_started = time.monotonic()
@@ -5661,6 +5784,8 @@ def main() -> None:
         }
         failure_path = FAILED_PUBLICATION_FILE if os.getenv("ATLAS_HARD_PUBLICATION_GOVERNANCE_ENABLED", "true").lower() == "true" else STATE_FILE
         write_json(failure_path, error_state)
+        diagnostics_path = persist_failure_safe_market_diagnostics(generated_at=error_state["generated_at"])
+        error_state["governed_market_diagnostics_path"] = str(diagnostics_path)
         print(json.dumps(error_state, indent=2))
         sys.exit(1)
 

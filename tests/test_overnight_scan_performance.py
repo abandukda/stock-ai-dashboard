@@ -1,4 +1,5 @@
 import pandas as pd
+import json
 
 import overnight_market_scan as scan
 
@@ -92,6 +93,38 @@ def test_partial_batch_retries_only_missing_symbol_and_preserves_successes(monke
     assert diagnostics["market_history_success"] == 3
     assert diagnostics["market_history_retry_success"] == 1
     assert diagnostics["market_history_final_failure"] == 0
+    assert diagnostics["per_symbol_records"]["A"]["retry_count"] == 0
+    assert diagnostics["per_symbol_records"]["C"]["retry_count"] == 1
+
+
+def test_failure_safe_diagnostics_retain_exact_symbols_metadata_and_exclusions(tmp_path, monkeypatch):
+    monkeypatch.setenv("ATLAS_CANDIDATE_OUTPUT_DIR", str(tmp_path))
+    scan._GOVERNED_MARKET_COVERAGE["per_symbol"] = {"GOOD": "SUCCESS", "MISS": "HTTP_FAILURE"}
+    scan._GOVERNED_MARKET_COVERAGE["per_symbol_records"] = {
+        "GOOD": {"requested_twelve_symbol": "GOOD", "acquisition_status": "SUCCESS", "retry_count": 0, "http_status": 200},
+        "MISS": {"requested_twelve_symbol": "MISS", "acquisition_status": "HTTP_FAILURE", "retry_count": 2,
+                 "http_status": 400, "provider_error_message": "symbol unsupported", "failure_stage": "HTTP_RESPONSE"},
+    }
+    scan._GOVERNED_MARKET_METADATA.clear()
+    scan._GOVERNED_MARKET_METADATA.update({
+        "MISS": {"company_name": "Missing Corp", "exchange": "NYSE", "country": "US",
+                 "security_type": "EQUITY", "market_cap": 100_000_000, "price": 10,
+                 "average_volume": 500_000, "is_actively_trading": True, "is_delisted": False},
+    })
+    scan._GOVERNED_MARKET_EXCLUSION_REASONS.clear()
+    scan._GOVERNED_MARKET_EXCLUSION_REASONS["MISS"] = "DATA_ACQUISITION_FAILURE"
+    scan._GOVERNED_MARKET_OBSERVATIONS.clear()
+
+    path = scan.persist_failure_safe_market_diagnostics(generated_at="2026-09-08T00:00:00+00:00")
+    artifact = json.loads(path.read_text(encoding="utf-8"))
+    assert artifact["market_history_success_symbols"] == ["GOOD"]
+    assert artifact["market_history_failure_symbols"] == ["MISS"]
+    miss = next(row for row in artifact["records"] if row["ticker"] == "MISS")
+    assert miss["final_classification"] == "DATA_ACQUISITION_FAILURE"
+    assert miss["company_name"] == "Missing Corp"
+    assert miss["dollar_volume"] == 5_000_000
+    assert miss["retry_count"] == 2
+    assert artifact["customer_publication_allowed"] is False
 
 
 def test_stale_yahoo_batch_metric_names_are_not_emitted():
