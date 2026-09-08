@@ -52,15 +52,25 @@ jobs:
         run: |
           echo "github.ref=${{ github.ref }}"
           echo "github.ref_name=${{ github.ref_name }}"
-          echo "checked_out_sha=$(git rev-parse HEAD)"
+          checked_out_sha="$(git rev-parse HEAD)"
+          scanner_sha="$(sha256sum overnight_market_scan.py | awk '{print $1}')"
+          echo "checked_out_sha=${checked_out_sha}"
           echo "branch=$(git branch --show-current)"
+          echo "scanner_file_sha256=${scanner_sha}"
           if [ -f scripts/audit_production_yahoo_dependencies.py ]; then
             echo "audit_script_exists=true"
           else
             echo "audit_script_exists=false"
             exit 1
           fi
-          echo "ATLAS_SOURCE_COMMIT_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          if [ "${checked_out_sha}" != "${{ github.sha }}" ]; then
+            echo "::error::Checked-out SHA ${checked_out_sha} does not match triggering SHA ${{ github.sha }}"
+            exit 1
+          fi
+          echo "ATLAS_SOURCE_COMMIT_SHA=${checked_out_sha}" >> "$GITHUB_ENV"
+          echo "ATLAS_SOURCE_REF=${{ github.ref }}" >> "$GITHUB_ENV"
+          echo "ATLAS_SOURCE_BRANCH=${{ github.ref_name }}" >> "$GITHUB_ENV"
+          echo "ATLAS_SCANNER_SHA256=${scanner_sha}" >> "$GITHUB_ENV"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -109,6 +119,11 @@ jobs:
           restore-keys: |
             atlas-analyst-estimate-snapshots-v1-
 
+      - name: Prepare clean candidate output directory
+        run: |
+          rm -rf audit_results/candidate_artifacts
+          mkdir -p audit_results/candidate_artifacts
+
       - name: Run overnight scan
         env:
           TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
@@ -118,22 +133,19 @@ jobs:
         run: |
           python overnight_market_scan.py
 
+      - name: Validate candidate provenance and governed-provider gates
+        if: always()
+        run: |
+          python scripts/validate_candidate_artifact_provenance.py \
+            --candidate-dir audit_results/candidate_artifacts \
+            --expected-sha "$ATLAS_SOURCE_COMMIT_SHA"
+
       - name: Upload exact scan candidate
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: atlas-scan-candidate-${{ github.run_id }}
-          path: |
-            audit_results/candidate_artifacts/etf_scan.json
-            audit_results/candidate_artifacts/market_full_scan.json
-            audit_results/candidate_artifacts/market_prescreen.json
-            audit_results/candidate_artifacts/market_scan_state.json
-            audit_results/candidate_artifacts/discovery_candidate_pool.json
-            audit_results/candidate_artifacts/full_evaluation_pool.json
-            audit_results/candidate_artifacts/recovery_scan.json
-            audit_results/candidate_artifacts/total_market_universe.json
-            audit_results/candidate_artifacts/publication_manifest.json
-            audit_results/candidate_artifacts/governed_market_acquisition_diagnostics.json
+          path: audit_results/candidate_artifacts
           if-no-files-found: warn
           retention-days: 30
 
