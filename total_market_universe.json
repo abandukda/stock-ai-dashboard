@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-08T14:49:09.695941+00:00",
+  "generated_at": "2026-09-08T19:12:18.127335+00:00",
   "count": 3491,
   "symbols": [
     "A",
@@ -3495,15 +3495,15 @@
     "ZYME"
   ],
   "eligibility": {
-    "eligible_count": 2179,
-    "excluded_count": 1274,
+    "eligible_count": 2185,
+    "excluded_count": 1268,
     "exclusion_reason_counts": {
-      "Financial Services sector": 439,
-      "DOLLAR_VOLUME_BELOW_MINIMUM": 436,
+      "Financial Services sector": 442,
+      "DOLLAR_VOLUME_BELOW_MINIMUM": 425,
       "Excluded financial/bank/lender/insurance/asset management industry": 16,
       "Excluded business category": 41,
-      "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE": 125,
-      "GOVERNED_COMPANY_EXCLUSION": 119,
+      "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE": 126,
+      "GOVERNED_COMPANY_EXCLUSION": 120,
       "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE": 94,
       "INSUFFICIENT_TECHNICAL_HISTORY": 3,
       "MARKET_CAP_BELOW_MINIMUM": 1
@@ -4199,7 +4199,7 @@
       },
       {
         "ticker": "BMEZ",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "Financial Services sector"
       },
       {
         "ticker": "BMNR",
@@ -4866,10 +4866,6 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "CWCO",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
         "ticker": "CZR",
         "reason": "Excluded business category"
       },
@@ -4884,10 +4880,6 @@
       {
         "ticker": "DB",
         "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "DBI",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "DBRG",
@@ -6287,7 +6279,7 @@
       },
       {
         "ticker": "LPSN",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "LSAK",
@@ -6615,7 +6607,7 @@
       },
       {
         "ticker": "MS-PO",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "Financial Services sector"
       },
       {
         "ticker": "MS-PQ",
@@ -6818,10 +6810,6 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "NRC",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
         "ticker": "NRDY",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -6942,10 +6930,6 @@
         "reason": "Financial Services sector"
       },
       {
-        "ticker": "OFIX",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
         "ticker": "OFS",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -7003,7 +6987,7 @@
       },
       {
         "ticker": "OPRT",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "Financial Services sector"
       },
       {
         "ticker": "OPTU",
@@ -7679,7 +7663,7 @@
       },
       {
         "ticker": "SITC",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
       {
         "ticker": "SJT",
@@ -7954,10 +7938,6 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "T-PC",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
         "ticker": "TBBK",
         "reason": "Financial Services sector"
       },
@@ -8160,10 +8140,6 @@
       {
         "ticker": "TWFG",
         "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "TWIN",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "TWN",
@@ -8370,7 +8346,7 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "VTEX",
+        "ticker": "VSECU",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
