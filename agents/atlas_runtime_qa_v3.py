@@ -45,7 +45,8 @@ from agents.product_hardening_certification import (
 )
 
 
-DEFAULT_URL = "https://stock-ai-dashboard.streamlit.app"
+DEFAULT_URL = os.getenv("ATLAS_PRODUCTION_URL", "").strip()
+RETIRED_DEPLOYMENT_TARGETS = {"https://stock-ai-dashboard.streamlit.app/"}
 PAGE_TIMEOUT_MS = 35_000
 ACTION_TIMEOUT_MS = 6_000
 LOGIN_TIMEOUT_SECONDS = 240
@@ -66,6 +67,13 @@ class DeploymentReadinessError(RuntimeError):
         super().__init__(classification)
         self.classification = classification
         self.diagnostics = diagnostics
+
+
+class DeploymentTargetError(DeploymentReadinessError):
+    """The configured URL is not a deployable ATLAS application origin."""
+
+    def __init__(self, diagnostics: dict[str, Any]):
+        super().__init__("DEPLOYMENT_TARGET_INVALID", diagnostics)
 
 KNOWN_NAV_LABELS = (
     "Home",
@@ -172,7 +180,7 @@ def _visual_manifest(source_sha: str, page_results: list[dict[str, Any]], user_j
 
 
 def _mobile_result_index(user_journeys: dict[str, Any]) -> dict[str, dict[str, str]]:
-    return {
+    result = {
         str(step.get("step") or ""): {"status": str(step.get("status") or "NOT_EXECUTED")}
         for step in user_journeys.get("steps") or []
         if step.get("journey") == "Core mobile certification"
@@ -265,19 +273,32 @@ async def _wake_if_needed(page: Page) -> bool:
 def _canonical_streamlit_url(url: str) -> str:
     """Normalize only the public app origin; never invent an internal host route."""
     raw = str(url or DEFAULT_URL).strip()
+    if not raw:
+        raise DeploymentTargetError({"reason": "ATLAS_PRODUCTION_URL_MISSING", "resolved_target_url": ""})
     if "://" not in raw:
         raw = f"https://{raw}"
     parts = urlsplit(raw)
     scheme = "https" if parts.hostname and parts.hostname.endswith(".streamlit.app") else (parts.scheme or "https")
     path = parts.path or "/"
-    return urlunsplit((scheme, parts.netloc, path, "", ""))
+    target = urlunsplit((scheme, parts.netloc, path, "", ""))
+    host = (parts.hostname or "").lower()
+    invalid_reason = ""
+    if host == "share.streamlit.io" or (host.endswith("streamlit.io") and path.startswith("/app/")):
+        invalid_reason = "GENERIC_STREAMLIT_SHARE_SHELL"
+    elif not host.endswith(".streamlit.app"):
+        invalid_reason = "NON_STREAMLIT_APP_ORIGIN"
+    elif target in RETIRED_DEPLOYMENT_TARGETS:
+        invalid_reason = "RETIRED_ATLAS_DEPLOYMENT_TARGET"
+    if invalid_reason:
+        raise DeploymentTargetError({"reason": invalid_reason, "resolved_target_url": target})
+    return target
 
 
 def _is_streamlit_host(url: str) -> bool:
     return bool((urlsplit(str(url or "")).hostname or "").endswith(".streamlit.app"))
 
 
-async def _open_streamlit_origin(page: Page, url: str) -> dict[str, Any]:
+async def _open_streamlit_origin(page: Page, url: str, output_dir: Path | None = None) -> dict[str, Any]:
     """Open the public origin and retain host transitions for bootstrap diagnostics."""
     target = _canonical_streamlit_url(url)
     response = None
@@ -291,17 +312,31 @@ async def _open_streamlit_origin(page: Page, url: str) -> dict[str, Any]:
             if attempt >= 2:
                 raise
             await page.wait_for_timeout(2_000 * (attempt + 1))
+    resolved = str(page.url or target)
+    try:
+        _canonical_streamlit_url(resolved)
+    except DeploymentTargetError as exc:
+        diagnostics = {
+            **exc.diagnostics, "requested_target_url": target,
+            "resolved_target_url": resolved, "navigation_attempts": len(navigation_errors) + 1,
+        }
+        if output_dir is not None:
+            (output_dir / "deployment_target.json").write_text(json.dumps(diagnostics, indent=2), encoding="utf-8")
+        raise DeploymentTargetError(diagnostics) from exc
     await _wait_for_streamlit_shell(page)
     woke = await _wake_if_needed(page)
-    return {
+    result = {
         "requested_url": target,
-        "resolved_url": str(page.url or target),
+        "resolved_url": resolved,
         "document_status": int(getattr(response, "status", 0) or 0) or None,
         "streamlit_public_host": _is_streamlit_host(target),
         "wake_control_used": woke,
         "navigation_attempts": len(navigation_errors) + 1,
         "navigation_error_categories": navigation_errors,
     }
+    if output_dir is not None:
+        (output_dir / "deployment_target.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+    return result
 
 
 async def _find_password_target(
@@ -734,7 +769,7 @@ async def _open_and_authenticate(
     expected_sha: str,
 ) -> dict[str, Any]:
     print(f"[open] Opening {_canonical_streamlit_url(url)}", flush=True)
-    bootstrap = await _open_streamlit_origin(page, url)
+    bootstrap = await _open_streamlit_origin(page, url, output_dir)
     readiness = await _deployed_readiness_gate(
         page, expected_sha=expected_sha, output_dir=output_dir,
     )
