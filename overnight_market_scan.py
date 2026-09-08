@@ -47,7 +47,12 @@ from services.fmp_bulk_metadata_shadow import (
     persist_bulk_shadow_analysis,
 )
 from services.analyst_estimate_snapshot_store import capture_daily_estimates
-from services.governed_discovery_data import fetch_twelve_daily_batch, load_governed_universe
+from services.governed_discovery_data import (
+    PROVIDER_POLICY_VERSION, fetch_twelve_daily_batch, load_governed_universe,
+)
+from services.governed_market_cache import (
+    append_history, cache_namespace, load_history, load_negative_cache, write_negative_cache,
+)
 
 
 def v42_safe_float(value, default=0.0):
@@ -112,6 +117,7 @@ FULL_EVALUATION_POOL_SIZE = int(os.getenv("FULL_EVALUATION_POOL_SIZE", "1400"))
 DISCOVERY_VALIDATION_NEAR_CUTOFF = int(os.getenv("DISCOVERY_VALIDATION_NEAR_CUTOFF", "100"))
 DISCOVERY_VALIDATION_RANDOM = int(os.getenv("DISCOVERY_VALIDATION_RANDOM", "100"))
 BATCH_SIZE = int(os.getenv("SCAN_BATCH_SIZE", "25"))
+GOVERNED_MARKET_CACHE_ROOT = Path(os.getenv("ATLAS_GOVERNED_MARKET_CACHE_DIR", ".atlas_research_cache/governed_market_v1"))
 
 MIN_PRICE = float(os.getenv("MIN_PRICE", "2.00"))
 MAX_PRICE = float(os.getenv("MAX_PRICE", "1000.00"))
@@ -347,7 +353,17 @@ def get_governed_listings() -> List[str]:
     """
     Pull the current governed US listing universe from FMP.
     """
-    return list(load_governed_universe(fmp_key=FMP_API_KEY).get("symbols") or [])
+    global _GOVERNED_CACHE_NAMESPACE
+    result = load_governed_universe(fmp_key=FMP_API_KEY)
+    _GOVERNED_UNIVERSE_RESULT.clear()
+    _GOVERNED_UNIVERSE_RESULT.update(result)
+    _GOVERNED_ETF_SYMBOLS.clear()
+    _GOVERNED_ETF_SYMBOLS.update(result.get("etf_symbols") or [])
+    _GOVERNED_CACHE_NAMESPACE = cache_namespace(
+        result.get("symbols") or [], provider_policy=PROVIDER_POLICY_VERSION,
+        mapping_version="TWELVE_SYMBOL_IDENTITY_V1",
+    )
+    return list(result.get("symbols") or [])
 
 
 def fallback_universe() -> List[str]:
@@ -413,13 +429,22 @@ def build_universe() -> List[str]:
 
     clean = []
     for sym in sorted(symbols):
-        if "." in sym or "/" in sym:
+        if "/" in sym:
             continue
         if len(sym) > 7:
             continue
         clean.append(sym)
 
-    return clean[:MAX_UNIVERSE]
+    selected = clean[:MAX_UNIVERSE]
+    selected_set = set(selected)
+    selected_stocks = sorted(selected_set & set(_GOVERNED_UNIVERSE_RESULT.get("stock_symbols") or []))
+    selected_etfs = sorted(selected_set & set(_GOVERNED_UNIVERSE_RESULT.get("etf_symbols") or []))
+    _GOVERNED_UNIVERSE_RESULT["stock_symbols"] = selected_stocks
+    _GOVERNED_UNIVERSE_RESULT["etf_symbols"] = selected_etfs
+    _GOVERNED_ETF_SYMBOLS.intersection_update(selected_set)
+    _GOVERNED_UNIVERSE_RESULT.setdefault("summary", {})["investable_stock_universe_count"] = len(selected_stocks)
+    _GOVERNED_UNIVERSE_RESULT["summary"]["etf_routed_separately"] = len(selected_etfs)
+    return selected
 
 
 def load_prior_universe_symbols() -> List[str]:
@@ -448,13 +473,14 @@ def compare_governed_universe(prior: List[str], current: List[str]) -> Dict[str,
 # DATA FETCH
 # =========================
 
-def download_price_batch(symbols: List[str]) -> pd.DataFrame:
+def _download_price_batch_network(symbols: List[str], *, outputsize: int = 260) -> pd.DataFrame:
     """Rate-limit-safe governed Twelve daily-history download."""
     if not symbols:
         return pd.DataFrame()
 
     remaining = list(dict.fromkeys(symbols))
     collected: Dict[str, pd.DataFrame] = {}
+    permanent_failures: set[str] = set()
     aggregate_diagnostics = {"market_history_attempted": len(remaining), "market_history_success": 0,
         "market_history_unavailable": 0, "market_history_schema_failure": 0,
         "market_history_duplicate_index_failure": 0, "market_history_retry_success": 0,
@@ -464,7 +490,10 @@ def download_price_batch(symbols: List[str]) -> pd.DataFrame:
         try:
             for symbol in remaining:
                 attempts_by_symbol[symbol] += 1
-            data = fetch_twelve_daily_batch(remaining)
+            data = (
+                fetch_twelve_daily_batch(remaining)
+                if outputsize == 260 else fetch_twelve_daily_batch(remaining, outputsize=outputsize)
+            )
             provider_diag = dict(getattr(data, "attrs", {}).get("governed_market_diagnostics") or {})
             aggregate_diagnostics["market_history_duplicate_index_failure"] += int(provider_diag.get("market_history_duplicate_index_failure") or 0)
             aggregate_diagnostics["per_symbol"].update(provider_diag.get("per_symbol") or {})
@@ -478,7 +507,23 @@ def download_price_batch(symbols: List[str]) -> pd.DataFrame:
                         collected[symbol] = data[symbol].copy()
                         if attempt:
                             aggregate_diagnostics["market_history_retry_success"] += 1
-                remaining = [symbol for symbol in remaining if symbol not in present]
+                permanent_failures.update(
+                    symbol for symbol in remaining
+                    if symbol not in present
+                    and (provider_diag.get("per_symbol_records") or {}).get(symbol, {}).get("retryable") is False
+                )
+                remaining = [
+                    symbol for symbol in remaining
+                    if symbol not in present and symbol not in permanent_failures
+                ]
+                if not remaining:
+                    break
+            else:
+                permanent_failures.update(
+                    symbol for symbol in remaining
+                    if (provider_diag.get("per_symbol_records") or {}).get(symbol, {}).get("retryable") is False
+                )
+                remaining = [symbol for symbol in remaining if symbol not in permanent_failures]
                 if not remaining:
                     break
         except Exception as exc:
@@ -508,8 +553,9 @@ def download_price_batch(symbols: List[str]) -> pd.DataFrame:
             time.sleep(delay)
     result = pd.concat(collected, axis=1, sort=True) if collected else pd.DataFrame()
     aggregate_diagnostics["market_history_success"] = len(collected)
-    aggregate_diagnostics["market_history_final_failure"] = len(remaining)
-    for symbol in remaining:
+    final_failures = set(remaining) | permanent_failures
+    aggregate_diagnostics["market_history_final_failure"] = len(final_failures)
+    for symbol in final_failures:
         aggregate_diagnostics["per_symbol"].setdefault(symbol, "FINAL_FAILURE")
     for symbol in symbols:
         record = dict(aggregate_diagnostics["per_symbol_records"].get(symbol) or {})
@@ -517,17 +563,94 @@ def download_price_batch(symbols: List[str]) -> pd.DataFrame:
         record.setdefault("requested_exchange", None)
         record["acquisition_status"] = aggregate_diagnostics["per_symbol"].get(symbol, "FINAL_FAILURE")
         record["retry_count"] = max(0, attempts_by_symbol.get(symbol, 0) - 1)
-        if symbol in remaining:
+        if symbol in final_failures:
             record.setdefault("failure_stage", "FINAL_RETRY_EXHAUSTED")
         aggregate_diagnostics["per_symbol_records"][symbol] = record
     aggregate_diagnostics["market_history_unavailable"] = sum(
-        status == "UNAVAILABLE" for status in aggregate_diagnostics["per_symbol"].values()
+        status not in {"SUCCESS", "SUCCESS_DEDUPLICATED"}
+        and not str(status).startswith("SCHEMA_FAILURE")
+        for status in aggregate_diagnostics["per_symbol"].values()
     )
     aggregate_diagnostics["market_history_schema_failure"] = sum(
         str(status).startswith("SCHEMA_FAILURE") for status in aggregate_diagnostics["per_symbol"].values()
     )
     result.attrs["governed_market_diagnostics"] = aggregate_diagnostics
     return result
+
+
+def _merge_batch_results(parts: List[pd.DataFrame]) -> pd.DataFrame:
+    frames = [part for part in parts if part is not None and not part.empty]
+    result = pd.concat(frames, axis=1, sort=True) if frames else pd.DataFrame()
+    diagnostics = {"market_history_attempted": 0, "market_history_success": 0,
+        "market_history_unavailable": 0, "market_history_schema_failure": 0,
+        "market_history_duplicate_index_failure": 0, "market_history_retry_success": 0,
+        "market_history_final_failure": 0, "per_symbol": {}, "per_symbol_records": {}}
+    for part in parts:
+        current = dict(getattr(part, "attrs", {}).get("governed_market_diagnostics") or {})
+        for key in diagnostics:
+            if key in {"per_symbol", "per_symbol_records"}:
+                diagnostics[key].update(current.get(key) or {})
+            else:
+                diagnostics[key] += int(current.get(key) or 0)
+    result.attrs["governed_market_diagnostics"] = diagnostics
+    return result
+
+
+def download_price_batch(symbols: List[str]) -> pd.DataFrame:
+    """Use bounded permanent-failure/history caches without changing OHLCV authority."""
+    if not symbols:
+        return pd.DataFrame()
+    if os.getenv("ATLAS_GOVERNED_MARKET_CACHE_ENABLED", "false").lower() != "true":
+        return _download_price_batch_network(symbols)
+    namespace = _GOVERNED_CACHE_NAMESPACE
+    negative_path = GOVERNED_MARKET_CACHE_ROOT / "negative_failures.json"
+    negative = load_negative_cache(negative_path, namespace=namespace)
+    cached_failures = {symbol: negative[symbol] for symbol in symbols if symbol in negative}
+    eligible = [symbol for symbol in symbols if symbol not in cached_failures]
+    history_root = GOVERNED_MARKET_CACHE_ROOT / "history"
+    cached = {symbol: load_history(history_root, symbol, namespace=namespace) for symbol in eligible}
+    warm = [symbol for symbol, frame in cached.items() if len(frame) >= 200]
+    cold = [symbol for symbol in eligible if symbol not in warm]
+    parts = []
+    if cold:
+        parts.append(_download_price_batch_network(cold, outputsize=260))
+    if warm:
+        parts.append(_download_price_batch_network(warm, outputsize=10))
+    result = _merge_batch_results(parts)
+    frames: dict[str, pd.DataFrame] = {}
+    present = set(result.columns.get_level_values(0)) if isinstance(result.columns, pd.MultiIndex) else set()
+    for symbol in eligible:
+        fresh = result[symbol].copy() if symbol in present else pd.DataFrame()
+        combined = append_history(history_root, symbol, fresh, namespace=namespace) if not fresh.empty else cached[symbol]
+        if not combined.empty:
+            frames[symbol] = combined
+    diagnostics = dict(result.attrs.get("governed_market_diagnostics") or {})
+    for symbol, record in cached_failures.items():
+        diagnostics.setdefault("per_symbol", {})[symbol] = "PERMANENT_NEGATIVE_CACHE"
+        diagnostics.setdefault("per_symbol_records", {})[symbol] = {
+            **record, "acquisition_status": "PERMANENT_NEGATIVE_CACHE", "retry_count": 0,
+            "failure_stage": "NEGATIVE_CACHE", "retryable": False,
+        }
+    for symbol in warm:
+        if symbol not in present and not cached[symbol].empty:
+            prior_failure = dict((diagnostics.get("per_symbol_records") or {}).get(symbol) or {})
+            diagnostics.setdefault("per_symbol", {})[symbol] = "SUCCESS_CACHE_RETAINED"
+            diagnostics.setdefault("per_symbol_records", {})[symbol] = {
+                **prior_failure, "acquisition_status": "SUCCESS_CACHE_RETAINED",
+                "failure_stage": None, "cache_refresh_status": prior_failure.get("acquisition_status"),
+            }
+    permanent = {
+        symbol: record for symbol, record in (diagnostics.get("per_symbol_records") or {}).items()
+        if record.get("retryable") is False and str(record.get("acquisition_status") or "").startswith("PERMANENT_")
+    }
+    if permanent:
+        write_negative_cache(negative_path, namespace=namespace, records={**negative, **permanent})
+    final = pd.concat(frames, axis=1, sort=True) if frames else pd.DataFrame()
+    diagnostics["market_history_attempted"] = len(symbols)
+    diagnostics["market_history_success"] = len(frames)
+    diagnostics["market_history_final_failure"] = len(symbols) - len(frames)
+    final.attrs["governed_market_diagnostics"] = diagnostics
+    return final
 
 
 def extract_symbol_history(data: pd.DataFrame, symbol: str) -> pd.DataFrame:
@@ -4037,6 +4160,11 @@ _GOVERNED_MARKET_COVERAGE: Dict[str, Any] = {
 _GOVERNED_MARKET_METADATA: Dict[str, Dict[str, Any]] = {}
 _GOVERNED_MARKET_EXCLUSION_REASONS: Dict[str, str] = {}
 _GOVERNED_MARKET_OBSERVATIONS: Dict[str, Dict[str, Any]] = {}
+_GOVERNED_UNIVERSE_RESULT: Dict[str, Any] = {}
+_GOVERNED_ETF_SYMBOLS: set[str] = set()
+_GOVERNED_CACHE_NAMESPACE = cache_namespace(
+    [], provider_policy=PROVIDER_POLICY_VERSION, mapping_version="TWELVE_SYMBOL_IDENTITY_V1"
+)
 
 
 def build_governed_market_acquisition_diagnostics(*, generated_at: str | None = None) -> Dict[str, Any]:
@@ -4046,11 +4174,12 @@ def build_governed_market_acquisition_diagnostics(*, generated_at: str | None = 
     statuses = _GOVERNED_MARKET_COVERAGE.get("per_symbol") or {}
     details = _GOVERNED_MARKET_COVERAGE.get("per_symbol_records") or {}
     attempted = sorted(set(statuses) | set(details))
-    success_states = {"SUCCESS", "SUCCESS_DEDUPLICATED"}
+    success_states = {"SUCCESS", "SUCCESS_DEDUPLICATED", "SUCCESS_CACHE_RETAINED"}
     for symbol in attempted:
         detail = dict(details.get(symbol) or {})
         metadata = dict(_GOVERNED_MARKET_METADATA.get(symbol) or {})
         observation = dict(_GOVERNED_MARKET_OBSERVATIONS.get(symbol) or {})
+        mapping = dict((_GOVERNED_UNIVERSE_RESULT.get("symbol_mappings") or {}).get(symbol) or {})
         status = str(detail.get("acquisition_status") or statuses.get(symbol) or "FINAL_FAILURE")
         average_volume = metadata.get("average_volume")
         fmp_price = metadata.get("price")
@@ -4069,6 +4198,9 @@ def build_governed_market_acquisition_diagnostics(*, generated_at: str | None = 
             "country": metadata.get("country"),
             "requested_twelve_symbol": detail.get("requested_twelve_symbol") or symbol,
             "requested_exchange": detail.get("requested_exchange"),
+            "source_master_ticker": mapping.get("source_ticker") or symbol,
+            "security_identity": mapping.get("security_identity") or symbol,
+            "symbol_mapping_version": mapping.get("mapping_version"),
             "acquisition_status": status,
             "retry_count": int(detail.get("retry_count") or 0),
             "http_status": detail.get("http_status"),
@@ -4088,6 +4220,18 @@ def build_governed_market_acquisition_diagnostics(*, generated_at: str | None = 
         })
     success_symbols = [row["ticker"] for row in records if row["acquisition_status"] in success_states]
     failure_symbols = [row["ticker"] for row in records if row["acquisition_status"] not in success_states]
+    universe_summary = dict(_GOVERNED_UNIVERSE_RESULT.get("summary") or {})
+    stock_symbols = set(_GOVERNED_UNIVERSE_RESULT.get("stock_symbols") or [])
+    investable_attempted = sum(row["ticker"] in stock_symbols for row in records)
+    investable_success = sum(row["ticker"] in stock_symbols and row["acquisition_status"] in success_states for row in records)
+    raw_count = int(universe_summary.get("raw_universe_count") or len(records))
+    exclusion_counts = dict(universe_summary.get("exclusion_reason_counts") or {})
+    failure_reason_counts: Dict[str, int] = {}
+    security_type_counts: Dict[str, int] = {}
+    for row in records:
+        failure_reason_counts[row["acquisition_status"]] = failure_reason_counts.get(row["acquisition_status"], 0) + 1
+        security_type = str(row.get("security_type") or "UNKNOWN")
+        security_type_counts[security_type] = security_type_counts.get(security_type, 0) + 1
     return {
         "schema_version": "GOVERNED_MARKET_ACQUISITION_DIAGNOSTICS_V1",
         "generated_at": observed_at,
@@ -4095,12 +4239,32 @@ def build_governed_market_acquisition_diagnostics(*, generated_at: str | None = 
         "canonical_or_scoring_input": False,
         "customer_publication_allowed": False,
         "summary": {
+            **universe_summary,
             "attempted_count": len(records),
             "success_count": len(success_symbols),
             "failure_count": len(failure_symbols),
+            "raw_universe_coverage_pct": round(100 * len(success_symbols) / max(1, raw_count), 2),
+            "market_history_primary_attempted": len(records),
+            "provider_symbol_mapping_success": sum(
+                row["acquisition_status"] in success_states
+                and row["source_master_ticker"] != row["requested_twelve_symbol"] for row in records
+            ),
+            "transient_failure": sum(str(row["acquisition_status"]).startswith("TRANSIENT_") for row in records),
+            "permanent_unavailable": sum(
+                str(row["acquisition_status"]).startswith("PERMANENT_")
+                or row["acquisition_status"] == "PERMANENT_NEGATIVE_CACHE" for row in records
+            ),
+            "investable_stock_universe_count": len(stock_symbols),
+            "investable_market_history_attempted": investable_attempted,
+            "investable_market_history_success": investable_success,
+            "investable_market_history_coverage_pct": round(100 * investable_success / max(1, investable_attempted), 2),
+            "exclusion_reason_counts": exclusion_counts,
+            "provider_failure_reason_counts": failure_reason_counts,
+            "attempted_security_type_counts": security_type_counts,
         },
         "market_history_success_symbols": success_symbols,
         "market_history_failure_symbols": failure_symbols,
+        "pre_acquisition_exclusions": list(_GOVERNED_UNIVERSE_RESULT.get("exclusions") or []),
         "records": records,
     }
 
@@ -4907,6 +5071,11 @@ def scan_market() -> Dict[str, Any]:
     universe_started = time.monotonic()
     universe = build_universe()
     _GOVERNED_MARKET_COVERAGE["universe_count"] = len(universe)
+    _GOVERNED_MARKET_METADATA.update({
+        str(symbol).upper(): dict(record)
+        for symbol, record in (_GOVERNED_UNIVERSE_RESULT.get("records") or {}).items()
+        if isinstance(record, Mapping)
+    })
     _record_scan_timing("universe_construction_seconds", time.monotonic() - universe_started)
 
     # Research-only benchmark.  The normalized FMP records are never merged
@@ -4920,17 +5089,19 @@ def scan_market() -> Dict[str, Any]:
             "freshness": {"status": "TEMPORARILY_UNAVAILABLE"},
             "run_diagnostics": {"requests": 0, "sanitized_outcome": "LOCAL_SHADOW_FAILURE"},
         }
-    _GOVERNED_MARKET_METADATA.update({
-        str(symbol).upper(): build_fmp_candidate_metadata(record)
-        for symbol, record in (fmp_bulk_shadow.get("records") or {}).items()
-        if isinstance(record, Mapping)
-    })
+    for symbol, record in (fmp_bulk_shadow.get("records") or {}).items():
+        if isinstance(record, Mapping):
+            _GOVERNED_MARKET_METADATA.setdefault(str(symbol).upper(), {}).update(
+                {key: value for key, value in build_fmp_candidate_metadata(record).items() if value is not None}
+            )
 
     universe_payload = {
         "generated_at": now_iso(),
         "count": len(universe),
         "symbols": universe,
         "governed_universe_comparison": compare_governed_universe(prior_universe, universe),
+        "governed_pre_acquisition_summary": _GOVERNED_UNIVERSE_RESULT.get("summary") or {},
+        "symbol_mappings": _GOVERNED_UNIVERSE_RESULT.get("symbol_mappings") or {},
     }
     _record_scan_timing("universe_persistence_seconds", 0.0)
 
@@ -4949,6 +5120,9 @@ def scan_market() -> Dict[str, Any]:
             discovery_exclusion_records.append({"ticker": symbol, "reason": reason})
             _GOVERNED_MARKET_EXCLUSION_REASONS[symbol] = reason
     etf_rows: List[Dict[str, Any]] = []
+    for excluded in _GOVERNED_UNIVERSE_RESULT.get("exclusions") or []:
+        if isinstance(excluded, Mapping) and excluded.get("ticker") and excluded.get("reason"):
+            record_discovery_exclusion(str(excluded["reason"]), str(excluded.get("canonical_ticker") or excluded["ticker"]))
 
     metadata_cache: Dict[str, Dict[str, Any]] = {}
     indicator_cache: Dict[str, Dict[str, Any]] = {}
@@ -5005,6 +5179,9 @@ def scan_market() -> Dict[str, Any]:
             if meta is None:
                 fmp_record = (fmp_bulk_shadow.get("records") or {}).get(symbol, {})
                 meta = get_metadata(symbol, fmp_record)
+                if symbol in _GOVERNED_ETF_SYMBOLS:
+                    meta["quote_type"] = "ETF"
+                    meta["security_type"] = "ETF"
 
                 # Enrich governed metadata with point-profile data when available.
                 # FMP values only replace missing/weak fields; failures safely do nothing.
