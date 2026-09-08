@@ -99,3 +99,9 @@ def test_stale_yahoo_batch_metric_names_are_not_emitted():
     assert "yahoo_batch_seconds=" not in source
     assert '"yahoo_broad_scan_seconds"' not in source
     assert "governed_market_batch_seconds=" in source
+
+
+def test_zero_validation_control_cannot_be_reported_complete():
+    source = open("overnight_market_scan.py", encoding="utf-8").read()
+    assert '"COMPLETE" if discovery_recall.get("discovery_gate") == "PASS" else "FAILED_VALIDATION"' in source
+    assert 'discovery_recall["status"] = "COMPLETE"\n' not in source

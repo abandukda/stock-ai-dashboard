@@ -5258,7 +5258,7 @@ def scan_market() -> Dict[str, Any]:
                 row["full_evaluation_rank"] = evaluation_rank
             evaluated_controls = [evaluated_by_ticker[ticker] for ticker in before_order[len(full_rows):] if ticker in evaluated_by_ticker]
             discovery_recall = recall_report(full_evaluation_rows, evaluated_controls)
-            discovery_recall["status"] = "COMPLETE"
+            discovery_recall["status"] = "COMPLETE" if discovery_recall.get("discovery_gate") == "PASS" else "FAILED_VALIDATION"
             discovery_experiment = architecture_experiment(discovery_eligible_rows, evaluated)
             discovery_experiment["status"] = "COMPLETE"
             full_rows = curate_customer_150(full_evaluation_rows, MAX_FULL_SCAN)

@@ -67,6 +67,15 @@ def test_market_cap_bridge_is_p0_and_blocks_publication():
     assert report["summary"]["market_cap_failure_count"] == 150
 
 
+def test_customer_buy_now_without_second_stage_revalidation_is_p0():
+    rows = universe()
+    rows[0] = row("T000", action="BUY_NOW")
+    report = crawl_universe(rows, run_id="unrevalidated-buy")
+    assert report["gate"] == "FAIL"
+    assert report["summary"]["unrevalidated_buy_now_count"] == 1
+    assert any(item["category"] == "BUY_NOW_REVALIDATION" for item in report["sheets"]["Validation_Failures"])
+
+
 def test_ev_bridge_requires_and_reconciles_published_share_denominator():
     rows = universe()
     evaluation = rows[0]["canonical_investment_evaluation"]
