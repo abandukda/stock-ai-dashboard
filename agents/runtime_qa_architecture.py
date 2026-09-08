@@ -767,7 +767,7 @@ def deployment_parity_report(root: str | Path = ".") -> dict[str, Any]:
         for line in (root_path / "requirements.txt").read_text(encoding="utf-8").splitlines()
         if line.strip() and not line.lstrip().startswith("#")
     }
-    required_runtime_packages = {"streamlit", "pandas", "numpy", "plotly", "requests", "yfinance", "openai"}
+    required_runtime_packages = {"streamlit", "pandas", "numpy", "plotly", "requests", "openai"}
     missing_declarations = sorted(required_runtime_packages - requirements)
     failures.extend({"package": name, "reason": "DEPENDENCY_NOT_DECLARED"} for name in missing_declarations)
 

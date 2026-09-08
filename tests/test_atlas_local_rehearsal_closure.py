@@ -44,7 +44,6 @@ def test_providerless_etf_never_falls_through_to_legacy_corporate_acquisition(mo
     def forbidden(*_args, **_kwargs):
         raise AssertionError("legacy Yahoo acquisition must not run for an ETF")
 
-    monkeypatch.setattr("engines.live_research_engine.yf.Ticker", forbidden)
     monkeypatch.setattr("engines.live_research_engine._download_history", forbidden)
 
     row = build_live_research("SPY", fmp_api_key="", security_type_hint="ETF")

@@ -9,6 +9,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Callable, Mapping
 
+from services.governed_discovery_data import fetch_twelve_daily_batch
+
 
 HOME_MARKET_SYMBOLS = {
     "SPY": "S&P 500 · SPY",
@@ -41,19 +43,19 @@ def _series(frame: Any, symbol: str):
 
 
 def fetch_home_market_tape(
-    downloader: Callable[..., Any],
+    downloader: Callable[..., Any] | None = None,
     *,
     symbols: Mapping[str, str] = HOME_MARKET_SYMBOLS,
     now: Callable[[], datetime] | None = None,
 ) -> dict[str, Any]:
-    """Fetch the tape in one Yahoo batch and preserve partial failures."""
+    """Fetch governed market context in one batch and preserve partial failures."""
     requested = tuple(symbols)
     observed = (now or (lambda: datetime.now(timezone.utc)))().astimezone(timezone.utc)
     try:
-        frame = downloader(
+        frame = (downloader(
             list(requested), period="5d", interval="5m", progress=False,
             auto_adjust=True, threads=True, group_by="column",
-        )
+        ) if downloader else fetch_twelve_daily_batch(requested, outputsize=5))
         batch_error = None
     except Exception as exc:  # presentation data must degrade independently
         frame, batch_error = None, type(exc).__name__
@@ -86,7 +88,7 @@ def fetch_home_market_tape(
         "market_data_as_of": max(quote_times).isoformat().replace("+00:00", "Z") if quote_times else None,
         "market_data_requested_at": observed.isoformat().replace("+00:00", "Z"),
         "freshness": "delayed_or_near_real_time" if quote_times else "unavailable",
-        "source": "Yahoo Finance",
+        "source": "Twelve Data",
         "requested": len(requested),
         "available": sum(row["status"] == "live" for row in rows),
         "batch_error": batch_error,

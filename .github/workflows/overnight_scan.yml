@@ -62,6 +62,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Enforce governed-provider boundary
+        run: python scripts/audit_production_yahoo_dependencies.py
+
       - name: Verify canonical publication credentials
         env:
           TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}

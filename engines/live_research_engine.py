@@ -12,7 +12,7 @@ from typing import Any, Dict, Iterable, Mapping, Optional
 
 import pandas as pd
 import requests
-import yfinance as yf
+from engines.canonical_market_data import load_price_history
 from engines.deep_research_evidence import build_earnings_comparisons
 
 from services.research_cache import load_cached_research, save_cached_research
@@ -77,7 +77,7 @@ def _request_json(url: str, params: Dict[str, Any], timeout: int = 10) -> Any:
 def _normalize_history_frame(hist: Any, ticker: str) -> pd.DataFrame:
     """Return a single-ticker OHLCV frame with flat canonical column names.
 
-    yfinance can return flat columns, ticker-first MultiIndex columns, or
+    governed market adapter can return flat columns, ticker-first MultiIndex columns, or
     price-field-first MultiIndex columns depending on version and endpoint.
     """
     if hist is None or not isinstance(hist, pd.DataFrame) or hist.empty:
@@ -138,28 +138,14 @@ def _normalize_history_frame(hist: Any, ticker: str) -> pd.DataFrame:
 
 
 def _download_history(ticker: str) -> pd.DataFrame:
-    """Fetch history with a second yfinance path as a graceful fallback."""
-    errors = []
-    try:
-        raw = yf.download(
-            ticker, period="5y", interval="1d", auto_adjust=True,
-            progress=False, threads=False, group_by="column"
-        )
-        normalized = _normalize_history_frame(raw, ticker)
-        if not normalized.empty and "Close" in normalized.columns:
-            return normalized
-    except Exception as exc:
-        errors.append(str(exc))
-
-    try:
-        raw = yf.Ticker(ticker).history(period="5y", interval="1d", auto_adjust=True)
-        normalized = _normalize_history_frame(raw, ticker)
-        if not normalized.empty and "Close" in normalized.columns:
-            return normalized
-    except Exception as exc:
-        errors.append(str(exc))
-
-    return pd.DataFrame()
+    """Fetch history through the canonical governed market-data service."""
+    result = load_price_history(ticker, period="5y")
+    records = result.get("records") or []
+    if not records:
+        return pd.DataFrame()
+    frame = pd.DataFrame(records)
+    frame.index = pd.to_datetime(frame.pop("date"), errors="coerce", utc=True)
+    return frame.rename(columns={name: name.title() for name in ("open", "high", "low", "close", "volume")})
 
 
 def _latest_news(ticker: str, company: str) -> Dict[str, Any]:
@@ -312,11 +298,7 @@ def build_live_research(ticker: str, force_refresh: bool = False, cache_ttl_seco
             return cached
 
     try:
-        tk = yf.Ticker(symbol)
-        try:
-            info = tk.get_info() or {}
-        except Exception:
-            info = {}
+        info = {}
         hist = _download_history(symbol)
     except Exception:
         info = {}
@@ -591,8 +573,7 @@ def fetch_analyst_action_history(
 
     def _request() -> None:
         try:
-            tk = ticker_object if ticker_object is not None else yf.Ticker(symbol)
-            result["history"] = tk.upgrades_downgrades
+            result["history"] = ticker_object.upgrades_downgrades if ticker_object is not None else None
         except Exception:
             result["history"] = None
 
@@ -945,7 +926,7 @@ def build_live_research(
     )
 
     # An ETF classification supplied by the customer Research route is a hard
-    # semantic boundary.  Never fall through to the legacy corporate Yahoo
+    # semantic boundary.  Never fall through to the legacy corporate governed provider
     # acquisition path merely because FMP credentials/profile evidence are
     # unavailable locally.  The bounded FMP acquisition above has already made
     # the sole profile request when credentials were configured.
@@ -968,7 +949,7 @@ def build_live_research(
 
     # FIRST.3 canonical evidence can render directly with the immutable
     # production row.  Do not block a complete FMP context on a second legacy
-    # Yahoo acquisition.  A previously valid legacy cache remains available as
+    # governed provider acquisition.  A previously valid legacy cache remains available as
     # an explicit fallback, but no fresh legacy provider work is started here.
     configured_fmp = bool(str(fmp_api_key if fmp_api_key is not None else os.getenv("FMP_API_KEY", "")).strip())
     fmp_families = fmp_context.get("evidence_families") if isinstance(fmp_context, dict) else {}
@@ -999,11 +980,7 @@ def build_live_research(
             cached["fmp_research_diagnostics"] = fmp_diagnostics
             return _attach_canonical_research_context(cached, symbol, canonical_context=fmp_context)
 
-    tk = yf.Ticker(symbol)
-    try:
-        info = tk.get_info() or {}
-    except Exception:
-        info = {}
+    info = dict(fmp_context or {})
     hist = _download_history(symbol)
     if hist.empty or "Close" not in hist.columns:
         return {"error": "Live market data is temporarily unavailable.", "error_code": "PRICE_HISTORY_UNAVAILABLE", "Ticker": symbol}

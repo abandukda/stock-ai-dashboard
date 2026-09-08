@@ -177,16 +177,14 @@ def test_first3_governance_and_yahoo_debt_are_explicit():
     assert all(item.primary == FMP for item in EXPLICIT_RESEARCH_FMP_PRIMARY)
     assert all(item.authority_status == FMP_PRIMARY_YAHOO_FALLBACK for item in EXPLICIT_RESEARCH_FMP_PRIMARY)
     assert all(item.commercial_status == COMMERCIAL_LICENSE_PENDING for item in EXPLICIT_RESEARCH_FMP_PRIMARY)
-    statuses = {item.stable_id: item.current_status for item in YAHOO_DEPENDENCIES}
-    assert statuses["YAHOO_EXPLICIT_RESEARCH_ROW"] == LEGACY_PENDING_REMOVAL
-    assert statuses["YAHOO_EXPLICIT_RESEARCH_ACTIONS"] == LEGACY_PENDING_REMOVAL
+    assert all(item.file in {"analysis/phase4a/build_point_in_time_panel.py", "analyzer.py", "app_backup.py"} for item in YAHOO_DEPENDENCIES)
     assert yahoo_migration_metrics() == {
-        "total_registered_yahoo_dependencies": 31,
-        "active_yahoo_dependencies": 8,
-        "active_production_yahoo_dependencies": 8,
-        "active_primary_yahoo_dependencies": 7,
-        "active_fallback_yahoo_dependencies": 1,
-        "legacy_yahoo_dependencies": 23,
+        "total_registered_yahoo_dependencies": 3,
+        "active_yahoo_dependencies": 0,
+        "active_production_yahoo_dependencies": 0,
+        "active_primary_yahoo_dependencies": 0,
+        "active_fallback_yahoo_dependencies": 0,
+        "legacy_yahoo_dependencies": 3,
     }
 
 

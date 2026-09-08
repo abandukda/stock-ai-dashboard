@@ -27,7 +27,7 @@ from services.research_family_cache import (
     load_family_envelope,
     save_family_envelope,
 )
-from services.yahoo_dependency_registry import EXPECTED_YAHOO_DEPENDENCY_COUNT_V1, YAHOO_DEPENDENCIES
+from services.yahoo_dependency_registry import EXPECTED_YAHOO_DEPENDENCY_COUNT_V1, YAHOO_DEPENDENCIES, yahoo_migration_metrics
 
 
 def _production(**updates):
@@ -248,6 +248,7 @@ def test_synthesis_v2_is_schema_only() -> None:
     assert set(synthesis["assertion_schema"]) == {"text", "evidence_ids", "as_of", "confidence"}
 
 
-def test_yahoo_dependency_registry_did_not_increase() -> None:
-    assert EXPECTED_YAHOO_DEPENDENCY_COUNT_V1 == 31
-    assert len(YAHOO_DEPENDENCIES) == 31
+def test_production_provider_migration_leaves_only_isolated_debt() -> None:
+    assert EXPECTED_YAHOO_DEPENDENCY_COUNT_V1 == 3
+    assert len(YAHOO_DEPENDENCIES) == 3
+    assert yahoo_migration_metrics()["active_production_yahoo_dependencies"] == 0

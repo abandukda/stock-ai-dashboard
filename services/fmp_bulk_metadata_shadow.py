@@ -374,6 +374,16 @@ def acquire_fmp_bulk_metadata_shadow(
     return snapshot
 
 
+def acquire_governed_fmp_bulk_metadata(
+    api_key: str, universe: Sequence[str], **kwargs: Any,
+) -> dict[str, Any]:
+    """Use the same normalized/cache-safe acquisition with production lineage."""
+    result = acquire_fmp_bulk_metadata_shadow(api_key, universe, **kwargs)
+    result["mode"] = "GOVERNED_PRODUCTION_PROFILE"
+    result["authority"] = "FMP_PROFILE_BULK"
+    return result
+
+
 def build_fmp_candidate_metadata(record: Mapping[str, Any]) -> dict[str, Any]:
     families = record.get("families") if isinstance(record.get("families"), Mapping) else {}
     profile = families.get("profile-bulk") if isinstance(families.get("profile-bulk"), Mapping) else {}
@@ -511,7 +521,7 @@ def persist_bulk_shadow_analysis(
 __all__ = [
     "FMP_BULK_FAMILIES", "FMP_BULK_FIELD_MAP", "FMP_BULK_METADATA_MAX_REQUESTS", "FMP_BULK_METADATA_SCHEMA_VERSION",
     "FMP_BULK_METADATA_SNAPSHOT", "FMP_BULK_METADATA_TTL_SECONDS", "PARITY_CATEGORIES",
-    "YAHOO_METADATA_DEPENDENCY_MAP", "acquire_fmp_bulk_metadata_shadow",
+    "YAHOO_METADATA_DEPENDENCY_MAP", "acquire_fmp_bulk_metadata_shadow", "acquire_governed_fmp_bulk_metadata",
     "build_fmp_candidate_metadata", "compare_prescreen_replay", "compare_yahoo_fmp_metadata",
     "persist_bulk_shadow_analysis",
 ]

@@ -26,7 +26,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 import pandas as pd
-import yfinance as yf
 
 from engines.atlas_valuation import AtlasValuationInputs, PUBLISHED, calculate_atlas_fair_value
 from engines.deep_research_evidence import (
@@ -41,13 +40,14 @@ from services.deep_research_cache import cached_evidence
 from services.fmp_stable_client import AUTHORIZED_EMPTY, FMPStableClient, SUCCESS
 from services.fmp_shadow_research import build_fmp_shadow_research, build_provider_comparison
 from services.fmp_bulk_metadata_shadow import (
-    acquire_fmp_bulk_metadata_shadow,
+    acquire_governed_fmp_bulk_metadata,
     build_fmp_candidate_metadata,
     compare_prescreen_replay,
     compare_yahoo_fmp_metadata,
     persist_bulk_shadow_analysis,
 )
 from services.analyst_estimate_snapshot_store import capture_daily_estimates
+from services.governed_discovery_data import fetch_twelve_daily_batch, load_governed_universe
 
 
 def v42_safe_float(value, default=0.0):
@@ -342,37 +342,11 @@ def exclusion_reason(meta: Dict[str, Any]) -> Optional[str]:
 # UNIVERSE
 # =========================
 
-def get_yahoo_screeners() -> List[str]:
+def get_governed_listings() -> List[str]:
     """
-    Pull broad liquid lists from Yahoo predefined screeners.
-    This avoids relying only on stale hardcoded symbols.
+    Pull the current governed US listing universe from FMP.
     """
-    screeners = [
-        "most_actives",
-        "day_gainers",
-        "day_losers",
-        "growth_technology_stocks",
-        "undervalued_growth_stocks",
-        "aggressive_small_caps",
-        "portfolio_anchors",
-        "small_cap_gainers",
-    ]
-
-    symbols = set()
-    for screener in screeners:
-        try:
-            df = yf.screen(screener, count=250)
-            quotes = df.get("quotes", []) if isinstance(df, dict) else []
-            for q in quotes:
-                sym = q.get("symbol")
-                quote_type = q.get("quoteType", "")
-                if sym and quote_type in {"EQUITY", "ETF"}:
-                    if "." not in sym and "/" not in sym and len(sym) <= 6:
-                        symbols.add(sym.upper())
-        except Exception:
-            continue
-
-    return sorted(symbols)
+    return list(load_governed_universe(fmp_key=FMP_API_KEY).get("symbols") or [])
 
 
 def fallback_universe() -> List[str]:
@@ -429,29 +403,12 @@ def load_watchlist_symbols() -> List[str]:
 
 
 def build_universe() -> List[str]:
-    symbols = set(fallback_universe())
+    governed_symbols = get_governed_listings()
+    symbols = set(governed_symbols)
 
-    yahoo_symbols = get_yahoo_screeners()
-    symbols.update(yahoo_symbols)
-
-    # V41.2: force user-added watchlist tickers into the scan universe.
+    # Watchlist symbols participate only after authoritative identity exists.
     watchlist_symbols = load_watchlist_symbols()
-    symbols.update(watchlist_symbols)
-
-    # Load prior universe if present to preserve continuity.
-    try:
-        if UNIVERSE_FILE.exists():
-            prior = json.loads(UNIVERSE_FILE.read_text())
-            if isinstance(prior, list):
-                for item in prior:
-                    sym = item.get("symbol") if isinstance(item, dict) else item
-                    if sym:
-                        symbols.add(str(sym).upper())
-            elif isinstance(prior, dict):
-                for item in prior.get("symbols", []):
-                    symbols.add(str(item).upper())
-    except Exception:
-        pass
+    symbols.update(symbol for symbol in watchlist_symbols if symbol in symbols)
 
     clean = []
     for sym in sorted(symbols):
@@ -464,46 +421,53 @@ def build_universe() -> List[str]:
     return clean[:MAX_UNIVERSE]
 
 
+def load_prior_universe_symbols() -> List[str]:
+    try:
+        prior = json.loads(UNIVERSE_FILE.read_text(encoding="utf-8"))
+        values = prior.get("symbols", []) if isinstance(prior, dict) else prior
+        return sorted({str(item.get("symbol") if isinstance(item, dict) else item).upper() for item in values if item})
+    except Exception:
+        return []
+
+
+def compare_governed_universe(prior: List[str], current: List[str]) -> Dict[str, Any]:
+    old, new = set(prior), set(current)
+    only_old = sorted(old - new)
+    only_new = sorted(new - old)
+    return {
+        "comparison_version": "GOVERNED_UNIVERSE_COMPARISON_V1",
+        "old_count": len(old), "new_count": len(new), "overlap": len(old & new),
+        "only_old": only_old, "only_new": only_new,
+        "loss_reasons": {symbol: "REQUIRES_LISTING_OR_DELISTING_RECONCILIATION" for symbol in only_old},
+        "unexplained_losses": only_old,
+    }
+
+
 # =========================
 # DATA FETCH
 # =========================
 
 def download_price_batch(symbols: List[str]) -> pd.DataFrame:
-    """Rate-limit-safe broad discovery download.
-
-    The Discovery Engine intentionally disables yfinance threading and uses
-    exponential backoff. Deep enrichment happens only for finalists or via
-    the Live Research Engine when a customer requests a ticker.
-    """
+    """Rate-limit-safe governed Twelve daily-history download."""
     if not symbols:
         return pd.DataFrame()
 
     for attempt in range(3):
         try:
-            data = yf.download(
-                tickers=" ".join(symbols),
-                period="1y",
-                interval="1d",
-                group_by="ticker",
-                auto_adjust=True,
-                prepost=False,
-                threads=False,
-                progress=False,
-                timeout=30,
-            )
+            data = fetch_twelve_daily_batch(symbols)
             if data is not None and not data.empty:
                 return data
         except Exception as exc:
             print(f"Discovery batch attempt {attempt + 1} failed for {len(symbols)} symbols: {exc}")
         # Successful batches return immediately. Delay only after a failed or
-        # empty Yahoo response, preserving exponential retry/backoff without
+        # empty governed-provider response, preserving exponential backoff without
         # charging every healthy batch a fixed sleep.
         if attempt < 2:
             delay = 2 ** attempt
-            _record_scan_timing("yahoo_retry_count", count=1)
-            _record_scan_timing("yahoo_backoff_seconds", elapsed=float(delay))
+            _record_scan_timing("governed_market_retry_count", count=1)
+            _record_scan_timing("governed_market_backoff_seconds", elapsed=float(delay))
             print(
-                f"[yahoo-retry] attempt={attempt + 1}/3 symbols={len(symbols)} "
+                f"[governed-market-retry] attempt={attempt + 1}/3 symbols={len(symbols)} "
                 f"backoff_seconds={delay}",
                 flush=True,
             )
@@ -532,7 +496,7 @@ def extract_symbol_history(data: pd.DataFrame, symbol: str) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def get_metadata(symbol: str) -> Dict[str, Any]:
+def get_metadata(symbol: str, fmp_record: Mapping[str, Any] | None = None) -> Dict[str, Any]:
     defaults = {
         "company_name": symbol,
         "sector": "Unknown",
@@ -541,84 +505,16 @@ def get_metadata(symbol: str) -> Dict[str, Any]:
         "quote_type": "EQUITY",
     }
 
-    metadata_started = time.monotonic()
-    outcome = "failures"
-    failure_category = None
-    try:
-        ticker = yf.Ticker(symbol)
-        info = ticker.get_info() or {}
-        if not isinstance(info, dict):
-            raise TypeError("Yahoo metadata schema is not an object")
-        outcome = "successes" if info else "empty"
-
-        name = (
-            info.get("shortName")
-            or info.get("longName")
-            or info.get("displayName")
-            or info.get("underlyingSymbol")
-            or symbol
-        )
-
-        return {
-            "company_name": name if name and name != symbol else symbol,
-            "sector": info.get("sector") or info.get("category") or "Unknown",
-            "industry": info.get("industry") or info.get("fundFamily") or "Unknown",
-            "market_cap": safe_float(info.get("marketCap")),
-            "quote_type": info.get("quoteType") or "EQUITY",
-            "analyst_target_mean": safe_float(info.get("targetMeanPrice")),
-            "analyst_target_high": safe_float(info.get("targetHighPrice")),
-            "analyst_target_low": safe_float(info.get("targetLowPrice")),
-            "analyst_count": safe_int(info.get("numberOfAnalystOpinions"), None),
-            "recommendation_mean": safe_float(info.get("recommendationMean")),
-            "recommendation_key": info.get("recommendationKey") or "unknown",
-            "revenue_growth": safe_float(info.get("revenueGrowth")),
-            "revenue_growth_source": "YAHOO_INFO" if info.get("revenueGrowth") is not None else None,
-            "revenue_growth_horizon": "PROVIDER_DEFINED" if info.get("revenueGrowth") is not None else None,
-            "earnings_growth": safe_float(info.get("earningsGrowth")),
-            "earnings_growth_source": "YAHOO_INFO" if info.get("earningsGrowth") is not None else None,
-            "earnings_growth_horizon": "PROVIDER_DEFINED" if info.get("earningsGrowth") is not None else None,
-            "forward_pe": safe_float(info.get("forwardPE")),
-            "forward_eps": safe_float(info.get("forwardEps")),
-            "forward_eps_source": "YAHOO_INFO" if info.get("forwardEps") is not None else None,
-            "peg_ratio": safe_float(info.get("pegRatio")),
-            # Preserve Yahoo's decimal ratio (for example 0.1691 == 16.91%).
-            # The research adapter owns presentation scaling, matching the
-            # scheduled FMP ratio convention and preventing double scaling.
-            "return_on_equity": safe_float(info.get("returnOnEquity")),
-            "institutional_ownership_pct": (
-                safe_float(info.get("heldPercentInstitutions")) * 100
-                if safe_float(info.get("heldPercentInstitutions")) is not None else None
-            ),
-            "insider_ownership_pct": (
-                safe_float(info.get("heldPercentInsiders")) * 100
-                if safe_float(info.get("heldPercentInsiders")) is not None else None
-            ),
-            # Yahoo includes these timestamps in the metadata response, so this
-            # recovers the calendar value without an additional API request.
-            "next_earnings_date": (
-                datetime.fromtimestamp(float(info.get("earningsTimestamp")), tz=timezone.utc).isoformat()
-                if safe_float(info.get("earningsTimestamp")) is not None
-                and float(info.get("earningsTimestamp")) > time.time()
-                else None
-            ),
-            # ETF-only reference fields.  They remain isolated from corporate
-            # earnings/guidance semantics and require no additional request.
-            "fund_family": info.get("fundFamily"),
-            "fund_category": info.get("category"),
-            "expense_ratio": safe_float(info.get("annualReportExpenseRatio")),
-            "distribution_yield": safe_float(info.get("yield")),
-            "fund_total_assets": safe_float(info.get("totalAssets")),
-        }
-    except Exception as exc:
-        failure_category = _classify_yahoo_metadata_exception(exc)
-        return defaults
-    finally:
-        _record_yahoo_metadata_result(
-            symbol,
-            time.monotonic() - metadata_started,
-            outcome,
-            failure_category,
-        )
+    normalized = build_fmp_candidate_metadata(fmp_record or {})
+    return {
+        **defaults,
+        **{key: value for key, value in normalized.items() if value not in (None, "")},
+        "company_name": normalized.get("company_name") or symbol,
+        "sector": normalized.get("sector") or "Unknown",
+        "industry": normalized.get("industry") or "Unknown",
+        "quote_type": normalized.get("quote_type") or "EQUITY",
+        "source_profile": "FMP_PROFILE_BULK",
+    }
 
 
 def get_fmp_data(symbol: str) -> Dict[str, Any]:
@@ -1201,7 +1097,7 @@ def build_ai_committee(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], t
                 f"Volume ratio: {volume_ratio:.2f}x",
             ],
             "Positive" if technical_score >= 70 else "Neutral" if technical_score >= 50 else "Caution",
-            "Yahoo/yfinance price history and volume",
+            "Twelve Data price history and volume",
         ),
         build_agent_summary(
             "Fundamental Agent", fundamental_score,
@@ -1213,7 +1109,7 @@ def build_ai_committee(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], t
                 f"PEG ratio: {peg_ratio:.2f}" if peg_ratio is not None else "PEG ratio unavailable",
             ],
             "Positive" if fundamental_score >= 70 else "Neutral" if fundamental_score >= 50 else "Caution",
-            "Yahoo/FMP fundamentals and company profile",
+            "FMP fundamentals and company profile",
         ),
         build_agent_summary(
             "Valuation Agent", valuation_score,
@@ -1225,7 +1121,7 @@ def build_ai_committee(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], t
                 f"AI upside: {expected_upside:.1f}%",
             ],
             "Positive" if valuation_score >= 70 else "Neutral" if valuation_score >= 50 else "Caution",
-            "Yahoo/Finnhub analyst targets plus AI fair value model",
+            "FMP/Finnhub analyst targets plus ATLAS fair value model",
         ),
         build_agent_summary(
             "News Agent", news_agent_score,
@@ -1281,7 +1177,7 @@ def build_ai_committee(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], t
                 "Valuation not excessive" if forward_pe is not None and forward_pe <= 35 else "Valuation requires review",
             ],
             "Positive" if quality_score >= 70 else "Neutral" if quality_score >= 50 else "Caution",
-            "Yahoo/FMP quality and valuation fields",
+            "FMP quality and valuation fields",
         ),
     ]
 
@@ -3135,7 +3031,7 @@ def build_finance_agent(meta: Dict[str, Any]) -> Dict[str, Any]:
         "score": score,
         "status": status,
         "impact": impact,
-        "data_used": "FMP/Yahoo financial statements, ratios, earnings surprises, balance sheet, cash flow, and peer set",
+        "data_used": "FMP financial statements, ratios, earnings surprises, balance sheet, cash flow, and peer set",
         "summary": "Evaluates financial execution, EPS quality, revenue consistency, balance sheet risk, cash flow, margins, valuation, and peer context.",
         "findings": positives[:10],
         "risks": cautions[:8],
@@ -3212,7 +3108,7 @@ def enhance_ai_committee(row: Dict[str, Any], meta: Dict[str, Any], ind: Dict[st
             "score": row.get("conviction", 0),
             "status": "Positive" if row.get("conviction", 0) >= 85 else "Mixed",
             "impact": "Positive" if row.get("conviction", 0) >= 85 else "Neutral",
-            "data_used": "Yahoo price history, moving averages, RSI, volume, ATR, momentum",
+            "data_used": "Twelve Data price history, moving averages, RSI, volume, ATR, momentum",
             "summary": "Cross-checks trend quality, momentum, liquidity, volume confirmation, volatility, and entry risk.",
             "findings": technical_findings[:8],
             "risks": technical_risks[:6] or ["No major technical risk detected from available data"],
@@ -3222,7 +3118,7 @@ def enhance_ai_committee(row: Dict[str, Any], meta: Dict[str, Any], ind: Dict[st
             "score": int(safe_float(meta.get("analyst_support_score"), 50) or 50),
             "status": "Positive" if (safe_float(meta.get("analyst_support_score"), 50) or 50) >= 60 else "Mixed",
             "impact": "Positive" if (safe_float(meta.get("analyst_support_score"), 50) or 50) >= 60 else "Neutral",
-            "data_used": "Finnhub/Yahoo analyst recommendations, target prices, analyst count",
+            "data_used": "FMP/Finnhub analyst recommendations, target prices, analyst count",
             "summary": "Checks whether Wall Street target data and recommendation trends support the thesis.",
             "findings": analyst_findings[:8],
             "risks": analyst_risks[:6] or ["No major analyst red flag detected from available data"],
@@ -3790,8 +3686,8 @@ def v42_build_committee(symbol: str, row: Dict[str,Any], meta: Dict[str,Any], in
         else: inst_find.append('No recent issuer-level 13F form found in recent company submissions.')
     agents={
         'News Agent':v42_agent(news['score'],news['status'],'Positive' if news['score']>=70 else 'Neutral' if news['score']>=45 else 'Negative',', '.join(news['sources']),f'Reviews headlines/catalysts. Confidence: {news["confidence"]}.',news['catalysts'],news['risks'],'News flow supports the thesis.' if news['score']>=70 else 'News is mixed or insufficient.'),
-        'Finance Agent':v42_agent(finance_score,'Positive' if finance_score>=75 else 'Mixed','Positive' if finance_score>=75 else 'Neutral','FMP/Yahoo fundamentals, financial statements, balance sheet, cash flow','Checks revenue, EPS, margins, leverage, liquidity, cash flow, valuation, and execution.',finance_find or row.get('finance_agent_findings') or ['Financial data limited.'],finance_risk or row.get('finance_agent_risks') or ['No major finance-specific red flag detected.'],row.get('finance_agent_bottom_line') or 'Financial profile reviewed.'),
-        'Analyst Agent':v42_agent(analyst,'Positive' if analyst>=65 else 'Mixed','Positive' if analyst>=65 else 'Neutral','Finnhub/Yahoo/FMP analyst targets and recommendation trends','Checks whether Wall Street estimates support the AI thesis.',[f'Analyst support score: {analyst:.0f}/100.', f'Analyst target: ${row.get("analyst_target_mean") or row.get("Analyst Target") or "N/A"}.', f'Analyst count: {row.get("analyst_count") or row.get("Analyst Count") or "N/A"}.'],['Analyst data can lag fast-moving news.'] + (['AI fair value is far above analyst consensus; higher uncertainty.'] if upside>=50 else []),'Analyst view supports the thesis.' if analyst>=65 else 'Analyst view is mixed/limited.'),
+        'Finance Agent':v42_agent(finance_score,'Positive' if finance_score>=75 else 'Mixed','Positive' if finance_score>=75 else 'Neutral','FMP fundamentals, financial statements, balance sheet, cash flow','Checks revenue, EPS, margins, leverage, liquidity, cash flow, valuation, and execution.',finance_find or row.get('finance_agent_findings') or ['Financial data limited.'],finance_risk or row.get('finance_agent_risks') or ['No major finance-specific red flag detected.'],row.get('finance_agent_bottom_line') or 'Financial profile reviewed.'),
+        'Analyst Agent':v42_agent(analyst,'Positive' if analyst>=65 else 'Mixed','Positive' if analyst>=65 else 'Neutral','FMP/Finnhub analyst targets and recommendation trends','Checks whether Wall Street estimates support the AI thesis.',[f'Analyst support score: {analyst:.0f}/100.', f'Analyst target: ${row.get("analyst_target_mean") or row.get("Analyst Target") or "N/A"}.', f'Analyst count: {row.get("analyst_count") or row.get("Analyst Count") or "N/A"}.'],['Analyst data can lag fast-moving news.'] + (['AI fair value is far above analyst consensus; higher uncertainty.'] if upside>=50 else []),'Analyst view supports the thesis.' if analyst>=65 else 'Analyst view is mixed/limited.'),
         'Technical Agent':v42_agent(conviction,'Positive' if conviction>=75 else 'Mixed','Positive' if conviction>=75 else 'Neutral','Price history, RSI, ATR, volume, SMA, support/resistance','Evaluates trend, momentum, volatility, support/resistance and entry quality.',tech_find,tech_risk or ['No major technical risk detected.'],sr.get('guidance','Technical setup reviewed.')),
         'Insider Agent':v42_agent(insider_score,'Constructive' if insider_score>=60 else 'Limited','Neutral','SEC EDGAR Form 4 framework; Finnhub insider-ready','Checks insider filing activity and prepares buy/sell classification.',insider_find or ['No recent Form 4 activity retrieved.'],insider_risk,'Insider signal is limited until transaction-level parsing is expanded.'),
         'Institutional Agent':v42_agent(inst_score,'Constructive' if inst_score>=60 else 'Limited','Neutral','SEC EDGAR filings plus FMP institutional ownership-ready','Checks institutional context and 13F availability.',inst_find or ['Institutional data limited.'],['13F data is delayed by reporting schedule.'],'Institutional signal is directional and should be confirmed with holder details.'),
@@ -4204,7 +4100,7 @@ def _finalize_yahoo_metadata_percentiles() -> None:
 
 
 def _reconcile_scan_timings(scanner_total: float) -> float:
-    # These phases are exclusive. Retry/backoff is already inside Yahoo batch
+    # These phases are exclusive. Retry/backoff is already inside the market batch
     # time; ETF committee/provider/SEC timings are already inside ETF time.
     exclusive_keys = (
         "universe_construction_seconds",
@@ -4471,22 +4367,11 @@ def get_etf_research(symbol: str) -> Dict[str, Any]:
     if cache_key in _ETF_RESEARCH_CACHE:
         return dict(_ETF_RESEARCH_CACHE[cache_key])
     result: Dict[str, Any] = {}
-    response: Dict[str, Any] = {}
-
-    def fetch() -> None:
-        try:
-            response["funds"] = yf.Ticker(cache_key).funds_data
-        except Exception:
-            response["funds"] = None
-
-    worker = threading.Thread(target=fetch, name=f"atlas-etf-research-{cache_key}", daemon=True)
-    worker.start()
-    worker.join(max(0.1, HTTP_TIMEOUT_FAST))
     try:
-        funds = None if worker.is_alive() else response.get("funds")
-        if funds is None:
-            raise ValueError("ETF research unavailable")
-        holdings = getattr(funds, "top_holdings", None)
+        response = FMPStableClient(FMP_API_KEY, timeout_seconds=HTTP_TIMEOUT_FAST).get(
+            "etf/holding", {"symbol": cache_key}
+        )
+        holdings = response.payload if response.outcome == SUCCESS else None
         if isinstance(holdings, pd.DataFrame) and not holdings.empty:
             normalized_holdings = []
             frame = holdings.reset_index()
@@ -4867,15 +4752,15 @@ def scan_market() -> Dict[str, Any]:
     _NEWSAPI_DIAGNOSTICS.clear()
     _FMP_SHADOW_RUN_DIAGNOSTICS.clear()
     _FMP_SHADOW_RUN_DIAGNOSTICS.update(_empty_fmp_shadow_diagnostics())
+    prior_universe = load_prior_universe_symbols()
     universe_started = time.monotonic()
     universe = build_universe()
     _record_scan_timing("universe_construction_seconds", time.monotonic() - universe_started)
 
     # Research-only benchmark.  The normalized FMP records are never merged
-    # into Yahoo metadata and therefore cannot influence any production row.
-    # Failure is deliberately non-fatal because Yahoo remains authoritative.
+    # into canonical calculations; it is the normalized governed profile cache.
     try:
-        fmp_bulk_shadow = acquire_fmp_bulk_metadata_shadow(FMP_API_KEY, universe)
+        fmp_bulk_shadow = acquire_governed_fmp_bulk_metadata(FMP_API_KEY, universe)
     except Exception:
         fmp_bulk_shadow = {
             "mode": "RESEARCH_ONLY_SHADOW",
@@ -4888,6 +4773,7 @@ def scan_market() -> Dict[str, Any]:
         "generated_at": now_iso(),
         "count": len(universe),
         "symbols": universe,
+        "governed_universe_comparison": compare_governed_universe(prior_universe, universe),
     }
     _record_scan_timing("universe_persistence_seconds", 0.0)
 
@@ -4943,9 +4829,10 @@ def scan_market() -> Dict[str, Any]:
 
             meta = metadata_cache.get(symbol)
             if meta is None:
-                meta = get_metadata(symbol)
+                fmp_record = (fmp_bulk_shadow.get("records") or {}).get(symbol, {})
+                meta = get_metadata(symbol, fmp_record)
 
-                # V40.0: enrich Yahoo metadata with FMP profile data when available.
+                # Enrich governed metadata with point-profile data when available.
                 # FMP values only replace missing/weak fields; failures safely do nothing.
                 fmp_meta = get_pre_rank_fmp_data(symbol)
                 if fmp_meta:
@@ -4959,9 +4846,8 @@ def scan_market() -> Dict[str, Any]:
                                 meta[key] = value
 
                 # Replay the same deterministic pre-screen primitives on the
-                # FMP snapshot before applying authoritative Yahoo exclusions.
+                # FMP snapshot before applying governed exclusions.
                 # This is isolated diagnostics: no FMP value enters `meta`.
-                fmp_record = (fmp_bulk_shadow.get("records") or {}).get(symbol, {})
                 fmp_shadow_meta = build_fmp_candidate_metadata(fmp_record)
                 fmp_shadow_reason = _shadow_filter_reason(ind, fmp_shadow_meta)
                 if fmp_shadow_reason:
@@ -5466,7 +5352,7 @@ def scan_market() -> Dict[str, Any]:
         },
         "v41_8_5_changes": {
             "fmp_chart_fallback": True,
-            "yahoo_then_fmp_history": True,
+            "governed_market_history": "TWELVE_DATA_DAILY",
         },
         "v41_8_6_changes": {
             "unique_chart_widget_keys": True,
@@ -5941,7 +5827,7 @@ def v432s_source_config_status():
     return {n: {"configured": bool((os.getenv(n) or "").strip()), "length": len((os.getenv(n) or "").strip())} for n in names}
 
 # V43.2 changes:
-# - app-level NewsAPI/Finnhub/Yahoo/CNBC/MarketWatch news fallback
+# - app-level NewsAPI/Finnhub/governed provider/CNBC/MarketWatch news fallback
 # - Analyst Intelligence V2 source diagnostics and upgrade/downgrade attempts
 # - improved business quality logic: missing P/E lowers confidence, not score collapse
 # - data confidence panel

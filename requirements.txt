@@ -1,7 +1,6 @@
 streamlit
 streamlit-autorefresh
 extra-streamlit-components
-yfinance
 pandas
 numpy
 plotly
