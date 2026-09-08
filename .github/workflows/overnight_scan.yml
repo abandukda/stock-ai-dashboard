@@ -43,14 +43,24 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          ref: main
+          # Manual runs must execute the exact ref selected in the Actions UI.
+          # Scheduled production runs remain pinned to the default production branch.
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.ref_name || 'main' }}
           fetch-depth: 0
 
-      - name: Force main branch checkout
+      - name: Record checkout diagnostics
         run: |
-          git fetch origin main
-          git checkout -B main origin/main
-          git status
+          echo "github.ref=${{ github.ref }}"
+          echo "github.ref_name=${{ github.ref_name }}"
+          echo "checked_out_sha=$(git rev-parse HEAD)"
+          echo "branch=$(git branch --show-current)"
+          if [ -f scripts/audit_production_yahoo_dependencies.py ]; then
+            echo "audit_script_exists=true"
+          else
+            echo "audit_script_exists=false"
+            exit 1
+          fi
+          echo "ATLAS_SOURCE_COMMIT_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
 
       - name: Set up Python
         uses: actions/setup-python@v5
