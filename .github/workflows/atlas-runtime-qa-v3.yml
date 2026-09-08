@@ -12,6 +12,10 @@ on:
           - full
           - targeted_preflight
           - visual_crawl
+      deployed_url:
+        description: "Exact production ATLAS *.streamlit.app URL"
+        required: false
+        type: string
 
   schedule:
     - cron: "30 11 * * 1-5"
@@ -21,6 +25,8 @@ jobs:
   runtime-qa:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      ATLAS_PRODUCTION_URL: ${{ inputs.deployed_url || vars.ATLAS_PRODUCTION_URL }}
 
     steps:
       - name: Checkout repository
@@ -42,6 +48,14 @@ jobs:
           test -f agents/fix_planner_v3.py
           test -f agents/qa_v3_models.py
           test -f agents/atlas_visual_crawler_v1.py
+
+      - name: Validate exact deployed ATLAS target
+        run: |
+          python - <<'PY'
+          import os
+          from agents.atlas_runtime_qa_v3 import _canonical_streamlit_url
+          print("ATLAS runtime target:", _canonical_streamlit_url(os.environ.get("ATLAS_PRODUCTION_URL", "")))
+          PY
 
       - name: Record source and verify architecture
         run: |
@@ -80,7 +94,7 @@ jobs:
           PYTHONUNBUFFERED: "1"
         run: |
           python -u -m agents.atlas_runtime_qa_v3 \
-            --url https://stock-ai-dashboard.streamlit.app \
+            --url "$ATLAS_PRODUCTION_URL" \
             --output audit_results \
             --mode "$ATLAS_QA_MODE"
 
@@ -110,7 +124,7 @@ jobs:
           PY
           set +e
           python -u -m agents.atlas_visual_crawler_v1 \
-            --url https://stock-ai-dashboard.streamlit.app \
+            --url "$ATLAS_PRODUCTION_URL" \
             --output audit_results/visual_crawl
           crawler_exit_code=$?
           set -e

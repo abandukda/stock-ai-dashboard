@@ -233,12 +233,25 @@ def test_targeted_and_full_paths_supply_checkout_sha_and_preserve_login_timeout(
 
 
 def test_public_streamlit_url_is_normalized_without_inventing_host_route():
-    assert qa._canonical_streamlit_url("stock-ai-dashboard.streamlit.app?x=secret") == (
-        "https://stock-ai-dashboard.streamlit.app/"
+    assert qa._canonical_streamlit_url("atlas-production-7f3.streamlit.app?x=secret") == (
+        "https://atlas-production-7f3.streamlit.app/"
     )
-    assert qa._canonical_streamlit_url("http://stock-ai-dashboard.streamlit.app/research") == (
-        "https://stock-ai-dashboard.streamlit.app/research"
+    assert qa._canonical_streamlit_url("http://atlas-production-7f3.streamlit.app/research") == (
+        "https://atlas-production-7f3.streamlit.app/research"
     )
+
+
+@pytest.mark.parametrize("target,reason", [
+    ("https://share.streamlit.io/app/stock-ai-dashboard/", "GENERIC_STREAMLIT_SHARE_SHELL"),
+    ("https://stock-ai-dashboard.streamlit.app", "RETIRED_ATLAS_DEPLOYMENT_TARGET"),
+    ("https://example.com/atlas", "NON_STREAMLIT_APP_ORIGIN"),
+    ("", "ATLAS_PRODUCTION_URL_MISSING"),
+])
+def test_generic_stale_or_missing_deployment_target_fails_fast(target, reason, monkeypatch):
+    monkeypatch.setattr(qa, "DEFAULT_URL", "")
+    with pytest.raises(qa.DeploymentTargetError) as captured:
+        qa._canonical_streamlit_url(target)
+    assert captured.value.diagnostics["reason"] == reason
 
 
 def test_open_records_resolved_host_transition_and_wake(monkeypatch):
@@ -246,7 +259,7 @@ def test_open_records_resolved_host_transition_and_wake(monkeypatch):
         status = 200
 
     class Page:
-        url = "https://stock-ai-dashboard.streamlit.app/"
+        url = "https://atlas-production-7f3.streamlit.app/"
         async def goto(self, url, **_kwargs):
             self.url = url
             return Response()
@@ -255,10 +268,10 @@ def test_open_records_resolved_host_transition_and_wake(monkeypatch):
     async def wake(_page): return True
     monkeypatch.setattr(qa, "_wait_for_streamlit_shell", shell)
     monkeypatch.setattr(qa, "_wake_if_needed", wake)
-    result = asyncio.run(qa._open_streamlit_origin(Page(), "stock-ai-dashboard.streamlit.app"))
+    result = asyncio.run(qa._open_streamlit_origin(Page(), "atlas-production-7f3.streamlit.app"))
     assert result == {
-        "requested_url": "https://stock-ai-dashboard.streamlit.app/",
-        "resolved_url": "https://stock-ai-dashboard.streamlit.app/",
+        "requested_url": "https://atlas-production-7f3.streamlit.app/",
+        "resolved_url": "https://atlas-production-7f3.streamlit.app/",
         "document_status": 200,
         "streamlit_public_host": True,
         "wake_control_used": True,
@@ -283,9 +296,26 @@ def test_open_retries_transient_navigation_failure_without_skipping_login(monkey
     async def wake(_page): return False
     monkeypatch.setattr(qa, "_wait_for_streamlit_shell", shell)
     monkeypatch.setattr(qa, "_wake_if_needed", wake)
-    result = asyncio.run(qa._open_streamlit_origin(Page(), qa.DEFAULT_URL))
+    result = asyncio.run(qa._open_streamlit_origin(Page(), "https://atlas-production-7f3.streamlit.app"))
     assert result["navigation_attempts"] == 2
     assert result["navigation_error_categories"] == ["TimeoutError"]
+
+
+def test_redirect_to_generic_share_shell_is_recorded_and_rejected(tmp_path):
+    class Response: status = 200
+    class Page:
+        url = ""
+        async def goto(self, _url, **_kwargs):
+            self.url = "https://share.streamlit.io/app/stock-ai-dashboard/"
+            return Response()
+    with pytest.raises(qa.DeploymentTargetError) as captured:
+        asyncio.run(qa._open_streamlit_origin(
+            Page(), "https://atlas-production-7f3.streamlit.app", tmp_path,
+        ))
+    recorded = json.loads((tmp_path / "deployment_target.json").read_text())
+    assert recorded["reason"] == "GENERIC_STREAMLIT_SHARE_SHELL"
+    assert recorded["resolved_target_url"] == "https://share.streamlit.io/app/stock-ai-dashboard/"
+    assert captured.value.classification == "DEPLOYMENT_TARGET_INVALID"
 
 
 @pytest.mark.parametrize("path,status", [
@@ -296,7 +326,7 @@ def test_open_retries_transient_navigation_failure_without_skipping_login(monkey
 ])
 def test_hosting_bootstrap_responses_are_not_product_defects(path, status):
     result = qa._classify_failed_request(
-        f"https://stock-ai-dashboard.streamlit.app{path}?redacted=yes", status,
+        f"https://atlas-production-7f3.streamlit.app{path}?redacted=yes", status,
     )
     assert result["relevance"] in {"NOT_ATLAS_FUNCTIONALITY", "HOSTING_READINESS_ONLY"}
     assert "redacted" not in str(result)
