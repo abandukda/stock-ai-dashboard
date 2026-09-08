@@ -48,7 +48,8 @@ from services.fmp_bulk_metadata_shadow import (
 )
 from services.analyst_estimate_snapshot_store import capture_daily_estimates
 from services.governed_discovery_data import (
-    PROVIDER_POLICY_VERSION, fetch_twelve_daily_batch, load_governed_universe,
+    PROVIDER_POLICY_VERSION, assert_governed_stock_universe,
+    fetch_twelve_daily_batch, load_governed_universe,
 )
 from services.governed_market_cache import (
     append_history, cache_namespace, load_history, load_negative_cache, write_negative_cache,
@@ -421,6 +422,7 @@ def load_watchlist_symbols() -> List[str]:
 
 def build_universe() -> List[str]:
     governed_symbols = get_governed_listings()
+    assert_governed_stock_universe(_GOVERNED_UNIVERSE_RESULT)
     symbols = set(governed_symbols)
 
     # Watchlist symbols participate only after authoritative identity exists.

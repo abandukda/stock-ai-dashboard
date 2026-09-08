@@ -22,6 +22,40 @@ PROVIDER_POLICY_VERSION = "GOVERNED_DISCOVERY_INPUTS_V1"
 SUPPORTED_US_EXCHANGES = {"NASDAQ", "NYSE", "AMEX", "NYSE AMERICAN", "ARCA", "BATS"}
 OTC_EXCHANGES = {"OTC", "OTCQX", "OTCQB", "OTC PINK", "PINK", "GREY", "GREY MARKET"}
 CLASS_SHARE_ROOTS = {"BRK", "BF", "BH"}
+_US_EXCHANGE_ALIASES = {
+    "NASDAQ": "NASDAQ", "NASDAQ GLOBAL SELECT": "NASDAQ", "NASDAQ GLOBAL MARKET": "NASDAQ",
+    "NASDAQ CAPITAL MARKET": "NASDAQ", "NASDAQGS": "NASDAQ", "NASDAQGM": "NASDAQ", "NASDAQCM": "NASDAQ",
+    "XNAS": "NASDAQ", "NYSE": "NYSE", "NEW YORK STOCK EXCHANGE": "NYSE", "NYQ": "NYSE", "XNYS": "NYSE",
+    "NYSE AMERICAN": "NYSE AMERICAN", "NYSE MKT": "NYSE AMERICAN", "AMERICAN STOCK EXCHANGE": "NYSE AMERICAN",
+    "AMEX": "AMEX", "XASE": "AMEX", "ARCA": "ARCA", "NYSE ARCA": "ARCA", "ARCX": "ARCA",
+    "BATS": "BATS", "CBOE": "BATS", "CBOE BZX": "BATS", "BZX": "BATS", "BATS GLOBAL MARKETS": "BATS",
+}
+_FOREIGN_EXCHANGE_TOKENS = {
+    "HKSE", "HONG KONG", "LSE", "LONDON", "JPX", "TOKYO", "XETRA", "FSX", "FRANKFURT",
+    "TAI", "TAIWAN", "KLS", "KLSE", "BURSA MALAYSIA", "MIL", "MILAN", "EURONEXT", "TSX", "ASX",
+}
+
+
+def normalize_listing_exchange(row: Mapping[str, Any]) -> dict[str, str | None]:
+    """Resolve FMP listing venue without inferring venue from issuer country."""
+    source = next((str(row.get(field)).strip() for field in (
+        "exchangeShortName", "exchange", "exchangeFullName"
+    ) if row.get(field) is not None and str(row.get(field)).strip()), "")
+    upper = re.sub(r"\s+", " ", source.upper()).strip()
+    if not upper:
+        return {"source_exchange_value": None, "normalized_exchange": None,
+                "exchange_resolution_status": "UNRESOLVED"}
+    if upper in _US_EXCHANGE_ALIASES:
+        return {"source_exchange_value": source, "normalized_exchange": _US_EXCHANGE_ALIASES[upper],
+                "exchange_resolution_status": "RESOLVED_US"}
+    if upper in OTC_EXCHANGES or upper.startswith("OTC"):
+        return {"source_exchange_value": source, "normalized_exchange": upper,
+                "exchange_resolution_status": "RESOLVED_OTC"}
+    if any(token in upper for token in _FOREIGN_EXCHANGE_TOKENS):
+        return {"source_exchange_value": source, "normalized_exchange": upper,
+                "exchange_resolution_status": "RESOLVED_FOREIGN"}
+    return {"source_exchange_value": source, "normalized_exchange": None,
+            "exchange_resolution_status": "UNMAPPED"}
 
 
 def canonical_security_ticker(symbol: str) -> str:
@@ -44,7 +78,8 @@ def twelve_symbol_route(symbol: str, *, exchange: str | None = None) -> dict[str
 
 def classify_listing(row: Mapping[str, Any], *, family: str) -> tuple[str, str | None]:
     """Return route and an explicit governed exclusion reason when applicable."""
-    exchange = str(row.get("exchangeShortName") or row.get("exchange") or "").upper().strip()
+    exchange_identity = normalize_listing_exchange(row)
+    exchange = str(exchange_identity.get("normalized_exchange") or "")
     name = str(row.get("name") or row.get("companyName") or "").upper()
     declared = str(row.get("type") or row.get("securityType") or "").upper()
     combined = f"{declared} {name}"
@@ -52,8 +87,12 @@ def classify_listing(row: Mapping[str, Any], *, family: str) -> tuple[str, str |
         return "EXCLUDE", "DELISTED_LISTING"
     if row.get("isActivelyTrading") is False:
         return "EXCLUDE", "INACTIVE_LISTING"
-    if exchange in OTC_EXCHANGES or exchange.startswith("OTC"):
+    if exchange_identity["exchange_resolution_status"] == "UNRESOLVED" or exchange_identity["exchange_resolution_status"] == "UNMAPPED":
+        return "EXCLUDE", "UNRESOLVED_LISTING_IDENTITY"
+    if exchange_identity["exchange_resolution_status"] == "RESOLVED_OTC":
         return "EXCLUDE", "OTC_OUTSIDE_STOCK_POLICY"
+    if exchange_identity["exchange_resolution_status"] != "RESOLVED_US" or exchange not in SUPPORTED_US_EXCHANGES:
+        return "EXCLUDE", "NON_US_EXCHANGE_OUTSIDE_STOCK_POLICY"
     if family == "etf-list" or row.get("isEtf") is True or "EXCHANGE TRADED FUND" in combined:
         return "ETF", None
     if "WARRANT" in combined or declared in {"WARRANT", "WARRANTS"}:
@@ -68,8 +107,6 @@ def classify_listing(row: Mapping[str, Any], *, family: str) -> tuple[str, str |
         return "EXCLUDE", "CLOSED_END_FUND"
     if row.get("isFund") is True or declared in {"FUND", "MUTUAL FUND", "TRUST"}:
         return "EXCLUDE", "OTHER_NON_COMMON_SECURITY"
-    if exchange and exchange not in SUPPORTED_US_EXCHANGES:
-        return "EXCLUDE", "NON_US_EXCHANGE_OUTSIDE_STOCK_POLICY"
     explicitly_common = any(token in combined for token in ("COMMON STOCK", "COMMON EQUITY", "ADR", "ADS"))
     if declared and not explicitly_common and declared not in {"STOCK", "EQUITY"}:
         return "EXCLUDE", "OTHER_NON_COMMON_SECURITY"
@@ -163,7 +200,8 @@ def load_governed_universe(*, fmp_key: str | None = None, client: FMPStableClien
             symbol = canonical_security_ticker(source_symbol)
             if symbol:
                 raw_symbols.add(symbol)
-            exchange = str(row.get("exchangeShortName") or row.get("exchange") or "").upper()
+            exchange_identity = normalize_listing_exchange(row)
+            exchange = exchange_identity.get("normalized_exchange")
             if not symbol or "/" in symbol or len(symbol) > 7:
                 exclusions.append({"ticker": source_symbol, "canonical_ticker": symbol or None,
                                    "reason": "INVALID_SYMBOL_IDENTITY"})
@@ -174,6 +212,7 @@ def load_governed_universe(*, fmp_key: str | None = None, client: FMPStableClien
                 "source_ticker": source_symbol,
                 "company_name": row.get("name") or row.get("companyName"),
                 "exchange": exchange or None,
+                **exchange_identity,
                 "country": row.get("country"),
                 "security_type": row.get("type") or row.get("securityType") or ("ETF" if route == "ETF" else "COMMON_STOCK"),
                 "is_actively_trading": row.get("isActivelyTrading"),
@@ -181,7 +220,10 @@ def load_governed_universe(*, fmp_key: str | None = None, client: FMPStableClien
                 "route": route,
             }
             records.setdefault(symbol, record)
-            mappings[symbol] = {**twelve_symbol_route(symbol, exchange=exchange), "source_ticker": source_symbol}
+            mappings[symbol] = {
+                **twelve_symbol_route(symbol, exchange=exchange), "source_ticker": source_symbol,
+                **exchange_identity,
+            }
             if reason:
                 exclusions.append({**record, "reason": reason})
             elif route == "ETF":
@@ -195,7 +237,17 @@ def load_governed_universe(*, fmp_key: str | None = None, client: FMPStableClien
     for item in exclusions:
         reason = str(item["reason"])
         exclusion_counts[reason] = exclusion_counts.get(reason, 0) + 1
-    return {
+    stock_exchange_distribution: dict[str, int] = {}
+    etf_exchange_distribution: dict[str, int] = {}
+    for symbol in stock_symbols:
+        exchange = str(records[symbol].get("normalized_exchange") or "UNRESOLVED")
+        stock_exchange_distribution[exchange] = stock_exchange_distribution.get(exchange, 0) + 1
+    for symbol in etf_symbols:
+        exchange = str(records[symbol].get("normalized_exchange") or "UNRESOLVED")
+        etf_exchange_distribution[exchange] = etf_exchange_distribution.get(exchange, 0) + 1
+    unresolved = [item for item in exclusions if item.get("reason") == "UNRESOLVED_LISTING_IDENTITY"]
+    foreign = [item for item in exclusions if item.get("reason") == "NON_US_EXCHANGE_OUTSIDE_STOCK_POLICY"]
+    result = {
         "symbols": symbols,
         "stock_symbols": sorted(stock_symbols),
         "etf_symbols": sorted(etf_symbols),
@@ -203,7 +255,23 @@ def load_governed_universe(*, fmp_key: str | None = None, client: FMPStableClien
         "symbol_mappings": mappings,
         "exclusions": exclusions,
         "summary": {
+            "raw_global_master_count": len(raw_symbols),
             "raw_universe_count": len(raw_symbols),
+            "resolved_us_listing_count": len(stock_symbols | etf_symbols),
+            "unresolved_listing_identity_count": len(unresolved),
+            "foreign_listing_removed_count": len(foreign),
+            "inactive_removed_count": exclusion_counts.get("INACTIVE_LISTING", 0),
+            "otc_removed_count": exclusion_counts.get("OTC_OUTSIDE_STOCK_POLICY", 0),
+            "non_common_removed_count": sum(exclusion_counts.get(reason, 0) for reason in (
+                "WARRANT_SECURITY", "RIGHT_SECURITY", "UNIT_SECURITY", "PREFERRED_SECURITY",
+                "OTHER_NON_COMMON_SECURITY", "CLOSED_END_FUND",
+            )),
+            "us_stock_universe_count": len(stock_symbols),
+            "us_etf_universe_count": len(etf_symbols),
+            "stock_exchange_distribution": stock_exchange_distribution,
+            "etf_exchange_distribution": etf_exchange_distribution,
+            "representative_unresolved_symbols": unresolved[:25],
+            "representative_foreign_symbols": foreign[:25],
             "inactive_removed": exclusion_counts.get("INACTIVE_LISTING", 0),
             "delisted_removed": exclusion_counts.get("DELISTED_LISTING", 0),
             "otc_removed": exclusion_counts.get("OTC_OUTSIDE_STOCK_POLICY", 0),
@@ -225,6 +293,22 @@ def load_governed_universe(*, fmp_key: str | None = None, client: FMPStableClien
         "as_of": datetime.now(timezone.utc).isoformat(),
         "diagnostics": diagnostics,
     }
+    assert_governed_stock_universe(result)
+    return result
+
+
+def assert_governed_stock_universe(result: Mapping[str, Any]) -> None:
+    """Hard-stop before Twelve if any stock lacks an approved U.S. venue."""
+    mappings = result.get("symbol_mappings") if isinstance(result.get("symbol_mappings"), Mapping) else {}
+    invalid = []
+    for symbol in result.get("stock_symbols") or []:
+        mapping = mappings.get(symbol) if isinstance(mappings.get(symbol), Mapping) else {}
+        exchange = mapping.get("normalized_exchange") or mapping.get("exchange")
+        if mapping.get("exchange_resolution_status") != "RESOLVED_US" or exchange not in SUPPORTED_US_EXCHANGES:
+            invalid.append({"ticker": symbol, "exchange": exchange,
+                            "resolution": mapping.get("exchange_resolution_status")})
+    if invalid:
+        raise RuntimeError(f"GOVERNED_STOCK_EXCHANGE_ASSERTION_FAILED:{invalid[:25]}")
 
 
 def fetch_twelve_daily_batch(
@@ -330,4 +414,8 @@ def fetch_twelve_daily_batch(
     return result
 
 
-__all__ = ["PROVIDER_POLICY_VERSION", "fetch_twelve_daily_batch", "load_governed_universe"]
+__all__ = [
+    "PROVIDER_POLICY_VERSION", "SUPPORTED_US_EXCHANGES", "assert_governed_stock_universe",
+    "canonical_security_ticker", "classify_listing", "fetch_twelve_daily_batch",
+    "load_governed_universe", "normalize_listing_exchange", "twelve_symbol_route",
+]
