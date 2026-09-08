@@ -452,13 +452,32 @@ def download_price_batch(symbols: List[str]) -> pd.DataFrame:
     if not symbols:
         return pd.DataFrame()
 
+    remaining = list(dict.fromkeys(symbols))
+    collected: Dict[str, pd.DataFrame] = {}
+    aggregate_diagnostics = {"market_history_attempted": len(remaining), "market_history_success": 0,
+        "market_history_unavailable": 0, "market_history_schema_failure": 0,
+        "market_history_duplicate_index_failure": 0, "market_history_retry_success": 0,
+        "market_history_final_failure": 0, "per_symbol": {}}
     for attempt in range(3):
         try:
-            data = fetch_twelve_daily_batch(symbols)
+            data = fetch_twelve_daily_batch(remaining)
             if data is not None and not data.empty:
-                return data
+                if not isinstance(data.columns, pd.MultiIndex):
+                    return data
+                present = set(data.columns.get_level_values(0))
+                for symbol in remaining:
+                    if symbol in present:
+                        collected[symbol] = data[symbol].copy()
+                        if attempt:
+                            aggregate_diagnostics["market_history_retry_success"] += 1
+                provider_diag = dict(data.attrs.get("governed_market_diagnostics") or {})
+                aggregate_diagnostics["market_history_duplicate_index_failure"] += int(provider_diag.get("market_history_duplicate_index_failure") or 0)
+                aggregate_diagnostics["per_symbol"].update(provider_diag.get("per_symbol") or {})
+                remaining = [symbol for symbol in remaining if symbol not in present]
+                if not remaining:
+                    break
         except Exception as exc:
-            print(f"Discovery batch attempt {attempt + 1} failed for {len(symbols)} symbols: {exc}")
+            print(f"Discovery batch attempt {attempt + 1} failed for {len(remaining)} symbols: {exc}")
         # Successful batches return immediately. Delay only after a failed or
         # empty governed-provider response, preserving exponential backoff without
         # charging every healthy batch a fixed sleep.
@@ -472,7 +491,19 @@ def download_price_batch(symbols: List[str]) -> pd.DataFrame:
                 flush=True,
             )
             time.sleep(delay)
-    return pd.DataFrame()
+    result = pd.concat(collected, axis=1, sort=True) if collected else pd.DataFrame()
+    aggregate_diagnostics["market_history_success"] = len(collected)
+    aggregate_diagnostics["market_history_final_failure"] = len(remaining)
+    for symbol in remaining:
+        aggregate_diagnostics["per_symbol"].setdefault(symbol, "FINAL_FAILURE")
+    aggregate_diagnostics["market_history_unavailable"] = sum(
+        status == "UNAVAILABLE" for status in aggregate_diagnostics["per_symbol"].values()
+    )
+    aggregate_diagnostics["market_history_schema_failure"] = sum(
+        str(status).startswith("SCHEMA_FAILURE") for status in aggregate_diagnostics["per_symbol"].values()
+    )
+    result.attrs["governed_market_diagnostics"] = aggregate_diagnostics
+    return result
 
 
 def extract_symbol_history(data: pd.DataFrame, symbol: str) -> pd.DataFrame:
@@ -3927,7 +3958,7 @@ HTTP_TIMEOUT_FAST = float(os.getenv("HTTP_TIMEOUT_FAST", "6"))
 YAHOO_METADATA_SLOW_SECONDS = 2.0
 _SCAN_TIMINGS = {
     "scanner_total_seconds": 0.0,
-    "yahoo_broad_scan_seconds": 0.0,
+    "governed_market_scan_seconds": 0.0,
     "yahoo_retry_count": 0,
     "yahoo_backoff_seconds": 0.0,
     "yahoo_metadata_calls": 0,
@@ -3972,6 +4003,12 @@ _SCAN_TIMINGS = {
     "sec_ticker_map_downloads": 0,
     "output_persistence_seconds": 0.0,
     "unattributed_seconds": 0.0,
+}
+_GOVERNED_MARKET_COVERAGE: Dict[str, Any] = {
+    "universe_count": 0, "market_history_attempted": 0, "market_history_success": 0,
+    "market_history_unavailable": 0, "market_history_schema_failure": 0,
+    "market_history_duplicate_index_failure": 0, "market_history_retry_success": 0,
+    "market_history_final_failure": 0, "per_symbol": {},
 }
 _YAHOO_METADATA_LATENCIES: List[Tuple[str, float]] = []
 _ACTIVE_COMMITTEE_TIMING_SCOPE = ""
@@ -4113,7 +4150,7 @@ def _reconcile_scan_timings(scanner_total: float) -> float:
     exclusive_keys = (
         "universe_construction_seconds",
         "universe_persistence_seconds",
-        "yahoo_broad_scan_seconds",
+        "governed_market_scan_seconds",
         "yahoo_metadata_seconds",
         "broad_row_processing_seconds",
         "prescreen_ranking_seconds",
@@ -4757,12 +4794,15 @@ def scan_market() -> Dict[str, Any]:
     for timing_key in list(_SCAN_TIMINGS):
         _SCAN_TIMINGS[timing_key] = 0 if isinstance(_SCAN_TIMINGS[timing_key], int) else 0.0
     _YAHOO_METADATA_LATENCIES.clear()
+    for key in tuple(_GOVERNED_MARKET_COVERAGE):
+        _GOVERNED_MARKET_COVERAGE[key] = {} if key == "per_symbol" else 0
     _NEWSAPI_DIAGNOSTICS.clear()
     _FMP_SHADOW_RUN_DIAGNOSTICS.clear()
     _FMP_SHADOW_RUN_DIAGNOSTICS.update(_empty_fmp_shadow_diagnostics())
     prior_universe = load_prior_universe_symbols()
     universe_started = time.monotonic()
     universe = build_universe()
+    _GOVERNED_MARKET_COVERAGE["universe_count"] = len(universe)
     _record_scan_timing("universe_construction_seconds", time.monotonic() - universe_started)
 
     # Research-only benchmark.  The normalized FMP records are never merged
@@ -4814,16 +4854,27 @@ def scan_market() -> Dict[str, Any]:
     for i in range(0, len(universe), BATCH_SIZE):
         batch = universe[i:i + BATCH_SIZE]
         batch_number = i // BATCH_SIZE + 1
-        yahoo_started = time.monotonic()
+        governed_market_started = time.monotonic()
         price_data = download_price_batch(batch)
-        yahoo_elapsed = time.monotonic() - yahoo_started
-        _record_scan_timing("yahoo_broad_scan_seconds", yahoo_elapsed)
+        governed_market_elapsed = time.monotonic() - governed_market_started
+        _record_scan_timing("governed_market_scan_seconds", governed_market_elapsed)
+        batch_diagnostics = dict(price_data.attrs.get("governed_market_diagnostics") or {})
+        for key in ("market_history_attempted", "market_history_success", "market_history_unavailable",
+                    "market_history_schema_failure", "market_history_duplicate_index_failure",
+                    "market_history_retry_success", "market_history_final_failure"):
+            _GOVERNED_MARKET_COVERAGE[key] += int(batch_diagnostics.get(key) or 0)
+        _GOVERNED_MARKET_COVERAGE["per_symbol"].update(batch_diagnostics.get("per_symbol") or {})
 
         for symbol in batch:
             hist = extract_symbol_history(price_data, symbol)
             ind = compute_indicators(hist)
             if not ind:
-                record_discovery_exclusion("MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE", symbol)
+                acquisition_status = _GOVERNED_MARKET_COVERAGE["per_symbol"].get(symbol)
+                record_discovery_exclusion(
+                    "DATA_ACQUISITION_FAILURE" if acquisition_status not in {"SUCCESS", "SUCCESS_DEDUPLICATED"}
+                    else "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE",
+                    symbol,
+                )
                 continue
 
             # Light price/liquidity filter before metadata calls.
@@ -4986,7 +5037,7 @@ def scan_market() -> Dict[str, Any]:
         print(
             f"[scan-progress] batch={batch_number}/{total_batches} "
             f"elapsed_seconds={time.time() - start_time:.1f} "
-            f"yahoo_batch_seconds={yahoo_elapsed:.2f} "
+            f"governed_market_batch_seconds={governed_market_elapsed:.2f} "
             f"qualifying_candidates={qualifying_candidates} "
             f"metadata_calls={metadata_calls} metadata_universe_upper_bound={len(universe)} "
             f"metadata_seconds={metadata_seconds:.2f} "
@@ -4999,7 +5050,7 @@ def scan_market() -> Dict[str, Any]:
     _SCAN_TIMINGS["broad_row_processing_seconds"] = max(
         0.0,
         broad_loop_elapsed
-        - float(_SCAN_TIMINGS["yahoo_broad_scan_seconds"])
+        - float(_SCAN_TIMINGS["governed_market_scan_seconds"])
         - float(_SCAN_TIMINGS["yahoo_metadata_seconds"])
         - float(_SCAN_TIMINGS["etf_processing_seconds"]),
     )
@@ -5411,6 +5462,18 @@ def scan_market() -> Dict[str, Any]:
             "recall": discovery_recall,
             "architecture_experiment": discovery_experiment,
             "exclusion_reason_counts": discovery_exclusions,
+            "governed_market_coverage": {
+                **{key: value for key, value in _GOVERNED_MARKET_COVERAGE.items() if key != "per_symbol"},
+                "coverage_pct": round(
+                    100 * _GOVERNED_MARKET_COVERAGE["market_history_success"]
+                    / max(1, _GOVERNED_MARKET_COVERAGE["market_history_attempted"]), 2
+                ),
+                "coverage_status": (
+                    "PASS" if _GOVERNED_MARKET_COVERAGE["market_history_success"]
+                    / max(1, _GOVERNED_MARKET_COVERAGE["market_history_attempted"]) >= 0.80
+                    else "MATERIAL_COVERAGE_COLLAPSE"
+                ),
+            },
         },
     }
 
