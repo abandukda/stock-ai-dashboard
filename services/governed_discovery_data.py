@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Mapping, Sequence
 import os
+import re
 
 import pandas as pd
 import requests
@@ -18,6 +19,61 @@ from services.live_market.twelve_data_phase1 import REST_BASE, load_twelve_data_
 
 
 PROVIDER_POLICY_VERSION = "GOVERNED_DISCOVERY_INPUTS_V1"
+SUPPORTED_US_EXCHANGES = {"NASDAQ", "NYSE", "AMEX", "NYSE AMERICAN", "ARCA", "BATS"}
+OTC_EXCHANGES = {"OTC", "OTCQX", "OTCQB", "OTC PINK", "PINK", "GREY", "GREY MARKET"}
+CLASS_SHARE_ROOTS = {"BRK", "BF", "BH"}
+
+
+def canonical_security_ticker(symbol: str) -> str:
+    """Normalize only traceable class-share punctuation; preserve all other identities."""
+    value = str(symbol or "").upper().strip()
+    match = re.fullmatch(r"([A-Z]{1,5})[-.]([A-Z])", value)
+    return f"{match.group(1)}.{match.group(2)}" if match and match.group(1) in CLASS_SHARE_ROOTS else value
+
+
+def twelve_symbol_route(symbol: str, *, exchange: str | None = None) -> dict[str, Any]:
+    canonical = canonical_security_ticker(symbol)
+    return {
+        "canonical_ticker": canonical,
+        "provider_ticker": canonical,
+        "exchange": str(exchange or "").upper() or None,
+        "security_identity": canonical,
+        "mapping_version": "TWELVE_SYMBOL_IDENTITY_V1",
+    }
+
+
+def classify_listing(row: Mapping[str, Any], *, family: str) -> tuple[str, str | None]:
+    """Return route and an explicit governed exclusion reason when applicable."""
+    exchange = str(row.get("exchangeShortName") or row.get("exchange") or "").upper().strip()
+    name = str(row.get("name") or row.get("companyName") or "").upper()
+    declared = str(row.get("type") or row.get("securityType") or "").upper()
+    combined = f"{declared} {name}"
+    if row.get("isDelisted") is True:
+        return "EXCLUDE", "DELISTED_LISTING"
+    if row.get("isActivelyTrading") is False:
+        return "EXCLUDE", "INACTIVE_LISTING"
+    if exchange in OTC_EXCHANGES or exchange.startswith("OTC"):
+        return "EXCLUDE", "OTC_OUTSIDE_STOCK_POLICY"
+    if family == "etf-list" or row.get("isEtf") is True or "EXCHANGE TRADED FUND" in combined:
+        return "ETF", None
+    if "WARRANT" in combined or declared in {"WARRANT", "WARRANTS"}:
+        return "EXCLUDE", "WARRANT_SECURITY"
+    if re.search(r"\bRIGHTS?\b", combined):
+        return "EXCLUDE", "RIGHT_SECURITY"
+    if re.search(r"\bUNITS?\b", combined):
+        return "EXCLUDE", "UNIT_SECURITY"
+    if "PREFERRED" in combined or "PREFERENCE" in combined:
+        return "EXCLUDE", "PREFERRED_SECURITY"
+    if "CLOSED-END" in combined or "CLOSED END" in combined:
+        return "EXCLUDE", "CLOSED_END_FUND"
+    if row.get("isFund") is True or declared in {"FUND", "MUTUAL FUND", "TRUST"}:
+        return "EXCLUDE", "OTHER_NON_COMMON_SECURITY"
+    if exchange and exchange not in SUPPORTED_US_EXCHANGES:
+        return "EXCLUDE", "NON_US_EXCHANGE_OUTSIDE_STOCK_POLICY"
+    explicitly_common = any(token in combined for token in ("COMMON STOCK", "COMMON EQUITY", "ADR", "ADS"))
+    if declared and not explicitly_common and declared not in {"STOCK", "EQUITY"}:
+        return "EXCLUDE", "OTHER_NON_COMMON_SECURITY"
+    return "STOCK", None
 
 
 def _safe_provider_message(payload: Any, api_key: str) -> str | None:
@@ -29,6 +85,23 @@ def _safe_provider_message(payload: Any, api_key: str) -> str | None:
     if api_key:
         text = text.replace(api_key, "[REDACTED]")
     return text[:500] or None
+
+
+def _failure_policy(http_status: int, message: str | None, *, partial: bool = False) -> tuple[str, bool]:
+    text = str(message or "").lower()
+    if partial:
+        return "TRANSIENT_PARTIAL_RESPONSE", True
+    if http_status == 429:
+        return "TRANSIENT_RATE_LIMIT", True
+    if http_status >= 500 or http_status == 0:
+        return "TRANSIENT_PROVIDER_FAILURE", True
+    if "not found" in text or "no data" in text or "symbol" in text and "invalid" in text:
+        return "PERMANENT_SYMBOL_NOT_FOUND", False
+    if http_status in {401, 403} or "entitlement" in text or "subscription" in text or "permission" in text:
+        return "PERMANENT_ENTITLEMENT_DENIED", False
+    if 400 <= http_status < 500:
+        return "PERMANENT_HTTP_4XX", False
+    return "TRANSIENT_PROVIDER_FAILURE", True
 
 
 def _normalize_daily_values(values: Sequence[Mapping[str, Any]]) -> tuple[pd.DataFrame, int]:
@@ -72,7 +145,12 @@ def load_governed_universe(*, fmp_key: str | None = None, client: FMPStableClien
     """Return current US equities/ETFs from FMP's governed listing endpoints."""
     key = str(fmp_key if fmp_key is not None else os.getenv("FMP_API_KEY", "")).strip()
     client = client or FMPStableClient(key, timeout_seconds=30, retries=1)
-    symbols: set[str] = set()
+    stock_symbols: set[str] = set()
+    etf_symbols: set[str] = set()
+    records: dict[str, dict[str, Any]] = {}
+    exclusions: list[dict[str, Any]] = []
+    mappings: dict[str, dict[str, Any]] = {}
+    raw_symbols: set[str] = set()
     diagnostics: dict[str, Any] = {"provider": "FMP", "calls": 0, "families": {}}
     for family in ("stock-list", "etf-list"):
         response = client.get(family, {})
@@ -81,14 +159,66 @@ def load_governed_universe(*, fmp_key: str | None = None, client: FMPStableClien
         if response.outcome != SUCCESS:
             continue
         for row in _rows(response.payload):
-            symbol = str(row.get("symbol") or "").upper().strip()
+            source_symbol = str(row.get("symbol") or "").upper().strip()
+            symbol = canonical_security_ticker(source_symbol)
+            if symbol:
+                raw_symbols.add(symbol)
             exchange = str(row.get("exchangeShortName") or row.get("exchange") or "").upper()
-            active = row.get("isActivelyTrading")
-            if symbol and "." not in symbol and "/" not in symbol and len(symbol) <= 7:
-                if active is not False and (not exchange or exchange in {"NASDAQ", "NYSE", "AMEX", "ARCA", "BATS"}):
-                    symbols.add(symbol)
+            if not symbol or "/" in symbol or len(symbol) > 7:
+                exclusions.append({"ticker": source_symbol, "canonical_ticker": symbol or None,
+                                   "reason": "INVALID_SYMBOL_IDENTITY"})
+                continue
+            route, reason = classify_listing(row, family=family)
+            record = {
+                "ticker": symbol,
+                "source_ticker": source_symbol,
+                "company_name": row.get("name") or row.get("companyName"),
+                "exchange": exchange or None,
+                "country": row.get("country"),
+                "security_type": row.get("type") or row.get("securityType") or ("ETF" if route == "ETF" else "COMMON_STOCK"),
+                "is_actively_trading": row.get("isActivelyTrading"),
+                "is_delisted": row.get("isDelisted"),
+                "route": route,
+            }
+            records.setdefault(symbol, record)
+            mappings[symbol] = {**twelve_symbol_route(symbol, exchange=exchange), "source_ticker": source_symbol}
+            if reason:
+                exclusions.append({**record, "reason": reason})
+            elif route == "ETF":
+                etf_symbols.add(symbol)
+            else:
+                stock_symbols.add(symbol)
+    # A security can appear in both list families; the explicit ETF route wins.
+    stock_symbols -= etf_symbols
+    symbols = sorted(stock_symbols | etf_symbols)
+    exclusion_counts: dict[str, int] = {}
+    for item in exclusions:
+        reason = str(item["reason"])
+        exclusion_counts[reason] = exclusion_counts.get(reason, 0) + 1
     return {
-        "symbols": sorted(symbols),
+        "symbols": symbols,
+        "stock_symbols": sorted(stock_symbols),
+        "etf_symbols": sorted(etf_symbols),
+        "records": records,
+        "symbol_mappings": mappings,
+        "exclusions": exclusions,
+        "summary": {
+            "raw_universe_count": len(raw_symbols),
+            "inactive_removed": exclusion_counts.get("INACTIVE_LISTING", 0),
+            "delisted_removed": exclusion_counts.get("DELISTED_LISTING", 0),
+            "otc_removed": exclusion_counts.get("OTC_OUTSIDE_STOCK_POLICY", 0),
+            "warrant_removed": exclusion_counts.get("WARRANT_SECURITY", 0),
+            "right_removed": exclusion_counts.get("RIGHT_SECURITY", 0),
+            "unit_removed": exclusion_counts.get("UNIT_SECURITY", 0),
+            "preferred_removed": exclusion_counts.get("PREFERRED_SECURITY", 0),
+            "other_non_common_removed": (
+                exclusion_counts.get("OTHER_NON_COMMON_SECURITY", 0)
+                + exclusion_counts.get("CLOSED_END_FUND", 0)
+            ),
+            "investable_stock_universe_count": len(stock_symbols),
+            "etf_routed_separately": len(etf_symbols),
+            "exclusion_reason_counts": exclusion_counts,
+        },
         "status": "AVAILABLE" if symbols else "DATA_UNAVAILABLE",
         "provider": "FMP",
         "policy_version": PROVIDER_POLICY_VERSION,
@@ -125,13 +255,15 @@ def fetch_twelve_daily_batch(
     }
     provider_message = _safe_provider_message(payload, key)
     if http_status != 200:
+        failure_status, retryable = _failure_policy(http_status, provider_message)
         diagnostics["market_history_unavailable"] = len(requested)
         for symbol in requested:
-            diagnostics["per_symbol"][symbol] = "HTTP_FAILURE"
+            diagnostics["per_symbol"][symbol] = failure_status
             diagnostics["per_symbol_records"][symbol] = {
                 "requested_twelve_symbol": symbol,
                 "requested_exchange": None,
-                "acquisition_status": "HTTP_FAILURE",
+                "acquisition_status": failure_status,
+                "retryable": retryable,
                 "http_status": http_status or None,
                 "provider_error_message": provider_message,
                 "failure_stage": "HTTP_RESPONSE",
@@ -155,10 +287,12 @@ def fetch_twelve_daily_batch(
             values = bundle.get("values") if isinstance(bundle, Mapping) else None
             if not isinstance(values, list):
                 diagnostics["market_history_unavailable"] += 1
-                diagnostics["per_symbol"][symbol] = "UNAVAILABLE"
-                record.update(acquisition_status="UNAVAILABLE", failure_stage="PROVIDER_RESPONSE_MAPPING")
+                bundle_message = _safe_provider_message(bundle, key) if isinstance(bundle, Mapping) else None
+                status, retryable = _failure_policy(http_status, bundle_message or provider_message, partial=len(requested) > 1 and bundle is None)
+                diagnostics["per_symbol"][symbol] = status
+                record.update(acquisition_status=status, retryable=retryable, failure_stage="PROVIDER_RESPONSE_MAPPING")
                 if isinstance(bundle, Mapping):
-                    record["provider_error_message"] = _safe_provider_message(bundle, key) or provider_message
+                    record["provider_error_message"] = bundle_message or provider_message
                 diagnostics["per_symbol_records"][symbol] = record
                 continue
             frame, duplicate_count = _normalize_daily_values(values)
@@ -166,6 +300,7 @@ def fetch_twelve_daily_batch(
                 diagnostics["market_history_schema_failure"] += 1
                 diagnostics["per_symbol"][symbol] = "SCHEMA_FAILURE"
                 record.update(acquisition_status="SCHEMA_FAILURE", failure_stage="OHLCV_NORMALIZATION")
+                record["retryable"] = False
                 diagnostics["per_symbol_records"][symbol] = record
                 continue
             if duplicate_count:
@@ -177,6 +312,7 @@ def fetch_twelve_daily_batch(
                 acquisition_status=diagnostics["per_symbol"][symbol],
                 failure_stage=None,
                 provider_error_message=None,
+                retryable=False,
             )
             diagnostics["per_symbol_records"][symbol] = record
         except Exception as exc:
@@ -186,6 +322,7 @@ def fetch_twelve_daily_batch(
                 acquisition_status=diagnostics["per_symbol"][symbol],
                 provider_error_message=type(exc).__name__,
                 failure_stage="OHLCV_NORMALIZATION",
+                retryable=False,
             )
             diagnostics["per_symbol_records"][symbol] = record
     result = pd.concat(frames, axis=1, sort=True) if frames else pd.DataFrame()

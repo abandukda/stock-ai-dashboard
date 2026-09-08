@@ -30,6 +30,7 @@ jobs:
       ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
       TWELVE_DATA_ENABLED: "true"
       ATLAS_DATA_MODE: "INTERNAL_TRIAL"
+      ATLAS_GOVERNED_MARKET_CACHE_ENABLED: "true"
       SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
       GITHUB_REPO_URL: "abandukda/stock-ai-dashboard"
       DATA_DIR: "."
@@ -118,6 +119,14 @@ jobs:
           key: atlas-analyst-estimate-snapshots-v1-${{ github.run_id }}
           restore-keys: |
             atlas-analyst-estimate-snapshots-v1-
+
+      - name: Restore governed market history and negative cache
+        uses: actions/cache@v4
+        with:
+          path: .atlas_research_cache/governed_market_v1
+          key: atlas-governed-market-v1-${{ github.run_id }}
+          restore-keys: |
+            atlas-governed-market-v1-
 
       - name: Prepare clean candidate output directory
         run: |
