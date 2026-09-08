@@ -323,9 +323,14 @@ def build_manifest(rows: Sequence[Mapping[str, Any]], *, run_id: str, generated_
     ):
         systemic.append("BUY_NOW_UNEXPLAINED_RUN_OVER_RUN_ANOMALY")
     gate = "FAIL" if systemic else "PASS"
+    source_commit_sha = os.getenv("ATLAS_SOURCE_COMMIT_SHA") or os.getenv("GITHUB_SHA") or "LOCAL_WORKTREE"
     return {
         "version": MANIFEST_VERSION, "run_id": run_id, "generated_at": generated_at,
-        "source_commit_sha": os.getenv("GITHUB_SHA") or os.getenv("ATLAS_SOURCE_COMMIT_SHA") or "LOCAL_WORKTREE",
+        "source_commit_sha": source_commit_sha,
+        "source_ref": os.getenv("ATLAS_SOURCE_REF") or os.getenv("GITHUB_REF") or "LOCAL_WORKTREE",
+        "source_branch": os.getenv("ATLAS_SOURCE_BRANCH") or os.getenv("GITHUB_REF_NAME") or "LOCAL_WORKTREE",
+        "scanner_file_sha256": os.getenv("ATLAS_SCANNER_SHA256") or "LOCAL_WORKTREE",
+        "workflow_run_id": os.getenv("GITHUB_RUN_ID") or "LOCAL_WORKTREE",
         "methodology_versions": sorted({str((row.get("canonical_investment_evaluation") or {}).get("methodology_version")) for row in rows}),
         "macro_assumption_versions": sorted({str((row.get("canonical_investment_evaluation") or {}).get("macro_assumption_version")) for row in rows}),
         "provider_status": provider, "universe_count": len(rows), "certification_distribution": states,
@@ -378,10 +383,37 @@ def stage_candidate_artifacts(artifact_payloads: Mapping[Path, Any], *, manifest
                               candidate_dir: Path) -> Path:
     """Persist an exact, self-contained scan candidate without touching production."""
     candidate_dir.mkdir(parents=True, exist_ok=True)
+    written: dict[str, dict[str, Any]] = {}
     for source, payload in artifact_payloads.items():
-        (candidate_dir / source.name).write_text(_artifact_json(source.name, payload), encoding="utf-8")
+        destination = candidate_dir / source.name
+        content = _artifact_json(source.name, payload)
+        destination.write_text(content, encoding="utf-8")
+        written[source.name] = {
+            "sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+            "generated_at": manifest.get("generated_at"),
+        }
     manifest_path = candidate_dir / "publication_manifest.json"
-    manifest_path.write_text(json.dumps(dict(manifest), indent=2, default=str) + "\n", encoding="utf-8")
+    manifest_content = json.dumps(dict(manifest), indent=2, default=str) + "\n"
+    manifest_path.write_text(manifest_content, encoding="utf-8")
+    written[manifest_path.name] = {
+        "sha256": hashlib.sha256(manifest_content.encode("utf-8")).hexdigest(),
+        "generated_at": manifest.get("generated_at"),
+    }
+    provenance = {
+        "schema_version": "ATLAS_CANDIDATE_ARTIFACT_PROVENANCE_V1",
+        "source_commit_sha": manifest.get("source_commit_sha"),
+        "source_ref": manifest.get("source_ref"),
+        "source_branch": manifest.get("source_branch"),
+        "scanner_file_sha256": manifest.get("scanner_file_sha256"),
+        "provider_architecture_version": manifest.get("provider_architecture_version"),
+        "generated_at": manifest.get("generated_at"),
+        "run_id": manifest.get("run_id"),
+        "workflow_run_id": manifest.get("workflow_run_id"),
+        "artifacts": written,
+    }
+    (candidate_dir / "artifact_provenance.json").write_text(
+        json.dumps(provenance, indent=2, default=str) + "\n", encoding="utf-8"
+    )
     return manifest_path
 
 
