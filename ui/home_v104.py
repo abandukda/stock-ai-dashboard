@@ -338,8 +338,7 @@ def _open_research(ticker: str, key: str) -> None:
 
 @st.cache_data(ttl=120, show_spinner=False)
 def _home_market_tape():
-    import yfinance as yf
-    return fetch_home_market_tape(yf.download)
+    return fetch_home_market_tape()
 
 
 def _render_market_tape() -> None:

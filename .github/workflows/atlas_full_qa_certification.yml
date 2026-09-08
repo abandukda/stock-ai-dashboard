@@ -99,6 +99,9 @@ jobs:
           pip install XlsxWriter==3.2.9
           python -m playwright install --with-deps chromium
 
+      - name: Enforce governed-provider boundary
+        run: python scripts/audit_production_yahoo_dependencies.py
+
       - name: Resolve candidate run
         id: candidate
         env:

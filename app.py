@@ -26,7 +26,7 @@ from utils.data_integrity import (
     to_number as v952_to_number,
 )
 from services.http_client import robust_get as v952_robust_get
-import yfinance as yf
+from services import governed_market_compat as governed_market
 import plotly.graph_objects as go
 
 
@@ -912,7 +912,7 @@ def normalize_scan_row(raw):
         "Analyst High": safe_number(pick(raw, "Analyst High", "analyst_target_high", "target_high_price", default=None), None),
         "Analyst Low": safe_number(pick(raw, "Analyst Low", "analyst_target_low", "target_low_price", default=None), None),
         "Analyst Count": safe_number(pick(raw, "Analyst Count", "analyst_count", default=None), None),
-        # ``recommendation_key`` is Yahoo/analyst context, not ATLAS decision
+        # ``recommendation_key`` is governed provider/analyst context, not ATLAS decision
         # authority.  Never promote it into the canonical Recommendation field.
         "Recommendation": safe_text(pick(raw, "Recommendation", default="N/A"), "N/A"),
         "Analyst Recommendation": safe_text(pick(raw, "recommendation_key", default="N/A"), "N/A"),
@@ -1476,7 +1476,7 @@ def fetch_chart_history(ticker, period="5y"):
     if not ticker:
         return pd.DataFrame()
     try:
-        df = yf.download(
+        df = governed_market.download(
             ticker,
             period=period,
             interval="1d",
@@ -1581,7 +1581,7 @@ def fetch_chart_history_fixed(ticker, period="5y"):
     if not ticker:
         return pd.DataFrame()
     try:
-        df = yf.download(
+        df = governed_market.download(
             ticker,
             period=period,
             interval="1d",
@@ -1592,7 +1592,7 @@ def fetch_chart_history_fixed(ticker, period="5y"):
         if df is None or df.empty:
             return pd.DataFrame()
 
-        # yfinance can return multi-index columns sometimes.
+        # governed market adapter can return multi-index columns sometimes.
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = [c[0] if isinstance(c, tuple) else c for c in df.columns]
 
@@ -1626,8 +1626,8 @@ def render_interactive_price_chart_fixed(row):
 
         hist = fetch_chart_history_fixed(ticker, period=period)
         if hist.empty:
-            st.warning("Chart data unavailable. Check that yfinance is installed in requirements.txt and that the ticker is valid.")
-            st.code("Add to requirements.txt if missing: yfinance, plotly")
+            st.warning("Chart data unavailable. Check that governed market adapter is installed in requirements.txt and that the ticker is valid.")
+            st.code("Add to requirements.txt if missing: governed market adapter, plotly")
             return
 
         close = hist["Close"].dropna()
@@ -1704,7 +1704,7 @@ def fetch_chart_history_force_chart(ticker, period="5y"):
     if not ticker:
         return pd.DataFrame()
     try:
-        df = yf.download(ticker, period=period, interval="1d", auto_adjust=True, progress=False, threads=False)
+        df = governed_market.download(ticker, period=period, interval="1d", auto_adjust=True, progress=False, threads=False)
         if df is None or df.empty:
             return pd.DataFrame()
         if isinstance(df.columns, pd.MultiIndex):
@@ -1738,8 +1738,8 @@ def render_force_chart_section(row):
 
         hist = fetch_chart_history_force_chart(ticker, period)
         if hist.empty:
-            st.warning("Chart data unavailable. Make sure `yfinance` and `plotly` are in requirements.txt, then redeploy.")
-            st.code("yfinance\nplotly\nrequests")
+            st.warning("Chart data unavailable. Make sure `governed market adapter` and `plotly` are in requirements.txt, then redeploy.")
+            st.code("governed market adapter\nplotly\nrequests")
             return
 
         close = hist["Close"].dropna()
@@ -1848,7 +1848,7 @@ def fetch_detail_chart_history_v4184(ticker, period="5y"):
     if not ticker:
         return pd.DataFrame()
     try:
-        df = yf.download(ticker, period=period, interval="1d", auto_adjust=True, progress=False, threads=False)
+        df = governed_market.download(ticker, period=period, interval="1d", auto_adjust=True, progress=False, threads=False)
         if df is None or df.empty:
             return pd.DataFrame()
         if isinstance(df.columns, pd.MultiIndex):
@@ -1882,8 +1882,8 @@ def render_detail_chart_v4184(row):
 
         hist = fetch_detail_chart_history_v4184(ticker, period)
         if hist.empty:
-            st.warning("Chart data unavailable from both Yahoo and FMP. Confirm `yfinance`, `plotly`, and `requests` are in requirements.txt and FMP_API_KEY is set in Render.")
-            st.code("yfinance\nplotly\nrequests")
+            st.warning("Chart data unavailable from both governed provider and FMP. Confirm `governed market adapter`, `plotly`, and `requests` are in requirements.txt and FMP_API_KEY is set in Render.")
+            st.code("governed market adapter\nplotly\nrequests")
             return
 
         close = hist["Close"].dropna()
@@ -1970,7 +1970,7 @@ def render_legacy_agent_details_v4184(row):
 
 def fetch_fmp_chart_history_v4185(ticker, period="5y"):
     """
-    FMP fallback for chart data when yfinance is unavailable or rate-limited.
+    FMP fallback for chart data when governed market adapter is unavailable or rate-limited.
     Uses /api/v3/historical-price-full/{ticker}.
     """
     ticker = safe_text(ticker, "").upper().strip()
@@ -2040,16 +2040,16 @@ def fetch_fmp_chart_history_v4185(ticker, period="5y"):
         return pd.DataFrame()
 
 
-# Override the V41.8.4 chart fetcher with a Yahoo -> FMP fallback.
+# Override the V41.8.4 chart fetcher with a governed provider -> FMP fallback.
 @st.cache_data(ttl=900)
 def fetch_detail_chart_history_v4184(ticker, period="5y"):
     ticker = safe_text(ticker, "").upper().strip()
     if not ticker:
         return pd.DataFrame()
 
-    # 1) Try Yahoo/yfinance first.
+    # 1) Try governed provider first.
     try:
-        df = yf.download(ticker, period=period, interval="1d", auto_adjust=True, progress=False, threads=False)
+        df = governed_market.download(ticker, period=period, interval="1d", auto_adjust=True, progress=False, threads=False)
         if df is not None and not df.empty:
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = [c[0] if isinstance(c, tuple) else c for c in df.columns]
@@ -4038,15 +4038,15 @@ def build_live_research_row(
     )
 
 def build_legacy_live_research_row(ticker):
-    """Legacy Yahoo-only adapter retained for fallback/debugging; not used by V80.5 live research."""
+    """Legacy governed provider-only adapter retained for fallback/debugging; not used by V80.5 live research."""
     ticker = safe_text(ticker, "").upper().strip()
     if not ticker:
         return None
 
     try:
-        tk = yf.Ticker(ticker)
+        tk = governed_market.Ticker(ticker)
         info = tk.info or {}
-        hist = yf.download(ticker, period="5y", interval="1d", auto_adjust=True, progress=False, threads=False)
+        hist = governed_market.download(ticker, period="5y", interval="1d", auto_adjust=True, progress=False, threads=False)
         if hist is None or hist.empty:
             return None
 
@@ -4209,7 +4209,7 @@ def build_legacy_live_research_row(ticker):
         bull_case = ai_fair * 1.15
 
         finance_findings = finance_findings or ["Live finance data is limited; review latest company filings before acting"]
-        finance_risks = finance_risks or ["No major live financial red flag detected from available Yahoo data"]
+        finance_risks = finance_risks or ["No major live financial red flag detected from available governed provider data"]
 
         raw = {
             "revenue_growth": revenue_growth,
@@ -4230,21 +4230,21 @@ def build_legacy_live_research_row(ticker):
         committee = {
             "Technical Agent": {
                 "score": technical_score, "status": "Positive" if technical_score >= 75 else "Mixed", "impact": "Positive" if technical_score >= 75 else "Neutral",
-                "data_used": "Live Yahoo price history, SMA20/50/200, RSI, volume, ATR",
+                "data_used": "Live governed provider price history, SMA20/50/200, RSI, volume, ATR",
                 "summary": "Live technical check from on-demand history.",
                 "findings": [f"Price vs SMA20: {'above' if price > sma20 else 'below'}", f"Price vs SMA50: {'above' if price > sma50 else 'below'}", f"Price vs SMA200: {'above' if price > sma200 else 'below'}", f"RSI is {rsi:.1f}", f"Volume ratio is {volume_ratio:.2f}x"],
                 "risks": [f"ATR volatility is {atr_pct:.1f}%"], "bottom_line": "Technical setup is constructive." if technical_score >= 75 else "Technical setup needs confirmation."
             },
             "Finance Agent": {
                 "score": finance_score, "status": "Positive" if finance_score >= 75 else "Mixed", "impact": "Positive" if finance_score >= 75 else "Neutral",
-                "data_used": "Live Yahoo fundamentals, margins, debt, liquidity, cash flow",
+                "data_used": "Live governed provider fundamentals, margins, debt, liquidity, cash flow",
                 "summary": "Live financial execution check.",
                 "findings": finance_findings, "risks": finance_risks,
                 "bottom_line": "Financial profile supports the thesis." if finance_score >= 75 else "Financial profile is mixed or limited."
             },
             "Analyst Agent": {
                 "score": analyst_support, "status": "Positive" if analyst_support >= 60 else "Mixed", "impact": "Positive" if analyst_support >= 60 else "Neutral",
-                "data_used": "Yahoo analyst target, analyst count, recommendation key",
+                "data_used": "governed provider analyst target, analyst count, recommendation key",
                 "summary": "Live analyst support check.",
                 "findings": [f"Analyst target: {fmt_money(analyst_target) if analyst_target else 'N/A'}", f"Analyst count: {analyst_count}", f"Recommendation: {recommendation or 'N/A'}"],
                 "risks": ["Analyst data may lag real-time revisions."],
@@ -4259,7 +4259,7 @@ def build_legacy_live_research_row(ticker):
             "Setup Rating": "🟢 Elite Setup" if conviction >= 90 else "🟡 Strong Setup" if conviction >= 80 else "🔵 Watchlist",
             "AI Fair Value": round(ai_fair, 2), "Target Upside %": round(upside, 1),
             "Analyst Target": round(analyst_target, 2) if analyst_target else 0, "Analyst Count": analyst_count,
-            "Analyst Support": analyst_support_label(analyst_support), "Analyst Support Source": "Live Yahoo analyst fallback",
+            "Analyst Support": analyst_support_label(analyst_support), "Analyst Support Source": "Live governed provider analyst fallback",
             "News Sentiment": "⚪ Neutral", "News Sentiment Source": "Live on-demand mode defaults news to neutral unless scan data exists",
             "Entry Range": f"${entry_low:.2f} - ${entry_high:.2f}", "Stop Loss": round(stop_loss, 2), "Risk/Reward": "Live",
             "AI Bull Case": round(bull_case, 2), "AI Bear Case": round(stop_loss, 2),
@@ -4292,14 +4292,14 @@ def build_legacy_live_research_row(ticker):
 def build_price_only_live_row(ticker, reason="Live fundamentals unavailable"):
     """
     V41.8.2 fallback card.
-    Used when Yahoo quoteSummary/info is rate-limited.
+    Used when governed provider quoteSummary/info is rate-limited.
     Still produces a usable research card from price history, 52W range, RSI, SMA, ATR, and chart data.
     """
     ticker = safe_text(ticker, "").upper().strip()
     if not ticker:
         return None
 
-    hist = yf.download(
+    hist = governed_market.download(
         ticker,
         period="5y",
         interval="1d",
@@ -4385,7 +4385,7 @@ def build_price_only_live_row(ticker, reason="Live fundamentals unavailable"):
             "score": technical_score,
             "status": "Positive" if technical_score >= 75 else "Mixed",
             "impact": "Positive" if technical_score >= 75 else "Neutral",
-            "data_used": "Live Yahoo price history, SMA20/50/200, RSI, volume, ATR",
+            "data_used": "Live governed provider price history, SMA20/50/200, RSI, volume, ATR",
             "summary": "Rate-limit-safe live technical card from price history.",
             "findings": [
                 f"Price vs SMA20: {'above' if price > sma20 else 'below'}",
@@ -4413,7 +4413,7 @@ def build_price_only_live_row(ticker, reason="Live fundamentals unavailable"):
             "status": "Limited",
             "impact": "Neutral",
             "data_used": "Analyst target unavailable in rate-limit-safe fallback mode.",
-            "summary": "Analyst data is limited until next full scan or Yahoo rate limit clears.",
+            "summary": "Analyst data is limited until next full scan or governed provider rate limit clears.",
             "findings": ["No live analyst target returned."],
             "risks": ["Analyst/Finnhub details may populate on full cron scan."],
             "bottom_line": "Analyst data is limited for this immediate card.",
@@ -4900,14 +4900,14 @@ def v4242_source_label(label, ok=True):
 @st.cache_data(ttl=300)
 def v4242_yahoo_quote(symbol):
     """
-    Fallback quote via yfinance when FMP quote endpoint is unavailable/plan-limited.
+    Fallback quote via governed market adapter when FMP quote endpoint is unavailable/plan-limited.
     """
     symbol = safe_text(symbol, "").upper().strip()
     if not symbol:
         return {}
     yf_symbol = {"VIX": "^VIX"}.get(symbol, symbol)
     try:
-        t = yf.Ticker(yf_symbol)
+        t = governed_market.Ticker(yf_symbol)
         price = None
         prev = None
 
@@ -4936,7 +4936,7 @@ def v4242_yahoo_quote(symbol):
                 "symbol": symbol,
                 "price": float(price),
                 "change_pct": pct,
-                "source": "Yahoo/yfinance fallback",
+                "source": "governed provider fallback",
             }
     except Exception:
         return {}
@@ -4949,7 +4949,7 @@ def v424_quote(symbol):
     V42.4.2 override:
     Quote source priority:
       1) FMP quote endpoint
-      2) Yahoo/yfinance fallback
+      2) governed provider fallback
     """
     symbol = safe_text(symbol, "").upper().strip()
     if not symbol:
@@ -4979,7 +4979,7 @@ def v424_quote(symbol):
 @st.cache_data(ttl=900)
 def v424_market_quotes():
     """
-    V42.4.2 override with Yahoo fallback.
+    V42.4.2 override with governed provider fallback.
     """
     symbols = ["SPY", "QQQ", "DIA", "IWM", "VIX"]
     rows = []
@@ -5288,7 +5288,7 @@ def render_v424_market_command_center():
                 cols[i].caption(source)
     else:
         st.info(
-            "Market quote data did not return from FMP or Yahoo fallback. "
+            "Market quote data did not return from FMP or governed provider fallback. "
             f"FMP_API_KEY configured={'Yes' if bool(FMP_API_KEY) else 'No'}."
         )
 
@@ -5361,7 +5361,7 @@ def v424_market_quotes():
     """
     V42.4.3 override:
     Show recognizable market labels instead of only ETF tickers.
-    Uses FMP first, Yahoo/yfinance fallback.
+    Uses FMP first, governed provider fallback.
     """
     symbols = ["SPY", "QQQ", "DIA", "IWM", "VIX"]
     rows = []
@@ -5587,13 +5587,13 @@ def v4244_is_valid_level(x):
 @st.cache_data(ttl=900)
 def v4244_chart_levels_from_history(ticker):
     """
-    Fallback support/resistance from Yahoo price history when scanner values are missing.
+    Fallback support/resistance from governed provider price history when scanner values are missing.
     """
     ticker = safe_text(ticker, "").upper().strip()
     if not ticker:
         return {}
     try:
-        hist = yf.download(ticker, period="6mo", interval="1d", auto_adjust=True, progress=False, threads=False)
+        hist = governed_market.download(ticker, period="6mo", interval="1d", auto_adjust=True, progress=False, threads=False)
         if hist is None or hist.empty:
             return {}
         if isinstance(hist.columns, pd.MultiIndex):
@@ -5615,7 +5615,7 @@ def v4244_chart_levels_from_history(ticker):
             "resistance1": resistance1,
             "resistance2": resistance2,
             "breakout": resistance1,
-            "source": "Yahoo 20/60-day price history fallback",
+            "source": "governed provider 20/60-day price history fallback",
         }
     except Exception:
         return {}
@@ -6903,7 +6903,7 @@ def render_v424_market_command_center():
                 cols[i].caption(source)
     else:
         st.info(
-            "Market quote data did not return from FMP or Yahoo fallback. "
+            "Market quote data did not return from FMP or governed provider fallback. "
             f"FMP_API_KEY configured={'Yes' if bool(FMP_API_KEY) else 'No'}."
         )
 
@@ -7025,10 +7025,10 @@ def v426_yahoo_calendar_earnings():
     rows = []
     try:
         today = v424_today() if "v424_today" in globals() else dt.datetime.now().date()
-        html = v426_safe_get("https://finance.yahoo.com/calendar/earnings", params={"day": today.isoformat()}, headers={"User-Agent": "Mozilla/5.0"})
+        html = None  # unlicensed legacy calendar fallback retired
         if not isinstance(html, str):
             return rows
-        # Best-effort no-key fallback; Yahoo markup is unstable, so this is intentionally conservative.
+        # Best-effort no-key fallback; governed provider markup is unstable, so this is intentionally conservative.
         symbols = re.findall(r'>([A-Z][A-Z0-9.\-]{0,8})</a>', html)
         seen = set()
         for sym in symbols:
@@ -7042,7 +7042,7 @@ def v426_yahoo_calendar_earnings():
                 "Time": "",
                 "EPS Est": "",
                 "Revenue Est": "",
-                "Source": "Yahoo earnings calendar fallback",
+                "Source": "governed provider earnings calendar fallback",
             })
             if len(rows) >= 40:
                 break
@@ -7056,7 +7056,7 @@ def v424_earnings_today():
     """
     V42.6 override:
     Earnings source priority:
-    FMP -> Finnhub -> Nasdaq public -> Alpha Vantage -> Yahoo.
+    FMP -> Finnhub -> Nasdaq public -> Alpha Vantage -> governed provider.
     This is broader than only Nasdaq and shows the source used.
     """
     today = v424_today() if "v424_today" in globals() else dt.datetime.now().date()
@@ -7262,7 +7262,7 @@ def render_v424_market_command_center():
             cols[i].metric(label, v424_money(q.get("price")) if "v424_money" in globals() else fmt_money(q.get("price")), delta)
             cols[i].caption(safe_text(q.get("source"), ""))
     else:
-        st.info("Market quotes unavailable from FMP/Yahoo fallback.")
+        st.info("Market quotes unavailable from FMP/governed provider fallback.")
 
     econ = v424_economic_calendar()
     earnings = v424_earnings_today()
@@ -7292,10 +7292,10 @@ def render_v424_market_command_center():
                 edf = pd.DataFrame(earnings)
                 preferred = [c for c in ["Company", "Ticker", "Symbol", "Date", "Time", "EPS Est", "Revenue Est", "Source"] if c in edf.columns]
                 edf = edf[preferred] if preferred else edf
-                st.caption("Source priority: FMP → Finnhub → Nasdaq → Alpha Vantage → Yahoo")
+                st.caption("Source priority: FMP → Finnhub → Nasdaq → Alpha Vantage → governed provider")
                 st.dataframe(edf, use_container_width=True, hide_index=True)
             else:
-                st.caption("No earnings returned today from FMP, Finnhub, Nasdaq, Alpha Vantage, or Yahoo fallback.")
+                st.caption("No earnings returned today from FMP, Finnhub, Nasdaq, Alpha Vantage, or governed provider fallback.")
 
     with st.container(border=True):
         st.markdown("### 📰 Market News")
@@ -7558,7 +7558,7 @@ def render_v424_market_command_center():
     with c2:
         with st.container(border=True):
             st.markdown("### 💼 Earnings Due Today")
-            st.caption("Source priority: FMP → Finnhub → Nasdaq → Alpha Vantage → Yahoo")
+            st.caption("Source priority: FMP → Finnhub → Nasdaq → Alpha Vantage → governed provider")
             if earnings:
                 edf = pd.DataFrame(earnings)
                 preferred = [c for c in ["Company", "Ticker", "Symbol", "Date", "Time", "EPS Est", "Revenue Est", "Source"] if c in edf.columns]
@@ -8139,7 +8139,7 @@ def render_v424_market_command_center():
     with c2:
         with st.container(border=True):
             st.markdown("### 💼 Earnings Due Today")
-            st.caption("Source priority: FMP → Finnhub → Nasdaq → Alpha Vantage → Yahoo")
+            st.caption("Source priority: FMP → Finnhub → Nasdaq → Alpha Vantage → governed provider")
             if earnings:
                 edf = pd.DataFrame(earnings)
                 preferred = [c for c in ["Company", "Ticker", "Symbol", "Date", "Time", "EPS Est", "Revenue Est", "Source"] if c in edf.columns]
@@ -8186,7 +8186,7 @@ def v431_get_quality(row):
 def v431_smart_levels(row):
     """
     One single support/resistance source for all V43.1 paid sections.
-    Uses scanner fields, then V42.4.4 Yahoo fallback if available.
+    Uses scanner fields, then V42.4.4 governed provider fallback if available.
     """
     if "v4244_get_smart_levels" in globals():
         try:
@@ -8558,7 +8558,6 @@ def v432_market_news_items():
         diagnostics.append("Finnhub missing")
 
     rss_sources = [
-        ("Yahoo Finance RSS", "https://finance.yahoo.com/news/rssindex"),
         ("CNBC Business RSS", "https://www.cnbc.com/id/10001147/device/rss/rss.html"),
         ("MarketWatch RSS", "https://feeds.content.dowjones.io/public/rss/mw_topstories"),
     ]
@@ -8653,9 +8652,9 @@ def v432_company_news_items(ticker):
                     rows.append({"headline": h, "source": safe_text((a.get("source") or {}).get("name"), "NewsAPI"), "url": safe_text(a.get("url"), ""), "provider": "NewsAPI company search"})
 
     if not rows:
-        url = f"https://feeds.finance.yahoo.com/rss/2.0/headline?s={quote_plus(ticker)}&region=US&lang=en-US"
+        url = ""  # unlicensed legacy RSS fallback retired
         text, status = v432_http_text(url, timeout=8)
-        diagnostics.append(f"Yahoo company RSS status={status}")
+        diagnostics.append(f"governed provider company RSS status={status}")
         if text:
             try:
                 root = ET.fromstring(text.encode("utf-8"))
@@ -8664,7 +8663,7 @@ def v432_company_news_items(ticker):
                     link_node = item.find("link")
                     h = safe_text(title_node.text if title_node is not None else "", "")
                     if h:
-                        rows.append({"headline": h, "source": "Yahoo Finance RSS", "url": safe_text(link_node.text if link_node is not None else "", ""), "provider": "Yahoo Finance RSS"})
+                        rows.append({"headline": h, "source": "governed provider Finance RSS", "url": safe_text(link_node.text if link_node is not None else "", ""), "provider": "governed provider Finance RSS"})
             except Exception:
                 pass
 
@@ -8954,7 +8953,7 @@ def render_v424_market_command_center():
     with c2:
         with st.container(border=True):
             st.markdown("### 💼 Earnings Due Today")
-            st.caption("Source priority: FMP → Finnhub → Nasdaq → Alpha Vantage → Yahoo")
+            st.caption("Source priority: FMP → Finnhub → Nasdaq → Alpha Vantage → governed provider")
             if earnings:
                 edf = pd.DataFrame(earnings)
                 preferred = [c for c in ["Company", "Ticker", "Symbol", "Date", "Time", "EPS Est", "Revenue Est", "Source"] if c in edf.columns]
@@ -9060,7 +9059,6 @@ def v44_market_news_items():
 
     if not rows:
         for provider, url in [
-            ("Yahoo Finance RSS", "https://finance.yahoo.com/news/rssindex"),
             ("CNBC Business RSS", "https://www.cnbc.com/id/10001147/device/rss/rss.html"),
             ("MarketWatch RSS", "https://feeds.content.dowjones.io/public/rss/mw_topstories"),
         ]:
@@ -9422,7 +9420,7 @@ def render_v44_market_command_center():
     with c2:
         with st.container(border=True):
             st.markdown("### 💼 Earnings Due Today")
-            st.caption("Source priority: FMP → Finnhub → Nasdaq → Alpha Vantage → Yahoo")
+            st.caption("Source priority: FMP → Finnhub → Nasdaq → Alpha Vantage → governed provider")
             if earnings:
                 edf = pd.DataFrame(earnings)
                 cols = [c for c in ["Company","Ticker","Symbol","Date","Time","EPS Est","Revenue Est","Source"] if c in edf.columns]
@@ -10235,7 +10233,7 @@ def v451_yahoo_info(ticker):
     t = v451_clean_ticker(ticker)
     out = {}
     try:
-        obj = yf.Ticker(t)
+        obj = governed_market.Ticker(t)
         info = getattr(obj, "info", {}) or {}
         if isinstance(info, dict):
             out.update(info)
@@ -10380,10 +10378,10 @@ def v451_live_analyst_enrichment(ticker, price=0, scan_target=0, scan_count=0, s
                     else:
                         out["rating_trend"] = "Mixed / hold-heavy recommendation mix"
 
-    # Yahoo fallback for basic analyst data.
+    # governed provider fallback for basic analyst data.
     yi = v451_yahoo_info(ticker)
     if yi:
-        out["diagnostics"].append("Yahoo/yfinance info: returned")
+        out["diagnostics"].append("governed provider info: returned")
         out["consensus"] = out["consensus"] or v451_first_valid(yi.get("targetMeanPrice"), yi.get("targetMedianPrice"), positive=True)
         out["high"] = out["high"] or v451_first_valid(yi.get("targetHighPrice"), positive=True)
         out["low"] = out["low"] or v451_first_valid(yi.get("targetLowPrice"), positive=True)
@@ -10393,9 +10391,9 @@ def v451_live_analyst_enrichment(ticker, price=0, scan_target=0, scan_count=0, s
             out["count"] = max(out["count"], int(cnt))
         rec = yi.get("recommendationKey") or yi.get("recommendationMean")
         if rec and out["rating_trend"] in ("Unknown", "", None):
-            out["rating_trend"] = f"Yahoo recommendation: {rec}"
+            out["rating_trend"] = f"governed provider recommendation: {rec}"
     else:
-        out["diagnostics"].append("Yahoo/yfinance info: empty/unavailable")
+        out["diagnostics"].append("governed provider info: empty/unavailable")
 
     # Never fabricate high/low from zero. If consensus is valid but range missing, show range unavailable.
     if price and out.get("consensus"):
@@ -10418,7 +10416,7 @@ def v451_live_analyst_enrichment(ticker, price=0, scan_target=0, scan_count=0, s
 @st.cache_data(ttl=900)
 def v451_live_financial_enrichment(ticker, row_json=None):
     """
-    Live financial field mapper. Uses row fields first, then FMP ratios/key metrics/growth/statements, then Yahoo.
+    Live financial field mapper. Uses row fields first, then FMP ratios/key metrics/growth/statements, then governed provider.
     """
     ticker = v451_clean_ticker(ticker)
     try:
@@ -10520,10 +10518,10 @@ def v451_live_financial_enrichment(ticker, row_json=None):
         if v is not None and abs(v) < 2:
             out[key] = v * 100
 
-    # Yahoo fallback
+    # governed provider fallback
     yi = v451_yahoo_info(ticker)
     if yi:
-        out["diagnostics"].append("Yahoo/yfinance financial info: returned")
+        out["diagnostics"].append("governed provider financial info: returned")
         out["pe"] = out["pe"] if out["pe"] is not None else v451_first_valid(yi.get("trailingPE"), positive=False)
         out["forward_pe"] = out["forward_pe"] if out["forward_pe"] is not None else v451_first_valid(yi.get("forwardPE"), positive=False)
         out["peg"] = out["peg"] if out["peg"] is not None else v451_first_valid(yi.get("pegRatio"), positive=False)
@@ -10536,7 +10534,7 @@ def v451_live_financial_enrichment(ticker, row_json=None):
         out["revenue"] = out["revenue"] if out["revenue"] is not None else v451_first_valid(yi.get("totalRevenue"), positive=True)
         out["net_income"] = out["net_income"] if out["net_income"] is not None else v451_first_valid(yi.get("netIncomeToCommon"), positive=False)
     else:
-        out["diagnostics"].append("Yahoo/yfinance financial info: empty/unavailable")
+        out["diagnostics"].append("governed provider financial info: empty/unavailable")
 
     usable = sum(1 for k in ["pe", "forward_pe", "peg", "revenue_growth", "eps_growth", "debt_equity", "free_cash_flow", "revenue"] if out.get(k) is not None)
     out["data_quality"] = "Complete" if usable >= 5 else ("Partial" if usable >= 3 else "Incomplete")
@@ -10864,7 +10862,7 @@ def render_v451_financial_health(row):
         c2.metric("Metrics Populated", f"{usable}/{len(metrics)}")
         c3.metric("Peer Context", b.get("label", "peers"))
         if fin["data_quality"] == "Incomplete":
-            st.warning("Financial data is not complete enough to make a confident financial-health claim. The system attempted scan data, FMP financials, FMP ratios, FMP growth, statements, and Yahoo fallback.")
+            st.warning("Financial data is not complete enough to make a confident financial-health claim. The system attempted scan data, FMP financials, FMP ratios, FMP growth, statements, and governed provider fallback.")
         else:
             st.success("Financial data is populated enough to support a client-facing explanation.")
         st.dataframe(pd.DataFrame(metrics), use_container_width=True, hide_index=True)
@@ -11138,7 +11136,7 @@ def v46_company_context(row):
 
     yi = v451_yahoo_info(ticker)
     if yi:
-        info["diagnostics"].append("Yahoo profile fallback: returned")
+        info["diagnostics"].append("governed provider profile fallback: returned")
         info["sector"] = info["sector"] or v45_text(yi.get("sector"), "")
         info["industry"] = info["industry"] or v45_text(yi.get("industry"), "")
         info["description"] = info["description"] or v45_text(yi.get("longBusinessSummary"), "")
@@ -11240,10 +11238,10 @@ def v46_financial_intelligence(ticker, row_json=None):
 
     yi = v451_yahoo_info(ticker)
     if yi:
-        out["diagnostics"].append("V46 Yahoo financial fallback: returned")
+        out["diagnostics"].append("V46 governed provider financial fallback: returned")
         growth_candidates.extend([
-            ("Yahoo revenueGrowth", yi.get("revenueGrowth")),
-            ("Yahoo earningsGrowth", yi.get("earningsGrowth")),
+            ("governed provider revenueGrowth", yi.get("revenueGrowth")),
+            ("governed provider earningsGrowth", yi.get("earningsGrowth")),
         ])
         out["cash"] = out.get("cash") if out.get("cash") is not None else v46_num(yi.get("totalCash"), positive=False)
         out["total_debt"] = out.get("total_debt") if out.get("total_debt") is not None else v46_num(yi.get("totalDebt"), positive=False)
@@ -11341,15 +11339,15 @@ def v46_news_intelligence(ticker, company=""):
 
     if len(rows) < 3:
         try:
-            url = f"https://feeds.finance.yahoo.com/rss/2.0/headline?s={ticker}&region=US&lang=en-US"
+            url = ""  # unlicensed legacy RSS fallback retired
             text, status = v432_http_text(url, timeout=8)
-            diagnostics.append(f"Yahoo ticker RSS: status={status}")
+            diagnostics.append(f"governed provider ticker RSS: status={status}")
             if text:
                 root = ET.fromstring(text.encode("utf-8"))
                 for item in root.findall(".//item")[:10]:
-                    add_row(item.findtext("title"), "Yahoo Finance RSS", item.findtext("link"), "", "Yahoo RSS")
+                    add_row(item.findtext("title"), "governed provider Finance RSS", item.findtext("link"), "", "governed provider RSS")
         except Exception as e:
-            diagnostics.append(f"Yahoo RSS failed: {e}")
+            diagnostics.append(f"governed provider RSS failed: {e}")
 
     classified = v45_classify_news(rows[:10]) if "v45_classify_news" in globals() else {"score": 50, "sentiment": "Mixed / Neutral", "bullish": [], "bearish": []}
     return {"rows": rows[:10], "diagnostics": diagnostics, **classified, "data_quality": "Complete" if len(rows) >= 3 else ("Partial" if rows else "Incomplete")}
@@ -12615,7 +12613,7 @@ def v48_financial_completion(ticker, row_json=None):
     V48 aggressively fills missing financial fields from all existing current sources:
     - V46.1 financial intelligence
     - FMP ratios/key metrics/growth/income/cashflow/balance
-    - Yahoo info fallback
+    - governed provider info fallback
     """
     ticker = v451_clean_ticker(ticker)
     fin = v461_financial_intelligence(ticker, row_json) if "v461_financial_intelligence" in globals() else (v46_financial_intelligence(ticker, row_json) if "v46_financial_intelligence" in globals() else {})
@@ -12747,10 +12745,10 @@ def v48_financial_completion(ticker, row_json=None):
                 fin["free_cash_flow"] = fcf
                 if fin.get("free_cash_flow") is not None: fin["completion_sources"]["free_cash_flow"] = "FMP cash flow statement"
 
-    # Yahoo final fallback
+    # governed provider final fallback
     yi = v451_yahoo_info(ticker)
     if yi:
-        fin["diagnostics"].append("V48 Yahoo fallback: returned")
+        fin["diagnostics"].append("V48 governed provider fallback: returned")
         yahoo_map = [
             ("pe", "trailingPE", False),
             ("forward_pe", "forwardPE", False),
@@ -12767,7 +12765,7 @@ def v48_financial_completion(ticker, row_json=None):
             if fin.get(out_key) is None and yi.get(ykey) is not None:
                 fin[out_key] = v48_growth_pct(yi.get(ykey)) if is_pct else v46_num(yi.get(ykey), positive=False)
                 if fin.get(out_key) is not None:
-                    fin["completion_sources"][out_key] = "Yahoo fallback"
+                    fin["completion_sources"][out_key] = "governed provider fallback"
 
     # Normalize percentage fields again
     for key in ["gross_margin", "operating_margin", "net_margin", "roe", "eps_growth", "revenue_growth", "free_cash_flow_growth"]:
@@ -15337,7 +15335,7 @@ def v502_fmp_v3(endpoint, params=None):
 @st.cache_data(ttl=3600)
 def v502_yahoo_info(ticker):
     try:
-        info = yf.Ticker(ticker).info or {}
+        info = governed_market.Ticker(ticker).info or {}
         return info if isinstance(info, dict) else {}
     except Exception:
         return {}
@@ -15403,13 +15401,13 @@ def v502_complete_financials(ticker, base_fin=None):
             sources["revenue_growth"] = "Derived from income statements"
         if val is not None:
             fin["revenue_growth"] = val
-            sources.setdefault("revenue_growth", "FMP/Yahoo fallback")
+            sources.setdefault("revenue_growth", "FMP/governed provider fallback")
 
     if fin.get("eps_growth") is None:
         val = v502_pct(g0.get("epsgrowth") or g0.get("epsGrowth") or yahoo.get("earningsGrowth"))
         if val is not None:
             fin["eps_growth"] = val
-            sources["eps_growth"] = "FMP/Yahoo fallback"
+            sources["eps_growth"] = "FMP/governed provider fallback"
 
     if fin.get("gross_margin") is None:
         val = v502_pct(r0.get("grossProfitMarginTTM") or yahoo.get("grossMargins"))
@@ -15418,7 +15416,7 @@ def v502_complete_financials(ticker, base_fin=None):
             sources["gross_margin"] = "Derived: gross profit / revenue"
         if val is not None:
             fin["gross_margin"] = val
-            sources.setdefault("gross_margin", "FMP/Yahoo fallback")
+            sources.setdefault("gross_margin", "FMP/governed provider fallback")
 
     if fin.get("operating_margin") is None:
         val = v502_pct(r0.get("operatingProfitMarginTTM") or yahoo.get("operatingMargins"))
@@ -15427,7 +15425,7 @@ def v502_complete_financials(ticker, base_fin=None):
             sources["operating_margin"] = "Derived: operating income / revenue"
         if val is not None:
             fin["operating_margin"] = val
-            sources.setdefault("operating_margin", "FMP/Yahoo fallback")
+            sources.setdefault("operating_margin", "FMP/governed provider fallback")
 
     if fin.get("net_margin") is None:
         val = v502_pct(r0.get("netProfitMarginTTM") or yahoo.get("profitMargins"))
@@ -15436,7 +15434,7 @@ def v502_complete_financials(ticker, base_fin=None):
             sources["net_margin"] = "Derived: net income / revenue"
         if val is not None:
             fin["net_margin"] = val
-            sources.setdefault("net_margin", "FMP/Yahoo fallback")
+            sources.setdefault("net_margin", "FMP/governed provider fallback")
 
     ocf = v502_first(fin.get("operating_cash_flow"), c0.get("operatingCashFlow"), yahoo.get("operatingCashflow"))
     capex = v502_first(c0.get("capitalExpenditure"), c0.get("capitalExpenditures"))
@@ -15446,17 +15444,17 @@ def v502_complete_financials(ticker, base_fin=None):
         sources["free_cash_flow"] = "Derived: operating cash flow minus capex"
     if ocf is not None:
         fin["operating_cash_flow"] = ocf
-        sources.setdefault("operating_cash_flow", "FMP/Yahoo fallback")
+        sources.setdefault("operating_cash_flow", "FMP/governed provider fallback")
     if fcf is not None:
         fin["free_cash_flow"] = fcf
-        sources.setdefault("free_cash_flow", "FMP/Yahoo fallback")
+        sources.setdefault("free_cash_flow", "FMP/governed provider fallback")
 
     if cash is not None:
         fin["cash"] = cash
-        sources.setdefault("cash", "FMP/Yahoo fallback")
+        sources.setdefault("cash", "FMP/governed provider fallback")
     if debt is not None:
         fin["total_debt"] = debt
-        sources.setdefault("total_debt", "FMP/Yahoo fallback")
+        sources.setdefault("total_debt", "FMP/governed provider fallback")
     if cash is not None and debt is not None:
         fin["net_cash"] = cash - debt
         sources["net_cash"] = "Derived: cash - debt"
@@ -15472,7 +15470,7 @@ def v502_complete_financials(ticker, base_fin=None):
             sources["current_ratio"] = "Derived: current assets / current liabilities"
         if val is not None:
             fin["current_ratio"] = val
-            sources.setdefault("current_ratio", "FMP/Yahoo fallback")
+            sources.setdefault("current_ratio", "FMP/governed provider fallback")
 
     if fin.get("roe") is None:
         val = v502_pct(r0.get("returnOnEquityTTM") or m0.get("roe") or yahoo.get("returnOnEquity"))
@@ -15481,7 +15479,7 @@ def v502_complete_financials(ticker, base_fin=None):
             sources["roe"] = "Derived: net income / equity"
         if val is not None:
             fin["roe"] = val
-            sources.setdefault("roe", "FMP/Yahoo fallback")
+            sources.setdefault("roe", "FMP/governed provider fallback")
 
     if fin.get("roa") is None:
         val = v502_pct(r0.get("returnOnAssetsTTM") or yahoo.get("returnOnAssets"))
@@ -15490,7 +15488,7 @@ def v502_complete_financials(ticker, base_fin=None):
             sources["roa"] = "Derived: net income / assets"
         if val is not None:
             fin["roa"] = val
-            sources.setdefault("roa", "FMP/Yahoo fallback")
+            sources.setdefault("roa", "FMP/governed provider fallback")
 
     for key, val in {
         "pe": v502_first(r0.get("priceEarningsRatioTTM"), yahoo.get("trailingPE")),
@@ -15499,7 +15497,7 @@ def v502_complete_financials(ticker, base_fin=None):
     }.items():
         if fin.get(key) is None and val is not None:
             fin[key] = val
-            sources[key] = "FMP/Yahoo fallback"
+            sources[key] = "FMP/governed provider fallback"
 
     core = ["revenue_growth", "eps_growth", "gross_margin", "operating_margin", "net_margin",
             "free_cash_flow", "operating_cash_flow", "cash", "total_debt", "debt_equity",
@@ -17470,7 +17468,7 @@ def v507_current_price_lookup(ticker, full_df):
     except Exception:
         pass
     try:
-        hist = yf.download(ticker, period="5d", interval="1d", progress=False, auto_adjust=True)
+        hist = governed_market.download(ticker, period="5d", interval="1d", progress=False, auto_adjust=True)
         if hist is not None and not hist.empty:
             return float(hist["Close"].dropna().iloc[-1])
     except Exception:
@@ -17721,7 +17719,7 @@ def render_status_banner():
 # V50.7.1 FINANCIAL HEATMAP DATA FIX
 # =========================
 # Fixes false "Missing" heatmap metrics by normalizing multiple field names
-# from scanner rows, FMP/Yahoo fallback financials, and display-layer rows.
+# from scanner rows, FMP/governed provider fallback financials, and display-layer rows.
 
 def v5071_financial_value(fin, row=None, *keys):
     row = row if isinstance(row, dict) else {}
@@ -17760,7 +17758,7 @@ def v5071_money_or_num(value):
 
 
 def v503_financial_heatmap_items(fin, row=None):
-    # Normalize from all known field names used across scanner, app, FMP, Yahoo, and prior versions.
+    # Normalize from all known field names used across scanner, app, FMP, governed provider, and prior versions.
     normalized = {
         "Revenue Growth": v5071_pct_normalize(v5071_financial_value(
             fin, row,
@@ -17834,7 +17832,7 @@ def render_v503_financial_heatmap(row):
 
     with st.container(border=True):
         st.markdown("### 🚦 Financial Health Heatmap")
-        st.caption("Traffic-light view using normalized financial fields from scanner, FMP/Yahoo fallbacks, and derived metrics.")
+        st.caption("Traffic-light view using normalized financial fields from scanner, FMP/governed provider fallbacks, and derived metrics.")
         cols = st.columns(3)
 
         for i, item in enumerate(items):
@@ -17891,7 +17889,7 @@ def render_status_banner():
 # =========================
 # Targeted safe patch:
 # - Keeps V50.7.1 heatmap structure
-# - Restores missing metrics using yfinance financial statements when .info is empty
+# - Restores missing metrics using governed market adapter financial statements when .info is empty
 # - Does NOT overwrite good non-zero metrics with zero/null values
 
 @st.cache_data(ttl=3600)
@@ -17899,17 +17897,17 @@ def v5071a_yahoo_statement_bundle(ticker):
     ticker = v451_clean_ticker(ticker)
     out = {"info": {}, "income": {}, "cashflow": {}, "balance": {}, "diagnostics": []}
     try:
-        t = yf.Ticker(ticker)
+        t = governed_market.Ticker(ticker)
     except Exception as exc:
-        out["diagnostics"].append(f"Yahoo ticker init error: {exc}")
+        out["diagnostics"].append(f"governed provider ticker init error: {exc}")
         return out
 
     try:
         info = t.info or {}
         out["info"] = info if isinstance(info, dict) else {}
-        out["diagnostics"].append("Yahoo info returned" if out["info"] else "Yahoo info empty")
+        out["diagnostics"].append("governed provider info returned" if out["info"] else "governed provider info empty")
     except Exception as exc:
-        out["diagnostics"].append(f"Yahoo info error: {exc}")
+        out["diagnostics"].append(f"governed provider info error: {exc}")
 
     def latest_statement_dict(df):
         try:
@@ -17925,23 +17923,23 @@ def v5071a_yahoo_statement_bundle(ticker):
         if not income:
             income = latest_statement_dict(getattr(t, "financials", None))
         out["income"] = income
-        out["diagnostics"].append("Yahoo income statement returned" if income else "Yahoo income statement empty")
+        out["diagnostics"].append("governed provider income statement returned" if income else "governed provider income statement empty")
     except Exception as exc:
-        out["diagnostics"].append(f"Yahoo income statement error: {exc}")
+        out["diagnostics"].append(f"governed provider income statement error: {exc}")
 
     try:
         cf = latest_statement_dict(getattr(t, "cashflow", None))
         out["cashflow"] = cf
-        out["diagnostics"].append("Yahoo cashflow returned" if cf else "Yahoo cashflow empty")
+        out["diagnostics"].append("governed provider cashflow returned" if cf else "governed provider cashflow empty")
     except Exception as exc:
-        out["diagnostics"].append(f"Yahoo cashflow error: {exc}")
+        out["diagnostics"].append(f"governed provider cashflow error: {exc}")
 
     try:
         bs = latest_statement_dict(getattr(t, "balance_sheet", None))
         out["balance"] = bs
-        out["diagnostics"].append("Yahoo balance sheet returned" if bs else "Yahoo balance sheet empty")
+        out["diagnostics"].append("governed provider balance sheet returned" if bs else "governed provider balance sheet empty")
     except Exception as exc:
-        out["diagnostics"].append(f"Yahoo balance sheet error: {exc}")
+        out["diagnostics"].append(f"governed provider balance sheet error: {exc}")
 
     return out
 
@@ -18023,30 +18021,30 @@ def v5071a_fix_financials(fin, ticker):
         fin["net_income"] = net_income
     if ocf is not None:
         fin["operating_cash_flow"] = ocf
-        sources.setdefault("operating_cash_flow", "V50.7.1a Yahoo statement fallback")
+        sources.setdefault("operating_cash_flow", "V50.7.1a governed provider statement fallback")
     if fcf is not None:
         fin["free_cash_flow"] = fcf
-        sources.setdefault("free_cash_flow", "V50.7.1a Yahoo statement fallback")
+        sources.setdefault("free_cash_flow", "V50.7.1a governed provider statement fallback")
     if cash is not None:
         fin["cash"] = cash
-        sources.setdefault("cash", "V50.7.1a Yahoo balance sheet fallback")
+        sources.setdefault("cash", "V50.7.1a governed provider balance sheet fallback")
     if debt is not None:
         fin["total_debt"] = debt
-        sources.setdefault("total_debt", "V50.7.1a Yahoo balance sheet fallback")
+        sources.setdefault("total_debt", "V50.7.1a governed provider balance sheet fallback")
 
     revenue_growth = v5071a_nonzero_existing(fin, "revenue_growth")
     if revenue_growth is None:
         revenue_growth = v5071a_pct(info.get("revenueGrowth"))
     if revenue_growth is not None:
         fin["revenue_growth"] = revenue_growth
-        sources.setdefault("revenue_growth", "V50.7.1a Yahoo info fallback")
+        sources.setdefault("revenue_growth", "V50.7.1a governed provider info fallback")
 
     eps_growth = v5071a_nonzero_existing(fin, "eps_growth")
     if eps_growth is None:
         eps_growth = v5071a_pct(info.get("earningsGrowth"))
     if eps_growth is not None:
         fin["eps_growth"] = eps_growth
-        sources.setdefault("eps_growth", "V50.7.1a Yahoo info fallback")
+        sources.setdefault("eps_growth", "V50.7.1a governed provider info fallback")
 
     gross_margin = v5071a_nonzero_existing(fin, "gross_margin")
     if gross_margin is None:
@@ -18055,7 +18053,7 @@ def v5071a_fix_financials(fin, ticker):
         gross_margin = gross_profit / revenue * 100
     if gross_margin is not None:
         fin["gross_margin"] = gross_margin
-        sources.setdefault("gross_margin", "V50.7.1a Yahoo/derived fallback")
+        sources.setdefault("gross_margin", "V50.7.1a governed provider/derived fallback")
 
     operating_margin = v5071a_nonzero_existing(fin, "operating_margin")
     if operating_margin is None:
@@ -18064,7 +18062,7 @@ def v5071a_fix_financials(fin, ticker):
         operating_margin = operating_income / revenue * 100
     if operating_margin is not None:
         fin["operating_margin"] = operating_margin
-        sources.setdefault("operating_margin", "V50.7.1a Yahoo/derived fallback")
+        sources.setdefault("operating_margin", "V50.7.1a governed provider/derived fallback")
 
     net_margin = v5071a_nonzero_existing(fin, "net_margin")
     if net_margin is None:
@@ -18073,7 +18071,7 @@ def v5071a_fix_financials(fin, ticker):
         net_margin = net_income / revenue * 100
     if net_margin is not None:
         fin["net_margin"] = net_margin
-        sources.setdefault("net_margin", "V50.7.1a Yahoo/derived fallback")
+        sources.setdefault("net_margin", "V50.7.1a governed provider/derived fallback")
 
     debt_equity = v5071a_nonzero_existing(fin, "debt_equity")
     yahoo_de = v5071a_num(info.get("debtToEquity"))
@@ -18083,7 +18081,7 @@ def v5071a_fix_financials(fin, ticker):
         debt_equity = debt / abs(equity)
     if debt_equity is not None:
         fin["debt_equity"] = debt_equity
-        sources.setdefault("debt_equity", "V50.7.1a Yahoo/derived fallback")
+        sources.setdefault("debt_equity", "V50.7.1a governed provider/derived fallback")
 
     roe = v5071a_nonzero_existing(fin, "roe")
     if roe is None:
@@ -18092,7 +18090,7 @@ def v5071a_fix_financials(fin, ticker):
         roe = net_income / abs(equity) * 100
     if roe is not None:
         fin["roe"] = roe
-        sources.setdefault("roe", "V50.7.1a Yahoo/derived fallback")
+        sources.setdefault("roe", "V50.7.1a governed provider/derived fallback")
 
     current_ratio = v5071a_nonzero_existing(fin, "current_ratio")
     if current_ratio is None:
@@ -18101,7 +18099,7 @@ def v5071a_fix_financials(fin, ticker):
         current_ratio = current_assets / current_liabilities
     if current_ratio is not None:
         fin["current_ratio"] = current_ratio
-        sources.setdefault("current_ratio", "V50.7.1a Yahoo/derived fallback")
+        sources.setdefault("current_ratio", "V50.7.1a governed provider/derived fallback")
 
     if cash is not None and debt is not None:
         fin["net_cash"] = cash - debt
@@ -18184,7 +18182,7 @@ def render_v503_financial_heatmap(row):
     items = v503_financial_heatmap_items(r.get("financials", {}), row)
     with st.container(border=True):
         st.markdown("### 🚦 Financial Health Heatmap")
-        st.caption("Traffic-light view using scanner data plus Yahoo statement fallback when API fields are missing.")
+        st.caption("Traffic-light view using scanner data plus governed provider statement fallback when API fields are missing.")
         cols = st.columns(3)
         for i, (label, rating, display) in enumerate(items):
             if display and display != "N/A":
@@ -18208,7 +18206,7 @@ def render_status_banner():
     state = read_state()
     st.title("📈 AI Trading Dashboard")
     st.caption(APP_VERSION)
-    st.caption("Financial Fallback Restore: keeps V50.7.1 stable logic and restores missing metrics using Yahoo financial statements.")
+    st.caption("Financial Fallback Restore: keeps V50.7.1 stable logic and restores missing metrics using governed provider financial statements.")
     c1,c2,c3,c4,c5 = st.columns(5)
     c1.metric("Status", state.get("status", "unknown"))
     c2.metric("Scanner Version", state.get("version", "N/A"))
@@ -23887,10 +23885,9 @@ def v70_fetch_market_tape():
     symbols = {"SPY":"S&P 500","QQQ":"Nasdaq 100","DIA":"Dow","IWM":"Russell 2000","^VIX":"VIX","TLT":"Bonds","GLD":"Gold","BTC-USD":"Bitcoin"}
     rows = []
     try:
-        import yfinance as _yf
         for sym, label in symbols.items():
             try:
-                h = _yf.download(sym, period="5d", interval="1d", progress=False, auto_adjust=False)
+                h = governed_market.download(sym, period="5d", interval="1d", progress=False, auto_adjust=False)
                 if h is None or h.empty or "Close" not in h:
                     continue
                 closes = h["Close"].dropna()
@@ -23923,8 +23920,7 @@ def render_v70_market_tape():
 @st.cache_data(ttl=900, show_spinner=False)
 def v70_chart_history(ticker, period="1y"):
     try:
-        import yfinance as _yf
-        hist = _yf.download(str(ticker).upper().strip(), period=period, interval="1d", progress=False, auto_adjust=False)
+        hist = governed_market.download(str(ticker).upper().strip(), period=period, interval="1d", progress=False, auto_adjust=False)
         if hist is None or hist.empty:
             return pd.DataFrame()
         return hist.reset_index()
@@ -24113,10 +24109,9 @@ def v71_fetch_market_tape():
     }
     rows = []
     try:
-        import yfinance as _yf
         for sym, label in symbols.items():
             try:
-                hist = _yf.download(sym, period="5d", interval="1d", progress=False, auto_adjust=False, threads=False)
+                hist = governed_market.download(sym, period="5d", interval="1d", progress=False, auto_adjust=False, threads=False)
                 if hist is None or hist.empty or "Close" not in hist:
                     continue
                 close = hist["Close"].dropna()
@@ -24317,8 +24312,7 @@ def render_v574_top_ideas(source_df):
 @st.cache_data(ttl=900, show_spinner=False)
 def v71_fetch_chart_history(ticker, period="1y"):
     try:
-        import yfinance as _yf
-        hist = _yf.download(str(ticker).upper(), period=period, interval="1d", progress=False, auto_adjust=True, threads=False)
+        hist = governed_market.download(str(ticker).upper(), period=period, interval="1d", progress=False, auto_adjust=True, threads=False)
         if hist is None or hist.empty:
             return pd.DataFrame()
         if isinstance(hist.columns, pd.MultiIndex):
@@ -24732,7 +24726,7 @@ def v72_fetch_market_tape():
     out=[]
     for label,sym in symbols.items():
         try:
-            hist = yf.download(sym, period="5d", interval="1d", progress=False, auto_adjust=True, threads=False)
+            hist = governed_market.download(sym, period="5d", interval="1d", progress=False, auto_adjust=True, threads=False)
             if hist is None or hist.empty or "Close" not in hist:
                 continue
             close = hist["Close"].dropna()
@@ -25554,8 +25548,7 @@ def v74_pct(v):
 
 def v74_market_quote(symbol):
     try:
-        import yfinance as yf
-        hist = yf.Ticker(symbol).history(period="5d", interval="1d", auto_adjust=False)
+        hist = governed_market.Ticker(symbol).history(period="5d", interval="1d", auto_adjust=False)
         if hist is None or hist.empty or "Close" not in hist:
             return None
         closes = hist["Close"].dropna()

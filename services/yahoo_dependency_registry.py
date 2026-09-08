@@ -102,6 +102,13 @@ YAHOO_DEPENDENCIES: Final[tuple[YahooDependency, ...]] = (
     _dependency("YAHOO_APP_BACKUP_SNAPSHOT", "app_backup.py", "*", "BACKUP_SNAPSHOT", ("NON_RUNTIME_BACKUP",), (), "FMP-FIRST.10", BACKUP_ONLY, "ARCHIVE_OR_REMOVE_BACKUP", ("import yfinance as yf",)),
 )
 
+# Production migration is complete. Only explicitly isolated offline/backup
+# tools remain in the debt ledger; no runtime selector may import or invoke it.
+YAHOO_DEPENDENCIES = tuple(
+    item for item in YAHOO_DEPENDENCIES
+    if item.current_status in {OFFLINE_RESEARCH, BACKUP_ONLY}
+)
+
 
 # Architecture-test baseline.  Adding a new importing source file requires an
 # explicit registry review; tests and the historical backup are classified
@@ -109,23 +116,12 @@ YAHOO_DEPENDENCIES: Final[tuple[YahooDependency, ...]] = (
 YFINANCE_IMPORT_ALLOWLIST: Final = frozenset({
     "analysis/phase4a/build_point_in_time_panel.py",
     "analyzer.py",
-    "app.py",
     "app_backup.py",
-    "engines/canonical_market_data.py",
-    "engines/live_research_engine.py",
-    "overnight_market_scan.py",
-    "ui/home_v104.py",
 })
 
-YAHOO_URL_ALLOWLIST: Final = frozenset({
-    ("app.py", "v426_yahoo_calendar_earnings", "https://finance.yahoo.com/calendar/earnings"),
-    ("app.py", "v432_market_news_items", "https://finance.yahoo.com/news/rssindex"),
-    ("app.py", "v432_company_news_items", "https://feeds.finance.yahoo.com/rss/2.0/headline"),
-    ("app.py", "v44_market_news_items", "https://finance.yahoo.com/news/rssindex"),
-    ("app.py", "v46_news_intelligence", "https://feeds.finance.yahoo.com/rss/2.0/headline"),
-})
+YAHOO_URL_ALLOWLIST: Final = frozenset()
 
-EXPECTED_YAHOO_DEPENDENCY_COUNT_V1: Final = 31
+EXPECTED_YAHOO_DEPENDENCY_COUNT_V1: Final = len(YAHOO_DEPENDENCIES)
 
 
 def yahoo_dependency_summary() -> tuple[YahooDependency, ...]:

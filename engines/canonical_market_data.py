@@ -3,8 +3,7 @@
 
 Narrow first release:
 - historical OHLCV only;
-- Yahoo/yfinance primary;
-- FMP historical-price-full fallback;
+- FMP historical-price-full primary;
 - 30-minute in-memory TTL;
 - last-known-good fallback;
 - explicit provenance.
@@ -22,7 +21,6 @@ import time
 
 import pandas as pd
 import requests
-import yfinance as yf
 
 
 HISTORY_TTL_SECONDS = 1800
@@ -177,47 +175,6 @@ def _frame_to_records(frame: pd.DataFrame) -> list[dict[str, Any]]:
     return records
 
 
-def _fetch_yahoo_history(
-    ticker: str,
-    period: str,
-    interval: str,
-) -> tuple[list[dict[str, Any]], str]:
-    errors = []
-    try:
-        raw = yf.download(
-            ticker,
-            period=period,
-            interval=interval,
-            auto_adjust=True,
-            progress=False,
-            threads=False,
-            group_by="column",
-        )
-        records = _frame_to_records(
-            _normalize_history_frame(raw, ticker)
-        )
-        if records:
-            return records, ""
-    except Exception as exc:
-        errors.append(str(exc))
-
-    try:
-        raw = yf.Ticker(ticker).history(
-            period=period,
-            interval=interval,
-            auto_adjust=True,
-        )
-        records = _frame_to_records(
-            _normalize_history_frame(raw, ticker)
-        )
-        if records:
-            return records, ""
-    except Exception as exc:
-        errors.append(str(exc))
-
-    return [], "; ".join(error for error in errors if error)
-
-
 def _fetch_fmp_history(
     ticker: str,
     period: str,
@@ -313,10 +270,6 @@ def load_price_history(
     period: str = "2y",
     interval: str = "1d",
     force_refresh: bool = False,
-    yahoo_fetcher: Callable[
-        [str, str, str],
-        tuple[list[dict[str, Any]], str],
-    ] | None = None,
     fmp_fetcher: Callable[
         [str, str],
         tuple[list[dict[str, Any]], str],
@@ -351,30 +304,7 @@ def load_price_history(
             result["cache_status"] = "fresh"
             return result
 
-    yahoo_fetcher = yahoo_fetcher or _fetch_yahoo_history
     fmp_fetcher = fmp_fetcher or _fetch_fmp_history
-
-    yahoo_records, yahoo_error = yahoo_fetcher(
-        symbol,
-        period,
-        interval,
-    )
-    if yahoo_records:
-        result = _result(
-            ticker=symbol,
-            status="AVAILABLE",
-            records=yahoo_records,
-            source="Yahoo/yfinance",
-            provider_called=True,
-            provider_success=True,
-            mapping_success=True,
-            retrieval_status="provider_success",
-            cache_status="refreshed",
-        )
-        with _LOCK:
-            _CACHE[cache_key] = (now, result)
-            _LAST_GOOD[symbol] = result
-        return result
 
     fmp_records, fmp_error = fmp_fetcher(symbol, period)
     if fmp_records:
@@ -386,7 +316,7 @@ def load_price_history(
             provider_called=True,
             provider_success=True,
             mapping_success=True,
-            retrieval_status="fallback_success",
+            retrieval_status="provider_success",
             cache_status="refreshed",
         )
         with _LOCK:
@@ -405,7 +335,7 @@ def load_price_history(
                 "retrieval_status": "provider_error_cache_fallback",
                 "error": "; ".join(
                     value
-                    for value in (yahoo_error, fmp_error)
+                    for value in (fmp_error,)
                     if value
                 ),
             }
@@ -413,13 +343,13 @@ def load_price_history(
         return result
 
     combined_error = "; ".join(
-        value for value in (yahoo_error, fmp_error) if value
+        value for value in (fmp_error,) if value
     )
     return _result(
         ticker=symbol,
         status="PROVIDER_ERROR",
         records=[],
-        source="Yahoo/yfinance + FMP",
+        source="FMP historical-price-full",
         provider_called=True,
         provider_success=False,
         mapping_success=False,
