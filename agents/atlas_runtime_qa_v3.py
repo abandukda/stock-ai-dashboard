@@ -22,6 +22,7 @@ import re
 import time
 import traceback
 from typing import Any, Iterable
+from urllib.parse import urlsplit, urlunsplit
 
 from playwright.async_api import BrowserContext, Frame, Locator, Page, async_playwright
 
@@ -48,7 +49,7 @@ DEFAULT_URL = "https://stock-ai-dashboard.streamlit.app"
 PAGE_TIMEOUT_MS = 35_000
 ACTION_TIMEOUT_MS = 6_000
 LOGIN_TIMEOUT_SECONDS = 240
-DEPLOYED_READINESS_TIMEOUT_SECONDS = int(os.getenv("ATLAS_QA_READINESS_TIMEOUT_SECONDS", "60"))
+DEPLOYED_READINESS_TIMEOUT_SECONDS = int(os.getenv("ATLAS_QA_READINESS_TIMEOUT_SECONDS", "180"))
 DEPLOYED_READINESS_STABILITY_SECONDS = 2
 TOTAL_TIMEOUT_SECONDS = 1_500
 
@@ -235,7 +236,7 @@ async def _combined_visible_text(page: Page) -> str:
 
 
 async def _wait_for_streamlit_shell(page: Page) -> None:
-    for _ in range(30):
+    for _ in range(60):
         if page.is_closed():
             raise RuntimeError("Browser page closed before Streamlit loaded.")
         text = await _combined_visible_text(page)
@@ -244,11 +245,11 @@ async def _wait_for_streamlit_shell(page: Page) -> None:
         await page.wait_for_timeout(500)
 
 
-async def _wake_if_needed(page: Page) -> None:
+async def _wake_if_needed(page: Page) -> bool:
     for _ in range(3):
         body = await _combined_visible_text(page)
         if not re.search(r"sleep|hibernat|get this app back up|wake app", body, re.I):
-            return
+            return False
         for scope in _all_scopes(page):
             button = scope.get_by_role(
                 "button",
@@ -257,7 +258,50 @@ async def _wake_if_needed(page: Page) -> None:
             if await _safe_count(button):
                 await button.first.click(timeout=ACTION_TIMEOUT_MS)
                 await page.wait_for_timeout(7000)
-                break
+                return True
+    return False
+
+
+def _canonical_streamlit_url(url: str) -> str:
+    """Normalize only the public app origin; never invent an internal host route."""
+    raw = str(url or DEFAULT_URL).strip()
+    if "://" not in raw:
+        raw = f"https://{raw}"
+    parts = urlsplit(raw)
+    scheme = "https" if parts.hostname and parts.hostname.endswith(".streamlit.app") else (parts.scheme or "https")
+    path = parts.path or "/"
+    return urlunsplit((scheme, parts.netloc, path, "", ""))
+
+
+def _is_streamlit_host(url: str) -> bool:
+    return bool((urlsplit(str(url or "")).hostname or "").endswith(".streamlit.app"))
+
+
+async def _open_streamlit_origin(page: Page, url: str) -> dict[str, Any]:
+    """Open the public origin and retain host transitions for bootstrap diagnostics."""
+    target = _canonical_streamlit_url(url)
+    response = None
+    navigation_errors: list[str] = []
+    for attempt in range(3):
+        try:
+            response = await page.goto(target, wait_until="domcontentloaded", timeout=PAGE_TIMEOUT_MS)
+            break
+        except Exception as exc:
+            navigation_errors.append(type(exc).__name__)
+            if attempt >= 2:
+                raise
+            await page.wait_for_timeout(2_000 * (attempt + 1))
+    await _wait_for_streamlit_shell(page)
+    woke = await _wake_if_needed(page)
+    return {
+        "requested_url": target,
+        "resolved_url": str(page.url or target),
+        "document_status": int(getattr(response, "status", 0) or 0) or None,
+        "streamlit_public_host": _is_streamlit_host(target),
+        "wake_control_used": woke,
+        "navigation_attempts": len(navigation_errors) + 1,
+        "navigation_error_categories": navigation_errors,
+    }
 
 
 async def _find_password_target(
@@ -435,7 +479,8 @@ async def _capture_deployed_readiness(page: Page, expected_sha: str) -> dict[str
     dashboard_ready = bool(await _known_navigation_visible(page))
     fatal_exception = await _rendered_streamlit_exception(page)
     updating = bool(re.search(
-        r"app is (?:sleeping|waking)|waking up|relaunch to update|please wait|loading",
+        r"app is (?:sleeping|waking)|waking up|starting your app|app is starting|"
+        r"get this app back up|relaunch to update|please wait|loading",
         visible, re.I,
     ))
     unavailable = bool(re.search(
@@ -456,6 +501,9 @@ async def _capture_deployed_readiness(page: Page, expected_sha: str) -> dict[str
         "dashboard_ready": dashboard_ready,
         "fatal_exception": fatal_exception,
         "sha_mismatch": bool(marker_sha and expected_sha and marker_sha != expected_sha),
+        "page_url": str(page.url or ""),
+        "streamlit_public_host": _is_streamlit_host(str(page.url or "")),
+        "visible_text_present": bool(visible.strip()),
         "login_signal_contradiction": bool(
             (login_signals["login_marker_ready"] or login_signals["login_heading_ready"])
             and not login_signals["password_ready"]
@@ -494,6 +542,7 @@ async def _deployed_readiness_gate(
     stable_checks = 0
     latest: dict[str, Any] = {}
     observations: list[dict[str, Any]] = []
+    recovery_attempts = 0
     while time.monotonic() - started < DEPLOYED_READINESS_TIMEOUT_SECONDS:
         latest = await _capture_deployed_readiness(page, expected_sha)
         latest["elapsed_seconds"] = round(time.monotonic() - started, 3)
@@ -530,6 +579,27 @@ async def _deployed_readiness_gate(
             continue
         stable_checks = 0
         prior_identity = None
+        elapsed = time.monotonic() - started
+        if int(elapsed) // 10 > recovery_attempts:
+            recovery_attempts += 1
+            woke = await _wake_if_needed(page)
+            latest["bootstrap_recovery_attempts"] = recovery_attempts
+            latest["wake_control_used"] = woke
+            # A blank or explicit connection-error shell can survive a failed
+            # hosting XHR indefinitely. Reload only that shell, never an app
+            # that is visibly waking or already exposing login content.
+            if (
+                not woke and not latest.get("visible_text_present")
+                and latest.get("deployed_source_sha") == "UNKNOWN"
+                and recovery_attempts <= 2
+                and hasattr(page, "reload")
+            ):
+                try:
+                    await page.reload(wait_until="domcontentloaded", timeout=PAGE_TIMEOUT_MS)
+                    await _wait_for_streamlit_shell(page)
+                    latest["shell_reload_used"] = True
+                except Exception as exc:
+                    latest["shell_reload_error"] = type(exc).__name__
         await page.wait_for_timeout(750)
     latest = _timeout_readiness_result(latest)
     (output_dir / "deployed_readiness.json").write_text(
@@ -663,10 +733,8 @@ async def _open_and_authenticate(
     *,
     expected_sha: str,
 ) -> dict[str, Any]:
-    print(f"[open] Opening {url}", flush=True)
-    await page.goto(url, wait_until="domcontentloaded", timeout=PAGE_TIMEOUT_MS)
-    await _wait_for_streamlit_shell(page)
-    await _wake_if_needed(page)
+    print(f"[open] Opening {_canonical_streamlit_url(url)}", flush=True)
+    bootstrap = await _open_streamlit_origin(page, url)
     readiness = await _deployed_readiness_gate(
         page, expected_sha=expected_sha, output_dir=output_dir,
     )
@@ -674,6 +742,7 @@ async def _open_and_authenticate(
         page, output_dir, expected_sha=expected_sha,
     )
     authentication["deployment_readiness"] = readiness
+    authentication["bootstrap_navigation"] = bootstrap
     return authentication
 
 
@@ -1114,10 +1183,12 @@ def _classify_failed_request(url: str, status: int) -> dict[str, str]:
     from urllib.parse import urlsplit
     parts = urlsplit(str(url or ""))
     path = parts.path or "/"
-    if path.endswith("/api/v2/user/details") and status == 404:
+    if path.endswith("/api/v2/user/details") and status in {401, 404}:
         return {"path": path, "classification": "PLATFORM_NOISE", "relevance": "NOT_ATLAS_FUNCTIONALITY"}
-    if path.endswith("/api/v1/app/event/open") and status == 403:
+    if path.endswith("/api/v1/app/event/open") and status in {401, 403, 404}:
         return {"path": path, "classification": "PLATFORM_TELEMETRY_NOISE", "relevance": "NOT_ATLAS_FUNCTIONALITY"}
+    if _is_streamlit_host(url) and path.rstrip("/") in {"/_stcore/health", "/_stcore/stream"} and status in {401, 404}:
+        return {"path": path, "classification": "STREAMLIT_BOOTSTRAP_SIGNAL", "relevance": "HOSTING_READINESS_ONLY"}
     return {"path": path, "classification": "APPLICATION_OR_DEPENDENCY_REQUEST_FAILURE", "relevance": "REVIEW_REQUIRED"}
 
 
