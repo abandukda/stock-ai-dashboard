@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-09-08T08:54:20.497852+00:00",
-  "count": 3490,
+  "generated_at": "2026-09-08T14:49:09.695941+00:00",
+  "count": 3491,
   "symbols": [
     "A",
     "AA",
@@ -1909,6 +1909,7 @@
     "LYEL",
     "LYFT",
     "LYG",
+    "LYNX",
     "LYTS",
     "LYV",
     "LZ",
@@ -3494,18 +3495,18 @@
     "ZYME"
   ],
   "eligibility": {
-    "eligible_count": 2192,
-    "excluded_count": 1261,
+    "eligible_count": 2179,
+    "excluded_count": 1274,
     "exclusion_reason_counts": {
-      "Financial Services sector": 443,
-      "DOLLAR_VOLUME_BELOW_MINIMUM": 420,
+      "Financial Services sector": 439,
+      "DOLLAR_VOLUME_BELOW_MINIMUM": 436,
       "Excluded financial/bank/lender/insurance/asset management industry": 16,
       "Excluded business category": 41,
-      "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE": 123,
-      "GOVERNED_COMPANY_EXCLUSION": 120,
-      "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE": 93,
+      "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE": 125,
+      "GOVERNED_COMPANY_EXCLUSION": 119,
+      "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE": 94,
       "INSUFFICIENT_TECHNICAL_HISTORY": 3,
-      "MARKET_CAP_BELOW_MINIMUM": 2
+      "MARKET_CAP_BELOW_MINIMUM": 1
     },
     "exclusions": [
       {
@@ -3893,6 +3894,10 @@
         "reason": "Financial Services sector"
       },
       {
+        "ticker": "ATNI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
         "ticker": "ATRA",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -4189,6 +4194,10 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
+        "ticker": "BMEA",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
         "ticker": "BMEZ",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -4338,7 +4347,7 @@
       },
       {
         "ticker": "BSVN",
-        "reason": "Financial Services sector"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "BTGO",
@@ -4645,6 +4654,10 @@
         "reason": "Financial Services sector"
       },
       {
+        "ticker": "CLVT",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
         "ticker": "CM",
         "reason": "Financial Services sector"
       },
@@ -4853,6 +4866,10 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
+        "ticker": "CWCO",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
         "ticker": "CZR",
         "reason": "Excluded business category"
       },
@@ -4867,6 +4884,10 @@
       {
         "ticker": "DB",
         "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "DBI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "DBRG",
@@ -4999,6 +5020,10 @@
       {
         "ticker": "ECPG",
         "reason": "Financial Services sector"
+      },
+      {
+        "ticker": "EDN",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "EFC",
@@ -5949,6 +5974,10 @@
         "reason": "Financial Services sector"
       },
       {
+        "ticker": "JAKK",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
         "ticker": "JAN",
         "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
@@ -6317,6 +6346,10 @@
         "reason": "Financial Services sector"
       },
       {
+        "ticker": "LYNX",
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
         "ticker": "LZM",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -6582,7 +6615,7 @@
       },
       {
         "ticker": "MS-PO",
-        "reason": "Financial Services sector"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "MS-PQ",
@@ -6785,6 +6818,10 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
+        "ticker": "NRC",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
         "ticker": "NRDY",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -6905,6 +6942,10 @@
         "reason": "Financial Services sector"
       },
       {
+        "ticker": "OFIX",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
         "ticker": "OFS",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -6962,7 +7003,7 @@
       },
       {
         "ticker": "OPRT",
-        "reason": "Financial Services sector"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "OPTU",
@@ -7238,7 +7279,7 @@
       },
       {
         "ticker": "PSQH",
-        "reason": "MARKET_CAP_BELOW_MINIMUM"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "PSTL",
@@ -7638,7 +7679,7 @@
       },
       {
         "ticker": "SITC",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "SJT",
@@ -7913,6 +7954,10 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
+        "ticker": "T-PC",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
         "ticker": "TBBK",
         "reason": "Financial Services sector"
       },
@@ -8117,6 +8162,10 @@
         "reason": "Financial Services sector"
       },
       {
+        "ticker": "TWIN",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
         "ticker": "TWN",
         "reason": "Financial Services sector"
       },
@@ -8234,7 +8283,7 @@
       },
       {
         "ticker": "VACI",
-        "reason": "Financial Services sector"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "VALN",
@@ -8319,6 +8368,10 @@
       {
         "ticker": "VSCO",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "VTEX",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "VTMX",
