@@ -119,6 +119,7 @@ jobs:
           python overnight_market_scan.py
 
       - name: Upload exact scan candidate
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: atlas-scan-candidate-${{ github.run_id }}
@@ -132,7 +133,8 @@ jobs:
             audit_results/candidate_artifacts/recovery_scan.json
             audit_results/candidate_artifacts/total_market_universe.json
             audit_results/candidate_artifacts/publication_manifest.json
-          if-no-files-found: error
+            audit_results/candidate_artifacts/governed_market_acquisition_diagnostics.json
+          if-no-files-found: warn
           retention-days: 30
 
       - name: Upload analyst-estimate snapshot history

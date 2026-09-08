@@ -20,6 +20,17 @@ from services.live_market.twelve_data_phase1 import REST_BASE, load_twelve_data_
 PROVIDER_POLICY_VERSION = "GOVERNED_DISCOVERY_INPUTS_V1"
 
 
+def _safe_provider_message(payload: Any, api_key: str) -> str | None:
+    """Return a bounded provider diagnostic without leaking credentials."""
+    if not isinstance(payload, Mapping):
+        return None
+    value = payload.get("message") or payload.get("error") or payload.get("status")
+    text = str(value).strip() if value not in (None, "") else ""
+    if api_key:
+        text = text.replace(api_key, "[REDACTED]")
+    return text[:500] or None
+
+
 def _normalize_daily_values(values: Sequence[Mapping[str, Any]]) -> tuple[pd.DataFrame, int]:
     """Normalize one symbol without allowing duplicate dates to poison a batch."""
     frame = pd.DataFrame(values)
@@ -101,39 +112,82 @@ def fetch_twelve_daily_batch(
                 "order": "asc", "timezone": "UTC", "prepost": "false", "apikey": key},
         timeout=30,
     )
-    if int(getattr(response, "status_code", 0) or 0) != 200:
-        return pd.DataFrame()
-    payload = response.json()
-    bundles = payload if isinstance(payload, Mapping) else {}
-    if len(requested) == 1 and isinstance(payload, Mapping) and "values" in payload:
-        bundles = {requested[0]: payload}
-    frames: dict[str, pd.DataFrame] = {}
+    http_status = int(getattr(response, "status_code", 0) or 0)
+    try:
+        payload = response.json()
+    except Exception:
+        payload = {}
     diagnostics: dict[str, Any] = {
         "market_history_attempted": len(requested), "market_history_success": 0,
         "market_history_unavailable": 0, "market_history_schema_failure": 0,
         "market_history_duplicate_index_failure": 0, "per_symbol": {},
+        "per_symbol_records": {},
     }
+    provider_message = _safe_provider_message(payload, key)
+    if http_status != 200:
+        diagnostics["market_history_unavailable"] = len(requested)
+        for symbol in requested:
+            diagnostics["per_symbol"][symbol] = "HTTP_FAILURE"
+            diagnostics["per_symbol_records"][symbol] = {
+                "requested_twelve_symbol": symbol,
+                "requested_exchange": None,
+                "acquisition_status": "HTTP_FAILURE",
+                "http_status": http_status or None,
+                "provider_error_message": provider_message,
+                "failure_stage": "HTTP_RESPONSE",
+            }
+        result = pd.DataFrame()
+        result.attrs["governed_market_diagnostics"] = diagnostics
+        return result
+    bundles = payload if isinstance(payload, Mapping) else {}
+    if len(requested) == 1 and isinstance(payload, Mapping) and "values" in payload:
+        bundles = {requested[0]: payload}
+    frames: dict[str, pd.DataFrame] = {}
     for symbol in requested:
+        record = {
+            "requested_twelve_symbol": symbol,
+            "requested_exchange": None,
+            "http_status": http_status,
+            "provider_error_message": provider_message,
+        }
         try:
             bundle = bundles.get(symbol) or bundles.get(symbol.replace("-", "."))
             values = bundle.get("values") if isinstance(bundle, Mapping) else None
             if not isinstance(values, list):
                 diagnostics["market_history_unavailable"] += 1
                 diagnostics["per_symbol"][symbol] = "UNAVAILABLE"
+                record.update(acquisition_status="UNAVAILABLE", failure_stage="PROVIDER_RESPONSE_MAPPING")
+                if isinstance(bundle, Mapping):
+                    record["provider_error_message"] = _safe_provider_message(bundle, key) or provider_message
+                diagnostics["per_symbol_records"][symbol] = record
                 continue
             frame, duplicate_count = _normalize_daily_values(values)
             if frame.empty:
                 diagnostics["market_history_schema_failure"] += 1
                 diagnostics["per_symbol"][symbol] = "SCHEMA_FAILURE"
+                record.update(acquisition_status="SCHEMA_FAILURE", failure_stage="OHLCV_NORMALIZATION")
+                diagnostics["per_symbol_records"][symbol] = record
                 continue
             if duplicate_count:
                 diagnostics["market_history_duplicate_index_failure"] += 1
             frames[symbol] = frame
             diagnostics["market_history_success"] += 1
             diagnostics["per_symbol"][symbol] = "SUCCESS_DEDUPLICATED" if duplicate_count else "SUCCESS"
+            record.update(
+                acquisition_status=diagnostics["per_symbol"][symbol],
+                failure_stage=None,
+                provider_error_message=None,
+            )
+            diagnostics["per_symbol_records"][symbol] = record
         except Exception as exc:
             diagnostics["market_history_schema_failure"] += 1
             diagnostics["per_symbol"][symbol] = f"SCHEMA_FAILURE:{type(exc).__name__}"
+            record.update(
+                acquisition_status=diagnostics["per_symbol"][symbol],
+                provider_error_message=type(exc).__name__,
+                failure_stage="OHLCV_NORMALIZATION",
+            )
+            diagnostics["per_symbol_records"][symbol] = record
     result = pd.concat(frames, axis=1, sort=True) if frames else pd.DataFrame()
     result.attrs["governed_market_diagnostics"] = diagnostics
     return result
