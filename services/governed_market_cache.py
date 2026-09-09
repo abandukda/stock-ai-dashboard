@@ -17,6 +17,28 @@ HISTORY_SCHEMA_VERSION = "GOVERNED_MARKET_HISTORY_CACHE_V1"
 NEGATIVE_SCHEMA_VERSION = "GOVERNED_MARKET_NEGATIVE_CACHE_V1"
 
 
+def normalize_history_frame(frame: pd.DataFrame) -> pd.DataFrame:
+    """Canonicalize governed daily bars before caching or indicator use."""
+    if frame is None or frame.empty:
+        return pd.DataFrame()
+    value = frame.copy()
+    value.index = pd.to_datetime(value.index, errors="coerce", utc=True)
+    value = value.loc[~value.index.isna()]
+    value = value.sort_index(kind="stable")
+    for column in ("Open", "High", "Low", "Close", "Volume"):
+        if column in value:
+            value[column] = pd.to_numeric(value[column], errors="coerce")
+    if value.index.has_duplicates:
+        aggregations = {
+            column: operation for column, operation in (
+                ("Open", "first"), ("High", "max"), ("Low", "min"),
+                ("Close", "last"), ("Volume", "max"),
+            ) if column in value
+        }
+        value = value.groupby(level=0, sort=True).agg(aggregations)
+    return value.dropna(subset=["Close"]) if "Close" in value else pd.DataFrame()
+
+
 def cache_namespace(symbols: Sequence[str], *, provider_policy: str, mapping_version: str) -> str:
     material = "|".join((provider_policy, mapping_version, *sorted(set(symbols))))
     return hashlib.sha256(material.encode()).hexdigest()
@@ -59,15 +81,14 @@ def load_history(root: Path, symbol: str, *, namespace: str) -> pd.DataFrame:
             return pd.DataFrame()
         frame = pd.DataFrame(payload.get("values") or [])
         frame["datetime"] = pd.to_datetime(frame["datetime"], utc=True)
-        return frame.set_index("datetime").sort_index()
+        return normalize_history_frame(frame.set_index("datetime"))
     except Exception:
         return pd.DataFrame()
 
 
 def append_history(root: Path, symbol: str, frame: pd.DataFrame, *, namespace: str, keep: int = 320) -> pd.DataFrame:
     prior = load_history(root, symbol, namespace=namespace)
-    combined = pd.concat([prior, frame]).sort_index() if not prior.empty else frame.sort_index()
-    combined = combined[~combined.index.duplicated(keep="last")].tail(keep)
+    combined = normalize_history_frame(pd.concat([prior, frame]) if not prior.empty else frame).tail(keep)
     combined.index.name = "datetime"
     root.mkdir(parents=True, exist_ok=True)
     values = combined.reset_index().assign(datetime=lambda value: value["datetime"].astype(str)).to_dict("records")

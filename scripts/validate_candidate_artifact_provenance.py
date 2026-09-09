@@ -7,7 +7,14 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import sys
 from typing import Any
+
+# Direct execution sets sys.path[0] to scripts/. Bind imports to the checked-out
+# repository rather than requiring a developer-specific PYTHONPATH.
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
 
 from scripts.audit_production_yahoo_dependencies import audit
 from services.evidence_lineage_governance import disallowed_lineage_paths
@@ -88,7 +95,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--candidate-dir", type=Path, required=True)
     parser.add_argument("--expected-sha", default=os.getenv("ATLAS_SOURCE_COMMIT_SHA", ""))
-    parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
+    parser.add_argument("--root", type=Path, default=REPOSITORY_ROOT)
     args = parser.parse_args()
     result = validate_candidate(args.candidate_dir, expected_sha=args.expected_sha, root=args.root)
     print(json.dumps(result, indent=2))

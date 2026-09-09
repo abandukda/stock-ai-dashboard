@@ -28,11 +28,14 @@ def test_governed_universe_validates_supported_listings():
     class Client:
         def __call__(self, _url, params, timeout):
             assert params["country"] == "United States" and timeout == 30
+            if _url.endswith("/etfs/list"):
+                return Response({"result": {"count": 1, "list": [
+                    {"symbol": "SPY", "mic_code": "ARCX", "name": "SPDR S&P 500 ETF"},
+                ]}, "status": "ok"})
             payload = {"data": [
                 {"symbol": "MSFT", "exchange": "NASDAQ", "type": "Common Stock"},
                 {"symbol": "OLD", "exchange": "NYSE", "type": "Common Stock", "isActivelyTrading": False},
                 {"symbol": "BAD.L", "exchange": "LSE", "type": "Common Stock"},
-                {"symbol": "SPY", "exchange": "NYSE Arca", "type": "ETF"},
             ]}
             return Response(payload)
     result = load_governed_universe(api_key="secret", get=Client())

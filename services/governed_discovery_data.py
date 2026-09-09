@@ -32,13 +32,14 @@ _US_EXCHANGE_ALIASES = {
 _FOREIGN_EXCHANGE_TOKENS = {
     "HKSE", "HONG KONG", "LSE", "LONDON", "JPX", "TOKYO", "XETRA", "FSX", "FRANKFURT",
     "TAI", "TAIWAN", "KLS", "KLSE", "BURSA MALAYSIA", "MIL", "MILAN", "EURONEXT", "TSX", "ASX",
+    "XHKG", "XLON", "XTKS", "XETR", "XTSE", "XASX",
 }
 
 
 def normalize_listing_exchange(row: Mapping[str, Any]) -> dict[str, str | None]:
     """Resolve a Twelve listing venue without inferring it from issuer country."""
     source = next((str(row.get(field)).strip() for field in (
-        "exchangeShortName", "exchange", "exchangeFullName"
+        "exchangeShortName", "exchange", "exchangeFullName", "mic_code"
     ) if row.get(field) is not None and str(row.get(field)).strip()), "")
     upper = re.sub(r"\s+", " ", source.upper()).strip()
     if not upper:
@@ -201,6 +202,7 @@ def load_governed_universe(
     }
     observed_response_fields: set[str] = set()
     response_rows: list[Mapping[str, Any]] = []
+    etf_response_rows: list[Mapping[str, Any]] = []
     outcome = "AUTHORIZATION_OR_ENTITLEMENT_FAILURE" if not key else "NETWORK_FAILURE"
     http_status = None
     if key:
@@ -225,7 +227,31 @@ def load_governed_universe(
         "outcome": outcome, "rows_returned": len(response_rows),
         "country_filter": "United States", "http_status": http_status,
     }
-    for row in response_rows:
+    if key:
+        diagnostics["calls"] += 1
+        try:
+            response = get(
+                f"{REST_BASE}/etfs/list",
+                params={"country": "United States", "format": "JSON", "outputsize": 50,
+                        "page": 1, "apikey": key}, timeout=30,
+            )
+            etf_status = int(getattr(response, "status_code", 0) or 0)
+            etf_payload = response.json()
+            etf_error = isinstance(etf_payload, Mapping) and str(etf_payload.get("status") or "").lower() == "error"
+            if 200 <= etf_status < 300 and not etf_error:
+                etf_response_rows = _rows(etf_payload)
+                etf_outcome = "SUCCESS" if etf_response_rows else "AUTHORIZED_EMPTY"
+            else:
+                etf_outcome = "PROVIDER_ERROR"
+        except Exception:
+            etf_status, etf_outcome = None, "TIMEOUT_OR_NETWORK_FAILURE"
+        diagnostics["families"]["US_ETF_REFERENCE"] = {
+            "outcome": etf_outcome, "rows_returned": len(etf_response_rows),
+            "country_filter": "United States", "http_status": etf_status,
+            "plan_record_limit": 50,
+        }
+    for row, source_family in [*((item, "stock-reference") for item in response_rows),
+                               *((item, "etf-reference") for item in etf_response_rows)]:
         observed_response_fields.update(str(field) for field in row)
         source_symbol = str(row.get("symbol") or "").upper().strip()
         symbol = canonical_security_ticker(source_symbol)
@@ -238,7 +264,7 @@ def load_governed_universe(
                                "reason": "INVALID_SYMBOL_IDENTITY"})
             continue
         declared_type = str(row.get("type") or row.get("securityType") or "").strip().upper()
-        route, reason = classify_listing(row, family="etf-reference" if declared_type == "ETF" else "stock-reference")
+        route, reason = classify_listing(row, family=source_family if source_family == "etf-reference" else ("etf-reference" if declared_type == "ETF" else "stock-reference"))
         record = {
                 "ticker": symbol,
                 "source_ticker": source_symbol,
@@ -250,14 +276,14 @@ def load_governed_universe(
                 "is_actively_trading": row.get("isActivelyTrading"),
                 "is_delisted": row.get("isDelisted"),
                 "route": route,
-                "listing_source_endpoint": "stocks",
+                "listing_source_endpoint": "etfs/list" if source_family == "etf-reference" else "stocks",
                 "listing_source_country_filter": "United States",
         }
         records.setdefault(symbol, record)
         mappings[symbol] = {
                 **twelve_symbol_route(symbol, exchange=exchange), "source_ticker": source_symbol,
                 **exchange_identity,
-                "listing_source_endpoint": "stocks",
+                "listing_source_endpoint": "etfs/list" if source_family == "etf-reference" else "stocks",
                 "listing_source_country_filter": "United States",
         }
         if reason:
@@ -293,7 +319,7 @@ def load_governed_universe(
         "summary": {
             "raw_global_master_count": len(raw_symbols),
             "raw_universe_count": len(raw_symbols),
-            "raw_returned_listing_rows": len(response_rows),
+            "raw_returned_listing_rows": len(response_rows) + len(etf_response_rows),
             "resolved_us_listing_count": len(stock_symbols | etf_symbols),
             "unresolved_listing_identity_count": len(unresolved),
             "foreign_listing_removed_count": len(foreign),

@@ -1,4 +1,6 @@
 from pathlib import Path
+import subprocess
+import sys
 
 
 WORKFLOW = Path(".github/workflows/overnight_scan.yml").read_text(encoding="utf-8")
@@ -52,3 +54,12 @@ def test_quantitative_runtime_exposes_twelve_and_disables_fmp_context():
     assert 'ATLAS_FMP_EARNINGS_ENABLED: "false"' in WORKFLOW
     assert "FMP_API_KEY: ${{ secrets.FMP_API_KEY }}" not in WORKFLOW
     assert "TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}" in WORKFLOW
+
+
+def test_provenance_validator_direct_script_help_imports_from_repo_root():
+    result = subprocess.run(
+        [sys.executable, "scripts/validate_candidate_artifact_provenance.py", "--help"],
+        cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "--candidate-dir" in result.stdout
