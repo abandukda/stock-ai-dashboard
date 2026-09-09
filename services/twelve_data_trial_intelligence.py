@@ -173,6 +173,7 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
     output.pop("fundamentals_provenance", None)
     families = dossier.get("families") if isinstance(dossier.get("families"), Mapping) else {}
     payload = lambda family: (families.get(family) or {}).get("payload") or {}
+    fetched_at = lambda family: (families.get(family) or {}).get("observed_at")
     stats = _nested(payload("statistics"), "statistics") or {}
     financials = _nested(stats, "financials") or {}
     valuation_stats = _nested(stats, "valuations_metrics") or {}
@@ -190,17 +191,20 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
     cash_flow_pair_compatible = False
     if stats_ocf is not None and stats_capex is not None:
         canonical_ocf, canonical_capex, cash_period, cash_period_type = stats_ocf, stats_capex, "TTM", "TTM"
+        cash_evidence_endpoint = "statistics"
         cash_flow_pair_compatible = True
     elif statement_ocf is not None and statement_capex is not None:
         canonical_ocf, canonical_capex = statement_ocf, statement_capex
         cash_period = _coalesce(cash.get("fiscal_date"), cash.get("date"), cash.get("fiscal_year"))
         cash_period_type = str(cash.get("period") or "REPORTED").upper()
+        cash_evidence_endpoint = "cash_flow"
         cash_flow_pair_compatible = True
     else:
         canonical_ocf = _coalesce(stats_ocf, statement_ocf)
         canonical_capex = _coalesce(stats_capex, statement_capex)
         cash_period = "TTM" if stats_ocf is not None or stats_capex is not None else _coalesce(cash.get("fiscal_date"), cash.get("date"), cash.get("fiscal_year"))
         cash_period_type = "TTM" if cash_period == "TTM" else str(cash.get("period") or "REPORTED").upper()
+        cash_evidence_endpoint = "statistics" if stats_ocf is not None or stats_capex is not None else "cash_flow"
     values = {
         "revenue_growth": _pct(income_stats.get("quarterly_revenue_growth")),
         "earnings_growth": _pct(income_stats.get("quarterly_earnings_growth_yoy")),
@@ -275,7 +279,7 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
         output["forward_eps_period_type"] = "ANNUAL"
         output["forward_eps_basis"] = str(eps_est.get("basis") or "UNKNOWN").upper()
         output["forward_eps_source"] = "TWELVE_DATA"
-        output["forward_eps_observed_at"] = dossier.get("observed_at")
+        output["forward_eps_observed_at"] = fetched_at("earnings_estimate")
         output["forward_eps_evidence_id"] = (families.get("earnings_estimate") or {}).get("evidence_id")
         output["forward_eps_freshness"] = "OBSERVED_AT_RECORDED"
     if rev_est.get("avg_estimate") is not None:
@@ -288,12 +292,12 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
     output["forward_estimate_evidence"] = {
         "eps": dict(eps_est), "revenue": dict(rev_est), "eps_periods": eps_records,
         "revenue_periods": rev_records,
-        "as_of": dossier.get("observed_at"),
+        "as_of": max((value for value in (fetched_at("earnings_estimate"),fetched_at("revenue_estimate")) if value),default=None),
         "evidence_ids": tuple(dossier.get("evidence_ids") or ()),
     }
     output["financial_reporting_period"] = _coalesce(income.get("fiscal_date"), income.get("fiscal_year"), balance.get("fiscal_date"))
     output["professional_evidence_lineage"] = {
-        "provider": "TWELVE_DATA", "observed_at": dossier.get("observed_at"),
+        "provider": "TWELVE_DATA", "observed_at": max((value for value in (fetched_at(name) for name in families) if value),default=None),
         "evidence_ids": tuple(dossier.get("evidence_ids") or ()),
         "forward_eps": {"period": eps_est.get("date"), "provider_label": eps_est.get("period"), "period_type": "ANNUAL", "basis": output.get("forward_eps_basis")},
         "forward_revenue": {"period": rev_est.get("date"), "provider_label": rev_est.get("period"), "period_type": "ANNUAL", "basis": output.get("forward_revenue_basis")},
@@ -329,7 +333,9 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
                 "period": cash_period if is_cash_component else ("TTM" if raw_field.endswith("_ttm") else output.get("financial_reporting_period")),
                 "period_type": cash_period_type if is_cash_component else ("TTM" if raw_field.endswith("_ttm") else "REPORTED"),
                 "basis": "PROVIDER_REPORTED", "currency": "USD", "unit": "CURRENCY" if "shares" not in canonical_field else "SHARES",
-                "as_of": dossier.get("observed_at"), "transformation": "DIRECT_MAP",
+                "provider_fetched_at":fetched_at(endpoint),"evidence_as_of":fetched_at(endpoint),
+                "as_of": fetched_at(endpoint), "as_of_semantics":"CURRENT_PROVIDER_STATISTIC_OBSERVED_AT_FETCH" if endpoint=="statistics" else "PROVIDER_STATEMENT_OBSERVATION",
+                "evidence_id":(families.get(endpoint) or {}).get("evidence_id"),"transformation": "DIRECT_MAP",
                 "consuming_methodology": "ATLAS_PROFESSIONAL_VALUATION_V2",
             }
     output["professional_evidence_lineage"]["fields"] = field_lineage
@@ -341,7 +347,9 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
             "canonical_value": output.get("free_cash_flow"),
             "ticker": str(output.get("ticker") or output.get("symbol") or "").upper(), "period": statement_period,
             "period_type": cash_period_type, "basis": "OCF_MINUS_ABS_CAPEX", "currency": "USD", "unit": "CURRENCY",
-            "as_of": dossier.get("observed_at"), "transformation": "OCF_MINUS_ABS_CAPEX",
+            "provider_fetched_at":fetched_at(cash_evidence_endpoint),
+            "evidence_as_of":fetched_at(cash_evidence_endpoint),
+            "as_of": fetched_at(cash_evidence_endpoint), "transformation": "OCF_MINUS_ABS_CAPEX",
             "evidence_ids": tuple(dossier.get("evidence_ids") or ()), "consuming_methodology": "ATLAS_PROFESSIONAL_VALUATION_V2",
         }
     output["professional_evidence_lineage"]["preexisting_fields_not_attributed_to_twelve"] = sorted(
@@ -356,11 +364,16 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
                 "normalized_value": output.get(canonical_field), "ticker": str(output.get("ticker") or output.get("symbol") or "").upper(),
                 "period": estimate.get("date"), "period_type": "ANNUAL", "basis": estimate.get("basis") or "UNKNOWN",
                 "currency": "USD", "unit": "PER_SHARE" if canonical_field == "forward_eps" else "CURRENCY",
-                "as_of": dossier.get("observed_at"), "transformation": "SELECT_NEXT_YEAR_THEN_CURRENT_YEAR",
+                "provider_fetched_at":fetched_at(endpoint),"evidence_as_of":fetched_at(endpoint),
+                "as_of": fetched_at(endpoint), "transformation": "SELECT_NEXT_YEAR_THEN_CURRENT_YEAR",
                 "consuming_methodology": "ATLAS_PROFESSIONAL_VALUATION_V2",
                 "analyst_count": estimate.get("number_of_analysts") or estimate.get("analyst_count"),
             }
-    output["professional_evidence_as_of"] = dossier.get("observed_at")
+    # Current valuation multiples have no provider fiscal date. Their governed
+    # evidence timestamp is the statistics-envelope observation time, distinct
+    # from statement period ends and the later valuation calculation time.
+    output["professional_evidence_as_of"] = fetched_at("statistics")
+    output["professional_evidence_fetched_at"] = fetched_at("statistics")
     output["twelve_trial_dossier"] = dict(dossier)
     output["twelve_trial_evidence_ids"] = tuple(dossier.get("evidence_ids") or ())
     output["fundamental_source"] = "TWELVE_DATA_INTERNAL_TRIAL"

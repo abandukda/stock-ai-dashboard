@@ -119,6 +119,8 @@ def _merge_dossiers(primary: Mapping[str, Any], fallback: Mapping[str, Any]) -> 
     merged["families"].update(dict(primary.get("families") or {}))
     merged["families"].update(dict(fallback.get("families") or {}))
     merged["evidence_ids"] = tuple(dict.fromkeys((*tuple(primary.get("evidence_ids") or ()), *tuple(fallback.get("evidence_ids") or ()))))
+    observed=[value for value in (primary.get("observed_at"),fallback.get("observed_at")) if value]
+    merged["observed_at"] = max(observed) if observed else None
     return merged
 
 

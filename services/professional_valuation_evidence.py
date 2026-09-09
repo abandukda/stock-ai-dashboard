@@ -131,6 +131,7 @@ def apply_peer_multiple_evidence(rows: Sequence[Mapping[str, Any]]) -> list[dict
             peer_debt=_num(peer.get("total_debt")); peer_cash=_num(peer.get("cash_and_equivalents"))
             peer_ev=peer_cap+peer_debt-peer_cash if None not in (peer_cap,peer_debt,peer_cash) else None
             lineage=(peer.get("professional_evidence_lineage") or {}).get("fields") or {}
+            comparability_flags=[flag for flag,condition in (("SECTOR_FALLBACK",used_sector_fallback),("SCALE_GAP_OVER_10X",bool(scale_ratio and scale_ratio>10)),("SECURITY_TYPE_MISMATCH",bool(row.get("security_type") and peer.get("security_type") and row.get("security_type")!=peer.get("security_type")))) if condition]
             return {
                 "subject_ticker":str(row.get("ticker") or row.get("symbol") or ""),
                 "peer_ticker":str(peer.get("ticker") or peer.get("Ticker") or peer.get("symbol") or ""),
@@ -141,11 +142,15 @@ def apply_peer_multiple_evidence(rows: Sequence[Mapping[str, Any]]) -> list[dict
                 "peer_ebitda":_num(peer.get("forward_ebitda")),
                 "peer_ev_ebitda":_num(peer.get("provider_ev_ebitda")),
                 "multiple":value,"multiple_metric":metric,"basis":"TTM" if metric!="FORWARD_PE" else "FORWARD",
+                "provider_fetched_at":peer.get("professional_evidence_fetched_at"),
+                "evidence_as_of":peer.get("professional_evidence_as_of"),
+                "fiscal_period_end":peer.get("financial_reporting_period"),
                 "as_of":peer.get("professional_evidence_as_of"),"provider":"TWELVE_DATA",
                 "evidence_ids":list((peer.get("professional_evidence_lineage") or {}).get("evidence_ids") or ()),
                 "inclusion_reason":f"{selection_rule}; valid positive {metric}" if included else None,
                 "exclusion_reason":None if included else reason,
-                "comparability_flags":[flag for flag,condition in (("SECTOR_FALLBACK",used_sector_fallback),("SCALE_GAP_OVER_10X",bool(scale_ratio and scale_ratio>10)),("SECURITY_TYPE_MISMATCH",bool(row.get("security_type") and peer.get("security_type") and row.get("security_type")!=peer.get("security_type")))) if condition],
+                "comparability_status":"CERTIFIED" if not comparability_flags else "LIMITED",
+                "comparability_flags":comparability_flags,
                 "source_lineage":dict(lineage.get({"FORWARD_PE":"provider_forward_pe","EV_EBITDA":"provider_ev_ebitda","P_FCF":"provider_p_fcf"}[metric]) or {}),
             }
 
@@ -173,6 +178,8 @@ def apply_peer_multiple_evidence(rows: Sequence[Mapping[str, Any]]) -> list[dict
                 "included_peers":included_records,"excluded_peers":[record for record in records if record["exclusion_reason"]],
                 "final_peer_set":[record["peer_ticker"] for record in included_records],"published_median":median,
                 "median_calculation":{"ordered_values":values,"function":"statistics.median"},"minimum_peer_count":3,
+                "provider_fetched_at":row.get("professional_evidence_fetched_at"),
+                "evidence_as_of":row.get("professional_evidence_as_of"),
                 "as_of":row.get("professional_evidence_as_of"),"provider":"TWELVE_DATA"}
             if median is not None:
                 row.update({target_field:median,f"{target_field}_basis":basis,f"{target_field}_range":[values[0],values[-1]],f"{target_field}_peer_evidence":evidence[metric]})

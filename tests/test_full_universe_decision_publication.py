@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from services.full_universe_decision_publication import (
     _apply_secondary_statement_margin,
     _apply_statement_margin_authority,
+    _merge_dossiers,
     acquire_full_universe_decisions,
     publish_evaluations,
 )
@@ -16,6 +17,16 @@ class Response:
     def __init__(self, payload): self.payload = payload
     def raise_for_status(self): return None
     def json(self): return self.payload
+
+
+def test_dossier_merge_preserves_governed_family_and_aggregate_observation_times():
+    primary={"ticker":"AAPL","observed_at":"2026-09-09T14:00:00Z","evidence_ids":["STATS"],
+             "families":{"statistics":{"observed_at":"2026-09-09T14:00:00Z","evidence_id":"STATS"}}}
+    fallback={"ticker":"AAPL","observed_at":"2026-09-09T14:01:00Z","evidence_ids":["CASH"],
+              "families":{"cash_flow":{"observed_at":"2026-09-09T14:01:00Z","evidence_id":"CASH"}}}
+    merged=_merge_dossiers(primary,fallback)
+    assert merged["observed_at"]=="2026-09-09T14:01:00Z"
+    assert merged["families"]["statistics"]["observed_at"]=="2026-09-09T14:00:00Z"
 
 
 def daily(symbol, count=220):
