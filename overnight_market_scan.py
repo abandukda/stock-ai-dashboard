@@ -344,11 +344,14 @@ def get_governed_listings() -> List[str]:
     Pull the current governed US listing universe from Twelve reference data.
     """
     global _GOVERNED_CACHE_NAMESPACE
-    result = load_governed_universe()
+    # Defer the assertion until the result has been retained for failure-safe
+    # artifact diagnostics. No incomplete directory may reach price acquisition.
+    result = load_governed_universe(defer_assertion=True)
     _GOVERNED_UNIVERSE_RESULT.clear()
     _GOVERNED_UNIVERSE_RESULT.update(result)
     _GOVERNED_ETF_SYMBOLS.clear()
     _GOVERNED_ETF_SYMBOLS.update(result.get("etf_symbols") or [])
+    assert_governed_stock_universe(_GOVERNED_UNIVERSE_RESULT)
     _GOVERNED_CACHE_NAMESPACE = cache_namespace(
         result.get("symbols") or [], provider_policy=PROVIDER_POLICY_VERSION,
         mapping_version="TWELVE_SYMBOL_IDENTITY_V1",

@@ -72,6 +72,50 @@ def test_twelve_stock_reference_is_country_scoped_and_routes_are_separate():
     assert etf_params["country"] == "United States"
 
 
+def test_partial_stock_directory_cannot_be_accepted_as_complete_universe(tmp_path):
+    etfs = [{"symbol": f"ETF{i}", "exchangeShortName": "ARCA", "isEtf": True} for i in range(41)]
+    with pytest.raises(RuntimeError, match="GOVERNED_REFERENCE_DATA_INCOMPLETE:stock_rows=0:etf_rows=41"):
+        load_governed_universe(
+            api_key="x", get=Client([], etfs), enforce_completeness=True,
+            cache_path=tmp_path / "reference.json",
+        )
+
+
+def test_partial_live_reference_reuses_healthy_cache_without_replacing_it(tmp_path):
+    cache = tmp_path / "reference.json"
+    healthy = [
+        {"symbol": f"US{i:04d}", "exchangeShortName": "NASDAQ", "type": "Common Stock"}
+        for i in range(1_001)
+    ]
+    first = load_governed_universe(
+        api_key="x", get=Client(healthy, []), enforce_completeness=True, cache_path=cache,
+    )
+    original = cache.read_bytes()
+    second = load_governed_universe(
+        api_key="x", get=Client([], [{"symbol": "SPY", "exchangeShortName": "ARCA", "isEtf": True}]),
+        enforce_completeness=True, cache_path=cache,
+    )
+    assert len(first["stock_symbols"]) == len(second["stock_symbols"]) == 1_001
+    assert second["diagnostics"]["reference_completeness"]["status"] == "HEALTHY_CACHE_REUSED"
+    assert second["diagnostics"]["reference_completeness"]["live_stock_rows"] == 0
+    assert second["diagnostics"]["reference_completeness"]["live_etf_rows"] == 1
+    assert second["diagnostics"]["reference_cache"]["path"] == str(cache)
+    assert cache.read_bytes() == original
+
+
+def test_incomplete_reference_is_retained_for_failure_safe_diagnostics(tmp_path, monkeypatch):
+    result = load_governed_universe(
+        api_key="x", get=Client([], [{"symbol": "SPY", "exchangeShortName": "ARCA", "isEtf": True}]),
+        enforce_completeness=False, cache_path=tmp_path / "reference.json",
+    )
+    result["diagnostics"]["reference_completeness"]["status"] = "MATERIAL_REFERENCE_COVERAGE_COLLAPSE"
+    monkeypatch.setattr(scan, "load_governed_universe", lambda **_kwargs: result)
+    with pytest.raises(RuntimeError, match="GOVERNED_REFERENCE_DATA_INCOMPLETE"):
+        scan.get_governed_listings()
+    assert scan._GOVERNED_UNIVERSE_RESULT["summary"]["raw_stock_directory_row_count"] == 0
+    assert scan._GOVERNED_UNIVERSE_RESULT["summary"]["raw_etf_directory_row_count"] == 1
+
+
 def test_twelve_etf_directory_routes_major_us_funds_and_excludes_foreign():
     etfs = [
         {"symbol": "SPY", "name": "SPDR S&P 500 ETF", "mic_code": "ARCX", "country": "United States"},

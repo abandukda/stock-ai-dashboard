@@ -7,6 +7,8 @@ not score, rank, value, or map an Action.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import json
+from pathlib import Path
 from typing import Any, Mapping, Sequence
 import os
 import re
@@ -20,6 +22,10 @@ from services.live_market.twelve_data_phase1 import REST_BASE, load_twelve_data_
 PROVIDER_POLICY_VERSION = "GOVERNED_DISCOVERY_INPUTS_V3_TWELVE_ONLY"
 MIN_EXCHANGE_RESOLUTION_COVERAGE_PCT = 99.0
 MIN_EXCHANGE_RESOLUTION_POPULATION = 100
+MIN_COMPLETE_STOCK_DIRECTORY_ROWS = 1_000
+MIN_COMPLETE_US_STOCKS = 1_000
+REFERENCE_CACHE_MAX_AGE_SECONDS = 7 * 86400
+REFERENCE_CACHE_SCHEMA_VERSION = "GOVERNED_TWELVE_REFERENCE_CACHE_V1"
 SUPPORTED_US_EXCHANGES = {"NASDAQ", "NYSE", "AMEX", "NYSE AMERICAN", "ARCA", "BATS"}
 OTC_EXCHANGES = {"OTC", "OTCQX", "OTCQB", "OTC PINK", "PINK", "GREY", "GREY MARKET"}
 CLASS_SHARE_ROOTS = {"BRK", "BF", "BH"}
@@ -188,8 +194,42 @@ def _rows(payload: Any) -> list[Mapping[str, Any]]:
     return []
 
 
+def _reference_cache_path() -> Path:
+    root = Path(os.getenv("ATLAS_GOVERNED_MARKET_CACHE_DIR", ".atlas_research_cache/governed_market_v1"))
+    return root / "reference" / "us_listings.json"
+
+
+def _read_reference_cache(path: Path, *, now: datetime) -> tuple[dict[str, Any] | None, float | None]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        generated = datetime.fromisoformat(str(payload["generated_at"]).replace("Z", "+00:00"))
+        age = max(0.0, (now - generated.astimezone(timezone.utc)).total_seconds())
+        result = payload.get("result")
+        if payload.get("schema_version") != REFERENCE_CACHE_SCHEMA_VERSION or not isinstance(result, Mapping):
+            return None, age
+        summary = result.get("summary") if isinstance(result.get("summary"), Mapping) else {}
+        healthy = (
+            int(summary.get("raw_stock_directory_row_count") or 0) >= MIN_COMPLETE_STOCK_DIRECTORY_ROWS
+            and int(summary.get("us_stock_universe_count") or 0) >= MIN_COMPLETE_US_STOCKS
+        )
+        return (dict(result), age) if healthy and age <= REFERENCE_CACHE_MAX_AGE_SECONDS else (None, age)
+    except Exception:
+        return None, None
+
+
+def _write_reference_cache(path: Path, result: Mapping[str, Any], *, generated_at: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({
+        "schema_version": REFERENCE_CACHE_SCHEMA_VERSION,
+        "generated_at": generated_at,
+        "result": result,
+    }, indent=2, default=str) + "\n", encoding="utf-8")
+
+
 def load_governed_universe(
     *, api_key: str | None = None, get: Any = requests.get,
+    enforce_completeness: bool | None = None, cache_path: Path | None = None,
+    now: datetime | None = None, defer_assertion: bool = False,
 ) -> dict[str, Any]:
     """Return the US-listed stock/ETF universe from Twelve reference data."""
     key = str(api_key if api_key is not None else load_twelve_data_setting("TWELVE_DATA_API_KEY") or "").strip()
@@ -201,6 +241,12 @@ def load_governed_universe(
     raw_symbols: set[str] = set()
     exchange_resolution_population = 0
     exchange_resolution_success_count = 0
+    observed_at = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    reference_cache = cache_path or _reference_cache_path()
+    completeness_enabled = (
+        os.getenv("ATLAS_GOVERNED_MARKET_CACHE_ENABLED", "false").lower() == "true"
+        if enforce_completeness is None else enforce_completeness
+    )
     diagnostics: dict[str, Any] = {
         "provider": "TWELVE_DATA", "endpoint": "stocks",
         "source_strategy": "TWELVE_US_REFERENCE_DIRECTORY_V1",
@@ -341,6 +387,8 @@ def load_governed_universe(
             "raw_global_master_count": len(raw_symbols),
             "raw_universe_count": len(raw_symbols),
             "raw_returned_listing_rows": len(response_rows) + len(etf_response_rows),
+            "raw_stock_directory_row_count": len(response_rows),
+            "raw_etf_directory_row_count": len(etf_response_rows),
             "resolved_us_listing_count": len(stock_symbols | etf_symbols),
             "unresolved_listing_identity_count": len(unresolved),
             "foreign_listing_removed_count": len(foreign),
@@ -380,11 +428,52 @@ def load_governed_universe(
         "status": "AVAILABLE" if symbols else "DATA_UNAVAILABLE",
         "provider": "TWELVE_DATA",
         "policy_version": PROVIDER_POLICY_VERSION,
-        "as_of": datetime.now(timezone.utc).isoformat(),
+        "as_of": observed_at.isoformat(),
         "diagnostics": diagnostics,
     }
     result["diagnostics"]["observed_response_fields"] = sorted(observed_response_fields)
-    assert_governed_stock_universe(result)
+    live_complete = (
+        len(response_rows) >= MIN_COMPLETE_STOCK_DIRECTORY_ROWS
+        and len(stock_symbols) >= MIN_COMPLETE_US_STOCKS
+        and diagnostics["families"]["US_REFERENCE"]["outcome"] == "SUCCESS"
+    )
+    cache_record, cache_age = _read_reference_cache(reference_cache, now=observed_at)
+    result["diagnostics"]["reference_cache"] = {
+        "path": str(reference_cache), "age_seconds": cache_age,
+        "healthy_cache_available": cache_record is not None,
+    }
+    result["diagnostics"]["reference_completeness"] = {
+        "status": (
+            "COMPLETE" if live_complete else
+            "MATERIAL_REFERENCE_COVERAGE_COLLAPSE" if completeness_enabled else
+            "NOT_EVALUATED"
+        ),
+        "source": "LIVE", "live_stock_rows": len(response_rows),
+        "live_etf_rows": len(etf_response_rows), "minimum_stock_rows": MIN_COMPLETE_STOCK_DIRECTORY_ROWS,
+        "live_filtered_us_stock_count": len(stock_symbols),
+        "live_filtered_us_etf_count": len(etf_symbols),
+        "live_exchange_resolved_count": exchange_resolution_success_count,
+        "live_exchange_unresolved_count": exchange_resolution_unresolved_count,
+        "reason": None if live_complete else "TWELVE_STOCK_DIRECTORY_PARTIAL_OR_UNAVAILABLE",
+    }
+    if completeness_enabled and not live_complete and cache_record is not None:
+        cached = cache_record
+        cached_diagnostics = dict(cached.get("diagnostics") or {})
+        cached_diagnostics["reference_completeness"] = {
+            **result["diagnostics"]["reference_completeness"], "status": "HEALTHY_CACHE_REUSED",
+            "source": "CACHED", "reason": "LIVE_PARTIAL_RESPONSE_REJECTED",
+        }
+        cached_diagnostics["reference_cache"] = result["diagnostics"]["reference_cache"]
+        cached_diagnostics["live_reference_attempt"] = diagnostics["families"]
+        cached_diagnostics["resolved_at"] = observed_at.isoformat()
+        cached["diagnostics"] = cached_diagnostics
+        result = cached
+    elif completeness_enabled and live_complete:
+        _write_reference_cache(reference_cache, result, generated_at=observed_at.isoformat())
+    elif completeness_enabled:
+        result["status"] = "DATA_UNAVAILABLE"
+    if not defer_assertion:
+        assert_governed_stock_universe(result)
     return result
 
 
@@ -399,6 +488,13 @@ def assert_governed_stock_universe(result: Mapping[str, Any]) -> None:
             invalid.append({"ticker": symbol, "exchange": exchange,
                             "resolution": mapping.get("exchange_resolution_status")})
     summary = result.get("summary") if isinstance(result.get("summary"), Mapping) else {}
+    completeness = (result.get("diagnostics") or {}).get("reference_completeness") or {}
+    if completeness.get("status") == "MATERIAL_REFERENCE_COVERAGE_COLLAPSE":
+        raise RuntimeError(
+            "GOVERNED_REFERENCE_DATA_INCOMPLETE:"
+            f"stock_rows={completeness.get('live_stock_rows')}:"
+            f"etf_rows={completeness.get('live_etf_rows')}"
+        )
     population = int(summary.get("exchange_resolution_population") or 0)
     coverage = float(summary.get("exchange_resolution_coverage_pct") or 0.0)
     if population >= MIN_EXCHANGE_RESOLUTION_POPULATION and coverage < MIN_EXCHANGE_RESOLUTION_COVERAGE_PCT:
