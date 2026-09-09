@@ -70,7 +70,7 @@ def test_full_universe_publication_uses_engine_history_and_preserves_order():
         assert evaluation["fundamental_quality"]["status"] == "AVAILABLE"
         assert evaluation["guidance"]["policy_version"] == "HOME_MULTI_THESIS_ACTION_V1"
         assert evaluation["opportunity_thesis"] == evaluation["guidance"]["opportunity_thesis"]
-        assert evaluation["trial_presentation_fields"]["forward_eps"] == 6
+        assert "forward_eps" not in evaluation["trial_presentation_fields"]
         assert evaluation["trial_presentation_fields"]["revenue_growth"] == 10
     published = publish_evaluations(rows, result)
     assert [item["ticker"] for item in published] == ["AAA", "BBB"]
@@ -121,10 +121,10 @@ def test_same_period_statement_margin_replaces_mixed_provider_ratio_only():
 def test_secondary_same_period_statement_materializes_canonical_margin():
     enriched = {"operating_profit_margin": 40}
     fields = {
-        "revenue": {"value": 1000, "source": "FMP", "endpoint": "income-statement",
+        "revenue": {"value": 1000, "source": "TWELVE_DATA", "endpoint": "income_statement",
                     "raw_field": "revenue", "period": "2025-12-31", "period_type": "ANNUAL",
                     "basis": "GAAP", "evidence_id": "REV"},
-        "operating_income": {"value": 250, "source": "FMP", "endpoint": "income-statement",
+        "operating_income": {"value": 250, "source": "TWELVE_DATA", "endpoint": "income_statement",
                              "raw_field": "operatingIncome", "period": "2025-12-31",
                              "period_type": "ANNUAL", "basis": "GAAP", "evidence_id": "OP"},
     }

@@ -6,7 +6,6 @@ from pathlib import Path
 import pandas as pd
 
 import overnight_market_scan as scan
-from services.fmp_stable_client import FMPResponse, SUCCESS
 from services.governed_discovery_data import (
     assert_governed_stock_universe, canonical_security_ticker, load_governed_universe,
     normalize_listing_exchange, twelve_symbol_route,
@@ -16,20 +15,23 @@ from services.governed_market_cache import (
 )
 
 
+class Response:
+    def __init__(self, payload):
+        self.status_code = 200
+        self.payload = payload
+
+    def json(self):
+        return self.payload
+
+
 class Client:
     def __init__(self, stock, etf):
         self.stock, self.etf = stock, etf
         self.calls = []
 
-    def get(self, family, params):
-        self.calls.append((family, dict(params)))
-        # One populated partition is enough to exercise malformed/foreign rows;
-        # the remaining exchange-scoped responses are valid empty partitions.
-        payload = []
-        if params["exchange"] == "NASDAQ":
-            payload = self.etf if params["isEtf"] == "true" else self.stock
-        return FMPResponse(payload,
-                           SUCCESS, family, "2026-09-08T00:00:00Z", 200, 1)
+    def __call__(self, url, params, timeout):
+        self.calls.append((url, dict(params), timeout))
+        return Response({"data": [*self.stock, *self.etf]})
 
 
 def test_pre_acquisition_cleanup_and_separate_etf_routing():
@@ -43,7 +45,7 @@ def test_pre_acquisition_cleanup_and_separate_etf_routing():
         {"symbol": "OTC", "exchangeShortName": "OTCQX", "type": "Common Stock"},
         {"symbol": "ADR", "exchangeShortName": "NYSE", "type": "ADR"},
     ]
-    result = load_governed_universe(fmp_key="x", client=Client(stock, [
+    result = load_governed_universe(api_key="x", get=Client(stock, [
         {"symbol": "SPY", "exchangeShortName": "ARCA", "isEtf": True},
     ]))
     assert result["stock_symbols"] == ["ADR", "LIVE"]
@@ -55,16 +57,13 @@ def test_pre_acquisition_cleanup_and_separate_etf_routing():
     }
 
 
-def test_company_screener_is_exchange_scoped_and_stock_etf_routes_are_separate():
+def test_twelve_stock_reference_is_country_scoped_and_routes_are_separate():
     client = Client([], [])
-    load_governed_universe(fmp_key="x", client=client)
-    assert {family for family, _params in client.calls} == {"company-screener"}
-    assert {params["exchange"] for _family, params in client.calls} == {
-        "NASDAQ", "NYSE", "AMEX", "ARCA", "BATS",
-    }
-    assert {params["isEtf"] for _family, params in client.calls} == {"true", "false"}
-    assert all(params["isActivelyTrading"] == "true" for _family, params in client.calls)
-    assert all(params["isFund"] == "false" for _family, params in client.calls)
+    load_governed_universe(api_key="x", get=client)
+    assert len(client.calls) == 1
+    url, params, _timeout = client.calls[0]
+    assert url.endswith("/stocks")
+    assert params["country"] == "United States"
 
 
 def test_exchange_resolution_fails_closed_before_stock_or_etf_routing():
@@ -87,7 +86,7 @@ def test_exchange_resolution_fails_closed_before_stock_or_etf_routing():
         {"symbol": "2800.HK", "exchange": "HKSE", "isEtf": True},
         {"symbol": "SPY", "exchange": "NYSE Arca", "isEtf": True},
     ]
-    result = load_governed_universe(fmp_key="x", client=Client(stock, etfs))
+    result = load_governed_universe(api_key="x", get=Client(stock, etfs))
     assert set(result["stock_symbols"]) == {
         "AAPL", "BEKE", "BP", "DRD", "JNJ", "MSFT", "PKX", "SHEL", "TSM", "UMC",
     }
@@ -148,7 +147,7 @@ def test_pre_twelve_assertion_rejects_unresolved_or_foreign_stock_identity():
 
 
 def test_pre_twelve_stock_universe_contains_only_approved_resolved_us_exchanges():
-    result = load_governed_universe(fmp_key="x", client=Client([
+    result = load_governed_universe(api_key="x", get=Client([
         {"symbol": "AAPL", "exchangeShortName": "NASDAQ", "isActivelyTrading": True},
         {"symbol": "JNJ", "exchangeShortName": "NYSE", "isActivelyTrading": True},
         {"symbol": "TSM", "exchangeShortName": "NYSE", "country": "TW", "type": "ADR"},
@@ -175,7 +174,7 @@ def test_real_class_share_aliases_are_retained_once_after_us_exchange_resolution
         {"symbol": symbol, "exchangeShortName": "NYSE", "type": "Common Stock"}
         for symbol in ("BRK-B", "BRK.B", "BF-B", "BF.B")
     ]
-    result = load_governed_universe(fmp_key="x", client=Client(stock, []))
+    result = load_governed_universe(api_key="x", get=Client(stock, []))
     assert result["stock_symbols"] == ["BF.B", "BRK.B"]
     assert result["symbol_mappings"]["BRK.B"]["provider_ticker"] == "BRK.B"
     assert result["symbol_mappings"]["BF.B"]["provider_ticker"] == "BF.B"
@@ -187,8 +186,8 @@ def test_master_ordering_cannot_admit_foreign_and_cap_is_applied_after_policy(mo
         {"symbol": "MSFT", "exchange": "NASDAQ", "type": "Common Stock"},
         {"symbol": "AAPL", "exchange": "NASDAQ", "type": "Common Stock"},
     ]
-    first = load_governed_universe(fmp_key="x", client=Client(rows, []))
-    second = load_governed_universe(fmp_key="x", client=Client(list(reversed(rows)), []))
+    first = load_governed_universe(api_key="x", get=Client(rows, []))
+    second = load_governed_universe(api_key="x", get=Client(list(reversed(rows)), []))
     assert first["stock_symbols"] == second["stock_symbols"] == ["AAPL", "MSFT"]
     monkeypatch.setattr(scan, "load_governed_universe", lambda **_kwargs: first)
     monkeypatch.setattr(scan, "MAX_UNIVERSE", 1)

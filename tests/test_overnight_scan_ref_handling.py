@@ -46,3 +46,9 @@ def test_candidate_directory_is_cleaned_and_validated_before_upload():
 def test_wrong_ref_checkout_is_rejected():
     assert 'if [ "${checked_out_sha}" != "${{ github.sha }}" ]; then' in WORKFLOW
     assert "does not match triggering SHA" in WORKFLOW
+
+
+def test_quantitative_runtime_exposes_twelve_and_disables_fmp_context():
+    assert 'ATLAS_FMP_EARNINGS_ENABLED: "false"' in WORKFLOW
+    assert "FMP_API_KEY: ${{ secrets.FMP_API_KEY }}" not in WORKFLOW
+    assert "TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}" in WORKFLOW

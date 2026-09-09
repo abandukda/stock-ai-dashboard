@@ -9,7 +9,6 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import Counter
 from datetime import datetime, timezone
-import os
 import time
 from typing import Any, Callable, Mapping, Sequence
 
@@ -78,19 +77,15 @@ def _apply_statement_margin_authority(row: Mapping[str, Any], enriched: dict[str
     })
 
 
-def _apply_secondary_statement_margin(
-    enriched: dict[str, Any], secondary_inputs: Mapping[str, Any]
-) -> None:
-    """Derive ATLAS historical margin from matching secondary statements."""
+def _apply_secondary_statement_margin(enriched: dict[str, Any], secondary_inputs: Mapping[str, Any]) -> None:
+    """Normalize a same-period governed statement pair; provider-neutral helper."""
     revenue = secondary_inputs.get("revenue")
     operating = secondary_inputs.get("operating_income")
     if not isinstance(revenue, Mapping) or not isinstance(operating, Mapping):
         return
     if not revenue.get("period") or revenue.get("period") != operating.get("period"):
         return
-    if revenue.get("period_type") != operating.get("period_type"):
-        return
-    if revenue.get("basis") != operating.get("basis"):
+    if revenue.get("period_type") != operating.get("period_type") or revenue.get("basis") != operating.get("basis"):
         return
     try:
         revenue_value = float(revenue["value"])
@@ -101,27 +96,18 @@ def _apply_secondary_statement_margin(
     if enriched.get("provider_defined_operating_profit_margin") is None:
         enriched["provider_defined_operating_profit_margin"] = enriched.get("operating_profit_margin")
     enriched.update({
-        "latest_revenue": revenue_value,
-        "latest_operating_income": operating_value,
-        "historical_operating_margin": margin,
-        "operating_profit_margin": margin,
+        "latest_revenue": revenue_value, "latest_operating_income": operating_value,
+        "historical_operating_margin": margin, "operating_profit_margin": margin,
         "financial_reporting_period": revenue.get("period"),
         "financial_reporting_period_type": revenue.get("period_type"),
         "financial_reporting_basis": revenue.get("basis"),
         "operating_margin_lineage": {
-            "provider": revenue.get("source"),
-            "endpoint": revenue.get("endpoint"),
-            "numerator_raw_field": operating.get("raw_field"),
-            "numerator_raw_value": operating_value,
-            "denominator_raw_field": revenue.get("raw_field"),
-            "denominator_raw_value": revenue_value,
-            "numerator_period": operating.get("period"),
-            "denominator_period": revenue.get("period"),
-            "period_type": revenue.get("period_type"),
-            "basis": revenue.get("basis"),
-            "currency": "PROVIDER_REPORTED",
-            "scale": "PROVIDER_REPORTED",
-            "comparable": True,
+            "provider": revenue.get("source"), "endpoint": revenue.get("endpoint"),
+            "numerator_raw_field": operating.get("raw_field"), "numerator_raw_value": operating_value,
+            "denominator_raw_field": revenue.get("raw_field"), "denominator_raw_value": revenue_value,
+            "numerator_period": operating.get("period"), "denominator_period": revenue.get("period"),
+            "period_type": revenue.get("period_type"), "basis": revenue.get("basis"),
+            "currency": "PROVIDER_REPORTED", "scale": "PROVIDER_REPORTED", "comparable": True,
             "numerator_evidence_id": operating.get("evidence_id"),
             "denominator_evidence_id": revenue.get("evidence_id"),
         },
@@ -191,10 +177,6 @@ def acquire_full_universe_decisions(
         )
         for symbol, dossier in (estimates.get("dossiers") or {}).items():
             dossiers[symbol] = _merge_dossiers(dossiers.get(symbol) or {}, dossier)
-    from services.secondary_financial_validation import acquire_secondary_fmp_inputs
-    environment=dict(os.environ if environ is None else environ)
-    secondary=acquire_secondary_fmp_inputs(symbols,api_key=str(environment.get("FMP_API_KEY") or ""),max_workers=max_workers)
-
     adapter = TwelveDataPhase1Adapter(key, enabled=True, get=get)
     histories: dict[str, Mapping[str, Any]] = {}
     history_telemetry: dict[str, dict[str, Any]] = {}
@@ -227,13 +209,6 @@ def acquire_full_universe_decisions(
     normalized = []
     for row in clean_rows:
         enriched = normalize_trial_dossier(row, dossiers.get(_ticker(row)) or {})
-        _apply_statement_margin_authority(row, enriched)
-        secondary_inputs=(secondary.get("inputs") or {}).get(_ticker(row)) or {}
-        if secondary_inputs:
-            existing=dict(enriched.get("approved_secondary_valuation_inputs") or {})
-            for metric,value in secondary_inputs.items(): existing.setdefault(metric,value)
-            enriched["approved_secondary_valuation_inputs"]=existing
-            _apply_secondary_statement_margin(enriched, secondary_inputs)
         if enriched.get("beta") is None and _ticker(row) != "SPY":
             stock_returns = returns(histories.get(_ticker(row)) or {})
             aligned = sorted(set(stock_returns) & set(market_returns))
@@ -324,8 +299,7 @@ def acquire_full_universe_decisions(
     }
     valuation_status_counts = dict(Counter(item.get("valuation_status") or "DATA_UNAVAILABLE" for item in diagnostics.values()))
     provider_calls = (int(primary.get("provider_calls") or 0) + int(fallback.get("provider_calls") or 0)
-                      + int(estimates.get("provider_calls") or 0) + len(history_telemetry)
-                      + int(secondary.get("provider_calls") or 0))
+                      + int(estimates.get("provider_calls") or 0) + len(history_telemetry))
     dossier_results = (primary, fallback, estimates)
     return {
         "version": VERSION, "status": "AVAILABLE" if evaluations else "DATA_UNAVAILABLE",
@@ -337,7 +311,6 @@ def acquire_full_universe_decisions(
         "technical_history_successes": successful_histories,
         "fundamental_family_counts": family_counts,
         "valuation_status_counts": valuation_status_counts,
-        "secondary_validation": {key: secondary.get(key) for key in ("version","status","provider_calls","symbol_coverage","observed_at")},
         "cache_hits": sum(int(item.get("cache_hits") or 0) for item in dossier_results),
         "cache_misses": sum(int(item.get("cache_misses") or 0) for item in dossier_results),
         "calls_avoided": sum(int(item.get("calls_avoided") or 0) for item in dossier_results),

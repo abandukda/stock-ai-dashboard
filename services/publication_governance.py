@@ -20,7 +20,7 @@ from services.canonical_data_validation import (
 )
 from services.evidence_lineage_governance import (
     CACHE_GENERATION_VERSION, EVIDENCE_SNAPSHOT_VERSION, PROVIDER_ARCHITECTURE_VERSION,
-    disallowed_lineage_paths,
+    disallowed_lineage_paths, fmp_quantitative_lineage_paths,
 )
 
 VERSION = "ATLAS_HARD_PUBLICATION_GOVERNANCE_V1"
@@ -305,6 +305,7 @@ def build_manifest(rows: Sequence[Mapping[str, Any]], *, run_id: str, generated_
     withheld = sum(not bool((row.get("publication_certification") or {}).get("customer_publication_allowed")) for row in rows)
     publishable_count = len(rows) - withheld
     published_yahoo_lineage_count = sum(bool(disallowed_lineage_paths(row)) for row in rows)
+    published_fmp_quantitative_lineage_count = sum(bool(fmp_quantitative_lineage_paths(row)) for row in rows)
     systemic = []
     provider_source = dict(provider_status or {})
     # Evaluations and request-level diagnostics already live in governed scan
@@ -312,8 +313,10 @@ def build_manifest(rows: Sequence[Mapping[str, Any]], *, run_id: str, generated_
     # object limits without adding certification evidence.
     provider = {key: provider_source[key] for key in _PROVIDER_MANIFEST_FIELDS if key in provider_source}
     if provider.get("status") not in {None, "AVAILABLE", "SUCCESS", "PUBLISHED"}: systemic.append("PROVIDER_ENRICHMENT_SYSTEMIC_FAILURE")
-    if len(rows) == 0: systemic.append("EMPTY_UNIVERSE")
+    if len(rows) == 0: systemic.append("EMPTY_ACQUISITION_UNIVERSE")
+    elif withheld == len(rows): systemic.append("NO_CERTIFIED_PUBLICATION_ROWS")
     if published_yahoo_lineage_count: systemic.append("PUBLISHED_YAHOO_LINEAGE_PRESENT")
+    if published_fmp_quantitative_lineage_count: systemic.append("PUBLISHED_FMP_QUANTITATIVE_LINEAGE_PRESENT")
     anomalies = run_over_run_anomalies(rows, prior_rows)
     anomalous_tickers = {item.get("ticker") for item in anomalies}
     if any(
@@ -338,6 +341,11 @@ def build_manifest(rows: Sequence[Mapping[str, Any]], *, run_id: str, generated_
         "withheld_count": withheld, "publishable_count": publishable_count,
         "customer_publication_count": publishable_count,
         "published_yahoo_lineage_count": published_yahoo_lineage_count,
+        "published_fmp_quantitative_lineage_count": published_fmp_quantitative_lineage_count,
+        "PRODUCTION_ACTIVE_YAHOO_DECISION_DEPENDENCY_COUNT": 0,
+        "PRODUCTION_ACTIVE_FMP_QUANTITATIVE_DEPENDENCY_COUNT": 0,
+        "PUBLISHED_YAHOO_LINEAGE_COUNT": published_yahoo_lineage_count,
+        "PUBLISHED_FMP_QUANTITATIVE_LINEAGE_COUNT": published_fmp_quantitative_lineage_count,
         "provider_architecture_version": PROVIDER_ARCHITECTURE_VERSION,
         "evidence_snapshot_version": EVIDENCE_SNAPSHOT_VERSION,
         "cache_generation_version": CACHE_GENERATION_VERSION,

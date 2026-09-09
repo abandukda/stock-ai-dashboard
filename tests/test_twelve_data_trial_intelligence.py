@@ -43,7 +43,7 @@ def test_commercial_mode_disables_trial_intelligence_before_reading_key():
     assert result["provider_calls"] == 0
 
 
-def test_statistics_normalize_missing_fundamentals_without_overwriting_atlas_values():
+def test_statistics_overwrite_untrusted_legacy_values_with_twelve_authority():
     dossier = {"families": {"statistics": {"payload": {"statistics": {"financials": {
         "operating_margin": .18,
         "income_statement": {"quarterly_revenue_growth": .12, "quarterly_earnings_growth_yoy": .25},
@@ -51,7 +51,7 @@ def test_statistics_normalize_missing_fundamentals_without_overwriting_atlas_val
         "cash_flow": {"levered_free_cash_flow_ttm": 1000},
     }}}}}, "evidence_ids": ("TDTRIAL-1",)}
     row = normalize_trial_dossier({"ticker": "MU", "revenue_growth": 99}, dossier)
-    assert row["revenue_growth"] == 99
+    assert row["revenue_growth"] == 12.0
     assert row["earnings_growth"] == 25
     assert row["operating_profit_margin"] == 18
     assert row["current_ratio"] == 1.6
