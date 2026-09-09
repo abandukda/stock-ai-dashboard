@@ -104,7 +104,7 @@ def test_stale_yahoo_forward_eps_is_rejected_and_refetched_from_governed_estimat
 
 def test_cash_flow_statement_capex_variant_creates_canonical_fcf_without_backsolve():
     dossier = {"observed_at": "2026-09-08T00:00:00Z", "evidence_ids": ("TD-CF",), "families": {
-        "cash_flow": {"payload": {"cash_flow": [{"date": "2025-12-31", "free_cash_flow": 999,
+        "cash_flow": {"observed_at":"2026-09-08T00:00:00Z","evidence_id":"TD-CF","payload": {"cash_flow": [{"date": "2025-12-31", "free_cash_flow": 999,
             "capital_expenditure": -30, "operating_activities": {"operating_cash_flow": 150}}]}}
     }}
     row = normalize_trial_dossier({"ticker": "FCF"}, dossier)
@@ -127,6 +127,18 @@ def test_cash_flow_mixed_period_evidence_does_not_publish_canonical_fcf():
     assert row["operating_cash_flow"] == 150 and row["capital_expenditures"] == -30
     assert "free_cash_flow" not in row
     assert row["provider_defined_fcf"] == 120
+
+
+def test_peer_statistics_as_of_uses_family_observation_not_dossier_or_scan_time():
+    dossier={"observed_at":"2099-01-01T00:00:00Z","families":{"statistics":{
+        "observed_at":"2026-09-09T14:30:00Z","evidence_id":"TD-STATS",
+        "payload":{"statistics":{"valuations_metrics":{"forward_pe":20,"enterprise_to_ebitda":12}}}}}}
+    row=normalize_trial_dossier({"ticker":"STAMP"},dossier)
+    assert row["professional_evidence_as_of"]=="2026-09-09T14:30:00Z"
+    assert row["professional_evidence_fetched_at"]=="2026-09-09T14:30:00Z"
+    assert row["professional_evidence_lineage"]["fields"]["provider_forward_pe"]["evidence_id"]=="TD-STATS"
+    missing=normalize_trial_dossier({"ticker":"MISSING"},{"observed_at":"2099-01-01T00:00:00Z","families":dossier["families"] | {"statistics":{**dossier["families"]["statistics"],"observed_at":None}}})
+    assert missing["professional_evidence_as_of"] is None
 
 
 def test_professional_capital_and_reporting_lineage_is_normalized_without_fabrication():

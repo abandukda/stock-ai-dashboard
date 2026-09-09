@@ -336,8 +336,6 @@ def value_company(row: Mapping[str, Any], *, as_of: str | None = None, _scenario
             "valuation_explanation": explanation,
             "scenario_status":"PUBLISHED" if bear is not None and bull is not None else "INSUFFICIENT_ECONOMIC_SCENARIO_INPUTS" if valid else "NOT_AVAILABLE",
             "sensitivity": sensitivity}
-    from services.valuation_evidence_strength import classify_valuation_evidence
-    result["valuation_evidence_strength"]=classify_valuation_evidence(result)
     return result
 
 
