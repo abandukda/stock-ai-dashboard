@@ -197,8 +197,9 @@ def test_run_over_run_anomaly_requires_attributable_evidence_change():
     assert run_over_run_anomalies([new], [old]) == []
 
 
-def test_overnight_exposes_primary_and_secondary_validation_credentials():
+def test_overnight_exposes_only_canonical_quantitative_credentials():
     workflow=(ROOT/".github/workflows/overnight_scan.yml").read_text()
     assert "TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}" in workflow
-    assert "FMP_API_KEY: ${{ secrets.FMP_API_KEY }}" in workflow
+    assert "FMP_API_KEY: ${{ secrets.FMP_API_KEY }}" not in workflow
+    assert 'ATLAS_FMP_EARNINGS_ENABLED: "false"' in workflow
     assert 'ATLAS_HARD_PUBLICATION_GOVERNANCE_ENABLED: "true"' in workflow

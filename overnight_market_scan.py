@@ -41,7 +41,8 @@ from services.governed_discovery_data import (
     fetch_twelve_daily_batch, load_governed_universe,
 )
 from services.governed_market_cache import (
-    append_history, cache_namespace, load_history, load_negative_cache, write_negative_cache,
+    append_history, cache_namespace, load_history, load_negative_cache,
+    normalize_history_frame, write_negative_cache,
 )
 
 
@@ -658,8 +659,7 @@ def extract_symbol_history(data: pd.DataFrame, symbol: str) -> pd.DataFrame:
         if df.empty or "Close" not in df.columns:
             return pd.DataFrame()
 
-        df = df.dropna(subset=["Close"])
-        return df
+        return normalize_history_frame(df)
     except Exception:
         return pd.DataFrame()
 
@@ -1388,6 +1388,7 @@ def build_ai_committee(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], t
 # =========================
 
 def compute_indicators(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
+    df = normalize_history_frame(df)
     if df is None or df.empty or len(df) < 45:
         return None
 
@@ -1452,6 +1453,7 @@ def compute_indicators(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
         "sma50": round(sma50, 2) if sma50 else None,
         "sma100": round(sma100, 2) if sma100 else None,
         "sma200": round(sma200, 2) if sma200 else None,
+        "sma200_unrounded": sma200,
         "avg_volume_20d": safe_int(vol20, 0),
         "dollar_volume": round(dollar_volume, 2),
         "one_day_pct": round(one_day, 2) if one_day is not None else None,
@@ -3453,17 +3455,25 @@ def attach_technical_research_evidence(
     row: Dict[str, Any], ind: Dict[str, Any], hist: Optional[pd.DataFrame] = None,
 ) -> None:
     """Publish SMA200 from the same governed Twelve history used by the scan."""
-    sma200 = safe_float(ind.get("sma200"), None)
-    if sma200 is None:
+    normalized = normalize_history_frame(hist) if isinstance(hist, pd.DataFrame) else pd.DataFrame()
+    closes = normalized.get("Close") if "Close" in normalized else None
+    evidence = row.get("deep_research_evidence") if isinstance(row.get("deep_research_evidence"), dict) else {}
+    if closes is None or len(closes) < 200:
+        evidence["sma200_status"] = "DATA_UNAVAILABLE_INSUFFICIENT_HISTORY"
+        row["deep_research_evidence"] = evidence
         return
-    closes = hist.get("Close") if isinstance(hist, pd.DataFrame) and "Close" in hist else None
-    recomputed = safe_float(closes.dropna().rolling(200).mean().iloc[-1], None) if closes is not None and len(closes.dropna()) >= 200 else None
-    if recomputed is None or abs(recomputed - sma200) > 1e-8:
+    recomputed = safe_float(closes.rolling(200).mean().iloc[-1], None)
+    canonical_unrounded = safe_float(ind.get("sma200_unrounded"), None)
+    displayed = safe_float(ind.get("sma200"), None)
+    if recomputed is None or canonical_unrounded is None or canonical_unrounded != recomputed:
+        raise RuntimeError("SMA200_GOVERNED_HISTORY_RECONCILIATION_FAILED")
+    if displayed != round(recomputed, 2):
         raise RuntimeError("SMA200_GOVERNED_HISTORY_RECONCILIATION_FAILED")
     import hashlib
     snapshot_material = "|".join(f"{stamp}:{float(value):.12g}" for stamp, value in closes.dropna().items())
-    evidence = row.get("deep_research_evidence") if isinstance(row.get("deep_research_evidence"), dict) else {}
-    evidence["sma200"] = round(sma200, 2)
+    evidence["sma200"] = displayed
+    evidence["sma200_unrounded"] = canonical_unrounded
+    evidence["sma200_status"] = "AVAILABLE"
     evidence["sma200_provider"] = "TWELVE_DATA"
     evidence["sma200_source_type"] = "TWELVE_DATA_TIME_SERIES_1DAY"
     evidence["sma200_as_of"] = str(closes.dropna().index[-1])

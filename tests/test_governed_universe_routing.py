@@ -31,7 +31,9 @@ class Client:
 
     def __call__(self, url, params, timeout):
         self.calls.append((url, dict(params), timeout))
-        return Response({"data": [*self.stock, *self.etf]})
+        if url.endswith("/etfs/list"):
+            return Response({"result": {"count": len(self.etf), "list": self.etf}, "status": "ok"})
+        return Response({"data": self.stock})
 
 
 def test_pre_acquisition_cleanup_and_separate_etf_routing():
@@ -60,10 +62,29 @@ def test_pre_acquisition_cleanup_and_separate_etf_routing():
 def test_twelve_stock_reference_is_country_scoped_and_routes_are_separate():
     client = Client([], [])
     load_governed_universe(api_key="x", get=client)
-    assert len(client.calls) == 1
+    assert len(client.calls) == 2
     url, params, _timeout = client.calls[0]
     assert url.endswith("/stocks")
     assert params["country"] == "United States"
+    etf_url, etf_params, _timeout = client.calls[1]
+    assert etf_url.endswith("/etfs/list")
+    assert etf_params["country"] == "United States"
+
+
+def test_twelve_etf_directory_routes_major_us_funds_and_excludes_foreign():
+    etfs = [
+        {"symbol": "SPY", "name": "SPDR S&P 500 ETF", "mic_code": "ARCX", "country": "United States"},
+        {"symbol": "QQQ", "name": "Invesco QQQ", "mic_code": "XNAS", "country": "United States"},
+        {"symbol": "IWM", "name": "iShares Russell 2000 ETF", "mic_code": "ARCX", "country": "United States"},
+        {"symbol": "DIA", "name": "SPDR Dow ETF", "mic_code": "ARCX", "country": "United States"},
+        {"symbol": "VOO", "name": "Vanguard S&P 500 ETF", "mic_code": "ARCX", "country": "United States"},
+        {"symbol": "2800.HK", "name": "Tracker Fund", "mic_code": "XHKG", "country": "Hong Kong"},
+    ]
+    result = load_governed_universe(api_key="x", get=Client([], etfs))
+    assert result["etf_symbols"] == ["DIA", "IWM", "QQQ", "SPY", "VOO"]
+    assert "2800.HK" not in result["symbols"]
+    excluded = {item["ticker"]: item["reason"] for item in result["exclusions"]}
+    assert excluded["2800.HK"] == "NON_US_EXCHANGE_OUTSIDE_STOCK_POLICY"
 
 
 def test_exchange_resolution_fails_closed_before_stock_or_etf_routing():
@@ -103,7 +124,7 @@ def test_exchange_resolution_fails_closed_before_stock_or_etf_routing():
     assert result["summary"]["us_etf_universe_count"] == 1
     assert result["summary"]["stock_exchange_distribution"] == {"NASDAQ": 2, "NYSE": 8}
     assert result["summary"]["etf_exchange_distribution"] == {"ARCA": 1}
-    assert {"symbol", "exchangeShortName", "isActivelyTrading", "isEtf"} <= set(
+    assert {"symbol", "exchangeShortName", "isActivelyTrading"} <= set(
         result["diagnostics"]["observed_response_fields"]
     )
     assert result["summary"]["representative_unresolved_symbols"][0]["ticker"] == "0001.HK"
