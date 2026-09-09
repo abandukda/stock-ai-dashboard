@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-09-08T19:12:18.127335+00:00",
-  "count": 3491,
+  "generated_at": "2026-09-09T01:08:55.623259+00:00",
+  "count": 3492,
   "symbols": [
     "A",
     "AA",
@@ -2895,6 +2895,7 @@
     "SPTX",
     "SPWH",
     "SPXC",
+    "SPXX",
     "SPY",
     "SPYT",
     "SQ",
@@ -3495,18 +3496,18 @@
     "ZYME"
   ],
   "eligibility": {
-    "eligible_count": 2185,
-    "excluded_count": 1268,
+    "eligible_count": 2191,
+    "excluded_count": 1264,
     "exclusion_reason_counts": {
-      "Financial Services sector": 442,
-      "DOLLAR_VOLUME_BELOW_MINIMUM": 425,
+      "Financial Services sector": 445,
+      "DOLLAR_VOLUME_BELOW_MINIMUM": 419,
       "Excluded financial/bank/lender/insurance/asset management industry": 16,
       "Excluded business category": 41,
-      "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE": 126,
+      "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE": 124,
       "GOVERNED_COMPANY_EXCLUSION": 120,
       "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE": 94,
       "INSUFFICIENT_TECHNICAL_HISTORY": 3,
-      "MARKET_CAP_BELOW_MINIMUM": 1
+      "MARKET_CAP_BELOW_MINIMUM": 2
     },
     "exclusions": [
       {
@@ -3894,10 +3895,6 @@
         "reason": "Financial Services sector"
       },
       {
-        "ticker": "ATNI",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
         "ticker": "ATRA",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -4194,10 +4191,6 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "BMEA",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
-      },
-      {
         "ticker": "BMEZ",
         "reason": "Financial Services sector"
       },
@@ -4347,7 +4340,7 @@
       },
       {
         "ticker": "BSVN",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "Financial Services sector"
       },
       {
         "ticker": "BTGO",
@@ -4652,10 +4645,6 @@
       {
         "ticker": "CLSK",
         "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "CLVT",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "CM",
@@ -5012,10 +5001,6 @@
       {
         "ticker": "ECPG",
         "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "EDN",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "EFC",
@@ -5964,10 +5949,6 @@
       {
         "ticker": "IX",
         "reason": "Financial Services sector"
-      },
-      {
-        "ticker": "JAKK",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "JAN",
@@ -7263,7 +7244,7 @@
       },
       {
         "ticker": "PSQH",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "MARKET_CAP_BELOW_MINIMUM"
       },
       {
         "ticker": "PSTL",
@@ -7806,6 +7787,10 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
+        "ticker": "SPXX",
+        "reason": "Financial Services sector"
+      },
+      {
         "ticker": "SPYT",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -8259,7 +8244,7 @@
       },
       {
         "ticker": "VACI",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "Financial Services sector"
       },
       {
         "ticker": "VALN",

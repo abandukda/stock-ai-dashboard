@@ -1,7 +1,7 @@
 {
   "version": "ATLAS_PUBLICATION_MANIFEST_V1",
-  "run_id": "overnight-20260908T194740Z",
-  "generated_at": "2026-09-08T19:47:40.492421+00:00",
+  "run_id": "overnight-20260909T013850Z",
+  "generated_at": "2026-09-09T01:38:50.377467+00:00",
   "methodology_versions": [
     "FOUNDER_GUIDANCE_V1"
   ],
@@ -10,90 +10,89 @@
     "None"
   ],
   "provider_status": {
-    "fundamental_family_counts": {
-      "revenue": 1536,
-      "earnings": 1328,
-      "profitability": 1534,
-      "cash_flow": 1246,
-      "balance_sheet": 1243
-    },
-    "endpoint_success": {
-      "profile": 1088,
-      "statistics": 1086,
-      "income_statement": 179,
-      "balance_sheet": 179,
-      "cash_flow": 179,
-      "earnings_estimate": 1545,
-      "revenue_estimate": 1545,
-      "time_series_1day": 1540
-    },
-    "technical_history_calls": 1551,
     "valuation_status_counts": {
-      "PUBLISHED": 1052,
-      "DATA_UNAVAILABLE": 497,
-      "NOT_APPLICABLE": 1
+      "PUBLISHED": 950,
+      "DATA_UNAVAILABLE": 600
     },
-    "technical_history_successes": 1491,
-    "performance_outcomes_appended": 194,
-    "version": "ATLAS_FULL_UNIVERSE_DECISION_PUBLICATION_V1",
-    "latency_seconds": 697.752,
-    "estimate_calls": 3100,
-    "provider_calls": 20161,
+    "fundamental_fallback_calls": 2271,
+    "performance_outcomes_appended": 20,
+    "provider_calls": 20872,
+    "fundamental_family_counts": {
+      "revenue": 1537,
+      "earnings": 1262,
+      "profitability": 1530,
+      "cash_flow": 1152,
+      "balance_sheet": 1146
+    },
+    "observed_at": "2026-09-09T01:31:10.460995+00:00",
     "fundamental_primary_calls": 7750,
-    "status": "AVAILABLE",
+    "estimate_calls": 3100,
+    "technical_history_calls": 1551,
     "performance_snapshots_appended": 1250,
-    "technical_history_http_successes": 1540,
-    "observed_at": "2026-09-08T19:35:55.859700+00:00",
+    "status": "AVAILABLE",
+    "technical_history_successes": 1495,
+    "technical_history_http_successes": 1542,
+    "endpoint_success": {
+      "profile": 832,
+      "statistics": 831,
+      "income_statement": 332,
+      "balance_sheet": 332,
+      "cash_flow": 333,
+      "earnings_estimate": 652,
+      "revenue_estimate": 652,
+      "time_series_1day": 1542
+    },
     "secondary_validation": {
       "version": "ATLAS_SECONDARY_FINANCIAL_VALIDATION_V1",
       "status": "AVAILABLE",
       "provider_calls": 6200,
-      "symbol_coverage": 1546,
-      "observed_at": "2026-09-08T19:44:45.562862+00:00"
+      "symbol_coverage": 1547,
+      "observed_at": "2026-09-09T01:37:53.878824+00:00"
     },
-    "fundamental_fallback_calls": 1560
+    "latency_seconds": 451.67,
+    "version": "ATLAS_FULL_UNIVERSE_DECISION_PUBLICATION_V1"
   },
   "universe_count": 150,
   "certification_distribution": {
-    "CERTIFIED_HIGH_UNCERTAINTY": 130,
-    "CERTIFIED": 20
+    "CERTIFIED_HIGH_UNCERTAINTY": 146,
+    "CERTIFIED": 4
   },
-  "certified_count": 20,
-  "high_uncertainty_count": 130,
+  "certified_count": 4,
+  "high_uncertainty_count": 146,
   "withheld_count": 0,
   "validation_failures": [],
   "artifact_hashes": {
-    "market_prescreen.json": "0a08eea41fc3af58c634e76b3036c79a760eeddd9dde8a47e7896a0c75cea31f",
-    "market_full_scan.json": "c86f8d7de0a95eaa4232feb5102af012a3d4eff1fcbcdc2e9bdb100f66880959",
-    "discovery_candidate_pool.json": "4fa8a3a9c784a53bd31571c25a89afc3d208ba672cc2fc656483d36cb97bcc3b",
-    "full_evaluation_pool.json": "dcf892101a2e5767938f0f85e2a28aa3700b7c37cced747c29d0c0e5fd7a55cc",
-    "recovery_scan.json": "940901481e7a00c3d6747dd650ff059a8aedf9ece9d072bbbdec02ff67919683",
-    "etf_scan.json": "6a049e9433d24c27c517ca940944140c1cc7f691f28abfb60fd7ebe7556ff271",
-    "total_market_universe.json": "90b087ee5afa854696b0b0cdd9b3869b7270cd6d649d08b90b83866dec51dfd3",
-    "market_scan_state.json": "d4bd27e51876658882d63c7ad229c23280d88b7ffb8bed10dc8af1d3dc993ad6"
+    "market_prescreen.json": "7fca7ab03e28923087a7cd9d5e4608467dfb643112b8c5351860d26f4461b24c",
+    "market_full_scan.json": "09cdf0b7a4476f0c02f24e9ca0e3984453ddb42d092a035d1a9e9a7e51eaa90d",
+    "discovery_candidate_pool.json": "fdf32500703dfc09ce07f9a2b719f064119d7ce7632b9c42359678b7d71fca2a",
+    "full_evaluation_pool.json": "44214472f70ec721528ff993527d2b2882fcfe168b013d8c42c802988b751df6",
+    "recovery_scan.json": "a7139d1d3e268225cd4df85abd4dceae8fee3225b244c945b13077a2b09f8439",
+    "etf_scan.json": "b675bf66662063412660428e6c84ad325e6f797f9afceb5a585e2d5672da463b",
+    "total_market_universe.json": "66221cf25ce3f6814d3839b54851f233f84296505b77960002f1eb0f41a613ed",
+    "market_scan_state.json": "180b736309c3722a96c3cf5212a029a6aa875685a2a6c33297b02f9561dff3fd"
   },
   "run_over_run_anomalies": [],
   "freshness_status": "VALIDATED_BY_EVIDENCE_TYPE",
   "publication_gate_status": "PASS",
   "qa_certification": {
     "version": "ATLAS_MASTER_QA_V3_DISCOVERY",
-    "run_id": "overnight-20260908T194740Z",
-    "generated_at": "2026-09-08T19:47:40.492421+00:00",
+    "run_id": "overnight-20260909T013850Z",
+    "generated_at": "2026-09-09T01:38:50.377467+00:00",
     "universe_count": 150,
     "publication_gate_status": "PASS",
     "severity_counts": {
       "P0": 0,
       "P1": 0,
       "P2": 0,
-      "P3": 2415,
-      "P4": 78
+      "P3": 3625,
+      "P4": 21
     },
     "certification_distribution": {
-      "CERTIFIED_HIGH_UNCERTAINTY": 130,
-      "CERTIFIED": 20
+      "CERTIFIED_HIGH_UNCERTAINTY": 146,
+      "CERTIFIED": 4
     },
-    "certified_count": 20,
-    "high_uncertainty_count": 130,
+    "certified_count": 4,
+    "high_uncertainty_count": 146,
     "review_required_count": 0,
     "withheld_count": 0,
     "market_cap_failure_count": 0,
@@ -104,26 +103,26 @@
     "dataset_certification_status": "PASS",
     "blocking_issue_count": 0,
     "action_distribution": {
-      "BUY_NOW": 5,
-      "ACCUMULATE": 50,
-      "WAIT_FOR_ENTRY": 95
+      "ACCUMULATE": 41,
+      "WAIT_FOR_ENTRY": 59,
+      "WAIT_FOR_CONFIRMATION": 50
     },
-    "artifact_link": "https://github.com/abandukda/stock-ai-dashboard/actions/runs/34271050737",
+    "artifact_link": "https://github.com/abandukda/stock-ai-dashboard/actions/runs/34300051645",
     "discovery_certification_status": "PASS",
     "discovery_severity_counts": {
       "D0": 0,
-      "D1": 1,
+      "D1": 0,
       "D2": 0,
       "D3": 0,
       "D4": 0
     },
-    "market_universe_count": 3491,
-    "eligible_count": 2185,
+    "market_universe_count": 3492,
+    "eligible_count": 2191,
     "candidate_pool_count": 1500,
     "full_evaluation_pool_count": 1250,
     "customer_discovery_count": 150,
-    "buy_now_recall": 1.0,
-    "build_or_better_recall": 0.9821,
+    "buy_now_recall": null,
+    "build_or_better_recall": 1.0,
     "recall_validation_sample_size": 300,
     "qa_categories": [
       "QA-1",
@@ -139,9 +138,9 @@
       "QA-11",
       "QA-12"
     ],
-    "screenshot_count": 60,
+    "screenshot_count": 42,
     "visual_failure_count": 0,
-    "report_digest": "de28cdb27966c3da0cd0ede038ca00c4cdac1280b5ecffdabbe1d8a2a1c74029"
+    "report_digest": "1bc1dec9318819345f6a613627b24e07bc0c7a8362136d03bca9c27fe1cda85b"
   },
-  "certification_report": "audit_results/full_qa/34271050737/ATLAS_MASTER_QA_20260908_overnight-20260908T194740Z.json"
+  "certification_report": "audit_results/full_qa/34300051645/ATLAS_MASTER_QA_20260909_overnight-20260909T013850Z.json"
 }
