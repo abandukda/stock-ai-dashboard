@@ -10,6 +10,7 @@ from typing import Any,Mapping,Sequence
 from engines.professional_valuation_v2 import classify_company
 
 VERSION="ATLAS_CANONICAL_DATA_VALIDATION_V1"
+ATLAS_STANDARD_FCF="ATLAS_STANDARD_FCF = OCF - abs(Capex)"
 CERTIFIED="CERTIFIED";CERTIFIED_HIGH_UNCERTAINTY="CERTIFIED_HIGH_UNCERTAINTY";REVIEW_REQUIRED="REVIEW_REQUIRED";INSUFFICIENT_INPUTS="INSUFFICIENT_INPUTS";NOT_APPLICABLE="NOT_APPLICABLE"
 TOLERANCES={"revenue":.03,"net_income":.05,"eps":.08,"ebitda":.08,"operating_cash_flow":.05,"capex":.08,"cash":.05,"debt":.05,"current_shares_outstanding":.03,"diluted_shares":.05,"free_cash_flow":.10,"forward_eps":.08,"forward_revenue":.05}
 
@@ -36,16 +37,18 @@ def _inputs(row,evaluation,valuation):
     trial=dict(evaluation.get("trial_presentation_fields") or {});lineage=dict(valuation.get("lineage") or {});provider_lineage=dict(trial.get("professional_evidence_lineage") or {})
     values={
         "current_price":_first(row,"current_price","price","Price"),"revenue":_first(trial,"latest_revenue","revenue"),"eps":_first(row,"latest_eps","reported_eps","eps"),
-        "net_income":_first(trial,"net_income", "latest_net_income",),"ebitda":_first(trial,"forward_ebitda","ebitda"),"ebit":_first(trial,"ebit","latest_operating_income"),"operating_cash_flow":_first(trial,"operating_cash_flow") if _first(trial,"operating_cash_flow") is not None else _first(row,"operating_cash_flow"),"free_cash_flow":_first(trial,"provider_defined_fcf","free_cash_flow") if _first(trial,"provider_defined_fcf","free_cash_flow") is not None else _first(row,"provider_defined_fcf","free_cash_flow"),
+        "net_income":_first(trial,"net_income", "latest_net_income",),"ebitda":_first(trial,"forward_ebitda","ebitda"),"ebit":_first(trial,"ebit","latest_operating_income"),"operating_cash_flow":_first(trial,"operating_cash_flow") if _first(trial,"operating_cash_flow") is not None else _first(row,"operating_cash_flow"),"free_cash_flow":_first(trial,"normalized_fcf","free_cash_flow") if _first(trial,"normalized_fcf","free_cash_flow") is not None else _first(row,"normalized_fcf","free_cash_flow"),
         "cash":_first(trial,"cash_and_equivalents") if _first(trial,"cash_and_equivalents") is not None else _first(row,"cash_and_equivalents"),"debt":_first(trial,"total_debt") if _first(trial,"total_debt") is not None else _first(row,"total_debt"),"current_shares_outstanding":_first(trial,"current_shares_outstanding") if _first(trial,"current_shares_outstanding") is not None else _first(row,"current_shares_outstanding","shares_outstanding"),"diluted_shares":_first(trial,"diluted_shares") if _first(trial,"diluted_shares") is not None else _first(row,"diluted_shares","weighted_average_shares_diluted"),"market_cap":_first(trial,"market_cap",) if _first(trial,"market_cap") is not None else _first(row,"market_cap"),
         "forward_eps":_first(trial,"forward_eps") if _first(trial,"forward_eps") is not None else _first(row,"forward_eps"),"forward_revenue":_first(trial,"forward_revenue") if _first(trial,"forward_revenue") is not None else _first(row,"forward_revenue"),"capex":_first(trial,"capital_expenditures","capex") if _first(trial,"capital_expenditures","capex") is not None else _first(row,"capital_expenditures","capex"),
     }
     output={}
     for key,value in values.items():
-        mapped=dict((provider_lineage.get("fields") or {}).get(key) or provider_lineage.get(key) or {})
+        lineage_key="capital_expenditures" if key=="capex" else key
+        mapped=dict((provider_lineage.get("fields") or {}).get(lineage_key) or provider_lineage.get(lineage_key) or {})
         specific={**mapped,**dict(lineage.get(key) or {})}
         share_unit="SHARES" if "shares" in key else "PER_SHARE" if "eps" in key else "CURRENCY"
-        output[key]={"value":_num(value),"period":specific.get("period") or trial.get(f"{key}_period") or trial.get("financial_reporting_period"),"period_type":specific.get("period_type") or trial.get(f"{key}_period_type"),"basis":specific.get("basis") or trial.get(f"{key}_basis"),"unit":share_unit,"currency":specific.get("currency") or (trial.get("market_assumption_lineage") or {}).get("currency") or "USD","source":specific.get("source") or specific.get("provider") or trial.get(f"{key}_source") or provider_lineage.get("provider"),"endpoint":specific.get("endpoint"),"raw_field":specific.get("raw_field"),"raw_value":specific.get("raw_value"),"canonical_field":specific.get("canonical_field") or key,"normalized_value":specific.get("normalized_value") if specific.get("normalized_value") is not None else _num(value),"transformation":specific.get("transformation"),"consuming_methodology":specific.get("consuming_methodology"),"as_of":specific.get("as_of") or provider_lineage.get("observed_at") or valuation.get("valuation_as_of")}
+        canonical=_num(value)
+        output[key]={"value":canonical,"canonical_value":canonical,"period":specific.get("period") or trial.get(f"{key}_period") or trial.get("financial_reporting_period"),"period_type":specific.get("period_type") or trial.get(f"{key}_period_type"),"basis":specific.get("basis") or trial.get(f"{key}_basis"),"unit":specific.get("unit") or share_unit,"currency":specific.get("currency") or (trial.get("market_assumption_lineage") or {}).get("currency") or "USD","source":specific.get("source") or specific.get("provider") or trial.get(f"{key}_source") or provider_lineage.get("provider"),"endpoint":specific.get("endpoint"),"raw_field":specific.get("raw_field"),"raw_value":specific.get("raw_value"),"canonical_field":specific.get("canonical_field") or key,"normalized_value":canonical,"transformation":specific.get("transformation"),"consuming_methodology":specific.get("consuming_methodology"),"as_of":specific.get("as_of") or provider_lineage.get("observed_at") or valuation.get("valuation_as_of")}
     return output,trial
 
 def _company_domain(row,trial,valuation):
@@ -104,15 +107,16 @@ def validate_valuation(row:Mapping[str,Any])->dict[str,Any]:
     checks["ev_bridge"]={"status":"PASS" if ev_checks and all(x["status"]=="PASS" for x in ev_checks) else "FAIL" if ev_checks else "NOT_TESTABLE","models":ev_checks}
     if checks["ev_bridge"]["status"]=="FAIL":warnings.append("EV_BRIDGE_FAILURE")
     ocf=inputs["operating_cash_flow"]["value"];fcf=inputs["free_cash_flow"]["value"];capex=inputs["capex"]["value"]
-    expected_fcf=ocf-abs(capex) if ocf is not None and capex is not None else None;fcf_gap=_relative_gap(expected_fcf,fcf)
-    fcf_classification = None
-    if fcf_gap is not None and fcf_gap>.10:
-        same_period=inputs["operating_cash_flow"].get("period")==inputs["free_cash_flow"].get("period")
-        fcf_classification="PROVIDER_DEFINED_FCF_DIFFERS_FROM_STANDARD" if same_period or not inputs["free_cash_flow"].get("period") else "PERIOD_MISMATCH"
-    if expected_fcf is None: fcf_classification = "MISSING_PROVIDER_EVIDENCE"
-    elif fcf_gap is not None and fcf_gap>.10 and fcf_classification == "PROVIDER_DEFINED_FCF_DIFFERS_FROM_STANDARD": fcf_classification = "VALID_PROVIDER_DEFINITION_DIFFERENCE"
-    checks["fcf_reconciliation"]={"status":"PASS" if expected_fcf is not None else "NOT_TESTABLE","ocf":ocf,"capex":capex,"canonical_calculated_fcf":expected_fcf,"provider_defined_fcf":fcf,"atlas_standard_fcf":expected_fcf,"difference":fcf-expected_fcf if fcf is not None and expected_fcf is not None else None,"provider_difference_pct":round(fcf_gap*100,2) if fcf_gap is not None else None,"difference_classification":fcf_classification,"period":inputs["operating_cash_flow"].get("period"),"statement_type":inputs["operating_cash_flow"].get("period_type"),"basis":inputs["capex"].get("basis"),"provider":inputs["operating_cash_flow"].get("source"),"evidence_ids":[x for x in (inputs["operating_cash_flow"].get("endpoint"),inputs["capex"].get("endpoint")) if x],"standard":"ATLAS_STANDARD_FCF = OCF - abs(Capex)","canonical_authority":"ATLAS_STANDARD_FCF"}
-    if expected_fcf is None:warnings.append("FCF_RECONCILIATION_FAILURE")
+    provider_fcf=_num(_first(trial,"provider_defined_fcf"))
+    comparable_keys=("period","period_type","basis","currency","unit","as_of")
+    ocf_meta=inputs["operating_cash_flow"];capex_meta=inputs["capex"]
+    metadata_mismatches=[key for key in comparable_keys if not ocf_meta.get(key) or not capex_meta.get(key) or str(ocf_meta.get(key)).upper()!=str(capex_meta.get(key)).upper()]
+    expected_fcf=ocf-abs(capex) if ocf is not None and capex is not None and not metadata_mismatches else None
+    canonical_gap=_relative_gap(expected_fcf,fcf);provider_gap=_relative_gap(expected_fcf,provider_fcf)
+    reconciliation_pass=expected_fcf is not None and fcf is not None and canonical_gap is not None and canonical_gap<=1e-9
+    classification="MATCHED" if reconciliation_pass else "EVIDENCE_METADATA_MISMATCH" if metadata_mismatches else "MISSING_PROVIDER_EVIDENCE" if expected_fcf is None or fcf is None else "CANONICAL_VALUE_MISMATCH"
+    checks["fcf_reconciliation"]={"status":"PASS" if reconciliation_pass else "FAIL","ocf":ocf,"capex":capex,"canonical_calculated_fcf":expected_fcf,"canonical_published_fcf":fcf,"provider_defined_fcf":provider_fcf,"atlas_standard_fcf":expected_fcf,"canonical_difference":fcf-expected_fcf if fcf is not None and expected_fcf is not None else None,"provider_difference":provider_fcf-expected_fcf if provider_fcf is not None and expected_fcf is not None else None,"provider_difference_pct":round(provider_gap*100,2) if provider_gap is not None else None,"difference_classification":classification,"metadata_mismatches":metadata_mismatches,"period":ocf_meta.get("period"),"statement_type":ocf_meta.get("period_type"),"basis":"OCF_MINUS_ABS_CAPEX","currency":ocf_meta.get("currency"),"unit":ocf_meta.get("unit"),"provider":ocf_meta.get("source"),"evidence_ids":[x for x in (ocf_meta.get("endpoint"),capex_meta.get("endpoint")) if x],"standard":ATLAS_STANDARD_FCF,"canonical_authority":"ATLAS_STANDARD_FCF"}
+    if not reconciliation_pass:warnings.append("FCF_CANONICAL_RECONCILIATION_FAILURE")
     period_issues=[]
     for model in models:
         if model.get("status")=="PUBLISHED" and model.get("methodology_id")=="VAL_FORWARD_PE_V1":
@@ -132,13 +136,13 @@ def validate_valuation(row:Mapping[str,Any])->dict[str,Any]:
     # A fully reconciled but widely dispersed set of valid models is legitimate
     # high uncertainty, not an unresolved data defect. Dispersion never changes
     # model values or weights and remains visible in the explanation object.
-    hard_review=any(code in warnings for code in ("INPUT_SOURCE_DIVERGENCE","MARKET_CAP_BRIDGE_FAILURE","EV_BRIDGE_FAILURE","FCF_RECONCILIATION_FAILURE","PERIOD_MISMATCH","SECTOR_MODEL_APPLICABILITY_WARNING"))
+    hard_review=any(code in warnings for code in ("INPUT_SOURCE_DIVERGENCE","MARKET_CAP_BRIDGE_FAILURE","EV_BRIDGE_FAILURE","FCF_CANONICAL_RECONCILIATION_FAILURE","PERIOD_MISMATCH","SECTOR_MODEL_APPLICABILITY_WARNING"))
     state=REVIEW_REQUIRED if hard_review else CERTIFIED_HIGH_UNCERTAINTY if high_uncertainty else CERTIFIED
     return {"version":VERSION,"ticker":ticker,"company_type":valuation.get("company_type"),"validated_company_domain":domain,"certification_state":state,"customer_publication_allowed":state in {CERTIFIED,CERTIFIED_HIGH_UNCERTAINTY},"base_fair_value":valuation.get("atlas_base_fair_value"),"model_values":{m.get("methodology_id"):m.get("value") for m in models if m.get("status")=="PUBLISHED"},"model_weights":dict(valuation.get("model_weights") or {}),"input_lineage":inputs,"checks":checks,"model_applicability":applicability,"warnings":list(dict.fromkeys(warnings)),"primary_warning":next(iter(warnings),None),"valuation_as_of":valuation.get("valuation_as_of")}
 
 def validation_health(rows:Sequence[Mapping[str,Any]])->dict[str,Any]:
     records=[validate_valuation(row) for row in rows];counts=Counter(r["certification_state"] for r in records)
     def warning(code):return sum(code in r.get("warnings",()) for r in records)
-    return {"version":VERSION,"published_audited":sum(r["certification_state"] not in {INSUFFICIENT_INPUTS,NOT_APPLICABLE} for r in records),"certification_distribution":dict(counts),"input_source_divergence_count":warning("INPUT_SOURCE_DIVERGENCE"),"period_mismatch_count":warning("PERIOD_MISMATCH"),"market_cap_bridge_failure_count":warning("MARKET_CAP_BRIDGE_FAILURE"),"ev_bridge_failure_count":warning("EV_BRIDGE_FAILURE"),"fcf_reconciliation_failure_count":warning("FCF_RECONCILIATION_FAILURE"),"sector_model_applicability_warning_count":warning("SECTOR_MODEL_APPLICABILITY_WARNING"),"extreme_model_dispersion_count":sum(bool((r.get("checks") or {}).get("dispersion",{}).get("over_5x")) for r in records),"records":records}
+    return {"version":VERSION,"published_audited":sum(r["certification_state"] not in {INSUFFICIENT_INPUTS,NOT_APPLICABLE} for r in records),"certification_distribution":dict(counts),"input_source_divergence_count":warning("INPUT_SOURCE_DIVERGENCE"),"period_mismatch_count":warning("PERIOD_MISMATCH"),"market_cap_bridge_failure_count":warning("MARKET_CAP_BRIDGE_FAILURE"),"ev_bridge_failure_count":warning("EV_BRIDGE_FAILURE"),"fcf_reconciliation_failure_count":warning("FCF_CANONICAL_RECONCILIATION_FAILURE"),"sector_model_applicability_warning_count":warning("SECTOR_MODEL_APPLICABILITY_WARNING"),"extreme_model_dispersion_count":sum(bool((r.get("checks") or {}).get("dispersion",{}).get("over_5x")) for r in records),"records":records}
 
-__all__=["CERTIFIED","CERTIFIED_HIGH_UNCERTAINTY","INSUFFICIENT_INPUTS","NOT_APPLICABLE","REVIEW_REQUIRED","TOLERANCES","VERSION","validate_valuation","validation_health"]
+__all__=["ATLAS_STANDARD_FCF","CERTIFIED","CERTIFIED_HIGH_UNCERTAINTY","INSUFFICIENT_INPUTS","NOT_APPLICABLE","REVIEW_REQUIRED","TOLERANCES","VERSION","validate_valuation","validation_health"]

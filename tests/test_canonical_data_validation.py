@@ -11,6 +11,12 @@ def _row(**overrides):
         "operating_cash_flow": 120.0, "capital_expenditures": -20.0, "free_cash_flow": 100.0,
         "cash_and_equivalents": 50.0, "total_debt": 150.0, "current_shares_outstanding": 10.0, "diluted_shares": 10.0,
         "market_cap": 1_000.0, "forward_ebitda": 100.0, "description": "Industrial products company",
+        "provider_defined_fcf": 95.0,
+        "professional_evidence_lineage": {"provider": "TWELVE_DATA", "observed_at": "2026-09-05T20:00:00Z", "fields": {
+            "operating_cash_flow": {"period": "TTM", "period_type": "TTM", "basis": "PROVIDER_REPORTED", "currency": "USD", "unit": "CURRENCY", "as_of": "2026-09-05T20:00:00Z"},
+            "capital_expenditures": {"period": "TTM", "period_type": "TTM", "basis": "PROVIDER_REPORTED", "currency": "USD", "unit": "CURRENCY", "as_of": "2026-09-05T20:00:00Z"},
+            "free_cash_flow": {"period": "TTM", "period_type": "TTM", "currency": "USD", "unit": "CURRENCY", "as_of": "2026-09-05T20:00:00Z", "basis": "OCF_MINUS_ABS_CAPEX", "normalized_value": 100.0},
+        }},
     }
     models = [
         {"methodology_id": "VAL_FORWARD_PE_V1", "status": "PUBLISHED", "value": 100.0,
@@ -62,14 +68,52 @@ def test_period_mismatch_and_market_cap_bridge_fail_closed():
 def test_provider_defined_fcf_is_preserved_while_standard_fcf_is_authoritative():
     row = _row()
     trial = row["canonical_investment_evaluation"]["trial_presentation_fields"]
-    trial["free_cash_flow"] = 50
+    trial["provider_defined_fcf"] = 50
     row["canonical_investment_evaluation"]["atlas_valuation"]["professional_valuation_v2"]["models"][1]["value"] = 150
     result = validate_valuation(row)
     assert result["checks"]["fcf_reconciliation"]["provider_defined_fcf"] == 50
     assert result["checks"]["fcf_reconciliation"]["atlas_standard_fcf"] == 100
     assert result["checks"]["fcf_reconciliation"]["canonical_authority"] == "ATLAS_STANDARD_FCF"
-    assert result["checks"]["fcf_reconciliation"]["difference_classification"] == "VALID_PROVIDER_DEFINITION_DIFFERENCE"
+    assert result["checks"]["fcf_reconciliation"]["difference_classification"] == "MATCHED"
+    assert result["input_lineage"]["free_cash_flow"]["value"] == 100
+    assert result["input_lineage"]["free_cash_flow"]["normalized_value"] == 100
     assert "EV_BRIDGE_FAILURE" in result["warnings"]
+
+
+def test_ovv_provider_defined_fcf_cannot_override_atlas_standard_fcf():
+    row = _row(ticker="OVV")
+    trial = row["canonical_investment_evaluation"]["trial_presentation_fields"]
+    trial.update({"operating_cash_flow": 3_652_000_000, "capital_expenditures": -2_147_000_000,
+                  "normalized_fcf": 1_505_000_000, "free_cash_flow": 1_230_500_000,
+                  "provider_defined_fcf": 1_230_500_000})
+    result = validate_valuation(row)
+    check = result["checks"]["fcf_reconciliation"]
+    assert check["status"] == "PASS"
+    assert check["atlas_standard_fcf"] == 1_505_000_000
+    assert check["canonical_published_fcf"] == 1_505_000_000
+    assert check["provider_defined_fcf"] == 1_230_500_000
+
+
+def test_stale_free_cash_flow_value_fails_closed_when_no_normalized_value_exists():
+    row = _row()
+    trial = row["canonical_investment_evaluation"]["trial_presentation_fields"]
+    trial.pop("normalized_fcf", None)
+    trial["free_cash_flow"] = 75
+    trial["professional_evidence_lineage"]["fields"]["free_cash_flow"]["normalized_value"] = 75
+    result = validate_valuation(row)
+    assert result["checks"]["fcf_reconciliation"]["status"] == "FAIL"
+    assert "FCF_CANONICAL_RECONCILIATION_FAILURE" in result["warnings"]
+    assert result["customer_publication_allowed"] is False
+
+
+def test_fcf_period_or_currency_mismatch_fails_closed():
+    for field, value in (("period", "FY2025"), ("currency", "CAD")):
+        row = _row()
+        trial = row["canonical_investment_evaluation"]["trial_presentation_fields"]
+        trial["professional_evidence_lineage"]["fields"]["capital_expenditures"][field] = value
+        result = validate_valuation(row)
+        assert result["checks"]["fcf_reconciliation"]["status"] == "FAIL"
+        assert field in result["checks"]["fcf_reconciliation"]["metadata_mismatches"]
 
 
 def test_market_cap_bridge_uses_governed_adr_economic_share_basis_not_diluted_eps_shares():

@@ -110,7 +110,11 @@ def test_cash_flow_statement_capex_variant_creates_canonical_fcf_without_backsol
     row = normalize_trial_dossier({"ticker": "FCF"}, dossier)
     assert row["capital_expenditures"] == -30 and row["free_cash_flow"] == 120
     assert row["provider_defined_fcf"] == 999
-    assert row["professional_evidence_lineage"]["fields"]["free_cash_flow"]["transformation"] == "OCF_MINUS_ABS_CAPEX"
+    fields = row["professional_evidence_lineage"]["fields"]
+    assert fields["free_cash_flow"]["transformation"] == "OCF_MINUS_ABS_CAPEX"
+    assert fields["free_cash_flow"]["canonical_value"] == 120
+    assert fields["operating_cash_flow"]["period"] == fields["capital_expenditures"]["period"] == "2025-12-31"
+    assert fields["operating_cash_flow"]["as_of"] == fields["capital_expenditures"]["as_of"] == "2026-09-08T00:00:00Z"
 
 
 def test_cash_flow_mixed_period_evidence_does_not_publish_canonical_fcf():
