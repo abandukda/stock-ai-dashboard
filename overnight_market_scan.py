@@ -4227,6 +4227,11 @@ def build_governed_market_acquisition_diagnostics(*, generated_at: str | None = 
     investable_success = sum(row["ticker"] in stock_symbols and row["acquisition_status"] in success_states for row in records)
     raw_count = int(universe_summary.get("raw_universe_count") or len(records))
     exclusion_counts = dict(universe_summary.get("exclusion_reason_counts") or {})
+    pre_acquisition_exclusions = list(_GOVERNED_UNIVERSE_RESULT.get("exclusions") or [])
+    exchange_identity_exclusions = [
+        item for item in pre_acquisition_exclusions
+        if isinstance(item, Mapping) and item.get("reason") == "UNRESOLVED_EXCHANGE_IDENTITY"
+    ]
     failure_reason_counts: Dict[str, int] = {}
     security_type_counts: Dict[str, int] = {}
     for row in records:
@@ -4262,10 +4267,17 @@ def build_governed_market_acquisition_diagnostics(*, generated_at: str | None = 
             "exclusion_reason_counts": exclusion_counts,
             "provider_failure_reason_counts": failure_reason_counts,
             "attempted_security_type_counts": security_type_counts,
+            "exchange_identity_exclusion_count": len(exchange_identity_exclusions),
+            "instrument_classification_exclusion_count": sum(
+                count for reason, count in exclusion_counts.items()
+                if reason not in {"UNRESOLVED_EXCHANGE_IDENTITY", "NON_US_EXCHANGE_OUTSIDE_STOCK_POLICY"}
+            ),
+            "twelve_acquisition_failure_count": len(failure_symbols),
         },
         "market_history_success_symbols": success_symbols,
         "market_history_failure_symbols": failure_symbols,
-        "pre_acquisition_exclusions": list(_GOVERNED_UNIVERSE_RESULT.get("exclusions") or []),
+        "pre_acquisition_exclusions": pre_acquisition_exclusions,
+        "exchange_identity_exclusions": exchange_identity_exclusions,
         "records": records,
     }
 
