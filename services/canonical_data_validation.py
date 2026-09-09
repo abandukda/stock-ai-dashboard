@@ -8,6 +8,7 @@ import math
 from collections import Counter
 from typing import Any,Mapping,Sequence
 from engines.professional_valuation_v2 import classify_company
+from services.valuation_evidence_strength import classify_valuation_evidence
 
 VERSION="ATLAS_CANONICAL_DATA_VALIDATION_V1"
 ATLAS_STANDARD_FCF="ATLAS_STANDARD_FCF = OCF - abs(Capex)"
@@ -138,7 +139,9 @@ def validate_valuation(row:Mapping[str,Any])->dict[str,Any]:
     # model values or weights and remains visible in the explanation object.
     hard_review=any(code in warnings for code in ("INPUT_SOURCE_DIVERGENCE","MARKET_CAP_BRIDGE_FAILURE","EV_BRIDGE_FAILURE","FCF_CANONICAL_RECONCILIATION_FAILURE","PERIOD_MISMATCH","SECTOR_MODEL_APPLICABILITY_WARNING"))
     state=REVIEW_REQUIRED if hard_review else CERTIFIED_HIGH_UNCERTAINTY if high_uncertainty else CERTIFIED
-    return {"version":VERSION,"ticker":ticker,"company_type":valuation.get("company_type"),"validated_company_domain":domain,"certification_state":state,"customer_publication_allowed":state in {CERTIFIED,CERTIFIED_HIGH_UNCERTAINTY},"base_fair_value":valuation.get("atlas_base_fair_value"),"model_values":{m.get("methodology_id"):m.get("value") for m in models if m.get("status")=="PUBLISHED"},"model_weights":dict(valuation.get("model_weights") or {}),"input_lineage":inputs,"checks":checks,"model_applicability":applicability,"warnings":list(dict.fromkeys(warnings)),"primary_warning":next(iter(warnings),None),"valuation_as_of":valuation.get("valuation_as_of")}
+    result={"version":VERSION,"ticker":ticker,"company_type":valuation.get("company_type"),"validated_company_domain":domain,"certification_state":state,"customer_publication_allowed":state in {CERTIFIED,CERTIFIED_HIGH_UNCERTAINTY},"base_fair_value":valuation.get("atlas_base_fair_value"),"model_values":{m.get("methodology_id"):m.get("value") for m in models if m.get("status")=="PUBLISHED"},"model_weights":dict(valuation.get("model_weights") or {}),"input_lineage":inputs,"checks":checks,"model_applicability":applicability,"warnings":list(dict.fromkeys(warnings)),"primary_warning":next(iter(warnings),None),"valuation_as_of":valuation.get("valuation_as_of")}
+    result["valuation_evidence_strength"]=classify_valuation_evidence(valuation,result)
+    return result
 
 def validation_health(rows:Sequence[Mapping[str,Any]])->dict[str,Any]:
     records=[validate_valuation(row) for row in rows];counts=Counter(r["certification_state"] for r in records)

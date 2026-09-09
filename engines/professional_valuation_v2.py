@@ -72,7 +72,8 @@ def _forward_pe(row: Mapping[str, Any], company_type: str) -> dict[str, Any]:
         return _model("VAL_FORWARD_PE_V1", status=INSUFFICIENT_INPUTS, reason="EPS_PERIOD_OR_JUSTIFIED_MULTIPLE_EVIDENCE_MISSING")
     if multiple > 100: return _model("VAL_FORWARD_PE_V1", status=INSUFFICIENT_INPUTS, reason="UNSUPPORTED_EXTREME_MULTIPLE")
     return _model("VAL_FORWARD_PE_V1", status=PUBLISHED, value=eps*multiple, confidence=80, coverage=1,
-                  fiscal_period=str(period), assumptions={"forward_eps": eps, "justified_forward_pe": multiple, "multiple_basis": basis})
+                  fiscal_period=str(period), assumptions={"forward_eps": eps, "justified_forward_pe": multiple, "multiple_basis": basis,
+                  "peer_evidence":row.get("justified_forward_pe_peer_evidence")})
 
 
 def _dcf(row: Mapping[str, Any], company_type: str) -> dict[str, Any]:
@@ -105,7 +106,8 @@ def _ev_ebitda(row: Mapping[str, Any], company_type: str) -> dict[str, Any]:
     if value <= 0: return _model("VAL_EV_EBITDA_V1", status=VALIDATION_FAILED, reason="NONPOSITIVE_EQUITY_VALUE")
     return _model("VAL_EV_EBITDA_V1", status=PUBLISHED, value=value, confidence=75, coverage=1,
                   assumptions={"forward_ebitda":ebitda,"multiple":multiple,"multiple_basis":basis,
-                               "net_debt":debt-cash,"diluted_shares":shares})
+                               "net_debt":debt-cash,"diluted_shares":shares,
+                               "peer_evidence":row.get("justified_ev_ebitda_peer_evidence")})
 
 
 def _p_fcf(row: Mapping[str, Any], company_type: str) -> dict[str, Any]:
@@ -115,7 +117,8 @@ def _p_fcf(row: Mapping[str, Any], company_type: str) -> dict[str, Any]:
     if None in (fcf,multiple,shares) or not basis or fcf <= 0 or multiple <= 0 or shares <= 0:
         return _model("VAL_P_FCF_V1", status=INSUFFICIENT_INPUTS, reason="NORMALIZED_FCF_MULTIPLE_OR_SHARES_MISSING")
     return _model("VAL_P_FCF_V1", status=PUBLISHED, value=fcf*multiple/shares, confidence=70, coverage=1,
-                  assumptions={"normalized_fcf":fcf,"multiple":multiple,"multiple_basis":basis,"diluted_shares":shares})
+                  assumptions={"normalized_fcf":fcf,"multiple":multiple,"multiple_basis":basis,"diluted_shares":shares,
+                               "peer_evidence":row.get("justified_p_fcf_peer_evidence")})
 
 
 def _ddm(row: Mapping[str, Any], company_type: str) -> dict[str, Any]:
@@ -171,13 +174,13 @@ def _dcf_sensitivity(row: Mapping[str, Any]) -> list[dict[str, Any]]:
 
 def _valuation_diagnostics(
     row: Mapping[str, Any], valid: list[dict[str, Any]], *, base: float,
-    low: float, high: float, bear: float | None, bull: float | None,
+    low: float | None, high: float | None, bear: float | None, bull: float | None,
     sensitivity: list[dict[str, Any]], confidence: float,
 ) -> tuple[float, dict[str, Any], dict[str, Any]]:
     """Return deterministic risk diagnostics, calibrated confidence, and client explanation."""
     values = [float(model["value"]) for model in valid]
     dispersion = ((max(values) - min(values)) / base * 100) if base > 0 and len(values) > 1 else 0.0
-    range_width = ((high - low) / base * 100) if base > 0 else 0.0
+    range_width = ((high - low) / base * 100) if base > 0 and low is not None and high is not None else None
     sensitivity_values = [float(cell["fair_value"]) for cell in sensitivity if _number(cell.get("fair_value")) is not None]
     sensitivity_width = ((max(sensitivity_values) - min(sensitivity_values)) / base * 100) if base > 0 and sensitivity_values else None
     terminal_shares = [
@@ -188,7 +191,7 @@ def _valuation_diagnostics(
     terminal_share = max(terminal_shares) if terminal_shares else None
     flags: list[str] = []
     if dispersion >= 50: flags.append("MODEL_DISPERSION_HIGH")
-    if range_width >= 75: flags.append("FAIR_VALUE_RANGE_WIDE")
+    if range_width is not None and range_width >= 75: flags.append("FAIR_VALUE_RANGE_WIDE")
     if terminal_share is not None and terminal_share >= .85: flags.append("TERMINAL_VALUE_DEPENDENCE_HIGH")
     if bull is not None and bull >= base * 2: flags.append("BULL_CASE_EXTREME")
     if bear is not None and (base - bear) / base >= .35: flags.append("BEAR_BASE_GAP_HIGH")
@@ -244,6 +247,8 @@ def _valuation_diagnostics(
         if "TERMINAL_VALUE_DEPENDENCE_HIGH" in flags else
         "Independent valuation methods produce materially different estimates."
         if "MODEL_DISPERSION_HIGH" in flags else
+        "No independent second valuation method is available for cross-checking."
+        if len(valid) == 1 else
         "The published methods are reasonably aligned, but forecast and market-multiple assumptions can still change."
     )
     explanation = {
@@ -256,7 +261,7 @@ def _valuation_diagnostics(
     }
     diagnostics = {
         "flags": flags, "model_dispersion_pct": round(dispersion, 1),
-        "fair_value_range_width_pct": round(range_width, 1),
+        "fair_value_range_width_pct": round(range_width, 1) if range_width is not None else None,
         "terminal_value_pct_of_ev": round(terminal_share * 100, 1) if terminal_share is not None else None,
         "sensitivity_width_pct": round(sensitivity_width, 1) if sensitivity_width is not None else None,
         "street_target_context": street,
@@ -283,7 +288,7 @@ def value_company(row: Mapping[str, Any], *, as_of: str | None = None, _scenario
             model["weight"] = round(raw_weight/total,4)
             model["weighting_justification"] = f"Deterministic {company_type} model preference adjusted by input confidence"
         base = sum(model["value"]*model["weight"] for model in valid)
-        low, high = min(model["value"] for model in valid), max(model["value"] for model in valid)
+        low, high = (min(model["value"] for model in valid), max(model["value"] for model in valid)) if len(valid)>1 else (None,None)
         # Scenarios alter model inputs upstream. Until scenario inputs exist,
         # bear/bull are deliberately unavailable rather than ±% decorations.
         confidence = sum(model["confidence"]*model["weight"] for model in valid)
@@ -313,8 +318,10 @@ def value_company(row: Mapping[str, Any], *, as_of: str | None = None, _scenario
             row, valid, base=base, low=low, high=high, bear=bear, bull=bull,
             sensitivity=sensitivity, confidence=confidence,
         )
+        explanation["unavailable_methods"]=[{"methodology_id":model.get("methodology_id"),"status":model.get("status"),"reason":model.get("reason")} for model in models if model.get("status")!=PUBLISHED]
+        explanation["primary_method_weight"] = max(valid,key=lambda model:float(model.get("weight") or 0)).get("weight")
     blockers = tuple(dict.fromkeys(model.get("reason") for model in models if model.get("status") in {INSUFFICIENT_INPUTS, VALIDATION_FAILED} and model.get("reason")))
-    return {"version":VERSION,"status":status,"company_type":company_type,
+    result={"version":VERSION,"status":status,"company_type":company_type,
             "atlas_base_fair_value":round(base,2) if base else None,"atlas_fair_value_low":round(low,2) if low else None,
             "atlas_fair_value_high":round(high,2) if high else None,"atlas_bear_case":bear,"atlas_bull_case":bull,
             "atlas_expected_return":round((base/price-1)*100,1) if base and price and price>0 else None,
@@ -329,6 +336,9 @@ def value_company(row: Mapping[str, Any], *, as_of: str | None = None, _scenario
             "valuation_explanation": explanation,
             "scenario_status":"PUBLISHED" if bear is not None and bull is not None else "INSUFFICIENT_ECONOMIC_SCENARIO_INPUTS" if valid else "NOT_AVAILABLE",
             "sensitivity": sensitivity}
+    from services.valuation_evidence_strength import classify_valuation_evidence
+    result["valuation_evidence_strength"]=classify_valuation_evidence(result)
+    return result
 
 
 __all__ = ["INSUFFICIENT_INPUTS", "NOT_APPLICABLE", "PUBLISHED", "VERSION", "classify_company", "value_company"]

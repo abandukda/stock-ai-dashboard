@@ -122,8 +122,12 @@ def test_professional_diagnostics_flag_dispersion_and_calibrate_confidence_witho
 
 def test_single_method_is_disclosed_and_cannot_have_high_confidence():
     result = value_company(professional_row())
+    assert result["status"] == PUBLISHED
     assert "MODEL_CONCENTRATION_SINGLE_METHOD" in result["valuation_diagnostics"]["flags"]
     assert result["valuation_confidence"] <= 55
+    assert result["atlas_fair_value_low"] is None and result["atlas_fair_value_high"] is None
+    assert "No independent second valuation method" in result["valuation_explanation"]["biggest_valuation_uncertainty"]
+    assert "methods are reasonably aligned" not in result["valuation_explanation"]["biggest_valuation_uncertainty"]
 
 
 def test_ddm_routes_only_when_complete_and_never_uses_street_target():

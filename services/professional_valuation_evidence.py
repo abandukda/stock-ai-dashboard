@@ -120,19 +120,64 @@ def enrich_professional_inputs(row: Mapping[str, Any]) -> dict[str, Any]:
 def apply_peer_multiple_evidence(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
     prepared=[enrich_professional_inputs(row) for row in rows]
     for row in prepared:
-        peers=[p for p in prepared if p is not row and p.get("industry") and str(p.get("industry")).lower()==str(row.get("industry") or "").lower()]
-        if len(peers)<3: peers=[p for p in prepared if p is not row and p.get("sector") and str(p.get("sector")).lower()==str(row.get("sector") or "").lower()]
-        pe=sorted(v for p in peers if (v:=_num(p.get("provider_forward_pe"))) is not None and 0<v<100)
-        ev=sorted(v for p in peers if (v:=_num(p.get("provider_ev_ebitda"))) is not None and 0<v<100)
-        pfcf=sorted(v for p in peers if (v:=_num(p.get("provider_p_fcf"))) is not None and 0<v<100)
+        industry_peers=[p for p in prepared if p is not row and p.get("industry") and str(p.get("industry")).lower()==str(row.get("industry") or "").lower()]
+        used_sector_fallback=len(industry_peers)<3
+        peers=industry_peers if not used_sector_fallback else [p for p in prepared if p is not row and p.get("sector") and str(p.get("sector")).lower()==str(row.get("sector") or "").lower()]
+        selection_rule="same sector fallback" if used_sector_fallback else "same industry"
+        subject_cap=_num(row.get("market_cap"))
+
+        def peer_record(peer: Mapping[str, Any], metric: str, value: float | None, included: bool, reason: str) -> dict[str, Any]:
+            peer_cap=_num(peer.get("market_cap")); scale_ratio=max(subject_cap,peer_cap)/min(subject_cap,peer_cap) if subject_cap and peer_cap and min(subject_cap,peer_cap)>0 else None
+            peer_debt=_num(peer.get("total_debt")); peer_cash=_num(peer.get("cash_and_equivalents"))
+            peer_ev=peer_cap+peer_debt-peer_cash if None not in (peer_cap,peer_debt,peer_cash) else None
+            lineage=(peer.get("professional_evidence_lineage") or {}).get("fields") or {}
+            return {
+                "subject_ticker":str(row.get("ticker") or row.get("symbol") or ""),
+                "peer_ticker":str(peer.get("ticker") or peer.get("Ticker") or peer.get("symbol") or ""),
+                "peer_company_name":peer.get("company") or peer.get("company_name") or peer.get("name"),
+                "peer_sector":peer.get("sector"),"peer_industry":peer.get("industry"),
+                "peer_security_type":peer.get("security_type"),"peer_market_cap":peer_cap,
+                "peer_enterprise_value":peer_ev,"peer_enterprise_value_basis":"MARKET_CAP_PLUS_DEBT_MINUS_CASH",
+                "peer_ebitda":_num(peer.get("forward_ebitda")),
+                "peer_ev_ebitda":_num(peer.get("provider_ev_ebitda")),
+                "multiple":value,"multiple_metric":metric,"basis":"TTM" if metric!="FORWARD_PE" else "FORWARD",
+                "as_of":peer.get("professional_evidence_as_of"),"provider":"TWELVE_DATA",
+                "evidence_ids":list((peer.get("professional_evidence_lineage") or {}).get("evidence_ids") or ()),
+                "inclusion_reason":f"{selection_rule}; valid positive {metric}" if included else None,
+                "exclusion_reason":None if included else reason,
+                "comparability_flags":[flag for flag,condition in (("SECTOR_FALLBACK",used_sector_fallback),("SCALE_GAP_OVER_10X",bool(scale_ratio and scale_ratio>10)),("SECURITY_TYPE_MISMATCH",bool(row.get("security_type") and peer.get("security_type") and row.get("security_type")!=peer.get("security_type")))) if condition],
+                "source_lineage":dict(lineage.get({"FORWARD_PE":"provider_forward_pe","EV_EBITDA":"provider_ev_ebitda","P_FCF":"provider_p_fcf"}[metric]) or {}),
+            }
+
+        metric_specs=(
+            ("FORWARD_PE","provider_forward_pe","justified_forward_pe","median current forward P/E of deterministic peers"),
+            ("EV_EBITDA","provider_ev_ebitda","justified_ev_ebitda","median current EV/EBITDA of deterministic peers"),
+            ("P_FCF","provider_p_fcf","justified_p_fcf","median current P/FCF of deterministic peers"),
+        )
+        evidence={}
+        for metric,source_field,target_field,basis in metric_specs:
+            records=[]
+            for peer in peers:
+                value=_num(peer.get(source_field)); included=value is not None and 0<value<100
+                reason="MULTIPLE_MISSING" if value is None else "MULTIPLE_NONPOSITIVE" if value<=0 else "MULTIPLE_OUTSIDE_GOVERNED_RANGE"
+                records.append(peer_record(peer,metric,value,True,reason) if included else {
+                    "subject_ticker":str(row.get("ticker") or row.get("symbol") or ""),
+                    "peer_ticker":str(peer.get("ticker") or peer.get("Ticker") or peer.get("symbol") or ""),
+                    "peer_company_name":peer.get("company") or peer.get("company_name") or peer.get("name"),
+                    "multiple_metric":metric,"exclusion_reason":reason,
+                })
+            included_records=[record for record in records if record.get("inclusion_reason")]
+            values=sorted(float(record["multiple"]) for record in included_records)
+            median=statistics.median(values) if len(values)>=3 else None
+            evidence[metric]={"subject_ticker":str(row.get("ticker") or row.get("symbol") or ""),"selection_rule":selection_rule,
+                "included_peers":included_records,"excluded_peers":[record for record in records if record["exclusion_reason"]],
+                "final_peer_set":[record["peer_ticker"] for record in included_records],"published_median":median,
+                "median_calculation":{"ordered_values":values,"function":"statistics.median"},"minimum_peer_count":3,
+                "as_of":row.get("professional_evidence_as_of"),"provider":"TWELVE_DATA"}
+            if median is not None:
+                row.update({target_field:median,f"{target_field}_basis":basis,f"{target_field}_range":[values[0],values[-1]],f"{target_field}_peer_evidence":evidence[metric]})
         peer_ids=[str(p.get("ticker") or p.get("Ticker") or p.get("symbol")) for p in peers]
-        row["deterministic_peer_set"]={"peers":peer_ids,"rule":"same industry; same sector fallback; current universe; valid positive comparable multiple","as_of":row.get("professional_evidence_as_of")}
-        if len(pe)>=3:
-            row.update({"justified_forward_pe":statistics.median(pe),"justified_forward_pe_basis":"median current forward P/E of deterministic peers","justified_forward_pe_range":[pe[0],pe[-1]]})
-        if len(ev)>=3:
-            row.update({"justified_ev_ebitda":statistics.median(ev),"justified_ev_ebitda_basis":"median current EV/EBITDA of deterministic peers","justified_ev_ebitda_range":[ev[0],ev[-1]]})
-        if len(pfcf)>=3:
-            row.update({"justified_p_fcf":statistics.median(pfcf),"justified_p_fcf_basis":"median current P/FCF of deterministic peers","justified_p_fcf_range":[pfcf[0],pfcf[-1]]})
+        row["deterministic_peer_set"]={"peers":peer_ids,"rule":f"{selection_rule}; current universe; valid positive comparable multiple","as_of":row.get("professional_evidence_as_of"),"multiple_evidence":evidence}
     return prepared
 
 __all__=["VERSION","apply_peer_multiple_evidence","build_operating_forecast","enrich_professional_inputs","load_market_assumptions"]

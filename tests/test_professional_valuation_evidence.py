@@ -1,4 +1,5 @@
 import pytest
+import statistics
 
 from services.professional_valuation_evidence import (
     apply_peer_multiple_evidence, build_operating_forecast, enrich_professional_inputs,
@@ -18,7 +19,10 @@ def row(ticker="AAA", industry="Software", pe=20):
             "forward_estimate_evidence":{"revenue":{"avg_estimate":1200,"low_estimate":1100,"high_estimate":1350,"sales_growth":.2}},
             "twelve_trial_dossier":dossier(),"total_debt":200,"cash_and_equivalents":100,
             "market_cap":2000,"diluted_shares":100,"beta":1.1,"provider_forward_pe":pe,
-            "provider_ev_ebitda":12,"forward_ebitda":250,"forward_eps":5,"forward_eps_period":"2027-12-31"}
+            "provider_ev_ebitda":12,
+            "professional_evidence_as_of":"2026-09-09T00:00:00Z",
+            "professional_evidence_lineage":{"evidence_ids":[f"TD-{ticker}"]},
+            "forward_ebitda":250,"forward_eps":5,"forward_eps_period":"2027-12-31"}
 
 
 def test_fcff_forecast_is_reproducible_and_exposes_historical_ratio_lineage():
@@ -46,3 +50,6 @@ def test_peer_set_requires_three_comparables_and_is_deterministic():
     assert a["justified_forward_pe"]==30
     assert a["deterministic_peer_set"]["peers"]==["B","C","D"]
     assert "Street" not in a["justified_forward_pe_basis"]
+    ev=a["justified_ev_ebitda_peer_evidence"]
+    assert ev["published_median"]==statistics.median(item["peer_ev_ebitda"] for item in ev["included_peers"])
+    assert all(item["peer_enterprise_value"]==2100 and item["peer_ebitda"]==250 for item in ev["included_peers"])

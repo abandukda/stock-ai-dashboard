@@ -312,6 +312,8 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
         "current_shares_outstanding": (("statistics", "statistics.stock_statistics.shares_outstanding", stock_stats.get("shares_outstanding")),),
         "forward_ebitda": (("statistics", "statistics.financials.income_statement.ebitda", _nested(financials,"income_statement","ebitda")), ("statistics", "statistics.financials.ebitda_ttm", financials.get("ebitda_ttm")), ("income_statement", "income_statement[0].ebitda", income.get("ebitda"))),
         "ebit": (("income_statement", "income_statement[0].ebit", income.get("ebit")), ("income_statement", "income_statement[0].operating_income", income.get("operating_income"))),
+        "provider_ev_ebitda": (("statistics", "statistics.valuations_metrics.enterprise_to_ebitda", valuation_stats.get("enterprise_to_ebitda")),),
+        "provider_forward_pe": (("statistics", "statistics.valuations_metrics.forward_pe", valuation_stats.get("forward_pe")),),
     }
     field_lineage = {}
     for canonical_field, candidates in raw_candidates.items():
