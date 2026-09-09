@@ -47,6 +47,9 @@ def revalidate_buy_now(evaluation: Mapping[str, Any]) -> dict[str, Any]:
         blockers.append("TRADE_PLAN_NOT_REVALIDATED")
     if professional.get("status") != "PUBLISHED" or validation.get("customer_publication_allowed") is not True:
         blockers.append("VALUATION_NOT_REVALIDATED")
+    strength = dict(validation.get("valuation_evidence_strength") or professional.get("valuation_evidence_strength") or {})
+    if strength.get("strong_action_eligible") is not True:
+        blockers.append("BUY_NOW_VALUATION_EVIDENCE_INSUFFICIENT")
     if any(_number(evaluation.get(key)) is None for key in ("opportunity", "decision_confidence", "component_coverage")):
         blockers.append("DECISION_METRICS_NOT_REVALIDATED")
     explanation = dict(professional.get("valuation_explanation") or {})
@@ -86,6 +89,7 @@ def revalidate_buy_now(evaluation: Mapping[str, Any]) -> dict[str, Any]:
         "street_divergence_pct": round(divergence, 2) if divergence is not None else None,
         "street_divergence_review": divergence_level,
         "economic_explanation": explanation,
+        "valuation_evidence_strength": strength,
         "invalidation_thesis": {"stop_loss": trade.get("stop_loss"), "primary_risk": risk.get("primary_risk")},
     }
 

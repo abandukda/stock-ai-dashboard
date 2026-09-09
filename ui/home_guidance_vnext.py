@@ -247,6 +247,7 @@ def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
         ("Scenario Range", f'{_money(professional.get("atlas_bear_case"))}–{_money(professional.get("atlas_bull_case"))}' if customer_value_allowed and professional.get("atlas_bear_case") is not None and professional.get("atlas_bull_case") is not None else None, "text"),
         ("Expected Return", card.get("atlas_expected_return") if customer_value_allowed else None, "pct"),
         ("Valuation Confidence", professional.get("valuation_confidence"), "pct"),
+        ("Evidence Strength", (validation.get("valuation_evidence_strength") or professional.get("valuation_evidence_strength") or {}).get("classification"), "text"),
         ("Valuation Review", validation_copy, "text"),
         ("Publication Status", "Published" if str(card.get("atlas_valuation_status")).upper() == "PUBLISHED" else "Not Published", "text"),
         ("Methodology", professional.get("valuation_methodology_version") or canonical_valuation.get("methodology_version"), "text"),
@@ -277,12 +278,12 @@ def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
         elif model.get("status") == "NOT_APPLICABLE":
             value = "Not Applicable"
         else:
-            value = "Not Published"
+            value = f'Not Published · {_display(model.get("reason"))}' if model.get("reason") else "Not Published"
         model_rows.append((label, value, "text"))
     valuation_methods = rows(tuple(model_rows)) if model_rows else '<p class="atlas-home-muted">Professional valuation model detail is not yet published</p>'
     scenarios = rows((("Bear Case", professional.get("atlas_bear_case"), "money"),
                       ("Base Case", professional.get("atlas_base_fair_value"), "money"),
-                      ("Bull Case", professional.get("atlas_bull_case"), "money"))) if customer_value_allowed else '<p class="atlas-home-muted">Scenario values are withheld pending validation review.</p>'
+                      ("Bull Case", professional.get("atlas_bull_case"), "money"))) if customer_value_allowed and professional.get("scenario_status")=="PUBLISHED" else '<p class="atlas-home-muted">Independent bear and bull scenario evidence is not available; ATLAS publishes only the base estimate.</p>' if customer_value_allowed else '<p class="atlas-home-muted">Scenario values are withheld pending validation review.</p>'
     sensitivity_rows = tuple(
         (f'WACC {_score(float(item.get("wacc")) * 100, suffix="%")} · growth {_score(float(item.get("terminal_growth")) * 100, suffix="%")}', item.get("fair_value"), "money")
         for item in (professional.get("sensitivity") or ()) if isinstance(item, Mapping)
@@ -315,6 +316,14 @@ def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
         ("ATLAS vs Street", "atlas_vs_street"),
         ("Scenario Risk", "scenario_risk"),
     )))
+    peer_rows=[]
+    for model in professional.get("models") or ():
+        peer_evidence=dict((model.get("key_assumptions") or {}).get("peer_evidence") or {})
+        for peer in peer_evidence.get("included_peers") or ():
+            if isinstance(peer,Mapping):
+                peer_rows.append((f'{peer.get("peer_ticker")} · {peer.get("peer_company_name")}',
+                                  f'{_score(peer.get("multiple"))}× · {_display(peer.get("basis"))} · {_display(peer.get("provider"))}',"text"))
+    peer_section=rows(tuple(peer_rows)) if peer_rows else '<p class="atlas-home-muted">No independently auditable peer basket is published for the available method.</p>'
     dcf_model = next((model for model in professional.get("models") or () if model.get("methodology_id") == "VAL_FCFF_DCF_V1" and model.get("status") == "PUBLISHED"), {})
     dcf_assumptions = dict(dcf_model.get("key_assumptions") or {})
     discount_rate_evidence = rows((
@@ -442,7 +451,7 @@ def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
         f'<section><h4>Decision Summary</h4>{decision}{rows(pillars)}</section>'
         f'<section><h4>{"Why ATLAS Dislikes It" if state == "AVOID" else "Why ATLAS Likes It"}</h4><ul>{why_html}</ul><p><b>Main Constraint / Risk:</b> {html.escape(_decisive_customer_constraint(card))}</p></section>'
         f'<section><h4>ATLAS Professional Valuation</h4>{valuation}<p>{html.escape(driver_summary)}</p>{explainability}{uncertainty}{discount_rate_evidence}</section>'
-        f'<section><h4>Valuation by Method</h4>{valuation_methods}</section><section><h4>Bear / Base / Bull</h4>{scenarios}</section><section><h4>Sensitivity</h4>{sensitivity}</section>'
+        f'<section><h4>Valuation by Method</h4>{valuation_methods}</section><section><h4>Peer Multiple Evidence</h4>{peer_section}</section><section><h4>Bear / Base / Bull</h4>{scenarios}</section><section><h4>Sensitivity</h4>{sensitivity}</section>'
         f'<section><h4>Wall Street Analyst Outlook</h4>{street_section}</section>'
         f'<section><h4>Forward EPS Estimates</h4>{eps_estimates}</section><section><h4>Forward Revenue Estimates</h4>{revenue_estimates}</section>'
         f'<section><h4>Estimate Revision History</h4>{revision_section}</section>'

@@ -24,7 +24,8 @@ def buy_evaluation():
                                       "biggest_valuation_uncertainty": "Forecast delivery"},
             "valuation_diagnostics": {"street_target_context": 110}, "sensitivity": [{"fair_value": 110}],
         }},
-        "valuation_validation": {"customer_publication_allowed": True, "checks": {}},
+        "valuation_validation": {"customer_publication_allowed": True, "checks": {},
+                                  "valuation_evidence_strength": {"classification":"MULTI_METHOD_CORROBORATED","strong_action_eligible":True}},
     }
 
 
@@ -42,6 +43,31 @@ def test_missing_critical_buy_evidence_remains_pending_without_changing_action()
     assert result["status"] == "BUY_NOW_PENDING_REVALIDATION"
     assert "TECHNICAL_SNAPSHOT_NOT_REVALIDATED" in result["blockers"]
     assert result["canonical_action"] == "BUY_NOW"
+
+
+def test_single_method_limited_support_withholds_buy_now_without_changing_canonical_action():
+    evaluation = buy_evaluation()
+    evaluation["valuation_validation"]["valuation_evidence_strength"] = {
+        "classification":"SINGLE_METHOD_LIMITED_SUPPORT","strong_action_eligible":False,
+        "unmet_requirements":["valuation_confidence_high_support"],
+    }
+    result = revalidate_buy_now(evaluation)
+    assert result["status"] == "BUY_NOW_PENDING_REVALIDATION"
+    assert result["canonical_action"] == "BUY_NOW"
+    assert "BUY_NOW_VALUATION_EVIDENCE_INSUFFICIENT" in result["blockers"]
+
+
+def test_publication_component_carries_single_method_buy_now_blocker():
+    evaluation = buy_evaluation()
+    evaluation["valuation_validation"]["valuation_evidence_strength"] = {
+        "classification":"SINGLE_METHOD_LIMITED_SUPPORT","strong_action_eligible":False,
+    }
+    evaluation["positive_action_revalidation"] = revalidate_buy_now(evaluation)
+    result = certify_record({"ticker":"TEST","price":100,"current_shares_outstanding":10,"market_cap":1000,
+                             "canonical_investment_evaluation":evaluation})
+    component=result["components"]["positive_action_revalidation"]
+    assert "BUY_NOW_VALUATION_EVIDENCE_INSUFFICIENT" in component["blockers"]
+    assert result["customer_publication_allowed"] is False
 
 
 def test_material_street_divergence_requires_scenario_review_not_anchoring():
