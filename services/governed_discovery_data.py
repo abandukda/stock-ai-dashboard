@@ -18,16 +18,20 @@ from services.live_market.twelve_data_phase1 import REST_BASE, load_twelve_data_
 
 
 PROVIDER_POLICY_VERSION = "GOVERNED_DISCOVERY_INPUTS_V3_TWELVE_ONLY"
+MIN_EXCHANGE_RESOLUTION_COVERAGE_PCT = 99.0
+MIN_EXCHANGE_RESOLUTION_POPULATION = 100
 SUPPORTED_US_EXCHANGES = {"NASDAQ", "NYSE", "AMEX", "NYSE AMERICAN", "ARCA", "BATS"}
 OTC_EXCHANGES = {"OTC", "OTCQX", "OTCQB", "OTC PINK", "PINK", "GREY", "GREY MARKET"}
 CLASS_SHARE_ROOTS = {"BRK", "BF", "BH"}
 _US_EXCHANGE_ALIASES = {
-    "NASDAQ": "NASDAQ", "NASDAQ GLOBAL SELECT": "NASDAQ", "NASDAQ GLOBAL MARKET": "NASDAQ",
+    "NASDAQ": "NASDAQ", "NASDAQ GLOBAL SELECT": "NASDAQ", "NASDAQ GLOBAL SELECT MARKET": "NASDAQ",
+    "NASDAQ GLOBAL MARKET": "NASDAQ",
     "NASDAQ CAPITAL MARKET": "NASDAQ", "NASDAQGS": "NASDAQ", "NASDAQGM": "NASDAQ", "NASDAQCM": "NASDAQ",
     "XNAS": "NASDAQ", "NYSE": "NYSE", "NEW YORK STOCK EXCHANGE": "NYSE", "NYQ": "NYSE", "XNYS": "NYSE",
     "NYSE AMERICAN": "NYSE AMERICAN", "NYSE MKT": "NYSE AMERICAN", "AMERICAN STOCK EXCHANGE": "NYSE AMERICAN",
     "AMEX": "AMEX", "XASE": "AMEX", "ARCA": "ARCA", "NYSE ARCA": "ARCA", "ARCX": "ARCA",
-    "BATS": "BATS", "CBOE": "BATS", "CBOE BZX": "BATS", "BZX": "BATS", "BATS GLOBAL MARKETS": "BATS",
+    "BATS": "BATS", "CBOE": "BATS", "CBOE US": "BATS", "CBOE BZX": "BATS",
+    "CBOE BZX EXCHANGE": "BATS", "BZX": "BATS", "BATS GLOBAL MARKETS": "BATS",
 }
 _FOREIGN_EXCHANGE_TOKENS = {
     "HKSE", "HONG KONG", "LSE", "LONDON", "JPX", "TOKYO", "XETRA", "FSX", "FRANKFURT",
@@ -88,7 +92,7 @@ def classify_listing(row: Mapping[str, Any], *, family: str) -> tuple[str, str |
     if row.get("isActivelyTrading") is False:
         return "EXCLUDE", "INACTIVE_LISTING"
     if exchange_identity["exchange_resolution_status"] == "UNRESOLVED" or exchange_identity["exchange_resolution_status"] == "UNMAPPED":
-        return "EXCLUDE", "UNRESOLVED_LISTING_IDENTITY"
+        return "EXCLUDE", "UNRESOLVED_EXCHANGE_IDENTITY"
     if exchange_identity["exchange_resolution_status"] == "RESOLVED_OTC":
         return "EXCLUDE", "OTC_OUTSIDE_STOCK_POLICY"
     if exchange_identity["exchange_resolution_status"] != "RESOLVED_US" or exchange not in SUPPORTED_US_EXCHANGES:
@@ -195,6 +199,8 @@ def load_governed_universe(
     exclusions: list[dict[str, Any]] = []
     mappings: dict[str, dict[str, Any]] = {}
     raw_symbols: set[str] = set()
+    exchange_resolution_population = 0
+    exchange_resolution_success_count = 0
     diagnostics: dict[str, Any] = {
         "provider": "TWELVE_DATA", "endpoint": "stocks",
         "source_strategy": "TWELVE_US_REFERENCE_DIRECTORY_V1",
@@ -252,12 +258,15 @@ def load_governed_universe(
         }
     for row, source_family in [*((item, "stock-reference") for item in response_rows),
                                *((item, "etf-reference") for item in etf_response_rows)]:
+        exchange_resolution_population += 1
         observed_response_fields.update(str(field) for field in row)
         source_symbol = str(row.get("symbol") or "").upper().strip()
         symbol = canonical_security_ticker(source_symbol)
         if symbol:
             raw_symbols.add(symbol)
         exchange_identity = normalize_listing_exchange(row)
+        if str(exchange_identity.get("exchange_resolution_status") or "").startswith("RESOLVED_"):
+            exchange_resolution_success_count += 1
         exchange = exchange_identity.get("normalized_exchange")
         if not symbol or "/" in symbol or len(symbol) > 7:
             exclusions.append({"ticker": source_symbol, "canonical_ticker": symbol or None,
@@ -270,6 +279,11 @@ def load_governed_universe(
                 "source_ticker": source_symbol,
                 "company_name": row.get("name") or row.get("companyName"),
                 "exchange": exchange or None,
+                "raw_exchange_fields": {
+                    field: row.get(field) for field in (
+                        "exchangeShortName", "exchange", "exchangeFullName", "mic_code"
+                    ) if row.get(field) not in (None, "")
+                },
                 **exchange_identity,
                 "country": row.get("country"),
                 "security_type": row.get("type") or row.get("securityType") or ("ETF" if route == "ETF" else "COMMON_STOCK"),
@@ -279,8 +293,7 @@ def load_governed_universe(
                 "listing_source_endpoint": "etfs/list" if source_family == "etf-reference" else "stocks",
                 "listing_source_country_filter": "United States",
         }
-        records.setdefault(symbol, record)
-        mappings[symbol] = {
+        mapping = {
                 **twelve_symbol_route(symbol, exchange=exchange), "source_ticker": source_symbol,
                 **exchange_identity,
                 "listing_source_endpoint": "etfs/list" if source_family == "etf-reference" else "stocks",
@@ -289,8 +302,12 @@ def load_governed_universe(
         if reason:
             exclusions.append({**record, "reason": reason})
         elif route == "ETF":
+            records[symbol] = record
+            mappings[symbol] = mapping
             etf_symbols.add(symbol)
         else:
+            records[symbol] = record
+            mappings[symbol] = mapping
             stock_symbols.add(symbol)
     # A security can appear in both list families; the explicit ETF route wins.
     stock_symbols -= etf_symbols
@@ -307,8 +324,12 @@ def load_governed_universe(
     for symbol in etf_symbols:
         exchange = str(records[symbol].get("normalized_exchange") or "UNRESOLVED")
         etf_exchange_distribution[exchange] = etf_exchange_distribution.get(exchange, 0) + 1
-    unresolved = [item for item in exclusions if item.get("reason") == "UNRESOLVED_LISTING_IDENTITY"]
+    unresolved = [item for item in exclusions if item.get("reason") == "UNRESOLVED_EXCHANGE_IDENTITY"]
     foreign = [item for item in exclusions if item.get("reason") == "NON_US_EXCHANGE_OUTSIDE_STOCK_POLICY"]
+    exchange_resolution_unresolved_count = exchange_resolution_population - exchange_resolution_success_count
+    exchange_resolution_coverage_pct = round(
+        100 * exchange_resolution_success_count / max(1, exchange_resolution_population), 4
+    )
     result = {
         "symbols": symbols,
         "stock_symbols": sorted(stock_symbols),
@@ -333,6 +354,12 @@ def load_governed_universe(
             "us_etf_universe_count": len(etf_symbols),
             "stock_exchange_distribution": stock_exchange_distribution,
             "etf_exchange_distribution": etf_exchange_distribution,
+            "exchange_resolution_population": exchange_resolution_population,
+            "exchange_resolution_success_count": exchange_resolution_success_count,
+            "exchange_resolution_unresolved_count": exchange_resolution_unresolved_count,
+            "exchange_resolution_coverage_pct": exchange_resolution_coverage_pct,
+            "exchange_resolution_minimum_coverage_pct": MIN_EXCHANGE_RESOLUTION_COVERAGE_PCT,
+            "exchange_resolution_minimum_population": MIN_EXCHANGE_RESOLUTION_POPULATION,
             "representative_unresolved_symbols": unresolved[:25],
             "representative_foreign_symbols": foreign[:25],
             "inactive_removed": exclusion_counts.get("INACTIVE_LISTING", 0),
@@ -371,6 +398,13 @@ def assert_governed_stock_universe(result: Mapping[str, Any]) -> None:
         if mapping.get("exchange_resolution_status") != "RESOLVED_US" or exchange not in SUPPORTED_US_EXCHANGES:
             invalid.append({"ticker": symbol, "exchange": exchange,
                             "resolution": mapping.get("exchange_resolution_status")})
+    summary = result.get("summary") if isinstance(result.get("summary"), Mapping) else {}
+    population = int(summary.get("exchange_resolution_population") or 0)
+    coverage = float(summary.get("exchange_resolution_coverage_pct") or 0.0)
+    if population >= MIN_EXCHANGE_RESOLUTION_POPULATION and coverage < MIN_EXCHANGE_RESOLUTION_COVERAGE_PCT:
+        raise RuntimeError(
+            f"SYSTEMIC_EXCHANGE_RESOLUTION_COVERAGE_FAILURE:coverage={coverage}:population={population}"
+        )
     if invalid:
         raise RuntimeError(f"GOVERNED_STOCK_EXCHANGE_ASSERTION_FAILED:{invalid[:25]}")
 

@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 import overnight_market_scan as scan
 from services.governed_discovery_data import (
@@ -114,7 +115,7 @@ def test_exchange_resolution_fails_closed_before_stock_or_etf_routing():
     assert result["etf_symbols"] == ["SPY"]
     assert not ({"0001.HK", "0001.KL", "VOD.L", "2800.HK"} & set(result["symbols"]))
     reasons = {row["ticker"]: row["reason"] for row in result["exclusions"]}
-    assert reasons["0001.HK"] == "UNRESOLVED_LISTING_IDENTITY"
+    assert reasons["0001.HK"] == "UNRESOLVED_EXCHANGE_IDENTITY"
     assert reasons["0001.KL"] == reasons["VOD.L"] == reasons["2800.HK"] == "NON_US_EXCHANGE_OUTSIDE_STOCK_POLICY"
     assert result["summary"]["raw_global_master_count"] == 15
     assert result["summary"]["resolved_us_listing_count"] == 11
@@ -148,6 +149,53 @@ def test_exchange_field_priority_and_trace_are_deterministic():
         "source_exchange_value": "NYSE", "normalized_exchange": "NYSE",
         "exchange_resolution_status": "RESOLVED_US",
     }
+
+
+def test_proven_duplicate_rows_cannot_overwrite_resolved_listing_identity():
+    tickers = ("DRVN", "EU", "GLAS", "GRI", "JOYY", "KEEL", "ZBIO")
+    rows = []
+    for ticker in tickers:
+        rows.extend([
+            {"symbol": ticker, "exchange": "Nasdaq Global Select Market", "type": "Common Stock"},
+            {"symbol": ticker, "exchange": "UNKNOWN VENUE", "type": "Common Stock"},
+        ])
+    result = load_governed_universe(api_key="x", get=Client(rows, []))
+    assert set(result["stock_symbols"]) == set(tickers)
+    assert all(result["symbol_mappings"][ticker]["normalized_exchange"] == "NASDAQ" for ticker in tickers)
+    assert all(result["records"][ticker]["route"] == "STOCK" for ticker in tickers)
+    assert len([item for item in result["exclusions"] if item["reason"] == "UNRESOLVED_EXCHANGE_IDENTITY"]) == 7
+
+
+def test_single_unresolved_identity_is_excluded_before_twelve_without_systemic_abort(monkeypatch):
+    rows = [
+        {"symbol": "AAPL", "exchange": "NASDAQ", "type": "Common Stock"},
+        {"symbol": "UNKNOWN", "exchange": "", "type": "Common Stock"},
+    ]
+    result = load_governed_universe(api_key="x", get=Client(rows, []))
+    assert result["stock_symbols"] == ["AAPL"]
+    assert "UNKNOWN" not in result["symbols"]
+    assert result["summary"]["exchange_resolution_unresolved_count"] == 1
+    monkeypatch.setattr(scan, "load_governed_universe", lambda **_kwargs: result)
+    assert scan.build_universe() == ["AAPL"]
+    diagnostics = scan.build_governed_market_acquisition_diagnostics()
+    assert "UNKNOWN" not in diagnostics["market_history_failure_symbols"]
+    assert diagnostics["summary"]["exchange_resolution_population"] == 2
+    assert diagnostics["summary"]["exchange_resolution_success_count"] == 1
+    assert diagnostics["summary"]["exchange_resolution_unresolved_count"] == 1
+    assert diagnostics["summary"]["exchange_identity_exclusion_count"] == 1
+    excluded = diagnostics["exchange_identity_exclusions"][0]
+    assert excluded["ticker"] == "UNKNOWN"
+    assert excluded["reason"] == "UNRESOLVED_EXCHANGE_IDENTITY"
+    assert excluded["raw_exchange_fields"] == {}
+
+
+def test_systemic_exchange_resolution_collapse_still_hard_fails():
+    rows = [{"symbol": "GOOD", "exchange": "NYSE", "type": "Common Stock"}] + [
+        {"symbol": f"BAD{i}", "exchange": "UNKNOWN VENUE", "type": "Common Stock"}
+        for i in range(99)
+    ]
+    with pytest.raises(RuntimeError, match="SYSTEMIC_EXCHANGE_RESOLUTION_COVERAGE_FAILURE"):
+        load_governed_universe(api_key="x", get=Client(rows, []))
 
 
 def test_pre_twelve_assertion_rejects_unresolved_or_foreign_stock_identity():
