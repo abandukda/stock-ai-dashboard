@@ -12,6 +12,7 @@ CLASSIFICATIONS = {
     "MARKET_CAP_BRIDGE_FAILURE": "ATLAS_SHARE_BRIDGE_DEFECT",
     "EV_BRIDGE_FAILURE": "ATLAS_NORMALIZATION_DEFECT",
     "FCF_RECONCILIATION_FAILURE": "PROVIDER_FIELD_MISSING",
+    "FCF_CANONICAL_RECONCILIATION_FAILURE": "ATLAS_NORMALIZATION_DEFECT",
     "SECTOR_MODEL_APPLICABILITY_WARNING": "ATLAS_MODEL_ROUTING_DEFECT",
     "EXTREME_MODEL_DISPERSION": "LEGITIMATE_HIGH_UNCERTAINTY",
     "INPUT_SOURCE_DIVERGENCE": "PROVIDER_SCHEMA_LIMITATION",
@@ -25,9 +26,9 @@ def classify_blockers(record: Mapping[str, Any]) -> list[dict[str, Any]]:
     for warning in record.get("warnings") or ():
         category = CLASSIFICATIONS.get(str(warning), "PROVIDER_SCHEMA_LIMITATION")
         detail: Any = None
-        if warning == "FCF_RECONCILIATION_FAILURE":
+        if warning in {"FCF_RECONCILIATION_FAILURE", "FCF_CANONICAL_RECONCILIATION_FAILURE"}:
             detail = checks.get("fcf_reconciliation")
-            if (detail or {}).get("difference_classification") == "PERIOD_MISMATCH": category = "ATLAS_PERIOD_DEFECT"
+            if (detail or {}).get("difference_classification") == "EVIDENCE_METADATA_MISMATCH": category = "ATLAS_PERIOD_DEFECT"
         elif warning == "MARKET_CAP_BRIDGE_FAILURE":
             detail = checks.get("market_cap_bridge")
             if (detail or {}).get("failure_classification") == "CURRENT_SHARES_FIELD_MISSING": category = "PROVIDER_FIELD_MISSING"

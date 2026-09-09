@@ -319,11 +319,13 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
         selected = next(((endpoint, raw_field, raw) for endpoint, raw_field, raw in candidates if canonical_field in twelve_populated_fields and raw is not None and normalized == raw), None)
         if selected:
             endpoint, raw_field, raw = selected
+            is_cash_component = canonical_field in {"operating_cash_flow", "capital_expenditures"}
             field_lineage[canonical_field] = {
                 "provider": "TWELVE_DATA", "endpoint": endpoint, "raw_field": raw_field,
                 "raw_value": raw, "canonical_field": canonical_field, "normalized_value": normalized,
                 "ticker": str(output.get("ticker") or output.get("symbol") or "").upper(),
-                "period": output.get("financial_reporting_period"), "period_type": "TTM" if raw_field.endswith("_ttm") else "REPORTED",
+                "period": cash_period if is_cash_component else ("TTM" if raw_field.endswith("_ttm") else output.get("financial_reporting_period")),
+                "period_type": cash_period_type if is_cash_component else ("TTM" if raw_field.endswith("_ttm") else "REPORTED"),
                 "basis": "PROVIDER_REPORTED", "currency": "USD", "unit": "CURRENCY" if "shares" not in canonical_field else "SHARES",
                 "as_of": dossier.get("observed_at"), "transformation": "DIRECT_MAP",
                 "consuming_methodology": "ATLAS_PROFESSIONAL_VALUATION_V2",
@@ -334,8 +336,9 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
             "provider": "ATLAS_CALCULATED", "endpoint": "cash_flow", "raw_field": "operating_cash_flow,capital_expenditures",
             "raw_value": {"operating_cash_flow": output.get("operating_cash_flow"), "capital_expenditures": output.get("capital_expenditures")},
             "canonical_field": "free_cash_flow", "normalized_value": output.get("free_cash_flow"),
+            "canonical_value": output.get("free_cash_flow"),
             "ticker": str(output.get("ticker") or output.get("symbol") or "").upper(), "period": statement_period,
-            "period_type": "REPORTED", "basis": "OCF_MINUS_ABS_CAPEX", "currency": "USD", "unit": "CURRENCY",
+            "period_type": cash_period_type, "basis": "OCF_MINUS_ABS_CAPEX", "currency": "USD", "unit": "CURRENCY",
             "as_of": dossier.get("observed_at"), "transformation": "OCF_MINUS_ABS_CAPEX",
             "evidence_ids": tuple(dossier.get("evidence_ids") or ()), "consuming_methodology": "ATLAS_PROFESSIONAL_VALUATION_V2",
         }
