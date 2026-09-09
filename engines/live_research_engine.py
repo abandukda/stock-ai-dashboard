@@ -756,79 +756,13 @@ def _attach_canonical_research_context(
         row.pop(key, None)
 
     production_row = load_production_row(symbol)
-    fetched_at = row.get("research_refreshed_at")
-    families = {
-        "profile": _family_from_values(symbol, "profile", "YAHOO", "get_info", fetched_at, {
-            "company_name": row.get("company_name"),
-            "sector": row.get("Sector"),
-            "industry": row.get("Industry"),
-            "market_cap": row.get("Market Cap"),
-        }),
-        "ratios_key_metrics": _family_from_values(symbol, "ratios_key_metrics", "YAHOO", "get_info_and_statements", fetched_at, {
-            "operating_margin": row.get("Operating Margin"),
-            "free_cash_flow": row.get("Free Cash Flow"),
-            "debt_to_equity": row.get("Debt to Equity"),
-            "current_ratio": row.get("Current Ratio"),
-        }),
-        "growth_segments": _family_from_values(symbol, "growth_segments", "YAHOO", "get_info_and_statements", fetched_at, {
-            "revenue_growth": row.get("Revenue Growth"),
-            "earnings_growth": row.get("Earnings Growth"),
-        }),
-        "earnings_history": _family_from_values(symbol, "earnings_history", "YAHOO", "earnings_dates", fetched_at, {
-            "history": row.get("earnings_history"),
-            "latest_earnings_date": row.get("latest_earnings_date"),
-            "next_earnings_date": row.get("next_earnings_date"),
-        }),
-        "analyst_consensus_targets": _family_from_values(symbol, "analyst_consensus_targets", "FINNHUB_YAHOO", "analyst_snapshot", fetched_at, {
-            "target_mean": row.get("analyst_target_mean"),
-            "target_low": row.get("analyst_target_low"),
-            "target_high": row.get("analyst_target_high"),
-            "analyst_count": row.get("analyst_count"),
-        }),
-        "analyst_actions": _family_from_values(symbol, "analyst_actions", "YAHOO", "upgrades_downgrades", fetched_at, {
-            "actions": row.get("analyst_actions"),
-        }),
-        "company_news": _family_from_values(symbol, "company_news", "NEWSAPI", "everything", fetched_at, {
-            "headline": row.get("latest_news_headline"),
-            "source": row.get("latest_news_source"),
-            "date": row.get("latest_news_date"),
-            "url": row.get("latest_news_url"),
-        }),
-        "technicals": _family_from_values(symbol, "technicals", "YAHOO", "daily_history", fetched_at, {
-            "sma20": row.get("SMA 20"),
-            "sma50": row.get("SMA 50"),
-            "sma200": row.get("SMA 200"),
-            "rsi": row.get("RSI"),
-            "atr_pct": row.get("ATR %"),
-            "volume_ratio": row.get("Volume Ratio"),
-        }),
-    }
-    legacy_context = build_research_context(
+    # Legacy provider-shaped values remain available to old presentation
+    # adapters only. They are never installed in the canonical Research
+    # context and therefore cannot become valuation, pillar, or Action inputs.
+    context = canonical_context or build_research_context(
         symbol, production_row=production_row,
-        market_snapshot={"current_price": row.get("price"), "fetched_at": fetched_at, "provider": "YAHOO"},
-        evidence_families=families,
+        market_snapshot=None, evidence_families={},
     )
-    context = canonical_context or legacy_context
-    if canonical_context:
-        canonical_families = canonical_context.get("evidence_families") or {}
-        legacy_families = legacy_context.get("evidence_families") or {}
-        resolved = {}
-        for family in dict.fromkeys((*canonical_families, *legacy_families)):
-            primary = canonical_families.get(family) or {}
-            fallback = legacy_families.get(family) or {}
-            if primary.get("semantic_status") == "AVAILABLE" or fallback.get("semantic_status") != "AVAILABLE":
-                resolved[family] = primary or fallback
-            else:
-                resolved[family] = {
-                    **fallback,
-                    "limitations": list(fallback.get("limitations") or ()) + [
-                        f"Canonical FMP {family} was unavailable; this unblended {fallback.get('provider') or 'legacy'} fallback is retained explicitly."
-                    ],
-                    "fallback_reason": "CANONICAL_FMP_FAMILY_UNAVAILABLE",
-                    "fallback_provider": fallback.get("provider"),
-                    "fallback_freshness": fallback.get("cache_status"),
-                }
-        context = {**canonical_context, "evidence_families": resolved}
     row["research_context"] = context
 
     from engines.atlas_guidance_v1 import founder_guidance_v1_enabled
@@ -980,6 +914,19 @@ def build_live_research(
             cached["fmp_research_diagnostics"] = fmp_diagnostics
             return _attach_canonical_research_context(cached, symbol, canonical_context=fmp_context)
 
+    # The active Research route acquires governed Twelve market evidence after
+    # the interactive shell is ready. Do not start the isolated legacy/FMP
+    # quantitative history path when contextual enrichment is unavailable.
+    base = dict(production_row or {})
+    base.setdefault("Ticker", symbol)
+    base.setdefault("ticker", symbol)
+    base.setdefault("research_refreshed_at", datetime.now(timezone.utc).isoformat())
+    base["research_source"] = "canonical_research_shell"
+    base["fmp_research_diagnostics"] = fmp_diagnostics
+    return _attach_canonical_research_context(base, symbol, canonical_context=fmp_context)
+
+    # Unreachable legacy implementation retained below for isolated historical
+    # compatibility; the production function returns at the canonical boundary.
     info = dict(fmp_context or {})
     hist = _download_history(symbol)
     if hist.empty or "Close" not in hist.columns:

@@ -27060,7 +27060,9 @@ def v8054_merge_saved_live(saved, live):
     )
     if isinstance(persisted_evaluation, dict) and persisted_evaluation:
         context = dict(merged.get("research_context") or {})
-        context["current_evaluation"] = persisted_evaluation
+        context["production_evaluation"] = dict(persisted_evaluation)
+        if not isinstance(context.get("current_evaluation"), dict) or not context.get("current_evaluation"):
+            context["current_evaluation"] = dict(persisted_evaluation)
         try:
             from engines.research_context import build_production_decision
             context["production_decision"] = build_production_decision(raw_saved or saved)

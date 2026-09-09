@@ -28,8 +28,11 @@ def _technical_contract(
     row: Mapping[str, Any], bars: Sequence[DailyBar] | None,
 ) -> dict[str, Any]:
     if bars:
+        security = str(_first(row, "security_type", "Security Type", "quote_type") or "STOCK").upper()
         analysis = TechnicalIntelligenceEngine().evaluate(
-            bars, security_type=SecurityType.STOCK, feed_health=FeedHealth.HEALTHY,
+            bars,
+            security_type=SecurityType.ETF if security in {"ETF", "FUND", "MUTUALFUND"} else SecurityType.STOCK,
+            feed_health=FeedHealth.HEALTHY,
         )
         return {
             "status": "AVAILABLE" if not analysis.result.evidence.get("fail_closed_reason") else "DATA_UNAVAILABLE",

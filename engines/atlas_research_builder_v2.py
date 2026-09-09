@@ -662,7 +662,11 @@ def build_atlas_research_v2(
             "probability_pct": None,
             "source": "Analyst-driven scenario model",
         })
-    validated_fair_value = institutional.get("validated_fair_value")
+    canonical_valuation = _mapping(current_evaluation.get("atlas_valuation"))
+    validated_fair_value = (
+        _num(canonical_valuation.get("fair_value"))
+        if current_evaluation else institutional.get("validated_fair_value")
+    )
     evidence_registry = _evidence_registry(
         sections,
         validated_fair_value=validated_fair_value,
@@ -670,9 +674,18 @@ def build_atlas_research_v2(
         is_etf=is_etf,
     )
     completeness = _registry_coverage(evidence_registry)
-    committee_verdict = institutional.get("committee_verdict") or enriched.get("committee_verdict")
+    canonical_guidance = _mapping(current_evaluation.get("guidance"))
+    committee_verdict = (
+        canonical_guidance.get("state")
+        if current_evaluation else institutional.get("committee_verdict") or enriched.get("committee_verdict")
+    )
+    canonical_market = _mapping(current_evaluation.get("market_snapshot"))
+    canonical_opportunity = current_evaluation.get("opportunity") if current_evaluation else scores["opportunity_score"]
+    canonical_confidence = current_evaluation.get("decision_confidence") if current_evaluation else scores["confidence_pct"]
+    canonical_expected_return = canonical_valuation.get("expected_return") if current_evaluation else valuation.get("atlas_expected_return_pct")
 
-    canonical_market = _mapping(enriched_row.get("canonical_market_snapshot"))
+    if not canonical_market:
+        canonical_market = _mapping(enriched_row.get("canonical_market_snapshot"))
     report = {
         "version": "V2.1-AI-INTELLIGENCE",
         "ticker": ticker,
@@ -688,8 +701,8 @@ def build_atlas_research_v2(
         ),
         "security_type": security_type,
         "committee_verdict": committee_verdict,
-        "opportunity_score": scores["opportunity_score"],
-        "confidence_pct": scores["confidence_pct"],
+        "opportunity_score": canonical_opportunity,
+        "confidence_pct": canonical_confidence,
         "score_attribution": scores,
         "position_size_range": institutional.get("position_size_range") or enriched.get("position_size_range"),
         "executive_summary": institutional.get("executive_summary") or enriched.get("executive_summary"),
@@ -699,12 +712,12 @@ def build_atlas_research_v2(
         "fair_value_cases": fair_value_cases,
         "validated_fair_value": validated_fair_value,
         "atlas_fair_value": validated_fair_value,
-        "atlas_valuation_status": atlas_valuation_status(enriched_row),
-        "atlas_fv_upside_pct": valuation.get("atlas_fv_upside_pct"),
-        "atlas_expected_return_pct": valuation.get("atlas_expected_return_pct"),
+        "atlas_valuation_status": canonical_valuation.get("status") if current_evaluation else atlas_valuation_status(enriched_row),
+        "atlas_fv_upside_pct": canonical_expected_return,
+        "atlas_expected_return_pct": canonical_expected_return,
         "analyst_upside_pct": valuation.get("analyst_upside_pct"),
         "scenario_base_upside_pct": valuation.get("scenario_base_upside_pct"),
-        "expected_return_pct": valuation.get("atlas_expected_return_pct"),
+        "expected_return_pct": canonical_expected_return,
         "valuation_families": valuation,
         "current_price": canonical_market.get("price") if canonical_market.get("price") is not None else quote.get("price"),
         "production_rank": _num(_first(enriched_row, "production_rank", "rank", "Rank")),
@@ -726,6 +739,9 @@ def build_atlas_research_v2(
         # Canonical explicit-Research evidence is passed through unchanged for
         # UI/Ask grounding. It remains separate from legacy section adapters.
         "research_context": enriched_row.get("research_context") or {},
+        "publication_certification": _mapping(current_evaluation.get("publication_certification")),
+        "current_evaluation_timestamp": current_evaluation.get("evaluated_at") if current_evaluation else None,
+        "production_evaluation_timestamp": _mapping(_mapping(enriched_row.get("research_context")).get("production_evaluation")).get("evaluated_at"),
         "sections": sections,
         "research_completeness_pct": completeness,
         "evidence_coverage_pct": completeness,

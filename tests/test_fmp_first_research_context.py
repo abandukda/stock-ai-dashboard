@@ -73,7 +73,7 @@ def test_research_context_v1_top_level_and_reserved_families() -> None:
     assert context["version"] == RESEARCH_CONTEXT_VERSION == "RESEARCH_CONTEXT_V1"
     assert set(context) == {
         "version", "ticker", "security_type", "generated_at", "production_decision",
-        "market_snapshot", "evidence_families", "evidence_registry", "synthesis", "limitations",
+        "current_evaluation", "market_snapshot", "evidence_families", "evidence_registry", "synthesis", "limitations",
     }
     assert tuple(context["evidence_families"]) == EVIDENCE_FAMILIES
 
@@ -136,7 +136,9 @@ def test_enrichment_is_stripped_from_scoring_namespaces(monkeypatch) -> None:
     assert result["entry_low"] == 0.0
     assert result["target"] == 240.0
     assert result["stop_loss"] == 205.0
-    assert result["research_context"]["evidence_families"]["growth_segments"]["data"]["revenue_growth"] == 0.0
+    growth = result["research_context"]["evidence_families"]["growth_segments"]
+    assert growth["semantic_status"] == "DATA_UNAVAILABLE"
+    assert growth["data"] is None
 
 
 def test_family_envelope_schema_provenance_and_missing_semantics() -> None:

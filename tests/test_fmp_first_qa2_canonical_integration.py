@@ -32,7 +32,7 @@ def _available(ticker: str, family: str, provider: str, data: dict):
     )
 
 
-def test_canonical_family_wins_and_unavailable_family_falls_back_explicitly(monkeypatch):
+def test_canonical_family_wins_and_unavailable_family_does_not_accept_legacy_quantitative_fallback(monkeypatch):
     monkeypatch.setattr("engines.live_research_engine.load_production_row", lambda _ticker: None)
     canonical = build_research_context(
         "NVDA",
@@ -54,10 +54,10 @@ def test_canonical_family_wins_and_unavailable_family_falls_back_explicitly(monk
     families = result["research_context"]["evidence_families"]
     assert families["analyst_actions"]["provider"] == "FMP"
     assert families["analyst_actions"]["data"]["actions"] == [{"firm": "Canonical"}]
-    assert families["company_news"]["provider"] == "NEWSAPI"
-    assert families["company_news"]["fallback_reason"] == "CANONICAL_FMP_FAMILY_UNAVAILABLE"
-    assert "fallback_freshness" in families["company_news"]
-    assert families["company_news"]["limitations"]
+    assert families["company_news"]["provider"] is None
+    assert families["company_news"]["semantic_status"] == "DATA_UNAVAILABLE"
+    assert "fallback_provider" not in families["company_news"]
+    assert "fallback_freshness" not in families["company_news"]
 
 
 def test_streamlit_loaded_fmp_secret_is_passed_to_explicit_research(monkeypatch):

@@ -128,6 +128,22 @@ def _current_evaluation(report: Mapping[str, Any]) -> Mapping[str, Any]:
     return safe_mapping(_canonical_context(report).get("current_evaluation"))
 
 
+def _reconcile_canonical_context(
+    context: Mapping[str, Any], persisted_row: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Preserve a current canonical evaluation and attach production separately."""
+    resolved = dict(context or {})
+    persisted = safe_mapping((persisted_row or {}).get("canonical_investment_evaluation"))
+    current = safe_mapping(resolved.get("current_evaluation"))
+    if persisted:
+        from engines.research_context import build_production_decision
+        resolved["production_decision"] = build_production_decision(persisted_row)
+        resolved["production_evaluation"] = dict(persisted)
+        if not current:
+            resolved["current_evaluation"] = dict(persisted)
+    return resolved
+
+
 def _decision_value(report: Mapping[str, Any], canonical_key: str, report_key: str) -> Any:
     """Resolve immutable decision authority without cross-field substitution."""
     decision = safe_mapping(_canonical_context(report).get("production_decision"))
@@ -379,6 +395,23 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
     st.markdown("## Decision")
     current = safe_mapping(view.get("current_evaluation"))
     current_guidance = safe_mapping(current.get("guidance"))
+    context = _canonical_context(report)
+    production_evaluation = safe_mapping(context.get("production_evaluation"))
+    production_timestamp = production_evaluation.get("evaluated_at") or report.get("production_evaluation_timestamp")
+    current_timestamp = current.get("evaluated_at") or report.get("current_evaluation_timestamp")
+    if production_timestamp or current_timestamp:
+        labels = []
+        if production_timestamp:
+            labels.append(
+                "Latest Production Decision — "
+                + format_market_timestamp_et(production_timestamp, unavailable="Timestamp unavailable")
+            )
+        if current_timestamp:
+            labels.append(
+                "Current On-Demand Evaluation — "
+                + format_market_timestamp_et(current_timestamp, unavailable="Timestamp unavailable")
+            )
+        st.caption(" · ".join(labels))
     publication = safe_mapping(current.get("publication_certification"))
     if publication and publication.get("action_publication_eligible") is not True:
         current_guidance = {}
@@ -1213,16 +1246,9 @@ def render_full_research_vnext(row: Mapping[str, Any]) -> None:
     # Optional live enrichment is contextual.  Reconcile the immutable
     # persisted production decision at the rendering boundary so a sparse or
     # failed live refresh cannot downgrade a valid canonical Action.
-    from engines.research_context import build_production_decision, load_production_row
+    from engines.research_context import load_production_row
     persisted_row = load_production_row(symbol)
-    persisted_evaluation = (
-        persisted_row.get("canonical_investment_evaluation")
-        if isinstance(persisted_row, Mapping) else None
-    )
-    if isinstance(persisted_evaluation, Mapping) and persisted_evaluation:
-        canonical_context = dict(canonical_context)
-        canonical_context["current_evaluation"] = dict(persisted_evaluation)
-        canonical_context["production_decision"] = build_production_decision(persisted_row)
+    canonical_context = _reconcile_canonical_context(canonical_context, persisted_row)
     canonical_families = (
         canonical_context.get("evidence_families")
         if isinstance(canonical_context.get("evidence_families"), Mapping) else {}
@@ -1261,8 +1287,9 @@ def render_full_research_vnext(row: Mapping[str, Any]) -> None:
     report["policy_source_metrics"] = policy_retrieval.get("metrics") or {}
     legacy_report._inject_visual_standards()
     legacy_report._render_architecture_qa_markers(report)
+    current_guidance = safe_mapping(_current_evaluation(report).get("guidance"))
     banner_state = _scalar_text(
-        _decision_value(report, "recommendation", "committee_verdict"),
+        current_guidance.get("state") or _decision_value(report, "recommendation", "committee_verdict"),
         "Unavailable",
     ).replace("_", " ").title()
 
@@ -1303,5 +1330,5 @@ def render_full_research_vnext(row: Mapping[str, Any]) -> None:
 __all__ = [
     "RESEARCH_EVIDENCE_MIGRATION", "RESEARCH_VNEXT_SECTIONS",
     "RESEARCH_VNEXT_VERSION", "build_research_decision_view",
-    "render_full_research_vnext", "render_research_vnext",
+    "render_full_research_vnext", "render_research_vnext", "_reconcile_canonical_context",
 ]
