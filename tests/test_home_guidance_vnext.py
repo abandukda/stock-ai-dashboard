@@ -428,13 +428,39 @@ def test_current_artifact_membership_and_archetypes_are_resolved_dynamically(mon
     rows = payload if isinstance(payload, list) else payload.get("rows") or payload.get("data") or []
     recovery_payload = json.loads((ROOT / "recovery_scan.json").read_text(encoding="utf-8"))
     story = build_home_guidance_story(rows, recovery_payload)
-    assert story["cards"][0]["ticker"] == str(rows[0].get("ticker") or rows[0].get("symbol")).upper()
-    assert story["cards"][0]["production_rank"] == 1
+    expected = next(
+        row for row in rows
+        if (row.get("publication_certification") or {}).get("customer_publication_allowed") is True
+        and (row.get("publication_certification") or {}).get("certified_action")
+        and ((row.get("canonical_investment_evaluation") or {}).get("guidance") or {}).get("state")
+            == (row.get("publication_certification") or {}).get("certified_action")
+        and (
+            (row.get("publication_certification") or {}).get("certified_action") != "BUY_NOW"
+            or (
+                (row.get("positive_action_revalidation") or {}).get("status") == "BUY_NOW_REVALIDATED"
+                and (row.get("positive_action_revalidation") or {}).get("source_decision_digest")
+                    == row.get("decision_digest")
+            )
+        )
+    )
+    assert story["cards"][0]["ticker"] == str(expected.get("ticker") or expected.get("symbol")).upper()
+    assert story["cards"][0]["production_rank"] == rows.index(expected) + 1
     assert {card["ticker"] for card in story["cards"]} == {
         str(item.get("ticker") or item.get("symbol")).upper() for item in rows
+        if (item.get("publication_certification") or {}).get("customer_publication_allowed") is True
+        and (item.get("publication_certification") or {}).get("certified_action")
+        and ((item.get("canonical_investment_evaluation") or {}).get("guidance") or {}).get("state")
+            == (item.get("publication_certification") or {}).get("certified_action")
+        and (
+            (item.get("publication_certification") or {}).get("certified_action") != "BUY_NOW"
+            or (
+                (item.get("positive_action_revalidation") or {}).get("status") == "BUY_NOW_REVALIDATED"
+                and (item.get("positive_action_revalidation") or {}).get("source_decision_digest")
+                    == item.get("decision_digest")
+            )
+        )
     }
     assert any(card["atlas_fair_value"] is not None for card in story["cards"])
-    assert any(card["atlas_fair_value"] is None for card in story["cards"])
     assert any(card["snapshot_evidence_health"] in {"Low", "Medium", "PARTIAL", "Partial"} for card in story["cards"])
 
 
@@ -930,3 +956,15 @@ def test_full_evidence_css_preserves_natural_flow_and_wrapping():
     assert ".atlas-home-trade-row span{white-space:nowrap}" in source
     assert '.atlas-home-trade-row span+span::before{content:"·"' in source
     assert ".atlas-home-full-metrics{grid-template-columns:1fr" in source
+def test_home_withholds_rows_that_fail_published_certification_contract():
+    allowed = row("GOOD")
+    allowed["publication_certification"] = {
+        "customer_publication_allowed": True, "certified_action": "WAIT_FOR_CONFIRMATION",
+    }
+    allowed["canonical_investment_evaluation"] = canonical_evaluation(guidance="WAIT_FOR_CONFIRMATION")
+    blocked = row("BAD")
+    blocked["publication_certification"] = {
+        "customer_publication_allowed": False, "certified_action": None,
+    }
+    story = build_home_guidance_story([allowed, blocked], [])
+    assert [card["ticker"] for card in story["cards"]] == ["GOOD"]

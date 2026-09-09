@@ -34,19 +34,8 @@ from engines.deep_research_evidence import (
     normalize_news_articles,
     select_deep_enrichment_symbols,
 )
-from engines.fmp_normalization import normalize_ratios
 from core.pipeline_v104 import build_v104_pipeline
 from services.deep_research_cache import cached_evidence
-from services.fmp_stable_client import AUTHORIZED_EMPTY, FMPStableClient, SUCCESS
-from services.fmp_shadow_research import build_fmp_shadow_research, build_provider_comparison
-from services.fmp_bulk_metadata_shadow import (
-    acquire_governed_fmp_bulk_metadata,
-    build_fmp_candidate_metadata,
-    compare_prescreen_replay,
-    compare_yahoo_fmp_metadata,
-    persist_bulk_shadow_analysis,
-)
-from services.analyst_estimate_snapshot_store import capture_daily_estimates
 from services.governed_discovery_data import (
     PROVIDER_POLICY_VERSION, assert_governed_stock_universe,
     fetch_twelve_daily_batch, load_governed_universe,
@@ -143,7 +132,6 @@ PRODUCTION_OUTPUT_FILES = (
 
 # V40.0 external research data sources
 # Add these in Render Environment Variables. Missing keys are handled safely.
-FMP_API_KEY = os.getenv("FMP_API_KEY", "").strip()
 FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "").strip()
 NEWSAPI_KEY = os.getenv("NEWSAPI_KEY", "").strip()
 SEC_USER_AGENT = os.getenv("SEC_USER_AGENT", "Asif Bandukda abandukda@gmail.com").strip()
@@ -352,10 +340,10 @@ def exclusion_reason(meta: Dict[str, Any]) -> Optional[str]:
 
 def get_governed_listings() -> List[str]:
     """
-    Pull the current governed US listing universe from FMP.
+    Pull the current governed US listing universe from Twelve reference data.
     """
     global _GOVERNED_CACHE_NAMESPACE
-    result = load_governed_universe(fmp_key=FMP_API_KEY)
+    result = load_governed_universe()
     _GOVERNED_UNIVERSE_RESULT.clear()
     _GOVERNED_UNIVERSE_RESULT.update(result)
     _GOVERNED_ETF_SYMBOLS.clear()
@@ -676,7 +664,7 @@ def extract_symbol_history(data: pd.DataFrame, symbol: str) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def get_metadata(symbol: str, fmp_record: Mapping[str, Any] | None = None) -> Dict[str, Any]:
+def get_metadata(symbol: str, _legacy_record: Mapping[str, Any] | None = None) -> Dict[str, Any]:
     defaults = {
         "company_name": symbol,
         "sector": "Unknown",
@@ -685,15 +673,14 @@ def get_metadata(symbol: str, fmp_record: Mapping[str, Any] | None = None) -> Di
         "quote_type": "EQUITY",
     }
 
-    normalized = build_fmp_candidate_metadata(fmp_record or {})
+    governed = dict(_GOVERNED_MARKET_METADATA.get(str(symbol).upper()) or {})
+    security_type = str(governed.get("security_type") or "").upper()
     return {
         **defaults,
-        **{key: value for key, value in normalized.items() if value not in (None, "")},
-        "company_name": normalized.get("company_name") or symbol,
-        "sector": normalized.get("sector") or "Unknown",
-        "industry": normalized.get("industry") or "Unknown",
-        "quote_type": normalized.get("quote_type") or "EQUITY",
-        "source_profile": "FMP_PROFILE_BULK",
+        **{key: value for key, value in governed.items() if value not in (None, "")},
+        "company_name": governed.get("company_name") or symbol,
+        "quote_type": "ETF" if security_type == "ETF" else "EQUITY",
+        "source_profile": "TWELVE_DATA_REFERENCE_STOCKS",
     }
 
 
@@ -703,9 +690,10 @@ def get_fmp_data(symbol: str) -> Dict[str, Any]:
     Pulls company profile / reference data from Financial Modeling Prep when FMP_API_KEY exists.
     This is intentionally conservative: failures return {} so the scanner never breaks.
     """
-    if not FMP_API_KEY:
-        return {}
-
+    # Legacy compatibility symbol. Quantitative/profile FMP acquisition is
+    # disabled in production; optional transcripts live in earnings_evidence.
+    return {}
+    """LEGACY_UNREACHABLE
     try:
         symbol = str(symbol or "").strip().upper()
         fmp_response = FMPStableClient(FMP_API_KEY, timeout_seconds=10).get(
@@ -738,6 +726,7 @@ def get_fmp_data(symbol: str) -> Dict[str, Any]:
         }
     except Exception:
         return {}
+    """
 
 
 def get_pre_rank_fmp_data(symbol: str) -> Dict[str, Any]:
@@ -2779,9 +2768,9 @@ def get_fmp_financial_intelligence(symbol: str) -> Dict[str, Any]:
     Pulls financial statement, ratio, earnings surprise, and peer data from FMP when available.
     All failures return {} so cron never breaks.
     """
-    if not FMP_API_KEY:
-        return {}
-
+    # Legacy compatibility symbol. FMP is never a quantitative authority.
+    return {}
+    """LEGACY_UNREACHABLE
     result: Dict[str, Any] = {}
 
     client = FMPStableClient(FMP_API_KEY, timeout_seconds=12)
@@ -3016,6 +3005,7 @@ def get_fmp_financial_intelligence(symbol: str) -> Dict[str, Any]:
         }
 
     return {k: v for k, v in result.items() if v not in (None, "", "Unknown", [])}
+    """
 
 
 def build_finance_agent(meta: Dict[str, Any]) -> Dict[str, Any]:
@@ -3459,14 +3449,25 @@ def build_price_history_intelligence(df: pd.DataFrame, ind: Dict[str, Any]) -> D
     }
 
 
-def attach_technical_research_evidence(row: Dict[str, Any], ind: Dict[str, Any]) -> None:
-    """Publish long-history evidence without adding a scoring input."""
+def attach_technical_research_evidence(
+    row: Dict[str, Any], ind: Dict[str, Any], hist: Optional[pd.DataFrame] = None,
+) -> None:
+    """Publish SMA200 from the same governed Twelve history used by the scan."""
     sma200 = safe_float(ind.get("sma200"), None)
     if sma200 is None:
         return
+    closes = hist.get("Close") if isinstance(hist, pd.DataFrame) and "Close" in hist else None
+    recomputed = safe_float(closes.dropna().rolling(200).mean().iloc[-1], None) if closes is not None and len(closes.dropna()) >= 200 else None
+    if recomputed is None or abs(recomputed - sma200) > 1e-8:
+        raise RuntimeError("SMA200_GOVERNED_HISTORY_RECONCILIATION_FAILED")
+    import hashlib
+    snapshot_material = "|".join(f"{stamp}:{float(value):.12g}" for stamp, value in closes.dropna().items())
     evidence = row.get("deep_research_evidence") if isinstance(row.get("deep_research_evidence"), dict) else {}
     evidence["sma200"] = round(sma200, 2)
-    evidence["sma200_provider"] = "YAHOO_BATCH_HISTORY"
+    evidence["sma200_provider"] = "TWELVE_DATA"
+    evidence["sma200_source_type"] = "TWELVE_DATA_TIME_SERIES_1DAY"
+    evidence["sma200_as_of"] = str(closes.dropna().index[-1])
+    evidence["sma200_history_sha256"] = hashlib.sha256(snapshot_material.encode()).hexdigest()
     evidence["sma200_evidence_timestamp"] = now_iso()
     row["deep_research_evidence"] = evidence
 
@@ -3755,18 +3756,6 @@ def v42_news_stack(symbol: str, company_name: str = "") -> Dict[str, Any]:
         except Exception: pass
         finally:
             if _ACTIVE_COMMITTEE_TIMING_SCOPE == "etf": _record_scan_timing("etf_finnhub_news_seconds", time.monotonic()-provider_started)
-    if FMP_API_KEY:
-        if _ACTIVE_COMMITTEE_TIMING_SCOPE == "etf": _record_scan_timing("etf_fmp_news_calls", count=1)
-        try:
-            provider_started=time.monotonic()
-            r=requests.get('https://financialmodelingprep.com/api/v3/stock_news',params={'tickers':symbol,'limit':8,'apikey':FMP_API_KEY},timeout=10)
-            if r.status_code==200:
-                for a in (r.json() or [])[:8]:
-                    add_article(a.get('title'), a.get('site') or a.get('source'), a.get('publishedDate') or a.get('date'), 'FMP stock news', a.get('url'))
-        except Exception: pass
-        finally:
-            if _ACTIVE_COMMITTEE_TIMING_SCOPE == "etf": _record_scan_timing("etf_fmp_news_seconds", time.monotonic()-provider_started)
-
     seen=set(); clean=[]
     for a in articles:
         k=a['title'].lower()
@@ -4674,40 +4663,11 @@ DEEP_RESEARCH_EVIDENCE_SCHEMA_VERSION = "ATLAS_MARGIN_LINEAGE_V2"
 
 
 def get_etf_research(symbol: str) -> Dict[str, Any]:
-    """Fetch an isolated bounded ETF facts payload; failures stay unavailable."""
+    """Return optional ETF context without invoking a non-canonical provider."""
     cache_key = str(symbol or "").strip().upper()
     if cache_key in _ETF_RESEARCH_CACHE:
         return dict(_ETF_RESEARCH_CACHE[cache_key])
     result: Dict[str, Any] = {}
-    try:
-        response = FMPStableClient(FMP_API_KEY, timeout_seconds=HTTP_TIMEOUT_FAST).get(
-            "etf/holding", {"symbol": cache_key}
-        )
-        holdings = response.payload if response.outcome == SUCCESS else None
-        if isinstance(holdings, pd.DataFrame) and not holdings.empty:
-            normalized_holdings = []
-            frame = holdings.reset_index()
-            for record in frame.head(10).to_dict("records"):
-                ticker = record.get("Symbol") or record.get("symbol") or record.get("index")
-                name = record.get("Name") or record.get("name")
-                weight = safe_float(record.get("Holding Percent") or record.get("holdingPercent"))
-                normalized_holdings.append({
-                    "ticker": str(ticker).upper() if ticker else None,
-                    "name": name,
-                    "weight_pct": round(weight * 100, 4) if weight is not None and abs(weight) <= 1 else weight,
-                })
-            result["top_holdings"] = normalized_holdings
-            weights = [safe_float(item.get("weight_pct")) for item in normalized_holdings]
-            result["top_10_concentration_pct"] = round(sum(value for value in weights if value is not None), 4)
-        sectors = getattr(funds, "sector_weightings", None)
-        if isinstance(sectors, dict):
-            result["sector_exposure"] = {
-                str(key): round(float(value) * 100, 4) if safe_float(value) is not None and abs(float(value)) <= 1 else safe_float(value)
-                for key, value in sectors.items()
-                if safe_float(value) is not None
-            }
-    except Exception:
-        result = {}
     _ETF_RESEARCH_CACHE[cache_key] = dict(result)
     return result
 
@@ -4722,15 +4682,11 @@ def get_finalist_enrichment(symbol: str, company_name: str = "") -> Tuple[Dict[s
         cached_categories["cache"] = "hit"
         return dict(payload), cached_categories
     fetchers = {
-        "profile": lambda: get_fmp_data(symbol),
-        "fundamentals": lambda: get_fmp_financial_intelligence(symbol),
         "analysts": lambda: get_finnhub_research(symbol),
         "ownership": lambda: get_finnhub_insider_activity(symbol),
         "news": lambda: get_news_research(symbol, company_name),
     }
     source_functions = {
-        "profile": get_fmp_data,
-        "fundamentals": get_fmp_financial_intelligence,
         "analysts": get_finnhub_research,
         "ownership": get_finnhub_insider_activity,
         "news": get_news_research,
@@ -4758,7 +4714,7 @@ def get_finalist_enrichment(symbol: str, company_name: str = "") -> Tuple[Dict[s
         for name, payload in payloads.items()
     }
     categories.update({f"{name}_freshness": freshness[name]["status"] for name in payloads})
-    categories["earnings"] = "yes" if merged.get("source_fmp_earnings_surprises") else "no"
+    categories["earnings"] = "no"
     categories["valuation_inputs"] = "yes" if any(
         merged.get(key) is not None
         for key in ("revenue_growth", "earnings_growth", "forward_pe", "operating_profit_margin", "roic")
@@ -4851,21 +4807,6 @@ def v421_apply_tiered_committee(
                 if enrichment or evidence_only:
                     merge_finalist_enrichment(
                         symbol, row, meta, ind, enrichment, evidence_only=evidence_only
-                    )
-                # Phase 9FMP.2: FMP analyst/ownership/news remains a separate
-                # post-ranking research-only shadow. It never participates in
-                # root-field merging or provider winner selection.
-                shadow = build_fmp_shadow_research(
-                    symbol,
-                    meta.get("company_name", symbol),
-                    api_key=FMP_API_KEY,
-                    relevance_check=news_item_is_company_relevant,
-                )
-                if shadow:
-                    row["fmp_shadow_research"] = shadow
-                    _accumulate_fmp_shadow_diagnostics(shadow)
-                    row["provider_comparison_diagnostics"] = build_provider_comparison(
-                        enrichment, shadow
                     )
                 provider_elapsed = time.monotonic() - provider_started
                 _SCAN_TIMINGS["finalist_provider_calls"] += 1
@@ -5080,22 +5021,9 @@ def scan_market() -> Dict[str, Any]:
     })
     _record_scan_timing("universe_construction_seconds", time.monotonic() - universe_started)
 
-    # Research-only benchmark.  The normalized FMP records are never merged
-    # into canonical calculations; it is the normalized governed profile cache.
-    try:
-        fmp_bulk_shadow = acquire_governed_fmp_bulk_metadata(FMP_API_KEY, universe)
-    except Exception:
-        fmp_bulk_shadow = {
-            "mode": "RESEARCH_ONLY_SHADOW",
-            "records": {},
-            "freshness": {"status": "TEMPORARILY_UNAVAILABLE"},
-            "run_diagnostics": {"requests": 0, "sanitized_outcome": "LOCAL_SHADOW_FAILURE"},
-        }
-    for symbol, record in (fmp_bulk_shadow.get("records") or {}).items():
-        if isinstance(record, Mapping):
-            _GOVERNED_MARKET_METADATA.setdefault(str(symbol).upper(), {}).update(
-                {key: value for key, value in build_fmp_candidate_metadata(record).items() if value is not None}
-            )
+    # Quantitative production metadata comes only from the governed Twelve
+    # reference directory. FMP is isolated to optional earnings context.
+    fmp_bulk_shadow = {"records": {}, "run_diagnostics": {"requests": 0}}
 
     universe_payload = {
         "generated_at": now_iso(),
@@ -5179,46 +5107,12 @@ def scan_market() -> Dict[str, Any]:
 
             meta = metadata_cache.get(symbol)
             if meta is None:
-                fmp_record = (fmp_bulk_shadow.get("records") or {}).get(symbol, {})
-                meta = get_metadata(symbol, fmp_record)
+                meta = get_metadata(symbol)
                 if symbol in _GOVERNED_ETF_SYMBOLS:
                     meta["quote_type"] = "ETF"
                     meta["security_type"] = "ETF"
 
-                # Enrich governed metadata with point-profile data when available.
-                # FMP values only replace missing/weak fields; failures safely do nothing.
-                fmp_meta = get_pre_rank_fmp_data(symbol)
-                if fmp_meta:
-                    for key, value in fmp_meta.items():
-                        if value not in (None, "", "Unknown"):
-                            current = meta.get(key)
-                            if current in (None, "", "Unknown", symbol) or key.startswith("source_") or key in {
-                                "country", "exchange", "fmp_price", "beta", "last_dividend",
-                                "range_52w", "website", "description"
-                            }:
-                                meta[key] = value
-
-                # Replay the same deterministic pre-screen primitives on the
-                # FMP snapshot before applying governed exclusions.
-                # This is isolated diagnostics: no FMP value enters `meta`.
-                fmp_shadow_meta = build_fmp_candidate_metadata(fmp_record)
-                fmp_shadow_reason = _shadow_filter_reason(ind, fmp_shadow_meta)
-                if fmp_shadow_reason:
-                    fmp_bulk_shadow_exclusions[symbol] = fmp_shadow_reason
-                elif str(fmp_shadow_meta.get("quote_type") or "").upper() not in {"EQUITY", "STOCK"}:
-                    fmp_bulk_shadow_exclusions[symbol] = "Missing or non-equity FMP classification"
-                else:
-                    fmp_bulk_shadow_eligible.append(symbol)
-                    fmp_score, _fmp_good, _fmp_risks = score_stock(ind, fmp_shadow_meta)
-                    if fmp_score >= 38:
-                        fmp_bulk_shadow_rows.append({
-                            "symbol": symbol,
-                            "conviction": fmp_score,
-                            "dollar_volume": ind.get("dollar_volume") or 0,
-                            "atr_pct": ind.get("atr_pct"),
-                        })
-
-                # V41: apply hard exclusions after FMP profile enrichment and before extra API calls.
+                # Apply hard exclusions before optional contextual APIs.
                 if exclusion_reason(meta):
                     record_discovery_exclusion(str(exclusion_reason(meta)), symbol)
                     metadata_cache[symbol] = meta
@@ -5227,12 +5121,6 @@ def scan_market() -> Dict[str, Any]:
                 # V50.8.3.3.2.1a.1: skip expensive deep APIs during pre-rank pass.
                 # Full/deep enrichment should happen only for selected top names or live ticker research.
                 if not FAST_CRON_SKIP_PRE_RANK_DEEP_APIS:
-                    finance_meta = get_fmp_financial_intelligence(symbol)
-                    if finance_meta:
-                        for key, value in finance_meta.items():
-                            if value not in (None, "", "Unknown"):
-                                meta[key] = value
-
                     finnhub_meta = get_finnhub_research(symbol)
                     if finnhub_meta:
                         for key, value in finnhub_meta.items():
@@ -5267,7 +5155,7 @@ def scan_market() -> Dict[str, Any]:
                     price_history = build_price_history_intelligence(hist, ind)
                     if price_history:
                         etf_row.update(price_history)
-                    attach_technical_research_evidence(etf_row, ind)
+                    attach_technical_research_evidence(etf_row, ind, hist)
                     etf_row = apply_research_field_fallbacks(etf_row, meta)
                     if FAST_CRON_MODE and len(etf_rows) >= ETF_FULL_COMMITTEE_LIMIT:
                         etf_row = v421_build_light_committee(symbol, etf_row, meta, ind, hist)
@@ -5302,7 +5190,7 @@ def scan_market() -> Dict[str, Any]:
             price_history = build_price_history_intelligence(hist, ind)
             if price_history:
                 row.update(price_history)
-            attach_technical_research_evidence(row, ind)
+            attach_technical_research_evidence(row, ind, hist)
             row = enhance_ai_committee(row, meta, ind)
             row = apply_research_field_fallbacks(row, meta)
             if FAST_CRON_MODE:
@@ -5403,41 +5291,6 @@ def scan_market() -> Dict[str, Any]:
     prescreen_rows.sort(key=lambda r: (r.get("conviction") or 0, r.get("relative_rank_score") or 0, r.get("dollar_volume") or 0), reverse=True)
     _record_scan_timing("full_scan_construction_seconds", time.monotonic() - full_scan_started)
 
-    # Persist aggregate parity/replay diagnostics only to the ignored shadow
-    # snapshot.  Production state/result JSON remains unchanged.
-    try:
-        fmp_bulk_shadow_rows = normalize_final_convictions(fmp_bulk_shadow_rows)
-        fmp_bulk_shadow_rows.sort(
-            key=lambda row: (
-                row.get("conviction") or 0,
-                row.get("relative_rank_score") or 0,
-                row.get("dollar_volume") or 0,
-            ),
-            reverse=True,
-        )
-        fmp_bulk_shadow_order = [row["symbol"] for row in fmp_bulk_shadow_rows[:MAX_PRESCREEN]]
-        yahoo_order = [row["symbol"] for row in prescreen_rows]
-        parity = compare_yahoo_fmp_metadata(metadata_cache, fmp_bulk_shadow.get("records") or {})
-        replay = compare_prescreen_replay(
-            yahoo_order,
-            fmp_bulk_shadow_order,
-            fmp_bulk_shadow_exclusions,
-            authoritative_eligible=yahoo_authoritative_eligible,
-            shadow_eligible=fmp_bulk_shadow_eligible,
-        )
-        persist_bulk_shadow_analysis(fmp_bulk_shadow, comparison=parity, replay=replay)
-        acquisition = fmp_bulk_shadow.get("acquisition_diagnostics") or fmp_bulk_shadow.get("run_diagnostics") or {}
-        print(
-            "[fmp-bulk-metadata-summary] "
-            f"mode=shadow_only requests={int(acquisition.get('requests') or 0)} "
-            f"seconds={float(acquisition.get('bulk_metadata_seconds') or 0.0):.2f} "
-            f"records={len(fmp_bulk_shadow.get('records') or {})} "
-            f"authoritative_prescreen={len(yahoo_order)} shadow_prescreen={len(fmp_bulk_shadow_order)}",
-            flush=True,
-        )
-    except Exception:
-        print("[fmp-bulk-metadata-summary] mode=shadow_only outcome=LOCAL_ANALYSIS_FAILURE", flush=True)
-
     # The final ranking now exists: spend the bounded deep-provider budget on
     # actual finalists, not the first alphabetic qualifiers encountered.
     if FAST_CRON_MODE:
@@ -5465,23 +5318,6 @@ def scan_market() -> Dict[str, Any]:
             watchlist=watchlist,
         )
         finalist_symbols = set(ordered_finalists)
-        if os.getenv("FMP_API_KEY"):
-            try:
-                snapshot_result = capture_daily_estimates(
-                    ordered_finalists,
-                    api_key=os.environ["FMP_API_KEY"],
-                )
-                print(
-                    "Analyst-estimate snapshots: "
-                    f"calls={snapshot_result['provider_calls']} "
-                    f"added={snapshot_result['snapshots_added']} "
-                    f"skipped={snapshot_result['daily_skips']} "
-                    f"unavailable={snapshot_result['unavailable']}"
-                )
-            except Exception:
-                # Snapshot history is evidence-only and must never change or
-                # prevent publication of the authoritative production scan.
-                print("Analyst-estimate snapshots: unavailable (scan unaffected)")
         legacy_finalist_symbols = {
             str(row.get("symbol") or row.get("ticker") or "").upper()
             for row in full_rows[:FULL_COMMITTEE_LIMIT]
@@ -5621,7 +5457,6 @@ def scan_market() -> Dict[str, Any]:
             "min_market_cap": MIN_MARKET_CAP,
         },
         "api_keys_detected": {
-            "fmp": bool(FMP_API_KEY),
             "finnhub": bool(FINNHUB_API_KEY),
             "newsapi": bool(NEWSAPI_KEY),
         },
@@ -6198,7 +6033,7 @@ def v431s_apply_final_score_overlay(rows):
 # =========================
 def v432s_source_config_status():
     import os
-    names = ["FMP_API_KEY", "FINNHUB_API_KEY", "NEWSAPI_KEY", "ALPHA_VANTAGE_API_KEY", "SEC_USER_AGENT", "GITHUB_TOKEN", "GITHUB_REPO_URL"]
+    names = ["FINNHUB_API_KEY", "NEWSAPI_KEY", "ALPHA_VANTAGE_API_KEY", "SEC_USER_AGENT", "GITHUB_TOKEN", "GITHUB_REPO_URL"]
     return {n: {"configured": bool((os.getenv(n) or "").strip()), "length": len((os.getenv(n) or "").strip())} for n in names}
 
 # V43.2 changes:
@@ -6219,7 +6054,6 @@ def v432s_source_config_status():
     names = [
         "APP_PASSWORD",
         "GUEST_PASSWORD",
-        "FMP_API_KEY",
         "FINNHUB_API_KEY",
         "NEWSAPI_KEY",
         "ALPHA_VANTAGE_API_KEY",

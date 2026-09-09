@@ -503,13 +503,36 @@ def build_home_guidance_story(
         payload_identity.get("artifact_id") or
         hashlib.sha256(json.dumps(full_rows, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:16]
     )
+    certification_contract_present = any(isinstance(row.get("publication_certification"), Mapping) for row in full_rows)
+    published_rows = []
+    for production_rank, row in enumerate(full_rows, start=1):
+        if not certification_contract_present:
+            published_rows.append((production_rank, row))
+            continue
+        certification = row.get("publication_certification") if isinstance(row.get("publication_certification"), Mapping) else {}
+        if certification.get("customer_publication_allowed") is not True:
+            continue
+        certified_action = certification.get("certified_action")
+        if not certified_action:
+            continue
+        evaluation = row.get("canonical_investment_evaluation") if isinstance(row.get("canonical_investment_evaluation"), Mapping) else {}
+        guidance = evaluation.get("guidance") if isinstance(evaluation.get("guidance"), Mapping) else {}
+        if str(guidance.get("state") or "") != str(certified_action):
+            continue
+        if certified_action == "BUY_NOW":
+            revalidation = row.get("positive_action_revalidation") if isinstance(row.get("positive_action_revalidation"), Mapping) else {}
+            if revalidation.get("status") != "BUY_NOW_REVALIDATED":
+                continue
+            if revalidation.get("source_decision_digest") != row.get("decision_digest"):
+                continue
+        published_rows.append((production_rank, row))
     cards = [
         build_home_guidance_candidate(
-            row, production_rank=index, recovery_row=recovery_rows.get(_ticker(row)),
+            row, production_rank=production_rank, recovery_row=recovery_rows.get(_ticker(row)),
             current_evaluation=evaluations.get(_ticker(row)),
             production_snapshot_id=snapshot_id, production_snapshot_timestamp=timestamp,
         )
-        for index, row in enumerate(full_rows, start=1)
+        for production_rank, row in published_rows
         if _ticker(row)
     ]
     groups = [

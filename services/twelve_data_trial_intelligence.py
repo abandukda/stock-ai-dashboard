@@ -26,6 +26,16 @@ ENDPOINTS = (
     "insider_transactions", "institutional_holders", "press_releases",
     "splits", "dividends", "etf",
 )
+CANONICAL_QUANTITATIVE_FIELDS = (
+    "revenue_growth", "earnings_growth", "gross_profit", "gross_profit_margin",
+    "operating_profit_margin", "latest_revenue", "latest_eps", "latest_operating_income",
+    "net_income", "operating_cash_flow", "capital_expenditures", "free_cash_flow",
+    "provider_defined_fcf", "normalized_fcf", "cash_and_equivalents", "total_debt",
+    "total_equity", "current_assets", "current_liabilities", "current_ratio",
+    "market_cap", "current_shares_outstanding", "basic_shares", "diluted_shares",
+    "forward_eps", "forward_revenue", "forward_ebitda", "ebit",
+    "depreciation_amortization", "beta", "provider_forward_pe", "provider_ev_ebitda",
+)
 
 
 def _evidence_id(symbol: str, family: str, observed: str) -> str:
@@ -153,18 +163,14 @@ def _missing_label(value: Any) -> bool:
 
 
 def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) -> dict[str, Any]:
-    """Merge only missing evidence fields; never overwrite an ATLAS value."""
+    """Materialize canonical quantitative fields solely from Twelve evidence."""
     output = dict(row)
-    preexisting = dict(output)
-    from services.evidence_lineage_governance import is_disallowed_provider
-    # A pre-migration estimate may not survive merely because it is populated.
-    # Reject its value and provenance; replacement requires newly acquired evidence.
-    if is_disallowed_provider(output.get("forward_eps_source")) or is_disallowed_provider(
-        (output.get("forward_eps_lineage") or {}).get("provider") if isinstance(output.get("forward_eps_lineage"), Mapping) else None
-    ):
-        for key in tuple(output):
-            if key == "forward_eps" or key.startswith("forward_eps_"):
-                output.pop(key, None)
+    for field in CANONICAL_QUANTITATIVE_FIELDS:
+        output.pop(field, None)
+        for suffix in ("_source", "_lineage", "_period", "_period_type", "_basis", "_evidence_id", "_observed_at", "_freshness"):
+            output.pop(f"{field}{suffix}", None)
+    output.pop("approved_secondary_valuation_inputs", None)
+    output.pop("fundamentals_provenance", None)
     families = dossier.get("families") if isinstance(dossier.get("families"), Mapping) else {}
     payload = lambda family: (families.get(family) or {}).get("payload") or {}
     stats = _nested(payload("statistics"), "statistics") or {}
@@ -202,11 +208,16 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
         "free_cash_flow": None,
         "current_ratio": balance_stats.get("current_ratio_mrq"),
         "latest_revenue": _coalesce(income_stats.get("revenue_ttm"), income.get("sales")),
+        "gross_profit": _coalesce(income_stats.get("gross_profit_ttm"), income.get("gross_profit")),
+        "latest_eps": _coalesce(income.get("diluted_eps"), income.get("eps_diluted"), income.get("eps")),
         "latest_operating_income": income.get("operating_income"),
         "net_income": income.get("net_income"),
         "operating_cash_flow": canonical_ocf,
         "total_debt": _coalesce(balance_stats.get("total_debt_mrq"), _nested(balance, "liabilities", "current_liabilities", "short_term_debt") if _nested(balance, "liabilities", "non_current_liabilities", "long_term_debt") is None else (_nested(balance, "liabilities", "current_liabilities", "short_term_debt") or 0) + (_nested(balance, "liabilities", "non_current_liabilities", "long_term_debt") or 0)),
         "cash_and_equivalents": _coalesce(balance_stats.get("total_cash_mrq"), _nested(balance, "assets", "current_assets", "cash_and_cash_equivalents")),
+        "total_equity": _coalesce(balance_stats.get("total_stockholders_equity_mrq"), _nested(balance, "shareholders_equity", "total_shareholders_equity")),
+        "current_assets": _coalesce(balance_stats.get("total_current_assets_mrq"), _nested(balance, "assets", "current_assets", "total_current_assets")),
+        "current_liabilities": _coalesce(balance_stats.get("total_current_liabilities_mrq"), _nested(balance, "liabilities", "current_liabilities", "total_current_liabilities")),
         "market_cap": _coalesce(valuation_stats.get("market_capitalization"), stats.get("market_capitalization"), stats.get("market_cap")),
         "diluted_shares": _coalesce(income.get("diluted_shares_outstanding"), income.get("weighted_average_shares_diluted"), income.get("diluted_average_shares"), stock_stats.get("shares_outstanding")),
         "basic_shares": _coalesce(income.get("basic_shares_outstanding"), stock_stats.get("shares_outstanding")),
@@ -221,7 +232,7 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
     }
     twelve_populated_fields = set()
     for key, value in values.items():
-        if output.get(key) in (None, "", "Unavailable") and value is not None:
+        if value is not None:
             output[key] = value
             twelve_populated_fields.add(key)
     provider_fcf = _coalesce(cash_stats.get("levered_free_cash_flow_ttm"), cash.get("free_cash_flow"))
@@ -257,7 +268,7 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
     rev_est = _forward_estimate_record(payload("revenue_estimate"), "revenue_estimate")
     eps_records = _forward_estimate_records(payload("earnings_estimate"), "earnings_estimate")
     rev_records = _forward_estimate_records(payload("revenue_estimate"), "revenue_estimate")
-    if output.get("forward_eps") is None and eps_est.get("avg_estimate") is not None:
+    if eps_est.get("avg_estimate") is not None:
         output["forward_eps"] = eps_est["avg_estimate"]
         output["forward_eps_period"] = eps_est.get("date")
         output["forward_eps_period_label"] = eps_est.get("period")
@@ -267,7 +278,7 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
         output["forward_eps_observed_at"] = dossier.get("observed_at")
         output["forward_eps_evidence_id"] = (families.get("earnings_estimate") or {}).get("evidence_id")
         output["forward_eps_freshness"] = "OBSERVED_AT_RECORDED"
-    if output.get("forward_revenue") is None and rev_est.get("avg_estimate") is not None:
+    if rev_est.get("avg_estimate") is not None:
         output["forward_revenue"] = rev_est["avg_estimate"]
         output["forward_revenue_period"] = rev_est.get("date")
         output["forward_revenue_period_label"] = rev_est.get("period")
@@ -331,53 +342,6 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
     output["professional_evidence_lineage"]["preexisting_fields_not_attributed_to_twelve"] = sorted(
         key for key, value in values.items() if value is not None and key not in twelve_populated_fields
     )
-    fmp_provenance = dict(output.get("fundamentals_provenance") or {})
-    if str(fmp_provenance.get("provider") or "").upper() == "FMP":
-        fetched = fmp_provenance.get("evidence_timestamp")
-        primary_map = {
-            "latest_revenue": "revenue", "latest_eps": "eps", "latest_net_income": "net_income",
-            "forward_ebitda": "ebitda", "operating_cash_flow": "operating_cash_flow",
-            "free_cash_flow": "free_cash_flow", "capital_expenditures": "capex",
-            "cash_and_equivalents": "cash", "total_debt": "debt",
-            "diluted_shares": "diluted_shares", "current_shares_outstanding": "current_shares_outstanding",
-            "forward_eps": "forward_eps", "forward_revenue": "forward_revenue",
-        }
-        for row_field, canonical_field in primary_map.items():
-            value = preexisting.get(row_field)
-            if value is None or output.get(row_field) != value:
-                continue
-            output["professional_evidence_lineage"]["fields"][canonical_field] = {
-                "provider": "FMP", "endpoint": "+".join(fmp_provenance.get("endpoint_families") or ()),
-                "raw_field": row_field, "raw_value": value, "canonical_field": canonical_field,
-                "normalized_value": value, "ticker": str(output.get("ticker") or output.get("symbol") or "").upper(),
-                "period": output.get("financial_reporting_period"), "period_type": "REPORTED",
-                "basis": "PROVIDER_REPORTED", "currency": "USD",
-                "unit": "SHARES" if "shares" in canonical_field else "PER_SHARE" if "eps" in canonical_field else "CURRENCY",
-                "as_of": fetched, "transformation": "FMP_NORMALIZED_ROW_FIELD",
-                "consuming_methodology": "ATLAS_PROFESSIONAL_VALUATION_V2",
-            }
-        output["professional_evidence_lineage"]["provider"] = "MIXED_VALIDATED"
-    secondary = dict(output.get("approved_secondary_valuation_inputs") or {})
-    secondary_map = {
-        "revenue": raw_candidates.get("latest_revenue"), "ebitda": raw_candidates.get("forward_ebitda"),
-        "operating_cash_flow": raw_candidates.get("operating_cash_flow"), "free_cash_flow": raw_candidates.get("free_cash_flow"),
-        "capex": raw_candidates.get("capital_expenditures"), "cash": raw_candidates.get("cash_and_equivalents"),
-        "debt": raw_candidates.get("total_debt"), "diluted_shares": raw_candidates.get("diluted_shares"),
-        "current_shares_outstanding": raw_candidates.get("current_shares_outstanding"),
-    }
-    for canonical_field, candidates in secondary_map.items():
-        chosen = next(((endpoint, raw_field, raw) for endpoint, raw_field, raw in candidates or () if raw is not None), None)
-        primary_lineage = output["professional_evidence_lineage"]["fields"].get(canonical_field) or {}
-        if chosen and primary_lineage.get("provider") == "FMP":
-            endpoint, raw_field, raw = chosen
-            endpoint_period={"income_statement":income.get("fiscal_date") or income.get("fiscal_year"),
-                             "balance_sheet":balance.get("fiscal_date") or balance.get("fiscal_year"),
-                             "cash_flow":cash.get("fiscal_date") or cash.get("fiscal_year")}.get(endpoint)
-            secondary[canonical_field] = {"value": raw, "source": "TWELVE_DATA", "endpoint": endpoint,
-                                          "raw_field": raw_field, "period": endpoint_period,
-                                          "as_of": dossier.get("observed_at"), "basis": "PROVIDER_REPORTED"}
-    if secondary:
-        output["approved_secondary_valuation_inputs"] = secondary
     for canonical_field, endpoint, estimate in (("forward_eps", "earnings_estimate", eps_est), ("forward_revenue", "revenue_estimate", rev_est)):
         if output.get(canonical_field) is not None and estimate.get("avg_estimate") == output.get(canonical_field):
             output["professional_evidence_lineage"]["fields"][canonical_field] = {
@@ -394,9 +358,9 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
     output["professional_evidence_as_of"] = dossier.get("observed_at")
     output["twelve_trial_dossier"] = dict(dossier)
     output["twelve_trial_evidence_ids"] = tuple(dossier.get("evidence_ids") or ())
-    output["fundamental_source"] = output.get("fundamental_source") or "TWELVE_DATA_INTERNAL_TRIAL"
+    output["fundamental_source"] = "TWELVE_DATA_INTERNAL_TRIAL"
     from services.share_structure_governance import materialize_share_bridge
     return materialize_share_bridge(output)
 
 
-__all__ = ["ENDPOINTS", "VERSION", "acquire_twelve_trial_dossiers", "normalize_trial_dossier"]
+__all__ = ["CANONICAL_QUANTITATIVE_FIELDS", "ENDPOINTS", "VERSION", "acquire_twelve_trial_dossiers", "normalize_trial_dossier"]

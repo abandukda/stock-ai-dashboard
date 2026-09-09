@@ -24,7 +24,7 @@ jobs:
       FULL_COMMITTEE_LIMIT: "15"
       ETF_FULL_COMMITTEE_LIMIT: "10"
       HTTP_TIMEOUT_FAST: "6"
-      FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+      ATLAS_FMP_EARNINGS_ENABLED: "false"
       FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
       NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
       ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
@@ -89,7 +89,6 @@ jobs:
       - name: Verify canonical publication credentials
         env:
           TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
-          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
         run: |
           if [ -z "${TWELVE_DATA_API_KEY:-}" ]; then
             echo "::error::TWELVE_DATA_API_KEY is required; refusing to overwrite canonical production actions"
@@ -103,22 +102,6 @@ jobs:
           key: atlas-deep-research-v1-${{ github.run_id }}
           restore-keys: |
             atlas-deep-research-v1-
-
-      - name: Restore normalized FMP bulk-metadata shadow snapshot
-        uses: actions/cache@v4
-        with:
-          path: .atlas_research_cache/fmp_bulk_metadata_v1
-          key: atlas-fmp-bulk-metadata-v1-${{ github.run_id }}
-          restore-keys: |
-            atlas-fmp-bulk-metadata-v1-
-
-      - name: Restore analyst-estimate snapshot history
-        uses: actions/cache@v4
-        with:
-          path: .atlas_research_cache/analyst_estimate_snapshots_v1
-          key: atlas-analyst-estimate-snapshots-v1-${{ github.run_id }}
-          restore-keys: |
-            atlas-analyst-estimate-snapshots-v1-
 
       - name: Restore governed market history and negative cache
         uses: actions/cache@v4

@@ -1,4 +1,4 @@
-"""Governed discovery inputs: FMP listings/profile and Twelve daily OHLCV.
+"""Governed Twelve discovery inputs: reference listings and daily OHLCV.
 
 This module is deliberately limited to acquisition and normalization.  It does
 not score, rank, value, or map an Action.
@@ -14,16 +14,13 @@ import re
 import pandas as pd
 import requests
 
-from services.fmp_stable_client import FMPStableClient, SUCCESS
 from services.live_market.twelve_data_phase1 import REST_BASE, load_twelve_data_setting
 
 
-PROVIDER_POLICY_VERSION = "GOVERNED_DISCOVERY_INPUTS_V2"
+PROVIDER_POLICY_VERSION = "GOVERNED_DISCOVERY_INPUTS_V3_TWELVE_ONLY"
 SUPPORTED_US_EXCHANGES = {"NASDAQ", "NYSE", "AMEX", "NYSE AMERICAN", "ARCA", "BATS"}
 OTC_EXCHANGES = {"OTC", "OTCQX", "OTCQB", "OTC PINK", "PINK", "GREY", "GREY MARKET"}
 CLASS_SHARE_ROOTS = {"BRK", "BF", "BH"}
-FMP_US_EXCHANGE_QUERIES = ("NASDAQ", "NYSE", "AMEX", "ARCA", "BATS")
-FMP_COMPANY_SCREENER_LIMIT = 10_000
 _US_EXCHANGE_ALIASES = {
     "NASDAQ": "NASDAQ", "NASDAQ GLOBAL SELECT": "NASDAQ", "NASDAQ GLOBAL MARKET": "NASDAQ",
     "NASDAQ CAPITAL MARKET": "NASDAQ", "NASDAQGS": "NASDAQ", "NASDAQGM": "NASDAQ", "NASDAQCM": "NASDAQ",
@@ -39,7 +36,7 @@ _FOREIGN_EXCHANGE_TOKENS = {
 
 
 def normalize_listing_exchange(row: Mapping[str, Any]) -> dict[str, str | None]:
-    """Resolve FMP listing venue without inferring venue from issuer country."""
+    """Resolve a Twelve listing venue without inferring it from issuer country."""
     source = next((str(row.get(field)).strip() for field in (
         "exchangeShortName", "exchange", "exchangeFullName"
     ) if row.get(field) is not None and str(row.get(field)).strip()), "")
@@ -95,7 +92,7 @@ def classify_listing(row: Mapping[str, Any], *, family: str) -> tuple[str, str |
         return "EXCLUDE", "OTC_OUTSIDE_STOCK_POLICY"
     if exchange_identity["exchange_resolution_status"] != "RESOLVED_US" or exchange not in SUPPORTED_US_EXCHANGES:
         return "EXCLUDE", "NON_US_EXCHANGE_OUTSIDE_STOCK_POLICY"
-    if family in {"etf-list", "etf-screener"} or row.get("isEtf") is True or "EXCHANGE TRADED FUND" in combined:
+    if family in {"etf-list", "etf-screener", "etf-reference"} or row.get("isEtf") is True or "EXCHANGE TRADED FUND" in combined:
         return "ETF", None
     if "WARRANT" in combined or declared in {"WARRANT", "WARRANTS"}:
         return "EXCLUDE", "WARRANT_SECURITY"
@@ -109,7 +106,10 @@ def classify_listing(row: Mapping[str, Any], *, family: str) -> tuple[str, str |
         return "EXCLUDE", "CLOSED_END_FUND"
     if row.get("isFund") is True or declared in {"FUND", "MUTUAL FUND", "TRUST"}:
         return "EXCLUDE", "OTHER_NON_COMMON_SECURITY"
-    explicitly_common = any(token in combined for token in ("COMMON STOCK", "COMMON EQUITY", "ADR", "ADS"))
+    explicitly_common = any(token in combined for token in (
+        "COMMON STOCK", "COMMON EQUITY", "ADR", "ADS",
+        "AMERICAN DEPOSITARY RECEIPT", "DEPOSITARY RECEIPT",
+    ))
     if declared and not explicitly_common and declared not in {"STOCK", "EQUITY"}:
         return "EXCLUDE", "OTHER_NON_COMMON_SECURITY"
     return "STOCK", None
@@ -177,13 +177,17 @@ def _rows(payload: Any) -> list[Mapping[str, Any]]:
         for key in ("data", "results", "items"):
             if isinstance(payload.get(key), list):
                 return [row for row in payload[key] if isinstance(row, Mapping)]
+        result = payload.get("result")
+        if isinstance(result, Mapping) and isinstance(result.get("list"), list):
+            return [row for row in result["list"] if isinstance(row, Mapping)]
     return []
 
 
-def load_governed_universe(*, fmp_key: str | None = None, client: FMPStableClient | None = None) -> dict[str, Any]:
-    """Return active US equities/ETFs from exchange-scoped FMP screener calls."""
-    key = str(fmp_key if fmp_key is not None else os.getenv("FMP_API_KEY", "")).strip()
-    client = client or FMPStableClient(key, timeout_seconds=30, retries=1)
+def load_governed_universe(
+    *, api_key: str | None = None, get: Any = requests.get,
+) -> dict[str, Any]:
+    """Return the US-listed stock/ETF universe from Twelve reference data."""
+    key = str(api_key if api_key is not None else load_twelve_data_setting("TWELVE_DATA_API_KEY") or "").strip()
     stock_symbols: set[str] = set()
     etf_symbols: set[str] = set()
     records: dict[str, dict[str, Any]] = {}
@@ -191,55 +195,51 @@ def load_governed_universe(*, fmp_key: str | None = None, client: FMPStableClien
     mappings: dict[str, dict[str, Any]] = {}
     raw_symbols: set[str] = set()
     diagnostics: dict[str, Any] = {
-        "provider": "FMP", "endpoint": "company-screener",
-        "source_strategy": "EXCHANGE_SCOPED_US_COMPANY_SCREENER_V1",
+        "provider": "TWELVE_DATA", "endpoint": "stocks",
+        "source_strategy": "TWELVE_US_REFERENCE_DIRECTORY_V1",
         "calls": 0, "families": {},
     }
-    returned_listing_rows = 0
     observed_response_fields: set[str] = set()
-    requests = (
-        (route, exchange)
-        for route in ("STOCK", "ETF")
-        for exchange in FMP_US_EXCHANGE_QUERIES
-    )
-    for requested_route, requested_exchange in requests:
-        params = {
-            "exchange": requested_exchange,
-            "isEtf": str(requested_route == "ETF").lower(),
-            "isFund": "false",
-            "isActivelyTrading": "true",
-            "includeAllShareClasses": "true",
-            "limit": FMP_COMPANY_SCREENER_LIMIT,
-        }
-        response = client.get("company-screener", params)
-        diagnostics["calls"] += response.attempts
-        request_key = f"{requested_route}:{requested_exchange}"
-        response_rows = _rows(response.payload) if response.outcome == SUCCESS else []
-        diagnostics["families"][request_key] = {
-            "outcome": response.outcome,
-            "rows_returned": len(response_rows),
-            "exchange_filter": requested_exchange,
-            "route": requested_route,
-        }
-        if response.outcome != SUCCESS:
-            continue
-        returned_listing_rows += len(response_rows)
-        for row in response_rows:
-            observed_response_fields.update(str(field) for field in row)
-            source_symbol = str(row.get("symbol") or "").upper().strip()
-            symbol = canonical_security_ticker(source_symbol)
-            if symbol:
-                raw_symbols.add(symbol)
-            exchange_identity = normalize_listing_exchange(row)
-            exchange = exchange_identity.get("normalized_exchange")
-            if not symbol or "/" in symbol or len(symbol) > 7:
-                exclusions.append({"ticker": source_symbol, "canonical_ticker": symbol or None,
-                                   "reason": "INVALID_SYMBOL_IDENTITY"})
-                continue
-            route, reason = classify_listing(
-                row, family="etf-screener" if requested_route == "ETF" else "stock-screener"
+    response_rows: list[Mapping[str, Any]] = []
+    outcome = "AUTHORIZATION_OR_ENTITLEMENT_FAILURE" if not key else "NETWORK_FAILURE"
+    http_status = None
+    if key:
+        diagnostics["calls"] = 1
+        try:
+            response = get(
+                f"{REST_BASE}/stocks",
+                params={"country": "United States", "format": "JSON", "show_plan": "false", "apikey": key},
+                timeout=30,
             )
-            record = {
+            http_status = int(getattr(response, "status_code", 0) or 0)
+            payload = response.json()
+            provider_error = isinstance(payload, Mapping) and str(payload.get("status") or "").lower() == "error"
+            if 200 <= http_status < 300 and not provider_error:
+                response_rows = _rows(payload)
+                outcome = "SUCCESS" if response_rows else "AUTHORIZED_EMPTY"
+            else:
+                outcome = "PROVIDER_ERROR"
+        except Exception:
+            outcome = "TIMEOUT_OR_NETWORK_FAILURE"
+    diagnostics["families"]["US_REFERENCE"] = {
+        "outcome": outcome, "rows_returned": len(response_rows),
+        "country_filter": "United States", "http_status": http_status,
+    }
+    for row in response_rows:
+        observed_response_fields.update(str(field) for field in row)
+        source_symbol = str(row.get("symbol") or "").upper().strip()
+        symbol = canonical_security_ticker(source_symbol)
+        if symbol:
+            raw_symbols.add(symbol)
+        exchange_identity = normalize_listing_exchange(row)
+        exchange = exchange_identity.get("normalized_exchange")
+        if not symbol or "/" in symbol or len(symbol) > 7:
+            exclusions.append({"ticker": source_symbol, "canonical_ticker": symbol or None,
+                               "reason": "INVALID_SYMBOL_IDENTITY"})
+            continue
+        declared_type = str(row.get("type") or row.get("securityType") or "").strip().upper()
+        route, reason = classify_listing(row, family="etf-reference" if declared_type == "ETF" else "stock-reference")
+        record = {
                 "ticker": symbol,
                 "source_ticker": source_symbol,
                 "company_name": row.get("name") or row.get("companyName"),
@@ -250,22 +250,22 @@ def load_governed_universe(*, fmp_key: str | None = None, client: FMPStableClien
                 "is_actively_trading": row.get("isActivelyTrading"),
                 "is_delisted": row.get("isDelisted"),
                 "route": route,
-                "listing_source_endpoint": "company-screener",
-                "listing_source_exchange_filter": requested_exchange,
-            }
-            records.setdefault(symbol, record)
-            mappings[symbol] = {
+                "listing_source_endpoint": "stocks",
+                "listing_source_country_filter": "United States",
+        }
+        records.setdefault(symbol, record)
+        mappings[symbol] = {
                 **twelve_symbol_route(symbol, exchange=exchange), "source_ticker": source_symbol,
                 **exchange_identity,
-                "listing_source_endpoint": "company-screener",
-                "listing_source_exchange_filter": requested_exchange,
-            }
-            if reason:
-                exclusions.append({**record, "reason": reason})
-            elif route == "ETF":
-                etf_symbols.add(symbol)
-            else:
-                stock_symbols.add(symbol)
+                "listing_source_endpoint": "stocks",
+                "listing_source_country_filter": "United States",
+        }
+        if reason:
+            exclusions.append({**record, "reason": reason})
+        elif route == "ETF":
+            etf_symbols.add(symbol)
+        else:
+            stock_symbols.add(symbol)
     # A security can appear in both list families; the explicit ETF route wins.
     stock_symbols -= etf_symbols
     symbols = sorted(stock_symbols | etf_symbols)
@@ -293,7 +293,7 @@ def load_governed_universe(*, fmp_key: str | None = None, client: FMPStableClien
         "summary": {
             "raw_global_master_count": len(raw_symbols),
             "raw_universe_count": len(raw_symbols),
-            "raw_returned_listing_rows": returned_listing_rows,
+            "raw_returned_listing_rows": len(response_rows),
             "resolved_us_listing_count": len(stock_symbols | etf_symbols),
             "unresolved_listing_identity_count": len(unresolved),
             "foreign_listing_removed_count": len(foreign),
@@ -325,7 +325,7 @@ def load_governed_universe(*, fmp_key: str | None = None, client: FMPStableClien
             "exclusion_reason_counts": exclusion_counts,
         },
         "status": "AVAILABLE" if symbols else "DATA_UNAVAILABLE",
-        "provider": "FMP",
+        "provider": "TWELVE_DATA",
         "policy_version": PROVIDER_POLICY_VERSION,
         "as_of": datetime.now(timezone.utc).isoformat(),
         "diagnostics": diagnostics,
@@ -453,8 +453,7 @@ def fetch_twelve_daily_batch(
 
 
 __all__ = [
-    "FMP_COMPANY_SCREENER_LIMIT", "FMP_US_EXCHANGE_QUERIES", "PROVIDER_POLICY_VERSION",
-    "SUPPORTED_US_EXCHANGES", "assert_governed_stock_universe",
+    "PROVIDER_POLICY_VERSION", "SUPPORTED_US_EXCHANGES", "assert_governed_stock_universe",
     "canonical_security_ticker", "classify_listing", "fetch_twelve_daily_batch",
     "load_governed_universe", "normalize_listing_exchange", "twelve_symbol_route",
 ]

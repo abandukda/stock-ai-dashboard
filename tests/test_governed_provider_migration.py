@@ -26,17 +26,18 @@ def test_production_yahoo_dependency_count_is_zero():
 
 def test_governed_universe_validates_supported_listings():
     class Client:
-        def get(self, family, params):
-            payload = ([{"symbol": "MSFT", "exchangeShortName": "NASDAQ", "isActivelyTrading": True},
-                        {"symbol": "OLD", "exchangeShortName": "NYSE", "isActivelyTrading": False},
-                        {"symbol": "BAD.L", "exchangeShortName": "LSE", "isActivelyTrading": True}]
-                       if params["exchange"] == "NASDAQ" and params["isEtf"] == "false"
-                       else ([{"symbol": "SPY", "exchangeShortName": "ARCA", "isEtf": True}]
-                             if params["exchange"] == "NASDAQ" else []))
-            return type("R", (), {"payload": payload, "outcome": "SUCCESS", "attempts": 1})()
-    result = load_governed_universe(fmp_key="secret", client=Client())
+        def __call__(self, _url, params, timeout):
+            assert params["country"] == "United States" and timeout == 30
+            payload = {"data": [
+                {"symbol": "MSFT", "exchange": "NASDAQ", "type": "Common Stock"},
+                {"symbol": "OLD", "exchange": "NYSE", "type": "Common Stock", "isActivelyTrading": False},
+                {"symbol": "BAD.L", "exchange": "LSE", "type": "Common Stock"},
+                {"symbol": "SPY", "exchange": "NYSE Arca", "type": "ETF"},
+            ]}
+            return Response(payload)
+    result = load_governed_universe(api_key="secret", get=Client())
     assert result["symbols"] == ["MSFT", "SPY"]
-    assert result["provider"] == "FMP"
+    assert result["provider"] == "TWELVE_DATA"
 
 
 def test_twelve_batch_normalizes_completed_daily_history():
