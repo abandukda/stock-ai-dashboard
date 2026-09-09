@@ -37,14 +37,15 @@ def test_live_research_merge_cannot_replace_persisted_canonical_decision():
     assert '"publication_certification"' in function
     assert "if key in protected" in function
     assert "if key in protected and key in merged_raw" in function
-    assert 'context["current_evaluation"] = persisted_evaluation' in function
+    assert 'context["production_evaluation"] = dict(persisted_evaluation)' in function
+    assert 'if not isinstance(context.get("current_evaluation"), dict)' in function
 
 
-def test_research_render_boundary_reconciles_exact_persisted_decision():
+def test_research_render_boundary_preserves_current_and_reconciles_production_separately():
     source = Path("ui/research_vnext.py").read_text()
     function = source.split("def render_full_research_vnext", 1)[1]
     assert "load_production_row(symbol)" in function
-    assert 'canonical_context["current_evaluation"] = dict(persisted_evaluation)' in function
+    assert "_reconcile_canonical_context(canonical_context, persisted_row)" in function
 
 
 def test_app_news_markup_is_python_311_compatible():

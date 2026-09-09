@@ -47,7 +47,7 @@ Bear/base/bull scenarios must vary economic assumptions. Arbitrary percentage ha
 
 ### Activation status
 
-Professional V2 is persisted as a reproducible shadow candidate beside legacy V1. It is deliberately not promoted to canonical production until complete multi-sector input coverage, scenario inputs, sector-specific methods, and the 150-name certification gate pass. This prevents a silent reinterpretation of persisted V1 artifacts and follows the required release gate.
+Professional Valuation V2 is the canonical ticker-level ATLAS valuation authority. It publishes only when the registered company-type route, required inputs, scenario construction, method applicability, and validation gates certify; unavailable methods remain unavailable and do not receive synthetic substitutes. Legacy V1 output is retained solely as a non-canonical audit comparison.
 
 ## Fundamentals and forecasts
 
@@ -78,7 +78,7 @@ Evidence-specific approved sources supply market prices, completed adjusted tech
 | Six-pillar weights | ATLAS-derived, governed | Preserved unchanged. |
 | Opportunity / Confidence | ATLAS-derived, governed | Preserved unchanged. |
 | Legacy valuation V1 | Unsupported heuristic | Custom growth-to-P/E rule, synthetic 8% growth, sentinel, and outcome caps found. Retained only for backward-compatible canonical artifacts while V2 certification is incomplete. |
-| Professional Valuation V2 | Registered professional methods | Added as deterministic shadow output with strict eligibility and no synthetic fallback. |
+| Professional Valuation V2 | Registered professional methods | Canonical ticker-level valuation with strict eligibility and no synthetic fallback. |
 | Fundamental component inputs | Recognized metrics with incomplete lineage | Registry and formula definitions added; full source-period-basis coverage remains an activation gate. |
 | Risk component aggregation | ATLAS-derived | Underlying leverage/reward-risk definitions registered; qualitative volatility labels require replacement by numeric registered risk evidence before full certification. |
 | SMA | Standard | Confirmed arithmetic completed-close mean. |
