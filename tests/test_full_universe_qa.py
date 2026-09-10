@@ -39,8 +39,8 @@ def test_150_name_crawler_and_lineage_sheets_pass():
     assert report["gate"] == "PASS"
     assert report["summary"]["universe_count"] == 150
     assert len(report["sheets"]["Master_150"]) == 150
-    assert list(report["sheets"])[-6:] == ["Discovery_Misses", "High_Uncertainty_Drivers", "Runtime_Profile", "Provider_Call_Profile", "Cache_Effectiveness", "Sector_Metadata_QA"]
-    assert len(report["sheets"]) == 30
+    assert list(report["sheets"])[-7:] == ["Discovery_Misses", "High_Uncertainty_Drivers", "Runtime_Profile", "Provider_Call_Profile", "Cache_Effectiveness", "Sector_Metadata_QA", "Context_Evidence_Coverage"]
+    assert len(report["sheets"]) == 31
     assert report["summary"]["qa_engine_status"] == "OPERATIONAL"
     assert report["summary"]["dataset_certification_status"] == "PASS"
 

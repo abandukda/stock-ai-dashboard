@@ -19,6 +19,7 @@ TWELVE_CANONICAL_FIELD_MAP: Final = (
     ("ANALYST_TARGETS", "target range/consensus", "price_target", "non-scoring context", False, False),
     ("OWNERSHIP", "holders", "institutional_holders", "non-scoring context", False, False),
     ("INSIDERS", "transactions", "insider_transactions", "non-scoring context", False, False),
+    ("NEWS_CATALYSTS", "company press releases", "press_releases", "non-scoring context", False, False),
 )
 
 
