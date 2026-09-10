@@ -45,7 +45,10 @@ def test_market_tape_is_one_batch_and_partial_failures_remain_visible():
     )
     assert len(calls) == 1
     assert result["available"] == 1
+    assert result["rows"][0]["status"] == "available"
     assert result["rows"][0]["change_pct"] == 2
+    assert result["rows"][0]["point_change"] == 2
+    assert result["rows"][0]["evidence_id"].startswith("TD-MARKET-")
     assert result["rows"][1]["status"] == "unavailable"
     assert result["market_data_as_of"] == "2026-08-11T20:00:00Z"
     assert result["market_data_requested_at"] == "2026-08-12T00:00:00Z"
@@ -148,7 +151,8 @@ def test_market_tape_labels_disclose_index_proxies_without_changing_symbols():
     assert HOME_MARKET_SYMBOLS["QQQ"] == "Nasdaq 100 · QQQ"
     assert HOME_MARKET_SYMBOLS["DIA"] == "Dow · DIA"
     assert HOME_MARKET_SYMBOLS["IWM"] == "Russell 2000 · IWM"
-    assert len(HOME_MARKET_SYMBOLS) == 8
+    assert len(HOME_MARKET_SYMBOLS) == 4
+    assert not {"^VIX", "GC=F", "CL=F", "BTC-USD"} & set(HOME_MARKET_SYMBOLS)
 
 
 def test_ai_numeric_hallucination_fails_closed():

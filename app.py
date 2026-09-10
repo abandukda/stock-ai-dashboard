@@ -33001,11 +33001,27 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
         watchlist_tickers=watchlist_tickers,
         current_evaluations=current_evaluations,
         scan_timestamp=read_state().get("generated_at"),
+        market_today=st.session_state.get("home_market_today") or {},
     )
     from services.session_stability import emit_page_interactive
     def _home_guidance_interactive():
         emit_page_interactive(st, "Home")
     render_home_guidance_vnext(story, emit_interactive=_home_guidance_interactive)
+    market_attempt=float(st.session_state.get("home_market_today_attempted_at") or 0.0)
+    if dt.datetime.now(dt.timezone.utc).timestamp()-market_attempt>120.0:
+        st.session_state["home_market_today_attempted_at"]=dt.datetime.now(dt.timezone.utc).timestamp()
+        from engines.home_market_data import fetch_home_market_tape
+        from engines.market_today import build_market_today
+        tape=fetch_home_market_tape()
+        news_records=[]
+        try:
+            news_payload=read_json_file(DATA_DIR / "market_news_context.json")
+            news_records=news_payload.get("records",[]) if isinstance(news_payload,dict) else news_payload if isinstance(news_payload,list) else []
+        except Exception:
+            pass
+        st.session_state["home_market_today"]=build_market_today(tape,news=news_records)
+        if tape.get("available"):
+            st.rerun()
     # Optional Twelve Data work is intentionally after PAGE_INTERACTIVE. A
     # completed result is consumed on the next rerun; the first shell never
     # waits for live acquisition before becoming usable.
