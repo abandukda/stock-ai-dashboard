@@ -15,6 +15,7 @@ from agents.atlas_visual_crawler_v1 import (
     PRIMARY_VISIBLE_SIGNALS,
     VISUAL_CRAWLER_VERSION,
     RESEARCH_VNEXT_SECTIONS,
+    RESEARCH_COMPLETION_TIMEOUT_SECONDS,
     VisualResult,
 )
 from agents.product_hardening_certification import ACTIVE_PAGES
@@ -33,6 +34,7 @@ def test_visual_crawler_has_complete_non_blocking_product_scope():
         "Recovery",
     }
     assert GLOBAL_FATALS == {"APP_UNREACHABLE", "AUTHENTICATION_FAILED", "BROWSER_DIED"}
+    assert RESEARCH_COMPLETION_TIMEOUT_SECONDS >= 90
 
 
 def test_artifacts_are_complete_and_sanitized(tmp_path, monkeypatch):

@@ -128,6 +128,21 @@ def test_statement_margin_is_authoritative_over_differently_defined_provider_rat
     assert reconciliation["margin_status"] == "PASS"
 
 
+def test_margin_difference_without_same_period_lineage_is_nonblocking_observability_gap():
+    rows = universe()
+    fields = rows[0]["canonical_investment_evaluation"]["trial_presentation_fields"]
+    fields.update({"latest_revenue": 200, "latest_operating_income": 10,
+                   "operating_profit_margin": 0.25})
+    report = crawl_universe(rows)
+    reconciliation = report["sheets"]["Financial_Reconciliation"][0]
+    finding = next(item for item in report["sheets"]["Validation_Failures"]
+                   if item["ticker"] == "T000" and item["category"] == "MARGIN_RECONCILIATION_UNAVAILABLE")
+    assert reconciliation["margin_status"] == "NOT_COMPARABLE"
+    assert finding["severity"] == "P3"
+    assert finding["reason"] == "BASIS_UNKNOWN"
+    assert report["summary"]["severity_counts"]["P1"] == 0
+
+
 def test_documented_adr_basis_reconciles_without_replacing_current_shares():
     rows = universe()
     fields = rows[0]["canonical_investment_evaluation"]["trial_presentation_fields"]

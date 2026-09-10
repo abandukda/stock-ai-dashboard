@@ -261,14 +261,27 @@ def _qa_record(row: Mapping[str, Any], rank: int) -> tuple[dict[str, Any], dict[
         issues.append(_issue(ticker, "P1", "NET_DEBT_RECONCILIATION", "net_debt",
                              "Debt − cash does not reconcile to published net debt."))
     comparable = bool(margin_lineage.get("comparable"))
-    periods_match = margin_lineage.get("numerator_period") == margin_lineage.get("denominator_period")
+    periods_match = bool(margin_lineage) and margin_lineage.get("numerator_period") == margin_lineage.get("denominator_period")
     same_basis = bool(margin_lineage.get("basis"))
     margin_difference = abs(calculated_operating_margin - canonical_operating_margin) if calculated_operating_margin is not None and canonical_operating_margin is not None else None
-    margin_status = "NOT_TESTED" if margin_difference is None else ("PASS" if margin_difference <= 2 else "FAIL")
-    if margin_lineage and not (comparable and periods_match and same_basis):
-        margin_status = "FAIL"
-        margin_difference = margin_difference if margin_difference is not None else 0.0
-    if margin_status == "FAIL":
+    # A cross-field ratio is a blocking reconciliation only when the persisted
+    # evidence proves that numerator, denominator, and published margin share a
+    # comparable period/basis.  Without that lineage, a difference is an
+    # observability gap—not evidence that the canonical value is wrong.
+    lineage_certified = comparable and periods_match and same_basis
+    margin_status = "NOT_TESTED" if margin_difference is None else (
+        "PASS" if margin_difference <= 2 else ("FAIL" if lineage_certified else "NOT_COMPARABLE")
+    )
+    if margin_lineage and not lineage_certified:
+        margin_status = "NOT_COMPARABLE"
+    if margin_status == "NOT_COMPARABLE" and margin_difference is not None and margin_difference > 2:
+        issues.append(_issue(
+            ticker, "P3", "MARGIN_RECONCILIATION_UNAVAILABLE", "operating_profit_margin",
+            f"Operating-margin inputs differ by {margin_difference:.1f} points, but same-period/basis lineage is unavailable.",
+            reason="BASIS_UNKNOWN", fixable=True,
+            remediation="Persist comparable statement period and basis before treating the difference as a validation failure.",
+        ))
+    elif margin_status == "FAIL":
         issues.append(_issue(ticker, "P1", "MARGIN_RECONCILIATION", "operating_profit_margin",
                              f"Operating income ÷ revenue differs from published margin by {margin_difference:.1f} points.",
                              reason="PERIOD_MISMATCH" if margin_lineage and not periods_match else "VALIDATION_FAILED",
