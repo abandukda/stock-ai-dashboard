@@ -49,7 +49,11 @@ def certify_peer_multiple(model: Mapping[str, Any]) -> dict[str, Any]:
     if model.get("methodology_id") == "VAL_EV_EBITDA_V1":
         for peer in peers:
             enterprise,ebitda,reported=(_num(peer.get(key)) for key in ("peer_enterprise_value","peer_ebitda","peer_ev_ebitda"))
-            if enterprise is not None and ebitda not in (None,0) and reported is not None and not math.isclose(enterprise/ebitda,reported,rel_tol=.01):
+            # Twelve's provider EV/EBITDA is a current/TTM statistic.  Do not
+            # compare it with an annual or forward EBITDA denominator.  That
+            # is a period mismatch, not a failed numerical reconciliation.
+            same_basis = str(peer.get("peer_ebitda_basis") or "").upper() == str(peer.get("peer_ev_ebitda_basis") or "").upper() != ""
+            if same_basis and enterprise is not None and ebitda not in (None,0) and reported is not None and not math.isclose(enterprise/ebitda,reported,rel_tol=.01):
                 ratio_mismatches.append(peer.get("peer_ticker"))
     flags = sorted({flag for peer in peers for flag in peer.get("comparability_flags") or ()})
     reasons=[]

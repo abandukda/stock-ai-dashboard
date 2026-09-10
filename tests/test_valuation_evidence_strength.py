@@ -85,6 +85,15 @@ def test_peer_multiple_is_exactly_reproducible():
     assert result["reproduced_median"]==result["used_multiple"]==10
 
 
+def test_ev_reconciliation_does_not_compare_incompatible_period_bases():
+    model=_single_professional()["models"][0]
+    peer=model["key_assumptions"]["peer_evidence"]["included_peers"][0]
+    peer.update({"peer_enterprise_value":500,"peer_ebitda":10,"peer_ev_ebitda":10,
+                 "peer_ebitda_basis":"REPORTED","peer_ev_ebitda_basis":"TTM"})
+    result=certify_peer_multiple(model)
+    assert "PEER_EV_EBITDA_RECONCILIATION_FAILED" not in result["reason_codes"]
+
+
 def test_method_bridge_aggregation_ignores_unpublished_method_inputs():
     professional=_single_high_professional()
     result=certify_method_bridges(professional,_validation())

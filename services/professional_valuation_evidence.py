@@ -56,6 +56,14 @@ def _median_ratio(records: Sequence[Mapping[str, Any]], numerator, denominator) 
     return statistics.median(ratios) if ratios else None
 
 
+def _security_family(value: Any) -> str:
+    """Normalize listing form without confusing common-equity economics."""
+    token = " ".join(str(value or "").upper().replace("_", " ").split())
+    if token in {"COMMON STOCK", "COMMON EQUITY", "ORDINARY SHARE", "ORDINARY SHARES", "ADR", "ADS", "AMERICAN DEPOSITARY RECEIPT", "AMERICAN DEPOSITARY SHARE"}:
+        return "COMMON_EQUITY"
+    return token or "UNRESOLVED"
+
+
 def build_operating_forecast(row: Mapping[str, Any], *, years: int = 5) -> dict[str, Any]:
     income, cash = _records(row, "income_statement"), _records(row, "cash_flow")
     revenue = _num(row.get("forward_revenue"))
@@ -121,17 +129,17 @@ def apply_peer_multiple_evidence(rows: Sequence[Mapping[str, Any]]) -> list[dict
     prepared=[enrich_professional_inputs(row) for row in rows]
     for row in prepared:
         industry_peers=[p for p in prepared if p is not row and p.get("industry") and str(p.get("industry")).lower()==str(row.get("industry") or "").lower()]
-        used_sector_fallback=len(industry_peers)<3
-        peers=industry_peers if not used_sector_fallback else [p for p in prepared if p is not row and p.get("sector") and str(p.get("sector")).lower()==str(row.get("sector") or "").lower()]
-        selection_rule="same sector fallback" if used_sector_fallback else "same industry"
+        sector_peers=[p for p in prepared if p is not row and p.get("sector") and str(p.get("sector")).lower()==str(row.get("sector") or "").lower()]
         subject_cap=_num(row.get("market_cap"))
 
-        def peer_record(peer: Mapping[str, Any], metric: str, value: float | None, included: bool, reason: str) -> dict[str, Any]:
+        def peer_record(peer: Mapping[str, Any], metric: str, value: float | None, included: bool, reason: str, *, used_sector_fallback: bool) -> dict[str, Any]:
             peer_cap=_num(peer.get("market_cap")); scale_ratio=max(subject_cap,peer_cap)/min(subject_cap,peer_cap) if subject_cap and peer_cap and min(subject_cap,peer_cap)>0 else None
             peer_debt=_num(peer.get("total_debt")); peer_cash=_num(peer.get("cash_and_equivalents"))
             peer_ev=peer_cap+peer_debt-peer_cash if None not in (peer_cap,peer_debt,peer_cash) else None
             lineage=(peer.get("professional_evidence_lineage") or {}).get("fields") or {}
-            comparability_flags=[flag for flag,condition in (("SECTOR_FALLBACK",used_sector_fallback),("SCALE_GAP_OVER_10X",bool(scale_ratio and scale_ratio>10)),("SECURITY_TYPE_MISMATCH",bool(row.get("security_type") and peer.get("security_type") and row.get("security_type")!=peer.get("security_type")))) if condition]
+            security_mismatch=_security_family(row.get("security_type")) != _security_family(peer.get("security_type"))
+            comparability_flags=[flag for flag,condition in (("SECTOR_FALLBACK",used_sector_fallback),("SCALE_GAP_OVER_10X",bool(scale_ratio and scale_ratio>10)),("SECURITY_TYPE_MISMATCH",security_mismatch)) if condition]
+            ebitda_lineage=dict(lineage.get("forward_ebitda") or {})
             return {
                 "subject_ticker":str(row.get("ticker") or row.get("symbol") or ""),
                 "peer_ticker":str(peer.get("ticker") or peer.get("Ticker") or peer.get("symbol") or ""),
@@ -140,7 +148,9 @@ def apply_peer_multiple_evidence(rows: Sequence[Mapping[str, Any]]) -> list[dict
                 "peer_security_type":peer.get("security_type"),"peer_market_cap":peer_cap,
                 "peer_enterprise_value":peer_ev,"peer_enterprise_value_basis":"MARKET_CAP_PLUS_DEBT_MINUS_CASH",
                 "peer_ebitda":_num(peer.get("forward_ebitda")),
+                "peer_ebitda_basis":ebitda_lineage.get("period_type") or ebitda_lineage.get("basis"),
                 "peer_ev_ebitda":_num(peer.get("provider_ev_ebitda")),
+                "peer_ev_ebitda_basis":"TTM",
                 "multiple":value,"multiple_metric":metric,"basis":"TTM" if metric!="FORWARD_PE" else "FORWARD",
                 "provider_fetched_at":peer.get("professional_evidence_fetched_at"),
                 "evidence_as_of":peer.get("professional_evidence_as_of"),
@@ -161,11 +171,24 @@ def apply_peer_multiple_evidence(rows: Sequence[Mapping[str, Any]]) -> list[dict
         )
         evidence={}
         for metric,source_field,target_field,basis in metric_specs:
+            def eligible(peer: Mapping[str, Any]) -> tuple[bool, str]:
+                value=_num(peer.get(source_field))
+                if value is None:return False,"MULTIPLE_MISSING"
+                if value<=0:return False,"MULTIPLE_NONPOSITIVE"
+                if value>=100:return False,"MULTIPLE_OUTSIDE_GOVERNED_RANGE"
+                peer_cap=_num(peer.get("market_cap"))
+                if not subject_cap or not peer_cap:return False,"SCALE_IDENTITY_UNAVAILABLE"
+                if max(subject_cap,peer_cap)/min(subject_cap,peer_cap)>10:return False,"SCALE_GAP_OVER_10X"
+                if _security_family(row.get("security_type")) != _security_family(peer.get("security_type")):return False,"SECURITY_TYPE_MISMATCH"
+                return True,""
+            industry_valid=[peer for peer in industry_peers if eligible(peer)[0]]
+            used_sector_fallback=len(industry_valid)<3
+            peers=industry_peers if not used_sector_fallback else sector_peers
+            selection_rule="same sector fallback" if used_sector_fallback else "same industry"
             records=[]
             for peer in peers:
-                value=_num(peer.get(source_field)); included=value is not None and 0<value<100
-                reason="MULTIPLE_MISSING" if value is None else "MULTIPLE_NONPOSITIVE" if value<=0 else "MULTIPLE_OUTSIDE_GOVERNED_RANGE"
-                records.append(peer_record(peer,metric,value,True,reason) if included else {
+                value=_num(peer.get(source_field)); included,reason=eligible(peer)
+                records.append(peer_record(peer,metric,value,True,reason,used_sector_fallback=used_sector_fallback) if included else {
                     "subject_ticker":str(row.get("ticker") or row.get("symbol") or ""),
                     "peer_ticker":str(peer.get("ticker") or peer.get("Ticker") or peer.get("symbol") or ""),
                     "peer_company_name":peer.get("company") or peer.get("company_name") or peer.get("name"),
@@ -183,7 +206,7 @@ def apply_peer_multiple_evidence(rows: Sequence[Mapping[str, Any]]) -> list[dict
                 "as_of":row.get("professional_evidence_as_of"),"provider":"TWELVE_DATA"}
             if median is not None:
                 row.update({target_field:median,f"{target_field}_basis":basis,f"{target_field}_range":[values[0],values[-1]],f"{target_field}_peer_evidence":evidence[metric]})
-        peer_ids=[str(p.get("ticker") or p.get("Ticker") or p.get("symbol")) for p in peers]
+        peer_ids=sorted({ticker for item in evidence.values() for ticker in item.get("final_peer_set") or ()})
         row["deterministic_peer_set"]={"peers":peer_ids,"rule":f"{selection_rule}; current universe; valid positive comparable multiple","as_of":row.get("professional_evidence_as_of"),"multiple_evidence":evidence}
     return prepared
 

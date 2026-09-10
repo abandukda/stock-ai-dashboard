@@ -53,3 +53,13 @@ def test_peer_set_requires_three_comparables_and_is_deterministic():
     ev=a["justified_ev_ebitda_peer_evidence"]
     assert ev["published_median"]==statistics.median(item["peer_ev_ebitda"] for item in ev["included_peers"])
     assert all(item["peer_enterprise_value"]==2100 and item["peer_ebitda"]==250 for item in ev["included_peers"])
+
+
+def test_listing_form_is_normalized_and_scale_outlier_is_excluded():
+    subject=row("TGT"); subject.update({"security_type":"Common Stock","market_cap":10_000})
+    peers=[]
+    for ticker,security,cap in (("ADR1","American Depositary Receipt",9_000),("ADS1","ADS",11_000),("COM1","Common Stock",12_000),("TINY","Common Stock",100)):
+        item=row(ticker); item.update({"security_type":security,"market_cap":cap}); peers.append(item)
+    evidence=apply_peer_multiple_evidence([subject,*peers])[0]["justified_forward_pe_peer_evidence"]
+    assert set(evidence["final_peer_set"])=={"ADR1","ADS1","COM1"}
+    assert any(item["peer_ticker"]=="TINY" and item["exclusion_reason"]=="SCALE_GAP_OVER_10X" for item in evidence["excluded_peers"])
