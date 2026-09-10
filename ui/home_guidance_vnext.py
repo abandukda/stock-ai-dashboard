@@ -591,11 +591,10 @@ def _what_changes_call(card: Mapping[str, Any]) -> str:
 
 
 def _atlas_summary(card: Mapping[str, Any]) -> str:
-    ai_view = card.get("atlas_ai_view") if isinstance(card.get("atlas_ai_view"), Mapping) else {}
-    if ai_view.get("text"):
-        return str(ai_view["text"])
-    from services.atlas_view_summary import build_summary_payload, deterministic_summary
-    return deterministic_summary(build_summary_payload(card))
+    customer = card.get("customer_plain_english_summary") if isinstance(card.get("customer_plain_english_summary"), Mapping) else {}
+    if customer.get("text"):
+        return str(customer["text"])
+    return "ATLAS cannot produce a plain-English view until the required certified evidence is available. Professional detail remains available below."
 
 
 def _quick_evidence(card: Mapping[str, Any]) -> str:
@@ -677,7 +676,6 @@ def _action_card(card: Mapping[str, Any]) -> str:
 
 
 def _target_tiles(card: Mapping[str, Any]) -> str:
-    street = card.get("wall_street") or {}
     published = str(card.get("atlas_valuation_status") or "").upper() == "PUBLISHED"
     values = [("Current", _money(card.get("display_price")) if card.get("display_price") is not None else "Not Published", "current")]
     if published:
@@ -687,13 +685,6 @@ def _target_tiles(card: Mapping[str, Any]) -> str:
         ))
     else:
         values.append(("ATLAS Target / Upside", "Not Published", "atlas"))
-    if street.get("mean_target") is not None:
-        values.extend((
-            ("Wall Street Avg Target", _money(street.get("mean_target")), "street"),
-            ("Wall Street Upside", _score(street.get("implied_upside"), suffix="%"), "street"),
-        ))
-    else:
-        values.append(("Wall Street Target / Upside", "Not Published", "street"))
     tile_parts = []
     for label, value, authority in values:
         muted_class = "atlas-home-target-muted" if value == "Not Published" else ""
@@ -702,18 +693,9 @@ def _target_tiles(card: Mapping[str, Any]) -> str:
             f'<small>{html.escape(label)}</small><b>{html.escape(value)}</b></span>'
         )
     tiles = "".join(tile_parts)
-    atlas, street_target = card.get("atlas_fair_value"), street.get("mean_target")
-    divergence = ""
-    if published and atlas is not None and street_target not in (None, 0):
-        gap = ((float(atlas) / float(street_target)) - 1.0) * 100.0
-        label = "ATLAS MORE BULLISH" if gap > 15 else "STREET MORE BULLISH" if gap < -15 else "ATLAS + STREET ALIGNED"
-        divergence = (
-            f'<strong class="atlas-home-divergence" data-atlas-target-gap="{gap:.2f}">{label} · '
-            f'{html.escape(_money(atlas))} vs Street {html.escape(_money(street_target))}</strong>'
-        )
     return (
         '<div class="atlas-home-comparison" data-atlas-qa="home-target-comparison">'
-        f'{tiles}{divergence}<em>Wall Street is external context and does not determine the ATLAS rating.</em></div>'
+        f'{tiles}</div>'
     )
 
 
@@ -731,10 +713,20 @@ def _wall_street_view(card: Mapping[str, Any]) -> str:
     ):
         if value:
             facts.append(f"<span><small>{html.escape(label)}</small><b>{html.escape(value)}</b></span>")
+    if analysis.get("display_authority") == "COMMERCIAL_RIGHTS_UNCONFIRMED":
+        customer_copy = "Wall Street information is not displayed because commercial-use permission is not confirmed."
+    elif analysis.get("status") == "WALL_STREET_DATA_UNAVAILABLE":
+        customer_copy = "Wall Street data is temporarily unavailable."
+    elif analysis.get("status") == "WALL_STREET_NOT_COVERED":
+        customer_copy = "No verified Wall Street analyst coverage is currently available for this company."
+    elif analysis.get("status") == "WALL_STREET_PARTIAL":
+        customer_copy = wall_street_view_text(analysis) + " Some Wall Street fields are not currently available."
+    else:
+        customer_copy = wall_street_view_text(analysis)
     return (
         '<section class="atlas-home-wall-street" data-atlas-qa="wall-street-view"><h4>Wall Street View</h4>'
         f'<div class="atlas-home-wall-street-facts">{"".join(facts)}</div>'
-        f'<p>{html.escape(wall_street_view_text(analysis))}</p></section>'
+        f'<p>{html.escape(customer_copy)}</p></section>'
     )
 
 
@@ -1030,12 +1022,12 @@ def _card(card: Mapping[str, Any], *, key: str, first: bool = False, total: int 
                 st.markdown(chart_html, unsafe_allow_html=True)
         st.markdown('<h4 class="atlas-home-view-title">Price Outlook</h4>', unsafe_allow_html=True)
         st.markdown(_target_tiles(card), unsafe_allow_html=True)
-        st.markdown(_wall_street_view(card), unsafe_allow_html=True)
-        st.markdown('<h4 class="atlas-home-view-title">ATLAS Investment View</h4>', unsafe_allow_html=True)
+        st.markdown('<h4 class="atlas-home-view-title">ATLAS in Plain English</h4>', unsafe_allow_html=True)
         st.markdown(
             f'<p class="atlas-home-guidance-summary" data-atlas-qa="home-guidance-summary">{html.escape(_atlas_summary(card))}</p>',
             unsafe_allow_html=True,
         )
+        st.markdown(_wall_street_view(card), unsafe_allow_html=True)
         st.markdown('<h4 class="atlas-home-view-title">Six-Pillar Decision Evidence</h4>', unsafe_allow_html=True)
         st.markdown(_six_pillar_summary(card), unsafe_allow_html=True)
         win = _why_it_could_win(card)
@@ -1052,7 +1044,7 @@ def _card(card: Mapping[str, Any], *, key: str, first: bool = False, total: int 
             st.markdown('<h4 class="atlas-home-subhead">Analyst & Ownership Context</h4>', unsafe_allow_html=True)
             st.markdown(trial_context, unsafe_allow_html=True)
         _open_research(ticker, f"home_guidance_{key}_{ticker}")
-        with st.expander("Full Evidence", expanded=False):
+        with st.expander("Professional Detail", expanded=False):
             st.markdown(_full_evidence(card), unsafe_allow_html=True)
 
 

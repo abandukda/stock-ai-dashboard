@@ -228,6 +228,7 @@ def acquire_home_phase1_evaluations(
             symbol = str(card.get("ticker") or "")
             if symbol in evaluations:
                 evaluations[symbol]["atlas_ai_view"] = summary
+                evaluations[symbol]["customer_plain_english_summary"] = dict(card.get("customer_plain_english_summary") or {})
     return {
         "version": HOME_PHASE1_VERSION,
         "status": "AVAILABLE" if evaluations else "DATA_UNAVAILABLE",

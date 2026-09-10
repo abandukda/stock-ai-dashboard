@@ -227,7 +227,7 @@ def build_home_guidance_candidate(
     if persisted_evaluation and current_evaluation:
         # Optional synthesis/context may refresh independently, but it cannot
         # replace any canonical completed-session decision field.
-        for presentation_key in ("atlas_ai_view", "trial_intelligence", "trial_presentation_fields"):
+        for presentation_key in ("atlas_ai_view", "customer_plain_english_summary", "trial_intelligence", "trial_presentation_fields"):
             if current_evaluation.get(presentation_key):
                 evaluation[presentation_key] = current_evaluation[presentation_key]
     trial_fields = evaluation.get("trial_presentation_fields") if isinstance(evaluation.get("trial_presentation_fields"), Mapping) else {}
@@ -257,16 +257,21 @@ def build_home_guidance_candidate(
     wall_street_analysis = dict(analyst_intelligence.get("wall_street_analysis") or {})
     internal = internal_trial_mode()
     commercial_street_allowed = (
-        row.get("analyst_targets_commercial_display_allowed") is True
+        row.get("wall_street_commercial_display_allowed") is True
+        or str(row.get("wall_street_commercial_display_status") or "").upper() in {"LICENSED", "DISPLAY_ALLOWED"}
+        or row.get("twelve_wall_street_commercial_display_allowed") is True
+        or row.get("analyst_targets_commercial_display_allowed") is True
         or str(row.get("analyst_commercial_status") or "").upper() in {"LICENSED", "DISPLAY_ALLOWED"}
     )
     street_display_allowed = internal or commercial_street_allowed
     if not street_display_allowed:
+        source_status = str(wall_street_analysis.get("status") or "WALL_STREET_DATA_UNAVAILABLE")
         wall_street_analysis = {
             "status": "WALL_STREET_DATA_UNAVAILABLE", "as_of": None, "provider": None,
             "evidence_ids": (), "consensus": {}, "rating_distribution": {},
             "recent_actions": (), "estimate_context": {}, "atlas_comparison": {},
             "limitations": ("Commercial display rights are not confirmed.",), "non_scoring": True,
+            "underlying_status": source_status, "display_authority": "COMMERCIAL_RIGHTS_UNCONFIRMED",
         }
     price = _first_number(row, "current_price", "price", "last_price")
     snapshot = _snapshot_evidence(row, price)
@@ -305,7 +310,7 @@ def build_home_guidance_candidate(
     )
     recovery = dict(recovery_row or {})
     company = row.get("company") or row.get("company_name") or row.get("name") or ticker
-    return {
+    candidate = {
         "ticker": ticker,
         "display_scope": display_scope(),
         "company": str(company),
@@ -499,6 +504,13 @@ def build_home_guidance_candidate(
         "atlas_ai_view": dict(evaluation.get("atlas_ai_view") or {}),
         "presentation_mode": "ACTIVE" if founder_guidance_v1_enabled() and current_evaluation is not None else "PREVIEW",
     }
+    from services.atlas_view_summary import build_summary_payload, plain_english_summary, summary_evidence_map
+    customer_payload = build_summary_payload(candidate)
+    candidate["customer_plain_english_summary"] = {
+        "version": "ATLAS_CUSTOMER_101_V1", "text": plain_english_summary(customer_payload),
+        "evidence_map": summary_evidence_map(customer_payload), "authority": "PRESENTATION_ONLY",
+    }
+    return candidate
 
 
 def build_home_guidance_story(

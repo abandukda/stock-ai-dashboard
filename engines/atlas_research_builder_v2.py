@@ -727,6 +727,7 @@ def build_atlas_research_v2(
         "canonical_chart_contract": _mapping(enriched_row.get("canonical_chart_contract")),
         "canonical_chart_ranges": _mapping(enriched_row.get("canonical_chart_ranges")),
         "atlas_ai_view": _mapping(enriched_row.get("atlas_ai_view")),
+        "customer_plain_english_summary": _mapping(enriched_row.get("customer_plain_english_summary")),
         "trade_plan": trade_plan,
         "policy_intelligence": policy_intelligence,
         "ai_valuation": ai_valuation,

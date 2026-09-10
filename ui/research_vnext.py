@@ -429,10 +429,12 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
             f"{_scalar_text(market.get('provider'), 'Provider unavailable')} · "
             f"{'Live' if market.get('fresh_current_price') is True else 'Last known'}"
         )
-    atlas_view = safe_mapping(report.get("atlas_ai_view"))
-    if atlas_view.get("text"):
-        st.markdown("### ATLAS View")
-        st.write(_scalar_text(atlas_view.get("text")))
+    customer_view = safe_mapping(report.get("customer_plain_english_summary"))
+    st.markdown("### ATLAS in Plain English")
+    st.write(_scalar_text(
+        customer_view.get("text"),
+        "ATLAS cannot produce a plain-English view until the required certified evidence is available.",
+    ))
     if current_guidance:
         actionability = _scalar_text(safe_mapping(current.get("actionability")).get("status"), "UNAVAILABLE")
         st.markdown(

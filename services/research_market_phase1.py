@@ -111,8 +111,10 @@ def apply_research_phase1(row: Mapping[str, Any], bundle: Mapping[str, Any]) -> 
     )
     summary = generate_summaries([build_summary_payload(card)])[0]
     evaluation["atlas_ai_view"] = summary
+    evaluation["customer_plain_english_summary"] = dict(card.get("customer_plain_english_summary") or {})
     context["current_evaluation"] = evaluation
     output["atlas_ai_view"] = summary
+    output["customer_plain_english_summary"] = dict(card.get("customer_plain_english_summary") or {})
     return output
 
 
