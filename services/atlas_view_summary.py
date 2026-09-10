@@ -17,6 +17,25 @@ TECHNICAL_STATES = {
     "NO_SETUP", "SETUP_FORMING", "NEAR_BREAKOUT", "BREAKOUT_CONFIRMED", "EXTENDED", "FAILED_BREAKOUT",
 }
 
+PILLAR_101 = {
+    "technical_quality": "Is the stock's price trend healthy?",
+    "fundamental_quality": "Is the underlying business financially healthy?",
+    "valuation_quality": "Does the stock appear reasonably priced?",
+    "risk_quality": "How much could go wrong?",
+    "entry_quality": "Is today's price a sensible place to enter?",
+    "volume_quality": "Is trading activity supporting the move?",
+}
+
+ACTION_101 = {
+    "BUY NOW": "ATLAS sees an attractive combination of price, company quality, risk, and entry conditions right now.",
+    "BUILD A POSITION": "ATLAS likes the opportunity, but suggests adding gradually rather than buying the full position at once.",
+    "WAIT FOR BETTER ENTRY": "ATLAS likes the company, but believes the current price is not the best place to buy.",
+    "WAIT FOR CONFIRMATION": "The opportunity is promising, but ATLAS is waiting for stronger evidence before acting.",
+    "WATCH": "There are some positive signs, but not enough evidence to buy yet.",
+    "WATCH — NOT READY YET": "There are some positive signs, but not enough evidence to buy yet.",
+    "AVOID": "ATLAS currently sees more risk than opportunity.",
+}
+
 def thesis_style_violations(text: str) -> tuple[str, ...]:
     """Client-language checks only; this function has no investment authority."""
     copy=" ".join(str(text or "").split()); issues=[]
@@ -84,6 +103,23 @@ def build_summary_payload(card: Mapping[str, Any]) -> dict[str, Any]:
     fundamentals = dict(card.get("fundamentals_evidence") or {})
     company = dict(card.get("company_evidence") or {})
     wall_street = dict(card.get("wall_street") or {})
+    wall_street_analysis = dict(card.get("wall_street_analysis") or {})
+    if not wall_street_analysis and (
+        wall_street.get("display_scope") == "INTERNAL_TRIAL" or
+        wall_street.get("commercial_display_status") == "DISPLAY_ALLOWED"
+    ):
+        from engines.analyst_intelligence import build_analyst_intelligence
+        wall_street_analysis = dict(build_analyst_intelligence({
+            "current_price": card.get("display_price"),
+            "analyst_target_mean": wall_street.get("mean_target"),
+            "analyst_target_median": wall_street.get("median_target"),
+            "analyst_target_low": wall_street.get("low_target"),
+            "analyst_target_high": wall_street.get("high_target"),
+            "analyst_count": wall_street.get("analyst_count"),
+            "recommendation_key": wall_street.get("rating"),
+            "atlas_fair_value": card.get("atlas_fair_value"),
+            "atlas_fv_upside_pct": card.get("atlas_expected_return"),
+        }).get("wall_street_analysis") or {})
     context = dict(card.get("context_evidence") or {})
     internal_lanes = dict(card.get("internal_evidence_lanes") or {})
     evaluation = dict(card.get("evaluation") or {})
@@ -156,6 +192,7 @@ def build_summary_payload(card: Mapping[str, Any]) -> dict[str, Any]:
             "professional_valuation_v2": professional_valuation,
         },
         "wall_street": wall_street,
+        "wall_street_analysis": wall_street_analysis,
         "insider_ownership_political_context": context,
         "internal_trial_evidence": internal_lanes,
         "valuation_comparison": _valuation_comparison(card),
@@ -177,10 +214,84 @@ def build_summary_payload(card: Mapping[str, Any]) -> dict[str, Any]:
         "reason_codes": list(card.get("reason_codes") or ()),
         "allowed_change_conditions": list(card.get("what_changes_guidance") or ()),
         "commercial_catalysts": catalysts,
+        "pillar_explanations": PILLAR_101,
     }
 
 
+def plain_english_summary(payload: Mapping[str, Any]) -> str:
+    """Explain certified facts for a first-time investor; never make a decision."""
+    company = str(payload.get("company") or payload.get("ticker") or "This company")
+    company_evidence = dict(payload.get("company_evidence") or {})
+    fundamentals = dict(payload.get("fundamentals") or {})
+    raw_description = str(company_evidence.get("business_summary") or "").strip()
+    description = next((part.strip().rstrip(".") for part in re.split(r"(?<=[.!?])\s+", raw_description) if part.strip()), "")
+    if not description or len(description.split()) > 24:
+        opening = f"Company-specific financial evidence is not available for {company}, so this view is limited to its developing market setup."
+    else:
+        opening = f"{company}: {description}." if company.lower() not in description.lower() else f"{description}."
+    supports = []
+    for label, value in (("revenue growth", fundamentals.get("revenue_growth")), ("earnings growth", company_evidence.get("earnings_growth"))):
+        try:
+            number = float(value) * (100 if abs(float(value)) <= 2 else 1)
+            supports.append(f"{label} of {number:.1f}%")
+        except (TypeError, ValueError):
+            pass
+    if fundamentals.get("free_cash_flow") is not None:
+        try:
+            if float(fundamentals["free_cash_flow"]) > 0:
+                supports.append("the business generated cash after operating and investment spending")
+        except (TypeError, ValueError):
+            pass
+    outlook = "The investment case depends on " + (" and ".join(supports[:2]) if supports else "the available company evidence turning into stronger future earnings") + ", which could increase what investors are willing to pay for the business."
+    atlas = dict(payload.get("atlas_valuation") or {})
+    if atlas.get("status") == "PUBLISHED" and atlas.get("target") is not None and atlas.get("expected_return") is not None:
+        upside = float(atlas["expected_return"])
+        price_view = "cheap" if upside >= 15 else "fairly priced" if upside > -10 else "expensive"
+        drivers = dict(atlas.get("driver_evidence") or {})
+        driver_bits = []
+        if drivers.get("forward_eps") is not None:
+            driver_bits.append(f"forward EPS of ${float(drivers['forward_eps']):.2f}, meaning expected earnings per share")
+        if drivers.get("justified_pe") is not None:
+            driver_bits.append(f"a {float(drivers['justified_pe']):.1f}× justified earnings multiple, meaning the assumed price for each dollar of expected earnings")
+        support = f", based on {' and '.join(driver_bits[:2])}" if driver_bits else ""
+        valuation = f"ATLAS considers the shares {price_view}: its ${float(atlas['target']):.2f} fair value implies {upside:.1f}% upside{support}."
+    else:
+        valuation = "ATLAS has not published a fair value because the certified valuation evidence is not sufficient."
+    wall = dict(payload.get("wall_street_analysis") or {})
+    consensus = dict(wall.get("consensus") or {})
+    comparison = dict(wall.get("atlas_comparison") or {})
+    if wall.get("status") in {"WALL_STREET_AVAILABLE", "WALL_STREET_PARTIAL"} and consensus.get("target_mean") is not None:
+        street = f"Wall Street's average target is ${float(consensus['target_mean']):.2f}"
+        if consensus.get("implied_upside_pct") is not None:
+            street += f", or {float(consensus['implied_upside_pct']):.1f}% potential"
+        relation = comparison.get("relationship")
+        relation_copy = {
+            "ATLAS MORE CONSTRUCTIVE": f"ATLAS is more bullish than Wall Street's ${float(consensus['target_mean']):.2f} average target.",
+            "WALL STREET MORE CONSTRUCTIVE": f"Wall Street is more bullish than ATLAS at its ${float(consensus['target_mean']):.2f} average target.",
+            "BROADLY ALIGNED": "ATLAS and analysts reach a similar valuation conclusion.",
+            "MATERIAL DIVERGENCE": "ATLAS and analysts disagree materially about value.",
+        }.get(relation, "")
+        street = street + "; " + relation_copy
+    else:
+        street = "No verified Wall Street consensus is currently available; the ATLAS rating relies on its own certified evidence."
+    action = str(payload.get("customer_action") or payload.get("guidance") or "WATCH").replace("_", " ")
+    if action in {"DATA LIMITED", "UNAVAILABLE"}: action = "WATCH"
+    action_copy = ACTION_101.get(action, ACTION_101["WATCH"])
+    action_reason = action_copy.rstrip(".")
+    if not action_reason.startswith("ATLAS "):
+        action_reason = action_reason[:1].lower() + action_reason[1:]
+    risk = dict(payload.get("risk_evidence") or {}).get("strongest_fundamental_risk")
+    if isinstance(risk, (list, tuple)): risk = next((str(item) for item in risk if item), None)
+    volume = dict(payload.get("six_pillars") or {}).get("volume_quality") or {}
+    weak_volume = volume.get("score") is not None and float(volume.get("score")) < 50
+    risk_copy = str(risk).strip().rstrip(".") if risk else ("trading activity is not yet supporting the move" if weak_volume else "the expected improvement may not arrive")
+    watch = "stronger trading activity and continued business progress" if weak_volume else "continued business progress and a price that supports the current action"
+    return " ".join((opening, outlook, valuation, street, f"ATLAS rates the stock {action} because {action_reason}; the main risk is that {risk_copy}, so watch next for {watch}."))
+
+
 def deterministic_summary(payload: Mapping[str, Any]) -> str:
+    return plain_english_summary(payload)
+    # Retained below for backward-compatible source archaeology; unreachable.
     ticker = str(payload.get("ticker") or "This candidate")
     company = str(payload.get("company") or ticker)
     fundamentals, company_evidence = dict(payload.get("fundamentals") or {}), dict(payload.get("company_evidence") or {})
@@ -483,6 +594,13 @@ def generate_summaries(
             "source": "LLM_VALIDATED" if accepted else "DETERMINISTIC_FALLBACK",
             "accepted": accepted, "validation": validation,
             "llm_configuration": configuration,
+            "evidence_map": summary_evidence_map(payload),
+            "professional_detail": {
+                "valuation": dict((payload.get("atlas_valuation") or {}).get("professional_valuation_v2") or {}),
+                "six_pillars": dict(payload.get("six_pillars") or {}),
+                "wall_street": dict(payload.get("wall_street_analysis") or {}),
+            },
+            "pillar_explanations": dict(PILLAR_101),
         })
     return results
 
@@ -510,4 +628,18 @@ def audit_summary_differentiation(
     return {"threshold": threshold, "flagged_pairs": flagged, "passed": not flagged}
 
 
-__all__ = ["SUMMARY_VERSION", "audit_summary_differentiation", "build_summary_payload", "deterministic_summary", "generate_summaries", "llm_configuration_status", "thesis_style_violations", "validate_summary"]
+def summary_evidence_map(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Stable audit pointers for every numeric family used by 101 copy."""
+    return {
+        "identity": {"company": payload.get("company"), "ticker": payload.get("ticker")},
+        "company": dict(payload.get("company_evidence") or {}),
+        "financials": dict(payload.get("fundamentals") or {}),
+        "atlas_valuation": dict(payload.get("atlas_valuation") or {}),
+        "wall_street": dict(payload.get("wall_street_analysis") or {}),
+        "action": {"customer_action": payload.get("customer_action"), "guidance": payload.get("guidance")},
+        "risk": dict(payload.get("risk_evidence") or {}),
+        "volume": dict((payload.get("six_pillars") or {}).get("volume_quality") or {}),
+    }
+
+
+__all__ = ["SUMMARY_VERSION", "ACTION_101", "PILLAR_101", "audit_summary_differentiation", "build_summary_payload", "deterministic_summary", "plain_english_summary", "summary_evidence_map", "generate_summaries", "llm_configuration_status", "thesis_style_violations", "validate_summary"]

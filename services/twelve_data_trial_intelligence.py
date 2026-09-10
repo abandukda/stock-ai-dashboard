@@ -22,10 +22,28 @@ from services.live_market.twelve_data_phase1 import REST_BASE, load_twelve_data_
 VERSION = "TWELVE_DATA_INTERNAL_TRIAL_INTELLIGENCE_V1"
 ENDPOINTS = (
     "profile", "statistics", "income_statement", "balance_sheet", "cash_flow",
-    "earnings", "earnings_estimate", "revenue_estimate", "price_target",
+    "earnings", "earnings_estimate", "revenue_estimate", "eps_trend",
+    "price_target", "recommendations", "analyst_ratings/light",
     "insider_transactions", "institutional_holders", "press_releases",
     "splits", "dividends", "etf",
 )
+# Provider capability inventory is deliberately separate from canonical
+# valuation.  "Mapped" means normalized into governed contextual evidence in
+# this module; it does not authorize commercial display by itself.
+TWELVE_ANALYST_FIELD_INVENTORY = {
+    "consensus_price_target_mean": "SUPPORTED_AND_MAPPED",
+    "consensus_price_target_median": "SUPPORTED_AND_MAPPED",
+    "target_high": "SUPPORTED_AND_MAPPED",
+    "target_low": "SUPPORTED_AND_MAPPED",
+    "analyst_coverage_count": "SUPPORTED_AND_MAPPED",
+    "recommendation_consensus": "SUPPORTED_AND_MAPPED",
+    "recommendation_distribution": "SUPPORTED_AND_MAPPED",
+    "individual_analyst_actions": "SUPPORTED_AND_MAPPED",
+    "price_target_changes": "SUPPORTED_NOT_MAPPED",
+    "forward_eps_consensus": "SUPPORTED_AND_MAPPED",
+    "forward_revenue_consensus": "SUPPORTED_AND_MAPPED",
+    "estimate_revisions_7_30_90d": "SUPPORTED_AND_MAPPED",
+}
 CANONICAL_QUANTITATIVE_FIELDS = (
     "revenue_growth", "earnings_growth", "gross_profit", "gross_profit_margin",
     "operating_profit_margin", "latest_revenue", "latest_eps", "latest_operating_income",
@@ -272,6 +290,69 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
     rev_est = _forward_estimate_record(payload("revenue_estimate"), "revenue_estimate")
     eps_records = _forward_estimate_records(payload("earnings_estimate"), "earnings_estimate")
     rev_records = _forward_estimate_records(payload("revenue_estimate"), "revenue_estimate")
+    target = payload("price_target").get("price_target") if isinstance(payload("price_target"), Mapping) else {}
+    target = target if isinstance(target, Mapping) else {}
+    recommendations_payload = payload("recommendations")
+    trends = recommendations_payload.get("trends") if isinstance(recommendations_payload, Mapping) else {}
+    current_recommendations = trends.get("current_month") if isinstance(trends, Mapping) else {}
+    current_recommendations = current_recommendations if isinstance(current_recommendations, Mapping) else {}
+    eps_trend = _forward_estimate_record(payload("eps_trend"), "eps_trend")
+    for canonical, raw in (
+        ("analyst_target_mean", "average"), ("analyst_target_median", "median"),
+        ("analyst_target_low", "low"), ("analyst_target_high", "high"),
+    ):
+        if target.get(raw) is not None:
+            output[canonical] = target[raw]
+            output[f"{canonical}_source"] = "TWELVE_DATA"
+            output[f"{canonical}_evidence_id"] = (families.get("price_target") or {}).get("evidence_id")
+            output[f"{canonical}_observed_at"] = fetched_at("price_target")
+    recommendation_counts = {}
+    for field in ("strong_buy", "buy", "hold", "sell", "strong_sell"):
+        if current_recommendations.get(field) is not None:
+            output[field] = current_recommendations[field]
+            recommendation_counts[field] = current_recommendations[field]
+    if len(recommendation_counts) == 5:
+        output["analyst_count"] = sum(int(value) for value in recommendation_counts.values())
+        output["analyst_count_source"] = "TWELVE_DATA_RECOMMENDATION_RESPONSE_COUNT"
+        output["analyst_coverage_evidence_id"] = (families.get("recommendations") or {}).get("evidence_id")
+    rating = recommendations_payload.get("rating") if isinstance(recommendations_payload, Mapping) else None
+    try:
+        rating_number = float(rating)
+        output["recommendation_key"] = "strong_buy" if rating_number >= 8 else "buy" if rating_number >= 6 else "hold" if rating_number >= 4 else "sell" if rating_number >= 2 else "strong_sell"
+        output["recommendation_rating_score"] = rating_number
+    except (TypeError, ValueError):
+        pass
+    output["wall_street_evidence_lineage"] = {
+        "provider": "TWELVE_DATA",
+        "price_target": {"endpoint": "price_target", "raw_fields": ("average", "median", "low", "high", "current"), "evidence_id": (families.get("price_target") or {}).get("evidence_id"), "as_of": fetched_at("price_target")},
+        "recommendations": {"endpoint": "recommendations", "raw_field": "trends.current_month", "evidence_id": (families.get("recommendations") or {}).get("evidence_id"), "as_of": fetched_at("recommendations")},
+        "non_scoring": True,
+    }
+    if eps_trend.get("current_estimate") is not None:
+        output["estimate_revision_history"] = {
+            "period": eps_trend.get("date"), "period_label": eps_trend.get("period"),
+            "current_eps_estimate": eps_trend.get("current_estimate"),
+            "eps_7d_ago": eps_trend.get("7_days_ago"), "eps_30d_ago": eps_trend.get("30_days_ago"),
+            "eps_90d_ago": eps_trend.get("90_days_ago"),
+            "provider": "TWELVE_DATA", "endpoint": "eps_trend",
+            "evidence_id": (families.get("eps_trend") or {}).get("evidence_id"), "as_of": fetched_at("eps_trend"),
+        }
+        for days in (7, 30, 90):
+            prior = eps_trend.get(f"{days}_days_ago")
+            try:
+                output[f"eps_revision_{days}d"] = round((float(eps_trend["current_estimate"]) - float(prior)) / abs(float(prior)) * 100, 2) if float(prior) != 0 else None
+            except (TypeError, ValueError):
+                output[f"eps_revision_{days}d"] = None
+    ratings_payload = payload("analyst_ratings/light")
+    ratings = ratings_payload.get("ratings") if isinstance(ratings_payload, Mapping) else None
+    if isinstance(ratings, list):
+        output["analyst_actions"] = tuple({
+            "date": item.get("date"), "firm": item.get("firm"),
+            "rating_action": item.get("rating_change"), "current_rating": item.get("rating_current"),
+            "previous_rating": item.get("rating_prior"), "provider": "TWELVE_DATA",
+            "evidence_id": (families.get("analyst_ratings/light") or {}).get("evidence_id"),
+            "observed_at": fetched_at("analyst_ratings/light"),
+        } for item in ratings if isinstance(item, Mapping))
     if eps_est.get("avg_estimate") is not None:
         output["forward_eps"] = eps_est["avg_estimate"]
         output["forward_eps_period"] = eps_est.get("date")
@@ -381,4 +462,4 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
     return materialize_share_bridge(output)
 
 
-__all__ = ["CANONICAL_QUANTITATIVE_FIELDS", "ENDPOINTS", "VERSION", "acquire_twelve_trial_dossiers", "normalize_trial_dossier"]
+__all__ = ["CANONICAL_QUANTITATIVE_FIELDS", "ENDPOINTS", "TWELVE_ANALYST_FIELD_INVENTORY", "VERSION", "acquire_twelve_trial_dossiers", "normalize_trial_dossier"]

@@ -792,6 +792,7 @@ def build_atlas_research_v2(
     })
     checkpoint("analyst_intelligence:before")
     report["analyst_intelligence"] = build_analyst_intelligence(analyst_input)
+    report["wall_street_analysis"] = _mapping(report["analyst_intelligence"].get("wall_street_analysis"))
     checkpoint("analyst_intelligence:after")
     report["executive_summary"] = guidance_summary_text(report["guidance_summary"])
     report["source_investment_thesis"] = report.get("investment_thesis")
