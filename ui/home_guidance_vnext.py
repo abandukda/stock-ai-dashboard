@@ -703,6 +703,7 @@ def _wall_street_view(card: Mapping[str, Any]) -> str:
     from engines.analyst_intelligence import wall_street_view_text
     analysis = card.get("wall_street_analysis") or {}
     consensus = analysis.get("consensus") or {}
+    estimates = analysis.get("estimate_context") or {}
     facts = []
     for label, value in (
         ("Consensus Target", _money(consensus.get("target_mean")) if consensus.get("target_mean") is not None else None),
@@ -710,6 +711,8 @@ def _wall_street_view(card: Mapping[str, Any]) -> str:
         ("Analysts Covering", str(consensus.get("analyst_count")) if consensus.get("analyst_count") is not None else None),
         ("Consensus", str(consensus.get("consensus_rating") or "").replace("_", " ").title() or None),
         ("Recent Trend", str(analysis.get("recent_trend") or "").title() or None),
+        ("Forward EPS", _money(estimates.get("forward_eps")) if estimates.get("forward_eps") is not None else None),
+        ("Forward Revenue", _money(estimates.get("forward_revenue")) if estimates.get("forward_revenue") is not None else None),
     ):
         if value:
             facts.append(f"<span><small>{html.escape(label)}</small><b>{html.escape(value)}</b></span>")

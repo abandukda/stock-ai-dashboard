@@ -391,6 +391,10 @@ def _analyst_intelligence_html(intelligence: Mapping[str, Any]) -> str:
         ("Analyst Coverage", intelligence.get("analyst_coverage")),
         ("Analyst Agreement", intelligence.get("analyst_agreement")),
     ]
+    if intelligence.get("forward_eps") is not None:
+        metrics.append(("Forward EPS", _money(intelligence.get("forward_eps"))))
+    if intelligence.get("forward_revenue") is not None:
+        metrics.append(("Forward Revenue", _money(intelligence.get("forward_revenue"))))
     if intelligence.get("wall_street_median_target") is not None:
         metrics.append(("Median Target", _money(intelligence.get("wall_street_median_target"))))
     cards = "".join(

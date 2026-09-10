@@ -157,6 +157,7 @@ def test_internal_trial_home_and_research_share_persisted_wall_street_contract(m
     assert card["wall_street"]["mean_target"] == report["analyst_intelligence"]["wall_street_mean_target"] == 125
     rendered = _wall_street_view(card)
     assert "$125.00" in rendered and "12" in rendered and "Buy" in rendered
+    assert "Forward EPS" in rendered and "$7.50" in rendered
     assert "Source: Twelve Data" in rendered
     assert "Not Published" not in rendered
     assert "commercial-use permission" not in rendered

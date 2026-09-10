@@ -127,10 +127,12 @@ def test_research_renderer_attributes_internal_trial_wall_street_source(monkeypa
     research_report_v2._render_analyst_intelligence({
         "wall_street_mean_target": 125, "wall_street_implied_upside_pct": 25,
         "analyst_coverage": 12, "source_attribution": "Source: Twelve Data",
+        "forward_eps": 7.5, "forward_revenue": 1200,
         "atlas_street_relationship": "BROADLY ALIGNED",
     })
     assert ("caption", "Source: Twelve Data") in calls
     assert any(call[:2] == ("metric", "Wall Street Consensus") for call in calls)
+    assert any(call[0] == "markdown" and "Forward Revenue" in call[1] for call in calls)
 
 
 def test_wall_street_contract_is_shared_non_scoring_and_commercially_gated(monkeypatch):

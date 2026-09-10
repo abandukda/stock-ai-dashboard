@@ -470,6 +470,7 @@ def intelligence_from_wall_street_analysis(
     consensus = safe_mapping(contract.get("consensus"))
     distribution = safe_mapping(contract.get("rating_distribution"))
     comparison = safe_mapping(contract.get("atlas_comparison"))
+    estimates = safe_mapping(contract.get("estimate_context"))
     displayable = contract.get("commercial_display_status") in {
         "DISPLAY_ALLOWED", "DISPLAY_ALLOWED_INTERNAL_TRIAL",
     }
@@ -486,6 +487,8 @@ def intelligence_from_wall_street_analysis(
         "sell_count": distribution.get("sell"),
         "strong_sell_count": distribution.get("strong_sell"),
         "recommendation_response_count": distribution.get("response_count"),
+        "forward_eps": estimates.get("forward_eps"),
+        "forward_revenue": estimates.get("forward_revenue"),
         "recent_actions": tuple(contract.get("recent_actions") or ()),
         "all_actions": tuple(contract.get("recent_actions") or ()),
         "atlas_fair_value": comparison.get("atlas_fair_value"),
