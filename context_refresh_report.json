@@ -1,0 +1,103 @@
+{
+  "version": "ATLAS_PUBLISHED_CONTEXT_REFRESH_V1",
+  "status": "PASS",
+  "generated_at": "2026-09-10T18:34:38.265546+00:00",
+  "source_commit_sha": "667cf27d31d96483a2c4bc238730d10dc847cdc3",
+  "population": 150,
+  "provider": "TWELVE_DATA",
+  "provider_calls": 1350,
+  "successful_calls": 1342,
+  "endpoint_success": {
+    "press_releases": 146,
+    "insider_transactions": 147,
+    "institutional_holders": 150,
+    "price_target": 150,
+    "recommendations": 149,
+    "earnings_estimate": 150,
+    "revenue_estimate": 150,
+    "eps_trend": 150,
+    "analyst_ratings/light": 150
+  },
+  "canonical_decision_digest_before": "8f0e42341e4c57fb8a903e81fa167a103d9c9a1e500717d7456c21afd78bd8eb",
+  "canonical_decision_digest_after": "8f0e42341e4c57fb8a903e81fa167a103d9c9a1e500717d7456c21afd78bd8eb",
+  "canonical_decisions_unchanged": true,
+  "coverage": {
+    "population": 150,
+    "financial_detail_coverage_pct": {
+      "gross_margin": 0.0,
+      "operating_margin": 100.0,
+      "net_margin": 0.0,
+      "roe": 0.0,
+      "roa": 0.0,
+      "roic": 0.0,
+      "debt_equity": 0.0,
+      "net_debt": 0.0,
+      "forward_eps": 98.67,
+      "forward_revenue": 99.33,
+      "forward_pe": 0.0,
+      "ev_ebitda": 0.0,
+      "p_fcf": 0.0
+    },
+    "news_context": {
+      "counts": {
+        "NEWS_NONE_RECENT": 146,
+        "NEWS_DATA_UNAVAILABLE": 4
+      },
+      "percentages": {
+        "NEWS_NONE_RECENT": 97.33,
+        "NEWS_DATA_UNAVAILABLE": 2.67
+      }
+    },
+    "insider_context": {
+      "counts": {
+        "INSIDER_PARTIAL": 143,
+        "INSIDER_DATA_UNAVAILABLE": 3,
+        "INSIDER_NONE_RECENT": 4
+      },
+      "percentages": {
+        "INSIDER_PARTIAL": 95.33,
+        "INSIDER_DATA_UNAVAILABLE": 2.0,
+        "INSIDER_NONE_RECENT": 2.67
+      }
+    },
+    "institutional_context": {
+      "counts": {
+        "INSTITUTIONAL_PARTIAL": 150
+      },
+      "percentages": {
+        "INSTITUTIONAL_PARTIAL": 100.0
+      }
+    },
+    "congressional_context": {
+      "counts": {
+        "CONGRESSIONAL_DATA_UNAVAILABLE": 150
+      },
+      "percentages": {
+        "CONGRESSIONAL_DATA_UNAVAILABLE": 100.0
+      }
+    },
+    "wall_street_analysis": {
+      "eligible_equities": 150,
+      "available_count": 149,
+      "partial_count": 1,
+      "not_covered_count": 0,
+      "unavailable_count": 0,
+      "display_restricted_count": 0,
+      "internal_trial_display_allowed_count": 150
+    },
+    "wall_street_field_coverage": {
+      "target_mean_pct": 96.67,
+      "target_median_pct": 96.67,
+      "target_range_pct": 96.67,
+      "analyst_count_pct": 99.33,
+      "consensus_pct": 98.67,
+      "recommendation_distribution_pct": 100.0,
+      "forward_eps_pct": 98.67,
+      "forward_revenue_pct": 99.33,
+      "eps_revision_7d_pct": 98.0,
+      "eps_revision_30d_pct": 97.33,
+      "eps_revision_90d_pct": 96.67,
+      "recent_analyst_actions_pct": 99.33
+    }
+  }
+}
