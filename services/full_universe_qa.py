@@ -713,6 +713,8 @@ def crawl_universe(rows: Sequence[Mapping[str, Any]], *, prior_rows: Sequence[Ma
     summary["uncertainty_driver_distribution"] = dict(Counter(
         driver for item in uncertainty_rows for driver in item.get("drivers") or ()
     ))
+    from services.context_evidence import context_coverage
+    summary["context_evidence_coverage"] = context_coverage(rows)
     runtime_profile = [{"stage": key, "seconds": value} for key, value in dict(discovery.get("runtime_profile") or {}).items()]
     runtime_profile.append({"stage": "TOTAL", "seconds": discovery.get("total_runtime_seconds")})
     provider_profile = dict(discovery.get("provider_profile") or {})
@@ -738,6 +740,7 @@ def crawl_universe(rows: Sequence[Mapping[str, Any]], *, prior_rows: Sequence[Ma
         "Provider_Call_Profile": provider_call_profile,
         "Cache_Effectiveness": cache_effectiveness,
         "Sector_Metadata_QA": sector_metadata,
+        "Context_Evidence_Coverage": [summary["context_evidence_coverage"]],
     })
     ordered = ["Executive_Summary", "Discovery_Funnel", "Discovery_Recall", "Master_150",
                "Full_Evaluation_Pool", "Financials", "Financial_Reconciliation", "Estimates",
@@ -747,7 +750,7 @@ def crawl_universe(rows: Sequence[Mapping[str, Any]], *, prior_rows: Sequence[Ma
                "Numerical_Anomalies", "Screenshot_Index", "Provider_Quality",
                "Manual_Research_QA", "Universe_Sector_Analysis", "Discovery_Misses",
                "High_Uncertainty_Drivers", "Runtime_Profile", "Provider_Call_Profile",
-               "Cache_Effectiveness", "Sector_Metadata_QA"]
+               "Cache_Effectiveness", "Sector_Metadata_QA", "Context_Evidence_Coverage"]
     ordered_sheets = {name: sheets[name] for name in ordered}
     return {
         "run": {"id": run_id, "generated_at": generated_at, "engine_version": VERSION},

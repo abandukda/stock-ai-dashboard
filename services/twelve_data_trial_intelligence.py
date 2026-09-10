@@ -458,8 +458,10 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
     output["twelve_trial_dossier"] = dict(dossier)
     output["twelve_trial_evidence_ids"] = tuple(dossier.get("evidence_ids") or ())
     output["fundamental_source"] = "TWELVE_DATA_INTERNAL_TRIAL"
+    from services.context_evidence import materialize_context_evidence
     from services.share_structure_governance import materialize_share_bridge
-    return materialize_share_bridge(output)
+    output = materialize_share_bridge(output)
+    return materialize_context_evidence(output, families)
 
 
 __all__ = ["CANONICAL_QUANTITATIVE_FIELDS", "ENDPOINTS", "TWELVE_ANALYST_FIELD_INVENTORY", "VERSION", "acquire_twelve_trial_dossiers", "normalize_trial_dossier"]

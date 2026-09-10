@@ -459,8 +459,9 @@ def build_home_guidance_candidate(
             "display_scope": "INTERNAL_TRIAL" if internal and not commercial_street_allowed else "COMMERCIAL_CUSTOMER",
         },
         "wall_street_analysis": wall_street_analysis,
-        "recent_catalysts": _internal_catalysts(row, internal=internal),
+        "recent_catalysts": tuple((row.get("news_context") or {}).get("records") or ()) if internal and isinstance(row.get("news_context"), Mapping) else _internal_catalysts(row, internal=internal),
         "context_evidence": {
+            "normalized": {key: row.get(key) for key in ("news_context", "insider_context", "institutional_context", "congressional_context", "financial_detail_context")},
             "insider": {
                 "activity": _first_value(row, "insider_activity_label", "insider_activity") if internal else None,
                 "buy_count": _first_number(row, "insider_buy_count") if internal else None,

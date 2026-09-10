@@ -5417,6 +5417,15 @@ def scan_market() -> Dict[str, Any]:
             discovery_experiment = architecture_experiment(discovery_eligible_rows, evaluated)
             discovery_experiment["status"] = "COMPLETE"
             full_rows = curate_customer_150(full_evaluation_rows, MAX_FULL_SCAN)
+            # Supporting context is acquired only for the customer-selected
+            # population and cannot affect evaluation, ordering, or Action.
+            from services.context_evidence import enrich_published_context
+            full_rows, context_publication = enrich_published_context(full_rows)
+            decision_publication["context_publication"] = {
+                "status": context_publication.get("status"),
+                "provider_calls": context_publication.get("provider_calls", 0),
+                "endpoint_success": context_publication.get("endpoint_success") or {},
+            }
             # Capture the governed point-in-time decision before later presentation
             # shaping. The append-only store is observational and cannot affect rank.
             from services.performance_tracking import append_snapshots, build_snapshot
