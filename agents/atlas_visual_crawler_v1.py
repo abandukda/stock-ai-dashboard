@@ -35,6 +35,7 @@ from agents.runtime_qa_user_journeys_v40 import (
 
 
 VISUAL_CRAWLER_VERSION = "ATLAS_VISUAL_CRAWLER_V1_1"
+RESEARCH_COMPLETION_TIMEOUT_SECONDS = 90
 RESEARCH_VNEXT_SECTIONS = (
     "decision", "fundamentals-and-valuation", "technical-and-trade-state",
     "catalysts-and-sentiment", "risk-and-evidence",
@@ -1169,7 +1170,11 @@ class AtlasVisualCrawler:
                 raise RuntimeError("VISIBLE_RESEARCH_CONTROLS_MISSING")
             await input_node.fill(ticker)
             await button.click()
-            deadline = time.monotonic() + 45
+            # The first exact-candidate Research request warms Streamlit's
+            # persisted-evidence builders and can legitimately take longer
+            # than subsequent tickers. Keep the check bounded while avoiding
+            # a false failure immediately before the result settles.
+            deadline = time.monotonic() + RESEARCH_COMPLETION_TIMEOUT_SECONDS
             text = ""
             completion: dict[str, Any] = {}
             while time.monotonic() < deadline:
