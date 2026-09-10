@@ -100,6 +100,9 @@ def test_research_reconciles_fresh_market_and_daily_canonical_technical_evaluati
     assert result["canonical_technical"] == evaluation["technical_confirmation"]
     assert result["canonical_guidance"] == evaluation["guidance"]
     assert result["atlas_ai_view"]["text"]
+    assert result["customer_plain_english_summary"]["text"]
+    report = build_atlas_research_v2(result)
+    assert report["customer_plain_english_summary"] == result["customer_plain_english_summary"]
     assert len(result["canonical_chart_ranges"]["1Y"]["bars"]) == 220
 
 

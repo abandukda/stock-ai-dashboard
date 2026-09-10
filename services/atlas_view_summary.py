@@ -242,19 +242,12 @@ def plain_english_summary(payload: Mapping[str, Any]) -> str:
                 supports.append("the business generated cash after operating and investment spending")
         except (TypeError, ValueError):
             pass
-    outlook = "The investment case depends on " + (" and ".join(supports[:2]) if supports else "the available company evidence turning into stronger future earnings") + ", which could increase what investors are willing to pay for the business."
+    outlook = "The investment case depends on " + (" and ".join(supports[:2]) if supports else "the available company evidence producing stronger future earnings") + ", which could increase the company's value."
     atlas = dict(payload.get("atlas_valuation") or {})
     if atlas.get("status") == "PUBLISHED" and atlas.get("target") is not None and atlas.get("expected_return") is not None:
         upside = float(atlas["expected_return"])
         price_view = "cheap" if upside >= 15 else "fairly priced" if upside > -10 else "expensive"
-        drivers = dict(atlas.get("driver_evidence") or {})
-        driver_bits = []
-        if drivers.get("forward_eps") is not None:
-            driver_bits.append(f"forward EPS of ${float(drivers['forward_eps']):.2f}, meaning expected earnings per share")
-        if drivers.get("justified_pe") is not None:
-            driver_bits.append(f"a {float(drivers['justified_pe']):.1f}× justified earnings multiple, meaning the assumed price for each dollar of expected earnings")
-        support = f", based on {' and '.join(driver_bits[:2])}" if driver_bits else ""
-        valuation = f"ATLAS considers the shares {price_view}: its ${float(atlas['target']):.2f} fair value implies {upside:.1f}% upside{support}."
+        valuation = f"ATLAS considers the shares {price_view}: its ${float(atlas['target']):.2f} fair value implies {upside:.1f}% upside based on expected profits and how comparable companies are valued."
     else:
         valuation = "ATLAS has not published a fair value because the certified valuation evidence is not sufficient."
     wall = dict(payload.get("wall_street_analysis") or {})
@@ -284,9 +277,11 @@ def plain_english_summary(payload: Mapping[str, Any]) -> str:
     if isinstance(risk, (list, tuple)): risk = next((str(item) for item in risk if item), None)
     volume = dict(payload.get("six_pillars") or {}).get("volume_quality") or {}
     weak_volume = volume.get("score") is not None and float(volume.get("score")) < 50
-    risk_copy = str(risk).strip().rstrip(".") if risk else ("trading activity is not yet supporting the move" if weak_volume else "the expected improvement may not arrive")
-    watch = "stronger trading activity and continued business progress" if weak_volume else "continued business progress and a price that supports the current action"
-    return " ".join((opening, outlook, valuation, street, f"ATLAS rates the stock {action} because {action_reason}; the main risk is that {risk_copy}, so watch next for {watch}."))
+    industry = str(company_evidence.get("industry") or "").lower()
+    industry_risk = "fertilizer demand and pricing could weaken profits" if "fertilizer" in industry else None
+    risk_copy = str(risk).strip().rstrip(".") if risk else (industry_risk or ("trading activity is not yet supporting the move" if weak_volume else "the expected improvement may not arrive"))
+    watch = "stronger trading activity and business progress" if weak_volume else "continued business progress"
+    return " ".join((opening, outlook, valuation, street, f"ATLAS rates the stock {action} because {action_reason}; the main risk is that {risk_copy}, so watch for {watch}."))
 
 
 def deterministic_summary(payload: Mapping[str, Any]) -> str:

@@ -342,13 +342,13 @@ render_home_guidance_vnext(build_home_guidance_story(rows, [{"ticker":"MU","reco
     assert "Technical &amp; Volume" in rendered
     assert "Wall Street Analyst Outlook" in rendered
     assert "Latest Earnings" in rendered and "Financial Snapshot" in rendered
-    assert "ATLAS Investment View" in rendered
+    assert "ATLAS in Plain English" in rendered
     assert "What ATLAS sees" not in rendered
     assert "What ATLAS needs" not in rendered
     assert 'data-atlas-qa="home-guidance-summary"' in rendered
     assert rendered.index("home-decisive-reason") < rendered.index("home-guidance-research-cta")
     assert rendered.index("home-guidance-research-cta") < rendered.index("home-guidance-full-evidence")
-    assert "Full Evidence" in "\n".join(str(item.label) for item in app.expander)
+    assert "Professional Detail" in "\n".join(str(item.label) for item in app.expander)
 
 
 def test_preview_is_explicit_and_data_limited_remains_truthful(monkeypatch):
@@ -482,7 +482,7 @@ render_home_guidance_vnext(story, emit_interactive=lambda: st.markdown('<span da
     assert "Guidance Preview" not in rendered
     assert rendered.count('data-atlas-page-interactive="true"') == 1
     assert 'data-atlas-qa="home-guidance-quick-evidence"' not in rendered
-    assert "Full Evidence" in "\n".join(str(item.label) for item in app.expander)
+    assert "Professional Detail" in "\n".join(str(item.label) for item in app.expander)
     assert "Founder Guidance Preview" not in rendered
     assert "ATLAS Decision Dashboard" in rendered
     assert "High-conviction setups, current stance, and the evidence that matters." in rendered
@@ -580,7 +580,7 @@ def test_summary_card_omits_unavailable_secondary_metrics_until_full_evidence():
     tree = ast.parse(source)
     card_fn = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "_card")
     body = ast.get_source_segment(source, card_fn) or ""
-    summary, full = body.split('with st.expander("Full Evidence"', 1)
+    summary, full = body.split('with st.expander("Professional Detail"', 1)
     assert '_metric("Opportunity"' not in summary
     assert '_metric("Decision Confidence"' not in summary
     assert "_atlas_score(card)" not in summary
@@ -618,8 +618,8 @@ def test_data_limited_summary_is_bounded_and_reason_grounded():
     )
     summary = _atlas_summary(card)
     assert summary.count(". ") <= 4
-    assert "developing market setup" in summary
-    assert "WATCH" in summary
+    assert "cannot produce a plain-English view" in summary
+    assert "Professional detail" in summary
     assert "Data Limited" not in summary and "DATA LIMITED" not in summary
 
 
@@ -681,7 +681,7 @@ def test_home_primary_uses_action_rating_and_keeps_setup_score_out_of_first_view
     body = ast.get_source_segment(source, card_fn) or ""
     assert "_atlas_score(card)" not in body
     assert body.index("_action_card(card)") < body.index("Price Chart")
-    assert body.index("Price Outlook") < body.index("ATLAS Investment View")
+    assert body.index("Price Outlook") < body.index("ATLAS in Plain English")
     assert "_key_numbers(card)" not in body
     assert "_decisive_reason(card)" in body
     assert '_metric("Atlas FV"' not in body
@@ -732,7 +732,7 @@ def test_summary_leads_with_freshest_approved_last_known_bar_without_calling_it_
         "reason_codes": ("CURRENT_MARKET_EVIDENCE_UNAVAILABLE", "TECHNICAL_STRUCTURE_UNAVAILABLE"),
     }
     summary = _atlas_summary(card)
-    assert summary.startswith("Company-specific financial evidence is not available for NVDA")
+    assert summary.startswith("ATLAS cannot produce a plain-English view")
     assert "97" not in summary and "DATA_LIMITED" not in summary
     assert "live" not in summary.lower()
 
@@ -788,8 +788,7 @@ def test_bcrx_customer_hierarchy_is_grounded_and_keeps_governed_status():
     assert card["guidance"] == "DATA_LIMITED"
     assert card["actionability"] == "UNAVAILABLE"
     summary = _atlas_summary(card)
-    assert summary.startswith("Company-specific financial evidence is not available for BioCryst Pharmaceuticals")
-    assert "WATCH" in summary
+    assert summary.startswith("ATLAS cannot produce a plain-English view")
     assert "97" not in summary and "Data Limited" not in summary
     assert _guidance_explanation(card) == "The opportunity is worth watching, but ATLAS needs fresher market evidence before recommending a position."
     assert _what_changes_call(card) == (
@@ -824,10 +823,10 @@ def test_mobile_customer_hierarchy_suppresses_diagnostic_matrix_and_evidence_sta
     assert ".atlas-home-key-numbers{grid-template-columns:repeat(2,minmax(0,1fr))" in source
     assert ".atlas-home-evidence-status{display:inline-flex" in source
     card_body = source[source.index("def _card("):source.index("def _section_marker")]
-    assert card_body.index("_action_card(card)") < card_body.index("ATLAS Investment View")
+    assert card_body.index("_action_card(card)") < card_body.index("ATLAS in Plain English")
     assert "home-evidence-status" not in card_body
     assert "_key_numbers(card)" not in card_body
-    assert card_body.index("Price Chart") < card_body.index("ATLAS Investment View")
+    assert card_body.index("Price Chart") < card_body.index("ATLAS in Plain English")
 
 
 def test_premium_decision_card_uses_governed_action_chart_and_separate_target_authorities():
@@ -854,9 +853,58 @@ def test_premium_decision_card_uses_governed_action_chart_and_separate_target_au
     assert "$100.00" in chart and "$105.00" in chart
     assert "↑ ATLAS Target $120.00 · 20.0%" in chart
     comparison = _target_tiles(card)
-    assert "$120.00" in comparison and "$115.00" in comparison
-    assert "ATLAS + STREET ALIGNED" in comparison
-    assert "does not determine the ATLAS rating" in comparison
+    assert "$120.00" in comparison and "$115.00" not in comparison
+    assert "ATLAS + STREET ALIGNED" not in comparison
+
+
+def test_uan_active_story_and_renderer_ignore_persisted_legacy_narrative(monkeypatch):
+    """The live Home chain must use the customer 101 authority, never atlas_ai_view."""
+    from ui.home_guidance_vnext import _atlas_summary, _full_evidence, _target_tiles, _wall_street_view
+
+    monkeypatch.setenv("ATLAS_DATA_MODE", "COMMERCIAL_CUSTOMER")
+    source = row(
+        "UAN", company="CVR Partners, LP", price=133.16, industry="Fertilizers",
+        description="CVR Partners produces nitrogen fertilizer products for agricultural customers.",
+        revenue_growth=.08, revenue_growth_source="CANONICAL_FINANCIALS",
+        free_cash_flow=120_000_000, analyst_targets_commercial_display_allowed=False,
+    )
+    evaluation = canonical_evaluation(
+        guidance="BUY_NOW", opportunity=81, confidence=78, fv=175.66, expected=32.2,
+    )
+    evaluation["guidance"]["policy_version"] = "HOME_MULTI_THESIS_ACTION_V1"
+    evaluation["atlas_ai_view"] = {
+        "text": "UAN passed the gates using one-method EV/EBITDA and canonical technical confirmation."
+    }
+    evaluation["valuation_driver_evidence"] = {"method": "EV/EBITDA", "operating_margin": .22}
+    card = build_home_guidance_story(
+        [source], [], current_evaluations={"UAN": evaluation},
+    )["cards"][0]
+    card["evaluation"]["atlas_valuation"]["professional_valuation_v2"] = {
+        "status": "PUBLISHED",
+        "models": ({
+            "name": "EV/EBITDA", "status": "PUBLISHED", "value": 175.66,
+            "weight": 1.0, "confidence": 72,
+            "key_assumptions": {"multiple_basis": "fertilizer peer group"},
+        },),
+    }
+    summary = _atlas_summary(card)
+
+    assert card["display_price"] == 133.16
+    assert card["atlas_fair_value"] == 175.66
+    assert card["atlas_expected_return"] == 32.2
+    assert card["guidance"] == "BUY_NOW"
+    assert card["customer_action"]["label"] == "BUY NOW"
+    assert 70 <= len(summary.split()) <= 140
+    assert "CVR Partners produces nitrogen fertilizer" in summary
+    assert "$175.66 fair value implies 32.2% upside" in summary
+    assert "fertilizer demand and pricing could weaken profits" in summary
+    for banned in ("one-method", "EV/EBITDA", "canonical", "gate", "pillar", "WACC"):
+        assert banned.lower() not in summary.lower()
+    assert "$175.66" in _target_tiles(card)
+    assert "Not Published" not in _target_tiles(card)
+    assert "commercial-use permission is not confirmed" in _wall_street_view(card)
+    assert "EV/EBITDA" in _full_evidence(card)
+    assert evaluation["atlas_ai_view"]["text"] != summary
 
 
 def test_six_pillar_summary_is_qualitative_and_uses_only_canonical_scores():

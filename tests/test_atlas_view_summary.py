@@ -89,7 +89,8 @@ def test_dossier_carries_approved_company_earnings_valuation_and_risk_lanes():
     assert payload["risk_evidence"]["strongest_fundamental_risk"] == "Demand could slow."
     fallback = generate_summaries([payload], llm=lambda _: None)[0]["text"]
     assert "revenue growth of 20.0%" in fallback
-    assert "24.0× justified earnings multiple" in fallback
+    assert "expected profits and how comparable companies are valued" in fallback
+    assert "24.0×" not in fallback
 
 
 def test_fallback_changes_with_company_specific_evidence():
@@ -116,7 +117,7 @@ def test_fallback_explains_large_upside_and_material_street_gap_from_drivers():
     payload = build_summary_payload(card)
     copy = generate_summaries([payload], llm=lambda _: None)[0]["text"]
     assert "$320.00 fair value implies 39.4% upside" in copy
-    assert "forward EPS of $8.00" in copy
+    assert "expected profits and how comparable companies are valued" in copy
     assert "more bullish than Wall Street's $250.00" in copy
     assert validate_summary(copy, payload)["valid"] is True
 
