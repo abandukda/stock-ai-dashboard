@@ -253,7 +253,9 @@ def plain_english_summary(payload: Mapping[str, Any]) -> str:
     wall = dict(payload.get("wall_street_analysis") or {})
     consensus = dict(wall.get("consensus") or {})
     comparison = dict(wall.get("atlas_comparison") or {})
-    if wall.get("status") in {"WALL_STREET_AVAILABLE", "WALL_STREET_PARTIAL"} and consensus.get("target_mean") is not None:
+    if wall.get("display_authority") == "COMMERCIAL_RIGHTS_UNCONFIRMED":
+        street = "Wall Street information is not shown because commercial-use permission is not confirmed."
+    elif wall.get("status") in {"WALL_STREET_AVAILABLE", "WALL_STREET_PARTIAL"} and consensus.get("target_mean") is not None:
         street = f"Wall Street's average target is ${float(consensus['target_mean']):.2f}"
         if consensus.get("implied_upside_pct") is not None:
             street += f", or {float(consensus['implied_upside_pct']):.1f}% potential"
