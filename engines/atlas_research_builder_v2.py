@@ -746,6 +746,7 @@ def build_atlas_research_v2(
                 "institutional_context", "congressional_context",
             )
         },
+        "wall_street_analysis": enriched_row.get("wall_street_analysis") or {},
         "publication_certification": _mapping(current_evaluation.get("publication_certification")),
         "current_evaluation_timestamp": current_evaluation.get("evaluated_at") if current_evaluation else None,
         "production_evaluation_timestamp": _mapping(_mapping(enriched_row.get("research_context")).get("production_evaluation")).get("evaluated_at"),

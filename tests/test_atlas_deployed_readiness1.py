@@ -236,6 +236,17 @@ def test_public_streamlit_url_is_normalized_without_inventing_host_route():
     assert qa._canonical_streamlit_url("atlas-production-7f3.streamlit.app?x=secret") == (
         "https://atlas-production-7f3.streamlit.app/"
     )
+
+
+def test_local_exact_candidate_target_is_narrowly_allowed(monkeypatch):
+    monkeypatch.setenv("ATLAS_EXACT_CANDIDATE_QA", "true")
+    assert qa._canonical_streamlit_url(
+        "http://127.0.0.1:8501", allow_local_exact_candidate=True,
+    ) == "http://127.0.0.1:8501/"
+    with pytest.raises(qa.DeploymentTargetError):
+        qa._canonical_streamlit_url("http://127.0.0.1:8501")
+    with pytest.raises(qa.DeploymentTargetError):
+        qa._canonical_streamlit_url("http://localhost:9999", allow_local_exact_candidate=True)
     assert qa._canonical_streamlit_url("http://atlas-production-7f3.streamlit.app/research") == (
         "https://atlas-production-7f3.streamlit.app/research"
     )

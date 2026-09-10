@@ -190,6 +190,7 @@ jobs:
         continue-on-error: true
         env:
           ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
+          ATLAS_EXACT_CANDIDATE_QA: "true"
         run: |
           python -m agents.full_qa_visual_certification \
             --url http://127.0.0.1:8501 \

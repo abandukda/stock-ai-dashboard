@@ -713,7 +713,7 @@ def _wall_street_view(card: Mapping[str, Any]) -> str:
     ):
         if value:
             facts.append(f"<span><small>{html.escape(label)}</small><b>{html.escape(value)}</b></span>")
-    if analysis.get("display_authority") == "COMMERCIAL_RIGHTS_UNCONFIRMED":
+    if analysis.get("status") == "WALL_STREET_DISPLAY_RESTRICTED" or analysis.get("display_authority") == "COMMERCIAL_RIGHTS_UNCONFIRMED":
         customer_copy = "Wall Street information is not displayed because commercial-use permission is not confirmed."
     elif analysis.get("status") == "WALL_STREET_DATA_UNAVAILABLE":
         customer_copy = "Wall Street data is temporarily unavailable."

@@ -254,7 +254,8 @@ def build_home_guidance_candidate(
         **dict(row), "current_price": _first_number(row, "current_price", "price", "last_price"),
         "atlas_fair_value": fair_value, "atlas_fv_upside_pct": expected_return,
     })
-    wall_street_analysis = dict(analyst_intelligence.get("wall_street_analysis") or {})
+    persisted_wall_street = row.get("wall_street_analysis") if isinstance(row.get("wall_street_analysis"), Mapping) else {}
+    wall_street_analysis = dict(persisted_wall_street or analyst_intelligence.get("wall_street_analysis") or {})
     internal = internal_trial_mode()
     commercial_street_allowed = (
         row.get("wall_street_commercial_display_allowed") is True
@@ -264,6 +265,8 @@ def build_home_guidance_candidate(
         or str(row.get("analyst_commercial_status") or "").upper() in {"LICENSED", "DISPLAY_ALLOWED"}
     )
     street_display_allowed = internal or commercial_street_allowed
+    if wall_street_analysis.get("status") == "WALL_STREET_DISPLAY_RESTRICTED":
+        street_display_allowed = False
     if not street_display_allowed:
         source_status = str(wall_street_analysis.get("status") or "WALL_STREET_DATA_UNAVAILABLE")
         wall_street_analysis = {
@@ -271,7 +274,9 @@ def build_home_guidance_candidate(
             "evidence_ids": (), "consensus": {}, "rating_distribution": {},
             "recent_actions": (), "estimate_context": {}, "atlas_comparison": {},
             "limitations": ("Commercial display rights are not confirmed.",), "non_scoring": True,
-            "underlying_status": source_status, "display_authority": "COMMERCIAL_RIGHTS_UNCONFIRMED",
+            "underlying_status": wall_street_analysis.get("underlying_status") or source_status,
+            "display_authority": "COMMERCIAL_RIGHTS_UNCONFIRMED",
+            "commercial_display_status": "COMMERCIAL_DISPLAY_NOT_CERTIFIED",
         }
     price = _first_number(row, "current_price", "price", "last_price")
     snapshot = _snapshot_evidence(row, price)
