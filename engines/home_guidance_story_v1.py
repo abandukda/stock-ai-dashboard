@@ -16,6 +16,32 @@ from services.data_mode_policy import display_scope, internal_trial_mode
 
 
 HOME_GUIDANCE_STORY_VERSION = "HOME_GUIDANCE_VNEXT_V1"
+
+
+def build_homepage_promotion_metrics(cards: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
+    """Report Home promotion separately from immutable canonical Actions."""
+    rows = list(cards)
+    canonical_buy = sum(card.get("guidance") == "BUY_NOW" for card in rows)
+    featured_buy = sum(
+        card.get("guidance") == "BUY_NOW"
+        and (card.get("homepage_promotion_eligibility") or {}).get("eligible") is True
+        for card in rows
+    )
+    canonical_build = sum(card.get("guidance") == "ACCUMULATE" for card in rows)
+    featured_build = sum(
+        card.get("guidance") == "ACCUMULATE"
+        and (card.get("homepage_promotion_eligibility") or {}).get("eligible") is True
+        for card in rows
+    )
+    return {
+        "canonical_buy_now_count": canonical_buy,
+        "homepage_featured_buy_now_count": featured_buy,
+        "promotion_filtered_buy_now_count": canonical_buy - featured_buy,
+        "canonical_build_count": canonical_build,
+        "homepage_featured_build_count": featured_build,
+        "promotion_filtered_build_count": canonical_build - featured_build,
+        "non_scoring": True,
+    }
 GUIDANCE_GROUPS = (
     ("Actionable Now", {"BUY_NOW", "ACCUMULATE"}),
     ("Getting Close", {"WAIT_FOR_CONFIRMATION", "WAIT_FOR_ENTRY"}),
@@ -520,6 +546,8 @@ def build_home_guidance_candidate(
         "atlas_ai_view": dict(evaluation.get("atlas_ai_view") or {}),
         "presentation_mode": "ACTIVE" if founder_guidance_v1_enabled() and current_evaluation is not None else "PREVIEW",
     }
+    from services.home_promotion_policy import classify_homepage_promotion
+    candidate["homepage_promotion_eligibility"] = classify_homepage_promotion(row)
     from services.atlas_view_summary import build_summary_payload, plain_english_summary, summary_evidence_map
     customer_payload = build_summary_payload(candidate)
     candidate["customer_plain_english_summary"] = {
@@ -532,7 +560,7 @@ def build_home_guidance_candidate(
 def build_home_guidance_story(
     full_scan_payload: Any, recovery_payload: Any, *, watchlist_tickers: Iterable[str] = (),
     current_evaluations: Mapping[str, Mapping[str, Any]] | None = None,
-    scan_timestamp: Any = None,
+    scan_timestamp: Any = None, market_today: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     full_rows = _rows(full_scan_payload)
     recovery_payload_rows = _rows(recovery_payload)
@@ -620,6 +648,8 @@ def build_home_guidance_story(
         "candidate_count": len(cards),
         "groups": groups,
         "cards": cards,
+        "market_today": dict(market_today or {}),
+        "homepage_promotion_metrics": build_homepage_promotion_metrics(cards),
         "recovery_cards": recovery_cards,
         "watchlist_cards": [card for card in cards if card["ticker"] in watched],
         "technical_cards": [card for card in cards if card["technical_status"] == "AVAILABLE"],
@@ -630,5 +660,5 @@ def build_home_guidance_story(
 
 __all__ = [
     "CUSTOMER_ACTION_PRESENTATION", "GUIDANCE_GROUPS", "HOME_FIELD_AUTHORITY", "HOME_GUIDANCE_STORY_VERSION",
-    "build_home_guidance_candidate", "build_home_guidance_story", "customer_action_presentation",
+    "build_home_guidance_candidate", "build_home_guidance_story", "build_homepage_promotion_metrics", "customer_action_presentation",
 ]

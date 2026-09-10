@@ -6,6 +6,7 @@ are deliberately kept separate from the persisted Atlas research timestamp.
 
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime, timezone
 from typing import Any, Callable, Mapping
 
@@ -17,10 +18,6 @@ HOME_MARKET_SYMBOLS = {
     "QQQ": "Nasdaq 100 · QQQ",
     "DIA": "Dow · DIA",
     "IWM": "Russell 2000 · IWM",
-    "^VIX": "VIX",
-    "GC=F": "Gold",
-    "CL=F": "Oil",
-    "BTC-USD": "Bitcoin",
 }
 
 
@@ -69,6 +66,7 @@ def fetch_home_market_tape(
             continue
         last = float(close.iloc[-1])
         previous = float(close.iloc[-2]) if len(close) > 1 else last
+        stamp = None
         try:
             stamp = close.index[-1].to_pydatetime()
             if stamp.tzinfo is None:
@@ -76,12 +74,19 @@ def fetch_home_market_tape(
             quote_times.append(stamp.astimezone(timezone.utc))
         except (AttributeError, IndexError, TypeError):
             pass
+        point_change=last-previous
+        as_of=stamp.astimezone(timezone.utc).isoformat().replace("+00:00", "Z") if stamp is not None else None
+        evidence_id="TD-MARKET-" + hashlib.sha256(f"{symbol}|{as_of}|{last}".encode()).hexdigest()[:20]
         rows.append({
             "symbol": symbol,
             "label": label,
-            "status": "live",
+            "status": "available",
             "price": last,
+            "point_change": point_change,
             "change_pct": ((last - previous) / previous * 100) if previous else None,
+            "direction": "UP" if point_change > 0 else "DOWN" if point_change < 0 else "FLAT",
+            "as_of": as_of,
+            "evidence_id": evidence_id,
         })
     return {
         "rows": rows,
@@ -90,7 +95,7 @@ def fetch_home_market_tape(
         "freshness": "delayed_or_near_real_time" if quote_times else "unavailable",
         "source": "Twelve Data",
         "requested": len(requested),
-        "available": sum(row["status"] == "live" for row in rows),
+        "available": sum(row["status"] == "available" for row in rows),
         "batch_error": batch_error,
     }
 

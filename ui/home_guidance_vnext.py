@@ -47,6 +47,14 @@ def _timestamp(value: Any) -> str:
         return "Timestamp unavailable"
 
 
+def _time_et(value: Any) -> str:
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return parsed.astimezone(ZoneInfo("America/New_York")).strftime("%-I:%M %p ET")
+    except (TypeError, ValueError):
+        return "Time unavailable"
+
+
 def _open_research(ticker: str, key: str) -> None:
     contract = research_interaction_contract(ticker, key)
     st.markdown(
@@ -1062,7 +1070,7 @@ def _section_marker(name: str) -> None:
 
 def _home_candidate_surface(all_cards: Sequence[Mapping[str, Any]], *, limit: int = 10) -> list[Mapping[str, Any]]:
     """Keep every governed Buy Now, then fill by immutable production order."""
-    all_cards = list(all_cards)
+    all_cards = [card for card in all_cards if (card.get("homepage_promotion_eligibility") or {}).get("eligible") is not False]
     actionable = [card for card in all_cards if _customer_state(card) == "BUY_NOW"]
     selected_tickers = {str(card.get("ticker") or "") for card in actionable}
     return actionable + [
@@ -1092,7 +1100,11 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
             continue
         st.markdown(f"### {title}")
         if title == "TOP ACTIONABLE OPPORTUNITIES" and not any(_customer_state(card) == "BUY_NOW" for card in members):
-            st.caption("No opportunities currently meet ATLAS's 5-star Buy Now standard.")
+            metrics=story.get("homepage_promotion_metrics") or {}
+            if int(metrics.get("canonical_buy_now_count") or 0) and int(metrics.get("homepage_featured_buy_now_count") or 0)==0:
+                st.caption("No homepage-featured BUY NOW opportunities meet the current promotion policy.")
+            else:
+                st.caption("No opportunities currently meet ATLAS's 5-star Buy Now standard.")
         for index, card in enumerate(members):
             _card(card, key=f"action_{title}_{index}", first=not emitted, total=int(story.get("candidate_count") or len(story.get("cards") or ())))
             if not emitted:
@@ -1103,7 +1115,7 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
 
 
 def _action_counts(story: Mapping[str, Any]) -> str:
-    states = [_customer_state(card) for card in story.get("cards") or ()]
+    states = [_customer_state(card) for card in story.get("cards") or () if (card.get("homepage_promotion_eligibility") or {}).get("eligible") is not False]
     values = (
         ("5★ Buy Now", states.count("BUY_NOW"), "buy"),
         ("4.5★ Build", states.count("ACCUMULATE"), "build"),
@@ -1115,6 +1127,43 @@ def _action_counts(story: Mapping[str, Any]) -> str:
         f'<span class="atlas-home-count-{tone}"><small>{html.escape(label)}</small><b>{count}</b></span>'
         for label, count, tone in values
     ) + '</div>'
+
+
+def _render_market_today(story: Mapping[str, Any]) -> None:
+    context=story.get("market_today") or {}
+    instruments=context.get("instruments") or ()
+    st.markdown("""<style>
+    .atlas-market-today-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.45rem;margin:.2rem 0 .6rem}
+    .atlas-market-today-grid span{display:grid;gap:.12rem;padding:.65rem .72rem;border-radius:12px;background:rgba(30,41,59,.55);border:1px solid rgba(148,163,184,.14)}
+    .atlas-market-today-grid small{font-size:.72rem;color:#9aa8ba}.atlas-market-today-grid b{font-size:1.08rem;color:#e8eef7}.atlas-market-today-grid em{font-size:.78rem;font-style:normal}
+    .atlas-market-today-up em{color:#65c7a1}.atlas-market-today-down em{color:#f28b82}.atlas-market-today-flat em{color:#a8b3c4}
+    .atlas-major-news{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem;margin:.25rem 0 .7rem}.atlas-major-news article{padding:.72rem .78rem;border-radius:12px;background:rgba(30,41,59,.4);border-left:3px solid #4c8ed9}.atlas-major-news b,.atlas-major-news small,.atlas-major-news p{display:block}.atlas-major-news b{line-height:1.35}.atlas-major-news small{margin-top:.25rem;color:#8793a6;font-size:.72rem}.atlas-major-news p{margin:.35rem 0 0;font-size:.84rem;line-height:1.4;color:#cbd5e1}
+    @media(max-width:700px){.atlas-market-today-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-major-news{grid-template-columns:1fr}.atlas-market-today-grid span{padding:.52rem}.atlas-market-today-grid b{font-size:1rem}}
+    </style>""",unsafe_allow_html=True)
+    st.markdown("## Market Today")
+    updated=_time_et(context.get("as_of")) if context.get("as_of") else "Latest governed reading unavailable"
+    st.caption(f"Market: {_display(context.get('market_session') or 'CLOSED')} · Last updated: {updated}")
+    if instruments:
+        blocks=[]
+        for item in instruments:
+            change=item.get("change_pct"); points=item.get("point_change")
+            delta=f"{float(points):+,.2f} ({float(change):+.2f}%)" if points is not None and change is not None else "Change unavailable"
+            tone="up" if (change or 0)>0 else "down" if (change or 0)<0 else "flat"
+            blocks.append(f'<span class="atlas-market-today-{tone}"><small>{html.escape(str(item.get("label") or item.get("symbol")))}</small><b>{float(item["price"]):,.2f}</b><em>{html.escape(delta)}</em></span>')
+        st.markdown('<div class="atlas-market-today-grid">'+''.join(blocks)+'</div>',unsafe_allow_html=True)
+    else:
+        st.caption("Broad-market values are temporarily unavailable.")
+    st.markdown("### What ATLAS Thinks This Means")
+    st.write(str(context.get("interpretation") or "ATLAS is not inferring a market backdrop without current governed evidence."))
+    news=context.get("major_market_news") or ()
+    if news:
+        st.markdown("### Major Market News")
+        body=[]
+        for item in news[:4]:
+            title=html.escape(str(item.get("headline")))
+            if item.get("url"): title=f'<a href="{html.escape(str(item["url"]),quote=True)}" target="_blank" rel="noopener">{title}</a>'
+            body.append(f'<article><b>{title}</b><small>{html.escape(str(item.get("source")))} · {html.escape(_timestamp(item.get("published_at")))}</small><p>Why it matters: {html.escape(str(item.get("why_it_matters")))}</p></article>')
+        st.markdown('<div class="atlas-major-news">'+''.join(body)+'</div>',unsafe_allow_html=True)
 
 
 def _comparison(card: Mapping[str, Any]) -> None:
@@ -1216,6 +1265,7 @@ def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=Non
         f'<small>Production scan: {html.escape(_timestamp(story.get("scan_timestamp")))} · {int(story.get("candidate_count", 0))} candidates</small>'
         '</div>', unsafe_allow_html=True,
     )
+    _render_market_today(story)
     st.markdown(_action_counts(story), unsafe_allow_html=True)
     st.markdown("## Today's ATLAS Actions")
     _render_groups(story, emit_interactive=emit_interactive)
