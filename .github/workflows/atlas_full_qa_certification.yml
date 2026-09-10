@@ -241,7 +241,11 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git add -- etf_scan.json market_full_scan.json market_prescreen.json discovery_candidate_pool.json full_evaluation_pool.json market_scan_state.json recovery_scan.json total_market_universe.json publication_manifest.json publication_audit.jsonl
+          # The 1,500/1,400 diagnostic pools remain in the immutable QA artifact.
+          # They are not Streamlit production inputs and can exceed GitHub's
+          # per-blob limit after governed evidence enrichment.
+          git restore --worktree -- discovery_candidate_pool.json full_evaluation_pool.json
+          git add -- etf_scan.json market_full_scan.json market_prescreen.json market_scan_state.json recovery_scan.json total_market_universe.json publication_manifest.json publication_audit.jsonl
           git commit -m "Publish QA-certified overnight market scan - $(date -u +'%Y-%m-%d %H:%M UTC')" || echo "No production changes to commit"
           # Visual/runtime QA intentionally creates diagnostics outside the
           # approved release file list. Preserve them in the ephemeral runner
