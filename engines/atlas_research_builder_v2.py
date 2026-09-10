@@ -799,8 +799,17 @@ def build_atlas_research_v2(
         "current_price": report.get("current_price"),
     })
     checkpoint("analyst_intelligence:before")
-    report["analyst_intelligence"] = build_analyst_intelligence(analyst_input)
-    report["wall_street_analysis"] = _mapping(report["analyst_intelligence"].get("wall_street_analysis"))
+    generated_analyst_intelligence = build_analyst_intelligence(analyst_input)
+    persisted_wall_street = _mapping(enriched_row.get("wall_street_analysis"))
+    if persisted_wall_street:
+        from engines.analyst_intelligence import intelligence_from_wall_street_analysis
+        report["analyst_intelligence"] = intelligence_from_wall_street_analysis(
+            persisted_wall_street, generated_analyst_intelligence,
+        )
+        report["wall_street_analysis"] = persisted_wall_street
+    else:
+        report["analyst_intelligence"] = generated_analyst_intelligence
+        report["wall_street_analysis"] = _mapping(generated_analyst_intelligence.get("wall_street_analysis"))
     checkpoint("analyst_intelligence:after")
     report["executive_summary"] = guidance_summary_text(report["guidance_summary"])
     report["source_investment_thesis"] = report.get("investment_thesis")

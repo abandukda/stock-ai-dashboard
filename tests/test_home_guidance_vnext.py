@@ -132,6 +132,58 @@ def test_internal_trial_exposes_returned_analyst_and_context_data(monkeypatch):
     assert card["context_evidence"]["non_scoring"] is True
 
 
+def test_internal_trial_home_and_research_share_persisted_wall_street_contract(monkeypatch):
+    from engines.atlas_research_builder_v2 import build_atlas_research_v2
+    from ui.home_guidance_vnext import _wall_street_view
+
+    monkeypatch.setenv("ATLAS_DATA_MODE", "INTERNAL_TRIAL")
+    contract = {
+        "status": "WALL_STREET_AVAILABLE", "provider": "TWELVE_DATA",
+        "evidence_ids": ("TD-PT-1", "TD-REC-1"), "as_of": "2026-09-10T12:00:00Z",
+        "commercial_display_status": "DISPLAY_ALLOWED_INTERNAL_TRIAL",
+        "display_scope": "INTERNAL_TRIAL", "attribution": "Source: Twelve Data", "non_scoring": True,
+        "consensus": {"target_mean": 125, "target_median": 123, "target_low": 100, "target_high": 145,
+                      "current_price": 100, "implied_upside_pct": 25, "analyst_count": 12, "consensus_rating": "buy"},
+        "rating_distribution": {"strong_buy": 3, "buy": 5, "hold": 4, "sell": 0, "strong_sell": 0, "response_count": 12},
+        "recent_actions": (), "estimate_context": {"forward_eps": 7.5},
+        "atlas_comparison": {"atlas_fair_value": 130, "atlas_implied_upside_pct": 30, "relationship": "BROADLY ALIGNED"},
+        "limitations": (),
+    }
+    source = row("MU", wall_street_analysis=contract)
+    evaluation = canonical_evaluation()
+    card = build_home_guidance_candidate(source, production_rank=1, current_evaluation=evaluation)
+    report = build_atlas_research_v2({**source, "canonical_investment_evaluation": evaluation})
+    assert card["wall_street_analysis"] == report["wall_street_analysis"] == contract
+    assert card["wall_street"]["mean_target"] == report["analyst_intelligence"]["wall_street_mean_target"] == 125
+    rendered = _wall_street_view(card)
+    assert "$125.00" in rendered and "12" in rendered and "Buy" in rendered
+    assert "Source: Twelve Data" in rendered
+    assert "Not Published" not in rendered
+    assert "commercial-use permission" not in rendered
+
+    without_context = build_home_guidance_candidate(
+        row("MU"), production_rank=1, current_evaluation=evaluation,
+    )
+    for key in ("guidance", "atlas_fair_value", "atlas_expected_return", "six_pillars"):
+        assert card[key] == without_context[key]
+
+
+def test_internal_trial_old_restricted_artifact_needs_refresh_without_rights_warning(monkeypatch):
+    from ui.home_guidance_vnext import _wall_street_view
+
+    monkeypatch.setenv("ATLAS_DATA_MODE", "INTERNAL_TRIAL")
+    source = row("MU", wall_street_analysis={
+        "status": "WALL_STREET_DISPLAY_RESTRICTED", "underlying_status": "WALL_STREET_AVAILABLE",
+        "provider": "TWELVE_DATA", "evidence_ids": ("TD-1",), "consensus": {},
+        "commercial_display_status": "COMMERCIAL_DISPLAY_NOT_CERTIFIED", "non_scoring": True,
+    })
+    card = build_home_guidance_candidate(source, production_rank=1, current_evaluation=canonical_evaluation())
+    rendered = _wall_street_view(card)
+    assert card["wall_street_analysis"]["status"] == "WALL_STREET_DATA_UNAVAILABLE"
+    assert "temporarily unavailable" in rendered
+    assert "commercial-use permission" not in rendered
+
+
 def test_internal_context_renders_without_licensing_language(monkeypatch):
     from ui.home_guidance_vnext import _trial_context
     monkeypatch.setenv("ATLAS_DATA_MODE", "INTERNAL_TRIAL")

@@ -460,8 +460,46 @@ def wall_street_view_text(analysis: Mapping[str, Any] | Any) -> str:
     return " ".join(parts)
 
 
+def intelligence_from_wall_street_analysis(
+    analysis: Mapping[str, Any] | Any,
+    fallback: Mapping[str, Any] | Any = None,
+) -> dict[str, Any]:
+    """Project the persisted display contract into Research's flat view model."""
+    contract = safe_mapping(analysis)
+    result = dict(safe_mapping(fallback))
+    consensus = safe_mapping(contract.get("consensus"))
+    distribution = safe_mapping(contract.get("rating_distribution"))
+    comparison = safe_mapping(contract.get("atlas_comparison"))
+    displayable = contract.get("commercial_display_status") in {
+        "DISPLAY_ALLOWED", "DISPLAY_ALLOWED_INTERNAL_TRIAL",
+    }
+    fields = {
+        "wall_street_mean_target": consensus.get("target_mean"),
+        "wall_street_median_target": consensus.get("target_median"),
+        "wall_street_high_target": consensus.get("target_high"),
+        "wall_street_low_target": consensus.get("target_low"),
+        "analyst_coverage": consensus.get("analyst_count"),
+        "wall_street_implied_upside_pct": consensus.get("implied_upside_pct"),
+        "strong_buy_count": distribution.get("strong_buy"),
+        "buy_count": distribution.get("buy"),
+        "hold_count": distribution.get("hold"),
+        "sell_count": distribution.get("sell"),
+        "strong_sell_count": distribution.get("strong_sell"),
+        "recommendation_response_count": distribution.get("response_count"),
+        "recent_actions": tuple(contract.get("recent_actions") or ()),
+        "all_actions": tuple(contract.get("recent_actions") or ()),
+        "atlas_fair_value": comparison.get("atlas_fair_value"),
+        "atlas_fv_upside_pct": comparison.get("atlas_implied_upside_pct"),
+        "atlas_street_relationship": comparison.get("relationship"),
+        "source_attribution": contract.get("attribution"),
+    }
+    result.update(fields if displayable else {key: None for key in fields})
+    result["wall_street_analysis"] = dict(contract)
+    return result
+
+
 __all__ = [
     "HIGH_AGREEMENT_MAX", "MODERATE_AGREEMENT_MAX", "build_analyst_intelligence",
     "normalize_analyst_actions", "recent_meaningful_actions", "grounded_analyst_context",
-    "wall_street_view_text", "WALL_STREET_STATUSES",
+    "wall_street_view_text", "intelligence_from_wall_street_analysis", "WALL_STREET_STATUSES",
 ]

@@ -265,8 +265,18 @@ def build_home_guidance_candidate(
         or str(row.get("analyst_commercial_status") or "").upper() in {"LICENSED", "DISPLAY_ALLOWED"}
     )
     street_display_allowed = internal or commercial_street_allowed
-    if wall_street_analysis.get("status") == "WALL_STREET_DISPLAY_RESTRICTED":
+    if wall_street_analysis.get("status") == "WALL_STREET_DISPLAY_RESTRICTED" and not internal:
         street_display_allowed = False
+    if internal and wall_street_analysis.get("status") == "WALL_STREET_DISPLAY_RESTRICTED":
+        # Older artifacts intentionally discarded restricted values.  They
+        # cannot be reconstructed at render time; suppress licensing copy and
+        # fail honestly until context evidence is refreshed under trial policy.
+        wall_street_analysis = {
+            **wall_street_analysis,
+            "status": "WALL_STREET_DATA_UNAVAILABLE",
+            "limitations": ("A governed Wall Street context refresh is required for this snapshot.",),
+            "display_authority": None,
+        }
     if not street_display_allowed:
         source_status = str(wall_street_analysis.get("status") or "WALL_STREET_DATA_UNAVAILABLE")
         wall_street_analysis = {
@@ -452,15 +462,15 @@ def build_home_guidance_candidate(
         "trade_plan": trade_plan,
         "entry_relationship": entry_relationship,
         "wall_street": {
-            "rating": row.get("recommendation_key") if street_display_allowed else None,
-            "analyst_count": street.get("count") if street_display_allowed else None,
-            "mean_target": street.get("mean") if street_display_allowed else None,
-            "low_target": street.get("low") if street_display_allowed else None,
-            "high_target": street.get("high") if street_display_allowed else None,
-            "implied_upside": street_upside if street_display_allowed else None,
+            "rating": (wall_street_analysis.get("consensus") or {}).get("consensus_rating") if street_display_allowed else None,
+            "analyst_count": (wall_street_analysis.get("consensus") or {}).get("analyst_count") if street_display_allowed else None,
+            "mean_target": (wall_street_analysis.get("consensus") or {}).get("target_mean") if street_display_allowed else None,
+            "low_target": (wall_street_analysis.get("consensus") or {}).get("target_low") if street_display_allowed else None,
+            "high_target": (wall_street_analysis.get("consensus") or {}).get("target_high") if street_display_allowed else None,
+            "implied_upside": (wall_street_analysis.get("consensus") or {}).get("implied_upside_pct") if street_display_allowed else None,
             "target_actions": tuple(row.get("phase1_target_actions") or ()),
             "recent_rating_action": _first_value(row, "recent_analyst_action", "latest_upgrade_downgrade"),
-            "commercial_display_status": "DISPLAY_ALLOWED" if commercial_street_allowed else "COMMERCIAL_LICENSE_UNCONFIRMED",
+            "commercial_display_status": wall_street_analysis.get("commercial_display_status") if street_display_allowed else "COMMERCIAL_LICENSE_UNCONFIRMED",
             "display_scope": "INTERNAL_TRIAL" if internal and not commercial_street_allowed else "COMMERCIAL_CUSTOMER",
         },
         "wall_street_analysis": wall_street_analysis,

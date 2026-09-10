@@ -15,6 +15,7 @@ CONTEXT_ENDPOINTS = (
     "price_target", "recommendations", "eps_trend", "analyst_ratings/light",
 )
 DISPLAY_ALLOWED = "DISPLAY_ALLOWED"
+DISPLAY_ALLOWED_INTERNAL_TRIAL = "DISPLAY_ALLOWED_INTERNAL_TRIAL"
 DISPLAY_RESTRICTED = "COMMERCIAL_DISPLAY_NOT_CERTIFIED"
 _SPAM = re.compile(r"class action|shareholder alert|law offices|securities fraud|investigation notice", re.I)
 
@@ -179,8 +180,13 @@ def normalize_wall_street(row: Mapping[str, Any], families: Mapping[str, Any]) -
         "observed_at": actions_family.get("observed_at"),
     } for item in _records(actions_payload, "ratings", "data"))
     analyst_families = (target_family, rec_family, trend_family, actions_family)
+    family_providers = {
+        str(f.get("provider") or "").strip().upper()
+        for f in analyst_families if f.get("evidence_id")
+    }
+    wall_street_provider = "TWELVE_DATA" if family_providers == {"TWELVE_DATA"} else None
     normalized["wall_street_evidence_lineage"] = {
-        "provider": "TWELVE_DATA", "price_target": {"evidence_id": target_family.get("evidence_id")},
+        "provider": wall_street_provider, "price_target": {"evidence_id": target_family.get("evidence_id")},
         "recommendations": {"evidence_id": rec_family.get("evidence_id")}, "non_scoring": True,
     }
     normalized["twelve_trial_evidence_ids"] = tuple(dict.fromkeys(
@@ -188,12 +194,26 @@ def normalize_wall_street(row: Mapping[str, Any], families: Mapping[str, Any]) -
     ))
     normalized["analyst_as_of"] = max((str(f.get("observed_at")) for f in analyst_families if f.get("observed_at")), default=None)
     from engines.analyst_intelligence import build_analyst_intelligence
+    from services.data_mode_policy import internal_trial_mode
     analysis = dict(build_analyst_intelligence(normalized).get("wall_street_analysis") or {})
-    allowed = any(row.get(key) is True for key in (
+    commercially_allowed = any(row.get(key) is True for key in (
         "analyst_targets_commercial_display_allowed", "twelve_wall_street_commercial_display_allowed",
         "wall_street_commercial_display_allowed",
     )) or str(row.get("wall_street_commercial_display_status") or "").upper() in {"LICENSED", DISPLAY_ALLOWED}
-    analysis["commercial_display_status"] = DISPLAY_ALLOWED if allowed else DISPLAY_RESTRICTED
+    trial_allowed = (
+        internal_trial_mode()
+        and analysis.get("provider") == "TWELVE_DATA"
+        and analysis.get("status") in {"WALL_STREET_AVAILABLE", "WALL_STREET_PARTIAL"}
+        and bool(analysis.get("evidence_ids"))
+    )
+    allowed = commercially_allowed or trial_allowed
+    analysis["commercial_display_status"] = (
+        DISPLAY_ALLOWED if commercially_allowed else
+        DISPLAY_ALLOWED_INTERNAL_TRIAL if trial_allowed else
+        DISPLAY_RESTRICTED
+    )
+    analysis["display_scope"] = "INTERNAL_TRIAL" if trial_allowed and not commercially_allowed else "COMMERCIAL_CUSTOMER"
+    analysis["attribution"] = "Source: Twelve Data" if trial_allowed else None
     analysis["non_scoring"] = True
     if not allowed and analysis.get("status") in {"WALL_STREET_AVAILABLE", "WALL_STREET_PARTIAL"}:
         analysis["underlying_status"] = analysis["status"]
@@ -295,4 +315,4 @@ def enrich_published_context(rows: Sequence[Mapping[str, Any]], **acquisition_kw
     return output, dict(result)
 
 
-__all__ = ["CONTEXT_ENDPOINTS", "VERSION", "context_coverage", "enrich_published_context", "materialize_context_evidence", "normalize_financial_detail", "normalize_news", "normalize_insiders", "normalize_institutions", "normalize_wall_street", "unavailable_congressional"]
+__all__ = ["CONTEXT_ENDPOINTS", "DISPLAY_ALLOWED_INTERNAL_TRIAL", "VERSION", "context_coverage", "enrich_published_context", "materialize_context_evidence", "normalize_financial_detail", "normalize_news", "normalize_insiders", "normalize_institutions", "normalize_wall_street", "unavailable_congressional"]

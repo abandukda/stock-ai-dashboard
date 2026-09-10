@@ -3,7 +3,7 @@ from copy import deepcopy
 from engines.home_guidance_story_v1 import build_home_guidance_story
 from engines.atlas_research_builder_v2 import build_atlas_research_v2
 from services.context_evidence import (
-    DISPLAY_ALLOWED, context_coverage, enrich_published_context, materialize_context_evidence,
+    DISPLAY_ALLOWED, DISPLAY_ALLOWED_INTERNAL_TRIAL, context_coverage, enrich_published_context, materialize_context_evidence,
     normalize_insiders, normalize_institutions, normalize_news, unavailable_congressional,
     normalize_wall_street,
 )
@@ -112,7 +112,28 @@ def test_research_passes_same_context_contract_through():
     assert report["context_evidence"]["financial_detail_context"] == row["financial_detail_context"]
 
 
-def test_wall_street_contract_is_shared_non_scoring_and_commercially_gated():
+def test_research_renderer_attributes_internal_trial_wall_street_source(monkeypatch):
+    from ui import research_report_v2
+
+    calls = []
+    class Column:
+        def metric(self, label, value): calls.append(("metric", label, value))
+    class StreamlitStub:
+        def markdown(self, value, **kwargs): calls.append(("markdown", value))
+        def caption(self, value): calls.append(("caption", value))
+        def write(self, value): calls.append(("write", value))
+        def columns(self, count): return [Column() for _ in range(count)]
+    monkeypatch.setattr(research_report_v2, "st", StreamlitStub())
+    research_report_v2._render_analyst_intelligence({
+        "wall_street_mean_target": 125, "wall_street_implied_upside_pct": 25,
+        "analyst_coverage": 12, "source_attribution": "Source: Twelve Data",
+        "atlas_street_relationship": "BROADLY ALIGNED",
+    })
+    assert ("caption", "Source: Twelve Data") in calls
+    assert any(call[:2] == ("metric", "Wall Street Consensus") for call in calls)
+
+
+def test_wall_street_contract_is_shared_non_scoring_and_commercially_gated(monkeypatch):
     families = {
         "price_target": family({"price_target": {"average": 25, "median": 24, "low": 18, "high": 30}}),
         "recommendations": family({"rating": 7, "trends": {"current_month": {"strong_buy": 1, "buy": 2, "hold": 1, "sell": 0, "strong_sell": 0}}}),
@@ -125,6 +146,64 @@ def test_wall_street_contract_is_shared_non_scoring_and_commercially_gated():
     assert allowed["rating_distribution"]["response_count"] == 4
     assert allowed["estimate_context"]["eps_revision_30d"] is not None
     assert allowed["recent_actions"] and allowed["non_scoring"] is True
+    monkeypatch.setenv("ATLAS_DATA_MODE", "COMMERCIAL_CUSTOMER")
     restricted = normalize_wall_street({**canonical_row(), "current_price": 10}, families)
     assert restricted["status"] == "WALL_STREET_DISPLAY_RESTRICTED"
     assert restricted["consensus"] == {}
+
+
+def test_internal_trial_allows_certified_twelve_wall_street_context(monkeypatch):
+    monkeypatch.setenv("ATLAS_DATA_MODE", "INTERNAL_TRIAL")
+    families = {
+        "price_target": family({"price_target": {"average": 25, "median": 24, "low": 18, "high": 30, "number_of_analysts": 4}}, allowed=False),
+        "recommendations": family({"rating": 7, "trends": {"current_month": {"strong_buy": 1, "buy": 2, "hold": 1, "sell": 0, "strong_sell": 0}}}, allowed=False),
+        "eps_trend": family({"eps_trend": [{"period": "next_year", "current_estimate": 4, "30_days_ago": 3.5}]}, allowed=False),
+    }
+    result = normalize_wall_street({**canonical_row(), "current_price": 10}, families)
+    assert result["status"] == "WALL_STREET_AVAILABLE"
+    assert result["commercial_display_status"] == DISPLAY_ALLOWED_INTERNAL_TRIAL
+    assert result["display_scope"] == "INTERNAL_TRIAL"
+    assert result["consensus"]["target_mean"] == 25
+    assert result["consensus"]["analyst_count"] == 4
+    assert result["attribution"] == "Source: Twelve Data"
+    assert result["non_scoring"] is True
+
+
+def test_internal_trial_partial_and_unavailable_are_semantically_exact(monkeypatch):
+    monkeypatch.setenv("ATLAS_DATA_MODE", "INTERNAL_TRIAL")
+    source = canonical_row()
+    source.pop("forward_eps")
+    partial = normalize_wall_street(
+        {**source, "current_price": 10},
+        {"price_target": family({"price_target": {"average": 25}}, allowed=False)},
+    )
+    assert partial["status"] == "WALL_STREET_PARTIAL"
+    assert partial["consensus"]["target_mean"] == 25
+    assert partial["consensus"]["analyst_count"] is None
+    unavailable = normalize_wall_street(source, {})
+    assert unavailable["status"] == "WALL_STREET_DATA_UNAVAILABLE"
+    assert unavailable["commercial_display_status"] != DISPLAY_ALLOWED_INTERNAL_TRIAL
+    assert unavailable["attribution"] is None
+
+
+def test_internal_trial_wall_street_context_cannot_change_canonical_outputs(monkeypatch):
+    monkeypatch.setenv("ATLAS_DATA_MODE", "INTERNAL_TRIAL")
+    row = canonical_row()
+    before = deepcopy(row["canonical_investment_evaluation"])
+    normalize_wall_street(
+        {**row, "current_price": 10},
+        {"price_target": family({"price_target": {"average": 25}}, allowed=False)},
+    )
+    assert row["canonical_investment_evaluation"] == before
+
+
+def test_internal_trial_does_not_authorize_non_twelve_context(monkeypatch):
+    monkeypatch.setenv("ATLAS_DATA_MODE", "INTERNAL_TRIAL")
+    other = family({"price_target": {"average": 25}}, allowed=False)
+    other["provider"] = "OTHER_PROVIDER"
+    result = normalize_wall_street(
+        {**canonical_row(), "current_price": 10}, {"price_target": other},
+    )
+    assert result["status"] == "WALL_STREET_DISPLAY_RESTRICTED"
+    assert result["commercial_display_status"] != DISPLAY_ALLOWED_INTERNAL_TRIAL
+    assert result["consensus"] == {}

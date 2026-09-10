@@ -422,6 +422,8 @@ def _render_analyst_intelligence(intelligence: Mapping[str, Any]) -> None:
     intelligence = safe_mapping(intelligence)
     st.markdown("## Wall Street Analyst Intelligence")
     st.markdown(_analyst_intelligence_html(intelligence), unsafe_allow_html=True)
+    if intelligence.get("source_attribution"):
+        st.caption(str(intelligence["source_attribution"]))
     low, high = intelligence.get("wall_street_low_target"), intelligence.get("wall_street_high_target")
     if low is not None and high is not None:
         st.markdown("### Target Range")
