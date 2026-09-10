@@ -249,12 +249,25 @@ def build_home_guidance_candidate(
     fair_value = professional.get("atlas_base_fair_value") if valuation_status == "PUBLISHED" and professional_governed else valuation.get("fair_value") if valuation_status == "PUBLISHED" else None
     expected_return = valuation.get("expected_return") if valuation_status == "PUBLISHED" and fair_value is not None else None
     street = analyst_consensus(row)
+    from engines.analyst_intelligence import build_analyst_intelligence
+    analyst_intelligence = build_analyst_intelligence({
+        **dict(row), "current_price": _first_number(row, "current_price", "price", "last_price"),
+        "atlas_fair_value": fair_value, "atlas_fv_upside_pct": expected_return,
+    })
+    wall_street_analysis = dict(analyst_intelligence.get("wall_street_analysis") or {})
     internal = internal_trial_mode()
     commercial_street_allowed = (
         row.get("analyst_targets_commercial_display_allowed") is True
         or str(row.get("analyst_commercial_status") or "").upper() in {"LICENSED", "DISPLAY_ALLOWED"}
     )
     street_display_allowed = internal or commercial_street_allowed
+    if not street_display_allowed:
+        wall_street_analysis = {
+            "status": "WALL_STREET_DATA_UNAVAILABLE", "as_of": None, "provider": None,
+            "evidence_ids": (), "consensus": {}, "rating_distribution": {},
+            "recent_actions": (), "estimate_context": {}, "atlas_comparison": {},
+            "limitations": ("Commercial display rights are not confirmed.",), "non_scoring": True,
+        }
     price = _first_number(row, "current_price", "price", "last_price")
     snapshot = _snapshot_evidence(row, price)
     street_upside = (
@@ -440,6 +453,7 @@ def build_home_guidance_candidate(
             "commercial_display_status": "DISPLAY_ALLOWED" if commercial_street_allowed else "COMMERCIAL_LICENSE_UNCONFIRMED",
             "display_scope": "INTERNAL_TRIAL" if internal and not commercial_street_allowed else "COMMERCIAL_CUSTOMER",
         },
+        "wall_street_analysis": wall_street_analysis,
         "recent_catalysts": _internal_catalysts(row, internal=internal),
         "context_evidence": {
             "insider": {

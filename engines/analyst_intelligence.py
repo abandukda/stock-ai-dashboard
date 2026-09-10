@@ -36,6 +36,11 @@ _FIRM_NAMES = {
     "keybanc": "KeyBanc",
 }
 
+WALL_STREET_STATUSES = frozenset({
+    "WALL_STREET_AVAILABLE", "WALL_STREET_PARTIAL", "WALL_STREET_NOT_COVERED",
+    "WALL_STREET_DATA_UNAVAILABLE", "WALL_STREET_NOT_APPLICABLE",
+})
+
 
 def _sources(row: Mapping[str, Any] | Any) -> tuple[Mapping[str, Any], ...]:
     root = safe_mapping(row)
@@ -282,7 +287,58 @@ def build_analyst_intelligence(row: Mapping[str, Any] | Any, *, actions: Iterabl
     if atlas_upside is None and atlas is not None and current_price and current_price > 0:
         atlas_upside = (atlas / current_price - 1) * 100
     relationship, message = _relationship(atlas_upside, street_upside, atlas, mean)
-    return {
+    estimate_evidence = safe_mapping(row.get("forward_estimate_evidence"))
+    wall_lineage = safe_mapping(row.get("wall_street_evidence_lineage"))
+    target_lineage = safe_mapping(wall_lineage.get("price_target"))
+    recommendation_lineage = safe_mapping(wall_lineage.get("recommendations"))
+    eps_estimate = safe_mapping(estimate_evidence.get("eps"))
+    revenue_estimate = safe_mapping(estimate_evidence.get("revenue"))
+    action_source_iter = source_actions if isinstance(source_actions, Iterable) and not isinstance(source_actions, (str, bytes, Mapping)) else ()
+    action_evidence_ids = tuple(
+        str(item.get("evidence_id")) for item in action_source_iter
+        if isinstance(item, Mapping) and item.get("evidence_id")
+    )
+    evidence_ids = tuple(dict.fromkeys(str(item) for item in (
+        *(safe_sequence(estimate_evidence.get("evidence_ids"))),
+        *safe_sequence(row.get("twelve_trial_evidence_ids")),
+        target_lineage.get("evidence_id"), recommendation_lineage.get("evidence_id"),
+        *action_evidence_ids,
+    ) if item))
+    security_type = str(_first(row, "security_type", "quote_type", "type") or "").upper()
+    not_applicable = any(token in security_type for token in ("ETF", "FUND", "MUTUAL"))
+    has_consensus = any(value is not None for value in (mean, median, high, low, coverage))
+    has_distribution = any(value is not None for value in counts.values())
+    has_estimates = any(value is not None for value in (
+        row.get("forward_eps"), row.get("forward_revenue"), eps_estimate.get("avg_estimate"), revenue_estimate.get("avg_estimate"),
+    ))
+    verified_zero_coverage = coverage == 0 and bool(
+        row.get("analyst_coverage_evidence_id") or evidence_ids or row.get("analyst_evidence_id")
+    )
+    family_count = sum((has_consensus, has_distribution, bool(normalized_actions), has_estimates))
+    verified_provider = (
+        "TWELVE_DATA" if wall_lineage.get("provider") == "TWELVE_DATA" or str(row.get("forward_eps_source") or "").upper() == "TWELVE_DATA" else
+        "FINNHUB" if any(row.get(key) is True for key in ("source_finnhub_target", "source_finnhub_recommendation", "source_finnhub_analyst_actions")) else
+        None
+    )
+    verified_context = bool(verified_provider and evidence_ids)
+    status = (
+        "WALL_STREET_NOT_APPLICABLE" if not_applicable else
+        "WALL_STREET_NOT_COVERED" if verified_zero_coverage and family_count <= 1 else
+        "WALL_STREET_AVAILABLE" if verified_context and has_consensus and (has_distribution or has_estimates or bool(normalized_actions)) else
+        "WALL_STREET_PARTIAL" if family_count else
+        "WALL_STREET_DATA_UNAVAILABLE"
+    )
+    consensus_rating = _text(_first(row, "consensus_rating", "recommendation_key", "recommendation_mean"))
+    if consensus_rating and consensus_rating.lower() in {"unknown", "none", "unavailable"}:
+        consensus_rating = None
+    as_of = _text(_first(row, "analyst_as_of", "price_target_as_of", "analyst_observed_at", "forward_eps_observed_at")) or estimate_evidence.get("as_of")
+    limitations = []
+    if mean is None: limitations.append("No verified consensus target mean is available.")
+    if coverage is None: limitations.append("The verified analyst coverage count is unavailable.")
+    if not complete_mix: limitations.append("The recommendation distribution is incomplete.")
+    if not normalized_actions: limitations.append("No verified recent analyst actions are available.")
+    if family_count and not evidence_ids: limitations.append("Evidence identifiers are unavailable for the populated analyst context.")
+    result = {
         "current_price": current_price,
         "wall_street_mean_target": mean,
         "wall_street_median_target": median,
@@ -311,6 +367,43 @@ def build_analyst_intelligence(row: Mapping[str, Any] | Any, *, actions: Iterabl
         "atlas_street_relationship": relationship,
         "atlas_street_divergence_message": message,
     }
+    result["wall_street_analysis"] = {
+        "status": status,
+        "as_of": as_of,
+        "provider": verified_provider,
+        "evidence_ids": evidence_ids,
+        "consensus": {
+            "target_mean": mean, "target_median": median, "target_low": low, "target_high": high,
+            "current_price": current_price,
+            "implied_upside_pct": round(street_upside, 1) if street_upside is not None else None,
+            "analyst_count": coverage, "consensus_rating": consensus_rating,
+        },
+        "rating_distribution": {
+            "strong_buy": counts["strong_buy_count"], "buy": counts["buy_count"],
+            "hold": counts["hold_count"], "sell": counts["sell_count"],
+            "strong_sell": counts["strong_sell_count"], "response_count": responses,
+            "reconciles": bool(complete_mix and (coverage is None or responses == coverage)),
+        },
+        "recent_actions": recent_meaningful_actions(normalized_actions, 5),
+        "recent_trend": _trend(normalized_actions, 90, moment)["classification"],
+        "estimate_context": {
+            "forward_eps": row.get("forward_eps") if row.get("forward_eps") is not None else eps_estimate.get("avg_estimate"),
+            "forward_eps_period": row.get("forward_eps_period") or eps_estimate.get("date"),
+            "forward_revenue": row.get("forward_revenue") if row.get("forward_revenue") is not None else revenue_estimate.get("avg_estimate"),
+            "forward_revenue_period": row.get("forward_revenue_period") or revenue_estimate.get("date"),
+            "eps_revision_7d": row.get("eps_revision_7d"), "eps_revision_30d": row.get("eps_revision_30d"), "eps_revision_90d": row.get("eps_revision_90d"),
+            "revenue_revision_7d": row.get("revenue_revision_7d"), "revenue_revision_30d": row.get("revenue_revision_30d"), "revenue_revision_90d": row.get("revenue_revision_90d"),
+            "source_evidence_ids": tuple(estimate_evidence.get("evidence_ids") or ()),
+        },
+        "atlas_comparison": {
+            "atlas_fair_value": atlas, "atlas_implied_upside_pct": round(atlas_upside, 1) if atlas_upside is not None else None,
+            "street_target": mean, "street_implied_upside_pct": round(street_upside, 1) if street_upside is not None else None,
+            "relationship": relationship,
+        },
+        "limitations": tuple(limitations),
+        "non_scoring": True,
+    }
+    return result
 
 
 def grounded_analyst_context(intelligence: Mapping[str, Any]) -> dict[str, Any]:
@@ -338,7 +431,34 @@ def grounded_analyst_context(intelligence: Mapping[str, Any]) -> dict[str, Any]:
     return result
 
 
+def wall_street_view_text(analysis: Mapping[str, Any] | Any) -> str:
+    """Compact consumer copy; semantic absence is never presented as neutral."""
+    analysis = safe_mapping(analysis)
+    status = analysis.get("status")
+    if status == "WALL_STREET_NOT_APPLICABLE":
+        return "Wall Street company coverage does not apply to this security."
+    consensus = safe_mapping(analysis.get("consensus"))
+    if status not in {"WALL_STREET_AVAILABLE", "WALL_STREET_PARTIAL"} or consensus.get("target_mean") is None:
+        return (
+            "No verified Wall Street consensus is currently available for this company. "
+            "ATLAS uses its own certified financial, valuation, risk, price-trend, entry, and trading-activity evidence."
+        )
+    parts = [f"Wall Street's average target is ${float(consensus['target_mean']):,.2f}."]
+    if consensus.get("implied_upside_pct") is not None:
+        parts.append(f"Analysts currently see about {float(consensus['implied_upside_pct']):+.1f}% potential from today's price.")
+    relationship = safe_mapping(analysis.get("atlas_comparison")).get("relationship")
+    parts.append({
+        "ATLAS MORE CONSTRUCTIVE": "ATLAS independently sees more upside than the analyst consensus.",
+        "WALL STREET MORE CONSTRUCTIVE": "Wall Street independently sees more upside than ATLAS.",
+        "BROADLY ALIGNED": "ATLAS and Wall Street reach a similar valuation conclusion.",
+        "MATERIAL DIVERGENCE": "ATLAS and Wall Street reach materially different valuation conclusions.",
+    }.get(relationship, "Wall Street remains independent external context."))
+    parts.append("Wall Street does not determine the ATLAS rating.")
+    return " ".join(parts)
+
+
 __all__ = [
     "HIGH_AGREEMENT_MAX", "MODERATE_AGREEMENT_MAX", "build_analyst_intelligence",
     "normalize_analyst_actions", "recent_meaningful_actions", "grounded_analyst_context",
+    "wall_street_view_text", "WALL_STREET_STATUSES",
 ]

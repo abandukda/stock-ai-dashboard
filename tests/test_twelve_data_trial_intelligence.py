@@ -90,6 +90,35 @@ def test_forward_estimates_use_annual_forward_period_not_quarterly_record():
     assert len(row["forward_estimate_evidence"]["eps_periods"]) == 2
 
 
+def test_wall_street_price_target_and_recommendations_are_context_only_and_exactly_mapped():
+    dossier = {"evidence_ids": ("TD-TARGET", "TD-REC"), "families": {
+        "price_target": {"observed_at": "2026-09-09T12:00:00Z", "evidence_id": "TD-TARGET", "payload": {
+            "price_target": {"high": 220, "median": 185, "low": 136, "average": 184.01, "current": 169.56, "currency": "USD"}
+        }},
+        "recommendations": {"observed_at": "2026-09-09T12:00:00Z", "evidence_id": "TD-REC", "payload": {
+            "trends": {"current_month": {"strong_buy": 13, "buy": 20, "hold": 8, "sell": 0, "strong_sell": 0}}, "rating": 8.2
+        }},
+        "eps_trend": {"observed_at": "2026-09-09T12:00:00Z", "evidence_id": "TD-TREND", "payload": {
+            "eps_trend": [{"date": "2027-01-31", "period": "next_year", "current_estimate": 2.0, "7_days_ago": 1.9, "30_days_ago": 1.8, "90_days_ago": 1.6}]
+        }},
+        "analyst_ratings/light": {"observed_at": "2026-09-09T12:00:00Z", "evidence_id": "TD-RATING", "payload": {
+            "ratings": [{"date": "2026-09-01", "firm": "Keybanc", "rating_change": "Upgrade", "rating_current": "Overweight", "rating_prior": "Sector Weight"}]
+        }},
+    }}
+    row = normalize_trial_dossier({"ticker": "AAPL", "atlas_fair_value": 999}, dossier)
+    assert row["analyst_target_mean"] == 184.01
+    assert row["analyst_target_median"] == 185
+    assert (row["analyst_target_low"], row["analyst_target_high"]) == (136, 220)
+    assert row["analyst_count"] == 41
+    assert [row[key] for key in ("strong_buy", "buy", "hold", "sell", "strong_sell")] == [13, 20, 8, 0, 0]
+    assert row["recommendation_key"] == "strong_buy"
+    assert row["eps_revision_7d"] == 5.26 and row["eps_revision_90d"] == 25.0
+    assert row["analyst_actions"][0]["rating_action"] == "Upgrade"
+    assert row["analyst_actions"][0]["evidence_id"] == "TD-RATING"
+    assert row["atlas_fair_value"] == 999
+    assert row["wall_street_evidence_lineage"]["non_scoring"] is True
+
+
 def test_stale_yahoo_forward_eps_is_rejected_and_refetched_from_governed_estimate():
     dossier = {"observed_at": "2026-09-08T00:00:00Z", "evidence_ids": ("TD-EPS",), "families": {
         "earnings_estimate": {"payload": {"earnings_estimate": [

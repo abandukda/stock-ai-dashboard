@@ -156,6 +156,11 @@ def build_full_scan_decision_story(
     company = str(_first(raw, "company", "company_name", "name", "Company") or _first(wrapper, "Company", "company") or ticker).strip()
     constraints = _constraints(raw)
     health = _evidence_health(raw, decision)
+    from engines.analyst_intelligence import build_analyst_intelligence
+    wall_street_analysis = build_analyst_intelligence({
+        **raw, "atlas_fair_value": decision.get("atlas_fair_value"),
+        "atlas_fv_upside_pct": decision.get("decision_expected_return"),
+    })["wall_street_analysis"]
 
     valuation = {
         "atlas_fair_value": decision.get("atlas_fair_value"),
@@ -228,6 +233,7 @@ def build_full_scan_decision_story(
         "opportunity": decision.get("opportunity"),
         "confidence": decision.get("confidence"),
         "valuation": valuation,
+        "wall_street_analysis": wall_street_analysis,
         "technical_state": technical,
         "why_ranked": _why_ranked(raw),
         "actionability": _actionability(decision),

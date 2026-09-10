@@ -319,7 +319,11 @@ def _deterministic_answer(question: str, report: Mapping[str, Any]) -> str:
     decision = canonical_ask_decision(report)
     decision_sentence = _decision_sentence(report)
 
-    if decision["state"] == "DATA_UNAVAILABLE":
+    contextual_analyst_question = any(term in q for term in (
+        "wall street", "analyst", "target change", "target raise", "target cut",
+        "more bullish", "more bearish", "agree with", "consensus",
+    ))
+    if decision["state"] == "DATA_UNAVAILABLE" and not contextual_analyst_question:
         return _canonical_unavailable_answer(report)
 
     if any(term in q for term in ("what changed", "what has changed", "changed since", "thesis change")):

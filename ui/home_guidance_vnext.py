@@ -717,6 +717,27 @@ def _target_tiles(card: Mapping[str, Any]) -> str:
     )
 
 
+def _wall_street_view(card: Mapping[str, Any]) -> str:
+    from engines.analyst_intelligence import wall_street_view_text
+    analysis = card.get("wall_street_analysis") or {}
+    consensus = analysis.get("consensus") or {}
+    facts = []
+    for label, value in (
+        ("Consensus Target", _money(consensus.get("target_mean")) if consensus.get("target_mean") is not None else None),
+        ("Potential", _score(consensus.get("implied_upside_pct"), suffix="%") if consensus.get("implied_upside_pct") is not None else None),
+        ("Analysts Covering", str(consensus.get("analyst_count")) if consensus.get("analyst_count") is not None else None),
+        ("Consensus", str(consensus.get("consensus_rating") or "").replace("_", " ").title() or None),
+        ("Recent Trend", str(analysis.get("recent_trend") or "").title() or None),
+    ):
+        if value:
+            facts.append(f"<span><small>{html.escape(label)}</small><b>{html.escape(value)}</b></span>")
+    return (
+        '<section class="atlas-home-wall-street" data-atlas-qa="wall-street-view"><h4>Wall Street View</h4>'
+        f'<div class="atlas-home-wall-street-facts">{"".join(facts)}</div>'
+        f'<p>{html.escape(wall_street_view_text(analysis))}</p></section>'
+    )
+
+
 def _pillar_band(value: Any, status: Any) -> str:
     if str(status or "").upper() not in {"AVAILABLE", "PARTIAL"} or value is None:
         return "Unavailable"
@@ -725,6 +746,7 @@ def _pillar_band(value: Any, status: Any) -> str:
 
 
 def _six_pillar_summary(card: Mapping[str, Any]) -> str:
+    from services.atlas_view_summary import PILLAR_101
     pillars = card.get("six_pillars") if isinstance(card.get("six_pillars"), Mapping) else {}
     labels = (
         ("Technical", "technical_quality"), ("Fundamentals", "fundamental_quality"),
@@ -736,7 +758,7 @@ def _six_pillar_summary(card: Mapping[str, Any]) -> str:
         item = pillars.get(key) if isinstance(pillars.get(key), Mapping) else {}
         band = _pillar_band(item.get("score"), item.get("status"))
         tone = band.lower()
-        cells.append(f'<span class="atlas-home-pillar atlas-home-pillar-{tone}"><small>{label}</small><b>{band}</b></span>')
+        cells.append(f'<span class="atlas-home-pillar atlas-home-pillar-{tone}" title="{html.escape(PILLAR_101[key])}"><small>{label}</small><b>{band}</b></span>')
     return '<div class="atlas-home-pillars" data-atlas-qa="home-six-pillars">' + "".join(cells) + '</div>'
 
 
@@ -1008,6 +1030,7 @@ def _card(card: Mapping[str, Any], *, key: str, first: bool = False, total: int 
                 st.markdown(chart_html, unsafe_allow_html=True)
         st.markdown('<h4 class="atlas-home-view-title">Price Outlook</h4>', unsafe_allow_html=True)
         st.markdown(_target_tiles(card), unsafe_allow_html=True)
+        st.markdown(_wall_street_view(card), unsafe_allow_html=True)
         st.markdown('<h4 class="atlas-home-view-title">ATLAS Investment View</h4>', unsafe_allow_html=True)
         st.markdown(
             f'<p class="atlas-home-guidance-summary" data-atlas-qa="home-guidance-summary">{html.escape(_atlas_summary(card))}</p>',

@@ -289,6 +289,11 @@ def build_recovery_decision_story(
         str(item) for family in families.values() if isinstance(family, Mapping)
         for item in (family.get("evidence_ids") or ()) if item
     })
+    from engines.analyst_intelligence import build_analyst_intelligence
+    wall_street_analysis = build_analyst_intelligence({
+        **source, "atlas_fair_value": valuation["atlas_fair_value"],
+        "atlas_fv_upside_pct": valuation["expected_return"],
+    })["wall_street_analysis"]
 
     return {
         "version": RECOVERY_DECISION_STORY_VERSION,
@@ -320,6 +325,7 @@ def build_recovery_decision_story(
             "estimate_history_status": snapshot_data.get("status_detail") or (NOT_APPLICABLE if etf else ESTIMATE_ACCUMULATION_MESSAGE),
         },
         "valuation_context": valuation,
+        "wall_street_analysis": wall_street_analysis,
         "technical_confirmation": technical,
         "catalysts": catalysts[:7],
         "primary_risks": risks[:7],

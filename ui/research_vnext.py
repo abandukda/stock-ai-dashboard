@@ -671,14 +671,19 @@ def _render_fundamentals(report: Mapping[str, Any], legacy: Mapping[str, Callabl
     valuation_cols[0].metric("Current Price", CanonicalNumberFormatter.price(report.get("current_price")).display)
     valuation_cols[1].metric("Atlas Quant Fair Value", CanonicalNumberFormatter.price(_decision_value(report, "atlas_fair_value", "atlas_fair_value")).display)
     valuation_cols[2].metric("Atlas-FV Expected Return", CanonicalNumberFormatter.percent(_decision_value(report, "decision_expected_return", "atlas_expected_return_pct"), signed=True).display)
-    street_cols = st.columns(2)
-    street_cols[0].metric("Wall Street Mean Target", CanonicalNumberFormatter.price(analyst.get("wall_street_mean_target")).display)
-    street_cols[1].metric(
-        "Wall Street Low / High",
-        _metric_currency_range(analyst.get("wall_street_low_target"), analyst.get("wall_street_high_target")),
-    )
+    from engines.analyst_intelligence import wall_street_view_text
+    wall_street = safe_mapping(report.get("wall_street_analysis"))
+    consensus = safe_mapping(wall_street.get("consensus"))
+    st.markdown("### Wall Street View")
+    if consensus.get("target_mean") is not None:
+        street_cols = st.columns(4)
+        street_cols[0].metric("Consensus Target", CanonicalNumberFormatter.price(consensus.get("target_mean")).display)
+        street_cols[1].metric("Potential", CanonicalNumberFormatter.percent(consensus.get("implied_upside_pct"), signed=True).display)
+        street_cols[2].metric("Analysts Covering", _scalar_text(consensus.get("analyst_count")))
+        street_cols[3].metric("Recent Trend", _scalar_text(wall_street.get("recent_trend")).title())
+    st.write(wall_street_view_text(wall_street))
     st.markdown("#### Valuation Interpretation")
-    st.caption("Wall Street consensus is external analyst evidence and is not a substitute for Atlas Fair Value.")
+    st.caption("Wall Street is independent external context and does not determine the ATLAS rating.")
     st.write(_scalar_text(analyst.get("atlas_street_divergence_message"), "Valuation comparison unavailable."))
     with st.expander("Valuation assumptions, scenarios, evidence gaps, and methodology", expanded=False):
         legacy["valuation"](report)
