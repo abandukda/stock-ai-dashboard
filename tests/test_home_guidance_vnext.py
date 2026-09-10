@@ -898,6 +898,7 @@ def test_uan_active_story_and_renderer_ignore_persisted_legacy_narrative(monkeyp
     assert "CVR Partners produces nitrogen fertilizer" in summary
     assert "$175.66 fair value implies 32.2% upside" in summary
     assert "fertilizer demand and pricing could weaken profits" in summary
+    assert "commercial-use permission is not confirmed" in summary
     for banned in ("one-method", "EV/EBITDA", "canonical", "gate", "pillar", "WACC"):
         assert banned.lower() not in summary.lower()
     assert "$175.66" in _target_tiles(card)
