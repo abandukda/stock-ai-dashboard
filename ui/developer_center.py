@@ -115,6 +115,12 @@ def render_developer_center(
         "investment recommendations; it monitors whether Atlas itself is working correctly."
     )
     st.info("This administrator/developer workspace remains in primary navigation for operational visibility; investor-facing decisions are produced elsewhere in Atlas.")
+    from services.runtime_build_identity import runtime_build_identity
+    build = runtime_build_identity()
+    st.caption(
+        f"Runtime build: {build['short_sha']} · Branch: {build['branch']} · "
+        f"Home renderer: {build['home_renderer_version']} · Source: {build['source']}"
+    )
     manifest_path = Path("publication_manifest.json")
     try:
         _render_full_qa_status(json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else {})

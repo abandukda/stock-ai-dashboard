@@ -1191,9 +1191,15 @@ def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=Non
         from services.session_stability import emit_page_interactive as emit
         emit_interactive = lambda: emit(st, "Home")
     _inject_css()
+    from services.runtime_build_identity import runtime_build_identity
+    build = runtime_build_identity()
     st.markdown(
         f'<span data-atlas-qa="home-guidance-vnext" data-atlas-version="{html.escape(str(story.get("version")))}" '
-        f'data-atlas-mode="{html.escape(str(story.get("mode")))}" aria-hidden="true" style="display:none">home-guidance-vnext</span>',
+        f'data-atlas-mode="{html.escape(str(story.get("mode")))}" '
+        f'data-atlas-build-sha="{html.escape(build["build_sha"])}" '
+        f'data-atlas-deploy-branch="{html.escape(build["branch"])}" '
+        f'data-atlas-home-renderer-version="{html.escape(build["home_renderer_version"])}" '
+        'aria-hidden="true" style="display:none">home-guidance-vnext</span>',
         unsafe_allow_html=True,
     )
     st.markdown(
