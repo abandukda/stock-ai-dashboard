@@ -18,3 +18,9 @@ def test_missing_financial_data_does_not_create_neutral_score():
     component = build_components({"Ticker": "TEST"})["fundamentals"]
     assert component["status"] == "NOT_LOADED"
     assert component["score"] is None
+
+
+def test_governed_professional_timestamp_reaches_fundamentals_contract():
+    component = build_components({"Ticker":"NVDA","Revenue Growth":10,
+        "professional_evidence_as_of":"2026-09-10T04:47:50Z"})["fundamentals"]
+    assert component["as_of"] == "2026-09-10T04:47:50Z"

@@ -125,6 +125,7 @@ def _metadata(row: Mapping[str, Any], prefix: str) -> tuple[str, str, str, str]:
             row,
             f"{prefix}_as_of",
             f"{prefix}_updated_at",
+            "professional_evidence_as_of" if prefix == "financial" else "",
             "updated_at",
             default="",
         )
