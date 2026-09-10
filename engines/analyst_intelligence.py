@@ -39,6 +39,7 @@ _FIRM_NAMES = {
 WALL_STREET_STATUSES = frozenset({
     "WALL_STREET_AVAILABLE", "WALL_STREET_PARTIAL", "WALL_STREET_NOT_COVERED",
     "WALL_STREET_DATA_UNAVAILABLE", "WALL_STREET_NOT_APPLICABLE",
+    "WALL_STREET_DISPLAY_RESTRICTED",
 })
 
 
@@ -437,6 +438,8 @@ def wall_street_view_text(analysis: Mapping[str, Any] | Any) -> str:
     status = analysis.get("status")
     if status == "WALL_STREET_NOT_APPLICABLE":
         return "Wall Street company coverage does not apply to this security."
+    if status == "WALL_STREET_DISPLAY_RESTRICTED":
+        return "Wall Street information is not displayed because commercial-use permission is not confirmed."
     consensus = safe_mapping(analysis.get("consensus"))
     if status not in {"WALL_STREET_AVAILABLE", "WALL_STREET_PARTIAL"} or consensus.get("target_mean") is None:
         return (

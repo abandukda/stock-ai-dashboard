@@ -5,6 +5,7 @@ from engines.atlas_research_builder_v2 import build_atlas_research_v2
 from services.context_evidence import (
     DISPLAY_ALLOWED, context_coverage, enrich_published_context, materialize_context_evidence,
     normalize_insiders, normalize_institutions, normalize_news, unavailable_congressional,
+    normalize_wall_street,
 )
 
 
@@ -109,3 +110,21 @@ def test_research_passes_same_context_contract_through():
     report = build_atlas_research_v2(row)
     assert report["context_evidence"]["insider_context"] == row["insider_context"]
     assert report["context_evidence"]["financial_detail_context"] == row["financial_detail_context"]
+
+
+def test_wall_street_contract_is_shared_non_scoring_and_commercially_gated():
+    families = {
+        "price_target": family({"price_target": {"average": 25, "median": 24, "low": 18, "high": 30}}),
+        "recommendations": family({"rating": 7, "trends": {"current_month": {"strong_buy": 1, "buy": 2, "hold": 1, "sell": 0, "strong_sell": 0}}}),
+        "eps_trend": family({"eps_trend": [{"period": "next_year", "current_estimate": 4, "7_days_ago": 3.8, "30_days_ago": 3.5, "90_days_ago": 3.0}]}),
+        "analyst_ratings/light": family({"ratings": [{"date": "2026-09-09", "firm": "Firm", "rating_change": "Upgrade", "rating_current": "Buy", "rating_prior": "Hold"}]}),
+    }
+    allowed = normalize_wall_street({**canonical_row(), "current_price": 10, "analyst_targets_commercial_display_allowed": True}, families)
+    assert allowed["status"] == "WALL_STREET_AVAILABLE"
+    assert allowed["consensus"]["target_mean"] == 25
+    assert allowed["rating_distribution"]["response_count"] == 4
+    assert allowed["estimate_context"]["eps_revision_30d"] is not None
+    assert allowed["recent_actions"] and allowed["non_scoring"] is True
+    restricted = normalize_wall_street({**canonical_row(), "current_price": 10}, families)
+    assert restricted["status"] == "WALL_STREET_DISPLAY_RESTRICTED"
+    assert restricted["consensus"] == {}

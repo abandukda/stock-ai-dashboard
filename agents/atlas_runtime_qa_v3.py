@@ -270,7 +270,7 @@ async def _wake_if_needed(page: Page) -> bool:
     return False
 
 
-def _canonical_streamlit_url(url: str) -> str:
+def _canonical_streamlit_url(url: str, *, allow_local_exact_candidate: bool = False) -> str:
     """Normalize only the public app origin; never invent an internal host route."""
     raw = str(url or DEFAULT_URL).strip()
     if not raw:
@@ -282,10 +282,16 @@ def _canonical_streamlit_url(url: str) -> str:
     path = parts.path or "/"
     target = urlunsplit((scheme, parts.netloc, path, "", ""))
     host = (parts.hostname or "").lower()
+    local_exact_candidate = (
+        allow_local_exact_candidate
+        and os.getenv("ATLAS_EXACT_CANDIDATE_QA", "").strip().lower() in {"1", "true", "yes"}
+        and host in {"127.0.0.1", "localhost"}
+        and parts.port == 8501
+    )
     invalid_reason = ""
     if host == "share.streamlit.io" or (host.endswith("streamlit.io") and path.startswith("/app/")):
         invalid_reason = "GENERIC_STREAMLIT_SHARE_SHELL"
-    elif not host.endswith(".streamlit.app"):
+    elif not host.endswith(".streamlit.app") and not local_exact_candidate:
         invalid_reason = "NON_STREAMLIT_APP_ORIGIN"
     elif target in RETIRED_DEPLOYMENT_TARGETS:
         invalid_reason = "RETIRED_ATLAS_DEPLOYMENT_TARGET"
@@ -298,9 +304,9 @@ def _is_streamlit_host(url: str) -> bool:
     return bool((urlsplit(str(url or "")).hostname or "").endswith(".streamlit.app"))
 
 
-async def _open_streamlit_origin(page: Page, url: str, output_dir: Path | None = None) -> dict[str, Any]:
+async def _open_streamlit_origin(page: Page, url: str, output_dir: Path | None = None, *, allow_local_exact_candidate: bool = False) -> dict[str, Any]:
     """Open the public origin and retain host transitions for bootstrap diagnostics."""
-    target = _canonical_streamlit_url(url)
+    target = _canonical_streamlit_url(url, allow_local_exact_candidate=allow_local_exact_candidate)
     response = None
     navigation_errors: list[str] = []
     for attempt in range(3):
@@ -314,7 +320,7 @@ async def _open_streamlit_origin(page: Page, url: str, output_dir: Path | None =
             await page.wait_for_timeout(2_000 * (attempt + 1))
     resolved = str(page.url or target)
     try:
-        _canonical_streamlit_url(resolved)
+        _canonical_streamlit_url(resolved, allow_local_exact_candidate=allow_local_exact_candidate)
     except DeploymentTargetError as exc:
         diagnostics = {
             **exc.diagnostics, "requested_target_url": target,
@@ -767,9 +773,12 @@ async def _open_and_authenticate(
     output_dir: Path,
     *,
     expected_sha: str,
+    allow_local_exact_candidate: bool = False,
 ) -> dict[str, Any]:
-    print(f"[open] Opening {_canonical_streamlit_url(url)}", flush=True)
-    bootstrap = await _open_streamlit_origin(page, url, output_dir)
+    if allow_local_exact_candidate and not expected_sha:
+        raise DeploymentTargetError({"reason": "EXACT_CANDIDATE_SHA_MISSING", "resolved_target_url": str(url or "")})
+    print(f"[open] Opening {_canonical_streamlit_url(url, allow_local_exact_candidate=allow_local_exact_candidate)}", flush=True)
+    bootstrap = await _open_streamlit_origin(page, url, output_dir, allow_local_exact_candidate=allow_local_exact_candidate)
     readiness = await _deployed_readiness_gate(
         page, expected_sha=expected_sha, output_dir=output_dir,
     )

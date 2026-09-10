@@ -122,7 +122,10 @@ async def run(args: argparse.Namespace) -> int:
         context = await browser.new_context(viewport=DESKTOP)
         page = await context.new_page()
         try:
-            await _open_and_authenticate(page, args.url, output, expected_sha=crawler.source_sha)
+            await _open_and_authenticate(
+                page, args.url, output, expected_sha=crawler.source_sha,
+                allow_local_exact_candidate=True,
+            )
             for viewport, size in (("desktop", DESKTOP), ("mobile", MOBILE)):
                 await page.set_viewport_size(size)
                 pages = REQUIRED_PAGES if viewport == "desktop" else ("Home", "Research Any Ticker")

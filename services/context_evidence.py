@@ -10,7 +10,10 @@ from typing import Any, Mapping, Sequence
 
 
 VERSION = "ATLAS_CONTEXT_EVIDENCE_V1"
-CONTEXT_ENDPOINTS = ("press_releases", "insider_transactions", "institutional_holders")
+CONTEXT_ENDPOINTS = (
+    "press_releases", "insider_transactions", "institutional_holders",
+    "price_target", "recommendations", "eps_trend", "analyst_ratings/light",
+)
 DISPLAY_ALLOWED = "DISPLAY_ALLOWED"
 DISPLAY_RESTRICTED = "COMMERCIAL_DISPLAY_NOT_CERTIFIED"
 _SPAM = re.compile(r"class action|shareholder alert|law offices|securities fraud|investigation notice", re.I)
@@ -124,6 +127,86 @@ def unavailable_congressional() -> dict[str, Any]:
     }
 
 
+def normalize_wall_street(row: Mapping[str, Any], families: Mapping[str, Any]) -> dict[str, Any]:
+    """Build the shared analyst contract without changing any ATLAS output."""
+    normalized = dict(row)
+    target_family = _family(families, "price_target")
+    target_payload = target_family.get("payload") if isinstance(target_family.get("payload"), Mapping) else {}
+    target = target_payload.get("price_target") if isinstance(target_payload.get("price_target"), Mapping) else {}
+    for canonical, raw in (("analyst_target_mean", "average"), ("analyst_target_median", "median"),
+                           ("analyst_target_low", "low"), ("analyst_target_high", "high")):
+        if target.get(raw) is not None:
+            normalized[canonical] = target[raw]
+    target_count = _first(target, "number_of_analysts", "analyst_count", "count")
+    if target_count is not None:
+        normalized["analyst_count"] = target_count
+    rec_family = _family(families, "recommendations")
+    rec_payload = rec_family.get("payload") if isinstance(rec_family.get("payload"), Mapping) else {}
+    trends = rec_payload.get("trends") if isinstance(rec_payload.get("trends"), Mapping) else {}
+    current = trends.get("current_month") if isinstance(trends.get("current_month"), Mapping) else {}
+    distribution = {}
+    for name in ("strong_buy", "buy", "hold", "sell", "strong_sell"):
+        if current.get(name) is not None:
+            normalized[name] = current[name]
+            distribution[name] = current[name]
+    if len(distribution) == 5 and normalized.get("analyst_count") is None:
+        normalized["analyst_count"] = sum(int(value) for value in distribution.values())
+    rating = rec_payload.get("rating")
+    try:
+        score = float(rating)
+        normalized["recommendation_key"] = "strong_buy" if score >= 8 else "buy" if score >= 6 else "hold" if score >= 4 else "sell" if score >= 2 else "strong_sell"
+    except (TypeError, ValueError):
+        pass
+    trend_family = _family(families, "eps_trend")
+    trend_payload = trend_family.get("payload") if isinstance(trend_family.get("payload"), Mapping) else {}
+    trend_records = _records(trend_payload, "eps_trend", "data")
+    trend = next((x for x in trend_records if str(x.get("period") or "").lower() in {"next_year", "current_year"}), trend_records[0] if trend_records else {})
+    for days in (7, 30, 90):
+        current_estimate, prior = trend.get("current_estimate"), trend.get(f"{days}_days_ago")
+        try:
+            normalized[f"eps_revision_{days}d"] = round((float(current_estimate) - float(prior)) / abs(float(prior)) * 100, 2) if float(prior) else None
+        except (TypeError, ValueError):
+            pass
+    actions_family = _family(families, "analyst_ratings/light")
+    actions_payload = actions_family.get("payload") if isinstance(actions_family.get("payload"), Mapping) else {}
+    normalized["analyst_actions"] = tuple({
+        "date": _first(item, "date", "published_at"), "firm": _first(item, "firm", "brokerage"),
+        "analyst": _first(item, "analyst", "analyst_name"),
+        "rating_action": _first(item, "rating_change", "action"),
+        "current_rating": _first(item, "rating_current", "current_rating"),
+        "previous_rating": _first(item, "rating_prior", "prior_rating"),
+        "provider": "TWELVE_DATA", "evidence_id": actions_family.get("evidence_id"),
+        "observed_at": actions_family.get("observed_at"),
+    } for item in _records(actions_payload, "ratings", "data"))
+    analyst_families = (target_family, rec_family, trend_family, actions_family)
+    normalized["wall_street_evidence_lineage"] = {
+        "provider": "TWELVE_DATA", "price_target": {"evidence_id": target_family.get("evidence_id")},
+        "recommendations": {"evidence_id": rec_family.get("evidence_id")}, "non_scoring": True,
+    }
+    normalized["twelve_trial_evidence_ids"] = tuple(dict.fromkeys(
+        str(f.get("evidence_id")) for f in analyst_families if f.get("evidence_id")
+    ))
+    normalized["analyst_as_of"] = max((str(f.get("observed_at")) for f in analyst_families if f.get("observed_at")), default=None)
+    from engines.analyst_intelligence import build_analyst_intelligence
+    analysis = dict(build_analyst_intelligence(normalized).get("wall_street_analysis") or {})
+    allowed = any(row.get(key) is True for key in (
+        "analyst_targets_commercial_display_allowed", "twelve_wall_street_commercial_display_allowed",
+        "wall_street_commercial_display_allowed",
+    )) or str(row.get("wall_street_commercial_display_status") or "").upper() in {"LICENSED", DISPLAY_ALLOWED}
+    analysis["commercial_display_status"] = DISPLAY_ALLOWED if allowed else DISPLAY_RESTRICTED
+    analysis["non_scoring"] = True
+    if not allowed and analysis.get("status") in {"WALL_STREET_AVAILABLE", "WALL_STREET_PARTIAL"}:
+        analysis["underlying_status"] = analysis["status"]
+        analysis["status"] = "WALL_STREET_DISPLAY_RESTRICTED"
+        analysis["consensus"] = {}
+        analysis["rating_distribution"] = {}
+        analysis["recent_actions"] = ()
+        analysis["estimate_context"] = {}
+        analysis["atlas_comparison"] = {}
+        analysis["limitations"] = tuple(analysis.get("limitations") or ()) + ("Commercial display rights are not certified.",)
+    return analysis
+
+
 _FINANCIAL_FIELDS = {
     "revenue": "latest_revenue", "revenue_growth": "revenue_growth", "eps": "latest_eps", "eps_growth": "earnings_growth",
     "gross_margin": "gross_profit_margin", "operating_margin": "operating_profit_margin", "net_margin": "net_profit_margin",
@@ -152,6 +235,7 @@ def materialize_context_evidence(row: Mapping[str, Any], families: Mapping[str, 
     output["insider_context"] = normalize_insiders(symbol, _family(families, "insider_transactions"))
     output["institutional_context"] = normalize_institutions(symbol, _family(families, "institutional_holders"))
     output["congressional_context"] = unavailable_congressional()
+    output["wall_street_analysis"] = normalize_wall_street(output, families)
     return output
 
 
@@ -166,7 +250,31 @@ def context_coverage(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             status = str((row.get(f"{lane}_context") or {}).get("status") or f"{lane.upper()}_DATA_UNAVAILABLE")
             counts[status] = counts.get(status, 0) + 1
         lanes[f"{lane}_context"] = {"counts": counts, "percentages": {k: pct(v) for k, v in counts.items()}}
-    return {"population": total, "financial_detail_coverage_pct": financial, **lanes}
+    equities = [r for r in rows if not any(x in str(r.get("security_type") or r.get("quote_type") or "").upper() for x in ("ETF", "FUND"))]
+    def ws(r: Mapping[str, Any]) -> Mapping[str, Any]:
+        value = r.get("wall_street_analysis")
+        return value if isinstance(value, Mapping) else {}
+    ws_counts = {name: sum(ws(r).get("status") == status for r in equities) for name, status in (
+        ("available_count", "WALL_STREET_AVAILABLE"), ("partial_count", "WALL_STREET_PARTIAL"),
+        ("not_covered_count", "WALL_STREET_NOT_COVERED"), ("unavailable_count", "WALL_STREET_DATA_UNAVAILABLE"),
+        ("display_restricted_count", "WALL_STREET_DISPLAY_RESTRICTED"),
+    )}
+    def ws_pct(test) -> float:
+        return round(100 * sum(bool(test(ws(r))) for r in equities) / len(equities), 2) if equities else 0.0
+    field_coverage = {
+        "target_mean_pct": ws_pct(lambda x: (x.get("consensus") or {}).get("target_mean") is not None),
+        "target_median_pct": ws_pct(lambda x: (x.get("consensus") or {}).get("target_median") is not None),
+        "target_range_pct": ws_pct(lambda x: (x.get("consensus") or {}).get("target_low") is not None and (x.get("consensus") or {}).get("target_high") is not None),
+        "analyst_count_pct": ws_pct(lambda x: (x.get("consensus") or {}).get("analyst_count") is not None),
+        "recommendation_distribution_pct": ws_pct(lambda x: bool(x.get("rating_distribution"))),
+        "forward_eps_pct": ws_pct(lambda x: (x.get("estimate_context") or {}).get("forward_eps") is not None),
+        "forward_revenue_pct": ws_pct(lambda x: (x.get("estimate_context") or {}).get("forward_revenue") is not None),
+        **{f"eps_revision_{days}d_pct": ws_pct(lambda x, d=days: (x.get("estimate_context") or {}).get(f"eps_revision_{d}d") is not None) for days in (7, 30, 90)},
+        "recent_analyst_actions_pct": ws_pct(lambda x: bool(x.get("recent_actions"))),
+    }
+    return {"population": total, "financial_detail_coverage_pct": financial, **lanes,
+            "wall_street_analysis": {"eligible_equities": len(equities), **ws_counts},
+            "wall_street_field_coverage": field_coverage}
 
 
 def enrich_published_context(rows: Sequence[Mapping[str, Any]], **acquisition_kwargs: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
@@ -181,10 +289,10 @@ def enrich_published_context(rows: Sequence[Mapping[str, Any]], **acquisition_kw
         evaluation = dict(row.get("canonical_investment_evaluation") or {})
         presentation = dict(evaluation.get("trial_presentation_fields") or {})
         normalized = materialize_context_evidence({**row, **presentation}, (dossiers.get(str(row.get("ticker") or row.get("symbol") or "").upper()) or {}).get("families") or {})
-        for key in ("financial_detail_context", "news_context", "insider_context", "institutional_context", "congressional_context"):
+        for key in ("financial_detail_context", "news_context", "insider_context", "institutional_context", "congressional_context", "wall_street_analysis"):
             row[key] = normalized[key]
         output.append(row)
     return output, dict(result)
 
 
-__all__ = ["CONTEXT_ENDPOINTS", "VERSION", "context_coverage", "enrich_published_context", "materialize_context_evidence", "normalize_financial_detail", "normalize_news", "normalize_insiders", "normalize_institutions", "unavailable_congressional"]
+__all__ = ["CONTEXT_ENDPOINTS", "VERSION", "context_coverage", "enrich_published_context", "materialize_context_evidence", "normalize_financial_detail", "normalize_news", "normalize_insiders", "normalize_institutions", "normalize_wall_street", "unavailable_congressional"]
