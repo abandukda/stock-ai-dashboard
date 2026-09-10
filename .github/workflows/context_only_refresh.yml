@@ -1,0 +1,66 @@
+name: Refresh Published Wall Street Context
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-context:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      ATLAS_DATA_MODE: INTERNAL_TRIAL
+      PYTHONPATH: .
+    steps:
+      - name: Checkout production main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install focused dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Verify governed provider boundary
+        run: python scripts/audit_production_yahoo_dependencies.py
+
+      - name: Refresh current published 150 context only
+        env:
+          TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
+        run: |
+          test -n "${TWELVE_DATA_API_KEY:-}"
+          python scripts/refresh_published_context.py
+
+      - name: Prove only context publication artifacts changed
+        run: |
+          git diff --exit-code -- discovery_candidate_pool.json full_evaluation_pool.json market_prescreen.json market_scan_state.json recovery_scan.json total_market_universe.json etf_scan.json
+          python -m pytest -q tests/test_context_evidence.py tests/test_home_guidance_vnext.py tests/test_published_context_refresh.py
+          python -m py_compile scripts/refresh_published_context.py services/context_evidence.py engines/home_guidance_story_v1.py engines/atlas_research_builder_v2.py
+          git diff --check
+
+      - name: Upload context refresh evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-context-refresh-${{ github.run_id }}
+          path: |
+            context_refresh_report.json
+            market_full_scan.json
+            publication_manifest.json
+          retention-days: 30
+
+      - name: Publish refreshed context to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- market_full_scan.json publication_manifest.json context_refresh_report.json
+          git commit -m "data: refresh governed Wall Street context"
+          git push origin HEAD:main

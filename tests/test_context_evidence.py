@@ -157,6 +157,8 @@ def test_internal_trial_allows_certified_twelve_wall_street_context(monkeypatch)
     families = {
         "price_target": family({"price_target": {"average": 25, "median": 24, "low": 18, "high": 30, "number_of_analysts": 4}}, allowed=False),
         "recommendations": family({"rating": 7, "trends": {"current_month": {"strong_buy": 1, "buy": 2, "hold": 1, "sell": 0, "strong_sell": 0}}}, allowed=False),
+        "earnings_estimate": family({"earnings_estimate": [{"period": "next_year", "date": "2027", "avg_estimate": 5.25}]}, allowed=False),
+        "revenue_estimate": family({"revenue_estimate": [{"period": "next_year", "date": "2027", "avg_estimate": 1200}]}, allowed=False),
         "eps_trend": family({"eps_trend": [{"period": "next_year", "current_estimate": 4, "30_days_ago": 3.5}]}, allowed=False),
     }
     result = normalize_wall_street({**canonical_row(), "current_price": 10}, families)
@@ -165,6 +167,8 @@ def test_internal_trial_allows_certified_twelve_wall_street_context(monkeypatch)
     assert result["display_scope"] == "INTERNAL_TRIAL"
     assert result["consensus"]["target_mean"] == 25
     assert result["consensus"]["analyst_count"] == 4
+    assert result["estimate_context"]["forward_eps"] == 5.25
+    assert result["estimate_context"]["forward_revenue"] == 1200
     assert result["attribution"] == "Source: Twelve Data"
     assert result["non_scoring"] is True
 

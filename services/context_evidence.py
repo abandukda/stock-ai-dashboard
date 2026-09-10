@@ -12,7 +12,8 @@ from typing import Any, Mapping, Sequence
 VERSION = "ATLAS_CONTEXT_EVIDENCE_V1"
 CONTEXT_ENDPOINTS = (
     "press_releases", "insider_transactions", "institutional_holders",
-    "price_target", "recommendations", "eps_trend", "analyst_ratings/light",
+    "price_target", "recommendations", "earnings_estimate", "revenue_estimate",
+    "eps_trend", "analyst_ratings/light",
 )
 DISPLAY_ALLOWED = "DISPLAY_ALLOWED"
 DISPLAY_ALLOWED_INTERNAL_TRIAL = "DISPLAY_ALLOWED_INTERNAL_TRIAL"
@@ -168,6 +169,22 @@ def normalize_wall_street(row: Mapping[str, Any], families: Mapping[str, Any]) -
             normalized[f"eps_revision_{days}d"] = round((float(current_estimate) - float(prior)) / abs(float(prior)) * 100, 2) if float(prior) else None
         except (TypeError, ValueError):
             pass
+    for family_name, payload_key, value_key, period_key in (
+        ("earnings_estimate", "earnings_estimate", "forward_eps", "forward_eps_period"),
+        ("revenue_estimate", "revenue_estimate", "forward_revenue", "forward_revenue_period"),
+    ):
+        estimate_family = _family(families, family_name)
+        estimate_payload = estimate_family.get("payload") if isinstance(estimate_family.get("payload"), Mapping) else {}
+        estimates = _records(estimate_payload, payload_key, "data")
+        selected = next(
+            (item for period in ("next_year", "current_year") for item in estimates
+             if str(item.get("period") or "").lower() == period),
+            estimates[0] if estimates else {},
+        )
+        value = _first(selected, "avg_estimate", "average")
+        if value is not None:
+            normalized[value_key] = value
+            normalized[period_key] = _first(selected, "date", "period")
     actions_family = _family(families, "analyst_ratings/light")
     actions_payload = actions_family.get("payload") if isinstance(actions_family.get("payload"), Mapping) else {}
     normalized["analyst_actions"] = tuple({
@@ -179,7 +196,10 @@ def normalize_wall_street(row: Mapping[str, Any], families: Mapping[str, Any]) -
         "provider": "TWELVE_DATA", "evidence_id": actions_family.get("evidence_id"),
         "observed_at": actions_family.get("observed_at"),
     } for item in _records(actions_payload, "ratings", "data"))
-    analyst_families = (target_family, rec_family, trend_family, actions_family)
+    analyst_families = (
+        target_family, rec_family, _family(families, "earnings_estimate"),
+        _family(families, "revenue_estimate"), trend_family, actions_family,
+    )
     family_providers = {
         str(f.get("provider") or "").strip().upper()
         for f in analyst_families if f.get("evidence_id")
@@ -279,6 +299,9 @@ def context_coverage(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         ("not_covered_count", "WALL_STREET_NOT_COVERED"), ("unavailable_count", "WALL_STREET_DATA_UNAVAILABLE"),
         ("display_restricted_count", "WALL_STREET_DISPLAY_RESTRICTED"),
     )}
+    ws_counts["internal_trial_display_allowed_count"] = sum(
+        ws(r).get("commercial_display_status") == DISPLAY_ALLOWED_INTERNAL_TRIAL for r in equities
+    )
     def ws_pct(test) -> float:
         return round(100 * sum(bool(test(ws(r))) for r in equities) / len(equities), 2) if equities else 0.0
     field_coverage = {
@@ -286,6 +309,7 @@ def context_coverage(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "target_median_pct": ws_pct(lambda x: (x.get("consensus") or {}).get("target_median") is not None),
         "target_range_pct": ws_pct(lambda x: (x.get("consensus") or {}).get("target_low") is not None and (x.get("consensus") or {}).get("target_high") is not None),
         "analyst_count_pct": ws_pct(lambda x: (x.get("consensus") or {}).get("analyst_count") is not None),
+        "consensus_pct": ws_pct(lambda x: (x.get("consensus") or {}).get("consensus_rating") is not None),
         "recommendation_distribution_pct": ws_pct(lambda x: bool(x.get("rating_distribution"))),
         "forward_eps_pct": ws_pct(lambda x: (x.get("estimate_context") or {}).get("forward_eps") is not None),
         "forward_revenue_pct": ws_pct(lambda x: (x.get("estimate_context") or {}).get("forward_revenue") is not None),
