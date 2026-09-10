@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-10T16:30:05.949531+00:00",
+  "generated_at": "2026-09-10T21:32:51.645599+00:00",
   "count": 6063,
   "symbols": [
     "A",
@@ -6068,39 +6068,26 @@
   ],
   "governed_universe_comparison": {
     "comparison_version": "GOVERNED_UNIVERSE_COMPARISON_V1",
-    "old_count": 6058,
+    "old_count": 6063,
     "new_count": 6063,
-    "overlap": 6057,
-    "only_old": [
-      "GGLBP"
-    ],
-    "only_new": [
-      "DICE",
-      "KATT",
-      "KRSA",
-      "NXAT",
-      "SWRD",
-      "TRXS"
-    ],
-    "loss_reasons": {
-      "GGLBP": "REQUIRES_LISTING_OR_DELISTING_RECONCILIATION"
-    },
-    "unexplained_losses": [
-      "GGLBP"
-    ]
+    "overlap": 6063,
+    "only_old": [],
+    "only_new": [],
+    "loss_reasons": {},
+    "unexplained_losses": []
   },
   "governed_pre_acquisition_summary": {
-    "raw_global_master_count": 20410,
-    "raw_universe_count": 20410,
-    "raw_returned_listing_rows": 20421,
-    "raw_stock_directory_row_count": 20371,
+    "raw_global_master_count": 20408,
+    "raw_universe_count": 20408,
+    "raw_returned_listing_rows": 20419,
+    "raw_stock_directory_row_count": 20369,
     "raw_etf_directory_row_count": 50,
     "resolved_us_listing_count": 6063,
     "unresolved_listing_identity_count": 13,
     "foreign_listing_removed_count": 0,
     "inactive_removed_count": 0,
     "otc_removed_count": 12780,
-    "non_common_removed_count": 1233,
+    "non_common_removed_count": 1232,
     "us_stock_universe_count": 6022,
     "us_etf_universe_count": 41,
     "stock_exchange_distribution": {
@@ -6109,13 +6096,13 @@
       "BATS": 1
     },
     "etf_exchange_distribution": {
-      "ARCA": 24,
       "NYSE": 8,
+      "ARCA": 24,
       "AMEX": 7,
       "BATS": 2
     },
-    "exchange_resolution_population": 20421,
-    "exchange_resolution_success_count": 20398,
+    "exchange_resolution_population": 20419,
+    "exchange_resolution_success_count": 20396,
     "exchange_resolution_unresolved_count": 23,
     "exchange_resolution_coverage_pct": 99.8874,
     "exchange_resolution_minimum_coverage_pct": 99.0,
@@ -6395,7 +6382,7 @@
     "right_removed": 106,
     "unit_removed": 69,
     "preferred_removed": 367,
-    "other_non_common_removed": 267,
+    "other_non_common_removed": 266,
     "investable_stock_universe_count": 6022,
     "etf_routed_separately": 41,
     "exclusion_reason_counts": {
@@ -6403,9 +6390,9 @@
       "WARRANT_SECURITY": 424,
       "RIGHT_SECURITY": 106,
       "UNIT_SECURITY": 69,
-      "OTHER_NON_COMMON_SECURITY": 267,
+      "OTHER_NON_COMMON_SECURITY": 266,
       "PREFERRED_SECURITY": 367,
-      "INVALID_SYMBOL_IDENTITY": 331,
+      "INVALID_SYMBOL_IDENTITY": 330,
       "UNRESOLVED_EXCHANGE_IDENTITY": 13
     }
   },
@@ -85231,21 +85218,21 @@
     }
   },
   "eligibility": {
-    "eligible_count": 3052,
-    "excluded_count": 17366,
+    "eligible_count": 3075,
+    "excluded_count": 17341,
     "exclusion_reason_counts": {
       "OTC_OUTSIDE_STOCK_POLICY": 12780,
       "WARRANT_SECURITY": 424,
       "RIGHT_SECURITY": 106,
       "UNIT_SECURITY": 69,
-      "OTHER_NON_COMMON_SECURITY": 267,
+      "OTHER_NON_COMMON_SECURITY": 266,
       "PREFERRED_SECURITY": 367,
-      "INVALID_SYMBOL_IDENTITY": 331,
+      "INVALID_SYMBOL_IDENTITY": 330,
       "UNRESOLVED_EXCHANGE_IDENTITY": 13,
-      "DOLLAR_VOLUME_BELOW_MINIMUM": 1613,
-      "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE": 1055,
+      "DOLLAR_VOLUME_BELOW_MINIMUM": 1585,
+      "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE": 1057,
       "DATA_ACQUISITION_FAILURE": 69,
-      "GOVERNED_COMPANY_EXCLUSION": 175,
+      "GOVERNED_COMPANY_EXCLUSION": 178,
       "Excluded business category": 6,
       "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE": 88,
       "INSUFFICIENT_TECHNICAL_HISTORY": 3
@@ -117184,16 +117171,8 @@
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
       },
       {
-        "ticker": "MDV-A",
-        "reason": "OTHER_NON_COMMON_SECURITY"
-      },
-      {
         "ticker": "MDVLQ",
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
-      },
-      {
-        "ticker": "MDV.PR.A",
-        "reason": "INVALID_SYMBOL_IDENTITY"
       },
       {
         "ticker": "MDVT",
@@ -143152,10 +143131,6 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "ALEC",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
         "ticker": "ALF",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -143321,10 +143296,6 @@
       },
       {
         "ticker": "ANIX",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "ANL",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
@@ -143681,6 +143652,10 @@
       },
       {
         "ticker": "AUST",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "AUTL",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
@@ -144268,10 +144243,6 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "BOCN",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
-      },
-      {
         "ticker": "BODI",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -144317,6 +144288,10 @@
       },
       {
         "ticker": "BOWL",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BOXL",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
@@ -144453,7 +144428,7 @@
       },
       {
         "ticker": "BSVN",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
       {
         "ticker": "BTAI",
@@ -144673,7 +144648,7 @@
       },
       {
         "ticker": "CBAN",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
       {
         "ticker": "CBAT",
@@ -144702,10 +144677,6 @@
       {
         "ticker": "CBUS",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
-      },
-      {
-        "ticker": "CCAP",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "CCB",
@@ -145173,7 +145144,7 @@
       },
       {
         "ticker": "CNF",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "CNFR",
@@ -145197,7 +145168,7 @@
       },
       {
         "ticker": "CNTB",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "CNTN",
@@ -145306,10 +145277,6 @@
       {
         "ticker": "COSM",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
-      },
-      {
-        "ticker": "COSO",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "COYA",
@@ -145516,10 +145483,6 @@
         "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
       {
-        "ticker": "CVEO",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
         "ticker": "CVGI",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -145625,10 +145588,6 @@
       },
       {
         "ticker": "DBCA",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "DBGI",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
@@ -145809,7 +145768,7 @@
       },
       {
         "ticker": "DPU",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "DRCT",
@@ -146928,6 +146887,10 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
+        "ticker": "FXHO",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
         "ticker": "FXNC",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -147476,10 +147439,6 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "HBB",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
         "ticker": "HBIO",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -147588,10 +147547,6 @@
         "reason": "DATA_ACQUISITION_FAILURE"
       },
       {
-        "ticker": "HGTY",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
         "ticker": "HHFR",
         "reason": "DATA_ACQUISITION_FAILURE"
       },
@@ -147634,10 +147589,6 @@
       {
         "ticker": "HKPD",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
-      },
-      {
-        "ticker": "HLLY",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "HLP",
@@ -147729,7 +147680,7 @@
       },
       {
         "ticker": "HTCR",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "HTIBP",
@@ -147801,7 +147752,7 @@
       },
       {
         "ticker": "HWH",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "HXHX",
@@ -148037,7 +147988,7 @@
       },
       {
         "ticker": "INAQ",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "INBK",
@@ -148097,10 +148048,6 @@
       },
       {
         "ticker": "INMB",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "INNV",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
@@ -148426,10 +148373,6 @@
       {
         "ticker": "JGBS",
         "reason": "DATA_ACQUISITION_FAILURE"
-      },
-      {
-        "ticker": "JILL",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "JL",
@@ -148817,7 +148760,7 @@
       },
       {
         "ticker": "LBGJ",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "LBND",
@@ -149248,10 +149191,6 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "MAAS",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
         "ticker": "MACI",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -149437,7 +149376,7 @@
       },
       {
         "ticker": "MENS",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "MERC",
@@ -149988,7 +149927,7 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "NATH",
+        "ticker": "NAOV",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
@@ -150300,10 +150239,6 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "NRC",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
         "ticker": "NRDY",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -150353,7 +150288,7 @@
       },
       {
         "ticker": "NTCL",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "NTEST",
@@ -150406,10 +150341,6 @@
       {
         "ticker": "NUR",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "NUS",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "NUVOW",
@@ -150624,10 +150555,6 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "OFIX",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
         "ticker": "OFLX",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -150761,7 +150688,7 @@
       },
       {
         "ticker": "OPRT",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
       {
         "ticker": "OPRX",
@@ -150818,10 +150745,6 @@
       {
         "ticker": "ORRF",
         "reason": "GOVERNED_COMPANY_EXCLUSION"
-      },
-      {
-        "ticker": "OSG",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "OSPR",
@@ -151272,10 +151195,6 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "PMTS",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
         "ticker": "PMVP",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
@@ -151624,10 +151543,6 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "QUIK",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
         "ticker": "QUMS",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -151873,7 +151788,7 @@
       },
       {
         "ticker": "RGNT",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "RGP",
@@ -152048,10 +151963,6 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "RTAC",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
         "ticker": "RTB",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -152173,10 +152084,6 @@
       },
       {
         "ticker": "SANG",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "SAR",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
@@ -152394,6 +152301,10 @@
       {
         "ticker": "SGLD",
         "reason": "DATA_ACQUISITION_FAILURE"
+      },
+      {
+        "ticker": "SGLY",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "SGMS",
@@ -152756,6 +152667,10 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
+        "ticker": "SPAI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
         "ticker": "SPCB",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -153113,7 +153028,7 @@
       },
       {
         "ticker": "TCJH",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "TCNNF",
@@ -153165,6 +153080,10 @@
       },
       {
         "ticker": "TELO",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "TENX",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
@@ -153392,10 +153311,6 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "TPET",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
         "ticker": "TPST",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
@@ -153576,10 +153491,6 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "TWIN",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
         "ticker": "TXMD",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -153729,10 +153640,6 @@
       },
       {
         "ticker": "USIO",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "UTMD",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
@@ -153933,7 +153840,7 @@
       },
       {
         "ticker": "VIRI",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "VIRT",
@@ -154000,10 +153907,6 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
-        "ticker": "VOXR",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
         "ticker": "VOYA",
         "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
@@ -154056,10 +153959,6 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "VTEX",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
         "ticker": "VTGN",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
@@ -154077,10 +153976,6 @@
       },
       {
         "ticker": "VTVT",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "VUZI",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
@@ -154400,10 +154295,6 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "XFOR",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
         "ticker": "XGN",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -154417,10 +154308,6 @@
       },
       {
         "ticker": "XNET",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "XPER",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
