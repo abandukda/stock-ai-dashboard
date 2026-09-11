@@ -190,8 +190,13 @@ def certified(row: Mapping[str, Any]) -> bool:
     return bool((row.get("publication_certification") or {}).get("customer_publication_allowed"))
 
 
-def curate_customer_150(rows: Sequence[Mapping[str, Any]], size: int = 150) -> list[dict[str, Any]]:
-    publishable = [dict(row) for row in rows if certified(row)]
+def curate_customer_150(
+    rows: Sequence[Mapping[str, Any]], size: int = 150, *, retain_withheld: bool = False,
+) -> list[dict[str, Any]]:
+    # Production artifacts retain the complete ranked cohort so withheld
+    # records remain auditable.  Home applies the certification filter after
+    # loading; retaining a row is never permission to render it.
+    publishable = [dict(row) for row in rows if retain_withheld or certified(row)]
     publishable.sort(key=lambda row: (
         ACTION_PRIORITY.get(canonical_action(row), 0), _metric(row, "opportunity"),
         _metric(row, "decision_confidence"), _metric(row, "component_coverage"),

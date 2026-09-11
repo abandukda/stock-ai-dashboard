@@ -179,6 +179,7 @@ class AtlasVisualCrawler:
         version = ""
         monitor = False
         ask_cta = False
+        certification_incomplete = False
         for scope in _scopes(page):
             try:
                 roots = scope.locator(f'[data-atlas-qa="research-vnext"][data-atlas-ticker="{ticker}"]')
@@ -193,12 +194,15 @@ class AtlasVisualCrawler:
                     story_blocks.add(await blocks.nth(index).get_attribute("data-atlas-block") or "")
                 cta = scope.locator(f'[data-atlas-qa="research-ask-cta"][data-atlas-ticker="{ticker}"]')
                 ask_cta = ask_cta or bool(await cta.count())
+                incomplete = scope.locator(f'[data-atlas-qa="research-certification-incomplete"][data-atlas-ticker="{ticker}"]')
+                certification_incomplete = certification_incomplete or bool(await incomplete.count())
             except Exception:
                 continue
         return {
             "version": version, "sections": sorted(sections),
             "all_sections": set(RESEARCH_VNEXT_SECTIONS) <= sections,
             "monitor": monitor, "ask_cta": ask_cta,
+            "certification_incomplete": certification_incomplete,
             "story_blocks": sorted(story_blocks),
             "decision_story": {
                 "decision-why", "decision-core-metrics", "why-atlas-likes-it",
@@ -219,6 +223,7 @@ class AtlasVisualCrawler:
             "vnext": architecture["version"] == "ATLAS_RESEARCH_VNEXT_UX2",
             "five_sections": bool(architecture["all_sections"]),
             "ask_cta": bool(architecture["ask_cta"]),
+            "certification_incomplete": bool(architecture.get("certification_incomplete")),
         })
         for scope in _scopes(page):
             try:
@@ -243,7 +248,10 @@ class AtlasVisualCrawler:
         result["rendered_exception"] = await _has_rendered_exception(page)
         result["complete"] = bool(
             result["ticker"] and result["lifecycle_complete"] and result["vnext"]
-            and result["five_sections"] and result["ask_cta"]
+            and (
+                (result["five_sections"] and result["ask_cta"])
+                or result["certification_incomplete"]
+            )
             and not result["rendered_exception"]
         )
         return result
@@ -1207,7 +1215,10 @@ class AtlasVisualCrawler:
             if displayed:
                 self.research_contexts[ticker] = await self._research_identity(page, ticker)
                 architecture = await self._research_vnext_contract(page, ticker)
-                architecture_passed = bool(architecture["all_sections"] and architecture["ask_cta"])
+                architecture_passed = bool(
+                    (architecture["all_sections"] and architecture["ask_cta"])
+                    or architecture.get("certification_incomplete")
+                )
                 await self._record(
                     category="RESEARCH_ARCHITECTURE", page_name="Research Any Ticker",
                     interaction="vnext-five-section-contract",

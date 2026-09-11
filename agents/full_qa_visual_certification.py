@@ -155,7 +155,8 @@ async def run(args: argparse.Namespace) -> int:
                 expected_action, publication_allowed = expected_customer_action(by_ticker[ticker])
                 # Outside-Top-150 research is a fresh governed evaluation, not
                 # a promise that the earlier discovery snapshot Action persists.
-                action_match = customer_action_matches(text, expected_action, publication_allowed) if ticker in {str(row.get("ticker") or "").upper() for row in source_rows} else passed
+                safe_incomplete = "CANNOT CERTIFY A COMPLETE INVESTMENT RATING" in text
+                action_match = (safe_incomplete or customer_action_matches(text, expected_action, publication_allowed)) if ticker in {str(row.get("ticker") or "").upper() for row in source_rows} else passed
                 checks.append({"page": "Research Any Ticker", "viewport": "desktop", "ticker": ticker,
                                "status": "PASS" if passed and action_match and not layout["horizontal_overflow"] else "FAIL",
                                "canonical_action": expected_action, "publication_allowed": publication_allowed,

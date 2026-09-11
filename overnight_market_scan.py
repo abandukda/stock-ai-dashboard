@@ -5416,7 +5416,9 @@ def scan_market() -> Dict[str, Any]:
             discovery_recall["status"] = "COMPLETE" if discovery_recall.get("discovery_gate") == "PASS" else "FAILED_VALIDATION"
             discovery_experiment = architecture_experiment(discovery_eligible_rows, evaluated)
             discovery_experiment["status"] = "COMPLETE"
-            full_rows = curate_customer_150(full_evaluation_rows, MAX_FULL_SCAN)
+            full_rows = curate_customer_150(
+                full_evaluation_rows, MAX_FULL_SCAN, retain_withheld=True,
+            )
             # Supporting context is acquired only for the customer-selected
             # population and cannot affect evaluation, ordering, or Action.
             from services.context_evidence import enrich_published_context

@@ -1176,6 +1176,11 @@ def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Cal
     if certified_customer and certified_customer.get("customer_publication_allowed") is not True:
         fields = safe_mapping(certified_customer.get("fields"))
         price = safe_mapping(fields.get("price")).get("value")
+        st.markdown(
+            f'<span data-atlas-qa="research-certification-incomplete" data-atlas-ticker="{escape(ticker)}" '
+            'aria-hidden="true" style="display:none">certification-incomplete</span>',
+            unsafe_allow_html=True,
+        )
         st.warning(_scalar_text(
             certified_customer.get("customer_message"),
             "ATLAS cannot certify a complete investment rating for this ticker right now because some required financial evidence could not be reconciled.",

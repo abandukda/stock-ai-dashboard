@@ -1,5 +1,5 @@
 from services.discovery_engine_v2 import (
-    architecture_experiment, curate_customer_150, qualification_channels, recall_report,
+    architecture_experiment, certified, curate_customer_150, qualification_channels, recall_report,
     select_candidate_pool, select_full_evaluation_pool, validation_sample,
 )
 
@@ -92,6 +92,14 @@ def test_customer_selection_uses_certified_full_evaluation_and_includes_all_buys
     assert "UNCERTIFIED" not in tickers
     assert len(selected) == 150
     assert [row["production_rank"] for row in selected] == list(range(1, 151))
+
+
+def test_production_cohort_can_retain_withheld_rows_without_making_them_publishable():
+    rows = [evaluated("SAFE", "ACCUMULATE", 90), evaluated("WITHHELD", "BUY_NOW", 100, certified=False)]
+    retained = curate_customer_150(rows, size=2, retain_withheld=True)
+    assert {row["ticker"] for row in retained} == {"SAFE", "WITHHELD"}
+    withheld = next(row for row in retained if row["ticker"] == "WITHHELD")
+    assert certified(withheld) is False
 
 
 def test_architecture_experiment_reports_every_governed_scenario():
