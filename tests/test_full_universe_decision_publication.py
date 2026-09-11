@@ -89,9 +89,13 @@ def test_full_universe_publication_uses_engine_history_and_preserves_order():
     assert all((item["canonical_investment_evaluation"].get("guidance") or {}).get("policy_version") == "HOME_MULTI_THESIS_ACTION_V1" for item in published)
     assert all((item["canonical_investment_evaluation"].get("valuation_validation") or {}).get("version") == "ATLAS_CANONICAL_DATA_VALIDATION_V1" for item in published)
     home = build_home_guidance_candidate(published[0], production_rank=1)
-    assert home["opportunity"] == result["evaluations"]["AAA"]["opportunity"]
-    assert home["decision_confidence"] == result["evaluations"]["AAA"]["decision_confidence"]
-    assert home["company_evidence"]["forward_eps"] == 6
+    # The synthetic dossier is deliberately incomplete/stale at publication
+    # time.  Canonical calculations remain preserved internally, while the
+    # customer projection fails closed rather than exposing them as certified.
+    assert home["opportunity"] is None
+    assert home["decision_confidence"] is None
+    assert home["company_evidence"]["forward_eps"] is None
+    assert home["certified_customer_evaluation"]["customer_publication_allowed"] is False
 
 
 def test_flag_off_makes_zero_calls_and_does_not_publish():

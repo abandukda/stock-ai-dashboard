@@ -395,6 +395,11 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
     st.markdown("## Decision")
     current = safe_mapping(view.get("current_evaluation"))
     current_guidance = safe_mapping(current.get("guidance"))
+    certified_customer = safe_mapping(report.get("certified_customer_evaluation"))
+    certified_decision = safe_mapping(certified_customer.get("decision"))
+    if certified_customer:
+        certified_action = certified_decision.get("action")
+        current_guidance = {**current_guidance, "state": certified_action} if certified_action else {}
     context = _canonical_context(report)
     production_evaluation = safe_mapping(context.get("production_evaluation"))
     production_timestamp = production_evaluation.get("evaluated_at") or report.get("production_evaluation_timestamp")
@@ -1167,6 +1172,18 @@ def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Cal
         'aria-hidden="true" style="display:none">research-vnext</span>',
         unsafe_allow_html=True,
     )
+    certified_customer = safe_mapping(report.get("certified_customer_evaluation"))
+    if certified_customer and certified_customer.get("customer_publication_allowed") is not True:
+        fields = safe_mapping(certified_customer.get("fields"))
+        price = safe_mapping(fields.get("price")).get("value")
+        st.warning(_scalar_text(
+            certified_customer.get("customer_message"),
+            "ATLAS cannot certify a complete investment rating for this ticker right now because some required financial evidence could not be reconciled.",
+        ))
+        if price is not None:
+            st.metric("Certified Market Price", CanonicalNumberFormatter.price(price).display)
+        st.caption("Only independently certified facts are shown until the complete evaluation reconciles.")
+        return
     st.markdown(
         """
         <style>
@@ -1295,8 +1312,10 @@ def render_full_research_vnext(row: Mapping[str, Any]) -> None:
     legacy_report._inject_visual_standards()
     legacy_report._render_architecture_qa_markers(report)
     current_guidance = safe_mapping(_current_evaluation(report).get("guidance"))
+    certified_customer = safe_mapping(report.get("certified_customer_evaluation"))
+    certified_action = safe_mapping(certified_customer.get("decision")).get("action")
     banner_state = _scalar_text(
-        current_guidance.get("state") or _decision_value(report, "recommendation", "committee_verdict"),
+        certified_action if certified_customer else current_guidance.get("state") or _decision_value(report, "recommendation", "committee_verdict"),
         "Unavailable",
     ).replace("_", " ").title()
 

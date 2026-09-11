@@ -259,6 +259,27 @@ def build_home_guidance_candidate(
     trial_fields = evaluation.get("trial_presentation_fields") if isinstance(evaluation.get("trial_presentation_fields"), Mapping) else {}
     if trial_fields:
         row = {**dict(row), **dict(trial_fields)}
+    certified = (
+        evaluation.get("certified_customer_evaluation")
+        if isinstance(evaluation.get("certified_customer_evaluation"), Mapping)
+        else row.get("certified_customer_evaluation")
+        if isinstance(row.get("certified_customer_evaluation"), Mapping)
+        else None
+    )
+    from services.certified_customer_evaluation import (
+        build_certified_customer_evaluation, certified_projection_matches,
+    )
+    if certified and not certified_projection_matches(certified, evaluation, ticker):
+        certified = None
+    if not certified:
+        certified = build_certified_customer_evaluation({**dict(row), "canonical_investment_evaluation": evaluation})
+    certified = dict(certified)
+    use_certified = bool(
+        isinstance(row.get("publication_certification"), Mapping)
+        or isinstance(evaluation.get("publication_certification"), Mapping)
+    )
+    certified_fields = certified.get("fields") if isinstance(certified.get("fields"), Mapping) else {}
+    certified_decision = certified.get("decision") if isinstance(certified.get("decision"), Mapping) else {}
     guidance = evaluation.get("guidance") if isinstance(evaluation.get("guidance"), Mapping) else {}
     actionability = evaluation.get("actionability") if isinstance(evaluation.get("actionability"), Mapping) else {}
     valuation = evaluation.get("atlas_valuation") if isinstance(evaluation.get("atlas_valuation"), Mapping) else {}
@@ -272,16 +293,29 @@ def build_home_guidance_candidate(
     valuation_status = str(professional.get("status") if professional_governed else valuation.get("status") or atlas_valuation_status(row) or "DATA_UNAVAILABLE")
     if validation.get("customer_publication_allowed") is False:
         valuation_status = "REVIEW_REQUIRED"
-    fair_value = professional.get("atlas_base_fair_value") if valuation_status == "PUBLISHED" and professional_governed else valuation.get("fair_value") if valuation_status == "PUBLISHED" else None
-    expected_return = valuation.get("expected_return") if valuation_status == "PUBLISHED" and fair_value is not None else None
+    fair_value = (
+        (certified_fields.get("atlas_fair_value") or {}).get("value") if use_certified else
+        professional.get("atlas_base_fair_value") if valuation_status == "PUBLISHED" and professional_governed else
+        valuation.get("fair_value") if valuation_status == "PUBLISHED" else None
+    )
+    expected_return = (
+        (certified_fields.get("atlas_upside_pct") or {}).get("value") if use_certified and fair_value is not None else
+        valuation.get("expected_return") if valuation_status == "PUBLISHED" and fair_value is not None else None
+    )
     street = analyst_consensus(row)
     from engines.analyst_intelligence import build_analyst_intelligence
     analyst_intelligence = build_analyst_intelligence({
         **dict(row), "current_price": _first_number(row, "current_price", "price", "last_price"),
         "atlas_fair_value": fair_value, "atlas_fv_upside_pct": expected_return,
     })
-    persisted_wall_street = row.get("wall_street_analysis") if isinstance(row.get("wall_street_analysis"), Mapping) else {}
-    wall_street_analysis = dict(persisted_wall_street or analyst_intelligence.get("wall_street_analysis") or {})
+    persisted_wall_street = (
+        certified.get("wall_street_analysis") if use_certified and isinstance(certified.get("wall_street_analysis"), Mapping)
+        else row.get("wall_street_analysis") if isinstance(row.get("wall_street_analysis"), Mapping) else {}
+    )
+    wall_street_analysis = dict(
+        persisted_wall_street if use_certified
+        else persisted_wall_street or analyst_intelligence.get("wall_street_analysis") or {}
+    )
     internal = internal_trial_mode()
     commercial_street_allowed = (
         row.get("wall_street_commercial_display_allowed") is True
@@ -321,7 +355,7 @@ def build_home_guidance_candidate(
         if street.get("mean") is not None and price is not None and price > 0 else None
     )
     reasons = tuple(str(item) for item in guidance.get("reason_codes") or ())
-    governed_guidance = str(guidance.get("state") or "DATA_LIMITED")
+    governed_guidance = str((certified_decision.get("action") if use_certified else guidance.get("state")) or "DATA_LIMITED")
     publication = row.get("publication_certification") if isinstance(row.get("publication_certification"), Mapping) else {}
     publication = publication or (evaluation.get("publication_certification") if isinstance(evaluation.get("publication_certification"), Mapping) else {})
     legacy_test_or_prepublication = not evaluation.get("decision_digest")
@@ -336,7 +370,7 @@ def build_home_guidance_candidate(
     fundamentals = evaluation.get("fundamentals") if isinstance(evaluation.get("fundamentals"), Mapping) else {}
     trial_intelligence = evaluation.get("trial_intelligence") if isinstance(evaluation.get("trial_intelligence"), Mapping) else {}
     market = evaluation.get("market_snapshot") if isinstance(evaluation.get("market_snapshot"), Mapping) else {}
-    market_price = number(market.get("price"))
+    market_price = number((certified_fields.get("price") or {}).get("value")) if use_certified else number(market.get("price"))
     live_price = market_price if market.get("fresh_current_price") is True else None
     observed_price = live_price if live_price is not None else market_price if market_price is not None else price
     completed_bar = evaluation.get("phase1_completed_bar") if isinstance(evaluation.get("phase1_completed_bar"), Mapping) else {}
@@ -364,6 +398,8 @@ def build_home_guidance_candidate(
         "customer_guidance": published_guidance,
         "governed_guidance": governed_guidance,
         "publication_certification": dict(publication),
+        "certified_customer_evaluation": certified,
+        "customer_material_authority": "certified_customer_evaluation" if use_certified else "LEGACY_PREPUBLICATION_TEST",
         "opportunity_thesis": guidance.get("opportunity_thesis") or evaluation.get("opportunity_thesis"),
         "customer_action": customer_action,
         "guidance_status": str(guidance.get("status") or "DATA_UNAVAILABLE"),
@@ -546,6 +582,45 @@ def build_home_guidance_candidate(
         "atlas_ai_view": dict(evaluation.get("atlas_ai_view") or {}),
         "presentation_mode": "ACTIVE" if founder_guidance_v1_enabled() and current_evaluation is not None else "PREVIEW",
     }
+    if use_certified:
+        # Customer cards are projections of the certified snapshot.  Keep the
+        # canonical evaluation attached for internal diagnostics, but remove
+        # every material legacy/provider-shaped fallback from renderer inputs.
+        def certified_value(name):
+            item = certified_fields.get(name)
+            return item.get("value") if isinstance(item, Mapping) else None
+
+        candidate["opportunity"] = certified_decision.get("opportunity")
+        candidate["decision_confidence"] = certified_decision.get("decision_confidence")
+        candidate["component_coverage"] = certified_decision.get("component_coverage")
+        candidate["six_pillars"] = dict(certified_decision.get("six_pillars") or {})
+        candidate["trade_plan"] = dict(certified.get("trade_plan") or {})
+        candidate["canonical_technical_evidence"] = dict(certified.get("technical") or {})
+        candidate["volume_evidence"] = dict(certified.get("volume") or {})
+        candidate["fundamentals_evidence"] = {
+            name: certified_value(name) for name in (
+                "revenue", "revenue_growth_pct", "eps", "eps_growth_pct",
+                "gross_margin_pct", "operating_margin_pct", "net_margin_pct",
+                "operating_cash_flow", "free_cash_flow", "capex", "cash", "debt",
+                "net_debt", "current_ratio", "roe", "roa", "roic",
+            ) if certified_value(name) is not None
+        }
+        candidate["company_evidence"] = {
+            "forward_eps": certified_value("forward_eps"),
+            "forward_eps_period": (certified_fields.get("forward_eps") or {}).get("period"),
+            "forward_revenue": certified_value("forward_revenue"),
+            "forward_revenue_period": (certified_fields.get("forward_revenue") or {}).get("period"),
+            "forward_pe": certified_value("forward_pe"),
+        }
+        candidate["valuation_driver_evidence"] = {
+            "forward_eps": certified_value("forward_eps"),
+            "forward_pe": certified_value("forward_pe"),
+        }
+        candidate["recent_catalysts"] = ()
+        candidate["context_evidence"] = {"non_scoring": True, "display_scope": display_scope()}
+        candidate["internal_evidence_lanes"] = {}
+        candidate["display_price"] = certified_value("price")
+        candidate["last_known_price"] = certified_value("price")
     from services.home_promotion_policy import classify_homepage_promotion
     candidate["homepage_promotion_eligibility"] = classify_homepage_promotion(row)
     from services.atlas_view_summary import build_summary_payload, plain_english_summary, summary_evidence_map

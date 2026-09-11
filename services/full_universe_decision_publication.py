@@ -353,6 +353,9 @@ def publish_evaluations(rows: Sequence[Mapping[str, Any]], result: Mapping[str, 
             from services.publication_governance import certify_record
             item["publication_certification"] = certify_record(item)
             item["canonical_investment_evaluation"]["publication_certification"] = item["publication_certification"]
+            from services.certified_customer_evaluation import build_certified_customer_evaluation
+            item["certified_customer_evaluation"] = build_certified_customer_evaluation(item)
+            item["canonical_investment_evaluation"]["certified_customer_evaluation"] = item["certified_customer_evaluation"]
         output.append(item)
     return output
 

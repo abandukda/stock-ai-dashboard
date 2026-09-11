@@ -227,7 +227,7 @@ def certify_record(row: Mapping[str, Any], *, now: datetime | None = None) -> di
         overall = CERTIFIED
     blockers = [blocker for item in components.values() for blocker in item["blockers"]]
     eligible = overall in PUBLISHABLE and bool(action)
-    return {
+    result = {
         "version": VERSION, "ticker": ticker, "certified_at": observed.isoformat(),
         "provider_architecture_version": PROVIDER_ARCHITECTURE_VERSION,
         "evidence_snapshot_version": EVIDENCE_SNAPSHOT_VERSION,
@@ -241,6 +241,21 @@ def certify_record(row: Mapping[str, Any], *, now: datetime | None = None) -> di
             "news": "CONTEXT_VALIDATED" if row.get("news_commercial_display_allowed") is True else "CONTEXT_NOT_AVAILABLE",
         },
     }
+    # Stage B is an independent publication reconstruction.  It receives the
+    # provisional Stage-A certificate explicitly, so it cannot recurse into
+    # this function or silently trust a pre-existing customer projection.
+    if result["customer_publication_allowed"]:
+        from services.certified_customer_evaluation import build_certified_customer_evaluation
+        projection = build_certified_customer_evaluation(
+            {**dict(row), "publication_certification": result}, now=observed
+        )
+        if projection.get("customer_publication_allowed") is not True:
+            result["certification_state"] = REVIEW_REQUIRED
+            result["blockers"] = list(dict.fromkeys([*result["blockers"], "CUSTOMER_PROJECTION_RECONCILIATION_FAILED"]))
+            result["action_publication_eligible"] = False
+            result["certified_action"] = None
+            result["customer_publication_allowed"] = False
+    return result
 
 
 def certify_rows(rows: Sequence[Mapping[str, Any]], *, now: datetime | None = None) -> list[dict[str, Any]]:
@@ -252,6 +267,11 @@ def certify_rows(rows: Sequence[Mapping[str, Any]], *, now: datetime | None = No
         evaluation["valuation_validation"] = valuation
         row["canonical_investment_evaluation"] = evaluation
         row["publication_certification"] = certify_record(row, now=now)
+        from services.certified_customer_evaluation import build_certified_customer_evaluation
+        row["certified_customer_evaluation"] = build_certified_customer_evaluation(row, now=now)
+        evaluation = dict(row["canonical_investment_evaluation"])
+        evaluation["certified_customer_evaluation"] = row["certified_customer_evaluation"]
+        row["canonical_investment_evaluation"] = evaluation
         output.append(row)
     return output
 

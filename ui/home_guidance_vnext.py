@@ -198,8 +198,106 @@ def _market_evidence_badge(card: Mapping[str, Any]) -> str:
         f'data-atlas-market-source="{html.escape(str(evidence.get("source_type") or "UNAVAILABLE"))}">'
         f'<b>{label}</b><span>{html.escape(detail)}</span>{warning}</div>'
     )
+def _certified_paid_client_full_evidence(card: Mapping[str, Any], certified: Mapping[str, Any]) -> str:
+    """Render the detail drawer solely from the certified customer contract."""
+    fields = dict(certified.get("fields") or {})
+    decision = dict(certified.get("decision") or {})
+    domains = dict(certified.get("domains") or {})
+    trade = dict(certified.get("trade_plan") or {})
+    street = dict(certified.get("wall_street_analysis") or {})
+
+    def value(name: str) -> Any:
+        item = fields.get(name)
+        return item.get("value") if isinstance(item, Mapping) else None
+
+    def grid(items: Sequence[tuple[str, Any, str]]) -> str:
+        output = []
+        for label, raw, kind in items:
+            if raw is None or raw == "" or raw == () or raw == []:
+                continue
+            display = _money(raw) if kind == "money" else _score(raw, suffix="%") if kind == "pct" else _display(raw)
+            output.append(f'<span><small>{html.escape(label)}</small><b>{html.escape(display)}</b></span>')
+        return '<div class="atlas-home-dossier-grid">' + "".join(output) + "</div>" if output else '<p class="atlas-home-muted">No certified values are available for this section.</p>'
+
+    consensus = dict(street.get("consensus") or {})
+    action = dict(card.get("customer_action") or {})
+    method_rows = []
+    for method in certified.get("valuation_methods") or ():
+        if not isinstance(method, Mapping):
+            continue
+        method_value = dict(method.get("value") or {}).get("value")
+        method_weight = dict(method.get("weight") or {}).get("value")
+        detail = _money(method_value) if method_value is not None else "Not Published"
+        if method_weight is not None:
+            detail += f" · {_score(float(method_weight) * 100, suffix='% weight')}"
+        method_rows.append((str(method.get("name") or "Valuation method"), detail, "text"))
+    sections = (
+        ("Decision", grid((
+            ("ATLAS Action", f'{action.get("stars", "")} {action.get("label", "")}'.strip() if decision.get("action") else None, "text"),
+            ("Opportunity", decision.get("opportunity"), "text"),
+            ("Decision Confidence", decision.get("decision_confidence"), "pct"),
+            ("Evidence Coverage", decision.get("component_coverage"), "pct"),
+        ))),
+        ("Market & Valuation", grid((
+            ("Current Price", value("price"), "money"),
+            ("ATLAS Fair Value", value("atlas_fair_value"), "money"),
+            ("ATLAS Upside", value("atlas_upside_pct"), "pct"),
+            ("Market Capitalization", value("market_cap"), "money"),
+            ("Enterprise Value", value("enterprise_value"), "money"),
+        ))),
+        ("Financial Snapshot", grid(tuple(
+            (label, value(name), kind) for label, name, kind in (
+                ("Revenue", "revenue", "money"), ("Revenue Growth", "revenue_growth_pct", "pct"),
+                ("EPS", "eps", "money"), ("EPS Growth", "eps_growth_pct", "pct"),
+                ("Operating Margin", "operating_margin_pct", "pct"),
+                ("Free Cash Flow", "free_cash_flow", "money"), ("Cash", "cash", "money"),
+                ("Debt", "debt", "money"), ("Net Debt", "net_debt", "money"),
+                ("ROE", "roe", "pct"), ("ROA", "roa", "pct"), ("ROIC", "roic", "pct"),
+            )
+        ))),
+        ("Forward Estimates", grid((
+            ("Forward EPS", value("forward_eps"), "money"),
+            ("Forward Revenue", value("forward_revenue"), "money"),
+            ("Forward P/E", value("forward_pe"), "text"),
+        ))),
+        ("Latest Earnings", '<p class="atlas-home-muted">No separately certified earnings event is available for this snapshot.</p>'),
+        ("Valuation Methods", grid(tuple(method_rows))),
+        ("Technical & Volume", grid(tuple(
+            (label, value, "text") for label, value in (
+                ("Technical State", dict(certified.get("technical") or {}).get("state")),
+                ("Volume State", dict(certified.get("volume") or {}).get("state")),
+            )
+        ))),
+        ("Trade Plan", grid(tuple((label, trade.get(name), kind) for label, name, kind in (
+            ("Entry Low", "entry_low", "money"), ("Entry High", "entry_high", "money"),
+            ("Stop", "stop_loss", "money"), ("Target 1", "trade_target_1", "money"),
+            ("Target 2", "trade_target_2", "money"), ("Risk / Reward", "risk_reward", "text"),
+        )))),
+        ("Wall Street Analyst Outlook", grid((
+            ("Mean Target", consensus.get("target_mean"), "money"),
+            ("Median Target", consensus.get("target_median"), "money"),
+            ("Target Range", f'{_money(consensus.get("target_low"))}–{_money(consensus.get("target_high"))}' if consensus.get("target_low") is not None and consensus.get("target_high") is not None else None, "text"),
+            ("Analysts", consensus.get("analyst_count"), "text"),
+        ))),
+    )
+    body = "".join(
+        f'<section class="atlas-home-dossier-section"><h4>{html.escape(title)}</h4>{content}</section>'
+        for title, content in sections
+    )
+    if certified.get("customer_publication_allowed") is not True:
+        body = '<p class="atlas-home-muted">ATLAS cannot certify a complete investment rating for this ticker right now because some required financial evidence could not be reconciled.</p>' + body
+    return (
+        '<div class="atlas-home-dossier" data-atlas-qa="home-guidance-full-evidence" data-atlas-customer-authority="certified_customer_evaluation">'
+        + body
+        + f'<p class="atlas-home-muted">Certification: {html.escape(_display(domains.get("publication_certification")))}</p></div>'
+    )
+
+
 def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
     """Customer research dossier; canonical values are displayed, never recalculated."""
+    certified = card.get("certified_customer_evaluation")
+    if isinstance(certified, Mapping) and card.get("customer_material_authority") == "certified_customer_evaluation":
+        return _certified_paid_client_full_evidence(card, certified)
     evaluation = dict(card.get("evaluation") or {})
     canonical_valuation = dict(evaluation.get("atlas_valuation") or {})
     professional = dict(canonical_valuation.get("professional_valuation_v2") or {})

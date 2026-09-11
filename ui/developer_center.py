@@ -187,6 +187,26 @@ def render_developer_center(
             quality[2].metric("Credential Failures",sum("KEY_UNAVAILABLE" in str(code) for code in provider.get("reason_codes") or ()))
             quality[3].metric("Home / Research Mismatch",governed["home_research_mismatch_count"])
             st.caption(f"Run {publication_manifest.get('run_id','Not available')} · Freshness {publication_manifest.get('freshness_status','Not available')} · Candidate status {publication_manifest.get('publication_gate_status','Not available')}")
+            certification_rows=[]
+            for item in artifact if isinstance(artifact,list) else []:
+                projection=item.get("certified_customer_evaluation") if isinstance(item,Mapping) else None
+                if not isinstance(projection,Mapping):
+                    continue
+                digests=dict(projection.get("digests") or {})
+                certification_rows.append({
+                    "Ticker":item.get("ticker"),
+                    "Status":dict(projection.get("domains") or {}).get("publication_certification"),
+                    "Snapshot":digests.get("evaluation_snapshot_id"),
+                    "Market Digest":digests.get("market_digest"),
+                    "Fundamentals Digest":digests.get("fundamentals_digest"),
+                    "Valuation Digest":digests.get("valuation_digest"),
+                    "Decision Digest":digests.get("decision_digest"),
+                    "Certification Digest":digests.get("certification_digest"),
+                    "Blockers":"; ".join(projection.get("accounting_mismatches") or ()),
+                })
+            if certification_rows:
+                st.caption("Per-ticker certified customer snapshots")
+                st.dataframe(pd.DataFrame(certification_rows),hide_index=True,use_container_width=True)
         validation=validation_report(snapshot_rows,outcome_rows)
         st.markdown("### Model Validation — Internal Only")
         with st.container(border=True):

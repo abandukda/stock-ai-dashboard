@@ -684,6 +684,32 @@ def build_atlas_research_v2(
     canonical_confidence = current_evaluation.get("decision_confidence") if current_evaluation else scores["confidence_pct"]
     canonical_expected_return = canonical_valuation.get("expected_return") if current_evaluation else valuation.get("atlas_expected_return_pct")
 
+    certified_customer = {}
+    if current_evaluation:
+        certified_customer = _mapping(current_evaluation.get("certified_customer_evaluation"))
+        if certified_customer:
+            from services.certified_customer_evaluation import certified_projection_matches
+            if not certified_projection_matches(certified_customer, current_evaluation, ticker):
+                certified_customer = {}
+        publication_contract = _mapping(current_evaluation.get("publication_certification"))
+        if not certified_customer and publication_contract.get("version"):
+            from services.certified_customer_evaluation import build_certified_customer_evaluation
+            certified_customer = build_certified_customer_evaluation({
+                **dict(enriched_row), "canonical_investment_evaluation": current_evaluation,
+                "publication_certification": current_evaluation.get("publication_certification"),
+            })
+        if certified_customer:
+            certified_fields = _mapping(certified_customer.get("fields"))
+            certified_decision = _mapping(certified_customer.get("decision"))
+            committee_verdict = certified_decision.get("action")
+            canonical_opportunity = certified_decision.get("opportunity")
+            canonical_confidence = certified_decision.get("decision_confidence")
+            validated_fair_value = _mapping(certified_fields.get("atlas_fair_value")).get("value")
+            canonical_expected_return = _mapping(certified_fields.get("atlas_upside_pct")).get("value")
+            certified_price = _mapping(certified_fields.get("price")).get("value")
+            if certified_price is not None:
+                canonical_market = {**canonical_market, "price": certified_price}
+
     if not canonical_market:
         canonical_market = _mapping(enriched_row.get("canonical_market_snapshot"))
     report = {
@@ -746,8 +772,12 @@ def build_atlas_research_v2(
                 "institutional_context", "congressional_context",
             )
         },
-        "wall_street_analysis": enriched_row.get("wall_street_analysis") or {},
+        "wall_street_analysis": (
+            certified_customer.get("wall_street_analysis") or {}
+            if certified_customer else enriched_row.get("wall_street_analysis") or {}
+        ),
         "publication_certification": _mapping(current_evaluation.get("publication_certification")),
+        "certified_customer_evaluation": certified_customer,
         "current_evaluation_timestamp": current_evaluation.get("evaluated_at") if current_evaluation else None,
         "production_evaluation_timestamp": _mapping(_mapping(enriched_row.get("research_context")).get("production_evaluation")).get("evaluated_at"),
         "sections": sections,
@@ -782,8 +812,67 @@ def build_atlas_research_v2(
             "research_completeness_pct": completeness,
         },
     }
+    if certified_customer:
+        # The customer report is a view of the certified projection.  Legacy
+        # adapters remain available for layout only and receive no alternate
+        # material-data authority.
+        certified_fields = _mapping(certified_customer.get("fields"))
+        certified_trade = _mapping(certified_customer.get("trade_plan"))
+
+        def certified_value(name: str) -> Any:
+            return _mapping(certified_fields.get(name)).get("value")
+
+        financial_data = {
+            name: certified_value(name) for name in (
+                "revenue", "revenue_growth_pct", "eps", "eps_growth_pct",
+                "gross_margin_pct", "operating_margin_pct", "net_margin_pct",
+                "operating_cash_flow", "free_cash_flow", "capex", "cash", "debt",
+                "net_debt", "current_ratio", "roe", "roa", "roic",
+            ) if certified_value(name) is not None
+        }
+        report_sections = dict(report.get("sections") or {})
+        report_sections["financials"] = {
+            "status": "AVAILABLE" if financial_data else "DATA_UNAVAILABLE",
+            "semantic_status": "AVAILABLE" if financial_data else "DATA_UNAVAILABLE",
+            "data": financial_data,
+            "interpretation": "Only independently certified financial values for this evaluation snapshot are shown.",
+        }
+        report["sections"] = report_sections
+        report["trade_plan"] = certified_trade
+        report["valuation_families"] = {
+            "current_price": certified_value("price"),
+            "atlas_fair_value": certified_value("atlas_fair_value"),
+            "atlas_expected_return_pct": certified_value("atlas_upside_pct"),
+        }
+        report["quote"] = {**_mapping(report.get("quote")), "price": certified_value("price")}
+        report["narrative_context"] = {
+            "ticker": ticker,
+            "company": report.get("company"),
+            "sector": report.get("sector"),
+            "current_price": certified_value("price"),
+            "validated_fair_value": certified_value("atlas_fair_value"),
+            "expected_return_pct": certified_value("atlas_upside_pct"),
+        }
     report["intelligence"] = build_executive_intelligence(report)
-    guidance_input = dict(enriched_row)
+    if certified_customer:
+        certified_fields = _mapping(certified_customer.get("fields"))
+        field_value = lambda name: _mapping(certified_fields.get(name)).get("value")
+        certified_street = _mapping(certified_customer.get("wall_street_analysis"))
+        consensus = _mapping(certified_street.get("consensus"))
+        guidance_input = {
+            "ticker": ticker, "company": report.get("company"), "sector": report.get("sector"),
+            "current_price": field_value("price"), "atlas_fair_value": field_value("atlas_fair_value"),
+            "expected_return_pct": field_value("atlas_upside_pct"),
+            "revenue_growth": field_value("revenue_growth_pct"), "eps_growth_pct": field_value("eps_growth_pct"),
+            "gross_margin": field_value("gross_margin_pct"), "operating_margin": field_value("operating_margin_pct"),
+            "free_cash_flow": field_value("free_cash_flow"), "operating_cash_flow": field_value("operating_cash_flow"),
+            "cash": field_value("cash"), "debt": field_value("debt"), "roe": field_value("roe"), "roic": field_value("roic"),
+            "analyst_target_mean": consensus.get("target_mean"), "analyst_target_low": consensus.get("target_low"),
+            "analyst_target_high": consensus.get("target_high"), "analyst_count": consensus.get("analyst_count"),
+            "trade_plan": report.get("trade_plan") or {},
+        }
+    else:
+        guidance_input = dict(enriched_row)
     guidance_input.update({
         "committee_verdict": report.get("committee_verdict"),
         "confidence_pct": report.get("confidence_pct"),
@@ -800,7 +889,10 @@ def build_atlas_research_v2(
     })
     checkpoint("analyst_intelligence:before")
     generated_analyst_intelligence = build_analyst_intelligence(analyst_input)
-    persisted_wall_street = _mapping(enriched_row.get("wall_street_analysis"))
+    persisted_wall_street = (
+        _mapping(certified_customer.get("wall_street_analysis"))
+        if certified_customer else _mapping(enriched_row.get("wall_street_analysis"))
+    )
     if persisted_wall_street:
         from engines.analyst_intelligence import intelligence_from_wall_street_analysis
         report["analyst_intelligence"] = intelligence_from_wall_street_analysis(

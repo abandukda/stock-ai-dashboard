@@ -191,6 +191,10 @@ def evaluate_on_demand(
     from services.publication_governance import certify_record
     certification = certify_record({**dict(row), "canonical_investment_evaluation": result})
     result["publication_certification"] = certification
+    from services.certified_customer_evaluation import build_certified_customer_evaluation
+    result["certified_customer_evaluation"] = build_certified_customer_evaluation(
+        {**dict(row), "canonical_investment_evaluation": result, "publication_certification": certification}
+    )
     return result
 
 
