@@ -9,6 +9,7 @@ import pytest
 
 from services.full_universe_qa import MISSING_REASONS, classify_missing, crawl_universe, write_json_report
 from services.publication_governance import VERSION as GOVERNANCE_VERSION, promote_atomically, stage_candidate_artifacts
+from services.certified_customer_evaluation import build_certified_customer_evaluation
 
 
 def row(ticker="T000", *, market_cap=1000.0, action="WAIT_FOR_CONFIRMATION"):
@@ -25,9 +26,15 @@ def row(ticker="T000", *, market_cap=1000.0, action="WAIT_FOR_CONFIRMATION"):
         "technical_quality": {"score": 70}, "fundamental_quality": {"score": 70}, "valuation_quality": {"score": 60},
         "risk_quality": {"score": 70}, "entry_quality": {"score": 60}, "volume_quality": {"score": 55},
     }
-    return {"ticker": ticker, "company": ticker, "quote_type": "EQUITY", "canonical_investment_evaluation": evaluation,
-            "publication_certification": {"version": GOVERNANCE_VERSION, "certification_state": "CERTIFIED",
-                "customer_publication_allowed": True, "action_publication_eligible": True, "certified_action": action}}
+    result = {"ticker": ticker, "company": ticker, "quote_type": "EQUITY", "canonical_investment_evaluation": evaluation,
+              "publication_certification": {"version": GOVERNANCE_VERSION, "certification_state": "CERTIFIED",
+                  "customer_publication_allowed": True, "action_publication_eligible": True, "certified_action": action}}
+    projection = build_certified_customer_evaluation(result)
+    projection["customer_publication_allowed"] = True
+    projection["decision"] = {**projection["decision"], "action": action, "status": "CERTIFIED"}
+    evaluation["certified_customer_evaluation"] = projection
+    result["certified_customer_evaluation"] = projection
+    return result
 
 
 def universe(**overrides):
@@ -65,6 +72,24 @@ def test_market_cap_bridge_is_p0_and_blocks_publication():
     assert report["gate"] == "FAIL"
     assert report["summary"]["severity_counts"]["P0"] == 150
     assert report["summary"]["market_cap_failure_count"] == 150
+
+
+def test_market_cap_failure_on_already_withheld_record_is_observable_not_blocking():
+    rows = universe()
+    rows[0]["canonical_investment_evaluation"]["trial_presentation_fields"]["market_cap"] = 4000
+    rows[0]["publication_certification"].update({
+        "certification_state": "REVIEW_REQUIRED",
+        "customer_publication_allowed": False,
+        "action_publication_eligible": False,
+        "certified_action": None,
+    })
+    report = crawl_universe(rows, run_id="withheld-bad-bridge")
+    finding = next(item for item in report["sheets"]["Validation_Failures"]
+                   if item["ticker"] == "T000" and item["category"] == "MARKET_CAP_RECONCILIATION")
+    assert finding["severity"] == "P3"
+    assert finding["original_severity"] == "P0"
+    assert finding["publication_scope"] == "WITHHELD"
+    assert report["gate"] == "PASS"
 
 
 def test_customer_buy_now_without_second_stage_revalidation_is_p0():

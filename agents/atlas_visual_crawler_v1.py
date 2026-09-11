@@ -1237,7 +1237,10 @@ class AtlasVisualCrawler:
                 viewport=viewport, screenshots=(before, after), severity="P1",
                 exception=await self._exception_identity(page) if exception else {},
             )
-            if passed and tabs and ticker != "INVALID123":
+            if (
+                passed and tabs and ticker != "INVALID123"
+                and not completion.get("certification_incomplete")
+            ):
                 # UX-2 is authoritative. Never rediscover/certify the preserved
                 # legacy twelve-tab presentation for an active Research result.
                 await self._click_tabs(

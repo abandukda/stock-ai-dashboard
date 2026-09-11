@@ -635,6 +635,24 @@ def crawl_universe(rows: Sequence[Mapping[str, Any]], *, prior_rows: Sequence[Ma
     discovery_severity = {f"D{i}": int((recall.get("severity_counts") or {}).get(f"D{i}") or 0) for i in range(5)}
     missing = [x for x in all_findings if x.get("reason") in MISSING_REASONS and x.get("category") is None]
     failures = [x for x in all_findings if x.get("category")]
+    publication_by_ticker = {
+        _ticker(row): bool((row.get("publication_certification") or {}).get("customer_publication_allowed"))
+        for row in rows
+    }
+    for finding in failures:
+        # A field-level reconciliation failure remains fully visible in QA, but
+        # it is not a customer-publication violation when certification already
+        # withheld the entire record.  The blocking severity applies only when
+        # an unsafe value can reach a customer surface.
+        ticker = str(finding.get("ticker") or "").upper()
+        if (
+            ticker in publication_by_ticker
+            and not publication_by_ticker[ticker]
+            and finding.get("severity") in BLOCKING_SEVERITIES
+        ):
+            finding["original_severity"] = finding["severity"]
+            finding["severity"] = "P3"
+            finding["publication_scope"] = "WITHHELD"
     for finding in failures:
         finding["qa_category"] = _qa_category(finding)
     severities = Counter(x.get("severity") for x in failures)
