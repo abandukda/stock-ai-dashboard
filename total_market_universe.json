@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-09-11T08:57:39.502498+00:00",
-  "count": 6063,
+  "generated_at": "2026-09-11T18:45:10.496944+00:00",
+  "count": 6079,
   "symbols": [
     "A",
     "AA",
@@ -54,6 +54,7 @@
     "ACAB",
     "ACAD",
     "ACB",
+    "ACBH",
     "ACCL",
     "ACCO",
     "ACCS",
@@ -185,6 +186,7 @@
     "AIFA",
     "AIFC",
     "AIFF",
+    "AIFR",
     "AIFU",
     "AIG",
     "AIHS",
@@ -195,6 +197,7 @@
     "AIIR",
     "AIM",
     "AIMD",
+    "AIMG",
     "AIN",
     "AIOS",
     "AIOT",
@@ -512,6 +515,7 @@
     "ATRO",
     "ATS",
     "ATTO",
+    "ATTT",
     "ATXG",
     "ATXI",
     "ATYR",
@@ -885,6 +889,7 @@
     "BRPM",
     "BRR",
     "BRSL",
+    "BRTM",
     "BRTX",
     "BRUN",
     "BRVE",
@@ -1349,6 +1354,7 @@
     "CR",
     "CRAC",
     "CRAI",
+    "CRAM",
     "CRAN",
     "CRAQ",
     "CRBG",
@@ -1806,6 +1812,7 @@
     "ENVA",
     "ENVB",
     "ENVX",
+    "EOCN",
     "EOG",
     "EOLS",
     "EONR",
@@ -3443,6 +3450,8 @@
     "MFIC",
     "MFIN",
     "MFP",
+    "MFSD",
+    "MFSX",
     "MG",
     "MGA",
     "MGEE",
@@ -3831,6 +3840,7 @@
     "NPT",
     "NPWR",
     "NR",
+    "NRAM",
     "NRC",
     "NRDS",
     "NRDY",
@@ -5634,7 +5644,9 @@
     "VECO",
     "VEEA",
     "VEEE",
+    "VEEM",
     "VEEV",
+    "VEGX",
     "VEL",
     "VELO",
     "VENA",
@@ -5933,7 +5945,11 @@
     "XHG",
     "XHLD",
     "XLAB",
+    "XLCD",
+    "XLCU",
     "XLO",
+    "XLPD",
+    "XLPU",
     "XMAX",
     "XMTR",
     "XNCR",
@@ -6069,42 +6085,59 @@
   "governed_universe_comparison": {
     "comparison_version": "GOVERNED_UNIVERSE_COMPARISON_V1",
     "old_count": 6063,
-    "new_count": 6063,
+    "new_count": 6079,
     "overlap": 6063,
     "only_old": [],
-    "only_new": [],
+    "only_new": [
+      "ACBH",
+      "AIFR",
+      "AIMG",
+      "ATTT",
+      "BRTM",
+      "CRAM",
+      "EOCN",
+      "MFSD",
+      "MFSX",
+      "NRAM",
+      "VEEM",
+      "VEGX",
+      "XLCD",
+      "XLCU",
+      "XLPD",
+      "XLPU"
+    ],
     "loss_reasons": {},
     "unexplained_losses": []
   },
   "governed_pre_acquisition_summary": {
-    "raw_global_master_count": 20402,
-    "raw_universe_count": 20402,
-    "raw_returned_listing_rows": 20413,
-    "raw_stock_directory_row_count": 20363,
+    "raw_global_master_count": 20420,
+    "raw_universe_count": 20420,
+    "raw_returned_listing_rows": 20431,
+    "raw_stock_directory_row_count": 20381,
     "raw_etf_directory_row_count": 50,
-    "resolved_us_listing_count": 6063,
+    "resolved_us_listing_count": 6079,
     "unresolved_listing_identity_count": 13,
     "foreign_listing_removed_count": 0,
     "inactive_removed_count": 0,
-    "otc_removed_count": 12776,
-    "non_common_removed_count": 1230,
-    "us_stock_universe_count": 6022,
+    "otc_removed_count": 12777,
+    "non_common_removed_count": 1229,
+    "us_stock_universe_count": 6038,
     "us_etf_universe_count": 41,
     "stock_exchange_distribution": {
-      "NASDAQ": 3770,
-      "NYSE": 2251,
+      "NYSE": 2259,
+      "NASDAQ": 3778,
       "BATS": 1
     },
     "etf_exchange_distribution": {
-      "NYSE": 8,
-      "ARCA": 24,
       "AMEX": 7,
-      "BATS": 2
+      "BATS": 2,
+      "ARCA": 24,
+      "NYSE": 8
     },
-    "exchange_resolution_population": 20413,
-    "exchange_resolution_success_count": 20390,
-    "exchange_resolution_unresolved_count": 23,
-    "exchange_resolution_coverage_pct": 99.8873,
+    "exchange_resolution_population": 20431,
+    "exchange_resolution_success_count": 20406,
+    "exchange_resolution_unresolved_count": 25,
+    "exchange_resolution_coverage_pct": 99.8776,
     "exchange_resolution_minimum_coverage_pct": 99.0,
     "exchange_resolution_minimum_population": 100,
     "representative_unresolved_symbols": [
@@ -6377,22 +6410,22 @@
     "representative_foreign_symbols": [],
     "inactive_removed": 0,
     "delisted_removed": 0,
-    "otc_removed": 12776,
-    "warrant_removed": 422,
+    "otc_removed": 12777,
+    "warrant_removed": 423,
     "right_removed": 106,
     "unit_removed": 69,
-    "preferred_removed": 367,
+    "preferred_removed": 365,
     "other_non_common_removed": 266,
-    "investable_stock_universe_count": 6022,
+    "investable_stock_universe_count": 6038,
     "etf_routed_separately": 41,
     "exclusion_reason_counts": {
-      "OTC_OUTSIDE_STOCK_POLICY": 12776,
-      "WARRANT_SECURITY": 422,
+      "OTC_OUTSIDE_STOCK_POLICY": 12777,
+      "WARRANT_SECURITY": 423,
       "RIGHT_SECURITY": 106,
       "UNIT_SECURITY": 69,
       "OTHER_NON_COMMON_SECURITY": 266,
-      "PREFERRED_SECURITY": 367,
-      "INVALID_SYMBOL_IDENTITY": 330,
+      "PREFERRED_SECURITY": 365,
+      "INVALID_SYMBOL_IDENTITY": 332,
       "UNRESOLVED_EXCHANGE_IDENTITY": 13
     }
   },
@@ -7054,6 +7087,19 @@
       "security_identity": "ACB",
       "mapping_version": "TWELVE_SYMBOL_IDENTITY_V1",
       "source_ticker": "ACB",
+      "source_exchange_value": "NASDAQ",
+      "normalized_exchange": "NASDAQ",
+      "exchange_resolution_status": "RESOLVED_US",
+      "listing_source_endpoint": "stocks",
+      "listing_source_country_filter": "United States"
+    },
+    "ACBH": {
+      "canonical_ticker": "ACBH",
+      "provider_ticker": "ACBH",
+      "exchange": "NASDAQ",
+      "security_identity": "ACBH",
+      "mapping_version": "TWELVE_SYMBOL_IDENTITY_V1",
+      "source_ticker": "ACBH",
       "source_exchange_value": "NASDAQ",
       "normalized_exchange": "NASDAQ",
       "exchange_resolution_status": "RESOLVED_US",
@@ -8763,6 +8809,19 @@
       "listing_source_endpoint": "stocks",
       "listing_source_country_filter": "United States"
     },
+    "AIFR": {
+      "canonical_ticker": "AIFR",
+      "provider_ticker": "AIFR",
+      "exchange": "NASDAQ",
+      "security_identity": "AIFR",
+      "mapping_version": "TWELVE_SYMBOL_IDENTITY_V1",
+      "source_ticker": "AIFR",
+      "source_exchange_value": "NASDAQ",
+      "normalized_exchange": "NASDAQ",
+      "exchange_resolution_status": "RESOLVED_US",
+      "listing_source_endpoint": "stocks",
+      "listing_source_country_filter": "United States"
+    },
     "AIFU": {
       "canonical_ticker": "AIFU",
       "provider_ticker": "AIFU",
@@ -8887,6 +8946,19 @@
       "security_identity": "AIMD",
       "mapping_version": "TWELVE_SYMBOL_IDENTITY_V1",
       "source_ticker": "AIMD",
+      "source_exchange_value": "NASDAQ",
+      "normalized_exchange": "NASDAQ",
+      "exchange_resolution_status": "RESOLVED_US",
+      "listing_source_endpoint": "stocks",
+      "listing_source_country_filter": "United States"
+    },
+    "AIMG": {
+      "canonical_ticker": "AIMG",
+      "provider_ticker": "AIMG",
+      "exchange": "NASDAQ",
+      "security_identity": "AIMG",
+      "mapping_version": "TWELVE_SYMBOL_IDENTITY_V1",
+      "source_ticker": "AIMG",
       "source_exchange_value": "NASDAQ",
       "normalized_exchange": "NASDAQ",
       "exchange_resolution_status": "RESOLVED_US",
@@ -13010,6 +13082,19 @@
       "source_ticker": "ATTO",
       "source_exchange_value": "NYSE",
       "normalized_exchange": "NYSE",
+      "exchange_resolution_status": "RESOLVED_US",
+      "listing_source_endpoint": "stocks",
+      "listing_source_country_filter": "United States"
+    },
+    "ATTT": {
+      "canonical_ticker": "ATTT",
+      "provider_ticker": "ATTT",
+      "exchange": "NASDAQ",
+      "security_identity": "ATTT",
+      "mapping_version": "TWELVE_SYMBOL_IDENTITY_V1",
+      "source_ticker": "ATTT",
+      "source_exchange_value": "NASDAQ",
+      "normalized_exchange": "NASDAQ",
       "exchange_resolution_status": "RESOLVED_US",
       "listing_source_endpoint": "stocks",
       "listing_source_country_filter": "United States"
@@ -17846,6 +17931,19 @@
       "source_ticker": "BRSL",
       "source_exchange_value": "NYSE",
       "normalized_exchange": "NYSE",
+      "exchange_resolution_status": "RESOLVED_US",
+      "listing_source_endpoint": "stocks",
+      "listing_source_country_filter": "United States"
+    },
+    "BRTM": {
+      "canonical_ticker": "BRTM",
+      "provider_ticker": "BRTM",
+      "exchange": "NASDAQ",
+      "security_identity": "BRTM",
+      "mapping_version": "TWELVE_SYMBOL_IDENTITY_V1",
+      "source_ticker": "BRTM",
+      "source_exchange_value": "NASDAQ",
+      "normalized_exchange": "NASDAQ",
       "exchange_resolution_status": "RESOLVED_US",
       "listing_source_endpoint": "stocks",
       "listing_source_country_filter": "United States"
@@ -23843,6 +23941,19 @@
       "listing_source_endpoint": "stocks",
       "listing_source_country_filter": "United States"
     },
+    "CRAM": {
+      "canonical_ticker": "CRAM",
+      "provider_ticker": "CRAM",
+      "exchange": "NASDAQ",
+      "security_identity": "CRAM",
+      "mapping_version": "TWELVE_SYMBOL_IDENTITY_V1",
+      "source_ticker": "CRAM",
+      "source_exchange_value": "NASDAQ",
+      "normalized_exchange": "NASDAQ",
+      "exchange_resolution_status": "RESOLVED_US",
+      "listing_source_endpoint": "stocks",
+      "listing_source_country_filter": "United States"
+    },
     "CRAN": {
       "canonical_ticker": "CRAN",
       "provider_ticker": "CRAN",
@@ -29739,6 +29850,19 @@
       "security_identity": "ENVX",
       "mapping_version": "TWELVE_SYMBOL_IDENTITY_V1",
       "source_ticker": "ENVX",
+      "source_exchange_value": "NASDAQ",
+      "normalized_exchange": "NASDAQ",
+      "exchange_resolution_status": "RESOLVED_US",
+      "listing_source_endpoint": "stocks",
+      "listing_source_country_filter": "United States"
+    },
+    "EOCN": {
+      "canonical_ticker": "EOCN",
+      "provider_ticker": "EOCN",
+      "exchange": "NASDAQ",
+      "security_identity": "EOCN",
+      "mapping_version": "TWELVE_SYMBOL_IDENTITY_V1",
+      "source_ticker": "EOCN",
       "source_exchange_value": "NASDAQ",
       "normalized_exchange": "NASDAQ",
       "exchange_resolution_status": "RESOLVED_US",
@@ -50857,6 +50981,32 @@
       "listing_source_endpoint": "stocks",
       "listing_source_country_filter": "United States"
     },
+    "MFSD": {
+      "canonical_ticker": "MFSD",
+      "provider_ticker": "MFSD",
+      "exchange": "NYSE",
+      "security_identity": "MFSD",
+      "mapping_version": "TWELVE_SYMBOL_IDENTITY_V1",
+      "source_ticker": "MFSD",
+      "source_exchange_value": "NYSE",
+      "normalized_exchange": "NYSE",
+      "exchange_resolution_status": "RESOLVED_US",
+      "listing_source_endpoint": "stocks",
+      "listing_source_country_filter": "United States"
+    },
+    "MFSX": {
+      "canonical_ticker": "MFSX",
+      "provider_ticker": "MFSX",
+      "exchange": "NYSE",
+      "security_identity": "MFSX",
+      "mapping_version": "TWELVE_SYMBOL_IDENTITY_V1",
+      "source_ticker": "MFSX",
+      "source_exchange_value": "NYSE",
+      "normalized_exchange": "NYSE",
+      "exchange_resolution_status": "RESOLVED_US",
+      "listing_source_endpoint": "stocks",
+      "listing_source_country_filter": "United States"
+    },
     "MG": {
       "canonical_ticker": "MG",
       "provider_ticker": "MG",
@@ -55882,6 +56032,19 @@
       "security_identity": "NR",
       "mapping_version": "TWELVE_SYMBOL_IDENTITY_V1",
       "source_ticker": "NR",
+      "source_exchange_value": "NYSE",
+      "normalized_exchange": "NYSE",
+      "exchange_resolution_status": "RESOLVED_US",
+      "listing_source_endpoint": "stocks",
+      "listing_source_country_filter": "United States"
+    },
+    "NRAM": {
+      "canonical_ticker": "NRAM",
+      "provider_ticker": "NRAM",
+      "exchange": "NYSE",
+      "security_identity": "NRAM",
+      "mapping_version": "TWELVE_SYMBOL_IDENTITY_V1",
+      "source_ticker": "NRAM",
       "source_exchange_value": "NYSE",
       "normalized_exchange": "NYSE",
       "exchange_resolution_status": "RESOLVED_US",
@@ -79132,6 +79295,19 @@
       "listing_source_endpoint": "stocks",
       "listing_source_country_filter": "United States"
     },
+    "VEEM": {
+      "canonical_ticker": "VEEM",
+      "provider_ticker": "VEEM",
+      "exchange": "NASDAQ",
+      "security_identity": "VEEM",
+      "mapping_version": "TWELVE_SYMBOL_IDENTITY_V1",
+      "source_ticker": "VEEM",
+      "source_exchange_value": "NASDAQ",
+      "normalized_exchange": "NASDAQ",
+      "exchange_resolution_status": "RESOLVED_US",
+      "listing_source_endpoint": "stocks",
+      "listing_source_country_filter": "United States"
+    },
     "VEEV": {
       "canonical_ticker": "VEEV",
       "provider_ticker": "VEEV",
@@ -79139,6 +79315,19 @@
       "security_identity": "VEEV",
       "mapping_version": "TWELVE_SYMBOL_IDENTITY_V1",
       "source_ticker": "VEEV",
+      "source_exchange_value": "NYSE",
+      "normalized_exchange": "NYSE",
+      "exchange_resolution_status": "RESOLVED_US",
+      "listing_source_endpoint": "stocks",
+      "listing_source_country_filter": "United States"
+    },
+    "VEGX": {
+      "canonical_ticker": "VEGX",
+      "provider_ticker": "VEGX",
+      "exchange": "NYSE",
+      "security_identity": "VEGX",
+      "mapping_version": "TWELVE_SYMBOL_IDENTITY_V1",
+      "source_ticker": "VEGX",
       "source_exchange_value": "NYSE",
       "normalized_exchange": "NYSE",
       "exchange_resolution_status": "RESOLVED_US",
@@ -82993,6 +83182,32 @@
       "listing_source_endpoint": "stocks",
       "listing_source_country_filter": "United States"
     },
+    "XLCD": {
+      "canonical_ticker": "XLCD",
+      "provider_ticker": "XLCD",
+      "exchange": "NYSE",
+      "security_identity": "XLCD",
+      "mapping_version": "TWELVE_SYMBOL_IDENTITY_V1",
+      "source_ticker": "XLCD",
+      "source_exchange_value": "NYSE",
+      "normalized_exchange": "NYSE",
+      "exchange_resolution_status": "RESOLVED_US",
+      "listing_source_endpoint": "stocks",
+      "listing_source_country_filter": "United States"
+    },
+    "XLCU": {
+      "canonical_ticker": "XLCU",
+      "provider_ticker": "XLCU",
+      "exchange": "NYSE",
+      "security_identity": "XLCU",
+      "mapping_version": "TWELVE_SYMBOL_IDENTITY_V1",
+      "source_ticker": "XLCU",
+      "source_exchange_value": "NYSE",
+      "normalized_exchange": "NYSE",
+      "exchange_resolution_status": "RESOLVED_US",
+      "listing_source_endpoint": "stocks",
+      "listing_source_country_filter": "United States"
+    },
     "XLO": {
       "canonical_ticker": "XLO",
       "provider_ticker": "XLO",
@@ -83002,6 +83217,32 @@
       "source_ticker": "XLO",
       "source_exchange_value": "NASDAQ",
       "normalized_exchange": "NASDAQ",
+      "exchange_resolution_status": "RESOLVED_US",
+      "listing_source_endpoint": "stocks",
+      "listing_source_country_filter": "United States"
+    },
+    "XLPD": {
+      "canonical_ticker": "XLPD",
+      "provider_ticker": "XLPD",
+      "exchange": "NYSE",
+      "security_identity": "XLPD",
+      "mapping_version": "TWELVE_SYMBOL_IDENTITY_V1",
+      "source_ticker": "XLPD",
+      "source_exchange_value": "NYSE",
+      "normalized_exchange": "NYSE",
+      "exchange_resolution_status": "RESOLVED_US",
+      "listing_source_endpoint": "stocks",
+      "listing_source_country_filter": "United States"
+    },
+    "XLPU": {
+      "canonical_ticker": "XLPU",
+      "provider_ticker": "XLPU",
+      "exchange": "NYSE",
+      "security_identity": "XLPU",
+      "mapping_version": "TWELVE_SYMBOL_IDENTITY_V1",
+      "source_ticker": "XLPU",
+      "source_exchange_value": "NYSE",
+      "normalized_exchange": "NYSE",
       "exchange_resolution_status": "RESOLVED_US",
       "listing_source_endpoint": "stocks",
       "listing_source_country_filter": "United States"
@@ -85218,24 +85459,24 @@
     }
   },
   "eligibility": {
-    "eligible_count": 3076,
-    "excluded_count": 17334,
+    "eligible_count": 3054,
+    "excluded_count": 17374,
     "exclusion_reason_counts": {
-      "OTC_OUTSIDE_STOCK_POLICY": 12776,
-      "WARRANT_SECURITY": 422,
+      "OTC_OUTSIDE_STOCK_POLICY": 12777,
+      "WARRANT_SECURITY": 423,
       "RIGHT_SECURITY": 106,
       "UNIT_SECURITY": 69,
       "OTHER_NON_COMMON_SECURITY": 266,
-      "PREFERRED_SECURITY": 367,
-      "INVALID_SYMBOL_IDENTITY": 330,
+      "PREFERRED_SECURITY": 365,
+      "INVALID_SYMBOL_IDENTITY": 332,
       "UNRESOLVED_EXCHANGE_IDENTITY": 13,
-      "DOLLAR_VOLUME_BELOW_MINIMUM": 1581,
-      "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE": 1058,
-      "DATA_ACQUISITION_FAILURE": 69,
-      "GOVERNED_COMPANY_EXCLUSION": 179,
+      "DOLLAR_VOLUME_BELOW_MINIMUM": 1614,
+      "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE": 1057,
+      "DATA_ACQUISITION_FAILURE": 78,
+      "GOVERNED_COMPANY_EXCLUSION": 176,
       "Excluded business category": 6,
-      "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE": 88,
-      "INSUFFICIENT_TECHNICAL_HISTORY": 4
+      "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE": 89,
+      "INSUFFICIENT_TECHNICAL_HISTORY": 3
     },
     "exclusions": [
       {
@@ -90251,14 +90492,6 @@
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
       },
       {
-        "ticker": "AXIA",
-        "reason": "PREFERRED_SECURITY"
-      },
-      {
-        "ticker": "AXIA-C",
-        "reason": "PREFERRED_SECURITY"
-      },
-      {
         "ticker": "AXIAY",
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
       },
@@ -93075,6 +93308,10 @@
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
       },
       {
+        "ticker": "BRTMW",
+        "reason": "WARRANT_SECURITY"
+      },
+      {
         "ticker": "BRTR",
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
       },
@@ -93904,6 +94141,10 @@
       },
       {
         "ticker": "CADNF",
+        "reason": "OTC_OUTSIDE_STOCK_POLICY"
+      },
+      {
+        "ticker": "CADYF",
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
       },
       {
@@ -103517,6 +103758,10 @@
       {
         "ticker": "FCMGF",
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
+      },
+      {
+        "ticker": "FCNC6509391",
+        "reason": "INVALID_SYMBOL_IDENTITY"
       },
       {
         "ticker": "FCNCB",
@@ -123551,6 +123796,10 @@
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
       },
       {
+        "ticker": "PAAP4550445",
+        "reason": "INVALID_SYMBOL_IDENTITY"
+      },
+      {
         "ticker": "PAASF",
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
       },
@@ -142727,6 +142976,10 @@
         "reason": "Excluded business category"
       },
       {
+        "ticker": "ACBH",
+        "reason": "DATA_ACQUISITION_FAILURE"
+      },
+      {
         "ticker": "ACCL",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -142772,7 +143025,7 @@
       },
       {
         "ticker": "ACRV",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "ACRX",
@@ -142999,6 +143252,10 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
+        "ticker": "AIFR",
+        "reason": "DATA_ACQUISITION_FAILURE"
+      },
+      {
         "ticker": "AIFU",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -143035,6 +143292,10 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
+        "ticker": "AIMG",
+        "reason": "DATA_ACQUISITION_FAILURE"
+      },
+      {
         "ticker": "AIOS",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -143060,7 +143321,7 @@
       },
       {
         "ticker": "AISP",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "AIXC",
@@ -143415,6 +143676,10 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
+        "ticker": "ARCI",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
         "ticker": "ARCL",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -143585,6 +143850,10 @@
       {
         "ticker": "ATRA",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "ATTT",
+        "reason": "DATA_ACQUISITION_FAILURE"
       },
       {
         "ticker": "ATXG",
@@ -144355,6 +144624,10 @@
         "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
       {
+        "ticker": "BRTM",
+        "reason": "DATA_ACQUISITION_FAILURE"
+      },
+      {
         "ticker": "BRTX",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -144404,7 +144677,7 @@
       },
       {
         "ticker": "BSVN",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "BTAI",
@@ -144463,10 +144736,6 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "BURUD",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
-      },
-      {
         "ticker": "BVC",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -144476,6 +144745,10 @@
       },
       {
         "ticker": "BWAY",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "BWB",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
@@ -144624,7 +144897,7 @@
       },
       {
         "ticker": "CBAN",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "CBAT",
@@ -144716,7 +144989,7 @@
       },
       {
         "ticker": "CDIO",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "CDLR",
@@ -144772,7 +145045,7 @@
       },
       {
         "ticker": "CEPL",
-        "reason": "INSUFFICIENT_TECHNICAL_HISTORY"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "CEPS",
@@ -145083,6 +145356,10 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
+        "ticker": "CMPX",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
         "ticker": "CMRA",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
@@ -145144,7 +145421,7 @@
       },
       {
         "ticker": "CNTB",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "CNTN",
@@ -145299,6 +145576,10 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
+        "ticker": "CRAM",
+        "reason": "DATA_ACQUISITION_FAILURE"
+      },
+      {
         "ticker": "CRAN",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -145443,6 +145724,10 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
+        "ticker": "CURR",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
         "ticker": "CURV",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -145461,6 +145746,10 @@
       {
         "ticker": "CVBF",
         "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "CVEO",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "CVGI",
@@ -145497,6 +145786,10 @@
       {
         "ticker": "CWD",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "CXAI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "CXDO",
@@ -145671,10 +145964,6 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "DICE",
-        "reason": "DATA_ACQUISITION_FAILURE"
-      },
-      {
         "ticker": "DIT",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -145772,6 +146061,10 @@
       },
       {
         "ticker": "DSC",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "DSP",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
@@ -146105,6 +146398,10 @@
       {
         "ticker": "ENVB",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "EOCN",
+        "reason": "DATA_ACQUISITION_FAILURE"
       },
       {
         "ticker": "EONR",
@@ -146483,6 +146780,10 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
+        "ticker": "FGI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
         "ticker": "FGII",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -146564,7 +146865,7 @@
       },
       {
         "ticker": "FJET",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "FKWL",
@@ -147279,6 +147580,10 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
+        "ticker": "GRVY",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
         "ticker": "GRWG",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
@@ -147408,6 +147713,10 @@
       },
       {
         "ticker": "HAVA",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "HBB",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
@@ -147561,6 +147870,10 @@
       {
         "ticker": "HKPD",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "HLLY",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "HLP",
@@ -148440,7 +148753,7 @@
       },
       {
         "ticker": "KATT",
-        "reason": "DATA_ACQUISITION_FAILURE"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "KAZR",
@@ -148620,7 +148933,7 @@
       },
       {
         "ticker": "KRSA",
-        "reason": "DATA_ACQUISITION_FAILURE"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "KRSP",
@@ -148732,7 +149045,7 @@
       },
       {
         "ticker": "LBGJ",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "LBND",
@@ -148983,6 +149296,10 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
+        "ticker": "LODE",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
         "ticker": "LONA",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -149161,6 +149478,10 @@
       {
         "ticker": "MAAQ",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "MAAS",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "MACI",
@@ -149393,6 +149714,14 @@
       {
         "ticker": "MFP",
         "reason": "INSUFFICIENT_TECHNICAL_HISTORY"
+      },
+      {
+        "ticker": "MFSD",
+        "reason": "DATA_ACQUISITION_FAILURE"
+      },
+      {
+        "ticker": "MFSX",
+        "reason": "DATA_ACQUISITION_FAILURE"
       },
       {
         "ticker": "MGIH",
@@ -149664,7 +149993,7 @@
       },
       {
         "ticker": "MSGY",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "MSLE",
@@ -149903,6 +150232,10 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
+        "ticker": "NATH",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
         "ticker": "NAUT",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
@@ -149947,6 +150280,10 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
+        "ticker": "NCMI",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
         "ticker": "NCNA",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
@@ -149960,10 +150297,6 @@
       },
       {
         "ticker": "NCPL",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
-      },
-      {
-        "ticker": "NCRA",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
@@ -150040,10 +150373,6 @@
       },
       {
         "ticker": "NGEN",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "NHIC",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
@@ -150211,6 +150540,14 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
+        "ticker": "NRAM",
+        "reason": "DATA_ACQUISITION_FAILURE"
+      },
+      {
+        "ticker": "NRC",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
         "ticker": "NRDY",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -150260,7 +150597,7 @@
       },
       {
         "ticker": "NTCL",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "NTEST",
@@ -150313,6 +150650,10 @@
       {
         "ticker": "NUR",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "NUS",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "NUVOW",
@@ -150372,7 +150713,7 @@
       },
       {
         "ticker": "NXAT",
-        "reason": "DATA_ACQUISITION_FAILURE"
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "NXB",
@@ -150660,7 +151001,7 @@
       },
       {
         "ticker": "OPRT",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "OPRX",
@@ -150717,6 +151058,10 @@
       {
         "ticker": "ORRF",
         "reason": "GOVERNED_COMPANY_EXCLUSION"
+      },
+      {
+        "ticker": "OSG",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "OSPR",
@@ -150835,6 +151180,10 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
+        "ticker": "PAL",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
         "ticker": "PALO",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -150912,7 +151261,7 @@
       },
       {
         "ticker": "PCSA",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "PCYG",
@@ -151136,7 +151485,7 @@
       },
       {
         "ticker": "PLYX",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "PMA",
@@ -151164,6 +151513,10 @@
       },
       {
         "ticker": "PMTR",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "PMTS",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
@@ -151255,6 +151608,10 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
+        "ticker": "PRLD",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
         "ticker": "PROC",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
@@ -151312,6 +151669,10 @@
       },
       {
         "ticker": "PSBD",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "PSFE",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
@@ -151515,6 +151876,10 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
+        "ticker": "QUIK",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
         "ticker": "QUMS",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -151592,7 +151957,7 @@
       },
       {
         "ticker": "RBBN",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "RBCN",
@@ -152059,6 +152424,10 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
+        "ticker": "SAR",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
         "ticker": "SAVA",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
@@ -152199,10 +152568,6 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "SECZ",
-        "reason": "INSUFFICIENT_TECHNICAL_HISTORY"
-      },
-      {
         "ticker": "SEED",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
@@ -152228,7 +152593,7 @@
       },
       {
         "ticker": "SERA",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "SES",
@@ -152364,7 +152729,7 @@
       },
       {
         "ticker": "SKHY",
-        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+        "reason": "INSUFFICIENT_TECHNICAL_HISTORY"
       },
       {
         "ticker": "SKIL",
@@ -152775,10 +153140,6 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "SSM",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
-      },
-      {
         "ticker": "SSP",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -152903,14 +153264,6 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "SWRD",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "SXTC",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
-      },
-      {
         "ticker": "SXTP",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
@@ -153005,6 +153358,10 @@
       {
         "ticker": "TCNNF",
         "reason": "Excluded business category"
+      },
+      {
+        "ticker": "TCPC",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "TCRT",
@@ -153171,6 +153528,10 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
+        "ticker": "TLS",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
         "ticker": "TLSA",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
@@ -153283,6 +153644,10 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
+        "ticker": "TPET",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
         "ticker": "TPST",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
@@ -153380,7 +153745,7 @@
       },
       {
         "ticker": "TRXS",
-        "reason": "DATA_ACQUISITION_FAILURE"
+        "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
         "ticker": "TSBK",
@@ -153461,6 +153826,10 @@
       {
         "ticker": "TWG",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "TWIN",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "TXMD",
@@ -153552,7 +153921,7 @@
       },
       {
         "ticker": "UK",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "ULBI",
@@ -153713,6 +154082,14 @@
       {
         "ticker": "VEEE",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "VEEM",
+        "reason": "DATA_ACQUISITION_FAILURE"
+      },
+      {
+        "ticker": "VEGX",
+        "reason": "DATA_ACQUISITION_FAILURE"
       },
       {
         "ticker": "VEL",
@@ -153879,6 +154256,10 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
+        "ticker": "VOXR",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
         "ticker": "VOYA",
         "reason": "GOVERNED_COMPANY_EXCLUSION"
       },
@@ -153931,6 +154312,10 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
+        "ticker": "VTEX",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
         "ticker": "VTGN",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
@@ -153948,6 +154333,10 @@
       },
       {
         "ticker": "VTVT",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "VUZI",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
@@ -154045,10 +154434,6 @@
       {
         "ticker": "WFCF",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "WFF",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "WHF",
@@ -154275,8 +154660,24 @@
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
       {
+        "ticker": "XLCD",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "XLCU",
+        "reason": "DATA_ACQUISITION_FAILURE"
+      },
+      {
         "ticker": "XLO",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "XLPD",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
+        "ticker": "XLPU",
+        "reason": "DATA_ACQUISITION_FAILURE"
       },
       {
         "ticker": "XNET",
@@ -154328,7 +154729,7 @@
       },
       {
         "ticker": "XXII",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "XYF",

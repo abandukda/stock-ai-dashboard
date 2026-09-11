@@ -1,12 +1,12 @@
 {
   "version": "ATLAS_PUBLICATION_MANIFEST_V1",
-  "run_id": "overnight-20260911T091412Z",
-  "generated_at": "2026-09-11T09:14:10.637868+00:00",
-  "source_commit_sha": "7324a2ebd2ba317a7357fe9b638bb0b8a3654132",
+  "run_id": "overnight-20260911T190017Z",
+  "generated_at": "2026-09-11T19:00:15.233072+00:00",
+  "source_commit_sha": "b75e05b5f4c1891587c8ebcb981aee85b4d7dae8",
   "source_ref": "refs/heads/main",
   "source_branch": "main",
-  "scanner_file_sha256": "ac7ec342cfd0b6366508315e06db56c5901cd509a760fad2cf18d16dae64fee1",
-  "workflow_run_id": "34581640935",
+  "scanner_file_sha256": "50a662318fc4bd2dbd421d4ea8db9daa8e98bd92f9f951b8f41d3d042f186a4f",
+  "workflow_run_id": "34634947545",
   "methodology_versions": [
     "FOUNDER_GUIDANCE_V1"
   ],
@@ -15,54 +15,56 @@
     "None"
   ],
   "provider_status": {
-    "fundamental_family_counts": {
-      "revenue": 1372,
-      "earnings": 1360,
-      "profitability": 1342,
-      "cash_flow": 1374,
-      "balance_sheet": 1369
-    },
-    "latency_seconds": 474.131,
-    "status": "AVAILABLE",
-    "fundamental_fallback_calls": 1229,
-    "cache_hits": 55,
-    "technical_history_http_successes": 1601,
-    "version": "ATLAS_FULL_UNIVERSE_DECISION_PUBLICATION_V1",
+    "observed_at": "2026-09-11T18:51:56.569690+00:00",
     "estimate_calls": 3200,
-    "calls_avoided": 55,
-    "performance_outcomes_appended": 146,
+    "valuation_status_counts": {
+      "DATA_UNAVAILABLE": 841,
+      "PUBLISHED": 759
+    },
+    "fundamental_fallback_calls": 2061,
+    "cache_hits": 45,
+    "latency_seconds": 399.353,
+    "calls_avoided": 45,
+    "technical_history_successes": 1525,
+    "fundamental_primary_calls": 8000,
+    "cache_misses": 13261,
+    "provider_calls": 14862,
     "endpoint_success": {
-      "profile": 1190,
-      "statistics": 1190,
-      "income_statement": 186,
-      "balance_sheet": 186,
-      "cash_flow": 187,
-      "earnings_estimate": 1600,
-      "revenue_estimate": 1600,
+      "profile": 911,
+      "statistics": 912,
+      "income_statement": 271,
+      "balance_sheet": 271,
+      "cash_flow": 270,
+      "earnings_estimate": 1343,
+      "revenue_estimate": 1343,
       "time_series_1day": 1601
     },
-    "fundamental_primary_calls": 8000,
-    "valuation_status_counts": {
-      "PUBLISHED": 1036,
-      "DATA_UNAVAILABLE": 564
-    },
     "technical_history_calls": 1601,
-    "cache_misses": 12429,
-    "provider_calls": 14030,
     "performance_snapshots_appended": 1400,
-    "technical_history_successes": 1522,
-    "observed_at": "2026-09-11T09:05:13.509403+00:00"
+    "version": "ATLAS_FULL_UNIVERSE_DECISION_PUBLICATION_V1",
+    "fundamental_family_counts": {
+      "revenue": 1181,
+      "earnings": 1172,
+      "profitability": 1124,
+      "cash_flow": 1183,
+      "balance_sheet": 1178
+    },
+    "status": "AVAILABLE",
+    "technical_history_http_successes": 1601,
+    "performance_outcomes_appended": 145
   },
   "universe_count": 150,
   "certification_distribution": {
-    "CERTIFIED_HIGH_UNCERTAINTY": 119,
-    "CERTIFIED": 31
+    "REVIEW_REQUIRED": 128,
+    "CERTIFIED_HIGH_UNCERTAINTY": 19,
+    "CERTIFIED": 1,
+    "INSUFFICIENT_INPUTS": 2
   },
-  "certified_count": 31,
-  "high_uncertainty_count": 119,
-  "withheld_count": 0,
-  "publishable_count": 150,
-  "customer_publication_count": 150,
+  "certified_count": 1,
+  "high_uncertainty_count": 19,
+  "withheld_count": 130,
+  "publishable_count": 20,
+  "customer_publication_count": 20,
   "published_yahoo_lineage_count": 0,
   "published_fmp_quantitative_lineage_count": 0,
   "PRODUCTION_ACTIVE_YAHOO_DECISION_DEPENDENCY_COUNT": 0,
@@ -74,41 +76,43 @@
   "cache_generation_version": "POST_YAHOO_MIGRATION_V2",
   "validation_failures": [],
   "artifact_hashes": {
-    "market_prescreen.json": "b6fb53e9acc15b68f9848f93cb0b2c8acc9870114683faf45da5b207611c681c",
-    "market_full_scan.json": "9757f7ba638a432b60894f83d00a346bb8b087794dceab456f72b32eb90253ba",
-    "discovery_candidate_pool.json": "0c0e92908072e4df0cddabaa21631f35b634393d141ec5d95119b804d1c88b06",
-    "full_evaluation_pool.json": "c627c6eb9e239e4b60ea7d804cc1706b96ec3e475a235a7d17730fa8e03eca15",
-    "recovery_scan.json": "d398fdbf69cb84975b1cb885a36da186f4199c1ff6c1e0d24d4eb6e147a21efa",
-    "etf_scan.json": "fb6872fc23116746692c9d2f152c800e55b4452c1dd6eb5740464306f3d1f53c",
-    "total_market_universe.json": "3bf2e3c59bb9795aca3bf56a5dcc4715054246ac804dae9ce28811d55ab10c2b",
-    "market_scan_state.json": "7c41117e1ada72c5c8ec03a13e1c20bd9eef64f298e9cdfcec4b3a907de2b818",
-    "governed_market_acquisition_diagnostics.json": "6cb398ba3864be872c395b40de51fbf60c03a73465721862b15dc50481b472ca"
+    "market_prescreen.json": "42e3bcc09d614ab3ac798a3581a7fd514fe271cf87c78a80d8d98fa024631d21",
+    "market_full_scan.json": "d44007a5fc82b918f8328c58cef8de95a36db6b2f850007e3790ae7958968ac3",
+    "discovery_candidate_pool.json": "90830ace1d582cd2fce21fba6a0a9b094f1136d01e0007a8770e0a696e3eccc4",
+    "full_evaluation_pool.json": "e587baf52ec0e3b443dbdaa0c2a702071b4836152861bd2647994e79d633810d",
+    "recovery_scan.json": "fb57842b4aa7c92ec7721b8e6cf09845f377ea7f8d786c0a93925f228438dc47",
+    "etf_scan.json": "63d73ab69ebf15413859c61888308affb6531886267db38004b87d7af6d97113",
+    "total_market_universe.json": "397ca76cb29c07b38f1c092b948529dd60b786e8e2cf9f72793aa80c9254c355",
+    "market_scan_state.json": "723021a4f6622e3d45fb4f8865cba35bf419717402dafc91fee0f54a4fc11eaa",
+    "governed_market_acquisition_diagnostics.json": "434a81d037931deadd8487aa339194d785fa3ea3e3261ce651f691f8a0fb0d77"
   },
   "run_over_run_anomalies": [],
   "freshness_status": "VALIDATED_BY_EVIDENCE_TYPE",
   "publication_gate_status": "PASS",
   "qa_certification": {
     "version": "ATLAS_MASTER_QA_V3_DISCOVERY",
-    "run_id": "overnight-20260911T091412Z",
-    "generated_at": "2026-09-11T09:14:10.637868+00:00",
+    "run_id": "overnight-20260911T190017Z",
+    "generated_at": "2026-09-11T19:00:15.233072+00:00",
     "universe_count": 150,
     "publication_gate_status": "PASS",
     "severity_counts": {
       "P0": 0,
       "P1": 0,
       "P2": 0,
-      "P3": 2743,
-      "P4": 109
+      "P3": 4035,
+      "P4": 37
     },
     "certification_distribution": {
-      "CERTIFIED_HIGH_UNCERTAINTY": 119,
-      "CERTIFIED": 31
+      "REVIEW_REQUIRED": 128,
+      "CERTIFIED_HIGH_UNCERTAINTY": 19,
+      "CERTIFIED": 1,
+      "INSUFFICIENT_INPUTS": 2
     },
-    "certified_count": 31,
-    "high_uncertainty_count": 119,
-    "review_required_count": 0,
-    "withheld_count": 0,
-    "market_cap_failure_count": 0,
+    "certified_count": 1,
+    "high_uncertainty_count": 19,
+    "review_required_count": 128,
+    "withheld_count": 130,
+    "market_cap_failure_count": 13,
     "fcf_failure_count": 0,
     "routing_warning_count": 0,
     "street_data_gap_count": 150,
@@ -116,15 +120,14 @@
     "dataset_certification_status": "PASS",
     "blocking_issue_count": 0,
     "action_distribution": {
-      "BUY_NOW": 2,
-      "ACCUMULATE": 80,
-      "WAIT_FOR_ENTRY": 9,
-      "WAIT_FOR_CONFIRMATION": 59
+      "BUY_NOW": 17,
+      "ACCUMULATE": 107,
+      "WAIT_FOR_ENTRY": 26
     },
     "unrevalidated_buy_now_count": 0,
-    "artifact_link": "https://github.com/abandukda/stock-ai-dashboard/actions/runs/34583219907",
-    "provider_calls": 14030,
-    "calls_avoided": 55,
+    "artifact_link": "https://github.com/abandukda/stock-ai-dashboard/actions/runs/34641923082",
+    "provider_calls": 14862,
+    "calls_avoided": 45,
     "discovery_certification_status": "PASS",
     "discovery_severity_counts": {
       "D0": 0,
@@ -133,8 +136,8 @@
       "D3": 0,
       "D4": 0
     },
-    "market_universe_count": 6063,
-    "eligible_count": 3076,
+    "market_universe_count": 6079,
+    "eligible_count": 3054,
     "candidate_pool_count": 1500,
     "full_evaluation_pool_count": 1400,
     "customer_discovery_count": 150,
@@ -155,15 +158,15 @@
       "QA-11",
       "QA-12"
     ],
-    "sector_coverage_pct": 99.33,
-    "industry_coverage_pct": 99.33,
+    "sector_coverage_pct": 100.0,
+    "industry_coverage_pct": 100.0,
     "uncertainty_driver_distribution": {
-      "MODEL_DISPERSION": 104,
-      "TERMINAL_VALUE_DEPENDENCE": 61,
-      "OTHER": 14,
-      "CAPITAL_STRUCTURE_UNCERTAINTY": 36,
-      "NARROW_WACC_G": 32,
-      "SINGLE_MODEL": 16
+      "MODEL_DISPERSION": 11,
+      "TERMINAL_VALUE_DEPENDENCE": 4,
+      "SINGLE_MODEL": 8,
+      "OTHER": 1,
+      "CAPITAL_STRUCTURE_UNCERTAINTY": 2,
+      "NARROW_WACC_G": 2
     },
     "context_evidence_coverage": {
       "population": 150,
@@ -176,42 +179,42 @@
         "roic": 0.0,
         "debt_equity": 0.0,
         "net_debt": 0.0,
-        "forward_eps": 99.33,
-        "forward_revenue": 98.0,
+        "forward_eps": 54.0,
+        "forward_revenue": 54.67,
         "forward_pe": 0.0,
         "ev_ebitda": 0.0,
         "p_fcf": 0.0
       },
       "news_context": {
         "counts": {
-          "NEWS_NONE_RECENT": 50,
-          "NEWS_DATA_UNAVAILABLE": 100
+          "NEWS_NONE_RECENT": 54,
+          "NEWS_DATA_UNAVAILABLE": 96
         },
         "percentages": {
-          "NEWS_NONE_RECENT": 33.33,
-          "NEWS_DATA_UNAVAILABLE": 66.67
+          "NEWS_NONE_RECENT": 36.0,
+          "NEWS_DATA_UNAVAILABLE": 64.0
         }
       },
       "insider_context": {
         "counts": {
           "INSIDER_PARTIAL": 48,
-          "INSIDER_NONE_RECENT": 1,
-          "INSIDER_DATA_UNAVAILABLE": 101
+          "INSIDER_NONE_RECENT": 7,
+          "INSIDER_DATA_UNAVAILABLE": 95
         },
         "percentages": {
           "INSIDER_PARTIAL": 32.0,
-          "INSIDER_NONE_RECENT": 0.67,
-          "INSIDER_DATA_UNAVAILABLE": 67.33
+          "INSIDER_NONE_RECENT": 4.67,
+          "INSIDER_DATA_UNAVAILABLE": 63.33
         }
       },
       "institutional_context": {
         "counts": {
-          "INSTITUTIONAL_PARTIAL": 49,
-          "INSTITUTIONAL_DATA_UNAVAILABLE": 101
+          "INSTITUTIONAL_PARTIAL": 54,
+          "INSTITUTIONAL_DATA_UNAVAILABLE": 96
         },
         "percentages": {
-          "INSTITUTIONAL_PARTIAL": 32.67,
-          "INSTITUTIONAL_DATA_UNAVAILABLE": 67.33
+          "INSTITUTIONAL_PARTIAL": 36.0,
+          "INSTITUTIONAL_DATA_UNAVAILABLE": 64.0
         }
       },
       "congressional_context": {
@@ -224,31 +227,31 @@
       },
       "wall_street_analysis": {
         "eligible_equities": 150,
-        "available_count": 49,
-        "partial_count": 101,
+        "available_count": 54,
+        "partial_count": 62,
         "not_covered_count": 0,
-        "unavailable_count": 0,
+        "unavailable_count": 34,
         "display_restricted_count": 0,
-        "internal_trial_display_allowed_count": 150
+        "internal_trial_display_allowed_count": 116
       },
       "wall_street_field_coverage": {
-        "target_mean_pct": 31.33,
-        "target_median_pct": 31.33,
-        "target_range_pct": 31.33,
-        "analyst_count_pct": 32.67,
-        "consensus_pct": 32.67,
+        "target_mean_pct": 35.33,
+        "target_median_pct": 35.33,
+        "target_range_pct": 35.33,
+        "analyst_count_pct": 36.0,
+        "consensus_pct": 36.0,
         "recommendation_distribution_pct": 100.0,
-        "forward_eps_pct": 99.33,
-        "forward_revenue_pct": 98.0,
-        "eps_revision_7d_pct": 31.33,
-        "eps_revision_30d_pct": 31.33,
-        "eps_revision_90d_pct": 31.33,
-        "recent_analyst_actions_pct": 32.67
+        "forward_eps_pct": 75.33,
+        "forward_revenue_pct": 75.33,
+        "eps_revision_7d_pct": 35.33,
+        "eps_revision_30d_pct": 35.33,
+        "eps_revision_90d_pct": 35.33,
+        "recent_analyst_actions_pct": 36.0
       }
     },
-    "screenshot_count": 48,
+    "screenshot_count": 89,
     "visual_failure_count": 0,
-    "report_digest": "7e2f3e571dc438ccff0b877b2c23cedef6141bd7a6aea5d7a67e9dca3ca5a96b"
+    "report_digest": "46c2924c4707f4c7ddd9f5af415439b139bde6cc50ac7f49a64aa6603691399c"
   },
-  "certification_report": "audit_results/full_qa/34583219907/ATLAS_MASTER_QA_20260911_overnight-20260911T091412Z.json"
+  "certification_report": "audit_results/full_qa/34641923082/ATLAS_MASTER_QA_20260911_overnight-20260911T190017Z.json"
 }
