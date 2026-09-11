@@ -9,8 +9,8 @@
     "quote_type": "ETF",
     "price": 11.17,
     "current_price": 11.17,
-    "dollar_volume": 10219767.54,
-    "avg_volume_20d": 914929,
+    "dollar_volume": 10219773.13,
+    "avg_volume_20d": 914930,
     "volume_ratio": 5.7,
     "conviction": 73,
     "conviction_score": 73,
@@ -61,7 +61,7 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "FMP",
-      "evidence_timestamp": "2026-09-10T21:39:43.225163+00:00",
+      "evidence_timestamp": "2026-09-11T01:01:43.694828+00:00",
       "freshness": {
         "status": "TEMPORARILY_UNAVAILABLE",
         "fetched_at": null,
@@ -69,7 +69,7 @@
         "ttl_seconds": 86400
       }
     },
-    "scan_time": "2026-09-10T21:39:43.225172+00:00",
+    "scan_time": "2026-09-11T01:01:43.694840+00:00",
     "history_days_available": 260,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 11.2,
@@ -96,7 +96,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "e92871f52a0dc5e1d94db16a171ee2fced874b8da3cbf9afc640002caf490a08",
-      "sma200_evidence_timestamp": "2026-09-10T21:39:43.233742+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T01:01:43.704090+00:00"
     },
     "analyst_support_score": 49.0,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -343,7 +343,7 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "FMP",
-      "evidence_timestamp": "2026-09-10T21:39:26.109464+00:00",
+      "evidence_timestamp": "2026-09-11T01:01:08.813928+00:00",
       "freshness": {
         "status": "TEMPORARILY_UNAVAILABLE",
         "fetched_at": null,
@@ -351,7 +351,7 @@
         "ttl_seconds": 86400
       }
     },
-    "scan_time": "2026-09-10T21:39:26.109473+00:00",
+    "scan_time": "2026-09-11T01:01:08.813939+00:00",
     "history_days_available": 260,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 9.3,
@@ -378,7 +378,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "2818c691f6483362ed5283c75d2172a4119151c85c3e6e05ca2d2ee981e6a7ca",
-      "sma200_evidence_timestamp": "2026-09-10T21:39:26.118228+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T01:01:08.823401+00:00"
     },
     "analyst_support_score": 50.8,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",

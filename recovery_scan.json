@@ -149,7 +149,7 @@
       "20-day trend is negative",
       "Still far from recent highs"
     ],
-    "scan_time": "2026-09-10T21:37:49.522001+00:00",
+    "scan_time": "2026-09-11T00:58:52.409405+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 70,
@@ -323,7 +323,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "5308e05e081a16e508b150c2c945973ba8b96213ac4c6fd4af8ce0973621d296",
-      "sma200_evidence_timestamp": "2026-09-10T21:37:49.531074+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T00:58:52.418827+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -534,7 +534,7 @@
       "Volatility is tradable"
     ],
     "risk_tags": [],
-    "scan_time": "2026-09-10T21:39:22.213077+00:00",
+    "scan_time": "2026-09-11T01:00:58.764156+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -909,7 +909,7 @@
       "Volatility is tradable"
     ],
     "risk_tags": [],
-    "scan_time": "2026-09-10T21:36:44.925762+00:00",
+    "scan_time": "2026-09-11T00:57:48.557341+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 78,
@@ -1083,7 +1083,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "48fd90c69646342a8ca24a1c9b1c224b887ce0b1c203112297e58a3f527d8d6a",
-      "sma200_evidence_timestamp": "2026-09-10T21:36:44.934316+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T00:57:48.567006+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -1292,7 +1292,7 @@
       "Volatility is tradable"
     ],
     "risk_tags": [],
-    "scan_time": "2026-09-10T21:37:56.765833+00:00",
+    "scan_time": "2026-09-11T00:59:00.491842+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -1466,7 +1466,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "9f1789fe60b55e29e8fd3d8fafccab8c85a572bb392c19843e15d80a5396c42e",
-      "sma200_evidence_timestamp": "2026-09-10T21:37:56.774473+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T00:59:00.501300+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -1674,7 +1674,7 @@
       "Trading near recent highs without being at the absolute top"
     ],
     "risk_tags": [],
-    "scan_time": "2026-09-10T21:39:19.505849+00:00",
+    "scan_time": "2026-09-11T01:00:53.318276+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 80,
@@ -1848,7 +1848,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "781b7c407a036e7b21e45ff1e5a038019ec528d0898a29cf28ec14f2468ff8c7",
-      "sma200_evidence_timestamp": "2026-09-10T21:39:19.514535+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T01:00:53.328086+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -2059,7 +2059,7 @@
     "risk_tags": [
       "Price is below or near the 50-day trend"
     ],
-    "scan_time": "2026-09-10T21:34:25.799816+00:00",
+    "scan_time": "2026-09-11T00:55:49.719940+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -2233,7 +2233,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "4bfec302dd48ff44b77fbc0a3f29252d3814664c4aa37de6f15ce08f254f0344",
-      "sma200_evidence_timestamp": "2026-09-10T21:34:25.808339+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T00:55:49.729459+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -2441,7 +2441,7 @@
       "Recent momentum is weak",
       "High volatility could make stops difficult"
     ],
-    "scan_time": "2026-09-10T21:35:59.795604+00:00",
+    "scan_time": "2026-09-11T00:57:18.772277+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 56,
@@ -2615,7 +2615,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "80c1c8a81c348744e393d148f3d4d5d6a3823be833a5903acab675f351e28e7c",
-      "sma200_evidence_timestamp": "2026-09-10T21:35:59.804302+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T00:57:18.781825+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -2822,7 +2822,7 @@
       "RSI is constructive without looking overheated"
     ],
     "risk_tags": [],
-    "scan_time": "2026-09-10T21:35:58.038766+00:00",
+    "scan_time": "2026-09-11T00:57:16.477540+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 80,
@@ -2996,7 +2996,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "43d78e018013826ddcb2ad0f2390d7073ebc768eec1b810ae6dd65e30c0fa343",
-      "sma200_evidence_timestamp": "2026-09-10T21:35:58.047354+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T00:57:16.486890+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -3204,7 +3204,7 @@
       "RSI is constructive without looking overheated"
     ],
     "risk_tags": [],
-    "scan_time": "2026-09-10T21:37:24.681659+00:00",
+    "scan_time": "2026-09-11T00:58:28.610650+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 80,
@@ -3378,7 +3378,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "c205ace50a53e86965a667aaf33e01f17aff541808e98abd7065dca71a89f80d",
-      "sma200_evidence_timestamp": "2026-09-10T21:37:24.690217+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T00:58:28.620203+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -3585,7 +3585,7 @@
       "RSI is constructive without looking overheated"
     ],
     "risk_tags": [],
-    "scan_time": "2026-09-10T21:36:47.690433+00:00",
+    "scan_time": "2026-09-11T00:57:52.128164+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 77,
@@ -3759,7 +3759,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "10b158840fa5e5782c8b0fa149fa33dd4966ee00b5e3c0f1ce396fc149e7d758",
-      "sma200_evidence_timestamp": "2026-09-10T21:36:47.699037+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T00:57:52.137458+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -3967,7 +3967,7 @@
     "risk_tags": [
       "Volume confirmation is light"
     ],
-    "scan_time": "2026-09-10T21:32:55.273070+00:00",
+    "scan_time": "2026-09-11T00:54:28.316964+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 70,
@@ -4141,7 +4141,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "ddcb5eb1a1c4594129952fd1928418ca7d8255c6637fa5e3b01f292f52b7bb29",
-      "sma200_evidence_timestamp": "2026-09-10T21:32:55.281721+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T00:54:28.326605+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -4349,7 +4349,7 @@
     "risk_tags": [
       "Volume confirmation is light"
     ],
-    "scan_time": "2026-09-10T21:38:30.071596+00:00",
+    "scan_time": "2026-09-11T00:59:29.348577+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 70,
@@ -4523,7 +4523,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "80e207f6fd5dd5ca01314606c24d6b6379d59fe9415fc8d72d7869a01c9a4770",
-      "sma200_evidence_timestamp": "2026-09-10T21:38:30.080264+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T00:59:29.358142+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -4730,7 +4730,7 @@
       "RSI is constructive without looking overheated"
     ],
     "risk_tags": [],
-    "scan_time": "2026-09-10T21:39:29.336089+00:00",
+    "scan_time": "2026-09-11T01:01:18.091694+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 80,
@@ -4904,7 +4904,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "effb805ebe6ddbdc6de6dccf3bbbac4f91d44133aee5078b3909a5330d60cbfa",
-      "sma200_evidence_timestamp": "2026-09-10T21:39:29.344956+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T01:01:18.101313+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -5116,7 +5116,7 @@
     "risk_tags": [
       "RSI is warm; avoid chasing"
     ],
-    "scan_time": "2026-09-10T21:38:44.871936+00:00",
+    "scan_time": "2026-09-11T00:59:44.958731+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -5290,7 +5290,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "7de51f85f9294c0bf19b1da24cb34beb2db4dcdf5bb8f06430389486c647a2f8",
-      "sma200_evidence_timestamp": "2026-09-10T21:38:44.880452+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T00:59:44.968177+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -5499,7 +5499,7 @@
       "20-day trend is negative",
       "Still far from recent highs"
     ],
-    "scan_time": "2026-09-10T21:39:48.869955+00:00",
+    "scan_time": "2026-09-11T01:01:54.453809+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 68,
@@ -5673,7 +5673,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "56317386e363cb1f732f0de0f523bb63903904fc34b0a57d15c5b9a10cfbdea4",
-      "sma200_evidence_timestamp": "2026-09-10T21:39:48.878519+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T01:01:54.463148+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -5882,7 +5882,7 @@
       "Volatility is tradable"
     ],
     "risk_tags": [],
-    "scan_time": "2026-09-10T21:38:20.462319+00:00",
+    "scan_time": "2026-09-11T00:59:17.545556+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -6056,7 +6056,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "35279f8f7f2b3ec08f59628deb04ed8ae9bc4276baba7615c7a10e593bab2d9a",
-      "sma200_evidence_timestamp": "2026-09-10T21:38:20.470885+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T00:59:17.555068+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -6266,7 +6266,7 @@
       "Volatility is tradable"
     ],
     "risk_tags": [],
-    "scan_time": "2026-09-10T21:38:20.494413+00:00",
+    "scan_time": "2026-09-11T00:59:17.580858+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -6642,7 +6642,7 @@
       "Trading near recent highs without being at the absolute top"
     ],
     "risk_tags": [],
-    "scan_time": "2026-09-10T21:32:59.538972+00:00",
+    "scan_time": "2026-09-11T00:54:33.768669+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -6816,7 +6816,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "b10680c425d0d5978014458bcfa68ce5ea3b7cdc5343d80cfc5c1e5ef567b9a0",
-      "sma200_evidence_timestamp": "2026-09-10T21:32:59.547500+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T00:54:33.778366+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -7029,7 +7029,7 @@
       "High volatility could make stops difficult",
       "Large one-day jump may pull back"
     ],
-    "scan_time": "2026-09-10T21:39:44.981950+00:00",
+    "scan_time": "2026-09-11T01:01:46.526942+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 50,
@@ -7203,7 +7203,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "e43358d917eed7ff60e2499c703ee108148f7e686f30271299105d52c3cc4f5f",
-      "sma200_evidence_timestamp": "2026-09-10T21:39:44.990458+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T01:01:46.536510+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -7411,7 +7411,7 @@
     "risk_tags": [
       "Short-term move may be extended"
     ],
-    "scan_time": "2026-09-10T21:34:35.723182+00:00",
+    "scan_time": "2026-09-11T00:55:58.768489+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 66,
@@ -7585,7 +7585,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "6d2a2a696ca5131f0135800c24b72b0c7065fc14fbae9935bdfb7ead11a12fb0",
-      "sma200_evidence_timestamp": "2026-09-10T21:34:35.731700+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T00:55:58.778027+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -7796,7 +7796,7 @@
     "risk_tags": [
       "Price is below or near the 50-day trend"
     ],
-    "scan_time": "2026-09-10T21:38:19.397471+00:00",
+    "scan_time": "2026-09-11T00:59:16.096917+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 80,
@@ -7970,7 +7970,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "22f4ed9897a50be099660d253f46435e8ebfd84b98391518764a199edbdb406b",
-      "sma200_evidence_timestamp": "2026-09-10T21:38:19.406148+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T00:59:16.106372+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
