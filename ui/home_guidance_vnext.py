@@ -1238,6 +1238,12 @@ def _render_market_today(story: Mapping[str, Any]) -> None:
     .atlas-major-news{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem;margin:.25rem 0 .7rem}.atlas-major-news article{padding:.72rem .78rem;border-radius:12px;background:rgba(30,41,59,.4);border-left:3px solid #4c8ed9}.atlas-major-news b,.atlas-major-news small,.atlas-major-news p{display:block}.atlas-major-news b{line-height:1.35}.atlas-major-news small{margin-top:.25rem;color:#8793a6;font-size:.72rem}.atlas-major-news p{margin:.35rem 0 0;font-size:.84rem;line-height:1.4;color:#cbd5e1}
     @media(max-width:700px){.atlas-market-today-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-major-news{grid-template-columns:1fr}.atlas-market-today-grid span{padding:.52rem}.atlas-market-today-grid b{font-size:1rem}}
     </style>""",unsafe_allow_html=True)
+    st.markdown(
+        '<span data-atlas-qa="market-today" data-atlas-market-status="'
+        + html.escape(str(context.get("status") or "DATA_UNAVAILABLE"))
+        + '" data-atlas-non-scoring="true" aria-hidden="true" style="display:none">market-today</span>',
+        unsafe_allow_html=True,
+    )
     st.markdown("## Market Today")
     updated=_time_et(context.get("as_of")) if context.get("as_of") else "Latest governed reading unavailable"
     st.caption(f"Market: {_display(context.get('market_session') or 'CLOSED')} · Last updated: {updated}")
@@ -1250,7 +1256,7 @@ def _render_market_today(story: Mapping[str, Any]) -> None:
             blocks.append(f'<span class="atlas-market-today-{tone}"><small>{html.escape(str(item.get("label") or item.get("symbol")))}</small><b>{float(item["price"]):,.2f}</b><em>{html.escape(delta)}</em></span>')
         st.markdown('<div class="atlas-market-today-grid">'+''.join(blocks)+'</div>',unsafe_allow_html=True)
     else:
-        st.caption("Broad-market values are temporarily unavailable.")
+        st.caption("Current market data is temporarily unavailable.")
     st.markdown("### What ATLAS Thinks This Means")
     st.write(str(context.get("interpretation") or "ATLAS is not inferring a market backdrop without current governed evidence."))
     news=context.get("major_market_news") or ()
@@ -1262,6 +1268,9 @@ def _render_market_today(story: Mapping[str, Any]) -> None:
             if item.get("url"): title=f'<a href="{html.escape(str(item["url"]),quote=True)}" target="_blank" rel="noopener">{title}</a>'
             body.append(f'<article><b>{title}</b><small>{html.escape(str(item.get("source")))} · {html.escape(_timestamp(item.get("published_at")))}</small><p>Why it matters: {html.escape(str(item.get("why_it_matters")))}</p></article>')
         st.markdown('<div class="atlas-major-news">'+''.join(body)+'</div>',unsafe_allow_html=True)
+    else:
+        st.markdown("### Major Market News")
+        st.caption("No major governed market-moving headlines are available right now.")
 
 
 def _comparison(card: Mapping[str, Any]) -> None:

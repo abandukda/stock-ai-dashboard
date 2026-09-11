@@ -5,6 +5,8 @@ from engines.market_today import build_market_today, normalize_major_market_news
 from engines.home_guidance_story_v1 import build_homepage_promotion_metrics
 from engines.home_guidance_story_v1 import build_home_guidance_story
 from services.home_promotion_policy import VERSION, classify_homepage_promotion
+from pathlib import Path
+from streamlit.testing.v1 import AppTest
 
 
 def test_promotion_categories_are_explicit_and_narrow():
@@ -58,6 +60,76 @@ def test_market_today_omits_missing_instruments_without_null_tiles():
     assert result["instruments"]==()
     assert result["status"]=="DATA_UNAVAILABLE"
     assert result["market_session"]=="CLOSED"
+
+
+def test_market_today_preserves_partial_availability():
+    tape={"market_data_as_of":"2026-09-10T18:31:00Z","rows":[
+        {"symbol":"SPY","label":"S&P 500 · SPY","status":"available","price":674.2,
+         "point_change":1.2,"change_pct":.18,"direction":"UP","as_of":"2026-09-10T18:31:00Z","evidence_id":"TD-SPY"},
+        {"symbol":"QQQ","label":"Nasdaq 100 · QQQ","status":"unavailable"},
+    ]}
+    result=build_market_today(tape,now=datetime(2026,9,10,14,31,tzinfo=timezone.utc))
+    assert [item["symbol"] for item in result["instruments"]]==["SPY"]
+    assert result["status"]=="AVAILABLE"
+
+
+def test_market_today_contract_is_independent_of_stock_certification():
+    context=build_market_today({"market_data_as_of":"2026-09-10T18:31:00Z","rows":[
+        {"symbol":"SPY","label":"S&P 500 · SPY","status":"available","price":674.2,
+         "point_change":1.2,"change_pct":.18,"direction":"UP","as_of":"2026-09-10T18:31:00Z","evidence_id":"TD-SPY"},
+    ]})
+    withheld={"ticker":"BLOCKED","publication_certification":{"customer_publication_allowed":False}}
+    story=build_home_guidance_story([withheld],[],market_today=context)
+    assert story["cards"]==[]
+    assert story["market_today"]==context
+    assert story["market_today"]["non_scoring"] is True
+
+
+def test_home_acquires_market_today_before_story_and_renderer_has_safe_empty_states():
+    app_source=Path("app.py").read_text()
+    active=app_source[app_source.rfind("def v810_render_dynamic_home"):]
+    assert active.index("fetch_home_market_tape()") < active.index("build_home_guidance_story(")
+    renderer=Path("ui/home_guidance_vnext.py").read_text()
+    assert "Current market data is temporarily unavailable." in renderer
+    assert "No major governed market-moving headlines are available right now." in renderer
+    assert 'data-atlas-non-scoring="true"' in renderer
+
+
+def test_market_today_renderer_has_mobile_overflow_guard():
+    renderer=Path("ui/home_guidance_vnext.py").read_text()
+    assert "@media(max-width:700px)" in renderer
+    assert ".atlas-market-today-grid{grid-template-columns:repeat(2,minmax(0,1fr))}" in renderer
+
+
+def _render_market_today_app(context):
+    source = (
+        "from ui.home_guidance_vnext import _render_market_today\n"
+        f"_render_market_today({context!r})\n"
+    )
+    return AppTest.from_string(source, default_timeout=15).run()
+
+
+def test_streamlit_market_today_renders_available_cards_and_governed_news():
+    context={"market_today":{"status":"AVAILABLE","market_session":"OPEN","as_of":"2026-09-10T18:31:00Z",
+        "instruments":[{"symbol":"SPY","label":"S&P 500 · SPY","price":674.2,"point_change":1.2,"change_pct":.18}],
+        "interpretation":"Supportive context; ratings remain company-specific.","non_scoring":True,
+        "major_market_news":[{"headline":"Fed holds rates steady","source":"Wire","published_at":"2026-09-10T18:00:00Z",
+            "evidence_id":"NEWS-1","why_it_matters":"Discount rates remain important.","relevance":"FED","non_scoring":True}]}}
+    app=_render_market_today_app(context)
+    values="\n".join(str(item.value) for item in [*app.markdown,*app.caption])
+    assert not app.exception
+    assert "Market Today" in values and "SPY" in values and "674.20" in values
+    assert "What ATLAS Thinks This Means" in values and "Major Market News" in values
+    assert "Fed holds rates steady" in values
+
+
+def test_streamlit_market_today_renders_explicit_unavailable_and_no_news_states():
+    app=_render_market_today_app({"market_today":{"status":"DATA_UNAVAILABLE","market_session":"CLOSED",
+        "instruments":[],"major_market_news":[],"non_scoring":True}})
+    values="\n".join(str(item.value) for item in [*app.markdown,*app.caption])
+    assert not app.exception
+    assert "Current market data is temporarily unavailable." in values
+    assert "No major governed market-moving headlines are available right now." in values
 
 
 def test_major_news_requires_lineage_rights_and_relevance_and_deduplicates():
