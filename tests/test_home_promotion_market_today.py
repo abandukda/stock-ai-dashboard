@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from engines.market_today import build_market_today, normalize_major_market_news
 from engines.home_guidance_story_v1 import build_homepage_promotion_metrics
+from engines.home_guidance_story_v1 import build_home_guidance_story
 from services.home_promotion_policy import VERSION, classify_homepage_promotion
 
 
@@ -73,3 +74,26 @@ def test_research_path_does_not_import_home_promotion_policy():
     from pathlib import Path
     assert "home_promotion_policy" not in Path("ui/research_report_v2.py").read_text()
     assert "home_promotion_policy" not in Path("engines/atlas_research_builder_v2.py").read_text()
+
+
+def test_certified_buy_now_reads_revalidation_from_canonical_evaluation():
+    row = {
+        "ticker": "CXT",
+        "company": "Crane NXT",
+        "publication_certification": {
+            "customer_publication_allowed": True,
+            "certified_action": "BUY_NOW",
+        },
+        "canonical_investment_evaluation": {
+            "guidance": {"state": "BUY_NOW"},
+            "decision_digest": "decision-1",
+            "positive_action_revalidation": {
+                "status": "BUY_NOW_REVALIDATED",
+                "source_decision_digest": "decision-1",
+            },
+        },
+    }
+
+    story = build_home_guidance_story([row], [])
+
+    assert [card["ticker"] for card in story["cards"]] == ["CXT"]

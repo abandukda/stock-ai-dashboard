@@ -491,9 +491,20 @@ def test_current_artifact_membership_and_archetypes_are_resolved_dynamically(mon
         and (
             (row.get("publication_certification") or {}).get("certified_action") != "BUY_NOW"
             or (
-                (row.get("positive_action_revalidation") or {}).get("status") == "BUY_NOW_REVALIDATED"
-                and (row.get("positive_action_revalidation") or {}).get("source_decision_digest")
-                    == row.get("decision_digest")
+                (
+                    row.get("positive_action_revalidation")
+                    or (row.get("canonical_investment_evaluation") or {}).get("positive_action_revalidation")
+                    or {}
+                ).get("status") == "BUY_NOW_REVALIDATED"
+                and (
+                    row.get("positive_action_revalidation")
+                    or (row.get("canonical_investment_evaluation") or {}).get("positive_action_revalidation")
+                    or {}
+                ).get("source_decision_digest")
+                    == (
+                        row.get("decision_digest")
+                        or (row.get("canonical_investment_evaluation") or {}).get("decision_digest")
+                    )
             )
         )
     )
@@ -506,14 +517,25 @@ def test_current_artifact_membership_and_archetypes_are_resolved_dynamically(mon
         and ((item.get("canonical_investment_evaluation") or {}).get("guidance") or {}).get("state")
             == (item.get("publication_certification") or {}).get("certified_action")
         and (
-            (item.get("publication_certification") or {}).get("certified_action") != "BUY_NOW"
-            or (
-                (item.get("positive_action_revalidation") or {}).get("status") == "BUY_NOW_REVALIDATED"
-                and (item.get("positive_action_revalidation") or {}).get("source_decision_digest")
-                    == item.get("decision_digest")
+                (item.get("publication_certification") or {}).get("certified_action") != "BUY_NOW"
+                or (
+                    (
+                        item.get("positive_action_revalidation")
+                        or (item.get("canonical_investment_evaluation") or {}).get("positive_action_revalidation")
+                        or {}
+                    ).get("status") == "BUY_NOW_REVALIDATED"
+                    and (
+                        item.get("positive_action_revalidation")
+                        or (item.get("canonical_investment_evaluation") or {}).get("positive_action_revalidation")
+                        or {}
+                    ).get("source_decision_digest")
+                        == (
+                            item.get("decision_digest")
+                            or (item.get("canonical_investment_evaluation") or {}).get("decision_digest")
+                        )
+                )
             )
-        )
-    }
+        }
     assert any(card["atlas_fair_value"] is not None for card in story["cards"])
     assert any(card["snapshot_evidence_health"] in {"Low", "Medium", "PARTIAL", "Partial"} for card in story["cards"])
 

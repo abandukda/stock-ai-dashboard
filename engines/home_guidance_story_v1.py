@@ -591,9 +591,12 @@ def build_home_guidance_story(
             continue
         if certified_action == "BUY_NOW":
             revalidation = row.get("positive_action_revalidation") if isinstance(row.get("positive_action_revalidation"), Mapping) else {}
+            if not revalidation and isinstance(evaluation.get("positive_action_revalidation"), Mapping):
+                revalidation = evaluation.get("positive_action_revalidation") or {}
+            decision_digest = row.get("decision_digest") or evaluation.get("decision_digest")
             if revalidation.get("status") != "BUY_NOW_REVALIDATED":
                 continue
-            if revalidation.get("source_decision_digest") != row.get("decision_digest"):
+            if revalidation.get("source_decision_digest") != decision_digest:
                 continue
         published_rows.append((production_rank, row))
     cards = [
