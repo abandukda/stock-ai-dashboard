@@ -63,8 +63,8 @@
     "price": 228.11,
     "current_price": 228.11,
     "last_price": 228.11,
-    "avg_volume_20d": 19303251,
-    "dollar_volume": 4403264597.02,
+    "avg_volume_20d": 19309005,
+    "dollar_volume": 4404577130.55,
     "volume_ratio": 0.67,
     "conviction": 78,
     "conviction_score": 78,
@@ -149,7 +149,7 @@
       "20-day trend is negative",
       "Still far from recent highs"
     ],
-    "scan_time": "2026-09-11T00:58:52.409405+00:00",
+    "scan_time": "2026-09-11T05:27:45.942244+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 70,
@@ -323,7 +323,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "5308e05e081a16e508b150c2c945973ba8b96213ac4c6fd4af8ce0973621d296",
-      "sma200_evidence_timestamp": "2026-09-11T00:58:52.418827+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T05:27:45.950494+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -448,8 +448,8 @@
     "price": 148.18,
     "current_price": 148.18,
     "last_price": 148.18,
-    "avg_volume_20d": 82006262,
-    "dollar_volume": 12151687083.1,
+    "avg_volume_20d": 82011850,
+    "dollar_volume": 12152515112.88,
     "volume_ratio": 1.44,
     "conviction": 94,
     "conviction_score": 94,
@@ -534,7 +534,7 @@
       "Volatility is tradable"
     ],
     "risk_tags": [],
-    "scan_time": "2026-09-11T01:00:58.764156+00:00",
+    "scan_time": "2026-09-11T05:29:12.102101+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -825,8 +825,8 @@
     "price": 100.32,
     "current_price": 100.32,
     "last_price": 100.32,
-    "avg_volume_20d": 93157022,
-    "dollar_volume": 9345512492.18,
+    "avg_volume_20d": 93172310,
+    "dollar_volume": 9347046139.2,
     "volume_ratio": 1.03,
     "conviction": 88,
     "conviction_score": 88,
@@ -909,7 +909,7 @@
       "Volatility is tradable"
     ],
     "risk_tags": [],
-    "scan_time": "2026-09-11T00:57:48.557341+00:00",
+    "scan_time": "2026-09-11T05:26:44.248313+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 78,
@@ -1083,7 +1083,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "48fd90c69646342a8ca24a1c9b1c224b887ce0b1c203112297e58a3f527d8d6a",
-      "sma200_evidence_timestamp": "2026-09-11T00:57:48.567006+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T05:26:44.256633+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -1207,9 +1207,9 @@
     "price": 10.62,
     "current_price": 10.62,
     "last_price": 10.62,
-    "avg_volume_20d": 70238677,
-    "dollar_volume": 745934759.3,
-    "volume_ratio": 0.92,
+    "avg_volume_20d": 70320525,
+    "dollar_volume": 746803975.5,
+    "volume_ratio": 0.94,
     "conviction": 92,
     "conviction_score": 92,
     "score": 92,
@@ -1292,7 +1292,7 @@
       "Volatility is tradable"
     ],
     "risk_tags": [],
-    "scan_time": "2026-09-11T00:59:00.491842+00:00",
+    "scan_time": "2026-09-11T05:27:53.049573+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -1466,7 +1466,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "9f1789fe60b55e29e8fd3d8fafccab8c85a572bb392c19843e15d80a5396c42e",
-      "sma200_evidence_timestamp": "2026-09-11T00:59:00.501300+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T05:27:53.057892+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -1590,8 +1590,8 @@
     "price": 1692.59,
     "current_price": 1692.59,
     "last_price": 1692.59,
-    "avg_volume_20d": 13142018,
-    "dollar_volume": 22244048190.88,
+    "avg_volume_20d": 13143485,
+    "dollar_volume": 22246530881.85,
     "volume_ratio": 0.66,
     "conviction": 92,
     "conviction_score": 92,
@@ -1674,7 +1674,7 @@
       "Trading near recent highs without being at the absolute top"
     ],
     "risk_tags": [],
-    "scan_time": "2026-09-11T01:00:53.318276+00:00",
+    "scan_time": "2026-09-11T05:29:08.944152+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 80,
@@ -1848,7 +1848,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "781b7c407a036e7b21e45ff1e5a038019ec528d0898a29cf28ec14f2468ff8c7",
-      "sma200_evidence_timestamp": "2026-09-11T01:00:53.328086+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T05:29:08.952459+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -1972,9 +1972,9 @@
     "price": 152.42,
     "current_price": 152.42,
     "last_price": 152.42,
-    "avg_volume_20d": 1295846,
-    "dollar_volume": 197512976.88,
-    "volume_ratio": 1.27,
+    "avg_volume_20d": 1298015,
+    "dollar_volume": 197843446.3,
+    "volume_ratio": 1.31,
     "conviction": 92,
     "conviction_score": 92,
     "score": 92,
@@ -2059,7 +2059,7 @@
     "risk_tags": [
       "Price is below or near the 50-day trend"
     ],
-    "scan_time": "2026-09-11T00:55:49.719940+00:00",
+    "scan_time": "2026-09-11T05:24:56.752012+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -2233,7 +2233,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "4bfec302dd48ff44b77fbc0a3f29252d3814664c4aa37de6f15ce08f254f0344",
-      "sma200_evidence_timestamp": "2026-09-11T00:55:49.729459+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T05:24:56.760309+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -2357,8 +2357,8 @@
     "price": 3.57,
     "current_price": 3.57,
     "last_price": 3.57,
-    "avg_volume_20d": 1734429,
-    "dollar_volume": 6191912.42,
+    "avg_volume_20d": 1734890,
+    "dollar_volume": 6193557.3,
     "volume_ratio": 0.69,
     "conviction": 78,
     "conviction_score": 78,
@@ -2441,7 +2441,7 @@
       "Recent momentum is weak",
       "High volatility could make stops difficult"
     ],
-    "scan_time": "2026-09-11T00:57:18.772277+00:00",
+    "scan_time": "2026-09-11T05:26:16.446790+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 56,
@@ -2615,7 +2615,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "80c1c8a81c348744e393d148f3d4d5d6a3823be833a5903acab675f351e28e7c",
-      "sma200_evidence_timestamp": "2026-09-11T00:57:18.781825+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T05:26:16.455122+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -2739,8 +2739,8 @@
     "price": 24.13,
     "current_price": 24.13,
     "last_price": 24.13,
-    "avg_volume_20d": 5774845,
-    "dollar_volume": 139347014.68,
+    "avg_volume_20d": 5774920,
+    "dollar_volume": 139348819.6,
     "volume_ratio": 0.73,
     "conviction": 92,
     "conviction_score": 92,
@@ -2822,7 +2822,7 @@
       "RSI is constructive without looking overheated"
     ],
     "risk_tags": [],
-    "scan_time": "2026-09-11T00:57:16.477540+00:00",
+    "scan_time": "2026-09-11T05:26:14.452906+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 80,
@@ -2996,7 +2996,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "43d78e018013826ddcb2ad0f2390d7073ebc768eec1b810ae6dd65e30c0fa343",
-      "sma200_evidence_timestamp": "2026-09-11T00:57:16.486890+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T05:26:14.461348+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -3121,13 +3121,13 @@
     "price": 11.43,
     "current_price": 11.43,
     "last_price": 11.43,
-    "avg_volume_20d": 49725691,
-    "dollar_volume": 568364650.42,
+    "avg_volume_20d": 49726390,
+    "dollar_volume": 568372637.7,
     "volume_ratio": 0.77,
-    "conviction": 90,
-    "conviction_score": 90,
-    "score": 90,
-    "ai_score": 90,
+    "conviction": 88,
+    "conviction_score": 88,
+    "score": 88,
+    "ai_score": 88,
     "rsi": 52.1,
     "atr14": 0.9,
     "atr_pct": 7.9,
@@ -3159,8 +3159,8 @@
     "analyst_high_upside_pct": null,
     "expected_upside_pct": 45.2,
     "upside": 45.2,
-    "ai_confidence": 90,
-    "confidence": 90,
+    "ai_confidence": 88,
+    "confidence": 88,
     "ai_fair_value_adjustment_pct": 17.0,
     "target_source": "Multi-factor AI fair value; analyst target unavailable",
     "target_confidence_note": "Analyst target data unavailable. AI used growth, valuation, trend, volume, recent highs, and risk. AI adjustment 17.0%.",
@@ -3194,7 +3194,7 @@
     "guidance": "MARA Holdings Inc. (MARA) is scoring 80/100. Preferred entry is $10.98 - $11.65. Use a stop around $10.17 and first target near $13.7. Approximate first target offers about 1.8:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure. Analyst/AI target view: Analyst target data unavailable. AI used growth, valuation, trend, volume, recent highs, and risk. AI adjustment 17.0%. AI base target $16.59, bull case $19.58, bear case $8.8.",
     "action_note": "Do not chase a gap-up open. Best setup is either a controlled pullback into the entry range or a breakout that holds above prior resistance with volume.",
     "ai_guidance": "MARA Holdings Inc. (MARA) is scoring 80/100. Preferred entry is $10.98 - $11.65. Use a stop around $10.17 and first target near $13.7. Approximate first target offers about 1.8:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure.",
-    "summary": "MARA Holdings Inc.: normalized conviction 90/100, AI target $16.59 with 45.2% upside.",
+    "summary": "MARA Holdings Inc.: normalized conviction 88/100, AI target $16.59 with 45.2% upside.",
     "setup_tags": [
       "Strong liquidity",
       "Price is above the 20-day trend",
@@ -3204,7 +3204,7 @@
       "RSI is constructive without looking overheated"
     ],
     "risk_tags": [],
-    "scan_time": "2026-09-11T00:58:28.610650+00:00",
+    "scan_time": "2026-09-11T05:27:23.649114+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 80,
@@ -3378,7 +3378,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "c205ace50a53e86965a667aaf33e01f17aff541808e98abd7065dca71a89f80d",
-      "sma200_evidence_timestamp": "2026-09-11T00:58:28.620203+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T05:27:23.657424+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -3502,8 +3502,8 @@
     "price": 43.64,
     "current_price": 43.64,
     "last_price": 43.64,
-    "avg_volume_20d": 45457940,
-    "dollar_volume": 1983784505.96,
+    "avg_volume_20d": 45470020,
+    "dollar_volume": 1984311672.8,
     "volume_ratio": 0.78,
     "conviction": 82,
     "conviction_score": 82,
@@ -3585,7 +3585,7 @@
       "RSI is constructive without looking overheated"
     ],
     "risk_tags": [],
-    "scan_time": "2026-09-11T00:57:52.128164+00:00",
+    "scan_time": "2026-09-11T05:26:47.634799+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 77,
@@ -3759,7 +3759,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "10b158840fa5e5782c8b0fa149fa33dd4966ee00b5e3c0f1ce396fc149e7d758",
-      "sma200_evidence_timestamp": "2026-09-11T00:57:52.137458+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T05:26:47.643559+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -3883,8 +3883,8 @@
     "price": 5.19,
     "current_price": 5.19,
     "last_price": 5.19,
-    "avg_volume_20d": 1407797,
-    "dollar_volume": 7306470.32,
+    "avg_volume_20d": 1407800,
+    "dollar_volume": 7306482.0,
     "volume_ratio": 0.53,
     "conviction": 78,
     "conviction_score": 78,
@@ -3967,7 +3967,7 @@
     "risk_tags": [
       "Volume confirmation is light"
     ],
-    "scan_time": "2026-09-11T00:54:28.316964+00:00",
+    "scan_time": "2026-09-11T05:23:43.454114+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 70,
@@ -4141,7 +4141,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "ddcb5eb1a1c4594129952fd1928418ca7d8255c6637fa5e3b01f292f52b7bb29",
-      "sma200_evidence_timestamp": "2026-09-11T00:54:28.326605+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T05:23:43.462672+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -4349,7 +4349,7 @@
     "risk_tags": [
       "Volume confirmation is light"
     ],
-    "scan_time": "2026-09-11T00:59:29.348577+00:00",
+    "scan_time": "2026-09-11T05:28:20.576072+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 70,
@@ -4523,7 +4523,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "80e207f6fd5dd5ca01314606c24d6b6379d59fe9415fc8d72d7869a01c9a4770",
-      "sma200_evidence_timestamp": "2026-09-11T00:59:29.358142+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T05:28:20.584514+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -4647,13 +4647,13 @@
     "price": 862.33,
     "current_price": 862.33,
     "last_price": 862.33,
-    "avg_volume_20d": 3611686,
-    "dollar_volume": 3114465648.66,
-    "volume_ratio": 0.85,
-    "conviction": 90,
-    "conviction_score": 90,
-    "score": 90,
-    "ai_score": 90,
+    "avg_volume_20d": 3620605,
+    "dollar_volume": 3122156382.06,
+    "volume_ratio": 0.89,
+    "conviction": 88,
+    "conviction_score": 88,
+    "score": 88,
+    "ai_score": 88,
     "rsi": 52.0,
     "atr14": 43.83,
     "atr_pct": 5.08,
@@ -4685,8 +4685,8 @@
     "analyst_high_upside_pct": null,
     "expected_upside_pct": 34.1,
     "upside": 34.1,
-    "ai_confidence": 90,
-    "confidence": 90,
+    "ai_confidence": 88,
+    "confidence": 88,
     "ai_fair_value_adjustment_pct": 15.0,
     "target_source": "Multi-factor AI fair value; analyst target unavailable",
     "target_confidence_note": "Analyst target data unavailable. AI used growth, valuation, trend, volume, recent highs, and risk. AI adjustment 15.0%.",
@@ -4720,7 +4720,7 @@
     "guidance": "Seagate Technology Holdings plc (STX) is scoring 80/100. Preferred entry is $840.42 - $873.29. Use a stop around $800.97 and first target near $1024.13. Approximate first target offers about 2.6:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure. Analyst/AI target view: Analyst target data unavailable. AI used growth, valuation, trend, volume, recent highs, and risk. AI adjustment 15.0%. AI base target $1156.45, bull case $1364.61, bear case $707.11.",
     "action_note": "Do not chase a gap-up open. Best setup is either a controlled pullback into the entry range or a breakout that holds above prior resistance with volume.",
     "ai_guidance": "Seagate Technology Holdings plc (STX) is scoring 80/100. Preferred entry is $840.42 - $873.29. Use a stop around $800.97 and first target near $1024.13. Approximate first target offers about 2.6:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure.",
-    "summary": "Seagate Technology Holdings plc: normalized conviction 90/100, AI target $1156.45 with 34.1% upside.",
+    "summary": "Seagate Technology Holdings plc: normalized conviction 88/100, AI target $1156.45 with 34.1% upside.",
     "setup_tags": [
       "Strong liquidity",
       "Price is above the 20-day trend",
@@ -4730,7 +4730,7 @@
       "RSI is constructive without looking overheated"
     ],
     "risk_tags": [],
-    "scan_time": "2026-09-11T01:01:18.091694+00:00",
+    "scan_time": "2026-09-11T05:29:20.116732+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 80,
@@ -4904,7 +4904,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "effb805ebe6ddbdc6de6dccf3bbbac4f91d44133aee5078b3909a5330d60cbfa",
-      "sma200_evidence_timestamp": "2026-09-11T01:01:18.101313+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T05:29:20.124976+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -5029,8 +5029,8 @@
     "price": 176.88,
     "current_price": 176.88,
     "last_price": 176.88,
-    "avg_volume_20d": 10753895,
-    "dollar_volume": 1902149071.42,
+    "avg_volume_20d": 10755895,
+    "dollar_volume": 1902502707.6,
     "volume_ratio": 1.45,
     "conviction": 92,
     "conviction_score": 92,
@@ -5116,7 +5116,7 @@
     "risk_tags": [
       "RSI is warm; avoid chasing"
     ],
-    "scan_time": "2026-09-11T00:59:44.958731+00:00",
+    "scan_time": "2026-09-11T05:28:35.017458+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -5290,7 +5290,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "7de51f85f9294c0bf19b1da24cb34beb2db4dcdf5bb8f06430389486c647a2f8",
-      "sma200_evidence_timestamp": "2026-09-11T00:59:44.968177+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T05:28:35.026217+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -5414,9 +5414,9 @@
     "price": 47.14,
     "current_price": 47.14,
     "last_price": 47.14,
-    "avg_volume_20d": 185741,
-    "dollar_volume": 8755859.02,
-    "volume_ratio": 0.66,
+    "avg_volume_20d": 185870,
+    "dollar_volume": 8761911.8,
+    "volume_ratio": 0.67,
     "conviction": 78,
     "conviction_score": 78,
     "score": 78,
@@ -5499,7 +5499,7 @@
       "20-day trend is negative",
       "Still far from recent highs"
     ],
-    "scan_time": "2026-09-11T01:01:54.453809+00:00",
+    "scan_time": "2026-09-11T05:29:37.880951+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 68,
@@ -5673,7 +5673,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "56317386e363cb1f732f0de0f523bb63903904fc34b0a57d15c5b9a10cfbdea4",
-      "sma200_evidence_timestamp": "2026-09-11T01:01:54.463148+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T05:29:37.889161+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -5797,16 +5797,16 @@
     "price": 152.94,
     "current_price": 152.94,
     "last_price": 152.94,
-    "avg_volume_20d": 23696932,
-    "dollar_volume": 3624208871.84,
-    "volume_ratio": 2.15,
+    "avg_volume_20d": 23930545,
+    "dollar_volume": 3659937552.3,
+    "volume_ratio": 2.32,
     "conviction": 92,
     "conviction_score": 92,
     "score": 92,
     "ai_score": 92,
     "rsi": 59.2,
-    "atr14": 6.78,
-    "atr_pct": 4.43,
+    "atr14": 6.79,
+    "atr_pct": 4.44,
     "sma10": 152.89,
     "sma20": 149.67,
     "sma50": 140.52,
@@ -5815,15 +5815,15 @@
     "five_day_pct": 4.93,
     "twenty_day_pct": -0.22,
     "sixty_day_pct": -20.61,
-    "entry_range": "$149.55 - $154.63",
-    "entry_low": 149.55,
-    "entry_high": 154.63,
-    "stop_loss": 143.45,
+    "entry_range": "$149.54 - $154.64",
+    "entry_low": 149.54,
+    "entry_high": 154.64,
+    "stop_loss": 143.43,
     "target": 198.82,
     "target_1": 172.41,
     "trade_target_1": 172.41,
-    "target_2": 178.57,
-    "trade_target_2": 178.57,
+    "target_2": 178.61,
+    "trade_target_2": 178.61,
     "ai_base_target": 198.82,
     "ai_bull_target": 234.61,
     "ai_bear_target": 125.41,
@@ -5860,16 +5860,16 @@
     "positive_news_terms": null,
     "negative_news_terms": null,
     "risk_reward": 2.05,
-    "risk_reward_explanation": "Approximate first target offers about 2.1:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure.",
+    "risk_reward_explanation": "Approximate first target offers about 2.0:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure.",
     "why_ranked_high": "High conviction because multiple signals align across trend, liquidity, momentum, valuation/growth context, and risk control.",
     "what_looks_good": "Strong liquidity; Price is above the 20-day trend; Price is above the 50-day trend; Short-term trend is above intermediate trend; Healthy 5-day momentum; RSI is constructive without looking overheated; Volume is meaningfully above average; Volatility is tradable",
     "what_could_go_wrong": "Main risk is a normal pullback if broader market momentum fades.",
     "investment_thesis": "Oracle Corporation screens as a potential opportunity because strong liquidity; price is above the 20-day trend; price is above the 50-day trend; short-term trend is above intermediate trend; healthy 5-day momentum; rsi is constructive without looking overheated; volume is meaningfully above average; volatility is tradable. AI target is $198.82 with expected upside of 30.0%, using Multi-factor AI fair value; analyst target unavailable. Analyst support score: N/A. News flow: N/A. Key risk: main risk is a normal pullback if broader market momentum fades..",
-    "table_reason": "AI target $198.82 / upside 30.0%. High conviction because multiple signals align across trend, liquidity, momentum, valuation/growth context, and risk control. Watch entry $149.55 - $154.63 with stop near $143.45.",
+    "table_reason": "AI target $198.82 / upside 30.0%. High conviction because multiple signals align across trend, liquidity, momentum, valuation/growth context, and risk control. Watch entry $149.54 - $154.64 with stop near $143.43.",
     "opportunity_reason": "AI fair-value upside: 30.0%. Analyst target data unavailable. AI used growth, valuation, trend, volume, recent highs, and risk. AI adjustment 22.0%. Analyst support score: N/A. Latest news: N/A",
-    "guidance": "Oracle Corporation (ORCL) is scoring 82/100. Preferred entry is $149.55 - $154.63. Use a stop around $143.45 and first target near $172.41. Approximate first target offers about 2.1:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure. Analyst/AI target view: Analyst target data unavailable. AI used growth, valuation, trend, volume, recent highs, and risk. AI adjustment 22.0%. AI base target $198.82, bull case $234.61, bear case $125.41.",
+    "guidance": "Oracle Corporation (ORCL) is scoring 82/100. Preferred entry is $149.54 - $154.64. Use a stop around $143.43 and first target near $172.41. Approximate first target offers about 2.0:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure. Analyst/AI target view: Analyst target data unavailable. AI used growth, valuation, trend, volume, recent highs, and risk. AI adjustment 22.0%. AI base target $198.82, bull case $234.61, bear case $125.41.",
     "action_note": "Do not chase a gap-up open. Best setup is either a controlled pullback into the entry range or a breakout that holds above prior resistance with volume.",
-    "ai_guidance": "Oracle Corporation (ORCL) is scoring 82/100. Preferred entry is $149.55 - $154.63. Use a stop around $143.45 and first target near $172.41. Approximate first target offers about 2.1:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure.",
+    "ai_guidance": "Oracle Corporation (ORCL) is scoring 82/100. Preferred entry is $149.54 - $154.64. Use a stop around $143.43 and first target near $172.41. Approximate first target offers about 2.0:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure.",
     "summary": "Oracle Corporation: normalized conviction 92/100, AI target $198.82 with 30.0% upside.",
     "setup_tags": [
       "Strong liquidity",
@@ -5882,7 +5882,7 @@
       "Volatility is tradable"
     ],
     "risk_tags": [],
-    "scan_time": "2026-09-11T00:59:17.545556+00:00",
+    "scan_time": "2026-09-11T05:28:09.765973+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -6056,7 +6056,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "35279f8f7f2b3ec08f59628deb04ed8ae9bc4276baba7615c7a10e593bab2d9a",
-      "sma200_evidence_timestamp": "2026-09-11T00:59:17.555068+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T05:28:09.774212+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -6183,10 +6183,10 @@
     "avg_volume_20d": 855667,
     "dollar_volume": 40798240.7,
     "volume_ratio": 4.48,
-    "conviction": 88,
-    "conviction_score": 88,
-    "score": 88,
-    "ai_score": 88,
+    "conviction": 85,
+    "conviction_score": 85,
+    "score": 85,
+    "ai_score": 85,
     "rsi": 59.7,
     "atr14": 1.6,
     "atr_pct": 3.35,
@@ -6218,8 +6218,8 @@
     "analyst_high_upside_pct": null,
     "expected_upside_pct": 30.0,
     "upside": 30.0,
-    "ai_confidence": 88,
-    "confidence": 88,
+    "ai_confidence": 85,
+    "confidence": 85,
     "ai_fair_value_adjustment_pct": 22.0,
     "target_source": "Multi-factor AI fair value; analyst target unavailable",
     "target_confidence_note": "Analyst target data unavailable. AI used growth, valuation, trend, volume, recent highs, and risk. AI adjustment 22.0%.",
@@ -6253,7 +6253,7 @@
     "guidance": "Oracle Corporation (ORCL-D) is scoring 82/100. Preferred entry is $46.88 - $48.08. Use a stop around $45.44 and first target near $51.81. Approximate first target offers about 1.8:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure. Analyst/AI target view: Analyst target data unavailable. AI used growth, valuation, trend, volume, recent highs, and risk. AI adjustment 22.0%. AI base target $61.98, bull case $73.14, bear case $39.1.",
     "action_note": "Do not chase a gap-up open. Best setup is either a controlled pullback into the entry range or a breakout that holds above prior resistance with volume.",
     "ai_guidance": "Oracle Corporation (ORCL-D) is scoring 82/100. Preferred entry is $46.88 - $48.08. Use a stop around $45.44 and first target near $51.81. Approximate first target offers about 1.8:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure.",
-    "summary": "Oracle Corporation: normalized conviction 88/100, AI target $61.98 with 30.0% upside.",
+    "summary": "Oracle Corporation: normalized conviction 85/100, AI target $61.98 with 30.0% upside.",
     "setup_tags": [
       "Good liquidity",
       "Price is above the 20-day trend",
@@ -6266,7 +6266,7 @@
       "Volatility is tradable"
     ],
     "risk_tags": [],
-    "scan_time": "2026-09-11T00:59:17.580858+00:00",
+    "scan_time": "2026-09-11T05:28:09.796515+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -6557,8 +6557,8 @@
     "price": 13.87,
     "current_price": 13.87,
     "last_price": 13.87,
-    "avg_volume_20d": 3073869,
-    "dollar_volume": 42634572.74,
+    "avg_volume_20d": 3073870,
+    "dollar_volume": 42634576.9,
     "volume_ratio": 1.14,
     "conviction": 85,
     "conviction_score": 85,
@@ -6642,7 +6642,7 @@
       "Trading near recent highs without being at the absolute top"
     ],
     "risk_tags": [],
-    "scan_time": "2026-09-11T00:54:33.768669+00:00",
+    "scan_time": "2026-09-11T05:23:48.562237+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -6816,7 +6816,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "b10680c425d0d5978014458bcfa68ce5ea3b7cdc5343d80cfc5c1e5ef567b9a0",
-      "sma200_evidence_timestamp": "2026-09-11T00:54:33.778366+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T05:23:48.571115+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -6940,9 +6940,9 @@
     "price": 5.3,
     "current_price": 5.3,
     "last_price": 5.3,
-    "avg_volume_20d": 10462066,
-    "dollar_volume": 55448949.8,
-    "volume_ratio": 11.8,
+    "avg_volume_20d": 10558365,
+    "dollar_volume": 55959334.5,
+    "volume_ratio": 11.87,
     "conviction": 78,
     "conviction_score": 78,
     "score": 78,
@@ -7029,7 +7029,7 @@
       "High volatility could make stops difficult",
       "Large one-day jump may pull back"
     ],
-    "scan_time": "2026-09-11T01:01:46.526942+00:00",
+    "scan_time": "2026-09-11T05:29:33.097210+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 50,
@@ -7203,7 +7203,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "e43358d917eed7ff60e2499c703ee108148f7e686f30271299105d52c3cc4f5f",
-      "sma200_evidence_timestamp": "2026-09-11T01:01:46.536510+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T05:29:33.105592+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -7327,9 +7327,9 @@
     "price": 54.73,
     "current_price": 54.73,
     "last_price": 54.73,
-    "avg_volume_20d": 933606,
-    "dollar_volume": 51096297.43,
-    "volume_ratio": 0.86,
+    "avg_volume_20d": 949360,
+    "dollar_volume": 51958472.8,
+    "volume_ratio": 1.18,
     "conviction": 78,
     "conviction_score": 78,
     "score": 78,
@@ -7411,7 +7411,7 @@
     "risk_tags": [
       "Short-term move may be extended"
     ],
-    "scan_time": "2026-09-11T00:55:58.768489+00:00",
+    "scan_time": "2026-09-11T05:25:06.370038+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 66,
@@ -7585,7 +7585,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "6d2a2a696ca5131f0135800c24b72b0c7065fc14fbae9935bdfb7ead11a12fb0",
-      "sma200_evidence_timestamp": "2026-09-11T00:55:58.778027+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T05:25:06.378689+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -7796,7 +7796,7 @@
     "risk_tags": [
       "Price is below or near the 50-day trend"
     ],
-    "scan_time": "2026-09-11T00:59:16.096917+00:00",
+    "scan_time": "2026-09-11T05:28:08.405537+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 80,
@@ -7970,7 +7970,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "22f4ed9897a50be099660d253f46435e8ebfd84b98391518764a199edbdb406b",
-      "sma200_evidence_timestamp": "2026-09-11T00:59:16.106372+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T05:28:08.413868+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",

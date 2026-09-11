@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-11T00:54:23.598535+00:00",
+  "generated_at": "2026-09-11T05:23:38.900956+00:00",
   "count": 6063,
   "symbols": [
     "A",
@@ -6097,8 +6097,8 @@
     },
     "etf_exchange_distribution": {
       "ARCA": 24,
-      "NYSE": 8,
       "AMEX": 7,
+      "NYSE": 8,
       "BATS": 2
     },
     "exchange_resolution_population": 20413,
@@ -149348,7 +149348,7 @@
       },
       {
         "ticker": "MENS",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "MERC",
@@ -151136,7 +151136,7 @@
       },
       {
         "ticker": "PLYX",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "PMA",
