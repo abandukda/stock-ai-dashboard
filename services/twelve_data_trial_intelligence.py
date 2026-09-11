@@ -180,6 +180,41 @@ def _missing_label(value: Any) -> bool:
     return value is None or str(value).strip().upper() in {"", "UNKNOWN", "UNAVAILABLE", "N/A", "NONE"}
 
 
+def _same_statement_operating_margin(income: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Return a textbook operating margin only for a comparable statement pair."""
+    period = _coalesce(income.get("fiscal_date"), income.get("date"), income.get("fiscal_year"))
+    revenue = _coalesce(income.get("sales"), income.get("revenue"))
+    operating_income = income.get("operating_income")
+    shared_currency = _coalesce(income.get("currency"), income.get("reported_currency"))
+    revenue_currency = _coalesce(income.get("sales_currency"), income.get("revenue_currency"), shared_currency)
+    operating_currency = _coalesce(income.get("operating_income_currency"), shared_currency)
+    shared_unit = _coalesce(income.get("unit"), income.get("scale"))
+    revenue_unit = _coalesce(income.get("sales_unit"), income.get("revenue_unit"), shared_unit)
+    operating_unit = _coalesce(income.get("operating_income_unit"), shared_unit)
+    if not period or revenue in (None, 0) or operating_income is None:
+        return None
+    if revenue_currency and operating_currency and revenue_currency != operating_currency:
+        return None
+    if revenue_unit and operating_unit and revenue_unit != operating_unit:
+        return None
+    try:
+        revenue_value = float(revenue)
+        operating_value = float(operating_income)
+        margin = operating_value / revenue_value
+    except (TypeError, ValueError, ZeroDivisionError):
+        return None
+    return {
+        "margin": margin,
+        "revenue": revenue_value,
+        "operating_income": operating_value,
+        "period": period,
+        "period_type": str(income.get("period") or "REPORTED").upper(),
+        "basis": str(income.get("basis") or "PROVIDER_REPORTED").upper(),
+        "currency": revenue_currency or operating_currency or "UNKNOWN",
+        "unit": revenue_unit or operating_unit or "PROVIDER_REPORTED",
+    }
+
+
 def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) -> dict[str, Any]:
     """Materialize canonical quantitative fields solely from Twelve evidence."""
     output = dict(row)
@@ -202,6 +237,8 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
     income = _first_record(payload("income_statement"), "income_statement")
     balance = _first_record(payload("balance_sheet"), "balance_sheet")
     cash = _first_record(payload("cash_flow"), "cash_flow")
+    statement_margin = _same_statement_operating_margin(income)
+    provider_operating_margin = _pct(financials.get("operating_margin"))
     stats_ocf = cash_stats.get("operating_cash_flow_ttm")
     stats_capex = cash_stats.get("capital_expenditures_ttm")
     statement_ocf = _nested(cash, "operating_activities", "operating_cash_flow")
@@ -226,13 +263,13 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
     values = {
         "revenue_growth": _pct(income_stats.get("quarterly_revenue_growth")),
         "earnings_growth": _pct(income_stats.get("quarterly_earnings_growth_yoy")),
-        "operating_profit_margin": _pct(financials.get("operating_margin")),
+        "operating_profit_margin": statement_margin["margin"] if statement_margin else provider_operating_margin,
         "free_cash_flow": None,
         "current_ratio": balance_stats.get("current_ratio_mrq"),
-        "latest_revenue": _coalesce(income_stats.get("revenue_ttm"), income.get("sales")),
+        "latest_revenue": statement_margin["revenue"] if statement_margin else _coalesce(income_stats.get("revenue_ttm"), income.get("sales")),
         "gross_profit": _coalesce(income_stats.get("gross_profit_ttm"), income.get("gross_profit")),
         "latest_eps": _coalesce(income.get("diluted_eps"), income.get("eps_diluted"), income.get("eps")),
-        "latest_operating_income": income.get("operating_income"),
+        "latest_operating_income": statement_margin["operating_income"] if statement_margin else income.get("operating_income"),
         "net_income": income.get("net_income"),
         "operating_cash_flow": canonical_ocf,
         "total_debt": _coalesce(balance_stats.get("total_debt_mrq"), _nested(balance, "liabilities", "current_liabilities", "short_term_debt") if _nested(balance, "liabilities", "non_current_liabilities", "long_term_debt") is None else (_nested(balance, "liabilities", "current_liabilities", "short_term_debt") or 0) + (_nested(balance, "liabilities", "non_current_liabilities", "long_term_debt") or 0)),
@@ -259,6 +296,26 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
             twelve_populated_fields.add(key)
     provider_fcf = _coalesce(cash_stats.get("levered_free_cash_flow_ttm"), cash.get("free_cash_flow"))
     output["provider_defined_fcf"] = provider_fcf
+    output["provider_defined_operating_profit_margin"] = provider_operating_margin
+    if statement_margin:
+        output["historical_operating_margin"] = statement_margin["margin"]
+        output["operating_margin_lineage"] = {
+            "provider": "TWELVE_DATA", "endpoint": "income_statement",
+            "numerator_raw_field": "income_statement[0].operating_income",
+            "numerator_raw_value": statement_margin["operating_income"],
+            "denominator_raw_field": "income_statement[0].sales",
+            "denominator_raw_value": statement_margin["revenue"],
+            "numerator_period": statement_margin["period"],
+            "denominator_period": statement_margin["period"],
+            "period_type": statement_margin["period_type"], "basis": statement_margin["basis"],
+            "currency": statement_margin["currency"], "scale": "RATIO_DECIMAL",
+            "numerator_currency": statement_margin["currency"],
+            "denominator_currency": statement_margin["currency"],
+            "numerator_unit": statement_margin["unit"], "denominator_unit": statement_margin["unit"],
+            "comparable": True,
+            "transformation": "OPERATING_INCOME_DIVIDED_BY_REVENUE",
+            "evidence_id": (families.get("income_statement") or {}).get("evidence_id"),
+        }
     statement_period = cash_period
     try:
         if not cash_flow_pair_compatible:

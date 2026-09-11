@@ -97,6 +97,63 @@ def test_p3_and_p4_are_nonblocking_but_p2_blocks():
     assert report["gate"] == "FAIL"
 
 
+def test_certified_operating_loss_below_negative_100_is_economic_not_scale_error():
+    rows = universe()
+    fields = rows[0]["canonical_investment_evaluation"]["trial_presentation_fields"]
+    fields.update({"latest_revenue": 100, "latest_operating_income": -155,
+                   "historical_operating_margin": -1.55,
+                   "operating_profit_margin": -1.55,
+                   "provider_defined_operating_profit_margin": -155,
+                   "operating_margin_lineage": {
+                       "numerator_period": "2025-12-31", "denominator_period": "2025-12-31",
+                       "period_type": "ANNUAL", "basis": "PROVIDER_REPORTED",
+                       "numerator_currency": "USD", "denominator_currency": "USD",
+                       "numerator_unit": "CURRENCY", "denominator_unit": "CURRENCY",
+                       "scale": "RATIO_DECIMAL", "comparable": True}})
+    report = crawl_universe(rows)
+    assert report["gate"] == "PASS"
+    assert not any(item["category"] == "ANOMALY_MARGIN" for item in report["sheets"]["Validation_Failures"])
+    extreme = next(item for item in report["sheets"]["Validation_Failures"] if item["category"] == "EXTREME_OPERATING_LOSS")
+    assert extreme["severity"] == "P4"
+
+
+def test_margin_lineage_unit_mismatch_fails_closed():
+    rows = universe()
+    fields = rows[0]["canonical_investment_evaluation"]["trial_presentation_fields"]
+    fields.update({"latest_revenue": 100, "latest_operating_income": 20,
+                   "historical_operating_margin": .20, "operating_profit_margin": .20,
+                   "operating_margin_lineage": {
+                       "numerator_period": "2025-12-31", "denominator_period": "2025-12-31",
+                       "period_type": "ANNUAL", "basis": "PROVIDER_REPORTED",
+                       "numerator_unit": "THOUSANDS", "denominator_unit": "MILLIONS",
+                       "comparable": True}})
+    report = crawl_universe(rows)
+    finding = next(item for item in report["sheets"]["Validation_Failures"]
+                   if item["ticker"] == "T000" and item["category"] == "MARGIN_RECONCILIATION")
+    assert finding["reason"] == "UNIT_ERROR"
+    assert report["gate"] == "FAIL"
+
+
+def test_margin_lineage_period_mismatch_fails_closed():
+    rows = universe()
+    fields = rows[0]["canonical_investment_evaluation"]["trial_presentation_fields"]
+    fields.update({"latest_revenue": 100, "latest_operating_income": 20,
+                   "historical_operating_margin": .20, "operating_profit_margin": .20,
+                   "operating_margin_lineage": {
+                       "numerator_period": "2025-09-30", "denominator_period": "2025-12-31",
+                       "period_type": "ANNUAL", "basis": "PROVIDER_REPORTED",
+                       "numerator_unit": "CURRENCY", "denominator_unit": "CURRENCY",
+                       "comparable": True}})
+    report = crawl_universe(rows)
+    reconciliation = report["sheets"]["Financial_Reconciliation"][0]
+    assert reconciliation["margin_status"] == "FAIL"
+    finding = next(item for item in report["sheets"]["Validation_Failures"]
+                   if item["ticker"] == "T000" and item["category"] == "MARGIN_RECONCILIATION")
+    assert finding["reason"] == "PERIOD_MISMATCH"
+    assert finding["severity"] == "P1"
+    assert report["gate"] == "FAIL"
+
+
 def test_margin_reconciliation_normalizes_provider_ratio_to_percentage_points():
     rows = universe()
     fields = rows[0]["canonical_investment_evaluation"]["trial_presentation_fields"]

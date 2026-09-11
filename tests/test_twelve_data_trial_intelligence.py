@@ -59,6 +59,56 @@ def test_statistics_overwrite_untrusted_legacy_values_with_twelve_authority():
     assert row["provider_defined_fcf"] == 1000
 
 
+def test_mpln_same_statement_operating_margin_replaces_provider_ebit_ratio():
+    dossier = {"families": {
+        "statistics": {"observed_at": "2026-09-10T20:29:10Z", "evidence_id": "TD-STATS", "payload": {
+            "statistics": {"financials": {"operating_margin": -1.5520134877243657,
+                "income_statement": {"revenue_ttm": 930_624_000}}}}},
+        "income_statement": {"observed_at": "2026-09-10T20:29:10Z", "evidence_id": "TD-INCOME", "payload": {
+            "income_statement": [{"fiscal_date": "2024-12-31", "period": "annual", "currency": "USD",
+                                  "sales": 932_000_000, "operating_income": 98_931_000,
+                                  "ebit": -1_444_341_000}]}}
+    }}
+    row = normalize_trial_dossier({"ticker": "MPLN"}, dossier)
+    assert row["provider_defined_operating_profit_margin"] == pytest.approx(-155.20134877243657)
+    assert row["operating_profit_margin"] == pytest.approx(98_931_000 / 932_000_000)
+    assert row["historical_operating_margin"] == row["operating_profit_margin"]
+    assert row["latest_revenue"] == 932_000_000
+    assert row["operating_margin_lineage"]["scale"] == "RATIO_DECIMAL"
+    assert row["operating_margin_lineage"]["evidence_id"] == "TD-INCOME"
+
+
+@pytest.mark.parametrize("mismatch", ["currency", "unit"])
+def test_statement_margin_fails_closed_on_currency_or_unit_mismatch(mismatch):
+    statement = {"fiscal_date": "2025-12-31", "sales": 100, "operating_income": 20,
+                 "sales_currency": "USD", "operating_income_currency": "USD",
+                 "sales_unit": "MILLIONS", "operating_income_unit": "MILLIONS"}
+    if mismatch == "currency":
+        statement["operating_income_currency"] = "EUR"
+    else:
+        statement["operating_income_unit"] = "THOUSANDS"
+    dossier = {"families": {
+        "statistics": {"payload": {"statistics": {"financials": {"operating_margin": .40}}}},
+        "income_statement": {"payload": {"income_statement": [statement]}},
+    }}
+    row = normalize_trial_dossier({"ticker": "MISMATCH"}, dossier)
+    assert row["operating_profit_margin"] == 40
+    assert "historical_operating_margin" not in row
+    assert "operating_margin_lineage" not in row
+
+
+@pytest.mark.parametrize("ticker,provider_margin", [
+    ("TGT", .061), ("NVDA", .62), ("DAR", -.04), ("MKTX", .41), ("REGN", .33),
+])
+def test_existing_provider_margin_is_unchanged_without_comparable_statement_pair(ticker, provider_margin):
+    dossier = {"families": {"statistics": {"payload": {"statistics": {
+        "financials": {"operating_margin": provider_margin}}}}}}
+    row = normalize_trial_dossier({"ticker": ticker}, dossier)
+    assert row["operating_profit_margin"] == pytest.approx(provider_margin * 100)
+    assert row["provider_defined_operating_profit_margin"] == pytest.approx(provider_margin * 100)
+    assert "historical_operating_margin" not in row
+
+
 def test_zero_cash_flow_values_are_preserved_as_real_evidence():
     dossier = {"families": {"statistics": {"payload": {"statistics": {"financials": {
         "cash_flow": {"levered_free_cash_flow_ttm": 0, "operating_cash_flow_ttm": 0},

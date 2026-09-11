@@ -128,6 +128,18 @@ def _percentage_points(value: Any) -> float | None:
     return number * 100 if abs(number) <= 1 else number
 
 
+def _canonical_margin_percentage_points(value: Any, lineage: Mapping[str, Any]) -> float | None:
+    """Apply the explicit canonical margin unit before using legacy heuristics."""
+    number = _num(value)
+    if number is None:
+        return None
+    if lineage.get("scale") == "RATIO_DECIMAL":
+        return number * 100
+    if lineage.get("scale") == "PERCENTAGE_POINTS":
+        return number
+    return _percentage_points(number)
+
+
 def classify_missing(*, field: str, context: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """Return one governed reason, ownership, and concrete remediation."""
     context = dict(context or {})
@@ -218,8 +230,8 @@ def _qa_record(row: Mapping[str, Any], rank: int) -> tuple[dict[str, Any], dict[
     provider_operating_margin_raw = _num(_first(trial.get("provider_defined_operating_profit_margin"), trial.get("operating_profit_margin")))
     provider_operating_margin = _percentage_points(provider_operating_margin_raw)
     canonical_operating_margin_raw = _num(_first(trial.get("historical_operating_margin"), trial.get("operating_profit_margin")))
-    canonical_operating_margin = _percentage_points(canonical_operating_margin_raw)
     margin_lineage = dict(trial.get("operating_margin_lineage") or {})
+    canonical_operating_margin = _canonical_margin_percentage_points(canonical_operating_margin_raw, margin_lineage)
     calculated_operating_margin = operating_income / revenue * 100 if operating_income is not None and revenue not in (None, 0) else None
     calculated_market_cap = price * shares if price is not None and shares is not None else None
     reconciled_market_cap = price * reconciliation_shares if price is not None and reconciliation_shares is not None else calculated_market_cap
@@ -263,17 +275,22 @@ def _qa_record(row: Mapping[str, Any], rank: int) -> tuple[dict[str, Any], dict[
     comparable = bool(margin_lineage.get("comparable"))
     periods_match = bool(margin_lineage) and margin_lineage.get("numerator_period") == margin_lineage.get("denominator_period")
     same_basis = bool(margin_lineage.get("basis"))
+    numerator_currency, denominator_currency = margin_lineage.get("numerator_currency"), margin_lineage.get("denominator_currency")
+    currencies_match = not (numerator_currency and denominator_currency) or numerator_currency == denominator_currency
+    numerator_unit, denominator_unit = margin_lineage.get("numerator_unit"), margin_lineage.get("denominator_unit")
+    units_match = not (numerator_unit and denominator_unit) or numerator_unit == denominator_unit
     margin_difference = abs(calculated_operating_margin - canonical_operating_margin) if calculated_operating_margin is not None and canonical_operating_margin is not None else None
     # A cross-field ratio is a blocking reconciliation only when the persisted
     # evidence proves that numerator, denominator, and published margin share a
     # comparable period/basis.  Without that lineage, a difference is an
     # observability gap—not evidence that the canonical value is wrong.
-    lineage_certified = comparable and periods_match and same_basis
+    lineage_certified = comparable and periods_match and same_basis and currencies_match and units_match
     margin_status = "NOT_TESTED" if margin_difference is None else (
         "PASS" if margin_difference <= 2 else ("FAIL" if lineage_certified else "NOT_COMPARABLE")
     )
+    explicit_unit_mismatch = not periods_match or not currencies_match or not units_match
     if margin_lineage and not lineage_certified:
-        margin_status = "NOT_COMPARABLE"
+        margin_status = "FAIL" if explicit_unit_mismatch else "NOT_COMPARABLE"
     if margin_status == "NOT_COMPARABLE" and margin_difference is not None and margin_difference > 2:
         issues.append(_issue(
             ticker, "P3", "MARGIN_RECONCILIATION_UNAVAILABLE", "operating_profit_margin",
@@ -282,9 +299,10 @@ def _qa_record(row: Mapping[str, Any], rank: int) -> tuple[dict[str, Any], dict[
             remediation="Persist comparable statement period and basis before treating the difference as a validation failure.",
         ))
     elif margin_status == "FAIL":
+        mismatch_reason = "PERIOD_MISMATCH" if not periods_match else "CURRENCY_ERROR" if not currencies_match else "UNIT_ERROR" if not units_match else "VALIDATION_FAILED"
         issues.append(_issue(ticker, "P1", "MARGIN_RECONCILIATION", "operating_profit_margin",
                              f"Operating income ÷ revenue differs from published margin by {margin_difference:.1f} points.",
-                             reason="PERIOD_MISMATCH" if margin_lineage and not periods_match else "VALIDATION_FAILED",
+                             reason=mismatch_reason,
                              remediation="Align statement period, numerator, and percentage normalization."))
 
     models = list(valuation.get("models") or ())
@@ -329,10 +347,19 @@ def _qa_record(row: Mapping[str, Any], rank: int) -> tuple[dict[str, Any], dict[
         issues.append(_issue(ticker, "P0", "SHARE_DENOMINATOR", "shares",
                              "A published share denominator is zero or negative.",
                              remediation="Correct share units/basis before per-share publication."))
-    if provider_operating_margin is not None and abs(provider_operating_margin) > 100:
+    margin_for_scale_check = canonical_operating_margin if lineage_certified else provider_operating_margin
+    # A certified loss margin may legitimately be below -100% when operating
+    # losses exceed revenue. Positive margins above 100%, or uncorroborated
+    # provider values outside the normalized range, remain scale anomalies.
+    extreme_certified_loss = lineage_certified and canonical_operating_margin is not None and canonical_operating_margin < -100
+    if margin_for_scale_check is not None and abs(margin_for_scale_check) > 100 and not extreme_certified_loss:
         issues.append(_issue(ticker, "P2", "ANOMALY_MARGIN", "operating_profit_margin",
                              "Operating margin exceeds the plausible normalized percentage range.",
                              remediation="Correct percentage-vs-decimal normalization."))
+    elif extreme_certified_loss:
+        issues.append(_issue(ticker, "P4", "EXTREME_OPERATING_LOSS", "operating_profit_margin",
+                             "Operating losses exceed revenue on the certified same-period basis.",
+                             fixable=False, remediation="Expose the extreme operating-loss risk without altering the reported value."))
     if cash is not None and _num(trial.get("assets")) is not None and cash > _num(trial.get("assets")):
         issues.append(_issue(ticker, "P1", "ANOMALY_BALANCE_SHEET", "cash_and_equivalents",
                              "Cash exceeds total assets on the same reported basis."))
