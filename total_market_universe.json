@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-11T05:23:38.900956+00:00",
+  "generated_at": "2026-09-11T08:57:39.502498+00:00",
   "count": 6063,
   "symbols": [
     "A",
@@ -6096,9 +6096,9 @@
       "BATS": 1
     },
     "etf_exchange_distribution": {
+      "NYSE": 8,
       "ARCA": 24,
       "AMEX": 7,
-      "NYSE": 8,
       "BATS": 2
     },
     "exchange_resolution_population": 20413,

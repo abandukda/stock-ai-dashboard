@@ -61,7 +61,7 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "FMP",
-      "evidence_timestamp": "2026-09-11T05:29:31.028931+00:00",
+      "evidence_timestamp": "2026-09-11T09:04:05.962542+00:00",
       "freshness": {
         "status": "TEMPORARILY_UNAVAILABLE",
         "fetched_at": null,
@@ -69,7 +69,7 @@
         "ttl_seconds": 86400
       }
     },
-    "scan_time": "2026-09-11T05:29:31.028938+00:00",
+    "scan_time": "2026-09-11T09:04:05.962550+00:00",
     "history_days_available": 260,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 11.2,
@@ -96,7 +96,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "f3dcbe520dfc28f2ca90bed86abda6f925a51e137af3dd3356ce6eedd3d1d773",
-      "sma200_evidence_timestamp": "2026-09-11T05:29:31.037151+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T09:04:05.969229+00:00"
     },
     "analyst_support_score": 49.0,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
@@ -343,7 +343,7 @@
       "top_holdings": [],
       "holdings_status": "DATA_UNAVAILABLE",
       "provider": "FMP",
-      "evidence_timestamp": "2026-09-11T05:29:16.486369+00:00",
+      "evidence_timestamp": "2026-09-11T09:03:50.101853+00:00",
       "freshness": {
         "status": "TEMPORARILY_UNAVAILABLE",
         "fetched_at": null,
@@ -351,7 +351,7 @@
         "ttl_seconds": 86400
       }
     },
-    "scan_time": "2026-09-11T05:29:16.486376+00:00",
+    "scan_time": "2026-09-11T09:03:50.101860+00:00",
     "history_days_available": 260,
     "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
     "high_52w": 9.3,
@@ -378,7 +378,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-10 00:00:00+00:00",
       "sma200_history_sha256": "2818c691f6483362ed5283c75d2172a4119151c85c3e6e05ca2d2ee981e6a7ca",
-      "sma200_evidence_timestamp": "2026-09-11T05:29:16.494560+00:00"
+      "sma200_evidence_timestamp": "2026-09-11T09:03:50.108642+00:00"
     },
     "analyst_support_score": 50.8,
     "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
