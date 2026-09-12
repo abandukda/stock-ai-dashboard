@@ -16,6 +16,89 @@ from services.data_mode_policy import display_scope, internal_trial_mode
 
 
 HOME_GUIDANCE_STORY_VERSION = "HOME_GUIDANCE_VNEXT_V1"
+ACTION_COUNTER_STATES = ("BUY_NOW", "ACCUMULATE", "WAIT_FOR_ENTRY", "WAIT_FOR_CONFIRMATION", "DATA_LIMITED", "AVOID")
+
+
+def _action_state(item: Mapping[str, Any]) -> str:
+    value = item.get("customer_guidance", item.get("guidance"))
+    if isinstance(value, Mapping):
+        value = value.get("state")
+    value = str(value or "DATA_LIMITED").upper()
+    return "DATA_LIMITED" if value in {"WATCH", "WATCH_NOT_READY", "WITHHELD"} else value
+
+
+def select_home_featured_cards(cards: Iterable[Mapping[str, Any]], *, limit: int = 10) -> list[Mapping[str, Any]]:
+    """Return the exact immutable card collection represented by Home counters."""
+    eligible = [card for card in cards if (card.get("homepage_promotion_eligibility") or {}).get("eligible") is not False]
+    buys = [card for card in eligible if _action_state(card) == "BUY_NOW"]
+    selected = {str(card.get("ticker") or "") for card in buys}
+    return buys + [card for card in eligible if str(card.get("ticker") or "") not in selected][:max(0, limit - len(buys))]
+
+
+def _counts(items: Iterable[Mapping[str, Any]]) -> dict[str, int]:
+    values = [_action_state(item) for item in items]
+    return {state: values.count(state) for state in ACTION_COUNTER_STATES}
+
+
+def build_home_action_count_contract(
+    canonical_rows: Iterable[Mapping[str, Any]], published_cards: Iterable[Mapping[str, Any]],
+    featured_cards: Iterable[Mapping[str, Any]], *, manifest: Mapping[str, Any] | None = None,
+    artifact_sha256: str | None = None,
+) -> dict[str, Any]:
+    """Reconcile canonical, customer-published and actually rendered Home Actions."""
+    canonical_items = []
+    for row in canonical_rows:
+        evaluation = row.get("canonical_investment_evaluation") if isinstance(row.get("canonical_investment_evaluation"), Mapping) else {}
+        guidance = evaluation.get("guidance") if isinstance(evaluation.get("guidance"), Mapping) else {}
+        if guidance.get("state"):
+            canonical_items.append({"guidance": guidance.get("state")})
+    published = list(published_cards); featured = list(featured_cards)
+    eligible = [card for card in published if (card.get("homepage_promotion_eligibility") or {}).get("eligible") is not False]
+    canonical_counts, published_counts = _counts(canonical_items), _counts(published)
+    eligible_counts, featured_counts = _counts(eligible), _counts(featured)
+    withheld = {state: max(0, canonical_counts[state] - published_counts[state]) for state in ACTION_COUNTER_STATES}
+    promotion_filtered = {state: published_counts[state] - eligible_counts[state] for state in ACTION_COUNTER_STATES}
+    surface_deferred = {state: eligible_counts[state] - featured_counts[state] for state in ACTION_COUNTER_STATES}
+    manifest = dict(manifest) if isinstance(manifest, Mapping) else {}
+    expected_publication = manifest.get("customer_publication_count")
+    certification_digest = dict(manifest.get("artifact_hashes") or {}).get("market_full_scan.json")
+    # Context-only refreshes may legitimately change the full artifact after
+    # certification. Only an explicit counter-generation digest is comparable.
+    expected_hash = manifest.get("home_counter_artifact_sha256")
+    failures = []
+    if expected_publication is not None and int(expected_publication) != len(published):
+        failures.append("CUSTOMER_PUBLICATION_COUNT_MISMATCH")
+    if expected_hash and artifact_sha256 and str(expected_hash) != str(artifact_sha256):
+        failures.append("PRODUCTION_GENERATION_MISMATCH")
+    if sum(published_counts.values()) != len(published):
+        failures.append("PUBLISHED_COUNTER_TAXONOMY_MISMATCH")
+    if sum(featured_counts.values()) != len(featured):
+        failures.append("HOME_FEATURED_COUNTER_TAXONOMY_MISMATCH")
+    if not len(featured) <= len(published) <= len(canonical_items):
+        failures.append("ACTION_POPULATION_ORDER_INVALID")
+    zero_reasons = {}
+    for state in ACTION_COUNTER_STATES:
+        zero_reasons[state] = (
+            "HAS_HOME_FEATURED_CANDIDATES" if featured_counts[state] else
+            "NO_CANONICAL_CANDIDATES" if not canonical_counts[state] else
+            "CANONICAL_CANDIDATES_ALL_WITHHELD" if not published_counts[state] else
+            "PUBLISHED_CANDIDATES_PROMOTION_FILTERED" if not eligible_counts[state] else
+            "NO_HOME_FEATURED_CANDIDATES"
+        )
+    return {
+        "version": "ATLAS_HOME_ACTION_COUNT_CONTRACT_V1",
+        "artifact_run_id": manifest.get("run_id") or manifest.get("workflow_run_id"),
+        "artifact_source_sha": manifest.get("source_commit_sha"),
+        "generated_at": manifest.get("generated_at"), "certification_digest": certification_digest,
+        "canonical_action_counts": canonical_counts, "customer_published_action_counts": published_counts,
+        "home_featured_action_counts": featured_counts, "withheld_action_counts": withheld,
+        "promotion_filtered_action_counts": promotion_filtered, "home_surface_deferred_action_counts": surface_deferred,
+        "canonical_evaluated_count": len(canonical_items), "customer_publication_count": len(published),
+        "home_featured_count": len(featured), "counter_sum": sum(featured_counts.values()),
+        "rendered_card_count": len(featured), "zero_reasons": zero_reasons,
+        "reconciled": not failures, "failure_reason": ";".join(failures) if failures else None,
+        "non_scoring": True,
+    }
 
 
 def build_homepage_promotion_metrics(cards: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
@@ -652,6 +735,7 @@ def build_home_guidance_story(
     full_scan_payload: Any, recovery_payload: Any, *, watchlist_tickers: Iterable[str] = (),
     current_evaluations: Mapping[str, Mapping[str, Any]] | None = None,
     scan_timestamp: Any = None, market_today: Mapping[str, Any] | None = None,
+    production_manifest: Mapping[str, Any] | None = None, production_artifact_sha256: str | None = None,
 ) -> dict[str, Any]:
     full_rows = _rows(full_scan_payload)
     recovery_payload_rows = _rows(recovery_payload)
@@ -729,6 +813,11 @@ def build_home_guidance_story(
                 "source_artifact": "recovery_scan.json",
             },
         })
+    home_featured_cards = select_home_featured_cards(cards)
+    action_counts = build_home_action_count_contract(
+        full_rows, cards, home_featured_cards, manifest=production_manifest,
+        artifact_sha256=production_artifact_sha256,
+    )
     active = founder_guidance_v1_enabled() and bool(evaluations)
     return {
         "version": HOME_GUIDANCE_STORY_VERSION,
@@ -742,6 +831,8 @@ def build_home_guidance_story(
         "candidate_count": len(cards),
         "groups": groups,
         "cards": cards,
+        "home_featured_cards": home_featured_cards,
+        "home_action_count_contract": action_counts,
         "market_today": dict(market_today or {}),
         "homepage_promotion_metrics": build_homepage_promotion_metrics(cards),
         "recovery_cards": recovery_cards,
@@ -754,5 +845,6 @@ def build_home_guidance_story(
 
 __all__ = [
     "CUSTOMER_ACTION_PRESENTATION", "GUIDANCE_GROUPS", "HOME_FIELD_AUTHORITY", "HOME_GUIDANCE_STORY_VERSION",
-    "build_home_guidance_candidate", "build_home_guidance_story", "build_homepage_promotion_metrics", "customer_action_presentation",
+    "build_home_action_count_contract", "build_home_guidance_candidate", "build_home_guidance_story",
+    "build_homepage_promotion_metrics", "customer_action_presentation", "select_home_featured_cards",
 ]

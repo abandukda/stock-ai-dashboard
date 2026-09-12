@@ -1174,17 +1174,12 @@ def _section_marker(name: str) -> None:
 
 def _home_candidate_surface(all_cards: Sequence[Mapping[str, Any]], *, limit: int = 10) -> list[Mapping[str, Any]]:
     """Keep every governed Buy Now, then fill by immutable production order."""
-    all_cards = [card for card in all_cards if (card.get("homepage_promotion_eligibility") or {}).get("eligible") is not False]
-    actionable = [card for card in all_cards if _customer_state(card) == "BUY_NOW"]
-    selected_tickers = {str(card.get("ticker") or "") for card in actionable}
-    return actionable + [
-        card for card in all_cards
-        if str(card.get("ticker") or "") not in selected_tickers
-    ][:max(0, limit - len(actionable))]
+    from engines.home_guidance_story_v1 import select_home_featured_cards
+    return select_home_featured_cards(all_cards, limit=limit)
 
 
 def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
-    cards = _home_candidate_surface(story.get("cards") or ())
+    cards = list(story.get("home_featured_cards") or _home_candidate_surface(story.get("cards") or ()))
     _section_marker("customer-action-groups")
     if not cards:
         st.info("No persisted Home candidates are available.")
@@ -1219,13 +1214,15 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
 
 
 def _action_counts(story: Mapping[str, Any]) -> str:
-    states = [_customer_state(card) for card in story.get("cards") or () if (card.get("homepage_promotion_eligibility") or {}).get("eligible") is not False]
+    contract = dict(story.get("home_action_count_contract") or {})
+    governed = dict(contract.get("home_featured_action_counts") or {})
+    states = [_customer_state(card) for card in story.get("home_featured_cards") or _home_candidate_surface(story.get("cards") or ())]
     values = (
-        ("5★ Buy Now", states.count("BUY_NOW"), "buy"),
-        ("4.5★ Build", states.count("ACCUMULATE"), "build"),
-        ("4★ Wait for Entry", states.count("WAIT_FOR_ENTRY"), "wait"),
-        ("3.5★ Wait for Confirmation", states.count("WAIT_FOR_CONFIRMATION"), "wait"),
-        ("Watch", states.count("DATA_LIMITED"), "watch"),
+        ("5★ Buy Now", governed.get("BUY_NOW", states.count("BUY_NOW")), "buy"),
+        ("4.5★ Build", governed.get("ACCUMULATE", states.count("ACCUMULATE")), "build"),
+        ("4★ Wait for Entry", governed.get("WAIT_FOR_ENTRY", states.count("WAIT_FOR_ENTRY")), "wait"),
+        ("3.5★ Wait for Confirmation", governed.get("WAIT_FOR_CONFIRMATION", states.count("WAIT_FOR_CONFIRMATION")), "wait"),
+        ("Watch", governed.get("DATA_LIMITED", states.count("DATA_LIMITED")), "watch"),
     )
     return '<div class="atlas-home-action-counts">' + "".join(
         f'<span class="atlas-home-count-{tone}"><small>{html.escape(label)}</small><b>{count}</b></span>'
@@ -1382,6 +1379,7 @@ def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=Non
     )
     _render_market_today(story)
     st.markdown(_action_counts(story), unsafe_allow_html=True)
+    st.caption("Counts reflect currently certified opportunities available on Home.")
     st.markdown("## Today's ATLAS Actions")
     _render_groups(story, emit_interactive=emit_interactive)
 

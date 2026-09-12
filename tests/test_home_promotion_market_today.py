@@ -1,9 +1,15 @@
 from copy import deepcopy
 from datetime import datetime, timezone
+import hashlib
+import json
 
 from engines.market_today import build_market_today, normalize_major_market_news
 from services.home_market_news import fetch_major_market_news
-from engines.home_guidance_story_v1 import build_homepage_promotion_metrics
+from engines.home_guidance_story_v1 import (
+    build_home_action_count_contract,
+    build_homepage_promotion_metrics,
+    select_home_featured_cards,
+)
 from engines.home_guidance_story_v1 import build_home_guidance_story
 from services.home_promotion_policy import VERSION, classify_homepage_promotion
 from pathlib import Path
@@ -45,6 +51,77 @@ def test_homepage_counts_distinguish_canonical_actions_from_featured_actions():
         "non_scoring":True,
     }
     assert cards == before
+
+
+def _canonical_row(ticker, state):
+    return {"ticker": ticker, "canonical_investment_evaluation": {"guidance": {"state": state}}}
+
+
+def _published_card(ticker, state, *, eligible=True):
+    return {"ticker": ticker, "guidance": state, "homepage_promotion_eligibility": {"eligible": eligible}}
+
+
+def test_action_count_contract_uses_exact_rendered_collection_and_keeps_real_zeroes():
+    rows = [_canonical_row("A", "BUY_NOW"), _canonical_row("B", "ACCUMULATE"),
+            _canonical_row("C", "WAIT_FOR_ENTRY"), _canonical_row("D", "WAIT_FOR_CONFIRMATION")]
+    published = [_published_card("A", "BUY_NOW"), _published_card("B", "ACCUMULATE"),
+                 _published_card("C", "WAIT_FOR_ENTRY")]
+    featured = select_home_featured_cards(published, limit=2)
+    contract = build_home_action_count_contract(
+        rows, published, featured, manifest={"customer_publication_count": 3},
+    )
+    assert contract["customer_published_action_counts"]["WAIT_FOR_CONFIRMATION"] == 0
+    assert contract["home_featured_action_counts"] == {
+        "BUY_NOW": 1, "ACCUMULATE": 1, "WAIT_FOR_ENTRY": 0,
+        "WAIT_FOR_CONFIRMATION": 0, "DATA_LIMITED": 0, "AVOID": 0,
+    }
+    assert contract["withheld_action_counts"]["WAIT_FOR_CONFIRMATION"] == 1
+    assert contract["home_surface_deferred_action_counts"]["WAIT_FOR_ENTRY"] == 1
+    assert contract["counter_sum"] == contract["rendered_card_count"] == 2
+    assert contract["reconciled"] is True
+
+
+def test_action_count_contract_separates_withheld_and_promotion_filtered_records():
+    rows = [_canonical_row("A", "BUY_NOW"), _canonical_row("B", "BUY_NOW"), _canonical_row("C", "DATA_LIMITED")]
+    published = [_published_card("A", "BUY_NOW", eligible=False)]
+    contract = build_home_action_count_contract(rows, published, select_home_featured_cards(published))
+    assert contract["withheld_action_counts"]["BUY_NOW"] == 1
+    assert contract["promotion_filtered_action_counts"]["BUY_NOW"] == 1
+    assert contract["home_featured_action_counts"]["BUY_NOW"] == 0
+    assert contract["home_featured_action_counts"]["DATA_LIMITED"] == 0
+    assert contract["zero_reasons"]["BUY_NOW"] == "PUBLISHED_CANDIDATES_PROMOTION_FILTERED"
+    assert contract["zero_reasons"]["DATA_LIMITED"] == "CANONICAL_CANDIDATES_ALL_WITHHELD"
+
+
+def test_action_count_contract_fails_stale_generation_and_manifest_count():
+    rows = [_canonical_row("A", "ACCUMULATE")]
+    cards = [_published_card("A", "ACCUMULATE")]
+    contract = build_home_action_count_contract(
+        rows, cards, cards,
+        manifest={"customer_publication_count": 2, "home_counter_artifact_sha256": "expected"},
+        artifact_sha256="actual",
+    )
+    assert contract["reconciled"] is False
+    assert "CUSTOMER_PUBLICATION_COUNT_MISMATCH" in contract["failure_reason"]
+    assert "PRODUCTION_GENERATION_MISMATCH" in contract["failure_reason"]
+
+
+def test_current_production_home_counters_reconcile_to_rendered_cards():
+    scan_path = Path("market_full_scan.json")
+    rows = json.loads(scan_path.read_text())
+    manifest = json.loads(Path("publication_manifest.json").read_text())
+    story = build_home_guidance_story(
+        rows, json.loads(Path("recovery_scan.json").read_text()),
+        production_manifest=manifest,
+        production_artifact_sha256=hashlib.sha256(scan_path.read_bytes()).hexdigest(),
+    )
+    contract = story["home_action_count_contract"]
+    assert contract["customer_publication_count"] == manifest["customer_publication_count"] == 31
+    assert contract["customer_published_action_counts"]["ACCUMULATE"] == 29
+    assert contract["customer_published_action_counts"]["WAIT_FOR_ENTRY"] == 2
+    assert contract["home_featured_action_counts"]["ACCUMULATE"] == 10
+    assert contract["counter_sum"] == len(story["home_featured_cards"]) == 10
+    assert contract["reconciled"] is True
 
 
 def test_market_today_renders_complete_governed_change_contract():

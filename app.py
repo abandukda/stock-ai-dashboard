@@ -33023,13 +33023,26 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
             st.session_state["home_market_news_runtime_health"] = dict(news_result.get("runtime_health") or {})
         st.session_state["home_market_today"] = build_market_today(tape, news=news_records)
 
+    try:
+        production_manifest = read_json_file(DATA_DIR / "publication_manifest.json")
+    except Exception:
+        production_manifest = {}
+    if not isinstance(production_manifest, dict):
+        production_manifest = {}
+    try:
+        production_artifact_sha256 = hashlib.sha256((DATA_DIR / "market_full_scan.json").read_bytes()).hexdigest()
+    except Exception:
+        production_artifact_sha256 = None
     story = build_home_guidance_story(
         full_payload, recovery_payload,
         watchlist_tickers=watchlist_tickers,
         current_evaluations=current_evaluations,
         scan_timestamp=read_state().get("generated_at"),
         market_today=st.session_state.get("home_market_today") or {},
+        production_manifest=production_manifest,
+        production_artifact_sha256=production_artifact_sha256,
     )
+    st.session_state["home_action_runtime_health"] = dict(story.get("home_action_count_contract") or {})
     from services.session_stability import emit_page_interactive
     def _home_guidance_interactive():
         emit_page_interactive(st, "Home")
