@@ -35,10 +35,19 @@ def sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def canonical_json_sha256(path: Path) -> str:
+    """Match the semantic JSON digest written by the Overnight manifest."""
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(canonical.encode()).hexdigest()
+
+
 def candidate_identity(candidate_dir: Path, *, code_sha: str | None = None, run_id: str | None = None) -> dict[str, Any]:
     manifest = dict(_read(candidate_dir / "publication_manifest.json", {}) or {})
     scan = candidate_dir / "market_full_scan.json"
-    digest = sha256_file(scan) if scan.exists() else None
+    # The candidate manifest hashes canonical JSON, not presentation bytes.
+    # Indentation/newlines introduced during transport must not break binding.
+    digest = canonical_json_sha256(scan) if scan.exists() else None
     expected = dict(manifest.get("artifact_hashes") or {}).get("market_full_scan.json")
     source_sha = manifest.get("source_commit_sha") or manifest.get("source_sha")
     identity = {

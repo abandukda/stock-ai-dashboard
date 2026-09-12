@@ -18,7 +18,7 @@ def _candidate(tmp_path: Path):
                  "digests": {"evaluation_snapshot_id": "snap-1", "decision_digest": "decision-1"}}}]
     raw = json.dumps(rows).encode()
     (tmp_path / "market_full_scan.json").write_bytes(raw)
-    digest = hashlib.sha256(raw).hexdigest()
+    digest = hashlib.sha256(json.dumps(rows, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     (tmp_path / "publication_manifest.json").write_text(json.dumps({
         "run_id": "run-1", "source_commit_sha": "a" * 40,
         "artifact_hashes": {"market_full_scan.json": digest},
@@ -43,6 +43,21 @@ def test_digest_mismatch_fails_exact_candidate_binding(tmp_path):
     manifest["artifact_hashes"]["market_full_scan.json"] = "wrong"
     (tmp_path / "publication_manifest.json").write_text(json.dumps(manifest))
     assert candidate_identity(tmp_path)["valid"] is False
+
+
+def test_candidate_binding_uses_manifest_canonical_json_digest(tmp_path):
+    rows = [{"ticker": "CXT", "rank": 1}, {"ticker": "CXW", "rank": 2}]
+    canonical = json.dumps(rows, sort_keys=True, separators=(",", ":")).encode()
+    (tmp_path / "market_full_scan.json").write_text(json.dumps(rows, indent=2))
+    (tmp_path / "publication_manifest.json").write_text(json.dumps({
+        "run_id": "123", "source_commit_sha": "a" * 40,
+        "artifact_hashes": {"market_full_scan.json": hashlib.sha256(canonical).hexdigest()},
+    }))
+
+    identity = candidate_identity(tmp_path)
+
+    assert identity["valid"] is True
+    assert identity["candidate_artifact_digest"] == hashlib.sha256(canonical).hexdigest()
 
 
 def test_missing_screenshot_and_unresolved_p2_block_promotion(tmp_path):
