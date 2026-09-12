@@ -211,7 +211,15 @@ async def run(args: argparse.Namespace) -> int:
                                "status": "PASS" if passed and action_match and not layout["horizontal_overflow"] else "FAIL",
                                "canonical_action": expected_action, "publication_allowed": publication_allowed,
                                "surface_action_match": action_match, "layout": layout})
-                defects.extend(dom_fact_findings(text, ticker_facts, surface="RESEARCH", ticker=ticker))
+                # A fresh Research reassessment may correctly fail closed when
+                # current evidence cannot certify a complete rating.  Preserve
+                # the existing safe-incomplete contract instead of comparing
+                # that state to the earlier immutable discovery Action.
+                required_facts = () if safe_incomplete else ("expected_action",)
+                defects.extend(dom_fact_findings(
+                    text, ticker_facts, surface="RESEARCH", ticker=ticker,
+                    required=required_facts,
+                ))
                 (dom_dir / f"research_{ticker}.json").write_text(json.dumps({
                     "page": "Research Any Ticker", "ticker": ticker, "text": await _visible_text(page),
                     "expected_action": expected_action, "publication_allowed": publication_allowed,
