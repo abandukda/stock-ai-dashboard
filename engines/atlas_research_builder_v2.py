@@ -854,7 +854,7 @@ def build_atlas_research_v2(
             "expected_return_pct": certified_value("atlas_upside_pct"),
         }
     report["intelligence"] = build_executive_intelligence(report)
-    if certified_customer:
+    if certified_customer and not report.get("customer_plain_english_summary"):
         certified_fields = _mapping(certified_customer.get("fields"))
         field_value = lambda name: _mapping(certified_fields.get(name)).get("value")
         certified_street = _mapping(certified_customer.get("wall_street_analysis"))
@@ -916,6 +916,29 @@ def build_atlas_research_v2(
         f"{item.get('risk')} {item.get('consequence')}"
         for item in report["guidance_summary"].get("key_risks") or []
     ]
+    if certified_customer and not report.get("customer_plain_english_summary"):
+        from services.atlas_view_summary import (
+            build_certified_summary_facts, certify_customer_presentation_consistency,
+            plain_english_summary, summary_evidence_map,
+        )
+        facts = build_certified_summary_facts({
+            "certified_customer_evaluation": certified_customer,
+            "ticker": ticker, "company": report["company"],
+            "company_evidence": {
+                "business_summary": _first(enriched_row, "business_summary", "company_description", "description"),
+                "industry": report.get("sector"),
+            },
+        })
+        summary_payload = {"certified_summary_facts": facts}
+        summary_text = plain_english_summary(summary_payload)
+        consistency = certify_customer_presentation_consistency(summary_text, summary_payload)
+        report["certified_summary_facts"] = facts
+        report["customer_plain_english_summary"] = {
+            "version": "ATLAS_CUSTOMER_101_V2",
+            "text": summary_text if consistency["valid"] else consistency["safe_text"],
+            "evidence_map": summary_evidence_map(summary_payload),
+            "authority": "PRESENTATION_ONLY", "consistency": consistency,
+        }
     checkpoint("build_atlas_research_v2:after")
     return report
 

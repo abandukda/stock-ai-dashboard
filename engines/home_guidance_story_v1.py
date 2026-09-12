@@ -398,7 +398,7 @@ def build_home_guidance_candidate(
         "customer_guidance": published_guidance,
         "governed_guidance": governed_guidance,
         "publication_certification": dict(publication),
-        "certified_customer_evaluation": certified,
+        "certified_customer_evaluation": certified if use_certified else {},
         "customer_material_authority": "certified_customer_evaluation" if use_certified else "LEGACY_PREPUBLICATION_TEST",
         "opportunity_thesis": guidance.get("opportunity_thesis") or evaluation.get("opportunity_thesis"),
         "customer_action": customer_action,
@@ -578,6 +578,7 @@ def build_home_guidance_candidate(
             "snapshot_timestamp": recovery.get("scan_time") or recovery.get("generated_at"),
         },
         "production_decision": dict(production_decision),
+        "certified_customer_evaluation": certified if use_certified else {},
         "evaluation": evaluation,
         "atlas_ai_view": dict(evaluation.get("atlas_ai_view") or {}),
         "presentation_mode": "ACTIVE" if founder_guidance_v1_enabled() and current_evaluation is not None else "PREVIEW",
@@ -605,12 +606,20 @@ def build_home_guidance_candidate(
                 "net_debt", "current_ratio", "roe", "roa", "roic",
             ) if certified_value(name) is not None
         }
+        prior_company_evidence = dict(candidate.get("company_evidence") or {})
         candidate["company_evidence"] = {
             "forward_eps": certified_value("forward_eps"),
             "forward_eps_period": (certified_fields.get("forward_eps") or {}).get("period"),
             "forward_revenue": certified_value("forward_revenue"),
             "forward_revenue_period": (certified_fields.get("forward_revenue") or {}).get("period"),
             "forward_pe": certified_value("forward_pe"),
+            # Descriptive identity/context is non-numeric and does not become
+            # financial authority. Material financial claims below remain
+            # exclusively projected from certified fields.
+            "business_summary": prior_company_evidence.get("business_summary"),
+            "industry": prior_company_evidence.get("industry"),
+            "sector": prior_company_evidence.get("sector"),
+            "primary_risk": prior_company_evidence.get("primary_risk"),
         }
         candidate["valuation_driver_evidence"] = {
             "forward_eps": certified_value("forward_eps"),
@@ -623,11 +632,18 @@ def build_home_guidance_candidate(
         candidate["last_known_price"] = certified_value("price")
     from services.home_promotion_policy import classify_homepage_promotion
     candidate["homepage_promotion_eligibility"] = classify_homepage_promotion(row)
-    from services.atlas_view_summary import build_summary_payload, plain_english_summary, summary_evidence_map
+    from services.atlas_view_summary import (
+        build_certified_summary_facts, build_summary_payload, certify_customer_presentation_consistency,
+        plain_english_summary, summary_evidence_map,
+    )
+    candidate["certified_summary_facts"] = build_certified_summary_facts(candidate)
     customer_payload = build_summary_payload(candidate)
+    summary_text = plain_english_summary(customer_payload)
+    consistency = certify_customer_presentation_consistency(summary_text, customer_payload)
     candidate["customer_plain_english_summary"] = {
-        "version": "ATLAS_CUSTOMER_101_V1", "text": plain_english_summary(customer_payload),
+        "version": "ATLAS_CUSTOMER_101_V2", "text": summary_text if consistency["valid"] else consistency["safe_text"],
         "evidence_map": summary_evidence_map(customer_payload), "authority": "PRESENTATION_ONLY",
+        "consistency": consistency,
     }
     return candidate
 

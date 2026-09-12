@@ -12,6 +12,7 @@ import streamlit as st
 
 from engines.research_engine import begin_research_entry, research_interaction_contract
 from ui.market_timestamp import format_market_timestamp_et
+from ui.vnext_presentation import CanonicalNumberFormatter
 
 
 def _display(value: Any) -> str:
@@ -215,7 +216,7 @@ def _certified_paid_client_full_evidence(card: Mapping[str, Any], certified: Map
         for label, raw, kind in items:
             if raw is None or raw == "" or raw == () or raw == []:
                 continue
-            display = _money(raw) if kind == "money" else _score(raw, suffix="%") if kind == "pct" else _display(raw)
+            display = CanonicalNumberFormatter.currency(raw).display if kind == "money" else _score(raw, suffix="%") if kind == "pct" else _display(raw)
             output.append(f'<span><small>{html.escape(label)}</small><b>{html.escape(display)}</b></span>')
         return '<div class="atlas-home-dossier-grid">' + "".join(output) + "</div>" if output else '<p class="atlas-home-muted">No certified values are available for this section.</p>'
 
@@ -1246,14 +1247,16 @@ def _render_market_today(story: Mapping[str, Any]) -> None:
     )
     st.markdown("## Market Today")
     updated=_time_et(context.get("as_of")) if context.get("as_of") else "Latest governed reading unavailable"
-    st.caption(f"Market: {_display(context.get('market_session') or 'CLOSED')} · Last updated: {updated}")
+    session_label = _display(context.get('market_session') or 'TEMPORARILY UNAVAILABLE')
+    st.caption(f"{session_label} · {updated}")
     if instruments:
         blocks=[]
         for item in instruments:
             change=item.get("change_pct"); points=item.get("point_change")
             delta=f"{float(points):+,.2f} ({float(change):+.2f}%)" if points is not None and change is not None else "Change unavailable"
             tone="up" if (change or 0)>0 else "down" if (change or 0)<0 else "flat"
-            blocks.append(f'<span class="atlas-market-today-{tone}"><small>{html.escape(str(item.get("label") or item.get("symbol")))}</small><b>{float(item["price"]):,.2f}</b><em>{html.escape(delta)}</em></span>')
+            price_label = "Latest regular close" if str(item.get("market_session") or "").upper() == "LATEST_REGULAR_CLOSE" else "Current"
+            blocks.append(f'<span class="atlas-market-today-{tone}"><small>{html.escape(str(item.get("label") or item.get("symbol")))}</small><b>{price_label}: ${float(item["price"]):,.2f}</b><em>{html.escape(delta)}</em></span>')
         st.markdown('<div class="atlas-market-today-grid">'+''.join(blocks)+'</div>',unsafe_allow_html=True)
     else:
         st.caption("Current market data is temporarily unavailable.")

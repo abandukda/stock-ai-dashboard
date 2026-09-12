@@ -36,6 +36,122 @@ ACTION_101 = {
     "AVOID": "ATLAS currently sees more risk than opportunity.",
 }
 
+
+def _certified_value(certified: Mapping[str, Any], name: str) -> Any:
+    field = dict(dict(certified.get("fields") or {}).get(name) or {})
+    return field.get("value") if str(field.get("certification_status") or "").startswith("CERTIFIED") else None
+
+
+def _customer_amount(value: Any) -> str | None:
+    try:
+        amount = float(value)
+    except (TypeError, ValueError):
+        return None
+    for scale, suffix in ((1e12, "T"), (1e9, "B"), (1e6, "M"), (1e3, "K")):
+        if abs(amount) >= scale:
+            return f"${amount / scale:,.1f}{suffix}"
+    return f"${amount:,.2f}"
+
+
+def build_certified_summary_facts(card: Mapping[str, Any]) -> dict[str, Any]:
+    """Project the sole customer authority into a stable narrative contract."""
+    certified = dict(card.get("certified_customer_evaluation") or {})
+    if not certified:
+        return {}
+    domains = dict(certified.get("domains") or {})
+    decision = dict(certified.get("decision") or {})
+    street = dict(certified.get("wall_street_analysis") or {})
+    methods = []
+    for method in certified.get("valuation_methods") or ():
+        if not isinstance(method, Mapping):
+            continue
+        value, weight = dict(method.get("value") or {}), dict(method.get("weight") or {})
+        if value.get("value") is not None:
+            methods.append({"name": method.get("name"), "value": value.get("value"), "weight": weight.get("value")})
+    risk = dict(certified.get("risk") or {})
+    risk_evidence = dict(risk.get("evidence") or {})
+    facts = {
+        "ticker": certified.get("ticker") or card.get("ticker"),
+        "company": card.get("company"),
+        "company_description": dict(card.get("company_evidence") or {}).get("business_summary"),
+        "industry": dict(card.get("company_evidence") or {}).get("industry"),
+        "current_price": _certified_value(certified, "price"),
+        "atlas_fair_value": _certified_value(certified, "atlas_fair_value"),
+        "atlas_upside_pct": _certified_value(certified, "atlas_upside_pct"),
+        "action": decision.get("action"),
+        "revenue": _certified_value(certified, "revenue"),
+        "revenue_growth": _certified_value(certified, "revenue_growth_pct"),
+        "eps": _certified_value(certified, "eps"),
+        "eps_growth": _certified_value(certified, "eps_growth_pct"),
+        "operating_margin": _certified_value(certified, "operating_margin_pct"),
+        "free_cash_flow": _certified_value(certified, "free_cash_flow"),
+        "forward_eps": _certified_value(certified, "forward_eps"),
+        "forward_revenue": _certified_value(certified, "forward_revenue"),
+        "wall_street_analysis": street,
+        "valuation_methods": tuple(methods),
+        "primary_risk": next((risk_evidence.get(key) for key in ("primary_risk", "volatility_risk", "drawdown_label") if risk_evidence.get(key)), None),
+        "domain_statuses": domains,
+        "certification_status": certified.get("customer_publication_allowed"),
+    }
+    facts["financial_evidence_available"] = any(facts.get(key) is not None for key in (
+        "revenue", "revenue_growth", "eps", "eps_growth", "operating_margin", "free_cash_flow", "forward_eps", "forward_revenue",
+    ))
+    facts["valuation_evidence_available"] = facts["atlas_fair_value"] is not None
+    facts["wall_street_evidence_available"] = bool(street.get("status") in {"WALL_STREET_AVAILABLE", "WALL_STREET_PARTIAL"})
+    return facts
+
+
+def build_atlas_street_divergence_explanation(facts: Mapping[str, Any]) -> dict[str, Any]:
+    street = dict(facts.get("wall_street_analysis") or {})
+    consensus = dict(street.get("consensus") or {})
+    atlas, target = facts.get("atlas_fair_value"), consensus.get("target_mean")
+    gap = ((float(atlas) / float(target)) - 1) * 100 if atlas is not None and target not in (None, 0) else None
+    classification = (
+        "NOT_COMPARABLE" if gap is None else "BROADLY_ALIGNED" if abs(gap) < 10 else
+        "MODEST_DIVERGENCE" if abs(gap) < 25 else "MATERIAL_DIVERGENCE" if abs(gap) <= 50 else "LARGE_DIVERGENCE"
+    )
+    methods = sorted((dict(item) for item in facts.get("valuation_methods") or ()), key=lambda item: float(item.get("weight") or 0), reverse=True)
+    published = [item for item in methods if item.get("value") is not None]
+    direction = "above" if gap is not None and gap > 0 else "below"
+    if gap is None:
+        explanation = None
+    elif published:
+        # Explain the gap with the method that most strongly pulls value away
+        # from Street, not merely the method with the largest blend weight.
+        lead = max(published, key=lambda item: abs(float(item.get("value") or 0) - float(target)))
+        explanation = (
+            f"ATLAS is {abs(gap):.1f}% {direction} Wall Street. Its largest valuation contribution is "
+            f"{str(lead.get('name') or 'the leading certified method').replace('FCFF Discounted Cash Flow', 'long-term cash-flow value').replace('EV / EBITDA', 'operating-earnings peer value')}, "
+            f"which indicates ${float(lead['value']):.2f} per share with {float(lead.get('weight') or 0) * 100:.1f}% weight; "
+            "analysts' assumptions are not disclosed, so ATLAS cannot attribute the remaining gap to a specific forecast."
+        )
+    else:
+        explanation = "ATLAS and Wall Street differ, but the certified method detail is insufficient to attribute the gap safely."
+    return {"atlas_vs_street_pct": round(gap, 2) if gap is not None else None, "classification": classification,
+            "direction": direction if gap is not None else None, "explanation": explanation,
+            "methods": tuple(published), "street_target_as_of": street.get("as_of")}
+
+
+def certify_customer_presentation_consistency(text: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+    facts = dict(payload.get("certified_summary_facts") or {})
+    copy = " ".join(str(text or "").split())
+    contradictions = []
+    checks = (
+        ("FINANCIAL", facts.get("financial_evidence_available"), r"financial evidence (?:is not|isn't) available|financial evidence (?:is )?unavailable"),
+        ("VALUATION", facts.get("valuation_evidence_available"), r"valuation (?:is not|isn't) available|valuation unavailable"),
+        ("WALL_STREET", facts.get("wall_street_evidence_available"), r"Wall Street (?:information|evidence|consensus) (?:is not|isn't) available|Wall Street unavailable"),
+    )
+    for domain, available, pattern in checks:
+        if available and re.search(pattern, copy, re.I): contradictions.append(f"{domain}_AVAILABILITY_CONTRADICTION")
+    safe = copy
+    if contradictions:
+        sentences = [sentence for sentence in re.split(r"(?<=[.!?])\s+", copy) if not any(
+            code.startswith(domain) and re.search(pattern, sentence, re.I)
+            for domain, available, pattern in checks for code in contradictions
+        )]
+        safe = " ".join(sentences)
+    return {"valid": not contradictions, "violations": tuple(contradictions), "safe_text": safe}
+
 def thesis_style_violations(text: str) -> tuple[str, ...]:
     """Client-language checks only; this function has no investment authority."""
     copy=" ".join(str(text or "").split()); issues=[]
@@ -89,6 +205,7 @@ def llm_configuration_status() -> dict[str, Any]:
 
 
 def build_summary_payload(card: Mapping[str, Any]) -> dict[str, Any]:
+    certified_facts = dict(card.get("certified_summary_facts") or build_certified_summary_facts(card))
     certification = dict(card.get("publication_certification") or {})
     certified_components = dict(certification.get("components") or {})
     def allowed(name: str) -> bool:
@@ -155,6 +272,7 @@ def build_summary_payload(card: Mapping[str, Any]) -> dict[str, Any]:
                 "evidence_summary": item.get("summary") or item.get("why_it_matters"),
             })
     return {
+        "certified_summary_facts": certified_facts,
         "ticker": card.get("ticker"), "company": card.get("company"),
         "production_rank": card.get("production_rank"), "setup_score": card.get("scan_conviction"),
         "setup_score_scale": 100, "indicator_periods": [20, 50, 200],
@@ -220,6 +338,57 @@ def build_summary_payload(card: Mapping[str, Any]) -> dict[str, Any]:
 
 def plain_english_summary(payload: Mapping[str, Any]) -> str:
     """Explain certified facts for a first-time investor; never make a decision."""
+    facts = dict(payload.get("certified_summary_facts") or {})
+    if facts:
+        company = str(facts.get("company") or facts.get("ticker") or "This company")
+        financial = []
+        for label, key in (("revenue growth", "revenue_growth"), ("earnings growth", "eps_growth")):
+            if facts.get(key) is not None:
+                value = float(facts[key]); value = value * 100 if abs(value) <= 1 and value not in (0, -0.5) else value
+                financial.append(f"{label} was {value:.1f}%")
+        if facts.get("free_cash_flow") is not None and float(facts["free_cash_flow"]) > 0:
+            financial.append(f"free cash flow was {_customer_amount(facts['free_cash_flow'])}")
+        if facts.get("forward_eps") is not None:
+            financial.append(f"forward earnings are ${float(facts['forward_eps']):.2f} per share")
+        if facts.get("forward_revenue") is not None:
+            financial.append(f"forward revenue is about {_customer_amount(facts['forward_revenue'])}")
+        description = str(facts.get("company_description") or "").strip()
+        if description:
+            description = next((part.strip().rstrip(".") for part in re.split(r"(?<=[.!?])\s+", description) if part.strip()), "")
+        same_identity = re.sub(r"[^a-z0-9]+", "", description.lower()) == re.sub(r"[^a-z0-9]+", "", company.lower())
+        identity = f"{description}. " if description and not same_identity and len(description.split()) <= 24 else ""
+        opening = (
+            identity + f"{company}'s financial record shows " + " and ".join(financial[:2]) + "."
+            if financial else f"{company}'s available certified record is focused on its market setup rather than a detailed financial growth case."
+        )
+        atlas, upside = facts.get("atlas_fair_value"), facts.get("atlas_upside_pct")
+        if atlas is not None and upside is not None:
+            valuation = f"ATLAS estimates fair value at ${float(atlas):.2f}, implying {float(upside):.1f}% potential from the certified price."
+        else:
+            valuation = "ATLAS has not published a fair value for this snapshot."
+        divergence = build_atlas_street_divergence_explanation(facts)
+        street = dict(facts.get("wall_street_analysis") or {}); consensus = dict(street.get("consensus") or {})
+        if facts.get("wall_street_evidence_available") and consensus.get("target_mean") is not None:
+            street_copy = f"Wall Street's average target is ${float(consensus['target_mean']):.2f}"
+            if consensus.get("analyst_count") is not None: street_copy += f" across {int(consensus['analyst_count'])} analysts"
+            street_copy += ";"
+            if divergence.get("classification") not in {"NOT_COMPARABLE", "BROADLY_ALIGNED"}:
+                explanation = str(divergence.get("explanation") or "")
+                explanation = explanation.replace("Wall Street. Its", "Wall Street because its", 1)
+                street_copy += " " + explanation
+            trend = str(street.get("recent_trend") or "").upper()
+            if trend == "DETERIORATING": street_copy = street_copy.rstrip(".") + "; recent analyst actions have deteriorated."
+        else:
+            street_copy = "A verified Wall Street comparison is not available for this snapshot."
+        action = str(facts.get("action") or payload.get("customer_action") or "WATCH").replace("_", " ")
+        action_label = {"ACCUMULATE": "BUILD A POSITION", "DATA LIMITED": "WATCH"}.get(action, action)
+        action_reason = ACTION_101.get(action_label, ACTION_101["WATCH"])
+        if action_reason.startswith("ATLAS "):
+            action_reason = "it " + action_reason[6:7].lower() + action_reason[7:]
+        risk = str(facts.get("primary_risk") or "the expected business improvement may not arrive").strip().rstrip(".")
+        trend_risk = " and deteriorating analyst actions" if str(street.get("recent_trend") or "").upper() == "DETERIORATING" else ""
+        closing = f"ATLAS rates the stock {action_label} because {action_reason.rstrip('.')}. The main certified risk is {risk}{trend_risk}."
+        return " ".join((opening, valuation, street_copy, closing))
     company = str(payload.get("company") or payload.get("ticker") or "This company")
     company_evidence = dict(payload.get("company_evidence") or {})
     fundamentals = dict(payload.get("fundamentals") or {})

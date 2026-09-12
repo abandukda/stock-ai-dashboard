@@ -62,22 +62,36 @@ def build_market_today(tape: Mapping[str, Any] | None, *, news: Sequence[Mapping
     for item in tape.get("rows") or ():
         if item.get("status") != "available" or item.get("price") is None:
             continue
-        rows.append({key:item.get(key) for key in ("symbol","label","price","point_change","change_pct","direction","as_of","evidence_id")})
+        rows.append({key:item.get(key) for key in (
+            "symbol","label","price","previous_close","point_change","change_pct","direction",
+            "as_of","provider_timestamp","market_session","source","evidence_id","freshness_status",
+        )})
     instant=now or datetime.now(timezone.utc)
     session=classify_market_session(instant).value
     session={"REGULAR":"OPEN","OVERNIGHT":"CLOSED"}.get(session,session.replace("_"," "))
+    if rows and session != "OPEN":
+        session = "LATEST REGULAR CLOSE"
     changes=[float(row["change_pct"]) for row in rows if row.get("change_pct") is not None]
+    governed_news=normalize_major_market_news(news)
+    drivers=[]
+    for item in governed_news[:2]:
+        tag=str(item.get("relevance") or "").replace("_", " ").lower()
+        if tag and tag not in drivers: drivers.append(tag)
+    driver_copy = (
+        " Verified headlines point to " + " and ".join(drivers) + " as market context."
+        if drivers else ""
+    )
     if not changes:
         interpretation="Current governed broad-market readings are not available, so ATLAS is not inferring today's backdrop."
     elif sum(changes)/len(changes) >= .35:
-        interpretation="Broad U.S. equity benchmarks are generally higher in the latest governed readings. The move is supportive context, but it does not change any company-level ATLAS rating."
+        interpretation="Broad U.S. equity benchmarks are generally higher in the latest governed readings." + driver_copy + " This is context only; company ratings still depend on each stock's certified evidence."
     elif sum(changes)/len(changes) <= -.35:
-        interpretation="Broad U.S. equity benchmarks are generally lower in the latest governed readings. Near-term risk appetite is softer, but individual ATLAS ratings remain determined by their own certified evidence."
+        interpretation="Broad U.S. equity benchmarks are generally lower in the latest governed readings." + driver_copy + " Risk appetite is softer, but company ratings remain determined by their own certified evidence."
     else:
-        interpretation="Broad U.S. equity benchmarks are mixed or little changed in the latest governed readings. ATLAS continues to prioritize company-specific valuation, quality, and entry evidence."
+        interpretation="Broad U.S. equity benchmarks are mixed or little changed in the latest governed readings." + driver_copy + " Investors should watch whether the verified drivers broaden, while company ratings remain independent."
     return {"version":VERSION,"status":"AVAILABLE" if rows else "DATA_UNAVAILABLE","market_session":session,
             "as_of":tape.get("market_data_as_of"),"source":"TWELVE_DATA","instruments":tuple(rows),
-            "interpretation":interpretation,"major_market_news":normalize_major_market_news(news),"non_scoring":True}
+            "interpretation":interpretation,"major_market_news":governed_news,"non_scoring":True}
 
 
 __all__=["NEWS_VERSION","VERSION","build_market_today","normalize_major_market_news"]

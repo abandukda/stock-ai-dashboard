@@ -7,10 +7,12 @@ are deliberately kept separate from the persisted Atlas research timestamp.
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime, timezone
+from datetime import datetime, time, timezone
 from typing import Any, Callable, Mapping
+from zoneinfo import ZoneInfo
 
 from services.governed_discovery_data import fetch_twelve_daily_batch
+from services.live_market.twelve_data_phase1 import load_twelve_data_setting
 
 
 HOME_MARKET_SYMBOLS = {
@@ -19,6 +21,25 @@ HOME_MARKET_SYMBOLS = {
     "DIA": "Dow · DIA",
     "IWM": "Russell 2000 · IWM",
 }
+ET = ZoneInfo("America/New_York")
+
+
+def _regular_close_timestamp(value: Any) -> datetime | None:
+    """Represent a completed daily bar at the U.S. regular-session close."""
+    try:
+        stamp = value.to_pydatetime() if hasattr(value, "to_pydatetime") else value
+        if not isinstance(stamp, datetime):
+            return None
+        if stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=timezone.utc)
+        local = stamp.astimezone(ET)
+        # Twelve daily bars are date observations (normally midnight UTC), not
+        # intraday ticks.  Preserve that date while presenting its completed
+        # regular-session close semantics.
+        bar_date = stamp.date() if stamp.hour == stamp.minute == stamp.second == 0 else local.date()
+        return datetime.combine(bar_date, time(16, 0), tzinfo=ET)
+    except (TypeError, ValueError, OverflowError):
+        return None
 
 
 def _series(frame: Any, symbol: str):
@@ -48,14 +69,17 @@ def fetch_home_market_tape(
     """Fetch governed market context in one batch and preserve partial failures."""
     requested = tuple(symbols)
     observed = (now or (lambda: datetime.now(timezone.utc)))().astimezone(timezone.utc)
+    credential_available = bool(load_twelve_data_setting("TWELVE_DATA_API_KEY")) if downloader is None else True
     try:
         frame = (downloader(
             list(requested), period="5d", interval="5m", progress=False,
             auto_adjust=True, threads=True, group_by="column",
         ) if downloader else fetch_twelve_daily_batch(requested, outputsize=5))
-        batch_error = None
+        batch_error = None if credential_available else "CREDENTIAL_UNAVAILABLE"
     except Exception as exc:  # presentation data must degrade independently
-        frame, batch_error = None, type(exc).__name__
+        frame = None
+        name = type(exc).__name__.upper()
+        batch_error = "RATE_LIMIT" if "RATE" in name else "PROVIDER_ERROR"
 
     rows = []
     quote_times = []
@@ -68,10 +92,9 @@ def fetch_home_market_tape(
         previous = float(close.iloc[-2]) if len(close) > 1 else last
         stamp = None
         try:
-            stamp = close.index[-1].to_pydatetime()
-            if stamp.tzinfo is None:
-                stamp = stamp.replace(tzinfo=timezone.utc)
-            quote_times.append(stamp.astimezone(timezone.utc))
+            stamp = _regular_close_timestamp(close.index[-1])
+            if stamp is not None:
+                quote_times.append(stamp.astimezone(timezone.utc))
         except (AttributeError, IndexError, TypeError):
             pass
         point_change=last-previous
@@ -82,20 +105,26 @@ def fetch_home_market_tape(
             "label": label,
             "status": "available",
             "price": last,
+            "previous_close": previous,
             "point_change": point_change,
             "change_pct": ((last - previous) / previous * 100) if previous else None,
             "direction": "UP" if point_change > 0 else "DOWN" if point_change < 0 else "FLAT",
             "as_of": as_of,
+            "provider_timestamp": as_of,
+            "market_session": "LATEST_REGULAR_CLOSE",
+            "source": "TWELVE_DATA",
+            "freshness_status": "LATEST_COMPLETED_REGULAR_SESSION",
             "evidence_id": evidence_id,
         })
     return {
         "rows": rows,
         "market_data_as_of": max(quote_times).isoformat().replace("+00:00", "Z") if quote_times else None,
         "market_data_requested_at": observed.isoformat().replace("+00:00", "Z"),
-        "freshness": "delayed_or_near_real_time" if quote_times else "unavailable",
+        "freshness": "LATEST_COMPLETED_REGULAR_SESSION" if quote_times else "TEMPORARILY_UNAVAILABLE",
         "source": "Twelve Data",
         "requested": len(requested),
         "available": sum(row["status"] == "available" for row in rows),
+        "failure_reason": batch_error if not quote_times else None,
         "batch_error": batch_error,
     }
 
