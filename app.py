@@ -33043,6 +33043,12 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
         production_artifact_sha256=production_artifact_sha256,
     )
     st.session_state["home_action_runtime_health"] = dict(story.get("home_action_count_contract") or {})
+    from services.home_runtime_contract import build_home_runtime_contract
+    story["home_runtime_contract"] = build_home_runtime_contract(
+        story, market_health=st.session_state.get("home_market_runtime_health"),
+        news_health=st.session_state.get("home_market_news_runtime_health"),
+    )
+    st.session_state["home_runtime_contract"] = dict(story["home_runtime_contract"])
     from services.session_stability import emit_page_interactive
     def _home_guidance_interactive():
         emit_page_interactive(st, "Home")

@@ -222,6 +222,16 @@ def _certified_paid_client_full_evidence(card: Mapping[str, Any], certified: Map
 
     consensus = dict(street.get("consensus") or {})
     action = dict(card.get("customer_action") or {})
+    summary = dict(card.get("customer_plain_english_summary") or {})
+    risk = dict(certified.get("risk") or {})
+    risk_evidence = dict(risk.get("evidence") or {})
+    certified_price = value("price")
+    live_price = card.get("live_price")
+    current_upside = card.get("live_implied_upside_pct")
+    evidence_sources = sorted({
+        str(item.get("source")) for item in fields.values()
+        if isinstance(item, Mapping) and item.get("source")
+    })
     method_rows = []
     for method in certified.get("valuation_methods") or ():
         if not isinstance(method, Mapping):
@@ -238,16 +248,24 @@ def _certified_paid_client_full_evidence(card: Mapping[str, Any], certified: Map
         if len(method_rows) == 1 and "100.0% weight" in method_rows[0][1] else ""
     )
     sections = (
-        ("Decision", grid((
+        ("Decision Summary", grid((
             ("ATLAS Action", f'{action.get("stars", "")} {action.get("label", "")}'.strip() if decision.get("action") else None, "text"),
+            ("Current Price", live_price if live_price is not None else certified_price, "money"),
+            ("Price Updated", _timestamp(card.get("price_as_of")), "text"),
+            ("Decision Certified", _timestamp(card.get("decision_as_of")), "text"),
             ("Opportunity", decision.get("opportunity"), "text"),
             ("Decision Confidence", decision.get("decision_confidence"), "pct"),
             ("Evidence Coverage", decision.get("component_coverage"), "pct"),
         ))),
-        ("Market & Valuation", grid((
-            ("Current Price", value("price"), "money"),
+        ("ATLAS in Plain English", (
+            f'<p>{html.escape(str(summary.get("text")))}</p>'
+            if summary.get("text") else '<p class="atlas-home-muted">No certified plain-English thesis is available for this snapshot.</p>'
+        )),
+        ("Professional Valuation", grid((
+            ("Certified Snapshot Price", certified_price, "money"),
             ("ATLAS Fair Value", value("atlas_fair_value"), "money"),
-            ("ATLAS Upside", value("atlas_upside_pct"), "pct"),
+            ("Current-price Implied Upside", current_upside, "pct"),
+            ("Certified Snapshot Upside", value("atlas_upside_pct"), "pct"),
             ("Market Capitalization", value("market_cap"), "money"),
             ("Enterprise Value", value("enterprise_value"), "money"),
         ))),
@@ -274,6 +292,11 @@ def _certified_paid_client_full_evidence(card: Mapping[str, Any], certified: Map
                 ("Volume State", dict(certified.get("volume") or {}).get("state")),
             )
         ))),
+        ("Risks", grid((
+            ("Drawdown Context", risk_evidence.get("drawdown_label"), "text"),
+            ("Volatility Risk", risk_evidence.get("volatility_risk"), "text"),
+            ("Net Debt / EBITDA", risk.get("net_debt_to_ebitda"), "text"),
+        ))),
         ("Trade Plan", grid(tuple((label, trade.get(name), kind) for label, name, kind in (
             ("Entry Low", "entry_low", "money"), ("Entry High", "entry_high", "money"),
             ("Stop", "stop_loss", "money"), ("Target 1", "trade_target_1", "money"),
@@ -284,6 +307,11 @@ def _certified_paid_client_full_evidence(card: Mapping[str, Any], certified: Map
             ("Median Target", consensus.get("target_median"), "money"),
             ("Target Range", f'{_money(consensus.get("target_low"))}–{_money(consensus.get("target_high"))}' if consensus.get("target_low") is not None and consensus.get("target_high") is not None else None, "text"),
             ("Analysts", consensus.get("analyst_count"), "text"),
+        ))),
+        ("Sources / Evidence", grid((
+            ("Certified Snapshot", dict(certified.get("digests") or {}).get("evaluation_snapshot_id"), "text"),
+            ("Decision Digest", dict(certified.get("digests") or {}).get("decision_digest"), "text"),
+            ("Evidence Sources", ", ".join(evidence_sources) if evidence_sources else None, "text"),
         ))),
     )
     body = "".join(
@@ -789,11 +817,13 @@ def _action_card(card: Mapping[str, Any]) -> str:
 
 def _target_tiles(card: Mapping[str, Any]) -> str:
     published = str(card.get("atlas_valuation_status") or "").upper() == "PUBLISHED"
-    values = [("Current", _money(card.get("display_price")) if card.get("display_price") is not None else "Not Published", "current")]
+    price_label = "Current" if card.get("live_price") is not None else "Last-known Price"
+    values = [(price_label, _money(card.get("display_price")) if card.get("display_price") is not None else "Not Published", "current")]
     if published:
         values.extend((
             ("ATLAS Target", _money(card.get("atlas_fair_value")), "atlas"),
-            ("ATLAS Upside", _score(card.get("atlas_expected_return"), suffix="%"), "atlas"),
+            ("Current-price implied upside" if card.get("live_implied_upside_pct") is not None else "ATLAS Upside",
+             _score(card.get("live_implied_upside_pct") if card.get("live_implied_upside_pct") is not None else card.get("atlas_expected_return"), suffix="%"), "atlas"),
         ))
     else:
         values.append(("ATLAS Target / Upside", "Not Published", "atlas"))
@@ -1122,10 +1152,14 @@ def _card(card: Mapping[str, Any], *, key: str, first: bool = False, total: int 
             '</div>', unsafe_allow_html=True,
         )
         st.markdown(_market_evidence_badge(card), unsafe_allow_html=True)
+        revalidation = dict(card.get("targeted_revalidation") or {})
+        if revalidation.get("state") in {"REVALIDATION_REQUIRED", "REVALIDATING"}:
+            st.warning(str(revalidation.get("customer_message") or "ATLAS is revalidating this opportunity against the latest price."))
         st.markdown(_action_card(card), unsafe_allow_html=True)
         st.caption(
-            f"Latest ATLAS Rating — {_timestamp(card.get('latest_rating_as_of'))} · "
-            f"Live Entry Status — {card.get('live_entry_status') or 'Current-session evidence unavailable'}"
+            f"Price updated — {_timestamp(card.get('price_as_of'))} · "
+            f"Decision certified — {_timestamp(card.get('decision_as_of'))} · "
+            f"Status — {str(revalidation.get('state') or 'TEMPORARILY_UNAVAILABLE').replace('_', ' ').title()}"
         )
         chart_contract = card.get("home_chart") if isinstance(card.get("home_chart"), Mapping) else {}
         if str(chart_contract.get("status") or "").upper() == "AVAILABLE" and len(chart_contract.get("bars") or ()) >= 2:
@@ -1358,6 +1392,12 @@ def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=Non
         from services.session_stability import emit_page_interactive as emit
         emit_interactive = lambda: emit(st, "Home")
     _inject_css()
+    runtime = dict(story.get("home_runtime_contract") or {})
+    st.markdown(
+        f'<span data-atlas-qa="home-runtime-contract" data-atlas-runtime-ready="{str(runtime.get("runtime_ready") is True).lower()}" '
+        f'data-atlas-runtime-version="{html.escape(str(runtime.get("version") or "UNAVAILABLE"))}" '
+        'aria-hidden="true" style="display:none">home-runtime-contract</span>', unsafe_allow_html=True,
+    )
     from services.runtime_build_identity import runtime_build_identity
     build = runtime_build_identity()
     st.markdown(

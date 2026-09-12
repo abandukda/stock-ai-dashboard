@@ -327,16 +327,24 @@ def build_home_guidance_candidate(
         persisted_guidance = persisted_evaluation.get("guidance") if isinstance(persisted_evaluation.get("guidance"), Mapping) else {}
         if persisted_guidance.get("policy_version") != GUIDANCE_POLICY_VERSION:
             persisted_evaluation = None
+    from services.targeted_revalidation import assess_targeted_revalidation
+    revalidation = assess_targeted_revalidation(persisted_evaluation, current_evaluation)
     # A published completed-session evaluation is the canonical rating.  The
     # short-lived Home acquisition is optional context and must not downgrade
     # or replace that rating when its own enrichment is incomplete.
-    evaluation = dict(persisted_evaluation or current_evaluation or evaluate_on_demand(
+    evaluation = dict(
+        current_evaluation if revalidation.get("state") == "REVALIDATED" else
+        persisted_evaluation or current_evaluation or evaluate_on_demand(
         row, context={"production_decision": production_decision, "evidence_registry": {}},
     ))
     if persisted_evaluation and current_evaluation:
         # Optional synthesis/context may refresh independently, but it cannot
         # replace any canonical completed-session decision field.
-        for presentation_key in ("atlas_ai_view", "customer_plain_english_summary", "trial_intelligence", "trial_presentation_fields"):
+        for presentation_key in (
+            "atlas_ai_view", "customer_plain_english_summary", "trial_intelligence",
+            "trial_presentation_fields", "phase1_completed_bar", "phase1_bar_quality",
+            "phase1_home_chart",
+        ):
             if current_evaluation.get(presentation_key):
                 evaluation[presentation_key] = current_evaluation[presentation_key]
     trial_fields = evaluation.get("trial_presentation_fields") if isinstance(evaluation.get("trial_presentation_fields"), Mapping) else {}
@@ -454,7 +462,7 @@ def build_home_guidance_candidate(
     trial_intelligence = evaluation.get("trial_intelligence") if isinstance(evaluation.get("trial_intelligence"), Mapping) else {}
     market = evaluation.get("market_snapshot") if isinstance(evaluation.get("market_snapshot"), Mapping) else {}
     market_price = number((certified_fields.get("price") or {}).get("value")) if use_certified else number(market.get("price"))
-    live_price = market_price if market.get("fresh_current_price") is True else None
+    live_price = number(revalidation.get("live_price"))
     observed_price = live_price if live_price is not None else market_price if market_price is not None else price
     completed_bar = evaluation.get("phase1_completed_bar") if isinstance(evaluation.get("phase1_completed_bar"), Mapping) else {}
     bar_quality = evaluation.get("phase1_bar_quality") if isinstance(evaluation.get("phase1_bar_quality"), Mapping) else {}
@@ -530,26 +538,39 @@ def build_home_guidance_candidate(
         "evidence_health": _evidence_health(evaluation),
         "methodology_version": evaluation.get("methodology_version"),
         "evaluation_timestamp": evaluation.get("evaluated_at"),
+        "decision_as_of": certified.get("generated_at") or evaluation.get("evaluated_at"),
+        "decision_snapshot_id": dict(certified.get("digests") or {}).get("evaluation_snapshot_id"),
+        "decision_digest": dict(certified.get("digests") or {}).get("decision_digest") or evaluation.get("decision_digest"),
+        "targeted_revalidation": dict(revalidation),
         "latest_rating_as_of": market.get("provider_timestamp") or evaluation.get("evaluated_at"),
         "live_entry_status": (
             "LIVE — current-session evidence validated" if live_price is not None else
             "MARKET CLOSED — revalidate next session" if market.get("latest_completed_session_valid") is True else
             "CURRENT-SESSION EVIDENCE UNAVAILABLE"
         ),
-        "market_source_type": str((evaluation.get("market_snapshot") or {}).get("source_type") or "UNAVAILABLE"),
-        "market_customer_label": str((evaluation.get("market_snapshot") or {}).get("customer_label") or "Market evidence unavailable"),
+        "market_source_type": str(revalidation.get("source_type") or market.get("source_type") or "UNAVAILABLE"),
+        "market_customer_label": str(revalidation.get("customer_label") or market.get("customer_label") or "Market evidence unavailable"),
         "current_price": live_price,
+        "live_price": live_price,
+        "price_as_of": (
+            revalidation.get("price_as_of") or market.get("provider_timestamp")
+            or (certified_fields.get("price") or {}).get("as_of")
+            or completed_bar.get("datetime") or completed_bar.get("timestamp")
+        ),
+        "live_implied_upside_pct": round((float(fair_value) / live_price - 1) * 100, 1) if fair_value is not None and live_price not in (None, 0) else None,
         "display_price": observed_price,
         "display_price_label": "Current Price" if live_price is not None else str(market.get("customer_label") or ("Last-known Price" if observed_price is not None else "Price unavailable")),
         "market_evidence": {
             "status": "LIVE" if live_price is not None else ("LAST_KNOWN" if market_price is not None else "UNAVAILABLE"),
-            "provider": market.get("provider"), "source_type": market.get("source_type"),
-            "market_session": market.get("market_session"), "stale": market.get("stale"),
-            "provider_timestamp": market.get("provider_timestamp"),
-            "received_timestamp": market.get("received_timestamp"),
-            "freshness_age_seconds": market.get("freshness_age_seconds"),
-            "feed_health": market.get("feed_health"),
-            "evidence_id": (market.get("evidence_id") or (evaluation.get("market_snapshot") or {}).get("evidence_id")),
+            "provider": revalidation.get("price_source") or market.get("provider"),
+            "source_type": revalidation.get("source_type") or market.get("source_type"),
+            "market_session": revalidation.get("market_session") or market.get("market_session"),
+            "stale": revalidation.get("stale") if revalidation.get("stale") is not None else market.get("stale"),
+            "provider_timestamp": revalidation.get("price_as_of") or market.get("provider_timestamp"),
+            "received_timestamp": revalidation.get("received_timestamp") or market.get("received_timestamp"),
+            "freshness_age_seconds": revalidation.get("freshness_age_seconds"),
+            "feed_health": revalidation.get("feed_health") or market.get("feed_health"),
+            "evidence_id": revalidation.get("evidence_id") or market.get("evidence_id"),
             "methodology_version": market.get("source_methodology_version") or market.get("version"),
         },
         "latest_completed_bar": dict(completed_bar),
@@ -711,7 +732,10 @@ def build_home_guidance_candidate(
         candidate["recent_catalysts"] = ()
         candidate["context_evidence"] = {"non_scoring": True, "display_scope": display_scope()}
         candidate["internal_evidence_lanes"] = {}
-        candidate["display_price"] = certified_value("price")
+        # The certified price remains immutable evidence, while the dedicated
+        # Twelve presentation overlay may show a newer price without changing
+        # any certified decision field.
+        candidate["display_price"] = live_price if live_price is not None else certified_value("price")
         candidate["last_known_price"] = certified_value("price")
     from services.home_promotion_policy import classify_homepage_promotion
     candidate["homepage_promotion_eligibility"] = classify_homepage_promotion(row)

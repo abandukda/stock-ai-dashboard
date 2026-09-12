@@ -129,6 +129,8 @@ def render_developer_center(
     action_health = dict(st.session_state.get("home_action_runtime_health") or {})
     with st.expander("Home Action Runtime Health", expanded=False):
         st.json(action_health or {"status": "NOT_BUILT_IN_THIS_SESSION"})
+    with st.expander("Home Runtime Contract", expanded=False):
+        st.json(dict(st.session_state.get("home_runtime_contract") or {"status": "NOT_BUILT_IN_THIS_SESSION"}))
     manifest_path = Path("publication_manifest.json")
     try:
         _render_full_qa_status(json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else {})

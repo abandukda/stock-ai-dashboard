@@ -399,7 +399,7 @@ render_home_guidance_vnext(build_home_guidance_story(rows, [{"ticker":"MU","reco
     assert "What ATLAS sees" not in rendered
     assert "What ATLAS needs" not in rendered
     assert 'data-atlas-qa="home-guidance-summary"' in rendered
-    assert 'data-atlas-home-renderer-version="ATLAS_CUSTOMER_101_V1"' in rendered
+    assert 'data-atlas-home-renderer-version="ATLAS_CUSTOMER_101_LIVE_DECISION_V1"' in rendered
     assert rendered.index("home-decisive-reason") < rendered.index("home-guidance-research-cta")
     assert rendered.index("home-guidance-research-cta") < rendered.index("home-guidance-full-evidence")
     assert "Professional Detail" in "\n".join(str(item.label) for item in app.expander)
