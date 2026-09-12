@@ -150,7 +150,7 @@
     "risk_tags": [
       "Price is below or near the 50-day trend"
     ],
-    "scan_time": "2026-09-11T21:45:00.125215+00:00",
+    "scan_time": "2026-09-12T01:05:06.966045+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -324,7 +324,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-11 00:00:00+00:00",
       "sma200_history_sha256": "2814f85a7bc40cc2fafc52949cb34e721bb7c93b86aa90f6098309ea8015162a",
-      "sma200_evidence_timestamp": "2026-09-11T21:45:00.132077+00:00"
+      "sma200_evidence_timestamp": "2026-09-12T01:05:06.974264+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -448,13 +448,13 @@
     "price": 1633.67,
     "current_price": 1633.67,
     "last_price": 1633.67,
-    "avg_volume_20d": 12474268,
-    "dollar_volume": 20378838556.0,
+    "avg_volume_20d": 12477488,
+    "dollar_volume": 20384098973.53,
     "volume_ratio": 0.7,
-    "conviction": 92,
-    "conviction_score": 92,
-    "score": 92,
-    "ai_score": 92,
+    "conviction": 94,
+    "conviction_score": 94,
+    "score": 94,
+    "ai_score": 94,
     "rsi": 53.0,
     "atr14": 101.36,
     "atr_pct": 6.2,
@@ -486,8 +486,8 @@
     "analyst_high_upside_pct": null,
     "expected_upside_pct": 45.6,
     "upside": 45.6,
-    "ai_confidence": 92,
-    "confidence": 92,
+    "ai_confidence": 94,
+    "confidence": 94,
     "ai_fair_value_adjustment_pct": 17.0,
     "target_source": "Multi-factor AI fair value; analyst target unavailable",
     "target_confidence_note": "Analyst target data unavailable. AI used growth, valuation, trend, volume, recent highs, and risk. AI adjustment 17.0%.",
@@ -521,7 +521,7 @@
     "guidance": "Sandisk Corp. (SNDK) is scoring 82/100. Preferred entry is $1582.99 - $1659.01. Use a stop around $1491.77 and first target near $1889.1. Approximate first target offers about 1.8:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure. Analyst/AI target view: Analyst target data unavailable. AI used growth, valuation, trend, volume, recent highs, and risk. AI adjustment 17.0%. AI base target $2377.93, bull case $2805.96, bear case $1257.93.",
     "action_note": "Do not chase a gap-up open. Best setup is either a controlled pullback into the entry range or a breakout that holds above prior resistance with volume.",
     "ai_guidance": "Sandisk Corp. (SNDK) is scoring 82/100. Preferred entry is $1582.99 - $1659.01. Use a stop around $1491.77 and first target near $1889.1. Approximate first target offers about 1.8:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure.",
-    "summary": "Sandisk Corp.: normalized conviction 92/100, AI target $2377.93 with 45.6% upside.",
+    "summary": "Sandisk Corp.: normalized conviction 94/100, AI target $2377.93 with 45.6% upside.",
     "setup_tags": [
       "Strong liquidity",
       "Price is above the 20-day trend",
@@ -532,7 +532,7 @@
       "RSI is constructive without looking overheated"
     ],
     "risk_tags": [],
-    "scan_time": "2026-09-11T21:44:16.880071+00:00",
+    "scan_time": "2026-09-12T01:04:19.551156+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -706,7 +706,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-11 00:00:00+00:00",
       "sma200_history_sha256": "02b45fd33f2850b88b31cd6a3914a61301c37336e393b156db971225ef7d78a9",
-      "sma200_evidence_timestamp": "2026-09-11T21:44:16.886654+00:00"
+      "sma200_evidence_timestamp": "2026-09-12T01:04:19.559650+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -828,47 +828,47 @@
     "peer_symbols": null,
     "institutional_ownership_pct": null,
     "insider_ownership_pct": null,
-    "price": 151.14,
-    "current_price": 151.14,
-    "last_price": 151.14,
-    "avg_volume_20d": 79771467,
-    "dollar_volume": 12056659560.16,
-    "volume_ratio": 0.95,
+    "price": 151.21,
+    "current_price": 151.21,
+    "last_price": 151.21,
+    "avg_volume_20d": 79947682,
+    "dollar_volume": 12088889923.23,
+    "volume_ratio": 0.99,
     "conviction": 94,
     "conviction_score": 94,
     "score": 94,
     "ai_score": 94,
-    "rsi": 67.9,
+    "rsi": 68.0,
     "atr14": 6.13,
     "atr_pct": 4.05,
     "sma10": 146.62,
     "sma20": 142.99,
     "sma50": 135.07,
     "sma100": null,
-    "one_day_pct": 2.0,
-    "five_day_pct": 0.93,
-    "twenty_day_pct": 6.97,
-    "sixty_day_pct": -28.5,
-    "entry_range": "$148.07 - $152.67",
-    "entry_low": 148.07,
-    "entry_high": 152.67,
+    "one_day_pct": 2.04,
+    "five_day_pct": 0.98,
+    "twenty_day_pct": 7.02,
+    "sixty_day_pct": -28.47,
+    "entry_range": "$148.15 - $152.74",
+    "entry_low": 148.15,
+    "entry_high": 152.74,
     "stop_loss": 140.84,
     "target": 215.94,
-    "target_1": 169.67,
-    "trade_target_1": 169.67,
-    "target_2": 178.94,
-    "trade_target_2": 178.94,
+    "target_1": 169.87,
+    "trade_target_1": 169.87,
+    "target_2": 179.2,
+    "trade_target_2": 179.2,
     "ai_base_target": 215.94,
     "ai_bull_target": 254.81,
-    "ai_bear_target": 123.93,
+    "ai_bear_target": 123.99,
     "analyst_target_mean": null,
     "analyst_target_high": null,
     "analyst_target_low": null,
     "analyst_count": null,
     "analyst_upside_pct": null,
     "analyst_high_upside_pct": null,
-    "expected_upside_pct": 42.9,
-    "upside": 42.9,
+    "expected_upside_pct": 42.8,
+    "upside": 42.8,
     "ai_confidence": 94,
     "confidence": 94,
     "ai_fair_value_adjustment_pct": 22.0,
@@ -898,13 +898,13 @@
     "why_ranked_high": "High conviction because multiple signals align across trend, liquidity, momentum, valuation/growth context, and risk control.",
     "what_looks_good": "Strong liquidity; Price is above the 20-day trend; Price is above the 50-day trend; Short-term trend is above intermediate trend; Positive 20-day momentum; RSI is constructive without looking overheated; Trading near recent highs without being at the absolute top; Volatility is tradable",
     "what_could_go_wrong": "Main risk is a normal pullback if broader market momentum fades.",
-    "investment_thesis": "Space Exploration Technologies Corp. Class A Common Stock screens as a potential opportunity because strong liquidity; price is above the 20-day trend; price is above the 50-day trend; short-term trend is above intermediate trend; positive 20-day momentum; rsi is constructive without looking overheated; trading near recent highs without being at the absolute top; volatility is tradable. AI target is $215.94 with expected upside of 42.9%, using Multi-factor AI fair value; analyst target unavailable. Analyst support score: N/A. News flow: N/A. Key risk: main risk is a normal pullback if broader market momentum fades..",
-    "table_reason": "AI target $215.94 / upside 42.9%. High conviction because multiple signals align across trend, liquidity, momentum, valuation/growth context, and risk control. Watch entry $148.07 - $152.67 with stop near $140.84.",
-    "opportunity_reason": "AI fair-value upside: 42.9%. Analyst target data unavailable. AI used growth, valuation, trend, volume, recent highs, and risk. AI adjustment 22.0%. Analyst support score: N/A. Latest news: N/A",
-    "guidance": "Space Exploration Technologies Corp. Class A Common Stock (SPCX) is scoring 82/100. Preferred entry is $148.07 - $152.67. Use a stop around $140.84 and first target near $169.67. Approximate first target offers about 1.8:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure. Analyst/AI target view: Analyst target data unavailable. AI used growth, valuation, trend, volume, recent highs, and risk. AI adjustment 22.0%. AI base target $215.94, bull case $254.81, bear case $123.93.",
+    "investment_thesis": "Space Exploration Technologies Corp. Class A Common Stock screens as a potential opportunity because strong liquidity; price is above the 20-day trend; price is above the 50-day trend; short-term trend is above intermediate trend; positive 20-day momentum; rsi is constructive without looking overheated; trading near recent highs without being at the absolute top; volatility is tradable. AI target is $215.94 with expected upside of 42.8%, using Multi-factor AI fair value; analyst target unavailable. Analyst support score: N/A. News flow: N/A. Key risk: main risk is a normal pullback if broader market momentum fades..",
+    "table_reason": "AI target $215.94 / upside 42.8%. High conviction because multiple signals align across trend, liquidity, momentum, valuation/growth context, and risk control. Watch entry $148.15 - $152.74 with stop near $140.84.",
+    "opportunity_reason": "AI fair-value upside: 42.8%. Analyst target data unavailable. AI used growth, valuation, trend, volume, recent highs, and risk. AI adjustment 22.0%. Analyst support score: N/A. Latest news: N/A",
+    "guidance": "Space Exploration Technologies Corp. Class A Common Stock (SPCX) is scoring 82/100. Preferred entry is $148.15 - $152.74. Use a stop around $140.84 and first target near $169.87. Approximate first target offers about 1.8:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure. Analyst/AI target view: Analyst target data unavailable. AI used growth, valuation, trend, volume, recent highs, and risk. AI adjustment 22.0%. AI base target $215.94, bull case $254.81, bear case $123.99.",
     "action_note": "Do not chase a gap-up open. Best setup is either a controlled pullback into the entry range or a breakout that holds above prior resistance with volume.",
-    "ai_guidance": "Space Exploration Technologies Corp. Class A Common Stock (SPCX) is scoring 82/100. Preferred entry is $148.07 - $152.67. Use a stop around $140.84 and first target near $169.67. Approximate first target offers about 1.8:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure.",
-    "summary": "Space Exploration Technologies Corp. Class A Common Stock: normalized conviction 94/100, AI target $215.94 with 42.9% upside.",
+    "ai_guidance": "Space Exploration Technologies Corp. Class A Common Stock (SPCX) is scoring 82/100. Preferred entry is $148.15 - $152.74. Use a stop around $140.84 and first target near $169.87. Approximate first target offers about 1.8:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure.",
+    "summary": "Space Exploration Technologies Corp. Class A Common Stock: normalized conviction 94/100, AI target $215.94 with 42.8% upside.",
     "setup_tags": [
       "Strong liquidity",
       "Price is above the 20-day trend",
@@ -916,7 +916,7 @@
       "Volatility is tradable"
     ],
     "risk_tags": [],
-    "scan_time": "2026-09-11T21:44:20.652827+00:00",
+    "scan_time": "2026-09-12T01:04:23.092871+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -926,7 +926,7 @@
         "summary": "Lightweight scheduled scan: evaluates trend, momentum, volatility, support/resistance and entry quality.",
         "findings": [
           "Support 1: 130.39 \u00b7 Resistance 1: 155.0.",
-          "RSI: 67.9."
+          "RSI: 68.0."
         ],
         "risks": [
           "Latest news/SEC/competitor checks are deferred to full committee or live lookup."
@@ -1070,13 +1070,13 @@
     "low_52w": 104.83,
     "all_period_high": 225.64,
     "all_period_low": 104.83,
-    "range_position_pct": 38.3,
+    "range_position_pct": 38.4,
     "range_position_label": "Lower-middle range",
     "distance_from_52w_high_pct": -33.0,
     "distance_from_52w_low_pct": 44.2,
     "drawdown_from_period_high_pct": -33.0,
     "drawdown_label": "Deep drawdown",
-    "return_1m_pct": 3.4,
+    "return_1m_pct": 3.5,
     "return_3m_pct": 12.0,
     "return_6m_pct": null,
     "return_1y_pct": null,
@@ -1103,7 +1103,7 @@
     "v42_resistance_1": 155.0,
     "v42_resistance_2": 225.64,
     "v42_breakout_level": 156.55,
-    "v42_pullback_zone": "$130.39 - $148.12",
+    "v42_pullback_zone": "$130.39 - $148.19",
     "v42_chart_guidance": "Between support and resistance. Prefer pullback entry or confirmed breakout.",
     "forward_eps_method": "UNAVAILABLE",
     "atlas_fair_value": null,
@@ -1134,13 +1134,13 @@
     "medium_stage_score": 86.5,
     "discovery_engine_version": "ATLAS_DISCOVERY_ENGINE_V2_1",
     "raw_conviction_before_normalization": 82,
-    "relative_rank_score": 97.26,
+    "relative_rank_score": 97.24,
     "recovery_score": 61,
     "recovery_label": "\ud83d\udfe1 Recovery Watchlist",
     "recovery_drop_reason": "60-day move is down -28.5%",
-    "recovery_rebound_reason": "AI fair value still implies 42.9% upside; analyst support remains 51/100; news flow is not strongly negative",
+    "recovery_rebound_reason": "AI fair value still implies 42.8% upside; analyst support remains 51/100; news flow is not strongly negative",
     "recovery_risk": "Main risk is that the selloff continues if news, earnings, or market sentiment worsens.",
-    "recovery_thesis": "Space Exploration Technologies Corp. Class A Common Stock is a Recovery Watchlist. Drop reason: 60-day move is down -28.5% Rebound case: AI fair value still implies 42.9% upside; analyst support remains 51/100; news flow is not strongly negative Risk: Main risk is that the selloff continues if news, earnings, or market sentiment worsens."
+    "recovery_thesis": "Space Exploration Technologies Corp. Class A Common Stock is a Recovery Watchlist. Drop reason: 60-day move is down -28.5% Rebound case: AI fair value still implies 42.8% upside; analyst support remains 51/100; news flow is not strongly negative Risk: Main risk is that the selloff continues if news, earnings, or market sentiment worsens."
   },
   {
     "symbol": "RIOT",
@@ -1203,16 +1203,16 @@
     "peer_symbols": null,
     "institutional_ownership_pct": null,
     "insider_ownership_pct": null,
-    "price": 21.45,
-    "current_price": 21.45,
-    "last_price": 21.45,
-    "avg_volume_20d": 16286868,
-    "dollar_volume": 349353337.9,
-    "volume_ratio": 0.6,
-    "conviction": 90,
-    "conviction_score": 90,
-    "score": 90,
-    "ai_score": 90,
+    "price": 21.47,
+    "current_price": 21.47,
+    "last_price": 21.47,
+    "avg_volume_20d": 16380431,
+    "dollar_volume": 351687868.6,
+    "volume_ratio": 0.71,
+    "conviction": 92,
+    "conviction_score": 92,
+    "score": 92,
+    "ai_score": 92,
     "rsi": 56.9,
     "atr14": 1.42,
     "atr_pct": 6.61,
@@ -1220,38 +1220,38 @@
     "sma20": 20.25,
     "sma50": 20.65,
     "sma100": 22.46,
-    "one_day_pct": 2.39,
-    "five_day_pct": 1.47,
-    "twenty_day_pct": 11.66,
-    "sixty_day_pct": -21.77,
-    "entry_range": "$20.74 - $21.80",
-    "entry_low": 20.74,
-    "entry_high": 21.8,
-    "stop_loss": 19.46,
+    "one_day_pct": 2.48,
+    "five_day_pct": 1.56,
+    "twenty_day_pct": 11.76,
+    "sixty_day_pct": -21.7,
+    "entry_range": "$20.76 - $21.82",
+    "entry_low": 20.76,
+    "entry_high": 21.82,
+    "stop_loss": 19.48,
     "target": 30.62,
-    "target_1": 25.03,
-    "trade_target_1": 25.03,
-    "target_2": 26.82,
-    "trade_target_2": 26.82,
+    "target_1": 25.05,
+    "trade_target_1": 25.05,
+    "target_2": 26.84,
+    "trade_target_2": 26.84,
     "ai_base_target": 30.62,
     "ai_bull_target": 36.14,
-    "ai_bear_target": 16.52,
+    "ai_bear_target": 16.53,
     "analyst_target_mean": null,
     "analyst_target_high": null,
     "analyst_target_low": null,
     "analyst_count": null,
     "analyst_upside_pct": null,
     "analyst_high_upside_pct": null,
-    "expected_upside_pct": 42.8,
-    "upside": 42.8,
-    "ai_confidence": 90,
-    "confidence": 90,
-    "ai_fair_value_adjustment_pct": 13.0,
+    "expected_upside_pct": 42.6,
+    "upside": 42.6,
+    "ai_confidence": 92,
+    "confidence": 92,
+    "ai_fair_value_adjustment_pct": 17.0,
     "target_source": "Multi-factor AI fair value; analyst target unavailable",
-    "target_confidence_note": "Analyst target data unavailable. AI used growth, valuation, trend, volume, recent highs, and risk. AI adjustment 13.0%.",
+    "target_confidence_note": "Analyst target data unavailable. AI used growth, valuation, trend, volume, recent highs, and risk. AI adjustment 17.0%.",
     "recommendation_key": "unknown",
     "recommendation_mean": null,
-    "analyst_support_score": 50.7,
+    "analyst_support_score": 50.6,
     "finnhub_analyst_total": null,
     "strong_buy": null,
     "buy": null,
@@ -1272,14 +1272,14 @@
     "risk_reward_explanation": "Approximate first target offers about 1.8:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure.",
     "why_ranked_high": "High conviction because multiple signals align across trend, liquidity, momentum, valuation/growth context, and risk control.",
     "what_looks_good": "Strong liquidity; Price is above the 20-day trend; Price is above the 50-day trend; Healthy 5-day momentum; Positive 20-day momentum; RSI is constructive without looking overheated; Trading near recent highs without being at the absolute top",
-    "what_could_go_wrong": "Volume confirmation is light",
-    "investment_thesis": "Riot Platforms, Inc. screens as a potential opportunity because strong liquidity; price is above the 20-day trend; price is above the 50-day trend; healthy 5-day momentum; positive 20-day momentum; rsi is constructive without looking overheated; trading near recent highs without being at the absolute top. AI target is $30.62 with expected upside of 42.8%, using Multi-factor AI fair value; analyst target unavailable. Analyst support score: N/A. News flow: N/A. Key risk: volume confirmation is light.",
-    "table_reason": "AI target $30.62 / upside 42.8%. High conviction because multiple signals align across trend, liquidity, momentum, valuation/growth context, and risk control. Watch entry $20.74 - $21.80 with stop near $19.46.",
-    "opportunity_reason": "AI fair-value upside: 42.8%. Analyst target data unavailable. AI used growth, valuation, trend, volume, recent highs, and risk. AI adjustment 13.0%. Analyst support score: N/A. Latest news: N/A",
-    "guidance": "Riot Platforms, Inc. (RIOT) is scoring 81/100. Preferred entry is $20.74 - $21.80. Use a stop around $19.46 and first target near $25.03. Approximate first target offers about 1.8:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure. Analyst/AI target view: Analyst target data unavailable. AI used growth, valuation, trend, volume, recent highs, and risk. AI adjustment 13.0%. AI base target $30.62, bull case $36.14, bear case $16.52.",
+    "what_could_go_wrong": "Main risk is a normal pullback if broader market momentum fades.",
+    "investment_thesis": "Riot Platforms, Inc. screens as a potential opportunity because strong liquidity; price is above the 20-day trend; price is above the 50-day trend; healthy 5-day momentum; positive 20-day momentum; rsi is constructive without looking overheated; trading near recent highs without being at the absolute top. AI target is $30.62 with expected upside of 42.6%, using Multi-factor AI fair value; analyst target unavailable. Analyst support score: N/A. News flow: N/A. Key risk: main risk is a normal pullback if broader market momentum fades..",
+    "table_reason": "AI target $30.62 / upside 42.6%. High conviction because multiple signals align across trend, liquidity, momentum, valuation/growth context, and risk control. Watch entry $20.76 - $21.82 with stop near $19.48.",
+    "opportunity_reason": "AI fair-value upside: 42.6%. Analyst target data unavailable. AI used growth, valuation, trend, volume, recent highs, and risk. AI adjustment 17.0%. Analyst support score: N/A. Latest news: N/A",
+    "guidance": "Riot Platforms, Inc. (RIOT) is scoring 82/100. Preferred entry is $20.76 - $21.82. Use a stop around $19.48 and first target near $25.05. Approximate first target offers about 1.8:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure. Analyst/AI target view: Analyst target data unavailable. AI used growth, valuation, trend, volume, recent highs, and risk. AI adjustment 17.0%. AI base target $30.62, bull case $36.14, bear case $16.53.",
     "action_note": "Do not chase a gap-up open. Best setup is either a controlled pullback into the entry range or a breakout that holds above prior resistance with volume.",
-    "ai_guidance": "Riot Platforms, Inc. (RIOT) is scoring 81/100. Preferred entry is $20.74 - $21.80. Use a stop around $19.46 and first target near $25.03. Approximate first target offers about 1.8:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure.",
-    "summary": "Riot Platforms, Inc.: normalized conviction 90/100, AI target $30.62 with 42.8% upside.",
+    "ai_guidance": "Riot Platforms, Inc. (RIOT) is scoring 82/100. Preferred entry is $20.76 - $21.82. Use a stop around $19.48 and first target near $25.05. Approximate first target offers about 1.8:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure.",
+    "summary": "Riot Platforms, Inc.: normalized conviction 92/100, AI target $30.62 with 42.6% upside.",
     "setup_tags": [
       "Strong liquidity",
       "Price is above the 20-day trend",
@@ -1289,13 +1289,11 @@
       "RSI is constructive without looking overheated",
       "Trading near recent highs without being at the absolute top"
     ],
-    "risk_tags": [
-      "Volume confirmation is light"
-    ],
-    "scan_time": "2026-09-11T21:43:59.273185+00:00",
+    "risk_tags": [],
+    "scan_time": "2026-09-12T01:03:59.965063+00:00",
     "ai_committee": {
       "Technical Agent": {
-        "score": 81,
+        "score": 82,
         "status": "Positive",
         "impact": "Positive",
         "data_used": "Price history, RSI, ATR, volume, SMA, support/resistance",
@@ -1432,7 +1430,7 @@
     "positive_agent_count": 2,
     "caution_agent_count": 0,
     "valuation_reconciliation": "Analyst target was unavailable, so AI fair value relies more on technicals, growth, valuation, and risk.",
-    "committee_conclusion": "RIOT has a moderate thesis with 2 supportive agents. Main positives: Strong liquidity, Price is above the 20-day trend, Price is above the 50-day trend. Main risks: Volume confirmation is light.",
+    "committee_conclusion": "RIOT has a moderate thesis with 2 supportive agents. Main positives: Strong liquidity, Price is above the 20-day trend, Price is above the 50-day trend. Main risks: normal market pullback risk.",
     "insider_score": null,
     "insider_activity_label": null,
     "insider_buy_count": null,
@@ -1446,27 +1444,27 @@
     "low_52w": 11.5,
     "all_period_high": 30.32,
     "all_period_low": 11.5,
-    "range_position_pct": 52.9,
+    "range_position_pct": 53.0,
     "range_position_label": "Upper-middle range",
-    "distance_from_52w_high_pct": -29.3,
-    "distance_from_52w_low_pct": 86.5,
-    "drawdown_from_period_high_pct": -29.3,
+    "distance_from_52w_high_pct": -29.2,
+    "distance_from_52w_low_pct": 86.7,
+    "drawdown_from_period_high_pct": -29.2,
     "drawdown_label": "Deep drawdown",
-    "return_1m_pct": 5.6,
+    "return_1m_pct": 5.7,
     "return_3m_pct": -17.9,
-    "return_6m_pct": 47.9,
-    "return_1y_pct": 30.8,
+    "return_6m_pct": 48.1,
+    "return_1y_pct": 30.9,
     "return_3y_pct": null,
     "return_5y_pct": null,
     "deep_research_evidence": {
       "sma200": 18.83,
-      "sma200_unrounded": 18.8262500005,
+      "sma200_unrounded": 18.8263500005,
       "sma200_status": "AVAILABLE",
       "sma200_provider": "TWELVE_DATA",
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-11 00:00:00+00:00",
-      "sma200_history_sha256": "631c56ebd2cff6dc02a639181755387613cc01d8c39705e3b5c9021438e88690",
-      "sma200_evidence_timestamp": "2026-09-11T21:43:59.280025+00:00"
+      "sma200_history_sha256": "7b5a70aefc5ea742da6d194004fc1a0c2cdad4db0371eeaaba6e36a6fedcb270",
+      "sma200_evidence_timestamp": "2026-09-12T01:03:59.973511+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -1486,7 +1484,7 @@
     "v42_resistance_1": 22.87,
     "v42_resistance_2": 30.32,
     "v42_breakout_level": 23.1,
-    "v42_pullback_zone": "$17.39 - $21.02",
+    "v42_pullback_zone": "$17.39 - $21.04",
     "v42_chart_guidance": "Between support and resistance. Prefer pullback entry or confirmed breakout.",
     "forward_eps_method": "UNAVAILABLE",
     "atlas_fair_value": null,
@@ -1509,22 +1507,22 @@
     "political_support": "",
     "political_support_summary": "",
     "position_size_range": "0\u20132%",
-    "prescreen_score": 81.0,
+    "prescreen_score": 82.0,
     "prescreen_channels": [
       "ATTRACTIVE_ENTRY",
       "MOMENTUM_QUALITY"
     ],
     "protected_positive_lane": false,
-    "medium_stage_score": 87.5,
+    "medium_stage_score": 88.5,
     "discovery_engine_version": "ATLAS_DISCOVERY_ENGINE_V2_1",
-    "raw_conviction_before_normalization": 81,
-    "relative_rank_score": 93.52,
+    "raw_conviction_before_normalization": 82,
+    "relative_rank_score": 94.78,
     "recovery_score": 61,
     "recovery_label": "\ud83d\udfe1 Recovery Watchlist",
-    "recovery_drop_reason": "60-day move is down -21.8%",
-    "recovery_rebound_reason": "AI fair value still implies 42.8% upside; analyst support remains 51/100; news flow is not strongly negative",
+    "recovery_drop_reason": "60-day move is down -21.7%",
+    "recovery_rebound_reason": "AI fair value still implies 42.6% upside; analyst support remains 51/100; news flow is not strongly negative",
     "recovery_risk": "Main risk is that the selloff continues if news, earnings, or market sentiment worsens.",
-    "recovery_thesis": "Riot Platforms, Inc. is a Recovery Watchlist. Drop reason: 60-day move is down -21.8% Rebound case: AI fair value still implies 42.8% upside; analyst support remains 51/100; news flow is not strongly negative Risk: Main risk is that the selloff continues if news, earnings, or market sentiment worsens."
+    "recovery_thesis": "Riot Platforms, Inc. is a Recovery Watchlist. Drop reason: 60-day move is down -21.7% Rebound case: AI fair value still implies 42.6% upside; analyst support remains 51/100; news flow is not strongly negative Risk: Main risk is that the selloff continues if news, earnings, or market sentiment worsens."
   },
   {
     "symbol": "MRVL",
@@ -1674,7 +1672,7 @@
       "Trading near recent highs without being at the absolute top"
     ],
     "risk_tags": [],
-    "scan_time": "2026-09-11T21:43:07.181590+00:00",
+    "scan_time": "2026-09-12T01:03:02.099399+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -1848,7 +1846,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-11 00:00:00+00:00",
       "sma200_history_sha256": "bee39167aadb26aab0cf041ff6adfee1bbd093b163c63f7bbdf4fb575beac298",
-      "sma200_evidence_timestamp": "2026-09-11T21:43:07.187969+00:00"
+      "sma200_evidence_timestamp": "2026-09-12T01:03:02.107548+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -1973,9 +1971,9 @@
     "price": 13.67,
     "current_price": 13.67,
     "last_price": 13.67,
-    "avg_volume_20d": 18324341,
-    "dollar_volume": 250493744.89,
-    "volume_ratio": 1.12,
+    "avg_volume_20d": 18380998,
+    "dollar_volume": 251268246.08,
+    "volume_ratio": 1.18,
     "conviction": 92,
     "conviction_score": 92,
     "score": 92,
@@ -2057,7 +2055,7 @@
       "Trading near recent highs without being at the absolute top"
     ],
     "risk_tags": [],
-    "scan_time": "2026-09-11T21:41:08.160252+00:00",
+    "scan_time": "2026-09-12T01:00:53.828627+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -2231,7 +2229,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-11 00:00:00+00:00",
       "sma200_history_sha256": "73d53f7332823f8c2a7bf00baad08bde6c598f1a08934741f6f94fe2a5bf1342",
-      "sma200_evidence_timestamp": "2026-09-11T21:41:08.166451+00:00"
+      "sma200_evidence_timestamp": "2026-09-12T01:00:53.837199+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -2441,7 +2439,7 @@
       "Trading near recent highs without being at the absolute top"
     ],
     "risk_tags": [],
-    "scan_time": "2026-09-11T21:44:10.493599+00:00",
+    "scan_time": "2026-09-12T01:04:12.597455+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -2615,7 +2613,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-11 00:00:00+00:00",
       "sma200_history_sha256": "bdef0e505d645c06608805ce1e841a611142fd204c6939f5ff8bd840054eb2e2",
-      "sma200_evidence_timestamp": "2026-09-11T21:44:10.500063+00:00"
+      "sma200_evidence_timestamp": "2026-09-12T01:04:12.605852+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -2823,7 +2821,7 @@
       "Trading near recent highs without being at the absolute top"
     ],
     "risk_tags": [],
-    "scan_time": "2026-09-11T21:44:20.631031+00:00",
+    "scan_time": "2026-09-12T01:04:23.064217+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -3198,7 +3196,7 @@
       "Volume confirmation is light",
       "High volatility could make stops difficult"
     ],
-    "scan_time": "2026-09-11T21:42:04.248134+00:00",
+    "scan_time": "2026-09-12T01:01:54.863903+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 54,
@@ -3372,7 +3370,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-11 00:00:00+00:00",
       "sma200_history_sha256": "7f63d38d5a0bbe52a34348b074d48ae9ed6452879fe70279463512d79216e337",
-      "sma200_evidence_timestamp": "2026-09-11T21:42:04.254677+00:00"
+      "sma200_evidence_timestamp": "2026-09-12T01:01:54.872023+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -3582,7 +3580,7 @@
       "Recent momentum is weak",
       "Volume confirmation is light"
     ],
-    "scan_time": "2026-09-11T21:42:02.791308+00:00",
+    "scan_time": "2026-09-12T01:01:53.278218+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 74,
@@ -3756,7 +3754,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-11 00:00:00+00:00",
       "sma200_history_sha256": "e18e51173f9e1423988a4135873c7e6da8242c8dad5b1b37a4424ff630ffa0ef",
-      "sma200_evidence_timestamp": "2026-09-11T21:42:02.797834+00:00"
+      "sma200_evidence_timestamp": "2026-09-12T01:01:53.286363+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -3816,388 +3814,6 @@
     "recovery_rebound_reason": "AI fair value still implies 49.4% upside; analyst support remains 52/100; news flow is not strongly negative",
     "recovery_risk": "High volatility could make timing difficult.",
     "recovery_thesis": "Galaxy Digital Inc. Class A Common Stock is a Early Recovery Setup. Drop reason: 60-day move is down -26.5% Rebound case: AI fair value still implies 49.4% upside; analyst support remains 52/100; news flow is not strongly negative Risk: High volatility could make timing difficult."
-  },
-  {
-    "symbol": "PFHC",
-    "ticker": "PFHC",
-    "company": "ProFrac Holding Corp.",
-    "company_name": "ProFrac Holding Corp.",
-    "name": "ProFrac Holding Corp.",
-    "sector": "Unknown",
-    "industry": "Unknown",
-    "market_cap": null,
-    "quote_type": "EQUITY",
-    "country": "United States",
-    "exchange": "NASDAQ",
-    "beta": null,
-    "range_52w": null,
-    "website": null,
-    "source_fmp_profile": false,
-    "source_fmp_financials": false,
-    "source_fmp_earnings_surprises": false,
-    "latest_revenue": null,
-    "latest_eps": null,
-    "revenue_growth": null,
-    "revenue_growth_source": null,
-    "revenue_growth_horizon": null,
-    "earnings_growth": null,
-    "earnings_growth_source": null,
-    "earnings_growth_horizon": null,
-    "forward_pe": null,
-    "forward_eps": null,
-    "forward_eps_source": null,
-    "revenue_qoq_pct": null,
-    "revenue_quarters": null,
-    "eps_quarters": null,
-    "eps_surprises_last4": null,
-    "latest_earnings_date": null,
-    "reported_eps": null,
-    "eps_estimate": null,
-    "eps_surprise_pct": null,
-    "reported_revenue": null,
-    "revenue_estimate": null,
-    "revenue_surprise_pct": null,
-    "next_earnings_date": null,
-    "eps_beats_last4": null,
-    "eps_misses_last4": null,
-    "total_debt": null,
-    "cash_and_equivalents": null,
-    "net_cash": null,
-    "debt_to_equity": null,
-    "debt_to_assets": null,
-    "current_ratio": null,
-    "return_on_equity": null,
-    "gross_profit_margin": null,
-    "operating_profit_margin": null,
-    "net_profit_margin": null,
-    "operating_cash_flow": null,
-    "free_cash_flow": null,
-    "roic": null,
-    "ev_to_sales": null,
-    "ev_to_ebitda": null,
-    "peer_symbols": null,
-    "institutional_ownership_pct": null,
-    "insider_ownership_pct": null,
-    "price": 5.19,
-    "current_price": 5.19,
-    "last_price": 5.19,
-    "avg_volume_20d": 1406911,
-    "dollar_volume": 7301869.65,
-    "volume_ratio": 0.51,
-    "conviction": 78,
-    "conviction_score": 78,
-    "score": 78,
-    "ai_score": 78,
-    "rsi": 64.9,
-    "atr14": 0.37,
-    "atr_pct": 7.09,
-    "sma10": 5.17,
-    "sma20": 5.04,
-    "sma50": 4.81,
-    "sma100": 5.8,
-    "one_day_pct": -5.29,
-    "five_day_pct": 2.77,
-    "twenty_day_pct": 0.97,
-    "sixty_day_pct": -25.86,
-    "entry_range": "$5.01 - $5.28",
-    "entry_low": 5.01,
-    "entry_high": 5.28,
-    "stop_loss": 4.67,
-    "target": 7.28,
-    "target_1": 6.12,
-    "trade_target_1": 6.12,
-    "target_2": 6.59,
-    "trade_target_2": 6.59,
-    "ai_base_target": 7.28,
-    "ai_bull_target": 8.59,
-    "ai_bear_target": 4.0,
-    "analyst_target_mean": null,
-    "analyst_target_high": null,
-    "analyst_target_low": null,
-    "analyst_count": null,
-    "analyst_upside_pct": null,
-    "analyst_high_upside_pct": null,
-    "expected_upside_pct": 40.3,
-    "upside": 40.3,
-    "ai_confidence": 78,
-    "confidence": 78,
-    "ai_fair_value_adjustment_pct": 6.0,
-    "target_source": "Multi-factor AI fair value; analyst target unavailable",
-    "target_confidence_note": "Analyst target data unavailable. AI used growth, valuation, trend, volume, recent highs, and risk. AI adjustment 6.0%.",
-    "recommendation_key": "unknown",
-    "recommendation_mean": null,
-    "analyst_support_score": 50.1,
-    "finnhub_analyst_total": null,
-    "strong_buy": null,
-    "buy": null,
-    "hold": null,
-    "sell": null,
-    "strong_sell": null,
-    "finnhub_target_mean": null,
-    "finnhub_target_high": null,
-    "finnhub_target_low": null,
-    "news_sentiment_score": 0,
-    "news_sentiment_label": "Neutral",
-    "top_news_headline": "No recent high-confidence company headline returned by NewsAPI",
-    "top_news_source": null,
-    "recent_headlines": null,
-    "positive_news_terms": null,
-    "negative_news_terms": null,
-    "risk_reward": 1.8,
-    "risk_reward_explanation": "Approximate first target offers about 1.8:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure.",
-    "why_ranked_high": "Moderate-to-strong setup with enough technical support to watch closely.",
-    "what_looks_good": "Price is above the 20-day trend; Price is above the 50-day trend; Short-term trend is above intermediate trend; Healthy 5-day momentum; RSI is constructive without looking overheated",
-    "what_could_go_wrong": "Volume confirmation is light",
-    "investment_thesis": "ProFrac Holding Corp. screens as a potential opportunity because price is above the 20-day trend; price is above the 50-day trend; short-term trend is above intermediate trend; healthy 5-day momentum; rsi is constructive without looking overheated. AI target is $7.28 with expected upside of 40.3%, using Multi-factor AI fair value; analyst target unavailable. Analyst support score: N/A. News flow: N/A. Key risk: volume confirmation is light.",
-    "table_reason": "AI target $7.28 / upside 40.3%. Moderate-to-strong setup with enough technical support to watch closely. Watch entry $5.01 - $5.28 with stop near $4.67.",
-    "opportunity_reason": "AI fair-value upside: 40.3%. Analyst target data unavailable. AI used growth, valuation, trend, volume, recent highs, and risk. AI adjustment 6.0%. Analyst support score: N/A. Latest news: N/A",
-    "guidance": "ProFrac Holding Corp. (PFHC) is scoring 70/100. Preferred entry is $5.01 - $5.28. Use a stop around $4.67 and first target near $6.12. Approximate first target offers about 1.8:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure. Analyst/AI target view: Analyst target data unavailable. AI used growth, valuation, trend, volume, recent highs, and risk. AI adjustment 6.0%. AI base target $7.28, bull case $8.59, bear case $4.0.",
-    "action_note": "Do not chase a gap-up open. Best setup is either a controlled pullback into the entry range or a breakout that holds above prior resistance with volume.",
-    "ai_guidance": "ProFrac Holding Corp. (PFHC) is scoring 70/100. Preferred entry is $5.01 - $5.28. Use a stop around $4.67 and first target near $6.12. Approximate first target offers about 1.8:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure.",
-    "summary": "ProFrac Holding Corp.: normalized conviction 78/100, AI target $7.28 with 40.3% upside.",
-    "setup_tags": [
-      "Price is above the 20-day trend",
-      "Price is above the 50-day trend",
-      "Short-term trend is above intermediate trend",
-      "Healthy 5-day momentum",
-      "RSI is constructive without looking overheated"
-    ],
-    "risk_tags": [
-      "Volume confirmation is light"
-    ],
-    "scan_time": "2026-09-11T21:43:39.483515+00:00",
-    "ai_committee": {
-      "Technical Agent": {
-        "score": 70,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Price history, RSI, ATR, volume, SMA, support/resistance",
-        "summary": "Lightweight scheduled scan: evaluates trend, momentum, volatility, support/resistance and entry quality.",
-        "findings": [
-          "Support 1: 4.25 \u00b7 Resistance 1: 5.68.",
-          "RSI: 64.9."
-        ],
-        "risks": [
-          "Latest news/SEC/competitor checks are deferred to full committee or live lookup."
-        ],
-        "bottom_line": "Between support and resistance. Prefer pullback entry or confirmed breakout."
-      },
-      "Finance Agent": {
-        "score": 50,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Existing scan fundamentals only",
-        "summary": "Lightweight scheduled scan: uses already-fetched financial fields to avoid extra API calls.",
-        "findings": [
-          "Financial data is limited; agent relied on available fundamentals only"
-        ],
-        "risks": [
-          "No major financial red flag detected from available data"
-        ],
-        "bottom_line": "Financial profile is mixed and should be reviewed carefully before acting."
-      },
-      "Analyst Agent": {
-        "score": 50,
-        "status": "Mixed",
-        "impact": "Neutral",
-        "data_used": "Existing analyst target/count/recommendation fields",
-        "summary": "Lightweight scheduled scan: checks analyst target and support using existing scan fields.",
-        "findings": [
-          "Analyst target: N/A."
-        ],
-        "risks": [
-          "Recent target revisions are checked in full committee or live research."
-        ],
-        "bottom_line": "Analyst support is directional in lightweight mode."
-      },
-      "News Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "available": false,
-        "data_used": "Skipped in lightweight scheduled scan",
-        "summary": "News was not pulled for this lower-tier row to keep the scheduled scan fast.",
-        "findings": [
-          "Use Live Research or wait for this ticker to rank into the full committee tier."
-        ],
-        "risks": [
-          "Do not assume no news; news was intentionally deferred."
-        ],
-        "bottom_line": "News Agent deferred to full committee/live lookup."
-      },
-      "Insider Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "SEC skipped in lightweight scheduled scan",
-        "summary": "Insider/SEC data is only run for priority tickers during cron.",
-        "findings": [],
-        "risks": [
-          "Use Live Research for immediate insider/SEC check."
-        ],
-        "bottom_line": "Insider Agent deferred."
-      },
-      "Institutional Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "SEC/FMP ownership skipped in lightweight scheduled scan",
-        "summary": "Institutional data is not run for every row during cron.",
-        "findings": [],
-        "risks": [
-          "Use Live Research for immediate ownership check."
-        ],
-        "bottom_line": "Institutional Agent deferred."
-      },
-      "Competitor Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "Peer comparison skipped in lightweight scheduled scan",
-        "summary": "Competitor comparison is deferred for lower-tier rows to reduce API calls.",
-        "findings": [],
-        "risks": [
-          "Use full committee/live lookup for peer analysis."
-        ],
-        "bottom_line": "Competitor Agent deferred."
-      },
-      "Recovery Agent": {
-        "score": 50,
-        "status": "Limited",
-        "impact": "Neutral",
-        "data_used": "Existing drawdown/recovery fields",
-        "summary": "Lightweight recovery check from scan data.",
-        "findings": [
-          "Recovery scan field available if present."
-        ],
-        "risks": [
-          "Full recovery explanation available in full committee/live research."
-        ],
-        "bottom_line": "Recovery signal is directional in lightweight mode."
-      },
-      "ETF / Ownership Agent": {
-        "score": null,
-        "status": "Deferred to full/live research",
-        "impact": "Not scored",
-        "data_used": "ETF/ownership checks skipped in lightweight scheduled scan",
-        "summary": "ETF ownership data is deferred unless this is a priority ETF/watchlist row.",
-        "findings": [],
-        "risks": [
-          "Use ETF tab/detail or live lookup for deeper ETF/ownership context."
-        ],
-        "bottom_line": "ETF/Ownership Agent deferred."
-      },
-      "Political Agent": {
-        "score": null,
-        "status": "Not connected yet",
-        "impact": "Not scored",
-        "data_used": "Capitol Trades planned",
-        "summary": "Political trading feed is not enabled yet.",
-        "findings": [],
-        "risks": [
-          "No political score applied."
-        ],
-        "bottom_line": "Political Agent not scored."
-      }
-    },
-    "thesis_strength": "Moderate Thesis",
-    "evidence_confidence": "Medium",
-    "positive_agent_count": 2,
-    "caution_agent_count": 0,
-    "valuation_reconciliation": "Analyst target was unavailable, so AI fair value relies more on technicals, growth, valuation, and risk.",
-    "committee_conclusion": "PFHC has a moderate thesis with 2 supportive agents. Main positives: Price is above the 20-day trend, Price is above the 50-day trend, Short-term trend is above intermediate trend. Main risks: Volume confirmation is light.",
-    "insider_score": null,
-    "insider_activity_label": null,
-    "insider_buy_count": null,
-    "insider_sell_count": null,
-    "insider_buy_value": null,
-    "insider_sell_value": null,
-    "source_finnhub_insider": false,
-    "history_days_available": 260,
-    "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
-    "high_52w": 8.22,
-    "low_52w": 3.08,
-    "all_period_high": 8.22,
-    "all_period_low": 3.08,
-    "range_position_pct": 41.1,
-    "range_position_label": "Lower-middle range",
-    "distance_from_52w_high_pct": -36.9,
-    "distance_from_52w_low_pct": 68.5,
-    "drawdown_from_period_high_pct": -36.9,
-    "drawdown_label": "Deep drawdown",
-    "return_1m_pct": -1.5,
-    "return_3m_pct": -29.8,
-    "return_6m_pct": 3.6,
-    "return_1y_pct": 32.1,
-    "return_3y_pct": null,
-    "return_5y_pct": null,
-    "deep_research_evidence": {
-      "sma200": 5.36,
-      "sma200_unrounded": 5.36145,
-      "sma200_status": "AVAILABLE",
-      "sma200_provider": "TWELVE_DATA",
-      "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
-      "sma200_as_of": "2026-09-10 00:00:00+00:00",
-      "sma200_history_sha256": "80e207f6fd5dd5ca01314606c24d6b6379d59fe9415fc8d72d7869a01c9a4770",
-      "sma200_evidence_timestamp": "2026-09-11T21:43:39.490195+00:00"
-    },
-    "finance_agent_score": 50,
-    "finance_agent_status": "Mixed",
-    "finance_agent_bottom_line": "Financial profile is mixed and should be reviewed carefully before acting.",
-    "finance_agent_findings": [
-      "Financial data is limited; agent relied on available fundamentals only"
-    ],
-    "finance_agent_risks": [
-      "No major financial red flag detected from available data"
-    ],
-    "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
-    "analyst_support_label": "Constructive (50/100)",
-    "news_sentiment_source": "No recent NewsAPI headline returned; defaulted to neutral",
-    "v42_tier": "light",
-    "v42_support_1": 4.25,
-    "v42_support_2": 3.08,
-    "v42_resistance_1": 5.68,
-    "v42_resistance_2": 8.22,
-    "v42_breakout_level": 5.74,
-    "v42_pullback_zone": "$4.25 - $5.09",
-    "v42_chart_guidance": "Between support and resistance. Prefer pullback entry or confirmed breakout.",
-    "forward_eps_method": "UNAVAILABLE",
-    "atlas_fair_value": null,
-    "atlas_fv_upside_pct": null,
-    "atlas_valuation_status": "INSUFFICIENT_INPUTS",
-    "atlas_valuation_growth_value": null,
-    "atlas_valuation_growth_method": "UNAVAILABLE",
-    "atlas_valuation_growth_source": "UNAVAILABLE",
-    "atlas_valuation_growth_horizon": "UNKNOWN",
-    "atlas_valuation_operating_margin": null,
-    "atlas_valuation_justified_pe": null,
-    "atlas_valuation_multiple_expansion_ratio": null,
-    "atlas_valuation_multiple_expansion_band": "UNAVAILABLE",
-    "atlas_valuation_analyst_discrepancy": "ANALYST_DATA_UNAVAILABLE",
-    "atlas_valuation_assumption_flags": [],
-    "latest_news_headline": "No recent high-confidence company headline returned by NewsAPI",
-    "latest_news_date": "",
-    "latest_news_source": "",
-    "latest_news_sentiment": "Not scored",
-    "political_support": "",
-    "political_support_summary": "",
-    "position_size_range": "0\u20132%",
-    "prescreen_score": 70.0,
-    "prescreen_channels": [
-      "ATTRACTIVE_ENTRY",
-      "TECHNICAL_SETUP"
-    ],
-    "protected_positive_lane": true,
-    "medium_stage_score": 80.5,
-    "discovery_engine_version": "ATLAS_DISCOVERY_ENGINE_V2_1",
-    "raw_conviction_before_normalization": 70,
-    "relative_rank_score": 79.34,
-    "recovery_score": 55,
-    "recovery_label": "\ud83d\udd35 Early Recovery Setup",
-    "recovery_drop_reason": "60-day move is down -25.9%",
-    "recovery_rebound_reason": "AI fair value still implies 40.3% upside; analyst support remains 50/100; news flow is not strongly negative",
-    "recovery_risk": "High volatility could make timing difficult.",
-    "recovery_thesis": "ProFrac Holding Corp. is a Early Recovery Setup. Drop reason: 60-day move is down -25.9% Rebound case: AI fair value still implies 40.3% upside; analyst support remains 50/100; news flow is not strongly negative Risk: High volatility could make timing difficult."
   },
   {
     "symbol": "HUT",
@@ -4347,7 +3963,7 @@
       "Trading near recent highs without being at the absolute top"
     ],
     "risk_tags": [],
-    "scan_time": "2026-09-11T21:42:19.204739+00:00",
+    "scan_time": "2026-09-12T01:02:10.727611+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -4521,7 +4137,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-11 00:00:00+00:00",
       "sma200_history_sha256": "5ef23309c49e967de6b8daf8854e7ef4f77e4a8d1027c352b94cccd49d5c70d8",
-      "sma200_evidence_timestamp": "2026-09-11T21:42:19.211380+00:00"
+      "sma200_evidence_timestamp": "2026-09-12T01:02:10.736129+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -4580,6 +4196,388 @@
     "recovery_rebound_reason": "AI fair value still implies 33.0% upside; analyst support remains 48/100; news flow is not strongly negative",
     "recovery_risk": "Main risk is that the selloff continues if news, earnings, or market sentiment worsens.",
     "recovery_thesis": "Hut 8 Corp. is a Early Recovery Setup. Drop reason: 60-day move is down -18.8% Rebound case: AI fair value still implies 33.0% upside; analyst support remains 48/100; news flow is not strongly negative Risk: Main risk is that the selloff continues if news, earnings, or market sentiment worsens."
+  },
+  {
+    "symbol": "PFHC",
+    "ticker": "PFHC",
+    "company": "ProFrac Holding Corp.",
+    "company_name": "ProFrac Holding Corp.",
+    "name": "ProFrac Holding Corp.",
+    "sector": "Unknown",
+    "industry": "Unknown",
+    "market_cap": null,
+    "quote_type": "EQUITY",
+    "country": "United States",
+    "exchange": "NASDAQ",
+    "beta": null,
+    "range_52w": null,
+    "website": null,
+    "source_fmp_profile": false,
+    "source_fmp_financials": false,
+    "source_fmp_earnings_surprises": false,
+    "latest_revenue": null,
+    "latest_eps": null,
+    "revenue_growth": null,
+    "revenue_growth_source": null,
+    "revenue_growth_horizon": null,
+    "earnings_growth": null,
+    "earnings_growth_source": null,
+    "earnings_growth_horizon": null,
+    "forward_pe": null,
+    "forward_eps": null,
+    "forward_eps_source": null,
+    "revenue_qoq_pct": null,
+    "revenue_quarters": null,
+    "eps_quarters": null,
+    "eps_surprises_last4": null,
+    "latest_earnings_date": null,
+    "reported_eps": null,
+    "eps_estimate": null,
+    "eps_surprise_pct": null,
+    "reported_revenue": null,
+    "revenue_estimate": null,
+    "revenue_surprise_pct": null,
+    "next_earnings_date": null,
+    "eps_beats_last4": null,
+    "eps_misses_last4": null,
+    "total_debt": null,
+    "cash_and_equivalents": null,
+    "net_cash": null,
+    "debt_to_equity": null,
+    "debt_to_assets": null,
+    "current_ratio": null,
+    "return_on_equity": null,
+    "gross_profit_margin": null,
+    "operating_profit_margin": null,
+    "net_profit_margin": null,
+    "operating_cash_flow": null,
+    "free_cash_flow": null,
+    "roic": null,
+    "ev_to_sales": null,
+    "ev_to_ebitda": null,
+    "peer_symbols": null,
+    "institutional_ownership_pct": null,
+    "insider_ownership_pct": null,
+    "price": 5.2,
+    "current_price": 5.2,
+    "last_price": 5.2,
+    "avg_volume_20d": 1337668,
+    "dollar_volume": 6955878.54,
+    "volume_ratio": 0.45,
+    "conviction": 78,
+    "conviction_score": 78,
+    "score": 78,
+    "ai_score": 78,
+    "rsi": 58.7,
+    "atr14": 0.35,
+    "atr_pct": 6.66,
+    "sma10": 5.17,
+    "sma20": 5.04,
+    "sma50": 4.81,
+    "sma100": 5.79,
+    "one_day_pct": 0.19,
+    "five_day_pct": 1.56,
+    "twenty_day_pct": -1.14,
+    "sixty_day_pct": -20.73,
+    "entry_range": "$5.03 - $5.29",
+    "entry_low": 5.03,
+    "entry_high": 5.29,
+    "stop_loss": 4.71,
+    "target": 6.86,
+    "target_1": 6.08,
+    "trade_target_1": 6.08,
+    "target_2": 6.52,
+    "trade_target_2": 6.52,
+    "ai_base_target": 6.86,
+    "ai_bull_target": 8.09,
+    "ai_bear_target": 4.0,
+    "analyst_target_mean": null,
+    "analyst_target_high": null,
+    "analyst_target_low": null,
+    "analyst_count": null,
+    "analyst_upside_pct": null,
+    "analyst_high_upside_pct": null,
+    "expected_upside_pct": 31.9,
+    "upside": 31.9,
+    "ai_confidence": 78,
+    "confidence": 78,
+    "ai_fair_value_adjustment_pct": 6.0,
+    "target_source": "Multi-factor AI fair value; analyst target unavailable",
+    "target_confidence_note": "Analyst target data unavailable. AI used growth, valuation, trend, volume, recent highs, and risk. AI adjustment 6.0%.",
+    "recommendation_key": "unknown",
+    "recommendation_mean": null,
+    "analyst_support_score": 48.0,
+    "finnhub_analyst_total": null,
+    "strong_buy": null,
+    "buy": null,
+    "hold": null,
+    "sell": null,
+    "strong_sell": null,
+    "finnhub_target_mean": null,
+    "finnhub_target_high": null,
+    "finnhub_target_low": null,
+    "news_sentiment_score": 0,
+    "news_sentiment_label": "Neutral",
+    "top_news_headline": "No recent high-confidence company headline returned by NewsAPI",
+    "top_news_source": null,
+    "recent_headlines": null,
+    "positive_news_terms": null,
+    "negative_news_terms": null,
+    "risk_reward": 1.8,
+    "risk_reward_explanation": "Approximate first target offers about 1.8:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure.",
+    "why_ranked_high": "Moderate-to-strong setup with enough technical support to watch closely.",
+    "what_looks_good": "Price is above the 20-day trend; Price is above the 50-day trend; Short-term trend is above intermediate trend; Healthy 5-day momentum; RSI is constructive without looking overheated",
+    "what_could_go_wrong": "Volume confirmation is light",
+    "investment_thesis": "ProFrac Holding Corp. screens as a potential opportunity because price is above the 20-day trend; price is above the 50-day trend; short-term trend is above intermediate trend; healthy 5-day momentum; rsi is constructive without looking overheated. AI target is $6.86 with expected upside of 31.9%, using Multi-factor AI fair value; analyst target unavailable. Analyst support score: N/A. News flow: N/A. Key risk: volume confirmation is light.",
+    "table_reason": "AI target $6.86 / upside 31.9%. Moderate-to-strong setup with enough technical support to watch closely. Watch entry $5.03 - $5.29 with stop near $4.71.",
+    "opportunity_reason": "AI fair-value upside: 31.9%. Analyst target data unavailable. AI used growth, valuation, trend, volume, recent highs, and risk. AI adjustment 6.0%. Analyst support score: N/A. Latest news: N/A",
+    "guidance": "ProFrac Holding Corp. (PFHC) is scoring 70/100. Preferred entry is $5.03 - $5.29. Use a stop around $4.71 and first target near $6.08. Approximate first target offers about 1.8:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure. Analyst/AI target view: Analyst target data unavailable. AI used growth, valuation, trend, volume, recent highs, and risk. AI adjustment 6.0%. AI base target $6.86, bull case $8.09, bear case $4.0.",
+    "action_note": "Do not chase a gap-up open. Best setup is either a controlled pullback into the entry range or a breakout that holds above prior resistance with volume.",
+    "ai_guidance": "ProFrac Holding Corp. (PFHC) is scoring 70/100. Preferred entry is $5.03 - $5.29. Use a stop around $4.71 and first target near $6.08. Approximate first target offers about 1.8:1 reward-to-risk based on current price, ATR-based stop, and recent trend structure.",
+    "summary": "ProFrac Holding Corp.: normalized conviction 78/100, AI target $6.86 with 31.9% upside.",
+    "setup_tags": [
+      "Price is above the 20-day trend",
+      "Price is above the 50-day trend",
+      "Short-term trend is above intermediate trend",
+      "Healthy 5-day momentum",
+      "RSI is constructive without looking overheated"
+    ],
+    "risk_tags": [
+      "Volume confirmation is light"
+    ],
+    "scan_time": "2026-09-12T01:03:37.938891+00:00",
+    "ai_committee": {
+      "Technical Agent": {
+        "score": 70,
+        "status": "Mixed",
+        "impact": "Neutral",
+        "data_used": "Price history, RSI, ATR, volume, SMA, support/resistance",
+        "summary": "Lightweight scheduled scan: evaluates trend, momentum, volatility, support/resistance and entry quality.",
+        "findings": [
+          "Support 1: 4.25 \u00b7 Resistance 1: 5.68.",
+          "RSI: 58.7."
+        ],
+        "risks": [
+          "Latest news/SEC/competitor checks are deferred to full committee or live lookup."
+        ],
+        "bottom_line": "Between support and resistance. Prefer pullback entry or confirmed breakout."
+      },
+      "Finance Agent": {
+        "score": 50,
+        "status": "Mixed",
+        "impact": "Neutral",
+        "data_used": "Existing scan fundamentals only",
+        "summary": "Lightweight scheduled scan: uses already-fetched financial fields to avoid extra API calls.",
+        "findings": [
+          "Financial data is limited; agent relied on available fundamentals only"
+        ],
+        "risks": [
+          "No major financial red flag detected from available data"
+        ],
+        "bottom_line": "Financial profile is mixed and should be reviewed carefully before acting."
+      },
+      "Analyst Agent": {
+        "score": 48,
+        "status": "Mixed",
+        "impact": "Neutral",
+        "data_used": "Existing analyst target/count/recommendation fields",
+        "summary": "Lightweight scheduled scan: checks analyst target and support using existing scan fields.",
+        "findings": [
+          "Analyst target: N/A."
+        ],
+        "risks": [
+          "Recent target revisions are checked in full committee or live research."
+        ],
+        "bottom_line": "Analyst support is directional in lightweight mode."
+      },
+      "News Agent": {
+        "score": null,
+        "status": "Deferred to full/live research",
+        "impact": "Not scored",
+        "available": false,
+        "data_used": "Skipped in lightweight scheduled scan",
+        "summary": "News was not pulled for this lower-tier row to keep the scheduled scan fast.",
+        "findings": [
+          "Use Live Research or wait for this ticker to rank into the full committee tier."
+        ],
+        "risks": [
+          "Do not assume no news; news was intentionally deferred."
+        ],
+        "bottom_line": "News Agent deferred to full committee/live lookup."
+      },
+      "Insider Agent": {
+        "score": null,
+        "status": "Deferred to full/live research",
+        "impact": "Not scored",
+        "data_used": "SEC skipped in lightweight scheduled scan",
+        "summary": "Insider/SEC data is only run for priority tickers during cron.",
+        "findings": [],
+        "risks": [
+          "Use Live Research for immediate insider/SEC check."
+        ],
+        "bottom_line": "Insider Agent deferred."
+      },
+      "Institutional Agent": {
+        "score": null,
+        "status": "Deferred to full/live research",
+        "impact": "Not scored",
+        "data_used": "SEC/FMP ownership skipped in lightweight scheduled scan",
+        "summary": "Institutional data is not run for every row during cron.",
+        "findings": [],
+        "risks": [
+          "Use Live Research for immediate ownership check."
+        ],
+        "bottom_line": "Institutional Agent deferred."
+      },
+      "Competitor Agent": {
+        "score": null,
+        "status": "Deferred to full/live research",
+        "impact": "Not scored",
+        "data_used": "Peer comparison skipped in lightweight scheduled scan",
+        "summary": "Competitor comparison is deferred for lower-tier rows to reduce API calls.",
+        "findings": [],
+        "risks": [
+          "Use full committee/live lookup for peer analysis."
+        ],
+        "bottom_line": "Competitor Agent deferred."
+      },
+      "Recovery Agent": {
+        "score": 50,
+        "status": "Limited",
+        "impact": "Neutral",
+        "data_used": "Existing drawdown/recovery fields",
+        "summary": "Lightweight recovery check from scan data.",
+        "findings": [
+          "Recovery scan field available if present."
+        ],
+        "risks": [
+          "Full recovery explanation available in full committee/live research."
+        ],
+        "bottom_line": "Recovery signal is directional in lightweight mode."
+      },
+      "ETF / Ownership Agent": {
+        "score": null,
+        "status": "Deferred to full/live research",
+        "impact": "Not scored",
+        "data_used": "ETF/ownership checks skipped in lightweight scheduled scan",
+        "summary": "ETF ownership data is deferred unless this is a priority ETF/watchlist row.",
+        "findings": [],
+        "risks": [
+          "Use ETF tab/detail or live lookup for deeper ETF/ownership context."
+        ],
+        "bottom_line": "ETF/Ownership Agent deferred."
+      },
+      "Political Agent": {
+        "score": null,
+        "status": "Not connected yet",
+        "impact": "Not scored",
+        "data_used": "Capitol Trades planned",
+        "summary": "Political trading feed is not enabled yet.",
+        "findings": [],
+        "risks": [
+          "No political score applied."
+        ],
+        "bottom_line": "Political Agent not scored."
+      }
+    },
+    "thesis_strength": "Moderate Thesis",
+    "evidence_confidence": "Medium",
+    "positive_agent_count": 1,
+    "caution_agent_count": 0,
+    "valuation_reconciliation": "Analyst target was unavailable, so AI fair value relies more on technicals, growth, valuation, and risk.",
+    "committee_conclusion": "PFHC has a weak / watchlist thesis with 1 supportive agents. Main positives: Price is above the 20-day trend, Price is above the 50-day trend, Short-term trend is above intermediate trend. Main risks: Volume confirmation is light.",
+    "insider_score": null,
+    "insider_activity_label": null,
+    "insider_buy_count": null,
+    "insider_sell_count": null,
+    "insider_buy_value": null,
+    "insider_sell_value": null,
+    "source_finnhub_insider": false,
+    "history_days_available": 260,
+    "price_history_note": "Scanner uses 1-year history for accurate 52-week range. Dashboard fetches 5-year chart data on demand.",
+    "high_52w": 8.22,
+    "low_52w": 3.08,
+    "all_period_high": 8.22,
+    "all_period_low": 3.08,
+    "range_position_pct": 41.2,
+    "range_position_label": "Lower-middle range",
+    "distance_from_52w_high_pct": -36.7,
+    "distance_from_52w_low_pct": 68.8,
+    "drawdown_from_period_high_pct": -36.7,
+    "drawdown_label": "Deep drawdown",
+    "return_1m_pct": 1.2,
+    "return_3m_pct": -26.4,
+    "return_6m_pct": -2.1,
+    "return_1y_pct": 36.5,
+    "return_3y_pct": null,
+    "return_5y_pct": null,
+    "deep_research_evidence": {
+      "sma200": 5.37,
+      "sma200_unrounded": 5.36835,
+      "sma200_status": "AVAILABLE",
+      "sma200_provider": "TWELVE_DATA",
+      "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
+      "sma200_as_of": "2026-09-11 00:00:00+00:00",
+      "sma200_history_sha256": "9696aefd88c68935102f3b0834e0187736021bbee862561737ffbf77d6c65661",
+      "sma200_evidence_timestamp": "2026-09-12T01:03:37.947752+00:00"
+    },
+    "finance_agent_score": 50,
+    "finance_agent_status": "Mixed",
+    "finance_agent_bottom_line": "Financial profile is mixed and should be reviewed carefully before acting.",
+    "finance_agent_findings": [
+      "Financial data is limited; agent relied on available fundamentals only"
+    ],
+    "finance_agent_risks": [
+      "No major financial red flag detected from available data"
+    ],
+    "analyst_support_source": "Derived from analyst target/count/recommendation because Finnhub recommendation score was unavailable",
+    "analyst_support_label": "Constructive (48/100)",
+    "news_sentiment_source": "No recent NewsAPI headline returned; defaulted to neutral",
+    "v42_tier": "light",
+    "v42_support_1": 4.25,
+    "v42_support_2": 3.08,
+    "v42_resistance_1": 5.68,
+    "v42_resistance_2": 8.22,
+    "v42_breakout_level": 5.74,
+    "v42_pullback_zone": "$4.25 - $5.10",
+    "v42_chart_guidance": "Between support and resistance. Prefer pullback entry or confirmed breakout.",
+    "forward_eps_method": "UNAVAILABLE",
+    "atlas_fair_value": null,
+    "atlas_fv_upside_pct": null,
+    "atlas_valuation_status": "INSUFFICIENT_INPUTS",
+    "atlas_valuation_growth_value": null,
+    "atlas_valuation_growth_method": "UNAVAILABLE",
+    "atlas_valuation_growth_source": "UNAVAILABLE",
+    "atlas_valuation_growth_horizon": "UNKNOWN",
+    "atlas_valuation_operating_margin": null,
+    "atlas_valuation_justified_pe": null,
+    "atlas_valuation_multiple_expansion_ratio": null,
+    "atlas_valuation_multiple_expansion_band": "UNAVAILABLE",
+    "atlas_valuation_analyst_discrepancy": "ANALYST_DATA_UNAVAILABLE",
+    "atlas_valuation_assumption_flags": [],
+    "latest_news_headline": "No recent high-confidence company headline returned by NewsAPI",
+    "latest_news_date": "",
+    "latest_news_source": "",
+    "latest_news_sentiment": "Not scored",
+    "political_support": "",
+    "political_support_summary": "",
+    "position_size_range": "0\u20132%",
+    "prescreen_score": 70.0,
+    "prescreen_channels": [
+      "ATTRACTIVE_ENTRY",
+      "TECHNICAL_SETUP"
+    ],
+    "protected_positive_lane": true,
+    "medium_stage_score": 80.5,
+    "discovery_engine_version": "ATLAS_DISCOVERY_ENGINE_V2_1",
+    "raw_conviction_before_normalization": 70,
+    "relative_rank_score": 77.24,
+    "recovery_score": 54,
+    "recovery_label": "\ud83d\udd35 Early Recovery Setup",
+    "recovery_drop_reason": "60-day move is down -20.7%",
+    "recovery_rebound_reason": "AI fair value still implies 31.9% upside; analyst support remains 48/100; news flow is not strongly negative",
+    "recovery_risk": "Main risk is that the selloff continues if news, earnings, or market sentiment worsens.",
+    "recovery_thesis": "ProFrac Holding Corp. is a Early Recovery Setup. Drop reason: 60-day move is down -20.7% Rebound case: AI fair value still implies 31.9% upside; analyst support remains 48/100; news flow is not strongly negative Risk: Main risk is that the selloff continues if news, earnings, or market sentiment worsens."
   },
   {
     "symbol": "ACDC",
@@ -4729,7 +4727,7 @@
     "risk_tags": [
       "Volume confirmation is light"
     ],
-    "scan_time": "2026-09-11T21:40:08.273310+00:00",
+    "scan_time": "2026-09-12T00:59:47.552152+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 70,
@@ -4903,7 +4901,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-11 00:00:00+00:00",
       "sma200_history_sha256": "bca4c292aea03027710faa73873e28b99366ffd4b0a2b1ddb32a32972c8ee69f",
-      "sma200_evidence_timestamp": "2026-09-11T21:40:08.279697+00:00"
+      "sma200_evidence_timestamp": "2026-09-12T00:59:47.560308+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -5111,7 +5109,7 @@
       "Volatility is tradable"
     ],
     "risk_tags": [],
-    "scan_time": "2026-09-11T21:43:30.924517+00:00",
+    "scan_time": "2026-09-12T01:03:28.383330+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 81,
@@ -5285,7 +5283,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-11 00:00:00+00:00",
       "sma200_history_sha256": "33c7bc0c8651aa89bf7ed8e2de3759b0921cdf65fd1b5f50ff2ed0f4dea070f4",
-      "sma200_evidence_timestamp": "2026-09-11T21:43:30.931145+00:00"
+      "sma200_evidence_timestamp": "2026-09-12T01:03:28.392060+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -5495,7 +5493,7 @@
     "risk_tags": [
       "20-day trend is negative"
     ],
-    "scan_time": "2026-09-11T21:40:19.524806+00:00",
+    "scan_time": "2026-09-12T00:59:58.018174+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 78,
@@ -5669,7 +5667,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-11 00:00:00+00:00",
       "sma200_history_sha256": "b38d5bcb725c98d198fdc9a5ddd3bea03bc9e28cd0b2bc668ccf03cfada0dad2",
-      "sma200_evidence_timestamp": "2026-09-11T21:40:19.531726+00:00"
+      "sma200_evidence_timestamp": "2026-09-12T00:59:58.026264+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -5880,7 +5878,7 @@
     "risk_tags": [
       "RSI is not yet showing strong momentum"
     ],
-    "scan_time": "2026-09-11T21:41:01.675179+00:00",
+    "scan_time": "2026-09-12T01:00:46.847984+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -6054,7 +6052,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-11 00:00:00+00:00",
       "sma200_history_sha256": "f6d15323c4eb65a332632c1ffa374c6cd1630151aa4ab23f9abb016e1c21e213",
-      "sma200_evidence_timestamp": "2026-09-11T21:41:01.681849+00:00"
+      "sma200_evidence_timestamp": "2026-09-12T01:00:46.856354+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -6264,7 +6262,7 @@
       "Price is below the 20-day trend",
       "RSI is not yet showing strong momentum"
     ],
-    "scan_time": "2026-09-11T21:40:28.569517+00:00",
+    "scan_time": "2026-09-12T01:00:10.131076+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -6438,7 +6436,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-11 00:00:00+00:00",
       "sma200_history_sha256": "ec161498406a726ac1ab629a9272c917a24924126653c31836c03609eb6e1c91",
-      "sma200_evidence_timestamp": "2026-09-11T21:40:28.576875+00:00"
+      "sma200_evidence_timestamp": "2026-09-12T01:00:10.139455+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",
@@ -6646,7 +6644,7 @@
     "risk_tags": [
       "RSI is not yet showing strong momentum"
     ],
-    "scan_time": "2026-09-11T21:43:42.195807+00:00",
+    "scan_time": "2026-09-12T01:03:41.176645+00:00",
     "ai_committee": {
       "Technical Agent": {
         "score": 82,
@@ -6820,7 +6818,7 @@
       "sma200_source_type": "TWELVE_DATA_TIME_SERIES_1DAY",
       "sma200_as_of": "2026-09-11 00:00:00+00:00",
       "sma200_history_sha256": "5466f045af3fd7b084316d6912c0b163f36c2f3ac469b45a6323dd98dedde0b0",
-      "sma200_evidence_timestamp": "2026-09-11T21:43:42.202498+00:00"
+      "sma200_evidence_timestamp": "2026-09-12T01:03:41.185147+00:00"
     },
     "finance_agent_score": 50,
     "finance_agent_status": "Mixed",

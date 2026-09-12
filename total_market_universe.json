@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-09-11T21:40:04.797043+00:00",
-  "count": 6077,
+  "generated_at": "2026-09-12T00:59:44.127423+00:00",
+  "count": 6074,
   "symbols": [
     "A",
     "AA",
@@ -2815,8 +2815,6 @@
     "IP",
     "IPA",
     "IPAR",
-    "IPCX",
-    "IPCXR",
     "IPDN",
     "IPEX",
     "IPF",
@@ -3671,7 +3669,6 @@
     "MYPS",
     "MYRG",
     "MYSE",
-    "MYSEW",
     "MYSZ",
     "MYTE",
     "MYX",
@@ -6082,50 +6079,53 @@
   ],
   "governed_universe_comparison": {
     "comparison_version": "GOVERNED_UNIVERSE_COMPARISON_V1",
-    "old_count": 6079,
-    "new_count": 6077,
-    "overlap": 6077,
+    "old_count": 6077,
+    "new_count": 6074,
+    "overlap": 6074,
     "only_old": [
-      "BNZI",
-      "IOBT"
+      "IPCX",
+      "IPCXR",
+      "MYSEW"
     ],
     "only_new": [],
     "loss_reasons": {
-      "BNZI": "REQUIRES_LISTING_OR_DELISTING_RECONCILIATION",
-      "IOBT": "REQUIRES_LISTING_OR_DELISTING_RECONCILIATION"
+      "IPCX": "REQUIRES_LISTING_OR_DELISTING_RECONCILIATION",
+      "IPCXR": "REQUIRES_LISTING_OR_DELISTING_RECONCILIATION",
+      "MYSEW": "REQUIRES_LISTING_OR_DELISTING_RECONCILIATION"
     },
     "unexplained_losses": [
-      "BNZI",
-      "IOBT"
+      "IPCX",
+      "IPCXR",
+      "MYSEW"
     ]
   },
   "governed_pre_acquisition_summary": {
-    "raw_global_master_count": 20417,
-    "raw_universe_count": 20417,
-    "raw_returned_listing_rows": 20428,
-    "raw_stock_directory_row_count": 20378,
+    "raw_global_master_count": 20415,
+    "raw_universe_count": 20415,
+    "raw_returned_listing_rows": 20426,
+    "raw_stock_directory_row_count": 20376,
     "raw_etf_directory_row_count": 50,
-    "resolved_us_listing_count": 6077,
+    "resolved_us_listing_count": 6074,
     "unresolved_listing_identity_count": 13,
     "foreign_listing_removed_count": 0,
     "inactive_removed_count": 0,
-    "otc_removed_count": 12776,
+    "otc_removed_count": 12777,
     "non_common_removed_count": 1229,
-    "us_stock_universe_count": 6036,
+    "us_stock_universe_count": 6033,
     "us_etf_universe_count": 41,
     "stock_exchange_distribution": {
       "NYSE": 2259,
-      "NASDAQ": 3776,
+      "NASDAQ": 3773,
       "BATS": 1
     },
     "etf_exchange_distribution": {
-      "NYSE": 8,
       "ARCA": 24,
       "AMEX": 7,
+      "NYSE": 8,
       "BATS": 2
     },
-    "exchange_resolution_population": 20428,
-    "exchange_resolution_success_count": 20403,
+    "exchange_resolution_population": 20426,
+    "exchange_resolution_success_count": 20401,
     "exchange_resolution_unresolved_count": 25,
     "exchange_resolution_coverage_pct": 99.8776,
     "exchange_resolution_minimum_coverage_pct": 99.0,
@@ -6400,16 +6400,16 @@
     "representative_foreign_symbols": [],
     "inactive_removed": 0,
     "delisted_removed": 0,
-    "otc_removed": 12776,
+    "otc_removed": 12777,
     "warrant_removed": 423,
     "right_removed": 106,
     "unit_removed": 69,
     "preferred_removed": 365,
     "other_non_common_removed": 266,
-    "investable_stock_universe_count": 6036,
+    "investable_stock_universe_count": 6033,
     "etf_routed_separately": 41,
     "exclusion_reason_counts": {
-      "OTC_OUTSIDE_STOCK_POLICY": 12776,
+      "OTC_OUTSIDE_STOCK_POLICY": 12777,
       "WARRANT_SECURITY": 423,
       "RIGHT_SECURITY": 106,
       "UNIT_SECURITY": 69,
@@ -42781,32 +42781,6 @@
       "listing_source_endpoint": "stocks",
       "listing_source_country_filter": "United States"
     },
-    "IPCX": {
-      "canonical_ticker": "IPCX",
-      "provider_ticker": "IPCX",
-      "exchange": "NASDAQ",
-      "security_identity": "IPCX",
-      "mapping_version": "TWELVE_SYMBOL_IDENTITY_V1",
-      "source_ticker": "IPCX",
-      "source_exchange_value": "NASDAQ",
-      "normalized_exchange": "NASDAQ",
-      "exchange_resolution_status": "RESOLVED_US",
-      "listing_source_endpoint": "stocks",
-      "listing_source_country_filter": "United States"
-    },
-    "IPCXR": {
-      "canonical_ticker": "IPCXR",
-      "provider_ticker": "IPCXR",
-      "exchange": "NASDAQ",
-      "security_identity": "IPCXR",
-      "mapping_version": "TWELVE_SYMBOL_IDENTITY_V1",
-      "source_ticker": "IPCXR",
-      "source_exchange_value": "NASDAQ",
-      "normalized_exchange": "NASDAQ",
-      "exchange_resolution_status": "RESOLVED_US",
-      "listing_source_endpoint": "stocks",
-      "listing_source_country_filter": "United States"
-    },
     "IPDN": {
       "canonical_ticker": "IPDN",
       "provider_ticker": "IPDN",
@@ -53825,19 +53799,6 @@
       "security_identity": "MYSE",
       "mapping_version": "TWELVE_SYMBOL_IDENTITY_V1",
       "source_ticker": "MYSE",
-      "source_exchange_value": "NASDAQ",
-      "normalized_exchange": "NASDAQ",
-      "exchange_resolution_status": "RESOLVED_US",
-      "listing_source_endpoint": "stocks",
-      "listing_source_country_filter": "United States"
-    },
-    "MYSEW": {
-      "canonical_ticker": "MYSEW",
-      "provider_ticker": "MYSEW",
-      "exchange": "NASDAQ",
-      "security_identity": "MYSEW",
-      "mapping_version": "TWELVE_SYMBOL_IDENTITY_V1",
-      "source_ticker": "MYSEW",
       "source_exchange_value": "NASDAQ",
       "normalized_exchange": "NASDAQ",
       "exchange_resolution_status": "RESOLVED_US",
@@ -85423,10 +85384,10 @@
     }
   },
   "eligibility": {
-    "eligible_count": 3075,
-    "excluded_count": 17350,
+    "eligible_count": 3079,
+    "excluded_count": 17344,
     "exclusion_reason_counts": {
-      "OTC_OUTSIDE_STOCK_POLICY": 12776,
+      "OTC_OUTSIDE_STOCK_POLICY": 12777,
       "WARRANT_SECURITY": 423,
       "RIGHT_SECURITY": 106,
       "UNIT_SECURITY": 69,
@@ -85434,10 +85395,10 @@
       "PREFERRED_SECURITY": 365,
       "INVALID_SYMBOL_IDENTITY": 332,
       "UNRESOLVED_EXCHANGE_IDENTITY": 13,
-      "DOLLAR_VOLUME_BELOW_MINIMUM": 1591,
-      "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE": 1055,
+      "DOLLAR_VOLUME_BELOW_MINIMUM": 1586,
+      "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE": 1054,
       "DATA_ACQUISITION_FAILURE": 78,
-      "GOVERNED_COMPANY_EXCLUSION": 178,
+      "GOVERNED_COMPANY_EXCLUSION": 177,
       "Excluded business category": 6,
       "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE": 89,
       "INSUFFICIENT_TECHNICAL_HISTORY": 3
@@ -90257,10 +90218,6 @@
       },
       {
         "ticker": "AVIZF",
-        "reason": "OTC_OUTSIDE_STOCK_POLICY"
-      },
-      {
-        "ticker": "AVLND",
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
       },
       {
@@ -97420,10 +97377,6 @@
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
       },
       {
-        "ticker": "COLRF",
-        "reason": "OTC_OUTSIDE_STOCK_POLICY"
-      },
-      {
         "ticker": "COLZF",
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
       },
@@ -98205,6 +98158,10 @@
       },
       {
         "ticker": "CSCCY",
+        "reason": "OTC_OUTSIDE_STOCK_POLICY"
+      },
+      {
+        "ticker": "CSCFF",
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
       },
       {
@@ -101085,6 +101042,10 @@
       },
       {
         "ticker": "DYNR",
+        "reason": "OTC_OUTSIDE_STOCK_POLICY"
+      },
+      {
+        "ticker": "DYNTQ",
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
       },
       {
@@ -107384,10 +107345,6 @@
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
       },
       {
-        "ticker": "GNTLF",
-        "reason": "OTC_OUTSIDE_STOCK_POLICY"
-      },
-      {
         "ticker": "GNTOF",
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
       },
@@ -111117,6 +111074,10 @@
       },
       {
         "ticker": "IFBC",
+        "reason": "OTC_OUTSIDE_STOCK_POLICY"
+      },
+      {
+        "ticker": "IFBHF",
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
       },
       {
@@ -115460,10 +115421,6 @@
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
       },
       {
-        "ticker": "LGSXD",
-        "reason": "OTC_OUTSIDE_STOCK_POLICY"
-      },
-      {
         "ticker": "LGSXY",
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
       },
@@ -115585,10 +115542,6 @@
       },
       {
         "ticker": "LINIF",
-        "reason": "OTC_OUTSIDE_STOCK_POLICY"
-      },
-      {
-        "ticker": "LINMD",
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
       },
       {
@@ -126980,10 +126933,6 @@
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
       },
       {
-        "ticker": "PXSTF",
-        "reason": "OTC_OUTSIDE_STOCK_POLICY"
-      },
-      {
         "ticker": "PXXLF",
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
       },
@@ -128825,6 +128774,10 @@
       },
       {
         "ticker": "ROOOF",
+        "reason": "OTC_OUTSIDE_STOCK_POLICY"
+      },
+      {
+        "ticker": "ROSBF",
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
       },
       {
@@ -132228,6 +132181,10 @@
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
       },
       {
+        "ticker": "SMFSY",
+        "reason": "OTC_OUTSIDE_STOCK_POLICY"
+      },
+      {
         "ticker": "SMFX",
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
       },
@@ -134296,6 +134253,10 @@
         "reason": "OTHER_NON_COMMON_SECURITY"
       },
       {
+        "ticker": "STWGF",
+        "reason": "OTC_OUTSIDE_STOCK_POLICY"
+      },
+      {
         "ticker": "STXMF",
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
       },
@@ -134373,6 +134334,10 @@
       },
       {
         "ticker": "SUIFF",
+        "reason": "OTC_OUTSIDE_STOCK_POLICY"
+      },
+      {
+        "ticker": "SULFF",
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
       },
       {
@@ -139388,10 +139353,6 @@
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
       },
       {
-        "ticker": "VITBF",
-        "reason": "OTC_OUTSIDE_STOCK_POLICY"
-      },
-      {
         "ticker": "VITFF",
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
       },
@@ -139877,6 +139838,10 @@
       },
       {
         "ticker": "VRDR",
+        "reason": "OTC_OUTSIDE_STOCK_POLICY"
+      },
+      {
+        "ticker": "VREAF",
         "reason": "OTC_OUTSIDE_STOCK_POLICY"
       },
       {
@@ -143417,7 +143382,7 @@
       },
       {
         "ticker": "AMBC",
-        "reason": "GOVERNED_COMPANY_EXCLUSION"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "AMBO",
@@ -143953,7 +143918,7 @@
       },
       {
         "ticker": "AYTU",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "AZI",
@@ -144697,10 +144662,6 @@
       },
       {
         "ticker": "BWAY",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "BWB",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
@@ -145801,10 +145762,6 @@
       },
       {
         "ticker": "DBCA",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "DBVT",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
@@ -147897,7 +147854,7 @@
       },
       {
         "ticker": "HTCR",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "HTIBP",
@@ -148090,6 +148047,10 @@
       {
         "ticker": "IFBD",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+      },
+      {
+        "ticker": "IFIN",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "IFRX",
@@ -148329,14 +148290,6 @@
       },
       {
         "ticker": "IPA",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
-      },
-      {
-        "ticker": "IPCX",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
-        "ticker": "IPCXR",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
@@ -149364,10 +149317,6 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "LXRX",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
-      },
-      {
         "ticker": "LYEL",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -149397,7 +149346,7 @@
       },
       {
         "ticker": "MAAQ",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "MAAS",
@@ -150088,10 +150037,6 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
-        "ticker": "MYSEW",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
-      },
-      {
         "ticker": "MYSZ",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
@@ -150277,10 +150222,6 @@
       },
       {
         "ticker": "NEXR",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
-      },
-      {
-        "ticker": "NFE",
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
@@ -150509,7 +150450,7 @@
       },
       {
         "ticker": "NTCL",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "NTEST",
@@ -151772,10 +151713,6 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "QUIK",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
         "ticker": "QUMS",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -151813,7 +151750,7 @@
       },
       {
         "ticker": "RADX",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "RAIL",
@@ -153188,10 +153125,6 @@
         "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
-        "ticker": "SZZL",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
-      },
-      {
         "ticker": "TACH",
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
@@ -153805,7 +153738,7 @@
       },
       {
         "ticker": "UK",
-        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "ULBI",
@@ -154138,10 +154071,6 @@
       {
         "ticker": "VOGX",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
-      },
-      {
-        "ticker": "VOXR",
-        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
         "ticker": "VOYA",
@@ -154532,6 +154461,10 @@
         "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
       },
       {
+        "ticker": "XHG",
+        "reason": "DOLLAR_VOLUME_BELOW_MINIMUM"
+      },
+      {
         "ticker": "XLAB",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
       },
@@ -154686,6 +154619,10 @@
       {
         "ticker": "YICC",
         "reason": "MARKET_HISTORY_OR_INDICATORS_UNAVAILABLE"
+      },
+      {
+        "ticker": "YJ",
+        "reason": "PRICE_BELOW_MINIMUM_OR_UNAVAILABLE"
       },
       {
         "ticker": "YOSH",
