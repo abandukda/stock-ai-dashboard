@@ -63,6 +63,11 @@ def _render_full_qa_status(publication_manifest: Mapping[str, Any]) -> None:
         coverage[1].metric("High Uncertainty", qa.get("high_uncertainty_count", 0))
         coverage[2].metric("Screenshots", qa.get("screenshot_count", 0))
         coverage[3].metric("Visual Failures", qa.get("visual_failure_count", 0))
+        visual = st.columns(4)
+        visual[0].metric("Visual Status", qa.get("visual_status", qa.get("publication_status", "NOT AVAILABLE")))
+        visual[1].metric("Last Visual PASS", qa.get("last_successful_visual_certification", "Not available"))
+        visual[2].metric("Auto Repairs", qa.get("auto_repairs_attempted", 0))
+        visual[3].metric("Unresolved", len(qa.get("unresolved_findings") or ()))
         severity = dict(qa.get("severity_counts") or {})
         cols = st.columns(5)
         for index in range(5):

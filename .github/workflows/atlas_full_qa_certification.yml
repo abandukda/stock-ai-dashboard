@@ -195,6 +195,8 @@ jobs:
           python -m agents.full_qa_visual_certification \
             --url http://127.0.0.1:8501 \
             --root . \
+            --candidate-dir audit_results/candidate_artifacts \
+            --candidate-run-id "${{ steps.candidate.outputs.run_id || github.run_id }}" \
             --output audit_results/full_qa/${{ github.run_id }}/visual
 
       - name: Emit sanitized local runtime diagnostics
@@ -212,7 +214,7 @@ jobs:
             --output-dir audit_results/full_qa/${{ github.run_id }} \
             --artifact-link https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }} \
             --visual-summary audit_results/full_qa/${{ github.run_id }}/visual/atlas_full_qa_visual_summary.json \
-            --screenshot-manifest audit_results/full_qa/${{ github.run_id }}/visual/screenshot_manifest.json \
+            --screenshot-manifest audit_results/full_qa/${{ github.run_id }}/visual/visual_manifest.json \
             --promote
 
       - name: Upload QA certification bundle
@@ -225,6 +227,15 @@ jobs:
             audit_results/candidate_artifacts
             failed_publication_run.json
           if-no-files-found: warn
+          retention-days: 90
+
+      - name: Upload autonomous visual certification bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-visual-qa-${{ github.run_id }}
+          path: audit_results/full_qa/${{ github.run_id }}/visual
+          if-no-files-found: error
           retention-days: 90
 
       - name: Preserve exact generated candidate for deterministic reruns

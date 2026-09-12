@@ -147,9 +147,22 @@ def main(argv=None) -> int:
             screenshots = screenshots.get("screenshots") or screenshots.get("manifest") or []
     report["sheets"]["Screenshot_Index"] = [dict(item) for item in screenshots if isinstance(item, dict)]
     visual_failures = []
+    visual = {}
     if args.visual_summary and args.visual_summary.exists():
         visual = _read(args.visual_summary)
         visual_failures = [item for item in visual.get("defects", []) if item.get("severity") in {"P0", "P1", "P2"}]
+        candidate_source_sha = candidate_manifest.get("source_commit_sha") or candidate_manifest.get("source_sha")
+        visual_identity = dict(visual.get("candidate_identity") or {})
+        if visual.get("status") != "PASS" or visual.get("promotion_allowed") is not True:
+            visual_failures.append({"severity": "P1", "observed": "VISUAL_CERTIFICATION_NOT_PASS"})
+        if visual_identity.get("candidate_source_sha") != candidate_source_sha:
+            visual_failures.append({"severity": "P1", "observed": "VISUALLY_TESTED_CANDIDATE_SHA_MISMATCH"})
+        if not screenshots:
+            visual_failures.append({"severity": "P1", "observed": "SCREENSHOT_COUNT_ZERO"})
+        for screenshot in screenshots:
+            if screenshot.get("candidate_source_sha") != candidate_source_sha:
+                visual_failures.append({"severity": "P1", "observed": "SCREENSHOT_CANDIDATE_SHA_MISMATCH"})
+                break
         for item in visual_failures:
             report["sheets"]["Validation_Failures"].append({
                 "ticker": item.get("ticker_context") or "SURFACE", "severity": item.get("severity") or "P1",
@@ -173,8 +186,25 @@ def main(argv=None) -> int:
             "reason": "VALIDATION_FAILED", "fixable_by_atlas": True,
             "recommended_remediation": "Repair screenshot capture and rerun certification.",
         })
+    if args.promote and (not args.visual_summary or not args.screenshot_manifest):
+        visual_failures.append({"severity": "P1"})
+        report["sheets"]["Validation_Failures"].append({
+            "ticker": "SURFACE", "severity": "P1", "category": "VISUAL_QA",
+            "field": "promotion_contract", "message": "Promotion requires visual summary and screenshot manifest.",
+            "reason": "VALIDATION_FAILED", "fixable_by_atlas": True,
+            "recommended_remediation": "Run exact-candidate visual certification before promotion.",
+        })
     report["summary"]["screenshot_count"] = len(report["sheets"]["Screenshot_Index"])
     report["summary"]["visual_failure_count"] = len(visual_failures)
+    if visual:
+        report["summary"].update({
+            "visual_status": visual.get("status"),
+            "auto_repairs_attempted": visual.get("auto_repairs_attempted", 0),
+            "auto_repairs_successful": visual.get("auto_repairs_successful", 0),
+            "unresolved_findings": visual.get("unresolved_findings") or [],
+            "last_successful_visual_certification": visual.get("generated_at") if visual.get("status") == "PASS" else None,
+            "visually_tested_candidate_sha": dict(visual.get("candidate_identity") or {}).get("candidate_source_sha"),
+        })
     if visual_failures:
         for item in visual_failures:
             level = item.get("severity") or "P1"
