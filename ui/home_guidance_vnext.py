@@ -232,6 +232,11 @@ def _certified_paid_client_full_evidence(card: Mapping[str, Any], certified: Map
         if method_weight is not None:
             detail += f" · {_score(float(method_weight) * 100, suffix='% weight')}"
         method_rows.append((str(method.get("name") or "Valuation method"), detail, "text"))
+    method_caution = (
+        '<p class="atlas-home-divergence">Valuation is currently based on one certified method, '
+        'so the estimate has more model concentration than a multi-method valuation.</p>'
+        if len(method_rows) == 1 and "100.0% weight" in method_rows[0][1] else ""
+    )
     sections = (
         ("Decision", grid((
             ("ATLAS Action", f'{action.get("stars", "")} {action.get("label", "")}'.strip() if decision.get("action") else None, "text"),
@@ -262,7 +267,7 @@ def _certified_paid_client_full_evidence(card: Mapping[str, Any], certified: Map
             ("Forward P/E", value("forward_pe"), "text"),
         ))),
         ("Latest Earnings", '<p class="atlas-home-muted">No separately certified earnings event is available for this snapshot.</p>'),
-        ("Valuation Methods", grid(tuple(method_rows))),
+        ("Valuation Methods", method_caution + grid(tuple(method_rows))),
         ("Technical & Volume", grid(tuple(
             (label, value, "text") for label, value in (
                 ("Technical State", dict(certified.get("technical") or {}).get("state")),

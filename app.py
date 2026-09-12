@@ -33006,6 +33006,7 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
         from engines.home_market_data import fetch_home_market_tape
         from engines.market_today import build_market_today
         tape = fetch_home_market_tape()
+        st.session_state["home_market_runtime_health"] = dict(tape.get("home_market_runtime_health") or {})
         news_records = []
         try:
             news_payload = read_json_file(DATA_DIR / "market_news_context.json")
@@ -33015,6 +33016,11 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
             )
         except Exception:
             pass
+        if not news_records:
+            from services.home_market_news import fetch_major_market_news
+            news_result = fetch_major_market_news()
+            news_records = list(news_result.get("records") or ())
+            st.session_state["home_market_news_runtime_health"] = dict(news_result.get("runtime_health") or {})
         st.session_state["home_market_today"] = build_market_today(tape, news=news_records)
 
     story = build_home_guidance_story(

@@ -121,6 +121,11 @@ def render_developer_center(
         f"Runtime build: {build['short_sha']} · Branch: {build['branch']} · "
         f"Home renderer: {build['home_renderer_version']} · Source: {build['source']}"
     )
+    market_health = dict(st.session_state.get("home_market_runtime_health") or {})
+    news_health = dict(st.session_state.get("home_market_news_runtime_health") or {})
+    with st.expander("Home Market Runtime Health", expanded=False):
+        st.json({"market": market_health or {"status": "NOT_FETCHED_IN_THIS_SESSION"},
+                 "news": news_health or {"status": "NOT_FETCHED_IN_THIS_SESSION"}})
     manifest_path = Path("publication_manifest.json")
     try:
         _render_full_qa_status(json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else {})

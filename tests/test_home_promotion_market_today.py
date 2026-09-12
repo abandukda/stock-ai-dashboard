@@ -2,6 +2,7 @@ from copy import deepcopy
 from datetime import datetime, timezone
 
 from engines.market_today import build_market_today, normalize_major_market_news
+from services.home_market_news import fetch_major_market_news
 from engines.home_guidance_story_v1 import build_homepage_promotion_metrics
 from engines.home_guidance_story_v1 import build_home_guidance_story
 from services.home_promotion_policy import VERSION, classify_homepage_promotion
@@ -71,6 +72,30 @@ def test_market_today_preserves_partial_availability():
     result=build_market_today(tape,now=datetime(2026,9,10,14,31,tzinfo=timezone.utc))
     assert [item["symbol"] for item in result["instruments"]]==["SPY"]
     assert result["status"]=="AVAILABLE"
+
+
+def test_major_market_news_acquisition_requires_explicit_commercial_entitlement():
+    blocked = fetch_major_market_news(
+        secrets={"NEWSAPI_KEY": "secret"}, environ={}, now=datetime(2026, 9, 12, tzinfo=timezone.utc),
+    )
+    assert blocked["records"] == []
+    assert blocked["runtime_health"]["failure_reason"] == "COMMERCIAL_DISPLAY_RIGHTS_UNCONFIRMED"
+
+
+def test_major_market_news_acquisition_persists_safe_lineage_without_secret():
+    class Response:
+        def raise_for_status(self): pass
+        def json(self):
+            return {"articles": [{"title": "Fed holds interest rates steady", "publishedAt": "2026-09-11T18:00:00Z",
+                    "source": {"name": "Licensed Wire"}, "url": "https://example.com/fed"}]}
+    result = fetch_major_market_news(
+        get=lambda *args, **kwargs: Response(), now=datetime(2026, 9, 12, tzinfo=timezone.utc),
+        secrets={"NEWSAPI_KEY": "secret", "NEWSAPI_COMMERCIAL_DISPLAY_ALLOWED": "true"}, environ={},
+    )
+    assert result["runtime_health"]["records_available"] == 1
+    assert result["records"][0]["evidence_id"].startswith("NEWSAPI-MARKET-")
+    assert result["records"][0]["commercial_display_allowed"] is True
+    assert "secret" not in repr(result)
 
 
 def test_market_today_contract_is_independent_of_stock_certification():

@@ -126,6 +126,8 @@ def _company_risk(facts: Mapping[str, Any]) -> str:
             return "exposure to transaction volumes, pricing pressure, and competitive execution"
         if any(token in industry for token in ("biotech", "biotechnology", "pharmaceutical")):
             return "exposure to clinical, regulatory, and commercialization outcomes"
+        if any(token in industry for token in ("software", "cloud", "application")):
+            return "exposure to growth durability, margins, customer retention, and valuation sensitivity"
     return raw or "the expected business improvement may not arrive"
 
 
@@ -176,6 +178,9 @@ def certify_customer_presentation_consistency(text: str, payload: Mapping[str, A
         contradictions.append("WALL_STREET_PARTIAL_COVERAGE_CONTRADICTION")
     if facts.get("single_method_concentration") and not re.search(r"one certified valuation method|single.method", copy, re.I):
         contradictions.append("SINGLE_METHOD_CONCENTRATION_OMITTED")
+    upside = facts.get("atlas_upside_pct")
+    if upside is not None and float(upside) > 75 and not re.search(r"(?:supported|based) (?:by|on).{0,80}(?:certified valuation method|valuation methods)", copy, re.I):
+        contradictions.append("EXTREME_UPSIDE_METHOD_BASIS_OMITTED")
     numeric_claims = (
         ("ATLAS_FAIR_VALUE_MISMATCH", r"fair value at \$([\d,]+(?:\.\d+)?)", facts.get("atlas_fair_value")),
         ("CURRENT_PRICE_MISMATCH", r"(?:certified|current) price(?: of| is| at)? \$([\d,]+(?:\.\d+)?)", facts.get("current_price")),
@@ -439,6 +444,8 @@ def plain_english_summary(payload: Mapping[str, Any]) -> str:
             if facts.get("single_method_concentration") and methods:
                 method_name = str(methods[0].get("name") or "the available method").replace("EV / EBITDA", "operating-earnings peer value").replace("FCFF Discounted Cash Flow", "long-term cash-flow value")
                 valuation += f" The estimate is based on one certified valuation method—{method_name}—so it carries more model concentration than a multi-method valuation."
+                if float(upside) > 75:
+                    valuation += f" ATLAS's {float(upside):.1f}% upside is supported by this single certified valuation method."
         else:
             valuation = "ATLAS has not published a fair value for this snapshot."
         divergence = build_atlas_street_divergence_explanation(facts)

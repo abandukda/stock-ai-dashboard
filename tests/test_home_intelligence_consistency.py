@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 import pandas as pd
 
+import engines.home_market_data as home_market_data
 from engines.home_market_data import fetch_home_market_tape
 from engines.market_today import build_market_today
 from services.atlas_view_summary import (
@@ -58,6 +59,41 @@ def test_closed_session_daily_bars_remain_available_with_regular_close_semantics
     context = build_market_today(tape, now=datetime(2026, 9, 12, 14, tzinfo=timezone.utc))
     assert context["status"] == "AVAILABLE"
     assert context["market_session"] == "LATEST REGULAR CLOSE"
+
+
+def test_default_market_tape_reuses_phase1_adapter_and_emits_runtime_health(monkeypatch):
+    dates = pd.date_range(end="2026-09-11", periods=260, freq="D")
+    values = [
+        {"datetime": date.date().isoformat(), "open": 99, "high": 200, "low": 98,
+         "close": 100 + index / 100, "volume": 1_000_000}
+        for index, date in enumerate(dates)
+    ]
+    class Adapter:
+        def __init__(self, *args, **kwargs): pass
+        def fetch_time_series(self, symbol, **kwargs):
+            return {"meta": {"symbol": symbol, "exchange_timezone": "America/New_York"}, "values": values}
+    monkeypatch.setattr(home_market_data, "TwelveDataPhase1Adapter", Adapter)
+    monkeypatch.setattr(home_market_data, "load_twelve_data_setting", lambda *args, **kwargs: "configured")
+    tape = fetch_home_market_tape(
+        symbols={"SPY": "S&P 500 · SPY"}, now=lambda: datetime(2026, 9, 12, 14, tzinfo=timezone.utc),
+    )
+    assert tape["rows"][0]["status"] == "available"
+    assert tape["rows"][0]["market_session"] == "LATEST_REGULAR_CLOSE"
+    health = tape["home_market_runtime_health"]
+    assert health["provider"] == "TWELVE_DATA"
+    assert health["credential_present"] is True
+    assert health["symbols_available"] == ["SPY"]
+    assert health["failure_reasons"] == {}
+
+
+def test_market_runtime_health_preserves_credential_failure_semantics(monkeypatch):
+    monkeypatch.setattr(home_market_data, "load_twelve_data_setting", lambda *args, **kwargs: "")
+    tape = fetch_home_market_tape(
+        symbols={"SPY": "S&P 500 · SPY"}, now=lambda: datetime(2026, 9, 12, 14, tzinfo=timezone.utc),
+    )
+    health = tape["home_market_runtime_health"]
+    assert health["credential_present"] is False
+    assert health["failure_reasons"] == {"SPY": "CREDENTIAL_UNAVAILABLE"}
 
 
 def test_market_news_is_independent_and_grounded_when_tape_is_unavailable():
@@ -136,6 +172,7 @@ def test_tk_partial_street_and_missing_forward_eps_are_precise():
     assert "does not have a verified consensus price target" in copy
     assert "No verified Wall Street consensus" not in copy
     assert "one certified valuation method" in copy
+    assert "193.0% upside is supported" in copy
     assert "$0.00" not in copy
     assert "freight rates" in copy
 
