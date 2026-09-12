@@ -10,6 +10,7 @@ from services.atlas_view_summary import (
     certify_customer_presentation_consistency,
     plain_english_summary,
 )
+from ui.home_guidance_vnext import _certified_paid_client_full_evidence
 
 
 def _field(value, status="CERTIFIED"):
@@ -92,6 +93,21 @@ def test_consistency_gate_removes_a_contradictory_claim_without_withholding_reco
     assert result["safe_text"] == "ATLAS estimates fair value at $222.14."
 
 
+def test_consistency_gate_rejects_numeric_and_unavailable_zero_claims():
+    facts = build_certified_summary_facts(_card())
+    facts["forward_eps"] = None
+    result = certify_customer_presentation_consistency(
+        "ATLAS estimates fair value at $999.00. Forward EPS is $0.00. "
+        "Wall Street's average target is $12.00.",
+        {"certified_summary_facts": facts},
+    )
+    assert set(result["violations"]) >= {
+        "ATLAS_FAIR_VALUE_MISMATCH",
+        "WALL_STREET_TARGET_MISMATCH",
+        "UNAVAILABLE_FORWARD_EPS_RENDERED_AS_ZERO",
+    }
+
+
 def test_mktx_divergence_uses_certified_method_that_actually_drives_gap():
     result = build_atlas_street_divergence_explanation(build_certified_summary_facts(_card()))
     assert result["classification"] == "MATERIAL_DIVERGENCE"
@@ -99,3 +115,50 @@ def test_mktx_divergence_uses_certified_method_that_actually_drives_gap():
     assert "long-term cash-flow value" in result["explanation"]
     assert "$439.47" in result["explanation"]
     assert "cannot attribute" in result["explanation"]
+
+
+def test_tk_partial_street_and_missing_forward_eps_are_precise():
+    card = _card()
+    certified = card["certified_customer_evaluation"]
+    certified["fields"]["forward_eps"] = _field(None, "INSUFFICIENT_INPUTS")
+    certified["fields"]["atlas_fair_value"] = _field(42.13)
+    certified["fields"]["atlas_upside_pct"] = _field(193.0)
+    certified["decision"]["action"] = "ACCUMULATE"
+    certified["valuation_methods"] = (
+        {"name": "EV / EBITDA", "value": _field(42.1303), "weight": _field(1.0)},
+    )
+    certified["wall_street_analysis"]["consensus"] = {
+        "target_mean": None, "analyst_count": 4, "consensus_rating": "buy",
+    }
+    facts = build_certified_summary_facts({**card, "company": "Teekay Corporation Ltd.", "company_evidence": {"industry": "Marine Shipping"}})
+    copy = plain_english_summary({"certified_summary_facts": facts})
+    assert "Wall Street ratings are available from 4 analysts" in copy
+    assert "does not have a verified consensus price target" in copy
+    assert "No verified Wall Street consensus" not in copy
+    assert "one certified valuation method" in copy
+    assert "$0.00" not in copy
+    assert "freight rates" in copy
+
+
+def test_bp_single_method_divergence_and_compact_large_numbers():
+    card = _card()
+    certified = card["certified_customer_evaluation"]
+    certified["fields"]["forward_revenue"] = _field(201_005_852_000)
+    certified["fields"]["atlas_fair_value"] = _field(79.90)
+    certified["fields"]["atlas_upside_pct"] = _field(73.3)
+    certified["valuation_methods"] = (
+        {"name": "EV / EBITDA", "value": _field(79.8962), "weight": _field(1.0)},
+    )
+    certified["wall_street_analysis"]["consensus"] = {
+        "target_mean": 48.15, "analyst_count": 19, "consensus_rating": "buy",
+    }
+    facts = build_certified_summary_facts({**card, "company": "BP Plc", "company_evidence": {"industry": "Oil & Gas Integrated"}})
+    copy = plain_english_summary({"certified_summary_facts": facts})
+    assert "one certified valuation method" in copy
+    assert "ATLAS is 65.9% above Wall Street" in copy
+    assert "commodity prices" in copy
+    html = _certified_paid_client_full_evidence(
+        {"customer_action": {"label": "BUILD A POSITION"}}, certified
+    )
+    assert "$201.0B" in html
+    assert "$201,005,852,000.00" not in html

@@ -70,6 +70,8 @@ def build_certified_summary_facts(card: Mapping[str, Any]) -> dict[str, Any]:
             methods.append({"name": method.get("name"), "value": value.get("value"), "weight": weight.get("value")})
     risk = dict(certified.get("risk") or {})
     risk_evidence = dict(risk.get("evidence") or {})
+    consensus = dict(street.get("consensus") or {})
+    estimates = dict(street.get("estimate_context") or {})
     facts = {
         "ticker": certified.get("ticker") or card.get("ticker"),
         "company": card.get("company"),
@@ -98,7 +100,33 @@ def build_certified_summary_facts(card: Mapping[str, Any]) -> dict[str, Any]:
     ))
     facts["valuation_evidence_available"] = facts["atlas_fair_value"] is not None
     facts["wall_street_evidence_available"] = bool(street.get("status") in {"WALL_STREET_AVAILABLE", "WALL_STREET_PARTIAL"})
+    facts["wall_street_coverage"] = {
+        "ratings_available": bool(consensus.get("consensus_rating") or street.get("rating_distribution")),
+        "target_available": consensus.get("target_mean") is not None,
+        "estimates_available": any(value is not None for value in estimates.values()),
+        "recent_actions_available": bool(street.get("recent_actions")),
+        "analyst_count": consensus.get("analyst_count"),
+    }
+    facts["valuation_method_count"] = len(methods)
+    facts["single_method_concentration"] = len(methods) == 1 and float(methods[0].get("weight") or 0) >= .999
     return facts
+
+
+def _company_risk(facts: Mapping[str, Any]) -> str:
+    raw = str(facts.get("primary_risk") or "").strip().rstrip(".")
+    generic = not raw or bool(re.fullmatch(r"(?:shallow|moderate|deep) drawdown", raw, re.I))
+    industry = str(facts.get("industry") or "").lower()
+    company = str(facts.get("company") or "").lower()
+    if generic:
+        if any(token in industry + " " + company for token in ("marine", "shipping", "tanker", "teekay")):
+            return "exposure to freight rates, vessel use, leverage, and industry cyclicality"
+        if any(token in industry + " " + company for token in ("oil", "gas", "energy", "petroleum", "bp p.l.c")):
+            return "exposure to commodity prices, refining margins, production, and capital-allocation execution"
+        if any(token in industry for token in ("capital markets", "exchange", "financial data")):
+            return "exposure to transaction volumes, pricing pressure, and competitive execution"
+        if any(token in industry for token in ("biotech", "biotechnology", "pharmaceutical")):
+            return "exposure to clinical, regulatory, and commercialization outcomes"
+    return raw or "the expected business improvement may not arrive"
 
 
 def build_atlas_street_divergence_explanation(facts: Mapping[str, Any]) -> dict[str, Any]:
@@ -143,6 +171,39 @@ def certify_customer_presentation_consistency(text: str, payload: Mapping[str, A
     )
     for domain, available, pattern in checks:
         if available and re.search(pattern, copy, re.I): contradictions.append(f"{domain}_AVAILABILITY_CONTRADICTION")
+    coverage = dict(facts.get("wall_street_coverage") or {})
+    if coverage.get("ratings_available") and not coverage.get("target_available") and re.search(r"no verified Wall Street consensus", copy, re.I):
+        contradictions.append("WALL_STREET_PARTIAL_COVERAGE_CONTRADICTION")
+    if facts.get("single_method_concentration") and not re.search(r"one certified valuation method|single.method", copy, re.I):
+        contradictions.append("SINGLE_METHOD_CONCENTRATION_OMITTED")
+    numeric_claims = (
+        ("ATLAS_FAIR_VALUE_MISMATCH", r"fair value at \$([\d,]+(?:\.\d+)?)", facts.get("atlas_fair_value")),
+        ("CURRENT_PRICE_MISMATCH", r"(?:certified|current) price(?: of| is| at)? \$([\d,]+(?:\.\d+)?)", facts.get("current_price")),
+        ("WALL_STREET_TARGET_MISMATCH", r"Wall Street(?:'s)? average target is \$([\d,]+(?:\.\d+)?)", dict(facts.get("wall_street_analysis") or {}).get("consensus", {}).get("target_mean")),
+        ("FORWARD_EPS_MISMATCH", r"forward earnings are \$([\d,]+(?:\.\d+)?) per share", facts.get("forward_eps")),
+    )
+    for code, pattern, expected in numeric_claims:
+        match = re.search(pattern, copy, re.I)
+        if match and (expected is None or abs(float(match.group(1).replace(",", "")) - float(expected)) > .015):
+            contradictions.append(code)
+    if facts.get("forward_eps") is None and re.search(r"forward (?:EPS|earnings)(?: are| is|:) +\$?0(?:\.0+)?\b", copy, re.I):
+        contradictions.append("UNAVAILABLE_FORWARD_EPS_RENDERED_AS_ZERO")
+    divergence_claim = re.search(r"ATLAS is ([\d.]+)% (above|below) Wall Street", copy, re.I)
+    if divergence_claim:
+        governed = build_atlas_street_divergence_explanation(facts)
+        expected_gap = governed.get("atlas_vs_street_pct")
+        expected_direction = governed.get("direction")
+        if expected_gap is None or abs(float(divergence_claim.group(1)) - abs(float(expected_gap))) > .11 or divergence_claim.group(2).lower() != expected_direction:
+            contradictions.append("ATLAS_STREET_DIVERGENCE_MISMATCH")
+    risk_claim = re.search(r"The main certified risk is (.+?)(?:\.|$)", copy, re.I)
+    if risk_claim:
+        expected_risk = _company_risk(facts).lower().strip()
+        actual_risk = risk_claim.group(1).lower().strip()
+        allowed_risks = {expected_risk}
+        if str(dict(facts.get("wall_street_analysis") or {}).get("recent_trend") or "").upper() == "DETERIORATING":
+            allowed_risks.add(expected_risk + " and deteriorating analyst actions")
+        if actual_risk not in allowed_risks:
+            contradictions.append("CERTIFIED_RISK_MISMATCH")
     safe = copy
     if contradictions:
         sentences = [sentence for sentence in re.split(r"(?<=[.!?])\s+", copy) if not any(
@@ -355,8 +416,18 @@ def plain_english_summary(payload: Mapping[str, Any]) -> str:
         description = str(facts.get("company_description") or "").strip()
         if description:
             description = next((part.strip().rstrip(".") for part in re.split(r"(?<=[.!?])\s+", description) if part.strip()), "")
-        same_identity = re.sub(r"[^a-z0-9]+", "", description.lower()) == re.sub(r"[^a-z0-9]+", "", company.lower())
-        identity = f"{description}. " if description and not same_identity and len(description.split()) <= 24 else ""
+        description_identity = re.sub(r"[^a-z0-9]+", "", description.lower())
+        company_identity = re.sub(r"[^a-z0-9]+", "", company.lower())
+        same_identity = bool(
+            description_identity
+            and company_identity
+            and (
+                description_identity == company_identity
+                or description_identity in company_identity
+                or company_identity in description_identity
+            )
+        )
+        identity = f"{description}. " if description and not same_identity and len(description.split()) <= 14 else ""
         opening = (
             identity + f"{company}'s financial record shows " + " and ".join(financial[:2]) + "."
             if financial else f"{company}'s available certified record is focused on its market setup rather than a detailed financial growth case."
@@ -364,20 +435,34 @@ def plain_english_summary(payload: Mapping[str, Any]) -> str:
         atlas, upside = facts.get("atlas_fair_value"), facts.get("atlas_upside_pct")
         if atlas is not None and upside is not None:
             valuation = f"ATLAS estimates fair value at ${float(atlas):.2f}, implying {float(upside):.1f}% potential from the certified price."
+            methods = tuple(facts.get("valuation_methods") or ())
+            if facts.get("single_method_concentration") and methods:
+                method_name = str(methods[0].get("name") or "the available method").replace("EV / EBITDA", "operating-earnings peer value").replace("FCFF Discounted Cash Flow", "long-term cash-flow value")
+                valuation += f" The estimate is based on one certified valuation method—{method_name}—so it carries more model concentration than a multi-method valuation."
         else:
             valuation = "ATLAS has not published a fair value for this snapshot."
         divergence = build_atlas_street_divergence_explanation(facts)
         street = dict(facts.get("wall_street_analysis") or {}); consensus = dict(street.get("consensus") or {})
+        coverage = dict(facts.get("wall_street_coverage") or {})
         if facts.get("wall_street_evidence_available") and consensus.get("target_mean") is not None:
             street_copy = f"Wall Street's average target is ${float(consensus['target_mean']):.2f}"
             if consensus.get("analyst_count") is not None: street_copy += f" across {int(consensus['analyst_count'])} analysts"
             street_copy += ";"
             if divergence.get("classification") not in {"NOT_COMPARABLE", "BROADLY_ALIGNED"}:
-                explanation = str(divergence.get("explanation") or "")
-                explanation = explanation.replace("Wall Street. Its", "Wall Street because its", 1)
+                if facts.get("single_method_concentration"):
+                    gap = float(divergence.get("atlas_vs_street_pct") or 0)
+                    direction = "above" if gap > 0 else "below"
+                    explanation = f"ATLAS is {abs(gap):.1f}% {direction} Wall Street, while analysts' detailed assumptions are not disclosed."
+                else:
+                    explanation = str(divergence.get("explanation") or "")
+                    explanation = explanation.replace("Wall Street. Its", "Wall Street because its", 1)
                 street_copy += " " + explanation
             trend = str(street.get("recent_trend") or "").upper()
             if trend == "DETERIORATING": street_copy = street_copy.rstrip(".") + "; recent analyst actions have deteriorated."
+        elif coverage.get("ratings_available"):
+            rating = str(consensus.get("consensus_rating") or "ratings").title()
+            count = f" from {int(coverage['analyst_count'])} analysts" if coverage.get("analyst_count") is not None else ""
+            street_copy = f"Wall Street ratings are available{count} with a {rating} consensus, but ATLAS does not have a verified consensus price target for this snapshot."
         else:
             street_copy = "A verified Wall Street comparison is not available for this snapshot."
         action = str(facts.get("action") or payload.get("customer_action") or "WATCH").replace("_", " ")
@@ -385,7 +470,7 @@ def plain_english_summary(payload: Mapping[str, Any]) -> str:
         action_reason = ACTION_101.get(action_label, ACTION_101["WATCH"])
         if action_reason.startswith("ATLAS "):
             action_reason = "it " + action_reason[6:7].lower() + action_reason[7:]
-        risk = str(facts.get("primary_risk") or "the expected business improvement may not arrive").strip().rstrip(".")
+        risk = _company_risk(facts)
         trend_risk = " and deteriorating analyst actions" if str(street.get("recent_trend") or "").upper() == "DETERIORATING" else ""
         closing = f"ATLAS rates the stock {action_label} because {action_reason.rstrip('.')}. The main certified risk is {risk}{trend_risk}."
         return " ".join((opening, valuation, street_copy, closing))
