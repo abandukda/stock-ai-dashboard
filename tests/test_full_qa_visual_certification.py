@@ -166,6 +166,13 @@ def test_timing_checkpoint_survives_mid_run_failure(tmp_path):
     assert payload["browser_navigation_count"] == 1
 
 
+def test_repeated_card_disclosures_use_bounded_batch_and_ranked_scan_viewport_capture():
+    source = Path("agents/full_qa_visual_certification.py").read_text()
+    assert 'page_name in {"Home", "Full Ranked Scan"} and len(inventory) >= 5' in source
+    assert 'return {index, label, opened, collapsed: !state(), content};' in source
+    assert 'complete_surface=name != "Full Ranked Scan"' in source
+
+
 def test_bounded_operation_caps_retry_and_records_timeout():
     attempts = 0
     async def slow():

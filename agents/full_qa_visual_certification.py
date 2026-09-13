@@ -252,6 +252,78 @@ async def certify_expandable_interactions(
         observed_content=", ".join(item["label"] for item in inventory),
     ))
 
+    # Repeated card disclosures (Home and Full Ranked Scan) are native details
+    # controls whose content is already rendered in the DOM.  Driving each one
+    # through Playwright's actionability/scroll loop causes Streamlit to
+    # repeatedly reflow the entire page (150 times on Full Ranked).  Exercise
+    # every control with a real DOM click, verify open/content/close in one
+    # browser transaction, and retain representative screenshots below.
+    if page_name in {"Home", "Full Ranked Scan"} and len(inventory) >= 5:
+        roundtrips = await page.evaluate("""() => {
+          const visible = e => {
+            const s=getComputedStyle(e), r=e.getBoundingClientRect();
+            return s.visibility!=='hidden' && s.display!=='none' && r.width>2 && r.height>2;
+          };
+          const nodes=[...document.querySelectorAll('[data-testid="stExpander"] summary, details summary, button[aria-expanded]')]
+            .filter(visible);
+          return nodes.map((node, index) => {
+            const label=(node.innerText || node.textContent || '').replace(/\\s+/g,' ').trim();
+            const details=node.closest('details');
+            const state=() => details ? details.open : node.getAttribute('aria-expanded')==='true';
+            if (state()) node.click();
+            node.click();
+            const opened=state();
+            const host=details || node.parentElement;
+            const content=(host?.innerText || '').replace(/\\s+/g,' ').trim();
+            if (opened) node.click();
+            return {index, label, opened, collapsed: !state(), content};
+          });
+        }""")
+        for row in roundtrips:
+            required = required_expandable(page_name, row.get("label", ""))
+            content = str(row.get("content") or "")
+            malformed = bool(re.search(r"(?:\bNone\b|\bnull\b|\bnan\b|Traceback|KeyError|TypeError)", content, re.I))
+            passed = bool(row.get("opened") and row.get("collapsed") and len(content) > len(str(row.get("label") or "")) and not malformed)
+            check = {
+                "page": page_name, "viewport": viewport, "ticker": ticker,
+                "interaction_type": "EXPANDER", "control_label": row.get("label", ""),
+                "required": required, "initial_state": "COLLAPSED", "final_state": "COLLAPSED",
+                "click_success": bool(row.get("opened")), "collapse_success": bool(row.get("collapsed")),
+                "expected_content": "Expansion reveals customer content and collapse restores state",
+                "observed_content": content[:500], "status": "PASS" if passed else "FAIL",
+                "screenshot": "", "elapsed_seconds": 0.0,
+            }
+            checks.append(check)
+            if required and not passed:
+                defects.append({"severity": "P1", "page": page_name, "viewport": viewport,
+                                "observed": json.dumps(check, sort_keys=True), "ticker_context": ticker})
+        all_open = await page.evaluate("""() => {
+          const nodes=[...document.querySelectorAll('[data-testid="stExpander"] summary, details summary, button[aria-expanded]')]
+            .filter(e => { const s=getComputedStyle(e),r=e.getBoundingClientRect(); return s.visibility!=='hidden'&&s.display!=='none'&&r.width>2&&r.height>2; });
+          for (const node of nodes) { const d=node.closest('details'); if (!(d ? d.open : node.getAttribute('aria-expanded')==='true')) node.click(); }
+          return nodes.filter(node => { const d=node.closest('details'); return d ? d.open : node.getAttribute('aria-expanded')==='true'; }).length;
+        }""")
+        all_layout = await _layout(page)
+        all_exception = await _has_rendered_exception(page)
+        all_pass = int(all_open) == len(inventory) and not all_layout["horizontal_overflow"] and not all_exception
+        all_shot = await crawler._shot(page, page_name=page_name, interaction="expandables",
+                                       state="all-major-expanded", viewport=viewport, ticker=ticker)
+        checks.append({"page": page_name, "viewport": viewport, "ticker": ticker,
+                       "interaction_type": "ALL_MAJOR_EXPANDED", "control_label": "ALL_MAJOR_SECTIONS",
+                       "required": True, "initial_state": "COLLAPSED", "final_state": "EXPANDED",
+                       "click_success": all_pass, "collapse_success": True,
+                       "expected_content": "All repeated disclosures coexist", "observed_content": f"opened={all_open}",
+                       "status": "PASS" if all_pass else "FAIL", "layout": all_layout, "screenshot": all_shot})
+        await page.evaluate("""() => {
+          for (const node of document.querySelectorAll('[data-testid="stExpander"] summary, details summary, button[aria-expanded]')) {
+            const d=node.closest('details'); if (d ? d.open : node.getAttribute('aria-expanded')==='true') node.click();
+          }
+        }""")
+        if not all_pass:
+            defects.append({"severity": "P1", "page": page_name, "viewport": viewport,
+                            "observed": "ALL_MAJOR_EXPANDED_FAILED", "ticker_context": ticker})
+        return checks, defects
+
     # Normalize initially-open controls only after preserving the true default state.
     for item in reversed(inventory):
         if item["expanded"]:
@@ -624,7 +696,10 @@ async def run(args: argparse.Namespace) -> int:
                     ok = await bounded_operation("navigation", lambda n=name, v=viewport: crawler._page_visit(page, n, viewport=v),
                                                  timeout=OPERATION_TIMEOUTS["navigation"], timing=timing, retries=1)
                     layout = await bounded_operation("dom", lambda: _layout(page), timeout=OPERATION_TIMEOUTS["dom"], timing=timing)
-                    shot = await crawler._shot(page, page_name=name, interaction="master-certification", state="settled", viewport=viewport, complete_surface=True)
+                    shot = await crawler._shot(
+                        page, page_name=name, interaction="master-certification", state="settled",
+                        viewport=viewport, complete_surface=name != "Full Ranked Scan",
+                    )
                     passed = bool(ok and not layout["horizontal_overflow"] and layout["body_text_length"] > 100)
                     check = {"page": name, "viewport": viewport, "status": "PASS" if passed else "FAIL", "layout": layout, "screenshot": shot}
                     checks.append(check)
