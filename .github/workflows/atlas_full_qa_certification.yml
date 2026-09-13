@@ -8,14 +8,61 @@ on:
     types: [completed]
   workflow_dispatch:
     inputs:
+      qa_mode:
+        description: "Certification mode (manual runs default to no production mutation)"
+        required: true
+        default: CERTIFY_ONLY
+        type: choice
+        options: [CERTIFY_ONLY, CERTIFY_AND_PROMOTE]
       candidate_run_id:
         description: "Overnight run ID, or qa:<run ID> to reuse a QA candidate; blank generates"
         required: false
         type: string
+      allow_rollback:
+        description: "Explicitly authorize an older candidate (requires exact run/SHA and reason)"
+        required: false
+        default: false
+        type: boolean
+      rollback_reason:
+        description: "Auditable reason for an explicit rollback"
+        required: false
+        type: string
+      target_candidate_run_id:
+        description: "Exact rollback target candidate run ID"
+        required: false
+        type: string
+      target_candidate_sha:
+        description: "Exact rollback target source SHA"
+        required: false
+        type: string
+      idempotent_reason:
+        description: "Required reason when intentionally re-promoting identical bytes"
+        required: false
+        type: string
   workflow_call:
     inputs:
+      qa_mode:
+        required: false
+        default: CERTIFY_ONLY
+        type: string
       candidate_run_id:
         description: "Overnight run ID, or qa:<run ID> to reuse a QA candidate; blank generates"
+        required: false
+        type: string
+      allow_rollback:
+        required: false
+        default: false
+        type: boolean
+      rollback_reason:
+        required: false
+        type: string
+      target_candidate_run_id:
+        required: false
+        type: string
+      target_candidate_sha:
+        required: false
+        type: string
+      idempotent_reason:
         required: false
         type: string
     secrets:
@@ -117,6 +164,22 @@ jobs:
           fi
           echo "run_id=${candidate_run_id}" >> "$GITHUB_OUTPUT"
 
+      - name: Resolve certification mode
+        id: mode
+        env:
+          REQUESTED_MODE: ${{ inputs.qa_mode }}
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_run" ]]; then
+            qa_mode="CERTIFY_AND_PROMOTE"
+            chained_run_id="${{ github.event.workflow_run.id }}"
+          else
+            qa_mode="${REQUESTED_MODE:-CERTIFY_ONLY}"
+            chained_run_id=""
+          fi
+          echo "qa_mode=$qa_mode" >> "$GITHUB_OUTPUT"
+          echo "chained_run_id=$chained_run_id" >> "$GITHUB_OUTPUT"
+          echo "QA mode: $qa_mode"
+
       - name: Download exact overnight candidate
         if: steps.candidate.outputs.run_id != '' && steps.candidate.outputs.candidate_kind == 'overnight'
         uses: actions/download-artifact@v4
@@ -146,6 +209,31 @@ jobs:
       - name: Generate exact candidate for direct invocation
         if: steps.candidate.outputs.run_id == ''
         run: python overnight_market_scan.py
+
+      - name: Preview candidate relationship and promotion eligibility
+        env:
+          QA_MODE: ${{ steps.mode.outputs.qa_mode }}
+          ALLOW_ROLLBACK: ${{ inputs.allow_rollback || false }}
+          ROLLBACK_REASON: ${{ inputs.rollback_reason }}
+          TARGET_RUN_ID: ${{ inputs.target_candidate_run_id }}
+          TARGET_SHA: ${{ inputs.target_candidate_sha }}
+          IDEMPOTENT_REASON: ${{ inputs.idempotent_reason }}
+          CHAINED_RUN_ID: ${{ steps.mode.outputs.chained_run_id }}
+        run: |
+          mkdir -p audit_results/full_qa/${{ github.run_id }}
+          args=(
+            --candidate-manifest audit_results/candidate_artifacts/publication_manifest.json
+            --production-manifest publication_manifest.json
+            --qa-mode "$QA_MODE"
+            --rollback-reason "$ROLLBACK_REASON"
+            --target-candidate-run-id "$TARGET_RUN_ID"
+            --target-candidate-sha "$TARGET_SHA"
+            --idempotent-reason "$IDEMPOTENT_REASON"
+            --chained-candidate-run-id "$CHAINED_RUN_ID"
+            --output audit_results/full_qa/${{ github.run_id }}/promotion_preview.json
+          )
+          if [[ "$ALLOW_ROLLBACK" == "true" ]]; then args+=(--allow-rollback); fi
+          python -m services.promotion_safety "${args[@]}"
 
       - name: Run dataset and numerical certification
         id: data_qa
@@ -207,15 +295,38 @@ jobs:
 
       - name: Finalize certification and promote atomically
         id: qa
+        env:
+          QA_MODE: ${{ steps.mode.outputs.qa_mode }}
+          ALLOW_ROLLBACK: ${{ inputs.allow_rollback || false }}
+          ROLLBACK_REASON: ${{ inputs.rollback_reason }}
+          TARGET_RUN_ID: ${{ inputs.target_candidate_run_id }}
+          TARGET_SHA: ${{ inputs.target_candidate_sha }}
+          IDEMPOTENT_REASON: ${{ inputs.idempotent_reason }}
+          CHAINED_RUN_ID: ${{ steps.mode.outputs.chained_run_id }}
         run: |
-          python scripts/run_full_qa_certification.py \
-            --candidate-dir audit_results/candidate_artifacts \
-            --production-dir . \
-            --output-dir audit_results/full_qa/${{ github.run_id }} \
-            --artifact-link https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }} \
-            --visual-summary audit_results/full_qa/${{ github.run_id }}/visual/atlas_full_qa_visual_summary.json \
-            --screenshot-manifest audit_results/full_qa/${{ github.run_id }}/visual/visual_manifest.json \
-            --promote
+          args=(
+            --candidate-dir audit_results/candidate_artifacts
+            --production-dir .
+            --output-dir audit_results/full_qa/${{ github.run_id }}
+            --artifact-link https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            --visual-summary audit_results/full_qa/${{ github.run_id }}/visual/atlas_full_qa_visual_summary.json
+            --screenshot-manifest audit_results/full_qa/${{ github.run_id }}/visual/visual_manifest.json
+            --qa-mode "$QA_MODE"
+            --rollback-reason "$ROLLBACK_REASON"
+            --target-candidate-run-id "$TARGET_RUN_ID"
+            --target-candidate-sha "$TARGET_SHA"
+            --idempotent-reason "$IDEMPOTENT_REASON"
+            --chained-candidate-run-id "$CHAINED_RUN_ID"
+          )
+          if [[ "$ALLOW_ROLLBACK" == "true" ]]; then args+=(--allow-rollback); fi
+          python scripts/run_full_qa_certification.py "${args[@]}"
+          python - <<'PY'
+          import json, os
+          path = f"audit_results/full_qa/{os.environ['GITHUB_RUN_ID']}/promotion_result.json"
+          result = json.load(open(path, encoding="utf-8"))
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"promoted={str(bool(result.get('promoted'))).lower()}\n")
+          PY
 
       - name: Upload QA certification bundle
         if: always()
@@ -248,7 +359,7 @@ jobs:
           retention-days: 14
 
       - name: Commit atomically certified production artifacts
-        if: success()
+        if: steps.qa.outputs.promoted == 'true'
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"

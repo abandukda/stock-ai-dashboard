@@ -286,8 +286,8 @@ def test_workflow_candidate_gate_contract_and_syntax():
     assert "workflow_run" in source and "workflow_dispatch" in source and "workflow_call" in source
     assert "schedule:" in source
     assert "atlas-scan-candidate-${{ steps.candidate.outputs.run_id }}" in source
-    assert "--promote" in source and "atlas-full-qa-${{ github.run_id }}" in source
-    assert source.index("Capture and validate desktop/mobile customer surfaces") < source.index("--promote")
+    assert "--qa-mode \"$QA_MODE\"" in source and "atlas-full-qa-${{ github.run_id }}" in source
+    assert source.index("Preview candidate relationship and promotion eligibility") < source.index("Capture and validate desktop/mobile customer surfaces")
     assert "agents.full_qa_visual_certification" in source
     assert "id: visual_qa" in source and "continue-on-error: true" in source
     assert "if: steps.visual_qa.outcome == 'failure'" in source

@@ -138,7 +138,32 @@ def render_developer_center(
         st.json(dict(st.session_state.get("home_runtime_contract") or {"status": "NOT_BUILT_IN_THIS_SESSION"}))
     manifest_path = Path("publication_manifest.json")
     try:
-        _render_full_qa_status(json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else {})
+        production_manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else {}
+        _render_full_qa_status(production_manifest)
+        from services.promotion_safety import promotion_history_summary
+        audit_path = Path("publication_audit.jsonl")
+        audit_rows = []
+        if audit_path.exists():
+            audit_rows = [json.loads(line) for line in audit_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        promotion = promotion_history_summary(production_manifest, audit_rows)
+        with st.expander("Production Promotion Safety", expanded=True):
+            current = promotion["current_production"]
+            latest = promotion["latest_certified_candidate"]
+            cols = st.columns(4)
+            cols[0].metric("Current Production", current.get("run_id") or "Not available")
+            cols[1].metric("Latest Certified", latest.get("run_id") or "Not available")
+            cols[2].metric("Relationship", promotion["relationship"])
+            cols[3].metric("Last Promotion", promotion["last_promotion"].get("generated_at") or "Not available")
+            st.caption(
+                f"Production generated {current.get('generated_at') or 'Not available'} · "
+                f"source {current.get('source_sha') or 'Not available'} · "
+                f"Latest certified generated {latest.get('generated_at') or 'Not available'} · "
+                f"source {latest.get('source_sha') or 'Not available'}"
+            )
+            last = promotion["last_promotion"]
+            st.caption(f"Last promotion: mode {last.get('mode') or 'Legacy/not recorded'} · candidate {last.get('run_id') or 'Not available'}")
+            rollback = promotion.get("last_rollback")
+            st.caption("Last rollback: " + (f"{rollback.get('generated_at')} · {rollback.get('reason')}" if rollback else "None recorded"))
     except Exception:
         st.warning("Full-universe QA certification status is temporarily unavailable.")
     try:

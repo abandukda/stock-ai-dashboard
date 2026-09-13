@@ -12,6 +12,9 @@ import sys
 
 from services.full_universe_qa import crawl_universe, report_digest, write_json_report
 from services.publication_governance import promote_atomically
+from services.promotion_safety import (
+    CERTIFY_AND_PROMOTE, CERTIFY_ONLY, promotion_preview,
+)
 
 ARTIFACT_NAMES = (
     "market_full_scan.json", "market_prescreen.json", "recovery_scan.json",
@@ -97,6 +100,13 @@ def main(argv=None) -> int:
     parser.add_argument("--production-dir", type=Path, default=Path("."))
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--promote", action="store_true")
+    parser.add_argument("--qa-mode", choices=(CERTIFY_ONLY, CERTIFY_AND_PROMOTE), default=CERTIFY_ONLY)
+    parser.add_argument("--allow-rollback", action="store_true")
+    parser.add_argument("--rollback-reason", default="")
+    parser.add_argument("--target-candidate-run-id", default="")
+    parser.add_argument("--target-candidate-sha", default="")
+    parser.add_argument("--idempotent-reason", default="")
+    parser.add_argument("--chained-candidate-run-id", default="")
     parser.add_argument("--artifact-link", default="")
     parser.add_argument("--visual-summary", type=Path)
     parser.add_argument("--screenshot-manifest", type=Path)
@@ -104,6 +114,17 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
 
     candidate_manifest = _read(args.candidate_dir / "publication_manifest.json")
+    production_manifest_path = args.production_dir / "publication_manifest.json"
+    production_manifest = _read(production_manifest_path) if production_manifest_path.exists() else {}
+    requested_promotion = bool(args.promote or args.qa_mode == CERTIFY_AND_PROMOTE)
+    preview = promotion_preview(
+        candidate_manifest, production_manifest, qa_mode=args.qa_mode,
+        allow_rollback=args.allow_rollback, rollback_reason=args.rollback_reason,
+        target_candidate_run_id=args.target_candidate_run_id,
+        target_candidate_sha=args.target_candidate_sha,
+        idempotent_reason=args.idempotent_reason,
+        chained_candidate_run_id=args.chained_candidate_run_id,
+    )
     payloads = {args.production_dir / name: _read(args.candidate_dir / name) for name in ARTIFACT_NAMES}
     _verify_candidate(args.candidate_dir, candidate_manifest, payloads)
     candidate_rows = payloads[args.production_dir / "market_full_scan.json"]
@@ -205,6 +226,14 @@ def main(argv=None) -> int:
             "last_successful_visual_certification": visual.get("generated_at") if visual.get("status") == "PASS" else None,
             "visually_tested_candidate_sha": dict(visual.get("candidate_identity") or {}).get("candidate_source_sha"),
         })
+    report["summary"].update({
+        "qa_mode": preview["qa_mode"],
+        "production_relationship": preview["relationship"],
+        "promotion_eligibility": preview["promotion_eligible"],
+        "promotion_eligibility_reason": preview["reason"],
+        "candidate_identity": preview["candidate"],
+        "production_identity_before_qa": preview["current_production"],
+    })
     if visual_failures:
         for item in visual_failures:
             level = item.get("severity") or "P1"
@@ -231,16 +260,33 @@ def main(argv=None) -> int:
 
     certified_manifest = dict(candidate_manifest)
     certified_manifest["qa_certification"] = {**report["summary"], "report_digest": report_digest(report)}
+    certified_manifest["promotion_governance"] = {
+        **preview,
+        "certification_gate": report["gate"],
+        "promotion_requested": requested_promotion,
+        "promotion_performed": bool(requested_promotion and preview["promotion_eligible"] and report["gate"] == "PASS"),
+    }
     certified_manifest["publication_gate_status"] = report["gate"]
     certified_manifest["certification_report"] = str(json_path)
     manifest_path = args.output_dir / "publication_manifest.json"
     manifest_path.write_text(json.dumps(certified_manifest, indent=2, default=str) + "\n", encoding="utf-8")
-    if args.promote:
+    promoted = bool(requested_promotion and preview["promotion_eligible"] and report["gate"] == "PASS")
+    if promoted:
         promote_atomically(payloads, manifest=certified_manifest,
                            manifest_path=args.production_dir / "publication_manifest.json",
                            audit_path=args.production_dir / "publication_audit.jsonl")
+    promotion_result = {
+        **preview, "certification_gate": report["gate"],
+        "promotion_requested": requested_promotion, "promoted": promoted,
+    }
+    (args.output_dir / "promotion_preview.json").write_text(json.dumps(preview, indent=2, default=str) + "\n", encoding="utf-8")
+    (args.output_dir / "promotion_result.json").write_text(json.dumps(promotion_result, indent=2, default=str) + "\n", encoding="utf-8")
     print(json.dumps({"gate": report["gate"], "run_id": report["summary"]["run_id"],
-                      "output_dir": str(args.output_dir), "promoted": bool(args.promote)}, sort_keys=True))
+                      "output_dir": str(args.output_dir), "promoted": promoted,
+                      "qa_mode": args.qa_mode, "relationship": preview["relationship"],
+                      "promotion_reason": preview["reason"]}, sort_keys=True))
+    if requested_promotion and not promoted:
+        return 3
     return 0 if report["gate"] == "PASS" else 2
 
 
