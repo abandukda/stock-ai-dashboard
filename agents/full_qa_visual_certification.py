@@ -190,14 +190,15 @@ async def _expandable_inventory(page) -> list[dict[str, Any]]:
         const s=getComputedStyle(e), r=e.getBoundingClientRect();
         return s.visibility!=='hidden' && s.display!=='none' && r.width>2 && r.height>2;
       };
-      const nodes = [...document.querySelectorAll('[data-testid="stExpander"] summary, details summary, button[aria-expanded]')];
-      const seen = new Set(), output=[];
+      // Streamlit customer disclosures are native details elements.  The old
+      // union also captured unrelated aria-expanded navigation buttons and
+      // could match one summary through two selector arms.
+      const nodes = [...document.querySelectorAll('details > summary')];
+      const output=[];
       for (const node of nodes) {
         if (!visible(node)) continue;
         const label=(node.innerText || node.textContent || '').replace(/\\s+/g,' ').trim();
-        const key=`${label}|${output.filter(x=>x.label===label).length}`;
-        if (!label || seen.has(key)) continue;
-        seen.add(key);
+        if (!label) continue;
         const details=node.closest('details');
         output.push({label, ordinal: output.filter(x=>x.label===label).length,
           expanded: details ? details.open : node.getAttribute('aria-expanded')==='true'});
@@ -207,7 +208,7 @@ async def _expandable_inventory(page) -> list[dict[str, Any]]:
 
 
 async def _expandable_locator(page, label: str, ordinal: int):
-    controls = page.locator('[data-testid="stExpander"] summary, details summary, button[aria-expanded]')
+    controls = page.locator('details > summary')
     matches = controls.filter(has_text=label)
     return matches.nth(min(ordinal, max(await matches.count() - 1, 0)))
 
@@ -258,26 +259,30 @@ async def certify_expandable_interactions(
     # repeatedly reflow the entire page (150 times on Full Ranked).  Exercise
     # every control with a real DOM click, verify open/content/close in one
     # browser transaction, and retain representative screenshots below.
-    if page_name in {"Home", "Full Ranked Scan"} and len(inventory) >= 5:
-        roundtrips = await page.evaluate("""() => {
+    if page_name in {"Home", "Full Ranked Scan", "Developer Center"} and len(inventory) >= 5:
+        roundtrips = await page.evaluate("""async () => {
           const visible = e => {
             const s=getComputedStyle(e), r=e.getBoundingClientRect();
             return s.visibility!=='hidden' && s.display!=='none' && r.width>2 && r.height>2;
           };
-          const nodes=[...document.querySelectorAll('[data-testid="stExpander"] summary, details summary, button[aria-expanded]')]
-            .filter(visible);
-          return nodes.map((node, index) => {
+          const controls=() => [...document.querySelectorAll('details > summary')].filter(visible);
+          const sleep=ms => new Promise(resolve => setTimeout(resolve, ms));
+          const count=controls().length, output=[];
+          for (let index=0; index<count; index++) {
+            let node=controls()[index];
             const label=(node.innerText || node.textContent || '').replace(/\\s+/g,' ').trim();
-            const details=node.closest('details');
-            const state=() => details ? details.open : node.getAttribute('aria-expanded')==='true';
-            if (state()) node.click();
+            if (node.closest('details').open) { node.click(); await sleep(20); node=controls()[index]; }
             node.click();
-            const opened=state();
-            const host=details || node.parentElement;
+            await sleep(30);
+            node=controls()[index];
+            const opened=Boolean(node?.closest('details')?.open);
+            const host=node?.closest('details');
             const content=(host?.innerText || '').replace(/\\s+/g,' ').trim();
-            if (opened) node.click();
-            return {index, label, opened, collapsed: !state(), content};
-          });
+            if (opened) { node.click(); await sleep(30); }
+            node=controls()[index];
+            output.push({index, label, opened, collapsed: !Boolean(node?.closest('details')?.open), content});
+          }
+          return output;
         }""")
         for row in roundtrips:
             required = required_expandable(page_name, row.get("label", ""))
@@ -297,11 +302,15 @@ async def certify_expandable_interactions(
             if required and not passed:
                 defects.append({"severity": "P1", "page": page_name, "viewport": viewport,
                                 "observed": json.dumps(check, sort_keys=True), "ticker_context": ticker})
-        all_open = await page.evaluate("""() => {
-          const nodes=[...document.querySelectorAll('[data-testid="stExpander"] summary, details summary, button[aria-expanded]')]
-            .filter(e => { const s=getComputedStyle(e),r=e.getBoundingClientRect(); return s.visibility!=='hidden'&&s.display!=='none'&&r.width>2&&r.height>2; });
-          for (const node of nodes) { const d=node.closest('details'); if (!(d ? d.open : node.getAttribute('aria-expanded')==='true')) node.click(); }
-          return nodes.filter(node => { const d=node.closest('details'); return d ? d.open : node.getAttribute('aria-expanded')==='true'; }).length;
+        all_open = await page.evaluate("""async () => {
+          const visible=e => { const s=getComputedStyle(e),r=e.getBoundingClientRect(); return s.visibility!=='hidden'&&s.display!=='none'&&r.width>2&&r.height>2; };
+          const controls=() => [...document.querySelectorAll('details > summary')].filter(visible);
+          const count=controls().length;
+          for (let index=0; index<count; index++) {
+            const node=controls()[index];
+            if (node && !node.closest('details').open) { node.click(); await new Promise(r=>setTimeout(r,15)); }
+          }
+          return controls().filter(node => node.closest('details').open).length;
         }""")
         all_layout = await _layout(page)
         all_exception = await _has_rendered_exception(page)
@@ -314,9 +323,11 @@ async def certify_expandable_interactions(
                        "click_success": all_pass, "collapse_success": True,
                        "expected_content": "All repeated disclosures coexist", "observed_content": f"opened={all_open}",
                        "status": "PASS" if all_pass else "FAIL", "layout": all_layout, "screenshot": all_shot})
-        await page.evaluate("""() => {
-          for (const node of document.querySelectorAll('[data-testid="stExpander"] summary, details summary, button[aria-expanded]')) {
-            const d=node.closest('details'); if (d ? d.open : node.getAttribute('aria-expanded')==='true') node.click();
+        await page.evaluate("""async () => {
+          const controls=() => [...document.querySelectorAll('details > summary')];
+          for (let index=controls().length-1; index>=0; index--) {
+            const node=controls()[index];
+            if (node?.closest('details')?.open) { node.click(); await new Promise(r=>setTimeout(r,10)); }
           }
         }""")
         if not all_pass:
@@ -802,7 +813,11 @@ async def run(args: argparse.Namespace) -> int:
                                 "viewport": result.viewport, "observed": result.observed,
                                 "ticker_context": result.ticker_context})
                 existing.add(key)
-    manifest = enrich_manifest(crawler.manifest, source_rows, identity)
+    # Failed screenshot attempts remain represented by retry/timeout counters,
+    # but must not poison an otherwise complete manifest after a later capture
+    # for the same required surface succeeds.
+    captured_manifest = [item for item in crawler.manifest if item.get("generated") and item.get("path")]
+    manifest = enrich_manifest(captured_manifest, source_rows, identity)
     findings = analyze_capture(manifest, checks, identity)
     for item in defects:
         if item.get("finding_id"):
