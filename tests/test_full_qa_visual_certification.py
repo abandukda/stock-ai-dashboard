@@ -2,7 +2,10 @@ from pathlib import Path
 import ast
 import json
 
-from agents.full_qa_visual_certification import certification_tickers, customer_action_matches, expected_customer_action
+from agents.full_qa_visual_certification import (
+    certification_tickers, customer_action_matches, expected_customer_action,
+    interaction_manifest_fields, required_expandable,
+)
 
 
 def test_visual_ticker_matrix_keeps_permanent_fixtures_and_dynamic_categories(tmp_path: Path):
@@ -84,3 +87,39 @@ def test_streamlit_entrypoints_parse_under_production_python_311_grammar():
         paths.extend(Path(package).rglob("*.py"))
     for path in paths:
         ast.parse(path.read_text(encoding="utf-8"), filename=str(path), feature_version=(3, 11))
+
+
+def test_required_customer_expandables_are_fail_closed_without_capturing_navigation():
+    for label in (
+        "Professional Detail", "Wall Street detail", "Financial Health",
+        "Professional Valuation", "Valuation Methods", "Earnings & Estimates",
+        "News & Catalysts", "Insider / Institutional", "Technicals / Volume",
+        "Trade Plan", "Risks", "What Changes the Rating", "Sources / Evidence",
+    ):
+        assert required_expandable("Research Any Ticker", label)
+    assert required_expandable("Home", "View More")
+    assert not required_expandable("Developer Center", "Research Any Ticker")
+
+
+def test_expandable_manifest_contract_records_round_trip_state_and_content():
+    record = interaction_manifest_fields(
+        label="Professional Detail", initial_state="COLLAPSED", final_state="EXPANDED",
+        click_success=True, expected_content="certified content", observed_content="$42.00",
+    )
+    assert record == {
+        "interaction_type": "EXPANDER", "control_label": "Professional Detail",
+        "initial_state": "COLLAPSED", "final_state": "EXPANDED",
+        "click_success": True, "expected_content": "certified content",
+        "observed_content": "$42.00",
+    }
+
+
+def test_full_qa_source_requires_individual_all_open_nested_and_recollapse_traversal():
+    source = Path("agents/full_qa_visual_certification.py").read_text()
+    assert "default-collapsed" in source
+    assert "all-major-expanded" in source
+    assert '"NESTED_EXPANDER"' in source
+    assert '"collapse_success"' in source
+    assert 'pages = REQUIRED_PAGES' in source
+    workflow = Path(".github/workflows/atlas_full_qa_certification.yml").read_text()
+    assert workflow.index("Capture and validate desktop/mobile customer surfaces") < workflow.index("Finalize certification and promote atomically")

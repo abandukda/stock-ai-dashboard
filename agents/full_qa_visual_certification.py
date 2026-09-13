@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import time
 from typing import Any
@@ -14,7 +15,7 @@ from typing import Any
 from playwright.async_api import async_playwright
 
 from agents.atlas_runtime_qa_v3 import _open_and_authenticate
-from agents.atlas_visual_crawler_v1 import AtlasVisualCrawler, DESKTOP, MOBILE
+from agents.atlas_visual_crawler_v1 import AtlasVisualCrawler, DESKTOP, MOBILE, _has_rendered_exception
 from agents.runtime_qa_user_journeys_v40 import _visible_text
 from agents.visual_qa_certification_v2 import (
     analyze_capture, candidate_identity, dom_fact_findings, enrich_manifest, expected_facts,
@@ -33,6 +34,313 @@ CUSTOMER_ACTION_LABELS = {
     "DATA_LIMITED": "WATCH",
     "AVOID": "AVOID",
 }
+
+EXPANDABLE_LABEL_RE = re.compile(
+    r"(?:view\s+more|show\s+details|professional\s+detail|full\s+investment\s+case|"
+    r"financial\s+health|professional\s+valuation|valuation\s+methods?|wall\s+street|"
+    r"earnings|estimates?|news|catalysts?|insider|institutional|technicals?|volume|"
+    r"trade\s+plan|risks?|what\s+changes|sources?|evidence|analysis|assumptions?|"
+    r"financials?|ownership|scenario|thesis|guidance|score\s+attribution|research\s+readiness)",
+    re.I,
+)
+NON_DISCLOSURE_BUTTON_RE = re.compile(r"^(?:home|research any ticker|full ranked scan|volume intelligence|developer center)$", re.I)
+
+
+def required_expandable(page_name: str, label: str) -> bool:
+    """Govern which customer disclosures must be traversed fail-closed."""
+    clean = re.sub(r"\s+", " ", str(label or "")).strip()
+    if not clean or NON_DISCLOSURE_BUTTON_RE.fullmatch(clean):
+        return False
+    if page_name in {"Home", "Research Any Ticker"}:
+        return True
+    return bool(EXPANDABLE_LABEL_RE.search(clean))
+
+
+def interaction_manifest_fields(
+    *, label: str, initial_state: str, final_state: str, click_success: bool,
+    expected_content: str, observed_content: str, interaction_type: str = "EXPANDER",
+) -> dict[str, Any]:
+    return {
+        "interaction_type": interaction_type,
+        "control_label": label,
+        "initial_state": initial_state,
+        "final_state": final_state,
+        "click_success": bool(click_success),
+        "expected_content": expected_content,
+        "observed_content": observed_content,
+    }
+
+
+async def _expandable_inventory(page) -> list[dict[str, Any]]:
+    """Inventory visible disclosure controls without treating navigation as disclosure."""
+    return await page.evaluate("""() => {
+      const visible = e => {
+        const s=getComputedStyle(e), r=e.getBoundingClientRect();
+        return s.visibility!=='hidden' && s.display!=='none' && r.width>2 && r.height>2;
+      };
+      const nodes = [...document.querySelectorAll('[data-testid="stExpander"] summary, details summary, button[aria-expanded]')];
+      const seen = new Set(), output=[];
+      for (const node of nodes) {
+        if (!visible(node)) continue;
+        const label=(node.innerText || node.textContent || '').replace(/\\s+/g,' ').trim();
+        const key=`${label}|${output.filter(x=>x.label===label).length}`;
+        if (!label || seen.has(key)) continue;
+        seen.add(key);
+        const details=node.closest('details');
+        output.push({label, ordinal: output.filter(x=>x.label===label).length,
+          expanded: details ? details.open : node.getAttribute('aria-expanded')==='true'});
+      }
+      return output;
+    }""")
+
+
+async def _expandable_locator(page, label: str, ordinal: int):
+    controls = page.locator('[data-testid="stExpander"] summary, details summary, button[aria-expanded]')
+    matches = controls.filter(has_text=label)
+    return matches.nth(min(ordinal, max(await matches.count() - 1, 0)))
+
+
+async def _expanded_state(control) -> bool:
+    return bool(await control.evaluate("""node => {
+      const details=node.closest('details');
+      return details ? details.open : node.getAttribute('aria-expanded')==='true';
+    }"""))
+
+
+async def _expanded_content(control) -> str:
+    return str(await control.evaluate("""node => {
+      const host=node.closest('details') || node.parentElement;
+      return (host?.innerText || '').replace(/\\s+/g,' ').trim();
+    }""") or "")
+
+
+def _annotate_latest_shot(crawler: AtlasVisualCrawler, path: str, fields: dict[str, Any]) -> None:
+    for item in reversed(crawler.manifest):
+        if item.get("path") == path:
+            item.update(fields)
+            return
+
+
+async def certify_expandable_interactions(
+    page, crawler: AtlasVisualCrawler, *, page_name: str, viewport: str, ticker: str = "",
+    certified_facts: dict[str, Any] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Certify collapsed, individual, nested, all-open, and re-collapsed states."""
+    checks: list[dict[str, Any]] = []
+    defects: list[dict[str, Any]] = []
+    inventory = await _expandable_inventory(page)
+    default_shot = await crawler._shot(
+        page, page_name=page_name, interaction="expandables", state="default-collapsed",
+        viewport=viewport, ticker=ticker,
+    )
+    default_state = "MIXED" if any(item["expanded"] for item in inventory) else "COLLAPSED"
+    _annotate_latest_shot(crawler, default_shot, interaction_manifest_fields(
+        label="ALL_VISIBLE_DISCLOSURES", initial_state=default_state, final_state=default_state,
+        click_success=True, expected_content=f"{len(inventory)} visible disclosure controls inventoried",
+        observed_content=", ".join(item["label"] for item in inventory),
+    ))
+
+    # Normalize initially-open controls only after preserving the true default state.
+    for item in reversed(inventory):
+        if item["expanded"]:
+            try:
+                control = await _expandable_locator(page, item["label"], item["ordinal"])
+                await control.click(timeout=5000)
+                await page.wait_for_timeout(250)
+            except Exception:
+                pass
+
+    processed: set[tuple[str, int]] = set()
+    queue = [{**item, "nested": False} for item in await _expandable_inventory(page)]
+
+    async def exercise_nested(parent_control, *, depth: int = 1) -> None:
+        if depth > 4:
+            return
+        try:
+            host = parent_control.locator("xpath=ancestor::details[1]")
+            nested_nodes = host.locator("details > summary")
+            count = await nested_nodes.count()
+        except Exception:
+            return
+        for nested_index in range(count):
+            nested = nested_nodes.nth(nested_index)
+            try:
+                if not await nested.is_visible():
+                    continue
+                label = re.sub(r"\s+", " ", await nested.inner_text(timeout=1000)).strip()
+                if not label:
+                    continue
+                opened = await _expanded_state(nested)
+                if not opened:
+                    await nested.click(timeout=5000)
+                    await page.wait_for_timeout(350)
+                opened = await _expanded_state(nested)
+                content = await _expanded_content(nested) if opened else ""
+                layout = await _layout(page)
+                exception = await _has_rendered_exception(page)
+                malformed = bool(re.search(r"(?:\bNone\b|\bnull\b|\bnan\b|Traceback|KeyError|TypeError)", content, re.I))
+                passed_open = bool(opened and len(content) > len(label) and not layout["horizontal_overflow"] and not exception and not malformed)
+                shot = await crawler._shot(
+                    page, page_name=page_name, interaction=f"nested-expand-{label}",
+                    state="expanded", viewport=viewport, ticker=ticker,
+                )
+                _annotate_latest_shot(crawler, shot, interaction_manifest_fields(
+                    label=label, initial_state="COLLAPSED", final_state="EXPANDED",
+                    click_success=opened, expected_content="Nested disclosure reveals valid customer content",
+                    observed_content=content[:500], interaction_type="NESTED_EXPANDER",
+                ))
+                if opened:
+                    await exercise_nested(nested, depth=depth + 1)
+                    await nested.click(timeout=5000)
+                    await page.wait_for_timeout(220)
+                collapsed = not await _expanded_state(nested)
+                passed = passed_open and collapsed
+                check = {
+                    "page": page_name, "viewport": viewport, "ticker": ticker,
+                    "interaction_type": "NESTED_EXPANDER", "control_label": label,
+                    "required": True, "initial_state": "COLLAPSED",
+                    "final_state": "COLLAPSED" if collapsed else "UNKNOWN",
+                    "click_success": opened, "collapse_success": collapsed,
+                    "expected_content": "Nested expansion and collapse round trip",
+                    "observed_content": content[:500], "status": "PASS" if passed else "FAIL",
+                    "layout": layout, "screenshot": shot, "depth": depth,
+                }
+                checks.append(check)
+                if not passed:
+                    defects.append({"severity": "P1", "page": page_name, "viewport": viewport,
+                                    "observed": json.dumps(check, sort_keys=True), "ticker_context": ticker})
+            except Exception as exc:
+                check = {"page": page_name, "viewport": viewport, "ticker": ticker,
+                         "interaction_type": "NESTED_EXPANDER", "control_label": f"nested-{nested_index}",
+                         "required": True, "click_success": False, "collapse_success": False,
+                         "status": "FAIL", "observed": type(exc).__name__}
+                checks.append(check)
+                defects.append({"severity": "P1", "page": page_name, "viewport": viewport,
+                                "observed": json.dumps(check, sort_keys=True), "ticker_context": ticker})
+
+    while queue:
+        item = queue.pop(0)
+        key = (item["label"], int(item["ordinal"]))
+        if key in processed:
+            continue
+        processed.add(key)
+        required = required_expandable(page_name, item["label"])
+        started = time.monotonic()
+        opened = collapsed = False
+        content = ""
+        observed = ""
+        shot = ""
+        try:
+            control = await _expandable_locator(page, item["label"], item["ordinal"])
+            initial = "EXPANDED" if await _expanded_state(control) else "COLLAPSED"
+            if initial == "EXPANDED":
+                await control.click(timeout=5000)
+                await page.wait_for_timeout(250)
+            await control.click(timeout=5000)
+            await page.wait_for_timeout(450)
+            control = await _expandable_locator(page, item["label"], item["ordinal"])
+            opened = await _expanded_state(control)
+            content = await _expanded_content(control) if opened else ""
+            layout = await _layout(page)
+            exception = await _has_rendered_exception(page)
+            malformed = bool(re.search(r"(?:\bNone\b|\bnull\b|\bnan\b|Traceback|KeyError|TypeError)", content, re.I))
+            narrative = dom_fact_findings(content, {}, surface=page_name, ticker=ticker, required=())
+            fact_keys: tuple[str, ...] = ()
+            if certified_facts:
+                if re.search(r"valuation|fair value", item["label"], re.I):
+                    fact_keys = ("expected_atlas_fv", "expected_upside")
+                elif re.search(r"wall street|analyst target", item["label"], re.I):
+                    fact_keys = ("expected_wall_street_target", "expected_wall_street_consensus", "expected_analyst_count")
+                elif re.search(r"earnings|estimates", item["label"], re.I):
+                    fact_keys = ("expected_forward_eps", "expected_forward_revenue")
+            fact_mismatches = dom_fact_findings(
+                content, certified_facts or {}, surface=page_name, ticker=ticker, required=fact_keys,
+            )
+            passed_open = bool(opened and len(content) > len(item["label"]) and not layout["horizontal_overflow"] and not exception and not malformed and not narrative and not fact_mismatches)
+            observed = f"opened={opened}; content_chars={len(content)}; overflow={layout['horizontal_overflow']}; exception={exception}; malformed={malformed}; contradictions={len(narrative)}; fact_mismatches={len(fact_mismatches)}"
+            defects.extend(fact_mismatches)
+            if required or EXPANDABLE_LABEL_RE.search(item["label"]):
+                shot = await crawler._shot(
+                    page, page_name=page_name, interaction=f"expand-{item['label']}",
+                    state="expanded", viewport=viewport, ticker=ticker,
+                )
+                _annotate_latest_shot(crawler, shot, interaction_manifest_fields(
+                    label=item["label"], initial_state="COLLAPSED", final_state="EXPANDED",
+                    click_success=opened, expected_content="Visible certified customer content without overflow, exception, malformed values, or contradiction",
+                    observed_content=content[:500],
+                ))
+            # Nested disclosure content is certified while every ancestor is
+            # still open; closing the parent first would make the control
+            # non-interactable and could create a false QA failure.
+            await exercise_nested(control)
+            await control.click(timeout=5000)
+            await page.wait_for_timeout(300)
+            control = await _expandable_locator(page, item["label"], item["ordinal"])
+            collapsed = not await _expanded_state(control)
+            passed = bool(passed_open and collapsed)
+        except Exception as exc:
+            passed = False
+            observed = f"{type(exc).__name__}: disclosure interaction failed"
+        check = {
+            "page": page_name, "viewport": viewport, "ticker": ticker,
+            "interaction_type": "NESTED_EXPANDER" if item.get("nested") else "EXPANDER",
+            "control_label": item["label"], "required": required,
+            "initial_state": "COLLAPSED", "final_state": "COLLAPSED" if collapsed else "UNKNOWN",
+            "click_success": opened, "collapse_success": collapsed,
+            "expected_content": "Expansion reveals valid customer content and collapse restores state",
+            "observed_content": content[:500], "observed": observed,
+            "status": "PASS" if passed else "FAIL", "screenshot": shot,
+            "elapsed_seconds": round(time.monotonic() - started, 3),
+        }
+        checks.append(check)
+        if required and not passed:
+            defects.append({"severity": "P1", "page": page_name, "viewport": viewport,
+                            "observed": json.dumps(check, sort_keys=True), "ticker_context": ticker})
+
+    # Prove major disclosures can coexist without layout failure.
+    opened_controls: list[tuple[str, int]] = []
+    for item in await _expandable_inventory(page):
+        if not required_expandable(page_name, item["label"]):
+            continue
+        try:
+            control = await _expandable_locator(page, item["label"], item["ordinal"])
+            if not await _expanded_state(control):
+                await control.click(timeout=5000)
+                await page.wait_for_timeout(180)
+            if await _expanded_state(control):
+                opened_controls.append((item["label"], int(item["ordinal"])))
+        except Exception:
+            pass
+    all_layout = await _layout(page)
+    all_exception = await _has_rendered_exception(page)
+    all_pass = len(opened_controls) == sum(required_expandable(page_name, item["label"]) for item in inventory) and not all_layout["horizontal_overflow"] and not all_exception
+    all_shot = await crawler._shot(
+        page, page_name=page_name, interaction="expandables", state="all-major-expanded",
+        viewport=viewport, ticker=ticker,
+    )
+    _annotate_latest_shot(crawler, all_shot, interaction_manifest_fields(
+        label="ALL_MAJOR_SECTIONS", initial_state="COLLAPSED", final_state="EXPANDED",
+        click_success=all_pass, expected_content="All required major disclosures open together without layout or render failure",
+        observed_content=f"opened={len(opened_controls)}; overflow={all_layout['horizontal_overflow']}; exception={all_exception}",
+    ))
+    checks.append({"page": page_name, "viewport": viewport, "ticker": ticker,
+                   "interaction_type": "ALL_MAJOR_EXPANDED", "control_label": "ALL_MAJOR_SECTIONS",
+                   "required": bool(inventory), "initial_state": "COLLAPSED", "final_state": "EXPANDED",
+                   "click_success": all_pass, "expected_content": "All major sections coexist",
+                   "observed_content": f"opened={len(opened_controls)}", "status": "PASS" if all_pass else "FAIL",
+                   "layout": all_layout, "screenshot": all_shot})
+    if inventory and not all_pass:
+        defects.append({"severity": "P1", "page": page_name, "viewport": viewport,
+                        "observed": "ALL_MAJOR_EXPANDED_FAILED", "ticker_context": ticker})
+    for label, ordinal in reversed(opened_controls):
+        try:
+            control = await _expandable_locator(page, label, ordinal)
+            if await _expanded_state(control):
+                await control.click(timeout=5000)
+                await page.wait_for_timeout(120)
+        except Exception:
+            pass
+    return checks, defects
 
 
 def expected_customer_action(row: dict[str, Any]) -> tuple[str, bool]:
@@ -173,7 +481,7 @@ async def run(args: argparse.Namespace) -> int:
             )
             for viewport, size in (("desktop", DESKTOP), ("mobile", MOBILE)):
                 await page.set_viewport_size(size)
-                pages = REQUIRED_PAGES if viewport == "desktop" else ("Home", "Research Any Ticker")
+                pages = REQUIRED_PAGES
                 for name in pages:
                     ok = await crawler._page_visit(page, name, viewport=viewport)
                     layout = await _layout(page)
@@ -181,6 +489,11 @@ async def run(args: argparse.Namespace) -> int:
                     passed = bool(ok and not layout["horizontal_overflow"] and layout["body_text_length"] > 100)
                     check = {"page": name, "viewport": viewport, "status": "PASS" if passed else "FAIL", "layout": layout, "screenshot": shot}
                     checks.append(check)
+                    interaction_checks, interaction_defects = await certify_expandable_interactions(
+                        page, crawler, page_name=name, viewport=viewport,
+                    )
+                    checks.extend(interaction_checks)
+                    defects.extend(interaction_defects)
                     (dom_dir / f'{viewport}_{name.lower().replace(" ", "_")}.json').write_text(json.dumps({
                         "page": name, "viewport": viewport, "text": await _visible_text(page),
                         "qa_attributes": await page.evaluate("""() => [...document.querySelectorAll('[data-atlas-qa]')].map(e => Object.fromEntries([...e.attributes].filter(a => a.name.startsWith('data-atlas-')).map(a => [a.name,a.value])))"""),
@@ -199,6 +512,13 @@ async def run(args: argparse.Namespace) -> int:
                 if decision_tab is not None:
                     await decision_tab.click(timeout=6000)
                     await page.wait_for_timeout(500)
+                if index == 0:
+                    interaction_checks, interaction_defects = await certify_expandable_interactions(
+                        page, crawler, page_name="Paid Detail", viewport="desktop", ticker=ticker,
+                        certified_facts=expected_facts(by_ticker[ticker]),
+                    )
+                    checks.extend(interaction_checks)
+                    defects.extend(interaction_defects)
                 layout = await _layout(page)
                 text = (await _visible_text(page)).upper().replace("_", " ")
                 ticker_facts = expected_facts(by_ticker[ticker])
@@ -227,6 +547,19 @@ async def run(args: argparse.Namespace) -> int:
                 if not passed or not action_match or layout["horizontal_overflow"]:
                     defects.append({"severity": "P1", "page": "Research Any Ticker", "viewport": "desktop",
                                     "observed": f"ticker={ticker}; action_match={action_match}; layout={json.dumps(layout, sort_keys=True)}", "ticker_context": ticker})
+            if visual_tickers:
+                mobile_ticker = visual_tickers[0]
+                await page.set_viewport_size(MOBILE)
+                mobile_passed = await crawler._submit_research(page, mobile_ticker, tabs=True, viewport="mobile")
+                interaction_checks, interaction_defects = await certify_expandable_interactions(
+                    page, crawler, page_name="Paid Detail", viewport="mobile", ticker=mobile_ticker,
+                    certified_facts=expected_facts(by_ticker[mobile_ticker]),
+                )
+                checks.extend(interaction_checks)
+                defects.extend(interaction_defects)
+                if not mobile_passed:
+                    defects.append({"severity": "P1", "page": "Paid Detail", "viewport": "mobile",
+                                    "observed": "PAID_DETAIL_MOBILE_RENDER_FAILED", "ticker_context": mobile_ticker})
         finally:
             await context.close()
             await browser.close()

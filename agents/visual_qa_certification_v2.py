@@ -114,6 +114,10 @@ def enrich_manifest(raw: Sequence[Mapping[str, Any]], rows: Sequence[Mapping[str
             "page": item.get("page"), "ticker": ticker or None, "viewport": item.get("viewport"),
             **{key: identity.get(key) for key in ("code_sha", "candidate_run_id", "candidate_source_sha", "candidate_artifact_digest", "certification_digest")},
             **facts, "expected_market_today_values": None,
+            **{key: item.get(key) for key in (
+                "interaction_type", "control_label", "initial_state", "final_state",
+                "click_success", "expected_content", "observed_content",
+            ) if key in item},
             "capture_status": "PASS" if item.get("generated") and item.get("path") else "FAIL",
         })
     return output

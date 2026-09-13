@@ -37,6 +37,22 @@ def test_exact_candidate_binding_and_expected_fact_manifest(tmp_path):
     assert manifest[0]["evaluation_snapshot_id"] == "snap-1"
 
 
+def test_screenshot_manifest_preserves_expandable_interaction_evidence(tmp_path):
+    rows = _candidate(tmp_path)
+    identity = candidate_identity(tmp_path)
+    manifest = enrich_manifest([{
+        "path": "screenshots/professional.png", "page": "Home", "ticker": "ABC",
+        "viewport": "mobile", "generated": True, "interaction_type": "EXPANDER",
+        "control_label": "Professional Detail", "initial_state": "COLLAPSED",
+        "final_state": "EXPANDED", "click_success": True,
+        "expected_content": "certified detail", "observed_content": "$15.00 fair value",
+    }], rows, identity)
+    assert manifest[0]["interaction_type"] == "EXPANDER"
+    assert manifest[0]["control_label"] == "Professional Detail"
+    assert manifest[0]["click_success"] is True
+    assert manifest[0]["observed_content"] == "$15.00 fair value"
+
+
 def test_digest_mismatch_fails_exact_candidate_binding(tmp_path):
     _candidate(tmp_path)
     manifest = json.loads((tmp_path / "publication_manifest.json").read_text())
