@@ -197,7 +197,8 @@ async def _expandable_inventory(page) -> list[dict[str, Any]]:
       const output=[];
       for (const node of nodes) {
         if (!visible(node)) continue;
-        const label=(node.innerText || node.textContent || '').replace(/\\s+/g,' ').trim();
+        const label=(node.innerText || node.textContent || '')
+          .replace(/keyboard_arrow_(?:right|down)/gi,' ').replace(/\\s+/g,' ').trim();
         if (!label) continue;
         const details=node.closest('details');
         output.push({label, ordinal: output.filter(x=>x.label===label).length,
@@ -266,27 +267,54 @@ async def certify_expandable_interactions(
             return s.visibility!=='hidden' && s.display!=='none' && r.width>2 && r.height>2;
           };
           const controls=() => [...document.querySelectorAll('details > summary')].filter(visible);
-          const labelOf=node => (node?.innerText || node?.textContent || '').replace(/\\s+/g,' ').trim();
+          const labelOf=node => (node?.innerText || node?.textContent || '')
+            .replace(/keyboard_arrow_(?:right|down)/gi,' ').replace(/\\s+/g,' ').trim();
           const sleep=ms => new Promise(resolve => setTimeout(resolve, ms));
           const initial=controls().map((node,index,nodes) => {
             const label=labelOf(node);
             return {label, ordinal:nodes.slice(0,index).filter(prior=>labelOf(prior)===label).length};
           });
-          const resolve=item => controls().filter(node=>labelOf(node)===item.label)[item.ordinal];
+          const resolveOnce=item => controls().filter(node=>labelOf(node)===item.label)[item.ordinal] || null;
+          const resolveLive=async item => {
+            for (let attempt=0; attempt<4; attempt++) {
+              const node=resolveOnce(item);
+              if (node?.isConnected && node.closest?.('details')) return {node, retries:attempt};
+              if (attempt<3) await sleep(25);
+            }
+            return {node:null, retries:3};
+          };
           const output=[];
           for (let index=0; index<initial.length; index++) {
             const item=initial[index], label=item.label;
-            let node=resolve(item);
-            if (node.closest('details').open) { node.click(); await sleep(20); node=resolve(item); }
+            let retryCount=0, resolution=await resolveLive(item), node=resolution.node;
+            retryCount+=resolution.retries;
+            if (!node) {
+              output.push({index,label,ordinal:item.ordinal,opened:false,collapsed:false,content:'',retry_count:retryCount,
+                resolved_identity:`${label}#${item.ordinal}`,resolution_failure:'INITIAL_RESOLUTION_FAILED'});
+              continue;
+            }
+            let details=node.closest?.('details');
+            if (details?.open) {
+              node.click(); await sleep(20); resolution=await resolveLive(item); node=resolution.node;
+              retryCount+=resolution.retries;
+            }
+            if (!node?.closest?.('details')) {
+              output.push({index,label,ordinal:item.ordinal,opened:false,collapsed:false,content:'',retry_count:retryCount,
+                resolved_identity:`${label}#${item.ordinal}`,resolution_failure:'PRE_OPEN_RESOLUTION_FAILED'});
+              continue;
+            }
             node.click();
             await sleep(30);
-            node=resolve(item);
+            resolution=await resolveLive(item); node=resolution.node; retryCount+=resolution.retries;
             const opened=Boolean(node?.closest('details')?.open);
             const host=node?.closest('details');
             const content=(host?.innerText || '').replace(/\\s+/g,' ').trim();
             if (opened) { node.click(); await sleep(30); }
-            node=resolve(item);
-            output.push({index, label, opened, collapsed: !Boolean(node?.closest('details')?.open), content});
+            resolution=await resolveLive(item); node=resolution.node; retryCount+=resolution.retries;
+            const resolutionFailure=node ? '' : 'CLOSE_VERIFICATION_RESOLUTION_FAILED';
+            output.push({index,label,ordinal:item.ordinal,opened,
+              collapsed:Boolean(node) && !Boolean(node?.closest('details')?.open),content,retry_count:retryCount,
+              resolved_identity:`${label}#${item.ordinal}`,resolution_failure:resolutionFailure});
           }
           return output;
         }""")
@@ -303,6 +331,9 @@ async def certify_expandable_interactions(
                 "expected_content": "Expansion reveals customer content and collapse restores state",
                 "observed_content": content[:500], "status": "PASS" if passed else "FAIL",
                 "screenshot": "", "elapsed_seconds": 0.0,
+                "resolution_retry_count": int(row.get("retry_count") or 0),
+                "resolved_logical_control": row.get("resolved_identity"),
+                "resolution_failure": row.get("resolution_failure") or None,
             }
             checks.append(check)
             if required and not passed:
@@ -311,17 +342,29 @@ async def certify_expandable_interactions(
         all_open = await page.evaluate("""async () => {
           const visible=e => { const s=getComputedStyle(e),r=e.getBoundingClientRect(); return s.visibility!=='hidden'&&s.display!=='none'&&r.width>2&&r.height>2; };
           const controls=() => [...document.querySelectorAll('details > summary')].filter(visible);
-          const labelOf=node => (node?.innerText || node?.textContent || '').replace(/\\s+/g,' ').trim();
+          const labelOf=node => (node?.innerText || node?.textContent || '')
+            .replace(/keyboard_arrow_(?:right|down)/gi,' ').replace(/\\s+/g,' ').trim();
           const initial=controls().map((node,index,nodes) => {
             const label=labelOf(node);
             return {label, ordinal:nodes.slice(0,index).filter(prior=>labelOf(prior)===label).length};
           });
-          const resolve=item => controls().filter(node=>labelOf(node)===item.label)[item.ordinal];
+          const sleep=ms => new Promise(resolve=>setTimeout(resolve,ms));
+          const resolveOnce=item => controls().filter(node=>labelOf(node)===item.label)[item.ordinal] || null;
+          const resolveLive=async item => {
+            for (let attempt=0; attempt<4; attempt++) {
+              const node=resolveOnce(item);
+              if (node?.isConnected && node.closest?.('details')) return node;
+              if (attempt<3) await sleep(25);
+            }
+            return null;
+          };
           for (const item of initial) {
-            const node=resolve(item);
+            const node=await resolveLive(item);
             if (node && !node.closest('details').open) { node.click(); await new Promise(r=>setTimeout(r,15)); }
           }
-          return initial.filter(item => resolve(item)?.closest('details')?.open).length;
+          let opened=0;
+          for (const item of initial) { if ((await resolveLive(item))?.closest?.('details')?.open) opened++; }
+          return opened;
         }""")
         all_layout = await _layout(page)
         all_exception = await _has_rendered_exception(page)
@@ -336,14 +379,24 @@ async def certify_expandable_interactions(
                        "status": "PASS" if all_pass else "FAIL", "layout": all_layout, "screenshot": all_shot})
         await page.evaluate("""async () => {
           const controls=() => [...document.querySelectorAll('details > summary')];
-          const labelOf=node => (node?.innerText || node?.textContent || '').replace(/\\s+/g,' ').trim();
+          const labelOf=node => (node?.innerText || node?.textContent || '')
+            .replace(/keyboard_arrow_(?:right|down)/gi,' ').replace(/\\s+/g,' ').trim();
           const initial=controls().map((node,index,nodes) => {
             const label=labelOf(node);
             return {label, ordinal:nodes.slice(0,index).filter(prior=>labelOf(prior)===label).length};
           });
-          const resolve=item => controls().filter(node=>labelOf(node)===item.label)[item.ordinal];
+          const sleep=ms => new Promise(resolve=>setTimeout(resolve,ms));
+          const resolveOnce=item => controls().filter(node=>labelOf(node)===item.label)[item.ordinal] || null;
+          const resolveLive=async item => {
+            for (let attempt=0; attempt<4; attempt++) {
+              const node=resolveOnce(item);
+              if (node?.isConnected && node.closest?.('details')) return node;
+              if (attempt<3) await sleep(25);
+            }
+            return null;
+          };
           for (const item of initial.reverse()) {
-            const node=resolve(item);
+            const node=await resolveLive(item);
             if (node?.closest('details')?.open) { node.click(); await new Promise(r=>setTimeout(r,10)); }
           }
         }""")

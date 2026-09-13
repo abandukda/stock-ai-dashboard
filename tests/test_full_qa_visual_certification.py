@@ -171,10 +171,37 @@ def test_repeated_card_disclosures_use_bounded_batch_and_ranked_scan_viewport_ca
     assert 'page_name in {"Home", "Full Ranked Scan", "Developer Center"} and len(inventory) >= 5' in source
     assert "document.querySelectorAll('details > summary')" in source
     assert "await sleep(30)" in source
-    assert "const resolve=item" in source
+    assert "const resolveLive=async item" in source
     assert "labelOf(prior)===label" in source
-    assert "collapsed: !Boolean(node?.closest('details')?.open)" in source
+    assert "collapsed:Boolean(node) && !Boolean(node?.closest('details')?.open)" in source
     assert 'complete_surface=name != "Full Ranked Scan"' in source
+
+
+def test_transient_dom_mutation_re_resolves_semantic_control_with_bounded_retries():
+    source = Path("agents/full_qa_visual_certification.py").read_text()
+    assert ".replace(/keyboard_arrow_(?:right|down)/gi" in source
+    assert "for (let attempt=0; attempt<4; attempt++)" in source
+    assert "node?.isConnected && node.closest?.('details')" in source
+    assert "resolution=await resolveLive(item)" in source
+    assert '"resolution_retry_count": int(row.get("retry_count") or 0)' in source
+    assert '"resolved_logical_control": row.get("resolved_identity")' in source
+
+
+def test_persistent_semantic_resolution_failure_is_explicit_and_fail_closed():
+    source = Path("agents/full_qa_visual_certification.py").read_text()
+    assert "resolution_failure:'INITIAL_RESOLUTION_FAILED'" in source
+    assert "resolution_failure:'PRE_OPEN_RESOLUTION_FAILED'" in source
+    assert "'CLOSE_VERIFICATION_RESOLUTION_FAILED'" in source
+    assert 'passed = bool(row.get("opened") and row.get("collapsed")' in source
+    assert '"status": "PASS" if passed else "FAIL"' in source
+
+
+def test_nested_parent_close_uses_current_semantic_identity_not_old_dom_position():
+    source = Path("agents/full_qa_visual_certification.py").read_text()
+    open_index = source.index("if (opened) { node.click(); await sleep(30); }")
+    close_resolution = source.index("resolution=await resolveLive(item); node=resolution.node", open_index)
+    close_check = source.index("collapsed:Boolean(node)", close_resolution)
+    assert open_index < close_resolution < close_check
 
 
 def test_failed_screenshot_attempts_do_not_poison_recovered_manifest():
