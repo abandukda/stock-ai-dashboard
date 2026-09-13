@@ -266,20 +266,26 @@ async def certify_expandable_interactions(
             return s.visibility!=='hidden' && s.display!=='none' && r.width>2 && r.height>2;
           };
           const controls=() => [...document.querySelectorAll('details > summary')].filter(visible);
+          const labelOf=node => (node?.innerText || node?.textContent || '').replace(/\\s+/g,' ').trim();
           const sleep=ms => new Promise(resolve => setTimeout(resolve, ms));
-          const count=controls().length, output=[];
-          for (let index=0; index<count; index++) {
-            let node=controls()[index];
-            const label=(node.innerText || node.textContent || '').replace(/\\s+/g,' ').trim();
-            if (node.closest('details').open) { node.click(); await sleep(20); node=controls()[index]; }
+          const initial=controls().map((node,index,nodes) => {
+            const label=labelOf(node);
+            return {label, ordinal:nodes.slice(0,index).filter(prior=>labelOf(prior)===label).length};
+          });
+          const resolve=item => controls().filter(node=>labelOf(node)===item.label)[item.ordinal];
+          const output=[];
+          for (let index=0; index<initial.length; index++) {
+            const item=initial[index], label=item.label;
+            let node=resolve(item);
+            if (node.closest('details').open) { node.click(); await sleep(20); node=resolve(item); }
             node.click();
             await sleep(30);
-            node=controls()[index];
+            node=resolve(item);
             const opened=Boolean(node?.closest('details')?.open);
             const host=node?.closest('details');
             const content=(host?.innerText || '').replace(/\\s+/g,' ').trim();
             if (opened) { node.click(); await sleep(30); }
-            node=controls()[index];
+            node=resolve(item);
             output.push({index, label, opened, collapsed: !Boolean(node?.closest('details')?.open), content});
           }
           return output;
@@ -305,12 +311,17 @@ async def certify_expandable_interactions(
         all_open = await page.evaluate("""async () => {
           const visible=e => { const s=getComputedStyle(e),r=e.getBoundingClientRect(); return s.visibility!=='hidden'&&s.display!=='none'&&r.width>2&&r.height>2; };
           const controls=() => [...document.querySelectorAll('details > summary')].filter(visible);
-          const count=controls().length;
-          for (let index=0; index<count; index++) {
-            const node=controls()[index];
+          const labelOf=node => (node?.innerText || node?.textContent || '').replace(/\\s+/g,' ').trim();
+          const initial=controls().map((node,index,nodes) => {
+            const label=labelOf(node);
+            return {label, ordinal:nodes.slice(0,index).filter(prior=>labelOf(prior)===label).length};
+          });
+          const resolve=item => controls().filter(node=>labelOf(node)===item.label)[item.ordinal];
+          for (const item of initial) {
+            const node=resolve(item);
             if (node && !node.closest('details').open) { node.click(); await new Promise(r=>setTimeout(r,15)); }
           }
-          return controls().filter(node => node.closest('details').open).length;
+          return initial.filter(item => resolve(item)?.closest('details')?.open).length;
         }""")
         all_layout = await _layout(page)
         all_exception = await _has_rendered_exception(page)
@@ -325,8 +336,14 @@ async def certify_expandable_interactions(
                        "status": "PASS" if all_pass else "FAIL", "layout": all_layout, "screenshot": all_shot})
         await page.evaluate("""async () => {
           const controls=() => [...document.querySelectorAll('details > summary')];
-          for (let index=controls().length-1; index>=0; index--) {
-            const node=controls()[index];
+          const labelOf=node => (node?.innerText || node?.textContent || '').replace(/\\s+/g,' ').trim();
+          const initial=controls().map((node,index,nodes) => {
+            const label=labelOf(node);
+            return {label, ordinal:nodes.slice(0,index).filter(prior=>labelOf(prior)===label).length};
+          });
+          const resolve=item => controls().filter(node=>labelOf(node)===item.label)[item.ordinal];
+          for (const item of initial.reverse()) {
+            const node=resolve(item);
             if (node?.closest('details')?.open) { node.click(); await new Promise(r=>setTimeout(r,10)); }
           }
         }""")

@@ -171,6 +171,8 @@ def test_repeated_card_disclosures_use_bounded_batch_and_ranked_scan_viewport_ca
     assert 'page_name in {"Home", "Full Ranked Scan", "Developer Center"} and len(inventory) >= 5' in source
     assert "document.querySelectorAll('details > summary')" in source
     assert "await sleep(30)" in source
+    assert "const resolve=item" in source
+    assert "labelOf(prior)===label" in source
     assert "collapsed: !Boolean(node?.closest('details')?.open)" in source
     assert 'complete_surface=name != "Full Ranked Scan"' in source
 
