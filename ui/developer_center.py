@@ -68,6 +68,15 @@ def _render_full_qa_status(publication_manifest: Mapping[str, Any]) -> None:
         visual[1].metric("Last Visual PASS", qa.get("last_successful_visual_certification", "Not available"))
         visual[2].metric("Auto Repairs", qa.get("auto_repairs_attempted", 0))
         visual[3].metric("Unresolved", len(qa.get("unresolved_findings") or ()))
+        timing = dict(qa.get("qa_timing") or {})
+        if timing:
+            st.markdown("**Latest QA timing**")
+            timing_cols = st.columns(4)
+            timing_cols[0].metric("Total", f"{float(timing.get('total_seconds') or 0) / 60:.1f} min")
+            timing_cols[1].metric("Navigations", timing.get("browser_navigation_count", 0))
+            timing_cols[2].metric("Retries", sum((timing.get("retry_counts") or {}).values()))
+            avoided = timing.get("calls_avoided") or {}
+            timing_cols[3].metric("Screenshots Avoided", avoided.get("screenshots", 0) if isinstance(avoided, dict) else avoided)
         severity = dict(qa.get("severity_counts") or {})
         cols = st.columns(5)
         for index in range(5):

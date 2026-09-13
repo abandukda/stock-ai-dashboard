@@ -3,8 +3,9 @@ import ast
 import json
 
 from agents.full_qa_visual_certification import (
+    QA_MODES, SCREENSHOT_BUDGETS, TimingReport, bounded_operation,
     certification_tickers, customer_action_matches, expected_customer_action,
-    interaction_manifest_fields, required_expandable,
+    interaction_manifest_fields, required_expandable, visual_completion_contract,
 )
 
 
@@ -123,3 +124,49 @@ def test_full_qa_source_requires_individual_all_open_nested_and_recollapse_trave
     assert 'pages = REQUIRED_PAGES' in source
     workflow = Path(".github/workflows/atlas_full_qa_certification.yml").read_text()
     assert workflow.index("Capture and validate desktop/mobile customer surfaces") < workflow.index("Finalize certification and promote atomically")
+
+
+def test_completion_contract_blocks_auth_finished_interaction_and_mobile_failures():
+    checks = [{"page": page, "viewport": "desktop", "status": "PASS"} for page in (
+        "Home", "Research Any Ticker", "Full Ranked Scan", "Volume Intelligence", "Developer Center")]
+    checks.append({"page": "Home", "required": True, "status": "PASS"})
+    manifest = [{"generated": True, "path": "d.png", "viewport": "desktop"},
+                {"generated": True, "path": "m.png", "viewport": "mobile"}]
+    assert visual_completion_contract(finished=True, authentication_success=True, checks=checks,
+                                      manifest=manifest, mode="RELEASE_FULL", candidate_binding_valid=True)["passed"]
+    failed = [*checks[:-1], {"page": "Home", "required": True, "status": "FAIL"}]
+    assert not visual_completion_contract(finished=True, authentication_success=True, checks=failed,
+                                          manifest=manifest, mode="RELEASE_FULL", candidate_binding_valid=True)["passed"]
+    assert not visual_completion_contract(finished=False, authentication_success=True, checks=checks,
+                                          manifest=manifest, mode="RELEASE_FULL", candidate_binding_valid=True)["passed"]
+    assert not visual_completion_contract(finished=True, authentication_success=False, checks=checks,
+                                          manifest=manifest, mode="RELEASE_FULL", candidate_binding_valid=True)["passed"]
+    assert not visual_completion_contract(finished=True, authentication_success=True, checks=checks,
+                                          manifest=manifest[:1], mode="RELEASE_FULL", candidate_binding_valid=True)["passed"]
+
+
+def test_modes_budgets_and_timing_report_contract():
+    assert QA_MODES == ("RELEASE_FULL", "FAST_PREVIEW")
+    assert SCREENSHOT_BUDGETS["Home"] == {"desktop": 6, "mobile": 6}
+    report = TimingReport(mode="RELEASE_FULL", ceiling_seconds=5400)
+    report.record("navigation", .2, stage="structural", page="Home", viewport="desktop")
+    payload = report.payload()
+    assert payload["browser_navigation_count"] == 1
+    assert payload["stages"]["structural"] == .2
+    assert "longest_operations" in payload
+
+
+def test_bounded_operation_caps_retry_and_records_timeout():
+    attempts = 0
+    async def slow():
+        nonlocal attempts
+        attempts += 1
+        await __import__("asyncio").sleep(.02)
+    report = TimingReport(mode="FAST_PREVIEW", ceiling_seconds=1)
+    try:
+        __import__("asyncio").run(bounded_operation("navigation", slow, timeout=.001, timing=report, retries=1))
+    except TimeoutError:
+        pass
+    assert attempts == 2
+    assert report.retry_counts == {"navigation": 1}
+    assert len(report.timeouts) == 2

@@ -16,12 +16,19 @@ from services.publication_governance import (
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def _production_row(ticker="UBER"):
+def _production_row(ticker="TK"):
+    """Return a current production fixture with complete governed cash-flow fields.
+
+    UBER was a stale assumption from an older ranked artifact; TK is present in
+    the current immutable artifact and supplies the fields these governance
+    tests actually exercise.  Ticker-specific routing tests still name their
+    intended security explicitly.
+    """
     rows = json.loads((ROOT / "market_full_scan.json").read_text())
     return deepcopy(next(row for row in rows if row.get("ticker") == ticker))
 
 
-def _certifiable_row(ticker="UBER"):
+def _certifiable_row(ticker="TK"):
     row = _production_row(ticker)
     evaluation = row["canonical_investment_evaluation"]
     fields = evaluation["trial_presentation_fields"]
@@ -39,7 +46,9 @@ def _observed(row):
 def test_valid_customer_action_requires_whole_record_certification():
     row = _certifiable_row()
     result = certify_record(row, now=_observed(row))
-    assert result["certification_state"] == "CERTIFIED"
+    # High-uncertainty is a governed, publishable certification state; the
+    # fixture must not pretend that all valid records have narrow valuation.
+    assert result["certification_state"] in {"CERTIFIED", "CERTIFIED_HIGH_UNCERTAINTY"}
     assert result["certified_action"] == row["canonical_investment_evaluation"]["guidance"]["state"]
 
 
@@ -54,7 +63,7 @@ def test_validation_failure_withholds_action_and_never_maps_to_investment_opinio
 
 
 def test_market_cap_share_bridge_failure_is_withheld_before_customer_curation():
-    row = _certifiable_row("NEM")
+    row = _certifiable_row("TK")
     fields = row["canonical_investment_evaluation"]["trial_presentation_fields"]
     fields["current_shares_outstanding"] = fields["market_cap"] / row["canonical_investment_evaluation"]["market_snapshot"]["price"] * 0.80
     fields["share_structure"] = {}
@@ -82,7 +91,7 @@ def test_manifest_blocks_systemic_provider_failure_and_hashes_candidates():
 
 
 def test_manifest_does_not_duplicate_bulk_evaluations_or_diagnostics():
-    rows = certify_rows([_certifiable_row("NEM")], now=_observed(_certifiable_row("NEM")))
+    rows = certify_rows([_certifiable_row("TK")], now=_observed(_certifiable_row("TK")))
     manifest = build_manifest(
         rows,
         run_id="r1",

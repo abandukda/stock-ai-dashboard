@@ -9,12 +9,14 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import time
 
 from services.full_universe_qa import crawl_universe, report_digest, write_json_report
 from services.publication_governance import promote_atomically
 from services.promotion_safety import (
     CERTIFY_AND_PROMOTE, CERTIFY_ONLY, promotion_preview,
 )
+from services.full_qa_pipeline import TimingReport, blocking_findings
 
 ARTIFACT_NAMES = (
     "market_full_scan.json", "market_prescreen.json", "recovery_scan.json",
@@ -95,6 +97,7 @@ def _verify_candidate(candidate_dir: Path, manifest: dict, payloads: dict[Path, 
 
 
 def main(argv=None) -> int:
+    process_started = time.monotonic()
     parser = argparse.ArgumentParser()
     parser.add_argument("--candidate-dir", type=Path, required=True)
     parser.add_argument("--production-dir", type=Path, default=Path("."))
@@ -112,7 +115,10 @@ def main(argv=None) -> int:
     parser.add_argument("--screenshot-manifest", type=Path)
     parser.add_argument("--xlsx-exporter", type=Path, default=Path("scripts/export_full_qa_xlsx.py"))
     args = parser.parse_args(argv)
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    timing = TimingReport(started=process_started)
 
+    identity_started = time.monotonic()
     candidate_manifest = _read(args.candidate_dir / "publication_manifest.json")
     production_manifest_path = args.production_dir / "publication_manifest.json"
     production_manifest = _read(production_manifest_path) if production_manifest_path.exists() else {}
@@ -127,6 +133,7 @@ def main(argv=None) -> int:
     )
     payloads = {args.production_dir / name: _read(args.candidate_dir / name) for name in ARTIFACT_NAMES}
     _verify_candidate(args.candidate_dir, candidate_manifest, payloads)
+    timing.record_stage("identity", time.monotonic() - identity_started)
     candidate_rows = payloads[args.production_dir / "market_full_scan.json"]
     prior_path = args.production_dir / "market_full_scan.json"
     prior_report = None
@@ -140,6 +147,7 @@ def main(argv=None) -> int:
     discovery_state["provider_profile"] = provider_publication
     discovery_state["runtime_profile"] = state.get("run_timings") or {}
     discovery_state["total_runtime_seconds"] = state.get("duration_seconds")
+    deterministic_started = time.monotonic()
     report = crawl_universe(
         candidate_rows,
         prior_rows=((prior_report or {}).get("sheets") or {}).get("Master_150") or (),
@@ -150,6 +158,7 @@ def main(argv=None) -> int:
         full_evaluation_rows=payloads[args.production_dir / "full_evaluation_pool.json"],
         candidate_rows=payloads[args.production_dir / "discovery_candidate_pool.json"],
     )
+    timing.record_stage("deterministic_qa", time.monotonic() - deterministic_started)
     if candidate_manifest.get("publication_gate_status") != "PASS":
         report["sheets"]["Validation_Failures"].append({
             "ticker": "UNIVERSE", "severity": "P1", "category": "UPSTREAM_PUBLICATION_GATE",
@@ -171,6 +180,9 @@ def main(argv=None) -> int:
     visual = {}
     if args.visual_summary and args.visual_summary.exists():
         visual = _read(args.visual_summary)
+        visual_timing_path = args.visual_summary.parent / "qa_timing_report.json"
+        if visual_timing_path.exists():
+            report["summary"]["qa_timing"] = _read(visual_timing_path)
         visual_failures = [item for item in visual.get("defects", []) if item.get("severity") in {"P0", "P1", "P2"}]
         candidate_source_sha = candidate_manifest.get("source_commit_sha") or candidate_manifest.get("source_sha")
         visual_identity = dict(visual.get("candidate_identity") or {})
@@ -241,7 +253,7 @@ def main(argv=None) -> int:
         report["summary"]["publication_gate_status"] = "FAIL"
         report["summary"]["dataset_certification_status"] = "FAIL"
         report["gate"] = "FAIL"
-    args.output_dir.mkdir(parents=True, exist_ok=True)
+    packaging_started = time.monotonic()
     date = report["summary"]["generated_at"][:10].replace("-", "")
     safe_run_id = "".join(character if character.isalnum() or character in "-_" else "_" for character in str(report["summary"]["run_id"]))
     stem = f"ATLAS_MASTER_QA_{date}_{safe_run_id}"
@@ -257,6 +269,7 @@ def main(argv=None) -> int:
     _markdown(report, md_path)
     _html(report, html_path)
     subprocess.run([sys.executable, str(args.xlsx_exporter), str(json_path), str(xlsx_path)], check=True)
+    timing.record_stage("packaging", time.monotonic() - packaging_started)
 
     certified_manifest = dict(candidate_manifest)
     certified_manifest["qa_certification"] = {**report["summary"], "report_digest": report_digest(report)}
@@ -281,6 +294,14 @@ def main(argv=None) -> int:
     }
     (args.output_dir / "promotion_preview.json").write_text(json.dumps(preview, indent=2, default=str) + "\n", encoding="utf-8")
     (args.output_dir / "promotion_result.json").write_text(json.dumps(promotion_result, indent=2, default=str) + "\n", encoding="utf-8")
+    timing.write(args.output_dir / "qa_timing_report.json")
+    (args.output_dir / "qa_summary.json").write_text(json.dumps({
+        "status": "PASS" if report["gate"] == "PASS" else "FULL_QA_BLOCKED_BEFORE_VISUAL_CRAWL",
+        "candidate": preview["candidate"], "gate": report["gate"],
+        "blocking_count": len(blocking_findings(report)),
+    }, indent=2, default=str) + "\n", encoding="utf-8")
+    (args.output_dir / "blocking_findings.json").write_text(
+        json.dumps(blocking_findings(report), indent=2, default=str) + "\n", encoding="utf-8")
     print(json.dumps({"gate": report["gate"], "run_id": report["summary"]["run_id"],
                       "output_dir": str(args.output_dir), "promoted": promoted,
                       "qa_mode": args.qa_mode, "relationship": preview["relationship"],

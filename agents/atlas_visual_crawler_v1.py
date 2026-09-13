@@ -152,6 +152,10 @@ class AtlasVisualCrawler:
         self.authentication: dict[str, Any] = {}
         self.ticker_matrix = full_certification_ticker_matrix(root)
         self._shot_number = 0
+        self._screenshot_states: dict[str, str] = {}
+        self.screenshot_calls_avoided = 0
+        self.screenshot_timeouts = 0
+        self.screenshot_retries = 0
         self.research_contexts: dict[str, dict[str, str]] = {}
         self.monitor_ticker = self._monitor_research_ticker()
 
@@ -265,27 +269,60 @@ class AtlasVisualCrawler:
         self, page: Page, *, page_name: str, interaction: str, state: str,
         viewport: str = "desktop", ticker: str = "", complete_surface: bool = False,
     ) -> str:
+        try:
+            state_digest = await asyncio.wait_for(page.evaluate("""() => {
+              const root = document.querySelector('[data-testid="stAppViewContainer"]') || document.body;
+              return root ? root.innerHTML : '';
+            }"""), timeout=3.0)
+            # The rendered state and viewport determine visual identity.  Do
+            # not defeat deduplication merely because two traversal labels
+            # reached byte-identical DOM.
+            state_key = hashlib.sha256(
+                f"{viewport}|{state_digest}".encode("utf-8")
+            ).hexdigest()
+            prior = self._screenshot_states.get(state_key)
+            if prior:
+                self.screenshot_calls_avoided += 1
+                self.manifest.append({
+                    "page": page_name, "interaction": interaction, "state": state,
+                    "ticker": ticker, "viewport": viewport, "path": prior,
+                    "generated": True, "deduplicated": True,
+                    "capture": "reused_state", "segments": 0, "complete": True,
+                })
+                return prior
+        except Exception:
+            state_key = ""
         self._shot_number += 1
         slug = re.sub(r"[^a-zA-Z0-9_-]+", "_", f"{self._shot_number:04d}_{viewport}_{page_name}_{interaction}_{state}")
         path = self.screenshot_dir / f"{slug[:180]}.png"
         try:
             metadata: dict[str, Any] = {"capture": "viewport", "segments": 1, "complete": True}
             last_error: Exception | None = None
-            for attempt in range(3):
+            for attempt in range(2):
                 try:
                     if complete_surface:
-                        metadata = await self._stitched_streamlit_screenshot(page, path)
+                        metadata = await asyncio.wait_for(
+                            self._stitched_streamlit_screenshot(page, path), timeout=20.0,
+                        )
                     else:
-                        await page.screenshot(path=str(path), full_page=False)
+                        await asyncio.wait_for(
+                            page.screenshot(path=str(path), full_page=False), timeout=12.0,
+                        )
                     last_error = None
                     break
+                except asyncio.TimeoutError as exc:
+                    self.screenshot_timeouts += 1
+                    last_error = exc
                 except Exception as exc:
                     last_error = exc
-                    await page.wait_for_timeout(150 * (attempt + 1))
+                if attempt == 0:
+                    self.screenshot_retries += 1
+                    await page.wait_for_timeout(150)
             if last_error is not None:
-                await page.screenshot(path=str(path), full_page=False)
-                metadata = {"capture": "viewport_fallback", "segments": 1, "complete": False}
+                raise last_error
             relative = str(path.relative_to(self.output_dir))
+            if state_key:
+                self._screenshot_states[state_key] = relative
             self.manifest.append({
                 "page": page_name, "interaction": interaction, "state": state,
                 "ticker": ticker, "viewport": viewport, "path": relative,
@@ -1026,25 +1063,28 @@ class AtlasVisualCrawler:
             try:
                 await node.click(timeout=5000)
                 await page.wait_for_timeout(350)
-                expanded = (await node.get_attribute("aria-expanded")) != "false"
+                expanded = await node.evaluate("el => el.getAttribute('aria-expanded') === 'true' || !!el.closest('details')?.open")
                 exception = await _has_rendered_exception(page)
                 after = await self._shot(page, page_name=page_name, interaction=f"expander-{name}", state="after", viewport=viewport)
+                collapsed = False
+                if expanded:
+                    await node.click(timeout=3000)
+                    await page.wait_for_timeout(150)
+                    collapsed = await node.evaluate("el => el.getAttribute('aria-expanded') === 'false' || !el.closest('details')?.open")
                 await self._record(
                     category="EXPANDER", page_name=page_name, interaction=name,
-                    expected="Important expander opens with visible content",
-                    observed=f"expanded={expanded}; exception={exception}",
-                    passed=expanded and not exception, elapsed=time.monotonic() - started,
+                    expected="Required expander opens, exposes content, and closes",
+                    observed=f"expanded={expanded}; collapsed={collapsed}; exception={exception}",
+                    passed=expanded and collapsed and not exception, elapsed=time.monotonic() - started,
                     viewport=viewport, screenshots=(before, after),
                     exception=await self._exception_identity(page) if exception else {},
                 )
-                if expanded:
-                    await node.click(timeout=3000)
             except Exception as exc:
                 await self._record(
                     category="EXPANDER", page_name=page_name, interaction=name,
                     expected="Expander remains independently operable", observed=type(exc).__name__,
                     passed=False, elapsed=time.monotonic() - started, viewport=viewport,
-                    screenshots=(before,), severity="P3",
+                    screenshots=(before,), severity="P2",
                 )
 
     async def _supporting_evidence(self, page: Page, *, page_name: str, viewport: str = "desktop") -> None:
@@ -1655,6 +1695,11 @@ class AtlasVisualCrawler:
             "started_at": self.started_at, "finished": final,
             "duration_seconds": round(time.monotonic() - self.started, 3),
             "authentication_success": bool(self.authentication),
+            "capture_efficiency": {
+                "deduplicated_screenshot_count": self.screenshot_calls_avoided,
+                "screenshot_retries": self.screenshot_retries,
+                "screenshot_timeouts": self.screenshot_timeouts,
+            },
             "counts": {
                 "all": all_counts, "pages": counts("PAGE"),
                 "interactions": {

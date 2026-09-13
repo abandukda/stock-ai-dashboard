@@ -14,6 +14,12 @@ on:
         default: CERTIFY_ONLY
         type: choice
         options: [CERTIFY_ONLY, CERTIFY_AND_PROMOTE]
+      qa_tier:
+        description: "Visual QA tier (FAST_PREVIEW never authorizes promotion)"
+        required: true
+        default: FAST_PREVIEW
+        type: choice
+        options: [FAST_PREVIEW, RELEASE_FULL]
       candidate_run_id:
         description: "Overnight run ID, or qa:<run ID> to reuse a QA candidate; blank generates"
         required: false
@@ -44,6 +50,10 @@ on:
       qa_mode:
         required: false
         default: CERTIFY_ONLY
+        type: string
+      qa_tier:
+        required: false
+        default: RELEASE_FULL
         type: string
       candidate_run_id:
         description: "Overnight run ID, or qa:<run ID> to reuse a QA candidate; blank generates"
@@ -93,7 +103,7 @@ jobs:
   certify-and-promote:
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 90
     env:
       ATLAS_DATA_MODE: INTERNAL_TRIAL
       TWELVE_DATA_ENABLED: "true"
@@ -180,6 +190,25 @@ jobs:
           echo "chained_run_id=$chained_run_id" >> "$GITHUB_OUTPUT"
           echo "QA mode: $qa_mode"
 
+      - name: Resolve bounded QA tier
+        id: tier
+        env:
+          REQUESTED_TIER: ${{ inputs.qa_tier }}
+          QA_MODE: ${{ steps.mode.outputs.qa_mode }}
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_run" ]]; then
+            qa_tier="RELEASE_FULL"
+          else
+            qa_tier="${REQUESTED_TIER:-FAST_PREVIEW}"
+          fi
+          python - "$qa_tier" "$QA_MODE" <<'PY'
+          import sys
+          from services.full_qa_pipeline import validate_tier
+          validate_tier(sys.argv[1], promotion_requested=sys.argv[2] == "CERTIFY_AND_PROMOTE")
+          PY
+          echo "qa_tier=$qa_tier" >> "$GITHUB_OUTPUT"
+          echo "QA tier: $qa_tier"
+
       - name: Download exact overnight candidate
         if: steps.candidate.outputs.run_id != '' && steps.candidate.outputs.candidate_kind == 'overnight'
         uses: actions/download-artifact@v4
@@ -211,6 +240,7 @@ jobs:
         run: python overnight_market_scan.py
 
       - name: Preview candidate relationship and promotion eligibility
+        id: identity
         env:
           QA_MODE: ${{ steps.mode.outputs.qa_mode }}
           ALLOW_ROLLBACK: ${{ inputs.allow_rollback || false }}
@@ -235,6 +265,23 @@ jobs:
           if [[ "$ALLOW_ROLLBACK" == "true" ]]; then args+=(--allow-rollback); fi
           python -m services.promotion_safety "${args[@]}"
 
+      - name: Verify exact candidate identity and digests
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from scripts.run_full_qa_certification import _read, _verify_candidate, ARTIFACT_NAMES
+          candidate = Path("audit_results/candidate_artifacts")
+          manifest = _read(candidate / "publication_manifest.json")
+          payloads = {Path(name): _read(candidate / name) for name in ARTIFACT_NAMES}
+          _verify_candidate(candidate, manifest, payloads)
+          required = manifest.get("source_commit_sha") or manifest.get("source_sha")
+          if not required:
+              raise SystemExit("CANDIDATE_SOURCE_SHA_MISSING")
+          print(json.dumps({"candidate_run_id": manifest.get("run_id"), "candidate_source_sha": required,
+                            "candidate_generated_at": manifest.get("generated_at")}, sort_keys=True))
+          PY
+
       - name: Run dataset and numerical certification
         id: data_qa
         continue-on-error: true
@@ -245,7 +292,27 @@ jobs:
             --output-dir audit_results/full_qa/${{ github.run_id }} \
             --artifact-link https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
+      - name: Emit fail-fast deterministic blocker bundle
+        if: steps.data_qa.outcome == 'failure'
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          from services.full_qa_pipeline import TimingReport, write_early_blocker_bundle
+          root = Path("audit_results/full_qa") / os.environ["GITHUB_RUN_ID"]
+          reports = sorted(root.glob("ATLAS_MASTER_QA_*.json"))
+          report = json.loads(reports[-1].read_text()) if reports else {}
+          findings = [row for row in ((report.get("sheets") or {}).get("Validation_Failures") or [])
+                      if row.get("severity") in {"P0", "P1", "P2"}]
+          manifest = json.loads(Path("audit_results/candidate_artifacts/publication_manifest.json").read_text())
+          write_early_blocker_bundle(root, candidate={"run_id": manifest.get("run_id"),
+              "source_sha": manifest.get("source_commit_sha") or manifest.get("source_sha")},
+              findings=findings or [{"severity": "P1", "reason": "DETERMINISTIC_CERTIFICATION_FAILED"}],
+              timing=TimingReport())
+          PY
+
       - name: Materialize exact candidate for customer-surface QA
+        if: steps.data_qa.outcome == 'success'
         run: |
           cp audit_results/candidate_artifacts/market_full_scan.json market_full_scan.json
           cp audit_results/candidate_artifacts/market_prescreen.json market_prescreen.json
@@ -257,9 +324,11 @@ jobs:
           cp audit_results/candidate_artifacts/full_evaluation_pool.json full_evaluation_pool.json
 
       - name: Verify production Python grammar
+        if: steps.data_qa.outcome == 'success'
         run: python -m compileall -q app.py ui services engines agents scripts
 
       - name: Launch exact-candidate Streamlit runtime
+        if: steps.data_qa.outcome == 'success'
         env:
           ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
           GUEST_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
@@ -274,17 +343,22 @@ jobs:
           exit 1
 
       - name: Capture and validate desktop/mobile customer surfaces
+        if: steps.data_qa.outcome == 'success'
         id: visual_qa
         continue-on-error: true
         env:
           ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
           ATLAS_EXACT_CANDIDATE_QA: "true"
+          ATLAS_QA_TIER: ${{ steps.tier.outputs.qa_tier }}
+          ATLAS_QA_RUNTIME_CEILING_SECONDS: "5400"
         run: |
           python -m agents.full_qa_visual_certification \
             --url http://127.0.0.1:8501 \
             --root . \
             --candidate-dir audit_results/candidate_artifacts \
             --candidate-run-id "${{ steps.candidate.outputs.run_id || github.run_id }}" \
+            --mode "${{ steps.tier.outputs.qa_tier }}" \
+            --runtime-ceiling-seconds 5400 \
             --output audit_results/full_qa/${{ github.run_id }}/visual
 
       - name: Emit sanitized local runtime diagnostics
@@ -294,6 +368,7 @@ jobs:
           cat audit_results/full_qa/${{ github.run_id }}/visual/deployed_readiness.json || true
 
       - name: Finalize certification and promote atomically
+        if: steps.data_qa.outcome == 'success'
         id: qa
         env:
           QA_MODE: ${{ steps.mode.outputs.qa_mode }}
@@ -341,13 +416,19 @@ jobs:
           retention-days: 90
 
       - name: Upload autonomous visual certification bundle
-        if: always()
+        if: always() && steps.data_qa.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: atlas-visual-qa-${{ github.run_id }}
           path: audit_results/full_qa/${{ github.run_id }}/visual
           if-no-files-found: error
           retention-days: 90
+
+      - name: Enforce fail-fast deterministic result
+        if: always() && steps.data_qa.outcome == 'failure'
+        run: |
+          echo "::error::FULL QA BLOCKED BEFORE VISUAL CRAWL"
+          exit 1
 
       - name: Preserve exact generated candidate for deterministic reruns
         if: always() && steps.candidate.outputs.run_id == ''

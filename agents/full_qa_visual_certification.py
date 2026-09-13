@@ -24,6 +24,14 @@ from agents.visual_qa_certification_v2 import (
 
 
 VERSION = "ATLAS_FULL_QA_VISUAL_V2"
+QA_MODES = ("RELEASE_FULL", "FAST_PREVIEW")
+OPERATION_TIMEOUTS = {"authentication": 60.0, "navigation": 30.0, "page_render": 45.0,
+                      "research": 60.0, "interaction": 10.0, "screenshot": 20.0, "dom": 5.0}
+SCREENSHOT_BUDGETS = {
+    "Home": {"desktop": 6, "mobile": 6}, "Research Any Ticker": {"desktop": 8, "mobile": 7},
+    "Paid Detail": {"desktop": 12, "mobile": 12}, "Full Ranked Scan": {"desktop": 12, "mobile": 12},
+    "Volume Intelligence": {"desktop": 6, "mobile": 4}, "Developer Center": {"desktop": 4, "mobile": 4},
+}
 REQUIRED_PAGES = ("Home", "Research Any Ticker", "Full Ranked Scan", "Volume Intelligence", "Developer Center")
 CUSTOMER_ACTION_LABELS = {
     "BUY_NOW": "BUY NOW",
@@ -44,6 +52,101 @@ EXPANDABLE_LABEL_RE = re.compile(
     re.I,
 )
 NON_DISCLOSURE_BUTTON_RE = re.compile(r"^(?:home|research any ticker|full ranked scan|volume intelligence|developer center)$", re.I)
+
+
+class QARuntimeBudgetExceeded(RuntimeError):
+    pass
+
+
+class TimingReport:
+    def __init__(self, *, mode: str, ceiling_seconds: float) -> None:
+        self.started = time.monotonic(); self.mode = mode; self.ceiling_seconds = ceiling_seconds
+        self.operations: list[dict[str, Any]] = []; self.retry_counts: dict[str, int] = {}
+        self.timeouts: list[dict[str, Any]] = []
+        self.calls_avoided = {"screenshots": 0, "authentication": 0, "ticker_evaluations": 0}
+
+    def record(self, operation: str, seconds: float, **dimensions: Any) -> None:
+        self.operations.append({"operation": operation, "seconds": round(seconds, 3), **dimensions})
+
+    def retry(self, operation: str) -> None:
+        self.retry_counts[operation] = self.retry_counts.get(operation, 0) + 1
+
+    def timeout(self, operation: str, seconds: float) -> None:
+        self.timeouts.append({"operation": operation, "timeout_seconds": seconds})
+
+    def enforce(self, stage: str) -> None:
+        elapsed = time.monotonic() - self.started
+        if elapsed > self.ceiling_seconds:
+            raise QARuntimeBudgetExceeded(f"QA_RUNTIME_BUDGET_EXCEEDED:{stage}:{elapsed:.1f}s")
+
+    def payload(self, crawler: AtlasVisualCrawler | None = None) -> dict[str, Any]:
+        def totals(key: str) -> dict[str, float]:
+            result: dict[str, float] = {}
+            for row in self.operations:
+                value = str(row.get(key) or "")
+                if value: result[value] = round(result.get(value, 0.0) + float(row["seconds"]), 3)
+            return result
+        if crawler:
+            self.calls_avoided["screenshots"] = crawler.screenshot_calls_avoided
+            self.retry_counts["screenshot"] = crawler.screenshot_retries
+        return {"version": VERSION, "mode": self.mode, "total_seconds": round(time.monotonic() - self.started, 3),
+                "runtime_ceiling_seconds": self.ceiling_seconds, "stages": totals("stage"),
+                "per_page": totals("page"), "per_ticker": totals("ticker"), "per_viewport": totals("viewport"),
+                "per_interaction_type": totals("interaction_type"),
+                "longest_operations": sorted(self.operations, key=lambda row: row["seconds"], reverse=True)[:10],
+                "retry_counts": self.retry_counts, "timeouts": self.timeouts,
+                "browser_navigation_count": sum(row["operation"] == "navigation" for row in self.operations),
+                "screenshot_count": len({i.get("path") for i in (crawler.manifest if crawler else []) if i.get("path")}),
+                "dom_snapshot_count": sum(row["operation"] == "dom" for row in self.operations),
+                "calls_avoided": self.calls_avoided}
+
+
+async def bounded_operation(name: str, operation, *, timeout: float, timing: TimingReport, retries: int = 0):
+    for attempt in range(retries + 1):
+        started = time.monotonic()
+        try:
+            result = await asyncio.wait_for(operation(), timeout=timeout)
+            timing.record(name, time.monotonic() - started, stage=name)
+            return result
+        except asyncio.TimeoutError:
+            timing.timeout(name, timeout); timing.record(name, time.monotonic() - started, stage=name)
+            if attempt >= retries: raise
+            timing.retry(name)
+        except Exception:
+            timing.record(name, time.monotonic() - started, stage=name)
+            if attempt >= retries: raise
+            timing.retry(name)
+
+
+def visual_completion_contract(*, finished: bool, authentication_success: bool, checks: list[dict[str, Any]],
+                               manifest: list[dict[str, Any]], mode: str, candidate_binding_valid: bool) -> dict[str, Any]:
+    required = [row for row in checks if row.get("required")]
+    passed = [row for row in required if row.get("status") == "PASS"]
+    desktop = len({row.get("path") or row.get("file_path") for row in manifest if row.get("viewport") == "desktop" and (row.get("path") or row.get("file_path"))})
+    mobile = len({row.get("path") or row.get("file_path") for row in manifest if row.get("viewport") == "mobile" and (row.get("path") or row.get("file_path"))})
+    required_pages = REQUIRED_PAGES if mode == "RELEASE_FULL" else ("Home", "Research Any Ticker")
+    pages_ok = all(any(row.get("page") == page and row.get("status") == "PASS" for row in checks) for page in required_pages)
+    coverage = 1.0 if not required else len(passed) / len(required)
+    manifest_ok = bool(manifest) and all((row.get("path") or row.get("file_path")) and row.get("generated", True) for row in manifest)
+    mobile_coverage = 1.0 if mode == "FAST_PREVIEW" else float(mobile > 0)
+    result = {"finished": finished, "authentication_success": authentication_success,
+              "required_pages_passed": pages_ok, "required_interactions_coverage": coverage,
+              "mobile_required_coverage": mobile_coverage, "screenshot_manifest_valid": manifest_ok,
+              "candidate_binding_valid": candidate_binding_valid, "desktop_screenshot_count": desktop,
+              "mobile_screenshot_count": mobile}
+    result.update({
+        "controls_discovered": len([row for row in checks if row.get("interaction_type") == "EXPANDER"]),
+        "controls_required": len(required),
+        "controls_opened": sum(row.get("click_success") is True for row in required),
+        "controls_closed": sum(row.get("collapse_success") is True for row in required),
+        "nested_controls_required": sum(row.get("interaction_type") == "NESTED_EXPANDER" for row in required),
+        "nested_controls_passed": sum(row.get("interaction_type") == "NESTED_EXPANDER" and row.get("status") == "PASS" for row in required),
+        "all_open_tests_required": sum(row.get("interaction_type") == "ALL_MAJOR_EXPANDED" for row in required),
+        "all_open_tests_passed": sum(row.get("interaction_type") == "ALL_MAJOR_EXPANDED" and row.get("status") == "PASS" for row in required),
+    })
+    result["passed"] = all((finished, authentication_success, pages_ok, coverage == 1.0,
+                            mobile_coverage == 1.0, manifest_ok, candidate_binding_valid))
+    return result
 
 
 def required_expandable(page_name: str, label: str) -> bool:
@@ -158,7 +261,9 @@ async def certify_expandable_interactions(
             return
         try:
             host = parent_control.locator("xpath=ancestor::details[1]")
-            nested_nodes = host.locator("details > summary")
+            # Descendant disclosures only: never recurse into the parent
+            # summary as though it were its own nested child.
+            nested_nodes = host.locator(":scope details > summary")
             count = await nested_nodes.count()
         except Exception:
             return
@@ -450,6 +555,8 @@ async def _layout(page) -> dict[str, Any]:
 
 async def run(args: argparse.Namespace) -> int:
     started = time.monotonic()
+    mode = args.mode
+    timing = TimingReport(mode=mode, ceiling_seconds=float(args.runtime_ceiling_seconds))
     root, output = Path(args.root).resolve(), Path(args.output).resolve()
     output.mkdir(parents=True, exist_ok=True)
     exact_mode = os.environ.get("ATLAS_EXACT_CANDIDATE_QA", "").lower() == "true"
@@ -460,6 +567,22 @@ async def run(args: argparse.Namespace) -> int:
     if not identity["valid"]:
         raise RuntimeError("EXACT_CANDIDATE_BINDING_FAILED:" + ",".join(identity["failure_reasons"]))
     crawler = AtlasVisualCrawler(url=args.url, output_dir=output, root=root)
+    original_shot = crawler._shot
+    async def budgeted_shot(page, *, page_name: str, interaction: str, state: str,
+                            viewport: str = "desktop", ticker: str = "", complete_surface: bool = False):
+        budget = SCREENSHOT_BUDGETS.get(page_name, {}).get(viewport)
+        prior = [item for item in crawler.manifest if item.get("page") == page_name and item.get("viewport") == viewport and item.get("path")]
+        if budget is not None and len({item["path"] for item in prior}) >= budget and state != "failure":
+            crawler.screenshot_calls_avoided += 1
+            path = prior[-1]["path"]
+            crawler.manifest.append({"page": page_name, "interaction": interaction, "state": state,
+                                     "ticker": ticker, "viewport": viewport, "path": path,
+                                     "generated": True, "deduplicated": True, "budget_reused": True,
+                                     "capture": "budget_reused", "segments": 0, "complete": True})
+            return path
+        return await original_shot(page, page_name=page_name, interaction=interaction, state=state,
+                                   viewport=viewport, ticker=ticker, complete_surface=complete_surface)
+    crawler._shot = budgeted_shot  # type: ignore[method-assign]
     source_rows = json.loads((root / "market_full_scan.json").read_text(encoding="utf-8"))
     by_ticker = {str(row.get("ticker") or "").upper(): row for row in source_rows}
     full_pool_path = root / "full_evaluation_pool.json"
@@ -475,39 +598,60 @@ async def run(args: argparse.Namespace) -> int:
         context = await browser.new_context(viewport=DESKTOP)
         page = await context.new_page()
         try:
-            await _open_and_authenticate(
-                page, args.url, output, expected_sha=crawler.source_sha,
-                allow_local_exact_candidate=True,
+            crawler.authentication = await bounded_operation(
+                "auth", lambda: _open_and_authenticate(
+                    page, args.url, output, expected_sha=crawler.source_sha,
+                    allow_local_exact_candidate=True,
+                ), timeout=OPERATION_TIMEOUTS["authentication"], timing=timing, retries=1,
             )
             for viewport, size in (("desktop", DESKTOP), ("mobile", MOBILE)):
                 await page.set_viewport_size(size)
-                pages = REQUIRED_PAGES
+                pages = REQUIRED_PAGES if mode == "RELEASE_FULL" else ("Home", "Research Any Ticker")
                 for name in pages:
-                    ok = await crawler._page_visit(page, name, viewport=viewport)
-                    layout = await _layout(page)
+                    timing.enforce(f"structural:{viewport}:{name}")
+                    page_started = time.monotonic()
+                    ok = await bounded_operation("navigation", lambda n=name, v=viewport: crawler._page_visit(page, n, viewport=v),
+                                                 timeout=OPERATION_TIMEOUTS["navigation"], timing=timing, retries=1)
+                    layout = await bounded_operation("dom", lambda: _layout(page), timeout=OPERATION_TIMEOUTS["dom"], timing=timing)
                     shot = await crawler._shot(page, page_name=name, interaction="master-certification", state="settled", viewport=viewport, complete_surface=True)
                     passed = bool(ok and not layout["horizontal_overflow"] and layout["body_text_length"] > 100)
                     check = {"page": name, "viewport": viewport, "status": "PASS" if passed else "FAIL", "layout": layout, "screenshot": shot}
                     checks.append(check)
+                    if not passed:
+                        defects.append({"severity": "P1", "page": name, "viewport": viewport,
+                                        "observed": json.dumps(layout, sort_keys=True), "ticker_context": ""})
+                        timing.record("page-certification", time.monotonic() - page_started,
+                                      stage="structural", page=name, viewport=viewport)
+                        # A broken structural contract cannot be made safer by
+                        # spending minutes traversing its disclosure controls.
+                        continue
                     interaction_checks, interaction_defects = await certify_expandable_interactions(
                         page, crawler, page_name=name, viewport=viewport,
                     )
                     checks.extend(interaction_checks)
                     defects.extend(interaction_defects)
+                    timing.record("page-certification", time.monotonic() - page_started,
+                                  stage="structural", page=name, viewport=viewport)
                     (dom_dir / f'{viewport}_{name.lower().replace(" ", "_")}.json').write_text(json.dumps({
                         "page": name, "viewport": viewport, "text": await _visible_text(page),
                         "qa_attributes": await page.evaluate("""() => [...document.querySelectorAll('[data-atlas-qa]')].map(e => Object.fromEntries([...e.attributes].filter(a => a.name.startsWith('data-atlas-')).map(a => [a.name,a.value])))"""),
                     }, indent=2), encoding="utf-8")
-                    if not passed:
-                        defects.append({"severity": "P1", "page": name, "viewport": viewport,
-                                        "observed": json.dumps(layout, sort_keys=True), "ticker_context": ""})
             await page.set_viewport_size(DESKTOP)
             visual_tickers = certification_tickers(root)
+            if mode == "FAST_PREVIEW":
+                visual_tickers = visual_tickers[:2]
             for index, ticker in enumerate(visual_tickers):
                 # One key ticker receives the complete paid evidence-drawer/tab
                 # journey; the remaining archetypes certify exact ticker/action
                 # reconciliation without multiplying provider/runtime work.
-                passed = await crawler._submit_research(page, ticker, tabs=index == 0, viewport="desktop")
+                timing.enforce(f"research:{ticker}")
+                ticker_started = time.monotonic()
+                passed = await bounded_operation(
+                    "research", lambda t=ticker, i=index: crawler._submit_research(page, t, tabs=i == 0, viewport="desktop"),
+                    timeout=OPERATION_TIMEOUTS["research"], timing=timing, retries=1,
+                )
+                timing.record("research-ticker", time.monotonic() - ticker_started, stage="interaction",
+                              page="Research Any Ticker", ticker=ticker, viewport="desktop", interaction_type="research")
                 decision_tab = await crawler._fresh_visible_tab(page, "Decision")
                 if decision_tab is not None:
                     await decision_tab.click(timeout=6000)
@@ -588,10 +732,25 @@ async def run(args: argparse.Namespace) -> int:
         repair_attempts.append({"finding_id": item.get("finding_id"), **decision,
                                 "note": "No deterministic registered repair handler; financial and unregistered defects remain fail-closed."})
     final = visual_summary(identity, manifest, findings, duration_seconds=time.monotonic() - started, repair_attempts=repair_attempts)
+    authentication_success = bool(crawler.authentication) and crawler.authentication.get("authentication_success", True) is True
+    completion = visual_completion_contract(
+        finished=True, authentication_success=authentication_success, checks=checks,
+        manifest=manifest, mode=mode, candidate_binding_valid=bool(identity["valid"]),
+    )
+    if not completion["passed"]:
+        final["publication_status"] = "FAIL"
+        final["promotion_allowed"] = False
     summary = {"version": VERSION, "generated_at": datetime.now(timezone.utc).isoformat(),
                "status": final["publication_status"], "checks": checks, "defects": findings,
                "screenshot_manifest": manifest, "ticker_fixtures": certification_tickers(root),
                "candidate_identity": identity, **final}
+    summary["mode"] = mode
+    summary["completion_contract"] = completion
+    summary["screenshot_budget_usage"] = {
+        page: {viewport: len({item.get("file_path") or item.get("path") for item in manifest
+                             if item.get("page") == page and item.get("viewport") == viewport and (item.get("file_path") or item.get("path"))})
+               for viewport in ("desktop", "mobile")} for page in SCREENSHOT_BUDGETS
+    }
     (output / "atlas_full_qa_visual_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     (output / "screenshot_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     (output / "visual_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
@@ -602,16 +761,33 @@ async def run(args: argparse.Namespace) -> int:
     (output / "market_runtime_health.json").write_text(json.dumps({"status": "CAPTURED_IN_DOM", "dom_snapshot_directory": "dom_snapshots"}, indent=2), encoding="utf-8")
     (output / "home_runtime_health.json").write_text(json.dumps({"status": "CAPTURED_IN_DOM", "dom_snapshot_directory": "dom_snapshots"}, indent=2), encoding="utf-8")
     (output / "test_results.json").write_text(json.dumps({"visual_checks": len(checks), "status": final["publication_status"]}, indent=2), encoding="utf-8")
+    for check in checks:
+        if check.get("interaction_type") and check.get("elapsed_seconds") is not None:
+            timing.record("interaction-check", float(check["elapsed_seconds"]), stage="interaction",
+                          page=check.get("page"), ticker=check.get("ticker"), viewport=check.get("viewport"),
+                          interaction_type=check.get("interaction_type"))
+    (output / "qa_timing_report.json").write_text(json.dumps(timing.payload(crawler), indent=2), encoding="utf-8")
     candidate_manifest = Path(args.candidate_dir).resolve() / "publication_manifest.json"
     if candidate_manifest.exists():
         (output / "publication_manifest.json").write_bytes(candidate_manifest.read_bytes())
     for folder in (output / "screenshots" / "before", output / "screenshots" / "after", output / "screenshots" / "final"):
         folder.mkdir(parents=True, exist_ok=True)
+    # Compact canonical bundle layout; compatibility files above remain for
+    # existing report consumers during the migration.
+    for folder in (output / "final", output / "anomalies", output / "manifest",
+                   output / "dom", output / "findings", output / "timings"):
+        folder.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(output / "visual_manifest.json", output / "manifest" / "visual_manifest.json")
+    shutil.copy2(output / "visual_findings.json", output / "findings" / "visual_findings.json")
+    shutil.copy2(output / "qa_timing_report.json", output / "timings" / "qa_timing_report.json")
+    for dom_file in dom_dir.glob("*.json"):
+        shutil.copy2(dom_file, output / "dom" / dom_file.name)
     for item in manifest:
         relative = item.get("file_path")
         source = output / str(relative or "")
         if source.is_file():
             shutil.copy2(source, output / "screenshots" / "final" / source.name)
+            shutil.copy2(source, output / "final" / source.name)
     return 0 if final["publication_status"] == "PASS" else 2
 
 
@@ -623,7 +799,24 @@ def main() -> int:
     parser.add_argument("--candidate-dir", default="audit_results/candidate_artifacts")
     parser.add_argument("--candidate-run-id", default=None)
     parser.add_argument("--headed", action="store_true")
-    return asyncio.run(run(parser.parse_args()))
+    parser.add_argument("--mode", choices=QA_MODES, default="RELEASE_FULL")
+    parser.add_argument("--runtime-ceiling-seconds", type=float, default=5400.0)
+    args = parser.parse_args()
+    try:
+        return asyncio.run(run(args))
+    except Exception as exc:
+        # Even startup/auth/navigation failures must leave bounded, machine-
+        # readable timing evidence rather than an empty artifact directory.
+        output = Path(args.output).resolve()
+        output.mkdir(parents=True, exist_ok=True)
+        timing_path = output / "qa_timing_report.json"
+        if not timing_path.exists():
+            timing_path.write_text(json.dumps({
+                "version": VERSION, "mode": args.mode, "status": "FAILED",
+                "failure": type(exc).__name__, "runtime_ceiling_seconds": args.runtime_ceiling_seconds,
+                "stages": {}, "retry_counts": {}, "timeouts": [],
+            }, indent=2) + "\n", encoding="utf-8")
+        raise
 
 
 if __name__ == "__main__":
