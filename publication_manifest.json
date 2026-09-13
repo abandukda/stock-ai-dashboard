@@ -122,7 +122,7 @@
       "WAIT_FOR_ENTRY": 11
     },
     "unrevalidated_buy_now_count": 0,
-    "artifact_link": "https://github.com/abandukda/stock-ai-dashboard/actions/runs/34664149923",
+    "artifact_link": "https://github.com/abandukda/stock-ai-dashboard/actions/runs/34726589252",
     "provider_calls": 15252,
     "calls_avoided": 30,
     "discovery_certification_status": "PASS",
@@ -241,9 +241,15 @@
         "recent_analyst_actions_pct": 32.67
       }
     },
-    "screenshot_count": 116,
+    "screenshot_count": 140,
     "visual_failure_count": 0,
-    "report_digest": "b9b6dba36290ddfcb906c243afa2bd86a5fae4942278dd93d8da9e1010749805"
+    "visual_status": "PASS",
+    "auto_repairs_attempted": 0,
+    "auto_repairs_successful": 0,
+    "unresolved_findings": [],
+    "last_successful_visual_certification": "2026-09-13T00:20:07.889804+00:00",
+    "visually_tested_candidate_sha": "d8df730fd18e1d908a06cb81647314e026f7d090",
+    "report_digest": "c7db52244752d36576211b40011b2e08e3054d3a7730ddaaa6e61c3b561141c3"
   },
-  "certification_report": "audit_results/full_qa/34664149923/ATLAS_MASTER_QA_20260912_overnight-20260912T011214Z.json"
+  "certification_report": "audit_results/full_qa/34726589252/ATLAS_MASTER_QA_20260912_overnight-20260912T011214Z.json"
 }
