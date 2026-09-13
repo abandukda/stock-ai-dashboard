@@ -25,8 +25,8 @@ from agents.visual_qa_certification_v2 import (
 
 VERSION = "ATLAS_FULL_QA_VISUAL_V2"
 QA_MODES = ("RELEASE_FULL", "FAST_PREVIEW")
-OPERATION_TIMEOUTS = {"authentication": 60.0, "navigation": 30.0, "page_render": 45.0,
-                      "research": 60.0, "interaction": 10.0, "screenshot": 20.0, "dom": 5.0}
+OPERATION_TIMEOUTS = {"authentication": 60.0, "navigation": 90.0, "page_render": 90.0,
+                      "research": 120.0, "interaction": 10.0, "screenshot": 20.0, "dom": 5.0}
 SCREENSHOT_BUDGETS = {
     "Home": {"desktop": 6, "mobile": 6}, "Research Any Ticker": {"desktop": 8, "mobile": 7},
     "Paid Detail": {"desktop": 12, "mobile": 12}, "Full Ranked Scan": {"desktop": 12, "mobile": 12},
@@ -59,25 +59,34 @@ class QARuntimeBudgetExceeded(RuntimeError):
 
 
 class TimingReport:
-    def __init__(self, *, mode: str, ceiling_seconds: float) -> None:
+    def __init__(self, *, mode: str, ceiling_seconds: float, checkpoint_path: Path | None = None) -> None:
         self.started = time.monotonic(); self.mode = mode; self.ceiling_seconds = ceiling_seconds
+        self.checkpoint_path = checkpoint_path
         self.operations: list[dict[str, Any]] = []; self.retry_counts: dict[str, int] = {}
         self.timeouts: list[dict[str, Any]] = []
         self.calls_avoided = {"screenshots": 0, "authentication": 0, "ticker_evaluations": 0}
 
     def record(self, operation: str, seconds: float, **dimensions: Any) -> None:
         self.operations.append({"operation": operation, "seconds": round(seconds, 3), **dimensions})
+        self.checkpoint()
 
     def retry(self, operation: str) -> None:
         self.retry_counts[operation] = self.retry_counts.get(operation, 0) + 1
+        self.checkpoint()
 
     def timeout(self, operation: str, seconds: float) -> None:
         self.timeouts.append({"operation": operation, "timeout_seconds": seconds})
+        self.checkpoint()
 
     def enforce(self, stage: str) -> None:
         elapsed = time.monotonic() - self.started
         if elapsed > self.ceiling_seconds:
             raise QARuntimeBudgetExceeded(f"QA_RUNTIME_BUDGET_EXCEEDED:{stage}:{elapsed:.1f}s")
+
+    def checkpoint(self) -> None:
+        if self.checkpoint_path:
+            self.checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+            self.checkpoint_path.write_text(json.dumps(self.payload(), indent=2) + "\n", encoding="utf-8")
 
     def payload(self, crawler: AtlasVisualCrawler | None = None) -> dict[str, Any]:
         def totals(key: str) -> dict[str, float]:
@@ -556,9 +565,11 @@ async def _layout(page) -> dict[str, Any]:
 async def run(args: argparse.Namespace) -> int:
     started = time.monotonic()
     mode = args.mode
-    timing = TimingReport(mode=mode, ceiling_seconds=float(args.runtime_ceiling_seconds))
     root, output = Path(args.root).resolve(), Path(args.output).resolve()
     output.mkdir(parents=True, exist_ok=True)
+    timing = TimingReport(mode=mode, ceiling_seconds=float(args.runtime_ceiling_seconds),
+                          checkpoint_path=output / "qa_timing_report.json")
+    timing.checkpoint()
     exact_mode = os.environ.get("ATLAS_EXACT_CANDIDATE_QA", "").lower() == "true"
     target_ok, target_failure = validate_runtime_target(args.url, exact_candidate_mode=exact_mode)
     if not target_ok:

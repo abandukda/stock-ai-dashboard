@@ -3,7 +3,7 @@ import ast
 import json
 
 from agents.full_qa_visual_certification import (
-    QA_MODES, SCREENSHOT_BUDGETS, TimingReport, bounded_operation,
+    OPERATION_TIMEOUTS, QA_MODES, SCREENSHOT_BUDGETS, TimingReport, bounded_operation,
     certification_tickers, customer_action_matches, expected_customer_action,
     interaction_manifest_fields, required_expandable, visual_completion_contract,
 )
@@ -154,6 +154,16 @@ def test_modes_budgets_and_timing_report_contract():
     assert payload["browser_navigation_count"] == 1
     assert payload["stages"]["structural"] == .2
     assert "longest_operations" in payload
+    assert OPERATION_TIMEOUTS["navigation"] == 90.0
+
+
+def test_timing_checkpoint_survives_mid_run_failure(tmp_path):
+    path = tmp_path / "qa_timing_report.json"
+    report = TimingReport(mode="RELEASE_FULL", ceiling_seconds=5400, checkpoint_path=path)
+    report.record("navigation", 53.0, stage="structural", page="Full Ranked Scan")
+    payload = json.loads(path.read_text())
+    assert payload["per_page"]["Full Ranked Scan"] == 53.0
+    assert payload["browser_navigation_count"] == 1
 
 
 def test_bounded_operation_caps_retry_and_records_timeout():
