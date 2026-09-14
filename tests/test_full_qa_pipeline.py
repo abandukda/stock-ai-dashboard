@@ -4,7 +4,7 @@ import pytest
 from pathlib import Path
 
 from services.full_qa_pipeline import (
-    FAST_PREVIEW, RELEASE_FULL, TimingReport, validate_tier,
+    FAST_PREVIEW, RELEASE_FULL, RELEASE_SMOKE, TimingReport, validate_tier,
     visual_completion_contract, write_early_blocker_bundle,
 )
 
@@ -20,8 +20,11 @@ def _interaction(**updates):
 
 
 def test_fast_preview_can_never_promote():
-    with pytest.raises(ValueError, match="FAST_PREVIEW_CANNOT_PROMOTE"):
+    with pytest.raises(ValueError, match="EXHAUSTIVE_VISUAL_CERTIFICATION_REQUIRED_FOR_PROMOTION"):
         validate_tier(FAST_PREVIEW, promotion_requested=True)
+    assert validate_tier(RELEASE_SMOKE, promotion_requested=False) == RELEASE_SMOKE
+    with pytest.raises(ValueError, match="EXHAUSTIVE_VISUAL_CERTIFICATION_REQUIRED_FOR_PROMOTION"):
+        validate_tier(RELEASE_SMOKE, promotion_requested=True)
     assert validate_tier(RELEASE_FULL, promotion_requested=True) == RELEASE_FULL
 
 
@@ -64,7 +67,7 @@ def test_workflow_stops_before_browser_on_deterministic_failure():
 def test_workflow_release_tier_is_mandatory_for_automatic_promotion():
     workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/atlas_full_qa_certification.yml").read_text()
     assert 'qa_tier="RELEASE_FULL"' in workflow
-    assert "FAST_PREVIEW_CANNOT_PROMOTE" in (Path(__file__).resolve().parents[1] / "services/full_qa_pipeline.py").read_text()
+    assert "EXHAUSTIVE_VISUAL_CERTIFICATION_REQUIRED_FOR_PROMOTION" in (Path(__file__).resolve().parents[1] / "services/full_qa_pipeline.py").read_text()
 
 
 def test_developer_center_exposes_latest_qa_timing_summary():

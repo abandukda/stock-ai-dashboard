@@ -52,6 +52,50 @@ def classify(certification: dict) -> tuple[str, str, str]:
     return "unknown", "unknown", "UNKNOWN"
 
 
+def valuation_attrition_causes(evaluation: dict, certification: dict) -> list[str]:
+    """Explain an existing valuation blocker from its certified evidence only."""
+    if "BUY_NOW_VALUATION_EVIDENCE_INSUFFICIENT" not in (certification.get("blockers") or []):
+        return []
+    valuation = evaluation.get("atlas_valuation") or {}
+    professional = valuation.get("professional_valuation_v2") or {}
+    validation = evaluation.get("valuation_validation") or valuation.get("valuation_validation") or {}
+    strength = validation.get("valuation_evidence_strength") or professional.get("valuation_evidence_strength") or {}
+    causes: list[str] = []
+    method_count = strength.get("published_method_count")
+    if method_count is not None and int(method_count) == 0:
+        causes.append("INSUFFICIENT_CERTIFIED_METHODS")
+    peer_checks = list(strength.get("peer_certifications") or ())
+    if strength.get("peer_certification"):
+        peer_checks.append(strength["peer_certification"])
+    if any(item.get("status") not in {"CERTIFIED", "NOT_REQUIRED"} for item in peer_checks if isinstance(item, dict)):
+        causes.append("PEER_EVIDENCE_INCOMPLETE")
+    requirements = strength.get("requirements") or {}
+    if requirements.get("scenario_evidence_published") is False or professional.get("scenario_status") not in {None, "PUBLISHED"}:
+        causes.append("SCENARIO_EVIDENCE_INCOMPLETE")
+    if not (evaluation.get("evaluated_at") or professional.get("evidence_as_of") or valuation.get("evidence_as_of")):
+        causes.append("VALUATION_TIMESTAMP_MISSING")
+    bridge = strength.get("method_bridge_certification") or {}
+    bridge_inputs = [
+        (name, detail) for method in (bridge.get("methods") or {}).values()
+        for name, detail in (method.get("inputs") or {}).items() if isinstance(detail, dict) and not detail.get("certified")
+    ]
+    if any(name in {"forecast_fcff", "forward_eps", "forward_ebitda", "normalized_fcf"} for name, _ in bridge_inputs):
+        causes.append("ACCOUNTING_BRIDGE_INCOMPLETE")
+    if any(name == "diluted_shares" for name, _ in bridge_inputs):
+        causes.append("SHARE_BRIDGE_INCOMPLETE")
+    if any(name in {"total_debt", "cash_and_equivalents", "net_debt"} for name, _ in bridge_inputs):
+        causes.append("EV_EQUITY_BRIDGE_INCOMPLETE")
+    blockers = set(certification.get("blockers") or ())
+    if blockers.intersection({"CUSTOMER_PROJECTION_RECONCILIATION_FAILED", "EVALUATION_SNAPSHOT_MISMATCH", "DECISION_DIGEST_MISMATCH"}):
+        causes.append("SNAPSHOT_MISMATCH")
+    reasons = set(valuation.get("reason_codes") or valuation.get("reasons") or ())
+    if any("UNAVAILABLE" in str(reason) or "MISSING" in str(reason) for reason in reasons):
+        causes.append("PROVIDER_EVIDENCE_UNAVAILABLE")
+    if bridge_inputs and all(detail.get("value_present") for _, detail in bridge_inputs):
+        causes.append("IMPLEMENTATION_OR_MAPPING_DEFECT")
+    return list(dict.fromkeys(causes or ["PROFESSIONAL_VALUATION_SUPPORT_INCOMPLETE"]))
+
+
 def generate(pool_path: Path, provenance_path: Path, expected: int) -> dict:
     pool = json.loads(pool_path.read_text(encoding="utf-8"))
     provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
@@ -63,6 +107,7 @@ def generate(pool_path: Path, provenance_path: Path, expected: int) -> dict:
         certification = row.get("publication_certification") or evaluation.get("publication_certification") or {}
         domain, field, classification = classify(certification)
         blockers = certification.get("blockers") or []
+        root_causes = valuation_attrition_causes(evaluation, certification)
         relevant = {
             "certification": certification,
             "digests": evaluation.get("digests"),
@@ -79,6 +124,7 @@ def generate(pool_path: Path, provenance_path: Path, expected: int) -> dict:
             "blocking_field": None if not blockers else field,
             "reason": "; ".join(blockers) if blockers else "Publication allowed with governed high valuation uncertainty.",
             "blocker_codes": blockers,
+            "valuation_root_causes": root_causes,
             "evidence_ids": collect_evidence_ids(relevant),
             "classification": classification,
         })
@@ -86,6 +132,7 @@ def generate(pool_path: Path, provenance_path: Path, expected: int) -> dict:
     categories = Counter(item["classification"] for item in candidates)
     statuses = Counter(item["publication_status"] for item in candidates)
     blocker_counts = Counter(code for item in candidates for code in item["blocker_codes"])
+    root_cause_counts = Counter(code for item in candidates for code in item["valuation_root_causes"])
     observed = len(candidates)
     return {
         "schema_version": "ATLAS_BUY_NOW_CERTIFICATION_ATTRITION_V1",
@@ -114,6 +161,7 @@ def generate(pool_path: Path, provenance_path: Path, expected: int) -> dict:
             "publication_status_counts": dict(sorted(statuses.items())),
             "classification_counts": dict(sorted(categories.items())),
             "blocker_code_counts": dict(sorted(blocker_counts.items())),
+            "valuation_root_cause_counts": dict(sorted(root_cause_counts.items())),
             "publication_rate": round(statuses.get("PUBLISHED", 0) / observed, 4) if observed else None,
         },
         "candidates": candidates,

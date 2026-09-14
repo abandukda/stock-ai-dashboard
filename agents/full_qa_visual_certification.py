@@ -24,7 +24,7 @@ from agents.visual_qa_certification_v2 import (
 
 
 VERSION = "ATLAS_FULL_QA_VISUAL_V2"
-QA_MODES = ("RELEASE_FULL", "FAST_PREVIEW")
+QA_MODES = ("RELEASE_FULL", "RELEASE_SMOKE", "FAST_PREVIEW")
 OPERATION_TIMEOUTS = {"authentication": 60.0, "navigation": 90.0, "page_render": 90.0,
                       "research": 120.0, "interaction": 10.0, "screenshot": 20.0, "dom": 5.0}
 SCREENSHOT_BUDGETS = {
@@ -228,6 +228,39 @@ async def _expanded_content(control) -> str:
     }""") or "")
 
 
+async def _wait_for_disclosure_settled(
+    page, *, label: str, ordinal: int, expected_open: bool, timeout_ms: int = 1500,
+) -> dict[str, Any]:
+    """Wait for the logical disclosure to reach state and stop mutating."""
+    return await page.evaluate("""async ({label,ordinal,expectedOpen,timeoutMs}) => {
+      const labelOf=node => (node?.innerText || node?.textContent || '')
+        .replace(/keyboard_arrow_(?:right|down)/gi,' ').replace(/\\s+/g,' ').trim();
+      const resolve=() => [...document.querySelectorAll('details > summary')]
+        .filter(node => labelOf(node)===label)[ordinal] || null;
+      const started=performance.now();
+      let node=resolve(), host=node?.closest?.('details') || null, mutations=0;
+      let lastMutation=performance.now();
+      const observer=host ? new MutationObserver(rows => {
+        mutations+=rows.length; lastMutation=performance.now();
+      }) : null;
+      observer?.observe(host,{subtree:true,childList:true,attributes:true,characterData:true});
+      try {
+        while (performance.now()-started < timeoutMs) {
+          node=resolve(); host=node?.closest?.('details') || null;
+          const stateMatches=Boolean(host) && Boolean(host.open)===Boolean(expectedOpen);
+          if (node?.isConnected && stateMatches && performance.now()-lastMutation >= 150) {
+            return {settled:true,open:Boolean(host.open),connected:true,mutations,
+              elapsed_ms:Math.round(performance.now()-started),resolved_identity:`${label}#${ordinal}`};
+          }
+          await new Promise(resolveDelay => setTimeout(resolveDelay,25));
+        }
+        node=resolve(); host=node?.closest?.('details') || null;
+        return {settled:false,open:Boolean(host?.open),connected:Boolean(node?.isConnected),mutations,
+          elapsed_ms:Math.round(performance.now()-started),resolved_identity:`${label}#${ordinal}`};
+      } finally { observer?.disconnect(); }
+    }""", {"label": label, "ordinal": ordinal, "expectedOpen": expected_open, "timeoutMs": timeout_ms})
+
+
 def _annotate_latest_shot(crawler: AtlasVisualCrawler, path: str, fields: dict[str, Any]) -> None:
     for item in reversed(crawler.manifest):
         if item.get("path") == path:
@@ -237,12 +270,16 @@ def _annotate_latest_shot(crawler: AtlasVisualCrawler, path: str, fields: dict[s
 
 async def certify_expandable_interactions(
     page, crawler: AtlasVisualCrawler, *, page_name: str, viewport: str, ticker: str = "",
-    certified_facts: dict[str, Any] | None = None,
+    certified_facts: dict[str, Any] | None = None, qa_mode: str = "RELEASE_FULL",
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Certify collapsed, individual, nested, all-open, and re-collapsed states."""
     checks: list[dict[str, Any]] = []
     defects: list[dict[str, Any]] = []
     inventory = await _expandable_inventory(page)
+    if qa_mode == "RELEASE_SMOKE":
+        critical = re.compile(r"Professional Detail|Wall Street|Valuation|Investment Case|decision evidence", re.I)
+        selected = [item for item in inventory if critical.search(str(item.get("label") or ""))]
+        inventory = (selected or inventory)[:3]
     default_shot = await crawler._shot(
         page, page_name=page_name, interaction="expandables", state="default-collapsed",
         viewport=viewport, ticker=ticker,
@@ -254,13 +291,111 @@ async def certify_expandable_interactions(
         observed_content=", ".join(item["label"] for item in inventory),
     ))
 
+    if qa_mode == "RELEASE_SMOKE":
+        # Tier 3 proves interaction and visual content independently. Screenshot
+        # capture is terminal for the visual check so it cannot perturb the
+        # open/close state machine being measured by the interaction check.
+        for item in inventory:
+            label, ordinal = str(item["label"]), int(item["ordinal"])
+            required = required_expandable(page_name, label)
+            control = await _expandable_locator(page, label, ordinal)
+            if await _expanded_state(control):
+                await control.press("Enter", timeout=5000)
+                await _wait_for_disclosure_settled(
+                    page, label=label, ordinal=ordinal, expected_open=False,
+                )
+            opened = collapsed = False
+            content = ""
+            open_state: dict[str, Any] = {}
+            close_state: dict[str, Any] = {}
+            try:
+                await control.click(timeout=5000)
+                open_state = await _wait_for_disclosure_settled(
+                    page, label=label, ordinal=ordinal, expected_open=True,
+                )
+                control = await _expandable_locator(page, label, ordinal)
+                opened = bool(open_state.get("settled") and await _expanded_state(control))
+                content = await _expanded_content(control) if opened else ""
+                layout = await _layout(page)
+                malformed = bool(re.search(r"(?:\bNone\b|\bnull\b|\bnan\b|Traceback|KeyError|TypeError)", content, re.I))
+                await control.click(timeout=5000)
+                close_state = await _wait_for_disclosure_settled(
+                    page, label=label, ordinal=ordinal, expected_open=False,
+                )
+                collapsed = bool(close_state.get("settled") and not close_state.get("open"))
+                passed = bool(opened and collapsed and len(content) > len(label) and not layout["horizontal_overflow"] and not malformed)
+            except Exception as exc:
+                passed = False
+                layout = {"horizontal_overflow": False}
+                close_state = {"error": type(exc).__name__}
+            interaction_check = {
+                "page": page_name, "viewport": viewport, "ticker": ticker,
+                "interaction_type": "EXPANDER", "control_label": label, "required": required,
+                "initial_state": "COLLAPSED", "final_state": "COLLAPSED" if collapsed else "UNKNOWN",
+                "click_success": opened, "collapse_success": collapsed,
+                "expected_content": "Trusted open/close reaches settled states without screenshot interleaving",
+                "observed_content": content[:500], "status": "PASS" if passed else "FAIL",
+                "screenshot": "", "open_settlement": open_state, "close_settlement": close_state,
+            }
+            checks.append(interaction_check)
+            if required and not passed:
+                defects.append({"severity": "P1", "page": page_name, "viewport": viewport,
+                                "observed": json.dumps(interaction_check, sort_keys=True), "ticker_context": ticker})
+
+            visual_pass = False
+            visual_state: dict[str, Any] = {}
+            shot = ""
+            try:
+                control = await _expandable_locator(page, label, ordinal)
+                await control.click(timeout=5000)
+                visual_state = await _wait_for_disclosure_settled(
+                    page, label=label, ordinal=ordinal, expected_open=True,
+                )
+                control = await _expandable_locator(page, label, ordinal)
+                visual_content = await _expanded_content(control) if visual_state.get("settled") else ""
+                visual_layout = await _layout(page)
+                visual_pass = bool(
+                    visual_state.get("settled") and len(visual_content) > len(label)
+                    and not visual_layout["horizontal_overflow"] and not await _has_rendered_exception(page)
+                )
+                shot = await crawler._shot(
+                    page, page_name=page_name, interaction=f"expand-{label}",
+                    state="expanded-terminal", viewport=viewport, ticker=ticker,
+                )
+            except Exception as exc:
+                visual_content = ""
+                visual_layout = {"horizontal_overflow": False}
+                visual_state = {"error": type(exc).__name__}
+            visual_check = {
+                "page": page_name, "viewport": viewport, "ticker": ticker,
+                "interaction_type": "EXPANDER_VISUAL", "control_label": label, "required": required,
+                "initial_state": "COLLAPSED", "final_state": "EXPANDED",
+                "click_success": bool(visual_state.get("settled")), "collapse_success": None,
+                "expected_content": "Expanded content is readable and screenshot capture is terminal",
+                "observed_content": visual_content[:500], "status": "PASS" if visual_pass else "FAIL",
+                "screenshot": shot, "open_settlement": visual_state, "layout": visual_layout,
+            }
+            checks.append(visual_check)
+            if required and not visual_pass:
+                defects.append({"severity": "P1", "page": page_name, "viewport": viewport,
+                                "observed": json.dumps(visual_check, sort_keys=True), "ticker_context": ticker})
+            # Cleanup is outside either measured check; keyboard activation is
+            # reliable even when capture has altered pointer hit-testing.
+            control = await _expandable_locator(page, label, ordinal)
+            if await _expanded_state(control):
+                await control.press("Enter", timeout=5000)
+                await _wait_for_disclosure_settled(
+                    page, label=label, ordinal=ordinal, expected_open=False,
+                )
+        return checks, defects
+
     # Repeated card disclosures (Home and Full Ranked Scan) are native details
     # controls whose content is already rendered in the DOM.  Driving each one
     # through Playwright's actionability/scroll loop causes Streamlit to
     # repeatedly reflow the entire page (150 times on Full Ranked).  Exercise
     # every control with a real DOM click, verify open/content/close in one
     # browser transaction, and retain representative screenshots below.
-    if page_name in {"Home", "Full Ranked Scan", "Developer Center"} and len(inventory) >= 5:
+    if qa_mode == "RELEASE_FULL" and page_name in {"Home", "Full Ranked Scan", "Developer Center"} and len(inventory) >= 5:
         roundtrips = await page.evaluate("""async () => {
           const visible = e => {
             const s=getComputedStyle(e), r=e.getBoundingClientRect();
@@ -793,7 +928,7 @@ async def run(args: argparse.Namespace) -> int:
                         # spending minutes traversing its disclosure controls.
                         continue
                     interaction_checks, interaction_defects = await certify_expandable_interactions(
-                        page, crawler, page_name=name, viewport=viewport,
+                        page, crawler, page_name=name, viewport=viewport, qa_mode=mode,
                     )
                     checks.extend(interaction_checks)
                     defects.extend(interaction_defects)
@@ -805,7 +940,7 @@ async def run(args: argparse.Namespace) -> int:
                     }, indent=2), encoding="utf-8")
             await page.set_viewport_size(DESKTOP)
             visual_tickers = certification_tickers(root)
-            if mode == "FAST_PREVIEW":
+            if mode in {"FAST_PREVIEW", "RELEASE_SMOKE"}:
                 visual_tickers = visual_tickers[:2]
             for index, ticker in enumerate(visual_tickers):
                 # One key ticker receives the complete paid evidence-drawer/tab
@@ -826,7 +961,7 @@ async def run(args: argparse.Namespace) -> int:
                 if index == 0:
                     interaction_checks, interaction_defects = await certify_expandable_interactions(
                         page, crawler, page_name="Paid Detail", viewport="desktop", ticker=ticker,
-                        certified_facts=expected_facts(by_ticker[ticker]),
+                        certified_facts=expected_facts(by_ticker[ticker]), qa_mode=mode,
                     )
                     checks.extend(interaction_checks)
                     defects.extend(interaction_defects)

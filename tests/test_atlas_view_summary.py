@@ -66,6 +66,64 @@ def test_missing_llm_uses_deterministic_ticker_specific_fallback():
     assert "WAIT FOR CONFIRMATION" in result["text"]
 
 
+def test_invalid_duplicated_generated_summary_falls_back_once_for_home_and_research():
+    from ui.home_guidance_vnext import _atlas_summary
+
+    payload = build_summary_payload(_card())
+    invalid = (
+        "NVIDIA may improve while DATA_LIMITED. NVIDIA may improve while DATA_LIMITED. "
+        "The main risk is confirmation. The main risk is confirmation."
+    )
+    result = generate_summaries([payload], llm=lambda _: [invalid])[0]
+    fallback = result["text"]
+
+    assert result["accepted"] is False
+    assert result["source"] == "DETERMINISTIC_FALLBACK"
+    assert set(result["validation"]["violations"]) >= {"DUPLICATE_SENTENCE", "INTERNAL_STATUS_CODE"}
+    assert fallback.strip()
+    assert not {"DUPLICATE_SENTENCE", "DUPLICATE_CLAUSE", "INTERNAL_STATUS_CODE"}.intersection(
+        thesis_style_violations(fallback)
+    )
+    assert validate_summary(fallback, payload)["valid"] is True
+
+    shared_snapshot = {"customer_plain_english_summary": result}
+    home_text = _atlas_summary(shared_snapshot)
+    research_text = shared_snapshot["customer_plain_english_summary"]["text"]
+    assert home_text == research_text == fallback
+
+
+def test_fallback_revalidation_is_grounded_across_buy_build_and_incomplete_states():
+    from ui.home_guidance_vnext import _atlas_summary
+
+    cases = (
+        ("BUY_NOW", "BUY NOW", "right now"),
+        ("ACCUMULATE", "BUILD A POSITION", "adding gradually"),
+        ("DATA_LIMITED", "WATCH", "not enough evidence to buy yet"),
+    )
+    invalid = (
+        "NVIDIA reports strong earnings according to Wall Street while DATA_LIMITED. "
+        "NVIDIA reports strong earnings according to Wall Street while DATA_LIMITED."
+    )
+    for guidance, customer_label, expected_action_copy in cases:
+        card = _card()
+        card["guidance"] = guidance
+        card["customer_action"] = {"label": customer_label}
+        payload = build_summary_payload(card)
+        result = generate_summaries([payload], llm=lambda _: [invalid])[0]
+        fallback = result["text"]
+
+        assert result["source"] == "DETERMINISTIC_FALLBACK"
+        assert result["accepted"] is False
+        assert fallback and expected_action_copy in fallback
+        assert "Wall Street" not in fallback and "earnings" not in fallback.lower()
+        assert not {"DUPLICATE_SENTENCE", "DUPLICATE_CLAUSE", "INTERNAL_STATUS_CODE"}.intersection(
+            thesis_style_violations(fallback)
+        )
+        assert validate_summary(fallback, payload)["valid"] is True
+        shared_snapshot = {"customer_plain_english_summary": result}
+        assert _atlas_summary(shared_snapshot) == shared_snapshot["customer_plain_english_summary"]["text"]
+
+
 def test_dossier_carries_approved_company_earnings_valuation_and_risk_lanes():
     card = _card()
     card.update({

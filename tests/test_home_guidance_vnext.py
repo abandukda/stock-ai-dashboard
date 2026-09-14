@@ -673,6 +673,25 @@ def test_summary_card_omits_unavailable_secondary_metrics_until_full_evidence():
     assert "_paid_client_full_evidence(card)" in full_body
 
 
+def test_home_summary_uses_shared_duplicate_guard():
+    from ui.home_guidance_vnext import _atlas_summary
+    card = {"customer_plain_english_summary": {"text": "The thesis is improving. the thesis is improving! Main risk is execution. The main risk is execution."}}
+    assert _atlas_summary(card) == "The thesis is improving. Main risk is execution."
+
+
+def test_single_method_concentration_is_prominent_without_changing_decision():
+    from ui.home_guidance_vnext import _valuation_concentration_notice
+    card = {
+        "guidance": "BUY_NOW",
+        "certified_summary_facts": {"single_method_concentration": True},
+        "evaluation": {"atlas_valuation": {"professional_valuation_v2": {"valuation_confidence": 68.0}}},
+    }
+    rendered = _valuation_concentration_notice(card)
+    assert "Valuation confidence: 68.0%" in rendered
+    assert "one certified professional valuation method" in rendered
+    assert card["guidance"] == "BUY_NOW"
+
+
 def test_data_limited_summary_is_bounded_and_reason_grounded():
     from ui.home_guidance_vnext import _atlas_summary, _quick_needs
 
@@ -902,7 +921,10 @@ def test_mobile_customer_hierarchy_suppresses_diagnostic_matrix_and_evidence_sta
     assert card_body.index("_action_card(card)") < card_body.index("ATLAS in Plain English")
     assert "home-evidence-status" not in card_body
     assert "_key_numbers(card)" not in card_body
-    assert card_body.index("Price Chart") < card_body.index("ATLAS in Plain English")
+    assert card_body.index("Price Outlook") < card_body.index("ATLAS in Plain English")
+    assert card_body.index("ATLAS in Plain English") < card_body.index("Price Chart")
+    assert card_body.index("Why ATLAS Likes It") < card_body.index("_decisive_reason(card)")
+    assert card_body.index("_decisive_reason(card)") < card_body.index("Main Risk") < card_body.index("Decision Evidence")
 
 
 def test_premium_decision_card_uses_governed_action_chart_and_separate_target_authorities():

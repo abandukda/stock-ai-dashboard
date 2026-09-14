@@ -146,7 +146,7 @@ def test_completion_contract_blocks_auth_finished_interaction_and_mobile_failure
 
 
 def test_modes_budgets_and_timing_report_contract():
-    assert QA_MODES == ("RELEASE_FULL", "FAST_PREVIEW")
+    assert QA_MODES == ("RELEASE_FULL", "RELEASE_SMOKE", "FAST_PREVIEW")
     assert SCREENSHOT_BUDGETS["Home"] == {"desktop": 6, "mobile": 6}
     report = TimingReport(mode="RELEASE_FULL", ceiling_seconds=5400)
     report.record("navigation", .2, stage="structural", page="Home", viewport="desktop")
@@ -155,6 +155,35 @@ def test_modes_budgets_and_timing_report_contract():
     assert payload["stages"]["structural"] == .2
     assert "longest_operations" in payload
     assert OPERATION_TIMEOUTS["navigation"] == 90.0
+
+
+def test_release_smoke_separates_interaction_roundtrip_from_terminal_visual_capture():
+    source = Path("agents/full_qa_visual_certification.py").read_text()
+    smoke = source[source.index('if qa_mode == "RELEASE_SMOKE":'):source.index('# Repeated card disclosures')]
+    assert 'interaction_type": "EXPANDER"' in smoke
+    assert 'expected_open=False' in smoke
+    assert 'interaction_type": "EXPANDER_VISUAL"' in smoke
+    assert 'state="expanded-terminal"' in smoke
+    assert 'collapse_success": None' in smoke
+    assert smoke.index('expected_open=False') < smoke.index('state="expanded-terminal"')
+    assert 'screenshot interleaving' in smoke
+
+
+def test_release_smoke_waits_for_explicit_bounded_disclosure_settlement():
+    source = Path("agents/full_qa_visual_certification.py").read_text()
+    assert "async def _wait_for_disclosure_settled" in source
+    assert "timeout_ms: int = 1500" in source
+    assert "MutationObserver" in source
+    assert "performance.now()-lastMutation >= 150" in source
+    assert "resolved_identity:`${label}#${ordinal}`" in source
+
+
+def test_release_full_retains_fail_closed_screenshot_interleaved_roundtrip():
+    source = Path("agents/full_qa_visual_certification.py").read_text()
+    full = source[source.index('# Repeated card disclosures'):source.index('# Normalize initially-open controls')]
+    assert 'if qa_mode == "RELEASE_FULL"' in full
+    assert 'state="all-major-expanded"' in full
+    assert 'passed = bool(row.get("opened") and row.get("collapsed")' in full
 
 
 def test_timing_checkpoint_survives_mid_run_failure(tmp_path):

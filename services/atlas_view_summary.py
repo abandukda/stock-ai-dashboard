@@ -36,6 +36,50 @@ ACTION_101 = {
     "AVOID": "ATLAS currently sees more risk than opportunity.",
 }
 
+_INTERNAL_CUSTOMER_CODES = re.compile(
+    r"\b(?:BUY_NOW_VALUATION_EVIDENCE_INSUFFICIENT|REVIEW_REQUIRED|DATA_LIMITED|"
+    r"CERTIFIED_HIGH_UNCERTAINTY|INCOMPLETE_EVIDENCE|[A-Z][A-Z0-9]+(?:_[A-Z0-9]+){2,})\b"
+)
+
+
+def _normalized_customer_fragment(value: str) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", " ", str(value or "").lower()).strip()
+    return re.sub(r"^(?:the|a|an)\s+", "", normalized)
+
+
+def _materially_same_fragment(left: str, right: str) -> bool:
+    if left == right:
+        return True
+    if min(len(left.split()), len(right.split())) < 6:
+        return False
+    return SequenceMatcher(None, left, right).ratio() >= .94
+
+
+def deduplicate_customer_prose(text: str) -> str:
+    """Remove exact sentence/clause composition artifacts without adding facts."""
+    copy = " ".join(str(text or "").split())
+    output: list[str] = []
+    seen_sentences: set[str] = set()
+    seen_clauses: set[str] = set()
+    for sentence in re.split(r"(?<=[.!?])\s+", copy):
+        sentence = sentence.strip()
+        identity = _normalized_customer_fragment(sentence)
+        if not identity or any(_materially_same_fragment(identity, prior) for prior in seen_sentences):
+            continue
+        clauses: list[str] = []
+        for clause in re.split(r"(?<=[,;:])\s+", sentence):
+            clause_identity = _normalized_customer_fragment(clause.rstrip(",;:"))
+            if clause_identity and any(_materially_same_fragment(clause_identity, prior) for prior in seen_clauses):
+                continue
+            if clause_identity:
+                seen_clauses.add(clause_identity)
+            clauses.append(clause)
+        rebuilt = " ".join(clauses).strip()
+        if rebuilt:
+            output.append(rebuilt)
+            seen_sentences.add(identity)
+    return " ".join(output)
+
 
 def _certified_value(certified: Mapping[str, Any], name: str) -> Any:
     field = dict(dict(certified.get("fields") or {}).get(name) or {})
@@ -222,6 +266,15 @@ def thesis_style_violations(text: str) -> tuple[str, ...]:
     """Client-language checks only; this function has no investment authority."""
     copy=" ".join(str(text or "").split()); issues=[]
     sentences=[part for part in re.split(r"(?<=[.!?])\s+",copy) if part]
+    normalized_sentences = [_normalized_customer_fragment(sentence) for sentence in sentences]
+    if any(_materially_same_fragment(value, prior) for index, value in enumerate(normalized_sentences) for prior in normalized_sentences[:index]): issues.append("DUPLICATE_SENTENCE")
+    clauses = [
+        _normalized_customer_fragment(clause.rstrip(",;:"))
+        for sentence in sentences for clause in re.split(r"(?<=[,;:])\s+", sentence)
+        if _normalized_customer_fragment(clause.rstrip(",;:"))
+    ]
+    if any(_materially_same_fragment(value, prior) for index, value in enumerate(clauses) for prior in clauses[:index]): issues.append("DUPLICATE_CLAUSE")
+    if _INTERNAL_CUSTOMER_CODES.search(copy): issues.append("INTERNAL_STATUS_CODE")
     if any(len(sentence.split())>65 for sentence in sentences): issues.append("OVERLY_LONG_SENTENCE")
     if len(re.findall(r"\b(?:score|confidence|coverage|pillar)\b",copy,re.I))>=4: issues.append("EXCESSIVE_SCORE_LISTING")
     if len(re.findall(r"\bATLAS sees\b",copy,re.I))>=2: issues.append("REPEATED_ATLAS_SEES")
@@ -480,7 +533,7 @@ def plain_english_summary(payload: Mapping[str, Any]) -> str:
         risk = _company_risk(facts)
         trend_risk = " and deteriorating analyst actions" if str(street.get("recent_trend") or "").upper() == "DETERIORATING" else ""
         closing = f"ATLAS rates the stock {action_label} because {action_reason.rstrip('.')}. The main certified risk is {risk}{trend_risk}."
-        return " ".join((opening, valuation, street_copy, closing))
+        return deduplicate_customer_prose(" ".join((opening, valuation, street_copy, closing)))
     company = str(payload.get("company") or payload.get("ticker") or "This company")
     company_evidence = dict(payload.get("company_evidence") or {})
     fundamentals = dict(payload.get("fundamentals") or {})
@@ -503,7 +556,7 @@ def plain_english_summary(payload: Mapping[str, Any]) -> str:
                 supports.append("the business generated cash after operating and investment spending")
         except (TypeError, ValueError):
             pass
-    outlook = "The investment case depends on " + (" and ".join(supports[:2]) if supports else "the available company evidence producing stronger future earnings") + ", which could increase the company's value."
+    outlook = "The investment case depends on " + (" and ".join(supports[:2]) if supports else "the market setup developing into durable operating improvement") + ", which could increase the company's value."
     atlas = dict(payload.get("atlas_valuation") or {})
     if atlas.get("status") == "PUBLISHED" and atlas.get("target") is not None and atlas.get("expected_return") is not None:
         upside = float(atlas["expected_return"])
@@ -529,7 +582,7 @@ def plain_english_summary(payload: Mapping[str, Any]) -> str:
         }.get(relation, "")
         street = street + "; " + relation_copy
     else:
-        street = "No verified Wall Street consensus is currently available; the ATLAS rating relies on its own certified evidence."
+        street = "No verified external valuation comparison is included for this snapshot."
     action = str(payload.get("customer_action") or payload.get("guidance") or "WATCH").replace("_", " ")
     if action in {"DATA LIMITED", "UNAVAILABLE"}: action = "WATCH"
     action_copy = ACTION_101.get(action, ACTION_101["WATCH"])
@@ -544,7 +597,7 @@ def plain_english_summary(payload: Mapping[str, Any]) -> str:
     industry_risk = "fertilizer demand and pricing could weaken profits" if "fertilizer" in industry else None
     risk_copy = str(risk).strip().rstrip(".") if risk else (industry_risk or ("trading activity is not yet supporting the move" if weak_volume else "the expected improvement may not arrive"))
     watch = "stronger trading activity and business progress" if weak_volume else "continued business progress"
-    return " ".join((opening, outlook, valuation, street, f"ATLAS rates the stock {action} because {action_reason}; the main risk is that {risk_copy}, so watch for {watch}."))
+    return deduplicate_customer_prose(" ".join((opening, outlook, valuation, street, f"ATLAS rates the stock {action} because {action_reason}; the main risk is that {risk_copy}, so watch for {watch}.")))
 
 
 def deterministic_summary(payload: Mapping[str, Any]) -> str:
@@ -847,8 +900,9 @@ def generate_summaries(
         candidate = str(generated[index]) if generated and index < len(generated) else ""
         validation = validate_summary(candidate, payload) if candidate else {"valid": False, "violations": ("LLM_UNAVAILABLE",)}
         accepted = bool(candidate and validation["valid"])
+        fallback = deduplicate_customer_prose(deterministic_summary(payload))
         results.append({
-            "version": SUMMARY_VERSION, "text": candidate if accepted else deterministic_summary(payload),
+            "version": SUMMARY_VERSION, "text": deduplicate_customer_prose(candidate) if accepted else fallback,
             "source": "LLM_VALIDATED" if accepted else "DETERMINISTIC_FALLBACK",
             "accepted": accepted, "validation": validation,
             "llm_configuration": configuration,
@@ -900,4 +954,4 @@ def summary_evidence_map(payload: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-__all__ = ["SUMMARY_VERSION", "ACTION_101", "PILLAR_101", "audit_summary_differentiation", "build_summary_payload", "deterministic_summary", "plain_english_summary", "summary_evidence_map", "generate_summaries", "llm_configuration_status", "thesis_style_violations", "validate_summary"]
+__all__ = ["SUMMARY_VERSION", "ACTION_101", "PILLAR_101", "audit_summary_differentiation", "build_summary_payload", "deduplicate_customer_prose", "deterministic_summary", "plain_english_summary", "summary_evidence_map", "generate_summaries", "llm_configuration_status", "thesis_style_violations", "validate_summary"]

@@ -435,7 +435,7 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
             f"{'Live' if market.get('fresh_current_price') is True else 'Last known'}"
         )
     customer_view = safe_mapping(report.get("customer_plain_english_summary"))
-    st.markdown("### ATLAS in Plain English")
+    st.markdown("### ATLAS View")
     st.write(_scalar_text(
         customer_view.get("text"),
         "ATLAS cannot produce a plain-English view until the required certified evidence is available.",
@@ -446,21 +446,12 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
             f"**ATLAS Rating:** {customer_action['stars']} {customer_action['label']}  "
             f"· **Actionability:** {_display_status(actionability)}"
         )
-    st.markdown(f"### {header.actionability_label}")
-    _block_marker("decision-why", ticker)
-    st.markdown("#### Why")
-    support = _clean_customer_prose(view["evidence"].support)
-    constraint = _clean_customer_prose(view["evidence"].contradiction_or_risk)
-    if constraint.lower().startswith("main risk is "):
-        constraint = constraint[13:].strip()
-    why = _clip_words(" ".join(filter(None, (support, f"Primary constraint: {constraint}" if constraint else ""))), 55)
-    st.write(why or "ATLAS does not have enough canonical evidence to publish a decision explanation.")
-
     guidance = safe_mapping(report.get("guidance_summary"))
     action = safe_mapping(guidance.get("action_now"))
     decision = _canonical_decision(report)
     availability = safe_mapping(decision.get("availability"))
-    st.markdown("#### What I Would Do")
+    st.markdown("#### Why Now")
+    st.caption(header.actionability_label)
     with st.container(key=f"vnext_decision_action_{ticker}"):
         if current_guidance:
             st.info(
@@ -488,8 +479,6 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
 
     _block_marker("decision-core-metrics", ticker)
     metric_values = []
-    if not is_missing_scalar(header.opportunity):
-        metric_values.append(("Opportunity", _scalar_text(header.opportunity)))
     confidence_display = CanonicalNumberFormatter.percent(header.confidence).display
     if confidence_display != "Unavailable":
         metric_values.append((_scalar_text(availability.get("confidence_label"), "Confidence"), confidence_display))
@@ -519,7 +508,7 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
             st.caption("No grounded supporting evidence is currently available.")
     with risk_col:
         _block_marker("what-stops-atlas", ticker)
-        st.markdown("#### What Stops ATLAS")
+        st.markdown("#### Main Risk")
         if risk_facts:
             for item in risk_facts[:3]:
                 st.write(f"- {_clip_words(item.get('risk'), 24)}")
@@ -547,7 +536,7 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
     )
     changes = safe_mapping(guidance.get("thesis_change_conditions"))
     _block_marker("what-changes-the-thesis", ticker)
-    st.markdown("#### What Changes the Thesis")
+    st.markdown("#### What Would Change the Rating")
     change_cols = st.columns(3)
     for column, label in zip(change_cols, ("strengthen", "weaken", "invalidate")):
         with column:

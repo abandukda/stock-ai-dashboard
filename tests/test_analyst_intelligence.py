@@ -7,7 +7,7 @@ import time
 import pandas as pd
 import pytest
 
-from engines.analyst_intelligence import build_analyst_intelligence, normalize_analyst_actions
+from engines.analyst_intelligence import build_analyst_intelligence, normalize_analyst_actions, wall_street_view_text
 from engines.ask_atlas_engine import _compact_context, _deterministic_answer, ask_atlas
 from engines.atlas_research_builder_v2 import build_atlas_research_v2
 from engines import live_research_engine
@@ -217,3 +217,14 @@ def test_active_research_any_ticker_uses_canonical_full_research():
     source = Path("app.py").read_text()
     final_renderer = source[source.rfind("def render_detail(row):"):source.find("\ndef ", source.rfind("def render_detail(row):") + 5)]
     assert "render_full_research_report(dict(row))" in final_renderer
+
+
+def test_partial_wall_street_ratings_do_not_claim_all_context_is_unavailable():
+    copy = wall_street_view_text({
+        "status": "WALL_STREET_PARTIAL",
+        "consensus": {"analyst_count": 4, "consensus_rating": "BUY"},
+        "rating_distribution": {"buy": 3, "hold": 1},
+    })
+    assert "ratings are available from 4 analysts" in copy
+    assert "verified consensus price target" in copy
+    assert "No verified Wall Street consensus is currently available" not in copy

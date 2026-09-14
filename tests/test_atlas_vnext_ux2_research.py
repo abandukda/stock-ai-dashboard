@@ -254,7 +254,8 @@ def test_real_streamlit_high_evidence_renderer_has_five_sections_and_ask_cta():
 def test_real_streamlit_monitor_renderer_collapses_technical_scenario():
     app = _render_app("CRC", "MONITOR", 40.0)
     assert not app.exception
-    assert any("Monitor — Not currently actionable" in markdown.value for markdown in app.markdown)
+    assert any("Not currently actionable" in caption.value for caption in app.caption)
+    assert any("Why Now" in markdown.value for markdown in app.markdown)
     assert any(expander.label == "Technical Scenario" for expander in app.expander)
     assert not any(text.value == "Canonical actionable trade plan" for text in app.text)
     assert not any(metric.label == "Confidence" and metric.value == "Unavailable" for metric in app.metric)

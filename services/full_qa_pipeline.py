@@ -13,8 +13,9 @@ from typing import Any, Mapping, Sequence
 
 
 RELEASE_FULL = "RELEASE_FULL"
+RELEASE_SMOKE = "RELEASE_SMOKE"
 FAST_PREVIEW = "FAST_PREVIEW"
-QA_TIERS = (RELEASE_FULL, FAST_PREVIEW)
+QA_TIERS = (RELEASE_FULL, RELEASE_SMOKE, FAST_PREVIEW)
 STAGES = (
     "identity", "deterministic_qa", "startup", "auth", "structural",
     "interaction", "visual", "analysis", "packaging", "promotion",
@@ -76,7 +77,7 @@ def validate_tier(qa_tier: str, *, promotion_requested: bool) -> str:
     if tier not in QA_TIERS:
         raise ValueError(f"UNKNOWN_QA_TIER:{tier}")
     if promotion_requested and tier != RELEASE_FULL:
-        raise ValueError("FAST_PREVIEW_CANNOT_PROMOTE")
+        raise ValueError("EXHAUSTIVE_VISUAL_CERTIFICATION_REQUIRED_FOR_PROMOTION")
     return tier
 
 
@@ -131,4 +132,3 @@ def write_early_blocker_bundle(output_dir: Path, *, candidate: Mapping[str, Any]
     (output_dir / "qa_summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     (output_dir / "blocking_findings.json").write_text(json.dumps(blockers, indent=2) + "\n", encoding="utf-8")
     timing.write(output_dir / "qa_timing_report.json")
-

@@ -9,7 +9,9 @@ from services.atlas_view_summary import (
     build_atlas_street_divergence_explanation,
     build_certified_summary_facts,
     certify_customer_presentation_consistency,
+    deduplicate_customer_prose,
     plain_english_summary,
+    thesis_style_violations,
 )
 from ui.home_guidance_vnext import _certified_paid_client_full_evidence
 
@@ -127,6 +129,31 @@ def test_consistency_gate_removes_a_contradictory_claim_without_withholding_reco
     assert result["valid"] is False
     assert result["violations"] == ("FINANCIAL_AVAILABILITY_CONTRADICTION",)
     assert result["safe_text"] == "ATLAS estimates fair value at $222.14."
+
+
+def test_nem_style_duplicate_summary_is_removed_at_shared_customer_boundary():
+    repeated = (
+        "Newmont generates cash from its mining operations. "
+        "The main risk is weaker commodity pricing and higher operating costs. "
+        "newmont generates cash from its mining operations! "
+        "Main risk is weaker commodity pricing and higher operating costs."
+    )
+    cleaned = deduplicate_customer_prose(repeated)
+    assert cleaned == (
+        "Newmont generates cash from its mining operations. "
+        "The main risk is weaker commodity pricing and higher operating costs."
+    )
+
+
+def test_summary_validator_rejects_repeated_clause_action_and_internal_code():
+    repeated_clause = (
+        "NEM may benefit from stronger cash generation; stronger cash generation; the main risk is execution. "
+        "ATLAS is waiting because evidence is incomplete. ATLAS is waiting because evidence is incomplete."
+    )
+    violations = thesis_style_violations(repeated_clause)
+    assert "DUPLICATE_CLAUSE" in violations
+    assert "DUPLICATE_SENTENCE" in violations
+    assert "INTERNAL_STATUS_CODE" in thesis_style_violations("NEM is DATA_LIMITED pending review.")
 
 
 def test_consistency_gate_rejects_numeric_and_unavailable_zero_claims():

@@ -12,9 +12,11 @@ import pytest
 from engines.research_context import EVIDENCE_FAMILIES, build_production_decision
 from services.vnext_presentation_contract import (
     AVAILABILITY_SEMANTICS, CURRENT_ACTIVE_PAGES, CURRENT_RESEARCH_TABS,
+    HOME_CUSTOMER_PRIMARY_LABELS, HOME_INDICATOR_CLASSIFICATION,
+    HOME_PROHIBITED_CUSTOMER_TERMS,
     MIGRATION_BASELINE_CLASSIFICATION, MIGRATION_BASELINE_VERSION,
     PROTECTED_EVIDENCE_FAMILIES, PROTECTED_INTELLIGENCE,
-    PROTECTED_INVESTMENT_OUTPUTS, contract_snapshot,
+    PROTECTED_INVESTMENT_OUTPUTS, contract_snapshot, validate_home_indicator_slots,
 )
 from services.live_market.models import TechnicalState
 from ui.vnext_presentation import (
@@ -96,6 +98,36 @@ def test_customer_currency_formatting_preserves_exact_value(value, expected):
     formatted = CanonicalNumberFormatter.currency(value)
     assert formatted.display == expected
     assert formatted.exact_value == value
+
+
+@pytest.mark.parametrize("value,expected", [
+    (201_005_852_000, "$201.0B"), (12_400_000_000, "$12.4B"),
+    (845_000_000, "$845.0M"), (6_300_000, "$6.3M"),
+])
+def test_customer_financial_amounts_use_compact_scale_without_mutating_value(value, expected):
+    formatted = CanonicalNumberFormatter.currency(value)
+    assert formatted.display == expected
+    assert formatted.exact_value == value
+    assert formatted.exact_display == f"${value:,.2f}"
+
+
+def test_home_indicator_taxonomy_is_enforceable_and_preserves_developer_metrics():
+    approved = list(HOME_INDICATOR_CLASSIFICATION["customer_primary"])
+    result = validate_home_indicator_slots(approved)
+    assert result["valid"] is True
+    assert "committee_ready" in HOME_INDICATOR_CLASSIFICATION["developer_only"]
+    assert "Committee Ready" in HOME_PROHIBITED_CUSTOMER_TERMS
+    assert "ATLAS Action" in HOME_CUSTOMER_PRIMARY_LABELS
+    failed = validate_home_indicator_slots(approved + ["committee_ready", "why_it_could_win_duplicate"])
+    assert failed["valid"] is False
+    assert failed["prohibited_customer_slots"] == ["committee_ready", "why_it_could_win_duplicate"]
+
+
+def test_home_indicator_taxonomy_fails_when_required_customer_slot_is_missing():
+    slots = [slot for slot in HOME_INDICATOR_CLASSIFICATION["customer_primary"] if slot != "main_risk"]
+    result = validate_home_indicator_slots(slots)
+    assert result["valid"] is False
+    assert result["missing_customer_primary"] == ["main_risk"]
 
 
 def test_prices_ranges_percentages_ratios_and_counts_are_semantically_distinct():

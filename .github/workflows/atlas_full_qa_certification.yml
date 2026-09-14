@@ -15,11 +15,11 @@ on:
         type: choice
         options: [CERTIFY_ONLY, CERTIFY_AND_PROMOTE]
       qa_tier:
-        description: "Visual QA tier (FAST_PREVIEW never authorizes promotion)"
+        description: "QA tier: release smoke for ordinary readiness; exhaustive full for promotion/major release"
         required: true
-        default: FAST_PREVIEW
+        default: RELEASE_SMOKE
         type: choice
-        options: [FAST_PREVIEW, RELEASE_FULL]
+        options: [RELEASE_SMOKE, RELEASE_FULL, FAST_PREVIEW]
       candidate_run_id:
         description: "Overnight run ID, or qa:<run ID> to reuse a QA candidate; blank generates"
         required: false
@@ -199,7 +199,7 @@ jobs:
           if [[ "${{ github.event_name }}" == "workflow_run" ]]; then
             qa_tier="RELEASE_FULL"
           else
-            qa_tier="${REQUESTED_TIER:-FAST_PREVIEW}"
+            qa_tier="${REQUESTED_TIER:-RELEASE_SMOKE}"
           fi
           python - "$qa_tier" "$QA_MODE" <<'PY'
           import sys

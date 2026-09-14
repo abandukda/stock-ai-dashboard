@@ -441,6 +441,17 @@ def wall_street_view_text(analysis: Mapping[str, Any] | Any) -> str:
     if status == "WALL_STREET_DISPLAY_RESTRICTED":
         return "Wall Street information is not displayed because commercial-use permission is not confirmed."
     consensus = safe_mapping(analysis.get("consensus"))
+    if status in {"WALL_STREET_AVAILABLE", "WALL_STREET_PARTIAL"} and consensus.get("target_mean") is None:
+        analyst_count = consensus.get("analyst_count")
+        rating = consensus.get("consensus_rating")
+        rating_distribution = safe_mapping(analysis.get("rating_distribution"))
+        if rating or rating_distribution:
+            count_copy = f" from {int(analyst_count)} analysts" if analyst_count is not None else ""
+            rating_copy = f" with a {str(rating).replace('_', ' ').title()} consensus" if rating else ""
+            return (
+                f"Wall Street ratings are available{count_copy}{rating_copy}, but ATLAS does not have a "
+                "verified consensus price target for this snapshot. Wall Street remains independent, non-scoring context."
+            )
     if status not in {"WALL_STREET_AVAILABLE", "WALL_STREET_PARTIAL"} or consensus.get("target_mean") is None:
         return (
             "No verified Wall Street consensus is currently available for this company. "
