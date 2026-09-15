@@ -20,6 +20,17 @@ def test_lineage_scanner_finds_provider_provenance_but_not_incidental_text():
     assert disallowed_lineage_paths({"description": "Yahoo was mentioned in prose"}) == []
 
 
+def test_lineage_scanner_rejects_news_publisher_and_direct_or_redirect_url():
+    payload = {
+        "publisher": "Yahoo Entertainment",
+        "article_url": "https://finance.yahoo.com/story",
+        "referral_url": "https://wire.test/out?target=https%3A%2F%2Fconsent.yahoo.com%2Fv2",
+    }
+    assert disallowed_lineage_paths(payload) == [
+        "$.publisher", "$.article_url", "$.referral_url",
+    ]
+
+
 def test_manifest_fails_disallowed_lineage_and_reconciles_publication_counts():
     rows = [_row(source="YAHOO_INFO"), _row(allowed=False)]
     manifest = build_manifest(rows, run_id="r1", generated_at="2026-09-08T00:00:00Z",

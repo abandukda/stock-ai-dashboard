@@ -94,9 +94,13 @@ def test_news_provenance_keeps_clickable_url_without_article_body():
     evidence = normalize_news_articles([{
         "title": "Acme raises guidance", "source": "Wire", "published_at": "2026-01-01",
         "url": "https://example.test/story", "description": "must not persist",
-    }], symbol="ACME")
+    }], symbol="ACME", transport_provider="NEWSAPI", captured_at="2026-01-02T00:00:00Z")
     assert evidence[0]["url"] == "https://example.test/story"
     assert evidence[0]["ticker"] == "ACME"
+    assert evidence[0]["transport_provider"] == "NEWSAPI"
+    assert evidence[0]["article_publisher"] == "Wire"
+    assert evidence[0]["evidence_id"].startswith("NEWS-")
+    assert evidence[0]["capture_timestamp"] == "2026-01-02T00:00:00Z"
     assert "description" not in evidence[0]
 
 

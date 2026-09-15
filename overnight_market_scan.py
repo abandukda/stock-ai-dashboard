@@ -30,7 +30,9 @@ import pandas as pd
 from engines.atlas_valuation import AtlasValuationInputs, PUBLISHED, calculate_atlas_fair_value
 from engines.deep_research_evidence import (
     build_earnings_comparisons,
+    NEWS_EVIDENCE_SCHEMA_VERSION,
     normalize_earnings_history,
+    normalize_governed_news_article,
     normalize_news_articles,
     select_deep_enrichment_symbols,
 )
@@ -951,19 +953,21 @@ def get_news_research(symbol: str, company_name: str = "") -> Dict[str, Any]:
 
         score, positives, negatives = score_headline_sentiment(title, description)
         category, materiality = classify_news_evidence(title, description)
-        total_score += score
-        positive_hits.extend(positives)
-        negative_hits.extend(negatives)
-
-        headlines.append({
+        normalized = normalize_governed_news_article({
             "title": title,
-            "source": source_name,
+            "article_publisher": source_name,
             "published_at": published_at,
             "url": safe_text(article.get("url"), ""),
             "sentiment_score": score,
             "category": category,
             "materiality": materiality,
-        })
+        }, symbol=symbol, transport_provider="NEWSAPI")
+        if normalized:
+            normalized["sentiment_score"] = score
+            headlines.append(normalized)
+            total_score += score
+            positive_hits.extend(positives)
+            negative_hits.extend(negatives)
 
     if not headlines:
         _record_newsapi_diagnostic(
@@ -999,7 +1003,7 @@ def get_news_research(symbol: str, company_name: str = "") -> Dict[str, Any]:
         "positive_news_terms": list(dict.fromkeys(positive_hits))[:5],
         "negative_news_terms": list(dict.fromkeys(negative_hits))[:5],
         "top_news_headline": headlines[0]["title"] if headlines else "",
-        "top_news_source": headlines[0]["source"] if headlines else "",
+        "top_news_source": headlines[0]["transport_provider"] if headlines else "",
         "source_newsapi": True,
     }
 
@@ -3740,11 +3744,18 @@ def v42_news_stack(symbol: str, company_name: str = "") -> Dict[str, Any]:
     """Fetch recent company news and preserve headline/source/date for freshness validation."""
     symbol=str(symbol).upper(); articles=[]; today=dt.date.today(); start=today-dt.timedelta(days=30)
 
+    capture_timestamp = now_iso()
     def add_article(title, source, published, provider, url=""):
         title=str(title or '').strip()
         if not title: return
         if not news_item_is_company_relevant(title, '', symbol, company_name): return
-        articles.append({'title':title, 'source':str(source or provider or '').strip(), 'published':str(published or '').strip(), 'published_at':str(published or '').strip(), 'provider':provider, 'url':str(url or '').strip()})
+        normalized = normalize_governed_news_article(
+            {'title': title, 'article_publisher': source, 'published_at': published, 'url': url},
+            symbol=symbol, transport_provider=provider, captured_at=capture_timestamp,
+        )
+        if normalized:
+            normalized['published'] = normalized.get('article_timestamp') or ''
+            articles.append(normalized)
 
     if NEWSAPI_KEY:
         if _ACTIVE_COMMITTEE_TIMING_SCOPE == "etf": _record_scan_timing("etf_newsapi_calls", count=1)
@@ -3794,7 +3805,7 @@ def v42_news_stack(symbol: str, company_name: str = "") -> Dict[str, Any]:
         'sources':sorted({a['provider'] for a in clean}) or ['No source returned recent data'],
         'headlines':[a['title'] for a in clean[:8]],'articles':clean[:8],
         'catalysts':catalysts,'risks':risks,
-        'latest_headline':latest.get('title',''),'latest_source':latest.get('source') or latest.get('provider',''),
+        'latest_headline':latest.get('title',''),'latest_source':latest.get('transport_provider') or latest.get('provider',''),
         'latest_date':latest.get('published',''),'latest_sentiment':status,
     }
 
@@ -4685,6 +4696,7 @@ DEEP_RESEARCH_TTLS = {
     "etf": 24 * 60 * 60,
 }
 DEEP_RESEARCH_EVIDENCE_SCHEMA_VERSION = "ATLAS_MARGIN_LINEAGE_V2"
+DEEP_RESEARCH_NEWS_SCHEMA_VERSION = NEWS_EVIDENCE_SCHEMA_VERSION
 
 
 def get_etf_research(symbol: str) -> Dict[str, Any]:
@@ -4727,7 +4739,7 @@ def get_finalist_enrichment(symbol: str, company_name: str = "") -> Tuple[Dict[s
             source_version=(
                 f"{getattr(source_functions[family], '__module__', '')}."
                 f"{getattr(source_functions[family], '__qualname__', '')}:"
-                f"{DEEP_RESEARCH_EVIDENCE_SCHEMA_VERSION}"
+                f"{DEEP_RESEARCH_NEWS_SCHEMA_VERSION if family == 'news' else DEEP_RESEARCH_EVIDENCE_SCHEMA_VERSION}"
             ),
         )
     merged: Dict[str, Any] = {}

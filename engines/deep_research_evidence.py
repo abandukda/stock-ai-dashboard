@@ -8,7 +8,56 @@ evidence objects and selects the bounded post-ranking enrichment population.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import hashlib
 from typing import Any, Iterable, Mapping, Sequence
+
+from services.evidence_lineage_governance import is_disallowed_provider, is_disallowed_url
+
+
+NEWS_EVIDENCE_SCHEMA_VERSION = "ATLAS_GOVERNED_NEWS_EVIDENCE_V2"
+_GOVERNED_NEWS_TRANSPORTS = {"NEWSAPI", "FINNHUB"}
+
+
+def normalize_governed_news_article(
+    raw: Mapping[str, Any], *, symbol: str, transport_provider: str | None = None,
+    captured_at: str | None = None,
+) -> dict[str, Any] | None:
+    """Normalize optional news while keeping transport and publisher distinct.
+
+    Prohibited publishers and URL lineage are omitted rather than relabelled.
+    This reporting-only boundary never changes an investment decision.
+    """
+    transport = str(transport_provider or raw.get("transport_provider") or raw.get("provider") or "").strip().upper()
+    if transport == "FINNHUB COMPANY NEWS":
+        transport = "FINNHUB"
+    publisher = str(raw.get("article_publisher") or raw.get("publisher") or raw.get("source") or "").strip()
+    url = str(raw.get("article_url") or raw.get("url") or "").strip()
+    headline = str(raw.get("headline") or raw.get("title") or "").strip()
+    article_timestamp = str(raw.get("article_timestamp") or raw.get("published_at") or raw.get("publishedAt") or raw.get("published") or "").strip()
+    capture_timestamp = str(captured_at or raw.get("capture_timestamp") or datetime.now(timezone.utc).isoformat()).strip()
+    if not headline or transport not in _GOVERNED_NEWS_TRANSPORTS:
+        return None
+    if is_disallowed_provider(publisher) or is_disallowed_url(url):
+        return None
+    evidence_seed = "|".join((transport, symbol.upper(), headline, article_timestamp, url))
+    evidence_id = str(raw.get("evidence_id") or f"NEWS-{hashlib.sha256(evidence_seed.encode('utf-8')).hexdigest()[:20].upper()}")
+    return {
+        "headline": headline,
+        "title": headline,
+        "transport_provider": transport,
+        "provider": transport,
+        "article_publisher": publisher or None,
+        "evidence_id": evidence_id,
+        "article_timestamp": article_timestamp or None,
+        "published_at": article_timestamp or None,
+        "capture_timestamp": capture_timestamp,
+        "article_url": url or None,
+        "url": url or None,
+        "ticker": symbol.upper(),
+        "ticker_relevance": "VERIFIED_ENTITY_MATCH",
+        "category": raw.get("category") or "COMPANY_NEWS",
+        "materiality": raw.get("materiality") or "UNCLASSIFIED",
+    }
 
 
 def _number(value: Any) -> float | None:
@@ -182,21 +231,19 @@ def normalize_transcript_evidence(rows: Any) -> list[dict[str, Any]]:
     return output
 
 
-def normalize_news_articles(rows: Any, *, symbol: str) -> list[dict[str, Any]]:
+def normalize_news_articles(
+    rows: Any, *, symbol: str, transport_provider: str | None = None,
+    captured_at: str | None = None,
+) -> list[dict[str, Any]]:
     if not isinstance(rows, list):
         return []
     output = []
     for raw in rows:
-        if not isinstance(raw, Mapping) or not raw.get("title"):
+        if not isinstance(raw, Mapping):
             continue
-        output.append({
-            "headline": raw.get("title"),
-            "publisher": raw.get("source") or raw.get("publisher"),
-            "published_at": raw.get("published_at") or raw.get("publishedAt"),
-            "url": raw.get("url"),
-            "ticker": symbol.upper(),
-            "ticker_relevance": "VERIFIED_ENTITY_MATCH",
-            "category": raw.get("category") or "COMPANY_NEWS",
-            "materiality": raw.get("materiality") or "UNCLASSIFIED",
-        })
+        normalized = normalize_governed_news_article(
+            raw, symbol=symbol, transport_provider=transport_provider, captured_at=captured_at,
+        )
+        if normalized:
+            output.append(normalized)
     return output

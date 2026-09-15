@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from typing import Any, Mapping
+from urllib.parse import parse_qsl, unquote, urlparse
 
 PROVIDER_ARCHITECTURE_VERSION = "ATLAS_GOVERNED_PROVIDERS_V2"
 EVIDENCE_SNAPSHOT_VERSION = "ATLAS_EVIDENCE_SNAPSHOT_V2"
@@ -16,6 +17,26 @@ def is_disallowed_provider(value: Any) -> bool:
     return any(token in text for token in DISALLOWED_PROVIDER_TOKENS)
 
 
+def is_disallowed_url(value: Any) -> bool:
+    pending = [str(value or "").strip()]
+    seen: set[str] = set()
+    while pending:
+        candidate = unquote(pending.pop())
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        parsed = urlparse(candidate if "://" in candidate else f"https://{candidate}")
+        host = (parsed.hostname or "").lower().rstrip(".")
+        if host == "yahoo.com" or host.endswith(".yahoo.com"):
+            return True
+        for _, embedded in parse_qsl(parsed.query, keep_blank_values=False):
+            if is_disallowed_provider(embedded):
+                return True
+            if "://" in embedded or "yahoo" in embedded.lower():
+                pending.append(embedded)
+    return False
+
+
 def disallowed_lineage_paths(payload: Any, path: str = "$") -> list[str]:
     """Return paths containing forbidden provider provenance, not incidental prose."""
     findings: list[str] = []
@@ -23,8 +44,11 @@ def disallowed_lineage_paths(payload: Any, path: str = "$") -> list[str]:
         for key, value in payload.items():
             child = f"{path}.{key}"
             key_upper = str(key).upper()
-            lineage_key = any(part in key_upper for part in ("PROVIDER", "SOURCE", "LINEAGE", "AUTHORITY"))
-            if lineage_key and not isinstance(value, (Mapping, list, tuple)) and is_disallowed_provider(value):
+            lineage_key = any(part in key_upper for part in ("PROVIDER", "SOURCE", "PUBLISHER", "LINEAGE", "AUTHORITY"))
+            url_key = any(part in key_upper for part in ("URL", "LINK", "REDIRECT", "REFERRAL"))
+            if not isinstance(value, (Mapping, list, tuple)) and (
+                (lineage_key and is_disallowed_provider(value)) or (url_key and is_disallowed_url(value))
+            ):
                 findings.append(child)
             findings.extend(disallowed_lineage_paths(value, child))
     elif isinstance(payload, (list, tuple)):
@@ -93,6 +117,6 @@ def provider_lineage_counters(payload: Any) -> dict[str, int]:
 __all__ = [
     "CACHE_GENERATION_VERSION", "DISALLOWED_PROVIDER_TOKENS", "EVIDENCE_SNAPSHOT_VERSION",
     "PROVIDER_ARCHITECTURE_VERSION", "disallowed_lineage_paths", "has_disallowed_lineage",
-    "is_disallowed_provider", "fmp_quantitative_lineage_paths",
+    "is_disallowed_provider", "is_disallowed_url", "fmp_quantitative_lineage_paths",
     "fmp_earnings_context_reference_count", "provider_lineage_counters",
 ]
