@@ -33,6 +33,7 @@ ANOMALY_FIELDS = {
     "total_debt": 0.75, "diluted_shares": 0.35,
 }
 _LARGE_COMPACT_ARTIFACTS = {"full_evaluation_pool.json"}
+_QA_BUNDLE_ONLY_ARTIFACTS = {"discovery_candidate_pool.json", "governed_market_acquisition_diagnostics.json"}
 _PROVIDER_MANIFEST_FIELDS = {
     "version", "status", "provider_calls", "fundamental_primary_calls",
     "fundamental_fallback_calls", "estimate_calls", "technical_history_calls",
@@ -337,6 +338,21 @@ def build_manifest(rows: Sequence[Mapping[str, Any]], *, run_id: str, generated_
     elif withheld == len(rows): systemic.append("NO_CERTIFIED_PUBLICATION_ROWS")
     if published_yahoo_lineage_count: systemic.append("PUBLISHED_YAHOO_LINEAGE_PRESENT")
     if published_fmp_quantitative_lineage_count: systemic.append("PUBLISHED_FMP_QUANTITATIVE_LINEAGE_PRESENT")
+    artifact_hashes = {name: _hash_payload(payload) for name, payload in artifact_payloads.items()}
+    state = artifact_payloads.get("market_scan_state.json")
+    full_pool = artifact_payloads.get("full_evaluation_pool.json")
+    if isinstance(state, Mapping):
+        if not isinstance(full_pool, Sequence) or isinstance(full_pool, (str, bytes)):
+            systemic.append("FULL_EVALUATION_POOL_MISSING")
+        else:
+            persisted_count = len(full_pool)
+            state_count = int(_num(state.get("full_evaluation_count")) or -1)
+            discovery_state = state.get("discovery_v2") if isinstance(state.get("discovery_v2"), Mapping) else {}
+            configured_count = int(_num(state.get("full_evaluation_pool_limit") or discovery_state.get("full_evaluation_pool_limit")) or state_count)
+            if persisted_count != state_count:
+                systemic.append("FULL_EVALUATION_COUNT_MISMATCH")
+            if state_count != configured_count:
+                systemic.append("FULL_EVALUATION_LIMIT_NOT_REACHED")
     anomalies = run_over_run_anomalies(rows, prior_rows)
     anomalous_tickers = {item.get("ticker") for item in anomalies}
     if any(
@@ -370,7 +386,18 @@ def build_manifest(rows: Sequence[Mapping[str, Any]], *, run_id: str, generated_
         "evidence_snapshot_version": EVIDENCE_SNAPSHOT_VERSION,
         "cache_generation_version": CACHE_GENERATION_VERSION,
         "validation_failures": systemic,
-        "artifact_hashes": {name: _hash_payload(payload) for name, payload in artifact_payloads.items()},
+        "artifact_hashes": artifact_hashes,
+        "artifact_lineage": {
+            name: {
+                "run_id": run_id, "source_commit_sha": source_commit_sha,
+                "generated_at": generated_at, "semantic_sha256": digest,
+                "storage_scope": "IMMUTABLE_QA_BUNDLE" if name in _QA_BUNDLE_ONLY_ARTIFACTS else "PRODUCTION_REPOSITORY",
+            }
+            for name, digest in artifact_hashes.items()
+        },
+        "artifact_lineage_status": "COHERENT" if not any(code in systemic for code in (
+            "FULL_EVALUATION_POOL_MISSING", "FULL_EVALUATION_COUNT_MISMATCH", "FULL_EVALUATION_LIMIT_NOT_REACHED"
+        )) else "INCOHERENT",
         "run_over_run_anomalies": anomalies,
         "freshness_status": "VALIDATED_BY_EVIDENCE_TYPE", "publication_gate_status": gate,
     }

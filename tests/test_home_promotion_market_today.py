@@ -8,6 +8,8 @@ from services.home_market_news import fetch_major_market_news
 from engines.home_guidance_story_v1 import (
     build_home_action_count_contract,
     build_homepage_promotion_metrics,
+    load_exact_customer_inventory,
+    rank_customer_publishable_rows,
     select_home_featured_cards,
 )
 from engines.home_guidance_story_v1 import build_home_guidance_story
@@ -55,6 +57,58 @@ def test_homepage_counts_distinguish_canonical_actions_from_featured_actions():
 
 def _canonical_row(ticker, state):
     return {"ticker": ticker, "canonical_investment_evaluation": {"guidance": {"state": state}}}
+
+
+def _certified_inventory_row(ticker, state, opportunity, *, rank, revalidated=True):
+    evaluation={"guidance":{"state":state},"opportunity":opportunity,"decision_confidence":80,
+                "component_coverage":90,"decision_digest":f"digest-{ticker}"}
+    if state=="BUY_NOW":
+        evaluation["positive_action_revalidation"]={"status":"BUY_NOW_REVALIDATED" if revalidated else "BUY_NOW_PENDING_REVALIDATION",
+                                                    "source_decision_digest":f"digest-{ticker}"}
+    return {"ticker":ticker,"full_evaluation_rank":rank,"canonical_investment_evaluation":evaluation,
+            "publication_certification":{"customer_publication_allowed":True,"certified_action":state}}
+
+
+def test_customer_publishable_rank_preserves_analytical_rank_and_requires_exact_buy_revalidation():
+    rows=[_certified_inventory_row("BUILD","ACCUMULATE",99,rank=1),
+          _certified_inventory_row("BUY","BUY_NOW",70,rank=200),
+          _certified_inventory_row("STALE","BUY_NOW",100,rank=2,revalidated=False)]
+    ranked=rank_customer_publishable_rows(rows)
+    assert [row["ticker"] for row in ranked]==["BUILD","BUY"]
+    assert [row["customer_publishable_rank"] for row in ranked]==[1,2]
+    assert [row["canonical_analytical_rank"] for row in ranked]==[1,200]
+
+
+def test_home_uses_exact_bound_inventory_and_fails_closed_when_binding_is_invalid():
+    top=[_certified_inventory_row("TOP","ACCUMULATE",80,rank=1)]
+    pool=[*top,_certified_inventory_row("BELOW","BUY_NOW",75,rank=200)]
+    exact=build_home_guidance_story(top,[],customer_inventory_payload=pool,customer_inventory_binding_valid=True)
+    assert exact["customer_inventory_source"]=="FULL_EVALUATION_POOL_EXACT_RUN"
+    assert [card["ticker"] for card in exact["cards"]][:2]==["TOP","BELOW"]
+    assert exact["cards"][0]["customer_publishable_rank"]==1
+    closed=build_home_guidance_story(top,[],customer_inventory_payload=pool,customer_inventory_binding_valid=False)
+    assert closed["customer_inventory_source"]=="ANALYTICAL_TOP_150_FAIL_CLOSED"
+    assert [card["ticker"] for card in closed["cards"]]==["TOP"]
+
+
+def test_customer_inventory_card_preserves_both_rank_domains():
+    row = _certified_inventory_row("CERTIFIED", "ACCUMULATE", 77, rank=29)
+    card = build_home_guidance_story([], [], customer_inventory_payload=[row], customer_inventory_binding_valid=True)["cards"][0]
+    assert card["customer_publishable_rank"] == 1
+    assert card["canonical_analytical_rank"] == 29
+
+
+def test_customer_inventory_loader_requires_exact_manifest_digest(tmp_path):
+    path = tmp_path / "full_evaluation_pool.json"
+    payload = [_certified_inventory_row("CERTIFIED", "ACCUMULATE", 77, rank=29)]
+    encoded = json.dumps(payload).encode()
+    path.write_bytes(encoded)
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode()
+    exact = {"artifact_hashes": {path.name: hashlib.sha256(canonical).hexdigest()}}
+    loaded, valid = load_exact_customer_inventory(path, exact)
+    assert valid is True and loaded == payload
+    path.write_text("[]")
+    assert load_exact_customer_inventory(path, exact) == ([], False)
 
 
 def _published_card(ticker, state, *, eligible=True):

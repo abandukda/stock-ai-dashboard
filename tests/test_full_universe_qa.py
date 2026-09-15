@@ -295,9 +295,9 @@ def test_workflow_candidate_gate_contract_and_syntax():
     assert "git pull --rebase --autostash origin main" in source
     publication = source.split("- name: Commit atomically certified production artifacts", 1)[1]
     git_add = next(line for line in publication.splitlines() if "git add --" in line)
-    assert "full_evaluation_pool.json" not in git_add
+    assert "full_evaluation_pool.json" in git_add
     assert "discovery_candidate_pool.json" not in git_add
-    assert "git restore --worktree -- discovery_candidate_pool.json full_evaluation_pool.json" in publication
+    assert "git restore --worktree -- discovery_candidate_pool.json" in publication
     assert "audit_results/candidate_artifacts" in source
     overnight = Path(".github/workflows/overnight_scan.yml").read_text()
     assert "ATLAS_PUBLICATION_OUTPUT_MODE: \"CANDIDATE\"" in overnight

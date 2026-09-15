@@ -7,6 +7,36 @@ from typing import Any, Mapping
 
 VERSION = "ATLAS_BUY_NOW_REVALIDATION_V1"
 
+VALUATION_REQUIREMENT_BLOCKERS = {
+    "company_type_route_registered": "BUY_NOW_VALUATION_ROUTE_UNREGISTERED",
+    "published_methods_professionally_appropriate": "BUY_NOW_VALUATION_METHOD_INAPPROPRIATE",
+    "method_professionally_appropriate": "BUY_NOW_VALUATION_METHOD_INAPPROPRIATE",
+    "explicit_method_sufficiency": "BUY_NOW_SINGLE_METHOD_SUFFICIENCY_UNAPPROVED",
+    "single_method_strong_action_policy_active": "BUY_NOW_SINGLE_METHOD_STRONG_ACTION_POLICY_RETIRED",
+    "valuation_confidence_high_support": "BUY_NOW_VALUATION_CONFIDENCE_INSUFFICIENT",
+    "scenario_evidence_published": "BUY_NOW_SCENARIO_EVIDENCE_INSUFFICIENT",
+    "peer_evidence_certified": "BUY_NOW_PEER_EVIDENCE_INSUFFICIENT",
+    "peer_evidence_certified_where_used": "BUY_NOW_PEER_EVIDENCE_INSUFFICIENT",
+    "all_bridge_inputs_certified": "BUY_NOW_ACCOUNTING_BRIDGE_INSUFFICIENT",
+    "valuation_certification_publishable": "BUY_NOW_VALUATION_CERTIFICATION_INCOMPLETE",
+    "no_material_qa_flags": "BUY_NOW_VALUATION_QA_FLAGS_PRESENT",
+    "economic_explanation_complete": "BUY_NOW_VALUATION_EXPLANATION_INCOMPLETE",
+}
+
+
+def valuation_sufficiency_blockers(strength: Mapping[str, Any]) -> tuple[str, ...]:
+    """Expand the evidence-strength contract into auditable BUY sub-blockers."""
+    blockers = []
+    method_count = int(_number(strength.get("published_method_count")) or 0)
+    if method_count < 2:
+        blockers.append("BUY_NOW_METHOD_CORROBORATION_INSUFFICIENT")
+    unmet = tuple(strength.get("unmet_requirements") or ())
+    for requirement in unmet:
+        blocker = VALUATION_REQUIREMENT_BLOCKERS.get(str(requirement))
+        if blocker:
+            blockers.append(blocker)
+    return tuple(dict.fromkeys(blockers))
+
 
 def _number(value: Any) -> float | None:
     try:
@@ -50,6 +80,7 @@ def revalidate_buy_now(evaluation: Mapping[str, Any]) -> dict[str, Any]:
     strength = dict(validation.get("valuation_evidence_strength") or professional.get("valuation_evidence_strength") or {})
     if strength.get("strong_action_eligible") is not True:
         blockers.append("BUY_NOW_VALUATION_EVIDENCE_INSUFFICIENT")
+        blockers.extend(valuation_sufficiency_blockers(strength))
     if any(_number(evaluation.get(key)) is None for key in ("opportunity", "decision_confidence", "component_coverage")):
         blockers.append("DECISION_METRICS_NOT_REVALIDATED")
     explanation = dict(professional.get("valuation_explanation") or {})
@@ -90,8 +121,9 @@ def revalidate_buy_now(evaluation: Mapping[str, Any]) -> dict[str, Any]:
         "street_divergence_review": divergence_level,
         "economic_explanation": explanation,
         "valuation_evidence_strength": strength,
+        "valuation_sufficiency_blockers": valuation_sufficiency_blockers(strength),
         "invalidation_thesis": {"stop_loss": trade.get("stop_loss"), "primary_risk": risk.get("primary_risk")},
     }
 
 
-__all__ = ["VERSION", "revalidate_buy_now"]
+__all__ = ["VALUATION_REQUIREMENT_BLOCKERS", "VERSION", "revalidate_buy_now", "valuation_sufficiency_blockers"]

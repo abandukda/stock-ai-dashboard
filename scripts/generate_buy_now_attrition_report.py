@@ -9,6 +9,8 @@ from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
+from services.positive_action_revalidation import valuation_sufficiency_blockers
+
 
 def collect_evidence_ids(value: object) -> list[str]:
     found: set[str] = set()
@@ -62,7 +64,7 @@ def valuation_attrition_causes(evaluation: dict, certification: dict) -> list[st
     strength = validation.get("valuation_evidence_strength") or professional.get("valuation_evidence_strength") or {}
     causes: list[str] = []
     method_count = strength.get("published_method_count")
-    if method_count is not None and int(method_count) == 0:
+    if method_count is not None and int(method_count) < 2:
         causes.append("INSUFFICIENT_CERTIFIED_METHODS")
     peer_checks = list(strength.get("peer_certifications") or ())
     if strength.get("peer_certification"):
@@ -96,6 +98,36 @@ def valuation_attrition_causes(evaluation: dict, certification: dict) -> list[st
     return list(dict.fromkeys(causes or ["PROFESSIONAL_VALUATION_SUPPORT_INCOMPLETE"]))
 
 
+def valuation_method_readiness(evaluation: dict) -> list[dict]:
+    """Describe existing Professional V2 method outcomes without completing a model."""
+    professional = ((evaluation.get("atlas_valuation") or {}).get("professional_valuation_v2") or {})
+    strength = ((evaluation.get("valuation_validation") or {}).get("valuation_evidence_strength")
+                or professional.get("valuation_evidence_strength") or {})
+    eligible = set(strength.get("professionally_applicable_methods") or ())
+    output = []
+    for model in professional.get("models") or ():
+        method = str(model.get("methodology_id") or "UNKNOWN")
+        status = str(model.get("status") or "INSUFFICIENT_INPUTS")
+        reason = str(model.get("reason") or "")
+        applicable = status != "NOT_APPLICABLE"
+        if "RECONCILIATION" in reason or "MISMATCH" in reason:
+            gap_type = "RECONCILIATION_GAP"
+        elif status == "NOT_APPLICABLE":
+            gap_type = "GENUINE_NON_APPLICABILITY"
+        elif "MISSING" in reason or "UNAVAILABLE" in reason or "INSUFFICIENT" in status:
+            gap_type = "PROVIDER_OR_NORMALIZATION_GAP"
+        elif status == "VALIDATION_FAILED":
+            gap_type = "CERTIFICATION_GAP"
+        else:
+            gap_type = "NONE"
+        output.append({
+            "methodology_id": method, "eligible_for_route": method in eligible,
+            "applicable": applicable, "status": status, "reason": reason or None,
+            "gap_type": gap_type, "completed_after_fix": status == "PUBLISHED",
+        })
+    return output
+
+
 def generate(pool_path: Path, provenance_path: Path, expected: int) -> dict:
     pool = json.loads(pool_path.read_text(encoding="utf-8"))
     provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
@@ -108,6 +140,10 @@ def generate(pool_path: Path, provenance_path: Path, expected: int) -> dict:
         domain, field, classification = classify(certification)
         blockers = certification.get("blockers") or []
         root_causes = valuation_attrition_causes(evaluation, certification)
+        strength = (((evaluation.get("valuation_validation") or {}).get("valuation_evidence_strength"))
+                    or ((((evaluation.get("atlas_valuation") or {}).get("professional_valuation_v2") or {}).get("valuation_evidence_strength")))
+                    or {})
+        exact_sub_blockers = list(valuation_sufficiency_blockers(strength))
         relevant = {
             "certification": certification,
             "digests": evaluation.get("digests"),
@@ -125,6 +161,8 @@ def generate(pool_path: Path, provenance_path: Path, expected: int) -> dict:
             "reason": "; ".join(blockers) if blockers else "Publication allowed with governed high valuation uncertainty.",
             "blocker_codes": blockers,
             "valuation_root_causes": root_causes,
+            "valuation_sufficiency_sub_blockers": exact_sub_blockers,
+            "valuation_method_readiness": valuation_method_readiness(evaluation),
             "evidence_ids": collect_evidence_ids(relevant),
             "classification": classification,
         })
@@ -133,6 +171,7 @@ def generate(pool_path: Path, provenance_path: Path, expected: int) -> dict:
     statuses = Counter(item["publication_status"] for item in candidates)
     blocker_counts = Counter(code for item in candidates for code in item["blocker_codes"])
     root_cause_counts = Counter(code for item in candidates for code in item["valuation_root_causes"])
+    sub_blocker_counts = Counter(code for item in candidates for code in item["valuation_sufficiency_sub_blockers"])
     observed = len(candidates)
     return {
         "schema_version": "ATLAS_BUY_NOW_CERTIFICATION_ATTRITION_V1",
@@ -162,6 +201,7 @@ def generate(pool_path: Path, provenance_path: Path, expected: int) -> dict:
             "classification_counts": dict(sorted(categories.items())),
             "blocker_code_counts": dict(sorted(blocker_counts.items())),
             "valuation_root_cause_counts": dict(sorted(root_cause_counts.items())),
+            "valuation_sufficiency_sub_blocker_counts": dict(sorted(sub_blocker_counts.items())),
             "publication_rate": round(statuses.get("PUBLISHED", 0) / observed, 4) if observed else None,
         },
         "candidates": candidates,

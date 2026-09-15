@@ -1154,10 +1154,14 @@ def _card(card: Mapping[str, Any], *, key: str, first: bool = False, total: int 
     ticker = str(card.get("ticker") or "UNKNOWN")
     guidance = _display(_customer_state(card))
     actionability = _display(card.get("actionability"))
+    customer_rank = card.get("customer_publishable_rank")
+    rank_label = "CUSTOMER RANK" if customer_rank is not None else "DISCOVERY RANK"
+    display_rank = customer_rank if customer_rank is not None else card.get("production_rank")
     st.markdown(
         f'<div class="atlas-home-guidance-card-marker" data-atlas-qa="home-guidance-card" '
         f'data-atlas-first="{str(first).lower()}" data-atlas-ticker="{html.escape(ticker)}" '
         f'data-atlas-production-rank="{int(card.get("production_rank") or 0)}" '
+        f'data-atlas-customer-publishable-rank="{int(customer_rank or 0)}" '
         f'data-atlas-guidance="{html.escape(_customer_state(card))}" '
         f'data-atlas-actionability="{html.escape(str(card.get("actionability") or "UNAVAILABLE"))}" '
         f'data-atlas-opportunity="{html.escape(str(card.get("opportunity") if card.get("opportunity") is not None else "UNAVAILABLE"))}" '
@@ -1168,7 +1172,7 @@ def _card(card: Mapping[str, Any], *, key: str, first: bool = False, total: int 
     with st.container(border=True):
         st.markdown(
             '<div class="atlas-home-card-head">'
-            f'<span>DISCOVERY RANK #{card.get("production_rank")}</span>'
+            f'<span>{rank_label} #{display_rank}</span>'
             f'<div><h3>{html.escape(ticker)} <i>— {html.escape(str(card.get("company") or ticker))}</i></h3></div>'
             f'<aside><strong>{html.escape(_money(card.get("display_price")))}</strong>'
             f'<small>{html.escape(str(card.get("display_price_label") or "Price unavailable"))}</small></aside>'

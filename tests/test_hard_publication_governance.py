@@ -90,6 +90,29 @@ def test_manifest_blocks_systemic_provider_failure_and_hashes_candidates():
     assert manifest["artifact_hashes"]["market_full_scan.json"]
 
 
+def test_manifest_fails_closed_when_full_evaluation_count_or_limit_is_incoherent():
+    rows = [_certifiable_row()]
+    state = {"full_evaluation_count": 2, "full_evaluation_pool_limit": 2}
+    manifest = build_manifest(rows, run_id="r-count", generated_at="2026-09-06T00:00:00Z",
+        artifact_payloads={"market_scan_state.json": state, "full_evaluation_pool.json": rows})
+    assert manifest["publication_gate_status"] == "FAIL"
+    assert "FULL_EVALUATION_COUNT_MISMATCH" in manifest["validation_failures"]
+    assert manifest["artifact_lineage_status"] == "INCOHERENT"
+
+
+def test_manifest_records_exact_run_lineage_and_storage_scope(monkeypatch):
+    monkeypatch.setenv("ATLAS_SOURCE_COMMIT_SHA", "abc123")
+    rows = [_certifiable_row()]
+    state = {"full_evaluation_count": 1, "full_evaluation_pool_limit": 1}
+    manifest = build_manifest(rows, run_id="r-lineage", generated_at="2026-09-06T00:00:00Z",
+        artifact_payloads={"market_scan_state.json": state, "full_evaluation_pool.json": rows,
+                           "discovery_candidate_pool.json": rows})
+    assert manifest["artifact_lineage_status"] == "COHERENT"
+    assert manifest["artifact_lineage"]["full_evaluation_pool.json"]["source_commit_sha"] == "abc123"
+    assert manifest["artifact_lineage"]["full_evaluation_pool.json"]["storage_scope"] == "PRODUCTION_REPOSITORY"
+    assert manifest["artifact_lineage"]["discovery_candidate_pool.json"]["storage_scope"] == "IMMUTABLE_QA_BUNDLE"
+
+
 def test_manifest_does_not_duplicate_bulk_evaluations_or_diagnostics():
     rows = certify_rows([_certifiable_row("TK")], now=_observed(_certifiable_row("TK")))
     manifest = build_manifest(

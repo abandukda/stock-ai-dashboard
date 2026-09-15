@@ -33033,6 +33033,13 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
         production_artifact_sha256 = hashlib.sha256((DATA_DIR / "market_full_scan.json").read_bytes()).hexdigest()
     except Exception:
         production_artifact_sha256 = None
+    # The below-boundary customer inventory is usable only when it is the exact
+    # full-evaluation artifact certified by this manifest.  A stale or mixed
+    # pool fails closed to the analytical Top-150 artifact.
+    from engines.home_guidance_story_v1 import load_exact_customer_inventory
+    customer_inventory_payload, customer_inventory_binding_valid = load_exact_customer_inventory(
+        DATA_DIR / "full_evaluation_pool.json", production_manifest,
+    )
     story = build_home_guidance_story(
         full_payload, recovery_payload,
         watchlist_tickers=watchlist_tickers,
@@ -33041,6 +33048,8 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
         market_today=st.session_state.get("home_market_today") or {},
         production_manifest=production_manifest,
         production_artifact_sha256=production_artifact_sha256,
+        customer_inventory_payload=customer_inventory_payload,
+        customer_inventory_binding_valid=customer_inventory_binding_valid,
     )
     st.session_state["home_action_runtime_health"] = dict(story.get("home_action_count_contract") or {})
     from services.home_runtime_contract import build_home_runtime_contract

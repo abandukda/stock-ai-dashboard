@@ -9,16 +9,21 @@ VERSION = "ATLAS_VALUATION_EVIDENCE_STRENGTH_V1"
 MULTI_METHOD_CORROBORATED = "MULTI_METHOD_CORROBORATED"
 SINGLE_METHOD_HIGH_SUPPORT = "SINGLE_METHOD_HIGH_SUPPORT"
 SINGLE_METHOD_LIMITED_SUPPORT = "SINGLE_METHOD_LIMITED_SUPPORT"
+SINGLE_METHOD_STRONG_ACTION_POLICY = "RETIRED_UNREACHABLE"
+EXPLICITLY_REJECTED_COMPANY_TYPES = {"UNCLASSIFIED_OPERATING_COMPANY"}
 
 # This registry describes the methods already implemented by Professional V2;
 # it does not add models or alter their calculations.  An empty sole-method set
 # means the current route has not established any one method as sufficient by
-# itself for the strongest customer Action.
+# itself for the strongest customer Action.  Professional V2 deliberately caps
+# single-method confidence below the governed high-support threshold.  The old
+# SINGLE_METHOD_HIGH_SUPPORT branch is therefore retired instead of advertising
+# a production state the canonical valuation engine cannot emit.
 PROFESSIONAL_METHOD_POLICY = {
     "PROFITABLE_OPERATING_COMPANY":{"applicable":{"VAL_FCFF_DCF_V1","VAL_FORWARD_PE_V1","VAL_EV_EBITDA_V1","VAL_P_FCF_V1","VAL_DDM_GORDON_V1"},"sole_primary_sufficient":set()},
     "PROFITABLE_PHARMA":{"applicable":{"VAL_FCFF_DCF_V1","VAL_FORWARD_PE_V1","VAL_EV_EBITDA_V1","VAL_P_FCF_V1","VAL_DDM_GORDON_V1"},"sole_primary_sufficient":set()},
-    "HIGH_GROWTH_SOFTWARE":{"applicable":{"VAL_FCFF_DCF_V1","VAL_FORWARD_PE_V1","VAL_EV_EBITDA_V1","VAL_P_FCF_V1"},"sole_primary_sufficient":{"VAL_FCFF_DCF_V1"}},
-    "COMMODITY_PRODUCER":{"applicable":{"VAL_FCFF_DCF_V1","VAL_EV_EBITDA_V1","VAL_P_FCF_V1"},"sole_primary_sufficient":{"VAL_FCFF_DCF_V1"}},
+    "HIGH_GROWTH_SOFTWARE":{"applicable":{"VAL_FCFF_DCF_V1","VAL_FORWARD_PE_V1","VAL_EV_EBITDA_V1","VAL_P_FCF_V1"},"sole_primary_sufficient":set()},
+    "COMMODITY_PRODUCER":{"applicable":{"VAL_FCFF_DCF_V1","VAL_EV_EBITDA_V1","VAL_P_FCF_V1"},"sole_primary_sufficient":set()},
     "BANK":{"applicable":{"VAL_FORWARD_PE_V1","VAL_DDM_GORDON_V1"},"sole_primary_sufficient":set()},
     "INSURER":{"applicable":{"VAL_FORWARD_PE_V1","VAL_DDM_GORDON_V1"},"sole_primary_sufficient":set()},
     "REIT":{"applicable":{"VAL_P_FCF_V1"},"sole_primary_sufficient":set()},
@@ -106,6 +111,7 @@ def classify_valuation_evidence(professional: Mapping[str, Any], validation: Map
     models = [dict(model) for model in professional.get("models") or () if model.get("status") == "PUBLISHED"]
     company_type=str(professional.get("company_type") or "")
     policy=PROFESSIONAL_METHOD_POLICY.get(company_type,{"applicable":set(),"sole_primary_sufficient":set()})
+    route_policy = "EXPLICITLY_REJECTED" if company_type in EXPLICITLY_REJECTED_COMPANY_TYPES else ("REGISTERED" if company_type in PROFESSIONAL_METHOD_POLICY else "UNREGISTERED")
     validation=dict(validation or {})
     bridge_certification=certify_method_bridges(professional,validation)
     bridges_ok=bridge_certification.get("status")=="CERTIFIED"
@@ -122,12 +128,14 @@ def classify_valuation_evidence(professional: Mapping[str, Any], validation: Map
         eligible=all(requirements.values())
         return {"version":VERSION,"classification":MULTI_METHOD_CORROBORATED,"strong_action_eligible":eligible,
                 "published_method_count":len(models),"sole_method":None,"company_type":company_type,
+                "company_type_route_policy":route_policy,
                 "professionally_applicable_methods":sorted(policy["applicable"]),"requirements":requirements,
                 "unmet_requirements":[key for key,value in requirements.items() if not value],"peer_certifications":peer_checks,
                 "method_bridge_certification":bridge_certification}
     if not models:
         return {"version":VERSION,"classification":SINGLE_METHOD_LIMITED_SUPPORT,"strong_action_eligible":False,
-                "published_method_count":0,"sole_method":None,"requirements":{"valuation_published":False}}
+                "published_method_count":0,"sole_method":None,"company_type":company_type,
+                "company_type_route_policy":route_policy,"requirements":{"valuation_published":False}}
     model=models[0]; methodology=str(model.get("methodology_id") or "")
     peer_check=certify_peer_multiple(model) if methodology in {"VAL_EV_EBITDA_V1","VAL_FORWARD_PE_V1","VAL_P_FCF_V1"} else {"status":"NOT_REQUIRED"}
     approval=dict(professional.get("single_method_sufficiency") or {})
@@ -144,13 +152,15 @@ def classify_valuation_evidence(professional: Mapping[str, Any], validation: Map
         "scenario_evidence_published":professional.get("scenario_status")=="PUBLISHED" and professional.get("atlas_bear_case") is not None and professional.get("atlas_bull_case") is not None,
         "economic_explanation_complete":all(explanation.get(key) for key in ("primary_valuation_driver","secondary_valuation_driver","biggest_valuation_uncertainty")),
     }
-    high=all(requirements.values())
-    return {"version":VERSION,"classification":SINGLE_METHOD_HIGH_SUPPORT if high else SINGLE_METHOD_LIMITED_SUPPORT,
-            "strong_action_eligible":high,"published_method_count":1,"sole_method":methodology,
+    requirements["single_method_strong_action_policy_active"] = False
+    return {"version":VERSION,"classification":SINGLE_METHOD_LIMITED_SUPPORT,
+            "strong_action_eligible":False,"published_method_count":1,"sole_method":methodology,
             "sole_method_weight":model.get("weight"),"company_type":company_type,
+            "company_type_route_policy":route_policy,
             "professionally_applicable_methods":sorted(policy["applicable"]),"requirements":requirements,"peer_certification":peer_check,
             "method_bridge_certification":bridge_certification,
+            "single_method_strong_action_policy":SINGLE_METHOD_STRONG_ACTION_POLICY,
             "unmet_requirements":[key for key,value in requirements.items() if not value]}
 
 
-__all__=["MULTI_METHOD_CORROBORATED","PROFESSIONAL_METHOD_POLICY","SINGLE_METHOD_HIGH_SUPPORT","SINGLE_METHOD_LIMITED_SUPPORT","VERSION","certify_method_bridges","certify_peer_multiple","classify_valuation_evidence"]
+__all__=["EXPLICITLY_REJECTED_COMPANY_TYPES","MULTI_METHOD_CORROBORATED","PROFESSIONAL_METHOD_POLICY","SINGLE_METHOD_HIGH_SUPPORT","SINGLE_METHOD_LIMITED_SUPPORT","SINGLE_METHOD_STRONG_ACTION_POLICY","VERSION","certify_method_bridges","certify_peer_multiple","classify_valuation_evidence"]

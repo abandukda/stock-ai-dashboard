@@ -11,6 +11,7 @@ SPEC.loader.exec_module(MODULE)
 classify = MODULE.classify
 generate = MODULE.generate
 valuation_attrition_causes = MODULE.valuation_attrition_causes
+valuation_method_readiness = MODULE.valuation_method_readiness
 
 
 def test_classification_precedence_and_population_mismatch(tmp_path):
@@ -73,3 +74,15 @@ def test_valuation_attrition_decomposes_existing_certification_evidence():
 
 def test_valuation_attrition_does_not_infer_causes_without_blocker():
     assert valuation_attrition_causes({}, {"blockers": []}) == []
+
+
+def test_method_readiness_reports_route_applicability_and_missing_inputs_without_invention():
+    evaluation={"atlas_valuation":{"professional_valuation_v2":{"models":[
+        {"methodology_id":"VAL_EV_EBITDA_V1","status":"PUBLISHED"},
+        {"methodology_id":"VAL_FCFF_DCF_V1","status":"INSUFFICIENT_INPUTS","reason":"EXPLICIT_FCFF_FORECAST_OR_CAPITAL_INPUTS_MISSING"},
+        {"methodology_id":"VAL_DDM_GORDON_V1","status":"NOT_APPLICABLE","reason":"COMPANY_TYPE_NOT_ELIGIBLE"},
+    ]}},"valuation_validation":{"valuation_evidence_strength":{"professionally_applicable_methods":["VAL_EV_EBITDA_V1","VAL_FCFF_DCF_V1"]}}}
+    result=valuation_method_readiness(evaluation)
+    assert result[0]["completed_after_fix"] is True
+    assert result[1]["gap_type"]=="PROVIDER_OR_NORMALIZATION_GAP" and result[1]["eligible_for_route"] is True
+    assert result[2]["gap_type"]=="GENUINE_NON_APPLICABILITY" and result[2]["eligible_for_route"] is False

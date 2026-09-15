@@ -13,9 +13,30 @@ def test_snapshot_is_deterministic_append_only_and_horizons_do_not_look_ahead(tm
  assert s['action_stars']==5.0 and s['return_policy']['transaction_costs']=='excluded'
  changed={**s,'action':'AVOID','snapshot_id':'different'}
  with pytest.raises(ValueError,match='IMMUTABLE_SNAPSHOT_CONFLICT'): append_snapshots(p,[changed])
- assert [x['horizon_sessions'] for x in mature_snapshot(s,[{'close':11}]*4)]==[1]
- records=mature_snapshot(s,[{'close':11}]*5,[{'close':100},{'close':101},{'close':102},{'close':103},{'close':104}]);assert records[-1]['horizon_sessions']==5 and records[-1]['mfe']==pytest.approx(.1)
+ future=[{'timestamp':f'2026-09-{day:02d}T20:00:00Z','close':11} for day in range(5,10)]
+ assert [x['horizon_sessions'] for x in mature_snapshot(s,future[:4])]==[1]
+ benchmark=[{'timestamp':'2026-09-04T20:00:00Z','close':100},*[
+  {'timestamp':bar['timestamp'],'close':101+i} for i,bar in enumerate(future)]]
+ records=mature_snapshot(s,future,benchmark);assert records[-1]['horizon_sessions']==5 and records[-1]['mfe']==pytest.approx(.1)
+ assert records[-1]['benchmark_start_timestamp']=='2026-09-04T20:00:00+00:00'
  assert mature_snapshot(s,[{'timestamp':'2026-09-03T20:00:00Z','close':99}])==[]
+
+def test_snapshot_writer_rejects_null_or_naive_timestamps(tmp_path:Path):
+ missing=row();missing['canonical_investment_evaluation']['evaluated_at']=None
+ with pytest.raises(ValueError,match='DECISION_TIMESTAMP_REQUIRED'):build_snapshot(missing)
+ naive=row();naive['canonical_investment_evaluation']['evaluated_at']='2026-09-04T20:00:00'
+ with pytest.raises(ValueError,match='DECISION_TIMESTAMP_TIMEZONE_REQUIRED'):build_snapshot(naive)
+ with pytest.raises(ValueError,match='DECISION_TIMESTAMP_REQUIRED'):
+  append_snapshots(tmp_path/'history.jsonl',[{'snapshot_id':'x','ticker':'ABC','timestamp':None}])
+
+
+def test_same_day_snapshot_append_persists_timezone_aware_identity(tmp_path:Path):
+ snapshot=build_snapshot(row())
+ path=tmp_path/'history.jsonl'
+ assert append_snapshots(path,[snapshot])==1
+ stored=__import__('json').loads(path.read_text().strip())
+ assert stored['timestamp']=='2026-09-04T20:00:00+00:00'
+ assert stored['snapshot_id']==snapshot['snapshot_id']
 
 def test_volume_discovery_never_changes_canonical_action_and_breakout_requires_confirmation():
  wait=build_volume_screener([row(action='WAIT_FOR_CONFIRMATION')])[0];assert wait['volume_state']=='VOLUME_SURGE' and wait['action']=='WAIT_FOR_CONFIRMATION' and wait['action_stars']==3.5

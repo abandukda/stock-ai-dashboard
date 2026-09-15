@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from pathlib import Path
 import re
 from datetime import datetime
 from typing import Any, Iterable, Mapping
@@ -35,6 +36,55 @@ def select_home_featured_cards(cards: Iterable[Mapping[str, Any]], *, limit: int
     return buys + [card for card in eligible if str(card.get("ticker") or "") not in selected][:max(0, limit - len(buys))]
 
 
+def rank_customer_publishable_rows(rows: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Create a certification-only rank without changing analytical rank.
+
+    The input may extend below the analytical Top-150 only when its exact-run
+    binding has already been verified by the caller.  BUY rows retain the same
+    exact decision-digest revalidation required by the ordinary Home boundary.
+    """
+    publishable = []
+    for source_order, source in enumerate(rows, 1):
+        row = dict(source)
+        certification = row.get("publication_certification") if isinstance(row.get("publication_certification"), Mapping) else {}
+        evaluation = row.get("canonical_investment_evaluation") if isinstance(row.get("canonical_investment_evaluation"), Mapping) else {}
+        action = str(((evaluation.get("guidance") or {}).get("state") or ""))
+        if certification.get("customer_publication_allowed") is not True or certification.get("certified_action") != action:
+            continue
+        if action == "BUY_NOW":
+            revalidation = row.get("positive_action_revalidation") if isinstance(row.get("positive_action_revalidation"), Mapping) else evaluation.get("positive_action_revalidation") or {}
+            digest = row.get("decision_digest") or evaluation.get("decision_digest")
+            if revalidation.get("status") != "BUY_NOW_REVALIDATED" or revalidation.get("source_decision_digest") != digest:
+                continue
+        row["_customer_rank_source_order"] = source_order
+        publishable.append(row)
+    # Customer rank is a dense, certification-filtered projection of canonical
+    # analytical order. It must never introduce a second scoring/ranking model.
+    publishable.sort(key=lambda row: (
+        int(row.get("production_rank") or row.get("full_evaluation_rank") or row["_customer_rank_source_order"]),
+        row["_customer_rank_source_order"],
+    ))
+    for customer_rank, row in enumerate(publishable, 1):
+        row["customer_publishable_rank"] = customer_rank
+        row["canonical_analytical_rank"] = row.get("production_rank") or row.get("full_evaluation_rank")
+        row.pop("_customer_rank_source_order", None)
+    return publishable
+
+
+def load_exact_customer_inventory(path: Path, manifest: Mapping[str, Any]) -> tuple[Any, bool]:
+    """Load a below-boundary pool only when its bytes match this run's manifest."""
+    try:
+        payload_bytes = path.read_bytes()
+        payload = json.loads(payload_bytes)
+        expected = dict(manifest.get("artifact_hashes") or {}).get(path.name)
+        canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode()
+        if not expected or hashlib.sha256(canonical).hexdigest() != expected:
+            return [], False
+        return payload, True
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return [], False
+
+
 def _counts(items: Iterable[Mapping[str, Any]]) -> dict[str, int]:
     values = [_action_state(item) for item in items]
     return {state: values.count(state) for state in ACTION_COUNTER_STATES}
@@ -43,7 +93,7 @@ def _counts(items: Iterable[Mapping[str, Any]]) -> dict[str, int]:
 def build_home_action_count_contract(
     canonical_rows: Iterable[Mapping[str, Any]], published_cards: Iterable[Mapping[str, Any]],
     featured_cards: Iterable[Mapping[str, Any]], *, manifest: Mapping[str, Any] | None = None,
-    artifact_sha256: str | None = None,
+    artifact_sha256: str | None = None, enforce_manifest_publication_count: bool = True,
 ) -> dict[str, Any]:
     """Reconcile canonical, customer-published and actually rendered Home Actions."""
     canonical_items = []
@@ -66,7 +116,7 @@ def build_home_action_count_contract(
     # certification. Only an explicit counter-generation digest is comparable.
     expected_hash = manifest.get("home_counter_artifact_sha256")
     failures = []
-    if expected_publication is not None and int(expected_publication) != len(published):
+    if enforce_manifest_publication_count and expected_publication is not None and int(expected_publication) != len(published):
         failures.append("CUSTOMER_PUBLICATION_COUNT_MISMATCH")
     if expected_hash and artifact_sha256 and str(expected_hash) != str(artifact_sha256):
         failures.append("PRODUCTION_GENERATION_MISMATCH")
@@ -481,6 +531,8 @@ def build_home_guidance_candidate(
         "display_scope": display_scope(),
         "company": str(company),
         "production_rank": int(production_rank),
+        "canonical_analytical_rank": row.get("canonical_analytical_rank") or row.get("production_rank") or row.get("full_evaluation_rank") or int(production_rank),
+        "customer_publishable_rank": row.get("customer_publishable_rank"),
         "production_snapshot_id": production_snapshot_id,
         "production_snapshot_timestamp": production_snapshot_timestamp,
         "production_source_artifact": "market_full_scan.json",
@@ -760,8 +812,18 @@ def build_home_guidance_story(
     current_evaluations: Mapping[str, Mapping[str, Any]] | None = None,
     scan_timestamp: Any = None, market_today: Mapping[str, Any] | None = None,
     production_manifest: Mapping[str, Any] | None = None, production_artifact_sha256: str | None = None,
+    customer_inventory_payload: Any = None, customer_inventory_binding_valid: bool = False,
 ) -> dict[str, Any]:
     full_rows = _rows(full_scan_payload)
+    inventory_rows = _rows(customer_inventory_payload) if customer_inventory_binding_valid else []
+    ranked_source = inventory_rows or full_rows
+    customer_source_rows = (
+        rank_customer_publishable_rows(ranked_source)
+        if any(isinstance(row.get("publication_certification"), Mapping) for row in ranked_source)
+        else list(ranked_source)
+    )
+    if inventory_rows:
+        customer_source_rows = customer_source_rows[:150]
     recovery_payload_rows = _rows(recovery_payload)
     recovery_rows = {_ticker(row): row for row in recovery_payload_rows if _ticker(row)}
     evaluations = {str(key).upper(): value for key, value in (current_evaluations or {}).items()}
@@ -772,9 +834,10 @@ def build_home_guidance_story(
         payload_identity.get("artifact_id") or
         hashlib.sha256(json.dumps(full_rows, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:16]
     )
-    certification_contract_present = any(isinstance(row.get("publication_certification"), Mapping) for row in full_rows)
+    certification_contract_present = any(isinstance(row.get("publication_certification"), Mapping) for row in customer_source_rows)
     published_rows = []
-    for production_rank, row in enumerate(full_rows, start=1):
+    for fallback_rank, row in enumerate(customer_source_rows, start=1):
+        production_rank = row.get("production_rank") or row.get("full_evaluation_rank") or fallback_rank
         if not certification_contract_present:
             published_rows.append((production_rank, row))
             continue
@@ -839,8 +902,9 @@ def build_home_guidance_story(
         })
     home_featured_cards = select_home_featured_cards(cards)
     action_counts = build_home_action_count_contract(
-        full_rows, cards, home_featured_cards, manifest=production_manifest,
+        inventory_rows or full_rows, cards, home_featured_cards, manifest=production_manifest,
         artifact_sha256=production_artifact_sha256,
+        enforce_manifest_publication_count=not bool(inventory_rows),
     )
     active = founder_guidance_v1_enabled() and bool(evaluations)
     return {
@@ -853,6 +917,9 @@ def build_home_guidance_story(
         "production_snapshot_id": snapshot_id,
         "production_source_artifact": "market_full_scan.json",
         "candidate_count": len(cards),
+        "customer_inventory_source": "FULL_EVALUATION_POOL_EXACT_RUN" if inventory_rows else "ANALYTICAL_TOP_150_FAIL_CLOSED",
+        "customer_inventory_binding_valid": bool(inventory_rows),
+        "analytical_top_count": len(full_rows),
         "groups": groups,
         "cards": cards,
         "home_featured_cards": home_featured_cards,
@@ -870,5 +937,6 @@ def build_home_guidance_story(
 __all__ = [
     "CUSTOMER_ACTION_PRESENTATION", "GUIDANCE_GROUPS", "HOME_FIELD_AUTHORITY", "HOME_GUIDANCE_STORY_VERSION",
     "build_home_action_count_contract", "build_home_guidance_candidate", "build_home_guidance_story",
-    "build_homepage_promotion_metrics", "customer_action_presentation", "select_home_featured_cards",
+    "build_homepage_promotion_metrics", "customer_action_presentation", "load_exact_customer_inventory", "select_home_featured_cards",
+    "rank_customer_publishable_rows",
 ]

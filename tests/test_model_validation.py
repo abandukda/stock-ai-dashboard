@@ -11,16 +11,26 @@ def bars():
     return [{"timestamp":"2026-01-02T20:00:00Z","open":100,"high":103,"low":96,"close":102},{"timestamp":"2026-01-05T20:00:00Z","open":102,"high":121,"low":100,"close":120},{"timestamp":"2026-01-06T20:00:00Z","open":120,"high":122,"low":89,"close":91},{"timestamp":"2026-01-07T20:00:00Z","high":95,"low":90,"close":94},{"timestamp":"2026-01-08T20:00:00Z","high":98,"low":93,"close":97}]
 
 def test_maturation_target_before_stop_benchmark_and_holding_outcome():
-    records=mature_snapshot(snapshot(),bars(),[{"timestamp":b["timestamp"],"close":100+i} for i,b in enumerate(bars())])
+    benchmark=[{"timestamp":"2026-01-01T20:00:00Z","close":100},*[{"timestamp":b["timestamp"],"close":101+i} for i,b in enumerate(bars())]]
+    records=mature_snapshot(snapshot(),bars(),benchmark)
     one,five=records
     assert one["horizon_sessions"]==1 and one["entry_reached"] is True
     assert five["target_reached"] and five["stop_reached"] and five["target_before_stop"] is True
     assert five["holding_period_outcome"]=="TARGET_REACHED" and five["time_to_first_material_outcome"]==2
-    assert five["benchmark_relative_return"]==pytest.approx(-.07)
+    assert five["benchmark_relative_return"]==pytest.approx(-.08)
+    assert five["benchmark_start_timestamp"]=="2026-01-01T20:00:00+00:00"
+    assert five["benchmark_end_timestamp"]==five["outcome_end_timestamp"]
 
 def test_no_lookahead_excludes_pre_snapshot_bars_and_unelapsed_horizons():
     assert mature_snapshot(snapshot(),[{"timestamp":"2025-12-31T20:00:00Z","close":999}])==[]
     assert [x["horizon_sessions"] for x in mature_snapshot(snapshot(),bars()[:4])]==[1]
+
+
+def test_no_lookahead_rejects_same_time_and_untimestamped_outcome_bars():
+    same={"timestamp":"2026-01-01T20:00:00Z","close":999}
+    assert mature_snapshot(snapshot(),[same,*bars()[:1]])[0]["price_return"]==pytest.approx(.02)
+    with pytest.raises(ValueError,match="OUTCOME_BAR_TIMESTAMP_REQUIRED"):
+        mature_snapshot(snapshot(),[{"close":101}])
 
 def test_lifecycle_preserves_initial_action_and_records_direction_and_outcomes():
     later=snapshot(snapshot_id="s2",timestamp="2026-01-08T20:00:00Z",action="ACCUMULATE")
