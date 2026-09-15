@@ -6,6 +6,7 @@ from agents.full_qa_visual_certification import (
     OPERATION_TIMEOUTS, QA_MODES, SCREENSHOT_BUDGETS, TimingReport, bounded_operation,
     certification_tickers, customer_action_matches, expected_customer_action,
     interaction_manifest_fields, required_expandable, visual_completion_contract,
+    validate_disclosure_content,
 )
 
 
@@ -199,10 +200,16 @@ def test_repeated_card_disclosures_use_bounded_batch_and_ranked_scan_viewport_ca
     source = Path("agents/full_qa_visual_certification.py").read_text()
     assert 'page_name in {"Home", "Full Ranked Scan", "Developer Center"} and len(inventory) >= 5' in source
     assert "document.querySelectorAll('details > summary')" in source
-    assert "await sleep(30)" in source
+    assert "const settlementTimeoutMs=1500, mutationQuietMs=150, pollMs=25" in source
+    assert "const waitForSettled=async (item, expectedOpen)" in source
+    assert "performance.now()-lastMutation >= mutationQuietMs" in source
+    assert "await waitForSettled(item,true)" in source
+    assert "await waitForSettled(item,false)" in source
+    full = source[source.index("# Repeated card disclosures"):source.index("# Normalize initially-open controls")]
+    assert "await sleep(30)" not in full
     assert "const resolveLive=async item" in source
     assert "labelOf(prior)===label" in source
-    assert "collapsed:Boolean(node) && !Boolean(node?.closest('details')?.open)" in source
+    assert "closeState.settled && node?.isConnected" in source
     assert 'complete_surface=name != "Full Ranked Scan"' in source
 
 
@@ -221,22 +228,139 @@ def test_persistent_semantic_resolution_failure_is_explicit_and_fail_closed():
     assert "resolution_failure:'INITIAL_RESOLUTION_FAILED'" in source
     assert "resolution_failure:'PRE_OPEN_RESOLUTION_FAILED'" in source
     assert "'CLOSE_VERIFICATION_RESOLUTION_FAILED'" in source
+    assert "'OPEN_SETTLEMENT_TIMEOUT'" in source
+    assert "'CLOSE_SETTLEMENT_TIMEOUT'" in source
     assert 'passed = bool(row.get("opened") and row.get("collapsed")' in source
     assert '"status": "PASS" if passed else "FAIL"' in source
 
 
 def test_nested_parent_close_uses_current_semantic_identity_not_old_dom_position():
     source = Path("agents/full_qa_visual_certification.py").read_text()
-    open_index = source.index("if (opened) { node.click(); await sleep(30); }")
-    close_resolution = source.index("resolution=await resolveLive(item); node=resolution.node", open_index)
-    close_check = source.index("collapsed:Boolean(node)", close_resolution)
+    open_index = source.index("if (opened && node?.isConnected)")
+    close_resolution = source.index("closeState=await waitForSettled(item,false)", open_index)
+    close_check = source.index("const collapsed=Boolean(closeState.settled", close_resolution)
     assert open_index < close_resolution < close_check
+
+
+def test_release_full_batch_requires_live_connected_mutation_quiet_state_and_records_evidence():
+    source = Path("agents/full_qa_visual_certification.py").read_text()
+    full = source[source.index("# Repeated card disclosures"):source.index("# Normalize initially-open controls")]
+    assert "const node=resolveOnce(item), host=node?.closest?.('details') || null" in full
+    assert "if (!node?.isConnected || !host)" in full
+    assert "if (host!==observedHost) observe(host)" in full
+    assert "Boolean(host.open)===Boolean(expectedOpen)" in full
+    assert "performance.now()-lastMutation >= mutationQuietMs" in full
+    assert "while (performance.now()-started < settlementTimeoutMs)" in full
+    assert '"open_settlement": row.get("open_settlement") or {}' in full
+    assert '"close_settlement": row.get("close_settlement") or {}' in full
+
+
+def test_release_full_final_state_matches_verified_close_result():
+    source = Path("agents/full_qa_visual_certification.py").read_text()
+    full = source[source.index("# Repeated card disclosures"):source.index("# Normalize initially-open controls")]
+    assert '"final_state": "COLLAPSED" if row.get("collapsed") else (' in full
+    assert '"EXPANDED" if (row.get("close_settlement") or {}).get("connected")' in full
+    assert 'and (row.get("close_settlement") or {}).get("open") else "UNKNOWN"' in full
+    assert '"collapse_success": bool(row.get("collapsed"))' in full
+
+
+def test_release_full_settlement_contract_covers_home_ranked_desktop_and_mobile_paths():
+    source = Path("agents/full_qa_visual_certification.py").read_text()
+    full = source[source.index("# Repeated card disclosures"):source.index("# Normalize initially-open controls")]
+    assert 'page_name in {"Home", "Full Ranked Scan", "Developer Center"}' in full
+    assert "Professional Detail" in source
+    assert "evidence" in source.lower()
+    assert 'for viewport, size in (("desktop", DESKTOP), ("mobile", MOBILE))' in source
+    assert "const waitForSettled=async (item, expectedOpen)" in full
 
 
 def test_failed_screenshot_attempts_do_not_poison_recovered_manifest():
     source = Path("agents/full_qa_visual_certification.py").read_text()
     assert 'item.get("generated") and item.get("path")' in source
     assert "manifest = enrich_manifest(captured_manifest" in source
+
+
+def test_developer_diagnostic_contract_accepts_only_schema_approved_missing_states():
+    market = '''Home Market Runtime Health {
+      "provider":"TWELVE_DATA" "credential_present":false "symbols_requested":[]
+      "symbols_available":[] "symbols_unavailable":[] "latest_timestamp":NULL
+      "freshness_status":"TEMPORARILY_UNAVAILABLE" "failure_reasons":{}
+      "last_successful_fetch_at":NULL
+    }'''
+    action = '''Home Action Runtime Health {
+      "version":"ATLAS_HOME_ACTION_COUNT_CONTRACT_V1" "artifact_run_id":"run"
+      "artifact_source_sha":"abc" "canonical_action_counts":{"DATA_LIMITED":0}
+      "customer_published_action_counts":{} "home_featured_action_counts":{}
+      "guidance_state":"DATA_LIMITED" "reconciled":true "failure_reason":NULL "non_scoring":true
+    }'''
+    assert validate_disclosure_content("Developer Center", "Home Market Runtime Health", market) == (True, [])
+    assert validate_disclosure_content("Developer Center", "Home Action Runtime Health", action) == (True, [])
+
+
+def test_home_runtime_contract_allows_nested_live_quote_timestamp_only_when_declared_nullable():
+    runtime = '''Home Runtime Contract {
+      "version":"ATLAS_HOME_RUNTIME_CONTRACT_V1" "code_sha":"UNAVAILABLE" "deploy_branch":"UNAVAILABLE"
+      "production_artifact":{} "stock_data":{"live_quote_health":{"last_successful_fetch_at":NULL}}
+      "market_today":{"status":"DATA_UNAVAILABLE","latest_timestamp":NULL}
+      "market_news":{"status":"TEMPORARILY_UNAVAILABLE","latest_story_timestamp":NULL}
+      "renderer":{} "generated_at":"now" "runtime_ready":true "home_runtime_ready":true
+      "failure_reasons":[] "non_scoring":true
+    }'''
+    assert validate_disclosure_content("Developer Center", "Home Runtime Contract", runtime) == (True, [])
+    invalid = runtime.replace('"production_artifact":{}', '"production_artifact":{"decision_digest":NULL}')
+    ok, failures = validate_disclosure_content("Developer Center", "Home Runtime Contract", invalid)
+    assert not ok
+    assert "DIAGNOSTIC_NULL_NOT_ALLOWED:decision_digest" in failures
+
+
+def test_developer_diagnostic_contract_is_not_a_blanket_exemption():
+    base = '''Home Market Runtime Health {
+      "provider":"TWELVE_DATA" "credential_present":false "symbols_requested":[]
+      "symbols_available":[] "symbols_unavailable":[] "freshness_status":"TEMPORARILY_UNAVAILABLE"
+      "failure_reasons":{} "latest_timestamp":NULL "last_successful_fetch_at":NULL
+    }'''
+    malformed = base[:-1]
+    raw_exception = base + " Traceback KeyError"
+    missing_required = base.replace('"provider":"TWELVE_DATA"', "")
+    invalid_type = base.replace('"credential_present":false', '"credential_present":"false"')
+    illegal_null = base.replace('"provider":"TWELVE_DATA"', '"provider":NULL')
+    for payload in (malformed, raw_exception, missing_required, invalid_type, illegal_null):
+        valid, failures = validate_disclosure_content("Developer Center", "Home Market Runtime Health", payload)
+        assert not valid
+        assert failures
+
+
+def test_developer_promotion_safety_contract_rejects_contradictory_state():
+    valid = (
+        "Production Promotion Safety Current Production run Latest Certified Not available "
+        "Relationship UNKNOWN Last Promotion Not available Production generated now "
+        "Last promotion Legacy/not recorded Last rollback None recorded"
+    )
+    assert validate_disclosure_content("Developer Center", "Production Promotion Safety", valid) == (True, [])
+    invalid = valid.replace("Relationship UNKNOWN", "Relationship CURRENT")
+    ok, failures = validate_disclosure_content("Developer Center", "Production Promotion Safety", invalid)
+    assert not ok
+    assert "PROMOTION_SAFETY_STATE_CONTRADICTORY" in failures
+
+
+def test_customer_surfaces_keep_strict_sentinel_and_exception_validation():
+    for page in ("Home", "Research Any Ticker", "Paid Detail", "Full Ranked Scan"):
+        for payload in ("Price: NULL", "Value: None", "DATA Traceback", "KeyError", "TypeError"):
+            valid, failures = validate_disclosure_content(page, "Professional Detail", payload)
+            assert not valid
+            assert failures == ["CUSTOMER_MALFORMED_CONTENT"]
+
+
+def test_developer_contract_identity_is_explicit_and_not_inherited_by_customer_surfaces():
+    developer = Path("ui/developer_center.py").read_text()
+    labels = (
+        "Home Market Runtime Health", "Home Action Runtime Health",
+        "Home Runtime Contract", "Production Promotion Safety",
+    )
+    for label in labels:
+        assert label in developer
+        for customer_path in (Path("ui/home_guidance_vnext.py"), Path("ui/research_vnext.py")):
+            assert label not in customer_path.read_text()
 
 
 def test_bounded_operation_caps_retry_and_records_timeout():

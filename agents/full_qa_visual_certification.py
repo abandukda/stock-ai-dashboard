@@ -52,6 +52,75 @@ EXPANDABLE_LABEL_RE = re.compile(
     re.I,
 )
 NON_DISCLOSURE_BUTTON_RE = re.compile(r"^(?:home|research any ticker|full ranked scan|volume intelligence|developer center)$", re.I)
+CUSTOMER_MALFORMED_CONTENT_RE = re.compile(
+    r"(?:\bNone\b|\bnull\b|\bnan\b|Traceback|KeyError|TypeError)", re.I,
+)
+DEVELOPER_DIAGNOSTIC_CONTRACTS = {
+    "Home Market Runtime Health": {
+        "required": ("provider", "credential_present", "symbols_requested", "symbols_available",
+                     "symbols_unavailable", "freshness_status", "failure_reasons"),
+        "nullable": ("latest_timestamp", "last_successful_fetch_at"),
+        "allowed_statuses": ("CURRENT", "HEALTHY", "DEGRADED", "TEMPORARILY_UNAVAILABLE",
+                             "NOT_FETCHED_IN_THIS_SESSION"),
+    },
+    "Home Action Runtime Health": {
+        "required": ("version", "artifact_run_id", "artifact_source_sha", "canonical_action_counts",
+                     "customer_published_action_counts", "home_featured_action_counts", "reconciled",
+                     "failure_reason", "non_scoring"),
+        "nullable": ("failure_reason",),
+        "allowed_statuses": ("DATA_LIMITED", "NOT_BUILT_IN_THIS_SESSION"),
+    },
+    "Home Runtime Contract": {
+        "required": ("version", "code_sha", "deploy_branch", "production_artifact", "stock_data",
+                     "market_today", "market_news", "renderer", "generated_at", "runtime_ready",
+                     "home_runtime_ready", "failure_reasons", "non_scoring"),
+        "nullable": ("latest_timestamp", "latest_story_timestamp", "last_successful_fetch_at"),
+        "allowed_statuses": ("DATA_UNAVAILABLE", "TEMPORARILY_UNAVAILABLE", "UNAVAILABLE"),
+    },
+    "Production Promotion Safety": {
+        "required": ("Current Production", "Latest Certified", "Relationship", "Last Promotion",
+                     "Production generated", "Last promotion", "Last rollback"),
+        "nullable": (),
+        "allowed_statuses": ("Not available", "UNKNOWN", "None recorded", "Legacy/not recorded"),
+    },
+}
+
+
+def validate_disclosure_content(page_name: str, label: str, content: str) -> tuple[bool, list[str]]:
+    """Apply strict customer or schema-aware developer diagnostic validation."""
+    text = str(content or "")
+    contract = DEVELOPER_DIAGNOSTIC_CONTRACTS.get(label) if page_name == "Developer Center" else None
+    if contract is None:
+        return not bool(CUSTOMER_MALFORMED_CONTENT_RE.search(text)), (
+            ["CUSTOMER_MALFORMED_CONTENT"] if CUSTOMER_MALFORMED_CONTENT_RE.search(text) else []
+        )
+    failures = []
+    if re.search(r"Traceback|KeyError|TypeError|Unhandled\s+exception|JSONDecodeError", text, re.I):
+        failures.append("DIAGNOSTIC_EXCEPTION_OR_PARSE_FAILURE")
+    if text.count("{") != text.count("}") or text.count("[") != text.count("]"):
+        failures.append("DIAGNOSTIC_STRUCTURE_MALFORMED")
+    for field in contract["required"]:
+        if not re.search(rf'(?i)(?:"{re.escape(field)}"|\b{re.escape(field)}\b)', text):
+            failures.append(f"DIAGNOSTIC_REQUIRED_FIELD_MISSING:{field}")
+    nullable = set(contract["nullable"])
+    for field in re.findall(r'"([A-Za-z0-9_]+)"\s*:\s*(?:NULL|None)\b', text, re.I):
+        if field not in nullable:
+            failures.append(f"DIAGNOSTIC_NULL_NOT_ALLOWED:{field}")
+    governed_sentinels = {"DATA_LIMITED", "DATA_UNAVAILABLE", "TEMPORARILY_UNAVAILABLE", "UNAVAILABLE"}
+    allowed_statuses = set(contract["allowed_statuses"])
+    for value in re.findall(r'"[A-Za-z0-9_]+"\s*:\s*"([A-Z][A-Z0-9_]+)"', text):
+        if value in governed_sentinels and value not in allowed_statuses:
+            failures.append(f"DIAGNOSTIC_SENTINEL_NOT_ALLOWED:{value}")
+    if re.search(r'"(?:credential_present|commercial_display_allowed|reconciled|runtime_ready|home_runtime_ready|non_scoring)"\s*:\s*"(?:true|false)"', text, re.I):
+        failures.append("DIAGNOSTIC_BOOLEAN_TYPE_INVALID")
+    if re.search(r'"(?:records_available|story_count|publication_count|home_featured_count|counter_sum|rendered_card_count)"\s*:\s*"[-+]?\d', text, re.I):
+        failures.append("DIAGNOSTIC_NUMERIC_TYPE_INVALID")
+    if label == "Production Promotion Safety":
+        latest_missing = bool(re.search(r"Latest Certified\s+Not available", text, re.I))
+        relationship_current = bool(re.search(r"Relationship\s+CURRENT", text, re.I))
+        if latest_missing and relationship_current:
+            failures.append("PROMOTION_SAFETY_STATE_CONTRADICTORY")
+    return not failures, failures
 
 
 class QARuntimeBudgetExceeded(RuntimeError):
@@ -317,7 +386,8 @@ async def certify_expandable_interactions(
                 opened = bool(open_state.get("settled") and await _expanded_state(control))
                 content = await _expanded_content(control) if opened else ""
                 layout = await _layout(page)
-                malformed = bool(re.search(r"(?:\bNone\b|\bnull\b|\bnan\b|Traceback|KeyError|TypeError)", content, re.I))
+                content_valid, content_validation_failures = validate_disclosure_content(page_name, label, content)
+                malformed = not content_valid
                 await control.click(timeout=5000)
                 close_state = await _wait_for_disclosure_settled(
                     page, label=label, ordinal=ordinal, expected_open=False,
@@ -336,6 +406,7 @@ async def certify_expandable_interactions(
                 "expected_content": "Trusted open/close reaches settled states without screenshot interleaving",
                 "observed_content": content[:500], "status": "PASS" if passed else "FAIL",
                 "screenshot": "", "open_settlement": open_state, "close_settlement": close_state,
+                "content_validation_failures": content_validation_failures,
             }
             checks.append(interaction_check)
             if required and not passed:
@@ -405,6 +476,7 @@ async def certify_expandable_interactions(
           const labelOf=node => (node?.innerText || node?.textContent || '')
             .replace(/keyboard_arrow_(?:right|down)/gi,' ').replace(/\\s+/g,' ').trim();
           const sleep=ms => new Promise(resolve => setTimeout(resolve, ms));
+          const settlementTimeoutMs=1500, mutationQuietMs=150, pollMs=25;
           const initial=controls().map((node,index,nodes) => {
             const label=labelOf(node);
             return {label, ordinal:nodes.slice(0,index).filter(prior=>labelOf(prior)===label).length};
@@ -418,6 +490,38 @@ async def certify_expandable_interactions(
             }
             return {node:null, retries:3};
           };
+          const waitForSettled=async (item, expectedOpen) => {
+            const started=performance.now();
+            let observedHost=null, observer=null, mutations=0, resolutionMisses=0;
+            let lastMutation=performance.now();
+            const observe=host => {
+              observer?.disconnect(); observedHost=host; lastMutation=performance.now();
+              observer=new MutationObserver(rows => {
+                mutations+=rows.length; lastMutation=performance.now();
+              });
+              observer.observe(host,{subtree:true,childList:true,attributes:true,characterData:true});
+            };
+            try {
+              while (performance.now()-started < settlementTimeoutMs) {
+                const node=resolveOnce(item), host=node?.closest?.('details') || null;
+                if (!node?.isConnected || !host) {
+                  resolutionMisses++; await sleep(pollMs); continue;
+                }
+                if (host!==observedHost) observe(host);
+                const stateMatches=Boolean(host.open)===Boolean(expectedOpen);
+                if (stateMatches && performance.now()-lastMutation >= mutationQuietMs) {
+                  return {settled:true,open:Boolean(host.open),connected:true,mutations,
+                    resolution_misses:resolutionMisses,elapsed_ms:Math.round(performance.now()-started),
+                    resolved_identity:`${item.label}#${item.ordinal}`};
+                }
+                await sleep(pollMs);
+              }
+              const node=resolveOnce(item), host=node?.closest?.('details') || null;
+              return {settled:false,open:Boolean(host?.open),connected:Boolean(node?.isConnected),mutations,
+                resolution_misses:resolutionMisses,elapsed_ms:Math.round(performance.now()-started),
+                resolved_identity:`${item.label}#${item.ordinal}`};
+            } finally { observer?.disconnect(); }
+          };
           const output=[];
           for (let index=0; index<initial.length; index++) {
             const item=initial[index], label=item.label;
@@ -428,10 +532,17 @@ async def certify_expandable_interactions(
                 resolved_identity:`${label}#${item.ordinal}`,resolution_failure:'INITIAL_RESOLUTION_FAILED'});
               continue;
             }
-            let details=node.closest?.('details');
+            const details=node.closest?.('details');
             if (details?.open) {
-              node.click(); await sleep(20); resolution=await resolveLive(item); node=resolution.node;
-              retryCount+=resolution.retries;
+              node.click();
+              const resetState=await waitForSettled(item,false);
+              if (!resetState.settled) {
+                output.push({index,label,ordinal:item.ordinal,opened:false,collapsed:false,content:'',retry_count:retryCount,
+                  resolved_identity:`${label}#${item.ordinal}`,resolution_failure:'INITIAL_CLOSE_SETTLEMENT_TIMEOUT',
+                  open_settlement:{},close_settlement:resetState});
+                continue;
+              }
+              resolution=await resolveLive(item); node=resolution.node; retryCount+=resolution.retries;
             }
             if (!node?.closest?.('details')) {
               output.push({index,label,ordinal:item.ordinal,opened:false,collapsed:false,content:'',retry_count:retryCount,
@@ -439,29 +550,42 @@ async def certify_expandable_interactions(
               continue;
             }
             node.click();
-            await sleep(30);
+            const openState=await waitForSettled(item,true);
             resolution=await resolveLive(item); node=resolution.node; retryCount+=resolution.retries;
-            const opened=Boolean(node?.closest('details')?.open);
+            const opened=Boolean(openState.settled && node?.closest('details')?.open);
             const host=node?.closest('details');
             const content=(host?.innerText || '').replace(/\\s+/g,' ').trim();
-            if (opened) { node.click(); await sleep(30); }
+            let closeState={settled:false,open:Boolean(host?.open),connected:Boolean(node?.isConnected)};
+            if (opened && node?.isConnected) {
+              node.click(); closeState=await waitForSettled(item,false);
+            }
             resolution=await resolveLive(item); node=resolution.node; retryCount+=resolution.retries;
-            const resolutionFailure=node ? '' : 'CLOSE_VERIFICATION_RESOLUTION_FAILED';
-            output.push({index,label,ordinal:item.ordinal,opened,
-              collapsed:Boolean(node) && !Boolean(node?.closest('details')?.open),content,retry_count:retryCount,
-              resolved_identity:`${label}#${item.ordinal}`,resolution_failure:resolutionFailure});
+            const collapsed=Boolean(closeState.settled && node?.isConnected && !node?.closest('details')?.open);
+            const resolutionFailure=!openState.settled ? 'OPEN_SETTLEMENT_TIMEOUT'
+              : !node ? 'CLOSE_VERIFICATION_RESOLUTION_FAILED'
+              : !closeState.settled ? 'CLOSE_SETTLEMENT_TIMEOUT' : '';
+            output.push({index,label,ordinal:item.ordinal,opened,collapsed,content,retry_count:retryCount,
+              resolved_identity:`${label}#${item.ordinal}`,resolution_failure:resolutionFailure,
+              open_settlement:openState,close_settlement:closeState});
           }
           return output;
         }""")
         for row in roundtrips:
             required = required_expandable(page_name, row.get("label", ""))
             content = str(row.get("content") or "")
-            malformed = bool(re.search(r"(?:\bNone\b|\bnull\b|\bnan\b|Traceback|KeyError|TypeError)", content, re.I))
+            content_valid, content_validation_failures = validate_disclosure_content(
+                page_name, str(row.get("label") or ""), content,
+            )
+            malformed = not content_valid
             passed = bool(row.get("opened") and row.get("collapsed") and len(content) > len(str(row.get("label") or "")) and not malformed)
             check = {
                 "page": page_name, "viewport": viewport, "ticker": ticker,
                 "interaction_type": "EXPANDER", "control_label": row.get("label", ""),
-                "required": required, "initial_state": "COLLAPSED", "final_state": "COLLAPSED",
+                "required": required, "initial_state": "COLLAPSED",
+                "final_state": "COLLAPSED" if row.get("collapsed") else (
+                    "EXPANDED" if (row.get("close_settlement") or {}).get("connected")
+                    and (row.get("close_settlement") or {}).get("open") else "UNKNOWN"
+                ),
                 "click_success": bool(row.get("opened")), "collapse_success": bool(row.get("collapsed")),
                 "expected_content": "Expansion reveals customer content and collapse restores state",
                 "observed_content": content[:500], "status": "PASS" if passed else "FAIL",
@@ -469,6 +593,9 @@ async def certify_expandable_interactions(
                 "resolution_retry_count": int(row.get("retry_count") or 0),
                 "resolved_logical_control": row.get("resolved_identity"),
                 "resolution_failure": row.get("resolution_failure") or None,
+                "open_settlement": row.get("open_settlement") or {},
+                "close_settlement": row.get("close_settlement") or {},
+                "content_validation_failures": content_validation_failures,
             }
             checks.append(check)
             if required and not passed:
@@ -580,7 +707,8 @@ async def certify_expandable_interactions(
                 content = await _expanded_content(nested) if opened else ""
                 layout = await _layout(page)
                 exception = await _has_rendered_exception(page)
-                malformed = bool(re.search(r"(?:\bNone\b|\bnull\b|\bnan\b|Traceback|KeyError|TypeError)", content, re.I))
+                content_valid, content_validation_failures = validate_disclosure_content(page_name, label, content)
+                malformed = not content_valid
                 passed_open = bool(opened and len(content) > len(label) and not layout["horizontal_overflow"] and not exception and not malformed)
                 shot = await crawler._shot(
                     page, page_name=page_name, interaction=f"nested-expand-{label}",
@@ -606,6 +734,7 @@ async def certify_expandable_interactions(
                     "expected_content": "Nested expansion and collapse round trip",
                     "observed_content": content[:500], "status": "PASS" if passed else "FAIL",
                     "layout": layout, "screenshot": shot, "depth": depth,
+                    "content_validation_failures": content_validation_failures,
                 }
                 checks.append(check)
                 if not passed:
@@ -645,7 +774,10 @@ async def certify_expandable_interactions(
             content = await _expanded_content(control) if opened else ""
             layout = await _layout(page)
             exception = await _has_rendered_exception(page)
-            malformed = bool(re.search(r"(?:\bNone\b|\bnull\b|\bnan\b|Traceback|KeyError|TypeError)", content, re.I))
+            content_valid, content_validation_failures = validate_disclosure_content(
+                page_name, str(item.get("label") or ""), content,
+            )
+            malformed = not content_valid
             narrative = dom_fact_findings(content, {}, surface=page_name, ticker=ticker, required=())
             fact_keys: tuple[str, ...] = ()
             if certified_facts:
@@ -659,7 +791,7 @@ async def certify_expandable_interactions(
                 content, certified_facts or {}, surface=page_name, ticker=ticker, required=fact_keys,
             )
             passed_open = bool(opened and len(content) > len(item["label"]) and not layout["horizontal_overflow"] and not exception and not malformed and not narrative and not fact_mismatches)
-            observed = f"opened={opened}; content_chars={len(content)}; overflow={layout['horizontal_overflow']}; exception={exception}; malformed={malformed}; contradictions={len(narrative)}; fact_mismatches={len(fact_mismatches)}"
+            observed = f"opened={opened}; content_chars={len(content)}; overflow={layout['horizontal_overflow']}; exception={exception}; malformed={malformed}; content_validation_failures={content_validation_failures}; contradictions={len(narrative)}; fact_mismatches={len(fact_mismatches)}"
             defects.extend(fact_mismatches)
             if required or EXPANDABLE_LABEL_RE.search(item["label"]):
                 shot = await crawler._shot(
