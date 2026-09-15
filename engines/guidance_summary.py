@@ -221,7 +221,7 @@ def _supporting_facts(e: Mapping[str, Any]) -> list[dict[str, Any]]:
         candidates.append(_fact(
             f"Reported growth: {' and '.join(pieces)}.{delivery}",
             "This shows whether operating expansion is reaching both sales and earnings.",
-            "Yahoo/FMP normalized fundamentals", as_of, "earnings_growth",
+            "Certified fundamentals", as_of, "earnings_growth",
         ))
     if e["eps_surprise"] is not None and revenue is None and earnings is None:
         direction = "beat" if e["eps_surprise"] >= 0 else "missed"
@@ -229,7 +229,7 @@ def _supporting_facts(e: Mapping[str, Any]) -> list[dict[str, Any]]:
             f"Latest reported EPS {direction} estimates by {abs(e['eps_surprise']):.1f}%"
             + (f" on {e['latest_earnings_date']}." if e["latest_earnings_date"] else "."),
             "The latest earnings result tests whether the current growth thesis is translating into delivery.",
-            "FMP/Yahoo earnings history", e["latest_earnings_date"] or as_of, "earnings",
+            "Certified earnings history", e["latest_earnings_date"] or as_of, "earnings",
         ))
     history = e["earnings_history"]
     if history["quarters"] >= 2 and history["observations"]:
@@ -239,7 +239,7 @@ def _supporting_facts(e: Mapping[str, Any]) -> list[dict[str, Any]]:
             f"Retained earnings history covers {history['quarters']} quarters, with {history['beats']} EPS {beat_label} and {history['misses']} {miss_label}"
             + (f" through {history['latest_date']}." if history["latest_date"] else "."),
             "A multi-quarter record is more informative than one isolated earnings result.",
-            "FMP/Yahoo normalized earnings history", history["latest_date"] or as_of, "earnings_history",
+            "Certified earnings history", history["latest_date"] or as_of, "earnings_history",
         ))
     margins = []
     if e["gross_margin"] is not None:
@@ -253,7 +253,7 @@ def _supporting_facts(e: Mapping[str, Any]) -> list[dict[str, Any]]:
             fact += (", " if margins else "") + f"and {'free' if e['fcf'] is not None else 'operating'} cash flow of {_money(cash)}"
         candidates.append(_fact(
             fact + ".", "Margins and cash generation show the quality and financing durability of growth.",
-            "FMP Stable/Yahoo fundamentals", as_of, "profitability_cash",
+            "Certified financial statements", as_of, "profitability_cash",
         ))
     if e["roic"] is not None or (e["roe"] is not None and e["roe"] < 0) or (e["cash"] is not None and e["debt"] is not None):
         pieces = []
@@ -267,7 +267,7 @@ def _supporting_facts(e: Mapping[str, Any]) -> list[dict[str, Any]]:
         candidates.append(_fact(
             "Capital quality: " + "; ".join(pieces) + ".",
             "Returns on capital and balance-sheet capacity distinguish durable growth from financially fragile growth.",
-            "FMP Stable/Yahoo capital data", as_of, "capital_quality",
+            "Certified balance-sheet evidence", as_of, "capital_quality",
         ))
     if e["fair_value"] is not None:
         relationship = "above" if e["price"] is not None and e["fair_value"] >= e["price"] else "below"
@@ -287,7 +287,7 @@ def _supporting_facts(e: Mapping[str, Any]) -> list[dict[str, Any]]:
         candidates.append(_fact(
             f"Wall Street's average target is {_money(e['analyst_mean'])}{coverage}.",
             "Consensus provides an external reference point without replacing Atlas Fair Value.",
-            "Yahoo/Finnhub analyst consensus", as_of, "analyst",
+            "Certified analyst consensus", as_of, "analyst",
         ))
     if e["analyst_actions"]:
         action_count = len([item for item in e["analyst_actions"] if isinstance(item, Mapping)])
@@ -319,7 +319,7 @@ def _supporting_facts(e: Mapping[str, Any]) -> list[dict[str, Any]]:
         candidates.append(_fact(
             f"Reported institutional ownership is {_pct(e['institutional_ownership'])}.",
             "Ownership is supporting context for sponsorship, not a standalone reason to buy.",
-            "Yahoo/FMP ownership", as_of, "ownership",
+            "Certified ownership context", as_of, "ownership",
         ))
     if e["price"] is not None and (e["sma50"] is not None or e["sma200"] is not None):
         signals = []
@@ -345,7 +345,7 @@ def _supporting_facts(e: Mapping[str, Any]) -> list[dict[str, Any]]:
             fact = "Technical evidence: price is " + "; ".join(signals)
         candidates.append(_fact(
             fact.rstrip("; ") + ".", "Trend and participation evidence help assess entry timing; they do not replace fundamentals.",
-            "Yahoo price history", as_of, "technical",
+            "Certified market history", as_of, "technical",
         ))
     # Prefer high-information company evidence over generic ownership context.
     priority = {

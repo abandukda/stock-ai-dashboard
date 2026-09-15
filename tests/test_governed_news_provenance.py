@@ -3,6 +3,7 @@ import json
 from engines.deep_research_evidence import normalize_governed_news_article, normalize_news_articles
 from services import deep_research_cache as cache
 from services.evidence_lineage_governance import disallowed_lineage_paths
+from engines import live_research_engine
 
 
 def _article(**overrides):
@@ -65,6 +66,14 @@ def test_post_filter_empty_news_is_clean_optional_unavailability():
     assert decision == {"guidance": {"state": "BUY_NOW"}, "decision_digest": "fixed"}
 
 
+def test_legacy_live_research_news_boundary_cannot_emit_prohibited_publisher(monkeypatch):
+    monkeypatch.setattr(live_research_engine, "NEWSAPI_KEY", "configured")
+    monkeypatch.setattr(live_research_engine, "_request_json", lambda *_args, **_kwargs: {
+        "articles": [_article(source={"name": "Yahoo Entertainment"})],
+    })
+    assert live_research_engine._latest_news("ACME", "Acme") == {}
+
+
 def test_legacy_news_cache_schema_is_not_reused(monkeypatch, tmp_path):
     monkeypatch.setattr(cache, "CACHE_ROOT", tmp_path)
     legacy = {
@@ -84,6 +93,7 @@ def test_legacy_news_cache_schema_is_not_reused(monkeypatch, tmp_path):
 def test_projected_pool_contains_zero_prohibited_contextual_lineage():
     rows = [
         normalize_governed_news_article(_article(title=f"Story {index}"), symbol=f"T{index}", transport_provider="NEWSAPI")
-        for index in range(3)
+        for index in range(1400)
     ]
+    assert len(rows) == 1400
     assert all(row is not None and disallowed_lineage_paths(row) == [] for row in rows)

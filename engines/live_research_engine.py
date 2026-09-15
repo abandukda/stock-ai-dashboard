@@ -13,7 +13,7 @@ from typing import Any, Dict, Iterable, Mapping, Optional
 import pandas as pd
 import requests
 from engines.canonical_market_data import load_price_history
-from engines.deep_research_evidence import build_earnings_comparisons
+from engines.deep_research_evidence import build_earnings_comparisons, normalize_governed_news_article
 
 from services.research_cache import load_cached_research, save_cached_research
 from engines.decision_intelligence_engine import evidence_pack, primary_risk
@@ -173,13 +173,28 @@ def _latest_news(ticker: str, company: str) -> Dict[str, Any]:
         description = str(article.get("description") or "").strip()
         if not _company_news_relevant(title, description, ticker, company):
             continue
-        source = str((article.get("source") or {}).get("name") or "").strip()
-        published = str(article.get("publishedAt") or "").strip()
+        article_for_normalization = dict(article)
+        article_for_normalization["source"] = str(
+            (article.get("source") or {}).get("name") or ""
+        ).strip()
+        normalized = normalize_governed_news_article(
+            article_for_normalization, symbol=ticker, transport_provider="NEWSAPI",
+        )
+        if normalized is None:
+            continue
+        source = str(normalized.get("article_publisher") or "").strip()
+        published = str(normalized.get("article_timestamp") or "").strip()
         text = f"{title} {article.get('description') or ''}".lower()
         positive = sum(term in text for term in ("beat", "upgrade", "contract", "approval", "record", "growth", "partnership", "raised guidance"))
         negative = sum(term in text for term in ("miss", "downgrade", "lawsuit", "probe", "cuts guidance", "weak demand", "recall"))
         sentiment = "Positive" if positive > negative else "Negative" if negative > positive else "Neutral"
-        cleaned.append({"title": title, "source": source, "published_at": published, "sentiment": sentiment})
+        cleaned.append({
+            "title": title, "source": source, "published_at": published,
+            "sentiment": sentiment, "transport_provider": normalized["transport_provider"],
+            "evidence_id": normalized["evidence_id"],
+            "capture_timestamp": normalized["capture_timestamp"],
+            "article_url": normalized.get("article_url"),
+        })
     if not cleaned:
         return {}
     top = cleaned[0]
@@ -256,9 +271,9 @@ def _canonical_live_valuation(
         price=price,
         forward_pe=_num(fundamentals.get("Forward PE"), _num(info.get("forwardPE"))),
         forward_eps=_num(info.get("forwardEps")),
-        forward_eps_source="YAHOO_INFO" if info.get("forwardEps") is not None else None,
+        forward_eps_source=info.get("forward_eps_source") if info.get("forwardEps") is not None else None,
         revenue_growth=revenue,
-        revenue_growth_source=fundamentals.get("revenue_growth_source") or ("YAHOO_INFO" if info.get("revenueGrowth") is not None else None),
+        revenue_growth_source=fundamentals.get("revenue_growth_source") or info.get("revenue_growth_source"),
         revenue_growth_horizon=fundamentals.get("revenue_growth_horizon") or ("PROVIDER_DEFINED" if info.get("revenueGrowth") is not None else None),
         operating_margin=margin,
         analyst_target_mean=_num(analyst.get("analyst_target_mean")),
@@ -496,10 +511,10 @@ def _fundamental_fallbacks(tk: Any, info: Dict[str, Any]) -> Dict[str, Any]:
 
     return {
         "Revenue Growth": revenue_growth,
-        "revenue_growth_source": "YAHOO_INFO" if revenue_growth_from_provider else ("YAHOO_QUARTERLY_STATEMENT" if revenue_growth is not None else None),
+        "revenue_growth_source": info.get("revenue_growth_source") if revenue_growth_from_provider else (info.get("statement_source") if revenue_growth is not None else None),
         "revenue_growth_horizon": "PROVIDER_DEFINED" if revenue_growth_from_provider else ("ADJACENT_REPORTED_PERIODS" if revenue_growth is not None else None),
         "Earnings Growth": earnings_growth,
-        "earnings_growth_source": "YAHOO_INFO" if earnings_growth_from_provider else ("YAHOO_QUARTERLY_STATEMENT" if earnings_growth is not None else None),
+        "earnings_growth_source": info.get("earnings_growth_source") if earnings_growth_from_provider else (info.get("statement_source") if earnings_growth is not None else None),
         "earnings_growth_horizon": "PROVIDER_DEFINED" if earnings_growth_from_provider else ("ADJACENT_REPORTED_PERIODS" if earnings_growth is not None else None),
         "Gross Margin": gross_margin,
         "Operating Margin": op_margin,
@@ -635,7 +650,7 @@ def _earnings_context(tk: Any) -> Dict[str, Any]:
                     "revenue_actual": None,
                     "revenue_estimate": None,
                     "revenue_surprise_pct": None,
-                    "provider": "YAHOO_EARNINGS_DATES",
+                    "provider": None,
                     "evidence_timestamp": pd.Timestamp.now(tz="UTC").isoformat(),
                 })
             if history:

@@ -4898,7 +4898,7 @@ def v4242_source_label(label, ok=True):
 
 
 @st.cache_data(ttl=300)
-def v4242_yahoo_quote(symbol):
+def v4242_governed_quote(symbol):
     """
     Fallback quote via governed market adapter when FMP quote endpoint is unavailable/plan-limited.
     """
@@ -4973,7 +4973,7 @@ def v424_quote(symbol):
     except Exception:
         pass
 
-    return v4242_yahoo_quote(symbol)
+    return v4242_governed_quote(symbol)
 
 
 @st.cache_data(ttl=900)
@@ -7021,7 +7021,7 @@ def v426_finnhub_earnings_today():
 
 
 @st.cache_data(ttl=900)
-def v426_yahoo_calendar_earnings():
+def v426_retired_calendar_earnings():
     rows = []
     try:
         today = v424_today() if "v424_today" in globals() else dt.datetime.now().date()
@@ -7086,7 +7086,7 @@ def v424_earnings_today():
     if rows:
         return rows
 
-    for fn_name in ["v426_finnhub_earnings_today", "v4242_nasdaq_earnings_today", "v4242_alpha_vantage_earnings_today", "v426_yahoo_calendar_earnings"]:
+    for fn_name in ["v426_finnhub_earnings_today", "v4242_nasdaq_earnings_today", "v4242_alpha_vantage_earnings_today"]:
         try:
             fn = globals().get(fn_name)
             if not fn:
@@ -10229,7 +10229,7 @@ def v451_fmp_get_try(endpoint, params=None):
         return None, f"failed: {e}"
 
 
-def v451_yahoo_info(ticker):
+def v451_governed_profile(ticker):
     t = v451_clean_ticker(ticker)
     out = {}
     try:
@@ -10379,7 +10379,7 @@ def v451_live_analyst_enrichment(ticker, price=0, scan_target=0, scan_count=0, s
                         out["rating_trend"] = "Mixed / hold-heavy recommendation mix"
 
     # governed provider fallback for basic analyst data.
-    yi = v451_yahoo_info(ticker)
+    yi = v451_governed_profile(ticker)
     if yi:
         out["diagnostics"].append("governed provider info: returned")
         out["consensus"] = out["consensus"] or v451_first_valid(yi.get("targetMeanPrice"), yi.get("targetMedianPrice"), positive=True)
@@ -10519,7 +10519,7 @@ def v451_live_financial_enrichment(ticker, row_json=None):
             out[key] = v * 100
 
     # governed provider fallback
-    yi = v451_yahoo_info(ticker)
+    yi = v451_governed_profile(ticker)
     if yi:
         out["diagnostics"].append("governed provider financial info: returned")
         out["pe"] = out["pe"] if out["pe"] is not None else v451_first_valid(yi.get("trailingPE"), positive=False)
@@ -11134,7 +11134,7 @@ def v46_company_context(row):
                 info["market_cap"] = v46_num(d.get("mktCap") or d.get("marketCap"), positive=True) or info["market_cap"]
                 break
 
-    yi = v451_yahoo_info(ticker)
+    yi = v451_governed_profile(ticker)
     if yi:
         info["diagnostics"].append("governed provider profile fallback: returned")
         info["sector"] = info["sector"] or v45_text(yi.get("sector"), "")
@@ -11236,7 +11236,7 @@ def v46_financial_intelligence(ticker, row_json=None):
             out["operating_cash_flow"] = ocf
             out["capex"] = capex
 
-    yi = v451_yahoo_info(ticker)
+    yi = v451_governed_profile(ticker)
     if yi:
         out["diagnostics"].append("V46 governed provider financial fallback: returned")
         growth_candidates.extend([
@@ -12746,10 +12746,10 @@ def v48_financial_completion(ticker, row_json=None):
                 if fin.get("free_cash_flow") is not None: fin["completion_sources"]["free_cash_flow"] = "FMP cash flow statement"
 
     # governed provider final fallback
-    yi = v451_yahoo_info(ticker)
+    yi = v451_governed_profile(ticker)
     if yi:
         fin["diagnostics"].append("V48 governed provider fallback: returned")
-        yahoo_map = [
+        governed_profile_map = [
             ("pe", "trailingPE", False),
             ("forward_pe", "forwardPE", False),
             ("peg", "pegRatio", False),
@@ -12761,7 +12761,7 @@ def v48_financial_completion(ticker, row_json=None):
             ("operating_cash_flow", "operatingCashflow", False),
             ("free_cash_flow", "freeCashflow", False),
         ]
-        for out_key, ykey, is_pct in yahoo_map:
+        for out_key, ykey, is_pct in governed_profile_map:
             if fin.get(out_key) is None and yi.get(ykey) is not None:
                 fin[out_key] = v48_growth_pct(yi.get(ykey)) if is_pct else v46_num(yi.get(ykey), positive=False)
                 if fin.get(out_key) is not None:
@@ -15333,7 +15333,7 @@ def v502_fmp_v3(endpoint, params=None):
 
 
 @st.cache_data(ttl=3600)
-def v502_yahoo_info(ticker):
+def v502_governed_profile(ticker):
     try:
         info = governed_market.Ticker(ticker).info or {}
         return info if isinstance(info, dict) else {}
@@ -15372,7 +15372,7 @@ def v502_complete_financials(ticker, base_fin=None):
     cashflow = v502_fmp_v3(f"cash-flow-statement/{ticker}", {"limit": 2})
     balance = v502_fmp_v3(f"balance-sheet-statement/{ticker}", {"limit": 2})
     growth = v502_fmp_v3(f"financial-growth/{ticker}", {"limit": 2})
-    yahoo = v502_yahoo_info(ticker)
+    governed_profile = v502_governed_profile(ticker)
 
     r0 = ratios[0] if isinstance(ratios, list) and ratios and isinstance(ratios[0], dict) else {}
     m0 = metrics[0] if isinstance(metrics, list) and metrics and isinstance(metrics[0], dict) else {}
@@ -15382,20 +15382,20 @@ def v502_complete_financials(ticker, base_fin=None):
     b0 = balance[0] if isinstance(balance, list) and balance and isinstance(balance[0], dict) else {}
     g0 = growth[0] if isinstance(growth, list) and growth and isinstance(growth[0], dict) else {}
 
-    revenue = v502_first(i0.get("revenue"), yahoo.get("totalRevenue"))
+    revenue = v502_first(i0.get("revenue"), governed_profile.get("totalRevenue"))
     prev_revenue = v502_first(i1.get("revenue"))
     gross_profit = v502_first(i0.get("grossProfit"))
     operating_income = v502_first(i0.get("operatingIncome"))
-    net_income = v502_first(i0.get("netIncome"), yahoo.get("netIncomeToCommon"))
+    net_income = v502_first(i0.get("netIncome"), governed_profile.get("netIncomeToCommon"))
     equity = v502_first(b0.get("totalStockholdersEquity"), b0.get("totalEquity"))
     assets = v502_first(b0.get("totalAssets"))
     current_assets = v502_first(b0.get("totalCurrentAssets"))
     current_liabilities = v502_first(b0.get("totalCurrentLiabilities"))
-    cash = v502_first(fin.get("cash"), b0.get("cashAndCashEquivalents"), b0.get("cashAndShortTermInvestments"), yahoo.get("totalCash"))
-    debt = v502_first(fin.get("total_debt"), b0.get("totalDebt"), yahoo.get("totalDebt"))
+    cash = v502_first(fin.get("cash"), b0.get("cashAndCashEquivalents"), b0.get("cashAndShortTermInvestments"), governed_profile.get("totalCash"))
+    debt = v502_first(fin.get("total_debt"), b0.get("totalDebt"), governed_profile.get("totalDebt"))
 
     if fin.get("revenue_growth") is None:
-        val = v502_pct(g0.get("revenueGrowth") or yahoo.get("revenueGrowth"))
+        val = v502_pct(g0.get("revenueGrowth") or governed_profile.get("revenueGrowth"))
         if val is None and revenue and prev_revenue:
             val = ((revenue - prev_revenue) / abs(prev_revenue)) * 100
             sources["revenue_growth"] = "Derived from income statements"
@@ -15404,13 +15404,13 @@ def v502_complete_financials(ticker, base_fin=None):
             sources.setdefault("revenue_growth", "FMP/governed provider fallback")
 
     if fin.get("eps_growth") is None:
-        val = v502_pct(g0.get("epsgrowth") or g0.get("epsGrowth") or yahoo.get("earningsGrowth"))
+        val = v502_pct(g0.get("epsgrowth") or g0.get("epsGrowth") or governed_profile.get("earningsGrowth"))
         if val is not None:
             fin["eps_growth"] = val
             sources["eps_growth"] = "FMP/governed provider fallback"
 
     if fin.get("gross_margin") is None:
-        val = v502_pct(r0.get("grossProfitMarginTTM") or yahoo.get("grossMargins"))
+        val = v502_pct(r0.get("grossProfitMarginTTM") or governed_profile.get("grossMargins"))
         if val is None and revenue and gross_profit is not None:
             val = gross_profit / revenue * 100
             sources["gross_margin"] = "Derived: gross profit / revenue"
@@ -15419,7 +15419,7 @@ def v502_complete_financials(ticker, base_fin=None):
             sources.setdefault("gross_margin", "FMP/governed provider fallback")
 
     if fin.get("operating_margin") is None:
-        val = v502_pct(r0.get("operatingProfitMarginTTM") or yahoo.get("operatingMargins"))
+        val = v502_pct(r0.get("operatingProfitMarginTTM") or governed_profile.get("operatingMargins"))
         if val is None and revenue and operating_income is not None:
             val = operating_income / revenue * 100
             sources["operating_margin"] = "Derived: operating income / revenue"
@@ -15428,7 +15428,7 @@ def v502_complete_financials(ticker, base_fin=None):
             sources.setdefault("operating_margin", "FMP/governed provider fallback")
 
     if fin.get("net_margin") is None:
-        val = v502_pct(r0.get("netProfitMarginTTM") or yahoo.get("profitMargins"))
+        val = v502_pct(r0.get("netProfitMarginTTM") or governed_profile.get("profitMargins"))
         if val is None and revenue and net_income is not None:
             val = net_income / revenue * 100
             sources["net_margin"] = "Derived: net income / revenue"
@@ -15436,9 +15436,9 @@ def v502_complete_financials(ticker, base_fin=None):
             fin["net_margin"] = val
             sources.setdefault("net_margin", "FMP/governed provider fallback")
 
-    ocf = v502_first(fin.get("operating_cash_flow"), c0.get("operatingCashFlow"), yahoo.get("operatingCashflow"))
+    ocf = v502_first(fin.get("operating_cash_flow"), c0.get("operatingCashFlow"), governed_profile.get("operatingCashflow"))
     capex = v502_first(c0.get("capitalExpenditure"), c0.get("capitalExpenditures"))
-    fcf = v502_first(fin.get("free_cash_flow"), c0.get("freeCashFlow"), yahoo.get("freeCashflow"))
+    fcf = v502_first(fin.get("free_cash_flow"), c0.get("freeCashFlow"), governed_profile.get("freeCashflow"))
     if fcf is None and ocf is not None and capex is not None:
         fcf = ocf + capex
         sources["free_cash_flow"] = "Derived: operating cash flow minus capex"
@@ -15464,7 +15464,7 @@ def v502_complete_financials(ticker, base_fin=None):
         sources["debt_equity"] = "Derived: total debt / equity"
 
     if fin.get("current_ratio") is None:
-        val = v502_first(r0.get("currentRatioTTM"), yahoo.get("currentRatio"))
+        val = v502_first(r0.get("currentRatioTTM"), governed_profile.get("currentRatio"))
         if val is None and current_assets is not None and current_liabilities not in (None, 0):
             val = current_assets / current_liabilities
             sources["current_ratio"] = "Derived: current assets / current liabilities"
@@ -15473,7 +15473,7 @@ def v502_complete_financials(ticker, base_fin=None):
             sources.setdefault("current_ratio", "FMP/governed provider fallback")
 
     if fin.get("roe") is None:
-        val = v502_pct(r0.get("returnOnEquityTTM") or m0.get("roe") or yahoo.get("returnOnEquity"))
+        val = v502_pct(r0.get("returnOnEquityTTM") or m0.get("roe") or governed_profile.get("returnOnEquity"))
         if val is None and net_income is not None and equity not in (None, 0):
             val = net_income / abs(equity) * 100
             sources["roe"] = "Derived: net income / equity"
@@ -15482,7 +15482,7 @@ def v502_complete_financials(ticker, base_fin=None):
             sources.setdefault("roe", "FMP/governed provider fallback")
 
     if fin.get("roa") is None:
-        val = v502_pct(r0.get("returnOnAssetsTTM") or yahoo.get("returnOnAssets"))
+        val = v502_pct(r0.get("returnOnAssetsTTM") or governed_profile.get("returnOnAssets"))
         if val is None and net_income is not None and assets not in (None, 0):
             val = net_income / assets * 100
             sources["roa"] = "Derived: net income / assets"
@@ -15491,9 +15491,9 @@ def v502_complete_financials(ticker, base_fin=None):
             sources.setdefault("roa", "FMP/governed provider fallback")
 
     for key, val in {
-        "pe": v502_first(r0.get("priceEarningsRatioTTM"), yahoo.get("trailingPE")),
-        "forward_pe": v502_first(yahoo.get("forwardPE")),
-        "peg": v502_first(r0.get("priceEarningsToGrowthRatioTTM"), yahoo.get("pegRatio"), yahoo.get("trailingPegRatio")),
+        "pe": v502_first(r0.get("priceEarningsRatioTTM"), governed_profile.get("trailingPE")),
+        "forward_pe": v502_first(governed_profile.get("forwardPE")),
+        "peg": v502_first(r0.get("priceEarningsToGrowthRatioTTM"), governed_profile.get("pegRatio"), governed_profile.get("trailingPegRatio")),
     }.items():
         if fin.get(key) is None and val is not None:
             fin[key] = val
@@ -17893,7 +17893,7 @@ def render_status_banner():
 # - Does NOT overwrite good non-zero metrics with zero/null values
 
 @st.cache_data(ttl=3600)
-def v5071a_yahoo_statement_bundle(ticker):
+def v5071a_governed_statement_bundle(ticker):
     ticker = v451_clean_ticker(ticker)
     out = {"info": {}, "income": {}, "cashflow": {}, "balance": {}, "diagnostics": []}
     try:
@@ -17987,7 +17987,7 @@ def v5071a_nonzero_existing(fin, key):
 def v5071a_fix_financials(fin, ticker):
     fin = dict(fin or {})
     ticker = v451_clean_ticker(ticker)
-    bundle = v5071a_yahoo_statement_bundle(ticker)
+    bundle = v5071a_governed_statement_bundle(ticker)
     info = bundle.get("info", {}) or {}
     inc = bundle.get("income", {}) or {}
     cf = bundle.get("cashflow", {}) or {}
@@ -18074,9 +18074,9 @@ def v5071a_fix_financials(fin, ticker):
         sources.setdefault("net_margin", "V50.7.1a governed provider/derived fallback")
 
     debt_equity = v5071a_nonzero_existing(fin, "debt_equity")
-    yahoo_de = v5071a_num(info.get("debtToEquity"))
-    if yahoo_de is not None:
-        debt_equity = yahoo_de / 100 if yahoo_de > 50 else yahoo_de
+    governed_de = v5071a_num(info.get("debtToEquity"))
+    if governed_de is not None:
+        debt_equity = governed_de / 100 if governed_de > 50 else governed_de
     elif debt_equity is None and debt is not None and equity not in (None, 0):
         debt_equity = debt / abs(equity)
     if debt_equity is not None:
