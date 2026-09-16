@@ -78,8 +78,6 @@ on:
     secrets:
       TWELVE_DATA_API_KEY:
         required: false
-      FMP_API_KEY:
-        required: false
       FINNHUB_API_KEY:
         required: false
       NEWSAPI_KEY:
@@ -125,7 +123,6 @@ jobs:
       DISCOVERY_VALIDATION_NEAR_CUTOFF: "100"
       DISCOVERY_VALIDATION_RANDOM: "100"
       TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
-      FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
       FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
       NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
       ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}

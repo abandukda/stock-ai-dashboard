@@ -122,8 +122,10 @@ def test_post_shell_target_and_insider_refresh_has_separate_two_call_ceiling(tmp
         "insider-trading/search": [{"symbol": "MSFT", "transactionDate": "2026-08-20", "filingDate": "2026-08-21", "securitiesTransacted": 0}],
     })
     result = refresh_post_shell_evidence("MSFT", api_key="unused", cache_root=tmp_path, client=client)
-    assert result["provider_calls"] == 2
-    assert [item[0] for item in client.calls] == ["price-target-news", "insider-trading/search"]
+    assert result["provider_calls"] == 0
+    assert client.calls == []
+    assert result["families"]["analyst_price_target_actions"]["semantic_status"] == "DATA_UNAVAILABLE"
+    assert result["families"]["insider_transactions"]["semantic_status"] == "DATA_UNAVAILABLE"
 
 
 def test_explicit_transcript_request_uses_returned_period_and_warm_repeat_uses_zero_calls(tmp_path):
@@ -132,17 +134,13 @@ def test_explicit_transcript_request_uses_returned_period_and_warm_repeat_uses_z
         "earning-call-transcript": [{"symbol": "MSFT", "year": 2026, "quarter": 4, "date": "2026-07-29", "content": "Revenue demand strengthened materially. We expect product adoption growth next quarter. Execution risk remains."}],
     })
     first = acquire_latest_transcript_intelligence("MSFT", api_key="unused", cache_root=tmp_path, client=client)
-    assert first["provider_calls"] == 2
-    assert client.calls[-1][1]["year"] == 2026 and client.calls[-1][1]["quarter"] == 4
+    assert first["provider_calls"] == 0
+    assert client.calls == []
     warm_client = _FakeClient({})
     second = acquire_latest_transcript_intelligence("MSFT", api_key="unused", cache_root=tmp_path, client=warm_client)
     assert second["provider_calls"] == 0 and warm_client.calls == []
-    assert second["operation_metadata"] == {
-        "ticker": "MSFT", "selected_year": 2026, "selected_quarter": 4,
-        "transcript_evidence_id": second["family"]["evidence_ids"][0],
-        "cache_status": "CACHE_HIT", "provider_call_count": 0,
-        "synthesis_version": "TRANSCRIPT_SYNTHESIS_V1",
-    }
+    assert second["family"]["semantic_status"] == "DATA_UNAVAILABLE"
+    assert second["operation_metadata"]["cache_status"] == "UNAVAILABLE"
 
 
 def test_index_exposes_multiple_periods_and_explicit_historical_load_is_exact_and_cached(tmp_path):
@@ -157,21 +155,22 @@ def test_index_exposes_multiple_periods_and_explicit_historical_load_is_exact_an
         }],
     })
     index = acquire_transcript_index("NVDA", api_key="unused", cache_root=tmp_path, client=client)
-    assert [(p["fiscal_year"], p["fiscal_quarter"]) for p in index["family"]["data"]["periods"]] == [(2026, 4), (2026, 3)]
+    assert index["provider_calls"] == 0
+    assert index["family"]["semantic_status"] == "DATA_UNAVAILABLE"
     result = acquire_transcript_intelligence(
         "NVDA", year=2026, quarter=3, api_key="unused", cache_root=tmp_path,
         client=client, _index_result=index,
     )
-    assert client.calls[-1] == ("earning-call-transcript", {"symbol": "NVDA", "year": 2026, "quarter": 3})
-    assert result["period"] == "2026-Q3" and result["provider_calls"] == 2
-    assert result["family"]["evidence_ids"]
+    assert client.calls == []
+    assert result["period"] == "2026-Q3" and result["provider_calls"] == 0
+    assert result["family"]["semantic_status"] == "DATA_UNAVAILABLE"
     assert "content" not in json.dumps(result["family"])
     warm = acquire_transcript_intelligence(
         "NVDA", year=2026, quarter=3, api_key="unused", cache_root=tmp_path,
         client=_FakeClient({}),
     )
     assert warm["provider_calls"] == 0
-    assert warm["operation_metadata"]["cache_status"] == "CACHE_HIT"
+    assert warm["operation_metadata"]["cache_status"] == "UNAVAILABLE"
 
 
 def test_missing_indexed_historical_transcript_has_explicit_unavailable_state(tmp_path):
@@ -191,12 +190,12 @@ def test_research_and_earnings_ui_destinations_are_present():
     research = open("ui/research_vnext.py", encoding="utf-8").read()
     earnings = open("ui/earnings_vnext.py", encoding="utf-8").read()
     assert "Management / Transcript Insight" in research
-    assert "Refresh analyst targets & insider evidence" in research
+    assert "Optional research evidence unavailable" in research
     assert "Individual price-target actions" in earnings
     assert "Insider transactions · contextual only" in earnings
     assert "Previous earnings calls" in research
     assert "What management emphasized" in earnings
-    assert "Load earnings-call insight" in earnings
+    assert "Earnings-call transcript evidence is unavailable" in earnings
     limitation = "Prior target was not provided by the source, so ATLAS does not calculate an individual target change."
     assert limitation in research and limitation in earnings
     assert "data-atlas-transcript-provider-calls" in research

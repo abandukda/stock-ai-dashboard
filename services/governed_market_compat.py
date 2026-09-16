@@ -5,12 +5,10 @@ sites are retired. Values come from canonical FMP history/profile services.
 """
 from __future__ import annotations
 
-import os
 from typing import Any
 import pandas as pd
 
 from engines.canonical_market_data import load_price_history
-from services.fmp_stable_client import FMPStableClient, SUCCESS
 
 
 class GovernedTicker:
@@ -21,10 +19,7 @@ class GovernedTicker:
         return download(self.symbol, period=kwargs.get("period", "2y"), interval=kwargs.get("interval", "1d"))
 
     def get_info(self) -> dict[str, Any]:
-        response = FMPStableClient(os.getenv("FMP_API_KEY", "")).get("profile", {"symbol": self.symbol})
-        rows = response.payload if response.outcome == SUCCESS else []
-        row = rows[0] if isinstance(rows, list) and rows and isinstance(rows[0], dict) else {}
-        return dict(row)
+        return {}
 
     @property
     def info(self) -> dict[str, Any]:

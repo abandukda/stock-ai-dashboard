@@ -1,14 +1,9 @@
 
 """Canonical Atlas market-data history service.
 
-Narrow first release:
-- historical OHLCV only;
-- FMP historical-price-full primary;
-- 30-minute in-memory TTL;
-- last-known-good fallback;
-- explicit provenance.
-
-No recommendation, opportunity, confidence, or committee logic is changed.
+Historical OHLCV is supplied by the governed market-data stack.  The retired
+FMP transport is deliberately not a fallback; callers receive an explicit
+unavailable result when no governed history is already attached.
 """
 
 from __future__ import annotations
@@ -16,11 +11,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from threading import RLock
 from typing import Any, Callable, Mapping
-import os
 import time
 
 import pandas as pd
-import requests
 
 
 HISTORY_TTL_SECONDS = 1800
@@ -175,64 +168,11 @@ def _frame_to_records(frame: pd.DataFrame) -> list[dict[str, Any]]:
     return records
 
 
-def _fetch_fmp_history(
+def _unavailable_history(
     ticker: str,
     period: str,
 ) -> tuple[list[dict[str, Any]], str]:
-    api_key = os.getenv("FMP_API_KEY", "").strip()
-    if not api_key:
-        return [], "FMP_API_KEY is not configured"
-
-    days_by_period = {
-        "6mo": 190,
-        "1y": 370,
-        "2y": 740,
-        "5y": 1850,
-    }
-    days = days_by_period.get(period, 740)
-    end = datetime.now(timezone.utc).date()
-    start = end.fromordinal(max(1, end.toordinal() - days))
-
-    try:
-        response = requests.get(
-            f"https://financialmodelingprep.com/api/v3/"
-            f"historical-price-full/{ticker}",
-            params={
-                "from": start.isoformat(),
-                "to": end.isoformat(),
-                "apikey": api_key,
-            },
-            timeout=12,
-        )
-        if response.status_code != 200:
-            return [], f"FMP returned HTTP {response.status_code}"
-        payload = response.json()
-        items = (
-            payload.get("historical")
-            if isinstance(payload, Mapping)
-            else []
-        )
-        records = []
-        for item in items or []:
-            if not isinstance(item, Mapping):
-                continue
-            close = item.get("close")
-            if close is None:
-                continue
-            records.append(
-                {
-                    "date": str(item.get("date") or ""),
-                    "open": item.get("open"),
-                    "high": item.get("high"),
-                    "low": item.get("low"),
-                    "close": close,
-                    "volume": item.get("volume"),
-                }
-            )
-        records.sort(key=lambda item: item.get("date") or "")
-        return records, ""
-    except Exception as exc:
-        return [], str(exc)
+    return [], "Governed market history is unavailable for this request"
 
 
 def _result(
@@ -270,7 +210,7 @@ def load_price_history(
     period: str = "2y",
     interval: str = "1d",
     force_refresh: bool = False,
-    fmp_fetcher: Callable[
+    provider_fetcher: Callable[
         [str, str],
         tuple[list[dict[str, Any]], str],
     ] | None = None,
@@ -304,15 +244,15 @@ def load_price_history(
             result["cache_status"] = "fresh"
             return result
 
-    fmp_fetcher = fmp_fetcher or _fetch_fmp_history
+    provider_fetcher = provider_fetcher or _unavailable_history
 
-    fmp_records, fmp_error = fmp_fetcher(symbol, period)
-    if fmp_records:
+    records, provider_error = provider_fetcher(symbol, period)
+    if records:
         result = _result(
             ticker=symbol,
             status="AVAILABLE",
-            records=fmp_records,
-            source="FMP historical-price-full",
+            records=records,
+            source="GOVERNED_MARKET_DATA",
             provider_called=True,
             provider_success=True,
             mapping_success=True,
@@ -335,7 +275,7 @@ def load_price_history(
                 "retrieval_status": "provider_error_cache_fallback",
                 "error": "; ".join(
                     value
-                    for value in (fmp_error,)
+                    for value in (provider_error,)
                     if value
                 ),
             }
@@ -343,14 +283,14 @@ def load_price_history(
         return result
 
     combined_error = "; ".join(
-        value for value in (fmp_error,) if value
+        value for value in (provider_error,) if value
     )
     return _result(
         ticker=symbol,
         status="PROVIDER_ERROR",
         records=[],
-        source="FMP historical-price-full",
-        provider_called=True,
+        source="GOVERNED_MARKET_DATA_UNAVAILABLE",
+        provider_called=False,
         provider_success=False,
         mapping_success=False,
         retrieval_status="provider_error",

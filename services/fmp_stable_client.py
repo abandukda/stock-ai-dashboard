@@ -48,11 +48,7 @@ def _empty(payload: Any) -> bool:
 
 
 class FMPStableClient:
-    """Bounded FMP stable transport with sanitized outcomes.
-
-    ``retries=0`` preserves the scanner's existing one-request behavior.  A
-    caller may explicitly request a bounded retry for research-only use.
-    """
+    """Retired compatibility object. It never performs an HTTP request."""
 
     def __init__(
         self,
@@ -77,66 +73,7 @@ class FMPStableClient:
     ) -> FMPResponse:
         family = str(endpoint_family or "").strip().strip("/")
         fetched_at = datetime.now(timezone.utc).isoformat()
-        if not self._api_key or not family:
-            return FMPResponse(None, AUTHORIZATION_FAILURE, family, fetched_at, attempts=0)
-
-        request_params = dict(params or {})
-        request_params["apikey"] = self._api_key
-        attempts = 0
-        for attempt in range(self.retries + 1):
-            remaining = None if deadline_monotonic is None else deadline_monotonic - time.monotonic()
-            if remaining is not None and remaining <= 0:
-                return FMPResponse(None, DEADLINE_EXPIRED, family, fetched_at, attempts=attempts)
-            attempts += 1
-            try:
-                request_timeout = self.timeout_seconds if remaining is None else min(self.timeout_seconds, max(0.1, remaining))
-                response = self._session.get(
-                    f"{FMP_STABLE_BASE_URL}/{family}",
-                    params=request_params,
-                    timeout=request_timeout,
-                )
-            except (requests.Timeout, requests.ConnectionError):
-                retry_remaining = None if deadline_monotonic is None else deadline_monotonic - time.monotonic()
-                if attempt < self.retries and (retry_remaining is None or retry_remaining > 0.35):
-                    time.sleep(min(0.25 * (2 ** attempt), 1.0))
-                    continue
-                return FMPResponse(None, NETWORK_FAILURE, family, fetched_at, attempts=attempts)
-            except Exception:
-                return FMPResponse(None, NETWORK_FAILURE, family, fetched_at, attempts=attempts)
-
-            status = int(getattr(response, "status_code", 0) or 0)
-            if status in {401, 402, 403}:
-                return FMPResponse(None, AUTHORIZATION_FAILURE, family, fetched_at, status, attempts)
-            if status == 429:
-                retry_remaining = None if deadline_monotonic is None else deadline_monotonic - time.monotonic()
-                if attempt < self.retries and (retry_remaining is None or retry_remaining > 0.35):
-                    time.sleep(min(0.25 * (2 ** attempt), 1.0))
-                    continue
-                return FMPResponse(None, RATE_LIMITED, family, fetched_at, status, attempts)
-            if not 200 <= status < 300:
-                return FMPResponse(None, HTTP_FAILURE, family, fetched_at, status, attempts)
-            try:
-                payload = response.json()
-            except (ValueError, json.JSONDecodeError):
-                if not allow_csv:
-                    return FMPResponse(None, SCHEMA_FAILURE, family, fetched_at, status, attempts)
-                try:
-                    body = str(getattr(response, "text", "") or "")
-                    if not body.strip():
-                        payload = []
-                    else:
-                        reader = csv.DictReader(io.StringIO(body))
-                        if not reader.fieldnames:
-                            raise ValueError("missing CSV schema")
-                        payload = [dict(row) for row in reader]
-                except Exception:
-                    return FMPResponse(None, SCHEMA_FAILURE, family, fetched_at, status, attempts)
-            if not isinstance(payload, (list, dict)):
-                return FMPResponse(None, SCHEMA_FAILURE, family, fetched_at, status, attempts)
-            outcome = AUTHORIZED_EMPTY if _empty(payload) else SUCCESS
-            return FMPResponse(payload, outcome, family, fetched_at, status, attempts)
-
-        return FMPResponse(None, NETWORK_FAILURE, family, fetched_at, attempts=attempts)
+        return FMPResponse(None, AUTHORIZATION_FAILURE, family, fetched_at, attempts=0)
 
 
 __all__ = [

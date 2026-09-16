@@ -113,7 +113,7 @@ def test_sma200_uses_existing_history_and_requires_200_bars():
     assert scanner.compute_indicators(frame(200))["sma200"] == 100.5
 
 
-def test_finalist_cache_adds_no_provider_calls_and_does_not_cross_tickers(monkeypatch):
+def test_finalist_cache_adds_no_retired_provider_calls(monkeypatch):
     scanner._FINALIST_ENRICHMENT_CACHE.clear()
     calls = []
 
@@ -129,10 +129,8 @@ def test_finalist_cache_adds_no_provider_calls_and_does_not_cross_tickers(monkey
     first, categories = scanner.get_finalist_enrichment("AAA")
     second, cached = scanner.get_finalist_enrichment("AAA")
     third, _ = scanner.get_finalist_enrichment("BBB")
-    assert first["company_name"] == second["company_name"] == "AAA"
-    assert third["company_name"] == "BBB"
-    assert first["_evidence_freshness"]["profile"]["status"] == "FETCHED"
-    assert calls == [("profile", "AAA"), ("profile", "BBB")]
+    assert first == second == third == {}
+    assert calls == []
     assert categories["cache"] == "miss" and cached["cache"] == "hit"
 
 

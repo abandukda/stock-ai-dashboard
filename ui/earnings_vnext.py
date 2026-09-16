@@ -249,27 +249,16 @@ def _render_transcript_intelligence(story: Mapping[str, Any], *, suffix: str) ->
     else:
         st.caption("Transcript commentary unavailable for this quarter.")
 
-    import os
-    api_key = os.getenv("FMP_API_KEY", "")
     index = story.get("transcript_index") or {}
     periods = ((index.get("data") or {}).get("periods") or []) if isinstance(index.get("data"), Mapping) else []
     periods = [item for item in periods if isinstance(item, Mapping) and item.get("fiscal_year") and item.get("fiscal_quarter")]
     if not periods:
-        if st.button("Load earnings-call insight", key=f"earnings-transcript-latest-{suffix}", disabled=not bool(api_key)):
-            from services.fmp_phase1_intelligence import acquire_latest_transcript_intelligence
-            acquire_latest_transcript_intelligence(story["ticker"], api_key=api_key)
-            st.rerun()
+        st.caption("Earnings-call transcript evidence is unavailable for this snapshot.")
     else:
         labels = [f"Q{int(item['fiscal_quarter'])} {int(item['fiscal_year'])}" for item in periods]
         selected = st.selectbox("Earnings-call period", labels, key=f"earnings-transcript-period-{suffix}")
         period = periods[labels.index(selected)]
-        if st.button("Load earnings-call insight", key=f"earnings-transcript-load-{suffix}", disabled=not bool(api_key)):
-            from services.fmp_phase1_intelligence import acquire_transcript_intelligence
-            acquire_transcript_intelligence(
-                story["ticker"], year=int(period["fiscal_year"]),
-                quarter=int(period["fiscal_quarter"]), api_key=api_key,
-            )
-            st.rerun()
+        st.caption("Earnings-call transcript retrieval is unavailable.")
     operation = transcript.get("operation_metadata") if isinstance(transcript, Mapping) else {}
     if isinstance(operation, Mapping) and operation:
         st.markdown(

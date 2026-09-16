@@ -297,16 +297,7 @@ def _render_snapshot(story: Mapping[str, Any], open_research: Callable[[str], An
 
 
 def _render_phase1_controls(story: Mapping[str, Any]) -> None:
-    ticker = story["ticker"]
-    api_key = os.getenv("FMP_API_KEY", "")
-    if st.button("Refresh analyst targets & insider evidence", key=f"recovery-phase1-refresh-{ticker}", disabled=not bool(api_key)):
-        from services.fmp_phase1_intelligence import refresh_post_shell_evidence
-        refresh_post_shell_evidence(ticker, api_key=api_key, security_type=story.get("security_type", "EQUITY"))
-        st.rerun()
-    if st.button("Load latest management transcript", key=f"recovery-phase1-transcript-{ticker}", disabled=not bool(api_key)):
-        from services.fmp_phase1_intelligence import acquire_latest_transcript_intelligence
-        acquire_latest_transcript_intelligence(ticker, api_key=api_key)
-        st.rerun()
+    st.caption("Optional analyst-action, insider, ownership, and transcript context is unavailable for this snapshot.")
 
 
 def render_recovery_vnext(recovery_df: Any, *, open_research: Callable[[str], Any]) -> None:

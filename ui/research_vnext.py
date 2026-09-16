@@ -872,16 +872,7 @@ def _render_catalysts(report: Mapping[str, Any], legacy: Mapping[str, Callable[.
     else:
         st.caption("Transcript intelligence has not been loaded for this ticker.")
 
-    import os
-    api_key = os.getenv("FMP_API_KEY", "")
-    if st.button("Refresh analyst targets & insider evidence", key=f"phase1-post-shell-{ticker}", disabled=not bool(api_key)):
-        from services.fmp_phase1_intelligence import refresh_post_shell_evidence
-        refresh_post_shell_evidence(ticker, api_key=api_key, security_type=_scalar_text(report.get("security_type"), "EQUITY"))
-        st.rerun()
-    if st.button("Load latest management transcript", key=f"phase1-transcript-{ticker}", disabled=not bool(api_key)):
-        from services.fmp_phase1_intelligence import acquire_latest_transcript_intelligence
-        acquire_latest_transcript_intelligence(ticker, api_key=api_key)
-        st.rerun()
+    st.caption("Optional research evidence unavailable for this snapshot: management transcript, recent analyst target actions, estimate-revision history, insider transactions, institutional context, supplemental company profile, and supplemental price history.")
     transcript_index = safe_mapping(safe_mapping(_canonical_context(report).get("evidence_families")).get("transcript_index"))
     periods = [
         item for item in safe_sequence(safe_mapping(transcript_index.get("data")).get("periods"))
@@ -892,15 +883,7 @@ def _render_catalysts(report: Mapping[str, Any], legacy: Mapping[str, Callable[.
             labels = [f"Q{int(item['fiscal_quarter'])} {int(item['fiscal_year'])}" for item in periods]
             selected_label = st.selectbox("Available transcript period", labels, key=f"phase1-transcript-period-{ticker}")
             selected_period = periods[labels.index(selected_label)]
-            if st.button("Load selected earnings-call insight", key=f"phase1-transcript-history-{ticker}", disabled=not bool(api_key)):
-                from services.fmp_phase1_intelligence import acquire_transcript_intelligence
-                acquire_transcript_intelligence(
-                    ticker,
-                    year=int(selected_period["fiscal_year"]),
-                    quarter=int(selected_period["fiscal_quarter"]),
-                    api_key=api_key,
-                )
-                st.rerun()
+            st.caption("Historical transcript retrieval is unavailable.")
     operation = safe_mapping(transcript_family.get("operation_metadata"))
     if operation:
         st.markdown(

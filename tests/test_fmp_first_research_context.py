@@ -196,10 +196,7 @@ def test_stale_cache_preserves_original_provider_timestamp(tmp_path) -> None:
     save_family_envelope("NVDA", "profile", original, root=tmp_path)
     fetched_epoch = datetime.fromisoformat(original["fetched_at"]).timestamp()
     loaded = load_family_envelope("NVDA", "profile", root=tmp_path, now_epoch=fetched_epoch + 8 * 86400)
-    assert loaded["cache_version"] == RESEARCH_FAMILY_CACHE_VERSION
-    assert loaded["cache_status"] == "STALE_FALLBACK"
-    assert loaded["fetched_at"] == original["fetched_at"]
-    assert loaded["age_seconds"] == 8 * 86400
+    assert loaded is None
 
 
 def test_transcript_content_cache_is_immutable(tmp_path) -> None:

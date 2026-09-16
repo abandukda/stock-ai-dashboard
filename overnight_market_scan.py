@@ -1285,7 +1285,7 @@ def build_ai_committee(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], t
                 f"PEG ratio: {peg_ratio:.2f}" if peg_ratio is not None else "PEG ratio unavailable",
             ],
             "Positive" if fundamental_score >= 70 else "Neutral" if fundamental_score >= 50 else "Caution",
-            "FMP fundamentals and company profile",
+            "Governed financial statements and company profile",
         ),
         build_agent_summary(
             "Valuation Agent", valuation_score,
@@ -1297,7 +1297,7 @@ def build_ai_committee(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], t
                 f"AI upside: {expected_upside:.1f}%",
             ],
             "Positive" if valuation_score >= 70 else "Neutral" if valuation_score >= 50 else "Caution",
-            "FMP/Finnhub analyst targets plus ATLAS fair value model",
+            "Governed analyst context plus the ATLAS fair value model",
         ),
         build_agent_summary(
             "News Agent", news_agent_score,
@@ -1353,7 +1353,7 @@ def build_ai_committee(symbol: str, meta: Dict[str, Any], ind: Dict[str, Any], t
                 "Valuation not excessive" if forward_pe is not None and forward_pe <= 35 else "Valuation requires review",
             ],
             "Positive" if quality_score >= 70 else "Neutral" if quality_score >= 50 else "Caution",
-            "FMP quality and valuation fields",
+            "Governed quality and valuation fields",
         ),
     ]
 
@@ -3218,7 +3218,7 @@ def build_finance_agent(meta: Dict[str, Any]) -> Dict[str, Any]:
         "score": score,
         "status": status,
         "impact": impact,
-        "data_used": "FMP financial statements, ratios, earnings surprises, balance sheet, cash flow, and peer set",
+        "data_used": "Governed financial statements, ratios, earnings evidence, balance sheet, cash flow, and peer set",
         "summary": "Evaluates financial execution, EPS quality, revenue consistency, balance sheet risk, cash flow, margins, valuation, and peer context.",
         "findings": positives[:10],
         "risks": cautions[:8],
@@ -3305,7 +3305,7 @@ def enhance_ai_committee(row: Dict[str, Any], meta: Dict[str, Any], ind: Dict[st
             "score": int(safe_float(meta.get("analyst_support_score"), 50) or 50),
             "status": "Positive" if (safe_float(meta.get("analyst_support_score"), 50) or 50) >= 60 else "Mixed",
             "impact": "Positive" if (safe_float(meta.get("analyst_support_score"), 50) or 50) >= 60 else "Neutral",
-            "data_used": "FMP/Finnhub analyst recommendations, target prices, analyst count",
+            "data_used": "Governed analyst recommendations, target prices, and analyst count",
             "summary": "Checks whether Wall Street target data and recommendation trends support the thesis.",
             "findings": analyst_findings[:8],
             "risks": analyst_risks[:6] or ["No major analyst red flag detected from available data"],
@@ -3887,12 +3887,12 @@ def v42_build_committee(symbol: str, row: Dict[str,Any], meta: Dict[str,Any], in
         else: inst_find.append('No recent issuer-level 13F form found in recent company submissions.')
     agents={
         'News Agent':v42_agent(news['score'],news['status'],'Positive' if news['score']>=70 else 'Neutral' if news['score']>=45 else 'Negative',', '.join(news['sources']),f'Reviews headlines/catalysts. Confidence: {news["confidence"]}.',news['catalysts'],news['risks'],'News flow supports the thesis.' if news['score']>=70 else 'News is mixed or insufficient.'),
-        'Finance Agent':v42_agent(finance_score,'Positive' if finance_score>=75 else 'Mixed','Positive' if finance_score>=75 else 'Neutral','FMP fundamentals, financial statements, balance sheet, cash flow','Checks revenue, EPS, margins, leverage, liquidity, cash flow, valuation, and execution.',finance_find or row.get('finance_agent_findings') or ['Financial data limited.'],finance_risk or row.get('finance_agent_risks') or ['No major finance-specific red flag detected.'],row.get('finance_agent_bottom_line') or 'Financial profile reviewed.'),
-        'Analyst Agent':v42_agent(analyst,'Positive' if analyst>=65 else 'Mixed','Positive' if analyst>=65 else 'Neutral','FMP/Finnhub analyst targets and recommendation trends','Checks whether Wall Street estimates support the AI thesis.',[f'Analyst support score: {analyst:.0f}/100.', f'Analyst target: ${row.get("analyst_target_mean") or row.get("Analyst Target") or "N/A"}.', f'Analyst count: {row.get("analyst_count") or row.get("Analyst Count") or "N/A"}.'],['Analyst data can lag fast-moving news.'] + (['AI fair value is far above analyst consensus; higher uncertainty.'] if upside>=50 else []),'Analyst view supports the thesis.' if analyst>=65 else 'Analyst view is mixed/limited.'),
+        'Finance Agent':v42_agent(finance_score,'Positive' if finance_score>=75 else 'Mixed','Positive' if finance_score>=75 else 'Neutral','Governed financial statements, balance sheet, and cash flow','Checks revenue, EPS, margins, leverage, liquidity, cash flow, valuation, and execution.',finance_find or row.get('finance_agent_findings') or ['Financial data limited.'],finance_risk or row.get('finance_agent_risks') or ['No major finance-specific red flag detected.'],row.get('finance_agent_bottom_line') or 'Financial profile reviewed.'),
+        'Analyst Agent':v42_agent(analyst,'Positive' if analyst>=65 else 'Mixed','Positive' if analyst>=65 else 'Neutral','Governed analyst targets and recommendation trends','Checks whether Wall Street estimates support the AI thesis.',[f'Analyst support score: {analyst:.0f}/100.', f'Analyst target: ${row.get("analyst_target_mean") or row.get("Analyst Target") or "N/A"}.', f'Analyst count: {row.get("analyst_count") or row.get("Analyst Count") or "N/A"}.'],['Analyst data can lag fast-moving news.'] + (['AI fair value is far above analyst consensus; higher uncertainty.'] if upside>=50 else []),'Analyst view supports the thesis.' if analyst>=65 else 'Analyst view is mixed/limited.'),
         'Technical Agent':v42_agent(conviction,'Positive' if conviction>=75 else 'Mixed','Positive' if conviction>=75 else 'Neutral','Price history, RSI, ATR, volume, SMA, support/resistance','Evaluates trend, momentum, volatility, support/resistance and entry quality.',tech_find,tech_risk or ['No major technical risk detected.'],sr.get('guidance','Technical setup reviewed.')),
         'Insider Agent':v42_agent(insider_score,'Constructive' if insider_score>=60 else 'Limited','Neutral','SEC EDGAR Form 4 framework; Finnhub insider-ready','Checks insider filing activity and prepares buy/sell classification.',insider_find or ['No recent Form 4 activity retrieved.'],insider_risk,'Insider signal is limited until transaction-level parsing is expanded.'),
-        'Institutional Agent':v42_agent(inst_score,'Constructive' if inst_score>=60 else 'Limited','Neutral','SEC EDGAR filings plus FMP institutional ownership-ready','Checks institutional context and 13F availability.',inst_find or ['Institutional data limited.'],['13F data is delayed by reporting schedule.'],'Institutional signal is directional and should be confirmed with holder details.'),
-        'Competitor Agent':v42_agent(peer['score'],'Constructive' if peer['score']>=60 else 'Limited','Positive' if peer['score']>=70 else 'Neutral','FMP peer list and company fundamentals','Compares company fundamentals and valuation context against peers.',peer['findings'],peer['risks'],'Peer context supports the thesis.' if peer['score']>=70 else 'Peer context is limited/mixed.'),
+        'Institutional Agent':v42_agent(inst_score,'Constructive' if inst_score>=60 else 'Limited','Neutral','Governed ownership and filing evidence','Checks institutional context and 13F availability.',inst_find or ['Institutional data limited.'],['13F data is delayed by reporting schedule.'],'Institutional signal is directional and should be confirmed with holder details.'),
+        'Competitor Agent':v42_agent(peer['score'],'Constructive' if peer['score']>=60 else 'Limited','Positive' if peer['score']>=70 else 'Neutral','Governed peer and company fundamentals','Compares company fundamentals and valuation context against peers.',peer['findings'],peer['risks'],'Peer context supports the thesis.' if peer['score']>=70 else 'Peer context is limited/mixed.'),
         'Political Agent':v42_agent(50,'Not connected yet','Neutral','Capitol Trades public data planned; no API key required','Tracks congressional trading once public feed integration is enabled.',['Political Agent framework is active.'],['Capitol Trades ingestion not enabled yet; no political score applied.'],'No political trading signal applied yet.'),
         'Recovery Agent':v42_agent(65 if (v42_float(row.get('distance_from_52w_high_pct'),0) or 0)<-20 else 50,'Constructive' if (v42_float(row.get('distance_from_52w_high_pct'),0) or 0)<-20 else 'Limited','Positive' if (v42_float(row.get('distance_from_52w_high_pct'),0) or 0)<-20 else 'Neutral','52-week drawdown, growth, analyst support, technical recovery signals','Explains whether this is a recovery candidate or momentum setup.',['Recovery framework active.'],['Recovery thesis requires business outlook to remain intact.'],'Recovery setup exists only if fundamentals remain healthy.'),
         'ETF / Ownership Agent':v42_agent(55,'Framework active','Neutral','ETF inclusion and ownership flow framework','Checks ETF/index ownership support.',['ETF/ownership framework is active.'],['Detailed ETF flow data not fully connected yet.'],'ETF/ownership is not yet a primary scoring driver.')
@@ -3968,7 +3968,7 @@ def v42_agent_translation(name: str, agent: Dict[str, Any], row: Dict[str, Any])
 
     if "institutional" in name_l:
         return {
-            "what_it_means": "The Institutional Agent checks SEC/FMP ownership context and whether large funds may be accumulating or reducing exposure.",
+            "what_it_means": "The Institutional Agent checks governed ownership context and whether large funds may be accumulating or reducing exposure.",
             "why_it_matters": "Institutional buying can support demand, but 13F data is delayed and not real time.",
             "investor_action": "Use institutional data as confirmation, not as the primary reason to buy. Look for net fund accumulation over multiple quarters.",
             "green_flag": "Major holders increasing positions or more funds adding than reducing.",
@@ -4622,7 +4622,7 @@ def v421_build_light_committee(symbol: str, row: Dict[str, Any], meta: Dict[str,
             "score": None,
             "status": "Deferred to full/live research",
             "impact": "Not scored",
-            "data_used": "SEC/FMP ownership skipped in lightweight scheduled scan",
+            "data_used": "Institutional evidence was not acquired for this snapshot.",
             "summary": "Institutional data is not run for every row during cron.",
             "findings": [],
             "risks": ["Use Live Research for immediate ownership check."],

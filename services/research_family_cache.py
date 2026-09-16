@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Final, Mapping
 
 
-RESEARCH_FAMILY_CACHE_VERSION: Final = "RESEARCH_FAMILY_CACHE_V1"
+RESEARCH_FAMILY_CACHE_VERSION: Final = "RESEARCH_FAMILY_CACHE_V2_NO_FMP"
 
 FAMILY_TTLS_SECONDS: Final[dict[str, int | None]] = {
     "profile": 7 * 86400,
@@ -99,6 +99,8 @@ def load_family_envelope(
     except (OSError, ValueError, TypeError):
         return None
     if payload.get("cache_version") != RESEARCH_FAMILY_CACHE_VERSION:
+        return None
+    if str(payload.get("provider") or "").strip().upper() in {"FMP", "FINANCIAL MODELING PREP"}:
         return None
     fetched_at = payload.get("fetched_at")
     try:

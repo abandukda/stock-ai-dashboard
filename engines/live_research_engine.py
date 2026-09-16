@@ -741,26 +741,12 @@ def _explicit_fmp_research_context(
     api_key: str | None = None, research_request_id: str = "", progress_callback=None,
     security_type: str | None = None,
 ) -> tuple[Dict[str, Any] | None, Dict[str, Any]]:
-    """Lazy explicit-Research adapter; never imported or called by the scanner."""
-    try:
-        from services.fmp_research_acquisition import acquire_explicit_fmp_research
-        kwargs = {
-            "production_row": production_row,
-            "api_key": str(api_key if api_key is not None else os.getenv("FMP_API_KEY", "")).strip(),
-            "force_refresh": force_refresh,
-        }
-        if security_type is not None:
-            kwargs["security_type"] = security_type
-        if research_request_id or progress_callback is not None:
-            kwargs.update(research_request_id=research_request_id, progress_callback=progress_callback)
-        result = acquire_explicit_fmp_research(symbol, **kwargs)
-        context = result.get("research_context")
-        diagnostics = result.get("diagnostics")
-        return (context if isinstance(context, dict) else None, diagnostics if isinstance(diagnostics, dict) else {})
-    except Exception:
-        # Explicit Research remains available with its legacy evidence if one
-        # independently refreshed FMP family service is unavailable.
-        return None, {"semantic_status": "TEMPORARILY_UNAVAILABLE"}
+    """Retired compatibility boundary; no provider acquisition is permitted."""
+    return None, {
+        "semantic_status": "DATA_UNAVAILABLE",
+        "provider_calls": 0,
+        "reason": "OPTIONAL_RESEARCH_PROVIDER_RETIRED",
+    }
 
 
 def _attach_canonical_research_context(
@@ -900,7 +886,7 @@ def build_live_research(
     # production row.  Do not block a complete FMP context on a second legacy
     # governed provider acquisition.  A previously valid legacy cache remains available as
     # an explicit fallback, but no fresh legacy provider work is started here.
-    configured_fmp = bool(str(fmp_api_key if fmp_api_key is not None else os.getenv("FMP_API_KEY", "")).strip())
+    configured_fmp = False
     fmp_families = fmp_context.get("evidence_families") if isinstance(fmp_context, dict) else {}
     canonical_fmp_available = any(
         isinstance(envelope, dict)

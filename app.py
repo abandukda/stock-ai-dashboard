@@ -45,7 +45,7 @@ V642_REPORT_POLISH_VERIFIED = True
 APP_PASSWORD = os.getenv("APP_PASSWORD", "").strip()
 GUEST_PASSWORD = os.getenv("GUEST_PASSWORD", "").strip()
 
-FMP_API_KEY = os.getenv("FMP_API_KEY", "").strip()
+FMP_API_KEY = ""
 FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "").strip()
 NEWSAPI_KEY = os.getenv("NEWSAPI_KEY", "").strip()
 ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY", "").strip()
@@ -108,7 +108,7 @@ from services.research_render_diagnostics import (  # noqa: E402
 
 inject_css()
 DATA_DIR = Path(os.getenv("DATA_DIR", "."))
-FMP_API_KEY = os.getenv("FMP_API_KEY", "").strip()
+FMP_API_KEY = ""
 FINNHUB_API_KEY = (os.getenv("FINNHUB_API_KEY") or os.getenv("FINNHUB_TOKEN") or "").strip()
 NEWSAPI_KEY = (os.getenv("NEWSAPI_KEY") or os.getenv("NEWS_API_KEY") or "").strip()
 ALPHA_VANTAGE_API_KEY = (os.getenv("ALPHA_VANTAGE_API_KEY") or os.getenv("ALPHAVANTAGE_API_KEY") or "").strip()
@@ -120,7 +120,7 @@ ALPHA_VANTAGE_API_KEY = (os.getenv("ALPHA_VANTAGE_API_KEY") or os.getenv("ALPHAV
 # while keeping Render env vars working normally.
 try:
     if hasattr(st, "secrets"):
-        for _k in ["FMP_API_KEY", "FINNHUB_API_KEY", "NEWSAPI_KEY", "ALPHA_VANTAGE_API_KEY", "SEC_USER_AGENT"]:
+        for _k in ["FINNHUB_API_KEY", "NEWSAPI_KEY", "ALPHA_VANTAGE_API_KEY", "SEC_USER_AGENT"]:
             if _k in st.secrets and str(st.secrets[_k]).strip():
                 globals()[_k] = str(st.secrets[_k]).strip()
 except Exception:
@@ -4031,7 +4031,7 @@ def build_live_research_row(
         ticker,
         force_refresh=bool(force_refresh),
         cache_ttl_seconds=900,
-        fmp_api_key=FMP_API_KEY,
+        fmp_api_key=None,
         research_request_id=research_request_id,
         progress_callback=_progress_callback,
         security_type_hint=security_type_hint,
@@ -4279,9 +4279,9 @@ def build_legacy_live_research_row(ticker):
             "Free Cash Flow": free_cash_flow or 0, "Operating Cash Flow": operating_cash_flow or 0,
             "Thesis Strength": thesis_strength, "Evidence Confidence": evidence_confidence,
             "Investment Thesis": f"{ticker} live research card generated on demand. The setup is {thesis_strength.lower()} with {conviction}/100 conviction.",
-            "Primary Risk": "Live on-demand research may not include all FMP/Finnhub/NewsAPI fields until the next full scan.",
+            "Primary Risk": "Live on-demand research may not include every optional context family until the next full scan.",
             "Guidance": f"Live AI view: conviction {conviction}/100, AI fair value {fmt_money(ai_fair)}, upside {upside:.1f}%.",
-            "Action Note": "Use this live card for immediate review; full cron scan may add deeper FMP/Finnhub/NewsAPI details later.",
+            "Action Note": "Use this live card for immediate review; the full scan may add deeper governed context later.",
             "AI Committee": committee, "Raw": raw, "Live Research": True,
         }
     except Exception as exc:
@@ -4376,7 +4376,7 @@ def build_price_only_live_row(ticker, reason="Live fundamentals unavailable"):
 
     finance_risks = [
         "Live fundamentals were rate-limited or unavailable.",
-        "Finance Agent is limited until the next full cron scan pulls FMP/Finnhub/NewsAPI data.",
+        "Finance Agent is limited until the next full governed scan.",
         safe_text(reason, "Live data rate-limited")[:180],
     ]
 
@@ -4532,12 +4532,12 @@ def render_research_any_ticker(full_df, recovery_df, watch_df, prescreen_df, etf
                 with st.spinner(f"Building rate-limit-safe price/technical card for {ticker}..."):
                     fallback_row = build_price_only_live_row(ticker, reason=live_row.get("error"))
                 if fallback_row:
-                    st.info("Showing rate-limit-safe live card now. The next full cron scan may add deeper FMP/Finnhub/NewsAPI details.")
+                    st.info("Showing the available live card now. The next full governed scan may add deeper context.")
                     render_detail(pd.Series(fallback_row))
                 else:
                     st.error(f"Could not fetch even price-history data for {ticker}. Try again later.")
             else:
-                st.info("Live card generated now. The next full cron scan may add deeper FMP/Finnhub/NewsAPI details.")
+                st.info("Live card generated now. The next full governed scan may add deeper context.")
                 render_detail(pd.Series(live_row))
 
 
