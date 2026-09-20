@@ -231,10 +231,22 @@ class FinnhubShadowAdapter:
         if capability == "basic_financials" and isinstance(payload, Mapping):
             metric = payload.get("metric") if isinstance(payload.get("metric"), Mapping) else {}
             series = payload.get("series") if isinstance(payload.get("series"), Mapping) else {}
+            raw_market_cap = pick(metric, "marketCapitalization")
+            raw_shares = pick(metric, "shareOutstanding")
             return {
                 "metric_type": payload.get("metricType"),
-                "market_capitalization": pick(metric, "marketCapitalization"),
-                "shares_outstanding": pick(metric, "shareOutstanding"),
+                "market_capitalization": _millions_to_absolute(raw_market_cap),
+                "market_capitalization_lineage": {
+                    "source_field": "metric.marketCapitalization", "source_value": raw_market_cap,
+                    "source_unit": "USD_MILLIONS", "normalized_unit": "USD",
+                    "scale_transformation": "MULTIPLY_BY_1E6",
+                },
+                "shares_outstanding": _millions_to_absolute(raw_shares),
+                "shares_outstanding_lineage": {
+                    "source_field": "metric.shareOutstanding", "source_value": raw_shares,
+                    "source_unit": "SHARES_MILLIONS", "normalized_unit": "SHARES",
+                    "scale_transformation": "MULTIPLY_BY_1E6",
+                },
                 "pe_ttm": pick(metric, "peTTM"), "pb_annual": pick(metric, "pbAnnual"),
                 "operating_margin_ttm": pick(metric, "operatingMarginTTM"),
                 "revenue_growth_ttm_yoy": pick(metric, "revenueGrowthTTMYoy"),
@@ -333,3 +345,10 @@ def _normalized_temporal_metadata(payload: Mapping[str, Any]) -> dict[str, str |
         "fiscal_period": str(report.get("fiscal_period")) if report.get("fiscal_period") else None,
         "source_record_version": str(report.get("access_number")) if report.get("access_number") else None,
     }
+
+
+def _millions_to_absolute(value: Any) -> float | None:
+    try:
+        return float(value) * 1_000_000
+    except (TypeError, ValueError):
+        return None

@@ -118,6 +118,15 @@ def test_successful_empty_payload_remains_available_empty_not_provider_failure()
     assert record.payload["corporate_actions"] == []
 
 
+def test_basic_financial_market_cap_and_shares_use_explicit_million_scale():
+    record = FinnhubShadowAdapter("demo", get=lambda *_a, **_k: Response({
+        "metric": {"marketCapitalization": 4905541.5, "shareOutstanding": 14780.0}
+    })).fetch("basic_financials", "AAPL")
+    assert record.payload["market_capitalization"] == 4_905_541_500_000
+    assert record.payload["shares_outstanding"] == 14_780_000_000
+    assert record.payload["market_capitalization_lineage"]["scale_transformation"] == "MULTIPLY_BY_1E6"
+
+
 def test_finnhub_missing_and_entitlement_data_fail_closed_without_zero_substitution():
     missing = FinnhubShadowAdapter("").fetch("basic_financials", "AAPL")
     denied = FinnhubShadowAdapter("demo", get=lambda *_a, **_k: Response({}, 403)).fetch("financial_statements", "AAPL")

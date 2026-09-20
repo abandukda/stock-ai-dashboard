@@ -189,11 +189,18 @@ def _financial_reconciliation(symbols: list[str], finnhub_records: Mapping[str, 
         for field in FINANCIAL_FIELDS:
             shadow = facts.get(field) or {}
             finnhub_value = shadow.get("value")
-            if field == "market_cap": finnhub_value = metrics.get("market_capitalization")
+            if field == "market_cap":
+                finnhub_value = metrics.get("market_capitalization")
+                shadow = metrics.get("market_capitalization_lineage") or {}
+            elif field == "shares_outstanding" and finnhub_value is None:
+                finnhub_value = metrics.get("shares_outstanding")
+                shadow = metrics.get("shares_outstanding_lineage") or {}
             result = compare_scalar(twelve.get(TWELVE_FIELD[field]), finnhub_value, tolerance=ReconciliationTolerance(relative_pct=2.0))
             twelve_period = twelve.get(f"{TWELVE_FIELD[field]}_period")
-            period_aligned = not (twelve_period and shadow.get("period_end") and str(twelve_period) != str(shadow.get("period_end")))
-            classification = result["status"] if period_aligned else "UNRESOLVED"
+            finnhub_period = shadow.get("period_end") or shadow.get("effective_date")
+            period_required = field not in {"market_cap", "shares_outstanding"}
+            period_aligned = (not period_required) or bool(twelve_period and finnhub_period and str(twelve_period) == str(finnhub_period))
+            classification = result["status"] if result["status"] == "UNAVAILABLE" or period_aligned else "UNRESOLVED"
             comparisons.append({
                 "ticker": symbol, "canonical_period": shadow.get("canonical_period"),
                 "period_end_date": shadow.get("period_end"), "twelve_period": twelve_period, "field": field,
@@ -201,7 +208,7 @@ def _financial_reconciliation(symbols: list[str], finnhub_records: Mapping[str, 
                 "normalized_units": shadow.get("normalized_unit"),
                 "absolute_difference": result.get("absolute_delta"), "percentage_difference": result.get("relative_delta_pct"),
                 "classification": classification,
-                "likely_reason": "PERIOD_MISMATCH" if not period_aligned else "PERIOD_OR_BASIS_REQUIRES_REVIEW" if result["status"] == "MATERIAL_MISMATCH" else None,
+                "likely_reason": "PERIOD_ALIGNMENT_UNRESOLVED" if not period_aligned and result["status"] != "UNAVAILABLE" else "PERIOD_OR_BASIS_REQUIRES_REVIEW" if result["status"] == "MATERIAL_MISMATCH" else None,
                 "methodology_impact": classification in {"MATERIAL_MISMATCH", "UNRESOLVED"},
                 "finnhub_lineage": shadow,
             })
