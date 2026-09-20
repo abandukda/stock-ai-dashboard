@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from services.provider_domain_contracts import DatasetFamily, UsePermission
+from services.provider_domain_contracts import DatasetFamily, UsePermission, CertificationStatus
 from services.transcript_provider import (
     ConfiguredTranscriptProvider, TranscriptLicenseState,
     build_transcript_derived_insight, transcript_customer_projection,
@@ -57,5 +57,30 @@ def test_commercial_transcript_projection_is_bounded_and_traceable():
 
 def test_missing_transcript_provider_returns_explicit_unavailable_without_fallback():
     record = ConfiguredTranscriptProvider(api_key="", base_url="").transcript("AAPL", year=2026, quarter=2)
-    assert record.payload == {"status": "DATA_UNAVAILABLE", "reason": "TRANSCRIPT_PROVIDER_NOT_CONFIGURED"}
+    assert record.payload == {"status": "DATA_UNAVAILABLE", "reason": "MISSING_API_KEY"}
     assert record.provenance.provider != "FMP"
+    assert record.provenance.provider == "UNCONFIGURED_TRANSCRIPT_PROVIDER"
+    assert record.provenance.certification_status == CertificationStatus.DATA_UNAVAILABLE
+    assert record.provenance.display_permission == UsePermission.PROHIBITED
+
+
+def test_configured_provider_without_base_returns_valid_unavailable_record():
+    record = ConfiguredTranscriptProvider(
+        api_key="secret", base_url="", provider_name="earningscall",
+    ).transcript("AAPL", year=2026, quarter=2)
+    assert record.payload["reason"] == "TRANSCRIPT_PROVIDER_NOT_CONFIGURED"
+    assert record.provenance.provider == "EARNINGSCALL"
+    assert record.provenance.raw_evidence_id
+    assert record.provenance.adapter_version
+
+
+def test_earningscall_uses_documented_endpoint_without_logging_raw_text():
+    calls = []
+    provider = ConfiguredTranscriptProvider(
+        api_key="secret", base_url="https://v2.api.earningscall.biz",
+        provider_name="earningscall", get=lambda url, **kwargs: calls.append((url, kwargs)) or Response(),
+    )
+    record = provider.transcript("AAPL", year=2026, quarter=2)
+    assert calls[0][0] == "https://v2.api.earningscall.biz/transcript"
+    assert calls[0][1]["params"]["apikey"] == "secret"
+    assert record.provenance.dataset_family == DatasetFamily.OPTIONAL_QUALITATIVE_INTELLIGENCE

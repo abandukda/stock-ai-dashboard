@@ -61,6 +61,7 @@ def build_report(symbols: list[str]) -> dict:
                 for consumer in _consumers_for(capability):
                     adversarial.append({"symbol": symbol, "capability": capability, **attempt_certified_input(record, consumer)})
         transcript_record = transcript.transcript(symbol, year=2026, quarter=2).as_dict()
+        transcript_record["payload"].pop("raw_content", None)
         records["transcript"] = transcript_record
         status = transcript_record["provenance"]["certification_status"]
         status_counts[status] = status_counts.get(status, 0) + 1

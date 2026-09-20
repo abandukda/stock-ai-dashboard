@@ -13,6 +13,16 @@ def test_shadow_workflow_is_manual_non_production_and_precommercial():
     assert "CERTIFY_AND_PROMOTE" not in rendered
     assert "overnight_market_scan.py" not in rendered
     assert "FMP_API_KEY" not in rendered
+    assert "ATLAS_TRANSCRIPT_API_KEY: ${{ secrets.EARNINGSCALL_API_KEY }}" in rendered
+    assert "ATLAS_TRANSCRIPT_API_BASE_URL: https://v2.api.earningscall.biz" in rendered
+    assert "ATLAS_TRANSCRIPT_PROVIDER: earningscall" in rendered
+    assert "FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}" in rendered
+    assert "TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}" in rendered
+
+
+def test_readiness_artifact_redacts_raw_transcript_text():
+    source = (ROOT / "scripts" / "provider_migration_readiness.py").read_text(encoding="utf-8")
+    assert 'transcript_record["payload"].pop("raw_content", None)' in source
 
 
 def test_shadow_script_does_not_import_canonical_decision_or_publication_engines():

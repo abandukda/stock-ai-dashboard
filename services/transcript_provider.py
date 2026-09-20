@@ -45,7 +45,10 @@ class ConfiguredTranscriptProvider:
                  get: Callable[..., Any] = requests.get) -> None:
         self._key = str(api_key if api_key is not None else os.getenv("ATLAS_TRANSCRIPT_API_KEY", "")).strip()
         self._base = str(base_url if base_url is not None else os.getenv("ATLAS_TRANSCRIPT_API_BASE_URL", "")).strip().rstrip("/")
-        self._provider = str(provider_name if provider_name is not None else os.getenv("ATLAS_TRANSCRIPT_PROVIDER", "TRANSCRIPT_PROVIDER")).strip().upper()
+        configured_provider = str(
+            provider_name if provider_name is not None else os.getenv("ATLAS_TRANSCRIPT_PROVIDER", "")
+        ).strip().upper()
+        self._provider = configured_provider or "UNCONFIGURED_TRANSCRIPT_PROVIDER"
         configured_state = str(license_state if license_state is not None else os.getenv(
             "ATLAS_TRANSCRIPT_LICENSE_STATE", TranscriptLicenseState.DEVELOPMENT_PRECOMMERCIAL.value,
         )).strip().upper()
@@ -55,18 +58,27 @@ class ConfiguredTranscriptProvider:
     def transcript(self, symbol: str, *, year: int, quarter: int) -> GovernedRecord:
         ticker = str(symbol).upper().strip()
         captured = _now()
-        if not self._key or not self._base:
+        if not self._key:
+            return self._unavailable(ticker, year, quarter, captured, "MISSING_API_KEY")
+        if not self._base:
             return self._unavailable(ticker, year, quarter, captured, "TRANSCRIPT_PROVIDER_NOT_CONFIGURED")
         try:
-            response = self._get(
-                f"{self._base}/transcripts",
-                params={"symbol": ticker, "year": year, "quarter": quarter},
-                headers={"Authorization": f"Bearer {self._key}"}, timeout=20,
-            )
+            if self._provider == "EARNINGSCALL":
+                response = self._get(
+                    f"{self._base}/transcript",
+                    params={"apikey": self._key, "exchange": "nasdaq", "symbol": ticker.lower(),
+                            "year": year, "quarter": quarter}, timeout=20,
+                )
+            else:
+                response = self._get(
+                    f"{self._base}/transcripts",
+                    params={"symbol": ticker, "year": year, "quarter": quarter},
+                    headers={"Authorization": f"Bearer {self._key}"}, timeout=20,
+                )
             status = int(getattr(response, "status_code", 0) or 0)
             payload = response.json() if status == 200 else {}
         except Exception as exc:
-            return self._unavailable(ticker, year, quarter, captured, type(exc).__name__)
+            return self._unavailable(ticker, year, quarter, captured, f"PROVIDER_ERROR:{type(exc).__name__}")
         if status in {401, 403}:
             return self._unavailable(ticker, year, quarter, captured, "ENTITLEMENT_UNAVAILABLE",
                                      CertificationStatus.ENTITLEMENT_UNAVAILABLE)
