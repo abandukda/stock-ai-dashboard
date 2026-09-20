@@ -27,6 +27,13 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -r requirements.txt
+      - name: Restore append-only historical volume observations
+        uses: actions/cache/restore@v4
+        with:
+          path: audit_results/provider_shadow/historical_volume_stability.json
+          key: atlas-provider-volume-stability-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            atlas-provider-volume-stability-${{ github.ref_name }}-
       - name: Run bounded provider shadow diagnostics
         run: python scripts/provider_migration_readiness.py --symbols AAPL,MSFT,NVDA
       - name: Run adversarial family-boundary tests
@@ -42,3 +49,9 @@ jobs:
           name: atlas-provider-shadow-${{ github.run_id }}
           path: audit_results/provider_shadow
           if-no-files-found: error
+      - name: Save append-only historical volume observations
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: audit_results/provider_shadow/historical_volume_stability.json
+          key: atlas-provider-volume-stability-${{ github.ref_name }}-${{ github.run_id }}

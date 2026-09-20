@@ -18,6 +18,9 @@ def test_shadow_workflow_is_manual_non_production_and_precommercial():
     assert "ATLAS_TRANSCRIPT_PROVIDER: earningscall" in rendered
     assert "FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}" in rendered
     assert "TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}" in rendered
+    assert "actions/cache/restore@v4" in rendered
+    assert "actions/cache/save@v4" in rendered
+    assert "historical_volume_stability.json" in rendered
 
 
 def test_readiness_artifact_redacts_raw_transcript_text():
