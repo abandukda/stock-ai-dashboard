@@ -12,6 +12,7 @@ jobs:
     timeout-minutes: 20
     env:
       FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+      TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
       ATLAS_TRANSCRIPT_API_KEY: ${{ secrets.ATLAS_TRANSCRIPT_API_KEY }}
       ATLAS_TRANSCRIPT_API_BASE_URL: ${{ secrets.ATLAS_TRANSCRIPT_API_BASE_URL }}
       ATLAS_TRANSCRIPT_PROVIDER: ${{ vars.ATLAS_TRANSCRIPT_PROVIDER }}
@@ -25,6 +26,8 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Run bounded provider shadow diagnostics
         run: python scripts/provider_migration_readiness.py --symbols AAPL,MSFT,NVDA
+      - name: Run adversarial family-boundary tests
+        run: pytest -q tests/test_provider_family_boundary_adversarial.py tests/test_provider_architecture_shadow.py tests/test_transcript_provider_contract.py
       - name: Assert production artifacts unchanged
         run: |
           if ! git diff --quiet -- market_full_scan.json market_prescreen.json market_scan_state.json publication_manifest.json; then

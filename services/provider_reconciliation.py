@@ -22,11 +22,11 @@ def compare_scalar(left: Any, right: Any, *, tolerance: ReconciliationTolerance 
     try:
         a, b = float(left), float(right)
     except (TypeError, ValueError):
-        return {"status": "EXACT_MATCH" if left == right else "MATERIAL_MISMATCH", "left": left, "right": right}
+        return {"status": "MATCH" if left == right else "MATERIAL_MISMATCH", "left": left, "right": right}
     delta = abs(a - b)
     scale = max(abs(a), abs(b), tolerance.absolute)
     pct = delta / scale * 100.0
-    status = "EXACT_MATCH" if delta <= tolerance.absolute else "WITHIN_TOLERANCE" if pct <= tolerance.relative_pct else "MATERIAL_MISMATCH"
+    status = "MATCH" if delta <= tolerance.absolute else "WITHIN_TOLERANCE" if pct <= tolerance.relative_pct else "MATERIAL_MISMATCH"
     return {"status": status, "left": a, "right": b, "absolute_delta": delta, "relative_delta_pct": pct}
 
 
