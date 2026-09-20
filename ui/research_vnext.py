@@ -35,10 +35,46 @@ RESEARCH_VNEXT_SECTIONS: Final = (
 
 
 def _trust_tier(label: str, copy: str) -> None:
+    customer_labels = {
+        "CERTIFIED_ATLAS": ("✓", "Certified ATLAS analysis"),
+        "EXTERNAL_ANALYST_CONTEXT": ("↗", "External analyst context — not used in ATLAS scoring."),
+        "LIVE_MARKET_CONTEXT": ("●", "Live market context — for reference only."),
+        "CONTEXTUAL_INTELLIGENCE": ("◇", "Contextual intelligence"),
+    }
+    icon, customer_copy = customer_labels.get(label, ("•", copy))
     st.markdown(
-        f'<div data-atlas-trust-tier="{escape(label)}"><small><b>{escape(label.replace("_", " ").title())}</b> · '
-        f'{escape(copy)}</small></div>', unsafe_allow_html=True,
+        f'<div class="atlas-trust-tier atlas-trust-{escape(label.lower().replace("_", "-"))}" '
+        f'data-atlas-trust-tier="{escape(label)}"><span aria-hidden="true">{escape(icon)}</span>'
+        f'<small>{escape(customer_copy)}</small></div>', unsafe_allow_html=True,
     )
+
+
+def _certified_field(report: Mapping[str, Any], name: str) -> Any:
+    field = safe_mapping(safe_mapping(report.get("certified_customer_evaluation")).get("fields")).get(name)
+    envelope = safe_mapping(field)
+    if str(envelope.get("certification_status") or "").upper() in {
+        "CERTIFIED", "CERTIFIED_HIGH_UNCERTAINTY", "PUBLISHED", "AVAILABLE",
+    }:
+        return envelope.get("value")
+    return None
+
+
+def _customer_fair_value(report: Mapping[str, Any]) -> Any:
+    certified = _certified_field(report, "atlas_fair_value")
+    if safe_mapping(report.get("certified_customer_evaluation")):
+        return certified
+    return _decision_value(report, "atlas_fair_value", "atlas_fair_value")
+
+
+def _customer_potential(report: Mapping[str, Any]) -> Any:
+    certified = _certified_field(report, "atlas_upside_pct")
+    if certified is not None:
+        return certified
+    if safe_mapping(report.get("certified_customer_evaluation")):
+        return None
+    if _customer_fair_value(report) is None:
+        return None
+    return _decision_value(report, "decision_expected_return", "atlas_expected_return_pct")
 
 
 def _customer_evidence_state(report: Mapping[str, Any], view: Mapping[str, Any]) -> str:
@@ -361,10 +397,9 @@ def build_research_decision_view(report: Mapping[str, Any]) -> dict[str, Any]:
         confidence=canonical_confidence,
         research_completeness=completeness,
         actionability_label=(
-            "Research incomplete — not currently actionable"
-            if monitor and verdict.upper() == "UNAVAILABLE"
-            else "Monitor — Not currently actionable"
-            if monitor
+            "Detailed evidence is incomplete for this snapshot."
+            if monitor and verdict.upper().replace(" ", "_") in {"BUY_NOW", "ACCUMULATE"}
+            else "Monitor — Not currently actionable" if monitor
             else _scalar_text(action.get("current_action"), verdict.replace("_", " ").title())
         ),
     )
@@ -414,7 +449,7 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
     header = view["header"]
     badge = view["technical_badge"]
     st.markdown("## ATLAS View")
-    _trust_tier("CERTIFIED_ATLAS", "Deterministic certified ATLAS analysis.")
+    _trust_tier("CERTIFIED_ATLAS", "Certified ATLAS analysis")
     current = safe_mapping(view.get("current_evaluation"))
     current_guidance = safe_mapping(current.get("guidance"))
     certified_customer = safe_mapping(report.get("certified_customer_evaluation"))
@@ -444,29 +479,27 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
         current_guidance = {}
     customer_action = customer_action_presentation(current_guidance.get("state"))
     market = safe_mapping(report.get("canonical_market_snapshot"))
-    setup = st.columns(4)
-    setup[0].metric("Production Rank", f"#{int(report['production_rank'])}" if report.get("production_rank") else "Unavailable")
-    setup[1].metric("ATLAS Setup Score", f"{float(report['scan_conviction']):g} / 100" if report.get("scan_conviction") is not None else "Unavailable")
-    setup[2].metric(_scalar_text(market.get("customer_label"), "Market Price"), CanonicalNumberFormatter.price(market.get("price")).display)
-    setup[3].metric("Technical State", _display_status(_scalar_text(safe_mapping(current.get("technical_confirmation")).get("state"), "Unavailable")))
+    fair_value = _customer_fair_value(report)
+    potential = _customer_potential(report)
+    setup = st.columns(3)
+    setup[0].metric(_scalar_text(market.get("customer_label"), "Current Price"), CanonicalNumberFormatter.price(market.get("price")).display)
+    setup[1].metric("ATLAS Fair Value", CanonicalNumberFormatter.price(fair_value).display)
+    setup[2].metric("Potential", CanonicalNumberFormatter.percent(potential, signed=True).display if fair_value is not None else "Unavailable")
     if market:
         st.caption(
             f"{_scalar_text(market.get('market_session'), 'Unavailable').replace('_', ' ').title()} · "
             f"{format_market_timestamp_et(market.get('provider_timestamp'), unavailable='Timestamp unavailable')} · "
-            f"{_scalar_text(market.get('provider'), 'Provider unavailable')} · "
+            "Last verified market price · "
             f"{'Live' if market.get('fresh_current_price') is True else 'Last known'}"
         )
     customer_view = safe_mapping(report.get("customer_plain_english_summary"))
-    st.markdown("### ATLAS View")
     st.write(_scalar_text(
         customer_view.get("text"),
         "ATLAS cannot produce a plain-English view until the required certified evidence is available.",
     ))
     if current_guidance:
-        actionability = _scalar_text(safe_mapping(current.get("actionability")).get("status"), "UNAVAILABLE")
         st.markdown(
-            f"**ATLAS Rating:** {customer_action['stars']} {customer_action['label']}  "
-            f"· **Actionability:** {_display_status(actionability)}"
+            f"**ATLAS Rating:** {customer_action['stars']} {customer_action['label']}"
         )
         st.caption(
             f"Decision Confidence: {CanonicalNumberFormatter.percent(header.confidence).display} · "
@@ -481,10 +514,9 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
     st.caption(header.actionability_label)
     with st.container(key=f"vnext_decision_action_{ticker}"):
         if current_guidance:
-            st.info(
-                f"{customer_action['label']} — "
-                f"{_display_status(_scalar_text(safe_mapping(current.get('actionability')).get('status'), 'UNAVAILABLE'))}."
-            )
+            st.info(f"{customer_action['label']} — {customer_action['instruction']}")
+            if _customer_evidence_state(report, view) != "Evidence Complete":
+                st.caption("Detailed evidence is incomplete for this snapshot.")
         elif decision.get("semantic_status") == "DATA_UNAVAILABLE" or is_missing_scalar(decision.get("recommendation")):
             st.info(_scalar_text(
                 availability.get("customer_reason"),
@@ -512,9 +544,9 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
     prices = view["prices"]
     if market.get("price") is not None:
         metric_values.append((_scalar_text(market.get("customer_label"), "Market Price"), CanonicalNumberFormatter.price(market.get("price")).display))
-    canonical_expected_return = _decision_value(report, "decision_expected_return", "atlas_expected_return_pct")
-    if str(report.get("atlas_valuation_status") or "").upper() == "PUBLISHED" and canonical_expected_return is not None:
-        metric_values.append(("Atlas-FV Expected Return", CanonicalNumberFormatter.percent(canonical_expected_return, signed=True).display))
+    canonical_expected_return = _customer_potential(report)
+    if fair_value is not None and canonical_expected_return is not None:
+        metric_values.append(("Potential", CanonicalNumberFormatter.percent(canonical_expected_return, signed=True).display))
     if prices.invalidation.display != "Unavailable":
         metric_values.append(("Stop / Invalidation", prices.invalidation.display))
     columns = st.columns(max(1, len(metric_values)))
@@ -540,7 +572,7 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
             for item in risk_facts[:3]:
                 st.write(f"- {_clip_words(item.get('risk'), 24)}")
         else:
-            st.caption("No grounded constraint is currently available.")
+            st.caption("A certified primary risk is unavailable for this snapshot.")
 
     st.markdown("#### Six Pillars")
     st.caption("Certified pillar evidence is summarized here; professional detail remains in Decision Evidence.")
@@ -548,7 +580,12 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
     if pillar_rows:
         st.write(" · ".join(str(name).replace("_", " ").title() for name in list(pillar_rows)[:6]))
     else:
-        st.info("Data Unavailable — certified pillar detail is not attached to this report.")
+        certified_pillars = safe_mapping(certified_decision.get("six_pillars"))
+        if certified_pillars:
+            st.write(" · ".join(str(name).replace("_", " ").title() for name in list(certified_pillars)[:6]))
+            st.caption("Detailed pillar evidence is unavailable for this snapshot.")
+        else:
+            st.info("Data Unavailable")
 
     if view.get("material_change"):
         st.markdown("#### What changed")
@@ -556,7 +593,7 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
 
     health = view["health"]
     st.caption(
-        f"Evidence: {health.label} · Completeness: {health.completeness.display} · "
+        f"{_customer_evidence_state(report, view)} · "
         f"Freshness: {health.freshness or 'Unavailable'}"
     )
     if view["critical_gaps"]:
@@ -701,8 +738,10 @@ def _render_fundamentals(report: Mapping[str, Any], legacy: Mapping[str, Callabl
     st.markdown("### Headline Valuation")
     valuation_cols = st.columns(3)
     valuation_cols[0].metric("Current Price", CanonicalNumberFormatter.price(report.get("current_price")).display)
-    valuation_cols[1].metric("Atlas Quant Fair Value", CanonicalNumberFormatter.price(_decision_value(report, "atlas_fair_value", "atlas_fair_value")).display)
-    valuation_cols[2].metric("Atlas-FV Expected Return", CanonicalNumberFormatter.percent(_decision_value(report, "decision_expected_return", "atlas_expected_return_pct"), signed=True).display)
+    fair_value = _customer_fair_value(report)
+    potential = _customer_potential(report)
+    valuation_cols[1].metric("ATLAS Fair Value", CanonicalNumberFormatter.price(fair_value).display)
+    valuation_cols[2].metric("Potential", CanonicalNumberFormatter.percent(potential, signed=True).display if fair_value is not None else "Unavailable")
     from engines.analyst_intelligence import wall_street_view_text
     wall_street = safe_mapping(report.get("wall_street_analysis"))
     consensus = safe_mapping(wall_street.get("consensus"))
@@ -758,7 +797,7 @@ def _render_fundamentals(report: Mapping[str, Any], legacy: Mapping[str, Callabl
 def _render_technical(report: Mapping[str, Any], view: Mapping[str, Any], legacy: Mapping[str, Callable[..., Any]]) -> None:
     ticker = str(report.get("ticker") or "UNKNOWN")
     _section_marker("Technical & Trade State", ticker)
-    _trust_tier("LIVE_MARKET_CONTEXT", "Live market context — partial real-time data for reference.")
+    _trust_tier("LIVE_MARKET_CONTEXT", "Live market context — for reference only.")
     st.markdown("## Technical & Trade State")
     technical = view["technical_availability"]
     _block_marker("deterministic-technical-state", ticker)
@@ -1015,7 +1054,7 @@ def _render_catalysts(report: Mapping[str, Any], legacy: Mapping[str, Callable[.
     ticker = str(report.get("ticker") or "UNKNOWN")
     _section_marker("Additional Context", ticker)
     st.markdown("## Additional Context")
-    _trust_tier("CONTEXTUAL_INTELLIGENCE", "Supporting context only; it does not calculate ATLAS scoring or fair value.")
+    _trust_tier("CONTEXTUAL_INTELLIGENCE", "Contextual intelligence")
     context = safe_mapping(_canonical_context(report).get("evidence_families"))
     analyst = safe_mapping(report.get("analyst_intelligence"))
     wall_street = safe_mapping(report.get("wall_street_analysis"))
@@ -1287,6 +1326,11 @@ def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Cal
         }
         [class*="st-key-vnext_ask_atlas"] [data-testid="stButton"] { margin-right:5.5rem; }
         [data-testid="stTabs"] [role="tablist"] { gap: .35rem; }
+        .atlas-trust-tier{display:flex;align-items:center;gap:.5rem;margin:.15rem 0 .55rem;padding:.55rem .7rem;border-radius:10px;border:1px solid}.atlas-trust-tier>span{display:grid;place-items:center;width:1.45rem;height:1.45rem;border-radius:50%;font-weight:800}.atlas-trust-tier small{font-weight:650;letter-spacing:.01em}
+        .atlas-trust-certified-atlas{border-color:rgba(47,183,164,.55);background:linear-gradient(90deg,rgba(47,183,164,.18),rgba(15,23,42,.2));color:#9ce7dc}.atlas-trust-certified-atlas>span{background:rgba(47,183,164,.2)}
+        .atlas-trust-external-analyst-context{border-color:rgba(148,163,184,.28);background:rgba(71,85,105,.12);color:#cbd5e1}.atlas-trust-external-analyst-context>span{background:rgba(148,163,184,.15)}
+        .atlas-trust-live-market-context{border-color:rgba(93,145,214,.48);background:rgba(37,99,235,.1);color:#bfdbfe}.atlas-trust-live-market-context>span{background:rgba(59,130,246,.18)}
+        .atlas-trust-contextual-intelligence{border-color:rgba(168,85,247,.35);background:rgba(126,34,206,.09);color:#d8b4fe}.atlas-trust-contextual-intelligence>span{background:rgba(168,85,247,.16)}
         @media (min-width: 701px) {
           /* Desktop decision metrics sit above the host-control footprint;
              retain a compact readable inset instead of the mobile exclusion zone. */
@@ -1300,8 +1344,8 @@ def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Cal
           [data-testid="stAlert"] [data-testid="stMarkdownContainer"],
           [data-testid="stExpander"] summary { padding-right:7.5rem !important; }
           [class*="st-key-vnext_ask_atlas"] [data-testid="stButton"] { margin-right:7rem; }
-          [data-testid="stTabs"] [role="tablist"] { flex-wrap: wrap; overflow-x: visible; }
-          [data-testid="stTabs"] [role="tab"] { flex: 1 1 46%; min-height: 44px; white-space: normal; }
+          [data-testid="stTabs"] [role="tablist"] { display:grid;grid-template-columns:1fr 1fr;overflow-x:visible;gap:.25rem; }
+          [data-testid="stTabs"] [role="tab"] { min-width:0;min-height:40px;white-space:normal;padding:.3rem .4rem; }
           [data-testid="stDataFrame"] { max-width: 100%; overflow-x: auto; }
           /* Decision prose and alerts can cross the Cloud host-control
              footprint; reserve only those exposed customer surfaces. */
@@ -1406,10 +1450,10 @@ def render_full_research_vnext(row: Mapping[str, Any]) -> None:
     current_guidance = safe_mapping(_current_evaluation(report).get("guidance"))
     certified_customer = safe_mapping(report.get("certified_customer_evaluation"))
     certified_action = safe_mapping(certified_customer.get("decision")).get("action")
-    banner_state = _scalar_text(
-        certified_action if certified_customer else current_guidance.get("state") or _decision_value(report, "recommendation", "committee_verdict"),
-        "Unavailable",
-    ).replace("_", " ").title()
+    from engines.home_guidance_story_v1 import customer_action_presentation
+    banner_state = customer_action_presentation(
+        certified_action if certified_customer else current_guidance.get("state") or _decision_value(report, "recommendation", "committee_verdict")
+    )["label"]
 
     st.markdown(
         f"""

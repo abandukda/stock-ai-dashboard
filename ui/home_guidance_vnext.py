@@ -18,7 +18,15 @@ from ui.vnext_presentation import CanonicalNumberFormatter
 def _display(value: Any) -> str:
     if value is None or value == "":
         return "Unavailable"
-    return str(value).replace("_", " ").title()
+    normalized = str(value).strip().upper().replace(" ", "_")
+    customer_actions = {
+        "BUY_NOW": "BUY NOW", "ACCUMULATE": "BUILD A POSITION",
+        "WAIT_FOR_ENTRY": "WAIT FOR A BETTER ENTRY",
+        "WAIT_FOR_BETTER_ENTRY": "WAIT FOR A BETTER ENTRY",
+        "WAIT_FOR_CONFIRMATION": "WAIT FOR CONFIRMATION",
+        "DATA_LIMITED": "WATCH — NOT READY YET", "AVOID": "AVOID",
+    }
+    return customer_actions.get(normalized, str(value).replace("_", " ").title())
 
 
 def _score(value: Any, *, suffix: str = "") -> str:
@@ -1261,11 +1269,15 @@ def _customer_evidence_state(card: Mapping[str, Any]) -> str:
 
 
 def _compact_reason(card: Mapping[str, Any]) -> str:
-    observations = _atlas_observations(card)
-    if observations:
-        return observations[0]
+    facts = card.get("certified_summary_facts") if isinstance(card.get("certified_summary_facts"), Mapping) else {}
+    for key in ("business_driver", "financial_driver", "valuation_driver", "primary_driver"):
+        value = facts.get(key)
+        if value and not isinstance(value, (Mapping, list, tuple, set)):
+            return str(value).strip().rstrip(".") + "."
     summary = _atlas_summary(card).strip()
-    return summary.split(".", 1)[0].strip() + "." if summary else "ATLAS has not published a concise supporting reason."
+    if summary and "cannot produce" not in summary.lower():
+        return summary.split(".", 1)[0].strip() + "."
+    return "A concise certified investment reason is unavailable for this snapshot."
 
 
 def _compact_opportunity_card(card: Mapping[str, Any], *, key: str, first: bool = False) -> None:

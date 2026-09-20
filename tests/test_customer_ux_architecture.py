@@ -58,7 +58,7 @@ def test_research_trust_tiers_and_collapsed_context_are_explicit():
     for label in ("Wall Street Context", "External Analyst Data", "Ownership & Filings", "Company Communications", "Full Investment Case — deep dive"):
         assert f'with st.expander("{label}", expanded=False)' in source
     assert "External analyst context — not used in ATLAS scoring." in source
-    assert "Live market context — partial real-time data for reference." in source
+    assert "Live market context — for reference only." in source
 
 
 def test_mobile_keeps_actionable_cards_before_watching():
@@ -66,4 +66,3 @@ def test_mobile_keeps_actionable_cards_before_watching():
     group = source[source.index("def _render_groups"):source.index("def _action_counts")]
     assert group.index("for index, card in enumerate(actionable)") < group.index('with st.expander(f"Worth Watching')
     assert "@media(max-width:700px)" in source
-

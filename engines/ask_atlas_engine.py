@@ -464,7 +464,7 @@ def _deterministic_answer(question: str, report: Mapping[str, Any]) -> str:
             gaps = ai_valuation.get("ai_evidence_gaps") or ["The research-only evidence gate was not satisfied."]
             lines.append("**Why it is not published:** " + "; ".join(str(item) for item in gaps))
         lines.append(f"**Valuation relationship:** {str(ai_valuation.get('valuation_relationship') or 'COMPARISON_UNAVAILABLE').replace('_', ' ').title()}.")
-        lines.append("Atlas Quant Fair Value, ATLAS AI Valuation, and Wall Street Consensus are separate perspectives. None is automatically the correct value.")
+        lines.append("ATLAS Fair Value, ATLAS AI Valuation, and Wall Street Consensus are separate perspectives. None is automatically the correct value.")
         return "\n\n".join(lines)
 
     policy_terms = (

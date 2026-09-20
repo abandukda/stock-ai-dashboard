@@ -17,6 +17,7 @@ from engines.news_link_integrity import news_source_presentation
 
 from engines.atlas_research_builder_v2 import build_atlas_research_v2
 from engines.ask_atlas_engine import ask_atlas
+from engines.home_guidance_story_v1 import customer_action_presentation
 from engines.semantic_fields import (
     is_missing_scalar, number, safe_date_text, safe_mapping,
     safe_scalar_display, safe_sequence,
@@ -936,7 +937,7 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
           <div style="color:#aebbd0;margin-top:9px">
             {escape(str(report.get("company") or ""))} ·
             {escape(str(report.get("sector") or "Unknown"))} ·
-            {escape(str(report.get("committee_verdict") or "Monitor").replace("_", " ").title())}
+            {escape(customer_action_presentation(report.get("committee_verdict"))["label"])}
           </div>
         </div>
         """,
@@ -964,7 +965,7 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
     return
 
     c = st.columns(5)
-    c[0].metric("Verdict", str(report.get("committee_verdict") or "Monitor").replace("_", " ").title())
+    c[0].metric("ATLAS Action", customer_action_presentation(report.get("committee_verdict"))["label"])
     c[1].metric("Opportunity", _score(report.get("opportunity_score")))
     c[2].metric("Confidence", _pct(report.get("confidence_pct")))
     c[3].metric("Atlas-FV Implied Upside", _pct(report.get("atlas_expected_return_pct"), signed=True))
@@ -1240,7 +1241,7 @@ def render_atlas_research_v2(row: Mapping[str, Any]) -> None:
         plan = report.get("trade_plan") or {}
         horizon = (plan.get("horizon") or {}).get("primary", "Research / Monitor")
         st.info(
-            f"Atlas currently classifies this as {str(report.get('committee_verdict') or 'Monitor').replace('_', ' ').title()} "
+            f"ATLAS currently classifies this as {customer_action_presentation(report.get('committee_verdict'))['label']} "
             f"with a primary horizon of {horizon}. Opportunity is {_score(report.get('opportunity_score'))}, "
             f"confidence is {_pct(report.get('confidence_pct'))}, and research completeness is "
             f"{_pct(report.get('research_completeness_pct'))}."

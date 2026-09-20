@@ -22323,7 +22323,7 @@ def v64_recommendation(row):
     if opp >= 86 and q >= 78 and upside >= 15 and (rr == 0 or rr >= 1.6):
         return "✅ Buy Today"
     if opp >= 78 and q >= 65 and upside >= 8:
-        return "🔵 Accumulate"
+        return "🔵 BUILD A POSITION"
     if opp >= 70 and upside >= 5:
         return "🟡 Wait / Watch"
     if q < 55 or upside < 0:
@@ -26243,6 +26243,16 @@ def v784_top_nav(pages):
     if pending:
         st.session_state["v784_single_nav"] = current
 
+    st.markdown("""<style>
+    [data-testid="stRadio"] [role="radiogroup"]{display:flex;flex-wrap:wrap;gap:.25rem .4rem}
+    [data-testid="stRadio"] label{min-width:0!important;margin:0!important}
+    @media(max-width:700px){
+      [data-testid="stRadio"]{position:relative;max-width:100%!important;overflow:hidden!important}
+      [data-testid="stRadio"] [role="radiogroup"]{display:flex!important;flex-flow:row nowrap!important;width:100%!important;max-width:100%!important;overflow-x:auto!important;overscroll-behavior-x:contain;scroll-snap-type:x proximity;padding-bottom:.25rem}
+      [data-testid="stRadio"] label{flex:0 0 auto!important;max-width:11rem;scroll-snap-align:start;overflow:hidden}
+      [data-testid="stRadio"] label p{font-size:.76rem;white-space:nowrap!important;line-height:1.2}
+    }
+    </style>""", unsafe_allow_html=True)
     selected = st.radio(
         "Navigate",
         pages,
@@ -26532,7 +26542,7 @@ def render_v775_home_dashboard(full_df=None, top_df=None, recovery_df=None):
   <p>Market posture is <b>{v73_esc(regime)}</b>. Atlas is prioritizing <b>{v73_esc(top_ticker)}</b>{(' — ' + v73_esc(top_company)) if top_company else ''}. Review earnings first, then use Top Opportunities to open the complete research report before acting.</p>
   <div class='v775-grid4'>
     <div class='v775-stat'><span>Buy Now</span><b>{buys}</b><em>strongest current setups</em></div>
-    <div class='v775-stat'><span>Watch / Accumulate</span><b>{watch}</b><em>require entry discipline</em></div>
+    <div class='v775-stat'><span>Watch / Build</span><b>{watch}</b><em>require entry discipline</em></div>
     <div class='v775-stat'><span>Recovery Radar</span><b>{rec_count}</b><em>sold-off candidates</em></div>
     <div class='v775-stat'><span>Stocks Covered</span><b>{full_count}</b><em>latest deep scan</em></div>
   </div>
@@ -28112,7 +28122,7 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
   <h1>What changed since the last scan?</h1>
   <p>Atlas separates <b>today's changing opportunities</b> from <b>stable high-quality companies</b>. Repeated names with no meaningful score or catalyst change move into Core Holdings or Mega-Cap Monitor instead of occupying the daily opportunity list.</p>
   <div class='v793-brief-grid'>
-    <div class='v793-brief-stat'><span>Today's Opportunities</span><b>{actionable_count}</b><em>verified Buy Now / Accumulate candidates</em></div>
+    <div class='v793-brief-stat'><span>Today's Opportunities</span><b>{actionable_count}</b><em>verified Buy Now / Build candidates</em></div>
     <div class='v793-brief-stat'><span>Biggest Movers</span><b>{len(movers)}</b><em>rank changes since prior snapshot</em></div>
     <div class='v793-brief-stat'><span>New Discoveries</span><b>{len(new)}</b><em>not present in prior history</em></div>
     <div class='v793-brief-stat'><span>Core / Mega Cap</span><b>{len(core)+len(mega)}</b><em>monitored separately</em></div>
@@ -28121,7 +28131,7 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
 """, unsafe_allow_html=True)
 
     st.markdown("## 🔥 Today's Highest-Conviction Opportunities" if display_mode == "actionable" else "## 🟡 Closest Opportunities to Action")
-    st.caption("Ranked for today—these are verified actionable ideas." if display_mode == "actionable" else "No stock cleared Buy Now or Accumulate today. Atlas is showing only the three closest Monitor candidates and the exact confirmation each still needs.")
+    st.caption("Ranked for today—these are verified actionable ideas." if display_mode == "actionable" else "No stock cleared Buy Now or Build a Position today. Atlas is showing only the three closest Monitor candidates and the exact confirmation each still needs.")
     if today:
         render_v73_idea_table(pd.DataFrame(today[:8]), title="Why Atlas surfaced these today")
     else:

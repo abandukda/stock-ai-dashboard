@@ -207,9 +207,9 @@ HOME_FIELD_AUTHORITY = {
 CUSTOMER_ACTION_PRESENTATION = {
     "BUY_NOW": {"label": "BUY NOW", "stars": "★★★★★", "rating": 5.0, "tone": "buy", "instruction": "Entry conditions are satisfied. ATLAS would initiate a position now."},
     "ACCUMULATE": {"label": "BUILD A POSITION", "stars": "★★★★½", "rating": 4.5, "tone": "build", "instruction": "Begin with a partial position and add only as the thesis confirms."},
-    "WAIT_FOR_ENTRY": {"label": "WAIT FOR BETTER ENTRY", "stars": "★★★★", "rating": 4.0, "tone": "wait", "instruction": "Do not chase. Wait for price to return to ATLAS's preferred entry area."},
+    "WAIT_FOR_ENTRY": {"label": "WAIT FOR A BETTER ENTRY", "stars": "★★★★", "rating": 4.0, "tone": "wait", "instruction": "Do not chase. Wait for price to return to ATLAS's preferred entry area."},
     "WAIT_FOR_CONFIRMATION": {"label": "WAIT FOR CONFIRMATION", "stars": "★★★½", "rating": 3.5, "tone": "wait", "instruction": "Stay patient. The thesis is attractive, but confirmation is incomplete."},
-    "DATA_LIMITED": {"label": "WATCH", "stars": "★★½", "rating": 2.5, "tone": "watch", "instruction": "Do not enter yet. Keep it on the watchlist while the setup develops."},
+    "DATA_LIMITED": {"label": "WATCH — NOT READY YET", "stars": "★★½", "rating": 2.5, "tone": "watch", "instruction": "Do not enter yet. Keep it on the watchlist while the setup develops."},
     "AVOID": {"label": "AVOID", "stars": "★", "rating": 1.0, "tone": "avoid", "instruction": "ATLAS would not deploy capital here under current conditions."},
     "WITHHELD": {"label": "RATING NOT PUBLISHED", "stars": "", "rating": None, "tone": "neutral", "instruction": "ATLAS is refreshing the supporting evidence before publishing a rating."},
 }

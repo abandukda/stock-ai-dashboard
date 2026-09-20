@@ -58,10 +58,17 @@ RESEARCH_CUSTOMER_HIERARCHY: Final = (
 )
 
 PRESENTATION_TRUST_TIERS: Final = MappingProxyType({
-    "CERTIFIED_ATLAS": "Deterministic certified ATLAS analysis",
+    "CERTIFIED_ATLAS": "Certified ATLAS analysis",
     "EXTERNAL_ANALYST_CONTEXT": "External analyst context — not used in ATLAS scoring.",
-    "LIVE_MARKET_CONTEXT": "Live market context — partial real-time data for reference.",
-    "CONTEXTUAL_INTELLIGENCE": "Contextual intelligence — supporting evidence, not ATLAS scoring.",
+    "LIVE_MARKET_CONTEXT": "Live market context — for reference only.",
+    "CONTEXTUAL_INTELLIGENCE": "Contextual intelligence",
+})
+
+CUSTOMER_ACTION_LABELS: Final = MappingProxyType({
+    "BUY_NOW": "BUY NOW", "ACCUMULATE": "BUILD A POSITION",
+    "WAIT_FOR_ENTRY": "WAIT FOR A BETTER ENTRY",
+    "WAIT_FOR_CONFIRMATION": "WAIT FOR CONFIRMATION",
+    "DATA_LIMITED": "WATCH — NOT READY YET", "AVOID": "AVOID",
 })
 
 CUSTOMER_EVIDENCE_STATES: Final = ("Evidence Complete", "Evidence Limited", "Data Unavailable")
@@ -201,7 +208,7 @@ def contract_snapshot() -> dict:
 
 
 __all__ = [
-    "AVAILABILITY_SEMANTICS", "CURRENT_ACTIVE_PAGES", "CURRENT_RESEARCH_TABS",
+    "AVAILABILITY_SEMANTICS", "CURRENT_ACTIVE_PAGES", "CURRENT_RESEARCH_TABS", "CUSTOMER_ACTION_LABELS",
     "CUSTOMER_EVIDENCE_STATES", "HOME_CUSTOMER_HIERARCHY", "HOME_CUSTOMER_PRIMARY_LABELS", "HOME_INDICATOR_CLASSIFICATION",
     "HOME_PROHIBITED_CUSTOMER_TERMS", "MIGRATION_BASELINE_CLASSIFICATION", "MIGRATION_BASELINE_VERSION",
     "PRESENTATION_TRUST_TIERS", "RESEARCH_CUSTOMER_HIERARCHY",
