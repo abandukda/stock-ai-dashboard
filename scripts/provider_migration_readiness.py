@@ -240,22 +240,28 @@ def _financial_reconciliation(symbols: list[str], finnhub_records: Mapping[str, 
 def _shares_analysis(symbol: str, twelve: Mapping[str, Any], metrics: Mapping[str, Any], records: Mapping[str, Any]) -> dict[str, Any]:
     lineage = (((twelve.get("professional_evidence_lineage") or {}).get("fields")) or {}).get("current_shares_outstanding") or {}
     finnhub_provenance = ((records.get("basic_financials") or {}).get("provenance") or {})
+    reports = ((records.get("financial_statements") or {}).get("payload") or {}).get("reports") or []
+    statement_fact = next((report.get("canonical_facts", {}).get("shares_outstanding") for report in reports
+                           if report.get("canonical_facts", {}).get("shares_outstanding")), {})
+    finnhub_value = metrics.get("shares_outstanding") or statement_fact.get("value")
+    finnhub_concept = (metrics.get("shares_outstanding_lineage") or {}).get("source_field") if metrics.get("shares_outstanding") else statement_fact.get("source_field")
+    finnhub_timestamp = finnhub_provenance.get("capture_timestamp") if metrics.get("shares_outstanding") else statement_fact.get("period_end")
+    finnhub_semantics = "CURRENT_PROVIDER_METRIC_OBSERVED_AT_FETCH" if metrics.get("shares_outstanding") else "PERIOD_END_SHARES_FROM_FILING"
     return {
         "ticker": symbol, "twelve_value": twelve.get("current_shares_outstanding"),
         "twelve_concept": lineage.get("raw_field"), "twelve_timestamp": lineage.get("as_of"),
         "twelve_semantics": lineage.get("as_of_semantics"),
-        "finnhub_value": metrics.get("shares_outstanding"),
-        "finnhub_concept": (metrics.get("shares_outstanding_lineage") or {}).get("source_field"),
-        "finnhub_timestamp": finnhub_provenance.get("capture_timestamp"),
-        "finnhub_semantics": "CURRENT_PROVIDER_METRIC_OBSERVED_AT_FETCH",
-        "concepts_comparable": "sharesOutstanding" in str(lineage.get("raw_field") or "") and bool(metrics.get("shares_outstanding")),
+        "finnhub_value": finnhub_value, "finnhub_concept": finnhub_concept,
+        "finnhub_timestamp": finnhub_timestamp, "finnhub_semantics": finnhub_semantics,
+        "concepts_comparable": bool(finnhub_value) and "shares_outstanding" in str(lineage.get("canonical_field") or ""),
         "acceptance": "UNRESOLVED_SNAPSHOT_DATE_SEMANTICS" if not lineage.get("as_of") else "OBSERVATIONAL_ONLY",
     }
 
 
 def _market_cap_analysis(symbol: str, twelve: Mapping[str, Any], metrics: Mapping[str, Any], records: Mapping[str, Any]) -> dict[str, Any]:
     twelve_shares, twelve_cap = twelve.get("current_shares_outstanding"), twelve.get("market_cap")
-    finnhub_shares, finnhub_cap = metrics.get("shares_outstanding"), metrics.get("market_capitalization")
+    shares = _shares_analysis(symbol, twelve, metrics, records)
+    finnhub_shares, finnhub_cap = shares.get("finnhub_value"), metrics.get("market_capitalization")
     quote = ((records.get("live_quote") or {}).get("payload") or {})
     finnhub_price = quote.get("price")
     return {
@@ -266,7 +272,7 @@ def _market_cap_analysis(symbol: str, twelve: Mapping[str, Any], metrics: Mappin
         "finnhub_live_price": finnhub_price,
         "finnhub_calculated_market_cap": (float(finnhub_price) * float(finnhub_shares) if finnhub_price and finnhub_shares else None),
         "price_timestamp": quote.get("provider_timestamp"),
-        "shares_timestamp": ((records.get("basic_financials") or {}).get("provenance") or {}).get("capture_timestamp"),
+        "shares_timestamp": shares.get("finnhub_timestamp"), "shares_semantics": shares.get("finnhub_semantics"),
         "acceptance": "INHERITS_PRICE_SHARE_AND_TIMESTAMP_ALIGNMENT",
     }
 
@@ -317,6 +323,8 @@ def _ohlcv_reconciliation(symbols: list[str], finnhub_records: Mapping[str, Any]
 def _volume_forensics(symbol: str, result: Mapping[str, Any], records: Mapping[str, Any]) -> list[dict[str, Any]]:
     comparisons = result.get("comparisons") or []
     dates = [row["date"] for row in comparisons]
+    historical_payload = ((records.get("historical_ohlcv") or {}).get("payload") or {})
+    full_trading_dates = [row["date"] for row in _finnhub_bars(historical_payload)]
     latest_index = {value: len(dates) - 1 - index for index, value in enumerate(dates)}
     actions = []
     for family in ("splits", "dividends"):
@@ -328,7 +336,7 @@ def _volume_forensics(symbol: str, result: Mapping[str, Any], records: Mapping[s
     for row in comparisons:
         volume = row.get("volume") or {}
         if volume.get("status") != "MATERIAL_MISMATCH": continue
-        nearest = _nearest_action(row["date"], actions, dates)
+        nearest = _nearest_action(row["date"], actions, full_trading_dates)
         age = latest_index.get(row["date"])
         rows.append({
             "ticker": symbol, "session_date": row["date"], "twelve_volume": volume.get("left"),
@@ -352,12 +360,9 @@ def _nearest_action(session: str, actions: list[Mapping[str, Any]], trading_date
     candidates = []
     for action in actions:
         date = str(action.get("date"))[:10]
-        if date in positions and session in positions:
-            distance = abs(positions[session] - positions[date])
-        else:
-            try: distance = abs((datetime.fromisoformat(session) - datetime.fromisoformat(date)).days)
-            except ValueError: continue
-        candidates.append({**action, "date": date, "distance_sessions": distance})
+        if date not in positions or session not in positions: continue
+        distance = abs(positions[session] - positions[date])
+        candidates.append({**action, "date": date, "distance_sessions": distance, "distance_basis": "FINNHUB_TRADING_SESSIONS"})
     return min(candidates, key=lambda item: item["distance_sessions"]) if candidates else None
 
 
