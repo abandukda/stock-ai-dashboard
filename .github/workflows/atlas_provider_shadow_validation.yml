@@ -2,6 +2,9 @@ name: ATLAS Provider Shadow Validation
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - codex/home-promotion-market-today-release
 
 permissions:
   contents: read
