@@ -25,11 +25,10 @@ MIGRATION_BASELINE_CLASSIFICATION: Final = "VERSIONED_REPLACEABLE_MIGRATION_BASE
 HOME_INDICATOR_CLASSIFICATION: Final = MappingProxyType({
     "customer_primary": (
         "atlas_action", "current_price", "atlas_fair_value", "potential_upside_downside",
-        "why_atlas_likes_it", "why_now", "main_risk", "decision_evidence", "full_investment_case_cta",
+        "why_atlas_likes_it", "decision_confidence", "evidence_status", "decision_as_of",
     ),
     "secondary": (
-        "discovery_rank", "market_context", "wall_street_context", "catalysts",
-        "decision_confidence", "evidence_quality", "valuation_concentration",
+        "discovery_rank", "market_context", "worth_watching", "footer_navigation",
     ),
     "developer_only": (
         "committee_ready", "universe_reviewed", "research_candidates", "average_opportunity",
@@ -37,15 +36,44 @@ HOME_INDICATOR_CLASSIFICATION: Final = MappingProxyType({
         "policy_version", "provider_errors", "certification_state",
     ),
     "redundant": (
-        "atlas_investment_view_duplicate", "why_it_could_win_duplicate",
-        "action_rationale_duplicate", "duplicate_metric_matrix",
+        "atlas_investment_view_duplicate", "why_it_could_win_duplicate", "wall_street_context",
+        "action_rationale_duplicate", "duplicate_metric_matrix", "full_investment_case_cta",
+        "professional_detail", "full_chart", "earnings_call_intelligence", "ownership_detail",
     ),
 })
 
 HOME_CUSTOMER_PRIMARY_LABELS: Final = (
-    "ATLAS Action", "Current Price", "ATLAS Fair Value", "Why ATLAS Likes It",
-    "Why Now", "Main Risk", "Decision Evidence", "View Full Investment Case",
+    "ATLAS Action", "Current Price", "ATLAS Fair Value", "Potential",
+    "Why ATLAS Likes It", "Decision Confidence", "Evidence Status",
 )
+
+HOME_CUSTOMER_HIERARCHY: Final = (
+    "atlas_today", "atlas_action_summary", "best_opportunities", "worth_watching", "footer_navigation",
+)
+
+RESEARCH_CUSTOMER_HIERARCHY: Final = (
+    "atlas_view", "why_now", "main_risk", "six_pillars", "atlas_fair_value",
+    "decision_evidence", "wall_street_context", "live_market_context",
+    "earnings_call_intelligence", "additional_context", "full_investment_case",
+)
+
+PRESENTATION_TRUST_TIERS: Final = MappingProxyType({
+    "CERTIFIED_ATLAS": "Deterministic certified ATLAS analysis",
+    "EXTERNAL_ANALYST_CONTEXT": "External analyst context — not used in ATLAS scoring.",
+    "LIVE_MARKET_CONTEXT": "Live market context — partial real-time data for reference.",
+    "CONTEXTUAL_INTELLIGENCE": "Contextual intelligence — supporting evidence, not ATLAS scoring.",
+})
+
+CUSTOMER_EVIDENCE_STATES: Final = ("Evidence Complete", "Evidence Limited", "Data Unavailable")
+
+
+def validate_surface_hierarchy(surface: str, sections: tuple[str, ...] | list[str]) -> dict:
+    """Validate the stable customer order without inspecting rendering technology."""
+    expected = HOME_CUSTOMER_HIERARCHY if surface.upper() == "HOME" else RESEARCH_CUSTOMER_HIERARCHY
+    observed = tuple(str(item) for item in sections)
+    positions = [observed.index(item) for item in expected if item in observed]
+    missing = [item for item in expected if item not in observed]
+    return {"valid": not missing and positions == sorted(positions), "missing": missing, "observed": list(observed)}
 
 HOME_PROHIBITED_CUSTOMER_TERMS: Final = (
     "Committee Ready", "Universe Reviewed", "Research Candidates", "Average Opportunity",
@@ -99,8 +127,8 @@ AVAILABILITY_SEMANTICS: Final = (
 )
 
 CURRENT_RESEARCH_TABS: Final = (
-    "Decision", "Fundamentals & Valuation", "Technical & Trade State",
-    "Catalysts & Sentiment", "Risk & Evidence",
+    "ATLAS View", "ATLAS Fair Value", "Live Market & Trade",
+    "Additional Context", "Decision Evidence",
 )
 
 CURRENT_ACTIVE_PAGES: Final = (
@@ -164,15 +192,20 @@ def contract_snapshot() -> dict:
             },
             "home_customer_primary_labels": list(HOME_CUSTOMER_PRIMARY_LABELS),
             "home_prohibited_customer_terms": list(HOME_PROHIBITED_CUSTOMER_TERMS),
+            "home_customer_hierarchy": list(HOME_CUSTOMER_HIERARCHY),
+            "research_customer_hierarchy": list(RESEARCH_CUSTOMER_HIERARCHY),
+            "trust_tiers": dict(PRESENTATION_TRUST_TIERS),
+            "customer_evidence_states": list(CUSTOMER_EVIDENCE_STATES),
         },
     }
 
 
 __all__ = [
     "AVAILABILITY_SEMANTICS", "CURRENT_ACTIVE_PAGES", "CURRENT_RESEARCH_TABS",
-    "HOME_CUSTOMER_PRIMARY_LABELS", "HOME_INDICATOR_CLASSIFICATION",
+    "CUSTOMER_EVIDENCE_STATES", "HOME_CUSTOMER_HIERARCHY", "HOME_CUSTOMER_PRIMARY_LABELS", "HOME_INDICATOR_CLASSIFICATION",
     "HOME_PROHIBITED_CUSTOMER_TERMS", "MIGRATION_BASELINE_CLASSIFICATION", "MIGRATION_BASELINE_VERSION",
+    "PRESENTATION_TRUST_TIERS", "RESEARCH_CUSTOMER_HIERARCHY",
     "PRESENTATION_BASELINE", "PROTECTED_EVIDENCE_FAMILIES",
     "PROTECTED_INTELLIGENCE", "PROTECTED_INVESTMENT_OUTPUTS",
-    "VNEXT_PRESENTATION_CONTRACT_VERSION", "contract_snapshot", "validate_home_indicator_slots",
+    "VNEXT_PRESENTATION_CONTRACT_VERSION", "contract_snapshot", "validate_home_indicator_slots", "validate_surface_hierarchy",
 ]

@@ -1244,39 +1244,86 @@ def _home_candidate_surface(all_cards: Sequence[Mapping[str, Any]], *, limit: in
     return select_home_featured_cards(all_cards, limit=limit)
 
 
+def _customer_evidence_state(card: Mapping[str, Any]) -> str:
+    """Translate existing certification state without inventing completeness."""
+    certification = card.get("certified_customer_evaluation")
+    if isinstance(certification, Mapping):
+        if certification.get("customer_publication_allowed") is True:
+            return "Evidence Complete"
+        if certification.get("customer_publication_allowed") is False:
+            return "Evidence Limited"
+    status = str(card.get("evidence_status") or card.get("certification_status") or "").upper()
+    if status in {"PUBLISHED", "CERTIFIED", "COMPLETE", "AVAILABLE"}:
+        return "Evidence Complete"
+    if status in {"DATA_UNAVAILABLE", "UNAVAILABLE", "NOT_AVAILABLE"}:
+        return "Data Unavailable"
+    return "Evidence Limited"
+
+
+def _compact_reason(card: Mapping[str, Any]) -> str:
+    observations = _atlas_observations(card)
+    if observations:
+        return observations[0]
+    summary = _atlas_summary(card).strip()
+    return summary.split(".", 1)[0].strip() + "." if summary else "ATLAS has not published a concise supporting reason."
+
+
+def _compact_opportunity_card(card: Mapping[str, Any], *, key: str, first: bool = False) -> None:
+    ticker = str(card.get("ticker") or "UNKNOWN")
+    state = _customer_state(card)
+    potential = card.get("live_implied_upside_pct")
+    if potential is None:
+        potential = card.get("atlas_expected_return")
+    evidence = _customer_evidence_state(card)
+    st.markdown(
+        f'<article class="atlas-home-compact-card" data-atlas-qa="home-actionable-card" '
+        f'data-atlas-first="{str(first).lower()}" data-atlas-ticker="{html.escape(ticker)}" '
+        f'data-atlas-guidance="{html.escape(state)}" data-atlas-evidence-status="{html.escape(evidence)}">'
+        f'<header><div><small>{html.escape(_display(state))}</small><h3>{html.escape(ticker)}</h3></div>'
+        f'<strong>{html.escape(_money(card.get("display_price")))}</strong></header>'
+        '<div class="atlas-home-compact-values">'
+        f'<span><small>Current Price</small><b>{html.escape(_money(card.get("display_price")))}</b></span>'
+        f'<span><small>ATLAS Fair Value</small><b>{html.escape(_money(card.get("atlas_fair_value")))}</b></span>'
+        f'<span><small>Potential</small><b>{html.escape(_score(potential, suffix="%"))}</b></span></div>'
+        f'<p><b>Why ATLAS Likes It</b> {html.escape(_compact_reason(card))}</p>'
+        '<footer>'
+        f'<span>Decision Confidence: <b>{html.escape(_score(card.get("decision_confidence"), suffix="%"))}</b></span>'
+        f'<span>{html.escape(evidence)}</span><span>As of {_timestamp(card.get("decision_as_of"))}</span></footer></article>',
+        unsafe_allow_html=True,
+    )
+
+
 def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
     cards = list(story.get("home_featured_cards") or _home_candidate_surface(story.get("cards") or ()))
-    _section_marker("customer-action-groups")
-    if not cards:
-        st.info("No persisted Home candidates are available.")
-        emit_interactive()
-        return
-    groups = (
-        ("TOP ACTIONABLE OPPORTUNITIES", {"BUY_NOW", "ACCUMULATE"}),
-        ("WAITING FOR AN ENTRY", {"WAIT_FOR_ENTRY", "WAIT_FOR_CONFIRMATION"}),
-        ("WATCHLIST", {"DATA_LIMITED"}),
-        ("RATINGS BEING REFRESHED", {"WITHHELD"}),
-        ("AVOID", {"AVOID"}),
+    actionable = sorted(
+        (card for card in cards if _customer_state(card) in {"BUY_NOW", "ACCUMULATE"}),
+        key=lambda card: ({"BUY_NOW": 0, "ACCUMULATE": 1}[_customer_state(card)], int(card.get("production_rank") or 999999)),
     )
-    emitted = False
-    for title, states in groups:
-        members = [card for card in cards if _customer_state(card) in states]
-        if not members and title != "TOP ACTIONABLE OPPORTUNITIES":
-            continue
-        st.markdown(f"### {title}")
-        if title == "TOP ACTIONABLE OPPORTUNITIES" and not any(_customer_state(card) == "BUY_NOW" for card in members):
-            metrics=story.get("homepage_promotion_metrics") or {}
-            if int(metrics.get("canonical_buy_now_count") or 0) and int(metrics.get("homepage_featured_buy_now_count") or 0)==0:
-                st.caption("No homepage-featured BUY NOW opportunities meet the current promotion policy.")
-            else:
-                st.caption("No opportunities currently meet ATLAS's 5-star Buy Now standard.")
-        for index, card in enumerate(members):
-            _card(card, key=f"action_{title}_{index}", first=not emitted, total=int(story.get("candidate_count") or len(story.get("cards") or ())))
-            if not emitted:
-                emit_interactive()
-                emitted = True
-    if not emitted:
+    watching = [card for card in cards if _customer_state(card) in {"WAIT_FOR_ENTRY", "WAIT_FOR_CONFIRMATION", "DATA_LIMITED"}]
+    _section_marker("best_opportunities")
+    st.markdown("## Best Opportunities")
+    if not actionable:
+        st.info("No opportunities currently meet ATLAS's Buy Now or Build a Position standards.")
+    for index, card in enumerate(actionable):
+        _compact_opportunity_card(card, key=f"actionable_{index}", first=index == 0)
+        if index == 0:
+            emit_interactive()
+    if not actionable:
         emit_interactive()
+    _section_marker("worth_watching")
+    with st.expander(f"Worth Watching ({len(watching)})", expanded=False):
+        labels = {
+            "WAIT_FOR_ENTRY": "Waiting on price",
+            "WAIT_FOR_CONFIRMATION": "Waiting on confirmation",
+            "DATA_LIMITED": "Not ready yet",
+        }
+        for card in watching:
+            state = _customer_state(card)
+            st.markdown(
+                f'**{html.escape(str(card.get("ticker") or "UNKNOWN"))}** — {labels[state]}  '
+                f'· Decision Confidence: {_score(card.get("decision_confidence"), suffix="%")}  '
+                f'· {_customer_evidence_state(card)}'
+            )
 
 
 def _action_counts(story: Mapping[str, Any]) -> str:
@@ -1286,9 +1333,6 @@ def _action_counts(story: Mapping[str, Any]) -> str:
     values = (
         ("5★ Buy Now", governed.get("BUY_NOW", states.count("BUY_NOW")), "buy"),
         ("4.5★ Build", governed.get("ACCUMULATE", states.count("ACCUMULATE")), "build"),
-        ("4★ Wait for Entry", governed.get("WAIT_FOR_ENTRY", states.count("WAIT_FOR_ENTRY")), "wait"),
-        ("3.5★ Wait for Confirmation", governed.get("WAIT_FOR_CONFIRMATION", states.count("WAIT_FOR_CONFIRMATION")), "wait"),
-        ("Watch", governed.get("DATA_LIMITED", states.count("DATA_LIMITED")), "watch"),
     )
     return '<div class="atlas-home-action-counts">' + "".join(
         f'<span class="atlas-home-count-{tone}"><small>{html.escape(label)}</small><b>{count}</b></span>'
@@ -1342,6 +1386,37 @@ def _render_market_today(story: Mapping[str, Any]) -> None:
     else:
         st.markdown("### Major Market News")
         st.caption("No major governed market-moving headlines are available right now.")
+
+
+def _render_market_strip(story: Mapping[str, Any]) -> None:
+    """Small, explicitly non-scoring context that cannot compete with ideas."""
+    context = story.get("market_today") if isinstance(story.get("market_today"), Mapping) else {}
+    instruments = list(context.get("instruments") or ())[:4]
+    if instruments:
+        cells = []
+        for item in instruments:
+            change = item.get("change_pct")
+            delta = f"{float(change):+.2f}%" if change is not None else "Unavailable"
+            cells.append(f'<span><b>{html.escape(str(item.get("symbol") or item.get("label") or "Market"))}</b> {html.escape(delta)}</span>')
+        body = " · ".join(cells)
+    else:
+        body = "Current market context is unavailable."
+    st.markdown(
+        '<div class="atlas-home-market-strip" data-atlas-qa="market-today" data-atlas-non-scoring="true">'
+        f'<small>Market context · non-scoring</small><p>{body}</p></div>', unsafe_allow_html=True,
+    )
+
+
+def _render_footer_navigation() -> None:
+    _section_marker("footer_navigation")
+    st.markdown("### Continue your research")
+    ranked, research = st.columns(2)
+    if ranked.button("Full Ranked", key="home_full_ranked", use_container_width=True):
+        st.session_state["v79_pending_page"] = "Full Ranked Scan"
+        st.rerun()
+    if research.button("Research Any Ticker", key="home_research_any", type="primary", use_container_width=True):
+        st.session_state["v79_pending_page"] = "Research Any Ticker"
+        st.rerun()
 
 
 def _comparison(card: Mapping[str, Any]) -> None:
@@ -1416,6 +1491,11 @@ def _inject_css() -> None:
     .atlas-home-comparison{grid-template-columns:repeat(auto-fit,minmax(125px,1fr));min-height:0}.atlas-home-win i{display:grid;gap:.12rem;font-style:normal;font-weight:700;color:#d9e3ef}.atlas-home-win i small{font-size:.72rem;line-height:1.3;font-weight:400;color:#96a4b6}
     @media(max-width:700px){.atlas-home-action-counts{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-home-comparison{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-home-comparison .atlas-home-target-current{grid-column:1/-1}.atlas-home-action{grid-template-columns:1fr}.atlas-home-action-stars{grid-row:auto;font-size:1.45rem}.atlas-home-action>small{grid-column:auto}.atlas-home-card-head h3 i{display:block;margin-top:.18rem}}
     </style>""", unsafe_allow_html=True)
+    st.markdown("""<style>
+    .atlas-home-market-strip{display:flex;align-items:center;gap:.7rem;padding:.45rem .65rem;margin:.1rem 0 .65rem;border-radius:10px;background:rgba(30,41,59,.38);color:#b9c4d3}.atlas-home-market-strip small{white-space:nowrap;color:#7fa9d8}.atlas-home-market-strip p{margin:0!important;font-size:.82rem}
+    .atlas-home-compact-card{padding:.82rem .9rem;margin:.45rem 0;border-radius:14px;background:linear-gradient(135deg,rgba(18,35,50,.92),rgba(17,28,45,.7));border-left:4px solid var(--atlas-teal)}.atlas-home-compact-card header,.atlas-home-compact-card footer{display:flex;align-items:center;justify-content:space-between;gap:.6rem}.atlas-home-compact-card header small{color:var(--atlas-teal);font-weight:800;letter-spacing:.05em}.atlas-home-compact-card h3{margin:.05rem 0!important}.atlas-home-compact-values{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.35rem;margin:.55rem 0}.atlas-home-compact-values span{display:grid;padding:.4rem .5rem;border-radius:9px;background:rgba(15,23,42,.5)}.atlas-home-compact-values small,.atlas-home-compact-card footer{font-size:.72rem;color:#9aa8ba}.atlas-home-compact-card p{margin:.45rem 0!important;font-size:.86rem;line-height:1.4}.atlas-home-compact-card footer{justify-content:flex-start;flex-wrap:wrap}.atlas-home-compact-card footer span+span:before{content:"·";margin-right:.5rem}.atlas-home-action-counts{grid-template-columns:repeat(2,minmax(0,1fr));max-width:460px}
+    @media(max-width:700px){.atlas-home-market-strip{display:block}.atlas-home-compact-values{grid-template-columns:1fr 1fr 1fr}.atlas-home-compact-values b{font-size:.88rem}.atlas-home-compact-card header strong{font-size:1rem}.atlas-home-compact-card footer{display:grid}.atlas-home-compact-card footer span+span:before{content:"";margin:0}}
+    </style>""", unsafe_allow_html=True)
 
 
 def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=None) -> None:
@@ -1444,14 +1524,16 @@ def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=Non
     st.markdown(
         '<div class="atlas-home-guidance-hero">'
         '<h1>ATLAS Today</h1>'
-        '<span class="atlas-home-guidance-badge">ATLAS Decision Dashboard</span>'
-        '<p>High-conviction setups, current stance, and the evidence that matters.</p>'
-        f'<small>Production scan: {html.escape(_timestamp(story.get("scan_timestamp")))} · {int(story.get("candidate_count", 0))} candidates</small>'
+        '<p>Actionable opportunities from the latest certified ATLAS evaluation.</p>'
+        f'<small>As of {html.escape(_timestamp(story.get("scan_timestamp")))}</small>'
         '</div>', unsafe_allow_html=True,
     )
-    _render_market_today(story)
-    st.markdown("## Best Opportunities")
+    _render_market_strip(story)
+    _section_marker("atlas_action_summary")
+    st.markdown("## ATLAS Action Summary")
+    st.markdown(_action_counts(story), unsafe_allow_html=True)
     _render_groups(story, emit_interactive=emit_interactive)
+    _render_footer_navigation()
 
 
 __all__ = ["render_home_guidance_vnext"]

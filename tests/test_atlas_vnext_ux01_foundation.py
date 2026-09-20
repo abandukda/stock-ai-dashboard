@@ -124,10 +124,10 @@ def test_home_indicator_taxonomy_is_enforceable_and_preserves_developer_metrics(
 
 
 def test_home_indicator_taxonomy_fails_when_required_customer_slot_is_missing():
-    slots = [slot for slot in HOME_INDICATOR_CLASSIFICATION["customer_primary"] if slot != "main_risk"]
+    slots = [slot for slot in HOME_INDICATOR_CLASSIFICATION["customer_primary"] if slot != "decision_confidence"]
     result = validate_home_indicator_slots(slots)
     assert result["valid"] is False
-    assert result["missing_customer_primary"] == ["main_risk"]
+    assert result["missing_customer_primary"] == ["decision_confidence"]
 
 
 def test_prices_ranges_percentages_ratios_and_counts_are_semantically_distinct():

@@ -201,7 +201,7 @@ def test_active_research_renderer_uses_vnext_and_returns_before_legacy_tabs():
     rendered = ast.unparse(active)
     assert "render_research_vnext" in rendered
     assert rendered.index("render_research_vnext") < rendered.index("tabs = st.tabs")
-    assert RESEARCH_VNEXT_VERSION == "ATLAS_RESEARCH_VNEXT_UX2"
+    assert RESEARCH_VNEXT_VERSION == "ATLAS_RESEARCH_VNEXT_UX3_ACTION_FIRST"
 
 
 def test_monitor_trade_levels_are_only_inside_collapsed_technical_scenario_contract():

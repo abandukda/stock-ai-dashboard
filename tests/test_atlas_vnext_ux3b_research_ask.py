@@ -144,8 +144,8 @@ def test_research_keeps_exact_five_sections_and_ux3b_story_contracts():
     assert len(RESEARCH_VNEXT_SECTIONS) == 5
     assert "60-Second Investment Brief" in source
     assert "Why ATLAS Likes It" in source
-    assert "What Stops ATLAS" in source
-    assert "What Changes the Thesis" in source
+    assert "Main Risk" in source
+    assert "What Would Change the Rating" in source
     assert "What I’m Watching Next" in source
     assert "Risk Evidence Availability" in source
     assert "Ask Atlas AI" not in RESEARCH_VNEXT_SECTIONS

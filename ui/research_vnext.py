@@ -24,19 +24,40 @@ from ui.vnext_presentation import (
 from ui.market_timestamp import format_market_timestamp_et
 
 
-RESEARCH_VNEXT_VERSION: Final = "ATLAS_RESEARCH_VNEXT_UX2"
+RESEARCH_VNEXT_VERSION: Final = "ATLAS_RESEARCH_VNEXT_UX3_ACTION_FIRST"
 RESEARCH_VNEXT_SECTIONS: Final = (
-    "Decision",
-    "Fundamentals & Valuation",
-    "Technical & Trade State",
-    "Catalysts & Sentiment",
-    "Risk & Evidence",
+    "ATLAS View",
+    "ATLAS Fair Value",
+    "Live Market & Trade",
+    "Additional Context",
+    "Decision Evidence",
 )
+
+
+def _trust_tier(label: str, copy: str) -> None:
+    st.markdown(
+        f'<div data-atlas-trust-tier="{escape(label)}"><small><b>{escape(label.replace("_", " ").title())}</b> · '
+        f'{escape(copy)}</small></div>', unsafe_allow_html=True,
+    )
+
+
+def _customer_evidence_state(report: Mapping[str, Any], view: Mapping[str, Any]) -> str:
+    certified = safe_mapping(report.get("certified_customer_evaluation"))
+    if certified.get("customer_publication_allowed") is True and not view.get("critical_gaps"):
+        return "Evidence Complete"
+    if certified or view.get("evidence"):
+        return "Evidence Limited"
+    return "Data Unavailable"
 
 # Explicit migration ledger. Values are the sole primary destination; detailed
 # evidence may also be cross-referenced from Decision without becoming a second
 # source of truth.
 RESEARCH_EVIDENCE_MIGRATION: Final = {
+    "UX3 ATLAS View shell": "ATLAS View",
+    "UX3 ATLAS Fair Value shell": "ATLAS Fair Value",
+    "UX3 Live Market shell": "Live Market & Trade",
+    "UX3 Context shell": "Additional Context",
+    "UX3 Evidence shell": "Decision Evidence",
     "Executive Summary": "Decision",
     "Investment Thesis": "Decision",
     "Bull Case": "Decision",
@@ -392,7 +413,8 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
     _section_marker("Decision", ticker)
     header = view["header"]
     badge = view["technical_badge"]
-    st.markdown("## Decision")
+    st.markdown("## ATLAS View")
+    _trust_tier("CERTIFIED_ATLAS", "Deterministic certified ATLAS analysis.")
     current = safe_mapping(view.get("current_evaluation"))
     current_guidance = safe_mapping(current.get("guidance"))
     certified_customer = safe_mapping(report.get("certified_customer_evaluation"))
@@ -445,6 +467,11 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
         st.markdown(
             f"**ATLAS Rating:** {customer_action['stars']} {customer_action['label']}  "
             f"· **Actionability:** {_display_status(actionability)}"
+        )
+        st.caption(
+            f"Decision Confidence: {CanonicalNumberFormatter.percent(header.confidence).display} · "
+            f"{_customer_evidence_state(report, view)} · As of "
+            f"{format_market_timestamp_et(current_timestamp or production_timestamp, unavailable='Timestamp unavailable')}"
         )
     guidance = safe_mapping(report.get("guidance_summary"))
     action = safe_mapping(guidance.get("action_now"))
@@ -514,6 +541,14 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
                 st.write(f"- {_clip_words(item.get('risk'), 24)}")
         else:
             st.caption("No grounded constraint is currently available.")
+
+    st.markdown("#### Six Pillars")
+    st.caption("Certified pillar evidence is summarized here; professional detail remains in Decision Evidence.")
+    pillar_rows = safe_mapping(report.get("six_pillars")) or safe_mapping(safe_mapping(report.get("current_evaluation")).get("pillars"))
+    if pillar_rows:
+        st.write(" · ".join(str(name).replace("_", " ").title() for name in list(pillar_rows)[:6]))
+    else:
+        st.info("Data Unavailable — certified pillar detail is not attached to this report.")
 
     if view.get("material_change"):
         st.markdown("#### What changed")
@@ -655,14 +690,15 @@ def _render_financial_direction(report: Mapping[str, Any], legacy: Mapping[str, 
 def _render_fundamentals(report: Mapping[str, Any], legacy: Mapping[str, Callable[..., Any]]) -> None:
     ticker = str(report.get("ticker") or "UNKNOWN")
     _section_marker("Fundamentals & Valuation", ticker)
-    st.markdown("## Fundamentals & Valuation")
+    st.markdown("## ATLAS Fair Value")
+    _trust_tier("CERTIFIED_ATLAS", "ATLAS valuation is separate from external analyst targets.")
     _block_marker("sixty-second-investment-brief", ticker)
     st.markdown("### 60-Second Investment Brief")
     st.write(build_investment_brief(report))
 
     valuation = safe_mapping(report.get("valuation_families"))
     analyst = safe_mapping(report.get("analyst_intelligence"))
-    st.markdown("### Valuation")
+    st.markdown("### Headline Valuation")
     valuation_cols = st.columns(3)
     valuation_cols[0].metric("Current Price", CanonicalNumberFormatter.price(report.get("current_price")).display)
     valuation_cols[1].metric("Atlas Quant Fair Value", CanonicalNumberFormatter.price(_decision_value(report, "atlas_fair_value", "atlas_fair_value")).display)
@@ -670,17 +706,16 @@ def _render_fundamentals(report: Mapping[str, Any], legacy: Mapping[str, Callabl
     from engines.analyst_intelligence import wall_street_view_text
     wall_street = safe_mapping(report.get("wall_street_analysis"))
     consensus = safe_mapping(wall_street.get("consensus"))
-    st.markdown("### Wall Street View")
-    if consensus.get("target_mean") is not None:
-        street_cols = st.columns(4)
-        street_cols[0].metric("Consensus Target", CanonicalNumberFormatter.price(consensus.get("target_mean")).display)
-        street_cols[1].metric("Potential", CanonicalNumberFormatter.percent(consensus.get("implied_upside_pct"), signed=True).display)
-        street_cols[2].metric("Analysts Covering", _scalar_text(consensus.get("analyst_count")))
-        street_cols[3].metric("Recent Trend", _scalar_text(wall_street.get("recent_trend")).title())
-    st.write(wall_street_view_text(wall_street))
-    st.markdown("#### Valuation Interpretation")
-    st.caption("Wall Street is independent external context and does not determine the ATLAS rating.")
-    st.write(_scalar_text(analyst.get("atlas_street_divergence_message"), "Valuation comparison unavailable."))
+    with st.expander("Wall Street Context", expanded=False):
+        _trust_tier("EXTERNAL_ANALYST_CONTEXT", "External analyst context — not used in ATLAS scoring.")
+        if consensus.get("target_mean") is not None:
+            street_cols = st.columns(4)
+            street_cols[0].metric("Consensus Target", CanonicalNumberFormatter.price(consensus.get("target_mean")).display)
+            street_cols[1].metric("Potential", CanonicalNumberFormatter.percent(consensus.get("implied_upside_pct"), signed=True).display)
+            street_cols[2].metric("Analysts Covering", _scalar_text(consensus.get("analyst_count")))
+            street_cols[3].metric("Recent Trend", _scalar_text(wall_street.get("recent_trend")).title())
+        st.write(wall_street_view_text(wall_street))
+        st.write(_scalar_text(analyst.get("atlas_street_divergence_message"), "Analyst context is unavailable for this snapshot."))
     with st.expander("Valuation assumptions, scenarios, evidence gaps, and methodology", expanded=False):
         legacy["valuation"](report)
         scenario_rows = [
@@ -723,6 +758,7 @@ def _render_fundamentals(report: Mapping[str, Any], legacy: Mapping[str, Callabl
 def _render_technical(report: Mapping[str, Any], view: Mapping[str, Any], legacy: Mapping[str, Callable[..., Any]]) -> None:
     ticker = str(report.get("ticker") or "UNKNOWN")
     _section_marker("Technical & Trade State", ticker)
+    _trust_tier("LIVE_MARKET_CONTEXT", "Live market context — partial real-time data for reference.")
     st.markdown("## Technical & Trade State")
     technical = view["technical_availability"]
     _block_marker("deterministic-technical-state", ticker)
@@ -793,7 +829,7 @@ def _render_technical(report: Mapping[str, Any], view: Mapping[str, Any], legacy
         legacy["price_chart"](report)
 
 
-def _render_catalysts(report: Mapping[str, Any], legacy: Mapping[str, Callable[..., Any]]) -> None:
+def _render_catalysts_legacy(report: Mapping[str, Any], legacy: Mapping[str, Callable[..., Any]]) -> None:
     ticker = str(report.get("ticker") or "UNKNOWN")
     _section_marker("Catalysts & Sentiment", ticker)
     st.markdown("## Catalysts & Sentiment")
@@ -972,6 +1008,79 @@ def _render_catalysts(report: Mapping[str, Any], legacy: Mapping[str, Callable[.
             st.json({key: value for key, value in transcript.items() if key not in {"version", "semantic_status"}})
         else:
             st.info(_scalar_text(transcript.get("status_detail"), "Transcript intelligence not yet available."))
+
+
+def _render_catalysts(report: Mapping[str, Any], legacy: Mapping[str, Callable[..., Any]]) -> None:
+    """Context cluster: deliberately collapsed and visually non-certified."""
+    ticker = str(report.get("ticker") or "UNKNOWN")
+    _section_marker("Additional Context", ticker)
+    st.markdown("## Additional Context")
+    _trust_tier("CONTEXTUAL_INTELLIGENCE", "Supporting context only; it does not calculate ATLAS scoring or fair value.")
+    context = safe_mapping(_canonical_context(report).get("evidence_families"))
+    analyst = safe_mapping(report.get("analyst_intelligence"))
+    wall_street = safe_mapping(report.get("wall_street_analysis"))
+    with st.expander("External Analyst Data", expanded=False):
+        _trust_tier("EXTERNAL_ANALYST_CONTEXT", "External analyst context — not used in ATLAS scoring.")
+        consensus = safe_mapping(wall_street.get("consensus"))
+        if consensus or analyst:
+            st.write(_scalar_text(wall_street.get("display_message") or analyst.get("atlas_street_divergence_message"), "Verified analyst context is available."))
+        else:
+            st.info("Data Unavailable — verified analyst context was not acquired for this snapshot.")
+    with st.expander("Ownership & Filings", expanded=False):
+        ownership = safe_mapping(safe_mapping(safe_mapping(report.get("sections")).get("ownership")).get("data"))
+        if ownership:
+            st.metric("Institutional ownership", CanonicalNumberFormatter.percent(ownership.get("institutional_ownership_pct")).display)
+            st.caption("Ownership and filing evidence is contextual and non-scoring.")
+        else:
+            st.info("Data Unavailable — ownership and filing evidence was not acquired for this snapshot.")
+    with st.expander("Company Communications", expanded=False):
+        transcript = safe_mapping(context.get("transcript_intelligence"))
+        news = safe_mapping(safe_mapping(report.get("sections")).get("news"))
+        st.markdown("#### Earnings Call Intelligence")
+        if transcript.get("semantic_status") == "AVAILABLE":
+            data = safe_mapping(transcript.get("data"))
+            items = safe_sequence(data.get("management_themes"))
+            st.write("\n".join(f"- {_scalar_text(safe_mapping(item).get('text') or item)}" for item in items[:3]) or "Evidence Limited")
+        else:
+            st.info("Data Unavailable — earnings-call intelligence was not acquired for this snapshot.")
+        items = [item for item in safe_sequence(news.get("data")) if isinstance(item, Mapping)]
+        st.markdown("#### Company Communications")
+        if items:
+            for item in items[:3]:
+                st.write(f"- {_scalar_text(item.get('headline'), 'Headline unavailable')}")
+        else:
+            st.info("Data Unavailable — verified company communications are not attached.")
+
+
+def _render_full_investment_case(report: Mapping[str, Any]) -> None:
+    ticker = str(report.get("ticker") or "UNKNOWN")
+    guidance = safe_mapping(report.get("guidance_summary"))
+    with st.expander("Full Investment Case — deep dive", expanded=False):
+        st.markdown(
+            "**Jump to:** Thesis · Valuation Detail · Scenario Analysis · Technical Detail · "
+            "Risk Detail · Evidence / Rating Changes · Contextual Evidence"
+        )
+        st.markdown("### Thesis")
+        st.write(_scalar_text(safe_mapping(report.get("customer_plain_english_summary")).get("text"), "Evidence Limited"))
+        st.markdown("### Valuation Detail")
+        st.write(f"ATLAS Fair Value: {CanonicalNumberFormatter.price(_decision_value(report, 'atlas_fair_value', 'atlas_fair_value')).display}")
+        st.markdown("### Scenario Analysis")
+        valuation = safe_mapping(report.get("valuation_families"))
+        st.write(" · ".join(
+            f"{label}: {CanonicalNumberFormatter.price(valuation.get(key)).display}"
+            for label, key in (("Bear", "scenario_bear"), ("Base", "scenario_base"), ("Bull", "scenario_bull"))
+        ))
+        st.markdown("### Technical Detail")
+        st.write(_scalar_text(safe_mapping(report.get("technical_summary")).get("summary"), "Evidence Limited"))
+        st.markdown("### Risk Detail")
+        risks = safe_sequence(safe_mapping(report.get("intelligence")).get("key_risks"))
+        st.write("\n".join(f"- {_scalar_text(item)}" for item in risks[:5]) or "Evidence Limited")
+        st.markdown("### Evidence / What Would Change the Rating")
+        changes = safe_mapping(guidance.get("thesis_change_conditions"))
+        st.write(_scalar_text(changes.get("summary"), "See the certified Decision Evidence section."))
+        st.markdown("### Contextual Evidence")
+        st.caption("External, live, and contextual evidence remains separately labeled and non-scoring.")
+        st.caption(f"Deep-dive report for {ticker}; AI explains bounded evidence and does not invent ATLAS decisions.")
 
 
 def _render_risk_evidence(report: Mapping[str, Any], view: Mapping[str, Any], legacy: Mapping[str, Callable[..., Any]]) -> None:
@@ -1222,6 +1331,12 @@ def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Cal
         _render_catalysts(report, legacy)
     with tabs[4]:
         _render_risk_evidence(report, view, legacy)
+    _render_full_investment_case(report)
+    with st.expander("How ATLAS decides", expanded=False):
+        st.write(
+            "ATLAS uses deterministic certified analysis. AI explains bounded evidence rather than inventing financial truth. "
+            "Wall Street information is external context, not ATLAS Fair Value, and unavailable evidence fails closed rather than being guessed."
+        )
     _render_watching_next(report)
     _render_ask_cta(report)
 

@@ -380,7 +380,7 @@ def test_snapshot_authorities_remain_separate_and_missing_stays_missing():
     assert card["volume_evidence"]["relative_volume"] is None
 
 
-def test_renderer_uses_summary_first_evidence_then_full_detail_after_cta():
+def test_renderer_uses_action_first_shell_without_home_deep_detail():
     source = '''
 import streamlit as st
 from engines.home_guidance_story_v1 import build_home_guidance_story
@@ -391,18 +391,13 @@ render_home_guidance_vnext(build_home_guidance_story(rows, [{"ticker":"MU","reco
     app = AppTest.from_string(source, default_timeout=30).run()
     assert not app.exception
     rendered = "\n".join(str(item.value) for item in app.markdown)
-    assert 'data-atlas-qa="home-guidance-full-evidence"' in rendered
-    assert "Technical &amp; Volume" in rendered
-    assert "Wall Street Analyst Outlook" in rendered
-    assert "Latest Earnings" in rendered and "Financial Snapshot" in rendered
-    assert "ATLAS in Plain English" in rendered
+    assert 'data-atlas-qa="home-guidance-full-evidence"' not in rendered
+    assert "Wall Street Analyst Outlook" not in rendered
+    assert "ATLAS Action Summary" in rendered
     assert "What ATLAS sees" not in rendered
     assert "What ATLAS needs" not in rendered
-    assert 'data-atlas-qa="home-guidance-summary"' in rendered
     assert 'data-atlas-home-renderer-version="ATLAS_CUSTOMER_101_LIVE_DECISION_V1"' in rendered
-    assert rendered.index("home-decisive-reason") < rendered.index("home-guidance-research-cta")
-    assert rendered.index("home-guidance-research-cta") < rendered.index("home-guidance-full-evidence")
-    assert "Professional Detail" in "\n".join(str(item.label) for item in app.expander)
+    assert "Professional Detail" not in "\n".join(str(item.label) for item in app.expander)
 
 
 def test_preview_is_explicit_and_data_limited_remains_truthful(monkeypatch):
@@ -552,16 +547,16 @@ render_home_guidance_vnext(story, emit_interactive=lambda: st.markdown('<span da
     app = AppTest.from_string(source, default_timeout=30).run()
     assert not app.exception
     rendered = "\n".join(str(item.value) for item in app.markdown)
-    assert rendered.index('data-atlas-first="true"') < rendered.index('data-atlas-page-interactive="true"')
+    assert 'data-atlas-page-interactive="true"' in rendered
+    assert rendered.index("ATLAS Action Summary") < rendered.index("Best Opportunities")
     assert 'data-atlas-section="technical-opportunities"' not in rendered
     assert "Recovery Score" not in rendered
     assert "Guidance Preview" not in rendered
     assert rendered.count('data-atlas-page-interactive="true"') == 1
     assert 'data-atlas-qa="home-guidance-quick-evidence"' not in rendered
-    assert "Professional Detail" in "\n".join(str(item.label) for item in app.expander)
+    assert "Professional Detail" not in "\n".join(str(item.label) for item in app.expander)
     assert "Founder Guidance Preview" not in rendered
-    assert "ATLAS Decision Dashboard" in rendered
-    assert "High-conviction setups, current stance, and the evidence that matters." in rendered
+    assert "Actionable opportunities from the latest certified ATLAS evaluation." in rendered
 
 
 def test_final_app_home_function_wires_vnext_without_v104_pipeline_authority():
@@ -591,9 +586,9 @@ app.v810_render_dynamic_home()
     assert not app_test.exception
     rendered = "\n".join(str(item.value) for item in app_test.markdown)
     assert 'data-atlas-qa="home-guidance-vnext"' in rendered
-    assert 'data-atlas-production-rank="1"' in rendered
+    assert "ATLAS Action Summary" in rendered
     assert 'data-atlas-page-interactive="true"' in rendered
-    assert rendered.index('data-atlas-production-rank="1"') < rendered.index('data-atlas-page-interactive="true"')
+    assert rendered.index("ATLAS Action Summary") < rendered.index('data-atlas-page-interactive="true"')
 
 
 def test_research_cta_uses_exact_ticker_handoff_contract():
