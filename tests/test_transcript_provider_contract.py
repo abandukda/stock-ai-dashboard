@@ -55,13 +55,25 @@ def test_commercial_transcript_projection_is_bounded_and_traceable():
     assert projected["model_version"] == "v1"
 
 
-def test_missing_transcript_provider_returns_explicit_unavailable_without_fallback():
-    record = ConfiguredTranscriptProvider(api_key="", base_url="").transcript("AAPL", year=2026, quarter=2)
+def test_known_earningscall_provider_missing_key_preserves_provider_identity():
+    record = ConfiguredTranscriptProvider(
+        api_key="", base_url="https://v2.api.earningscall.biz", provider_name="earningscall",
+    ).transcript("AAPL", year=2026, quarter=2)
     assert record.payload == {"status": "DATA_UNAVAILABLE", "reason": "MISSING_API_KEY"}
     assert record.provenance.provider != "FMP"
-    assert record.provenance.provider == "UNCONFIGURED_TRANSCRIPT_PROVIDER"
+    assert record.provenance.provider == "EARNINGSCALL"
     assert record.provenance.certification_status == CertificationStatus.DATA_UNAVAILABLE
     assert record.provenance.display_permission == UsePermission.PROHIBITED
+
+
+def test_truly_unconfigured_provider_uses_explicit_unconfigured_identity(monkeypatch):
+    monkeypatch.delenv("ATLAS_TRANSCRIPT_PROVIDER", raising=False)
+    record = ConfiguredTranscriptProvider(
+        api_key="configured-but-redacted", base_url="", provider_name="",
+    ).transcript("AAPL", year=2026, quarter=2)
+    assert record.payload == {"status": "DATA_UNAVAILABLE", "reason": "TRANSCRIPT_PROVIDER_NOT_CONFIGURED"}
+    assert record.provenance.provider == "UNCONFIGURED_TRANSCRIPT_PROVIDER"
+    assert record.provenance.certification_status == CertificationStatus.DATA_UNAVAILABLE
 
 
 def test_configured_provider_without_base_returns_valid_unavailable_record():
