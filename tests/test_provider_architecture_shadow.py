@@ -201,3 +201,15 @@ def test_ohlcv_reconciliation_reports_session_and_value_mismatches():
     assert report["common_sessions"] == 1
     assert report["material_mismatch_count"] == 1
     assert report["authority_changed"] is False
+    assert report["price_accuracy"]["close"]["beyond_5bp_count"] == 1
+
+
+def test_ohlcv_price_accuracy_reports_exact_one_and_five_basis_point_rates():
+    report = reconcile_ohlcv(
+        [{"date": "2026-09-18", "open": 100, "high": 100, "low": 100, "close": 100, "volume": 100}],
+        [{"date": "2026-09-18", "open": 100, "high": 100.005, "low": 100.04, "close": 100.2, "volume": 100}],
+    )
+    assert report["price_accuracy"]["open"]["exact_match_rate"] == 1
+    assert report["price_accuracy"]["high"]["within_1bp_rate"] == 1
+    assert report["price_accuracy"]["low"]["within_5bp_rate"] == 1
+    assert report["price_accuracy"]["close"]["beyond_5bp_count"] == 1

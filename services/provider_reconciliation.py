@@ -69,11 +69,23 @@ def reconcile_ohlcv(current_bars: Sequence[Mapping[str, Any]], shadow_bars: Sequ
         result.get("status") == "MATERIAL_MISMATCH"
         for row in comparisons for field, result in row.items() if field != "date"
     )
+    price_statistics = {}
+    for field in ("open", "high", "low", "close"):
+        deltas = [row[field].get("relative_delta_pct") for row in comparisons if row[field].get("relative_delta_pct") is not None]
+        price_statistics[field] = {
+            "compared": len(deltas),
+            "exact_match_rate": sum(value == 0 for value in deltas) / len(deltas) if deltas else None,
+            "within_1bp_rate": sum(value <= 0.01 for value in deltas) / len(deltas) if deltas else None,
+            "within_5bp_rate": sum(value <= 0.05 for value in deltas) / len(deltas) if deltas else None,
+            "max_deviation_pct": max(deltas) if deltas else None,
+            "beyond_5bp_count": sum(value > 0.05 for value in deltas),
+        }
     return {
         "version": RECONCILIATION_VERSION, "common_sessions": len(common),
         "current_only_sessions": len(set(left) - set(right)),
         "shadow_only_sessions": len(set(right) - set(left)),
         "material_mismatch_count": material, "comparisons": comparisons,
+        "price_accuracy": price_statistics,
         "authority_changed": False,
     }
 
