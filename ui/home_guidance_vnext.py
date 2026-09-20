@@ -1276,7 +1276,10 @@ def _compact_reason(card: Mapping[str, Any]) -> str:
             return str(value).strip().rstrip(".") + "."
     summary = _atlas_summary(card).strip()
     if summary and "cannot produce" not in summary.lower():
-        return summary.split(".", 1)[0].strip() + "."
+        first_sentence = summary.split(".", 1)[0].strip()
+        company = str(card.get("company") or card.get("company_name") or "").strip().rstrip(".")
+        if len(first_sentence.split()) >= 6 and first_sentence.casefold() != company.casefold():
+            return first_sentence + "."
     return "A concise certified investment reason is unavailable for this snapshot."
 
 
@@ -1415,7 +1418,7 @@ def _render_market_strip(story: Mapping[str, Any]) -> None:
         body = "Current market context is unavailable."
     st.markdown(
         '<div class="atlas-home-market-strip" data-atlas-qa="market-today" data-atlas-non-scoring="true">'
-        f'<small>Market context · non-scoring</small><p>{body}</p></div>', unsafe_allow_html=True,
+        f'<small>Market context · for reference only</small><p>{body}</p></div>', unsafe_allow_html=True,
     )
 
 

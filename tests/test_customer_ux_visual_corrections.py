@@ -71,6 +71,14 @@ def test_home_reason_does_not_promote_entry_mechanics_into_investment_reason():
     assert reason == "A concise certified investment reason is unavailable for this snapshot."
 
 
+def test_home_reason_does_not_present_company_name_as_investment_reason():
+    card = {
+        "company": "Teekay Corporation Ltd",
+        "customer_plain_english_summary": {"text": "Teekay Corporation Ltd. Additional evidence follows."},
+    }
+    assert _compact_reason(card) == "A concise certified investment reason is unavailable for this snapshot."
+
+
 def test_trust_tiers_have_distinct_customer_copy_and_visual_classes():
     assert len(set(PRESENTATION_TRUST_TIERS.values())) == 4
     source = (ROOT / "ui" / "research_vnext.py").read_text(encoding="utf-8")
