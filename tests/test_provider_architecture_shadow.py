@@ -89,6 +89,35 @@ def test_finnhub_historical_bars_are_shadow_not_automatically_certified():
         require_certified_calculation(record)
 
 
+def test_finnhub_split_request_includes_documented_date_window():
+    calls = []
+    record = FinnhubShadowAdapter("demo", get=lambda url, **kwargs: calls.append((url, kwargs)) or Response([])).fetch("splits", "AAPL")
+    assert calls[0][0].endswith("/stock/split")
+    assert calls[0][1]["params"]["from"] < calls[0][1]["params"]["to"]
+    assert record.payload == {"corporate_actions": []}
+    assert record.provenance.certification_status == CertificationStatus.UNVERIFIED_SHADOW
+
+
+def test_reported_financials_normalize_period_units_and_canonical_facts():
+    payload = {"data": [{"endDate": "2025-09-27", "filedDate": "2025-10-31", "quarter": 0,
+                         "form": "10-K", "accessNumber": "0001", "report": {"ic": [
+                             {"concept": "us-gaap_Revenues", "unit": "usd", "value": 100},
+                             {"concept": "us-gaap_OperatingIncomeLoss", "unit": "usd", "value": 25},
+                         ]}}]}
+    record = FinnhubShadowAdapter("demo", get=lambda *_a, **_k: Response(payload)).fetch("financial_statements", "AAPL")
+    report = record.payload["reports"][0]
+    assert report["fiscal_period"] == "FY"
+    assert report["currency"] == "USD"
+    assert report["canonical_facts"]["revenue"]["value"] == 100
+    assert report["canonical_facts"]["ebit"]["source_record_version"] == "0001"
+
+
+def test_successful_empty_payload_remains_available_empty_not_provider_failure():
+    record = FinnhubShadowAdapter("demo", get=lambda *_a, **_k: Response([])).fetch("splits", "AAPL")
+    assert record.provenance.certification_status == CertificationStatus.UNVERIFIED_SHADOW
+    assert record.payload["corporate_actions"] == []
+
+
 def test_finnhub_missing_and_entitlement_data_fail_closed_without_zero_substitution():
     missing = FinnhubShadowAdapter("").fetch("basic_financials", "AAPL")
     denied = FinnhubShadowAdapter("demo", get=lambda *_a, **_k: Response({}, 403)).fetch("financial_statements", "AAPL")

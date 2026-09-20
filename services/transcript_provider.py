@@ -16,7 +16,7 @@ from services.provider_domain_contracts import (
 )
 
 
-TRANSCRIPT_ADAPTER_VERSION = "ATLAS_TRANSCRIPT_ADAPTER_V1"
+TRANSCRIPT_ADAPTER_VERSION = "ATLAS_TRANSCRIPT_ADAPTER_V2"
 TRANSCRIPT_DERIVATION_VERSION = "ATLAS_TRANSCRIPT_DERIVATION_V1"
 
 
@@ -63,12 +63,16 @@ class ConfiguredTranscriptProvider:
         if not self._base:
             return self._unavailable(ticker, year, quarter, captured, "TRANSCRIPT_PROVIDER_NOT_CONFIGURED")
         try:
+            resolved_year, resolved_quarter = year, quarter
             if self._provider == "EARNINGSCALL":
-                response = self._get(
-                    f"{self._base}/transcript",
-                    params={"apikey": self._key, "exchange": "nasdaq", "symbol": ticker.lower(),
-                            "year": year, "quarter": quarter}, timeout=20,
-                )
+                response = self._earningscall_transcript(ticker, year, quarter)
+                status = int(getattr(response, "status_code", 0) or 0)
+                payload = response.json() if status == 200 else {}
+                if not _transcript_text(payload):
+                    event = self._latest_earningscall_event(ticker)
+                    if event:
+                        resolved_year, resolved_quarter = int(event["year"]), int(event["quarter"])
+                        response = self._earningscall_transcript(ticker, resolved_year, resolved_quarter)
             else:
                 response = self._get(
                     f"{self._base}/transcripts",
@@ -82,17 +86,17 @@ class ConfiguredTranscriptProvider:
         if status in {401, 403}:
             return self._unavailable(ticker, year, quarter, captured, "ENTITLEMENT_UNAVAILABLE",
                                      CertificationStatus.ENTITLEMENT_UNAVAILABLE)
-        content = payload.get("content") if isinstance(payload, Mapping) else None
+        content = _transcript_text(payload)
         if not isinstance(content, str) or not content.strip():
             return self._unavailable(ticker, year, quarter, captured, "TRANSCRIPT_DATA_UNAVAILABLE")
         content_hash = hashlib.sha256(content.encode()).hexdigest()
-        transcript_id = str(payload.get("id") or f"{ticker}-{year}-Q{quarter}-{content_hash[:12]}")
+        transcript_id = str(payload.get("id") or payload.get("event_id") or f"{ticker}-{resolved_year}-Q{resolved_quarter}-{content_hash[:12]}")
         public = self._license == TranscriptLicenseState.COMMERCIAL_LICENSE_CONFIRMED
         provenance = ProvenanceEnvelope(
             provider=self._provider, dataset_family=DatasetFamily.OPTIONAL_QUALITATIVE_INTELLIGENCE,
             endpoint_or_source_family="EARNINGS_TRANSCRIPT", symbol=ticker,
             canonical_security_id=ticker, source_timestamp=str(payload.get("call_date") or "") or None,
-            capture_timestamp=captured, effective_period=f"{year}-Q{quarter}", fiscal_period=f"Q{quarter} {year}",
+            capture_timestamp=captured, effective_period=f"{resolved_year}-Q{resolved_quarter}", fiscal_period=f"Q{resolved_quarter} {resolved_year}",
             raw_evidence_id=f"TRANSCRIPT:{transcript_id}:{content_hash[:20]}", content_hash=content_hash,
             freshness_status="CAPTURED", certification_status=CertificationStatus.UNVERIFIED_SHADOW,
             license_class=self._license.value,
@@ -106,10 +110,33 @@ class ConfiguredTranscriptProvider:
         )
         return GovernedRecord(provenance, {
             "provider_transcript_id": transcript_id, "company": payload.get("company"),
-            "year": year, "quarter": quarter, "call_date": payload.get("call_date"),
-            "speaker_metadata": payload.get("speakers") or [], "qa_segments": payload.get("qa") or [],
+            "year": resolved_year, "quarter": resolved_quarter,
+            "requested_period": f"{year}-Q{quarter}", "resolved_period": f"{resolved_year}-Q{resolved_quarter}",
+            "call_date": payload.get("call_date") or payload.get("conference_date"),
+            "speaker_metadata": payload.get("speakers") or [],
+            "prepared_sections": payload.get("prepared_remarks") or [],
+            "qa_segments": payload.get("questions_and_answers") or payload.get("qa") or [],
             "raw_content": content, "raw_content_hash": content_hash,
         }, ("Raw transcript content is internal source evidence and is never included in customer projection.",))
+
+    def _earningscall_transcript(self, ticker: str, year: int, quarter: int) -> Any:
+        return self._get(
+            f"{self._base}/transcript",
+            params={"apikey": self._key, "exchange": "nasdaq", "symbol": ticker.lower(),
+                    "year": year, "quarter": quarter}, timeout=20,
+        )
+
+    def _latest_earningscall_event(self, ticker: str) -> Mapping[str, Any] | None:
+        response = self._get(
+            f"{self._base}/events",
+            params={"apikey": self._key, "exchange": "nasdaq", "symbol": ticker.lower()}, timeout=20,
+        )
+        if int(getattr(response, "status_code", 0) or 0) != 200:
+            return None
+        payload = response.json()
+        events = payload.get("events") if isinstance(payload, Mapping) else None
+        valid = [event for event in (events or []) if isinstance(event, Mapping) and event.get("year") and event.get("quarter")]
+        return max(valid, key=lambda event: (int(event["year"]), int(event["quarter"]))) if valid else None
 
     def _unavailable(self, ticker: str, year: int, quarter: int, captured: str, reason: str,
                      status: CertificationStatus = CertificationStatus.DATA_UNAVAILABLE) -> GovernedRecord:
@@ -162,6 +189,13 @@ def transcript_customer_projection(insight: GovernedRecord) -> dict[str, Any]:
     payload["semantic_status"] = "AVAILABLE"
     payload["source_evidence_ids"] = [payload.get("source_transcript_evidence_id")]
     return payload
+
+
+def _transcript_text(payload: Any) -> str | None:
+    if not isinstance(payload, Mapping):
+        return None
+    value = payload.get("text") or payload.get("content")
+    return value if isinstance(value, str) and value.strip() else None
 
 
 __all__ = ["ConfiguredTranscriptProvider", "TranscriptLicenseState", "build_transcript_derived_insight", "transcript_customer_projection"]

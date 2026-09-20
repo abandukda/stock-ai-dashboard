@@ -5,13 +5,19 @@ No object returned here is certified or connected to production acquisition.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import os
 from typing import Any, Callable, Mapping, Sequence
 
 import requests
+
+from services.finnhub_financial_normalization import (
+    canonical_financial_facts as _canonical_financial_facts,
+    canonical_period as _canonical_period,
+    currency_from_facts as _currency_from_facts,
+)
 
 from services.provider_domain_contracts import (
     CertificationStatus, DatasetFamily, GovernedRecord, MarketCoverageClass,
@@ -22,6 +28,7 @@ from services.provider_domain_contracts import (
 FINNHUB_ADAPTER_VERSION = "FINNHUB_SHADOW_ADAPTER_V1"
 FINNHUB_BASE_URL = "https://finnhub.io/api/v1"
 FINNHUB_DEMO_LICENSE = "DEMO_MIGRATION_VALIDATION_ONLY"
+FINNHUB_FINANCIAL_NORMALIZATION_VERSION = "FINNHUB_FINANCIAL_NORMALIZATION_V2"
 
 
 @dataclass(frozen=True)
@@ -97,6 +104,13 @@ class FinnhubShadowAdapter:
         captured = _now()
         if not self._api_key:
             return self._unavailable(endpoint, ticker, captured, CertificationStatus.DATA_UNAVAILABLE, "FINNHUB_API_KEY is not configured")
+        if capability == "splits":
+            today = datetime.now(timezone.utc).date()
+            parameters = {
+                "from": (today - timedelta(days=365 * 15)).isoformat(),
+                "to": today.isoformat(),
+                **parameters,
+            }
         params = {"symbol": ticker, **parameters, "token": self._api_key}
         try:
             response = self._get(f"{self._base_url}{endpoint.path}", params=params, timeout=self._timeout)
@@ -106,17 +120,26 @@ class FinnhubShadowAdapter:
             return self._unavailable(endpoint, ticker, captured, CertificationStatus.DATA_UNAVAILABLE, type(exc).__name__)
         if status in {401, 403}:
             return self._unavailable(endpoint, ticker, captured, CertificationStatus.ENTITLEMENT_UNAVAILABLE, f"HTTP_{status}")
-        if status != 200 or payload in (None, {}, []):
+        if status != 200:
             return self._unavailable(endpoint, ticker, captured, CertificationStatus.DATA_UNAVAILABLE, f"HTTP_{status or 'UNKNOWN'}")
+        if isinstance(payload, Mapping) and payload.get("error"):
+            reason = str(payload.get("error"))[:160]
+            entitlement = any(token in reason.lower() for token in ("premium", "permission", "entitlement", "access"))
+            return self._unavailable(endpoint, ticker, captured,
+                                     CertificationStatus.ENTITLEMENT_UNAVAILABLE if entitlement else CertificationStatus.DATA_UNAVAILABLE,
+                                     f"PROVIDER_ERROR:{reason}")
         evidence_hash = _hash(payload)
+        normalized = self._normalize(capability, payload)
+        temporal = _normalized_temporal_metadata(normalized)
         provenance = ProvenanceEnvelope(
             provider="FINNHUB",
             dataset_family=endpoint.family,
             endpoint_or_source_family=endpoint.source_family,
             symbol=ticker,
             canonical_security_id=ticker,
-            source_timestamp=_source_timestamp(payload),
+            source_timestamp=_source_timestamp(payload) or temporal["source_timestamp"],
             capture_timestamp=captured,
+            effective_period=temporal["effective_period"], fiscal_period=temporal["fiscal_period"],
             raw_evidence_id=f"FINNHUB:{endpoint.source_family}:{ticker}:{evidence_hash[:20]}",
             content_hash=evidence_hash,
             freshness_status="CAPTURED",
@@ -135,8 +158,8 @@ class FinnhubShadowAdapter:
             coverage_as_of=captured,
             provider_statement_reference="ATLAS_FINNHUB_COVERAGE_STATEMENT_2026_09",
             adapter_version=FINNHUB_ADAPTER_VERSION,
+            source_record_version=temporal["source_record_version"],
         )
-        normalized = self._normalize(capability, payload)
         return GovernedRecord(provenance, normalized, ("Shadow/demo evidence; not authorized for ATLAS decisions.",))
 
     def entitlement_diagnostics(self, symbol: str, capabilities: Sequence[str] | None = None) -> dict[str, Any]:
@@ -197,8 +220,12 @@ class FinnhubShadowAdapter:
                             })
                 normalized_reports.append({
                     "fiscal_date": pick(report, "endDate", "filedDate", "year"),
-                    "fiscal_period": pick(report, "quarter", "form"), "currency": report.get("currency"),
+                    "fiscal_period": _canonical_period(report), "source_period": report.get("quarter"),
+                    "filing_form": report.get("form"), "filed_date": report.get("filedDate"),
+                    "currency": report.get("currency") or _currency_from_facts(facts),
                     "access_number": report.get("accessNumber"), "facts": facts,
+                    "canonical_facts": _canonical_financial_facts(facts, report),
+                    "normalization_version": FINNHUB_FINANCIAL_NORMALIZATION_VERSION,
                 })
             return {"reports": normalized_reports}
         if capability == "basic_financials" and isinstance(payload, Mapping):
@@ -291,4 +318,18 @@ class FinnhubShadowAdapter:
         ), {"status": status.value, "reason": reason}, ("No fallback or zero substitution was used.",))
 
 
-__all__ = ["ENDPOINTS", "ENDPOINT_BY_CAPABILITY", "FINNHUB_ADAPTER_VERSION", "FinnhubShadowAdapter"]
+__all__ = ["ENDPOINTS", "ENDPOINT_BY_CAPABILITY", "FINNHUB_ADAPTER_VERSION", "FINNHUB_FINANCIAL_NORMALIZATION_VERSION", "FinnhubShadowAdapter"]
+
+
+def _normalized_temporal_metadata(payload: Mapping[str, Any]) -> dict[str, str | None]:
+    reports = payload.get("reports") if isinstance(payload.get("reports"), list) else []
+    report = reports[0] if reports and isinstance(reports[0], Mapping) else {}
+    actions = payload.get("corporate_actions") if isinstance(payload.get("corporate_actions"), list) else []
+    action = actions[0] if actions and isinstance(actions[0], Mapping) else {}
+    timestamp = report.get("filed_date") or report.get("fiscal_date") or action.get("date")
+    return {
+        "source_timestamp": str(timestamp) if timestamp else None,
+        "effective_period": str(report.get("fiscal_date")) if report.get("fiscal_date") else None,
+        "fiscal_period": str(report.get("fiscal_period")) if report.get("fiscal_period") else None,
+        "source_record_version": str(report.get("access_number")) if report.get("access_number") else None,
+    }

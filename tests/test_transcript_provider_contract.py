@@ -17,6 +17,12 @@ class Response:
         }
 
 
+class EarningsCallResponse:
+    status_code = 200
+    def __init__(self, payload): self._payload = payload
+    def json(self): return self._payload
+
+
 def _get(*_args, **_kwargs):
     return Response()
 
@@ -96,3 +102,32 @@ def test_earningscall_uses_documented_endpoint_without_logging_raw_text():
     assert calls[0][0] == "https://v2.api.earningscall.biz/transcript"
     assert calls[0][1]["params"]["apikey"] == "secret"
     assert record.provenance.dataset_family == DatasetFamily.OPTIONAL_QUALITATIVE_INTELLIGENCE
+
+
+def test_earningscall_reads_documented_text_envelope():
+    provider = ConfiguredTranscriptProvider(
+        api_key="secret", base_url="https://v2.api.earningscall.biz", provider_name="earningscall",
+        get=lambda *_a, **_k: EarningsCallResponse({"text": "Real transcript text", "speakers": [{"name": "CEO"}]}),
+    )
+    record = provider.transcript("AAPL", year=2025, quarter=4)
+    assert record.payload["raw_content_hash"]
+    assert record.payload["speaker_metadata"] == [{"name": "CEO"}]
+    assert record.payload["resolved_period"] == "2025-Q4"
+
+
+def test_earningscall_discovers_latest_available_period_when_requested_period_empty():
+    calls = []
+    def get(url, **kwargs):
+        calls.append((url, kwargs))
+        if url.endswith("/events"):
+            return EarningsCallResponse({"events": [{"year": 2025, "quarter": 3}, {"year": 2026, "quarter": 1}]})
+        if kwargs["params"]["year"] == 2026 and kwargs["params"]["quarter"] == 1:
+            return EarningsCallResponse({"text": "Available transcript", "conference_date": "2026-04-20"})
+        return EarningsCallResponse({})
+    record = ConfiguredTranscriptProvider(
+        api_key="secret", base_url="https://v2.api.earningscall.biz", provider_name="earningscall", get=get,
+    ).transcript("AAPL", year=2026, quarter=2)
+    assert [call[0].rsplit("/", 1)[-1] for call in calls] == ["transcript", "events", "transcript"]
+    assert record.payload["requested_period"] == "2026-Q2"
+    assert record.payload["resolved_period"] == "2026-Q1"
+    assert record.provenance.effective_period == "2026-Q1"
