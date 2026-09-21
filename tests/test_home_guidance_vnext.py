@@ -153,12 +153,14 @@ def test_internal_trial_home_and_research_share_persisted_wall_street_contract(m
     evaluation = canonical_evaluation()
     card = build_home_guidance_candidate(source, production_rank=1, current_evaluation=evaluation)
     report = build_atlas_research_v2({**source, "canonical_investment_evaluation": evaluation})
-    assert card["wall_street_analysis"] == report["wall_street_analysis"] == contract
+    assert card["wall_street_analysis"] == report["wall_street_analysis"]
+    assert card["wall_street_analysis"].get("provider") is None
+    assert card["wall_street_analysis"].get("attribution") is None
     assert card["wall_street"]["mean_target"] == report["analyst_intelligence"]["wall_street_mean_target"] == 125
     rendered = _wall_street_view(card)
     assert "$125.00" in rendered and "12" in rendered and "Buy" in rendered
     assert "Forward EPS" in rendered and "$7.50" in rendered
-    assert "Source: Twelve Data" in rendered
+    assert "Source:" not in rendered
     assert "Not Published" not in rendered
     assert "commercial-use permission" not in rendered
 
@@ -942,7 +944,7 @@ def test_premium_decision_card_uses_governed_action_chart_and_separate_target_au
     pending = _action_card({**card, "guidance": "DATA_LIMITED", "customer_action": {"label": "WATCH — NOT READY YET", "stars": "★★½☆☆", "rating": 2.5, "tone": "watch"}})
     assert "WATCH — NOT READY YET" in pending and "DATA_LIMITED" not in pending
     chart = _mini_chart(card)
-    assert "Near breakout" in chart and "Twelve Data" in chart and "split-adjusted daily bars" in chart
+    assert "Near breakout" in chart and "Twelve Data" not in chart and "Split-adjusted daily bars" in chart
     assert "$100.00" in chart and "$105.00" in chart
     assert "↑ ATLAS Target $120.00 · 20.0%" in chart
     comparison = _target_tiles(card)

@@ -940,7 +940,8 @@ def build_atlas_research_v2(
             "authority": "PRESENTATION_ONLY", "consistency": consistency,
         }
     checkpoint("build_atlas_research_v2:after")
-    return report
+    from services.customer.provider_neutral import provider_neutral_customer_projection
+    return provider_neutral_customer_projection(report)
 
 
 def validate_atlas_research_v2(report: Mapping[str, Any]) -> list[str]:

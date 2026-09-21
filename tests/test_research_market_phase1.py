@@ -75,9 +75,12 @@ def test_existing_newer_history_remains_graceful_fallback():
 
 def test_research_builder_preserves_twelve_chart_contract_and_provenance():
     enriched = apply_research_phase1({"Ticker": "NVDA", "Price": 170}, _bundle())
+    assert enriched["history_provenance"]["provider"] == "TWELVE_DATA"
+    assert enriched["history_provenance"]["source"] == "Twelve Data /time_series"
     report = build_atlas_research_v2(enriched)
     provenance = report["sections"]["technical"]["history_provenance"]
-    assert provenance["source"] == "Twelve Data /time_series"
+    assert provenance["source"] == "Verified market history"
+    assert "provider" not in provenance
     assert provenance["evidence_id"].startswith("TD1-")
     assert report["canonical_chart_contract"]["session"] == "REGULAR"
     assert report["canonical_market_snapshot"]["fresh_current_price"] is False

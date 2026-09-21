@@ -101,18 +101,22 @@ def test_home_uses_same_normalized_news_facts(monkeypatch):
     row.update({"rank": 1, "company": "ABC Inc", "current_price": 10,
                 "news_context": normalize_news("ABC", family({"press_releases": [{"ticker": "ABC", "headline": "ABC wins contract", "source": "Wire", "date": "2026-09-09"}]}))})
     card = build_home_guidance_story([row], {})["cards"][0]
-    assert card["recent_catalysts"][0]["headline"] == row["news_context"]["records"][0]["headline"]
-    assert card["context_evidence"]["normalized"]["news_context"] == row["news_context"]
+    # Certified customer cards omit optional catalyst context unless it is
+    # independently admitted into the certified projection.
+    assert card["recent_catalysts"] == ()
+    assert card["context_evidence"]["non_scoring"] is True
 
 
 def test_research_passes_same_context_contract_through():
     row = materialize_context_evidence(canonical_row(), {})
     report = build_atlas_research_v2(row)
-    assert report["context_evidence"]["insider_context"] == row["insider_context"]
-    assert report["context_evidence"]["financial_detail_context"] == row["financial_detail_context"]
+    for key in ("insider_context", "financial_detail_context"):
+        expected = dict(row[key])
+        expected.pop("provider", None)
+        assert report["context_evidence"][key] == expected
 
 
-def test_research_renderer_attributes_internal_trial_wall_street_source(monkeypatch):
+def test_research_renderer_omits_internal_trial_provider_branding(monkeypatch):
     from ui import research_report_v2
 
     calls = []
@@ -130,7 +134,7 @@ def test_research_renderer_attributes_internal_trial_wall_street_source(monkeypa
         "forward_eps": 7.5, "forward_revenue": 1200,
         "atlas_street_relationship": "BROADLY ALIGNED",
     })
-    assert ("caption", "Source: Twelve Data") in calls
+    assert not any(call[0] == "caption" for call in calls)
     assert any(call[:2] == ("metric", "Wall Street Consensus") for call in calls)
     assert any(call[0] == "markdown" and "Forward Revenue" in call[1] for call in calls)
 
@@ -171,7 +175,7 @@ def test_internal_trial_allows_certified_twelve_wall_street_context(monkeypatch)
     assert result["consensus"]["analyst_count"] == 4
     assert result["estimate_context"]["forward_eps"] == 5.25
     assert result["estimate_context"]["forward_revenue"] == 1200
-    assert result["attribution"] == "Source: Twelve Data"
+    assert result["attribution"] is None
     assert result["non_scoring"] is True
 
 

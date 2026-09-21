@@ -233,7 +233,9 @@ def normalize_wall_street(row: Mapping[str, Any], families: Mapping[str, Any]) -
         DISPLAY_RESTRICTED
     )
     analysis["display_scope"] = "INTERNAL_TRIAL" if trial_allowed and not commercially_allowed else "COMMERCIAL_CUSTOMER"
-    analysis["attribution"] = "Source: Twelve Data" if trial_allowed else None
+    # Provider identity remains in governed lineage. Ordinary customer UI is
+    # deliberately provider-neutral, including INTERNAL_TRIAL presentation.
+    analysis["attribution"] = None
     analysis["non_scoring"] = True
     if not allowed and analysis.get("status") in {"WALL_STREET_AVAILABLE", "WALL_STREET_PARTIAL"}:
         analysis["underlying_status"] = analysis["status"]

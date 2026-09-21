@@ -588,8 +588,8 @@ def _paid_client_full_evidence(card: Mapping[str, Any]) -> str:
     for label, source, stamp in (
         ("Market", (card.get("market_evidence") or {}).get("provider"), (card.get("market_evidence") or {}).get("provider_timestamp")),
         ("Valuation", "ATLAS", card.get("evaluation_timestamp")),
-        ("Financials", "Twelve Data / persisted fundamentals", card.get("evaluation_timestamp")),
-        ("Technical", "Twelve Data completed-session history", card.get("latest_rating_as_of")),
+        ("Financials", "Certified ATLAS financial evidence", card.get("evaluation_timestamp")),
+        ("Technical", "Verified completed-session history", card.get("latest_rating_as_of")),
     ):
         if source: sources.append(f"{label}: {source} · {_timestamp(stamp)}")
     source_html = "<ul>" + "".join(f"<li>{html.escape(item)}</li>" for item in sources) + "</ul>"
@@ -897,6 +897,9 @@ def _wall_street_view(card: Mapping[str, Any]) -> str:
     else:
         customer_copy = wall_street_view_text(analysis)
     attribution = analysis.get("attribution")
+    if attribution:
+        from services.customer.provider_neutral import contains_customer_provider_branding
+        attribution = None if contains_customer_provider_branding(attribution) else attribution
     source_copy = f'<small class="atlas-home-wall-street-source">{html.escape(str(attribution))}</small>' if attribution else ""
     return (
         '<section class="atlas-home-wall-street" data-atlas-qa="wall-street-view"><h4>Wall Street View</h4>'
@@ -1050,13 +1053,13 @@ def _mini_chart(card: Mapping[str, Any], selected_range: str = "1Y") -> str:
         f'data-atlas-chart-contract="{html.escape(json.dumps(metadata, sort_keys=True))}">'
         f'<div><b>{html.escape(selected_range)} price trend</b>'
         f'<span class="atlas-home-tech-cue">{html.escape(_technical_cue(card))}</span></div>'
-        f'<svg viewBox="0 0 {width:g} {height:g}" role="img" aria-label="Twelve Data {html.escape(selected_range)} closing price trend">'
+        f'<svg viewBox="0 0 {width:g} {height:g}" role="img" aria-label="Verified {html.escape(selected_range)} closing price trend">'
         f'{chart_overlays}'
         f'<polyline fill="none" stroke="{stroke}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" points="{points}"/></svg>'
         f'<div class="atlas-home-chart-legend">{legend}</div>'
         f'{off_chart_target}'
         f'<div class="atlas-home-chart-dates"><span>{html.escape(start_label)}</span><span>{html.escape(end_label)}</span></div>'
-        f'<small>Twelve Data · split-adjusted daily bars · through {html.escape(format_market_timestamp_et(contract.get("newest_completed_bar_timestamp")))}'
+        f'<small>Split-adjusted daily bars · through {html.escape(format_market_timestamp_et(contract.get("newest_completed_bar_timestamp")))}'
         f'{" · ATLAS target " + _money(target) if target is not None else ""}</small>'
         '</div>'
     )

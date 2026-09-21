@@ -428,7 +428,9 @@ def _render_analyst_intelligence(intelligence: Mapping[str, Any]) -> None:
     st.markdown("## Wall Street Analyst Intelligence")
     st.markdown(_analyst_intelligence_html(intelligence), unsafe_allow_html=True)
     if intelligence.get("source_attribution"):
-        st.caption(str(intelligence["source_attribution"]))
+        from services.customer.provider_neutral import contains_customer_provider_branding
+        if not contains_customer_provider_branding(intelligence["source_attribution"]):
+            st.caption(str(intelligence["source_attribution"]))
     low, high = intelligence.get("wall_street_low_target"), intelligence.get("wall_street_high_target")
     if low is not None and high is not None:
         st.markdown("### Target Range")
@@ -706,7 +708,7 @@ def _render_price_chart(report: Mapping[str, Any]) -> None:
     provenance = dict(section.get("history_provenance") or {})
     if selected_contract:
         provenance.update({
-            "source": "Twelve Data /time_series", "provider": selected_contract.get("provider"),
+            "source": "Verified market history", "provider": None,
             "range": selected_range, "interval": selected_contract.get("interval"),
             "adjustment_mode": selected_contract.get("adjustment_mode"),
             "extended_hours_included": selected_contract.get("extended_hours_included"),

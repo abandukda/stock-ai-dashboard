@@ -237,7 +237,8 @@ def test_market_today_contract_is_independent_of_stock_certification():
     withheld={"ticker":"BLOCKED","publication_certification":{"customer_publication_allowed":False}}
     story=build_home_guidance_story([withheld],[],market_today=context)
     assert story["cards"]==[]
-    assert story["market_today"]==context
+    assert context["source"] == "TWELVE_DATA"
+    assert story["market_today"]["source"] == "ATLAS verified data"
     assert story["market_today"]["non_scoring"] is True
 
 

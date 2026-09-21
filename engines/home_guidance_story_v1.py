@@ -804,7 +804,8 @@ def build_home_guidance_candidate(
         "evidence_map": summary_evidence_map(customer_payload), "authority": "PRESENTATION_ONLY",
         "consistency": consistency,
     }
-    return candidate
+    from services.customer.provider_neutral import provider_neutral_customer_projection
+    return provider_neutral_customer_projection(candidate)
 
 
 def build_home_guidance_story(
@@ -907,7 +908,7 @@ def build_home_guidance_story(
         enforce_manifest_publication_count=not bool(inventory_rows),
     )
     active = founder_guidance_v1_enabled() and bool(evaluations)
-    return {
+    story = {
         "version": HOME_GUIDANCE_STORY_VERSION,
         "mode": "ACTIVE" if active else "PREVIEW",
         "title": "ATLAS Today",
@@ -932,6 +933,8 @@ def build_home_guidance_story(
         "what_changed": {"status": "DATA_UNAVAILABLE", "message": "What Changed is not yet available for this evaluation snapshot."},
         "field_authority": dict(HOME_FIELD_AUTHORITY),
     }
+    from services.customer.provider_neutral import provider_neutral_customer_projection
+    return provider_neutral_customer_projection(story)
 
 
 __all__ = [

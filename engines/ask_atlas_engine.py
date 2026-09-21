@@ -578,6 +578,8 @@ def _deterministic_answer(question: str, report: Mapping[str, Any]) -> str:
 
 
 def ask_atlas(question: str, report: Mapping[str, Any]) -> dict[str, Any]:
+    from services.customer.provider_neutral import provider_neutral_customer_projection
+    report = provider_neutral_customer_projection(report)
     question = str(question or "").strip()
     grounding = _grounding_metadata(question, report)
     if not question:
