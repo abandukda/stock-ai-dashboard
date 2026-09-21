@@ -50,6 +50,19 @@ RESEARCH_VNEXT_SECTION_LABELS = (
     "Decision", "Fundamentals & Valuation", "Technical & Trade State",
     "Catalysts & Sentiment", "Risk & Evidence",
 )
+
+
+def _research_declared_architecture(section_count: int, tab_labels: set[str]) -> bool:
+    """Validate the renderer-owned Research architecture without tab bodies.
+
+    Streamlit may mount tab panels lazily, but all required semantic tab
+    controls must still be present.  A bare count of five is deliberately not
+    sufficient: it cannot hide a missing or substituted required section.
+    """
+    return (
+        section_count == len(RESEARCH_VNEXT_SECTIONS)
+        and set(RESEARCH_VNEXT_SECTION_LABELS) <= tab_labels
+    )
 EARNINGS_VNEXT_SECTION_LABELS = (
     "Recently Reported", "Upcoming Earnings", "What Happened", "Why It Matters",
     "Guidance & Estimate Changes", "Market Reaction",
@@ -74,6 +87,7 @@ RESEARCH_WITHHELD_FORBIDDEN_TEXT = (
 def classify_research_terminal_state(
     *, ticker_present: bool, lifecycle_complete: bool, authoritative_version: bool,
     five_sections: bool, ask_cta: bool, withheld_marker: bool,
+    published_decision_evidence: bool = False,
     publication_allowed: bool | None, visible_text: str, rendered_exception: bool,
     loading: bool,
 ) -> str:
@@ -82,7 +96,11 @@ def classify_research_terminal_state(
         return "RESEARCH_RENDER_INCOMPLETE"
     normalized = re.sub(r"\s+", " ", str(visible_text or "")).upper()
     if publication_allowed is True:
-        return "PUBLISHED_RESEARCH_COMPLETE" if five_sections and ask_cta else "RESEARCH_RENDER_INCOMPLETE"
+        return (
+            "PUBLISHED_RESEARCH_COMPLETE"
+            if five_sections and ask_cta and published_decision_evidence
+            else "RESEARCH_RENDER_INCOMPLETE"
+        )
     if withheld_marker and publication_allowed is False:
         safe = (
             RESEARCH_WITHHELD_PRIMARY_COPY in normalized
@@ -222,6 +240,8 @@ class AtlasVisualCrawler:
         certification_incomplete = False
         withheld_terminal = False
         publication_allowed: bool | None = None
+        declared_section_count = 0
+        tab_labels: set[str] = set()
         for scope in _scopes(page):
             try:
                 roots = scope.locator(f'[data-atlas-qa="research-vnext"][data-atlas-ticker="{ticker}"]')
@@ -229,6 +249,12 @@ class AtlasVisualCrawler:
                     version = await roots.first.get_attribute("data-atlas-version") or ""
                     monitor = (await roots.first.get_attribute("data-atlas-monitor") or "").lower() == "true"
                     allowed = (await roots.first.get_attribute("data-atlas-publication-allowed") or "").lower()
+                    try:
+                        declared_section_count = int(
+                            await roots.first.get_attribute("data-atlas-section-count") or 0
+                        )
+                    except (TypeError, ValueError):
+                        declared_section_count = 0
                     if allowed in {"true", "false"}:
                         publication_allowed = allowed == "true"
                 nodes = scope.locator(f'[data-atlas-qa="research-vnext-section"][data-atlas-ticker="{ticker}"]')
@@ -248,11 +274,24 @@ class AtlasVisualCrawler:
                     allowed = (await terminal.last.get_attribute("data-atlas-publication-allowed") or "").lower()
                     if allowed in {"true", "false"}:
                         publication_allowed = allowed == "true"
+                tabs = scope.get_by_role("tab")
+                for index in range(await tabs.count()):
+                    tab = tabs.nth(index)
+                    if await tab.is_visible():
+                        tab_labels.add(re.sub(r"\s+", " ", await tab.inner_text()).strip())
             except Exception:
                 continue
+        declared_architecture = _research_declared_architecture(
+            declared_section_count, tab_labels,
+        )
         return {
             "version": version, "sections": sorted(sections),
-            "all_sections": set(RESEARCH_VNEXT_SECTIONS) <= sections,
+            # Streamlit lazily mounts tab bodies.  The renderer-owned count and
+            # all five live tab controls certify architecture without requiring
+            # five mutually exclusive tab panels to coexist in the DOM.
+            "all_sections": declared_architecture,
+            "declared_section_count": declared_section_count,
+            "tab_labels": sorted(tab_labels),
             "monitor": monitor, "ask_cta": ask_cta,
             "certification_incomplete": certification_incomplete,
             "withheld_terminal": withheld_terminal,
@@ -303,10 +342,22 @@ class AtlasVisualCrawler:
         result["loading"] = result["terminal_status"] == "loading"
         result["rendered_exception"] = await _has_rendered_exception(page)
         visible_text = await _visible_text(page)
+        normalized_text = re.sub(r"\s+", " ", visible_text).upper()
+        published_decision_evidence = bool(
+            architecture.get("publication_allowed") is True
+            and "ATLAS VIEW" in normalized_text
+            and "ATLAS RATING:" in normalized_text
+            and any(label in normalized_text for label in (
+                "BUY NOW", "BUILD A POSITION", "WAIT FOR A BETTER ENTRY",
+                "WAIT FOR CONFIRMATION", "WATCH", "AVOID",
+            ))
+        )
+        result["published_decision_evidence"] = published_decision_evidence
         result["research_terminal_state"] = classify_research_terminal_state(
             ticker_present=result["ticker"], lifecycle_complete=result["lifecycle_complete"],
             authoritative_version=result["vnext"], five_sections=result["five_sections"],
             ask_cta=result["ask_cta"], withheld_marker=result["withheld_terminal"],
+            published_decision_evidence=published_decision_evidence,
             publication_allowed=result["publication_allowed"], visible_text=visible_text,
             rendered_exception=result["rendered_exception"], loading=result["loading"],
         )
@@ -529,10 +580,19 @@ class AtlasVisualCrawler:
         started = time.monotonic()
         try:
             settled, _, detail = await _navigate(page, page_name, self.output_dir)
+            if page_name == "Research Any Ticker":
+                owner_deadline = time.monotonic() + 20
+                while time.monotonic() < owner_deadline:
+                    if await self._research_route_owned(page):
+                        settled = True
+                        break
+                    await page.wait_for_timeout(100)
+                if not await self._research_route_owned(page):
+                    settled = False
             visible, visible_detail = await self._visible_primary(page, page_name)
             rendered_exception = await _has_rendered_exception(page)
             route_current = await self._current_route_visible(page, page_name)
-            if not settled and route_current and visible and not rendered_exception:
+            if page_name != "Research Any Ticker" and not settled and route_current and visible and not rendered_exception:
                 detail = f"route-generation recovery: current selected route and visible primary surface; {detail}"
                 settled = True
             shot = await self._shot(page, page_name=page_name, interaction="page", state="rendered", viewport=viewport, complete_surface=True)
@@ -980,6 +1040,24 @@ class AtlasVisualCrawler:
                 continue
         text = await _visible_text(page)
         return page_name.lower() in text.lower()
+
+    async def _research_route_owned(self, page: Page) -> bool:
+        """Prove the live primary DOM belongs to the selected Research route."""
+        if not await self._current_route_visible(page, "Research Any Ticker"):
+            return False
+        for scope in _scopes(page):
+            try:
+                ready = scope.locator(
+                    '[data-atlas-qa="page-ready"][data-atlas-page="research-any-ticker"]'
+                )
+                inputs = scope.get_by_label("Ticker", exact=True)
+                buttons = scope.get_by_role("button", name="Research ticker", exact=True)
+                if await ready.count() and await inputs.count() and await buttons.count():
+                    if await inputs.first.is_visible() and await buttons.first.is_visible():
+                        return True
+            except Exception:
+                continue
+        return False
 
     async def _click_tabs(
         self, page: Page, *, page_name: str, ticker: str = "",

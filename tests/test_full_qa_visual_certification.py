@@ -227,6 +227,15 @@ def test_release_full_retains_fail_closed_screenshot_interleaved_roundtrip():
     assert 'if qa_mode == "RELEASE_FULL"' in full
     assert 'state="all-major-expanded"' in full
     assert 'passed = bool(row.get("opened") and row.get("collapsed")' in full
+    assert 'page_name in {"Home", "Full Ranked Scan", "Developer Center"}' in full
+    assert "len(inventory) >= 5" not in full
+
+
+def test_research_disclosure_inventory_requires_current_route_ownership():
+    source = Path("agents/full_qa_visual_certification.py").read_text()
+    assert 'page_name == "Research Any Ticker"' in source
+    assert "await crawler._research_route_owned(page)" in source
+    assert "RESEARCH_ROUTE_OWNERSHIP_NOT_ESTABLISHED" in source
 
 
 def test_timing_checkpoint_survives_mid_run_failure(tmp_path):
@@ -240,7 +249,8 @@ def test_timing_checkpoint_survives_mid_run_failure(tmp_path):
 
 def test_repeated_card_disclosures_use_bounded_batch_and_ranked_scan_viewport_capture():
     source = Path("agents/full_qa_visual_certification.py").read_text()
-    assert 'page_name in {"Home", "Full Ranked Scan", "Developer Center"} and len(inventory) >= 5' in source
+    assert 'page_name in {"Home", "Full Ranked Scan", "Developer Center"}' in source
+    assert "len(inventory) >= 5" not in source
     assert "document.querySelectorAll('details > summary')" in source
     assert "const settlementTimeoutMs=1500, mutationQuietMs=150, pollMs=25" in source
     assert "const waitForSettled=async (item, expectedOpen)" in source

@@ -15,7 +15,9 @@ from agents.atlas_visual_crawler_v1 import (
     PRIMARY_VISIBLE_SIGNALS,
     VISUAL_CRAWLER_VERSION,
     RESEARCH_VNEXT_SECTIONS,
+    RESEARCH_VNEXT_SECTION_LABELS,
     RESEARCH_COMPLETION_TIMEOUT_SECONDS,
+    _research_declared_architecture,
     classify_research_terminal_state,
     VisualResult,
 )
@@ -319,7 +321,7 @@ def _completed_research_fixture(monkeypatch, tmp_path, *, statuses, exception=Fa
     monkeypatch.setattr(crawler, "_research_vnext_contract", vnext)
     monkeypatch.setattr("agents.atlas_visual_crawler_v1._has_rendered_exception", rendered_exception)
     async def visible_text(_page):
-        return "ATLAS View"
+        return "ATLAS View ATLAS Rating: BUY NOW"
     monkeypatch.setattr("agents.atlas_visual_crawler_v1._visible_text", visible_text)
     return asyncio.run(crawler._completed_research(object(), "NVDA"))
 
@@ -333,6 +335,7 @@ def _terminal(**overrides):
         "ask_cta": False,
         "withheld_marker": True,
         "publication_allowed": False,
+        "published_decision_evidence": False,
         "visible_text": "RATING NOT PUBLISHED ATLAS does not have enough certified evidence to publish a rating for this snapshot.",
         "rendered_exception": False,
         "loading": False,
@@ -348,11 +351,31 @@ def test_rating_not_published_is_an_explicit_completed_terminal_state():
 def test_published_research_still_requires_sections_and_ask_cta():
     assert _terminal(
         publication_allowed=True, withheld_marker=False, five_sections=True,
-        ask_cta=True, visible_text="ATLAS View",
+        ask_cta=True, published_decision_evidence=True,
+        visible_text="ATLAS View ATLAS Rating: BUY NOW",
     ) == "PUBLISHED_RESEARCH_COMPLETE"
     assert _terminal(
         publication_allowed=True, withheld_marker=False, five_sections=False,
         ask_cta=True, visible_text="ATLAS View",
+    ) == "RESEARCH_RENDER_INCOMPLETE"
+
+
+def test_published_research_rejects_declared_count_when_required_tab_content_is_broken():
+    complete_tabs = set(RESEARCH_VNEXT_SECTION_LABELS)
+    assert _research_declared_architecture(5, complete_tabs) is True
+    broken_tabs = complete_tabs - {RESEARCH_VNEXT_SECTION_LABELS[-1]}
+    # The root still claims five sections, but the required Risk & Evidence
+    # semantic control is absent: certification must fail closed.
+    assert _research_declared_architecture(5, broken_tabs) is False
+    assert _terminal(
+        publication_allowed=True, withheld_marker=False, five_sections=False,
+        ask_cta=True, published_decision_evidence=True,
+        visible_text="ATLAS View ATLAS Rating: BUY NOW",
+    ) == "RESEARCH_RENDER_INCOMPLETE"
+    assert _terminal(
+        publication_allowed=True, withheld_marker=False, five_sections=True,
+        ask_cta=True, published_decision_evidence=False,
+        visible_text="ATLAS View",
     ) == "RESEARCH_RENDER_INCOMPLETE"
 
 

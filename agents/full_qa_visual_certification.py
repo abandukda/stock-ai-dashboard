@@ -344,6 +344,17 @@ async def certify_expandable_interactions(
     """Certify collapsed, individual, nested, all-open, and re-collapsed states."""
     checks: list[dict[str, Any]] = []
     defects: list[dict[str, Any]] = []
+    if page_name == "Research Any Ticker" and not await crawler._research_route_owned(page):
+        check = {
+            "page": page_name, "viewport": viewport, "ticker": ticker,
+            "interaction_type": "PAGE_OWNERSHIP", "control_label": "CURRENT_ROUTE_ROOT",
+            "required": True, "click_success": False, "collapse_success": False,
+            "status": "FAIL", "observed": "RESEARCH_ROUTE_OWNERSHIP_NOT_ESTABLISHED",
+        }
+        return [check], [{
+            "severity": "P1", "page": page_name, "viewport": viewport,
+            "observed": json.dumps(check, sort_keys=True), "ticker_context": ticker,
+        }]
     inventory = await _expandable_inventory(page)
     if qa_mode == "RELEASE_SMOKE":
         critical = re.compile(r"Professional Detail|Wall Street|Valuation|Investment Case|decision evidence", re.I)
@@ -495,7 +506,7 @@ async def certify_expandable_interactions(
     # repeatedly reflow the entire page (150 times on Full Ranked).  Exercise
     # every control with a real DOM click, verify open/content/close in one
     # browser transaction, and retain representative screenshots below.
-    if qa_mode == "RELEASE_FULL" and page_name in {"Home", "Full Ranked Scan", "Developer Center"} and len(inventory) >= 5:
+    if qa_mode == "RELEASE_FULL" and page_name in {"Home", "Full Ranked Scan", "Developer Center"}:
         roundtrips = await page.evaluate("""async () => {
           const visible = e => {
             const s=getComputedStyle(e), r=e.getBoundingClientRect();
