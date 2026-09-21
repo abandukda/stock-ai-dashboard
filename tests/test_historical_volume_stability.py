@@ -33,6 +33,12 @@ def test_same_day_rerun_does_not_count_as_independent_day(tmp_path):
     assert len(report["observations"]) == 22
     assert all(item["independent_calendar_day_count"] == 1 for item in report["per_session_history"])
     assert all(item["classification"] == "INSUFFICIENT_OBSERVATIONS" for item in report["per_session_history"])
+    assert all(item["difference_type"] == "CROSS_PROVIDER_DIFFERENCE" for item in report["per_session_history"])
+    assert all(item["finnhub_internal_consistency"] == "NO_INTERNAL_FINNHUB_INCONSISTENCY_OBSERVED"
+               for item in report["per_session_history"])
+    assert all(item["finnhub"]["adjustment_metadata"] ==
+               "SPLIT_ADJUSTED_ONLY;VOLUME_CONSOLIDATED_AFTER_4PM"
+               for item in report["observations"])
 
 
 def test_three_stable_calendar_days_classify_stable_provider_divergence(tmp_path):

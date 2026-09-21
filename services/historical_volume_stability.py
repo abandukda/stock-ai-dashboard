@@ -54,7 +54,8 @@ def _observation(ticker: str, session: str, row: Mapping[str, Any], records: Map
         "twelve": _provider_observation("TWELVE_DATA", ticker, session, twelve, timestamp,
                                         "splits", "FULL_CONSOLIDATED", "TWELVE_DATA_PHASE1_ADAPTER"),
         "finnhub": _provider_observation("FINNHUB", ticker, session, finnhub, timestamp,
-                                         "PROVIDER_REPORTED_UNRESOLVED", provenance.get("market_coverage_class"),
+                                         "SPLIT_ADJUSTED_ONLY;VOLUME_CONSOLIDATED_AFTER_4PM",
+                                         provenance.get("market_coverage_class"),
                                          provenance.get("adapter_version"), provenance.get("raw_evidence_id")),
         "absolute_difference": row.get("absolute_difference"),
         "percentage_difference": row.get("percentage_difference"),
@@ -88,6 +89,12 @@ def _history(observations: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
             "independent_calendar_day_count": len(days), "current_twelve_value": current["twelve"]["observed_volume"],
             "current_finnhub_value": current["finnhub"]["observed_volume"],
             "current_difference_pct": current.get("percentage_difference"), **comparison,
+            "difference_type": "CROSS_PROVIDER_DIFFERENCE",
+            "finnhub_internal_consistency": (
+                "NO_INTERNAL_FINNHUB_INCONSISTENCY_OBSERVED"
+                if comparison.get("finnhub_changed") is False else
+                "ADDITIONAL_OBSERVATION_REQUIRED"
+            ),
             "mechanism_confidence": "INSUFFICIENT" if len(days) < 3 else "OBSERVATIONAL",
             "evidence_note": "No final mechanism is inferred before three independent calendar-day observations.",
         })

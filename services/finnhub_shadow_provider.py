@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 from typing import Any, Callable, Mapping, Sequence
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -29,6 +30,14 @@ FINNHUB_ADAPTER_VERSION = "FINNHUB_SHADOW_ADAPTER_V1"
 FINNHUB_BASE_URL = "https://finnhub.io/api/v1"
 FINNHUB_DEMO_LICENSE = "DEMO_MIGRATION_VALIDATION_ONLY"
 FINNHUB_FINANCIAL_NORMALIZATION_VERSION = "FINNHUB_FINANCIAL_NORMALIZATION_V2"
+FINNHUB_PROVIDER_WRITTEN_CONTRACT = {
+    "evidence_reference": "FINNHUB_SUPPORT_WRITTEN_CONTRACT_2026_09_21",
+    "daily_weekly_monthly_price_adjustment": "SPLIT_ADJUSTED_ONLY",
+    "dividend_adjustment": "NOT_PROVIDER_ADJUSTED",
+    "post_close_volume": "CONSOLIDATED_AFTER_4PM",
+    "current_shares": "CURRENT_SNAPSHOT_NO_PROVIDER_TIMESTAMP",
+    "market_cap": "CURRENT_PROVIDER_VALUE_UPDATED_INTRADAY",
+}
 
 
 @dataclass(frozen=True)
@@ -84,6 +93,25 @@ def _source_timestamp(payload: Any) -> str | None:
     return None
 
 
+def _completed_post_close_daily_bar(timestamp: Any, capture_timestamp: str) -> bool:
+    """Return whether a Finnhub daily bar is eligible under its written contract.
+
+    Finnhub daily candle timestamps identify a session date.  A current-date
+    candle is complete only once the capture is at or after 4 PM New York time;
+    earlier session dates are already complete.  This deliberately does not
+    certify intraday or partial real-time volume.
+    """
+    try:
+        session_date = datetime.fromtimestamp(float(timestamp), timezone.utc).date()
+        captured = datetime.fromisoformat(capture_timestamp.replace("Z", "+00:00"))
+        captured_et = captured.astimezone(ZoneInfo("America/New_York"))
+    except (TypeError, ValueError, OSError):
+        return False
+    if session_date < captured_et.date():
+        return True
+    return session_date == captured_et.date() and (captured_et.hour, captured_et.minute) >= (16, 0)
+
+
 class FinnhubShadowAdapter:
     """Explicit shadow client; never selected by canonical production paths."""
 
@@ -129,7 +157,7 @@ class FinnhubShadowAdapter:
                                      CertificationStatus.ENTITLEMENT_UNAVAILABLE if entitlement else CertificationStatus.DATA_UNAVAILABLE,
                                      f"PROVIDER_ERROR:{reason}")
         evidence_hash = _hash(payload)
-        normalized = self._normalize(capability, payload)
+        normalized = self._normalize(capability, payload, capture_timestamp=captured)
         temporal = _normalized_temporal_metadata(normalized)
         provenance = ProvenanceEnvelope(
             provider="FINNHUB",
@@ -156,7 +184,7 @@ class FinnhubShadowAdapter:
             ),
             estimated_volume_coverage_pct=(75.0 if endpoint.coverage == MarketCoverageClass.PARTIAL_REALTIME else None),
             coverage_as_of=captured,
-            provider_statement_reference="ATLAS_FINNHUB_COVERAGE_STATEMENT_2026_09",
+            provider_statement_reference=FINNHUB_PROVIDER_WRITTEN_CONTRACT["evidence_reference"],
             adapter_version=FINNHUB_ADAPTER_VERSION,
             source_record_version=temporal["source_record_version"],
         )
@@ -178,7 +206,9 @@ class FinnhubShadowAdapter:
         }
 
     @staticmethod
-    def _normalize(capability: str, payload: Any) -> Mapping[str, Any]:
+    def _normalize(
+        capability: str, payload: Any, *, capture_timestamp: str | None = None,
+    ) -> Mapping[str, Any]:
         def records(value: Any) -> list[Mapping[str, Any]]:
             if isinstance(value, list):
                 return [item for item in value if isinstance(item, Mapping)]
@@ -195,10 +225,18 @@ class FinnhubShadowAdapter:
             return {"price": payload.get("c"), "open": payload.get("o"), "high": payload.get("h"),
                     "low": payload.get("l"), "previous_close": payload.get("pc"), "provider_timestamp": payload.get("t")}
         if capability == "historical_ohlcv" and isinstance(payload, Mapping):
+            captured = capture_timestamp or _now()
+            timestamps = payload.get("t") or []
             columns = {"timestamps": payload.get("t") or [], "open": payload.get("o") or [],
                        "high": payload.get("h") or [], "low": payload.get("l") or [],
                        "close": payload.get("c") or [], "volume": payload.get("v") or [],
-                       "adjustment_mode": "PROVIDER_REPORTED_UNRESOLVED"}
+                       "completed_session_flags": [
+                           _completed_post_close_daily_bar(value, captured) for value in timestamps
+                       ],
+                       "adjustment_mode": "SPLIT_ADJUSTED_ONLY",
+                       "dividend_adjustment": "NOT_PROVIDER_ADJUSTED",
+                       "volume_semantics": "CONSOLIDATED_AFTER_4PM",
+                       "provider_contract_evidence": dict(FINNHUB_PROVIDER_WRITTEN_CONTRACT)}
             return columns
         if capability == "company_profile" and isinstance(payload, Mapping):
             return {"name": payload.get("name"), "exchange": payload.get("exchange"),
@@ -240,12 +278,16 @@ class FinnhubShadowAdapter:
                     "source_field": "metric.marketCapitalization", "source_value": raw_market_cap,
                     "source_unit": "USD_MILLIONS", "normalized_unit": "USD",
                     "scale_transformation": "MULTIPLY_BY_1E6",
+                    "temporal_semantics": "CURRENT_PROVIDER_VALUE_UPDATED_INTRADAY",
+                    "provider_source_timestamp": None,
                 },
                 "shares_outstanding": _millions_to_absolute(raw_shares),
                 "shares_outstanding_lineage": {
                     "source_field": "metric.shareOutstanding", "source_value": raw_shares,
                     "source_unit": "SHARES_MILLIONS", "normalized_unit": "SHARES",
                     "scale_transformation": "MULTIPLY_BY_1E6",
+                    "temporal_semantics": "CURRENT_SNAPSHOT_NO_PROVIDER_TIMESTAMP",
+                    "provider_source_timestamp": None,
                 },
                 "pe_ttm": pick(metric, "peTTM"), "pb_annual": pick(metric, "pbAnnual"),
                 "operating_margin_ttm": pick(metric, "operatingMarginTTM"),

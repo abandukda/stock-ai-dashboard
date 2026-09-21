@@ -15,12 +15,14 @@ import statistics
 import time
 from typing import Any, Mapping, Sequence
 
-from services.finnhub_shadow_provider import ENDPOINT_BY_CAPABILITY, FinnhubShadowAdapter
+from services.finnhub_shadow_provider import (
+    ENDPOINT_BY_CAPABILITY, FINNHUB_PROVIDER_WRITTEN_CONTRACT, FinnhubShadowAdapter,
+)
 from services.transcript_provider import ConfiguredTranscriptProvider
 from services.technical_intelligence.engine import _rsi, _sma, _true_ranges, _wilder_average, DailyBar
 
 
-VERSION = "ATLAS_FINNHUB_PROVIDER_ONLY_CERTIFICATION_V2"
+VERSION = "ATLAS_FINNHUB_PROVIDER_ONLY_CERTIFICATION_V3"
 DEFAULT_SYMBOLS = ("AAPL", "MSFT", "NVDA", "WMT", "IBM", "F", "PFE", "TSLA")
 UNRESOLVED_METRICS = (
     "operatingMarginTTM", "grossMarginTTM", "netProfitMarginTTM", "ebitdaMarginTTM",
@@ -38,10 +40,13 @@ def _count(payload: Mapping[str, Any]) -> int:
 
 def _bars(symbol: str, payload: Mapping[str, Any]) -> list[DailyBar]:
     cols = [payload.get(k) or [] for k in ("timestamps", "open", "high", "low", "close", "volume")]
-    if not cols or len({len(x) for x in cols}) != 1:
+    completed = payload.get("completed_session_flags") or []
+    if not cols or len({len(x) for x in cols + [completed]}) != 1:
         return []
-    return [DailyBar(symbol, datetime.fromtimestamp(t, timezone.utc), float(o), float(h), float(l), float(c), float(v))
-            for t, o, h, l, c, v in zip(*cols)]
+    return [
+        DailyBar(symbol, datetime.fromtimestamp(t, timezone.utc), float(o), float(h), float(l), float(c), float(v))
+        for t, o, h, l, c, v, is_completed in zip(*cols, completed) if is_completed
+    ]
 
 
 def technical_recomputation(symbol: str, payload: Mapping[str, Any]) -> dict[str, Any]:
@@ -62,9 +67,13 @@ def technical_recomputation(symbol: str, payload: Mapping[str, Any]) -> dict[str
         "average_dollar_volume20": statistics.fmean(b.close * b.volume for b in bars[-20:]),
     }
     deltas = {k: abs(independent[k] - atlas[k]) for k in independent}
+    latest_rvol = volumes[-1] / independent["average_volume20"] if independent["average_volume20"] else None
     return {"status": "MATCH" if max(deltas.values()) <= 1e-9 else "MISMATCH", "bar_count": len(bars),
             "independent": independent, "atlas": atlas, "absolute_deltas": deltas,
-            "volume_certification": "VOLUME_SEMANTICS_UNRESOLVED"}
+            "relative_volume_completed_session": latest_rvol,
+            "completed_daily_evidence": True,
+            "breakout_confirmation_eligible": latest_rvol is not None,
+            "volume_certification": "CERTIFIED_COMPLETED_POST_CLOSE_CONSOLIDATED"}
 
 
 def _independent_rsi(values: Sequence[float], length: int = 14) -> float:
@@ -131,7 +140,7 @@ def canonical_dry_run_v2(
     facts = (report or {}).get("canonical_facts") or {}
     certified_fields = sorted(facts)
     safe_fields = sorted(name for name, value in derivations.items() if value.get("classification") == "SAFE_DERIVED")
-    unresolved = list(UNRESOLVED_METRICS) + ["historical_volume_semantics"]
+    unresolved = list(UNRESOLVED_METRICS)
     valuation = {
         "VAL_FCFF_DCF_V1": "UNAVAILABLE_CERTIFIED_FORECAST_AND_CAPITAL_INPUTS_MISSING",
         "VAL_FORWARD_PE_V1": "UNAVAILABLE_CERTIFIED_FORWARD_EPS_AND_MULTIPLE_BASIS_MISSING",
@@ -144,8 +153,11 @@ def canonical_dry_run_v2(
     available_pillars = []
     if facts.get("revenue") and facts.get("net_income") and facts.get("free_cash_flow"):
         available_pillars.append("FUNDAMENTAL_QUALITY_PARTIAL")
-    if technical.get("status") == "MATCH":
-        available_pillars.extend(("TECHNICAL_QUALITY_EX_VOLUME", "ENTRY_TRADE_PLAN_EX_VOLUME"))
+    if (
+        technical.get("status") == "MATCH"
+        and technical.get("volume_certification") == "CERTIFIED_COMPLETED_POST_CLOSE_CONSOLIDATED"
+    ):
+        available_pillars.extend(("TECHNICAL_QUALITY", "VOLUME_QUALITY", "ENTRY_TRADE_PLAN"))
     blockers = [
         "NO_CERTIFIED_PROFESSIONAL_VALUATION_METHOD",
         "CERTIFIED_FORWARD_GROWTH_AND_ESTIMATE_INPUTS_UNAVAILABLE",
@@ -158,13 +170,13 @@ def canonical_dry_run_v2(
         "safe_derived_fields": safe_fields,
         "unresolved_fields_excluded": unresolved,
         "available_pillars": available_pillars,
-        "unavailable_or_partial_pillars": ["VOLUME_QUALITY_UNAVAILABLE", "VALUATION_OPPORTUNITY_UNAVAILABLE"],
+        "unavailable_or_partial_pillars": ["VALUATION_OPPORTUNITY_UNAVAILABLE"],
         "valuation_methods": valuation,
         "opportunity": None,
         "decision_confidence": None,
         "certified_action": False,
         "blockers": blockers,
-        "volume_effect": "FAIL_CLOSED_AS_UNAVAILABLE; OTHER_AVAILABLE_PILLARS_RENORMALIZE_UNDER_EXISTING_RULES",
+        "volume_effect": "CERTIFIED_FROM_COMPLETED_POST_CLOSE_CONSOLIDATED_DAILY_BARS",
     }
 
 
@@ -250,10 +262,12 @@ def build_report(symbols: Sequence[str], *, sample_count: int = 3, sample_interv
             "discontinued_provider_calls": 0, "symbols": list(symbols), "capability_matrix": matrix,
             "unit_matrix": unit_matrix, "safe_derivations": derivations, "technical_recomputation": technical,
             "financial_bridges": bridges,
-            "ohlcv_contract": {"daily_price_adjustment": "SPLIT_ADJUSTED_DOCUMENTED",
+            "provider_written_contract": dict(FINNHUB_PROVIDER_WRITTEN_CONTRACT),
+            "ohlcv_contract": {"daily_price_adjustment": "SPLIT_ADJUSTED_ONLY",
                                "intraday_price_adjustment": "UNADJUSTED_DOCUMENTED",
-                               "dividend_adjustment": "UNKNOWN", "volume_adjustment": "UNKNOWN",
-                               "volume_certification": "VOLUME_SEMANTICS_UNRESOLVED"},
+                               "dividend_adjustment": "NOT_PROVIDER_ADJUSTED",
+                               "volume_adjustment": "CONSOLIDATED_AFTER_4PM",
+                               "volume_certification": "CERTIFIED_COMPLETED_POST_CLOSE_CONSOLIDATED"},
             "market_hours_samples": live, "transcripts": transcripts,
             "canonical_dry_run": dry_run,
             "verdict": "FAIL", "blockers": blockers, "records": records}

@@ -4,7 +4,10 @@ from datetime import datetime, timezone
 
 import pytest
 
-from services.finnhub_shadow_provider import ENDPOINT_BY_CAPABILITY, FinnhubShadowAdapter
+from services.finnhub_shadow_provider import (
+    ENDPOINT_BY_CAPABILITY, FINNHUB_PROVIDER_WRITTEN_CONTRACT, FinnhubShadowAdapter,
+    _completed_post_close_daily_bar,
+)
 from services.provider_domain_contracts import (
     CertificationStatus, DatasetFamily, GovernedRecord, MarketCoverageClass,
     ProvenanceEnvelope, UsePermission, require_certified_calculation,
@@ -85,8 +88,20 @@ def test_finnhub_historical_bars_are_shadow_not_automatically_certified():
     assert record.provenance.market_coverage_class == MarketCoverageClass.FULL_CONSOLIDATED
     assert record.provenance.certification_status == CertificationStatus.UNVERIFIED_SHADOW
     assert record.provenance.derived_use_permission == UsePermission.SHADOW_ONLY
+    assert record.payload["adjustment_mode"] == "SPLIT_ADJUSTED_ONLY"
+    assert record.payload["dividend_adjustment"] == "NOT_PROVIDER_ADJUSTED"
+    assert record.payload["volume_semantics"] == "CONSOLIDATED_AFTER_4PM"
+    assert record.payload["provider_contract_evidence"] == FINNHUB_PROVIDER_WRITTEN_CONTRACT
+    assert record.provenance.provider_statement_reference == "FINNHUB_SUPPORT_WRITTEN_CONTRACT_2026_09_21"
     with pytest.raises(PermissionError):
         require_certified_calculation(record)
+
+
+def test_daily_volume_completion_requires_post_close_or_prior_session():
+    session = datetime(2026, 9, 21, tzinfo=timezone.utc).timestamp()
+    assert _completed_post_close_daily_bar(session, "2026-09-21T19:59:59+00:00") is False
+    assert _completed_post_close_daily_bar(session, "2026-09-21T20:00:00+00:00") is True
+    assert _completed_post_close_daily_bar(session, "2026-09-22T13:00:00+00:00") is True
 
 
 def test_finnhub_split_request_includes_documented_date_window():
@@ -154,6 +169,10 @@ def test_basic_financial_market_cap_and_shares_use_explicit_million_scale():
     assert record.payload["market_capitalization"] == 4_905_541_500_000
     assert record.payload["shares_outstanding"] == 14_780_000_000
     assert record.payload["market_capitalization_lineage"]["scale_transformation"] == "MULTIPLY_BY_1E6"
+    assert record.payload["market_capitalization_lineage"]["temporal_semantics"] == "CURRENT_PROVIDER_VALUE_UPDATED_INTRADAY"
+    assert record.payload["market_capitalization_lineage"]["provider_source_timestamp"] is None
+    assert record.payload["shares_outstanding_lineage"]["temporal_semantics"] == "CURRENT_SNAPSHOT_NO_PROVIDER_TIMESTAMP"
+    assert record.payload["shares_outstanding_lineage"]["provider_source_timestamp"] is None
 
 
 def test_finnhub_missing_and_entitlement_data_fail_closed_without_zero_substitution():

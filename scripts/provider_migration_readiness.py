@@ -255,16 +255,24 @@ def _shares_analysis(symbol: str, twelve: Mapping[str, Any], metrics: Mapping[st
                            if report.get("canonical_facts", {}).get("shares_outstanding")), {})
     finnhub_value = metrics.get("shares_outstanding") or statement_fact.get("value")
     finnhub_concept = (metrics.get("shares_outstanding_lineage") or {}).get("source_field") if metrics.get("shares_outstanding") else statement_fact.get("source_field")
-    finnhub_timestamp = finnhub_provenance.get("capture_timestamp") if metrics.get("shares_outstanding") else statement_fact.get("period_end")
-    finnhub_semantics = "CURRENT_PROVIDER_METRIC_OBSERVED_AT_FETCH" if metrics.get("shares_outstanding") else "PERIOD_END_SHARES_FROM_FILING"
+    finnhub_timestamp = None if metrics.get("shares_outstanding") else statement_fact.get("period_end")
+    finnhub_capture_timestamp = finnhub_provenance.get("capture_timestamp")
+    finnhub_semantics = (
+        "CURRENT_SNAPSHOT_NO_PROVIDER_TIMESTAMP"
+        if metrics.get("shares_outstanding") else "PERIOD_END_SHARES_FROM_FILING"
+    )
     return {
         "ticker": symbol, "twelve_value": twelve.get("current_shares_outstanding"),
         "twelve_concept": lineage.get("raw_field"), "twelve_timestamp": lineage.get("as_of"),
         "twelve_semantics": lineage.get("as_of_semantics"),
         "finnhub_value": finnhub_value, "finnhub_concept": finnhub_concept,
-        "finnhub_timestamp": finnhub_timestamp, "finnhub_semantics": finnhub_semantics,
+        "finnhub_timestamp": finnhub_timestamp, "finnhub_capture_timestamp": finnhub_capture_timestamp,
+        "finnhub_semantics": finnhub_semantics,
         "concepts_comparable": bool(finnhub_value) and "shares_outstanding" in str(lineage.get("canonical_field") or ""),
-        "acceptance": "UNRESOLVED_SNAPSHOT_DATE_SEMANTICS" if not lineage.get("as_of") else "OBSERVATIONAL_ONLY",
+        "acceptance": (
+            "CURRENT_USE_ONLY_NO_PROVIDER_SOURCE_TIMESTAMP"
+            if metrics.get("shares_outstanding") else "PERIOD_END_FILING_FACT"
+        ),
     }
 
 
@@ -279,6 +287,7 @@ def _market_cap_analysis(symbol: str, twelve: Mapping[str, Any], metrics: Mappin
         "twelve_reported_market_cap": twelve_cap, "twelve_shares": twelve_shares,
         "twelve_implied_price": (float(twelve_cap) / float(twelve_shares) if twelve_cap and twelve_shares else None),
         "finnhub_reported_market_cap": finnhub_cap, "finnhub_shares": finnhub_shares,
+        "finnhub_market_cap_semantics": "CURRENT_PROVIDER_VALUE_UPDATED_INTRADAY",
         "finnhub_live_price": finnhub_price,
         "finnhub_calculated_market_cap": (float(finnhub_price) * float(finnhub_shares) if finnhub_price and finnhub_shares else None),
         "price_timestamp": quote.get("provider_timestamp"),

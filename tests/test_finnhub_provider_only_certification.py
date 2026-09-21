@@ -71,7 +71,7 @@ def test_canonical_dry_run_excludes_ambiguous_units_and_does_not_blame_volume_fo
         [{"fiscal_period": "FY", "canonical_facts": facts}],
         {"net_margin": {"classification": "SAFE_DERIVED"}},
         {"shares": {"shares_outstanding": {"classification": "SOURCE_FACT_MISSING"}}},
-        {"status": "MATCH"},
+        {"status": "MATCH", "volume_certification": "CERTIFIED_COMPLETED_POST_CLOSE_CONSOLIDATED"},
     )
     assert run["certified_action"] is False
     assert "operatingMarginTTM" in run["unresolved_fields_excluded"]
@@ -81,3 +81,41 @@ def test_canonical_dry_run_excludes_ambiguous_units_and_does_not_blame_volume_fo
 
 def test_technical_recomputation_fails_closed_without_history():
     assert technical_recomputation("AAPL", {}) == {"status": "INSUFFICIENT_HISTORY", "bar_count": 0}
+
+
+def test_completed_post_close_volume_supports_average_rvol_liquidity_and_breakout():
+    count = 220
+    payload = {
+        "timestamps": list(range(1, count + 1)),
+        "open": [100.0] * count,
+        "high": [102.0] * count,
+        "low": [99.0] * count,
+        "close": [101.0] * count,
+        "volume": [1_000_000.0] * (count - 1) + [2_000_000.0],
+        "completed_session_flags": [True] * count,
+    }
+    result = technical_recomputation("AAPL", payload)
+    assert result["status"] == "MATCH"
+    assert result["volume_certification"] == "CERTIFIED_COMPLETED_POST_CLOSE_CONSOLIDATED"
+    assert result["completed_daily_evidence"] is True
+    assert result["independent"]["average_volume20"] == 1_050_000.0
+    assert result["independent"]["average_dollar_volume20"] == 106_050_000.0
+    assert result["relative_volume_completed_session"] == 2_000_000 / 1_050_000
+    assert result["breakout_confirmation_eligible"] is True
+
+
+def test_partial_current_session_is_excluded_from_certified_volume_calculations():
+    count = 221
+    payload = {
+        "timestamps": list(range(1, count + 1)),
+        "open": [100.0] * count,
+        "high": [102.0] * count,
+        "low": [99.0] * count,
+        "close": [101.0] * count,
+        "volume": [1_000_000.0] * (count - 1) + [99_000_000.0],
+        "completed_session_flags": [True] * (count - 1) + [False],
+    }
+    result = technical_recomputation("AAPL", payload)
+    assert result["bar_count"] == 220
+    assert result["independent"]["average_volume20"] == 1_000_000.0
+    assert result["relative_volume_completed_session"] == 1.0
