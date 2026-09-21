@@ -11,6 +11,7 @@ import pytest
 import engines.ask_atlas_engine as ask_engine
 from engines.ask_atlas_engine import ask_atlas, canonical_ask_decision
 from agents.runtime_qa_architecture import protected_decision_digest
+from services.vnext_presentation_contract import RESEARCH_VNEXT_VERSION
 from tests.test_atlas_vnext_ux2_research import report_fixture
 from ui.research_vnext import (
     RESEARCH_VNEXT_SECTIONS, build_investment_brief,
@@ -168,4 +169,5 @@ def test_crawler_retains_five_sections_and_adds_decision_story_contract():
     source = (ROOT / "agents/atlas_visual_crawler_v1.py").read_text(encoding="utf-8")
     assert "decision_story" in source
     assert "research-ux3b-block" in source
-    assert "ATLAS_RESEARCH_VNEXT_UX2" in source
+    assert "RESEARCH_VNEXT_VERSION" in source
+    assert RESEARCH_VNEXT_VERSION == "ATLAS_RESEARCH_VNEXT_UX3_ACTION_FIRST"

@@ -16,8 +16,10 @@ from agents.atlas_visual_crawler_v1 import (
     VISUAL_CRAWLER_VERSION,
     RESEARCH_VNEXT_SECTIONS,
     RESEARCH_COMPLETION_TIMEOUT_SECONDS,
+    classify_research_terminal_state,
     VisualResult,
 )
+from services.vnext_presentation_contract import RESEARCH_VNEXT_VERSION
 from agents.product_hardening_certification import ACTIVE_PAGES
 
 
@@ -304,9 +306,11 @@ def _completed_research_fixture(monkeypatch, tmp_path, *, statuses, exception=Fa
 
     async def vnext(_page, _ticker):
         return {
-            "version": "ATLAS_RESEARCH_VNEXT_UX2",
+            "version": RESEARCH_VNEXT_VERSION,
             "all_sections": True,
             "ask_cta": True,
+            "withheld_terminal": False,
+            "publication_allowed": True,
         }
 
     async def rendered_exception(_page):
@@ -314,7 +318,60 @@ def _completed_research_fixture(monkeypatch, tmp_path, *, statuses, exception=Fa
 
     monkeypatch.setattr(crawler, "_research_vnext_contract", vnext)
     monkeypatch.setattr("agents.atlas_visual_crawler_v1._has_rendered_exception", rendered_exception)
+    async def visible_text(_page):
+        return "ATLAS View"
+    monkeypatch.setattr("agents.atlas_visual_crawler_v1._visible_text", visible_text)
     return asyncio.run(crawler._completed_research(object(), "NVDA"))
+
+
+def _terminal(**overrides):
+    values = {
+        "ticker_present": True,
+        "lifecycle_complete": True,
+        "authoritative_version": True,
+        "five_sections": False,
+        "ask_cta": False,
+        "withheld_marker": True,
+        "publication_allowed": False,
+        "visible_text": "RATING NOT PUBLISHED ATLAS does not have enough certified evidence to publish a rating for this snapshot.",
+        "rendered_exception": False,
+        "loading": False,
+    }
+    values.update(overrides)
+    return classify_research_terminal_state(**values)
+
+
+def test_rating_not_published_is_an_explicit_completed_terminal_state():
+    assert _terminal() == "RATING_NOT_PUBLISHED_COMPLETE"
+
+
+def test_published_research_still_requires_sections_and_ask_cta():
+    assert _terminal(
+        publication_allowed=True, withheld_marker=False, five_sections=True,
+        ask_cta=True, visible_text="ATLAS View",
+    ) == "PUBLISHED_RESEARCH_COMPLETE"
+    assert _terminal(
+        publication_allowed=True, withheld_marker=False, five_sections=False,
+        ask_cta=True, visible_text="ATLAS View",
+    ) == "RESEARCH_RENDER_INCOMPLETE"
+
+
+def test_withheld_terminal_rejects_blank_fake_loading_error_and_missing_version():
+    assert _terminal(ticker_present=False) == "RESEARCH_RENDER_INCOMPLETE"
+    assert _terminal(withheld_marker=False) == "RESEARCH_RENDER_INCOMPLETE"
+    assert _terminal(visible_text="RATING NOT PUBLISHED") == "RESEARCH_RENDER_INCOMPLETE"
+    assert _terminal(visible_text="") == "RESEARCH_RENDER_INCOMPLETE"
+    assert _terminal(loading=True) == "RESEARCH_RENDER_INCOMPLETE"
+    assert _terminal(rendered_exception=True) == "RESEARCH_RENDER_INCOMPLETE"
+    assert _terminal(authoritative_version=False) == "RESEARCH_RENDER_INCOMPLETE"
+
+
+def test_withheld_terminal_rejects_action_fv_potential_pillars_and_deep_case_leaks():
+    for leaked in (
+        "WATCH — NOT READY YET", "BUY NOW", "BUILD A POSITION", "ATLAS FAIR VALUE",
+        "POTENTIAL", "SIX PILLARS", "FULL INVESTMENT CASE",
+    ):
+        assert _terminal(visible_text=f"RATING NOT PUBLISHED {leaked}") == "RESEARCH_RENDER_INCOMPLETE"
 
 
 def test_completed_research_uses_later_exact_ticker_complete(monkeypatch, tmp_path):

@@ -52,6 +52,22 @@ render_research_vnext(report, legacy={{"meta": meta, "metric_grid": metric_grid,
     return AppTest.from_string(source, default_timeout=20).run()
 
 
+def _render_withheld_app(ticker: str) -> AppTest:
+    source = f'''
+import streamlit as st
+from tests.test_atlas_vnext_ux2_research import report_fixture
+from ui.research_vnext import render_research_vnext
+report = report_fixture(ticker={ticker!r}, verdict="WATCH", completeness=40.0)
+report["certified_customer_evaluation"] = {{
+    "customer_publication_allowed": False,
+    "decision": {{"action": None}},
+    "fields": {{"price": {{"value": 52.94}}}},
+}}
+render_research_vnext(report, legacy={{}})
+'''
+    return AppTest.from_string(source, default_timeout=20).run()
+
+
 def report_fixture(*, ticker: str = "NVDA", verdict: str = "BUY_NOW", completeness: float = 92.0) -> dict:
     return {
         "ticker": ticker, "company": f"{ticker} Example",
@@ -259,3 +275,28 @@ def test_real_streamlit_monitor_renderer_collapses_technical_scenario():
     assert any(expander.label == "Technical Scenario" for expander in app.expander)
     assert not any(text.value == "Canonical actionable trade plan" for text in app.text)
     assert not any(metric.label == "Confidence" and metric.value == "Unavailable" for metric in app.metric)
+
+
+@pytest.mark.parametrize("ticker", ("SD", "NVDA"))
+def test_real_streamlit_withheld_research_is_a_safe_terminal_state(ticker):
+    app = _render_withheld_app(ticker)
+    assert not app.exception
+    visible = " ".join(
+        [item.value for item in app.markdown]
+        + [item.value for item in app.warning]
+        + [item.value for item in app.caption]
+    )
+    assert "RATING NOT PUBLISHED" in visible
+    assert "does not have enough certified evidence to publish a rating" in visible
+    assert 'data-atlas-research-terminal="rating-not-published"' in visible
+    assert 'data-atlas-publication-allowed="false"' in visible
+    assert not app.tabs
+    assert not app.button
+    assert [(metric.label, metric.value) for metric in app.metric] == [
+        ("Certified Market Price", "$52.94"),
+    ]
+    for forbidden in (
+        "WATCH — NOT READY YET", "BUY NOW", "BUILD A POSITION", "ATLAS Fair Value",
+        "Potential", "Six Pillars", "Full Investment Case",
+    ):
+        assert forbidden not in visible

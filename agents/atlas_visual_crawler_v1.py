@@ -32,6 +32,12 @@ from agents.runtime_qa_user_journeys_v40 import (
     _scopes,
     _visible_text,
 )
+from services.vnext_presentation_contract import (
+    RESEARCH_TERMINAL_RATING_NOT_PUBLISHED,
+    RESEARCH_VNEXT_VERSION,
+    RESEARCH_WITHHELD_PRIMARY_COPY,
+    RESEARCH_WITHHELD_SUPPORTING_COPY,
+)
 
 
 VISUAL_CRAWLER_VERSION = "ATLAS_VISUAL_CRAWLER_V1_1"
@@ -57,6 +63,36 @@ RECOVERY_VNEXT_SECTION_LABELS = (
     "Primary Risks", "What Invalidates Recovery",
     "What ATLAS Is Watching Next", "Deep Evidence",
 )
+
+RESEARCH_WITHHELD_FORBIDDEN_TEXT = (
+    "BUY NOW", "BUILD A POSITION", "WAIT FOR A BETTER ENTRY",
+    "WAIT FOR CONFIRMATION", "WATCH — NOT READY YET", "ATLAS FAIR VALUE",
+    "POTENTIAL", "SIX PILLARS", "FULL INVESTMENT CASE",
+)
+
+
+def classify_research_terminal_state(
+    *, ticker_present: bool, lifecycle_complete: bool, authoritative_version: bool,
+    five_sections: bool, ask_cta: bool, withheld_marker: bool,
+    publication_allowed: bool | None, visible_text: str, rendered_exception: bool,
+    loading: bool,
+) -> str:
+    """Classify only explicit, internally consistent Research terminal states."""
+    if not ticker_present or not lifecycle_complete or not authoritative_version or rendered_exception or loading:
+        return "RESEARCH_RENDER_INCOMPLETE"
+    normalized = re.sub(r"\s+", " ", str(visible_text or "")).upper()
+    if publication_allowed is True:
+        return "PUBLISHED_RESEARCH_COMPLETE" if five_sections and ask_cta else "RESEARCH_RENDER_INCOMPLETE"
+    if withheld_marker and publication_allowed is False:
+        safe = (
+            RESEARCH_WITHHELD_PRIMARY_COPY in normalized
+            and RESEARCH_WITHHELD_SUPPORTING_COPY.upper() in normalized
+            and not any(
+            forbidden in normalized for forbidden in RESEARCH_WITHHELD_FORBIDDEN_TEXT
+            )
+        )
+        return "RATING_NOT_PUBLISHED_COMPLETE" if safe else "RESEARCH_RENDER_INCOMPLETE"
+    return "RESEARCH_RENDER_INCOMPLETE"
 
 
 def recovery_candidate_archetypes(candidates: list[dict[str, Any]]) -> list[tuple[str, dict[str, Any]]]:
@@ -184,12 +220,17 @@ class AtlasVisualCrawler:
         monitor = False
         ask_cta = False
         certification_incomplete = False
+        withheld_terminal = False
+        publication_allowed: bool | None = None
         for scope in _scopes(page):
             try:
                 roots = scope.locator(f'[data-atlas-qa="research-vnext"][data-atlas-ticker="{ticker}"]')
                 if await roots.count():
                     version = await roots.first.get_attribute("data-atlas-version") or ""
                     monitor = (await roots.first.get_attribute("data-atlas-monitor") or "").lower() == "true"
+                    allowed = (await roots.first.get_attribute("data-atlas-publication-allowed") or "").lower()
+                    if allowed in {"true", "false"}:
+                        publication_allowed = allowed == "true"
                 nodes = scope.locator(f'[data-atlas-qa="research-vnext-section"][data-atlas-ticker="{ticker}"]')
                 for index in range(await nodes.count()):
                     sections.add(await nodes.nth(index).get_attribute("data-atlas-section") or "")
@@ -200,6 +241,13 @@ class AtlasVisualCrawler:
                 ask_cta = ask_cta or bool(await cta.count())
                 incomplete = scope.locator(f'[data-atlas-qa="research-certification-incomplete"][data-atlas-ticker="{ticker}"]')
                 certification_incomplete = certification_incomplete or bool(await incomplete.count())
+                terminal = scope.locator(f'[data-atlas-qa="research-terminal"][data-atlas-ticker="{ticker}"]')
+                if await terminal.count():
+                    terminal_name = await terminal.last.get_attribute("data-atlas-research-terminal") or ""
+                    withheld_terminal = withheld_terminal or terminal_name == RESEARCH_TERMINAL_RATING_NOT_PUBLISHED
+                    allowed = (await terminal.last.get_attribute("data-atlas-publication-allowed") or "").lower()
+                    if allowed in {"true", "false"}:
+                        publication_allowed = allowed == "true"
             except Exception:
                 continue
         return {
@@ -207,6 +255,8 @@ class AtlasVisualCrawler:
             "all_sections": set(RESEARCH_VNEXT_SECTIONS) <= sections,
             "monitor": monitor, "ask_cta": ask_cta,
             "certification_incomplete": certification_incomplete,
+            "withheld_terminal": withheld_terminal,
+            "publication_allowed": publication_allowed,
             "story_blocks": sorted(story_blocks),
             "decision_story": {
                 "decision-why", "decision-core-metrics", "why-atlas-likes-it",
@@ -224,10 +274,12 @@ class AtlasVisualCrawler:
         }
         architecture = await self._research_vnext_contract(page, expected)
         result.update({
-            "vnext": architecture["version"] == "ATLAS_RESEARCH_VNEXT_UX2",
+            "vnext": architecture["version"] == RESEARCH_VNEXT_VERSION,
             "five_sections": bool(architecture["all_sections"]),
             "ask_cta": bool(architecture["ask_cta"]),
             "certification_incomplete": bool(architecture.get("certification_incomplete")),
+            "withheld_terminal": bool(architecture.get("withheld_terminal")),
+            "publication_allowed": architecture.get("publication_allowed"),
         })
         for scope in _scopes(page):
             try:
@@ -250,14 +302,17 @@ class AtlasVisualCrawler:
         result["lifecycle_complete"] = result["terminal_status"] == "complete"
         result["loading"] = result["terminal_status"] == "loading"
         result["rendered_exception"] = await _has_rendered_exception(page)
-        result["complete"] = bool(
-            result["ticker"] and result["lifecycle_complete"] and result["vnext"]
-            and (
-                (result["five_sections"] and result["ask_cta"])
-                or result["certification_incomplete"]
-            )
-            and not result["rendered_exception"]
+        visible_text = await _visible_text(page)
+        result["research_terminal_state"] = classify_research_terminal_state(
+            ticker_present=result["ticker"], lifecycle_complete=result["lifecycle_complete"],
+            authoritative_version=result["vnext"], five_sections=result["five_sections"],
+            ask_cta=result["ask_cta"], withheld_marker=result["withheld_terminal"],
+            publication_allowed=result["publication_allowed"], visible_text=visible_text,
+            rendered_exception=result["rendered_exception"], loading=result["loading"],
         )
+        result["complete"] = result["research_terminal_state"] in {
+            "PUBLISHED_RESEARCH_COMPLETE", "RATING_NOT_PUBLISHED_COMPLETE",
+        }
         return result
 
     def _source_sha(self) -> str:
@@ -1255,20 +1310,23 @@ class AtlasVisualCrawler:
             if displayed:
                 self.research_contexts[ticker] = await self._research_identity(page, ticker)
                 architecture = await self._research_vnext_contract(page, ticker)
-                architecture_passed = bool(
-                    (architecture["all_sections"] and architecture["ask_cta"])
-                    or architecture.get("certification_incomplete")
-                )
+                architecture_passed = completion.get("research_terminal_state") in {
+                    "PUBLISHED_RESEARCH_COMPLETE", "RATING_NOT_PUBLISHED_COMPLETE",
+                }
                 await self._record(
                     category="RESEARCH_ARCHITECTURE", page_name="Research Any Ticker",
                     interaction="vnext-five-section-contract",
-                    expected="Decision plus four supporting sections and grounded Ask CTA",
-                    observed=json.dumps(architecture, sort_keys=True), passed=architecture_passed,
+                    expected="Explicit complete published or rating-not-published Research terminal state",
+                    observed=json.dumps({**architecture, "terminal_state": completion.get("research_terminal_state")}, sort_keys=True), passed=architecture_passed,
                     elapsed=time.monotonic() - started, ticker=ticker, viewport=viewport,
                     severity="P1", screenshots=(),
                 )
                 passed = passed and architecture_passed
             after = await self._shot(page, page_name="Research Any Ticker", interaction=f"submit-{ticker}", state="after", viewport=viewport, ticker=ticker, complete_surface=ticker != "INVALID123")
+            for entry in reversed(self.manifest):
+                if entry.get("path") == after:
+                    entry["research_terminal_state"] = completion.get("research_terminal_state")
+                    break
             await self._record(
                 category="RESEARCH", page_name="Research Any Ticker", interaction="submit",
                 expected=f"Visible Research result and exact ticker {ticker}",

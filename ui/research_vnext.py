@@ -22,9 +22,14 @@ from ui.vnext_presentation import (
     price_action_strip, primary_evidence_pair, technical_state_badge,
 )
 from ui.market_timestamp import format_market_timestamp_et
+from services.vnext_presentation_contract import (
+    RESEARCH_TERMINAL_RATING_NOT_PUBLISHED,
+    RESEARCH_VNEXT_VERSION,
+    RESEARCH_WITHHELD_PRIMARY_COPY,
+    RESEARCH_WITHHELD_SUPPORTING_COPY,
+)
 
 
-RESEARCH_VNEXT_VERSION: Final = "ATLAS_RESEARCH_VNEXT_UX3_ACTION_FIRST"
 RESEARCH_VNEXT_SECTIONS: Final = (
     "ATLAS View",
     "ATLAS Fair Value",
@@ -1285,14 +1290,18 @@ def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Cal
     """Render five decision-oriented sections from the canonical report."""
     ticker = str(report.get("ticker") or "UNKNOWN").upper()
     view = build_research_decision_view(report)
+    certified_customer = safe_mapping(report.get("certified_customer_evaluation"))
+    publication_allowed = (
+        not certified_customer or certified_customer.get("customer_publication_allowed") is True
+    )
     st.markdown(
         f'<span data-atlas-qa="research-vnext" data-atlas-version="{RESEARCH_VNEXT_VERSION}" '
         f'data-atlas-ticker="{escape(ticker)}" data-atlas-section-count="5" '
+        f'data-atlas-publication-allowed="{str(publication_allowed).lower()}" '
         f'data-atlas-monitor="{str(bool(view["monitor_or_incomplete"])).lower()}" '
         'aria-hidden="true" style="display:none">research-vnext</span>',
         unsafe_allow_html=True,
     )
-    certified_customer = safe_mapping(report.get("certified_customer_evaluation"))
     if certified_customer and certified_customer.get("customer_publication_allowed") is not True:
         fields = safe_mapping(certified_customer.get("fields"))
         price = safe_mapping(fields.get("price")).get("value")
@@ -1301,10 +1310,14 @@ def render_research_vnext(report: Mapping[str, Any], *, legacy: Mapping[str, Cal
             'aria-hidden="true" style="display:none">certification-incomplete</span>',
             unsafe_allow_html=True,
         )
-        st.warning(_scalar_text(
-            certified_customer.get("customer_message"),
-            "ATLAS cannot certify a complete investment rating for this ticker right now because some required financial evidence could not be reconciled.",
-        ))
+        st.markdown(
+            f'<span data-atlas-qa="research-terminal" data-atlas-ticker="{escape(ticker)}" '
+            f'data-atlas-research-terminal="{RESEARCH_TERMINAL_RATING_NOT_PUBLISHED}" '
+            'data-atlas-publication-allowed="false" aria-hidden="true" style="display:none">research-terminal</span>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(f"## {RESEARCH_WITHHELD_PRIMARY_COPY}")
+        st.warning(RESEARCH_WITHHELD_SUPPORTING_COPY)
         if price is not None:
             st.metric("Certified Market Price", CanonicalNumberFormatter.price(price).display)
         st.caption("Only independently certified facts are shown until the complete evaluation reconciles.")
@@ -1451,7 +1464,10 @@ def render_full_research_vnext(row: Mapping[str, Any]) -> None:
     certified_customer = safe_mapping(report.get("certified_customer_evaluation"))
     certified_action = safe_mapping(certified_customer.get("decision")).get("action")
     from engines.home_guidance_story_v1 import customer_action_presentation
-    banner_state = customer_action_presentation(
+    publication_withheld = bool(
+        certified_customer and certified_customer.get("customer_publication_allowed") is not True
+    )
+    banner_state = RESEARCH_WITHHELD_PRIMARY_COPY if publication_withheld else customer_action_presentation(
         certified_action if certified_customer else current_guidance.get("state") or _decision_value(report, "recommendation", "committee_verdict")
     )["label"]
 

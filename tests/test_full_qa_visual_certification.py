@@ -53,6 +53,24 @@ def test_research_render_boundary_preserves_current_and_reconciles_production_se
     assert "_reconcile_canonical_context(canonical_context, persisted_row)" in function
 
 
+def test_withheld_research_banner_never_formats_missing_action_as_watch():
+    source = Path("ui/research_vnext.py").read_text()
+    function = source.split("def render_full_research_vnext", 1)[1]
+    assert 'publication_withheld = bool(' in function
+    assert 'banner_state = RESEARCH_WITHHELD_PRIMARY_COPY if publication_withheld' in function
+    assert 'data-atlas-research-terminal="{RESEARCH_TERMINAL_RATING_NOT_PUBLISHED}"' in source
+    assert 'st.markdown(f"## {RESEARCH_WITHHELD_PRIMARY_COPY}")' in source
+
+
+def test_withheld_research_returns_before_published_sections_and_ask_cta():
+    source = Path("ui/research_vnext.py").read_text()
+    block = source.split('if certified_customer and certified_customer.get("customer_publication_allowed") is not True:', 1)[1]
+    withheld, published = block.split('    st.markdown(\n        """', 1)
+    assert "RATING_NOT_PUBLISHED" in withheld
+    assert "return" in withheld
+    assert "_render_ask_cta(report)" in published
+
+
 def test_app_news_markup_is_python_311_compatible():
     source = Path("app.py").read_text()
     assert "title_html =" in source
