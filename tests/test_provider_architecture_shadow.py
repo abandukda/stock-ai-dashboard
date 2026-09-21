@@ -129,6 +129,18 @@ def test_reported_financials_preserve_gross_cost_and_distinct_share_concepts():
     assert facts["weighted_average_shares_diluted"]["value"] == 11
 
 
+def test_total_revenues_wins_over_narrow_contract_revenue_component():
+    payload = {"data": [{"endDate": "2025-12-31", "filedDate": "2026-02-01", "quarter": 0,
+                         "form": "10-K", "accessNumber": "0003", "report": {"ic": [
+                             {"concept": "us-gaap_RevenueFromContractWithCustomerExcludingAssessedTax", "unit": "usd", "value": 18},
+                             {"concept": "us-gaap_Revenues", "unit": "usd", "value": 625},
+                         ]}}]}
+    facts = FinnhubShadowAdapter("demo", get=lambda *_a, **_k: Response(payload)).fetch(
+        "financial_statements", "PFE").payload["reports"][0]["canonical_facts"]
+    assert facts["revenue"]["source_field"] == "us-gaap_Revenues"
+    assert facts["revenue"]["value"] == 625
+
+
 def test_successful_empty_payload_remains_available_empty_not_provider_failure():
     record = FinnhubShadowAdapter("demo", get=lambda *_a, **_k: Response([])).fetch("splits", "AAPL")
     assert record.provenance.certification_status == CertificationStatus.UNVERIFIED_SHADOW

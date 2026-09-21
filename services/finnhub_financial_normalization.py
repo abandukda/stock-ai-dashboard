@@ -5,7 +5,10 @@ from typing import Any, Mapping, Sequence
 
 
 CONCEPTS = {
-    "revenue": ("RevenueFromContractWithCustomerExcludingAssessedTax", "Revenues", "SalesRevenueNet"),
+    # ``Revenues`` is the SEC total-revenue concept.  Some issuers (for example
+    # pharma issuers with alliance revenue) also report a narrower contract-
+    # revenue component, so the total concept must win when both are present.
+    "revenue": ("Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax", "SalesRevenueNet"),
     "gross_profit": ("GrossProfit",),
     "cost_of_revenue": ("CostOfRevenue", "CostOfGoodsAndServicesSold", "CostOfGoodsSold"),
     "ebit": ("OperatingIncomeLoss",),
