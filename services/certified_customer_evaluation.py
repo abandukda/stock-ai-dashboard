@@ -169,11 +169,16 @@ def build_certified_customer_evaluation(row: Mapping[str, Any], *, now: datetime
         if value is None:
             value = evaluation.get("trial_presentation_fields", {}).get(name) if isinstance(evaluation.get("trial_presentation_fields"), Mapping) else None
         ids = (input_item.get("evidence_id"),) if input_item.get("evidence_id") else fundamental_ids
+        percentage_fields = {
+            "revenue_growth_pct", "eps_growth_pct", "gross_margin_pct", "operating_margin_pct",
+            "net_margin_pct", "roe", "roa", "roic",
+        }
         fields[name] = _field(name, value, status=fundamentals_state,
             source=input_item.get("source") or fundamentals.get("source"), evidence_ids=ids,
             as_of=input_item.get("as_of") or fundamental_as_of, period=input_item.get("period"),
             period_type=input_item.get("period_type"), basis=input_item.get("basis"),
-            currency=input_item.get("currency") or "USD", unit=input_item.get("unit"),
+            currency=input_item.get("currency") or "USD",
+            unit=input_item.get("unit") or ("PERCENTAGE_POINTS" if name in percentage_fields else None),
             transformation=input_item.get("transformation"), snapshot_id=snapshot_id)
 
     # Independent Stage-B accounting reconstruction. Missing components never
@@ -190,7 +195,7 @@ def build_certified_customer_evaluation(row: Mapping[str, Any], *, now: datetime
     operating_income_item = _mapping(lineage.get("operating_income"))
     operating_income = _num(operating_income_item.get("canonical_value") or operating_income_item.get("value"))
     if revenue and operating_income is not None:
-        recon["operating_margin_pct"] = operating_income / revenue
+        recon["operating_margin_pct"] = operating_income / revenue * 100.0
     ocf, capex = _num(fields["operating_cash_flow"]["value"]), _num(fields["capex"]["value"])
     if ocf is not None and capex is not None:
         recon["free_cash_flow"] = ocf - abs(capex)

@@ -25,12 +25,12 @@ def test_independent_atlas_value_is_kept_when_not_legacy_pattern():
 
 def test_company_specific_reasons_differ_for_different_financial_profiles():
     growth = build_plain_english_reasons(
-        {"revenue_growth": 0.28, "earnings_growth": 0.35, "operating_margin": 0.25, "rsi": 54},
+        {"revenueGrowth": 0.28, "earningsGrowth": 0.35, "operating_margin": 0.25, "rsi": 54},
         atlas_fair_value=125,
         current_price=100,
     )
     balance_sheet = build_plain_english_reasons(
-        {"revenue_growth": 0.06, "free_cashflow": 500_000_000, "total_cash": 2_000_000_000, "total_debt": 200_000_000, "forward_pe": 15},
+        {"revenueGrowth": 0.06, "free_cashflow": 500_000_000, "total_cash": 2_000_000_000, "total_debt": 200_000_000, "forward_pe": 15},
         atlas_fair_value=None,
         current_price=100,
     )

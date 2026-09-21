@@ -117,6 +117,12 @@ def test_ev_bridge_requires_and_reconciles_published_share_denominator():
 def test_p3_and_p4_are_nonblocking_but_p2_blocks():
     rows = universe()
     rows[0]["canonical_investment_evaluation"]["trial_presentation_fields"]["operating_profit_margin"] = 6600
+    rows[0]["canonical_investment_evaluation"]["trial_presentation_fields"]["operating_margin_lineage"] = {
+        "scale": "PERCENTAGE_POINTS", "comparable": True,
+        "numerator_period": "2025-12-31", "denominator_period": "2025-12-31",
+        "basis": "PROVIDER_REPORTED", "numerator_unit": "CURRENCY",
+        "denominator_unit": "CURRENCY",
+    }
     report = crawl_universe(rows)
     assert report["summary"]["severity_counts"]["P2"] == 1
     assert report["gate"] == "FAIL"
@@ -151,7 +157,7 @@ def test_margin_lineage_unit_mismatch_fails_closed():
                        "numerator_period": "2025-12-31", "denominator_period": "2025-12-31",
                        "period_type": "ANNUAL", "basis": "PROVIDER_REPORTED",
                        "numerator_unit": "THOUSANDS", "denominator_unit": "MILLIONS",
-                       "comparable": True}})
+                       "scale": "RATIO_DECIMAL", "comparable": True}})
     report = crawl_universe(rows)
     finding = next(item for item in report["sheets"]["Validation_Failures"]
                    if item["ticker"] == "T000" and item["category"] == "MARGIN_RECONCILIATION")
@@ -168,7 +174,7 @@ def test_margin_lineage_period_mismatch_fails_closed():
                        "numerator_period": "2025-09-30", "denominator_period": "2025-12-31",
                        "period_type": "ANNUAL", "basis": "PROVIDER_REPORTED",
                        "numerator_unit": "CURRENCY", "denominator_unit": "CURRENCY",
-                       "comparable": True}})
+                       "scale": "RATIO_DECIMAL", "comparable": True}})
     report = crawl_universe(rows)
     reconciliation = report["sheets"]["Financial_Reconciliation"][0]
     assert reconciliation["margin_status"] == "FAIL"
@@ -179,13 +185,21 @@ def test_margin_lineage_period_mismatch_fails_closed():
     assert report["gate"] == "FAIL"
 
 
-def test_margin_reconciliation_normalizes_provider_ratio_to_percentage_points():
+def test_margin_reconciliation_uses_explicit_provider_percentage_points():
     rows = universe()
     fields = rows[0]["canonical_investment_evaluation"]["trial_presentation_fields"]
-    fields.update({"latest_revenue": 200, "latest_operating_income": 50, "operating_profit_margin": 0.25})
+    fields.update({"latest_revenue": 200, "latest_operating_income": 50,
+                   "historical_operating_margin": .25,
+                   "operating_profit_margin": .25,
+                   "provider_defined_operating_profit_margin": 25,
+                   "provider_defined_operating_profit_margin_unit": "PERCENTAGE_POINTS",
+                   "operating_margin_lineage": {
+                       "numerator_period": "2025-12-31", "denominator_period": "2025-12-31",
+                       "period_type": "ANNUAL", "basis": "PROVIDER_REPORTED",
+                       "scale": "RATIO_DECIMAL", "comparable": True}})
     report = crawl_universe(rows)
     reconciliation = report["sheets"]["Financial_Reconciliation"][0]
-    assert reconciliation["provider_operating_margin_raw"] == 0.25
+    assert reconciliation["provider_operating_margin_raw"] == 25
     assert reconciliation["provider_operating_margin_pct"] == 25
     assert reconciliation["margin_status"] == "PASS"
     assert not any(item["ticker"] == "T000" and item["category"] == "MARGIN_RECONCILIATION"
@@ -197,11 +211,12 @@ def test_statement_margin_is_authoritative_over_differently_defined_provider_rat
     fields = rows[0]["canonical_investment_evaluation"]["trial_presentation_fields"]
     fields.update({"latest_revenue": 200, "latest_operating_income": 50,
                    "historical_operating_margin": 0.25,
-                   "provider_defined_operating_profit_margin": 0.40,
+                   "provider_defined_operating_profit_margin": 40,
+                   "provider_defined_operating_profit_margin_unit": "PERCENTAGE_POINTS",
                    "operating_margin_lineage": {"numerator_period": "2026-06-30",
                                                 "denominator_period": "2026-06-30",
                                                 "period_type": "QUARTERLY", "basis": "GAAP",
-                                                "currency": "USD", "scale": "PROVIDER_REPORTED",
+                                                "currency": "USD", "scale": "RATIO_DECIMAL",
                                                 "comparable": True}})
     report = crawl_universe(rows)
     reconciliation = report["sheets"]["Financial_Reconciliation"][0]
@@ -218,11 +233,10 @@ def test_margin_difference_without_same_period_lineage_is_nonblocking_observabil
     report = crawl_universe(rows)
     reconciliation = report["sheets"]["Financial_Reconciliation"][0]
     finding = next(item for item in report["sheets"]["Validation_Failures"]
-                   if item["ticker"] == "T000" and item["category"] == "MARGIN_RECONCILIATION_UNAVAILABLE")
-    assert reconciliation["margin_status"] == "NOT_COMPARABLE"
-    assert finding["severity"] == "P3"
-    assert finding["reason"] == "BASIS_UNKNOWN"
-    assert report["summary"]["severity_counts"]["P1"] == 0
+                   if item["ticker"] == "T000" and item["category"] == "MARGIN_UNIT_CONTRACT")
+    assert reconciliation["margin_status"] == "NOT_TESTED"
+    assert finding["severity"] == "P1"
+    assert finding["reason"] == "UNIT_ERROR"
 
 
 def test_documented_adr_basis_reconciles_without_replacing_current_shares():

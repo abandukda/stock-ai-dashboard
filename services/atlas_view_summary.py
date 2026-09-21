@@ -463,7 +463,7 @@ def plain_english_summary(payload: Mapping[str, Any]) -> str:
         financial = []
         for label, key in (("revenue growth", "revenue_growth"), ("earnings growth", "eps_growth")):
             if facts.get(key) is not None:
-                value = float(facts[key]); value = value * 100 if abs(value) <= 1 and value not in (0, -0.5) else value
+                value = float(facts[key])
                 financial.append(f"{label} was {value:.1f}%")
         if facts.get("free_cash_flow") is not None and float(facts["free_cash_flow"]) > 0:
             financial.append(f"free cash flow was {_customer_amount(facts['free_cash_flow'])}")
@@ -546,7 +546,9 @@ def plain_english_summary(payload: Mapping[str, Any]) -> str:
     supports = []
     for label, value in (("revenue growth", fundamentals.get("revenue_growth")), ("earnings growth", company_evidence.get("earnings_growth"))):
         try:
-            number = float(value) * (100 if abs(float(value)) <= 2 else 1)
+            # The VNext summary payload carries certified growth in percentage
+            # points. Presentation must not infer units from magnitude.
+            number = float(value)
             supports.append(f"{label} of {number:.1f}%")
         except (TypeError, ValueError):
             pass
@@ -769,8 +771,6 @@ def validate_summary(text: str, payload: Mapping[str, Any]) -> dict[str, Any]:
             if any(token in str(key).lower() for token in ("growth", "margin", "surprise")):
                 try:
                     numeric = float(value)
-                    if abs(numeric) <= 1:
-                        allowed.append(numeric * 100)
                 except (TypeError, ValueError):
                     pass
     for token in re.findall(r"(?<![A-Za-z])\$?(-?\d+(?:\.\d+)?)", copy.replace(",", "")):

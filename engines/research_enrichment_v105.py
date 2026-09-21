@@ -9,6 +9,7 @@ from engines.semantic_fields import (
     is_missing_scalar, safe_date_text, safe_mapping, safe_scalar_display,
     safe_sequence,
 )
+from engines.financial_unit_contract import normalize_field
 
 @dataclass(frozen=True)
 class ResearchSection:
@@ -33,11 +34,12 @@ def _num(v, d=None):
     except Exception:
         return d
 
-def _pct(v, d=None):
-    value = _num(v, d)
-    if value is None:
-        return d
-    return value * 100 if abs(value) <= 2 else value
+def _financial_pct(sources, field, default=None):
+    for source in sources:
+        normalized = normalize_field(source, field)
+        if normalized["normalized_value"] is not None:
+            return normalized["normalized_value"]
+    return default
 
 def _map(v):
     return safe_mapping(v)
@@ -76,15 +78,15 @@ def _section(data, source, as_of="", notes=""):
 def build_financial_section(row):
     s = _sources(row)
     data = {
-        "revenue_growth_pct": _pct(_first(s,"revenue_growth_pct","revenue_growth","Revenue Growth %","Revenue Growth","revenueGrowth")),
-        "eps_growth_pct": _pct(_first(s,"eps_growth_pct","earnings_growth","EPS Growth %","Earnings Growth","epsGrowth")),
-        "gross_margin_pct": _pct(_first(s,"gross_margin_pct","gross_profit_margin","Gross Margin %","Gross Margin","grossMargin")),
-        "operating_margin_pct": _pct(_first(s,"operating_margin_pct","operating_profit_margin","Operating Margin %","Operating Margin","operatingMargin")),
-        "net_margin_pct": _pct(_first(s,"net_margin_pct","net_profit_margin","Net Margin %","Net Margin","netMargin")),
+        "revenue_growth_pct": _financial_pct(s,"revenue_growth_pct"),
+        "eps_growth_pct": _financial_pct(s,"eps_growth_pct"),
+        "gross_margin_pct": _financial_pct(s,"gross_margin_pct"),
+        "operating_margin_pct": _financial_pct(s,"operating_margin_pct"),
+        "net_margin_pct": _financial_pct(s,"net_margin_pct"),
         "free_cash_flow": _num(_first(s,"free_cash_flow","Free Cash Flow","freeCashFlow")),
         "operating_cash_flow": _num(_first(s,"operating_cash_flow","Operating Cash Flow","operatingCashFlow")),
-        "roe_pct": _pct(_first(s,"roe_pct","return_on_equity","ROE","returnOnEquity")),
-        "roic_pct": _pct(_first(s,"roic_pct","roic","ROIC","returnOnInvestedCapital")),
+        "roe_pct": _financial_pct(s,"roe_pct"),
+        "roic_pct": _financial_pct(s,"roic_pct"),
         "cash": _num(_first(s,"cash","total_cash","cash_and_equivalents","Cash","cashAndCashEquivalents")),
         "debt": _num(_first(s,"debt","total_debt","Total Debt","totalDebt")),
         "current_ratio": _num(_first(s,"current_ratio","Current Ratio","currentRatio")),

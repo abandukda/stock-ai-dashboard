@@ -13,6 +13,7 @@ from typing import Any, Mapping
 
 from engines.semantic_fields import ai_valuation_object, valuation_families
 from engines.analyst_intelligence import build_analyst_intelligence, grounded_analyst_context
+from engines.financial_unit_contract import normalize_field
 from engines.policy_intelligence import build_policy_intelligence, public_policy_context
 
 V78_AI_SYNTHESIS_LAYER_VERIFIED = True
@@ -316,11 +317,11 @@ def generate_investment_committee(context: Mapping[str, Any]) -> str:
 
 V792_HOME_DECISION_SUMMARY_VERIFIED = True
 
-def _pct_plain(value: Any) -> str | None:
+def _pct_plain(value: Any, *, source_unit: str = "PERCENTAGE_POINTS") -> str | None:
     n = _num(value)
     if n is None:
         return None
-    if abs(n) <= 1:
+    if source_unit == "RATIO_DECIMAL":
         n *= 100
     return f"{n:.1f}%"
 
@@ -329,7 +330,7 @@ def build_home_decision_summary(row: Mapping[str, Any], decision: str) -> str:
     ticker = _clean(_pick(row, "Ticker", "ticker", "symbol", default="This company"))
     positives = []
     rev = _pct_plain(_pick(row, "revenue_growth", "Revenue Growth"))
-    margin = _pct_plain(_pick(row, "profit_margin", "Profit Margin"))
+    margin = _pct_plain(_pick(row, "profit_margin", "Profit Margin"), source_unit="RATIO_DECIMAL")
     fcf = _fmt_money(_pick(row, "free_cashflow", "free_cash_flow", "Free Cash Flow"))
     cash = _num(_pick(row, "total_cash", "cash")); debt = _num(_pick(row, "total_debt", "debt"))
     rsi = _num(_pick(row, "rsi", "RSI"))
@@ -353,11 +354,8 @@ V793_AI_DECISION_SUMMARY_VERIFIED = True
 V80_COMPANY_SPECIFIC_REASONING_VERIFIED = True
 
 
-def _simple_pct(value: Any) -> float | None:
-    n = _num(value)
-    if n is None:
-        return None
-    return n * 100 if abs(n) <= 1 else n
+def _financial_pct(row: Mapping[str, Any], field: str) -> float | None:
+    return normalize_field(row, field)["normalized_value"]
 
 
 def _first_sentence(value: Any) -> str:
@@ -428,18 +426,18 @@ def _political_support_reason(row: Mapping[str, Any]) -> tuple[float, str] | Non
 def build_plain_english_reasons(row: Mapping[str, Any], atlas_fair_value: float | None = None, current_price: float | None = None) -> list[str]:
     """Rank distinctive company evidence and return three concise, quantified reasons."""
     candidates: list[tuple[float, str, str]] = []
-    rev = _simple_pct(_pick(row, "revenue_growth", "revenue_qoq_pct", "Revenue Growth"))
-    earn = _simple_pct(_pick(row, "earnings_growth", "EPS Growth", "earnings_growth_pct"))
-    gross = _simple_pct(_pick(row, "gross_margin", "gross_profit_margin", "Gross Margin"))
-    operating = _simple_pct(_pick(row, "operating_margin", "operating_profit_margin", "Operating Margin"))
-    margin = _simple_pct(_pick(row, "profit_margin", "net_profit_margin", "Profit Margin"))
+    rev = _financial_pct(row, "revenue_growth_pct")
+    earn = _financial_pct(row, "eps_growth_pct")
+    gross = _financial_pct(row, "gross_margin_pct")
+    operating = _financial_pct(row, "operating_margin_pct")
+    margin = _financial_pct(row, "net_margin_pct")
     fcf = _num(_pick(row, "free_cashflow", "free_cash_flow", "Free Cash Flow"))
     cash = _num(_pick(row, "total_cash", "cash", "cash_and_equivalents", "Total Cash"))
     debt = _num(_pick(row, "total_debt", "debt", "Total Debt"))
-    roic = _simple_pct(_pick(row, "roic", "ROIC"))
+    roic = _financial_pct(row, "roic_pct")
     forward_pe = _num(_pick(row, "forward_pe", "Forward P/E"))
     rsi = _num(_pick(row, "rsi", "RSI"))
-    twenty = _simple_pct(_pick(row, "twenty_day_pct", "20 Day Return"))
+    twenty = _num(_pick(row, "twenty_day_pct", "20 Day Return"))
     analyst = _clean(_pick(row, "recommendation", "recommendation_key", "Analyst View", default=""), default="").lower()
 
     fresh_news = _fresh_news_reason(row)
@@ -515,9 +513,9 @@ def build_primary_risk_sentence(row: Mapping[str, Any]) -> str:
     current_ratio = _num(_pick(row, "current_ratio", "Current Ratio"))
     forward_pe = _num(_pick(row, "forward_pe", "Forward P/E"))
     ps = _num(_pick(row, "price_to_sales", "ev_to_sales", "Price to Sales"))
-    margin = _simple_pct(_pick(row, "profit_margin", "net_profit_margin", "Profit Margin"))
+    margin = _financial_pct(row, "net_margin_pct")
     rsi = _num(_pick(row, "rsi", "RSI"))
-    atr_pct = _simple_pct(_pick(row, "atr_pct", "ATR %"))
+    atr_pct = _num(_pick(row, "atr_pct", "ATR %"))
     beta = _num(_pick(row, "beta", "Beta"))
     sector = _clean(_pick(row, "sector", "Sector", default=""), default="").lower()
     earnings_date = _pick(row, "earnings_date", "Earnings Date", "next_earnings_date")

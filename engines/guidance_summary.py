@@ -12,6 +12,7 @@ import math
 from typing import Any, Mapping, Sequence
 
 from engines.research_enrichment_v105 import accepted_company_news
+from engines.financial_unit_contract import normalize_field
 from engines.semantic_fields import safe_mapping, safe_scalar_display, safe_sequence
 
 
@@ -65,13 +66,6 @@ def _text(value: Any, default: str = "") -> str:
     return safe_scalar_display(value, default)
 
 
-def _ratio_pct(value: Any) -> float | None:
-    number = _num(value)
-    if number is None:
-        return None
-    return number * 100.0 if abs(number) <= 3 else number
-
-
 def _percent_field(
     row: Mapping[str, Any], explicit_key: str, *legacy_keys: str,
     explicit_unit: str = "PERCENTAGE_POINTS",
@@ -83,11 +77,16 @@ def _percent_field(
     determines the unit of a certified field. Legacy provider-shaped fields
     retain historical ratio normalization.
     """
-    explicit = _first(row, explicit_key)
-    if explicit is not None:
-        value = _num(explicit)
-        return value * 100.0 if value is not None and explicit_unit == "RATIO_DECIMAL" else value
-    return _ratio_pct(_first(row, *legacy_keys))
+    contract_field = explicit_key if explicit_key in {
+        "revenue_growth_pct", "eps_growth_pct", "gross_margin_pct",
+        "operating_margin_pct", "net_margin_pct", "roe_pct", "roic_pct",
+    } else None
+    if contract_field:
+        for source in _sources(row):
+            normalized = normalize_field(source, contract_field)
+            if normalized["normalized_value"] is not None:
+                return normalized["normalized_value"]
+    return None
 
 
 def _money(value: float | None) -> str:
@@ -197,8 +196,8 @@ def _normalized_evidence(row: Mapping[str, Any]) -> dict[str, Any]:
         ),
         "fcf": _num(_first(row, "free_cash_flow", "Free Cash Flow", "freeCashflow")),
         "ocf": _num(_first(row, "operating_cash_flow", "Operating Cash Flow", "operatingCashflow")),
-        "roic": _ratio_pct(_first(row, "roic", "roic_pct", "ROIC", "return_on_invested_capital")),
-        "roe": _ratio_pct(_first(row, "return_on_equity", "roe", "ROE")),
+        "roic": _percent_field(row, "roic_pct"),
+        "roe": _percent_field(row, "roe_pct"),
         "debt": _num(_first(row, "total_debt", "debt", "Total Debt", "totalDebt")),
         "cash": _num(_first(row, "total_cash", "cash", "Cash", "cash_and_equivalents", "cashAndCashEquivalents")),
         "reported_eps": _num(_first(row, "reported_eps", "eps_actual", "Reported EPS")),

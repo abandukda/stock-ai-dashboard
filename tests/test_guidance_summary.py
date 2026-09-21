@@ -14,9 +14,9 @@ def rich_row():
         "current_price": 200.0,
         "atlas_fair_value": 324.22,
         "expected_return_pct": 62.1,
-        "revenue_growth": 0.133,
-        "earnings_growth": 0.522,
-        "operating_profit_margin": 0.218,
+        "revenue_growth_pct": 13.3,
+        "eps_growth_pct": 52.2,
+        "operating_margin_pct": 21.8,
         "free_cash_flow": 6_556_000_000,
         "latest_earnings_date": "2026-05-27",
         "next_earnings_date": "2026-08-26T20:00:00+00:00",
@@ -134,10 +134,10 @@ def test_explicit_certified_percentage_points_are_not_ratio_scaled():
     assert "-50.0%" not in combined
 
 
-def test_explicit_certified_margin_ratio_uses_declared_ratio_contract():
+def test_provider_margin_ratio_uses_declared_ratio_contract():
     guidance = build_guidance_summary({
         "ticker": "MKTX", "committee_verdict": "BUILD A POSITION",
-        "operating_margin_pct": 0.40393586901548917,
+        "operating_margin": 0.40393586901548917,
     })
     combined = " ".join(
         item.get("fact", "") for item in guidance.get("supporting_facts", [])

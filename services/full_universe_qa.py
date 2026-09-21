@@ -120,24 +120,18 @@ def _pct_diff(actual: float | None, expected: float | None) -> float | None:
     return abs(actual - expected) / abs(expected)
 
 
-def _percentage_points(value: Any) -> float | None:
-    """Normalize provider ratio-or-percent fields to percentage points."""
-    number = _num(value)
-    if number is None:
+def _percentage_points(value: Any, *, source_unit: str) -> float | None:
+    """Normalize a value only when its source unit is explicit."""
+    from engines.financial_unit_contract import FinancialUnit, convert
+    try:
+        return convert(value, source_unit=FinancialUnit(source_unit))
+    except ValueError:
         return None
-    return number * 100 if abs(number) <= 1 else number
 
 
 def _canonical_margin_percentage_points(value: Any, lineage: Mapping[str, Any]) -> float | None:
-    """Apply the explicit canonical margin unit before using legacy heuristics."""
-    number = _num(value)
-    if number is None:
-        return None
-    if lineage.get("scale") == "RATIO_DECIMAL":
-        return number * 100
-    if lineage.get("scale") == "PERCENTAGE_POINTS":
-        return number
-    return _percentage_points(number)
+    """Apply the explicit canonical margin unit; unknown units fail closed."""
+    return _percentage_points(value, source_unit=str(lineage.get("scale") or ""))
 
 
 def classify_missing(*, field: str, context: Mapping[str, Any] | None = None) -> dict[str, Any]:
@@ -228,7 +222,10 @@ def _qa_record(row: Mapping[str, Any], rank: int) -> tuple[dict[str, Any], dict[
     revenue = _num(_first(trial.get("latest_revenue"), row.get("latest_revenue")))
     operating_income = _num(_first(trial.get("latest_operating_income"), trial.get("ebit")))
     provider_operating_margin_raw = _num(_first(trial.get("provider_defined_operating_profit_margin"), trial.get("operating_profit_margin")))
-    provider_operating_margin = _percentage_points(provider_operating_margin_raw)
+    provider_operating_margin = _percentage_points(
+        provider_operating_margin_raw,
+        source_unit=str(trial.get("provider_defined_operating_profit_margin_unit") or ""),
+    )
     canonical_operating_margin_raw = _num(_first(trial.get("historical_operating_margin"), trial.get("operating_profit_margin")))
     margin_lineage = dict(trial.get("operating_margin_lineage") or {})
     canonical_operating_margin = _canonical_margin_percentage_points(canonical_operating_margin_raw, margin_lineage)
@@ -280,6 +277,13 @@ def _qa_record(row: Mapping[str, Any], rank: int) -> tuple[dict[str, Any], dict[
     numerator_unit, denominator_unit = margin_lineage.get("numerator_unit"), margin_lineage.get("denominator_unit")
     units_match = not (numerator_unit and denominator_unit) or numerator_unit == denominator_unit
     margin_difference = abs(calculated_operating_margin - canonical_operating_margin) if calculated_operating_margin is not None and canonical_operating_margin is not None else None
+    if canonical_operating_margin_raw is not None and canonical_operating_margin is None:
+        issues.append(_issue(
+            ticker, "P1", "MARGIN_UNIT_CONTRACT", "operating_profit_margin",
+            "Canonical operating margin has no recognized explicit unit contract.",
+            reason="UNIT_ERROR",
+            remediation="Persist RATIO_DECIMAL or PERCENTAGE_POINTS lineage before certification.",
+        ))
     # A cross-field ratio is a blocking reconciliation only when the persisted
     # evidence proves that numerator, denominator, and published margin share a
     # comparable period/basis.  Without that lineage, a difference is an
@@ -300,8 +304,9 @@ def _qa_record(row: Mapping[str, Any], rank: int) -> tuple[dict[str, Any], dict[
         ))
     elif margin_status == "FAIL":
         mismatch_reason = "PERIOD_MISMATCH" if not periods_match else "CURRENCY_ERROR" if not currencies_match else "UNIT_ERROR" if not units_match else "VALIDATION_FAILED"
+        difference_text = f"{margin_difference:.1f}" if margin_difference is not None else "unavailable"
         issues.append(_issue(ticker, "P1", "MARGIN_RECONCILIATION", "operating_profit_margin",
-                             f"Operating income ÷ revenue differs from published margin by {margin_difference:.1f} points.",
+                             f"Operating income ÷ revenue differs from published margin by {difference_text} points.",
                              reason=mismatch_reason,
                              remediation="Align statement period, numerator, and percentage normalization."))
 

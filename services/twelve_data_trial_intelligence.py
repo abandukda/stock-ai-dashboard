@@ -164,12 +164,15 @@ def _forward_estimate_records(payload: Any, key: str) -> list[dict[str, Any]]:
     return [dict(item) for item in values or () if isinstance(item, Mapping)] if isinstance(values, list) else []
 
 
-def _pct(value: Any) -> float | None:
+def _percentage_points(value: Any, *, source_unit: str) -> float | None:
+    """Normalize a provider field under an explicit source-unit contract."""
+    from engines.financial_unit_contract import FinancialUnit, convert
+
     try:
-        number = float(value)
-        return number * 100 if abs(number) <= 2 else number
-    except (TypeError, ValueError):
+        declared = FinancialUnit(source_unit)
+    except ValueError:
         return None
+    return convert(value, source_unit=declared)
 
 
 def _coalesce(*values: Any) -> Any:
@@ -238,7 +241,12 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
     balance = _first_record(payload("balance_sheet"), "balance_sheet")
     cash = _first_record(payload("cash_flow"), "cash_flow")
     statement_margin = _same_statement_operating_margin(income)
-    provider_operating_margin = _pct(financials.get("operating_margin"))
+    # Twelve statistics documents growth fields as ratio decimals and its
+    # operating-margin statistic as percentage points. Statement-derived
+    # operating margin remains the preferred same-record ratio authority.
+    provider_operating_margin = _percentage_points(
+        financials.get("operating_margin"), source_unit="PERCENTAGE_POINTS",
+    )
     stats_ocf = cash_stats.get("operating_cash_flow_ttm")
     stats_capex = cash_stats.get("capital_expenditures_ttm")
     statement_ocf = _nested(cash, "operating_activities", "operating_cash_flow")
@@ -261,8 +269,12 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
         cash_period_type = "TTM" if cash_period == "TTM" else str(cash.get("period") or "REPORTED").upper()
         cash_evidence_endpoint = "statistics" if stats_ocf is not None or stats_capex is not None else "cash_flow"
     values = {
-        "revenue_growth": _pct(income_stats.get("quarterly_revenue_growth")),
-        "earnings_growth": _pct(income_stats.get("quarterly_earnings_growth_yoy")),
+        "revenue_growth": _percentage_points(
+            income_stats.get("quarterly_revenue_growth"), source_unit="RATIO_DECIMAL",
+        ),
+        "earnings_growth": _percentage_points(
+            income_stats.get("quarterly_earnings_growth_yoy"), source_unit="RATIO_DECIMAL",
+        ),
         "operating_profit_margin": statement_margin["margin"] if statement_margin else provider_operating_margin,
         "free_cash_flow": None,
         "current_ratio": balance_stats.get("current_ratio_mrq"),
@@ -297,6 +309,23 @@ def normalize_trial_dossier(row: Mapping[str, Any], dossier: Mapping[str, Any]) 
     provider_fcf = _coalesce(cash_stats.get("levered_free_cash_flow_ttm"), cash.get("free_cash_flow"))
     output["provider_defined_fcf"] = provider_fcf
     output["provider_defined_operating_profit_margin"] = provider_operating_margin
+    output["provider_defined_operating_profit_margin_unit"] = "PERCENTAGE_POINTS"
+    output["revenue_growth_lineage"] = {
+        "provider": "TWELVE_DATA", "endpoint": "statistics",
+        "raw_field": "statistics.financials.income_statement.quarterly_revenue_growth",
+        "raw_value": income_stats.get("quarterly_revenue_growth"),
+        "scale": "RATIO_DECIMAL", "normalized_unit": "PERCENTAGE_POINTS",
+        "transformation": "RATIO_DECIMAL_TO_PERCENTAGE_POINTS",
+        "evidence_id": (families.get("statistics") or {}).get("evidence_id"),
+    }
+    output["earnings_growth_lineage"] = {
+        "provider": "TWELVE_DATA", "endpoint": "statistics",
+        "raw_field": "statistics.financials.income_statement.quarterly_earnings_growth_yoy",
+        "raw_value": income_stats.get("quarterly_earnings_growth_yoy"),
+        "scale": "RATIO_DECIMAL", "normalized_unit": "PERCENTAGE_POINTS",
+        "transformation": "RATIO_DECIMAL_TO_PERCENTAGE_POINTS",
+        "evidence_id": (families.get("statistics") or {}).get("evidence_id"),
+    }
     if statement_margin:
         output["historical_operating_margin"] = statement_margin["margin"]
         output["operating_margin_lineage"] = {

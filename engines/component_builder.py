@@ -18,6 +18,7 @@ from engines.component_status import (
     ComponentStatus,
     honest_absence_summary,
 )
+from engines.financial_unit_contract import normalize_field
 
 
 MISSING = {
@@ -151,51 +152,31 @@ def _metadata(row: Mapping[str, Any], prefix: str) -> tuple[str, str, str, str]:
 
 
 def _financial_component(row: Mapping[str, Any]) -> ComponentResult:
+    def normalized(field: str) -> dict[str, Any]:
+        lineage = (
+            row.get("operating_margin_lineage")
+            if field == "operating_margin_pct" and isinstance(row.get("operating_margin_lineage"), Mapping)
+            else None
+        )
+        for source in _sources(row):
+            result = normalize_field(source, field, lineage=lineage)
+            if result["normalized_value"] is not None:
+                return result
+        return normalize_field({}, field, lineage=lineage)
+
+    normalized_percentages = {
+        field: normalized(field)
+        for field in (
+            "revenue_growth_pct", "eps_growth_pct", "gross_margin_pct",
+            "operating_margin_pct", "net_margin_pct", "roe_pct", "roa_pct", "roic_pct",
+        )
+    }
     data = {
-        "revenue_growth_pct": _num(
-            _first(
-                row,
-                "Revenue Growth",
-                "Revenue Growth %",
-                "revenue_growth",
-                "revenue_growth_pct",
-                "revenueGrowth",
-                "Revenue QoQ %",
-            )
-        ),
-        "eps_growth_pct": _num(
-            _first(
-                row,
-                "EPS Growth",
-                "EPS Growth %",
-                "eps_growth",
-                "eps_growth_pct",
-                "earnings_growth",
-                "Earnings Growth",
-                "earningsGrowth",
-            )
-        ),
-        "gross_margin_pct": _num(
-            _first(
-                row,
-                "Gross Margin",
-                "Gross Margin %",
-                "gross_margin",
-                "gross_margin_pct",
-                "grossMargins",
-            )
-        ),
-        "operating_margin_pct": _num(
-            _first(
-                row,
-                "Operating Margin",
-                "Operating Margin %",
-                "operating_margin",
-                "operating_margin_pct",
-                "operating_profit_margin",
-                "operatingMargins",
-            )
-        ),
+        "revenue_growth_pct": normalized_percentages["revenue_growth_pct"]["normalized_value"],
+        "eps_growth_pct": normalized_percentages["eps_growth_pct"]["normalized_value"],
+        "gross_margin_pct": normalized_percentages["gross_margin_pct"]["normalized_value"],
+        "operating_margin_pct": normalized_percentages["operating_margin_pct"]["normalized_value"],
+        "net_margin_pct": normalized_percentages["net_margin_pct"]["normalized_value"],
         "free_cash_flow": _num(
             _first(
                 row,
@@ -222,21 +203,13 @@ def _financial_component(row: Mapping[str, Any]) -> ComponentResult:
         "debt_to_equity": _num(
             _first(row, "Debt to Equity", "debt_to_equity", "debtToEquity")
         ),
-        "roe_pct": _num(
-            _first(row, "ROE", "roe", "roe_pct", "returnOnEquity")
-        ),
-        "roic_pct": _num(
-            _first(
-                row,
-                "ROIC",
-                "roic",
-                "roic_pct",
-                "returnOnInvestedCapital",
-            )
-        ),
+        "roe_pct": normalized_percentages["roe_pct"]["normalized_value"],
+        "roa_pct": normalized_percentages["roa_pct"]["normalized_value"],
+        "roic_pct": normalized_percentages["roic_pct"]["normalized_value"],
         "forward_pe": _num(
             _first(row, "Forward P/E", "forward_pe", "forwardPE")
         ),
+        "unit_semantics": normalized_percentages,
     }
 
     required = (

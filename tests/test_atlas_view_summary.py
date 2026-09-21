@@ -127,7 +127,7 @@ def test_fallback_revalidation_is_grounded_across_buy_build_and_incomplete_state
 def test_dossier_carries_approved_company_earnings_valuation_and_risk_lanes():
     card = _card()
     card.update({
-        "fundamentals_evidence": {"revenue": 10_000, "revenue_growth": .2, "free_cash_flow": 500},
+            "fundamentals_evidence": {"revenue": 10_000, "revenue_growth": 20.0, "free_cash_flow": 500},
         "company_evidence": {
             "business_summary": "NVIDIA designs accelerated computing platforms.",
             "latest_earnings_date": "2026-08-01", "reported_eps": 1.2, "eps_estimate": 1.0,
@@ -166,7 +166,7 @@ def test_fallback_explains_large_upside_and_material_street_gap_from_drivers():
     card = _card()
     card.update({
         "opportunity_thesis": "VALUE_RERATING",
-        "fundamentals_evidence": {"revenue_growth": .12, "free_cash_flow": 900_000_000},
+        "fundamentals_evidence": {"revenue_growth": 12.0, "free_cash_flow": 900_000_000},
         "company_evidence": {"business_summary": "Acme sells subscription software.", "forward_eps": 8.0},
         "atlas_valuation_status": "PUBLISHED", "atlas_fair_value": 320, "atlas_expected_return": 39.4,
         "valuation_driver_evidence": {"forward_eps": 8.0, "justified_pe": 40.0, "growth_input_pct": 12.0},

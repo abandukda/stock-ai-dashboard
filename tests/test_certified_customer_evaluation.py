@@ -56,7 +56,7 @@ def test_mpln_same_period_operating_margin_reconstructs_without_mismatch():
     evaluation = row["canonical_investment_evaluation"]
     evaluation["ticker"] = "MPLN"
     evaluation["fundamentals"]["data"]["revenue"] = 930_624_000
-    evaluation["fundamentals"]["data"]["operating_margin_pct"] = 98_931_000 / 930_624_000
+    evaluation["fundamentals"]["data"]["operating_margin_pct"] = 98_931_000 / 930_624_000 * 100
     lineage = evaluation["valuation_validation"]["input_lineage"]
     lineage["revenue"]["value"] = lineage["revenue"]["canonical_value"] = 930_624_000
     lineage["operating_income"] = {
@@ -66,7 +66,7 @@ def test_mpln_same_period_operating_margin_reconstructs_without_mismatch():
         "evidence_id": "TD-MPLN-OI", "as_of": "2026-09-11T00:00:00Z",
     }
     result = build_certified_customer_evaluation(row)
-    expected = 98_931_000 / 930_624_000
+    expected = 98_931_000 / 930_624_000 * 100
     assert abs(result["accounting_reconstruction"]["operating_margin_pct"] - expected) < 1e-12
     assert "operating_margin_pct" not in result["accounting_mismatches"]
 
