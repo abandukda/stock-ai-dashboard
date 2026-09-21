@@ -179,6 +179,30 @@ def test_release_smoke_waits_for_explicit_bounded_disclosure_settlement():
     assert "resolved_identity:`${label}#${ordinal}`" in source
 
 
+def test_release_smoke_zero_count_disclosure_uses_live_semantic_resolution():
+    source = Path("agents/full_qa_visual_certification.py").read_text()
+    smoke = source[source.index('if qa_mode == "RELEASE_SMOKE":'):source.index('# Repeated card disclosures')]
+    assert 'expected_open=bool(item.get("expanded"))' in smoke
+    assert 'raise RuntimeError("INITIAL_SEMANTIC_RESOLUTION_FAILED")' in smoke
+    assert smoke.index("initial_state = await _wait_for_disclosure_settled") < smoke.index(
+        "control = await _expandable_locator(page, label, ordinal)"
+    )
+    assert '"initial_settlement": initial_state' in smoke
+    assert "Worth Watching" not in smoke  # semantic contract works for zero and non-zero labels
+
+
+def test_release_smoke_does_not_verify_state_on_cached_locator_after_dom_replacement():
+    source = Path("agents/full_qa_visual_certification.py").read_text()
+    smoke = source[source.index('if qa_mode == "RELEASE_SMOKE":'):source.index('# Repeated card disclosures')]
+    assert "if await _expanded_state(control):" not in smoke
+    assert "cleanup_probe = await _wait_for_disclosure_settled" in smoke
+    assert smoke.index("cleanup_probe = await _wait_for_disclosure_settled") < smoke.index(
+        'await control.press("Enter", timeout=5000)', smoke.index("cleanup_probe")
+    )
+    assert 'expected_open=False' in smoke
+    assert 'visual_check["status"] = "FAIL"' in smoke
+
+
 def test_release_full_retains_fail_closed_screenshot_interleaved_roundtrip():
     source = Path("agents/full_qa_visual_certification.py").read_text()
     full = source[source.index('# Repeated card disclosures'):source.index('# Normalize initially-open controls')]

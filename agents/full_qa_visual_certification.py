@@ -367,17 +367,33 @@ async def certify_expandable_interactions(
         for item in inventory:
             label, ordinal = str(item["label"]), int(item["ordinal"])
             required = required_expandable(page_name, label)
-            control = await _expandable_locator(page, label, ordinal)
-            if await _expanded_state(control):
-                await control.press("Enter", timeout=5000)
-                await _wait_for_disclosure_settled(
-                    page, label=label, ordinal=ordinal, expected_open=False,
-                )
             opened = collapsed = False
             content = ""
+            content_validation_failures: list[str] = []
+            initial_state: dict[str, Any] = {}
             open_state: dict[str, Any] = {}
             close_state: dict[str, Any] = {}
             try:
+                # Inventory is a logical identity only. Streamlit may replace
+                # the details/summary nodes after inventory or screenshot
+                # capture, so prove the current live node is connected and
+                # mutation-quiet before every action.
+                initial_state = await _wait_for_disclosure_settled(
+                    page, label=label, ordinal=ordinal,
+                    expected_open=bool(item.get("expanded")),
+                )
+                if not initial_state.get("settled"):
+                    raise RuntimeError("INITIAL_SEMANTIC_RESOLUTION_FAILED")
+                if initial_state.get("open"):
+                    control = await _expandable_locator(page, label, ordinal)
+                    await control.press("Enter", timeout=5000)
+                    normalized = await _wait_for_disclosure_settled(
+                        page, label=label, ordinal=ordinal, expected_open=False,
+                    )
+                    if not normalized.get("settled"):
+                        raise RuntimeError("INITIAL_COLLAPSE_VERIFICATION_FAILED")
+
+                control = await _expandable_locator(page, label, ordinal)
                 await control.click(timeout=5000)
                 open_state = await _wait_for_disclosure_settled(
                     page, label=label, ordinal=ordinal, expected_open=True,
@@ -405,7 +421,8 @@ async def certify_expandable_interactions(
                 "click_success": opened, "collapse_success": collapsed,
                 "expected_content": "Trusted open/close reaches settled states without screenshot interleaving",
                 "observed_content": content[:500], "status": "PASS" if passed else "FAIL",
-                "screenshot": "", "open_settlement": open_state, "close_settlement": close_state,
+                "screenshot": "", "initial_settlement": initial_state,
+                "open_settlement": open_state, "close_settlement": close_state,
                 "content_validation_failures": content_validation_failures,
             }
             checks.append(interaction_check)
@@ -452,12 +469,24 @@ async def certify_expandable_interactions(
                                 "observed": json.dumps(visual_check, sort_keys=True), "ticker_context": ticker})
             # Cleanup is outside either measured check; keyboard activation is
             # reliable even when capture has altered pointer hit-testing.
-            control = await _expandable_locator(page, label, ordinal)
-            if await _expanded_state(control):
+            cleanup_probe = await _wait_for_disclosure_settled(
+                page, label=label, ordinal=ordinal, expected_open=True,
+            )
+            if cleanup_probe.get("settled"):
+                control = await _expandable_locator(page, label, ordinal)
                 await control.press("Enter", timeout=5000)
-                await _wait_for_disclosure_settled(
+                cleanup_state = await _wait_for_disclosure_settled(
                     page, label=label, ordinal=ordinal, expected_open=False,
                 )
+                if not cleanup_state.get("settled"):
+                    visual_check["status"] = "FAIL"
+                    visual_check["cleanup_settlement"] = cleanup_state
+                    if required:
+                        defects.append({
+                            "severity": "P1", "page": page_name, "viewport": viewport,
+                            "observed": json.dumps(visual_check, sort_keys=True),
+                            "ticker_context": ticker,
+                        })
         return checks, defects
 
     # Repeated card disclosures (Home and Full Ranked Scan) are native details
