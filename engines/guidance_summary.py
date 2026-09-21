@@ -72,6 +72,24 @@ def _ratio_pct(value: Any) -> float | None:
     return number * 100.0 if abs(number) <= 3 else number
 
 
+def _percent_field(
+    row: Mapping[str, Any], explicit_key: str, *legacy_keys: str,
+    explicit_unit: str = "PERCENTAGE_POINTS",
+) -> float | None:
+    """Read an explicit percent field using its declared domain convention.
+
+    Growth fields in the certified projection are percentage points. Margin
+    fields retain the canonical ratio convention. Value magnitude never
+    determines the unit of a certified field. Legacy provider-shaped fields
+    retain historical ratio normalization.
+    """
+    explicit = _first(row, explicit_key)
+    if explicit is not None:
+        value = _num(explicit)
+        return value * 100.0 if value is not None and explicit_unit == "RATIO_DECIMAL" else value
+    return _ratio_pct(_first(row, *legacy_keys))
+
+
 def _money(value: float | None) -> str:
     if value is None:
         return "Unavailable"
@@ -167,10 +185,16 @@ def _normalized_evidence(row: Mapping[str, Any]) -> dict[str, Any]:
         "analyst_count": _num(_first(row, "analyst_count", "Analyst Count")),
         "analyst_recommendation": _text(_first(row, "analyst_recommendation", "recommendation_key", "Analyst Recommendation")),
         "analyst_actions": safe_sequence(_first(row, "analyst_actions", "recent_analyst_actions")),
-        "revenue_growth": _ratio_pct(_first(row, "revenue_growth", "Revenue Growth", "revenueGrowth")),
-        "earnings_growth": _ratio_pct(_first(row, "earnings_growth", "eps_growth_pct", "Earnings Growth", "EPS Growth")),
-        "gross_margin": _ratio_pct(_first(row, "gross_margin", "gross_profit_margin", "Gross Margin")),
-        "operating_margin": _ratio_pct(_first(row, "operating_profit_margin", "operating_margin", "Operating Margin")),
+        "revenue_growth": _percent_field(row, "revenue_growth_pct", "revenue_growth", "Revenue Growth", "revenueGrowth"),
+        "earnings_growth": _percent_field(row, "eps_growth_pct", "earnings_growth", "Earnings Growth", "EPS Growth"),
+        "gross_margin": _percent_field(
+            row, "gross_margin_pct", "gross_margin", "gross_profit_margin", "Gross Margin",
+            explicit_unit="RATIO_DECIMAL",
+        ),
+        "operating_margin": _percent_field(
+            row, "operating_margin_pct", "operating_profit_margin", "operating_margin", "Operating Margin",
+            explicit_unit="RATIO_DECIMAL",
+        ),
         "fcf": _num(_first(row, "free_cash_flow", "Free Cash Flow", "freeCashflow")),
         "ocf": _num(_first(row, "operating_cash_flow", "Operating Cash Flow", "operatingCashflow")),
         "roic": _ratio_pct(_first(row, "roic", "roic_pct", "ROIC", "return_on_invested_capital")),

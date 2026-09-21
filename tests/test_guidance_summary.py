@@ -121,6 +121,31 @@ def test_same_evidence_is_deterministic():
     assert build_guidance_summary(rich_row()) == build_guidance_summary(dict(rich_row()))
 
 
+def test_explicit_certified_percentage_points_are_not_ratio_scaled():
+    guidance = build_guidance_summary({
+        "ticker": "MKTX", "committee_verdict": "BUY_NOW",
+        "revenue_growth_pct": -0.5, "eps_growth_pct": -4.3,
+        "operating_margin_pct": 0.404,
+    })
+    combined = " ".join(
+        item.get("fact", "") for item in guidance.get("supporting_facts", [])
+    ) + " " + " ".join(item.get("risk", "") for item in guidance.get("key_risks", []))
+    assert "-0.5%" in combined
+    assert "-50.0%" not in combined
+
+
+def test_explicit_certified_margin_ratio_uses_declared_ratio_contract():
+    guidance = build_guidance_summary({
+        "ticker": "MKTX", "committee_verdict": "BUILD A POSITION",
+        "operating_margin_pct": 0.40393586901548917,
+    })
+    combined = " ".join(
+        item.get("fact", "") for item in guidance.get("supporting_facts", [])
+    ) + " " + " ".join(item.get("risk", "") for item in guidance.get("key_risks", []))
+    assert "40.4%" in combined
+    assert "margin 0.4%" not in combined
+
+
 def test_different_evidence_produces_materially_different_substance():
     crm = guidance_summary_text(build_guidance_summary(rich_row()))
     sparse = guidance_summary_text(build_guidance_summary({
