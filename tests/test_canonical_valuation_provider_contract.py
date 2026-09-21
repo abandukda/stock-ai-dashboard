@@ -58,8 +58,12 @@ def _record(*, frequency="ANNUAL", certified=True):
 
 def test_provider_roles_are_frozen_outside_canonical_valuation():
     assert "CANONICAL_VALUATION_INPUTS" in PROVIDER_ROLE_FREEZE["FINNHUB"]["prohibited"]
+    assert PROVIDER_ROLE_FREEZE["FINNHUB"]["forward_estimates"] == "CONTEXT_ONLY"
+    assert PROVIDER_ROLE_FREEZE["FINNHUB"]["canonical_valuation_authority"] is False
     assert PROVIDER_ROLE_FREEZE["EARNINGSCALL"]["license"] == "DEVELOPMENT_PRECOMMERCIAL"
     assert "CUSTOMER_PUBLICATION" in PROVIDER_ROLE_FREEZE["EARNINGSCALL"]["prohibited"]
+    assert PROVIDER_ROLE_FREEZE["EARNINGSCALL"]["scoring"] is False
+    assert PROVIDER_ROLE_FREEZE["EARNINGSCALL"]["customer_publication"] is False
 
 
 def test_production_reachable_forward_pe_contract_passes_without_running_valuation():
@@ -99,3 +103,9 @@ def test_templates_cover_registered_routes_and_fixed_cross_sector_set():
     assert tuple(template["companies"]) == REPRESENTATIVE_SYMBOLS
     assert set(template["valuation_routes"]) == set(ROUTE_REQUIREMENTS)
     assert template["valuation_routes"]["VAL_FCFF_DCF_V1"]["status"] == "NOT_TESTED"
+    assert template["historical_contract"] == "NOT_TESTED"
+    assert template["forward_estimate_contract"] == "NOT_TESTED"
+    assert template["cross_sector_coverage"]["companies_tested"] == 8
+    assert template["provenance_quality"] == "NOT_TESTED"
+    assert template["commercial_licensing_notes"] is None
+    assert template["canonical_verdict"] == "NOT_TESTED"

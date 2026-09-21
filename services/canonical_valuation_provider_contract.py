@@ -28,12 +28,17 @@ PROVIDER_ROLE_FREEZE = {
             "NONCANONICAL_ESTIMATE_CONTEXT",
         ),
         "prohibited": ("CANONICAL_FUNDAMENTALS", "CANONICAL_FORWARD_ESTIMATES", "CANONICAL_VALUATION_INPUTS"),
+        "forward_estimates": "CONTEXT_ONLY",
+        "canonical_valuation_authority": False,
         "status": "MARKET_TECHNICAL_PASS_WITH_LIMITATIONS;VALUATION_FAIL",
     },
     "EARNINGSCALL": {
         "eligible": ("TRANSCRIPT_CONTEXT",),
         "prohibited": ("SCORING", "CUSTOMER_PUBLICATION", "CANONICAL_VALUATION_INPUTS"),
         "license": "DEVELOPMENT_PRECOMMERCIAL",
+        "scoring": False,
+        "customer_publication": False,
+        "canonical_valuation_authority": False,
         "status": "PASS_WITH_LIMITATIONS_FOR_DEVELOPMENT",
     },
 }
@@ -155,6 +160,8 @@ def evaluate_evidence_record(record: GovernedRecord) -> dict[str, Any]:
         boundary_blockers.append("CERTIFIED_CALCULATION_NOT_AUTHORIZED")
     if not provenance.provider_statement_reference:
         boundary_blockers.append("PROVIDER_CONTRACT_REFERENCE_MISSING")
+    if not provenance.raw_evidence_id:
+        boundary_blockers.append("EVIDENCE_IDENTITY_MISSING")
 
     payload = record.payload
     historical = payload.get("historical") if isinstance(payload.get("historical"), Mapping) else {}
@@ -231,6 +238,8 @@ def acceptance_matrix_template() -> dict[str, Any]:
     return {
         "version": VERSION,
         "provider": "CANDIDATE_PROVIDER",
+        "historical_contract": "NOT_TESTED",
+        "forward_estimate_contract": "NOT_TESTED",
         "valuation_routes": {
             route: {"status": "NOT_TESTED", "required_inputs": requirements, "blockers": ()}
             for route, requirements in ROUTE_REQUIREMENTS.items()
@@ -248,6 +257,14 @@ def acceptance_matrix_template() -> dict[str, Any]:
             }
             for symbol in REPRESENTATIVE_SYMBOLS
         },
+        "cross_sector_coverage": {
+            "status": "NOT_TESTED",
+            "companies_with_certified_valuation_route": None,
+            "companies_tested": len(REPRESENTATIVE_SYMBOLS),
+        },
+        "provenance_quality": "NOT_TESTED",
+        "commercial_licensing_notes": None,
+        "canonical_verdict": "NOT_TESTED",
     }
 
 
