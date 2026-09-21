@@ -6,14 +6,18 @@ from typing import Any, Mapping, Sequence
 
 CONCEPTS = {
     "revenue": ("RevenueFromContractWithCustomerExcludingAssessedTax", "Revenues", "SalesRevenueNet"),
+    "gross_profit": ("GrossProfit",),
+    "cost_of_revenue": ("CostOfRevenue", "CostOfGoodsAndServicesSold", "CostOfGoodsSold"),
     "ebit": ("OperatingIncomeLoss",),
     "net_income": ("NetIncomeLoss", "ProfitLoss"),
     "cash": ("CashAndCashEquivalentsAtCarryingValue", "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents"),
-    "debt_current": ("ShortTermBorrowings", "LongTermDebtCurrent", "ShortTermDebtCurrent"),
-    "debt_long_term": ("LongTermDebtNoncurrent", "LongTermDebt"),
+    "debt_current": ("DebtCurrent", "ShortTermBorrowings", "LongTermDebtCurrent", "ShortTermDebtCurrent"),
+    "debt_long_term": ("LongTermDebtNoncurrent", "LongTermDebt", "LongTermDebtAndCapitalLeaseObligations"),
     "operating_cash_flow": ("NetCashProvidedByUsedInOperatingActivities",),
     "capex": ("PaymentsToAcquirePropertyPlantAndEquipment", "PaymentsToAcquireProductiveAssets"),
     "shares_outstanding": ("CommonStockSharesOutstanding",),
+    "weighted_average_shares_basic": ("WeightedAverageNumberOfSharesOutstandingBasic",),
+    "weighted_average_shares_diluted": ("WeightedAverageNumberOfDilutedSharesOutstanding",),
 }
 
 
@@ -39,7 +43,11 @@ def canonical_financial_facts(facts: Sequence[Mapping[str, Any]], report: Mappin
     period = canonical_period(report)
     currency = report.get("currency") or currency_from_facts(facts)
     result: dict[str, Any] = {}
-    for name in ("revenue", "ebit", "net_income", "cash", "operating_cash_flow", "capex", "shares_outstanding"):
+    for name in (
+        "revenue", "gross_profit", "cost_of_revenue", "ebit", "net_income", "cash",
+        "operating_cash_flow", "capex", "shares_outstanding",
+        "weighted_average_shares_basic", "weighted_average_shares_diluted",
+    ):
         fact = select(name)
         if fact:
             result[name] = _envelope(name, fact, report, period, currency)
@@ -71,7 +79,7 @@ def _envelope(name: str, fact: Mapping[str, Any], report: Mapping[str, Any], per
               currency: str | None) -> dict[str, Any]:
     return {
         "value": fact.get("value"), "source_field": fact.get("concept"), "source_unit": fact.get("unit"),
-        "normalized_unit": "SHARES" if name == "shares_outstanding" else currency,
+        "normalized_unit": "SHARES" if "shares" in name else currency,
         "source_period": report.get("quarter"), "canonical_period": period,
         "period_end": report.get("endDate"), "currency": currency, "scale_transformation": "NONE",
         "effective_date": report.get("endDate"), "filed_date": report.get("filedDate"),
