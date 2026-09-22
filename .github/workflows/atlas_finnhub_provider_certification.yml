@@ -2,6 +2,12 @@ name: ATLAS Finnhub Provider-Only Certification
 
 on:
   workflow_dispatch:
+    inputs:
+      run_broad_p_fcf:
+        description: Run the 152-symbol P/FCF gate only after a full Core credential is installed
+        required: true
+        type: boolean
+        default: false
   push:
     branches:
       - codex/home-promotion-market-today-release
@@ -42,6 +48,7 @@ jobs:
       - name: Run Finnhub-only certification
         run: python scripts/finnhub_provider_only_certification.py
       - name: Run bounded real-data P/FCF peer certification
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_broad_p_fcf }}
         run: python scripts/finnhub_p_fcf_peer_certification.py
       - name: Run provider-only contract tests
         run: pytest -q tests/test_finnhub_provider_only_certification.py tests/test_finnhub_p_fcf_peer_certification.py tests/test_professional_valuation_evidence.py tests/test_provider_architecture_shadow.py tests/test_transcript_provider_contract.py

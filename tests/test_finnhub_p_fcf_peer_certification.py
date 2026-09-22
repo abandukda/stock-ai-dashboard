@@ -2,7 +2,9 @@ from pathlib import Path
 import json
 
 from scripts.finnhub_p_fcf_peer_certification import (
-    TARGETS, derive_candidate_symbols, load_governed_classifications,
+    ATLAS_INTEGRATION_FAILURE, CERTIFIED_DATA_AVAILABLE,
+    CREDENTIAL_ENTITLEMENT_UNAVAILABLE, FULL_CORE_RERUN_CONTRACT, PROVIDER_DATA_UNAVAILABLE,
+    TARGETS, classify_provider_record, derive_candidate_symbols, load_governed_classifications,
 )
 
 
@@ -43,3 +45,27 @@ def test_supplemental_gics_consumer_staples_joins_governed_consumer_defensive_ta
     assert catalog["WMT"]["sector"] == "Consumer Defensive"
     assert catalog["WMT"]["source_sector"] == "Consumer Staples"
     assert catalog["WMT"]["sector_normalization"] == "ATLAS_GOVERNED_SECTOR_TAXONOMY_EQUIVALENCE_V1"
+
+
+def test_entitlement_is_not_misclassified_as_provider_data_absence():
+    entitlement = {"provenance": {"certification_status": "ENTITLEMENT_UNAVAILABLE"},
+                   "payload": {"reason": "HTTP_403"}}
+    missing = {"provenance": {"certification_status": "DATA_UNAVAILABLE"},
+               "payload": {"reason": "NO_COMPANY_DATA"}}
+    available = {"provenance": {"certification_status": "UNVERIFIED_SHADOW"}, "payload": {}}
+    assert classify_provider_record(entitlement) == CREDENTIAL_ENTITLEMENT_UNAVAILABLE
+    assert classify_provider_record(missing) == PROVIDER_DATA_UNAVAILABLE
+    assert classify_provider_record(available) == CERTIFIED_DATA_AVAILABLE
+    assert ATLAS_INTEGRATION_FAILURE not in {
+        classify_provider_record(entitlement), classify_provider_record(missing), classify_provider_record(available)
+    }
+
+
+def test_full_core_rerun_contract_preserves_existing_p_fcf_certification_rules():
+    assert FULL_CORE_RERUN_CONTRACT["required_families"] == (
+        "company_profile", "financial_statements", "basic_financials"
+    )
+    assert FULL_CORE_RERUN_CONTRACT["credential_entitlement_failures_required"] == 0
+    assert FULL_CORE_RERUN_CONTRACT["minimum_certified_peers_per_target"] == 3
+    assert FULL_CORE_RERUN_CONTRACT["all_targets_must_publish_p_fcf"] is True
+    assert FULL_CORE_RERUN_CONTRACT["forward_estimate_contract_required_for_p_fcf"] is False

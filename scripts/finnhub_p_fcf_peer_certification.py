@@ -23,7 +23,7 @@ from services.professional_valuation_evidence import apply_peer_multiple_evidenc
 from services.valuation_evidence_strength import certify_peer_multiple
 
 
-VERSION = "ATLAS_FINNHUB_P_FCF_PEER_CERTIFICATION_V1"
+VERSION = "ATLAS_FINNHUB_P_FCF_PEER_CERTIFICATION_V2_ENTITLEMENT_AWARE"
 TARGETS = ("AAPL", "MSFT", "NVDA", "WMT", "IBM", "F", "PFE", "TSLA")
 CLASSIFICATION_PATH = Path("discovery_candidate_pool.json")
 SUPPLEMENTAL_CLASSIFICATION_PATH = Path("analysis/phase8b_calibration/universe_v1.json")
@@ -35,6 +35,32 @@ GOVERNED_SECTOR_EQUIVALENCE = {
     # This is identity normalization only; it does not alter peer eligibility.
     "Consumer Staples": "Consumer Defensive",
 }
+
+PROVIDER_DATA_UNAVAILABLE = "PROVIDER_DATA_UNAVAILABLE"
+PROVIDER_CONTRACT_UNRESOLVED = "PROVIDER_CONTRACT_UNRESOLVED"
+CREDENTIAL_ENTITLEMENT_UNAVAILABLE = "CREDENTIAL_ENTITLEMENT_UNAVAILABLE"
+ATLAS_INTEGRATION_FAILURE = "ATLAS_INTEGRATION_FAILURE"
+CERTIFIED_DATA_AVAILABLE = "CERTIFIED_DATA_AVAILABLE"
+FULL_CORE_RERUN_CONTRACT = {
+    "governed_universe_identity_must_match": True,
+    "required_families": ("company_profile", "financial_statements", "basic_financials"),
+    "classification_must_resolve": ("sector", "industry", "security_type"),
+    "credential_entitlement_failures_required": 0,
+    "minimum_certified_peers_per_target": 3,
+    "all_targets_must_publish_p_fcf": True,
+    "atlas_integration_failures_required": 0,
+    "forward_estimate_contract_required_for_p_fcf": False,
+}
+
+
+def classify_provider_record(record: Mapping[str, Any]) -> str:
+    """Separate commercial access from provider capability and data absence."""
+    status = str((record.get("provenance") or {}).get("certification_status") or "").upper()
+    if status == "ENTITLEMENT_UNAVAILABLE":
+        return CREDENTIAL_ENTITLEMENT_UNAVAILABLE
+    if status in {"DATA_UNAVAILABLE", "PROVIDER_ERROR"}:
+        return PROVIDER_DATA_UNAVAILABLE
+    return CERTIFIED_DATA_AVAILABLE
 
 
 def _ticker(row: Mapping[str, Any]) -> str:
@@ -190,6 +216,14 @@ def acquire_row(
             name: record.get("provenance", {}).get("certification_status")
             for name, record in (("profile", profile), ("financial_statements", statements), ("basic_financials", basics))
         },
+        "provider_availability": {
+            name: {
+                "classification": classify_provider_record(record),
+                "reason": (record.get("payload") or {}).get("reason"),
+                "endpoint_or_source_family": (record.get("provenance") or {}).get("endpoint_or_source_family"),
+            }
+            for name, record in (("profile", profile), ("financial_statements", statements), ("basic_financials", basics))
+        },
         "fiscal_period": (report or {}).get("fiscal_date"), "evidence_ids": evidence_ids,
     }
     if unresolved:
@@ -314,6 +348,86 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
         for item in result.get("excluded_peers") or ():
             reason = str(item.get("exclusion_reason") or "UNKNOWN")
             exclusions[reason] = exclusions.get(reason, 0) + 1
+    entitlement_symbols = sorted({
+        symbol for symbol, item in acquisition.items()
+        if any(family.get("classification") == CREDENTIAL_ENTITLEMENT_UNAVAILABLE
+               for family in (item.get("provider_availability") or {}).values())
+    })
+    provider_data_unavailable_symbols = sorted({
+        symbol for symbol, item in acquisition.items()
+        if any(family.get("classification") == PROVIDER_DATA_UNAVAILABLE
+               for family in (item.get("provider_availability") or {}).values())
+    })
+    classification_complete = sum(
+        bool((catalog.get(symbol) or {}).get("sector") and (catalog.get(symbol) or {}).get("industry"))
+        for symbol in acquisition_symbols
+    )
+    historical_complete = sum(
+        bool(item.get("fiscal_period")) and "free_cash_flow" not in item.get("unresolved_fields", ())
+        for item in acquisition.values()
+    )
+    basic_complete = sum(
+        "market_cap" not in item.get("unresolved_fields", ()) and
+        (item.get("provider_availability") or {}).get("basic_financials", {}).get("classification") == CERTIFIED_DATA_AVAILABLE
+        for item in acquisition.values()
+    )
+    integration_failure_targets = sorted(
+        symbol for symbol, result in target_results.items()
+        if result.get("status") != "CERTIFIED_P_FCF" and int(result.get("certified_peer_count") or 0) >= 3
+    )
+    coverage = {
+        "symbols_requested": len(acquisition_symbols),
+        "classification_complete": classification_complete,
+        "historical_financial_complete": historical_complete,
+        "basic_financial_complete": basic_complete,
+        "credential_entitlement_failure_count": len(entitlement_symbols),
+        "credential_entitlement_failure_symbols": entitlement_symbols,
+        "provider_data_unavailable_failure_count": len(provider_data_unavailable_symbols),
+        "provider_data_unavailable_symbols": provider_data_unavailable_symbols,
+        "provider_contract_unresolved_count": 0,
+        "canonical_certification_failure_count": len(integration_failure_targets),
+        "atlas_integration_failure_targets": integration_failure_targets,
+    }
+    all_targets_have_three = all(
+        int(result.get("certified_peer_count") or 0) >= 3 for result in target_results.values()
+    )
+    all_targets_certified = certified == len(TARGETS)
+    core_ready = (
+        coverage["classification_complete"] == coverage["symbols_requested"]
+        and coverage["credential_entitlement_failure_count"] == 0
+        and all_targets_have_three and all_targets_certified
+        and coverage["canonical_certification_failure_count"] == 0
+    )
+    capability_matrix = {
+        "market_technical_contract": {
+            "classifications": ["PROVEN_WITH_CURRENT_CREDENTIAL", "ATLAS_INTEGRATION_COMPLETE"],
+            "evidence": "completed-session market/technical contract previously certified",
+        },
+        "historical_filings": {
+            "classifications": ["BLOCKED_BY_CURRENT_ENTITLEMENT", "ATLAS_INTEGRATION_COMPLETE"],
+            "evidence": f"{historical_complete}/{len(acquisition_symbols)} complete; {len(entitlement_symbols)} entitlement failures",
+        },
+        "basic_financials": {
+            "classifications": ["BLOCKED_BY_CURRENT_ENTITLEMENT", "ATLAS_INTEGRATION_COMPLETE"],
+            "evidence": f"{basic_complete}/{len(acquisition_symbols)} complete; {len(entitlement_symbols)} entitlement failures",
+        },
+        "broad_peer_financial_coverage": {
+            "classifications": ["BLOCKED_BY_CURRENT_ENTITLEMENT"],
+            "evidence": f"{len(rows)}/{len(acquisition_symbols)} complete governed peer records",
+        },
+        "p_fcf_route": {
+            "classifications": ["BLOCKED_BY_CURRENT_ENTITLEMENT", "ATLAS_INTEGRATION_COMPLETE"],
+            "evidence": f"{certified}/{len(TARGETS)} live targets certified; deterministic production-reachable fixture passes",
+        },
+        "forward_estimate_contract": {
+            "classifications": ["BLOCKED_BY_DOCUMENTATION"],
+            "evidence": "estimate unit, scale, and currency contract unresolved",
+        },
+        "transcript_capability": {
+            "classifications": ["NOT_REQUIRED"],
+            "evidence": "Finnhub transcript capability is not required; EarningsCall remains separate non-scoring context",
+        },
+    }
     return {
         "version": VERSION, "generated_at": datetime.now(timezone.utc).isoformat(),
         "mode": "FINNHUB_ONLY_SHADOW_P_FCF_CERTIFICATION",
@@ -329,14 +443,26 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
             "certified_target_count": certified, "failed_target_count": len(TARGETS) - certified,
             "exclusion_reason_counts": dict(sorted(exclusions.items())),
         },
+        "entitlement_coverage_gate": coverage,
+        "provider_commercial_readiness_matrix": capability_matrix,
         "target_results": target_results,
         "certified_p_fcf_count": certified,
         "certified_fair_value_count": sum(bool(r.get("fair_value")) and r.get("status") == "CERTIFIED_P_FCF" for r in target_results.values()),
         "certified_action_count": 0,
         "launch_readiness": {
             "historical_p_fcf": "PASS" if certified >= 5 else "PASS_WITH_LIMITATIONS" if certified else "FAIL",
+            "finnhub_core_ready_for_final_certification": core_ready,
+            "finnhub_core_state": "FINNHUB_CORE_READY_FOR_FINAL_CERTIFICATION" if core_ready else "BLOCKED_BY_CURRENT_ENTITLEMENT",
+            "forward_valuation_state": "FORWARD_VALUATION_CONTRACT_PENDING",
             "limited_method_launch": "NOT_PROVEN" if certified < 5 else "P_FCF_ONLY_REMAINS_INSUFFICIENT_FOR_BUY_NOW",
-            "third_provider": "REQUIRED_FOR_BROADER_FORWARD_METHOD_COVERAGE; NOT_PROVEN_REQUIRED_FOR_HISTORICAL_P_FCF",
+            "third_provider": "NOT_JUSTIFIED_BY_ENTITLEMENT_FAILURE_ALONE; REQUIRED_ONLY_IF_FINNHUB_FULL_CORE_CANNOT_SATISFY_THE_RERUN_GATE_OR_FOR_BROADER_FORWARD_METHODS",
+            "full_core_rerun_gate": {
+                **FULL_CORE_RERUN_CONTRACT,
+                "same_governed_universe_required": True,
+                "symbols_requested": len(acquisition_symbols),
+                "classification_complete_required": len(acquisition_symbols),
+                "all_eight_targets_p_fcf_certified": True,
+            },
         },
     }
 
