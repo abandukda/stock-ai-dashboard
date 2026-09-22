@@ -26,7 +26,7 @@ from services.provider_domain_contracts import (
 )
 
 
-FINNHUB_ADAPTER_VERSION = "FINNHUB_SHADOW_ADAPTER_V1"
+FINNHUB_ADAPTER_VERSION = "FINNHUB_SHADOW_ADAPTER_V2"
 FINNHUB_BASE_URL = "https://finnhub.io/api/v1"
 FINNHUB_DEMO_LICENSE = "DEMO_MIGRATION_VALIDATION_ONLY"
 FINNHUB_FINANCIAL_NORMALIZATION_VERSION = "FINNHUB_FINANCIAL_NORMALIZATION_V2"
@@ -37,6 +37,108 @@ FINNHUB_PROVIDER_WRITTEN_CONTRACT = {
     "post_close_volume": "CONSOLIDATED_AFTER_4PM",
     "current_shares": "CURRENT_SNAPSHOT_NO_PROVIDER_TIMESTAMP",
     "market_cap": "CURRENT_PROVIDER_VALUE_UPDATED_INTRADAY",
+}
+
+# Field-level contract supplied directly by Finnhub support.  Row references
+# identify the non-blank rows in the supplied 2026-09-21 support dictionary.
+# Missing names are deliberately retained as unresolved rather than inferred
+# from similarly named metrics.
+FINNHUB_FIELD_DICTIONARY_REFERENCE = "FINNHUB_BASIC_FINANCIALS_PRICE_METRICS_4770B2A9F571"
+FINNHUB_FIELD_DICTIONARY_SHA256 = "4770b2a9f5710c403e432ebdcc25b44001154fcb87390a566536adda43a80908"
+FINNHUB_FIELD_DICTIONARY_CONTRACT: dict[str, dict[str, Any]] = {
+    "beta": {"definition": "Beta", "provider_unit": "Unit", "canonical_unit": "DIMENSIONLESS",
+             "conversion": "IDENTITY", "status": "PARTIALLY_CERTIFIED", "source_sheet": "metrics",
+             "source_row": 14, "frequency": None},
+    "grossMarginTTM": {"definition": "Gross Profit / Revenue", "provider_unit": "%",
+                       "canonical_unit": "PERCENTAGE_POINTS", "conversion": "IDENTITY",
+                       "status": "CERTIFIED_PROVIDER_CONTRACT", "source_sheet": "metrics",
+                       "source_row": 55, "frequency": "TTM"},
+    "netProfitMarginTTM": {"definition": "Net Income / Revenue", "provider_unit": "%",
+                           "canonical_unit": "PERCENTAGE_POINTS", "conversion": "IDENTITY",
+                           "status": "CERTIFIED_PROVIDER_CONTRACT", "source_sheet": "metrics",
+                           "source_row": 69, "frequency": "TTM"},
+    "operatingMarginTTM": {"definition": "Operating Income / Revenue", "provider_unit": "%",
+                           "canonical_unit": "PERCENTAGE_POINTS", "conversion": "IDENTITY",
+                           "status": "CERTIFIED_PROVIDER_CONTRACT", "source_sheet": "metrics",
+                           "source_row": 72, "frequency": "TTM"},
+    "payoutRatioTTM": {"definition": "Total Dividends Paid / Net Income", "provider_unit": "%",
+                       "canonical_unit": "PERCENTAGE_POINTS", "conversion": "IDENTITY",
+                       "status": "CERTIFIED_PROVIDER_CONTRACT", "source_sheet": "metrics",
+                       "source_row": 74, "frequency": "TTM"},
+    "epsGrowthTTMYoy": {"definition": "EPS TTM Yoy Growth", "provider_unit": "%",
+                        "canonical_unit": "PERCENTAGE_POINTS", "conversion": "IDENTITY",
+                        "status": "CERTIFIED_PROVIDER_CONTRACT", "source_sheet": "metrics",
+                        "source_row": 47, "frequency": "TTM_YOY"},
+    "revenueGrowthTTMYoy": {"definition": "Revenue TTM CAGR Yoy", "provider_unit": "%",
+                            "canonical_unit": "PERCENTAGE_POINTS", "conversion": "IDENTITY",
+                            "status": "CERTIFIED_PROVIDER_CONTRACT", "source_sheet": "metrics",
+                            "source_row": 110, "frequency": "TTM_YOY"},
+    "roaTTM": {"definition": "ROA TTM", "provider_unit": "%",
+               "canonical_unit": "PERCENTAGE_POINTS", "conversion": "IDENTITY",
+               "status": "CERTIFIED_PROVIDER_CONTRACT", "source_sheet": "metrics",
+               "source_row": 116, "frequency": "TTM"},
+    "roeTTM": {"definition": "ROE TTM", "provider_unit": "%",
+               "canonical_unit": "PERCENTAGE_POINTS", "conversion": "IDENTITY",
+               "status": "CERTIFIED_PROVIDER_CONTRACT", "source_sheet": "metrics",
+               "source_row": 119, "frequency": "TTM"},
+}
+FINNHUB_UNRESOLVED_FIELD_CONTRACTS = {
+    name: {"status": "UNRESOLVED", "reason": "FIELD_NOT_PRESENT_IN_SUPPORT_DICTIONARY",
+           "evidence_reference": FINNHUB_FIELD_DICTIONARY_REFERENCE}
+    for name in ("ebitdaMarginTTM", "freeCashFlowGrowthTTMYoy", "totalDebtToEquityTTM")
+}
+
+FINNHUB_SERIES_DICTIONARY_CONTRACT: dict[str, dict[str, Any]] = {
+    "annual.fcfMargin": {"definition": "FCF / Revenue", "provider_unit": "Unit",
+                         "canonical_unit": "RATIO_DECIMAL", "conversion": "IDENTITY",
+                         "frequency": "ANNUAL", "status": "CERTIFIED_PROVIDER_CONTRACT",
+                         "source_sheet": "series", "source_row": 8,
+                         "note": "FCF = Cash From Operating Activities - Capex"},
+    "quarterly.fcfMargin": {"definition": "FCF / Revenue", "provider_unit": "Unit",
+                            "canonical_unit": "RATIO_DECIMAL", "conversion": "IDENTITY",
+                            "frequency": "QUARTERLY", "status": "CERTIFIED_PROVIDER_CONTRACT",
+                            "source_sheet": "series", "source_row": 48},
+    "annual.roic": {"definition": "Net Income / (Total Equities + Total Debt)",
+                    "provider_unit": "Unit", "canonical_unit": "RATIO_DECIMAL",
+                    "conversion": "IDENTITY", "frequency": "ANNUAL",
+                    "status": "CERTIFIED_PROVIDER_CONTRACT", "source_sheet": "series", "source_row": 29},
+    "quarterly.roicTTM": {"definition": "Net Income / (Total Equities + Total Debt)",
+                          "provider_unit": "Unit", "canonical_unit": "RATIO_DECIMAL",
+                          "conversion": "IDENTITY", "frequency": "QUARTERLY",
+                          "status": "CERTIFIED_PROVIDER_CONTRACT", "source_sheet": "series", "source_row": 70},
+    "annual.totalDebtToEquity": {"definition": "Total Debt / Total Equity", "provider_unit": "Unit",
+                                 "canonical_unit": "RATIO_DECIMAL", "conversion": "IDENTITY",
+                                 "frequency": "ANNUAL", "status": "CERTIFIED_PROVIDER_CONTRACT",
+                                 "source_sheet": "series", "source_row": 34},
+    "quarterly.totalDebtToEquity": {"definition": "Total Debt / Total Equity", "provider_unit": "Unit",
+                                    "canonical_unit": "RATIO_DECIMAL", "conversion": "IDENTITY",
+                                    "frequency": "QUARTERLY", "status": "CERTIFIED_PROVIDER_CONTRACT",
+                                    "source_sheet": "series", "source_row": 75},
+    "annual.ebitda": {"definition": "EBITDA", "provider_unit": "Million",
+                      "canonical_unit": "CURRENCY_ABSOLUTE", "conversion": "MULTIPLY_BY_1E6",
+                      "frequency": "ANNUAL", "status": "CERTIFIED_PROVIDER_CONTRACT",
+                      "source_sheet": "series", "source_row": 40},
+    "quarterly.ebitda": {"definition": "EBITDA", "provider_unit": "Million",
+                         "canonical_unit": "CURRENCY_ABSOLUTE", "conversion": "MULTIPLY_BY_1E6",
+                         "frequency": "QUARTERLY", "status": "CERTIFIED_PROVIDER_CONTRACT",
+                         "source_sheet": "series", "source_row": 81},
+    "annual.evEbitda": {"definition": "Enterprise Value / EBITDA", "provider_unit": "Unit",
+                        "canonical_unit": "MULTIPLE", "conversion": "IDENTITY", "frequency": "ANNUAL",
+                        "status": "CERTIFIED_PROVIDER_CONTRACT", "source_sheet": "series", "source_row": 38},
+    "quarterly.evEbitdaTTM": {"definition": "Enterprise Value / EBITDA", "provider_unit": "Unit",
+                              "canonical_unit": "MULTIPLE", "conversion": "IDENTITY",
+                              "frequency": "QUARTERLY", "status": "CERTIFIED_PROVIDER_CONTRACT",
+                              "source_sheet": "series", "source_row": 79},
+}
+
+FINNHUB_ESTIMATE_CONTRACT = {
+    "frequency": {"status": "CERTIFIED_PROVIDER_CONTRACT", "request_default": "annual",
+                  "response_field": "freq"},
+    "fiscal_period": {"status": "CERTIFIED_PROVIDER_CONTRACT", "response_field": "data[].period"},
+    "value_unit": {"status": "UNRESOLVED", "reason": "NOT_DOCUMENTED_IN_SUPPORT_DICTIONARY"},
+    "scale": {"status": "UNRESOLVED", "reason": "NOT_DOCUMENTED_IN_SUPPORT_DICTIONARY"},
+    "currency": {"status": "UNRESOLVED", "reason": "NOT_DOCUMENTED_IN_SUPPORT_DICTIONARY"},
+    "provider_vintage": {"status": "UNAVAILABLE", "reason": "NO_PROVIDER_UPDATE_TIMESTAMP"},
 }
 
 
@@ -139,6 +241,8 @@ class FinnhubShadowAdapter:
                 "to": today.isoformat(),
                 **parameters,
             }
+        if capability in {"eps_estimates", "revenue_estimates", "ebitda_estimates", "ebit_estimates"}:
+            parameters = {"freq": "annual", **parameters}
         params = {"symbol": ticker, **parameters, "token": self._api_key}
         try:
             response = self._get(f"{self._base_url}{endpoint.path}", params=params, timeout=self._timeout)
@@ -292,6 +396,21 @@ class FinnhubShadowAdapter:
                 "pe_ttm": pick(metric, "peTTM"), "pb_annual": pick(metric, "pbAnnual"),
                 "operating_margin_ttm": pick(metric, "operatingMarginTTM"),
                 "revenue_growth_ttm_yoy": pick(metric, "revenueGrowthTTMYoy"),
+                "provider_contract_metrics": {
+                    field: {
+                        "value": metric.get(field),
+                        **contract,
+                        "evidence_reference": FINNHUB_FIELD_DICTIONARY_REFERENCE,
+                        "workbook_sha256": FINNHUB_FIELD_DICTIONARY_SHA256,
+                    }
+                    for field, contract in FINNHUB_FIELD_DICTIONARY_CONTRACT.items()
+                },
+                "unresolved_provider_contract_metrics": dict(FINNHUB_UNRESOLVED_FIELD_CONTRACTS),
+                "provider_contract_series": {
+                    path: {**contract, "evidence_reference": FINNHUB_FIELD_DICTIONARY_REFERENCE,
+                           "workbook_sha256": FINNHUB_FIELD_DICTIONARY_SHA256}
+                    for path, contract in FINNHUB_SERIES_DICTIONARY_CONTRACT.items()
+                },
                 "price_metrics": {key: value for key, value in metric.items() if str(key).lower().startswith("52week")},
                 "series": series,
             }
@@ -310,7 +429,13 @@ class FinnhubShadowAdapter:
                                   "action": item.get("action")}
                                  for item in records(payload)]}
         if capability in {"eps_estimates", "revenue_estimates", "ebitda_estimates", "ebit_estimates"}:
-            return {"estimates": [{"period": pick(item, "period", "date"), "frequency": item.get("freq"),
+            response_frequency = payload.get("freq") if isinstance(payload, Mapping) else None
+            return {"frequency": response_frequency,
+                    "provider_contract": dict(FINNHUB_ESTIMATE_CONTRACT),
+                    "estimates": [{"period": pick(item, "period", "date"),
+                                    "fiscal_period": pick(item, "period", "date"),
+                                    "year": item.get("year"), "quarter": item.get("quarter"),
+                                    "frequency": item.get("freq") or response_frequency,
                                     "average": pick(item, "epsAvg", "revenueAvg", "ebitdaAvg", "ebitAvg", "avg"),
                                     "high": pick(item, "epsHigh", "revenueHigh", "ebitdaHigh", "ebitHigh", "high"),
                                     "low": pick(item, "epsLow", "revenueLow", "ebitdaLow", "ebitLow", "low"),
@@ -372,7 +497,11 @@ class FinnhubShadowAdapter:
         ), {"status": status.value, "reason": reason}, ("No fallback or zero substitution was used.",))
 
 
-__all__ = ["ENDPOINTS", "ENDPOINT_BY_CAPABILITY", "FINNHUB_ADAPTER_VERSION", "FINNHUB_FINANCIAL_NORMALIZATION_VERSION", "FinnhubShadowAdapter"]
+__all__ = ["ENDPOINTS", "ENDPOINT_BY_CAPABILITY", "FINNHUB_ADAPTER_VERSION",
+           "FINNHUB_FINANCIAL_NORMALIZATION_VERSION", "FINNHUB_FIELD_DICTIONARY_CONTRACT",
+           "FINNHUB_FIELD_DICTIONARY_REFERENCE", "FINNHUB_FIELD_DICTIONARY_SHA256",
+           "FINNHUB_SERIES_DICTIONARY_CONTRACT", "FINNHUB_UNRESOLVED_FIELD_CONTRACTS",
+           "FINNHUB_ESTIMATE_CONTRACT", "FinnhubShadowAdapter"]
 
 
 def _normalized_temporal_metadata(payload: Mapping[str, Any]) -> dict[str, str | None]:

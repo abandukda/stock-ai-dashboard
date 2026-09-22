@@ -200,6 +200,49 @@ def test_every_finnhub_capability_terminates_vendor_shape_inside_adapter():
         assert "data" not in record.payload, capability
 
 
+def test_estimate_requests_default_to_annual_and_preserve_response_frequency():
+    calls = []
+    payload = {"freq": "annual", "data": [{"period": "2027-09-30", "epsAvg": 8.5,
+                                                "numberAnalysts": 12}]}
+    record = FinnhubShadowAdapter(
+        "demo", get=lambda url, **kwargs: calls.append((url, kwargs)) or Response(payload)
+    ).fetch("eps_estimates", "AAPL")
+    assert calls[0][1]["params"]["freq"] == "annual"
+    assert record.payload["frequency"] == "annual"
+    assert record.payload["estimates"][0]["frequency"] == "annual"
+    assert record.payload["estimates"][0]["fiscal_period"] == "2027-09-30"
+    assert record.payload["provider_contract"]["currency"]["status"] == "UNRESOLVED"
+
+
+def test_explicit_estimate_frequency_override_is_preserved():
+    calls = []
+    FinnhubShadowAdapter(
+        "demo", get=lambda url, **kwargs: calls.append((url, kwargs)) or Response({"freq": "quarterly", "data": []})
+    ).fetch("revenue_estimates", "AAPL", freq="quarterly")
+    assert calls[0][1]["params"]["freq"] == "quarterly"
+
+
+def test_field_dictionary_units_are_attached_without_inference():
+    payload = {"metric": {"operatingMarginTTM": 31.2, "beta": 1.3}}
+    record = FinnhubShadowAdapter("demo", get=lambda *_a, **_k: Response(payload)).fetch(
+        "basic_financials", "AAPL"
+    )
+    operating = record.payload["provider_contract_metrics"]["operatingMarginTTM"]
+    assert operating["provider_unit"] == "%"
+    assert operating["canonical_unit"] == "PERCENTAGE_POINTS"
+    assert operating["conversion"] == "IDENTITY"
+    assert operating["source_row"] == 72
+    beta = record.payload["provider_contract_metrics"]["beta"]
+    assert beta["status"] == "PARTIALLY_CERTIFIED"
+    roic = record.payload["provider_contract_series"]["quarterly.roicTTM"]
+    assert roic["definition"] == "Net Income / (Total Equities + Total Debt)"
+    assert roic["canonical_unit"] == "RATIO_DECIMAL"
+    assert roic["source_sheet"] == "series" and roic["source_row"] == 70
+    assert record.payload["provider_contract_series"]["annual.ebitda"]["conversion"] == "MULTIPLY_BY_1E6"
+    assert record.payload["provider_contract_series"]["quarterly.totalDebtToEquity"]["source_row"] == 75
+    assert record.payload["unresolved_provider_contract_metrics"]["totalDebtToEquityTTM"]["status"] == "UNRESOLVED"
+
+
 def test_adapter_never_places_secret_in_record_or_diagnostics():
     secret = "do-not-leak"
     adapter = FinnhubShadowAdapter(secret, get=lambda *_a, **_k: Response({"name": "Apple"}))

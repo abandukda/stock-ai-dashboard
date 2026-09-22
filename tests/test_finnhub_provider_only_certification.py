@@ -1,12 +1,16 @@
 from scripts.finnhub_provider_only_certification import (
-    UNRESOLVED_METRICS, canonical_dry_run_v2, financial_bridges, safe_derivations, technical_recomputation,
+    UNRESOLVED_METRICS, canonical_dry_run_v2, financial_bridges, safe_derivations,
+    technical_recomputation, valuation_reachability_v2,
 )
 from engines.decision_metrics_v1 import build_decision_metrics
 
 
 def test_ambiguous_finnhub_metrics_are_never_scoring_certified():
-    assert "operatingMarginTTM" in UNRESOLVED_METRICS
-    assert "revenueGrowthTTMYoy" in UNRESOLVED_METRICS
+    assert "ebitdaMarginTTM" in UNRESOLVED_METRICS
+    assert "totalDebtToEquityTTM" in UNRESOLVED_METRICS
+    assert "roicTTM" not in UNRESOLVED_METRICS
+    assert "operatingMarginTTM" not in UNRESOLVED_METRICS
+    assert "revenueGrowthTTMYoy" not in UNRESOLVED_METRICS
 
 
 def test_safe_ratio_derivation_requires_same_period_and_currency():
@@ -44,6 +48,17 @@ def test_share_concepts_remain_distinct_in_bridge():
     assert bridge["weighted_average_shares_diluted"]["value"] == 11
 
 
+def test_reachability_separates_provider_documentation_from_atlas_integration_gaps():
+    reports = [{"fiscal_period": "FY", "canonical_facts": {
+        "free_cash_flow": {"value": 8},
+    }}]
+    bridge = {"shares": {"weighted_average_shares_diluted": {"classification": "CERTIFIED_AVAILABLE"}}}
+    result = valuation_reachability_v2(reports, bridge)
+    assert result["VAL_FORWARD_PE_V1"] == "FINNHUB_DOCUMENTATION_GAP"
+    assert result["VAL_P_FCF_V1"] == "ATLAS_INTEGRATION_GAP"
+    assert result["VAL_DDM_GORDON_V1"] == "ATLAS_DERIVATION_GAP"
+
+
 def test_unresolved_volume_does_not_become_zero_or_prevent_other_metrics():
     metrics = build_decision_metrics(
         technical={"status": "AVAILABLE", "score": 75, "feed_health": "HEALTHY"},
@@ -74,7 +89,8 @@ def test_canonical_dry_run_excludes_ambiguous_units_and_does_not_blame_volume_fo
         {"status": "MATCH", "volume_certification": "CERTIFIED_COMPLETED_POST_CLOSE_CONSOLIDATED"},
     )
     assert run["certified_action"] is False
-    assert "operatingMarginTTM" in run["unresolved_fields_excluded"]
+    assert "ebitdaMarginTTM" in run["unresolved_fields_excluded"]
+    assert "operatingMarginTTM" not in run["unresolved_fields_excluded"]
     assert "VOLUME_SEMANTICS_UNRESOLVED" not in run["blockers"]
     assert "NO_CERTIFIED_PROFESSIONAL_VALUATION_METHOD" in run["blockers"]
 

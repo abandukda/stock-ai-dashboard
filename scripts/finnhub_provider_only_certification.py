@@ -16,19 +16,18 @@ import time
 from typing import Any, Mapping, Sequence
 
 from services.finnhub_shadow_provider import (
-    ENDPOINT_BY_CAPABILITY, FINNHUB_PROVIDER_WRITTEN_CONTRACT, FinnhubShadowAdapter,
+    ENDPOINT_BY_CAPABILITY, FINNHUB_FIELD_DICTIONARY_CONTRACT,
+    FINNHUB_FIELD_DICTIONARY_REFERENCE, FINNHUB_PROVIDER_WRITTEN_CONTRACT,
+    FINNHUB_SERIES_DICTIONARY_CONTRACT, FINNHUB_UNRESOLVED_FIELD_CONTRACTS,
+    FinnhubShadowAdapter,
 )
 from services.transcript_provider import ConfiguredTranscriptProvider
 from services.technical_intelligence.engine import _rsi, _sma, _true_ranges, _wilder_average, DailyBar
 
 
-VERSION = "ATLAS_FINNHUB_PROVIDER_ONLY_CERTIFICATION_V3"
+VERSION = "ATLAS_FINNHUB_PROVIDER_ONLY_CERTIFICATION_V4"
 DEFAULT_SYMBOLS = ("AAPL", "MSFT", "NVDA", "WMT", "IBM", "F", "PFE", "TSLA")
-UNRESOLVED_METRICS = (
-    "operatingMarginTTM", "grossMarginTTM", "netProfitMarginTTM", "ebitdaMarginTTM",
-    "roeTTM", "roaTTM", "roicTTM", "revenueGrowthTTMYoy", "epsGrowthTTMYoy",
-    "freeCashFlowGrowthTTMYoy", "payoutRatioTTM", "totalDebtToEquityTTM",
-)
+UNRESOLVED_METRICS = tuple(FINNHUB_UNRESOLVED_FIELD_CONTRACTS)
 
 
 def _count(payload: Mapping[str, Any]) -> int:
@@ -204,6 +203,21 @@ def financial_bridges(reports: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     }}
 
 
+def valuation_reachability_v2(reports: Sequence[Mapping[str, Any]], bridge: Mapping[str, Any]) -> dict[str, str]:
+    report = next((r for r in reports if r.get("fiscal_period") == "FY"), None)
+    facts = (report or {}).get("canonical_facts") or {}
+    diluted = (bridge.get("shares") or {}).get("weighted_average_shares_diluted") or {}
+    p_fcf = ("ATLAS_INTEGRATION_GAP" if facts.get("free_cash_flow") and
+             diluted.get("classification") == "CERTIFIED_AVAILABLE" else "FINNHUB_DOCUMENTATION_GAP")
+    return {
+        "VAL_FORWARD_PE_V1": "FINNHUB_DOCUMENTATION_GAP",
+        "VAL_EV_EBITDA_V1": "FINNHUB_DOCUMENTATION_GAP",
+        "VAL_P_FCF_V1": p_fcf,
+        "VAL_FCFF_DCF_V1": "FINNHUB_DOCUMENTATION_GAP",
+        "VAL_DDM_GORDON_V1": "ATLAS_DERIVATION_GAP",
+    }
+
+
 def build_report(symbols: Sequence[str], *, sample_count: int = 3, sample_interval: float = 2.0) -> dict[str, Any]:
     adapter, transcript = FinnhubShadowAdapter(), ConfiguredTranscriptProvider()
     matrix, technical, derivations, bridges, records, live, transcripts = [], {}, {}, {}, {}, [], {}
@@ -213,6 +227,8 @@ def build_report(symbols: Sequence[str], *, sample_count: int = 3, sample_interv
         by_cap = {}
         for capability in ENDPOINT_BY_CAPABILITY:
             params = {"resolution": "D", "from": start, "to": end} if capability == "historical_ohlcv" else {}
+            if capability in {"eps_estimates", "revenue_estimates", "ebitda_estimates", "ebit_estimates"}:
+                params = {"freq": "annual"}
             if capability == "company_news": params = {"from": now.date().replace(month=1, day=1).isoformat(), "to": now.date().isoformat()}
             record = adapter.fetch(capability, symbol, **params)
             value = record.as_dict(); by_cap[capability] = value
@@ -248,15 +264,44 @@ def build_report(symbols: Sequence[str], *, sample_count: int = 3, sample_interv
                          "evidence_id": quote["provenance"].get("raw_evidence_id"),
                          "certified_input_allowed": False})
         if index + 1 < sample_count: time.sleep(sample_interval)
-    unit_matrix = [{"source_field": field, "source_unit": "UNIT_UNRESOLVED", "canonical_unit": None,
-                    "conversion": None, "certified_scoring_allowed": False} for field in UNRESOLVED_METRICS]
+    unit_matrix = [
+        {"source_field": field, "source_unit": contract["provider_unit"],
+         "canonical_unit": contract["canonical_unit"], "conversion": contract["conversion"],
+         "certification_status": contract["status"],
+         "unit_contract_certified": contract["status"] == "CERTIFIED_PROVIDER_CONTRACT",
+         "certified_scoring_allowed": False,
+         "evidence_reference": FINNHUB_FIELD_DICTIONARY_REFERENCE,
+         "source_row": contract["source_row"]}
+        for field, contract in FINNHUB_FIELD_DICTIONARY_CONTRACT.items()
+    ] + [
+        {"source_field": field, "source_unit": None, "canonical_unit": None,
+         "conversion": None, "certification_status": "UNRESOLVED",
+         "certified_scoring_allowed": False,
+         "evidence_reference": FINNHUB_FIELD_DICTIONARY_REFERENCE,
+         "reason": contract["reason"]}
+        for field, contract in FINNHUB_UNRESOLVED_FIELD_CONTRACTS.items()
+    ] + [
+        {"source_field": path, "source_unit": contract["provider_unit"],
+         "canonical_unit": contract["canonical_unit"], "conversion": contract["conversion"],
+         "frequency": contract["frequency"], "certification_status": contract["status"],
+         "unit_contract_certified": True, "certified_scoring_allowed": False,
+         "evidence_reference": FINNHUB_FIELD_DICTIONARY_REFERENCE,
+         "source_sheet": contract["source_sheet"], "source_row": contract["source_row"]}
+        for path, contract in FINNHUB_SERIES_DICTIONARY_CONTRACT.items()
+    ]
     dry_run = {
         symbol: canonical_dry_run_v2(
             records[symbol]["financial_statements"]["payload"].get("reports") or [],
             derivations[symbol], bridges[symbol], technical[symbol],
         ) for symbol in symbols
     }
-    blockers = ["NO_REPRESENTATIVE_ISSUER_WITH_CERTIFIED_ACTION", "CERTIFIED_FORWARD_VALUATION_INPUTS_UNAVAILABLE"]
+    reachability = {
+        symbol: valuation_reachability_v2(
+            records[symbol]["financial_statements"]["payload"].get("reports") or [], bridges[symbol]
+        ) for symbol in symbols
+    }
+    blockers = ["NO_REPRESENTATIVE_ISSUER_WITH_CERTIFIED_ACTION",
+                "FORWARD_ESTIMATE_UNIT_SCALE_CURRENCY_UNRESOLVED"]
     return {"version": VERSION, "generated_at": datetime.now(timezone.utc).isoformat(),
             "mode": "FINNHUB_ONLY_SHADOW_CERTIFICATION", "production_authority_changed": False,
             "discontinued_provider_calls": 0, "symbols": list(symbols), "capability_matrix": matrix,
@@ -269,8 +314,8 @@ def build_report(symbols: Sequence[str], *, sample_count: int = 3, sample_interv
                                "volume_adjustment": "CONSOLIDATED_AFTER_4PM",
                                "volume_certification": "CERTIFIED_COMPLETED_POST_CLOSE_CONSOLIDATED"},
             "market_hours_samples": live, "transcripts": transcripts,
-            "canonical_dry_run": dry_run,
-            "verdict": "FAIL", "blockers": blockers, "records": records}
+            "canonical_dry_run": dry_run, "valuation_reachability_v2": reachability,
+            "verdict": "FAIL_PENDING_ESTIMATE_CONTRACT", "blockers": blockers, "records": records}
 
 
 def main() -> int:

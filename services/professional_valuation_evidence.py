@@ -64,6 +64,72 @@ def _security_family(value: Any) -> str:
     return token or "UNRESOLVED"
 
 
+def _evidence_provider(row: Mapping[str, Any]) -> str:
+    lineage = row.get("professional_evidence_lineage") or {}
+    direct = lineage.get("provider") if isinstance(lineage, Mapping) else None
+    if direct:
+        return str(direct)
+    fields = lineage.get("fields") if isinstance(lineage, Mapping) else None
+    providers = {
+        str(item.get("provider")) for item in (fields or {}).values()
+        if isinstance(item, Mapping) and item.get("provider")
+    }
+    if len(providers) == 1:
+        return providers.pop()
+    return "MULTI_PROVIDER_CERTIFIED_EVIDENCE" if providers else "GOVERNED_EVIDENCE"
+
+
+def _derived_peer_multiple(row: Mapping[str, Any], metric: str) -> tuple[float | None, dict[str, Any]]:
+    """Compute existing peer multiples from governed inputs, provider-neutrally."""
+    market_cap = _num(row.get("market_cap"))
+    shares = _num(row.get("diluted_shares"))
+    price = _num(row.get("current_price") or row.get("price"))
+    if price is None and market_cap is not None and shares and shares > 0:
+        price = market_cap / shares
+    fields = (row.get("professional_evidence_lineage") or {}).get("fields") or {}
+    if metric == "FORWARD_PE":
+        eps = _num(row.get("forward_eps"))
+        value = price / eps if price is not None and eps and eps > 0 else None
+        names = ("market_cap", "diluted_shares", "forward_eps")
+    elif metric == "EV_EBITDA":
+        debt, cash, ebitda = (_num(row.get(name)) for name in
+                              ("total_debt", "cash_and_equivalents", "forward_ebitda"))
+        value = ((market_cap + debt - cash) / ebitda
+                 if None not in (market_cap, debt, cash, ebitda) and ebitda and ebitda > 0 else None)
+        names = ("market_cap", "total_debt", "cash_and_equivalents", "forward_ebitda")
+    else:
+        fcf = _num(row.get("normalized_fcf") or row.get("free_cash_flow"))
+        value = market_cap / fcf if market_cap is not None and fcf and fcf > 0 else None
+        names = ("market_cap", "normalized_fcf", "free_cash_flow")
+    return value, {
+        "derivation": metric,
+        "method": {
+            "FORWARD_PE": "PRICE_DIVIDED_BY_FORWARD_EPS",
+            "EV_EBITDA": "MARKET_CAP_PLUS_DEBT_MINUS_CASH_DIVIDED_BY_FORWARD_EBITDA",
+            "P_FCF": "MARKET_CAP_DIVIDED_BY_NORMALIZED_FCF",
+        }[metric],
+        "input_lineage": {name: dict(fields.get(name) or {}) for name in names if fields.get(name)},
+    }
+
+
+def _p_fcf_evidence(peer: Mapping[str, Any]) -> tuple[dict[str, Any], str | None]:
+    fields = (peer.get("professional_evidence_lineage") or {}).get("fields") or {}
+    market = dict(fields.get("market_cap") or {})
+    fcf = dict(fields.get("normalized_fcf") or fields.get("free_cash_flow") or {})
+    required_market = (market.get("evidence_id") or market.get("raw_evidence_id"), market.get("unit"),
+                       market.get("currency"), market.get("as_of") or market.get("capture_timestamp"))
+    required_fcf = (fcf.get("evidence_id") or fcf.get("raw_evidence_id"), fcf.get("unit"),
+                    fcf.get("currency"), fcf.get("period") or fcf.get("period_end"))
+    if not all(required_market) or not all(required_fcf):
+        return {"market_cap": market, "normalized_fcf": fcf}, "P_FCF_EVIDENCE_LINEAGE_INCOMPLETE"
+    if str(market.get("currency")).upper() != str(fcf.get("currency")).upper():
+        return {"market_cap": market, "normalized_fcf": fcf}, "P_FCF_CURRENCY_MISMATCH"
+    money_units = {"USD", "CURRENCY_ABSOLUTE", str(market.get("currency")).upper()}
+    if str(market.get("unit")).upper() not in money_units or str(fcf.get("unit")).upper() not in money_units:
+        return {"market_cap": market, "normalized_fcf": fcf}, "P_FCF_UNIT_MISMATCH"
+    return {"market_cap": market, "normalized_fcf": fcf}, None
+
+
 def build_operating_forecast(row: Mapping[str, Any], *, years: int = 5) -> dict[str, Any]:
     income, cash = _records(row, "income_statement"), _records(row, "cash_flow")
     revenue = _num(row.get("forward_revenue"))
@@ -149,33 +215,44 @@ def apply_peer_multiple_evidence(rows: Sequence[Mapping[str, Any]]) -> list[dict
                 "peer_enterprise_value":peer_ev,"peer_enterprise_value_basis":"MARKET_CAP_PLUS_DEBT_MINUS_CASH",
                 "peer_ebitda":_num(peer.get("forward_ebitda")),
                 "peer_ebitda_basis":ebitda_lineage.get("period_type") or ebitda_lineage.get("basis"),
-                "peer_ev_ebitda":_num(peer.get("provider_ev_ebitda")),
+                "peer_ev_ebitda":_derived_peer_multiple(peer, "EV_EBITDA")[0],
                 "peer_ev_ebitda_basis":"TTM",
+                "peer_normalized_fcf":_num(peer.get("normalized_fcf") or peer.get("free_cash_flow")),
+                "peer_fcf_period":(_p_fcf_evidence(peer)[0].get("normalized_fcf") or {}).get("period") or
+                                  (_p_fcf_evidence(peer)[0].get("normalized_fcf") or {}).get("period_end"),
+                "peer_fcf_currency":(_p_fcf_evidence(peer)[0].get("normalized_fcf") or {}).get("currency"),
+                "peer_fcf_unit":(_p_fcf_evidence(peer)[0].get("normalized_fcf") or {}).get("unit"),
+                "peer_market_cap_currency":(_p_fcf_evidence(peer)[0].get("market_cap") or {}).get("currency"),
+                "peer_market_cap_as_of":(_p_fcf_evidence(peer)[0].get("market_cap") or {}).get("as_of") or
+                                         (_p_fcf_evidence(peer)[0].get("market_cap") or {}).get("capture_timestamp"),
                 "multiple":value,"multiple_metric":metric,"basis":"TTM" if metric!="FORWARD_PE" else "FORWARD",
                 "provider_fetched_at":peer.get("professional_evidence_fetched_at"),
                 "evidence_as_of":peer.get("professional_evidence_as_of"),
                 "fiscal_period_end":peer.get("financial_reporting_period"),
-                "as_of":peer.get("professional_evidence_as_of"),"provider":"TWELVE_DATA",
+                "as_of":peer.get("professional_evidence_as_of"),"provider":_evidence_provider(peer),
                 "evidence_ids":list((peer.get("professional_evidence_lineage") or {}).get("evidence_ids") or ()),
                 "inclusion_reason":f"{selection_rule}; valid positive {metric}" if included else None,
                 "exclusion_reason":None if included else reason,
                 "comparability_status":"CERTIFIED" if not comparability_flags else "LIMITED",
                 "comparability_flags":comparability_flags,
-                "source_lineage":dict(lineage.get({"FORWARD_PE":"provider_forward_pe","EV_EBITDA":"provider_ev_ebitda","P_FCF":"provider_p_fcf"}[metric]) or {}),
+                "source_lineage":_derived_peer_multiple(peer, metric)[1],
             }
 
         metric_specs=(
-            ("FORWARD_PE","provider_forward_pe","justified_forward_pe","median current forward P/E of deterministic peers"),
-            ("EV_EBITDA","provider_ev_ebitda","justified_ev_ebitda","median current EV/EBITDA of deterministic peers"),
-            ("P_FCF","provider_p_fcf","justified_p_fcf","median current P/FCF of deterministic peers"),
+            ("FORWARD_PE","justified_forward_pe","median current forward P/E of deterministic peers"),
+            ("EV_EBITDA","justified_ev_ebitda","median current EV/EBITDA of deterministic peers"),
+            ("P_FCF","justified_p_fcf","median current P/FCF of deterministic peers"),
         )
         evidence={}
-        for metric,source_field,target_field,basis in metric_specs:
+        for metric,target_field,basis in metric_specs:
             def eligible(peer: Mapping[str, Any]) -> tuple[bool, str]:
-                value=_num(peer.get(source_field))
+                value=_derived_peer_multiple(peer, metric)[0]
                 if value is None:return False,"MULTIPLE_MISSING"
                 if value<=0:return False,"MULTIPLE_NONPOSITIVE"
                 if value>=100:return False,"MULTIPLE_OUTSIDE_GOVERNED_RANGE"
+                if metric == "P_FCF":
+                    _, evidence_reason = _p_fcf_evidence(peer)
+                    if evidence_reason:return False,evidence_reason
                 peer_cap=_num(peer.get("market_cap"))
                 if not subject_cap or not peer_cap:return False,"SCALE_IDENTITY_UNAVAILABLE"
                 if max(subject_cap,peer_cap)/min(subject_cap,peer_cap)>10:return False,"SCALE_GAP_OVER_10X"
@@ -187,7 +264,7 @@ def apply_peer_multiple_evidence(rows: Sequence[Mapping[str, Any]]) -> list[dict
             selection_rule="same sector fallback" if used_sector_fallback else "same industry"
             records=[]
             for peer in peers:
-                value=_num(peer.get(source_field)); included,reason=eligible(peer)
+                value=_derived_peer_multiple(peer, metric)[0]; included,reason=eligible(peer)
                 records.append(peer_record(peer,metric,value,True,reason,used_sector_fallback=used_sector_fallback) if included else {
                     "subject_ticker":str(row.get("ticker") or row.get("symbol") or ""),
                     "peer_ticker":str(peer.get("ticker") or peer.get("Ticker") or peer.get("symbol") or ""),
@@ -201,9 +278,13 @@ def apply_peer_multiple_evidence(rows: Sequence[Mapping[str, Any]]) -> list[dict
                 "included_peers":included_records,"excluded_peers":[record for record in records if record["exclusion_reason"]],
                 "final_peer_set":[record["peer_ticker"] for record in included_records],"published_median":median,
                 "median_calculation":{"ordered_values":values,"function":"statistics.median"},"minimum_peer_count":3,
+                "industry_candidate_count":len(industry_peers),"industry_valid_count":len(industry_valid),
+                "sector_candidate_count":len(sector_peers),
+                "sufficiency_status":"CERTIFIED" if median is not None else "INSUFFICIENT_CERTIFIED_PEER_COUNT",
                 "provider_fetched_at":row.get("professional_evidence_fetched_at"),
                 "evidence_as_of":row.get("professional_evidence_as_of"),
-                "as_of":row.get("professional_evidence_as_of"),"provider":"TWELVE_DATA"}
+                "as_of":row.get("professional_evidence_as_of"),"provider":_evidence_provider(row)}
+            row[f"{target_field}_peer_evidence"] = evidence[metric]
             if median is not None:
                 row.update({target_field:median,f"{target_field}_basis":basis,f"{target_field}_range":[values[0],values[-1]],f"{target_field}_peer_evidence":evidence[metric]})
         peer_ids=sorted({ticker for item in evidence.values() for ticker in item.get("final_peer_set") or ()})

@@ -50,6 +50,11 @@ def certify_peer_multiple(model: Mapping[str, Any]) -> dict[str, Any]:
     missing = sorted({field for peer in peers for field in required if not peer.get(field)})
     if model.get("methodology_id") == "VAL_EV_EBITDA_V1":
         missing.extend(field for field in ("peer_enterprise_value", "peer_ebitda", "peer_ev_ebitda") if any(_num(peer.get(field)) is None for peer in peers))
+    if model.get("methodology_id") == "VAL_P_FCF_V1":
+        missing.extend(field for field in ("peer_market_cap", "peer_normalized_fcf", "peer_fcf_period",
+                                           "peer_fcf_currency", "peer_fcf_unit", "peer_market_cap_currency",
+                                           "peer_market_cap_as_of")
+                       if any(peer.get(field) in (None, "") for peer in peers))
     ratio_mismatches=[]
     if model.get("methodology_id") == "VAL_EV_EBITDA_V1":
         for peer in peers:
@@ -60,12 +65,24 @@ def certify_peer_multiple(model: Mapping[str, Any]) -> dict[str, Any]:
             same_basis = str(peer.get("peer_ebitda_basis") or "").upper() == str(peer.get("peer_ev_ebitda_basis") or "").upper() != ""
             if same_basis and enterprise is not None and ebitda not in (None,0) and reported is not None and not math.isclose(enterprise/ebitda,reported,rel_tol=.01):
                 ratio_mismatches.append(peer.get("peer_ticker"))
+    if model.get("methodology_id") == "VAL_P_FCF_V1":
+        for peer in peers:
+            cap, fcf, reported = (_num(peer.get(key)) for key in
+                                  ("peer_market_cap", "peer_normalized_fcf", "multiple"))
+            same_currency = str(peer.get("peer_fcf_currency") or "").upper() == str(
+                peer.get("peer_market_cap_currency") or "").upper() != ""
+            if not same_currency or cap is None or fcf in (None, 0) or reported is None or not math.isclose(
+                cap / fcf, reported, rel_tol=1e-9, abs_tol=1e-9
+            ):
+                ratio_mismatches.append(peer.get("peer_ticker"))
     flags = sorted({flag for peer in peers for flag in peer.get("comparability_flags") or ()})
     reasons=[]
     if "evidence_as_of" in missing: reasons.append("PEER_VALUATION_AS_OF_UNAVAILABLE")
     if missing: reasons.append("PEER_VALUATION_LINEAGE_INCOMPLETE")
     if flags: reasons.append("PEER_COMPARABILITY_UNCERTIFIED")
     if ratio_mismatches: reasons.append("PEER_EV_EBITDA_RECONCILIATION_FAILED")
+    if ratio_mismatches and model.get("methodology_id") == "VAL_P_FCF_V1":
+        reasons[-1] = "PEER_P_FCF_RECONCILIATION_FAILED"
     if reproduced is None or used is None or not math.isclose(reproduced or 0,used or 0,rel_tol=1e-9,abs_tol=1e-9): reasons.append("PEER_MEDIAN_RECONCILIATION_FAILED")
     status = "CERTIFIED" if not reasons else "INSUFFICIENT"
     return {"version":VERSION,"status":status,"used_multiple":used,"reproduced_median":reproduced,
