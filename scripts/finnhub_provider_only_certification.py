@@ -25,7 +25,7 @@ from services.transcript_provider import ConfiguredTranscriptProvider
 from services.technical_intelligence.engine import _rsi, _sma, _true_ranges, _wilder_average, DailyBar
 
 
-VERSION = "ATLAS_FINNHUB_PROVIDER_ONLY_CERTIFICATION_V4"
+VERSION = "ATLAS_FINNHUB_PROVIDER_ONLY_CERTIFICATION_V5_DEMO_AWARE"
 DEFAULT_SYMBOLS = ("AAPL", "MSFT", "NVDA", "WMT", "IBM", "F", "PFE", "TSLA")
 UNRESOLVED_METRICS = tuple(FINNHUB_UNRESOLVED_FIELD_CONTRACTS)
 
@@ -304,6 +304,11 @@ def build_report(symbols: Sequence[str], *, sample_count: int = 3, sample_interv
                 "FORWARD_ESTIMATE_UNIT_SCALE_CURRENCY_UNRESOLVED"]
     return {"version": VERSION, "generated_at": datetime.now(timezone.utc).isoformat(),
             "mode": "FINNHUB_ONLY_SHADOW_CERTIFICATION", "production_authority_changed": False,
+            "paid_core_breadth_state": (
+                "PAID_CORE_BREADTH_UNTESTED"
+                if adapter.license_class == "DEMO_MIGRATION_VALIDATION_ONLY"
+                else "PAID_CORE_CERTIFICATION_ACTIVE"
+            ),
             "discontinued_provider_calls": 0, "symbols": list(symbols), "capability_matrix": matrix,
             "unit_matrix": unit_matrix, "safe_derivations": derivations, "technical_recomputation": technical,
             "financial_bridges": bridges,

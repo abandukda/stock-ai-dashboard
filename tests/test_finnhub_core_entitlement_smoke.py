@@ -12,6 +12,8 @@ from scripts.finnhub_core_entitlement_smoke import (
 from scripts.finnhub_p_fcf_peer_certification import (
     ATLAS_INTEGRATION_FAILURE,
     CREDENTIAL_ENTITLEMENT_UNAVAILABLE,
+    EXPECTED_DEMO_SYMBOL_RESTRICTION,
+    PAID_CORE_BREADTH_UNTESTED,
     PROVIDER_CONTRACT_UNRESOLVED,
     PROVIDER_DATA_UNAVAILABLE,
     TARGETS,
@@ -52,9 +54,10 @@ class _Adapter:
         return _Record(self.replacement.get((symbol, capability), _available(capability, symbol)))
 
 
-def _unavailable(status, reason):
+def _unavailable(status, reason, *, symbol="ORCL", license_class=None):
     return {"payload": {"reason": reason}, "provenance": {
         "provider": "FINNHUB", "certification_status": status,
+        "symbol": symbol, "license_class": license_class,
         "endpoint_or_source_family": "FINANCIAL_STATEMENTS", "capture_timestamp": "2026-09-21T20:00:00+00:00",
         "raw_evidence_id": "FINNHUB:unavailable",
     }}
@@ -78,6 +81,22 @@ def test_any_entitlement_failure_stops_before_broad_run():
     assert report["state"] == ENTITLEMENT_SMOKE_FAIL
     assert report["failure_classification"] == CREDENTIAL_ENTITLEMENT_UNAVAILABLE
     assert exit_code(report) == 2
+
+
+def test_outside_whitelist_demo_restriction_is_informational_paid_core_untested():
+    symbol = next(iter(SMOKE_SAMPLE))
+    report = build_smoke_report(_Adapter({
+        (symbol, "financial_statements"): _unavailable(
+            "ENTITLEMENT_UNAVAILABLE", "HTTP_403", symbol=symbol,
+            license_class="DEMO_MIGRATION_VALIDATION_ONLY",
+        )
+    }))
+    assert report["state"] == PAID_CORE_BREADTH_UNTESTED
+    assert report["failure_classification"] == EXPECTED_DEMO_SYMBOL_RESTRICTION
+    record = next(row for row in report["records"] if row["ticker"] == symbol and row["capability"] == "financial_statements")
+    assert record["reason"] == "HTTP_403"
+    assert record["provider_status"] == "ENTITLEMENT_UNAVAILABLE"
+    assert exit_code(report) == 6
 
 
 def test_provider_absence_and_contract_ambiguity_are_not_mislabeled_as_entitlement():

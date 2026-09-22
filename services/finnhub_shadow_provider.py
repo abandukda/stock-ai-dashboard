@@ -29,6 +29,10 @@ from services.provider_domain_contracts import (
 FINNHUB_ADAPTER_VERSION = "FINNHUB_SHADOW_ADAPTER_V2"
 FINNHUB_BASE_URL = "https://finnhub.io/api/v1"
 FINNHUB_DEMO_LICENSE = "DEMO_MIGRATION_VALIDATION_ONLY"
+FINNHUB_PAID_CORE_CERTIFICATION_LICENSE = "PAID_CORE_CERTIFICATION"
+FINNHUB_DEMO_SYMBOL_WHITELIST = frozenset({
+    "AAPL", "TSLA", "WMT", "IBM", "F", "NVDA", "MSFT", "PFE", "SPY", "IVV", "AVUV",
+})
 FINNHUB_FINANCIAL_NORMALIZATION_VERSION = "FINNHUB_FINANCIAL_NORMALIZATION_V2"
 FINNHUB_PROVIDER_WRITTEN_CONTRACT = {
     "evidence_reference": "FINNHUB_SUPPORT_WRITTEN_CONTRACT_2026_09_21",
@@ -219,14 +223,23 @@ class FinnhubShadowAdapter:
 
     def __init__(
         self, api_key: str | None = None, *,
+        license_class: str | None = None,
         get: Callable[..., Any] = requests.get,
         base_url: str = FINNHUB_BASE_URL,
         timeout_seconds: float = 15.0,
     ) -> None:
         self._api_key = str(api_key if api_key is not None else os.getenv("FINNHUB_API_KEY", "")).strip()
+        self._license_class = str(
+            license_class if license_class is not None
+            else os.getenv("ATLAS_FINNHUB_LICENSE_CLASS", FINNHUB_DEMO_LICENSE)
+        ).strip() or FINNHUB_DEMO_LICENSE
         self._get = get
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout_seconds
+
+    @property
+    def license_class(self) -> str:
+        return self._license_class
 
     def fetch(self, capability: str, symbol: str, **parameters: Any) -> GovernedRecord:
         endpoint = ENDPOINT_BY_CAPABILITY[capability]
@@ -276,7 +289,7 @@ class FinnhubShadowAdapter:
             content_hash=evidence_hash,
             freshness_status="CAPTURED",
             certification_status=CertificationStatus.UNVERIFIED_SHADOW,
-            license_class=FINNHUB_DEMO_LICENSE,
+            license_class=self._license_class,
             display_permission=UsePermission.PROHIBITED,
             derived_use_permission=UsePermission.SHADOW_ONLY,
             market_coverage_class=endpoint.coverage,
@@ -481,8 +494,7 @@ class FinnhubShadowAdapter:
                                            for item in records(payload)]}
         raise ValueError(f"normalizer missing for capability {capability}")
 
-    @staticmethod
-    def _unavailable(endpoint: FinnhubEndpoint, ticker: str, captured: str,
+    def _unavailable(self, endpoint: FinnhubEndpoint, ticker: str, captured: str,
                      status: CertificationStatus, reason: str) -> GovernedRecord:
         digest = _hash({"endpoint": endpoint.source_family, "symbol": ticker, "status": status.value, "reason": reason})
         return GovernedRecord(ProvenanceEnvelope(
@@ -491,13 +503,15 @@ class FinnhubShadowAdapter:
             canonical_security_id=ticker, capture_timestamp=captured,
             raw_evidence_id=f"FINNHUB:{endpoint.source_family}:{ticker}:{digest[:20]}",
             freshness_status="UNAVAILABLE", certification_status=status,
-            license_class=FINNHUB_DEMO_LICENSE, display_permission=UsePermission.PROHIBITED,
+            license_class=self._license_class, display_permission=UsePermission.PROHIBITED,
             derived_use_permission=UsePermission.SHADOW_ONLY,
             market_coverage_class=endpoint.coverage, adapter_version=FINNHUB_ADAPTER_VERSION,
         ), {"status": status.value, "reason": reason}, ("No fallback or zero substitution was used.",))
 
 
 __all__ = ["ENDPOINTS", "ENDPOINT_BY_CAPABILITY", "FINNHUB_ADAPTER_VERSION",
+           "FINNHUB_DEMO_LICENSE", "FINNHUB_PAID_CORE_CERTIFICATION_LICENSE",
+           "FINNHUB_DEMO_SYMBOL_WHITELIST",
            "FINNHUB_FINANCIAL_NORMALIZATION_VERSION", "FINNHUB_FIELD_DICTIONARY_CONTRACT",
            "FINNHUB_FIELD_DICTIONARY_REFERENCE", "FINNHUB_FIELD_DICTIONARY_SHA256",
            "FINNHUB_SERIES_DICTIONARY_CONTRACT", "FINNHUB_UNRESOLVED_FIELD_CONTRACTS",

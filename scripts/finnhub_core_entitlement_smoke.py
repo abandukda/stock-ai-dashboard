@@ -18,6 +18,8 @@ from scripts.finnhub_p_fcf_peer_certification import (
     ATLAS_INTEGRATION_FAILURE,
     CERTIFIED_DATA_AVAILABLE,
     CREDENTIAL_ENTITLEMENT_UNAVAILABLE,
+    EXPECTED_DEMO_SYMBOL_RESTRICTION,
+    PAID_CORE_BREADTH_UNTESTED,
     PROVIDER_CONTRACT_UNRESOLVED,
     PROVIDER_DATA_UNAVAILABLE,
     TARGETS,
@@ -26,7 +28,7 @@ from scripts.finnhub_p_fcf_peer_certification import (
 from services.finnhub_shadow_provider import FinnhubShadowAdapter
 
 
-VERSION = "ATLAS_FINNHUB_CORE_ENTITLEMENT_SMOKE_V1"
+VERSION = "ATLAS_FINNHUB_CORE_ENTITLEMENT_SMOKE_V2_DEMO_AWARE"
 REQUIRED_CAPABILITIES = ("company_profile", "financial_statements", "basic_financials")
 SMOKE_SAMPLE = {
     "ORCL": "Technology",
@@ -77,6 +79,7 @@ def build_smoke_report(adapter: Any, pace_seconds: float = 0.0) -> dict[str, Any
     counts = {
         CERTIFIED_DATA_AVAILABLE: 0,
         CREDENTIAL_ENTITLEMENT_UNAVAILABLE: 0,
+        EXPECTED_DEMO_SYMBOL_RESTRICTION: 0,
         PROVIDER_DATA_UNAVAILABLE: 0,
         PROVIDER_CONTRACT_UNRESOLVED: 0,
         ATLAS_INTEGRATION_FAILURE: 0,
@@ -117,7 +120,9 @@ def build_smoke_report(adapter: Any, pace_seconds: float = 0.0) -> dict[str, Any
             if pace_seconds:
                 time.sleep(pace_seconds)
 
-    if counts[CREDENTIAL_ENTITLEMENT_UNAVAILABLE]:
+    if counts[EXPECTED_DEMO_SYMBOL_RESTRICTION]:
+        state, failure = PAID_CORE_BREADTH_UNTESTED, EXPECTED_DEMO_SYMBOL_RESTRICTION
+    elif counts[CREDENTIAL_ENTITLEMENT_UNAVAILABLE]:
         state, failure = ENTITLEMENT_SMOKE_FAIL, CREDENTIAL_ENTITLEMENT_UNAVAILABLE
     elif counts[PROVIDER_DATA_UNAVAILABLE]:
         state, failure = PROVIDER_DATA_UNAVAILABLE, PROVIDER_DATA_UNAVAILABLE
@@ -146,6 +151,7 @@ def exit_code(report: Mapping[str, Any]) -> int:
     return {
         ENTITLEMENT_SMOKE_PASS: 0,
         ENTITLEMENT_SMOKE_FAIL: 2,
+        PAID_CORE_BREADTH_UNTESTED: 6,
         PROVIDER_DATA_UNAVAILABLE: 3,
         PROVIDER_CONTRACT_UNRESOLVED: 4,
         ATLAS_INTEGRATION_FAILURE: 5,

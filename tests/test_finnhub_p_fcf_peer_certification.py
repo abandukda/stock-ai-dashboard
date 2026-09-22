@@ -1,10 +1,17 @@
 from pathlib import Path
 import json
+import sys
+
+from services.finnhub_shadow_provider import (
+    FINNHUB_DEMO_SYMBOL_WHITELIST, FINNHUB_PAID_CORE_CERTIFICATION_LICENSE,
+    FinnhubShadowAdapter,
+)
 
 from scripts.finnhub_p_fcf_peer_certification import (
     ATLAS_INTEGRATION_FAILURE, CERTIFIED_DATA_AVAILABLE,
-    CREDENTIAL_ENTITLEMENT_UNAVAILABLE, FULL_CORE_RERUN_CONTRACT, PROVIDER_DATA_UNAVAILABLE,
-    TARGETS, classify_provider_record, derive_candidate_symbols, load_governed_classifications,
+    CREDENTIAL_ENTITLEMENT_UNAVAILABLE, EXPECTED_DEMO_SYMBOL_RESTRICTION,
+    FULL_CORE_RERUN_CONTRACT, PROVIDER_DATA_UNAVAILABLE,
+    TARGETS, classify_provider_record, derive_candidate_symbols, load_governed_classifications, main,
 )
 
 
@@ -61,6 +68,53 @@ def test_entitlement_is_not_misclassified_as_provider_data_absence():
     }
 
 
+def test_outside_whitelist_demo_403_is_expected_restriction_not_core_failure():
+    assert FINNHUB_DEMO_SYMBOL_WHITELIST == {
+        "AAPL", "TSLA", "WMT", "IBM", "F", "NVDA", "MSFT", "PFE", "SPY", "IVV", "AVUV",
+    }
+    demo_restriction = {
+        "provenance": {
+            "certification_status": "ENTITLEMENT_UNAVAILABLE",
+            "license_class": "DEMO_MIGRATION_VALIDATION_ONLY",
+            "symbol": "ORCL",
+        },
+        "payload": {"reason": "HTTP_403"},
+    }
+    demo_whitelist_failure = {
+        "provenance": {
+            "certification_status": "ENTITLEMENT_UNAVAILABLE",
+            "license_class": "DEMO_MIGRATION_VALIDATION_ONLY",
+            "symbol": "AAPL",
+        },
+        "payload": {"reason": "HTTP_403"},
+    }
+    paid_core_failure = {
+        "provenance": {
+            "certification_status": "ENTITLEMENT_UNAVAILABLE",
+            "license_class": "PAID_CORE_CERTIFICATION",
+            "symbol": "ORCL",
+        },
+        "payload": {"reason": "HTTP_403"},
+    }
+    assert classify_provider_record(demo_restriction) == EXPECTED_DEMO_SYMBOL_RESTRICTION
+    assert classify_provider_record(demo_whitelist_failure) == CREDENTIAL_ENTITLEMENT_UNAVAILABLE
+    assert classify_provider_record(paid_core_failure) == CREDENTIAL_ENTITLEMENT_UNAVAILABLE
+
+
+def test_adapter_preserves_explicit_paid_core_certification_license_on_unavailable_record():
+    class Response:
+        status_code = 403
+        @staticmethod
+        def json(): return {}
+    adapter = FinnhubShadowAdapter(
+        api_key="not-a-real-key", license_class=FINNHUB_PAID_CORE_CERTIFICATION_LICENSE,
+        get=lambda *args, **kwargs: Response(),
+    )
+    record = adapter.fetch("company_profile", "ORCL").as_dict()
+    assert record["provenance"]["license_class"] == FINNHUB_PAID_CORE_CERTIFICATION_LICENSE
+    assert classify_provider_record(record) == CREDENTIAL_ENTITLEMENT_UNAVAILABLE
+
+
 def test_full_core_rerun_contract_preserves_existing_p_fcf_certification_rules():
     assert FULL_CORE_RERUN_CONTRACT["required_families"] == (
         "company_profile", "financial_statements", "basic_financials"
@@ -69,3 +123,13 @@ def test_full_core_rerun_contract_preserves_existing_p_fcf_certification_rules()
     assert FULL_CORE_RERUN_CONTRACT["minimum_certified_peers_per_target"] == 3
     assert FULL_CORE_RERUN_CONTRACT["all_targets_must_publish_p_fcf"] is True
     assert FULL_CORE_RERUN_CONTRACT["forward_estimate_contract_required_for_p_fcf"] is False
+
+
+def test_demo_license_blocks_broad_acquisition_before_provider_calls(monkeypatch, tmp_path: Path):
+    output = tmp_path / "report.json"
+    monkeypatch.delenv("ATLAS_FINNHUB_LICENSE_CLASS", raising=False)
+    monkeypatch.setattr(sys, "argv", ["certify", "--output", str(output), "--pace-seconds", "0"])
+    assert main() == 6
+    report = json.loads(output.read_text())
+    assert report["broad_acquisition_executed"] is False
+    assert report["launch_readiness"]["finnhub_core_state"] == "PAID_CORE_BREADTH_UNTESTED"

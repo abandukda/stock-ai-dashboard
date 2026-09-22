@@ -18,12 +18,15 @@ import time
 from typing import Any, Mapping, Sequence
 
 from engines.professional_valuation_v2 import value_company
-from services.finnhub_shadow_provider import FinnhubShadowAdapter
+from services.finnhub_shadow_provider import (
+    FINNHUB_DEMO_LICENSE, FINNHUB_DEMO_SYMBOL_WHITELIST,
+    FinnhubShadowAdapter,
+)
 from services.professional_valuation_evidence import apply_peer_multiple_evidence
 from services.valuation_evidence_strength import certify_peer_multiple
 
 
-VERSION = "ATLAS_FINNHUB_P_FCF_PEER_CERTIFICATION_V2_ENTITLEMENT_AWARE"
+VERSION = "ATLAS_FINNHUB_P_FCF_PEER_CERTIFICATION_V3_DEMO_AWARE"
 TARGETS = ("AAPL", "MSFT", "NVDA", "WMT", "IBM", "F", "PFE", "TSLA")
 CLASSIFICATION_PATH = Path("discovery_candidate_pool.json")
 SUPPLEMENTAL_CLASSIFICATION_PATH = Path("analysis/phase8b_calibration/universe_v1.json")
@@ -39,6 +42,8 @@ GOVERNED_SECTOR_EQUIVALENCE = {
 PROVIDER_DATA_UNAVAILABLE = "PROVIDER_DATA_UNAVAILABLE"
 PROVIDER_CONTRACT_UNRESOLVED = "PROVIDER_CONTRACT_UNRESOLVED"
 CREDENTIAL_ENTITLEMENT_UNAVAILABLE = "CREDENTIAL_ENTITLEMENT_UNAVAILABLE"
+EXPECTED_DEMO_SYMBOL_RESTRICTION = "EXPECTED_DEMO_SYMBOL_RESTRICTION"
+PAID_CORE_BREADTH_UNTESTED = "PAID_CORE_BREADTH_UNTESTED"
 ATLAS_INTEGRATION_FAILURE = "ATLAS_INTEGRATION_FAILURE"
 CERTIFIED_DATA_AVAILABLE = "CERTIFIED_DATA_AVAILABLE"
 FULL_CORE_RERUN_CONTRACT = {
@@ -56,6 +61,14 @@ FULL_CORE_RERUN_CONTRACT = {
 def classify_provider_record(record: Mapping[str, Any]) -> str:
     """Separate commercial access from provider capability and data absence."""
     status = str((record.get("provenance") or {}).get("certification_status") or "").upper()
+    provenance = record.get("provenance") or {}
+    symbol = str(provenance.get("symbol") or "").upper()
+    if (
+        status == "ENTITLEMENT_UNAVAILABLE"
+        and provenance.get("license_class") == FINNHUB_DEMO_LICENSE
+        and symbol not in FINNHUB_DEMO_SYMBOL_WHITELIST
+    ):
+        return EXPECTED_DEMO_SYMBOL_RESTRICTION
     if status == "ENTITLEMENT_UNAVAILABLE":
         return CREDENTIAL_ENTITLEMENT_UNAVAILABLE
     if status in {"DATA_UNAVAILABLE", "PROVIDER_ERROR"}:
@@ -353,6 +366,11 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
         if any(family.get("classification") == CREDENTIAL_ENTITLEMENT_UNAVAILABLE
                for family in (item.get("provider_availability") or {}).values())
     })
+    expected_demo_restriction_symbols = sorted({
+        symbol for symbol, item in acquisition.items()
+        if any(family.get("classification") == EXPECTED_DEMO_SYMBOL_RESTRICTION
+               for family in (item.get("provider_availability") or {}).values())
+    })
     provider_data_unavailable_symbols = sorted({
         symbol for symbol, item in acquisition.items()
         if any(family.get("classification") == PROVIDER_DATA_UNAVAILABLE
@@ -382,6 +400,8 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
         "basic_financial_complete": basic_complete,
         "credential_entitlement_failure_count": len(entitlement_symbols),
         "credential_entitlement_failure_symbols": entitlement_symbols,
+        "expected_demo_symbol_restriction_count": len(expected_demo_restriction_symbols),
+        "expected_demo_symbol_restriction_symbols": expected_demo_restriction_symbols,
         "provider_data_unavailable_failure_count": len(provider_data_unavailable_symbols),
         "provider_data_unavailable_symbols": provider_data_unavailable_symbols,
         "provider_contract_unresolved_count": 0,
@@ -395,8 +415,14 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
     core_ready = (
         coverage["classification_complete"] == coverage["symbols_requested"]
         and coverage["credential_entitlement_failure_count"] == 0
+        and coverage["expected_demo_symbol_restriction_count"] == 0
         and all_targets_have_three and all_targets_certified
         and coverage["canonical_certification_failure_count"] == 0
+    )
+    breadth_classification = (
+        PAID_CORE_BREADTH_UNTESTED if expected_demo_restriction_symbols
+        else "FULL_CORE_ENTITLEMENT_FAILED" if entitlement_symbols
+        else "BROAD_COVERAGE_INCOMPLETE"
     )
     capability_matrix = {
         "market_technical_contract": {
@@ -404,19 +430,19 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
             "evidence": "completed-session market/technical contract previously certified",
         },
         "historical_filings": {
-            "classifications": ["BLOCKED_BY_CURRENT_ENTITLEMENT", "ATLAS_INTEGRATION_COMPLETE"],
-            "evidence": f"{historical_complete}/{len(acquisition_symbols)} complete; {len(entitlement_symbols)} entitlement failures",
+            "classifications": [breadth_classification, "ATLAS_INTEGRATION_COMPLETE"],
+            "evidence": f"{historical_complete}/{len(acquisition_symbols)} complete; {len(expected_demo_restriction_symbols)} expected demo restrictions; {len(entitlement_symbols)} paid-credential entitlement failures",
         },
         "basic_financials": {
-            "classifications": ["BLOCKED_BY_CURRENT_ENTITLEMENT", "ATLAS_INTEGRATION_COMPLETE"],
-            "evidence": f"{basic_complete}/{len(acquisition_symbols)} complete; {len(entitlement_symbols)} entitlement failures",
+            "classifications": [breadth_classification, "ATLAS_INTEGRATION_COMPLETE"],
+            "evidence": f"{basic_complete}/{len(acquisition_symbols)} complete; {len(expected_demo_restriction_symbols)} expected demo restrictions; {len(entitlement_symbols)} paid-credential entitlement failures",
         },
         "broad_peer_financial_coverage": {
-            "classifications": ["BLOCKED_BY_CURRENT_ENTITLEMENT"],
+            "classifications": [breadth_classification],
             "evidence": f"{len(rows)}/{len(acquisition_symbols)} complete governed peer records",
         },
         "p_fcf_route": {
-            "classifications": ["BLOCKED_BY_CURRENT_ENTITLEMENT", "ATLAS_INTEGRATION_COMPLETE"],
+            "classifications": [breadth_classification, "ATLAS_INTEGRATION_COMPLETE"],
             "evidence": f"{certified}/{len(TARGETS)} live targets certified; deterministic production-reachable fixture passes",
         },
         "forward_estimate_contract": {
@@ -452,7 +478,12 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
         "launch_readiness": {
             "historical_p_fcf": "PASS" if certified >= 5 else "PASS_WITH_LIMITATIONS" if certified else "FAIL",
             "finnhub_core_ready_for_final_certification": core_ready,
-            "finnhub_core_state": "FINNHUB_CORE_READY_FOR_FINAL_CERTIFICATION" if core_ready else "BLOCKED_BY_CURRENT_ENTITLEMENT",
+            "finnhub_core_state": (
+                "FINNHUB_CORE_READY_FOR_FINAL_CERTIFICATION" if core_ready
+                else PAID_CORE_BREADTH_UNTESTED if expected_demo_restriction_symbols
+                else "FULL_CORE_ENTITLEMENT_FAILED" if entitlement_symbols
+                else "BROAD_PEER_CERTIFICATION_INCOMPLETE"
+            ),
             "forward_valuation_state": "FORWARD_VALUATION_CONTRACT_PENDING",
             "limited_method_launch": "NOT_PROVEN" if certified < 5 else "P_FCF_ONLY_REMAINS_INSUFFICIENT_FOR_BUY_NOW",
             "third_provider": "NOT_JUSTIFIED_BY_ENTITLEMENT_FAILURE_ALONE; REQUIRED_ONLY_IF_FINNHUB_FULL_CORE_CANNOT_SATISFY_THE_RERUN_GATE_OR_FOR_BROADER_FORWARD_METHODS",
@@ -472,6 +503,26 @@ def main() -> int:
     parser.add_argument("--output", default="audit_results/finnhub_certification/finnhub_p_fcf_peer_certification.json")
     parser.add_argument("--pace-seconds", type=float, default=1.05)
     args = parser.parse_args()
+    adapter = FinnhubShadowAdapter()
+    if adapter.license_class == FINNHUB_DEMO_LICENSE:
+        report = {
+            "version": VERSION,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "mode": "FINNHUB_ONLY_SHADOW_P_FCF_CERTIFICATION",
+            "production_authority_changed": False,
+            "methodology_changed": False,
+            "broad_acquisition_executed": False,
+            "launch_readiness": {
+                "finnhub_core_ready_for_final_certification": False,
+                "finnhub_core_state": PAID_CORE_BREADTH_UNTESTED,
+                "reason": "DEMO_CREDENTIAL_CANNOT_TEST_OUTSIDE_WHITELIST_BREADTH",
+                "forward_valuation_state": "FORWARD_VALUATION_CONTRACT_PENDING",
+            },
+        }
+        path = Path(args.output); path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+        print(json.dumps(report["launch_readiness"], indent=2))
+        return 6
     report = build_report(pace_seconds=max(0.0, args.pace_seconds))
     path = Path(args.output); path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
