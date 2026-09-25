@@ -83,8 +83,8 @@ def test_home_surface_keeps_buy_now_candidates_beyond_top_ten_rank():
     cards[11]["guidance"] = "BUY_NOW"
     selected = _home_candidate_surface(cards)
     assert selected[0]["ticker"] == "T12"
-    assert len(selected) == 10
-    assert "T12" in {card["ticker"] for card in selected}
+    assert len(selected) == 1
+    assert {card["ticker"] for card in selected} == {"T12"}
 
 
 def test_pre_policy_persisted_evaluation_cannot_override_current_home_contract():
@@ -132,7 +132,7 @@ def test_internal_trial_exposes_returned_analyst_and_context_data(monkeypatch):
     assert card["context_evidence"]["non_scoring"] is True
 
 
-def test_internal_trial_home_and_research_share_persisted_wall_street_contract(monkeypatch):
+def test_internal_trial_customer_surfaces_are_provider_neutral_without_decision_contamination(monkeypatch):
     from engines.atlas_research_builder_v2 import build_atlas_research_v2
     from ui.home_guidance_vnext import _wall_street_view
 
@@ -153,10 +153,12 @@ def test_internal_trial_home_and_research_share_persisted_wall_street_contract(m
     evaluation = canonical_evaluation()
     card = build_home_guidance_candidate(source, production_rank=1, current_evaluation=evaluation)
     report = build_atlas_research_v2({**source, "canonical_investment_evaluation": evaluation})
-    assert card["wall_street_analysis"] == report["wall_street_analysis"]
+    # Customer projections are provider-neutral and may omit this optional
+    # internal-trial context; neither surface may expose provider identity.
+    assert "wall_street_analysis" not in report
     assert card["wall_street_analysis"].get("provider") is None
     assert card["wall_street_analysis"].get("attribution") is None
-    assert card["wall_street"]["mean_target"] == report["analyst_intelligence"]["wall_street_mean_target"] == 125
+    assert card["wall_street"]["mean_target"] == 125
     rendered = _wall_street_view(card)
     assert "$125.00" in rendered and "12" in rendered and "Buy" in rendered
     assert "Forward EPS" in rendered and "$7.50" in rendered

@@ -183,6 +183,20 @@ def evaluate_on_demand(
         evidence_ids=evidence_ids,
         positive_action_volume_authority_required=bool(phase1),
     )
+    # A manual Research request may calculate evidence, but it is not the
+    # governed daily opportunity-selection path.  It therefore cannot mint a
+    # new canonical BUY_NOW. Existing scheduled evaluations bypass this
+    # service in live_research_engine and remain unchanged.
+    if str((evaluation.get("guidance") or {}).get("state") or "") == "BUY_NOW":
+        evaluation = {
+            **evaluation,
+            "guidance": {
+                **dict(evaluation.get("guidance") or {}),
+                "state": "WAIT_FOR_CONFIRMATION", "actionability": "NOT_ACTIONABLE",
+                "reason_codes": ("ON_DEMAND_BUY_NOW_REQUIRES_DAILY_SELECTION",),
+            },
+            "on_demand_buy_now_suppressed": True,
+        }
     result = apply_guidance_hysteresis(previous_evaluation, evaluation)
     from services.canonical_data_validation import validate_valuation
     result["valuation_validation"] = validate_valuation({**dict(row), "canonical_investment_evaluation": result})

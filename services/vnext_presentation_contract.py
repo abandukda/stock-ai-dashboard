@@ -77,6 +77,34 @@ CUSTOMER_ACTION_LABELS: Final = MappingProxyType({
     "DATA_LIMITED": "WATCH — NOT READY YET", "AVOID": "AVOID",
 })
 
+# Presentation identity is deliberately separate from canonical methodology.
+# Future legal/product copy may select another registered label without changing
+# the canonical Action stored in decisions or prospective Report Card records.
+CUSTOMER_ACTION_PRESENTATION_OPTIONS: Final = MappingProxyType({
+    "BUY_NOW": MappingProxyType({"current": "BUY NOW", "future": "Strongest ATLAS Opportunity", "stars": 5}),
+    "BUILD_A_POSITION": MappingProxyType({"current": "BUILD A POSITION", "future": "Build a Position", "stars": 4}),
+    "WAIT_FOR_BETTER_ENTRY": MappingProxyType({"current": "WAIT FOR A BETTER ENTRY", "stars": 3}),
+    "WAIT_FOR_CONFIRMATION": MappingProxyType({"current": "WAIT FOR CONFIRMATION", "stars": 3}),
+    "WATCH_NOT_READY": MappingProxyType({"current": "WATCH — NOT READY YET", "stars": 2}),
+    "AVOID": MappingProxyType({"current": "AVOID", "stars": 1}),
+    "RATING_NOT_PUBLISHED": MappingProxyType({"current": "RATING NOT PUBLISHED", "stars": None}),
+})
+
+
+def customer_action_presentation(canonical_action: str, *, terminology: str = "current") -> dict:
+    """Resolve customer copy without modifying or aliasing canonical identity."""
+    action = str(canonical_action or "RATING_NOT_PUBLISHED").strip().upper()
+    option = CUSTOMER_ACTION_PRESENTATION_OPTIONS.get(action)
+    if option is None:
+        action = "RATING_NOT_PUBLISHED"
+        option = CUSTOMER_ACTION_PRESENTATION_OPTIONS[action]
+    return {
+        "canonical_action": action,
+        "label": option.get(terminology) or option["current"],
+        "stars": option.get("stars"),
+        "presentation_only": True,
+    }
+
 CUSTOMER_EVIDENCE_STATES: Final = ("Evidence Complete", "Evidence Limited", "Data Unavailable")
 
 
@@ -215,6 +243,7 @@ def contract_snapshot() -> dict:
 
 __all__ = [
     "AVAILABILITY_SEMANTICS", "CURRENT_ACTIVE_PAGES", "CURRENT_RESEARCH_TABS", "CUSTOMER_ACTION_LABELS",
+    "CUSTOMER_ACTION_PRESENTATION_OPTIONS", "customer_action_presentation",
     "CUSTOMER_EVIDENCE_STATES", "HOME_CUSTOMER_HIERARCHY", "HOME_CUSTOMER_PRIMARY_LABELS", "HOME_INDICATOR_CLASSIFICATION",
     "HOME_PROHIBITED_CUSTOMER_TERMS", "MIGRATION_BASELINE_CLASSIFICATION", "MIGRATION_BASELINE_VERSION",
     "PRESENTATION_TRUST_TIERS", "RESEARCH_CUSTOMER_HIERARCHY",

@@ -8,6 +8,7 @@ committee verdicts, rankings, confidence, or opportunity scores.
 from __future__ import annotations
 
 from collections import Counter
+from datetime import datetime, timezone
 from typing import Any, Iterable, Mapping
 import math
 
@@ -161,4 +162,54 @@ def build_morning_brief(
     }
 
 
-__all__ = ["build_morning_brief"]
+def build_certified_morning_brief(
+    rows: Iterable[Mapping[str, Any]], *, generated_at: str | None = None,
+    watchlist_events: Iterable[Mapping[str, Any]] = (),
+    market_context: Mapping[str, Any] | None = None,
+    major_events: Iterable[Mapping[str, Any]] = (),
+) -> dict[str, Any]:
+    """Build the future internal brief solely from certified canonical rows."""
+    opportunities = []
+    for source in rows or ():
+        row = dict(source)
+        certification = row.get("publication_certification") if isinstance(row.get("publication_certification"), Mapping) else {}
+        evaluation = row.get("canonical_investment_evaluation") if isinstance(row.get("canonical_investment_evaluation"), Mapping) else {}
+        action = str(((evaluation.get("guidance") or {}).get("state") or ""))
+        if certification.get("customer_publication_allowed") is not True or certification.get("certified_action") != action:
+            continue
+        if action != "BUY_NOW":
+            continue
+        evidence_ids = tuple(str(value) for value in row.get("evidence_ids", ()) if value)
+        candidate_id = row.get("candidate_digest") or row.get("decision_digest") or evaluation.get("decision_digest")
+        if not candidate_id or not evidence_ids:
+            continue
+        valuation = ((evaluation.get("atlas_valuation") or {}).get("professional_valuation_v2") or {})
+        guidance = evaluation.get("guidance") or {}
+        opportunities.append({
+            "ticker": str(row.get("ticker") or row.get("symbol") or "").upper(),
+            "canonical_action": action, "certified_candidate_identity": candidate_id,
+            "current_display_price": row.get("display_price") or row.get("current_price"),
+            "atlas_fair_value": valuation.get("atlas_base_fair_value") or row.get("atlas_fair_value"),
+            "potential": valuation.get("atlas_expected_return") or row.get("potential"),
+            "opportunity": evaluation.get("opportunity"), "decision_confidence": evaluation.get("decision_confidence"),
+            "short_rationale": guidance.get("opportunity_thesis") or row.get("why_atlas_likes_it"),
+            "main_risk": guidance.get("main_risk") or row.get("main_risk"),
+            "evidence_ids": list(evidence_ids), "research_deep_link": f"/research?ticker={str(row.get('ticker') or '').upper()}",
+        })
+    opportunities.sort(key=lambda item: (item["canonical_action"] == "BUY_NOW", item.get("opportunity") or 0, item.get("decision_confidence") or 0), reverse=True)
+    governed_watchlist = [dict(item) for item in watchlist_events if item.get("evidence_ids") and item.get("candidate_digest")]
+    governed_events = [dict(item) for item in major_events if item.get("evidence_ids")]
+    context = dict(market_context or {})
+    if context and not (context.get("evidence_ids") or context.get("status") == "DATA_UNAVAILABLE"):
+        context = {"status": "DATA_UNAVAILABLE", "limitations": ["Governed market-context evidence identity is required."]}
+    return {
+        "version": "ATLAS_MORNING_BRIEF_CONTRACT_V1", "status": "INTERNAL_NOT_DELIVERED",
+        "generated_at": generated_at or datetime.now(timezone.utc).isoformat(),
+        "strongest_daily_opportunities": opportunities,
+        "watchlist_state_changes": governed_watchlist,
+        "market_context": context, "major_context_events": governed_events,
+        "delivery_enabled": False, "financial_truth_source": "CERTIFIED_ATLAS_ONLY",
+    }
+
+
+__all__ = ["build_certified_morning_brief", "build_morning_brief"]

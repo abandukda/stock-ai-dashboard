@@ -126,12 +126,13 @@ def test_action_count_contract_uses_exact_rendered_collection_and_keeps_real_zer
     )
     assert contract["customer_published_action_counts"]["WAIT_FOR_CONFIRMATION"] == 0
     assert contract["home_featured_action_counts"] == {
-        "BUY_NOW": 1, "ACCUMULATE": 1, "WAIT_FOR_ENTRY": 0,
+        "BUY_NOW": 1, "ACCUMULATE": 0, "WAIT_FOR_ENTRY": 0,
         "WAIT_FOR_CONFIRMATION": 0, "DATA_LIMITED": 0, "AVOID": 0,
     }
     assert contract["withheld_action_counts"]["WAIT_FOR_CONFIRMATION"] == 1
+    assert contract["home_surface_deferred_action_counts"]["ACCUMULATE"] == 1
     assert contract["home_surface_deferred_action_counts"]["WAIT_FOR_ENTRY"] == 1
-    assert contract["counter_sum"] == contract["rendered_card_count"] == 2
+    assert contract["counter_sum"] == contract["rendered_card_count"] == 1
     assert contract["reconciled"] is True
 
 
@@ -173,8 +174,9 @@ def test_current_production_home_counters_reconcile_to_rendered_cards():
     assert contract["customer_publication_count"] == manifest["customer_publication_count"] == 31
     assert contract["customer_published_action_counts"]["ACCUMULATE"] == 29
     assert contract["customer_published_action_counts"]["WAIT_FOR_ENTRY"] == 2
-    assert contract["home_featured_action_counts"]["ACCUMULATE"] == 10
-    assert contract["counter_sum"] == len(story["home_featured_cards"]) == 10
+    assert contract["home_featured_action_counts"]["ACCUMULATE"] == 0
+    assert contract["counter_sum"] == len(story["home_featured_cards"]) == 0
+    assert story["home_opportunity_empty_state"]["system_failure"] is False
     assert contract["reconciled"] is True
 
 

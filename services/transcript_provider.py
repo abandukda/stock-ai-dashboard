@@ -191,6 +191,30 @@ def transcript_customer_projection(insight: GovernedRecord) -> dict[str, Any]:
     return payload
 
 
+def build_internal_transcript_research_package(
+    evidence: GovernedRecord, insight: GovernedRecord | None = None,
+) -> dict[str, Any]:
+    """Create an internal-only research package without decision authority."""
+    available = bool(evidence.payload.get("raw_content_hash"))
+    derived = dict(insight.payload) if insight is not None else {}
+    return {
+        "version": "ATLAS_TRANSCRIPT_RESEARCH_PACKAGE_V1",
+        "status": "AVAILABLE" if available else "DATA_UNAVAILABLE",
+        "license_state": evidence.provenance.license_class,
+        "non_scoring": True, "customer_publication_prohibited": True,
+        "latest_available_period": evidence.payload.get("resolved_period") or evidence.provenance.effective_period,
+        "transcript_evidence_id": evidence.provenance.raw_evidence_id,
+        "ai_summary": derived.get("management_summary"),
+        "key_positives": list(derived.get("key_positives") or ()),
+        "key_risks": list(derived.get("material_risks") or derived.get("key_risks") or ()),
+        "guidance_context": derived.get("guidance_context"),
+        "prepared_remarks": list(evidence.payload.get("prepared_sections") or ()),
+        "qa_structure": list(evidence.payload.get("qa_segments") or ()),
+        "limitations": list(evidence.limitations),
+        "protected_decision_fields": ("six_pillars", "fair_value", "opportunity", "decision_confidence", "canonical_action"),
+    }
+
+
 def _transcript_text(payload: Any) -> str | None:
     if not isinstance(payload, Mapping):
         return None
@@ -198,4 +222,5 @@ def _transcript_text(payload: Any) -> str | None:
     return value if isinstance(value, str) and value.strip() else None
 
 
-__all__ = ["ConfiguredTranscriptProvider", "TranscriptLicenseState", "build_transcript_derived_insight", "transcript_customer_projection"]
+__all__ = ["ConfiguredTranscriptProvider", "TranscriptLicenseState", "build_internal_transcript_research_package",
+           "build_transcript_derived_insight", "transcript_customer_projection"]

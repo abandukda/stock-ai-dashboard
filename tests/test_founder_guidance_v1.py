@@ -58,15 +58,16 @@ def evaluation(**overrides):
     return build_canonical_evaluation("TEST", **args)
 
 
-def test_buy_now_requires_every_affirmative_gate():
+def test_unresolved_legacy_valuation_fixture_fails_closed_before_buy_now():
     result = evaluation()
-    assert result["guidance"]["state"] == "BUY_NOW"
-    assert result["actionability"]["status"] == "ACTIONABLE"
+    assert result["guidance"]["state"] == "WAIT_FOR_CONFIRMATION"
+    assert result["actionability"]["status"] == "NOT_ACTIONABLE"
+    assert "VALUATION_CONFIRMATION_UNAVAILABLE" in result["guidance"]["reason_codes"]
 
 
-def test_non_breakout_buy_now_does_not_require_breakout_volume_confirmation():
+def test_non_breakout_still_fails_closed_without_certified_professional_valuation():
     result = evaluation(technical=technical("NEAR_BREAKOUT", 84, .8))
-    assert result["guidance"]["state"] == "BUY_NOW"
+    assert result["guidance"]["state"] == "WAIT_FOR_CONFIRMATION"
     assert result["opportunity_thesis"] != "BREAKOUT"
     assert result["volume_quality"]["score"] == 50
 
@@ -112,7 +113,8 @@ def test_accumulate_is_affirmative_and_uses_approved_technical_states():
         technical=technical("SETUP_FORMING", 60, 1.0), opportunity=64,
         decision_confidence=58, coverage=60,
     )
-    assert result["guidance"]["state"] == "ACCUMULATE"
+    assert result["guidance"]["state"] == "WAIT_FOR_CONFIRMATION"
+    assert "VALUATION_CONFIRMATION_UNAVAILABLE" in result["guidance"]["reason_codes"]
     extended = evaluation(technical=technical("EXTENDED", 70, 2.0))
     assert extended["guidance"]["state"] == "WAIT_FOR_ENTRY"
 
@@ -122,7 +124,7 @@ def test_missing_or_rejected_valuation_preserves_nonbuy_guidance():
         technical=technical("NEAR_BREAKOUT", 62, .8),
         valuation_inputs={"forward_pe": None, "forward_eps": None},
     )
-    assert result["atlas_valuation"]["status"] == "INSUFFICIENT_INPUTS"
+    assert result["atlas_valuation"]["status"] == "DATA_UNAVAILABLE"
     assert result["guidance"]["state"] == "WAIT_FOR_CONFIRMATION"
     assert "VALUATION_CONFIRMATION_UNAVAILABLE" in result["guidance"]["reason_codes"]
 
@@ -179,8 +181,12 @@ def test_market_snapshot_never_labels_last_known_as_current():
 
 
 def test_hysteresis_blocks_transient_positive_upgrade_but_allows_immediate_downgrade():
-    prior = evaluation(technical=technical("NEAR_BREAKOUT", 60, 1.0))
-    candidate = evaluation()
+    prior = {"guidance": {"state": "WAIT_FOR_CONFIRMATION"}, "input_digest": "prior"}
+    candidate = {
+        "guidance": {"state": "BUY_NOW", "reason_codes": ()},
+        "actionability": {"status": "ACTIONABLE"}, "input_digest": "candidate",
+        "technical_confirmation": {"completed_bar": True},
+    }
     held = apply_guidance_hysteresis(prior, candidate)
     assert held["guidance"]["state"] == prior["guidance"]["state"]
     assert held["guidance"]["reason_codes"] == ("POSITIVE_UPGRADE_CONFIRMATION_PENDING",)
@@ -205,8 +211,8 @@ def test_llm_integrity_rejects_changed_guidance_and_invented_value():
     canonical = evaluation()
     bad = enforce_llm_integrity("ATLAS Guidance: HOLD. Atlas Fair Value is 999.", canonical)
     assert bad["accepted"] is False
-    assert "BUY NOW" in bad["text"]
-    good = enforce_llm_integrity("ATLAS Guidance: BUY NOW. The deterministic gates passed.", canonical)
+    assert "WAIT FOR CONFIRMATION" in bad["text"]
+    good = enforce_llm_integrity("ATLAS Guidance: WAIT FOR CONFIRMATION. The deterministic gates did not publish a positive Action.", canonical)
     assert good["accepted"] is True
     monitoring = enforce_llm_integrity("What ATLAS is monitoring: completed-bar confirmation.", canonical)
     assert monitoring["accepted"] is True
@@ -227,14 +233,13 @@ def test_llm_integrity_mechanically_protects_every_current_decision_field():
     opportunity = canonical["opportunity"]
     confidence = canonical["decision_confidence"]
     exact = enforce_llm_integrity(
-        f"ATLAS Guidance: BUY NOW. Actionability: ACTIONABLE. Opportunity {opportunity}. "
-        f"Decision confidence {confidence}. Atlas fair value 123. Expected return 23. "
-        "Technical state BREAKOUT_CONFIRMED. Volume state STRONG_CONFIRMATION. "
-        "Entry 95. Stop 90. Target 120.", canonical,
+        f"ATLAS Guidance: WAIT FOR CONFIRMATION. Actionability: NOT ACTIONABLE. Opportunity {opportunity}. "
+        f"Decision confidence {confidence}. Technical state BREAKOUT CONFIRMED. "
+        "Volume state STRONG CONFIRMATION. Entry 95. Stop 90. Target 120.", canonical,
     )
     assert exact["accepted"] is True
     attempts = (
-        "ATLAS Guidance: WAIT FOR CONFIRMATION. Actionability: NOT ACTIONABLE.",
+        "ATLAS Guidance: BUY NOW. Actionability: ACTIONABLE.",
         "ATLAS Guidance: BUY NOW. Atlas fair value 999.",
         "ATLAS Guidance: BUY NOW. Volume state NORMAL.",
         "ATLAS Guidance: BUY NOW. Technical state FAILED BREAKOUT.",
@@ -243,7 +248,7 @@ def test_llm_integrity_mechanically_protects_every_current_decision_field():
     for attempt in attempts:
         guarded = enforce_llm_integrity(attempt, canonical)
         assert guarded["accepted"] is False
-        assert guarded["text"].startswith("ATLAS Guidance: BUY NOW")
+        assert guarded["text"].startswith("ATLAS Guidance: WAIT FOR CONFIRMATION")
 
 
 def test_activation_flag_defaults_off_and_has_one_explicit_boundary(monkeypatch):
@@ -275,7 +280,7 @@ def test_research_context_attachment_is_dormant_off_and_evaluates_on(monkeypatch
     monkeypatch.setenv("ATLAS_FOUNDER_GUIDANCE_V1_ENABLED", "true")
     active = live._attach_canonical_research_context({"ticker": "MU"}, "MU")
     assert len(calls) == 1
-    assert active["current_canonical_evaluation"]["guidance"]["state"] == "BUY_NOW"
+    assert active["current_canonical_evaluation"]["guidance"]["state"] == "WAIT_FOR_CONFIRMATION"
 
 
 def test_research_reuses_scheduled_canonical_evaluation_before_post_shell_refresh(monkeypatch):
@@ -311,12 +316,14 @@ def test_ui_and_ask_ignore_current_evaluation_while_flag_is_off(monkeypatch):
     assert compact["atlas_guidance"] == {}
 
     monkeypatch.setenv("ATLAS_FOUNDER_GUIDANCE_V1_ENABLED", "true")
-    assert _current_evaluation(report)["guidance"]["state"] == "BUY_NOW"
-    assert _compact_context(report)["atlas_guidance"]["state"] == "BUY_NOW"
+    assert _current_evaluation(report)["guidance"]["state"] == "WAIT_FOR_CONFIRMATION"
+    assert _compact_context(report)["atlas_guidance"]["state"] == "WAIT_FOR_CONFIRMATION"
 
 
 def test_final_research_renderer_flag_on_exposes_guidance_and_actionability():
-    current = repr(evaluation())
+    governed = evaluation()
+    assert governed["guidance"]["state"] == "WAIT_FOR_CONFIRMATION"
+    current = repr(governed)
     source = f'''\
 import os
 os.environ["ATLAS_FOUNDER_GUIDANCE_V1_ENABLED"] = "true"
@@ -336,8 +343,7 @@ app.render_detail({{"ticker": "MU", "research_context": report["research_context
     markdown = "\n".join(str(item.value) for item in rendered.markdown)
     assert "ATLAS Rating:" in markdown
     assert "Data Limited" not in markdown
-    assert "Actionability:" in markdown
-    assert "Buy Now" in markdown
+    assert "BUY NOW" not in markdown
 
 
 def test_governed_mu_transition_fixtures_do_not_use_wall_street_authority():
@@ -354,9 +360,9 @@ def test_governed_mu_transition_fixtures_do_not_use_wall_street_authority():
     extended = evaluation(technical=technical("EXTENDED", 70, 2.0))
     # Explicit legacy opportunity/confidence overrides are ignored; Wall Street
     # inputs likewise cannot alter the deterministic six-pillar result.
-    assert waiting["guidance"]["state"] == "ACCUMULATE"
-    assert buying["guidance"]["state"] == "BUY_NOW"
-    assert accumulating["guidance"]["state"] == "ACCUMULATE"
+    assert waiting["guidance"]["state"] == "WAIT_FOR_CONFIRMATION"
+    assert buying["guidance"]["state"] == "WAIT_FOR_CONFIRMATION"
+    assert accumulating["guidance"]["state"] == "WAIT_FOR_CONFIRMATION"
     assert extended["guidance"]["state"] == "WAIT_FOR_ENTRY"
 
 

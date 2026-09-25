@@ -29,11 +29,10 @@ def _action_state(item: Mapping[str, Any]) -> str:
 
 
 def select_home_featured_cards(cards: Iterable[Mapping[str, Any]], *, limit: int = 10) -> list[Mapping[str, Any]]:
-    """Return the exact immutable card collection represented by Home counters."""
+    """Return certified strongest opportunities only; never fill with WAIT rows."""
     eligible = [card for card in cards if (card.get("homepage_promotion_eligibility") or {}).get("eligible") is not False]
     buys = [card for card in eligible if _action_state(card) == "BUY_NOW"]
-    selected = {str(card.get("ticker") or "") for card in buys}
-    return buys + [card for card in eligible if str(card.get("ticker") or "") not in selected][:max(0, limit - len(buys))]
+    return buys[:max(0, limit)]
 
 
 def rank_customer_publishable_rows(rows: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
@@ -924,6 +923,11 @@ def build_home_guidance_story(
         "groups": groups,
         "cards": cards,
         "home_featured_cards": home_featured_cards,
+        "home_opportunity_empty_state": None if home_featured_cards else {
+            "status": "NO_CERTIFIED_STRONGEST_OPPORTUNITIES",
+            "message": "ATLAS found no stocks meeting the strongest certified opportunity threshold for this snapshot.",
+            "system_failure": False,
+        },
         "home_action_count_contract": action_counts,
         "market_today": dict(market_today or {}),
         "homepage_promotion_metrics": build_homepage_promotion_metrics(cards),
