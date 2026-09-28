@@ -1,0 +1,36 @@
+name: ATLAS Pre-Finnhub Visual QA
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "agents/pre_finnhub_visual_qa.py"
+      - "tests/test_pre_finnhub_visual_qa.py"
+      - ".github/workflows/atlas_pre_finnhub_visual_qa.yml"
+
+jobs:
+  fixture-visual-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install fixture renderer
+        run: python -m pip install pillow pytest
+      - name: Run fixture-only visual/state QA
+        run: |
+          python -m agents.pre_finnhub_visual_qa \
+            --mode FIXTURE_MODE \
+            --output audit_results/pre_finnhub_visual_qa
+      - name: Run readiness contract tests
+        run: pytest -q tests/test_pre_finnhub_visual_qa.py
+      - name: Upload screenshots and Codex handoff package
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-pre-finnhub-visual-qa-${{ github.run_id }}
+          path: audit_results/pre_finnhub_visual_qa
+          if-no-files-found: error
+          retention-days: 30
