@@ -16,6 +16,8 @@ on:
       - scripts/finnhub_core_entitlement_smoke.py
       - services/finnhub_shadow_provider.py
       - services/finnhub_financial_normalization.py
+      - services/valuation_evidence_strength.py
+      - scripts/finnhub_p_fcf_peer_certification.py
       - services/transcript_provider.py
       - tests/test_finnhub_provider_only_certification.py
       - tests/test_finnhub_core_entitlement_smoke.py
@@ -27,7 +29,7 @@ permissions:
 
 jobs:
   certify:
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/codex/home-promotion-market-today-release' && github.event.before == '0c855800bbb577ec5f375730ff2ab024e5f3899a') }}
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/codex/home-promotion-market-today-release' && github.event.before == '78b36288b062b710fb33a67e4902f212c6a5a3ad') }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -52,10 +54,10 @@ jobs:
           test -z "${TWELVE_DATA_API_KEY:-}"
           test -z "${FMP_API_KEY:-}"
       - name: Run full-Core entitlement smoke
-        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_broad_p_fcf) || (github.event_name == 'push' && github.ref == 'refs/heads/codex/home-promotion-market-today-release' && github.event.before == '0c855800bbb577ec5f375730ff2ab024e5f3899a') }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_broad_p_fcf) || (github.event_name == 'push' && github.ref == 'refs/heads/codex/home-promotion-market-today-release' && github.event.before == '78b36288b062b710fb33a67e4902f212c6a5a3ad') }}
         run: python scripts/finnhub_core_entitlement_smoke.py
       - name: Run bounded real-data P/FCF peer certification
-        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_broad_p_fcf) || (github.event_name == 'push' && github.ref == 'refs/heads/codex/home-promotion-market-today-release' && github.event.before == '0c855800bbb577ec5f375730ff2ab024e5f3899a') }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_broad_p_fcf) || (github.event_name == 'push' && github.ref == 'refs/heads/codex/home-promotion-market-today-release' && github.event.before == '78b36288b062b710fb33a67e4902f212c6a5a3ad') }}
         run: python scripts/finnhub_p_fcf_peer_certification.py
       - name: Run bounded Finnhub market and technical sanity
         run: python scripts/finnhub_provider_only_certification.py

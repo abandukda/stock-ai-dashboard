@@ -5,7 +5,8 @@ import math
 import statistics
 from typing import Any, Mapping
 
-VERSION = "ATLAS_VALUATION_EVIDENCE_STRENGTH_V1"
+VERSION = "ATLAS_VALUATION_EVIDENCE_STRENGTH_V2_INFORMATIONAL_FALLBACK"
+INFORMATIONAL_COMPARABILITY_FLAGS = frozenset({"SECTOR_FALLBACK"})
 MULTI_METHOD_CORROBORATED = "MULTI_METHOD_CORROBORATED"
 SINGLE_METHOD_HIGH_SUPPORT = "SINGLE_METHOD_HIGH_SUPPORT"
 SINGLE_METHOD_LIMITED_SUPPORT = "SINGLE_METHOD_LIMITED_SUPPORT"
@@ -76,17 +77,21 @@ def certify_peer_multiple(model: Mapping[str, Any]) -> dict[str, Any]:
             ):
                 ratio_mismatches.append(peer.get("peer_ticker"))
     flags = sorted({flag for peer in peers for flag in peer.get("comparability_flags") or ()})
+    informational_flags = sorted(set(flags) & INFORMATIONAL_COMPARABILITY_FLAGS)
+    disqualifying_flags = sorted(set(flags) - INFORMATIONAL_COMPARABILITY_FLAGS)
     reasons=[]
     if "evidence_as_of" in missing: reasons.append("PEER_VALUATION_AS_OF_UNAVAILABLE")
     if missing: reasons.append("PEER_VALUATION_LINEAGE_INCOMPLETE")
-    if flags: reasons.append("PEER_COMPARABILITY_UNCERTIFIED")
+    if disqualifying_flags: reasons.append("PEER_COMPARABILITY_UNCERTIFIED")
     if ratio_mismatches: reasons.append("PEER_EV_EBITDA_RECONCILIATION_FAILED")
     if ratio_mismatches and model.get("methodology_id") == "VAL_P_FCF_V1":
         reasons[-1] = "PEER_P_FCF_RECONCILIATION_FAILED"
     if reproduced is None or used is None or not math.isclose(reproduced or 0,used or 0,rel_tol=1e-9,abs_tol=1e-9): reasons.append("PEER_MEDIAN_RECONCILIATION_FAILED")
     status = "CERTIFIED" if not reasons else "INSUFFICIENT"
     return {"version":VERSION,"status":status,"used_multiple":used,"reproduced_median":reproduced,
-            "included_peer_count":len(peers),"missing_fields":sorted(set(missing)),"comparability_flags":flags,"ratio_mismatch_peers":ratio_mismatches,
+            "included_peer_count":len(peers),"missing_fields":sorted(set(missing)),"comparability_flags":flags,
+            "informational_comparability_flags":informational_flags,
+            "disqualifying_comparability_flags":disqualifying_flags,"ratio_mismatch_peers":ratio_mismatches,
             "reason_codes":list(dict.fromkeys(reasons)),"final_peer_set":[peer.get("peer_ticker") for peer in peers]}
 
 

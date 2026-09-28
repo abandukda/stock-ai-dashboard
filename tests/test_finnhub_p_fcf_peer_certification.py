@@ -12,7 +12,7 @@ from scripts.finnhub_p_fcf_peer_certification import (
     CREDENTIAL_ENTITLEMENT_UNAVAILABLE, EXPECTED_DEMO_SYMBOL_RESTRICTION,
     FULL_CORE_RERUN_CONTRACT, PROVIDER_DATA_UNAVAILABLE,
     TARGETS, acquire_universe, classify_provider_record, derive_candidate_symbols,
-    load_governed_classifications, main,
+    acquire_adaptive_peer_coverage, load_governed_classifications, main,
 )
 
 
@@ -50,6 +50,33 @@ def test_candidate_universe_is_derived_from_governed_classification_not_hard_cod
     assert symbols == ["AAPL", "P1", "P2", "P3", "S1"]
     assert diagnostics["AAPL"]["industry_candidates_available"] == 3
     assert provenance["primary_sha256"]
+
+
+def test_adaptive_acquisition_uses_governed_order_and_stops_at_peer_minimum(monkeypatch):
+    import scripts.finnhub_p_fcf_peer_certification as module
+    catalog = {
+        "TGT": {"ticker": "TGT", "sector": "Technology", "industry": "Software", "reference_market_cap": 100},
+        "I1": {"ticker": "I1", "sector": "Technology", "industry": "Software", "reference_market_cap": 90},
+        "I2": {"ticker": "I2", "sector": "Technology", "industry": "Software", "reference_market_cap": 80},
+        "S1": {"ticker": "S1", "sector": "Technology", "industry": "Hardware", "reference_market_cap": 110},
+        "S2": {"ticker": "S2", "sector": "Technology", "industry": "Hardware", "reference_market_cap": 120},
+    }
+    counts = iter((1, 3))
+    monkeypatch.setattr(module, "_peer_count_for_target", lambda *_args: next(counts))
+
+    def fake_acquire(_adapter, symbols, _catalog, _pace):
+        return ([{"ticker": symbol} for symbol in symbols],
+                {symbol: {"ticker": symbol, "unresolved_fields": []} for symbol in symbols})
+
+    monkeypatch.setattr(module, "acquire_universe", fake_acquire)
+    rows, acquisition, diagnostics = acquire_adaptive_peer_coverage(
+        object(), rows=[{"ticker": "TGT"}], acquisition={"TGT": {}}, catalog=catalog,
+        targets=("TGT",), pace_seconds=0, batch_size=2, max_additional_symbols=4,
+    )
+    assert diagnostics["additional_symbols_acquired"] == ["I1", "I2"]
+    assert diagnostics["targets"]["TGT"]["stopped_on_minimum_peer_coverage"] is True
+    assert set(acquisition) == {"TGT", "I1", "I2"}
+    assert {item["ticker"] for item in rows} == {"TGT", "I1", "I2"}
 
 
 def test_required_targets_are_fixed_but_peer_lists_are_not_embedded_per_target():

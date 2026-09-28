@@ -26,12 +26,14 @@ from services.professional_valuation_evidence import apply_peer_multiple_evidenc
 from services.valuation_evidence_strength import certify_peer_multiple
 
 
-VERSION = "ATLAS_FINNHUB_P_FCF_PEER_CERTIFICATION_V3_DEMO_AWARE"
+VERSION = "ATLAS_FINNHUB_P_FCF_PEER_CERTIFICATION_V4_ADAPTIVE_COVERAGE"
 TARGETS = ("AAPL", "MSFT", "NVDA", "WMT", "IBM", "F", "PFE", "TSLA")
 CLASSIFICATION_PATH = Path("discovery_candidate_pool.json")
 SUPPLEMENTAL_CLASSIFICATION_PATH = Path("analysis/phase8b_calibration/universe_v1.json")
 MAX_INDUSTRY_CANDIDATES = 14
 MAX_SECTOR_CANDIDATES = 22
+ADAPTIVE_BATCH_SIZE = 8
+MAX_ADAPTIVE_ADDITIONAL_SYMBOLS = 96
 GOVERNED_SECTOR_EQUIVALENCE = {
     # The supplemental calibration universe uses the GICS label while the
     # discovery classification artifact uses the equivalent customer taxonomy.
@@ -187,6 +189,103 @@ def derive_candidate_symbols(
     return sorted(selected), diagnostics
 
 
+def _ordered_target_candidates(
+    catalog: Mapping[str, Mapping[str, Any]], symbol: str,
+) -> list[tuple[str, str]]:
+    """Return the governed peer search order without changing eligibility rules."""
+    subject = catalog.get(symbol) or {}
+    sector, industry = str(subject.get("sector") or ""), str(subject.get("industry") or "")
+    reference_cap = _num(subject.get("reference_market_cap"))
+    sort_key = lambda item: (_distance(reference_cap, _num(item[1].get("reference_market_cap")))[0], item[0])
+    industry_rows = sorted(
+        ((ticker, row) for ticker, row in catalog.items() if ticker != symbol and industry and
+         str(row.get("industry") or "").casefold() == industry.casefold()), key=sort_key,
+    )
+    industry_symbols = {ticker for ticker, _ in industry_rows}
+    sector_rows = sorted(
+        ((ticker, row) for ticker, row in catalog.items() if ticker != symbol and ticker not in industry_symbols and
+         sector and str(row.get("sector") or "").casefold() == sector.casefold()), key=sort_key,
+    )
+    return [(ticker, "SAME_INDUSTRY") for ticker, _ in industry_rows] + [
+        (ticker, "SECTOR_FALLBACK") for ticker, _ in sector_rows
+    ]
+
+
+def _peer_count_for_target(rows: Sequence[Mapping[str, Any]], symbol: str) -> int:
+    prepared = apply_peer_multiple_evidence(rows)
+    target = next((row for row in prepared if _ticker(row) == symbol), None)
+    evidence = (target or {}).get("justified_p_fcf_peer_evidence") or {}
+    return len(evidence.get("included_peers") or ())
+
+
+def acquire_adaptive_peer_coverage(
+    adapter: FinnhubShadowAdapter,
+    *,
+    rows: list[dict[str, Any]],
+    acquisition: dict[str, dict[str, Any]],
+    catalog: Mapping[str, Mapping[str, Any]],
+    targets: Sequence[str] = TARGETS,
+    pace_seconds: float,
+    batch_size: int = ADAPTIVE_BATCH_SIZE,
+    max_additional_symbols: int = MAX_ADAPTIVE_ADDITIONAL_SYMBOLS,
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]], dict[str, Any]]:
+    """Acquire governed candidates incrementally until coverage or exhaustion.
+
+    Acquisition order follows the existing industry-first/sector-fallback and
+    market-cap proximity ordering.  Peer eligibility and certification remain
+    exclusively owned by the existing Professional V2 evidence path.
+    """
+    acquired = set(acquisition)
+    attempted: list[str] = []
+    diagnostics: dict[str, Any] = {}
+    for target in targets:
+        initial_count = _peer_count_for_target(rows, target)
+        starting_count = initial_count
+        queue = [(ticker, stage) for ticker, stage in _ordered_target_candidates(catalog, target)
+                 if ticker not in acquired]
+        target_attempts: list[dict[str, Any]] = []
+        while initial_count < FULL_CORE_RERUN_CONTRACT["minimum_certified_peers_per_target"] and queue:
+            remaining_budget = max_additional_symbols - len(attempted)
+            if remaining_budget <= 0:
+                break
+            batch = queue[:min(batch_size, remaining_budget)]
+            queue = queue[len(batch):]
+            symbols = [ticker for ticker, _ in batch]
+            new_rows, new_diagnostics = acquire_universe(adapter, symbols, catalog, pace_seconds)
+            rows.extend(new_rows)
+            acquisition.update(new_diagnostics)
+            acquired.update(symbols)
+            attempted.extend(symbols)
+            for ticker, stage in batch:
+                item = new_diagnostics.get(ticker) or {}
+                target_attempts.append({
+                    "ticker": ticker,
+                    "selection_stage": stage,
+                    "complete_financial_evidence": not bool(item.get("unresolved_fields")),
+                    "unresolved_fields": list(item.get("unresolved_fields") or ()),
+                    "provider_availability": item.get("provider_availability") or {},
+                })
+            initial_count = _peer_count_for_target(rows, target)
+        diagnostics[target] = {
+            "initial_certified_peer_count": starting_count,
+            "final_certified_peer_count": initial_count,
+            "candidates_tested": target_attempts,
+            "candidate_queue_remaining": len(queue),
+            "governed_candidate_universe_exhausted": not queue,
+            "stopped_on_minimum_peer_coverage": initial_count >= FULL_CORE_RERUN_CONTRACT["minimum_certified_peers_per_target"],
+            "stopped_on_global_provider_call_bound": len(attempted) >= max_additional_symbols,
+        }
+        if len(attempted) >= max_additional_symbols:
+            break
+    return rows, acquisition, {
+        "batch_size": batch_size,
+        "max_additional_symbols": max_additional_symbols,
+        "additional_symbols_acquired": attempted,
+        "additional_symbol_count": len(attempted),
+        "targets": diagnostics,
+    }
+
+
 def _latest_fy(payload: Mapping[str, Any]) -> Mapping[str, Any] | None:
     reports = [r for r in payload.get("reports") or () if isinstance(r, Mapping) and r.get("fiscal_period") == "FY"]
     return max(reports, key=lambda r: str(r.get("fiscal_date") or ""), default=None)
@@ -333,6 +432,9 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
             })
     acquisition_symbols, candidate_diagnostics = derive_candidate_symbols(catalog)
     rows, acquisition = acquire_universe(adapter, acquisition_symbols, catalog, pace_seconds)
+    rows, acquisition, adaptive_diagnostics = acquire_adaptive_peer_coverage(
+        adapter, rows=rows, acquisition=acquisition, catalog=catalog, pace_seconds=pace_seconds,
+    )
 
     prepared = apply_peer_multiple_evidence(rows)
     by_symbol = {_ticker(row): row for row in prepared}
@@ -373,6 +475,55 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
             "downstream_blockers": downstream_blockers or [model.get("reason") or evidence.get("sufficiency_status")],
             "classification_lineage": row.get("classification_lineage"),
         }
+        acquired_symbols = set(acquisition)
+        complete_symbols = {_ticker(item) for item in rows}
+        subject = catalog.get(symbol) or {}
+        subject_sector = str(subject.get("sector") or "").casefold()
+        subject_industry = str(subject.get("industry") or "").casefold()
+        same_industry = {
+            ticker for ticker, item in catalog.items() if ticker != symbol and subject_industry and
+            str(item.get("industry") or "").casefold() == subject_industry
+        }
+        same_sector = {
+            ticker for ticker, item in catalog.items() if ticker != symbol and subject_sector and
+            str(item.get("sector") or "").casefold() == subject_sector
+        }
+        rejection_counts: dict[str, int] = {}
+        for item in evidence.get("excluded_peers") or ():
+            reason = str(item.get("exclusion_reason") or "UNKNOWN")
+            rejection_counts[reason] = rejection_counts.get(reason, 0) + 1
+        unavailable_candidates = [
+            ticker for ticker in (same_sector & acquired_symbols)
+            if ticker not in complete_symbols and any(
+                family.get("classification") == PROVIDER_DATA_UNAVAILABLE
+                for family in ((acquisition.get(ticker) or {}).get("provider_availability") or {}).values()
+            )
+        ]
+        if unavailable_candidates:
+            rejection_counts[PROVIDER_DATA_UNAVAILABLE] = len(unavailable_candidates)
+        target_results[symbol]["peer_coverage_forensics"] = {
+            "governed_same_industry_candidates": len(same_industry),
+            "governed_sector_candidates": len(same_sector),
+            "same_industry_candidates_acquired": len(same_industry & acquired_symbols),
+            "sector_candidates_acquired": len(same_sector & acquired_symbols),
+            "same_industry_complete_financial_evidence": len(same_industry & complete_symbols),
+            "sector_complete_financial_evidence": len(same_sector & complete_symbols),
+            "rejection_counts": dict(sorted(rejection_counts.items())),
+            "provider_data_unavailable_symbols": sorted(unavailable_candidates),
+        }
+        adaptive_target = (adaptive_diagnostics.get("targets") or {}).get(symbol) or {}
+        final_selected = set(evidence.get("final_peer_set") or ())
+        final_exclusions = {
+            str(item.get("peer_ticker")): item.get("exclusion_reason")
+            for item in evidence.get("excluded_peers") or ()
+        }
+        for item in adaptive_target.get("candidates_tested") or ():
+            ticker = str(item.get("ticker") or "")
+            item["final_peer_disposition"] = (
+                "SELECTED_COMPARABLE" if ticker in final_selected
+                else final_exclusions.get(ticker)
+                or (PROVIDER_DATA_UNAVAILABLE if ticker in unavailable_candidates else "NOT_SELECTED")
+            )
     certified = sum(result.get("status") == "CERTIFIED_P_FCF" for result in target_results.values())
     exclusions: dict[str, int] = {}
     for result in target_results.values():
@@ -397,9 +548,10 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
     atlas_integration_failure_symbols = sorted(
         symbol for symbol, item in acquisition.items() if item.get("atlas_integration_failure")
     )
+    requested_symbols = sorted(acquisition)
     classification_complete = sum(
         bool((catalog.get(symbol) or {}).get("sector") and (catalog.get(symbol) or {}).get("industry"))
-        for symbol in acquisition_symbols
+        for symbol in requested_symbols
     )
     historical_complete = sum(
         bool(item.get("fiscal_period")) and "free_cash_flow" not in item.get("unresolved_fields", ())
@@ -415,7 +567,9 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
         if result.get("status") != "CERTIFIED_P_FCF" and int(result.get("certified_peer_count") or 0) >= 3
     )
     coverage = {
-        "symbols_requested": len(acquisition_symbols),
+        "symbols_requested": len(requested_symbols),
+        "base_bounded_symbols_requested": len(acquisition_symbols),
+        "adaptive_additional_symbols_requested": len(requested_symbols) - len(acquisition_symbols),
         "classification_complete": classification_complete,
         "historical_financial_complete": historical_complete,
         "basic_financial_complete": basic_complete,
@@ -455,15 +609,15 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
         },
         "historical_filings": {
             "classifications": [breadth_classification, "ATLAS_INTEGRATION_COMPLETE"],
-            "evidence": f"{historical_complete}/{len(acquisition_symbols)} complete; {len(expected_demo_restriction_symbols)} expected demo restrictions; {len(entitlement_symbols)} paid-credential entitlement failures",
+            "evidence": f"{historical_complete}/{len(requested_symbols)} complete; {len(expected_demo_restriction_symbols)} expected demo restrictions; {len(entitlement_symbols)} paid-credential entitlement failures",
         },
         "basic_financials": {
             "classifications": [breadth_classification, "ATLAS_INTEGRATION_COMPLETE"],
-            "evidence": f"{basic_complete}/{len(acquisition_symbols)} complete; {len(expected_demo_restriction_symbols)} expected demo restrictions; {len(entitlement_symbols)} paid-credential entitlement failures",
+            "evidence": f"{basic_complete}/{len(requested_symbols)} complete; {len(expected_demo_restriction_symbols)} expected demo restrictions; {len(entitlement_symbols)} paid-credential entitlement failures",
         },
         "broad_peer_financial_coverage": {
             "classifications": [breadth_classification],
-            "evidence": f"{len(rows)}/{len(acquisition_symbols)} complete governed peer records",
+            "evidence": f"{len(rows)}/{len(requested_symbols)} complete governed peer records",
         },
         "p_fcf_route": {
             "classifications": [breadth_classification, "ATLAS_INTEGRATION_COMPLETE"],
@@ -485,8 +639,10 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
         "classification_provenance": classification_provenance,
         "peer_universe": {
             "classification_catalog_size": len(catalog), "bounded_acquisition_symbol_count": len(acquisition_symbols),
+            "total_acquisition_symbol_count": len(requested_symbols),
             "complete_certified_row_count": len(rows), "targets": list(TARGETS),
             "candidate_derivation": candidate_diagnostics,
+            "adaptive_acquisition": adaptive_diagnostics,
         },
         "acquisition_diagnostics": acquisition,
         "peer_certification_statistics": {
@@ -514,8 +670,8 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
             "full_core_rerun_gate": {
                 **FULL_CORE_RERUN_CONTRACT,
                 "same_governed_universe_required": True,
-                "symbols_requested": len(acquisition_symbols),
-                "classification_complete_required": len(acquisition_symbols),
+                "symbols_requested": len(requested_symbols),
+                "classification_complete_required": len(requested_symbols),
                 "all_eight_targets_p_fcf_certified": True,
             },
         },

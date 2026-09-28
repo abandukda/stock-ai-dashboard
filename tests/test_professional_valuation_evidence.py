@@ -97,6 +97,67 @@ def test_provider_neutral_p_fcf_route_publishes_and_certifies_with_complete_peer
     assert certification["included_peer_count"] == 3
 
 
+def test_sector_fallback_is_audited_but_does_not_disqualify_certified_peers():
+    subject = row("TGT", industry="Unique Industry", pe=10)
+    peers = [row(ticker, industry=f"Peer Industry {index}", pe=pe)
+             for index, (ticker, pe) in enumerate((("P1", 20), ("P2", 30), ("P3", 40)), start=1)]
+    prepared = apply_peer_multiple_evidence([subject, *peers])
+    evidence = prepared[0]["justified_p_fcf_peer_evidence"]
+    assert evidence["selection_rule"] == "same sector fallback"
+    assert all(item["comparability_flags"] == ["SECTOR_FALLBACK"] for item in evidence["included_peers"])
+    model = next(item for item in value_company(prepared[0])["models"]
+                 if item["methodology_id"] == "VAL_P_FCF_V1")
+    certification = certify_peer_multiple(model)
+    assert certification["status"] == "CERTIFIED"
+    assert certification["informational_comparability_flags"] == ["SECTOR_FALLBACK"]
+    assert certification["disqualifying_comparability_flags"] == []
+
+
+def test_sector_fallback_keeps_scale_and_security_mismatch_exclusions():
+    subject = row("TGT", industry="Unique Industry", pe=10)
+    subject.update({"security_type": "Common Stock", "market_cap": 10_000})
+    valid = []
+    for ticker, cap in (("P1", 9_000), ("P2", 11_000), ("P3", 12_000)):
+        item = row(ticker, industry="Other", pe=20)
+        item.update({"security_type": "Common Stock", "market_cap": cap})
+        valid.append(item)
+    scale = row("TINY", industry="Other", pe=20)
+    scale.update({"security_type": "Common Stock", "market_cap": 100})
+    mismatch = row("ETF", industry="Other", pe=20)
+    mismatch.update({"security_type": "ETF", "market_cap": 10_000})
+    evidence = apply_peer_multiple_evidence([subject, *valid, scale, mismatch])[0][
+        "justified_p_fcf_peer_evidence"
+    ]
+    reasons = {item["peer_ticker"]: item["exclusion_reason"] for item in evidence["excluded_peers"]}
+    assert reasons["TINY"] == "SCALE_GAP_OVER_10X"
+    assert reasons["ETF"] == "SECURITY_TYPE_MISMATCH"
+    assert set(evidence["final_peer_set"]) == {"P1", "P2", "P3"}
+
+
+@pytest.mark.parametrize(
+    ("mutation", "reason"),
+    [
+        (lambda model: model["key_assumptions"].update(multiple=999), "PEER_MEDIAN_RECONCILIATION_FAILED"),
+        (lambda model: model["key_assumptions"]["peer_evidence"]["included_peers"][0].update(
+            peer_fcf_currency="EUR"), "PEER_P_FCF_RECONCILIATION_FAILED"),
+        (lambda model: model["key_assumptions"]["peer_evidence"]["included_peers"][0].update(
+            peer_fcf_unit=""), "PEER_VALUATION_LINEAGE_INCOMPLETE"),
+        (lambda model: model["key_assumptions"]["peer_evidence"]["included_peers"][0].update(
+            evidence_ids=[]), "PEER_VALUATION_LINEAGE_INCOMPLETE"),
+    ],
+)
+def test_peer_certification_still_fails_closed_on_noninformational_defects(mutation, reason):
+    prepared = apply_peer_multiple_evidence([
+        row("A", pe=10), row("B", pe=20), row("C", pe=30), row("D", pe=40)
+    ])
+    model = next(item for item in value_company(prepared[0])["models"]
+                 if item["methodology_id"] == "VAL_P_FCF_V1")
+    mutation(model)
+    result = certify_peer_multiple(model)
+    assert result["status"] == "INSUFFICIENT"
+    assert reason in result["reason_codes"]
+
+
 def test_p_fcf_peer_is_rejected_when_currency_or_lineage_is_incomplete():
     rows = [row("A", pe=10), row("B", pe=20), row("C", pe=30), row("D", pe=40)]
     rows[1]["professional_evidence_lineage"]["fields"]["free_cash_flow"]["currency"] = "EUR"
