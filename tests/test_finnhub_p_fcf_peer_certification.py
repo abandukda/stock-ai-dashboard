@@ -10,10 +10,14 @@ from services.finnhub_shadow_provider import (
 from scripts.finnhub_p_fcf_peer_certification import (
     ATLAS_INTEGRATION_FAILURE, CERTIFIED_DATA_AVAILABLE,
     CREDENTIAL_ENTITLEMENT_UNAVAILABLE, EXPECTED_DEMO_SYMBOL_RESTRICTION,
-    FULL_CORE_RERUN_CONTRACT, PROVIDER_DATA_UNAVAILABLE,
+    FULL_CORE_RERUN_CONTRACT, P_FCF_ROUTE_CERTIFICATION_FAILURE,
+    P_FCF_ROUTE_CERTIFIED, P_FCF_ROUTE_UNAVAILABLE_INSUFFICIENT_COMPARABLE_PEERS,
+    PROVIDER_DATA_UNAVAILABLE, PROVIDER_INPUTS_CERTIFIED,
     TARGETS, acquire_universe, classify_provider_record, derive_candidate_symbols,
-    acquire_adaptive_peer_coverage, load_governed_classifications, main,
+    acquire_adaptive_peer_coverage, classify_target_route,
+    _p_fcf_output_signature, load_governed_classifications, main,
 )
+from tests.test_professional_valuation_evidence import row
 
 
 def test_acquisition_serializes_one_issuer_integration_failure_and_continues(monkeypatch):
@@ -71,12 +75,122 @@ def test_adaptive_acquisition_uses_governed_order_and_stops_at_peer_minimum(monk
     monkeypatch.setattr(module, "acquire_universe", fake_acquire)
     rows, acquisition, diagnostics = acquire_adaptive_peer_coverage(
         object(), rows=[{"ticker": "TGT"}], acquisition={"TGT": {}}, catalog=catalog,
-        targets=("TGT",), pace_seconds=0, batch_size=2, max_additional_symbols=4,
+        targets=("TGT",), pace_seconds=0, batch_size=2, max_additional_symbols_per_target=4,
     )
-    assert diagnostics["additional_symbols_acquired"] == ["I1", "I2"]
+    assert diagnostics["physical_provider_calls"] == ["I1", "I2"]
     assert diagnostics["targets"]["TGT"]["stopped_on_minimum_peer_coverage"] is True
     assert set(acquisition) == {"TGT", "I1", "I2"}
     assert {item["ticker"] for item in rows} == {"TGT", "I1", "I2"}
+
+
+def test_target_local_adaptive_scopes_do_not_cross_contaminate_and_reuse_cache(monkeypatch):
+    import scripts.finnhub_p_fcf_peer_certification as module
+    catalog = {
+        "A": {"ticker": "A", "sector": "Technology", "industry": "Alpha", "reference_market_cap": 100},
+        "B": {"ticker": "B", "sector": "Technology", "industry": "Beta", "reference_market_cap": 100},
+        "SHARED": {"ticker": "SHARED", "sector": "Technology", "industry": "Gamma", "reference_market_cap": 100},
+    }
+    scope_counts = {"A": iter((0, 3)), "B": iter((0, 3))}
+    monkeypatch.setattr(module, "_peer_count_for_target", lambda _rows, target: next(scope_counts[target]))
+    calls = []
+
+    def fake_acquire(_adapter, symbols, _catalog, _pace):
+        calls.extend(symbols)
+        return ([{"ticker": symbol} for symbol in symbols],
+                {symbol: {"ticker": symbol, "unresolved_fields": []} for symbol in symbols})
+
+    monkeypatch.setattr(module, "acquire_universe", fake_acquire)
+    _rows, _acquisition, diagnostics = acquire_adaptive_peer_coverage(
+        object(), rows=[{"ticker": "A"}, {"ticker": "B"}],
+        acquisition={"A": {}, "B": {}}, catalog=catalog, targets=("A", "B"),
+        pace_seconds=0, batch_size=1, max_additional_symbols_per_target=3,
+    )
+    assert calls == ["SHARED"]
+    assert diagnostics["targets"]["A"]["logical_evidence_scope_symbols"] == ["A", "B", "SHARED"]
+    assert diagnostics["targets"]["B"]["logical_evidence_scope_symbols"] == ["A", "B", "SHARED"]
+    assert diagnostics["targets"]["B"]["candidates_tested"][0]["provider_response_reused_from_cache"] is True
+
+
+def test_adaptive_candidate_for_one_target_does_not_enter_another_target_scope(monkeypatch):
+    import scripts.finnhub_p_fcf_peer_certification as module
+    catalog = {
+        "A": {"ticker": "A", "sector": "Technology", "industry": "Alpha", "reference_market_cap": 100},
+        "B": {"ticker": "B", "sector": "Technology", "industry": "Beta", "reference_market_cap": 100},
+        "B_ONLY": {"ticker": "B_ONLY", "sector": "Technology", "industry": "Beta", "reference_market_cap": 90},
+    }
+    scope_counts = {"A": iter((3,)), "B": iter((0, 3))}
+    monkeypatch.setattr(module, "_peer_count_for_target", lambda _rows, target: next(scope_counts[target]))
+
+    def fake_acquire(_adapter, symbols, _catalog, _pace):
+        return ([{"ticker": symbol} for symbol in symbols],
+                {symbol: {"ticker": symbol, "unresolved_fields": []} for symbol in symbols})
+
+    monkeypatch.setattr(module, "acquire_universe", fake_acquire)
+    _rows, _acquisition, diagnostics = acquire_adaptive_peer_coverage(
+        object(), rows=[{"ticker": "A"}, {"ticker": "B"}],
+        acquisition={"A": {}, "B": {}}, catalog=catalog, targets=("A", "B"),
+        pace_seconds=0, batch_size=1, max_additional_symbols_per_target=3,
+    )
+    assert "B_ONLY" not in diagnostics["targets"]["A"]["logical_evidence_scope_symbols"]
+    assert "B_ONLY" in diagnostics["targets"]["B"]["logical_evidence_scope_symbols"]
+
+
+def test_provider_input_and_route_status_are_separate_for_exhausted_peer_universe():
+    result = classify_target_route(
+        target_row_present=True, certified_peer_count=1,
+        route_certified=False, candidate_universe_exhausted=True,
+    )
+    assert result == {
+        "provider_input_status": PROVIDER_INPUTS_CERTIFIED,
+        "p_fcf_route_status": P_FCF_ROUTE_UNAVAILABLE_INSUFFICIENT_COMPARABLE_PEERS,
+    }
+    assert classify_target_route(
+        target_row_present=True, certified_peer_count=3,
+        route_certified=True, candidate_universe_exhausted=False,
+    )["p_fcf_route_status"] == P_FCF_ROUTE_CERTIFIED
+    assert classify_target_route(
+        target_row_present=True, certified_peer_count=2,
+        route_certified=False, candidate_universe_exhausted=False,
+    )["p_fcf_route_status"] == P_FCF_ROUTE_CERTIFICATION_FAILURE
+
+
+def test_sufficient_target_numerical_output_is_invariant_to_other_target_adaptive_rows():
+    base = [row("F", industry="Auto", pe=10), row("P1", industry="Auto", pe=20),
+            row("P2", industry="Auto", pe=30), row("P3", industry="Auto", pe=40)]
+    baseline = _p_fcf_output_signature(base, "F")
+    # An unrelated target may fetch another otherwise-comparable issuer, but it
+    # is not in F's logical evidence scope and cannot change F's result.
+    physical_cache = [*base, row("OTHER_TARGET_EXTRA", industry="Auto", pe=5)]
+    isolated = _p_fcf_output_signature(
+        [item for item in physical_cache if item["ticker"] != "OTHER_TARGET_EXTRA"], "F"
+    )
+    contaminated = _p_fcf_output_signature(physical_cache, "F")
+    assert isolated == baseline
+    assert contaminated != baseline
+
+
+def test_target_local_queue_exhausts_without_consuming_another_targets_budget(monkeypatch):
+    import scripts.finnhub_p_fcf_peer_certification as module
+    catalog = {
+        "A": {"ticker": "A", "sector": "Tech", "industry": "A", "reference_market_cap": 100},
+        "B": {"ticker": "B", "sector": "Retail", "industry": "B", "reference_market_cap": 100},
+        "B1": {"ticker": "B1", "sector": "Retail", "industry": "B", "reference_market_cap": 90},
+        "B2": {"ticker": "B2", "sector": "Retail", "industry": "B", "reference_market_cap": 80},
+    }
+    monkeypatch.setattr(module, "_peer_count_for_target", lambda _rows, target: 3 if target == "A" else 2)
+    monkeypatch.setattr(module, "acquire_universe", lambda _adapter, symbols, _catalog, _pace: (
+        [{"ticker": symbol} for symbol in symbols],
+        {symbol: {"ticker": symbol, "unresolved_fields": []} for symbol in symbols},
+    ))
+    _rows, _acquisition, diagnostics = acquire_adaptive_peer_coverage(
+        object(), rows=[{"ticker": "A"}, {"ticker": "B"}], acquisition={"A": {}, "B": {}},
+        catalog=catalog, targets=("A", "B"), pace_seconds=0, batch_size=1,
+        max_additional_symbols_per_target=10,
+    )
+    b = diagnostics["targets"]["B"]
+    assert [item["ticker"] for item in b["candidates_tested"]] == ["B1", "B2"]
+    assert b["governed_candidate_universe_exhausted"] is True
+    assert b["stopped_on_target_provider_call_bound"] is False
 
 
 def test_required_targets_are_fixed_but_peer_lists_are_not_embedded_per_target():

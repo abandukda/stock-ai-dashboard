@@ -26,14 +26,14 @@ from services.professional_valuation_evidence import apply_peer_multiple_evidenc
 from services.valuation_evidence_strength import certify_peer_multiple
 
 
-VERSION = "ATLAS_FINNHUB_P_FCF_PEER_CERTIFICATION_V4_ADAPTIVE_COVERAGE"
+VERSION = "ATLAS_FINNHUB_P_FCF_PEER_CERTIFICATION_V5_TARGET_LOCAL_SCOPE"
 TARGETS = ("AAPL", "MSFT", "NVDA", "WMT", "IBM", "F", "PFE", "TSLA")
 CLASSIFICATION_PATH = Path("discovery_candidate_pool.json")
 SUPPLEMENTAL_CLASSIFICATION_PATH = Path("analysis/phase8b_calibration/universe_v1.json")
 MAX_INDUSTRY_CANDIDATES = 14
 MAX_SECTOR_CANDIDATES = 22
 ADAPTIVE_BATCH_SIZE = 8
-MAX_ADAPTIVE_ADDITIONAL_SYMBOLS = 96
+MAX_ADAPTIVE_ADDITIONAL_SYMBOLS_PER_TARGET = 256
 GOVERNED_SECTOR_EQUIVALENCE = {
     # The supplemental calibration universe uses the GICS label while the
     # discovery classification artifact uses the equivalent customer taxonomy.
@@ -48,6 +48,11 @@ EXPECTED_DEMO_SYMBOL_RESTRICTION = "EXPECTED_DEMO_SYMBOL_RESTRICTION"
 PAID_CORE_BREADTH_UNTESTED = "PAID_CORE_BREADTH_UNTESTED"
 ATLAS_INTEGRATION_FAILURE = "ATLAS_INTEGRATION_FAILURE"
 CERTIFIED_DATA_AVAILABLE = "CERTIFIED_DATA_AVAILABLE"
+PROVIDER_INPUTS_CERTIFIED = "CERTIFIED_COMPLETE"
+P_FCF_ROUTE_CERTIFIED = "CERTIFIED"
+P_FCF_ROUTE_UNAVAILABLE_INSUFFICIENT_COMPARABLE_PEERS = "UNAVAILABLE_INSUFFICIENT_COMPARABLE_PEERS"
+P_FCF_ROUTE_UNAVAILABLE_MISSING_TARGET_INPUT = "UNAVAILABLE_MISSING_TARGET_INPUT"
+P_FCF_ROUTE_CERTIFICATION_FAILURE = "FAILED_CERTIFICATION_DEFECT"
 FULL_CORE_RERUN_CONTRACT = {
     "governed_universe_identity_must_match": True,
     "required_families": ("company_profile", "financial_statements", "basic_financials"),
@@ -76,6 +81,52 @@ def classify_provider_record(record: Mapping[str, Any]) -> str:
     if status in {"DATA_UNAVAILABLE", "PROVIDER_ERROR"}:
         return PROVIDER_DATA_UNAVAILABLE
     return CERTIFIED_DATA_AVAILABLE
+
+
+def classify_target_route(*, target_row_present: bool, certified_peer_count: int,
+                          route_certified: bool, candidate_universe_exhausted: bool) -> dict[str, str]:
+    """Keep provider-input availability separate from valuation-route reachability."""
+    if not target_row_present:
+        return {
+            "provider_input_status": PROVIDER_DATA_UNAVAILABLE,
+            "p_fcf_route_status": P_FCF_ROUTE_UNAVAILABLE_MISSING_TARGET_INPUT,
+        }
+    if route_certified:
+        return {
+            "provider_input_status": PROVIDER_INPUTS_CERTIFIED,
+            "p_fcf_route_status": P_FCF_ROUTE_CERTIFIED,
+        }
+    if certified_peer_count < FULL_CORE_RERUN_CONTRACT["minimum_certified_peers_per_target"] and candidate_universe_exhausted:
+        return {
+            "provider_input_status": PROVIDER_INPUTS_CERTIFIED,
+            "p_fcf_route_status": P_FCF_ROUTE_UNAVAILABLE_INSUFFICIENT_COMPARABLE_PEERS,
+        }
+    return {
+        "provider_input_status": PROVIDER_INPUTS_CERTIFIED,
+        "p_fcf_route_status": P_FCF_ROUTE_CERTIFICATION_FAILURE,
+    }
+
+
+def _p_fcf_output_signature(rows: Sequence[Mapping[str, Any]], symbol: str) -> dict[str, Any] | None:
+    """Capture the decision-relevant P/FCF output for scope-isolation checks."""
+    prepared = apply_peer_multiple_evidence(rows)
+    row = next((item for item in prepared if _ticker(item) == symbol), None)
+    if not row:
+        return None
+    evidence = row.get("justified_p_fcf_peer_evidence") or {}
+    valuation = value_company(row)
+    model = next((item for item in valuation.get("models") or ()
+                  if item.get("methodology_id") == "VAL_P_FCF_V1"), {})
+    return {
+        "selected_peers": list(evidence.get("final_peer_set") or ()),
+        "peer_p_fcf_values": {
+            item.get("peer_ticker"): item.get("multiple")
+            for item in evidence.get("included_peers") or ()
+        },
+        "median_justified_p_fcf": evidence.get("published_median"),
+        "fair_value": model.get("value"),
+        "route_status": model.get("status"),
+    }
 
 
 def _ticker(row: Mapping[str, Any]) -> str:
@@ -227,7 +278,7 @@ def acquire_adaptive_peer_coverage(
     targets: Sequence[str] = TARGETS,
     pace_seconds: float,
     batch_size: int = ADAPTIVE_BATCH_SIZE,
-    max_additional_symbols: int = MAX_ADAPTIVE_ADDITIONAL_SYMBOLS,
+    max_additional_symbols_per_target: int = MAX_ADAPTIVE_ADDITIONAL_SYMBOLS_PER_TARGET,
 ) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]], dict[str, Any]]:
     """Acquire governed candidates incrementally until coverage or exhaustion.
 
@@ -235,53 +286,72 @@ def acquire_adaptive_peer_coverage(
     market-cap proximity ordering.  Peer eligibility and certification remain
     exclusively owned by the existing Professional V2 evidence path.
     """
-    acquired = set(acquisition)
-    attempted: list[str] = []
+    base_scope = set(acquisition)
+    acquired = set(base_scope)
+    rows_by_ticker = {_ticker(row): row for row in rows}
+    provider_calls: list[str] = []
     diagnostics: dict[str, Any] = {}
     for target in targets:
-        initial_count = _peer_count_for_target(rows, target)
+        target_scope = set(base_scope)
+        scoped_rows = [row for ticker, row in rows_by_ticker.items() if ticker in target_scope]
+        initial_count = _peer_count_for_target(scoped_rows, target)
         starting_count = initial_count
         queue = [(ticker, stage) for ticker, stage in _ordered_target_candidates(catalog, target)
-                 if ticker not in acquired]
+                 if ticker not in target_scope]
         target_attempts: list[dict[str, Any]] = []
+        target_provider_calls = 0
         while initial_count < FULL_CORE_RERUN_CONTRACT["minimum_certified_peers_per_target"] and queue:
-            remaining_budget = max_additional_symbols - len(attempted)
+            remaining_budget = max_additional_symbols_per_target - target_provider_calls
             if remaining_budget <= 0:
                 break
-            batch = queue[:min(batch_size, remaining_budget)]
+            batch = queue[:batch_size]
             queue = queue[len(batch):]
-            symbols = [ticker for ticker, _ in batch]
-            new_rows, new_diagnostics = acquire_universe(adapter, symbols, catalog, pace_seconds)
+            uncached = [ticker for ticker, _ in batch if ticker not in acquired]
+            if len(uncached) > remaining_budget:
+                allowed = set(uncached[:remaining_budget])
+                deferred = [(ticker, stage) for ticker, stage in batch if ticker not in acquired and ticker not in allowed]
+                batch = [(ticker, stage) for ticker, stage in batch if ticker in acquired or ticker in allowed]
+                queue = deferred + queue
+                uncached = [ticker for ticker, _ in batch if ticker not in acquired]
+            new_rows, new_diagnostics = acquire_universe(adapter, uncached, catalog, pace_seconds)
             rows.extend(new_rows)
+            rows_by_ticker.update({_ticker(row): row for row in new_rows})
             acquisition.update(new_diagnostics)
-            acquired.update(symbols)
-            attempted.extend(symbols)
+            acquired.update(uncached)
+            provider_calls.extend(uncached)
+            target_provider_calls += len(uncached)
             for ticker, stage in batch:
-                item = new_diagnostics.get(ticker) or {}
+                target_scope.add(ticker)
+                item = acquisition.get(ticker) or {}
                 target_attempts.append({
                     "ticker": ticker,
                     "selection_stage": stage,
+                    "provider_response_reused_from_cache": ticker not in uncached,
                     "complete_financial_evidence": not bool(item.get("unresolved_fields")),
                     "unresolved_fields": list(item.get("unresolved_fields") or ()),
                     "provider_availability": item.get("provider_availability") or {},
                 })
-            initial_count = _peer_count_for_target(rows, target)
+            scoped_rows = [row for ticker, row in rows_by_ticker.items() if ticker in target_scope]
+            initial_count = _peer_count_for_target(scoped_rows, target)
         diagnostics[target] = {
             "initial_certified_peer_count": starting_count,
             "final_certified_peer_count": initial_count,
             "candidates_tested": target_attempts,
+            "logical_evidence_scope_symbols": sorted(target_scope),
+            "logical_evidence_scope_count": len(target_scope),
+            "target_provider_call_count": target_provider_calls,
             "candidate_queue_remaining": len(queue),
             "governed_candidate_universe_exhausted": not queue,
             "stopped_on_minimum_peer_coverage": initial_count >= FULL_CORE_RERUN_CONTRACT["minimum_certified_peers_per_target"],
-            "stopped_on_global_provider_call_bound": len(attempted) >= max_additional_symbols,
+            "stopped_on_target_provider_call_bound": target_provider_calls >= max_additional_symbols_per_target,
         }
-        if len(attempted) >= max_additional_symbols:
-            break
     return rows, acquisition, {
         "batch_size": batch_size,
-        "max_additional_symbols": max_additional_symbols,
-        "additional_symbols_acquired": attempted,
-        "additional_symbol_count": len(attempted),
+        "max_additional_symbols_per_target": max_additional_symbols_per_target,
+        "physical_provider_calls": provider_calls,
+        "physical_provider_call_count": len(provider_calls),
+        "base_logical_scope_symbols": sorted(base_scope),
+        "base_logical_scope_count": len(base_scope),
         "targets": diagnostics,
     }
 
@@ -432,23 +502,47 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
             })
     acquisition_symbols, candidate_diagnostics = derive_candidate_symbols(catalog)
     rows, acquisition = acquire_universe(adapter, acquisition_symbols, catalog, pace_seconds)
+    base_scope_rows = list(rows)
+    base_output_signatures = {
+        symbol: signature for symbol in TARGETS
+        if (signature := _p_fcf_output_signature(base_scope_rows, symbol))
+        and signature.get("route_status") == "PUBLISHED"
+    }
     rows, acquisition, adaptive_diagnostics = acquire_adaptive_peer_coverage(
         adapter, rows=rows, acquisition=acquisition, catalog=catalog, pace_seconds=pace_seconds,
     )
 
-    prepared = apply_peer_multiple_evidence(rows)
-    by_symbol = {_ticker(row): row for row in prepared}
     target_results = {}
     for symbol in TARGETS:
+        target_scope = set(
+            ((adaptive_diagnostics.get("targets") or {}).get(symbol) or {}).get("logical_evidence_scope_symbols")
+            or acquisition_symbols
+        )
+        scoped_rows = [item for item in rows if _ticker(item) in target_scope]
+        prepared = apply_peer_multiple_evidence(scoped_rows)
+        by_symbol = {_ticker(item): item for item in prepared}
         row = by_symbol.get(symbol)
         if not row:
-            target_results[symbol] = {"status": "FAIL_PROVIDER_DATA", "blocker": "TARGET_EVIDENCE_INCOMPLETE"}
+            target_results[symbol] = {
+                "status": "FAIL_PROVIDER_DATA", "blocker": "TARGET_EVIDENCE_INCOMPLETE",
+                **classify_target_route(
+                    target_row_present=False, certified_peer_count=0,
+                    route_certified=False, candidate_universe_exhausted=False,
+                ),
+            }
             continue
         evidence = row.get("justified_p_fcf_peer_evidence") or {}
         valuation = value_company(row)
         model = next((m for m in valuation.get("models") or () if m.get("methodology_id") == "VAL_P_FCF_V1"), {})
         peer_certification = certify_peer_multiple(model) if model else {"status": "NOT_EVALUATED"}
         route_certified = model.get("status") == "PUBLISHED" and peer_certification.get("status") == "CERTIFIED"
+        adaptive_target = (adaptive_diagnostics.get("targets") or {}).get(symbol) or {}
+        route_classification = classify_target_route(
+            target_row_present=True,
+            certified_peer_count=len(evidence.get("included_peers") or ()),
+            route_certified=route_certified,
+            candidate_universe_exhausted=bool(adaptive_target.get("governed_candidate_universe_exhausted")),
+        )
         downstream_blockers = []
         if route_certified:
             downstream_blockers.extend((
@@ -458,6 +552,7 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
             ))
         target_results[symbol] = {
             "status": "CERTIFIED_P_FCF" if route_certified else "FAIL_P_FCF_CERTIFICATION",
+            **route_classification,
             "company": row.get("company"), "sector": row.get("sector"), "industry": row.get("industry"),
             "normalized_historical_fcf": row.get("normalized_fcf"), "diluted_shares": row.get("diluted_shares"),
             "current_market_cap": row.get("market_cap"), "implied_current_price": row.get("current_price"),
@@ -475,8 +570,19 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
             "downstream_blockers": downstream_blockers or [model.get("reason") or evidence.get("sufficiency_status")],
             "classification_lineage": row.get("classification_lineage"),
         }
-        acquired_symbols = set(acquisition)
-        complete_symbols = {_ticker(item) for item in rows}
+        current_signature = _p_fcf_output_signature(scoped_rows, symbol)
+        baseline_signature = base_output_signatures.get(symbol)
+        target_results[symbol]["numerical_isolation"] = {
+            "baseline_was_sufficient": baseline_signature is not None,
+            "status": (
+                "TARGET_SCOPE_CONTAMINATION" if baseline_signature is not None and current_signature != baseline_signature
+                else "PASS"
+            ),
+            "baseline_output": baseline_signature,
+            "isolated_output": current_signature,
+        }
+        acquired_symbols = target_scope
+        complete_symbols = {_ticker(item) for item in scoped_rows}
         subject = catalog.get(symbol) or {}
         subject_sector = str(subject.get("sector") or "").casefold()
         subject_industry = str(subject.get("industry") or "").casefold()
@@ -502,6 +608,10 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
         if unavailable_candidates:
             rejection_counts[PROVIDER_DATA_UNAVAILABLE] = len(unavailable_candidates)
         target_results[symbol]["peer_coverage_forensics"] = {
+            "logical_evidence_scope_count": len(target_scope),
+            "logical_evidence_scope_sha256": hashlib.sha256(
+                "\n".join(sorted(target_scope)).encode("utf-8")
+            ).hexdigest(),
             "governed_same_industry_candidates": len(same_industry),
             "governed_sector_candidates": len(same_sector),
             "same_industry_candidates_acquired": len(same_industry & acquired_symbols),
@@ -511,7 +621,6 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
             "rejection_counts": dict(sorted(rejection_counts.items())),
             "provider_data_unavailable_symbols": sorted(unavailable_candidates),
         }
-        adaptive_target = (adaptive_diagnostics.get("targets") or {}).get(symbol) or {}
         final_selected = set(evidence.get("final_peer_set") or ())
         final_exclusions = {
             str(item.get("peer_ticker")): item.get("exclusion_reason")
@@ -525,6 +634,10 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
                 or (PROVIDER_DATA_UNAVAILABLE if ticker in unavailable_candidates else "NOT_SELECTED")
             )
     certified = sum(result.get("status") == "CERTIFIED_P_FCF" for result in target_results.values())
+    contamination_targets = sorted(
+        symbol for symbol, result in target_results.items()
+        if (result.get("numerical_isolation") or {}).get("status") == "TARGET_SCOPE_CONTAMINATION"
+    )
     exclusions: dict[str, int] = {}
     for result in target_results.values():
         for item in result.get("excluded_peers") or ():
@@ -594,6 +707,7 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
         and coverage["credential_entitlement_failure_count"] == 0
         and coverage["expected_demo_symbol_restriction_count"] == 0
         and coverage["atlas_integration_failure_count"] == 0
+        and not contamination_targets
         and all_targets_have_three and all_targets_certified
         and coverage["canonical_certification_failure_count"] == 0
     )
@@ -648,6 +762,8 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
         "peer_certification_statistics": {
             "certified_target_count": certified, "failed_target_count": len(TARGETS) - certified,
             "exclusion_reason_counts": dict(sorted(exclusions.items())),
+            "target_scope_contamination_count": len(contamination_targets),
+            "target_scope_contamination_targets": contamination_targets,
         },
         "entitlement_coverage_gate": coverage,
         "provider_commercial_readiness_matrix": capability_matrix,
