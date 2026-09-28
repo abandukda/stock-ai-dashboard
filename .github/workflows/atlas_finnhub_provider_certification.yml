@@ -27,10 +27,12 @@ permissions:
 
 jobs:
   certify:
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/codex/home-promotion-market-today-release' && github.event.before == 'c17f7672ba314d717225453f7d504789bd8ca895') }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
       FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+      ATLAS_FINNHUB_LICENSE_CLASS: ${{ vars.ATLAS_FINNHUB_LICENSE_CLASS }}
       ATLAS_TRANSCRIPT_API_KEY: ${{ secrets.EARNINGSCALL_API_KEY }}
       ATLAS_TRANSCRIPT_API_BASE_URL: https://v2.api.earningscall.biz
       ATLAS_TRANSCRIPT_PROVIDER: earningscall
@@ -45,17 +47,18 @@ jobs:
       - name: Assert provider-only environment
         run: |
           test -n "$FINNHUB_API_KEY"
+          test "$ATLAS_FINNHUB_LICENSE_CLASS" = "PAID_CORE_CERTIFICATION"
           test -n "$ATLAS_TRANSCRIPT_API_KEY"
           test -z "${TWELVE_DATA_API_KEY:-}"
           test -z "${FMP_API_KEY:-}"
-      - name: Run Finnhub-only certification
-        run: python scripts/finnhub_provider_only_certification.py
       - name: Run full-Core entitlement smoke
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_broad_p_fcf }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_broad_p_fcf) || (github.event_name == 'push' && github.ref == 'refs/heads/codex/home-promotion-market-today-release' && github.event.before == 'c17f7672ba314d717225453f7d504789bd8ca895') }}
         run: python scripts/finnhub_core_entitlement_smoke.py
       - name: Run bounded real-data P/FCF peer certification
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_broad_p_fcf }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_broad_p_fcf) || (github.event_name == 'push' && github.ref == 'refs/heads/codex/home-promotion-market-today-release' && github.event.before == 'c17f7672ba314d717225453f7d504789bd8ca895') }}
         run: python scripts/finnhub_p_fcf_peer_certification.py
+      - name: Run bounded Finnhub market and technical sanity
+        run: python scripts/finnhub_provider_only_certification.py
       - name: Run provider-only contract tests
         run: pytest -q tests/test_finnhub_provider_only_certification.py tests/test_finnhub_core_entitlement_smoke.py tests/test_finnhub_p_fcf_peer_certification.py tests/test_professional_valuation_evidence.py tests/test_provider_architecture_shadow.py tests/test_transcript_provider_contract.py
       - name: Assert production artifacts unchanged
@@ -64,7 +67,47 @@ jobs:
             echo "::error::Provider certification modified production artifacts"
             exit 1
           fi
+      - name: Finalize immutable certification package
+        if: always()
+        env:
+          ATLAS_SOURCE_SHA: ${{ github.sha }}
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          root = Path("audit_results/finnhub_certification")
+          root.mkdir(parents=True, exist_ok=True)
+          (root / "source_sha.txt").write_text(os.environ["ATLAS_SOURCE_SHA"] + "\n", encoding="utf-8")
+          peer_path = root / "finnhub_p_fcf_peer_certification.json"
+          smoke_path = root / "finnhub_core_entitlement_smoke.json"
+          provider_path = root / "finnhub_provider_certification.json"
+          peer = json.loads(peer_path.read_text(encoding="utf-8")) if peer_path.exists() else {}
+          smoke = json.loads(smoke_path.read_text(encoding="utf-8")) if smoke_path.exists() else {}
+          gate = {
+              "generated_at": datetime.now(timezone.utc).isoformat(),
+              "source_sha": os.environ["ATLAS_SOURCE_SHA"],
+              "paid_configuration_ready": bool(os.environ.get("FINNHUB_API_KEY")) and os.environ.get("ATLAS_FINNHUB_LICENSE_CLASS") == "PAID_CORE_CERTIFICATION",
+              "entitlement_smoke_state": smoke.get("state", "NOT_COMPLETED"),
+              "finnhub_core_state": ((peer.get("launch_readiness") or {}).get("finnhub_core_state") or "NOT_COMPLETED"),
+              "provider_authority_changed": False,
+              "production_cutover": False,
+          }
+          (root / "final_gate_report.json").write_text(json.dumps(gate, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          manifest = {}
+          for path in sorted(root.glob("*")):
+              if path.is_file() and path.name != "artifact_manifest.json":
+                  manifest[path.name] = {"sha256": hashlib.sha256(path.read_bytes()).hexdigest(), "bytes": path.stat().st_size}
+          (root / "artifact_manifest.json").write_text(json.dumps({
+              "source_sha": os.environ["ATLAS_SOURCE_SHA"],
+              "artifacts": manifest,
+          }, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          PY
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: atlas-finnhub-certification-${{ github.run_id }}
           path: audit_results/finnhub_certification
