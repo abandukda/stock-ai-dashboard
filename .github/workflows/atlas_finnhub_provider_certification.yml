@@ -27,7 +27,7 @@ permissions:
 
 jobs:
   certify:
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/codex/home-promotion-market-today-release' && github.event.before == 'c17f7672ba314d717225453f7d504789bd8ca895') }}
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/codex/home-promotion-market-today-release' && github.event.before == '0c855800bbb577ec5f375730ff2ab024e5f3899a') }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -52,10 +52,10 @@ jobs:
           test -z "${TWELVE_DATA_API_KEY:-}"
           test -z "${FMP_API_KEY:-}"
       - name: Run full-Core entitlement smoke
-        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_broad_p_fcf) || (github.event_name == 'push' && github.ref == 'refs/heads/codex/home-promotion-market-today-release' && github.event.before == 'c17f7672ba314d717225453f7d504789bd8ca895') }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_broad_p_fcf) || (github.event_name == 'push' && github.ref == 'refs/heads/codex/home-promotion-market-today-release' && github.event.before == '0c855800bbb577ec5f375730ff2ab024e5f3899a') }}
         run: python scripts/finnhub_core_entitlement_smoke.py
       - name: Run bounded real-data P/FCF peer certification
-        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_broad_p_fcf) || (github.event_name == 'push' && github.ref == 'refs/heads/codex/home-promotion-market-today-release' && github.event.before == 'c17f7672ba314d717225453f7d504789bd8ca895') }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_broad_p_fcf) || (github.event_name == 'push' && github.ref == 'refs/heads/codex/home-promotion-market-today-release' && github.event.before == '0c855800bbb577ec5f375730ff2ab024e5f3899a') }}
         run: python scripts/finnhub_p_fcf_peer_certification.py
       - name: Run bounded Finnhub market and technical sanity
         run: python scripts/finnhub_provider_only_certification.py

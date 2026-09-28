@@ -286,6 +286,33 @@ def acquire_row(
     return row, diagnostic
 
 
+def acquire_universe(
+    adapter: FinnhubShadowAdapter, acquisition_symbols: Sequence[str],
+    catalog: Mapping[str, Mapping[str, Any]], pace_seconds: float,
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
+    """Acquire all issuers while retaining record-level fail-closed evidence."""
+    rows: list[dict[str, Any]] = []
+    acquisition: dict[str, dict[str, Any]] = {}
+    for symbol in acquisition_symbols:
+        classification = catalog.get(symbol) or {}
+        if not classification.get("sector") or not classification.get("industry"):
+            acquisition[symbol] = {"ticker": symbol, "unresolved_fields": ["sector_or_industry"]}
+            continue
+        try:
+            row, diagnostic = acquire_row(adapter, symbol, classification, pace_seconds)
+        except Exception as exc:
+            acquisition[symbol] = {
+                "ticker": symbol,
+                "unresolved_fields": ["atlas_integration_failure"],
+                "atlas_integration_failure": {"exception_type": type(exc).__name__},
+            }
+            continue
+        acquisition[symbol] = diagnostic
+        if row is not None:
+            rows.append(row)
+    return rows, acquisition
+
+
 def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
     catalog, classification_provenance = load_governed_classifications()
     adapter = FinnhubShadowAdapter()
@@ -305,16 +332,7 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
                 "classification_provider_evidence_id": profile.get("provenance", {}).get("raw_evidence_id"),
             })
     acquisition_symbols, candidate_diagnostics = derive_candidate_symbols(catalog)
-    rows, acquisition = [], {}
-    for symbol in acquisition_symbols:
-        classification = catalog.get(symbol) or {}
-        if not classification.get("sector") or not classification.get("industry"):
-            acquisition[symbol] = {"ticker": symbol, "unresolved_fields": ["sector_or_industry"]}
-            continue
-        row, diagnostic = acquire_row(adapter, symbol, classification, pace_seconds)
-        acquisition[symbol] = diagnostic
-        if row is not None:
-            rows.append(row)
+    rows, acquisition = acquire_universe(adapter, acquisition_symbols, catalog, pace_seconds)
 
     prepared = apply_peer_multiple_evidence(rows)
     by_symbol = {_ticker(row): row for row in prepared}
@@ -376,6 +394,9 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
         if any(family.get("classification") == PROVIDER_DATA_UNAVAILABLE
                for family in (item.get("provider_availability") or {}).values())
     })
+    atlas_integration_failure_symbols = sorted(
+        symbol for symbol, item in acquisition.items() if item.get("atlas_integration_failure")
+    )
     classification_complete = sum(
         bool((catalog.get(symbol) or {}).get("sector") and (catalog.get(symbol) or {}).get("industry"))
         for symbol in acquisition_symbols
@@ -405,6 +426,8 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
         "provider_data_unavailable_failure_count": len(provider_data_unavailable_symbols),
         "provider_data_unavailable_symbols": provider_data_unavailable_symbols,
         "provider_contract_unresolved_count": 0,
+        "atlas_integration_failure_count": len(atlas_integration_failure_symbols),
+        "atlas_integration_failure_symbols": atlas_integration_failure_symbols,
         "canonical_certification_failure_count": len(integration_failure_targets),
         "atlas_integration_failure_targets": integration_failure_targets,
     }
@@ -416,6 +439,7 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
         coverage["classification_complete"] == coverage["symbols_requested"]
         and coverage["credential_entitlement_failure_count"] == 0
         and coverage["expected_demo_symbol_restriction_count"] == 0
+        and coverage["atlas_integration_failure_count"] == 0
         and all_targets_have_three and all_targets_certified
         and coverage["canonical_certification_failure_count"] == 0
     )

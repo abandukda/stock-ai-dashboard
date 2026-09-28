@@ -1,7 +1,14 @@
 """Deterministic normalization of Finnhub reported facts for shadow comparison."""
 from __future__ import annotations
 
+import math
 from typing import Any, Mapping, Sequence
+
+
+VALID_NUMERIC_FACT = "VALID_NUMERIC_FACT"
+MISSING_PROVIDER_FACT = "MISSING_PROVIDER_FACT"
+NONNUMERIC_PROVIDER_VALUE = "NONNUMERIC_PROVIDER_VALUE"
+_MISSING_TEXT = frozenset({"", "N/A", "NA", "NAN", "NULL", "-"})
 
 
 CONCEPTS = {
@@ -39,10 +46,62 @@ def currency_from_facts(facts: Sequence[Mapping[str, Any]]) -> str | None:
     return "USD" if units & {"usd", "u_usd"} else None
 
 
-def canonical_financial_facts(facts: Sequence[Mapping[str, Any]], report: Mapping[str, Any]) -> dict[str, Any]:
-    by_concept = {str(f.get("concept") or "").split("_")[-1]: f for f in facts if f.get("value") is not None}
-    def select(name: str) -> Mapping[str, Any] | None:
-        return next((by_concept[c] for c in CONCEPTS[name] if c in by_concept), None)
+def safe_numeric(value: Any) -> tuple[float | None, str]:
+    """Return a finite provider number or classify it as missing evidence."""
+    if value is None:
+        return None, MISSING_PROVIDER_FACT
+    if isinstance(value, bool):
+        return None, NONNUMERIC_PROVIDER_VALUE
+    if isinstance(value, str):
+        candidate = value.strip()
+        if candidate.upper() in _MISSING_TEXT:
+            return None, MISSING_PROVIDER_FACT if not candidate else NONNUMERIC_PROVIDER_VALUE
+        value = candidate
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None, NONNUMERIC_PROVIDER_VALUE
+    if not math.isfinite(number):
+        return None, NONNUMERIC_PROVIDER_VALUE
+    return number, VALID_NUMERIC_FACT
+
+
+def canonical_financial_facts(
+    facts: Sequence[Mapping[str, Any]], report: Mapping[str, Any],
+    *, diagnostics: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    by_concept = {
+        str(f.get("concept") or "").split("_")[-1]: f
+        for f in facts if str(f.get("concept") or "").strip()
+    }
+    selected: dict[str, Mapping[str, Any] | None] = {}
+    observations = diagnostics if diagnostics is not None else []
+
+    def select(name: str, concepts: Sequence[str] | None = None) -> Mapping[str, Any] | None:
+        if name in selected:
+            return selected[name]
+        candidates = tuple(concepts or CONCEPTS[name])
+        observed = False
+        for concept in candidates:
+            fact = by_concept.get(concept)
+            if fact is None:
+                continue
+            observed = True
+            number, classification = safe_numeric(fact.get("value"))
+            observations.append({
+                "canonical_field": name, "source_concept": str(fact.get("concept") or concept),
+                "raw_value_classification": classification,
+            })
+            if classification == VALID_NUMERIC_FACT:
+                selected[name] = {**fact, "value": number}
+                return selected[name]
+        if not observed:
+            observations.append({
+                "canonical_field": name, "source_concept": None,
+                "raw_value_classification": MISSING_PROVIDER_FACT,
+            })
+        selected[name] = None
+        return None
     period = canonical_period(report)
     currency = report.get("currency") or currency_from_facts(facts)
     result: dict[str, Any] = {}
@@ -72,7 +131,7 @@ def canonical_financial_facts(facts: Sequence[Mapping[str, Any]], report: Mappin
             "source_fields": [ocf["source_field"], capex["source_field"]],
             "scale_transformation": "OCF_MINUS_ABS_CAPEX",
         }
-    ebitda = by_concept.get("EBITDA")
+    ebitda = select("ebitda", ("EBITDA",))
     if ebitda:
         result["ebitda"] = _envelope("ebitda", ebitda, report, period, currency)
     return result
@@ -90,4 +149,7 @@ def _envelope(name: str, fact: Mapping[str, Any], report: Mapping[str, Any], per
     }
 
 
-__all__ = ["canonical_financial_facts", "canonical_period", "currency_from_facts"]
+__all__ = [
+    "MISSING_PROVIDER_FACT", "NONNUMERIC_PROVIDER_VALUE", "VALID_NUMERIC_FACT",
+    "canonical_financial_facts", "canonical_period", "currency_from_facts", "safe_numeric",
+]

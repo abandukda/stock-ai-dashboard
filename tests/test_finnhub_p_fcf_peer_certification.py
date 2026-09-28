@@ -11,8 +11,28 @@ from scripts.finnhub_p_fcf_peer_certification import (
     ATLAS_INTEGRATION_FAILURE, CERTIFIED_DATA_AVAILABLE,
     CREDENTIAL_ENTITLEMENT_UNAVAILABLE, EXPECTED_DEMO_SYMBOL_RESTRICTION,
     FULL_CORE_RERUN_CONTRACT, PROVIDER_DATA_UNAVAILABLE,
-    TARGETS, classify_provider_record, derive_candidate_symbols, load_governed_classifications, main,
+    TARGETS, acquire_universe, classify_provider_record, derive_candidate_symbols,
+    load_governed_classifications, main,
 )
+
+
+def test_acquisition_serializes_one_issuer_integration_failure_and_continues(monkeypatch):
+    import scripts.finnhub_p_fcf_peer_certification as module
+
+    def fake_acquire(_adapter, symbol, _classification, _pace):
+        if symbol == "BAD":
+            raise ValueError("provider sentinel")
+        return {"ticker": symbol}, {"ticker": symbol, "unresolved_fields": []}
+
+    monkeypatch.setattr(module, "acquire_row", fake_acquire)
+    rows, diagnostics = acquire_universe(
+        object(), ("GOOD", "BAD"),
+        {symbol: {"sector": "Technology", "industry": "Software"} for symbol in ("GOOD", "BAD")},
+        0.0,
+    )
+    assert rows == [{"ticker": "GOOD"}]
+    assert diagnostics["BAD"]["unresolved_fields"] == ["atlas_integration_failure"]
+    assert diagnostics["BAD"]["atlas_integration_failure"] == {"exception_type": "ValueError"}
 
 
 def test_candidate_universe_is_derived_from_governed_classification_not_hard_coded(tmp_path: Path):

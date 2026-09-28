@@ -33,7 +33,7 @@ FINNHUB_PAID_CORE_CERTIFICATION_LICENSE = "PAID_CORE_CERTIFICATION"
 FINNHUB_DEMO_SYMBOL_WHITELIST = frozenset({
     "AAPL", "TSLA", "WMT", "IBM", "F", "NVDA", "MSFT", "PFE", "SPY", "IVV", "AVUV",
 })
-FINNHUB_FINANCIAL_NORMALIZATION_VERSION = "FINNHUB_FINANCIAL_NORMALIZATION_V2"
+FINNHUB_FINANCIAL_NORMALIZATION_VERSION = "FINNHUB_FINANCIAL_NORMALIZATION_V3_FINITE_NUMERIC"
 FINNHUB_PROVIDER_WRITTEN_CONTRACT = {
     "evidence_reference": "FINNHUB_SUPPORT_WRITTEN_CONTRACT_2026_09_21",
     "daily_weekly_monthly_price_adjustment": "SPLIT_ADJUSTED_ONLY",
@@ -363,6 +363,7 @@ class FinnhubShadowAdapter:
             normalized_reports = []
             for report in records(payload):
                 facts = []
+                normalization_diagnostics: list[dict[str, Any]] = []
                 raw_report = report.get("report") if isinstance(report.get("report"), Mapping) else {}
                 for statement, values in raw_report.items():
                     if not isinstance(values, list):
@@ -373,13 +374,17 @@ class FinnhubShadowAdapter:
                                 "statement": statement, "concept": pick(fact, "concept", "label"),
                                 "label": fact.get("label"), "unit": fact.get("unit"), "value": fact.get("value"),
                             })
+                canonical_facts = _canonical_financial_facts(
+                    facts, report, diagnostics=normalization_diagnostics,
+                )
                 normalized_reports.append({
                     "fiscal_date": pick(report, "endDate", "filedDate", "year"),
                     "fiscal_period": _canonical_period(report), "source_period": report.get("quarter"),
                     "filing_form": report.get("form"), "filed_date": report.get("filedDate"),
                     "currency": report.get("currency") or _currency_from_facts(facts),
                     "access_number": report.get("accessNumber"), "facts": facts,
-                    "canonical_facts": _canonical_financial_facts(facts, report),
+                    "canonical_facts": canonical_facts,
+                    "normalization_diagnostics": normalization_diagnostics,
                     "normalization_version": FINNHUB_FINANCIAL_NORMALIZATION_VERSION,
                 })
             return {"reports": normalized_reports}
