@@ -17,17 +17,23 @@ from typing import Any, Mapping
 
 from engines.canonical_investment_evaluation_v1 import build_canonical_evaluation
 from engines.component_builder import build_components
+from engines.professional_valuation_v2 import value_company
 from overnight_market_scan import build_trade_plan
-from scripts.finnhub_p_fcf_peer_certification import load_governed_classifications
+from scripts.finnhub_p_fcf_peer_certification import (
+    _ordered_target_candidates, _p_fcf_output_signature, acquire_row,
+    classify_target_route, load_governed_classifications,
+)
 from services.evidence_inspector import inspect_ticker
 from services.finnhub_canonical_authority import AUTHORITY_VERSION, FinnhubCanonicalAdapter
 from services.professional_valuation_evidence import apply_peer_multiple_evidence
+from services.valuation_evidence_strength import certify_peer_multiple
 from services.technical_intelligence.engine import DailyBar, TechnicalIntelligenceEngine
 from services.live_market.models import FeedHealth, SecurityType
 
 
 VERSION = "ATLAS_FINNHUB_CANONICAL_PROVING_SET_V1"
 SYMBOLS = ("AAPL", "MSFT", "NVDA", "WMT", "IBM", "F", "PFE", "TSLA", "ORCL", "COST", "GM", "AMGN")
+PEER_BATCH_SIZE = 8
 
 
 def _num(value: Any) -> float | None:
@@ -173,6 +179,107 @@ def _normalized_row(symbol: str, classification: Mapping[str, Any], records: Map
     return row, bars, []
 
 
+def _target_local_peer_support(
+    adapter: FinnhubCanonicalAdapter,
+    *,
+    targets: Mapping[str, Mapping[str, Any]],
+    catalog: Mapping[str, Mapping[str, Any]],
+    pace_seconds: float,
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any], int]:
+    """Build independent logical peer scopes over one physical evidence cache."""
+    physical_cache: dict[str, dict[str, Any] | None] = {}
+    physical_diagnostics: dict[str, dict[str, Any]] = {}
+    prepared_targets: dict[str, dict[str, Any]] = {}
+    diagnostics: dict[str, Any] = {}
+    provider_calls = 0
+    for symbol in SYMBOLS:
+        target = dict(targets[symbol])
+        queue = _ordered_target_candidates(catalog, symbol)
+        logical_symbols: list[str] = []
+        logical_rows: list[dict[str, Any]] = [target]
+        considered: list[dict[str, Any]] = []
+        peer_count = 0
+        while peer_count < 3 and queue:
+            batch, queue = queue[:PEER_BATCH_SIZE], queue[PEER_BATCH_SIZE:]
+            for peer_symbol, selection_stage in batch:
+                was_cached = peer_symbol in physical_cache
+                if peer_symbol not in physical_cache:
+                    try:
+                        row, item = acquire_row(adapter, peer_symbol, catalog.get(peer_symbol) or {}, pace_seconds)
+                    except Exception as exc:
+                        row, item = None, {
+                            "ticker": peer_symbol, "unresolved_fields": ["atlas_integration_failure"],
+                            "atlas_integration_failure": {"exception_type": type(exc).__name__},
+                        }
+                    physical_cache[peer_symbol] = row
+                    physical_diagnostics[peer_symbol] = item
+                    provider_calls += 3
+                row = physical_cache[peer_symbol]
+                item = physical_diagnostics[peer_symbol]
+                logical_symbols.append(peer_symbol)
+                if row is not None:
+                    logical_rows.append(row)
+                considered.append({
+                    "ticker": peer_symbol, "selection_stage": selection_stage,
+                    "physical_cache_reused": was_cached,
+                    "complete_peer_record": row is not None,
+                    "unresolved_fields": list(item.get("unresolved_fields") or ()),
+                    "provider_availability": item.get("provider_availability") or {},
+                })
+            signature = _p_fcf_output_signature(logical_rows, symbol) or {}
+            peer_count = len(signature.get("selected_peers") or ())
+        prepared = apply_peer_multiple_evidence(logical_rows)
+        prepared_target = next(item for item in prepared if item.get("ticker") == symbol)
+        evidence = prepared_target.get("justified_p_fcf_peer_evidence") or {}
+        valuation = value_company(prepared_target)
+        model = next((item for item in valuation.get("models") or () if item.get("methodology_id") == "VAL_P_FCF_V1"), {})
+        certification = certify_peer_multiple(model) if model else {"status": "NOT_EVALUATED"}
+        certified = model.get("status") == "PUBLISHED" and certification.get("status") == "CERTIFIED"
+        route = classify_target_route(
+            target_row_present=True,
+            certified_peer_count=len(evidence.get("included_peers") or ()),
+            route_certified=certified,
+            candidate_universe_exhausted=not queue,
+        )
+        def invariant_signature(scope: list[dict[str, Any]]) -> dict[str, Any] | None:
+            signature = _p_fcf_output_signature(scope, symbol)
+            if signature is None:
+                return None
+            return {
+                **signature,
+                "selected_peers": sorted(signature.get("selected_peers") or ()),
+                "peer_p_fcf_values": dict(sorted((signature.get("peer_p_fcf_values") or {}).items())),
+            }
+        forward = invariant_signature(logical_rows)
+        reverse = invariant_signature(list(reversed(logical_rows)))
+        diagnostics[symbol] = {
+            **route,
+            "governed_candidates_considered": considered,
+            "peer_support_symbols_acquired": list(logical_symbols),
+            "complete_peer_record_count": len(logical_rows) - 1,
+            "certified_peer_count": len(evidence.get("included_peers") or ()),
+            "selected_peers": list(evidence.get("final_peer_set") or ()),
+            "peer_p_fcf_values": {
+                item.get("peer_ticker"): item.get("multiple")
+                for item in evidence.get("included_peers") or ()
+            },
+            "median_justified_p_fcf": evidence.get("published_median"),
+            "fair_value": model.get("value"),
+            "peer_certification": certification,
+            "excluded_peers": list(evidence.get("excluded_peers") or ()),
+            "governed_candidate_universe_exhausted": not queue,
+            "evaluation_order_invariance": "PASS" if forward == reverse else "FAIL",
+            "logical_scope_sha256": hashlib.sha256("\n".join(sorted(logical_symbols)).encode()).hexdigest(),
+        }
+        prepared_targets[symbol] = prepared_target
+    return prepared_targets, {
+        "targets": diagnostics,
+        "physical_peer_support_symbols": sorted(physical_cache),
+        "physical_peer_support_symbol_count": len(physical_cache),
+        "physical_provider_calls": provider_calls,
+    }, provider_calls
+
+
 def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
     adapter = FinnhubCanonicalAdapter()
     catalog, catalog_provenance = load_governed_classifications()
@@ -196,7 +303,20 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
         }}
         if row is not None:
             rows.append(row); technical_by_symbol[symbol] = bars
-    prepared = apply_peer_multiple_evidence(rows)
+    target_rows = {row["ticker"]: row for row in rows}
+    for symbol, row in target_rows.items():
+        catalog.setdefault(symbol, {}).update({
+            "sector": row.get("sector"), "industry": row.get("industry"),
+            "security_type": row.get("security_type"), "reference_market_cap": row.get("market_cap"),
+        })
+    peer_support = {"targets": {}, "physical_peer_support_symbols": [], "physical_peer_support_symbol_count": 0, "physical_provider_calls": 0}
+    prepared = []
+    if len(target_rows) == len(SYMBOLS):
+        prepared_by_symbol, peer_support, peer_calls = _target_local_peer_support(
+            adapter, targets=target_rows, catalog=catalog, pace_seconds=pace_seconds,
+        )
+        provider_calls += peer_calls
+        prepared = [prepared_by_symbol[symbol] for symbol in SYMBOLS]
     evaluations = {}
     for row in prepared:
         symbol = row["ticker"]; bars = technical_by_symbol[symbol]
@@ -255,18 +375,21 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
                 for marker in ("UNVERIFIED_SHADOW", "SHADOW_ONLY")
             ),
             "inspector_traceability": inspector["traceability"],
+            "peer_support": (peer_support.get("targets") or {}).get(symbol),
         })
         evaluations[symbol] = evaluation
     historical_route_count = sum(
         item.get("valuation_status") == "AVAILABLE" for item in diagnostics.values()
     )
     forward_route_leakage = any(
-        any(states.get(method) in {"CERTIFIED", "ELIGIBLE_COMPLETE"} for method in ("VAL_FORWARD_PE_V1", "VAL_EV_EBITDA_V1"))
+        any(states.get(method) in {"CERTIFIED", "ELIGIBLE_COMPLETE", "PUBLISHED"} for method in ("VAL_FORWARD_PE_V1", "VAL_EV_EBITDA_V1"))
         for states in (item.get("valuation_route_states") or {} for item in diagnostics.values())
     )
     ready = historical_route_count > 0 and not forward_route_leakage and len(evaluations) == len(SYMBOLS) and all(
         not item.get("authority_blockers") and not item.get("shadow_evidence_leakage")
         and (item.get("inspector_traceability") or {}).get("status") == "PASS"
+        and ((item.get("peer_support") or {}).get("evaluation_order_invariance") == "PASS")
+        and ((item.get("peer_support") or {}).get("provider_input_status") == "CERTIFIED_COMPLETE")
         for item in diagnostics.values()
     )
     payload = {
@@ -275,6 +398,7 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
         "classification_provenance": catalog_provenance,
         "certified_historical_valuation_count": historical_route_count,
         "forward_route_leakage": forward_route_leakage,
+        "peer_support": peer_support,
         "evaluations": evaluations, "diagnostics": diagnostics,
         "state": "FINNHUB_CANONICAL_PATH_READY" if ready else "FINNHUB_CANONICAL_PATH_NOT_READY",
         "provider_authority_scope": "FIELD_FAMILY_SCOPED_ONLY", "production_cutover": False,
