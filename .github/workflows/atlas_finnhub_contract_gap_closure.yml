@@ -1,0 +1,65 @@
+name: ATLAS Finnhub Contract Gap Closure
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/full-universe-closure-temp
+    paths:
+      - services/finnhub_shadow_provider.py
+      - services/finnhub_contract_gap_governance.py
+      - scripts/finnhub_contract_gap_closure.py
+      - scripts/finnhub_websocket_audit.py
+      - scripts/finnhub_bulk_sample_audit.py
+      - tests/test_finnhub_contract_gap_closure.py
+      - tests/test_provider_architecture_shadow.py
+      - requirements.txt
+      - .github/workflows/atlas_finnhub_contract_gap_closure.yml
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    if: ${{ github.ref == 'refs/heads/codex/full-universe-closure-temp' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+      ATLAS_FINNHUB_LICENSE_CLASS: PAID_CORE_CERTIFICATION
+      PYTHONPATH: "."
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: Assert bounded provider-only environment
+        run: |
+          test -n "$FINNHUB_API_KEY"
+          test -z "${TWELVE_DATA_API_KEY:-}"
+          test -z "${FMP_API_KEY:-}"
+      - name: Run contract and boundary tests
+        run: pytest -q tests/test_finnhub_contract_gap_closure.py tests/test_provider_architecture_shadow.py tests/test_finnhub_provider_only_certification.py tests/test_finnhub_bulk_sample_audit.py tests/test_finnhub_canonical_authority.py
+      - name: Run contracted REST family audit
+        run: python scripts/finnhub_contract_gap_closure.py
+      - name: Run bounded WebSocket audit
+        continue-on-error: true
+        run: python scripts/finnhub_websocket_audit.py
+      - name: Run bounded bulk sample audit
+        continue-on-error: true
+        run: python scripts/finnhub_bulk_sample_audit.py
+      - name: Assert production artifacts unchanged
+        run: git diff --exit-code -- market_full_scan.json market_prescreen.json market_scan_state.json publication_manifest.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-finnhub-contract-gap-${{ github.run_id }}
+          path: audit_results/finnhub_contract_gap
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-finnhub-bulk-gap-${{ github.run_id }}
+          path: audit_results/finnhub_bulk_sample
+          if-no-files-found: warn

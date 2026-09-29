@@ -211,7 +211,11 @@ def test_estimate_requests_default_to_annual_and_preserve_response_frequency():
     assert record.payload["frequency"] == "annual"
     assert record.payload["estimates"][0]["frequency"] == "annual"
     assert record.payload["estimates"][0]["fiscal_period"] == "2027-09-30"
-    assert record.payload["provider_contract"]["currency"]["status"] == "UNRESOLVED"
+    assert record.payload["provider_contract"]["currency"]["status"] == "CERTIFIED_PROVIDER_CONTRACT"
+    assert record.payload["provider_contract"]["currency"]["source_field"] == "company_profile.estimateCurrency"
+    assert record.payload["provider_contract"]["scale"]["value"] == "IDENTITY"
+    assert record.payload["provider_vintage"] == "UNAVAILABLE"
+    assert record.payload["revision_history"] == "UNPROVEN"
 
 
 def test_explicit_estimate_frequency_override_is_preserved():

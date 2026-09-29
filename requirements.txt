@@ -7,5 +7,6 @@ plotly
 matplotlib
 alpaca-py
 requests
+websocket-client==1.8.0
 openai
 pytest

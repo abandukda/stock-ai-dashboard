@@ -54,7 +54,9 @@ def test_reachability_separates_provider_documentation_from_atlas_integration_ga
     }}]
     bridge = {"shares": {"weighted_average_shares_diluted": {"classification": "CERTIFIED_AVAILABLE"}}}
     result = valuation_reachability_v2(reports, bridge)
-    assert result["VAL_FORWARD_PE_V1"] == "FINNHUB_DOCUMENTATION_GAP"
+    assert result["VAL_FORWARD_PE_V1"] == "ATLAS_INTEGRATION_GAP"
+    assert result["VAL_EV_EBITDA_V1"] == "ATLAS_INTEGRATION_GAP"
+    assert result["VAL_FCFF_DCF_V1"] == "ATLAS_INTEGRATION_GAP"
     assert result["VAL_P_FCF_V1"] == "ATLAS_INTEGRATION_GAP"
     assert result["VAL_DDM_GORDON_V1"] == "ATLAS_DERIVATION_GAP"
 

@@ -142,7 +142,7 @@ def canonical_dry_run_v2(
     unresolved = list(UNRESOLVED_METRICS)
     valuation = {
         "VAL_FCFF_DCF_V1": "UNAVAILABLE_CERTIFIED_FORECAST_AND_CAPITAL_INPUTS_MISSING",
-        "VAL_FORWARD_PE_V1": "UNAVAILABLE_CERTIFIED_FORWARD_EPS_AND_MULTIPLE_BASIS_MISSING",
+        "VAL_FORWARD_PE_V1": "UNAVAILABLE_LIVE_CERTIFIED_FORWARD_EPS_AND_MULTIPLE_BASIS_MISSING",
         "VAL_EV_EBITDA_V1": (
             "UNAVAILABLE_CERTIFIED_PEER_MULTIPLE_BASIS_MISSING" if facts.get("ebitda") else
             "UNAVAILABLE_EXPLICIT_EBITDA_AND_PEER_MULTIPLE_BASIS_MISSING"
@@ -210,10 +210,10 @@ def valuation_reachability_v2(reports: Sequence[Mapping[str, Any]], bridge: Mapp
     p_fcf = ("ATLAS_INTEGRATION_GAP" if facts.get("free_cash_flow") and
              diluted.get("classification") == "CERTIFIED_AVAILABLE" else "FINNHUB_DOCUMENTATION_GAP")
     return {
-        "VAL_FORWARD_PE_V1": "FINNHUB_DOCUMENTATION_GAP",
-        "VAL_EV_EBITDA_V1": "FINNHUB_DOCUMENTATION_GAP",
+        "VAL_FORWARD_PE_V1": "ATLAS_INTEGRATION_GAP",
+        "VAL_EV_EBITDA_V1": "ATLAS_INTEGRATION_GAP",
         "VAL_P_FCF_V1": p_fcf,
-        "VAL_FCFF_DCF_V1": "FINNHUB_DOCUMENTATION_GAP",
+        "VAL_FCFF_DCF_V1": "ATLAS_INTEGRATION_GAP",
         "VAL_DDM_GORDON_V1": "ATLAS_DERIVATION_GAP",
     }
 

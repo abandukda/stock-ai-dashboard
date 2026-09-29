@@ -139,11 +139,21 @@ FINNHUB_ESTIMATE_CONTRACT = {
     "frequency": {"status": "CERTIFIED_PROVIDER_CONTRACT", "request_default": "annual",
                   "response_field": "freq"},
     "fiscal_period": {"status": "CERTIFIED_PROVIDER_CONTRACT", "response_field": "data[].period"},
-    "value_unit": {"status": "UNRESOLVED", "reason": "NOT_DOCUMENTED_IN_SUPPORT_DICTIONARY"},
-    "scale": {"status": "UNRESOLVED", "reason": "NOT_DOCUMENTED_IN_SUPPORT_DICTIONARY"},
-    "currency": {"status": "UNRESOLVED", "reason": "NOT_DOCUMENTED_IN_SUPPORT_DICTIONARY"},
+    "value_unit": {"status": "CERTIFIED_PROVIDER_CONTRACT", "value": "ABSOLUTE_UNITS"},
+    "scale": {"status": "CERTIFIED_PROVIDER_CONTRACT", "value": "IDENTITY"},
+    "currency": {"status": "CERTIFIED_PROVIDER_CONTRACT",
+                 "source_field": "company_profile.estimateCurrency"},
+    "eps_basis": {"status": "CERTIFIED_PROVIDER_CONTRACT", "value": "PER_SHARE"},
     "provider_vintage": {"status": "UNAVAILABLE", "reason": "NO_PROVIDER_UPDATE_TIMESTAMP"},
+    "revision_history": {"status": "UNPROVEN",
+                         "reason": "PERIOD_ROWS_ARE_CURRENT_SNAPSHOT_NOT_POINT_IN_TIME_VINTAGES"},
 }
+
+FINNHUB_ESTIMATE_CAPABILITIES = frozenset({
+    "eps_estimates", "revenue_estimates", "ebitda_estimates", "ebit_estimates",
+    "net_income_estimates", "gross_income_estimates", "pretax_income_estimates",
+    "dps_estimates", "ocf_estimates", "capex_estimates", "fcf_estimates",
+})
 
 
 @dataclass(frozen=True)
@@ -159,14 +169,14 @@ ENDPOINTS: tuple[FinnhubEndpoint, ...] = (
     FinnhubEndpoint("company_profile", "/stock/profile2", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "COMPANY_PROFILE"),
     FinnhubEndpoint("financial_statements", "/stock/financials-reported", DatasetFamily.CANONICAL_QUANTITATIVE, "FINANCIAL_STATEMENTS"),
     FinnhubEndpoint("basic_financials", "/stock/metric", DatasetFamily.CANONICAL_QUANTITATIVE, "BASIC_FINANCIALS"),
-    FinnhubEndpoint("dividends", "/stock/dividend2", DatasetFamily.CANONICAL_QUANTITATIVE, "DIVIDENDS"),
+    FinnhubEndpoint("dividends", "/stock/dividend", DatasetFamily.CANONICAL_QUANTITATIVE, "DIVIDENDS"),
     FinnhubEndpoint("peers", "/stock/peers", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "PEERS"),
     FinnhubEndpoint("ownership", "/stock/ownership", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "OWNERSHIP"),
     FinnhubEndpoint("insider_transactions", "/stock/insider-transactions", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "INSIDER_TRANSACTIONS"),
     FinnhubEndpoint("executives", "/stock/executive", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "EXECUTIVES"),
     FinnhubEndpoint("company_news", "/company-news", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "COMPANY_NEWS"),
     FinnhubEndpoint("sec_filings", "/stock/filings", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "SEC_FILINGS"),
-    FinnhubEndpoint("revenue_breakdown", "/stock/revenue-breakdown", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "REVENUE_KPI_CONTEXT"),
+    FinnhubEndpoint("revenue_breakdown", "/stock/revenue-breakdown2", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "REVENUE_KPI_CONTEXT"),
     FinnhubEndpoint("recommendations", "/stock/recommendation", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "ANALYST_RECOMMENDATIONS"),
     FinnhubEndpoint("price_targets", "/stock/price-target", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "ANALYST_PRICE_TARGETS"),
     FinnhubEndpoint("analyst_actions", "/stock/upgrade-downgrade", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "ANALYST_ACTIONS"),
@@ -174,7 +184,26 @@ ENDPOINTS: tuple[FinnhubEndpoint, ...] = (
     FinnhubEndpoint("revenue_estimates", "/stock/revenue-estimate", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "REVENUE_ESTIMATES"),
     FinnhubEndpoint("ebitda_estimates", "/stock/ebitda-estimate", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "EBITDA_ESTIMATES"),
     FinnhubEndpoint("ebit_estimates", "/stock/ebit-estimate", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "EBIT_ESTIMATES"),
+    FinnhubEndpoint("net_income_estimates", "/stock/net-income-estimate", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "NET_INCOME_ESTIMATES"),
+    FinnhubEndpoint("gross_income_estimates", "/stock/gross-income-estimate", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "GROSS_INCOME_ESTIMATES"),
+    FinnhubEndpoint("pretax_income_estimates", "/stock/pretax-income-estimate", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "PRETAX_INCOME_ESTIMATES"),
+    FinnhubEndpoint("dps_estimates", "/stock/dps-estimate", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "DPS_ESTIMATES"),
+    FinnhubEndpoint("ocf_estimates", "/stock/ocf-estimate", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "OCF_ESTIMATES"),
+    FinnhubEndpoint("capex_estimates", "/stock/capex-estimate", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "CAPEX_ESTIMATES"),
+    FinnhubEndpoint("fcf_estimates", "/stock/fcf-estimate", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "FCF_ESTIMATES"),
     FinnhubEndpoint("earnings_calendar", "/calendar/earnings", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "EARNINGS_CALENDAR"),
+    FinnhubEndpoint("stock_earnings", "/stock/earnings", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "STOCK_EARNINGS"),
+    FinnhubEndpoint("press_releases", "/press-releases2", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "PRESS_RELEASES"),
+    FinnhubEndpoint("insider_sentiment", "/stock/insider-sentiment", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "INSIDER_SENTIMENT"),
+    FinnhubEndpoint("fund_ownership", "/stock/fund-ownership", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "FUND_OWNERSHIP"),
+    FinnhubEndpoint("institutional_profile", "/institutional/profile", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "INSTITUTIONAL_PROFILE"),
+    FinnhubEndpoint("institutional_portfolio", "/institutional/portfolio", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "INSTITUTIONAL_PORTFOLIO"),
+    FinnhubEndpoint("institutional_ownership", "/institutional/ownership", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "INSTITUTIONAL_OWNERSHIP"),
+    FinnhubEndpoint("quote_us", "/quote/us", DatasetFamily.LIVE_DISPLAY_ONLY, "US_QUOTE", MarketCoverageClass.UNKNOWN),
+    FinnhubEndpoint("historical_market_cap", "/stock/historical-market-cap", DatasetFamily.CANONICAL_QUANTITATIVE, "HISTORICAL_MARKET_CAP"),
+    FinnhubEndpoint("price_metrics", "/stock/price-metric", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "PRICE_METRICS"),
+    FinnhubEndpoint("sector_metrics", "/sector/metrics", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "SECTOR_METRICS"),
+    FinnhubEndpoint("earnings_quality", "/stock/earnings-quality-score", DatasetFamily.CONTEXTUAL_EXTERNAL_EVIDENCE, "EARNINGS_QUALITY_SCORE"),
     FinnhubEndpoint("historical_ohlcv", "/stock/candle", DatasetFamily.CANONICAL_QUANTITATIVE, "HISTORICAL_OHLCV", MarketCoverageClass.FULL_CONSOLIDATED),
     FinnhubEndpoint("live_quote", "/quote", DatasetFamily.LIVE_DISPLAY_ONLY, "LIVE_QUOTE", MarketCoverageClass.PARTIAL_REALTIME),
     FinnhubEndpoint("splits", "/stock/split", DatasetFamily.CANONICAL_QUANTITATIVE, "SPLITS"),
@@ -254,7 +283,7 @@ class FinnhubShadowAdapter:
                 "to": today.isoformat(),
                 **parameters,
             }
-        if capability in {"eps_estimates", "revenue_estimates", "ebitda_estimates", "ebit_estimates"}:
+        if capability in FINNHUB_ESTIMATE_CAPABILITIES:
             parameters = {"freq": "annual", **parameters}
         params = {"symbol": ticker, **parameters, "token": self._api_key}
         try:
@@ -358,7 +387,8 @@ class FinnhubShadowAdapter:
         if capability == "company_profile" and isinstance(payload, Mapping):
             return {"name": payload.get("name"), "exchange": payload.get("exchange"),
                     "industry": payload.get("finnhubIndustry"), "country": payload.get("country"),
-                    "currency": payload.get("currency"), "shares_outstanding_millions": payload.get("shareOutstanding")}
+                    "currency": payload.get("currency"), "estimate_currency": payload.get("estimateCurrency"),
+                    "shares_outstanding_millions": payload.get("shareOutstanding")}
         if capability == "financial_statements" and isinstance(payload, Mapping):
             normalized_reports = []
             for report in records(payload):
@@ -446,19 +476,46 @@ class FinnhubShadowAdapter:
                                   "from_grade": item.get("fromGrade"), "to_grade": item.get("toGrade"),
                                   "action": item.get("action")}
                                  for item in records(payload)]}
-        if capability in {"eps_estimates", "revenue_estimates", "ebitda_estimates", "ebit_estimates"}:
+        if capability in FINNHUB_ESTIMATE_CAPABILITIES:
             response_frequency = payload.get("freq") if isinstance(payload, Mapping) else None
+            prefix = {
+                "eps_estimates": "eps", "revenue_estimates": "revenue",
+                "ebitda_estimates": "ebitda", "ebit_estimates": "ebit",
+                "net_income_estimates": "netIncome", "gross_income_estimates": "grossIncome",
+                "pretax_income_estimates": "pretaxIncome", "dps_estimates": "dps",
+                "ocf_estimates": "ocf", "capex_estimates": "capex", "fcf_estimates": "fcf",
+            }[capability]
+            basis = "PER_SHARE" if capability in {"eps_estimates", "dps_estimates"} else "MONETARY_ABSOLUTE"
             return {"frequency": response_frequency,
                     "provider_contract": dict(FINNHUB_ESTIMATE_CONTRACT),
+                    "value_scale": "ABSOLUTE_UNITS", "currency_source": "company_profile.estimateCurrency",
+                    "basis": basis, "provider_vintage": "UNAVAILABLE", "revision_history": "UNPROVEN",
                     "estimates": [{"period": pick(item, "period", "date"),
                                     "fiscal_period": pick(item, "period", "date"),
                                     "year": item.get("year"), "quarter": item.get("quarter"),
                                     "frequency": item.get("freq") or response_frequency,
-                                    "average": pick(item, "epsAvg", "revenueAvg", "ebitdaAvg", "ebitAvg", "avg"),
-                                    "high": pick(item, "epsHigh", "revenueHigh", "ebitdaHigh", "ebitHigh", "high"),
-                                    "low": pick(item, "epsLow", "revenueLow", "ebitdaLow", "ebitLow", "low"),
+                                    "average": pick(item, f"{prefix}Avg", "avg"),
+                                    "high": pick(item, f"{prefix}High", "high"),
+                                    "low": pick(item, f"{prefix}Low", "low"),
                                     "analyst_count": pick(item, "numberAnalysts", "analystCount")}
                                    for item in records(payload)]}
+        if capability in {"live_quote", "quote_us"} and isinstance(payload, Mapping):
+            return {"price": payload.get("c"), "open": payload.get("o"), "high": payload.get("h"),
+                    "low": payload.get("l"), "previous_close": payload.get("pc"),
+                    "provider_timestamp": payload.get("t"),
+                    "coverage_metadata": payload.get("coverage") or payload.get("venue")}
+        if capability == "historical_market_cap":
+            return {"observations": [{"date": pick(item, "atDate", "date", "period"),
+                                       "market_capitalization": pick(item, "marketCapitalization", "marketCap"),
+                                       "currency": item.get("currency")}
+                                      for item in records(payload)]}
+        if capability in {"price_metrics", "sector_metrics", "earnings_quality",
+                          "stock_earnings", "press_releases", "insider_sentiment",
+                          "fund_ownership", "institutional_profile", "institutional_portfolio",
+                          "institutional_ownership"}:
+            return {"records": records(payload), "response_metadata": {
+                key: value for key, value in payload.items() if key not in {"data"}
+            } if isinstance(payload, Mapping) else {}}
         if capability == "earnings_calendar":
             return {"events": [{"date": item.get("date"), "hour": item.get("hour"),
                                  "eps_actual": item.get("epsActual"), "eps_estimate": item.get("epsEstimate"),
@@ -520,7 +577,7 @@ __all__ = ["ENDPOINTS", "ENDPOINT_BY_CAPABILITY", "FINNHUB_ADAPTER_VERSION",
            "FINNHUB_FINANCIAL_NORMALIZATION_VERSION", "FINNHUB_FIELD_DICTIONARY_CONTRACT",
            "FINNHUB_FIELD_DICTIONARY_REFERENCE", "FINNHUB_FIELD_DICTIONARY_SHA256",
            "FINNHUB_SERIES_DICTIONARY_CONTRACT", "FINNHUB_UNRESOLVED_FIELD_CONTRACTS",
-           "FINNHUB_ESTIMATE_CONTRACT", "FinnhubShadowAdapter"]
+           "FINNHUB_ESTIMATE_CONTRACT", "FINNHUB_ESTIMATE_CAPABILITIES", "FinnhubShadowAdapter"]
 
 
 def _normalized_temporal_metadata(payload: Mapping[str, Any]) -> dict[str, str | None]:
