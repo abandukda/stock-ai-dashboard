@@ -119,3 +119,12 @@ def test_target_local_peer_support_is_order_invariant_and_does_not_evaluate_supp
     assert result["evaluation_order_invariance"] == "PASS"
     assert set(prepared) == {"AAA"}
     assert calls == 9
+
+
+def test_historical_route_counter_includes_published_professional_valuation():
+    import scripts.finnhub_canonical_proving_set as proving
+
+    assert proving._historical_route_count({
+        "AAPL": {"valuation_status": "PUBLISHED"},
+        "WMT": {"valuation_status": "DATA_UNAVAILABLE"},
+    }) == 1

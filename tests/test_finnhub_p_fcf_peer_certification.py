@@ -154,6 +154,18 @@ def test_provider_input_and_route_status_are_separate_for_exhausted_peer_univers
     )["p_fcf_route_status"] == P_FCF_ROUTE_CERTIFICATION_FAILURE
 
 
+def test_complete_provider_evidence_with_ineligible_target_input_is_not_a_certification_defect():
+    result = classify_target_route(
+        target_row_present=True, target_route_inputs_complete=False,
+        certified_peer_count=4, route_certified=False,
+        candidate_universe_exhausted=False,
+    )
+    assert result == {
+        "provider_input_status": PROVIDER_INPUTS_CERTIFIED,
+        "p_fcf_route_status": "UNAVAILABLE_MISSING_TARGET_INPUT",
+    }
+
+
 def test_sufficient_target_numerical_output_is_invariant_to_other_target_adaptive_rows():
     base = [row("F", industry="Auto", pe=10), row("P1", industry="Auto", pe=20),
             row("P2", industry="Auto", pe=30), row("P3", industry="Auto", pe=40)]

@@ -82,6 +82,14 @@ def _drawdown_label(bars: list[DailyBar]) -> str | None:
     return "shallow drawdown" if drawdown >= -.10 else "moderate drawdown" if drawdown >= -.25 else "deep drawdown"
 
 
+def _historical_route_count(diagnostics: Mapping[str, Mapping[str, Any]]) -> int:
+    """Count canonical valuation publication states emitted by the evaluator."""
+    return sum(
+        item.get("valuation_status") in {"AVAILABLE", "PUBLISHED"}
+        for item in diagnostics.values()
+    )
+
+
 def _normalized_row(symbol: str, classification: Mapping[str, Any], records: Mapping[str, Mapping[str, Any]]) -> tuple[dict[str, Any] | None, list[DailyBar], list[str]]:
     blockers = []
     payloads = {}
@@ -235,11 +243,18 @@ def _target_local_peer_support(
         model = next((item for item in valuation.get("models") or () if item.get("methodology_id") == "VAL_P_FCF_V1"), {})
         certification = certify_peer_multiple(model) if model else {"status": "NOT_EVALUATED"}
         certified = model.get("status") == "PUBLISHED" and certification.get("status") == "CERTIFIED"
+        target_route_inputs_complete = bool(
+            _num(prepared_target.get("normalized_fcf")) is not None
+            and _num(prepared_target.get("normalized_fcf")) > 0
+            and _num(prepared_target.get("diluted_shares")) is not None
+            and _num(prepared_target.get("diluted_shares")) > 0
+        )
         route = classify_target_route(
             target_row_present=True,
             certified_peer_count=len(evidence.get("included_peers") or ()),
             route_certified=certified,
             candidate_universe_exhausted=not queue,
+            target_route_inputs_complete=target_route_inputs_complete,
         )
         def invariant_signature(scope: list[dict[str, Any]]) -> dict[str, Any] | None:
             signature = _p_fcf_output_signature(scope, symbol)
@@ -378,9 +393,7 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
             "peer_support": (peer_support.get("targets") or {}).get(symbol),
         })
         evaluations[symbol] = evaluation
-    historical_route_count = sum(
-        item.get("valuation_status") == "AVAILABLE" for item in diagnostics.values()
-    )
+    historical_route_count = _historical_route_count(diagnostics)
     forward_route_leakage = any(
         any(states.get(method) in {"CERTIFIED", "ELIGIBLE_COMPLETE", "PUBLISHED"} for method in ("VAL_FORWARD_PE_V1", "VAL_EV_EBITDA_V1"))
         for states in (item.get("valuation_route_states") or {} for item in diagnostics.values())
@@ -390,6 +403,7 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
         and (item.get("inspector_traceability") or {}).get("status") == "PASS"
         and ((item.get("peer_support") or {}).get("evaluation_order_invariance") == "PASS")
         and ((item.get("peer_support") or {}).get("provider_input_status") == "CERTIFIED_COMPLETE")
+        and ((item.get("peer_support") or {}).get("p_fcf_route_status") != "FAILED_CERTIFICATION_DEFECT")
         for item in diagnostics.values()
     )
     payload = {

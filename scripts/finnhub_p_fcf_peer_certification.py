@@ -84,11 +84,17 @@ def classify_provider_record(record: Mapping[str, Any]) -> str:
 
 
 def classify_target_route(*, target_row_present: bool, certified_peer_count: int,
-                          route_certified: bool, candidate_universe_exhausted: bool) -> dict[str, str]:
+                          route_certified: bool, candidate_universe_exhausted: bool,
+                          target_route_inputs_complete: bool = True) -> dict[str, str]:
     """Keep provider-input availability separate from valuation-route reachability."""
     if not target_row_present:
         return {
             "provider_input_status": PROVIDER_DATA_UNAVAILABLE,
+            "p_fcf_route_status": P_FCF_ROUTE_UNAVAILABLE_MISSING_TARGET_INPUT,
+        }
+    if not target_route_inputs_complete:
+        return {
+            "provider_input_status": PROVIDER_INPUTS_CERTIFIED,
             "p_fcf_route_status": P_FCF_ROUTE_UNAVAILABLE_MISSING_TARGET_INPUT,
         }
     if route_certified:
