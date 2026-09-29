@@ -63,6 +63,13 @@ jobs:
           assert report['production_cutover'] is False
           assert report['bulk_production_critical_path'] is False
           assert len(report['results']) == 18
+          assert report['canonical_buy_now_count'] == 7
+          assert report['customer_publishable_buy_now_count'] == 6
+          assert {
+              ticker for ticker, row in report['results'].items()
+              if row['customer_publishable_buy_now'] is True
+          } == {'CROX','DOCS','DOCU','HALO','IQV','TEL'}
+          assert report['results']['OPY']['customer_publishable_buy_now'] is False
           assert all(report['results'][ticker]['new_action'] != 'BUY_NOW' for ticker in (
               'ADI','AMG','APH','DBRG','DNOW','HSTM','III','MEDP','SLP','TDY','WAB'
           ))

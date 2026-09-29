@@ -200,7 +200,12 @@ def build_report(candidate: Mapping[str, Any], *, pace: float = .25) -> dict[str
         models = [model for model in professional.get("models") or () if model.get("status") == "PUBLISHED"]
         validation = dict(evaluation.get("valuation_validation") or {})
         strength = dict(revalidation.get("valuation_evidence_strength") or validation.get("valuation_evidence_strength") or {})
+        action = (evaluation.get("guidance") or {}).get("state")
         eligible = publication.get("customer_publication_allowed") is True
+        publishable_buy = bool(
+            action == "BUY_NOW" and eligible
+            and revalidation.get("status") == "BUY_NOW_REVALIDATED"
+        )
         trade = evaluation.get("trade_plan") or {}; fair = professional.get("atlas_base_fair_value")
         price = (evaluation.get("market_snapshot") or {}).get("price")
         included = [str(model.get("methodology_id")) for model in models]
@@ -211,7 +216,7 @@ def build_report(candidate: Mapping[str, Any], *, pace: float = .25) -> dict[str
             for model in professional.get("models") or () if model.get("status") != "PUBLISHED"
         ]
         results[symbol] = {
-            "prior_action": prior.get("canonical_action"), "new_action": (evaluation.get("guidance") or {}).get("state"),
+            "prior_action": prior.get("canonical_action"), "new_action": action,
             "published_valuation_methods": included,
             "certified_method_count": int(strength.get("published_method_count") or 0),
             "canonical_methods_included": list(corroboration.get("methods_included") or ()),
@@ -221,13 +226,13 @@ def build_report(candidate: Mapping[str, Any], *, pace: float = .25) -> dict[str
             "opportunity": evaluation.get("opportunity"), "confidence": evaluation.get("decision_confidence"),
             "six_pillars": {name: evaluation.get(name) for name in (
                 "technical_quality", "fundamental_quality", "valuation_quality", "risk_quality", "entry_quality", "volume_quality")},
-            "buy_range_lower": trade.get("entry_low") if eligible else None,
+            "buy_range_lower": trade.get("entry_low") if publishable_buy else None,
             "preferred_entry": None, "max_buy_price": None,
-            "upside_at_current_price": (fair / price - 1) if fair and price else None,
-            "upside_at_max_buy_price": None, "stop_or_invalidation": trade.get("stop_loss") if eligible else None,
+            "upside_at_current_price": (fair / price - 1) if publishable_buy and fair and price else None,
+            "upside_at_max_buy_price": None, "stop_or_invalidation": trade.get("stop_loss") if publishable_buy else None,
             "valuation_ceiling": None, "technical_ceiling": None,
             "risk_reward_ceiling": None, "binding_ceiling": None,
-            "buy_range_status": "GOVERNED_CEILINGS_INCOMPLETE" if eligible else "NOT_APPLICABLE_UNPUBLISHED",
+            "buy_range_status": "GOVERNED_CEILINGS_INCOMPLETE" if publishable_buy else "NOT_APPLICABLE_UNPUBLISHED",
             "accounting_bridge": method_states.get("VAL_EV_EBITDA_V1"),
             "scenario_evidence": professional.get("scenario_status"),
             "fundamentals_revalidated": (evaluation.get("fundamentals") or {}).get("status") == "AVAILABLE",
@@ -239,6 +244,7 @@ def build_report(candidate: Mapping[str, Any], *, pace: float = .25) -> dict[str
             "publication_blockers": list(publication.get("blockers") or ()),
             "publication_certification_state": publication.get("certification_state"),
             "customer_publication_eligible": eligible,
+            "customer_publishable_buy_now": publishable_buy,
             "evaluation_digest": evaluation.get("decision_digest"),
             "exact_snapshot_digest": revalidation.get("exact_snapshot_digest"),
             "certification_trace": certification,
@@ -296,7 +302,8 @@ def build_report(candidate: Mapping[str, Any], *, pace: float = .25) -> dict[str
         "certified_valuation_method_count_distribution": dict(sorted(method_counts.items())),
         "names_failing_only_one_condition": one_gate, "names_failing_two_or_more_conditions": multi_gate,
         "dominant_rejection_gates": gate_counts.most_common(20),
-        "customer_publishable_buy_now_count": sum(item.get("customer_publication_eligible") is True for item in results.values()),
+        "canonical_buy_now_count": sum(item.get("new_action") == "BUY_NOW" for item in results.values()),
+        "customer_publishable_buy_now_count": sum(item.get("customer_publishable_buy_now") is True for item in results.values()),
         "full_universe_reevaluation_required": new_routes,
         "new_analytical_candidate_required": new_routes,
         "second_stage_root_cause": [
