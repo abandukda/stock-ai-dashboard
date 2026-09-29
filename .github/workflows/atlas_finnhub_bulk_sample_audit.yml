@@ -1,0 +1,46 @@
+name: ATLAS Finnhub Bulk Sample Audit
+
+on:
+  push:
+    branches:
+      - codex/home-promotion-market-today-release
+    paths:
+      - scripts/finnhub_bulk_sample_audit.py
+      - tests/test_finnhub_bulk_sample_audit.py
+      - .github/workflows/atlas_finnhub_bulk_sample_audit.yml
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    if: ${{ github.ref == 'refs/heads/codex/home-promotion-market-today-release' && github.event.before == '21cec0513c86d332a82809dbdbb1c0727dc7e510' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+      PYTHONPATH: "."
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: Assert bounded audit environment
+        run: |
+          test -n "$FINNHUB_API_KEY"
+          test -z "${TWELVE_DATA_API_KEY:-}"
+          test -z "${FMP_API_KEY:-}"
+      - name: Run deterministic audit tests
+        run: pytest -q tests/test_finnhub_bulk_sample_audit.py
+      - name: Download and inspect bounded bulk samples
+        run: python scripts/finnhub_bulk_sample_audit.py
+      - name: Assert no production artifact mutation
+        run: |
+          git diff --exit-code -- market_full_scan.json market_prescreen.json market_scan_state.json publication_manifest.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-finnhub-bulk-sample-${{ github.run_id }}
+          path: audit_results/finnhub_bulk_sample
+          if-no-files-found: warn
