@@ -1,6 +1,6 @@
 from copy import deepcopy
 
-from services.positive_action_revalidation import revalidate_buy_now
+from services.positive_action_revalidation import canonical_method_corroboration, revalidate_buy_now
 from services.publication_governance import certify_record
 from engines.professional_valuation_v2 import value_company
 from services.valuation_evidence_strength import classify_valuation_evidence
@@ -124,6 +124,16 @@ def test_professional_v2_multi_method_path_reaches_buy_revalidation_and_publicat
     assert component["state"]=="CERTIFIED" and component["blockers"]==[]
 
 
+def test_multi_method_path_does_not_inherit_single_method_scenario_requirement():
+    evaluation = buy_evaluation()
+    professional = evaluation["atlas_valuation"]["professional_valuation_v2"]
+    professional["sensitivity"] = []
+    professional["scenario_status"] = "INSUFFICIENT_ECONOMIC_SCENARIO_INPUTS"
+    result = revalidate_buy_now(evaluation)
+    assert result["status"] == "BUY_NOW_REVALIDATED"
+    assert "BUY_NOW_SCENARIO_EVIDENCE_INSUFFICIENT" not in result["blockers"]
+
+
 def test_material_street_divergence_requires_scenario_review_not_anchoring():
     evaluation = buy_evaluation()
     professional = evaluation["atlas_valuation"]["professional_valuation_v2"]
@@ -153,3 +163,34 @@ def test_publication_rejects_stale_buy_revalidation_digest():
     assert component["state"] == "REVIEW_REQUIRED"
     assert component["blockers"] == ["BUY_NOW_REVALIDATION_SNAPSHOT_MISMATCH"]
     assert result["customer_publication_allowed"] is False
+
+
+def test_canonical_method_count_excludes_noncanonical_method_states_deterministically():
+    professional, validation = _reachable_multi_method_valuation()
+    base = deepcopy(next(model for model in professional["models"] if model["status"] == "PUBLISHED"))
+    base["methodology_id"] = "VAL_EXTRA_CERTIFIED_V1"
+    base["snapshot_identity"] = professional["valuation_as_of"]
+    shadow = {**deepcopy(base), "methodology_id": "VAL_SHADOW_V1", "evidence_tier": "SHADOW_ONLY"}
+    stale = {**deepcopy(base), "methodology_id": "VAL_STALE_V1", "snapshot_identity": "2025-01-01T00:00:00Z"}
+    uncertified = {**deepcopy(base), "methodology_id": "VAL_UNCERTIFIED_V1", "certification_state": "REVIEW_REQUIRED"}
+    inapplicable = {**deepcopy(base), "methodology_id": "VAL_NOT_APPLICABLE_V1"}
+    professional["models"].extend((base, shadow, stale, uncertified, inapplicable))
+    validation["model_applicability"] = [
+        {"methodology_id": model["methodology_id"], "applicability": "PRIMARY_APPROPRIATE"}
+        for model in professional["models"] if model["status"] == "PUBLISHED"
+    ]
+    validation["model_applicability"].extend([
+        {"methodology_id": "VAL_EXTRA_CERTIFIED_V1", "applicability": "PRIMARY_APPROPRIATE"},
+        {"methodology_id": "VAL_SHADOW_V1", "applicability": "PRIMARY_APPROPRIATE"},
+        {"methodology_id": "VAL_STALE_V1", "applicability": "PRIMARY_APPROPRIATE"},
+        {"methodology_id": "VAL_UNCERTIFIED_V1", "applicability": "PRIMARY_APPROPRIATE"},
+        {"methodology_id": "VAL_NOT_APPLICABLE_V1", "applicability": "NOT_APPLICABLE"},
+    ])
+    first = canonical_method_corroboration(professional, validation)
+    second = canonical_method_corroboration(professional, validation)
+    assert first == second
+    assert first["certified_method_count"] == 3
+    assert {item["reason"] for item in first["methods_excluded"]} == {
+        "SHADOW_METHOD_EXCLUDED", "STALE_SNAPSHOT_METHOD_EXCLUDED",
+        "METHOD_NOT_CERTIFIED", "METHOD_NOT_APPLICABLE", "METHOD_NOT_PUBLISHED",
+    }

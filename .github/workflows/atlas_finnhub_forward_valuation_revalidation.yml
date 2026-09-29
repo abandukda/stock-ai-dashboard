@@ -7,8 +7,12 @@ on:
       - codex/full-universe-closure-temp
     paths:
       - services/finnhub_forward_valuation_bridge.py
+      - services/executor_publication_bridge.py
+      - services/positive_action_revalidation.py
       - scripts/finnhub_forward_valuation_revalidation.py
       - tests/test_finnhub_forward_valuation_bridge.py
+      - tests/test_executor_publication_bridge.py
+      - tests/test_positive_action_revalidation.py
       - .github/workflows/atlas_finnhub_forward_valuation_revalidation.yml
 
 permissions:
@@ -30,7 +34,7 @@ jobs:
           python-version: '3.11'
       - run: pip install -r requirements.txt
       - name: Validate bounded bridge
-        run: PYTHONPATH=. pytest -q tests/test_finnhub_forward_valuation_bridge.py tests/test_professional_valuation_evidence.py tests/test_valuation_evidence_strength.py
+        run: PYTHONPATH=. pytest -q tests/test_finnhub_forward_valuation_bridge.py tests/test_professional_valuation_evidence.py tests/test_valuation_evidence_strength.py tests/test_executor_publication_bridge.py tests/test_positive_action_revalidation.py
       - name: Acquire frozen certified candidate
         env:
           GH_TOKEN: ${{ github.token }}
@@ -59,6 +63,9 @@ jobs:
           assert report['production_cutover'] is False
           assert report['bulk_production_critical_path'] is False
           assert len(report['results']) == 18
+          assert all(report['results'][ticker]['new_action'] != 'BUY_NOW' for ticker in (
+              'ADI','AMG','APH','DBRG','DNOW','HSTM','III','MEDP','SLP','TDY','WAB'
+          ))
           PY
       - name: Upload immutable certification report
         if: always()

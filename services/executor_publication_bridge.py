@@ -17,10 +17,11 @@ from typing import Any, Mapping, Sequence
 
 from services.canonical_data_validation import validate_valuation
 from services.discovery_engine_v2 import curate_customer_150
+from services.positive_action_revalidation import revalidate_buy_now
 from services.publication_governance import build_manifest, certify_rows
 
 
-VERSION = "ATLAS_EXECUTOR_PUBLICATION_BRIDGE_V1"
+VERSION = "ATLAS_EXECUTOR_PUBLICATION_BRIDGE_V2"
 ARTIFACT_NAMES = (
     "market_full_scan.json", "market_prescreen.json", "recovery_scan.json",
     "etf_scan.json", "total_market_universe.json", "market_scan_state.json",
@@ -162,6 +163,13 @@ def bridge_evaluation(terminal: Mapping[str, Any], source_row: Mapping[str, Any]
         "executor_publication_bridge": {"version": VERSION, "status": "MAPPED_FROM_FROZEN_EVIDENCE"},
     }
     evaluation["valuation_validation"] = validate_valuation(output)
+    # Revalidation must consume the publication-shaped canonical evaluation,
+    # not the executor's earlier compact state.  The mapping above restores
+    # governed fundamentals lineage, complete valuation lineage, and the
+    # reconciled multi-method validation contract for this exact snapshot.
+    positive_revalidation = revalidate_buy_now(evaluation)
+    evaluation["positive_action_revalidation"] = positive_revalidation
+    output["buy_now_revalidation"] = deepcopy(positive_revalidation)
     return output
 
 

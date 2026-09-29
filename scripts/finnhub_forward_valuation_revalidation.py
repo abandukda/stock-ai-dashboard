@@ -21,13 +21,16 @@ from scripts.finnhub_p_fcf_peer_certification import load_governed_classificatio
 from services.finnhub_canonical_authority import AUTHORITY_VERSION, FinnhubCanonicalAdapter
 from services.finnhub_forward_valuation_bridge import apply_forward_inputs, method_matrix
 from services.finnhub_shadow_provider import FINNHUB_PAID_CORE_CERTIFICATION_LICENSE, FinnhubShadowAdapter
-from services.positive_action_revalidation import revalidate_buy_now
+from services.executor_publication_bridge import bridge_evaluation
+from services.publication_governance import certify_record
 from services.professional_valuation_evidence import apply_peer_multiple_evidence
 
 
 VERSION = "ATLAS_FINNHUB_FORWARD_VALUATION_REVALIDATION_V1"
 TARGETS = ("ADI", "AMG", "APH", "CROX", "DBRG", "DNOW", "DOCS", "DOCU", "HALO",
            "HSTM", "III", "IQV", "MEDP", "OPY", "SLP", "TDY", "TEL", "WAB")
+EXPECTED_MULTI_METHOD_BUYS = ("CROX", "DOCS", "DOCU", "HALO", "IQV", "TEL")
+EXPECTED_WAIT_NAMES = ("ADI", "AMG", "APH", "DBRG", "DNOW", "HSTM", "III", "MEDP", "SLP", "TDY", "WAB")
 CORE_CAPABILITIES = ("company_profile", "financial_statements", "basic_financials", "historical_ohlcv")
 TARGET_ESTIMATES = ("eps_estimates", "revenue_estimates", "ebitda_estimates", "dps_estimates", "fcf_estimates")
 PEER_ESTIMATES = ("eps_estimates", "ebitda_estimates")
@@ -174,17 +177,46 @@ def build_report(candidate: Mapping[str, Any], *, pace: float = .25) -> dict[str
         bridge_results = (diagnostics.get(symbol) or {}).get("estimate_bridges") or {}
         method_states = method_matrix(row, valuation, bridge_results)
         evaluation, certification = evaluate_canonical_row(row, bars_by[symbol], evaluated_at=started)
-        revalidation = revalidate_buy_now(evaluation)
-        evaluation["positive_action_revalidation"] = revalidation
+        # Consume the same canonical publication mapping as the full-universe
+        # bridge.  This restores governed fundamentals and valuation lineage,
+        # calculates validation over the reconciled multi-method bundle, and
+        # then runs strongest-Action revalidation on that exact snapshot.
+        terminal = {
+            "ticker": symbol, "terminal_data_state": "CERTIFIED_EVALUATION",
+            "canonical_action": (evaluation.get("guidance") or {}).get("state"),
+            "evaluation": evaluation, "evaluation_digest": evaluation.get("decision_digest"),
+        }
+        bridged = bridge_evaluation(terminal, row)
+        for identity_key in (
+            "candidate_digest", "universe_sha256", "source_sha", "evidence_snapshot_at",
+            "provider_authority_version", "methodology_version", "valuation_version",
+            "six_pillar_version", "action_engine_version",
+        ):
+            bridged[identity_key] = candidate.get(identity_key)
+        evaluation = dict(bridged["canonical_investment_evaluation"])
+        revalidation = dict(evaluation.get("positive_action_revalidation") or {})
+        publication = certify_record(bridged, now=started)
         professional = (evaluation.get("atlas_valuation") or {}).get("professional_valuation_v2") or {}
         models = [model for model in professional.get("models") or () if model.get("status") == "PUBLISHED"]
-        eligible = bool((evaluation.get("guidance") or {}).get("state") == "BUY_NOW"
-                        and revalidation.get("status") == "BUY_NOW_REVALIDATED")
+        validation = dict(evaluation.get("valuation_validation") or {})
+        strength = dict(revalidation.get("valuation_evidence_strength") or validation.get("valuation_evidence_strength") or {})
+        eligible = publication.get("customer_publication_allowed") is True
         trade = evaluation.get("trade_plan") or {}; fair = professional.get("atlas_base_fair_value")
         price = (evaluation.get("market_snapshot") or {}).get("price")
+        included = [str(model.get("methodology_id")) for model in models]
+        corroboration = dict(revalidation.get("canonical_method_corroboration") or {})
+        excluded = [
+            {"method_id": str(model.get("methodology_id")),
+             "reason": method_states.get(str(model.get("methodology_id"))) or model.get("status")}
+            for model in professional.get("models") or () if model.get("status") != "PUBLISHED"
+        ]
         results[symbol] = {
             "prior_action": prior.get("canonical_action"), "new_action": (evaluation.get("guidance") or {}).get("state"),
-            "published_valuation_methods": [model.get("methodology_id") for model in models],
+            "published_valuation_methods": included,
+            "certified_method_count": int(strength.get("published_method_count") or 0),
+            "canonical_methods_included": list(corroboration.get("methods_included") or ()),
+            "canonical_methods_excluded": list(corroboration.get("methods_excluded") or ()),
+            "excluded_valuation_methods": excluded,
             "method_appropriateness": method_states, "fair_value": fair,
             "opportunity": evaluation.get("opportunity"), "confidence": evaluation.get("decision_confidence"),
             "six_pillars": {name: evaluation.get(name) for name in (
@@ -193,10 +225,19 @@ def build_report(candidate: Mapping[str, Any], *, pace: float = .25) -> dict[str
             "preferred_entry": None, "max_buy_price": None,
             "upside_at_current_price": (fair / price - 1) if fair and price else None,
             "upside_at_max_buy_price": None, "stop_or_invalidation": trade.get("stop_loss") if eligible else None,
+            "valuation_ceiling": None, "technical_ceiling": None,
+            "risk_reward_ceiling": None, "binding_ceiling": None,
+            "buy_range_status": "GOVERNED_CEILINGS_INCOMPLETE" if eligible else "NOT_APPLICABLE_UNPUBLISHED",
             "accounting_bridge": method_states.get("VAL_EV_EBITDA_V1"),
             "scenario_evidence": professional.get("scenario_status"),
+            "fundamentals_revalidated": (evaluation.get("fundamentals") or {}).get("status") == "AVAILABLE",
+            "valuation_revalidated": validation.get("customer_publication_allowed") is True,
+            "corroboration_pass": int(strength.get("published_method_count") or 0) >= 2,
+            "corroboration_blockers": list(revalidation.get("valuation_sufficiency_blockers") or ()),
             "revalidation_status": revalidation.get("status"),
             "blockers": list(revalidation.get("blockers") or ()),
+            "publication_blockers": list(publication.get("blockers") or ()),
+            "publication_certification_state": publication.get("certification_state"),
             "customer_publication_eligible": eligible,
             "evaluation_digest": evaluation.get("decision_digest"),
             "exact_snapshot_digest": revalidation.get("exact_snapshot_digest"),
@@ -222,6 +263,22 @@ def build_report(candidate: Mapping[str, Any], *, pace: float = .25) -> dict[str
         gate_counts.update(gates)
         (one_gate if len(gates) == 1 else multi_gate if len(gates) >= 2 else []).append(item.get("ticker"))
     new_routes = any(len(item.get("published_valuation_methods") or ()) >= 2 for item in results.values())
+    readiness_blockers = []
+    stale_blockers = {
+        "FUNDAMENTALS_NOT_REVALIDATED", "VALUATION_NOT_REVALIDATED",
+        "BUY_NOW_METHOD_CORROBORATION_INSUFFICIENT",
+    }
+    for symbol in EXPECTED_MULTI_METHOD_BUYS:
+        result = results.get(symbol) or {}
+        if int(result.get("certified_method_count") or 0) < 2:
+            readiness_blockers.append(f"{symbol}:CANONICAL_METHOD_COUNT_NOT_PROPAGATED")
+        if stale_blockers.intersection(result.get("blockers") or ()):
+            readiness_blockers.append(f"{symbol}:SECOND_STAGE_STALE_CONTRACT_REMAINS")
+    if int((results.get("OPY") or {}).get("certified_method_count") or 0) != 1:
+        readiness_blockers.append("OPY:SINGLE_METHOD_POLICY_IDENTITY_CHANGED")
+    for symbol in EXPECTED_WAIT_NAMES:
+        if (results.get(symbol) or {}).get("new_action") == "BUY_NOW":
+            readiness_blockers.append(f"{symbol}:WAIT_ACTION_INFLATION")
     report = {
         "version": VERSION, "generated_at": datetime.now(timezone.utc).isoformat(),
         "snapshot_started_at": started.isoformat(), "source_candidate_digest": candidate.get("candidate_digest"),
@@ -242,6 +299,11 @@ def build_report(candidate: Mapping[str, Any], *, pace: float = .25) -> dict[str
         "customer_publishable_buy_now_count": sum(item.get("customer_publication_eligible") is True for item in results.values()),
         "full_universe_reevaluation_required": new_routes,
         "new_analytical_candidate_required": new_routes,
+        "second_stage_root_cause": [
+            "STALE_FIELD_MAPPING", "METHOD_COUNT_NOT_PROPAGATED", "REVALIDATION_STATE_NOT_UPDATED",
+        ],
+        "full_universe_reevaluation_ready": not readiness_blockers,
+        "full_universe_reevaluation_readiness_blockers": readiness_blockers,
         "bulk_production_critical_path": False,
         "classification_lineage": classification_lineage,
         "report_card_prospective_active": False, "historical_backfill_performed": False,

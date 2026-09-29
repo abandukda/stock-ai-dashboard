@@ -5,7 +5,7 @@ import hashlib
 import json
 from typing import Any, Mapping
 
-VERSION = "ATLAS_BUY_NOW_REVALIDATION_V1"
+VERSION = "ATLAS_BUY_NOW_REVALIDATION_V2"
 
 VALUATION_REQUIREMENT_BLOCKERS = {
     "company_type_route_registered": "BUY_NOW_VALUATION_ROUTE_UNREGISTERED",
@@ -45,6 +45,41 @@ def _number(value: Any) -> float | None:
         return None
 
 
+def canonical_method_corroboration(professional: Mapping[str, Any], validation: Mapping[str, Any]) -> dict[str, Any]:
+    """Count only certified, applicable, canonical same-snapshot methods."""
+    applicability = {
+        str(item.get("methodology_id") or ""): str(item.get("applicability") or "")
+        for item in validation.get("model_applicability") or ()
+    }
+    valuation_as_of = professional.get("valuation_as_of")
+    included: list[str] = []
+    excluded: list[dict[str, str]] = []
+    for raw in professional.get("models") or ():
+        model = dict(raw)
+        method_id = str(model.get("methodology_id") or "")
+        reason = None
+        if model.get("status") != "PUBLISHED":
+            reason = "METHOD_NOT_PUBLISHED"
+        elif str(model.get("evidence_tier") or "").upper() in {"SHADOW_ONLY", "UNVERIFIED_SHADOW"}:
+            reason = "SHADOW_METHOD_EXCLUDED"
+        elif model.get("certification_state") not in (None, "CERTIFIED", "CERTIFIED_HIGH_UNCERTAINTY"):
+            reason = "METHOD_NOT_CERTIFIED"
+        elif applicability.get(method_id) in {"NOT_APPLICABLE", "WEAK_FOR_COMPANY_TYPE"}:
+            reason = "METHOD_NOT_APPLICABLE"
+        elif model.get("snapshot_identity") and valuation_as_of and model.get("snapshot_identity") != valuation_as_of:
+            reason = "STALE_SNAPSHOT_METHOD_EXCLUDED"
+        if reason:
+            excluded.append({"method_id": method_id, "reason": reason})
+        else:
+            included.append(method_id)
+    return {
+        "certified_method_count": len(included),
+        "methods_included": included,
+        "methods_excluded": excluded,
+        "valuation_as_of": valuation_as_of,
+    }
+
+
 def revalidate_buy_now(evaluation: Mapping[str, Any]) -> dict[str, Any]:
     """Recheck exact-snapshot evidence without modifying the canonical Action."""
     action = str(((evaluation.get("guidance") or {}).get("state") or ""))
@@ -59,6 +94,7 @@ def revalidate_buy_now(evaluation: Mapping[str, Any]) -> dict[str, Any]:
     valuation = dict(evaluation.get("atlas_valuation") or {})
     professional = dict(valuation.get("professional_valuation_v2") or {})
     validation = dict(evaluation.get("valuation_validation") or {})
+    corroboration = canonical_method_corroboration(professional, validation)
     blockers: list[str] = []
     if not market.get("evidence_id") or not market.get("provider_timestamp") or _number(market.get("price")) is None:
         blockers.append("MARKET_SNAPSHOT_NOT_REVALIDATED")
@@ -78,6 +114,17 @@ def revalidate_buy_now(evaluation: Mapping[str, Any]) -> dict[str, Any]:
     if professional.get("status") != "PUBLISHED" or validation.get("customer_publication_allowed") is not True:
         blockers.append("VALUATION_NOT_REVALIDATED")
     strength = dict(validation.get("valuation_evidence_strength") or professional.get("valuation_evidence_strength") or {})
+    if strength:
+        # The canonical method bundle is authoritative for count propagation;
+        # all other strong-action requirements remain owned by the existing
+        # valuation-evidence policy and are not relaxed here.
+        strength["published_method_count"] = corroboration["certified_method_count"]
+        if corroboration["certified_method_count"] < 2:
+            strength["strong_action_eligible"] = False
+            unmet = list(strength.get("unmet_requirements") or ())
+            if "method_corroboration" not in unmet:
+                unmet.append("method_corroboration")
+            strength["unmet_requirements"] = unmet
     if strength.get("strong_action_eligible") is not True:
         blockers.append("BUY_NOW_VALUATION_EVIDENCE_INSUFFICIENT")
         blockers.extend(valuation_sufficiency_blockers(strength))
@@ -121,9 +168,11 @@ def revalidate_buy_now(evaluation: Mapping[str, Any]) -> dict[str, Any]:
         "street_divergence_review": divergence_level,
         "economic_explanation": explanation,
         "valuation_evidence_strength": strength,
+        "canonical_method_corroboration": corroboration,
         "valuation_sufficiency_blockers": valuation_sufficiency_blockers(strength),
         "invalidation_thesis": {"stop_loss": trade.get("stop_loss"), "primary_risk": risk.get("primary_risk")},
     }
 
 
-__all__ = ["VALUATION_REQUIREMENT_BLOCKERS", "VERSION", "revalidate_buy_now", "valuation_sufficiency_blockers"]
+__all__ = ["VALUATION_REQUIREMENT_BLOCKERS", "VERSION", "canonical_method_corroboration",
+           "revalidate_buy_now", "valuation_sufficiency_blockers"]

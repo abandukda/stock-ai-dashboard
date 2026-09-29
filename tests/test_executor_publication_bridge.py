@@ -43,6 +43,49 @@ def test_bridge_is_deep_copy_and_preserves_decision_fields():
     assert row["canonical_investment_evaluation"]["trade_plan"]["source"] == "ATLAS_TRADE_PLAN_FROM_CERTIFIED_TECHNICALS_V1"
     assert row["canonical_investment_evaluation"]["trial_presentation_fields"]["current_shares_outstanding"] is None
     assert row["canonical_investment_evaluation"]["trial_presentation_fields"]["share_structure"]["market_cap_reconciliation_shares"] == 100
+    assert row["canonical_investment_evaluation"]["positive_action_revalidation"]["status"] == "NOT_REQUIRED"
+
+
+def test_bridge_revalidates_buy_only_after_fundamentals_and_valuation_propagation(monkeypatch):
+    def certified_validation(_row):
+        return {
+            "customer_publication_allowed": True,
+            "certification_state": "CERTIFIED",
+            "model_applicability": [
+                {"methodology_id": "VAL_P_FCF_V1", "applicability": "PRIMARY_APPROPRIATE"},
+                {"methodology_id": "VAL_FORWARD_PE_V1", "applicability": "PRIMARY_APPROPRIATE"},
+            ],
+            "valuation_evidence_strength": {
+                "strong_action_eligible": True, "published_method_count": 2,
+                "unmet_requirements": [],
+            },
+        }
+
+    monkeypatch.setattr("services.executor_publication_bridge.validate_valuation", certified_validation)
+    terminal = _terminal("BUY_NOW")
+    terminal["evaluation"]["market_snapshot"]["latest_completed_session_valid"] = True
+    terminal["evaluation"]["technical_confirmation"]["completed_bar"] = True
+    professional = terminal["evaluation"]["atlas_valuation"]["professional_valuation_v2"]
+    professional["models"].append({
+        "methodology_id": "VAL_FORWARD_PE_V1", "status": "PUBLISHED",
+        "value": 11, "weight": 0.5, "key_assumptions": {},
+    })
+    professional["models"][0]["weight"] = 0.5
+    terminal["evaluation"]["risk"]["primary_risk"] = "Execution"
+    terminal["evaluation"]["opportunity_thesis"] = "Certified multi-method value"
+    professional["valuation_explanation"] = {
+        "primary_valuation_driver": "Cash flow",
+        "biggest_valuation_uncertainty": "Forecast delivery",
+    }
+    row = bridge_evaluation(terminal, _source())
+    evaluation = row["canonical_investment_evaluation"]
+    assert evaluation["fundamentals"]["status"] == "AVAILABLE"
+    assert evaluation["valuation_validation"]["customer_publication_allowed"] is True
+    assert evaluation["positive_action_revalidation"]["status"] == "BUY_NOW_REVALIDATED"
+    assert evaluation["positive_action_revalidation"]["canonical_method_corroboration"]["certified_method_count"] == 2
+    assert evaluation["guidance"] == terminal["evaluation"]["guidance"]
+    assert evaluation["opportunity"] == terminal["evaluation"]["opportunity"]
+    assert evaluation["decision_confidence"] == terminal["evaluation"]["decision_confidence"]
 
 
 def test_bundle_keeps_zero_buy_state_and_report_card_off():
