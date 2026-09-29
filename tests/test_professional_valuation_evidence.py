@@ -88,7 +88,9 @@ def test_peer_evidence_serialization_is_independent_of_input_order():
     forward = {item["ticker"]: item for item in apply_peer_multiple_evidence(rows)}["TARGET"]
     reverse = {item["ticker"]: item for item in apply_peer_multiple_evidence(list(reversed(rows)))}["TARGET"]
     assert forward["justified_p_fcf_peer_evidence"] == reverse["justified_p_fcf_peer_evidence"]
-    assert forward["justified_p_fcf_peer_evidence"]["final_peer_set"] == ["A", "B", "C"]
+    # Preserve the governed closest-market-cap ordering, with ticker only as
+    # the deterministic tie-breaker.
+    assert forward["justified_p_fcf_peer_evidence"]["final_peer_set"] == ["C", "A", "B"]
 
 
 def test_provider_neutral_p_fcf_route_publishes_and_certifies_with_complete_peer_evidence():
