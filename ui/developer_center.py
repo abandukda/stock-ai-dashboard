@@ -22,7 +22,7 @@ def _render_evidence_inspector(artifact: Any) -> None:
         if isinstance(evaluation, Mapping):
             ticker = str(evaluation.get("ticker") or row.get("ticker") or "").upper()
             if ticker:
-                indexed[ticker] = {**dict(evaluation), "ticker": ticker}
+                indexed[ticker] = {**dict(row), **dict(evaluation), "ticker": ticker}
     with st.expander("Evidence Inspector — Internal QA Only", expanded=False):
         st.caption(
             "Audits canonical normalized inputs, formulas, lineage references, blockers, six-pillar "

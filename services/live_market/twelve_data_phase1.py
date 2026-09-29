@@ -459,6 +459,10 @@ def _completed_daily_volume(daily_history: Mapping[str, Any]) -> dict[str, Any]:
         "average_dollar_volume": average_dollar,
         "as_of": latest.get("timestamp"),
         "evidence_id": daily_history.get("evidence_id"),
+        "volume_evidence_id": daily_history.get("evidence_id"),
+        "volume_session_scope": "COMPLETED_SESSION",
+        "volume_semantics": "CONSOLIDATED_VOLUME",
+        "provider_authority": "CANONICAL_CERTIFIED",
         "reason_codes": ("COMPLETED_DAILY_VOLUME_BASELINE_VALIDATED",) if relative is not None else ("DAILY_VOLUME_BASELINE_UNAVAILABLE",),
     }
 

@@ -62,11 +62,11 @@ PARAMETERS: tuple[Parameter, ...] = (
     _p("technical_score", "technical_engine", "technical_confirmation.score", required="REQUIRED", unit="SCORE_0_100", consumers=("technical_quality", "opportunity", "confidence", "action")),
     _p("technical_state", "technical_engine", "technical_confirmation.state", required="REQUIRED", kind="string", consumers=("entry_trade_plan", "action")),
     _p("technical_as_of", "technical_engine", "technical_confirmation.as_of", required="REQUIRED", kind="timestamp", consumers=("freshness", "action")),
-    _p("rsi_14", "technical_engine", "technical_confirmation.evidence.rsi_14", unit="INDEX_0_100", period="14_COMPLETED_SESSIONS", consumers=("technical_quality",)),
-    _p("atr_14", "technical_engine", "technical_confirmation.evidence.atr_14", unit="PRICE", period="14_COMPLETED_SESSIONS", consumers=("technical_quality", "entry_trade_plan")),
-    _p("sma_20", "technical_engine", "technical_confirmation.evidence.sma_20", unit="PRICE", period="20_COMPLETED_SESSIONS", consumers=("technical_quality",)),
-    _p("sma_50", "technical_engine", "technical_confirmation.evidence.sma_50", unit="PRICE", period="50_COMPLETED_SESSIONS", consumers=("technical_quality",)),
-    _p("sma_200", "technical_engine", "technical_confirmation.evidence.sma_200", unit="PRICE", period="200_COMPLETED_SESSIONS", consumers=("technical_quality",)),
+    _p("rsi_14", "technical_engine", "technical_confirmation.evidence.rsi14", unit="INDEX_0_100", period="14_COMPLETED_SESSIONS", consumers=("technical_quality",)),
+    _p("atr_14", "technical_engine", "technical_confirmation.evidence.atr14", unit="PRICE", period="14_COMPLETED_SESSIONS", consumers=("technical_quality", "entry_trade_plan")),
+    _p("sma_20", "technical_engine", "technical_confirmation.evidence.sma20", unit="PRICE", period="20_COMPLETED_SESSIONS", consumers=("technical_quality",)),
+    _p("sma_50", "technical_engine", "technical_confirmation.evidence.sma50", unit="PRICE", period="50_COMPLETED_SESSIONS", consumers=("technical_quality",)),
+    _p("sma_200", "technical_engine", "technical_confirmation.evidence.sma200", unit="PRICE", period="200_COMPLETED_SESSIONS", consumers=("technical_quality",)),
     _p("revenue_growth_pct", "fundamental_engine", "fundamentals.data.revenue_growth_pct", unit="PERCENT", period="LATEST_CERTIFIED_PERIOD", consumers=("fundamental_quality",)),
     _p("eps_growth_pct", "fundamental_engine", "fundamentals.data.eps_growth_pct", unit="PERCENT", period="LATEST_CERTIFIED_PERIOD", consumers=("fundamental_quality",)),
     _p("gross_margin_pct", "fundamental_engine", "fundamentals.data.gross_margin_pct", unit="PERCENT", period="LATEST_CERTIFIED_PERIOD", consumers=("fundamental_quality",)),
@@ -162,6 +162,27 @@ def _get(record: Mapping[str, Any], path: Sequence[str]) -> Any:
     return value
 
 
+_CANONICAL_ALIASES = {
+    "market_cap": ("market_cap", "market_capitalization"),
+    "capex": ("capex", "capital_expenditure"),
+    "target_1": ("target_1", "trade_target_1", "target"),
+    "market_regime": ("market_regime",),
+    "security_type": ("security_type", "asset_type"),
+    "sector": ("sector",), "industry": ("industry",),
+}
+
+
+def _value(record: Mapping[str, Any], spec: Parameter) -> Any:
+    value = _get(record, spec.path)
+    if value is not None:
+        return value
+    for alias in _CANONICAL_ALIASES.get(spec.canonical_name, (spec.canonical_name,)):
+        value = _get(record, (alias,))
+        if value is not None:
+            return value
+    return None
+
+
 def _finite(value: Any) -> bool:
     if isinstance(value, bool):
         return True
@@ -189,7 +210,7 @@ def inspect_ticker(record: Mapping[str, Any]) -> dict[str, Any]:
     lineage = record.get("professional_evidence_lineage") if isinstance(record.get("professional_evidence_lineage"), Mapping) else {}
     lineage_fields = lineage.get("fields") if isinstance(lineage.get("fields"), Mapping) else {}
     for spec in PARAMETERS:
-        value = _get(record, spec.path)
+        value = _value(record, spec)
         status, reason = _status(spec, value, record)
         field_lineage = lineage_fields.get(spec.canonical_name) if isinstance(lineage_fields, Mapping) else {}
         traces.append({

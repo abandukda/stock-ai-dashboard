@@ -57,9 +57,9 @@ def _record(*, frequency="ANNUAL", certified=True):
 
 
 def test_provider_roles_are_frozen_outside_canonical_valuation():
-    assert "CANONICAL_VALUATION_INPUTS" in PROVIDER_ROLE_FREEZE["FINNHUB"]["prohibited"]
+    assert "CANONICAL_FORWARD_VALUATION_INPUTS" in PROVIDER_ROLE_FREEZE["FINNHUB"]["prohibited"]
+    assert PROVIDER_ROLE_FREEZE["FINNHUB"]["canonical_valuation_authority"] == "FIELD_SCOPED_HISTORICAL_ONLY"
     assert PROVIDER_ROLE_FREEZE["FINNHUB"]["forward_estimates"] == "CONTEXT_ONLY"
-    assert PROVIDER_ROLE_FREEZE["FINNHUB"]["canonical_valuation_authority"] is False
     assert PROVIDER_ROLE_FREEZE["EARNINGSCALL"]["license"] == "DEVELOPMENT_PRECOMMERCIAL"
     assert "CUSTOMER_PUBLICATION" in PROVIDER_ROLE_FREEZE["EARNINGSCALL"]["prohibited"]
     assert PROVIDER_ROLE_FREEZE["EARNINGSCALL"]["scoring"] is False

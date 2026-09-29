@@ -12,6 +12,7 @@ from engines.atlas_valuation import AtlasValuationInputs, calculate_atlas_fair_v
 from engines.professional_valuation_v2 import value_company
 from engines.volume_intelligence_v1 import build_volume_intelligence
 from engines.decision_metrics_v1 import build_decision_metrics
+from services.completed_session_volume_authority import certify_completed_session_volume
 
 
 EVALUATION_VERSION = "CANONICAL_INVESTMENT_EVALUATION_V1"
@@ -107,10 +108,12 @@ def build_canonical_evaluation(
         "statistic": volume_evidence.get("volume_statistic") or "DAILY_RELATIVE_VOLUME",
         "evidence_id": volume_evidence.get("volume_evidence_id"),
     }
-    approved_volume_authority = volume_evidence.get("approved_volume_authority") == "TWELVE_DATA_COMPLETED_DAILY_VOLUME"
+    volume_authority = certify_completed_session_volume(volume_evidence)
+    approved_volume_authority = volume_authority["authorized"]
+    volume["authority_contract"] = volume_authority
     if positive_action_volume_authority_required and not approved_volume_authority:
-        # Twelve Data Phase 1 deliberately has no production intraday-volume
-        # authority. Persisted/raw volume fields must not leak through here.
+        # Partial/intraday volume has no positive-action authority. Persisted
+        # raw volume fields must not leak through this evidence gate.
         volume = {
             **volume,
             "status": "DATA_UNAVAILABLE",
