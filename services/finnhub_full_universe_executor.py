@@ -251,7 +251,13 @@ def _pillar_distribution(terminal: Sequence[Mapping[str, Any]]) -> dict[str, dic
     keys = ("technical_quality", "fundamental_quality", "valuation_quality", "risk_quality", "entry_quality", "volume_quality")
     result = {}
     for key in keys:
-        values = [(item.get("evaluation") or {}).get(key) for item in terminal]
+        values = []
+        for item in terminal:
+            pillar = (item.get("evaluation") or {}).get(key)
+            # Canonical decision metrics expose pillars as governed structured
+            # records. This report counts the score without flattening or
+            # mutating the underlying evaluation.
+            values.append(pillar.get("score") if isinstance(pillar, Mapping) else pillar)
         result[key] = {
             "available": sum(isinstance(value, (int, float)) and math.isfinite(float(value)) for value in values),
             "unavailable": sum(not isinstance(value, (int, float)) or not math.isfinite(float(value)) for value in values),

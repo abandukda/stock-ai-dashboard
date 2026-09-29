@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pytest
 
@@ -199,3 +200,25 @@ def test_internal_data_limited_state_is_packaged_as_rating_not_published(monkeyp
         "credential_entitlement_failures": 0,
     }])
     assert result["terminal_records"][0]["canonical_action"] == "RATING_NOT_PUBLISHED"
+
+
+def test_pillar_distribution_reads_scores_from_canonical_structured_pillars():
+    terminal = [{"evaluation": {
+        "technical_quality": {"score": 81.0, "status": "AVAILABLE"},
+        "fundamental_quality": {"score": 72.0, "status": "AVAILABLE"},
+        "valuation_quality": {"score": None, "status": "DATA_UNAVAILABLE"},
+        "risk_quality": {"score": 66.0, "status": "AVAILABLE"},
+        "entry_quality": {"score": 58.0, "status": "AVAILABLE"},
+        "volume_quality": {"score": 74.0, "status": "AVAILABLE"},
+    }}]
+    report = executor._pillar_distribution(terminal)
+    assert report["technical_quality"] == {"available": 1, "unavailable": 0}
+    assert report["valuation_quality"] == {"available": 0, "unavailable": 1}
+
+
+def test_full_run_planner_job_installs_project_dependencies():
+    workflow = (Path(__file__).resolve().parents[1] /
+                ".github/workflows/atlas_finnhub_full_universe_certification.yml").read_text()
+    planner = workflow.split("  plan-full-run:", 1)[1].split("  acquire-full-shards:", 1)[0]
+    assert "pip install -r requirements.txt" in planner
+    assert "pip install requests" not in planner
