@@ -6,13 +6,15 @@ import pytest
 
 from services.report_card_governance import (
     AMBIGUOUS_BAR_RULE, MODEL_PORTFOLIO_FILL_ASSUMPTION, CorporateActionEvent,
-    GovernedCeiling, PipelineState, REPORT_CARD_ACTIVATION_READY, REPORT_CARD_PROSPECTIVE_ACTIVE,
-    append_immutable, build_corporate_action, build_long_term_buy_range,
+    GovernedCeiling, PipelineState, PositionExitType, REPORT_CARD_ACTIVATION_READY,
+    REPORT_CARD_PROSPECTIVE_ACTIVE, SignalLifecycleEvent, SignalOutcome,
+    append_immutable, assert_signal_may_execute, build_corporate_action, build_long_term_buy_range,
     build_long_term_signal, build_swing_signal, classify_long_term_gap,
-    first_qualifying_long_term_execution, pipeline_public_message,
+    build_position_exit, evaluate_portfolio_capacity, first_qualifying_long_term_execution,
+    pipeline_public_message, portfolio_performance_population,
     open_model_portfolio_position, public_report_allowed, record_prospective_execution,
-    record_prospective_signal, resolve_daily_bar_target_stop,
-    swing_position_size,
+    record_prospective_signal, resolve_daily_bar_target_stop, signal_quality_population,
+    summarize_signal_outcomes, swing_position_size,
 )
 
 
@@ -231,3 +233,86 @@ def test_report_card_remains_off_blocks_signals_portfolio_and_public_output(tmp_
     assert not (tmp_path / "executions.jsonl").exists()
     assert REPORT_CARD_ACTIVATION_READY is False
     assert public_report_allowed() is False
+
+
+def test_signal_issuance_is_independent_of_portfolio_capacity():
+    signal = build_long_term_signal(long_term_payload(), calendar=Calendar())
+    assert signal.action == "BUY_NOW"
+    event = evaluate_portfolio_capacity(
+        signal_id=signal.signal_id, signal_kind=signal.signal_kind,
+        event_timestamp="2026-11-25T15:02:00Z", executable_price=96,
+        capital_available=False, position_slot_available=True,
+    )
+    assert event.outcome == "SIGNAL_NOT_FUNDED_PORTFOLIO_FULL"
+    assert event.terminal_for_execution is True
+
+
+def test_unfunded_executable_signal_is_terminal_and_never_queued_for_later_slot():
+    signal = build_long_term_signal(long_term_payload(), calendar=Calendar())
+    event = evaluate_portfolio_capacity(
+        signal_id=signal.signal_id, signal_kind="LONG_TERM",
+        event_timestamp="2026-11-25T15:02:00Z", executable_price=96,
+        capital_available=True, position_slot_available=False,
+    )
+    with pytest.raises(PermissionError, match="NO_QUEUE_NEW_CERTIFIED_SIGNAL_REQUIRED"):
+        assert_signal_may_execute(signal.signal_id, [event])
+    # A new signal with a new snapshot and timestamp has a new identity and is independently eligible.
+    new_signal = build_long_term_signal(long_term_payload(
+        signal_timestamp="2026-11-27T15:00:00Z", snapshot_timestamp="2026-11-27T14:59:00Z",
+        candidate_digest="C2",
+    ), calendar=Calendar())
+    assert new_signal.signal_id != signal.signal_id
+    assert_signal_may_execute(new_signal.signal_id, [event])
+
+
+def test_capacity_pressure_does_not_invalidate_thesis_or_force_existing_position_exit():
+    with pytest.raises(PermissionError, match="REBALANCING_EXIT_NOT_GOVERNED"):
+        build_position_exit(
+            position_id="POS-1", signal_id="SIG-1", event_timestamp="2026-11-25T15:02:00Z",
+            exit_type=PositionExitType.PORTFOLIO_REBALANCING, exit_price=100, rule_version="V1",
+        )
+    invalidation = build_position_exit(
+        position_id="POS-1", signal_id="SIG-1", event_timestamp="2026-11-25T15:02:00Z",
+        exit_type=PositionExitType.THESIS_INVALIDATION, exit_price=90, rule_version="M1-THESIS",
+    )
+    assert invalidation["thesis_invalidated"] is True
+    future_rebalance = build_position_exit(
+        position_id="POS-1", signal_id="SIG-1", event_timestamp="2027-11-25T15:02:00Z",
+        exit_type=PositionExitType.PORTFOLIO_REBALANCING, exit_price=110,
+        rule_version="M2-REBALANCE", methodology_allows_rebalancing=True,
+    )
+    assert future_rebalance["exit_type"] == "PORTFOLIO_REBALANCING"
+    assert future_rebalance["thesis_invalidated"] is False
+
+
+def lifecycle(signal_id, outcome, sequence):
+    return SignalLifecycleEvent(
+        f"E-{sequence}", signal_id, "LONG_TERM", f"2026-11-{25 + sequence:02d}T15:00:00+00:00",
+        outcome, None, None, None, True,
+    )
+
+
+def test_signal_outcome_counts_are_separate_and_deterministic():
+    signal_ids = ["S1", "S2", "S3", "S4", "S5"]
+    events = [
+        lifecycle("S1", SignalOutcome.SIGNAL_EXECUTED.value, 0),
+        lifecycle("S2", SignalOutcome.SIGNAL_NOT_FUNDED_PORTFOLIO_FULL.value, 1),
+        lifecycle("S3", SignalOutcome.SIGNAL_EXPIRED.value, 2),
+        lifecycle("S4", SignalOutcome.SIGNAL_NEVER_ENTERED_RANGE.value, 3),
+    ]
+    assert summarize_signal_outcomes(signal_ids=signal_ids, lifecycle_events=events) == {
+        "SIGNALS_ISSUED": 5, "SIGNALS_EXECUTED": 1,
+        "SIGNALS_NOT_FUNDED_PORTFOLIO_FULL": 1, "SIGNALS_EXPIRED": 1,
+        "SIGNALS_NEVER_ENTERED_RANGE": 1,
+    }
+
+
+def test_signal_quality_includes_unfunded_while_portfolio_performance_uses_executions_only():
+    funded = build_long_term_signal(long_term_payload(ticker="AAA", stable_security_id="SEC-A"), calendar=Calendar())
+    unfunded = build_long_term_signal(long_term_payload(
+        ticker="BBB", stable_security_id="SEC-B", candidate_digest="C-B"), calendar=Calendar())
+    execution = first_qualifying_long_term_execution(funded, [
+        {"timestamp": "2026-11-25T15:01:00Z", "price": 96, "price_source": "TRADE"},
+    ], calendar=Calendar())
+    assert signal_quality_population([funded, unfunded]) == (funded.signal_id, unfunded.signal_id)
+    assert portfolio_performance_population([execution]) == (execution.execution_id,)

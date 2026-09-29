@@ -21,6 +21,7 @@ LONG_TERM_EXECUTION_RULE_VERSION = "ATLAS_LONG_TERM_FIRST_QUALIFYING_RTH_TRADE_V
 LONG_TERM_EXPIRATION_RULE_VERSION = "ATLAS_LONG_TERM_FIVE_TRADING_SESSIONS_V1"
 SWING_EXECUTION_RULE_VERSION = "ATLAS_SWING_EXECUTION_V1"
 CORPORATE_ACTION_RULE_VERSION = "ATLAS_CORPORATE_ACTION_LIFECYCLE_V1"
+PORTFOLIO_CAPACITY_RULE_VERSION = "ATLAS_PORTFOLIO_CAPACITY_NO_QUEUE_V1"
 REPORT_CARD_PROSPECTIVE_ACTIVE = False
 REPORT_CARD_ACTIVATION_READY = False
 MODEL_PORTFOLIO_FILL_ASSUMPTION = "MODEL_PORTFOLIO_FULL_FILL_ASSUMPTION"
@@ -58,6 +59,22 @@ class SwingTerminalState(str, Enum):
     BREAKOUT_NEVER_CONFIRMED = "BREAKOUT_NEVER_CONFIRMED"
     SETUP_EXPIRED = "SETUP_EXPIRED"
     SETUP_INVALIDATED_BEFORE_ENTRY = "SETUP_INVALIDATED_BEFORE_ENTRY"
+
+
+class SignalOutcome(str, Enum):
+    SIGNAL_EXECUTED = "SIGNAL_EXECUTED"
+    SIGNAL_NOT_FUNDED_PORTFOLIO_FULL = "SIGNAL_NOT_FUNDED_PORTFOLIO_FULL"
+    SIGNAL_EXPIRED = "SIGNAL_EXPIRED"
+    SIGNAL_NEVER_ENTERED_RANGE = "SIGNAL_NEVER_ENTERED_RANGE"
+
+
+class PositionExitType(str, Enum):
+    TARGET = "TARGET"
+    STOP = "STOP"
+    THESIS_INVALIDATION = "THESIS_INVALIDATION"
+    TIME_EXIT = "TIME_EXIT"
+    OTHER_PREDECLARED_EXIT = "OTHER_PREDECLARED_EXIT"
+    PORTFOLIO_REBALANCING = "PORTFOLIO_REBALANCING"
 
 
 class ExchangeCalendar(Protocol):
@@ -233,6 +250,93 @@ class LongTermExecution:
     price_source: str
     execution_rule_version: str = LONG_TERM_EXECUTION_RULE_VERSION
     fill_assumption: str = MODEL_PORTFOLIO_FILL_ASSUMPTION
+
+
+@dataclass(frozen=True)
+class SignalLifecycleEvent:
+    event_id: str
+    signal_id: str
+    signal_kind: str
+    event_timestamp: str
+    outcome: str
+    executable_price: float | None
+    capital_available: bool | None
+    position_slot_available: bool | None
+    terminal_for_execution: bool
+    capacity_rule_version: str = PORTFOLIO_CAPACITY_RULE_VERSION
+
+
+def evaluate_portfolio_capacity(*, signal_id: str, signal_kind: str, event_timestamp: str,
+                                executable_price: float, capital_available: bool,
+                                position_slot_available: bool) -> SignalLifecycleEvent:
+    """Evaluate capacity only after a valid signal becomes price-executable."""
+    timestamp = _aware(event_timestamp, "CAPACITY_EVENT_TIMESTAMP")
+    funded = bool(capital_available and position_slot_available)
+    outcome = "EXECUTION_CAPACITY_AVAILABLE" if funded else SignalOutcome.SIGNAL_NOT_FUNDED_PORTFOLIO_FULL.value
+    identity = {"signal_id": signal_id, "timestamp": timestamp.isoformat(), "outcome": outcome}
+    return SignalLifecycleEvent(
+        _digest(identity), signal_id, signal_kind, timestamp.isoformat(), outcome,
+        float(executable_price), bool(capital_available), bool(position_slot_available), not funded,
+    )
+
+
+def assert_signal_may_execute(signal_id: str, lifecycle_events: Sequence[SignalLifecycleEvent]) -> None:
+    terminal = {
+        SignalOutcome.SIGNAL_NOT_FUNDED_PORTFOLIO_FULL.value,
+        SignalOutcome.SIGNAL_EXPIRED.value,
+        SignalOutcome.SIGNAL_NEVER_ENTERED_RANGE.value,
+    }
+    if any(event.signal_id == signal_id and event.outcome in terminal for event in lifecycle_events):
+        raise PermissionError("SIGNAL_TERMINAL_NO_QUEUE_NEW_CERTIFIED_SIGNAL_REQUIRED")
+
+
+def build_position_exit(*, position_id: str, signal_id: str, event_timestamp: str,
+                        exit_type: PositionExitType, exit_price: float,
+                        rule_version: str, methodology_allows_rebalancing: bool = False) -> Mapping[str, Any]:
+    timestamp = _aware(event_timestamp, "POSITION_EXIT_TIMESTAMP")
+    if not rule_version:
+        raise ValueError("POSITION_EXIT_RULE_VERSION_REQUIRED")
+    if exit_type is PositionExitType.PORTFOLIO_REBALANCING and not methodology_allows_rebalancing:
+        raise PermissionError("PORTFOLIO_REBALANCING_EXIT_NOT_GOVERNED_IN_V1")
+    return {
+        "event_id": _digest({"position_id": position_id, "timestamp": timestamp.isoformat(),
+                             "exit_type": exit_type.value}),
+        "position_id": position_id, "signal_id": signal_id, "event_timestamp": timestamp.isoformat(),
+        "exit_type": exit_type.value, "exit_price": float(exit_price), "rule_version": rule_version,
+        "thesis_invalidated": exit_type is PositionExitType.THESIS_INVALIDATION,
+    }
+
+
+def summarize_signal_outcomes(*, signal_ids: Sequence[str],
+                              lifecycle_events: Sequence[SignalLifecycleEvent]) -> Mapping[str, int]:
+    latest = {event.signal_id: event for event in lifecycle_events}
+    counts = {
+        "SIGNALS_ISSUED": len(set(signal_ids)), "SIGNALS_EXECUTED": 0,
+        "SIGNALS_NOT_FUNDED_PORTFOLIO_FULL": 0, "SIGNALS_EXPIRED": 0,
+        "SIGNALS_NEVER_ENTERED_RANGE": 0,
+    }
+    mapping = {
+        SignalOutcome.SIGNAL_EXECUTED.value: "SIGNALS_EXECUTED",
+        SignalOutcome.SIGNAL_NOT_FUNDED_PORTFOLIO_FULL.value: "SIGNALS_NOT_FUNDED_PORTFOLIO_FULL",
+        SignalOutcome.SIGNAL_EXPIRED.value: "SIGNALS_EXPIRED",
+        SignalOutcome.SIGNAL_NEVER_ENTERED_RANGE.value: "SIGNALS_NEVER_ENTERED_RANGE",
+    }
+    for signal_id in set(signal_ids):
+        event = latest.get(signal_id)
+        if event and event.outcome in mapping:
+            counts[mapping[event.outcome]] += 1
+    return counts
+
+
+def signal_quality_population(signals: Sequence[LongTermSignal | SwingSignal]) -> tuple[str, ...]:
+    """All issued signals participate, regardless of portfolio funding."""
+    return tuple(signal.signal_id if isinstance(signal, LongTermSignal) else signal.swing_signal_id
+                 for signal in signals)
+
+
+def portfolio_performance_population(executions: Sequence[LongTermExecution | SwingExecution]) -> tuple[str, ...]:
+    """Only actually executed positions participate in portfolio performance."""
+    return tuple(execution.execution_id for execution in executions)
 
 
 def first_qualifying_long_term_execution(signal: LongTermSignal, trades: Sequence[Mapping[str, Any]],
@@ -470,13 +574,16 @@ __all__ = [
     "CorporateActionEvent", "ExchangeCalendar", "GOVERNANCE_VERSION", "GovernedCeiling",
     "LONG_TERM_EXECUTION_RULE_VERSION", "LONG_TERM_EXPIRATION_RULE_VERSION", "LONG_TERM_HORIZONS",
     "LongTermBuyRange", "LongTermExecution", "LongTermSignal", "LongTermTerminalState",
-    "MODEL_PORTFOLIO_FILL_ASSUMPTION", "PipelineState", "REPORT_CARD_ACTIVATION_READY",
+    "MODEL_PORTFOLIO_FILL_ASSUMPTION", "PORTFOLIO_CAPACITY_RULE_VERSION", "PipelineState",
+    "PositionExitType", "REPORT_CARD_ACTIVATION_READY",
     "REPORT_CARD_PROSPECTIVE_ACTIVE",
-    "SWING_HORIZONS", "SwingExecution", "SwingSignal", "SwingTerminalState", "append_immutable",
+    "SWING_HORIZONS", "SignalLifecycleEvent", "SignalOutcome", "SwingExecution", "SwingSignal",
+    "SwingTerminalState", "append_immutable", "assert_signal_may_execute", "build_position_exit",
     "build_corporate_action", "build_long_term_buy_range", "build_long_term_signal",
     "build_swing_signal",
-    "classify_long_term_gap", "first_qualifying_long_term_execution", "pipeline_public_message",
+    "classify_long_term_gap", "evaluate_portfolio_capacity", "first_qualifying_long_term_execution",
+    "pipeline_public_message", "portfolio_performance_population",
     "open_model_portfolio_position", "public_report_allowed", "record_prospective_execution",
-    "record_prospective_signal", "resolve_daily_bar_target_stop",
-    "swing_position_size",
+    "record_prospective_signal", "resolve_daily_bar_target_stop", "signal_quality_population",
+    "summarize_signal_outcomes", "swing_position_size",
 ]

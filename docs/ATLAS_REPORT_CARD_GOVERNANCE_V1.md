@@ -67,6 +67,28 @@ Terminal Long-Term states are `EXECUTED`,
 `THESIS_INVALIDATED`, and `REVALIDATED_NEW_SIGNAL`. No terminal record is
 deleted.
 
+## Portfolio capacity
+
+Signal certification and issuance are independent of model-portfolio capital
+and position slots. Capacity is evaluated only after the price becomes
+executable under the signal contract. If capital or a slot is unavailable, the
+immutable lifecycle outcome is `SIGNAL_NOT_FUNDED_PORTFOLIO_FULL`.
+
+That outcome is terminal for execution of the original signal. V1 has no
+queue, so later capacity cannot revive or fill it. A future opportunity needs a
+new certified signal, timestamp, snapshot, entry range, evidence and identity.
+
+Capacity pressure does not invalidate a thesis and cannot force the sale of an
+existing position. V1 exits remain limited to the position's target, stop,
+thesis invalidation, time exit, or another predeclared contract. A future
+rebalancing methodology must record `PORTFOLIO_REBALANCING` under a new rule
+version; it cannot be represented as thesis invalidation.
+
+Governed reporting keeps separate counts for signals issued, executed, not
+funded because the portfolio was full, expired, and never entering range.
+Signal-quality populations include both funded and unfunded signals. Portfolio
+performance populations include only actual executions.
+
 ## Swing contract
 
 Swing signals have independent methodology, evidence, expiration and execution
