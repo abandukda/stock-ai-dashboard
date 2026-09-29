@@ -291,6 +291,27 @@ def test_streamlit_market_today_renders_explicit_unavailable_and_no_news_states(
     assert "No major governed market-moving headlines are available right now." in values
 
 
+def test_compact_market_read_uses_existing_interpretation_and_caps_sentence_count():
+    context = {
+        "market_today": {
+            "interpretation": "Regime is constructive. Breadth is improving. Risk appetite is firm. Opportunities remain company-specific. This fifth sentence must not render.",
+            "non_scoring": True,
+        }
+    }
+    source = (
+        "from ui.home_guidance_vnext import _render_market_read\n"
+        f"_render_market_read({context!r})\n"
+    )
+    app = AppTest.from_string(source, default_timeout=15).run()
+    values = "\n".join(str(item.value) for item in app.markdown)
+    assert not app.exception
+    assert "ATLAS Market Read" in values
+    assert "Regime is constructive" in values
+    assert "Opportunities remain company-specific" in values
+    assert "fifth sentence" not in values
+    assert 'data-atlas-non-scoring="true"' in values
+
+
 def test_major_news_requires_lineage_rights_and_relevance_and_deduplicates():
     valid={"headline":"Fed holds interest rates steady","source":"Wire","published_at":"2026-09-10T18:00:00Z","evidence_id":"NEWS-1","commercial_display_allowed":True,"url":"https://example.com/fed"}
     records=[valid,dict(valid),{"headline":"Law firm shareholder alert","source":"Wire","published_at":"2026-09-10T18:00:00Z","evidence_id":"NEWS-2","commercial_display_allowed":True},

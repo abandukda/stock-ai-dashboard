@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 import json
+import re
 from datetime import datetime
 from typing import Any, Mapping, Sequence
 from zoneinfo import ZoneInfo
@@ -1312,16 +1313,21 @@ def _compact_opportunity_card(card: Mapping[str, Any], *, key: str, first: bool 
 
 
 def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
-    cards = list(story.get("home_featured_cards") or _home_candidate_surface(story.get("cards") or ()))
+    all_cards = list(story.get("cards") or ())
+    featured = list(story.get("home_featured_cards") or _home_candidate_surface(all_cards))
     actionable = sorted(
-        (card for card in cards if _customer_state(card) in {"BUY_NOW", "ACCUMULATE"}),
-        key=lambda card: ({"BUY_NOW": 0, "ACCUMULATE": 1}[_customer_state(card)], int(card.get("production_rank") or 999999)),
+        (card for card in featured if _customer_state(card) == "BUY_NOW"),
+        key=lambda card: int(card.get("production_rank") or 999999),
     )
-    watching = [card for card in cards if _customer_state(card) in {"WAIT_FOR_ENTRY", "WAIT_FOR_CONFIRMATION", "DATA_LIMITED"}]
+    watching = [
+        card for card in all_cards
+        if _customer_state(card) in {"ACCUMULATE", "WAIT_FOR_ENTRY", "WAIT_FOR_CONFIRMATION", "DATA_LIMITED"}
+    ]
     _section_marker("best_opportunities")
-    st.markdown("## Best Opportunities")
+    st.markdown("## Strongest Opportunities")
     if not actionable:
-        st.info("No opportunities currently meet ATLAS's Buy Now or Build a Position standards.")
+        empty = story.get("home_opportunity_empty_state") if isinstance(story.get("home_opportunity_empty_state"), Mapping) else {}
+        st.info(str(empty.get("message") or "ATLAS found no stocks meeting the strongest certified opportunity threshold for this snapshot."))
     for index, card in enumerate(actionable):
         _compact_opportunity_card(card, key=f"actionable_{index}", first=index == 0)
         if index == 0:
@@ -1329,8 +1335,9 @@ def _render_groups(story: Mapping[str, Any], *, emit_interactive) -> None:
     if not actionable:
         emit_interactive()
     _section_marker("worth_watching")
-    with st.expander(f"Worth Watching ({len(watching)})", expanded=False):
+    with st.expander(f"Worth Watching ({len(watching)})", expanded=not actionable):
         labels = {
+            "ACCUMULATE": "Near opportunity · Build a Position",
             "WAIT_FOR_ENTRY": "Waiting on price",
             "WAIT_FOR_CONFIRMATION": "Waiting on confirmation",
             "DATA_LIMITED": "Not ready yet",
@@ -1425,6 +1432,22 @@ def _render_market_strip(story: Mapping[str, Any]) -> None:
     )
 
 
+def _render_market_read(story: Mapping[str, Any]) -> None:
+    """Render the existing governed interpretation without restoring legacy bulk."""
+    context = story.get("market_today") if isinstance(story.get("market_today"), Mapping) else {}
+    interpretation = str(context.get("interpretation") or "").strip()
+    if not interpretation:
+        interpretation = "ATLAS is not inferring a market backdrop without current governed evidence."
+    sentences = [part.strip() for part in re.split(r"(?<=[.!?])\s+", interpretation) if part.strip()]
+    concise = " ".join(sentences[:4])
+    st.markdown(
+        '<section class="atlas-home-market-read" data-atlas-qa="atlas-market-read" '
+        'data-atlas-non-scoring="true"><h2>ATLAS Market Read</h2>'
+        f'<p>{html.escape(concise)}</p></section>',
+        unsafe_allow_html=True,
+    )
+
+
 def _render_footer_navigation() -> None:
     _section_marker("footer_navigation")
     st.markdown("### Continue your research")
@@ -1510,9 +1533,10 @@ def _inject_css() -> None:
     @media(max-width:700px){.atlas-home-action-counts{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-home-comparison{grid-template-columns:repeat(2,minmax(0,1fr))}.atlas-home-comparison .atlas-home-target-current{grid-column:1/-1}.atlas-home-action{grid-template-columns:1fr}.atlas-home-action-stars{grid-row:auto;font-size:1.45rem}.atlas-home-action>small{grid-column:auto}.atlas-home-card-head h3 i{display:block;margin-top:.18rem}}
     </style>""", unsafe_allow_html=True)
     st.markdown("""<style>
-    .atlas-home-market-strip{display:flex;align-items:center;gap:.7rem;padding:.45rem .65rem;margin:.1rem 0 .65rem;border-radius:10px;background:rgba(30,41,59,.38);color:#b9c4d3}.atlas-home-market-strip small{white-space:nowrap;color:#7fa9d8}.atlas-home-market-strip p{margin:0!important;font-size:.82rem}
+    .atlas-home-market-strip{display:flex;align-items:center;gap:.7rem;padding:.45rem .65rem;margin:.1rem 0 .35rem;border-radius:10px;background:rgba(30,41,59,.38);color:#b9c4d3}.atlas-home-market-strip small{white-space:nowrap;color:#7fa9d8}.atlas-home-market-strip p{margin:0!important;font-size:.82rem}
+    .atlas-home-market-read{margin:.1rem 0 .7rem;padding:.52rem .68rem;border-left:3px solid var(--atlas-blue);border-radius:0 10px 10px 0;background:rgba(37,99,235,.07)}.atlas-home-market-read h2{margin:0 0 .16rem!important;padding:0!important;font-size:1rem!important;color:#dce8f6}.atlas-home-market-read p{margin:0!important;max-width:76ch;font-size:.84rem;line-height:1.45;color:#bdc9d8}
     .atlas-home-compact-card{padding:.82rem .9rem;margin:.45rem 0;border-radius:14px;background:linear-gradient(135deg,rgba(18,35,50,.92),rgba(17,28,45,.7));border-left:4px solid var(--atlas-teal)}.atlas-home-compact-card header,.atlas-home-compact-card footer{display:flex;align-items:center;justify-content:space-between;gap:.6rem}.atlas-home-compact-card header small{color:var(--atlas-teal);font-weight:800;letter-spacing:.05em}.atlas-home-compact-card h3{margin:.05rem 0!important}.atlas-home-compact-values{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.35rem;margin:.55rem 0}.atlas-home-compact-values span{display:grid;padding:.4rem .5rem;border-radius:9px;background:rgba(15,23,42,.5)}.atlas-home-compact-values small,.atlas-home-compact-card footer{font-size:.72rem;color:#9aa8ba}.atlas-home-compact-card p{margin:.45rem 0!important;font-size:.86rem;line-height:1.4}.atlas-home-compact-card footer{justify-content:flex-start;flex-wrap:wrap}.atlas-home-compact-card footer span+span:before{content:"·";margin-right:.5rem}.atlas-home-action-counts{grid-template-columns:repeat(2,minmax(0,1fr));max-width:460px}
-    @media(max-width:700px){.atlas-home-market-strip{display:block}.atlas-home-compact-values{grid-template-columns:1fr 1fr 1fr}.atlas-home-compact-values b{font-size:.88rem}.atlas-home-compact-card header strong{font-size:1rem}.atlas-home-compact-card footer{display:grid}.atlas-home-compact-card footer span+span:before{content:"";margin:0}}
+    @media(max-width:700px){.atlas-home-market-strip{display:block}.atlas-home-market-strip p,.atlas-home-market-read p{overflow-wrap:anywhere}.atlas-home-market-read{padding:.48rem .58rem}.atlas-home-market-read p{font-size:.8rem}.atlas-home-compact-values{grid-template-columns:1fr 1fr 1fr}.atlas-home-compact-values b{font-size:.88rem}.atlas-home-compact-card header strong{font-size:1rem}.atlas-home-compact-card footer{display:grid}.atlas-home-compact-card footer span+span:before{content:"";margin:0}}
     </style>""", unsafe_allow_html=True)
 
 
@@ -1547,6 +1571,7 @@ def render_home_guidance_vnext(story: Mapping[str, Any], *, emit_interactive=Non
         '</div>', unsafe_allow_html=True,
     )
     _render_market_strip(story)
+    _render_market_read(story)
     _section_marker("atlas_action_summary")
     st.markdown("## ATLAS Action Summary")
     st.markdown(_action_counts(story), unsafe_allow_html=True)

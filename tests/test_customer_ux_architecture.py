@@ -66,3 +66,22 @@ def test_mobile_keeps_actionable_cards_before_watching():
     group = source[source.index("def _render_groups"):source.index("def _action_counts")]
     assert group.index("for index, card in enumerate(actionable)") < group.index('with st.expander(f"Worth Watching')
     assert "@media(max-width:700px)" in source
+
+
+def test_home_restores_concise_market_read_without_legacy_market_bulk():
+    source = (ROOT / "ui" / "home_guidance_vnext.py").read_text(encoding="utf-8")
+    active = source[source.index("def render_home_guidance_vnext"):]
+    assert active.index("_render_market_strip(story)") < active.index("_render_market_read(story)")
+    assert active.index("_render_market_read(story)") < active.index("ATLAS Action Summary")
+    assert "_render_market_today(story)" not in active
+    assert "ATLAS Market Read" in source
+    assert 'data-atlas-non-scoring="true"' in source
+
+
+def test_zero_buy_surfaces_governed_empty_message_before_expanded_watch_context():
+    source = (ROOT / "ui" / "home_guidance_vnext.py").read_text(encoding="utf-8")
+    group = source[source.index("def _render_groups"):source.index("def _action_counts")]
+    assert 'empty.get("message")' in group
+    assert "expanded=not actionable" in group
+    assert '_customer_state(card) == "BUY_NOW"' in group
+    assert '"ACCUMULATE": "Near opportunity · Build a Position"' in group

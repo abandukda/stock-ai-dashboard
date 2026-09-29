@@ -552,7 +552,7 @@ render_home_guidance_vnext(story, emit_interactive=lambda: st.markdown('<span da
     assert not app.exception
     rendered = "\n".join(str(item.value) for item in app.markdown)
     assert 'data-atlas-page-interactive="true"' in rendered
-    assert rendered.index("ATLAS Action Summary") < rendered.index("Best Opportunities")
+    assert rendered.index("ATLAS Action Summary") < rendered.index("Strongest Opportunities")
     assert 'data-atlas-section="technical-opportunities"' not in rendered
     assert "Recovery Score" not in rendered
     assert "Guidance Preview" not in rendered
