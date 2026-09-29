@@ -208,7 +208,14 @@ def certify_complete_run(*, universe: Mapping[str, Any], records: Sequence[Mappi
         },
         "action_counts": dict(sorted(Counter(item["canonical_action"] for item in normalized).items())),
         "buy_now_tickers": sorted(
-            item["ticker"] for item in normalized if item["canonical_action"] == "BUY_NOW"
+            item["ticker"] for item in normalized
+            if item["canonical_action"] == "BUY_NOW"
+            and item.get("buy_now_publication_eligible") is not False
+        ) if complete else [],
+        "withheld_buy_now_tickers": sorted(
+            item["ticker"] for item in normalized
+            if item["canonical_action"] == "BUY_NOW"
+            and item.get("buy_now_publication_eligible") is False
         ) if complete else [],
         "failure_rule": "INCOMPLETE_RUN_CANNOT_PUBLISH_NEW_BUY_NOW",
     }

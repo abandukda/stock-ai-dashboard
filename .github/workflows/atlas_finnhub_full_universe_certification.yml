@@ -1,0 +1,201 @@
+name: ATLAS Finnhub Full-Universe Certification
+
+on:
+  push:
+    branches:
+      - codex/home-promotion-market-today-release
+    paths:
+      - .github/workflows/atlas_finnhub_full_universe_certification.yml
+      - services/finnhub_full_universe_executor.py
+      - scripts/run_finnhub_full_universe.py
+      - scripts/finnhub_canonical_proving_set.py
+      - tests/test_finnhub_full_universe_executor.py
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: "."
+  ATLAS_FINNHUB_LICENSE_CLASS: PAID_CORE_CERTIFICATION
+  ATLAS_SOURCE_SHA: ${{ github.sha }}
+  ATLAS_EVIDENCE_SNAPSHOT_AT: ${{ github.event.head_commit.timestamp }}
+  SHARD_SIZE: "150"
+
+jobs:
+  contract-tests:
+    if: ${{ github.ref == 'refs/heads/codex/home-promotion-market-today-release' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - uses: actions/cache@v4
+        with:
+          path: audit_results/checkpoints/canary50
+          key: atlas-finnhub-canary50-${{ github.run_id }}
+      - name: Assert non-publishing certification environment
+        env:
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+        run: |
+          test "$GITHUB_REF" = "refs/heads/codex/home-promotion-market-today-release"
+          test "$ATLAS_FINNHUB_LICENSE_CLASS" = "PAID_CORE_CERTIFICATION"
+          test -n "$FINNHUB_API_KEY"
+          test -z "${TWELVE_DATA_API_KEY:-}"
+          test -z "${FMP_API_KEY:-}"
+      - run: >-
+          pytest -q tests/test_finnhub_full_universe_executor.py
+          tests/test_full_universe_brain_certification.py
+          tests/test_finnhub_canonical_authority.py
+          tests/test_finnhub_p_fcf_peer_certification.py
+
+  canary-50:
+    needs: contract-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: Plan and execute deterministic 50-symbol canary
+        run: |
+          python scripts/run_finnhub_full_universe.py plan --canary-size 50 --output audit_results/full_universe/canary50
+          python scripts/run_finnhub_full_universe.py run-shard --canary-size 50 --shard-index 0 --checkpoint-dir audit_results/checkpoints/canary50/acquisition --output audit_results/full_universe/canary50/shards
+          python scripts/run_finnhub_full_universe.py aggregate --canary-size 50 --shards audit_results/full_universe/canary50/shards --checkpoint-dir audit_results/checkpoints/canary50/evaluation --output audit_results/full_universe/canary50
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-finnhub-canary50-${{ github.run_id }}
+          path: audit_results/full_universe/canary50
+          if-no-files-found: error
+
+  canary-250:
+    needs: canary-50
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - uses: actions/cache@v4
+        with:
+          path: audit_results/checkpoints/canary250
+          key: atlas-finnhub-canary250-${{ github.run_id }}
+      - name: Plan deterministic 250-symbol canary
+        run: python scripts/run_finnhub_full_universe.py plan --canary-size 250 --output audit_results/full_universe/canary250
+      - name: Execute canary shards sequentially
+        run: |
+          python scripts/run_finnhub_full_universe.py run-shard --canary-size 250 --shard-index 0 --checkpoint-dir audit_results/checkpoints/canary250/acquisition --output audit_results/full_universe/canary250/shards
+          python scripts/run_finnhub_full_universe.py run-shard --canary-size 250 --shard-index 1 --checkpoint-dir audit_results/checkpoints/canary250/acquisition --output audit_results/full_universe/canary250/shards
+          python scripts/run_finnhub_full_universe.py aggregate --canary-size 250 --shards audit_results/full_universe/canary250/shards --checkpoint-dir audit_results/checkpoints/canary250/evaluation --output audit_results/full_universe/canary250
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-finnhub-canary250-${{ github.run_id }}
+          path: audit_results/full_universe/canary250
+          if-no-files-found: error
+
+  plan-full-run:
+    needs: canary-250
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Build immutable 41-shard manifest
+        run: python scripts/run_finnhub_full_universe.py plan --output audit_results/full_universe/full
+      - id: matrix
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          payload=json.load(open("audit_results/full_universe/full/shard_manifest.json"))
+          print("value=" + json.dumps({"shard_index":[item["index"] for item in payload["shards"]]}, separators=(",",":")))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: atlas-finnhub-full-run-plan-${{ github.run_id }}
+          path: audit_results/full_universe/full
+
+  acquire-full-shards:
+    needs: plan-full-run
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix: ${{ fromJSON(needs.plan-full-run.outputs.matrix) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - uses: actions/cache@v4
+        with:
+          path: audit_results/checkpoints/full-shard-${{ matrix.shard_index }}
+          key: atlas-finnhub-full-shard-${{ github.run_id }}-${{ matrix.shard_index }}
+      - name: Acquire canonical shard
+        run: >-
+          python scripts/run_finnhub_full_universe.py run-shard
+          --shard-index ${{ matrix.shard_index }}
+          --checkpoint-dir audit_results/checkpoints/full-shard-${{ matrix.shard_index }}
+          --output audit_results/full_universe/shard
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-finnhub-full-shard-${{ matrix.shard_index }}-${{ github.run_id }}
+          path: audit_results/full_universe/shard
+          if-no-files-found: error
+
+  aggregate-full-run:
+    needs: [plan-full-run, acquire-full-shards]
+    if: ${{ always() && needs.plan-full-run.result == 'success' && needs.acquire-full-shards.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - uses: actions/cache@v4
+        with:
+          path: audit_results/checkpoints/full-evaluation
+          key: atlas-finnhub-full-evaluation-${{ github.run_id }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: atlas-finnhub-full-shard-*-${{ github.run_id }}
+          path: audit_results/full_universe/downloaded
+          merge-multiple: true
+      - name: Aggregate, certify, and deterministically replay without reacquisition
+        run: >-
+          python scripts/run_finnhub_full_universe.py aggregate
+          --shards audit_results/full_universe/downloaded
+          --checkpoint-dir audit_results/checkpoints/full-evaluation
+          --output audit_results/full_universe/final
+      - name: Confirm production artifacts unchanged
+        run: >-
+          git diff --exit-code -- market_full_scan.json market_prescreen.json
+          market_scan_state.json publication_manifest.json discovery_candidate_pool.json
+          full_evaluation_pool.json total_market_universe.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-finnhub-full-universe-final-${{ github.run_id }}
+          path: audit_results/full_universe/final
+          if-no-files-found: error

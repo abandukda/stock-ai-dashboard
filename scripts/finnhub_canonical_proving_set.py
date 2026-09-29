@@ -187,6 +187,78 @@ def _normalized_row(symbol: str, classification: Mapping[str, Any], records: Map
     return row, bars, []
 
 
+def evaluate_canonical_row(
+    row: Mapping[str, Any], bars: list[DailyBar], *, evaluated_at: datetime,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Run the single proven canonical ATLAS brain implementation for one row."""
+    symbol = str(row["ticker"])
+    analysis = TechnicalIntelligenceEngine().evaluate(
+        bars, security_type=SecurityType.STOCK, feed_health=FeedHealth.HEALTHY,
+    )
+    ev = dict(analysis.result.evidence)
+    ev.update({
+        "completed_daily_evidence": True, "valid_daily_volume_baseline": True,
+        "volume_statistic": "DAILY_RELATIVE_VOLUME", "volume_session_scope": "COMPLETED_SESSION",
+        "volume_semantics": "CONSOLIDATED_AFTER_4PM", "provider_authority": "CANONICAL_CERTIFIED",
+        "volume_evidence_id": row.get("historical_ohlcv_evidence_id"),
+        "as_of": analysis.result.event_timestamp.isoformat(),
+    })
+    technical = {
+        "status": "AVAILABLE", "state": analysis.result.new_state.value, "score": analysis.result.score,
+        "as_of": analysis.result.event_timestamp.isoformat(), "feed_health": "HEALTHY",
+        "completed_bar": True, "fingerprint": analysis.result.fingerprint, "evidence": ev,
+    }
+    indicator = {
+        "price": bars[-1].close, "atr14": ev.get("atr14"), "sma20": ev.get("sma20"),
+        "rolling_high_20": max(bar.high for bar in bars[-20:]),
+    }
+    plan = build_trade_plan(indicator, int(analysis.result.score))
+    plan["target_1"] = plan.get("target")
+    plan["entry_relationship_valid"] = bool(
+        plan.get("entry_low") <= plan.get("entry_high") < plan.get("target_1")
+    )
+    components = build_components(row)
+    fundamentals = dict(components["fundamentals"])
+    evidence_ids = tuple((row.get("professional_evidence_lineage") or {}).get("evidence_ids") or ())
+    fundamentals["evidence_ids"] = evidence_ids
+    drawdown = _drawdown_label(bars)
+    risk = {
+        "status": "AVAILABLE" if row.get("free_cash_flow") is not None and drawdown else "DATA_UNAVAILABLE",
+        "as_of": technical["as_of"], "net_debt_to_ebitda": row.get("net_debt_to_ebitda"),
+        "evidence": {"drawdown_label": drawdown, "volatility_risk": drawdown},
+    }
+    market = {
+        "ticker": symbol, "price": bars[-1].close, "provider": "FINNHUB",
+        "provider_timestamp": bars[-1].timestamp.isoformat(), "received_timestamp": evaluated_at.isoformat(),
+        "source_type": "LATEST_COMPLETED_SESSION", "fresh_current_price": False,
+        "latest_completed_session_valid": True, "stale": False, "feed_health": "HEALTHY",
+        "evidence_id": f"FINNHUB:HISTORICAL_OHLCV:{symbol}:LATEST",
+    }
+    evaluation = build_canonical_evaluation(
+        symbol, evaluation_mode="SNAPSHOT", market_snapshot=market, technical=technical,
+        fundamentals=fundamentals, risk=risk, trade_plan=plan, valuation_inputs=row,
+        evidence_ids=evidence_ids, positive_action_volume_authority_required=True,
+        evaluated_at=evaluated_at.isoformat(),
+    )
+    combined = {**dict(row), **evaluation}
+    inspector = inspect_ticker(combined)
+    professional = (evaluation.get("atlas_valuation") or {}).get("professional_valuation_v2") or {}
+    route_states = {
+        item.get("methodology_id"): item.get("status") or item.get("eligibility_state")
+        for item in professional.get("models") or ()
+    }
+    return evaluation, {
+        "canonical_action": (evaluation.get("guidance") or {}).get("state"),
+        "valuation_status": (evaluation.get("atlas_valuation") or {}).get("status"),
+        "valuation_route_states": route_states,
+        "shadow_evidence_leakage": any(
+            marker in json.dumps(combined, sort_keys=True, default=str)
+            for marker in ("UNVERIFIED_SHADOW", "SHADOW_ONLY")
+        ),
+        "inspector_traceability": inspector["traceability"],
+    }
+
+
 def _target_local_peer_support(
     adapter: FinnhubCanonicalAdapter,
     *,
@@ -335,61 +407,9 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
     evaluations = {}
     for row in prepared:
         symbol = row["ticker"]; bars = technical_by_symbol[symbol]
-        analysis = TechnicalIntelligenceEngine().evaluate(bars, security_type=SecurityType.STOCK, feed_health=FeedHealth.HEALTHY)
-        ev = dict(analysis.result.evidence)
-        ev.update({
-            "completed_daily_evidence": True, "valid_daily_volume_baseline": True,
-            "volume_statistic": "DAILY_RELATIVE_VOLUME", "volume_session_scope": "COMPLETED_SESSION",
-            "volume_semantics": "CONSOLIDATED_AFTER_4PM", "provider_authority": "CANONICAL_CERTIFIED",
-            "volume_evidence_id": row.get("historical_ohlcv_evidence_id"),
-            "as_of": analysis.result.event_timestamp.isoformat(),
-        })
-        technical = {
-            "status": "AVAILABLE", "state": analysis.result.new_state.value, "score": analysis.result.score,
-            "as_of": analysis.result.event_timestamp.isoformat(), "feed_health": "HEALTHY",
-            "completed_bar": True, "fingerprint": analysis.result.fingerprint, "evidence": ev,
-        }
-        indicator = {"price": bars[-1].close, "atr14": ev.get("atr14"), "sma20": ev.get("sma20"), "rolling_high_20": max(bar.high for bar in bars[-20:])}
-        plan = build_trade_plan(indicator, int(analysis.result.score))
-        plan["target_1"] = plan.get("target")
-        plan["entry_relationship_valid"] = bool(plan.get("entry_low") <= plan.get("entry_high") < plan.get("target_1"))
-        components = build_components(row)
-        fundamentals = dict(components["fundamentals"])
-        fundamentals["evidence_ids"] = tuple((row.get("professional_evidence_lineage") or {}).get("evidence_ids") or ())
-        risk = {
-            "status": "AVAILABLE" if row.get("free_cash_flow") is not None and _drawdown_label(bars) else "DATA_UNAVAILABLE",
-            "as_of": technical["as_of"], "net_debt_to_ebitda": row.get("net_debt_to_ebitda"),
-            "evidence": {"drawdown_label": _drawdown_label(bars), "volatility_risk": _drawdown_label(bars)},
-        }
-        market = {
-            "ticker": symbol, "price": bars[-1].close, "provider": "FINNHUB",
-            "provider_timestamp": bars[-1].timestamp.isoformat(), "received_timestamp": now.isoformat(),
-            "source_type": "LATEST_COMPLETED_SESSION", "fresh_current_price": False,
-            "latest_completed_session_valid": True, "stale": False, "feed_health": "HEALTHY",
-            "evidence_id": f"FINNHUB:HISTORICAL_OHLCV:{symbol}:LATEST",
-        }
-        evaluation = build_canonical_evaluation(
-            symbol, evaluation_mode="SNAPSHOT", market_snapshot=market, technical=technical,
-            fundamentals=fundamentals, risk=risk, trade_plan=plan, valuation_inputs=row,
-            evidence_ids=tuple((row.get("professional_evidence_lineage") or {}).get("evidence_ids") or ()),
-            positive_action_volume_authority_required=True, evaluated_at=now.isoformat(),
-        )
-        combined = {**row, **evaluation}
-        inspector = inspect_ticker(combined)
-        professional = (evaluation.get("atlas_valuation") or {}).get("professional_valuation_v2") or {}
-        route_states = {
-            item.get("methodology_id"): item.get("status") or item.get("eligibility_state")
-            for item in professional.get("models") or ()
-        }
+        evaluation, result_diagnostics = evaluate_canonical_row(row, bars, evaluated_at=now)
         diagnostics[symbol].update({
-            "canonical_action": (evaluation.get("guidance") or {}).get("state"),
-            "valuation_status": (evaluation.get("atlas_valuation") or {}).get("status"),
-            "valuation_route_states": route_states,
-            "shadow_evidence_leakage": any(
-                marker in json.dumps(combined, sort_keys=True, default=str)
-                for marker in ("UNVERIFIED_SHADOW", "SHADOW_ONLY")
-            ),
-            "inspector_traceability": inspector["traceability"],
+            **result_diagnostics,
             "peer_support": (peer_support.get("targets") or {}).get(symbol),
         })
         evaluations[symbol] = evaluation

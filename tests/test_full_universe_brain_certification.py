@@ -53,6 +53,22 @@ def test_partial_run_fails_closed_and_cannot_mint_buy_now():
         )
 
 
+def test_complete_run_withholds_buy_now_that_failed_exact_snapshot_revalidation():
+    universe = {
+        "supported_symbols": ["A"], "supported_equity_count": 1,
+        "source_sha256": "u", "universe_methodology_version": "U1",
+    }
+    record = {**_record("A", "BUY_NOW", "CERTIFIED_EVALUATION"),
+              "buy_now_publication_eligible": False}
+    result = certify_complete_run(
+        universe=universe, records=[record], acquisition_complete=True,
+        decision_processing_complete=True,
+    )
+    assert result["state"] == "FULL_UNIVERSE_CERTIFIED"
+    assert result["buy_now_tickers"] == []
+    assert result["withheld_buy_now_tickers"] == ["A"]
+
+
 def test_complete_run_is_order_invariant_and_digest_deterministic():
     universe = {
         "supported_symbols": ["A", "B"], "supported_equity_count": 2,
