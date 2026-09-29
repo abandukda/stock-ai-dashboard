@@ -100,8 +100,8 @@ def _normalized_row(symbol: str, classification: Mapping[str, Any], records: Map
     if not report: blockers.append("LATEST_FY_FINANCIAL_REPORT_MISSING")
     if len(bars) < 200: blockers.append("COMPLETED_TECHNICAL_HISTORY_INSUFFICIENT")
     resolved_classification = dict(classification)
-    resolved_classification.setdefault("sector", profile.get("finnhubIndustry"))
-    resolved_classification.setdefault("industry", profile.get("finnhubIndustry"))
+    resolved_classification.setdefault("sector", profile.get("industry"))
+    resolved_classification.setdefault("industry", profile.get("industry"))
     if not resolved_classification.get("sector") or not resolved_classification.get("industry"):
         blockers.append("GOVERNED_CLASSIFICATION_UNRESOLVED")
     if blockers:
@@ -119,6 +119,29 @@ def _normalized_row(symbol: str, classification: Mapping[str, Any], records: Map
     debt = fact("total_debt")
     cash = fact("cash_and_equivalents") or fact("cash")
     ebitda = fact("ebitda")
+    statement_provenance = records["financial_statements"]["provenance"]
+    basics_provenance = records["basic_financials"]["provenance"]
+    currency = report.get("currency") or profile.get("currency")
+    fcf_evidence_id = statement_provenance.get("raw_evidence_id")
+    market_cap_evidence_id = basics_provenance.get("raw_evidence_id")
+    lineage_fields = {
+        "market_cap": {
+            "evidence_id": market_cap_evidence_id, "provider": "FINNHUB",
+            "unit": "USD", "currency": currency,
+            "as_of": basics_provenance.get("capture_timestamp"),
+            "normalization": "metric.marketCapitalization MULTIPLY_BY_1E6",
+        },
+        "normalized_fcf": {
+            "evidence_id": fcf_evidence_id, "provider": "FINNHUB",
+            "unit": currency, "currency": currency, "period": report.get("fiscal_date"),
+            "normalization": "REPORTED_FCF_OR_OCF_MINUS_ABSOLUTE_CAPEX",
+        },
+        "free_cash_flow": {
+            "evidence_id": fcf_evidence_id, "provider": "FINNHUB",
+            "unit": currency, "currency": currency, "period": report.get("fiscal_date"),
+            "normalization": "REPORTED_FCF_OR_OCF_MINUS_ABSOLUTE_CAPEX",
+        },
+    }
     row = {
         "ticker": symbol, "company": profile.get("name") or symbol,
         "sector": resolved_classification.get("sector"), "industry": resolved_classification.get("industry"),
@@ -139,7 +162,10 @@ def _normalized_row(symbol: str, classification: Mapping[str, Any], records: Map
         "basic_shares": fact("weighted_average_shares_basic"),
         "net_debt_to_ebitda": ((debt or 0) - (cash or 0)) / ebitda if ebitda and ebitda > 0 else None,
         "professional_evidence_as_of": records["financial_statements"]["provenance"].get("capture_timestamp"),
-        "professional_evidence_lineage": {"provider": "FINNHUB", "evidence_ids": list(filter(None, evidence_ids))},
+        "professional_evidence_lineage": {
+            "provider": "FINNHUB", "evidence_ids": list(filter(None, evidence_ids)),
+            "fields": lineage_fields,
+        },
         "historical_ohlcv_evidence_id": (records["historical_ohlcv"].get("provenance") or {}).get("raw_evidence_id"),
         "finnhub_authority_version": AUTHORITY_VERSION,
         "forward_contract_status": "CONTRACT_PENDING",
@@ -215,9 +241,15 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
         )
         combined = {**row, **evaluation}
         inspector = inspect_ticker(combined)
+        professional = (evaluation.get("atlas_valuation") or {}).get("professional_valuation_v2") or {}
+        route_states = {
+            item.get("methodology_id"): item.get("status") or item.get("eligibility_state")
+            for item in professional.get("models") or ()
+        }
         diagnostics[symbol].update({
             "canonical_action": (evaluation.get("guidance") or {}).get("state"),
             "valuation_status": (evaluation.get("atlas_valuation") or {}).get("status"),
+            "valuation_route_states": route_states,
             "shadow_evidence_leakage": any(
                 marker in json.dumps(combined, sort_keys=True, default=str)
                 for marker in ("UNVERIFIED_SHADOW", "SHADOW_ONLY")
@@ -225,7 +257,14 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
             "inspector_traceability": inspector["traceability"],
         })
         evaluations[symbol] = evaluation
-    ready = len(evaluations) == len(SYMBOLS) and all(
+    historical_route_count = sum(
+        item.get("valuation_status") == "AVAILABLE" for item in diagnostics.values()
+    )
+    forward_route_leakage = any(
+        any(states.get(method) in {"CERTIFIED", "ELIGIBLE_COMPLETE"} for method in ("VAL_FORWARD_PE_V1", "VAL_EV_EBITDA_V1"))
+        for states in (item.get("valuation_route_states") or {} for item in diagnostics.values())
+    )
+    ready = historical_route_count > 0 and not forward_route_leakage and len(evaluations) == len(SYMBOLS) and all(
         not item.get("authority_blockers") and not item.get("shadow_evidence_leakage")
         and (item.get("inspector_traceability") or {}).get("status") == "PASS"
         for item in diagnostics.values()
@@ -234,6 +273,8 @@ def build_report(*, pace_seconds: float = 1.05) -> dict[str, Any]:
         "version": VERSION, "authority_version": AUTHORITY_VERSION,
         "generated_at": now.isoformat(), "symbols": list(SYMBOLS), "provider_calls": provider_calls,
         "classification_provenance": catalog_provenance,
+        "certified_historical_valuation_count": historical_route_count,
+        "forward_route_leakage": forward_route_leakage,
         "evaluations": evaluations, "diagnostics": diagnostics,
         "state": "FINNHUB_CANONICAL_PATH_READY" if ready else "FINNHUB_CANONICAL_PATH_NOT_READY",
         "provider_authority_scope": "FIELD_FAMILY_SCOPED_ONLY", "production_cutover": False,
