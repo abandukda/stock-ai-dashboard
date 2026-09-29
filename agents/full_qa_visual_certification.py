@@ -36,8 +36,8 @@ REQUIRED_PAGES = ("Home", "Research Any Ticker", "Full Ranked Scan", "Volume Int
 CUSTOMER_ACTION_LABELS = {
     "BUY_NOW": "BUY NOW",
     "ACCUMULATE": "BUILD A POSITION",
-    "WAIT_FOR_ENTRY": "WAIT FOR BETTER ENTRY",
-    "WAIT_FOR_BETTER_ENTRY": "WAIT FOR BETTER ENTRY",
+    "WAIT_FOR_ENTRY": "WAIT FOR A BETTER ENTRY",
+    "WAIT_FOR_BETTER_ENTRY": "WAIT FOR A BETTER ENTRY",
     "WAIT_FOR_CONFIRMATION": "WAIT FOR CONFIRMATION",
     "DATA_LIMITED": "WATCH",
     "AVOID": "AVOID",
@@ -277,6 +277,32 @@ async def _expandable_inventory(page) -> list[dict[str, Any]]:
     }""")
 
 
+def _inventory_for_surface(page_name: str, inventory: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep transient prior-route disclosures out of customer-page certification."""
+    if page_name != "Home":
+        return inventory
+    home_disclosure = re.compile(r"(?:Worth Watching|Professional Detail)", re.I)
+    return [item for item in inventory if home_disclosure.search(str(item.get("label") or ""))]
+
+
+async def _wait_for_route_dom_settled(page, *, timeout_ms: int = 3000) -> dict[str, Any]:
+    """Wait for Streamlit's route replacement to become mutation-quiet."""
+    return await page.evaluate("""async ({timeoutMs}) => {
+      const started=performance.now(); let mutations=0, lastMutation=performance.now();
+      const observer=new MutationObserver(rows => { mutations+=rows.length; lastMutation=performance.now(); });
+      observer.observe(document.body,{subtree:true,childList:true,attributes:true,characterData:true});
+      try {
+        while (performance.now()-started < timeoutMs) {
+          if (performance.now()-lastMutation >= 200) {
+            return {settled:true,mutations,elapsed_ms:Math.round(performance.now()-started)};
+          }
+          await new Promise(resolve => setTimeout(resolve,25));
+        }
+        return {settled:false,mutations,elapsed_ms:Math.round(performance.now()-started)};
+      } finally { observer.disconnect(); }
+    }""", {"timeoutMs": timeout_ms})
+
+
 async def _expandable_locator(page, label: str, ordinal: int):
     controls = page.locator('details > summary')
     matches = controls.filter(has_text=label)
@@ -355,7 +381,19 @@ async def certify_expandable_interactions(
             "severity": "P1", "page": page_name, "viewport": viewport,
             "observed": json.dumps(check, sort_keys=True), "ticker_context": ticker,
         }]
-    inventory = await _expandable_inventory(page)
+    route_settlement = await _wait_for_route_dom_settled(page)
+    if not route_settlement.get("settled"):
+        check = {
+            "page": page_name, "viewport": viewport, "ticker": ticker,
+            "interaction_type": "ROUTE_SETTLEMENT", "control_label": "CURRENT_ROUTE_DOM",
+            "required": True, "click_success": False, "collapse_success": False,
+            "status": "FAIL", "observed": route_settlement,
+        }
+        return [check], [{
+            "severity": "P1", "page": page_name, "viewport": viewport,
+            "observed": json.dumps(check, sort_keys=True), "ticker_context": ticker,
+        }]
+    inventory = _inventory_for_surface(page_name, await _expandable_inventory(page))
     if qa_mode == "RELEASE_SMOKE":
         critical = re.compile(r"Professional Detail|Wall Street|Valuation|Investment Case|decision evidence", re.I)
         selected = [item for item in inventory if critical.search(str(item.get("label") or ""))]
@@ -371,7 +409,7 @@ async def certify_expandable_interactions(
         observed_content=", ".join(item["label"] for item in inventory),
     ))
 
-    if qa_mode == "RELEASE_SMOKE":
+    if qa_mode == "RELEASE_SMOKE" or page_name in {"Home", "Paid Detail"}:
         # Tier 3 proves interaction and visual content independently. Screenshot
         # capture is terminal for the visual check so it cannot perturb the
         # open/close state machine being measured by the interaction check.
@@ -921,7 +959,11 @@ def expected_customer_action(row: dict[str, Any]) -> tuple[str, bool]:
     """Return the governed surface expectation, distinct from raw evaluation state."""
     evaluation = row.get("canonical_investment_evaluation") or {}
     row_certification = row.get("publication_certification") or {}
-    evaluation_certification = evaluation.get("publication_certification") or {}
+    # Current governed bundles certify the complete projected row.  Older
+    # bundles may also duplicate the action flag inside the evaluation, but
+    # absence of that optional duplicate must not negate the authoritative
+    # row-level certificate.
+    evaluation_certification = evaluation.get("publication_certification") or row_certification
     publication_allowed = bool(row_certification.get("customer_publication_allowed")) and bool(
         evaluation_certification.get("action_publication_eligible")
     )
@@ -1126,7 +1168,7 @@ async def run(args: argparse.Namespace) -> int:
                 )
                 timing.record("research-ticker", time.monotonic() - ticker_started, stage="interaction",
                               page="Research Any Ticker", ticker=ticker, viewport="desktop", interaction_type="research")
-                decision_tab = await crawler._fresh_visible_tab(page, "Decision")
+                decision_tab = await crawler._fresh_visible_tab(page, "ATLAS View")
                 if decision_tab is not None:
                     await decision_tab.click(timeout=6000)
                     await page.wait_for_timeout(500)
@@ -1172,6 +1214,7 @@ async def run(args: argparse.Namespace) -> int:
                 interaction_checks, interaction_defects = await certify_expandable_interactions(
                     page, crawler, page_name="Paid Detail", viewport="mobile", ticker=mobile_ticker,
                     certified_facts=expected_facts(by_ticker[mobile_ticker]),
+                    qa_mode=mode,
                 )
                 checks.extend(interaction_checks)
                 defects.extend(interaction_defects)

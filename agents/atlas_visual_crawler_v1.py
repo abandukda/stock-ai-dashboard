@@ -47,8 +47,8 @@ RESEARCH_VNEXT_SECTIONS = (
     "catalysts-and-sentiment", "risk-and-evidence",
 )
 RESEARCH_VNEXT_SECTION_LABELS = (
-    "Decision", "Fundamentals & Valuation", "Technical & Trade State",
-    "Catalysts & Sentiment", "Risk & Evidence",
+    "ATLAS View", "ATLAS Fair Value", "Live Market & Trade",
+    "Additional Context", "Decision Evidence",
 )
 
 

@@ -362,9 +362,17 @@ def test_published_research_still_requires_sections_and_ask_cta():
 
 def test_published_research_rejects_declared_count_when_required_tab_content_is_broken():
     complete_tabs = set(RESEARCH_VNEXT_SECTION_LABELS)
+    assert complete_tabs == {
+        "ATLAS View", "ATLAS Fair Value", "Live Market & Trade",
+        "Additional Context", "Decision Evidence",
+    }
+    assert not complete_tabs.intersection({
+        "Decision", "Fundamentals & Valuation", "Technical & Trade State",
+        "Catalysts & Sentiment", "Risk & Evidence",
+    })
     assert _research_declared_architecture(5, complete_tabs) is True
     broken_tabs = complete_tabs - {RESEARCH_VNEXT_SECTION_LABELS[-1]}
-    # The root still claims five sections, but the required Risk & Evidence
+    # The root still claims five sections, but required Decision Evidence
     # semantic control is absent: certification must fail closed.
     assert _research_declared_architecture(5, broken_tabs) is False
     assert _terminal(

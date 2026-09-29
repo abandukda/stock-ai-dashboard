@@ -5,7 +5,7 @@ import json
 from agents.full_qa_visual_certification import (
     OPERATION_TIMEOUTS, QA_MODES, SCREENSHOT_BUDGETS, TimingReport, bounded_operation,
     certification_tickers, customer_action_matches, expected_customer_action,
-    interaction_manifest_fields, required_expandable, visual_completion_contract,
+    interaction_manifest_fields, required_expandable, visual_completion_contract, _inventory_for_surface,
     validate_disclosure_content,
 )
 
@@ -101,6 +101,19 @@ def test_visual_action_expectation_respects_publication_certification():
     assert customer_action_matches("★★★★½ BUILD A POSITION", "BUILD A POSITION", True)
 
 
+def test_visual_action_expectation_accepts_authoritative_row_only_certificate():
+    row = {
+        "publication_certification": {
+            "customer_publication_allowed": True,
+            "action_publication_eligible": True,
+        },
+        "canonical_investment_evaluation": {
+            "guidance": {"state": "WAIT_FOR_ENTRY"},
+        },
+    }
+    assert expected_customer_action(row) == ("WAIT FOR A BETTER ENTRY", True)
+
+
 def test_streamlit_entrypoints_parse_under_production_python_311_grammar():
     paths = [Path("app.py")]
     for package in ("ui", "services", "engines", "agents", "scripts"):
@@ -188,6 +201,34 @@ def test_release_smoke_separates_interaction_roundtrip_from_terminal_visual_capt
     assert 'screenshot interleaving' in smoke
 
 
+def test_home_and_paid_detail_use_semantic_settlement_in_release_full():
+    source = Path("agents/full_qa_visual_certification.py").read_text()
+    assert 'if qa_mode == "RELEASE_SMOKE" or page_name in {"Home", "Paid Detail"}:' in source
+
+
+def test_home_inventory_excludes_transient_developer_center_disclosures():
+    rows = [
+        {"label": "Worth Watching (2)", "ordinal": 0},
+        {"label": "Professional Detail — ABC", "ordinal": 0},
+        {"label": "Home Market Runtime Health", "ordinal": 0},
+        {"label": "Production Promotion Safety", "ordinal": 0},
+    ]
+
+    assert [row["label"] for row in _inventory_for_surface("Home", rows)] == [
+        "Worth Watching (2)",
+        "Professional Detail — ABC",
+    ]
+    assert _inventory_for_surface("Developer Center", rows) == rows
+
+
+def test_mobile_paid_detail_uses_the_selected_release_mode():
+    source = Path("agents/full_qa_visual_certification.py").read_text()
+    mobile = source.split("if visual_tickers:", 1)[1].split("finally:", 1)[0]
+    assert 'viewport="mobile"' in mobile
+    assert 'qa_mode=mode' in mobile
+    assert '_fresh_visible_tab(page, "ATLAS View")' in source
+
+
 def test_release_smoke_waits_for_explicit_bounded_disclosure_settlement():
     source = Path("agents/full_qa_visual_certification.py").read_text()
     assert "async def _wait_for_disclosure_settled" in source
@@ -195,6 +236,16 @@ def test_release_smoke_waits_for_explicit_bounded_disclosure_settlement():
     assert "MutationObserver" in source
     assert "performance.now()-lastMutation >= 150" in source
     assert "resolved_identity:`${label}#${ordinal}`" in source
+
+
+def test_disclosure_inventory_waits_for_route_dom_settlement():
+    source = Path("agents/full_qa_visual_certification.py").read_text()
+    assert "async def _wait_for_route_dom_settled" in source
+    assert "performance.now()-lastMutation >= 200" in source
+    function = source.split("async def certify_expandable_interactions", 1)[1]
+    assert function.index("route_settlement = await _wait_for_route_dom_settled") < function.index(
+        "inventory = _inventory_for_surface(page_name, await _expandable_inventory(page))"
+    )
 
 
 def test_release_smoke_zero_count_disclosure_uses_live_semantic_resolution():
