@@ -32,10 +32,6 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -r requirements.txt
-      - uses: actions/cache@v4
-        with:
-          path: audit_results/checkpoints/canary50
-          key: atlas-finnhub-canary50-${{ github.run_id }}
       - name: Assert non-publishing certification environment
         env:
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
@@ -63,6 +59,10 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -r requirements.txt
+      - uses: actions/cache@v4
+        with:
+          path: audit_results/checkpoints/canary50
+          key: atlas-finnhub-canary50-${{ github.run_id }}
       - name: Plan and execute deterministic 50-symbol canary
         run: |
           python scripts/run_finnhub_full_universe.py plan --canary-size 50 --output audit_results/full_universe/canary50

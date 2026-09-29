@@ -44,6 +44,9 @@ ACTION_ALIASES = {
     "ACCUMULATE": "BUILD_A_POSITION",
     "WAIT_FOR_ENTRY": "WAIT_FOR_BETTER_ENTRY",
     "WAIT": "WAIT_FOR_CONFIRMATION",
+    # DATA_LIMITED is an internal fail-closed engine state, not a customer
+    # Action. Preserve the withheld decision as the governed terminal Action.
+    "DATA_LIMITED": "RATING_NOT_PUBLISHED",
 }
 
 

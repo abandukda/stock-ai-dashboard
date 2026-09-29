@@ -184,3 +184,18 @@ def test_canary_coverage_requires_heterogeneous_real_evidence_states():
         {"ticker": "F", "row": None, "blockers": ["DATA_UNAVAILABLE"]},
     ]
     assert executor._canary_coverage(acquired)["status"] == "PASS"
+
+
+def test_internal_data_limited_state_is_packaged_as_rating_not_published(monkeypatch):
+    scope = universe(("A",)); ident = identity(scope)
+    monkeypatch.setattr(executor, "apply_peer_multiple_evidence", lambda rows: rows)
+    monkeypatch.setattr(executor, "evaluate_canonical_row", lambda *_args, **_kwargs: (
+        {"ticker": "A", "guidance": {"state": "DATA_LIMITED"},
+         "atlas_valuation": {"professional_valuation_v2": {"models": []}}},
+        {"inspector_traceability": {"status": "PASS"}, "valuation_route_states": {}},
+    ))
+    result = executor.evaluate_records(identity=ident, acquired=[{
+        "ticker": "A", "row": {"ticker": "A"}, "bars": [], "blockers": [],
+        "credential_entitlement_failures": 0,
+    }])
+    assert result["terminal_records"][0]["canonical_action"] == "RATING_NOT_PUBLISHED"
