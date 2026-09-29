@@ -1,0 +1,70 @@
+name: ATLAS Finnhub Forward Valuation Revalidation
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/full-universe-closure-temp
+    paths:
+      - services/finnhub_forward_valuation_bridge.py
+      - scripts/finnhub_forward_valuation_revalidation.py
+      - tests/test_finnhub_forward_valuation_bridge.py
+      - .github/workflows/atlas_finnhub_forward_valuation_revalidation.yml
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  exact-snapshot-revalidation:
+    if: github.ref == 'refs/heads/codex/full-universe-closure-temp'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+      ATLAS_FINNHUB_LICENSE_CLASS: PAID_CORE_CERTIFICATION
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - name: Validate bounded bridge
+        run: PYTHONPATH=. pytest -q tests/test_finnhub_forward_valuation_bridge.py tests/test_professional_valuation_evidence.py tests/test_valuation_evidence_strength.py
+      - name: Acquire frozen certified candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p input
+          gh run download 36518668907 --repo "$GITHUB_REPOSITORY" --name atlas-finnhub-full-universe-final-36518668907 --dir input
+          test -f input/immutable_candidate.json
+      - name: Run exact-snapshot 18-name certification
+        run: |
+          test -n "$FINNHUB_API_KEY"
+          PYTHONPATH=. python scripts/finnhub_forward_valuation_revalidation.py \
+            --candidate input/immutable_candidate.json \
+            --output audit_results/finnhub_forward_revalidation/report.json \
+            --pace-seconds 0.25
+      - name: Verify invariants
+        run: |
+          python - <<'PY'
+          import json
+          report=json.load(open('audit_results/finnhub_forward_revalidation/report.json'))
+          assert report['report_card_prospective_active'] is False
+          assert report['historical_backfill_performed'] is False
+          assert report['methodology_changed'] is False
+          assert report['weights_changed'] is False
+          assert report['thresholds_changed'] is False
+          assert report['release_certification_run'] is False
+          assert report['production_cutover'] is False
+          assert report['bulk_production_critical_path'] is False
+          assert len(report['results']) == 18
+          PY
+      - name: Upload immutable certification report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-finnhub-forward-revalidation-${{ github.run_id }}
+          path: audit_results/finnhub_forward_revalidation/
+          if-no-files-found: warn
+          retention-days: 30
