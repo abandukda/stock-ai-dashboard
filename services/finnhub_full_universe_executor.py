@@ -19,27 +19,30 @@ from typing import Any, Callable, Mapping, Sequence
 from engines.methodology_registry import REGISTRY_VERSION
 from services.evidence_inspector import inspect_ticker
 from services.finnhub_canonical_authority import AUTHORITY_VERSION, FinnhubCanonicalAdapter
+from services.finnhub_shadow_provider import FINNHUB_PAID_CORE_CERTIFICATION_LICENSE, FinnhubShadowAdapter
+from services.finnhub_forward_valuation_bridge import apply_forward_inputs
+from services.executor_publication_bridge import build_publication_bundle, bridge_evaluation
 from services.full_universe_brain_certification import (
     REPORT_CARD_PROSPECTIVE_ACTIVE, build_immutable_candidate, certify_complete_run,
     checkpoint_identity, compare_deterministic_candidates, validate_checkpoint,
 )
 from services.professional_valuation_evidence import apply_peer_multiple_evidence
-from services.positive_action_revalidation import revalidate_buy_now
-from services.canonical_data_validation import validate_valuation
 from scripts.finnhub_canonical_proving_set import _fetch, _normalized_row, evaluate_canonical_row
 from services.technical_intelligence.engine import DailyBar
 
 
-VERSION = "ATLAS_FINNHUB_FULL_UNIVERSE_EXECUTOR_V1"
+VERSION = "ATLAS_FINNHUB_FULL_UNIVERSE_EXECUTOR_V2_MULTI_METHOD"
 NORMALIZATION_VERSION = "FINNHUB_CANONICAL_NORMALIZATION_V1"
 PROVIDER_EVIDENCE_VERSION = "FINNHUB_CANONICAL_EVIDENCE_V1"
 VALUATION_VERSION = "ATLAS_PROFESSIONAL_VALUATION_V2"
 PILLAR_VERSION = "ATLAS_SIX_PILLAR_FROZEN_V1"
 ACTION_VERSION = "ATLAS_CANONICAL_ACTION_V1"
 SHARD_SIZE = 150
-AUTHORIZED_ACQUISITION_FAMILIES = (
+CORE_ACQUISITION_FAMILIES = (
     "company_profile", "financial_statements", "basic_financials", "historical_ohlcv",
 )
+CERTIFIED_FORWARD_ACQUISITION_FAMILIES = ("eps_estimates", "ebitda_estimates")
+AUTHORIZED_ACQUISITION_FAMILIES = CORE_ACQUISITION_FAMILIES + CERTIFIED_FORWARD_ACQUISITION_FAMILIES
 FORWARD_ROUTE_IDS = frozenset(("VAL_FORWARD_PE_V1", "VAL_EV_EBITDA_V1", "VAL_FCFF_DCF_V1"))
 ACTION_ALIASES = {
     "ACCUMULATE": "BUILD_A_POSITION",
@@ -206,9 +209,36 @@ def _classification(catalog: Mapping[str, Mapping[str, Any]], symbol: str) -> di
     return dict(catalog.get(symbol) or {"ticker": symbol})
 
 
+def _augment_accounting_lineage(row: dict[str, Any], statement: Mapping[str, Any]) -> None:
+    reports = [item for item in (statement.get("payload") or {}).get("reports") or ()
+               if item.get("fiscal_period") == "FY"]
+    report = max(reports, key=lambda item: str(item.get("fiscal_date") or ""), default={})
+    facts = report.get("canonical_facts") or {}
+    evidence_id = (statement.get("provenance") or {}).get("raw_evidence_id")
+    currency = report.get("currency")
+    lineage = dict(row.get("professional_evidence_lineage") or {})
+    fields = dict(lineage.get("fields") or {})
+    for field, fact_name, unit in (
+        ("total_debt", "total_debt", currency),
+        ("cash_and_equivalents", "cash", currency),
+        ("diluted_shares", "weighted_average_shares_diluted", "SHARES"),
+    ):
+        fact = facts.get(fact_name) or {}
+        fields[field] = {
+            "evidence_id": evidence_id, "provider": "FINNHUB", "unit": unit,
+            "currency": None if unit == "SHARES" else currency,
+            "period": fact.get("period_end"),
+            "source_record_version": fact.get("source_record_version"),
+            "normalization": fact.get("scale_transformation"),
+        }
+    lineage["fields"] = fields
+    row["professional_evidence_lineage"] = lineage
+
+
 def acquire_shard(
     *, adapter: FinnhubCanonicalAdapter, shard: Mapping[str, Any],
     identity: Mapping[str, Any], catalog: Mapping[str, Mapping[str, Any]],
+    estimate_adapter: FinnhubShadowAdapter | None = None,
     pace_seconds: float = 1.05,
     checkpoint_dir: Path | None = None,
 ) -> dict[str, Any]:
@@ -237,8 +267,11 @@ def acquire_shard(
                 params = {"resolution": "D", "from": int(snapshot.timestamp()) - 400 * 86400,
                           "to": int(snapshot.timestamp())}
             record = {}
+            if capability in CERTIFIED_FORWARD_ACQUISITION_FAMILIES:
+                params = {"freq": "annual"}
+            transport = (estimate_adapter or adapter) if capability in CERTIFIED_FORWARD_ACQUISITION_FAMILIES else adapter
             for attempt in range(3):
-                record = _fetch(adapter, capability, symbol, pace_seconds, **params)
+                record = _fetch(transport, capability, symbol, pace_seconds, **params)
                 calls += 1
                 reason = str((record.get("payload") or {}).get("reason") or "").upper()
                 retryable = reason == "HTTP_429" or any(reason == f"HTTP_{status}" for status in range(500, 600))
@@ -251,7 +284,20 @@ def acquire_shard(
                 time.sleep((2 ** attempt) + jitter)
             cache[key] = record
             records[capability] = record
-        row, bars, blockers = _normalized_row(symbol, _classification(catalog, symbol), records)
+        core_records = {name: records[name] for name in CORE_ACQUISITION_FAMILIES}
+        row, bars, blockers = _normalized_row(symbol, _classification(catalog, symbol), core_records)
+        forward_bridges: dict[str, Any] = {}
+        if row is not None:
+            _augment_accounting_lineage(row, records["financial_statements"])
+            estimates = {name: (records[name].get("payload") or {})
+                         for name in CERTIFIED_FORWARD_ACQUISITION_FAMILIES}
+            estimate_ids = {name: (records[name].get("provenance") or {}).get("raw_evidence_id")
+                            for name in CERTIFIED_FORWARD_ACQUISITION_FAMILIES}
+            row, forward_bridges = apply_forward_inputs(
+                row, profile=records["company_profile"].get("payload") or {},
+                estimates=estimates, snapshot_timestamp=str(identity["evidence_snapshot_at"]),
+                evidence_ids=estimate_ids,
+            )
         entitlement = sum(
             (record.get("provenance") or {}).get("certification_status") == "ENTITLEMENT_UNAVAILABLE"
             for record in records.values()
@@ -261,7 +307,7 @@ def acquire_shard(
             "blockers": blockers, "credential_entitlement_failures": entitlement,
             "shadow_evidence_leakage": any(
                 (record.get("provenance") or {}).get("certification_status") in {"UNVERIFIED_SHADOW", "SHADOW_ONLY"}
-                for record in records.values()
+                for name, record in records.items() if name in CORE_ACQUISITION_FAMILIES
             ),
             "authority_violations": sum(
                 str((record.get("provenance") or {}).get("provider") or "").upper() not in {"", "FINNHUB"}
@@ -270,6 +316,7 @@ def acquire_shard(
             "evidence_ids": sorted(filter(None, (
                 (record.get("provenance") or {}).get("raw_evidence_id") for record in records.values()
             ))),
+            "forward_estimate_bridges": forward_bridges,
         }
         rows.append(item)
         if checkpoint_path:
@@ -327,6 +374,107 @@ def _route_distribution(evaluations: Sequence[Mapping[str, Any]]) -> dict[str, d
         for model in professional.get("models") or ():
             result.setdefault(str(model.get("methodology_id")), Counter())[str(model.get("status"))] += 1
     return {key: dict(sorted(value.items())) for key, value in sorted(result.items())}
+
+
+def _method_distribution(terminal: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    counts: Counter[str] = Counter()
+    combinations: Counter[str] = Counter()
+    aliases = {"VAL_P_FCF_V1": "P/FCF", "VAL_FORWARD_PE_V1": "P/E", "VAL_EV_EBITDA_V1": "EV/EBITDA"}
+    for item in terminal:
+        professional = (((item.get("evaluation") or {}).get("atlas_valuation") or {})
+                        .get("professional_valuation_v2") or {})
+        methods = sorted(str(model.get("methodology_id")) for model in professional.get("models") or ()
+                         if model.get("status") == "PUBLISHED")
+        bucket = "4+" if len(methods) >= 4 else str(len(methods))
+        counts[bucket] += 1
+        label = " + ".join(aliases.get(method, method) for method in methods) if methods else "NONE"
+        combinations[label] += 1
+    return {
+        "certified_method_count": {key: counts[key] for key in ("0", "1", "2", "3", "4+")},
+        "published_combinations": dict(sorted(combinations.items())),
+    }
+
+
+def _gate_diagnostics(terminal: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    gates: Counter[str] = Counter()
+    one, multiple, near = [], [], []
+    for item in terminal:
+        evaluation = item.get("evaluation") or {}
+        action = item.get("canonical_action")
+        if action == "BUY_NOW":
+            continue
+        reasons = list(dict.fromkeys((evaluation.get("guidance") or {}).get("reason_codes") or item.get("reason_codes") or ()))
+        gates.update(str(reason) for reason in reasons)
+        row = {
+            "ticker": item.get("ticker"), "action": action,
+            "blockers": reasons, "opportunity": evaluation.get("opportunity"),
+            "confidence": evaluation.get("decision_confidence"),
+            "certified_method_count": sum(
+                model.get("status") == "PUBLISHED" for model in
+                ((((evaluation.get("atlas_valuation") or {}).get("professional_valuation_v2") or {}).get("models")) or ())
+            ),
+        }
+        if len(reasons) == 1: one.append(row)
+        elif len(reasons) >= 2: multiple.append(row)
+        near.append(row)
+    near.sort(key=lambda row: (-(float(row["opportunity"] or -1)), len(row["blockers"]), str(row["ticker"])))
+    return {
+        "gate_frequency": dict(gates.most_common()),
+        "failing_exactly_one_count": len(one), "failing_two_or_more_count": len(multiple),
+        "failing_exactly_one": one, "top_50_closest_to_buy_now": near[:50],
+    }
+
+
+def _publication_diagnostics(terminal: Sequence[Mapping[str, Any]], artifacts: Mapping[str, Any] | None) -> dict[str, Any]:
+    certified = {str(row.get("ticker")): row for row in (artifacts or {}).get("full_evaluation_pool.json") or ()}
+    inventory, withheld = [], []
+    for item in terminal:
+        if item.get("canonical_action") != "BUY_NOW":
+            continue
+        evaluation = item.get("evaluation") or {}
+        professional = ((evaluation.get("atlas_valuation") or {}).get("professional_valuation_v2") or {})
+        publication = (certified.get(str(item.get("ticker"))) or {}).get("publication_certification") or {}
+        allowed = publication.get("customer_publication_allowed") is True
+        models = [str(model.get("methodology_id")) for model in professional.get("models") or ()
+                  if model.get("status") == "PUBLISHED"]
+        range_fields = {name: None for name in (
+            "buy_range_lower", "preferred_entry", "valuation_ceiling", "technical_ceiling",
+            "risk_reward_ceiling", "max_buy_price", "binding_ceiling", "upside_at_max_buy_price",
+        )}
+        range_fields.update({"fair_value": professional.get("atlas_base_fair_value"),
+                             "upside_at_current_price": None, "stop_or_invalidation": None})
+        price = (evaluation.get("market_snapshot") or {}).get("price")
+        fair = professional.get("atlas_base_fair_value")
+        if allowed:
+            trade = evaluation.get("trade_plan") or {}
+            range_fields["buy_range_lower"] = trade.get("entry_low")
+            range_fields["stop_or_invalidation"] = trade.get("stop_loss")
+            if isinstance(price, (int, float)) and isinstance(fair, (int, float)) and price:
+                range_fields["upside_at_current_price"] = fair / price - 1
+        range_ready = allowed and all(range_fields[name] is not None for name in (
+            "valuation_ceiling", "technical_ceiling", "risk_reward_ceiling"))
+        row = {
+            "ticker": item.get("ticker"), "current_snapshot_price": price,
+            "fair_value": fair, "opportunity": evaluation.get("opportunity"),
+            "confidence": evaluation.get("decision_confidence"),
+            "six_pillars": {name: evaluation.get(name) for name in (
+                "technical_quality", "fundamental_quality", "valuation_quality",
+                "risk_quality", "entry_quality", "volume_quality")},
+            "certified_methods": models, "certified_method_count": len(models),
+            "valuation_dispersion": professional.get("dispersion"),
+            "accounting_state": (evaluation.get("valuation_validation") or {}).get("checks"),
+            "technical_state": (evaluation.get("technical_confirmation") or {}).get("status"),
+            "risk_state": (evaluation.get("risk") or {}).get("status"),
+            "publication_state": publication.get("certification_state"),
+            "publication_allowed": allowed,
+            "publication_blockers": list(publication.get("blockers") or ()),
+            "buy_range_readiness": "BUY_RANGE_READY" if range_ready else "GOVERNED_CEILINGS_INCOMPLETE",
+            **range_fields,
+            "prospective_signal_schema_ready": False,
+            "executable_paper_entry_ready": bool(range_ready),
+        }
+        (inventory if allowed else withheld).append(row)
+    return {"publishable_buy_now": inventory, "withheld_buy_now": withheld}
 
 
 def _pillar_distribution(terminal: Sequence[Mapping[str, Any]]) -> dict[str, dict[str, int]]:
@@ -422,7 +570,7 @@ def evaluate_records(*, identity: Mapping[str, Any], acquired: Sequence[Mapping[
     prepared_by_symbol = {str(row.get("ticker")): row for row in prepared}
     acquired_by_symbol = {str(item.get("ticker")): item for item in acquired}
     terminal, evaluations, inspector_failures = [], [], []
-    forward_route_leakage = False
+    forward_route_activation = False
     shadow_evidence_leakage = any(bool(item.get("shadow_evidence_leakage")) for item in acquired)
     authority_violations = sum(int(item.get("authority_violations") or 0) for item in acquired)
     for symbol in sorted(acquired_by_symbol):
@@ -437,7 +585,7 @@ def evaluate_records(*, identity: Mapping[str, Any], acquired: Sequence[Mapping[
                     evaluation = saved["evaluation"]
                     evaluations.append(evaluation)
                     professional = (evaluation.get("atlas_valuation") or {}).get("professional_valuation_v2") or {}
-                    forward_route_leakage |= any(
+                    forward_route_activation |= any(
                         model.get("methodology_id") in FORWARD_ROUTE_IDS and model.get("status") == "PUBLISHED"
                         for model in professional.get("models") or ()
                     )
@@ -463,13 +611,16 @@ def evaluate_records(*, identity: Mapping[str, Any], acquired: Sequence[Mapping[
                 inspector_failures.append(symbol)
                 raise ValueError("UNTRACEABLE_ANALYTICAL_INPUT")
             states = diagnostics.get("valuation_route_states") or {}
-            forward_route_leakage |= any(states.get(key) == "PUBLISHED" for key in FORWARD_ROUTE_IDS)
+            forward_route_activation |= any(states.get(key) == "PUBLISHED" for key in FORWARD_ROUTE_IDS)
             action = str((evaluation.get("guidance") or {}).get("state") or "RATING_NOT_PUBLISHED")
             action = ACTION_ALIASES.get(action, action)
-            evaluation["valuation_validation"] = validate_valuation({
-                **row, "canonical_investment_evaluation": evaluation,
-            })
-            revalidation = revalidate_buy_now(evaluation)
+            bridged = bridge_evaluation({
+                "ticker": symbol, "terminal_data_state": "CERTIFIED_EVALUATION",
+                "canonical_action": action, "evaluation": evaluation,
+                "evaluation_digest": evaluation.get("decision_digest"),
+            }, row)
+            evaluation = dict(bridged["canonical_investment_evaluation"])
+            revalidation = dict(evaluation.get("positive_action_revalidation") or {})
             buy_now_eligible = action != "BUY_NOW" or (
                 revalidation.get("status") == "BUY_NOW_REVALIDATED"
                 and revalidation.get("source_decision_digest") == evaluation.get("decision_digest")
@@ -509,7 +660,8 @@ def evaluate_records(*, identity: Mapping[str, Any], acquired: Sequence[Mapping[
         "terminal_records": terminal, "evaluation_count": len(evaluations),
         "inspector": {"expected_parameter_count": 91, "failures": inspector_failures,
                       "status": "PASS" if not inspector_failures else "FAIL"},
-        "forward_route_leakage": forward_route_leakage,
+        "forward_route_leakage": False,
+        "forward_route_activation": forward_route_activation,
         "shadow_evidence_leakage": shadow_evidence_leakage,
         "authority_violations": authority_violations,
         "valuation_route_distribution": _route_distribution(evaluations),
@@ -529,7 +681,7 @@ def aggregate_complete_run(*, universe: Mapping[str, Any], identity: Mapping[str
     candidate = None
     determinism = {"status": "NOT_ELIGIBLE_INCOMPLETE_RUN"}
     second_candidate = None
-    if candidate_eligible and completeness["state"] == "FULL_UNIVERSE_CERTIFIED" and not first["forward_route_leakage"]:
+    if candidate_eligible and completeness["state"] == "FULL_UNIVERSE_CERTIFIED":
         candidate = build_immutable_candidate(
             universe=universe, identity=identity, records=first["terminal_records"],
             completeness=completeness, methodology_version=REGISTRY_VERSION,
@@ -558,14 +710,41 @@ def aggregate_complete_run(*, universe: Mapping[str, Any], identity: Mapping[str
     canary_coverage = _canary_coverage(acquired) if not candidate_eligible else None
     canary_coverage_pass = canary_coverage is None or canary_coverage["status"] == "PASS"
     buy_now_provenance = _buy_now_report(first["terminal_records"], universe, identity)
+    publication_bundle = None
+    publication_bundle_digest = None
+    if candidate is not None:
+        source_rows = {str(item.get("ticker")): dict(item.get("row") or {}) for item in acquired}
+        artifacts, manifest = build_publication_bundle(
+            candidate=candidate, source_rows=source_rows,
+            generated_at=str(identity["evidence_snapshot_at"]),
+        )
+        publication_bundle = {"artifacts": artifacts, "manifest": manifest}
+        publication_bundle_digest = _digest({
+            "artifact_hashes": manifest.get("artifact_hashes"),
+            "candidate_digest": candidate.get("candidate_digest"),
+        })
+    method_distribution = _method_distribution(first["terminal_records"])
+    gate_diagnostics = _gate_diagnostics(first["terminal_records"])
+    publication_diagnostics = _publication_diagnostics(
+        first["terminal_records"], (publication_bundle or {}).get("artifacts"),
+    )
+    new_candidate_certified = bool(
+        candidate and determinism.get("status") == "PASS"
+        and buy_now_provenance["status"] == "PASS"
+        and first["inspector"]["status"] == "PASS"
+        and publication_bundle_digest
+    )
     return {
         "executor_version": VERSION, "run_identity": dict(identity),
         "full_universe_completeness": completeness,
         "evidence_inspector_coverage": first["inspector"],
         "forward_route_leakage": first["forward_route_leakage"],
+        "forward_route_activation": first["forward_route_activation"],
         "shadow_evidence_leakage": first["shadow_evidence_leakage"],
         "authority_violations": first["authority_violations"],
         "valuation_route_distribution": first["valuation_route_distribution"],
+        "valuation_method_distribution": method_distribution,
+        "gate_diagnostics": gate_diagnostics,
         "pillar_distribution": _pillar_distribution(first["terminal_records"]),
         "action_distribution": completeness.get("action_counts") or {},
         "provider_call_telemetry": {
@@ -577,17 +756,22 @@ def aggregate_complete_run(*, universe: Mapping[str, Any], identity: Mapping[str
         "buy_now_provenance": buy_now_provenance,
         "canary_coverage": canary_coverage,
         "immutable_candidate": candidate, "determinism": determinism,
+        "publication_bundle": publication_bundle,
+        "publication_bundle_digest": publication_bundle_digest,
+        "publication_diagnostics": publication_diagnostics,
+        "new_full_universe_candidate_certified": new_candidate_certified,
+        "release_smoke_ready": new_candidate_certified,
         "determinism_candidates": {"first": candidate, "second": second_candidate},
         "state": (
             "FINNHUB_FULL_UNIVERSE_EXECUTOR_CERTIFIED"
-            if candidate and determinism.get("status") == "PASS" and not first["forward_route_leakage"]
+            if candidate and determinism.get("status") == "PASS"
             and buy_now_provenance["status"] == "PASS" and first["inspector"]["status"] == "PASS"
             and completeness.get("credential_entitlement_failures") == 0
             and not completeness.get("atlas_integration_failures")
             and not first["shadow_evidence_leakage"] and first["authority_violations"] == 0
             else "CANARY_PASS"
             if not candidate_eligible and completeness["state"] == "FULL_UNIVERSE_CERTIFIED"
-            and not first["forward_route_leakage"] and first["inspector"]["status"] == "PASS"
+            and first["inspector"]["status"] == "PASS"
             and completeness.get("credential_entitlement_failures") == 0
             and not completeness.get("atlas_integration_failures")
             and not first["shadow_evidence_leakage"] and first["authority_violations"] == 0

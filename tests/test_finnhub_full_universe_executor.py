@@ -67,9 +67,9 @@ def test_acquisition_cache_calls_each_authorized_family_once(monkeypatch, tmp_pa
         adapter=object(), shard=shard, identity=identity(universe(("A", "B"))),
         catalog={}, pace_seconds=0, checkpoint_dir=tmp_path,
     )
-    assert cached["provider_telemetry"]["provider_calls"] == 8
+    assert cached["provider_telemetry"]["provider_calls"] == 2 * len(executor.AUTHORIZED_ACQUISITION_FAMILIES)
     assert reused["provider_telemetry"]["provider_calls"] == 0
-    assert reused["provider_telemetry"]["cache_hits"] == 8
+    assert reused["provider_telemetry"]["cache_hits"] == 2 * len(executor.AUTHORIZED_ACQUISITION_FAMILIES)
     assert len(calls) == calls_before
 
 
@@ -87,8 +87,8 @@ def test_acquisition_checkpoint_from_other_run_is_not_reused(monkeypatch, tmp_pa
     changed = {**first_identity, "run_identity_sha256": "different-run"}
     report = executor.acquire_shard(adapter=object(), shard=shard, identity=changed, catalog={}, pace_seconds=0,
                                     checkpoint_dir=tmp_path)
-    assert report["provider_telemetry"]["provider_calls"] == 4
-    assert len(calls) == 8
+    assert report["provider_telemetry"]["provider_calls"] == len(executor.AUTHORIZED_ACQUISITION_FAMILIES)
+    assert len(calls) == 2 * len(executor.AUTHORIZED_ACQUISITION_FAMILIES)
 
 
 def _shard_payload(scope, ident, symbols, shard_id="shard-000"):
@@ -140,7 +140,7 @@ def test_canary_evaluation_is_complete_but_never_builds_publishable_candidate(mo
     assert report["report_card_prospective_active"] is False
 
 
-def test_forward_route_leakage_fails_closed(monkeypatch):
+def test_certified_forward_route_is_reported_as_activation_not_leakage(monkeypatch):
     scope = universe(("A",)); ident = identity(scope)
     payload = _shard_payload(scope, ident, ["A"])
     monkeypatch.setattr(executor, "apply_peer_multiple_evidence", lambda rows: rows)
@@ -155,8 +155,39 @@ def test_forward_route_leakage_fails_closed(monkeypatch):
     report = executor.aggregate_complete_run(
         universe=scope, identity=ident, shard_payloads=[payload], candidate_eligible=False,
     )
-    assert report["forward_route_leakage"] is True
-    assert report["state"] == "FULL_UNIVERSE_RUN_INCOMPLETE"
+    assert report["forward_route_leakage"] is False
+    assert report["forward_route_activation"] is True
+    assert report["state"] == "CANARY_PASS"
+
+
+def test_multi_method_and_publication_diagnostics_are_customer_state_aware():
+    terminal = [{
+        "ticker": "BUY", "canonical_action": "BUY_NOW",
+        "evaluation": {
+            "opportunity": 80, "decision_confidence": 85,
+            "market_snapshot": {"price": 100},
+            "trade_plan": {"entry_low": 95, "stop_loss": 90},
+            "atlas_valuation": {"professional_valuation_v2": {
+                "atlas_base_fair_value": 140,
+                "models": [
+                    {"methodology_id": "VAL_FORWARD_PE_V1", "status": "PUBLISHED"},
+                    {"methodology_id": "VAL_P_FCF_V1", "status": "PUBLISHED"},
+                ],
+            }},
+        },
+    }]
+    distribution = executor._method_distribution(terminal)
+    assert distribution["certified_method_count"]["2"] == 1
+    assert distribution["published_combinations"]["P/E + P/FCF"] == 1
+    artifacts = {"full_evaluation_pool.json": [{
+        "ticker": "BUY", "publication_certification": {
+            "customer_publication_allowed": True, "certification_state": "CERTIFIED", "blockers": [],
+        },
+    }]}
+    result = executor._publication_diagnostics(terminal, artifacts)
+    assert [row["ticker"] for row in result["publishable_buy_now"]] == ["BUY"]
+    assert result["publishable_buy_now"][0]["buy_range_readiness"] == "GOVERNED_CEILINGS_INCOMPLETE"
+    assert result["publishable_buy_now"][0]["max_buy_price"] is None
 
 
 def test_executor_checkpoint_rejects_normalization_or_methodology_identity_change():

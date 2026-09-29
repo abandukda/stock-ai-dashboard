@@ -3,10 +3,13 @@ name: ATLAS Finnhub Full-Universe Certification
 on:
   push:
     branches:
-      - codex/home-promotion-market-today-release
+      - codex/full-universe-closure-temp
     paths:
       - .github/workflows/atlas_finnhub_full_universe_certification.yml
       - services/finnhub_full_universe_executor.py
+      - services/executor_publication_bridge.py
+      - services/positive_action_revalidation.py
+      - services/finnhub_forward_valuation_bridge.py
       - scripts/run_finnhub_full_universe.py
       - scripts/finnhub_canonical_proving_set.py
       - tests/test_finnhub_full_universe_executor.py
@@ -23,7 +26,7 @@ env:
 
 jobs:
   contract-tests:
-    if: ${{ github.ref == 'refs/heads/codex/home-promotion-market-today-release' }}
+    if: ${{ github.ref == 'refs/heads/codex/full-universe-closure-temp' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -36,7 +39,7 @@ jobs:
         env:
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
         run: |
-          test "$GITHUB_REF" = "refs/heads/codex/home-promotion-market-today-release"
+          test "$GITHUB_REF" = "refs/heads/codex/full-universe-closure-temp"
           test "$ATLAS_FINNHUB_LICENSE_CLASS" = "PAID_CORE_CERTIFICATION"
           test -n "$FINNHUB_API_KEY"
           test -z "${TWELVE_DATA_API_KEY:-}"

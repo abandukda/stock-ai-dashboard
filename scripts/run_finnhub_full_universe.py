@@ -16,6 +16,7 @@ if str(ROOT) not in sys.path:
 
 from scripts.finnhub_p_fcf_peer_certification import load_governed_classifications
 from services.finnhub_canonical_authority import FinnhubCanonicalAdapter
+from services.finnhub_shadow_provider import FINNHUB_PAID_CORE_CERTIFICATION_LICENSE, FinnhubShadowAdapter
 from services.finnhub_full_universe_executor import (
     SHARD_SIZE, acquire_shard, aggregate_complete_run, build_run_identity,
     deterministic_canary, deterministic_shards,
@@ -78,6 +79,7 @@ def run_shard(args: argparse.Namespace) -> int:
     catalog, _ = load_governed_classifications()
     payload = acquire_shard(
         adapter=FinnhubCanonicalAdapter(), shard=shards[args.shard_index],
+        estimate_adapter=FinnhubShadowAdapter(license_class=FINNHUB_PAID_CORE_CERTIFICATION_LICENSE),
         identity=identity, catalog=catalog, pace_seconds=max(0.0, args.pace_seconds),
         checkpoint_dir=args.checkpoint_dir,
     )
@@ -97,6 +99,7 @@ def aggregate(args: argparse.Namespace) -> int:
         checkpoint_dir=args.checkpoint_dir,
     )
     candidates = report.pop("determinism_candidates", {})
+    publication_bundle = report.pop("publication_bundle", None)
     if candidates.get("first") is not None:
         _write(args.output / "determinism_candidate_first.json", candidates["first"])
     if candidates.get("second") is not None:
@@ -113,12 +116,19 @@ def aggregate(args: argparse.Namespace) -> int:
         "terminal_state_counts": report["full_universe_completeness"]["terminal_state_counts"],
     })
     _write(args.output / "valuation_route_distribution.json", report["valuation_route_distribution"])
+    _write(args.output / "valuation_method_distribution.json", report["valuation_method_distribution"])
+    _write(args.output / "gate_diagnostics.json", report["gate_diagnostics"])
+    _write(args.output / "publication_diagnostics.json", report["publication_diagnostics"])
     _write(args.output / "pillar_distribution.json", report["pillar_distribution"])
     _write(args.output / "action_distribution.json", report["action_distribution"])
     _write(args.output / "buy_now_provenance.json", report["buy_now_provenance"])
     _write(args.output / "determinism_report.json", report["determinism"])
     if report.get("immutable_candidate") is not None:
         _write(args.output / "immutable_candidate.json", report["immutable_candidate"])
+    if publication_bundle is not None:
+        for name, payload in publication_bundle["artifacts"].items():
+            _write(args.output / "publication_bundle" / name, payload)
+        _write(args.output / "publication_bundle" / "publication_manifest.json", publication_bundle["manifest"])
     print(json.dumps({"state": report["state"], "symbols": report["full_universe_completeness"]["terminal_record_count"]}))
     return 0 if report["state"] in {"CANARY_PASS", "FINNHUB_FULL_UNIVERSE_EXECUTOR_CERTIFIED"} else 1
 
