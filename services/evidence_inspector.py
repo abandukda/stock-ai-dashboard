@@ -255,10 +255,22 @@ def coverage_report(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             "parameter": spec.parameter_name, "engine": spec.engine,
             "symbols_requiring": len(values),
             "available_certified_count": counts["AVAILABLE_CERTIFIED"],
+            "available_nonscoring_count": counts["AVAILABLE_NONSCORING"],
             "missing_count": counts["MISSING_PROVIDER_FACT"] + counts["NONNUMERIC_PROVIDER_VALUE"],
+            "missing_provider_fact_count": counts["MISSING_PROVIDER_FACT"],
+            "nonnumeric_provider_value_count": counts["NONNUMERIC_PROVIDER_VALUE"],
+            "unit_unresolved_count": counts["UNIT_UNRESOLVED"],
+            "currency_unresolved_count": counts["CURRENCY_UNRESOLVED"],
+            "period_unresolved_count": counts["PERIOD_UNRESOLVED"],
             "contract_pending_count": counts["CONTRACT_PENDING"],
+            "not_applicable_count": counts["NOT_APPLICABLE"],
             "rejected_count": counts["REJECTED_BY_GOVERNANCE"],
             "stale_count": counts["STALE"], "integration_error_count": counts["INTEGRATION_ERROR"],
+            "status_counts": {status: counts[status] for status in STATUSES},
+            "status_percentages": {
+                status: round(100.0 * counts[status] / len(values), 4) if values else 0.0
+                for status in STATUSES
+            },
         })
     queue = []
     for item in sorted(coverage, key=lambda value: (value["missing_count"] + value["contract_pending_count"], value["parameter"]), reverse=True):
