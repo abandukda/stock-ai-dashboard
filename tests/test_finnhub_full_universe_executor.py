@@ -222,3 +222,23 @@ def test_full_run_planner_job_installs_project_dependencies():
     planner = workflow.split("  plan-full-run:", 1)[1].split("  acquire-full-shards:", 1)[0]
     assert "pip install -r requirements.txt" in planner
     assert "pip install requests" not in planner
+
+
+def test_explicitly_withheld_buy_now_has_passing_provenance_gate():
+    scope = universe(("BUY",)); ident = identity(scope)
+    evaluation = {
+        "guidance": {"state": "BUY_NOW"}, "decision_digest": "decision-1",
+        "evidence_ids": ["FINNHUB:EVIDENCE:BUY"],
+    }
+    terminal = [{
+        "ticker": "BUY", "canonical_action": "BUY_NOW", "evaluation": evaluation,
+        "evaluation_digest": "digest", "run_identity_sha256": ident["run_identity_sha256"],
+        "buy_now_revalidation": {
+            "status": "BUY_NOW_PENDING_REVALIDATION", "source_decision_digest": "decision-1",
+            "blockers": ["BUY_NOW_METHOD_CORROBORATION_INSUFFICIENT"],
+        },
+    }]
+    report = executor._buy_now_report(terminal, scope, ident)
+    assert report["status"] == "PASS"
+    assert report["publishable_buy_now_count"] == 0
+    assert report["records"][0]["revalidation_result"] == "BUY_NOW_WITHHELD"

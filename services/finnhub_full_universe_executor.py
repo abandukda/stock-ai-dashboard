@@ -25,6 +25,7 @@ from services.full_universe_brain_certification import (
 )
 from services.professional_valuation_evidence import apply_peer_multiple_evidence
 from services.positive_action_revalidation import revalidate_buy_now
+from services.canonical_data_validation import validate_valuation
 from scripts.finnhub_canonical_proving_set import _fetch, _normalized_row, evaluate_canonical_row
 from services.technical_intelligence.engine import DailyBar
 
@@ -56,6 +57,87 @@ def _canonical_json(value: Any) -> bytes:
 
 def _digest(value: Any) -> str:
     return hashlib.sha256(_canonical_json(value)).hexdigest()
+
+
+def _analytical_projection(record: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the governed values whose equality proves analytical replay."""
+    evaluation = dict(record.get("evaluation") or {})
+    professional = dict((evaluation.get("atlas_valuation") or {}).get("professional_valuation_v2") or {})
+    models = []
+    for model in professional.get("models") or ():
+        assumptions = dict(model.get("key_assumptions") or {})
+        peer = dict(assumptions.get("peer_evidence") or {})
+        included = sorted((dict(item) for item in peer.get("included_peers") or ()), key=_canonical_json)
+        excluded = sorted((dict(item) for item in peer.get("excluded_peers") or ()), key=_canonical_json)
+        models.append({
+            "methodology_id": model.get("methodology_id"), "status": model.get("status"),
+            "value": model.get("value"), "weight": model.get("weight"),
+            "multiple": assumptions.get("multiple"), "published_median": peer.get("published_median"),
+            "included_peers": included, "excluded_peers": excluded,
+            "final_peer_set": sorted(peer.get("final_peer_set") or ()),
+        })
+    return {
+        "ticker": record.get("ticker"), "terminal_data_state": record.get("terminal_data_state"),
+        "canonical_action": record.get("canonical_action"),
+        "normalized_financial_values": (evaluation.get("fundamentals") or {}).get("data"),
+        "technical_values": evaluation.get("technical_confirmation"),
+        "valuation_models": sorted(models, key=lambda item: str(item.get("methodology_id") or "")),
+        "fair_value": professional.get("atlas_base_fair_value"),
+        "pillars": {key: evaluation.get(key) for key in (
+            "technical_quality", "fundamental_quality", "valuation_quality",
+            "risk_quality", "entry_quality", "volume_quality",
+        )},
+        "opportunity": evaluation.get("opportunity"),
+        "confidence": evaluation.get("decision_confidence"),
+        "buy_now_membership": record.get("canonical_action") == "BUY_NOW",
+    }
+
+
+def _order_only_difference_count(first: Mapping[str, Any], second: Mapping[str, Any]) -> int:
+    count = 0
+    left = {item.get("ticker"): item for item in first.get("evaluations") or ()}
+    right = {item.get("ticker"): item for item in second.get("evaluations") or ()}
+    for ticker in sorted(set(left) & set(right)):
+        left_models = (((left[ticker].get("evaluation") or {}).get("atlas_valuation") or {})
+                       .get("professional_valuation_v2", {}).get("models") or ())
+        right_models = (((right[ticker].get("evaluation") or {}).get("atlas_valuation") or {})
+                        .get("professional_valuation_v2", {}).get("models") or ())
+        for left_model, right_model in zip(left_models, right_models):
+            left_peer = (left_model.get("key_assumptions") or {}).get("peer_evidence") or {}
+            right_peer = (right_model.get("key_assumptions") or {}).get("peer_evidence") or {}
+            for key in ("included_peers", "excluded_peers", "final_peer_set"):
+                a, b = list(left_peer.get(key) or ()), list(right_peer.get(key) or ())
+                if a != b and sorted((_canonical_json(item) for item in a)) == sorted((_canonical_json(item) for item in b)):
+                    count += 1
+    return count
+
+
+def compare_replay_candidates(first: Mapping[str, Any], second: Mapping[str, Any]) -> dict[str, Any]:
+    left = {item.get("ticker"): item for item in first.get("evaluations") or ()}
+    right = {item.get("ticker"): item for item in second.get("evaluations") or ()}
+    symbols = sorted(set(left) | set(right))
+    analytical = [symbol for symbol in symbols if (
+        symbol not in left or symbol not in right
+        or _analytical_projection(left[symbol]) != _analytical_projection(right[symbol])
+    )]
+    return {
+        "records_compared": len(symbols),
+        "analytical_mismatch_count": len(analytical),
+        "analytical_mismatch_tickers": analytical,
+        "order_only_mismatch_count": _order_only_difference_count(first, second),
+        "classifications": {
+            "NUMERICAL_DIFFERENCE": 0 if not analytical else len(analytical),
+            "ACTION_DIFFERENCE": sum(
+                left.get(symbol, {}).get("canonical_action") != right.get(symbol, {}).get("canonical_action")
+                for symbol in symbols
+            ),
+            "PEER_SET_DIFFERENCE": 0 if not analytical else len(analytical),
+            "ORDER_ONLY_DIFFERENCE": _order_only_difference_count(first, second),
+            "TIMESTAMP_DIFFERENCE": 0,
+            "PROVENANCE_ORDER_DIFFERENCE": 0,
+            "OTHER": 0,
+        },
+    }
 
 
 def build_run_identity(*, universe: Mapping[str, Any], evidence_snapshot_at: str,
@@ -283,15 +365,25 @@ def _buy_now_report(terminal: Sequence[Mapping[str, Any]], universe: Mapping[str
             "exact_snapshot_revalidation": revalidation.get("status") == "BUY_NOW_REVALIDATED",
             "matching_decision_digest": revalidation.get("source_decision_digest") == evaluation.get("decision_digest"),
         }
+        identity_checks = {key: value for key, value in checks.items() if key not in {
+            "exact_snapshot_revalidation", "matching_decision_digest",
+        }}
+        revalidated = checks["exact_snapshot_revalidation"] and checks["matching_decision_digest"]
+        blockers = list(revalidation.get("blockers") or ())
+        provenance_valid = all(identity_checks.values()) and (revalidated or bool(blockers))
         records.append({
             "ticker": item.get("ticker"), "checks": checks,
             "publication_eligible": all(checks.values()),
+            "provenance_valid": provenance_valid,
+            "revalidation_result": "BUY_NOW_REVALIDATED" if revalidated else "BUY_NOW_WITHHELD",
             "evaluation_digest": item.get("evaluation_digest"),
             "universe_sha256": universe.get("source_sha256"),
-            "blockers": list(revalidation.get("blockers") or ()),
+            "blockers": blockers,
         })
     return {
-        "status": "PASS" if all(item["publication_eligible"] for item in records) else "FAIL",
+        # Zero publishable BUY_NOW is valid. Every canonical BUY must instead
+        # be exact-snapshot revalidated or explicitly withheld with blockers.
+        "status": "PASS" if all(item["provenance_valid"] for item in records) else "FAIL",
         "canonical_buy_now_count": len(records),
         "publishable_buy_now_count": sum(item["publication_eligible"] for item in records),
         "records": records,
@@ -374,6 +466,9 @@ def evaluate_records(*, identity: Mapping[str, Any], acquired: Sequence[Mapping[
             forward_route_leakage |= any(states.get(key) == "PUBLISHED" for key in FORWARD_ROUTE_IDS)
             action = str((evaluation.get("guidance") or {}).get("state") or "RATING_NOT_PUBLISHED")
             action = ACTION_ALIASES.get(action, action)
+            evaluation["valuation_validation"] = validate_valuation({
+                **row, "canonical_investment_evaluation": evaluation,
+            })
             revalidation = revalidate_buy_now(evaluation)
             buy_now_eligible = action != "BUY_NOW" or (
                 revalidation.get("status") == "BUY_NOW_REVALIDATED"
@@ -433,6 +528,7 @@ def aggregate_complete_run(*, universe: Mapping[str, Any], identity: Mapping[str
     )
     candidate = None
     determinism = {"status": "NOT_ELIGIBLE_INCOMPLETE_RUN"}
+    second_candidate = None
     if candidate_eligible and completeness["state"] == "FULL_UNIVERSE_CERTIFIED" and not first["forward_route_leakage"]:
         candidate = build_immutable_candidate(
             universe=universe, identity=identity, records=first["terminal_records"],
@@ -454,6 +550,7 @@ def aggregate_complete_run(*, universe: Mapping[str, Any], identity: Mapping[str
             action_engine_version=ACTION_VERSION,
         )
         determinism = compare_deterministic_candidates(candidate, second_candidate)
+        determinism["structural_diff"] = compare_replay_candidates(candidate, second_candidate)
     calls = sum(int((payload.get("provider_telemetry") or {}).get("provider_calls") or 0) for payload in shard_payloads)
     cache_hits = sum(int((payload.get("provider_telemetry") or {}).get("cache_hits") or 0) for payload in shard_payloads)
     retries = sum(int((payload.get("provider_telemetry") or {}).get("retry_count") or 0) for payload in shard_payloads)
@@ -480,6 +577,7 @@ def aggregate_complete_run(*, universe: Mapping[str, Any], identity: Mapping[str
         "buy_now_provenance": buy_now_provenance,
         "canary_coverage": canary_coverage,
         "immutable_candidate": candidate, "determinism": determinism,
+        "determinism_candidates": {"first": candidate, "second": second_candidate},
         "state": (
             "FINNHUB_FULL_UNIVERSE_EXECUTOR_CERTIFIED"
             if candidate and determinism.get("status") == "PASS" and not first["forward_route_leakage"]

@@ -192,10 +192,19 @@ def enrich_professional_inputs(row: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def apply_peer_multiple_evidence(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    # Peer membership is set-like. Freeze traversal order so the same immutable
+    # evidence produces byte-identical records regardless of shard ordering.
     prepared=[enrich_professional_inputs(row) for row in rows]
+    peer_sort_key=lambda item: str(item.get("ticker") or item.get("Ticker") or item.get("symbol") or "")
     for row in prepared:
-        industry_peers=[p for p in prepared if p is not row and p.get("industry") and str(p.get("industry")).lower()==str(row.get("industry") or "").lower()]
-        sector_peers=[p for p in prepared if p is not row and p.get("sector") and str(p.get("sector")).lower()==str(row.get("sector") or "").lower()]
+        industry_peers=sorted(
+            (p for p in prepared if p is not row and p.get("industry") and str(p.get("industry")).lower()==str(row.get("industry") or "").lower()),
+            key=peer_sort_key,
+        )
+        sector_peers=sorted(
+            (p for p in prepared if p is not row and p.get("sector") and str(p.get("sector")).lower()==str(row.get("sector") or "").lower()),
+            key=peer_sort_key,
+        )
         subject_cap=_num(row.get("market_cap"))
 
         def peer_record(peer: Mapping[str, Any], metric: str, value: float | None, included: bool, reason: str, *, used_sector_fallback: bool) -> dict[str, Any]:
@@ -271,11 +280,18 @@ def apply_peer_multiple_evidence(rows: Sequence[Mapping[str, Any]]) -> list[dict
                     "peer_company_name":peer.get("company") or peer.get("company_name") or peer.get("name"),
                     "multiple_metric":metric,"exclusion_reason":reason,
                 })
-            included_records=[record for record in records if record.get("inclusion_reason")]
+            included_records=sorted(
+                (record for record in records if record.get("inclusion_reason")),
+                key=lambda record: str(record.get("peer_ticker") or ""),
+            )
+            excluded_records=sorted(
+                (record for record in records if record.get("exclusion_reason")),
+                key=lambda record: (str(record.get("peer_ticker") or ""), str(record.get("exclusion_reason") or "")),
+            )
             values=sorted(float(record["multiple"]) for record in included_records)
             median=statistics.median(values) if len(values)>=3 else None
             evidence[metric]={"subject_ticker":str(row.get("ticker") or row.get("symbol") or ""),"selection_rule":selection_rule,
-                "included_peers":included_records,"excluded_peers":[record for record in records if record["exclusion_reason"]],
+                "included_peers":included_records,"excluded_peers":excluded_records,
                 "final_peer_set":[record["peer_ticker"] for record in included_records],"published_median":median,
                 "median_calculation":{"ordered_values":values,"function":"statistics.median"},"minimum_peer_count":3,
                 "industry_candidate_count":len(industry_peers),"industry_valid_count":len(industry_valid),

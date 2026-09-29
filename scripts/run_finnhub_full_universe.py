@@ -96,6 +96,11 @@ def aggregate(args: argparse.Namespace) -> int:
         candidate_eligible=args.canary_size == 0,
         checkpoint_dir=args.checkpoint_dir,
     )
+    candidates = report.pop("determinism_candidates", {})
+    if candidates.get("first") is not None:
+        _write(args.output / "determinism_candidate_first.json", candidates["first"])
+    if candidates.get("second") is not None:
+        _write(args.output / "determinism_candidate_second.json", candidates["second"])
     _write(args.output / "full_universe_gate_report.json", report)
     _write(args.output / "checkpoint_summary.json", report["full_universe_completeness"])
     _write(args.output / "provider_call_telemetry.json", report["provider_call_telemetry"])

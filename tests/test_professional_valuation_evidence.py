@@ -83,6 +83,14 @@ def test_peer_evidence_contains_no_hard_coded_provider_identity():
     assert '"provider":"TWELVE_DATA"' not in inspect.getsource(module.apply_peer_multiple_evidence)
 
 
+def test_peer_evidence_serialization_is_independent_of_input_order():
+    rows = [row("TARGET", pe=10), row("C", pe=20), row("A", pe=30), row("B", pe=40)]
+    forward = {item["ticker"]: item for item in apply_peer_multiple_evidence(rows)}["TARGET"]
+    reverse = {item["ticker"]: item for item in apply_peer_multiple_evidence(list(reversed(rows)))}["TARGET"]
+    assert forward["justified_p_fcf_peer_evidence"] == reverse["justified_p_fcf_peer_evidence"]
+    assert forward["justified_p_fcf_peer_evidence"]["final_peer_set"] == ["A", "B", "C"]
+
+
 def test_provider_neutral_p_fcf_route_publishes_and_certifies_with_complete_peer_evidence():
     prepared = apply_peer_multiple_evidence([
         row("A", pe=10), row("B", pe=20), row("C", pe=30), row("D", pe=40)
