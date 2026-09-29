@@ -9,6 +9,59 @@ from agents.product_audit_agent import run_product_audit
 from agents.runtime_qa_report_v3 import load_latest_runtime_qa_v3
 
 
+def _render_evidence_inspector(artifact: Any) -> None:
+    """Internal normalized-lineage view; never renders raw provider payloads."""
+    from services.evidence_inspector import inspect_ticker, inventory
+
+    rows = artifact if isinstance(artifact, list) else []
+    indexed = {}
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        evaluation = row.get("canonical_investment_evaluation")
+        if isinstance(evaluation, Mapping):
+            ticker = str(evaluation.get("ticker") or row.get("ticker") or "").upper()
+            if ticker:
+                indexed[ticker] = {**dict(evaluation), "ticker": ticker}
+    with st.expander("Evidence Inspector — Internal QA Only", expanded=False):
+        st.caption(
+            "Audits canonical normalized inputs, formulas, lineage references, blockers, six-pillar "
+            "contributions, valuation routes, and the deterministic Action trace. Raw licensed "
+            "provider payloads and credentials are never displayed."
+        )
+        st.metric("Registered Canonical Parameters", len(inventory()))
+        if not indexed:
+            st.info("No persisted canonical evaluation is available for inspection.")
+            return
+        ticker = st.selectbox("Ticker", sorted(indexed), key="developer_evidence_inspector_ticker")
+        report = inspect_ticker(indexed[ticker])
+        trace = report["traceability"]
+        if trace["status"] == "PASS":
+            st.success("All registered derived parents are traceable for this inspector contract.")
+        else:
+            st.error("UNTRACEABLE_ANALYTICAL_INPUT")
+        st.markdown(f"**{report['decision_trace']['question']}**")
+        st.write({"Action": report["decision_trace"]["canonical_action"],
+                  "Reason codes": report["decision_trace"]["reason_codes"]})
+        st.markdown("**Six-pillar calculation**")
+        st.dataframe(pd.DataFrame([
+            {"Pillar": name, **values} for name, values in report["six_pillars"].items()
+        ]), hide_index=True, use_container_width=True)
+        st.markdown("**Valuation methods**")
+        if report["valuation_methods"]:
+            st.dataframe(pd.DataFrame(report["valuation_methods"]), hide_index=True, use_container_width=True)
+        else:
+            st.info("No professional valuation method was published in this snapshot.")
+        st.markdown("**Parameter evidence**")
+        st.dataframe(pd.DataFrame(report["parameters"]), hide_index=True, use_container_width=True)
+        st.download_button(
+            "Download internal evidence trace",
+            json.dumps(report, indent=2, default=str),
+            f"atlas_evidence_trace_{ticker}.json", "application/json",
+            use_container_width=True,
+        )
+
+
 def _reset_severity(key):
     st.session_state[f"{key}_severity"] = ["CRITICAL", "HIGH", "MEDIUM"]
 
@@ -178,6 +231,7 @@ def render_developer_center(
     try:
         from services.methodology_health import methodology_health
         artifact = json.loads(Path("market_full_scan.json").read_text(encoding="utf-8"))
+        _render_evidence_inspector(artifact)
         from services.volume_screener import build_volume_screener
         snapshots_path=Path("performance_snapshots.jsonl")
         snapshot_count=sum(1 for line in snapshots_path.read_text().splitlines() if line.strip()) if snapshots_path.exists() else 0
