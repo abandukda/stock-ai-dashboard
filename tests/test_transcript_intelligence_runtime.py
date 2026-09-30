@@ -181,3 +181,27 @@ def test_unknown_generation_span_id_fails_closed():
     valid, _, diagnostics = validate_grounded_summary(bound, source + " Margin pressure remains a risk.")
     assert valid is False
     assert diagnostics[0]["failure_reason"] == "SCHEMA_FAILURE"
+
+
+def test_missing_management_summary_uses_only_an_existing_evidence_bound_claim():
+    source = "Revenue was $10 billion. Margin pressure remains a risk."
+    ledger, _ = _source_span_ledger(source)
+    span_id = next(key for key, value in ledger.items() if "Revenue" in value)
+    payload, _, _ = _summary({})
+    payload["management_summary"] = None
+    for field in (
+        "management_themes", "key_takeaways", "supported_opportunities", "supported_risks",
+        "verified_guidance_statements", "capital_allocation_comments", "demand_comments",
+        "margin_comments", "analyst_question_themes", "monitoring_items", "material_changes_vs_prior_call",
+    ):
+        payload[field] = []
+    payload["key_takeaways"] = [{
+        "claim": "Revenue was $10 billion.", "source_span_id": span_id,
+        "source_excerpt": "model reconstruction is ignored", "source_excerpt_hash": "",
+        "claim_type": "FINANCIAL", "source_section": "PREPARED_REMARKS",
+    }]
+    bound = _bind_source_excerpt_hashes(payload, ledger)
+    assert bound["management_summary"] == bound["key_takeaways"][0]
+    valid, violations, diagnostics = validate_grounded_summary(bound, source)
+    assert valid is True, violations
+    assert all(item["failure_reason"] is None for item in diagnostics)

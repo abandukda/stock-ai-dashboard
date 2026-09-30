@@ -113,6 +113,12 @@ def _bind_source_excerpt_hashes(payload: Any, span_ledger: Mapping[str, str] | N
     for field in SUMMARY_FIELDS:
         values = payload.get(field, [])
         result[field] = [bound(item) for item in values] if isinstance(values, list) else values
+    if not isinstance(result.get("management_summary"), Mapping):
+        for field in ("key_takeaways", "management_themes") + SUMMARY_FIELDS:
+            values = result.get(field)
+            if isinstance(values, list) and values and isinstance(values[0], Mapping):
+                result["management_summary"] = dict(values[0])
+                break
     return result
 
 
