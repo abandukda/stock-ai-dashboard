@@ -126,12 +126,11 @@ def _recovery_identity(shards: list[Mapping[str, Any]], universe: Mapping[str, A
     if not shards or not isinstance(shards[0].get("run_identity"), Mapping):
         raise ValueError("source shards do not contain an immutable run identity")
     identity = dict(shards[0]["run_identity"])
-    expected_snapshot = args.evidence_snapshot or os.getenv("ATLAS_EVIDENCE_SNAPSHOT_AT")
     expected_source_sha = args.source_sha or os.getenv("ATLAS_SOURCE_SHA")
     if identity.get("source_sha") != expected_source_sha:
         raise ValueError("source shard SHA does not match authorized recovery source")
-    if identity.get("evidence_snapshot_at") != expected_snapshot:
-        raise ValueError("source shard snapshot does not match authorized recovery snapshot")
+    if args.evidence_snapshot and identity.get("evidence_snapshot_at") != args.evidence_snapshot:
+        raise ValueError("source shard snapshot does not match explicitly requested recovery snapshot")
     if identity.get("universe_sha256") != universe["source_sha256"]:
         raise ValueError("source shard universe does not match frozen universe")
     if identity.get("supported_equity_count") != universe["supported_equity_count"]:

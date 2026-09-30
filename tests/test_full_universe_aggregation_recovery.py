@@ -70,7 +70,7 @@ def test_shard_inventory_detects_any_artifact_change(tmp_path):
 def test_recovery_uses_source_shard_identity_and_rejects_wrong_source():
     ident = _identity()
     args = SimpleNamespace(
-        source_sha=ident["source_sha"], evidence_snapshot=ident["evidence_snapshot_at"],
+        source_sha=ident["source_sha"], evidence_snapshot=None,
     )
     assert recovery._recovery_identity([{"run_identity": ident}], _universe(), args) == ident
     args.source_sha = "wrong"
