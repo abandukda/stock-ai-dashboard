@@ -78,6 +78,19 @@ def test_recovery_uses_source_shard_identity_and_rejects_wrong_source():
         recovery._recovery_identity([{"run_identity": ident}], _universe(), args)
 
 
+def test_peer_component_partition_never_splits_sector_or_industry_neighbors():
+    records = [
+        {"ticker": "A", "row": {"ticker": "A", "sector": "Tech", "industry": "Software"}},
+        {"ticker": "B", "row": {"ticker": "B", "sector": "Tech", "industry": "Hardware"}},
+        {"ticker": "C", "row": {"ticker": "C", "sector": "Services", "industry": "Software"}},
+        {"ticker": "D", "row": {"ticker": "D", "sector": "Health", "industry": "Biotech"}},
+    ]
+    chunks = recovery._peer_component_chunks(records, 3)
+    locations = {item["ticker"]: index for index, chunk in enumerate(chunks) for item in chunk}
+    assert locations["A"] == locations["B"] == locations["C"]
+    assert locations["D"] != locations["A"]
+
+
 def test_recovery_workflow_is_split_private_bounded_and_has_no_provider_secret():
     workflow = Path(".github/workflows/atlas_finnhub_full_universe_aggregation_recovery.yml").read_text()
     assert "merge-full-shards:" in workflow

@@ -23,7 +23,7 @@ from services.finnhub_shadow_provider import FINNHUB_PAID_CORE_CERTIFICATION_LIC
 from services.finnhub_full_universe_executor import (
     SHARD_SIZE, acquire_shard, aggregate_complete_run, build_run_identity,
     combine_evaluation_results, deterministic_canary, deterministic_shards,
-    evaluate_records, prepare_acquired_for_evaluation, validate_shards,
+    evaluate_records, validate_shards,
 )
 from services.full_universe_brain_certification import certify_complete_run, load_frozen_universe
 
@@ -110,6 +110,44 @@ def _assert_checkpoint_safe(value: Any, path: str = "checkpoint") -> None:
     elif isinstance(value, list):
         for index, item in enumerate(value):
             _assert_checkpoint_safe(item, f"{path}[{index}]")
+
+
+def _peer_component_chunks(records: list[Mapping[str, Any]], chunk_count: int) -> list[list[dict[str, Any]]]:
+    """Partition records without splitting any production peer-comparison component."""
+    parent: dict[str, str] = {}
+
+    def find(value: str) -> str:
+        parent.setdefault(value, value)
+        while parent[value] != value:
+            parent[value] = parent[parent[value]]
+            value = parent[value]
+        return value
+
+    def union(left: str, right: str) -> None:
+        left_root, right_root = find(left), find(right)
+        if left_root != right_root:
+            parent[max(left_root, right_root)] = min(left_root, right_root)
+
+    record_nodes: list[tuple[dict[str, Any], str]] = []
+    for position, original in enumerate(records):
+        record = dict(original)
+        row = record.get("row") or {}
+        sector = str(row.get("sector") or "").strip().lower()
+        industry = str(row.get("industry") or "").strip().lower()
+        nodes = ([f"sector:{sector}"] if sector else []) + ([f"industry:{industry}"] if industry else [])
+        if not nodes:
+            nodes = [f"isolated:{position}:{record.get('ticker')}"]
+        for node in nodes[1:]:
+            union(nodes[0], node)
+        record_nodes.append((record, nodes[0]))
+    components: dict[str, list[dict[str, Any]]] = {}
+    for record, node in record_nodes:
+        components.setdefault(find(node), []).append(record)
+    chunks: list[list[dict[str, Any]]] = [[] for _ in range(chunk_count)]
+    for component in sorted(components.values(), key=lambda values: (-len(values), str(values[0].get("ticker")))):
+        target = min(range(chunk_count), key=lambda index: (len(chunks[index]), index))
+        chunks[target].extend(component)
+    return [sorted(chunk, key=lambda item: str(item.get("ticker"))) for chunk in chunks]
 
 
 def _identity(universe: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
@@ -250,16 +288,12 @@ def merge_checkpoints(args: argparse.Namespace) -> int:
     )
     _assert_checkpoint_safe(checkpoint)
     _write(args.output / "merged_shard_checkpoint.json", checkpoint)
-    prepared, preparation_metric = _profiled(
-        "B2_FULL_UNIVERSE_PEER_EVIDENCE_PREPARATION",
-        lambda: prepare_acquired_for_evaluation(acquired),
-    )
-    prepared_payload = {"run_identity": identity, "records": prepared}
+    prepared_payload = {"run_identity": identity, "records": acquired}
     _assert_checkpoint_safe(prepared_payload)
     prepared_checkpoint = _checkpoint(
         checkpoint_type="PREPARED_EVALUATION_INPUT_CHECKPOINT", identity=identity, universe=frozen,
         shard_digests=digests, payload=prepared_payload,
-        phase_metrics=[inventory_metric, merge_metric, preparation_metric],
+        phase_metrics=[inventory_metric, merge_metric],
     )
     _assert_checkpoint_safe(prepared_checkpoint)
     _write(args.output / "prepared_evaluation_input_checkpoint.json", prepared_checkpoint)
@@ -275,12 +309,11 @@ def evaluate_checkpoint_chunk(args: argparse.Namespace) -> int:
     records = sorted(prepared["payload"]["records"], key=lambda item: str(item.get("ticker")))
     if args.chunk_count < 1 or not 0 <= args.chunk_index < args.chunk_count:
         raise ValueError("invalid canonical evaluation chunk coordinates")
-    selected = records[args.chunk_index::args.chunk_count]
+    selected = _peer_component_chunks(records, args.chunk_count)[args.chunk_index]
     evaluation, metric = _profiled(
         "D_CANONICAL_EVALUATION_RECONSTRUCTION",
         lambda: evaluate_records(
             identity=identity, acquired=selected, checkpoint_dir=args.checkpoint_dir,
-            peer_evidence_prepared=True,
         ),
     )
     payload = {

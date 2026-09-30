@@ -561,19 +561,6 @@ def _terminal_from_acquisition(item: Mapping[str, Any], identity: Mapping[str, A
     }
 
 
-def prepare_acquired_for_evaluation(acquired: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
-    """Attach full-universe peer evidence before evaluation work is partitioned."""
-    source_rows = [dict(item["row"]) for item in acquired if item.get("row") is not None]
-    prepared_by_symbol = {
-        str(row.get("ticker")): row for row in apply_peer_multiple_evidence(source_rows)
-    }
-    return [
-        {**dict(item), "row": prepared_by_symbol.get(str(item.get("ticker")))}
-        if item.get("row") is not None else dict(item)
-        for item in acquired
-    ]
-
-
 def combine_evaluation_results(results: Sequence[Mapping[str, Any]], *, reverse: bool = False) -> dict[str, Any]:
     """Combine independently evaluated chunks without changing analytical values."""
     terminal = sorted(
