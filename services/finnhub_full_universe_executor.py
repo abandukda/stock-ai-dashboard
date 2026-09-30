@@ -693,11 +693,43 @@ def evaluate_records(*, identity: Mapping[str, Any], acquired: Sequence[Mapping[
     }
 
 
+def build_candidate_determinism_checkpoint(*, universe: Mapping[str, Any], identity: Mapping[str, Any],
+                                           first: Mapping[str, Any], completeness: Mapping[str, Any],
+                                           second: Mapping[str, Any],
+                                           second_completeness: Mapping[str, Any]) -> dict[str, Any]:
+    """Build the unchanged immutable candidates once for resumable aggregation."""
+    if completeness.get("state") != "FULL_UNIVERSE_CERTIFIED":
+        raise ValueError("canonical evaluation is not eligible for candidate construction")
+    candidate = build_immutable_candidate(
+        universe=universe, identity=identity, records=first["terminal_records"],
+        completeness=completeness, methodology_version=REGISTRY_VERSION,
+        provider_evidence_version=PROVIDER_EVIDENCE_VERSION,
+        valuation_version=VALUATION_VERSION, pillar_version=PILLAR_VERSION,
+        action_engine_version=ACTION_VERSION,
+    )
+    second_candidate = build_immutable_candidate(
+        universe=universe, identity=identity, records=second["terminal_records"],
+        completeness=second_completeness, methodology_version=REGISTRY_VERSION,
+        provider_evidence_version=PROVIDER_EVIDENCE_VERSION,
+        valuation_version=VALUATION_VERSION, pillar_version=PILLAR_VERSION,
+        action_engine_version=ACTION_VERSION,
+    )
+    determinism = compare_deterministic_candidates(candidate, second_candidate)
+    determinism["structural_diff"] = compare_replay_candidates(candidate, second_candidate)
+    return {
+        "run_identity_sha256": identity["run_identity_sha256"],
+        "candidate": candidate,
+        "second_candidate": second_candidate,
+        "determinism": determinism,
+    }
+
+
 def aggregate_complete_run(*, universe: Mapping[str, Any], identity: Mapping[str, Any],
                            shard_payloads: Sequence[Mapping[str, Any]],
                            candidate_eligible: bool = True,
                            checkpoint_dir: Path | None = None,
-                           evaluation_checkpoint: Mapping[str, Any] | None = None) -> dict[str, Any]:
+                           evaluation_checkpoint: Mapping[str, Any] | None = None,
+                           candidate_checkpoint: Mapping[str, Any] | None = None) -> dict[str, Any]:
     acquired = validate_shards(universe=universe, identity=identity, shards=shard_payloads)
     if evaluation_checkpoint is None:
         first = evaluate_records(identity=identity, acquired=acquired, checkpoint_dir=checkpoint_dir)
@@ -718,28 +750,26 @@ def aggregate_complete_run(*, universe: Mapping[str, Any], identity: Mapping[str
     determinism = {"status": "NOT_ELIGIBLE_INCOMPLETE_RUN"}
     second_candidate = None
     if candidate_eligible and completeness["state"] == "FULL_UNIVERSE_CERTIFIED":
-        candidate = build_immutable_candidate(
-            universe=universe, identity=identity, records=first["terminal_records"],
-            completeness=completeness, methodology_version=REGISTRY_VERSION,
-            provider_evidence_version=PROVIDER_EVIDENCE_VERSION,
-            valuation_version=VALUATION_VERSION, pillar_version=PILLAR_VERSION,
-            action_engine_version=ACTION_VERSION,
-        )
-        if second is None:
-            second = evaluate_records(identity=identity, acquired=list(reversed(acquired)))
-            second_completeness = certify_complete_run(
-                universe=universe, records=second["terminal_records"],
-                acquisition_complete=True, decision_processing_complete=True,
+        if candidate_checkpoint is not None:
+            if candidate_checkpoint.get("run_identity_sha256") != identity["run_identity_sha256"]:
+                raise ValueError("candidate checkpoint belongs to a different immutable run")
+            candidate = dict(candidate_checkpoint["candidate"])
+            second_candidate = dict(candidate_checkpoint["second_candidate"])
+            determinism = dict(candidate_checkpoint["determinism"])
+        else:
+            if second is None:
+                second = evaluate_records(identity=identity, acquired=list(reversed(acquired)))
+                second_completeness = certify_complete_run(
+                    universe=universe, records=second["terminal_records"],
+                    acquisition_complete=True, decision_processing_complete=True,
+                )
+            candidate_state = build_candidate_determinism_checkpoint(
+                universe=universe, identity=identity, first=first, completeness=completeness,
+                second=second, second_completeness=second_completeness,
             )
-        second_candidate = build_immutable_candidate(
-            universe=universe, identity=identity, records=second["terminal_records"],
-            completeness=second_completeness, methodology_version=REGISTRY_VERSION,
-            provider_evidence_version=PROVIDER_EVIDENCE_VERSION,
-            valuation_version=VALUATION_VERSION, pillar_version=PILLAR_VERSION,
-            action_engine_version=ACTION_VERSION,
-        )
-        determinism = compare_deterministic_candidates(candidate, second_candidate)
-        determinism["structural_diff"] = compare_replay_candidates(candidate, second_candidate)
+            candidate = candidate_state["candidate"]
+            second_candidate = candidate_state["second_candidate"]
+            determinism = candidate_state["determinism"]
     calls = sum(int((payload.get("provider_telemetry") or {}).get("provider_calls") or 0) for payload in shard_payloads)
     cache_hits = sum(int((payload.get("provider_telemetry") or {}).get("cache_hits") or 0) for payload in shard_payloads)
     retries = sum(int((payload.get("provider_telemetry") or {}).get("retry_count") or 0) for payload in shard_payloads)
@@ -853,7 +883,7 @@ def _canary_coverage(acquired: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
 __all__ = [
     "ACTION_VERSION", "AUTHORIZED_ACQUISITION_FAMILIES", "NORMALIZATION_VERSION",
     "PROVIDER_EVIDENCE_VERSION", "SHARD_SIZE", "VERSION", "acquire_shard",
-    "aggregate_complete_run", "build_run_identity", "deserialize_bars",
+    "aggregate_complete_run", "build_candidate_determinism_checkpoint", "build_run_identity", "deserialize_bars",
     "deterministic_canary", "deterministic_shards", "evaluate_records",
     "serialize_bars", "validate_executor_checkpoint", "validate_shards",
 ]

@@ -129,7 +129,7 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  build-publication-candidate:
+  build-immutable-candidate-checkpoint:
     needs: certify-canonical-orders
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -160,13 +160,66 @@ jobs:
           gh run download "$SOURCE_RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern "atlas-finnhub-full-shard-*-$SOURCE_RUN_ID" --dir audit_results/recovery/downloaded
           mkdir -p audit_results/recovery/shards
           find audit_results/recovery/downloaded -name 'shard-*.json' -exec cp '{}' audit_results/recovery/shards/ \;
-      - name: Resume from canonical checkpoint and build publication candidate
+      - name: Build immutable candidates and certify deterministic replay
+        run: >-
+          python scripts/run_finnhub_full_universe.py build-candidate-checkpoint
+          --shards audit_results/recovery/shards
+          --merged-checkpoint audit_results/recovery/merged/merged_shard_checkpoint.json
+          --canonical-checkpoint audit_results/recovery/canonical/canonical_evaluation_forward_checkpoint.json
+          --replay-checkpoint audit_results/recovery/canonical/canonical_evaluation_reverse_checkpoint.json
+          --chunks audit_results/recovery/chunks
+          --output audit_results/recovery/candidate
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-immutable-candidate-checkpoint-${{ github.run_id }}
+          path: audit_results/recovery/candidate/immutable_candidate_checkpoint.json
+          if-no-files-found: error
+          retention-days: 7
+
+  build-publication-candidate:
+    needs: build-immutable-candidate-checkpoint
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - uses: actions/download-artifact@v4
+        with:
+          name: atlas-merged-shard-checkpoint-${{ github.run_id }}
+          path: audit_results/recovery/merged
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: atlas-canonical-evaluation-*-checkpoint-${{ github.run_id }}
+          path: audit_results/recovery/canonical
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: atlas-canonical-evaluation-chunk-*-${{ github.run_id }}
+          path: audit_results/recovery/chunks
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: atlas-immutable-candidate-checkpoint-${{ github.run_id }}
+          path: audit_results/recovery/candidate
+      - name: Download immutable source shards without provider acquisition
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download "$SOURCE_RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern "atlas-finnhub-full-shard-*-$SOURCE_RUN_ID" --dir audit_results/recovery/downloaded
+          mkdir -p audit_results/recovery/shards
+          find audit_results/recovery/downloaded -name 'shard-*.json' -exec cp '{}' audit_results/recovery/shards/ \;
+      - name: Resume from immutable candidate checkpoint and build publication bundle
         run: >-
           python scripts/run_finnhub_full_universe.py publish-checkpoint
           --shards audit_results/recovery/shards
           --merged-checkpoint audit_results/recovery/merged/merged_shard_checkpoint.json
           --canonical-checkpoint audit_results/recovery/canonical/canonical_evaluation_forward_checkpoint.json
           --replay-checkpoint audit_results/recovery/canonical/canonical_evaluation_reverse_checkpoint.json
+          --candidate-checkpoint audit_results/recovery/candidate/immutable_candidate_checkpoint.json
           --chunks audit_results/recovery/chunks
           --output audit_results/recovery/final
       - name: Confirm zero provider calls and production artifacts unchanged
