@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 
 from services.transcript_intelligence_runtime import (
+    _bind_source_excerpt_hashes, _source_span_ledger,
     clear_transcript_runtime_cache, retrieve_and_summarize_transcript,
     transcript_period_index, validate_grounded_summary,
 )
@@ -148,3 +149,35 @@ def test_unsupported_causal_and_forward_claims_fail_closed():
     valid, _, diagnostics = validate_grounded_summary(payload, source)
     assert valid is False
     assert diagnostics[0]["failure_reason"] in {"PARAPHRASE_NOT_TRACEABLE", "UNSUPPORTED_CLAIM"}
+
+
+def test_generation_span_id_binds_to_exact_source_and_not_model_reconstruction():
+    source = "Revenue was $10 billion. Demand remained strong."
+    ledger, _ = _source_span_ledger(source)
+    span_id = next(key for key, value in ledger.items() if "Revenue" in value)
+    payload, _, _ = _summary({})
+    payload["management_summary"].update({
+        "source_span_id": span_id,
+        "source_excerpt": "Revenue was approximately $10 billion.",
+        "source_excerpt_hash": "model-does-not-compute-hashes",
+        "claim": "Revenue was $10 billion.",
+    })
+    bound = _bind_source_excerpt_hashes(payload, ledger)
+    assert bound["management_summary"]["source_excerpt"] == "Revenue was $10 billion."
+    assert bound["management_summary"]["source_excerpt_hash"] == hashlib.sha256(
+        b"Revenue was $10 billion."
+    ).hexdigest()
+
+
+def test_unknown_generation_span_id_fails_closed():
+    source = "Revenue was $10 billion."
+    ledger, _ = _source_span_ledger(source)
+    payload, _, _ = _summary({})
+    payload["management_summary"].update({
+        "source_span_id": "SPAN_DOES_NOT_EXIST",
+        "source_excerpt": source,
+    })
+    bound = _bind_source_excerpt_hashes(payload, ledger)
+    valid, _, diagnostics = validate_grounded_summary(bound, source + " Margin pressure remains a risk.")
+    assert valid is False
+    assert diagnostics[0]["failure_reason"] == "SCHEMA_FAILURE"

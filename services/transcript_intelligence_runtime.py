@@ -70,8 +70,27 @@ def _excerpt_hash(excerpt: str) -> str:
     return hashlib.sha256(excerpt.encode("utf-8")).hexdigest()
 
 
-def _bind_source_excerpt_hashes(payload: Any) -> Any:
-    """Attach cryptographic identities deterministically; models do not calculate hashes."""
+def _source_span_ledger(source: str) -> tuple[dict[str, str], list[dict[str, str]]]:
+    """Create stable, exact source spans so generation selects evidence instead of recreating it."""
+    pieces = re.split(r"(?<=[.!?])\s+|\n+", source)
+    spans: list[str] = []
+    for piece in pieces:
+        piece = piece.strip()
+        if not piece:
+            continue
+        if len(piece) <= 700:
+            spans.append(piece)
+            continue
+        for start in range(0, len(piece), 700):
+            chunk = piece[start:start + 700].strip()
+            if chunk:
+                spans.append(chunk)
+    ledger = {f"SPAN_{index:05d}": span for index, span in enumerate(spans, start=1)}
+    return ledger, [{"source_span_id": key, "source_excerpt": value} for key, value in ledger.items()]
+
+
+def _bind_source_excerpt_hashes(payload: Any, span_ledger: Mapping[str, str] | None = None) -> Any:
+    """Attach canonical selected spans and hashes; models do not calculate cryptographic identities."""
     if not isinstance(payload, Mapping):
         return payload
 
@@ -79,7 +98,13 @@ def _bind_source_excerpt_hashes(payload: Any) -> Any:
         if not isinstance(value, Mapping):
             return value
         item = dict(value)
-        excerpt = str(item.get("source_excerpt") or "").strip()
+        span_id = str(item.get("source_span_id") or "").strip()
+        selected = (span_ledger or {}).get(span_id)
+        excerpt = (
+            selected if selected is not None else ""
+            if span_ledger is not None else str(item.get("source_excerpt") or "").strip()
+        )
+        item["source_excerpt"] = excerpt
         item["source_excerpt_hash"] = _excerpt_hash(excerpt) if excerpt else ""
         return item
 
@@ -223,6 +248,7 @@ def _openai_summarizer(payload: Mapping[str, Any]) -> tuple[Mapping[str, Any] | 
         return None, "OPENAI_NOT_CONFIGURED", model
     try:
         from openai import OpenAI
+        span_ledger, source_spans = _source_span_ledger(str(payload.get("transcript") or ""))
         response = OpenAI(api_key=api_key).chat.completions.create(
             model=model, temperature=0, max_tokens=2200,
             response_format={"type": "json_object"},
@@ -230,12 +256,13 @@ def _openai_summarizer(payload: Mapping[str, Any]) -> tuple[Mapping[str, Any] | 
                 {"role": "system", "content": (
                     "Summarize only the supplied earnings-call transcript. Do not use model memory, web facts, "
                     "investment ratings, calculations, or unsupported numbers. Return one JSON object. Every "
-                    "material claim must be an object with claim, source_excerpt, source_excerpt_hash, claim_type, "
-                    "and source_section. source_excerpt must be a short exact verbatim excerpt copied from the "
-                    "supplied transcript and must contain every number and unit stated in claim. "
+                    "material claim must be an object with claim, source_span_id, source_excerpt, "
+                    "source_excerpt_hash, claim_type, and source_section. Select one supplied source_span_id and "
+                    "copy its source_excerpt exactly; the selected span must contain every number and unit in claim. "
                     "source_excerpt_hash must be present as an empty string; ATLAS computes it deterministically. "
-                    "Use only material words found in the excerpt when writing a concise paraphrase. Keep each claim "
-                    "no broader than its excerpt; omit unsupported claims and use empty lists when "
+                    "Use only material words found in the excerpt when writing a concise paraphrase. Do not add a "
+                    "company name, fiscal year, cause, intent, or outlook unless it appears in that exact span. "
+                    "Keep each claim no broader than its excerpt; omit unsupported claims and use empty lists when "
                     "evidence is absent. Never output the complete transcript."
                 )},
                 {"role": "user", "content": json.dumps({
@@ -245,19 +272,21 @@ def _openai_summarizer(payload: Mapping[str, Any]) -> tuple[Mapping[str, Any] | 
                     "output_schema": {
                         "management_summary": {
                             "claim": "string", "source_excerpt": "exact source excerpt",
-                            "source_excerpt_hash": "", "claim_type": "string", "source_section": "string",
+                            "source_span_id": "SPAN_00001", "source_excerpt_hash": "",
+                            "claim_type": "string", "source_section": "string",
                         },
                         **{field: [{
                             "claim": "string", "source_excerpt": "exact source excerpt",
-                            "source_excerpt_hash": "", "claim_type": "string", "source_section": "string",
+                            "source_span_id": "SPAN_00001", "source_excerpt_hash": "",
+                            "claim_type": "string", "source_section": "string",
                         }] for field in SUMMARY_FIELDS},
                     },
-                    "transcript": payload.get("transcript"),
+                    "source_spans": source_spans,
                 }, sort_keys=True, default=str)},
             ],
         )
         parsed = json.loads(response.choices[0].message.content or "{}")
-        return _bind_source_excerpt_hashes(parsed) if isinstance(parsed, Mapping) else None, "OPENAI", model
+        return _bind_source_excerpt_hashes(parsed, span_ledger) if isinstance(parsed, Mapping) else None, "OPENAI", model
     except Exception:
         return None, "OPENAI_ERROR", model
 
