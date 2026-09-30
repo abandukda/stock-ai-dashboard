@@ -1,0 +1,59 @@
+name: ATLAS Earnings Transcript Functional QA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/full-universe-closure-temp
+    paths:
+      - services/transcript_provider.py
+      - services/transcript_intelligence_runtime.py
+      - scripts/earnings_transcript_live_qa.py
+      - ui/earnings_vnext.py
+      - tests/test_transcript_provider_contract.py
+      - tests/test_transcript_intelligence_runtime.py
+      - tests/test_atlas_vnext_earnings.py
+      - .github/workflows/atlas_earnings_transcript_qa.yml
+
+permissions:
+  contents: read
+
+jobs:
+  transcript-functional-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PYTHONPATH: "."
+      ATLAS_TRANSCRIPT_API_KEY: ${{ secrets.EARNINGSCALL_API_KEY }}
+      ATLAS_TRANSCRIPT_API_BASE_URL: https://v2.api.earningscall.biz
+      ATLAS_TRANSCRIPT_PROVIDER: earningscall
+      ATLAS_TRANSCRIPT_LICENSE_STATE: DEVELOPMENT_PRECOMMERCIAL
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: Run governed transcript and Earnings tests
+        run: >-
+          pytest -q
+          tests/test_transcript_provider_contract.py
+          tests/test_transcript_intelligence_runtime.py
+          tests/test_atlas_vnext_earnings.py
+          tests/test_provider_family_boundary_adversarial.py
+      - name: Run bounded live EarningsCall and AI QA
+        run: python scripts/earnings_transcript_live_qa.py --symbols AAPL,MSFT,NVDA
+      - name: Assert analytical and production artifacts unchanged
+        run: |
+          if ! git diff --quiet -- market_full_scan.json market_prescreen.json market_scan_state.json publication_manifest.json; then
+            echo "::error::Transcript QA modified production artifacts"
+            exit 1
+          fi
+      - name: Upload metadata-only QA artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-earnings-transcript-qa-${{ github.run_id }}
+          path: audit_results/earnings_transcript_live_qa/report.json
+          if-no-files-found: warn

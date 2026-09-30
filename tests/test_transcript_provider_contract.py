@@ -131,3 +131,17 @@ def test_earningscall_discovers_latest_available_period_when_requested_period_em
     assert record.payload["requested_period"] == "2026-Q2"
     assert record.payload["resolved_period"] == "2026-Q1"
     assert record.provenance.effective_period == "2026-Q1"
+
+
+def test_earningscall_period_index_contains_metadata_without_raw_text():
+    provider = ConfiguredTranscriptProvider(
+        api_key="secret", base_url="https://v2.api.earningscall.biz", provider_name="earningscall",
+        get=lambda *_a, **_k: EarningsCallResponse({"events": [
+            {"year": 2025, "quarter": 4, "conference_date": "2026-01-20", "text": "must not leak"},
+            {"year": 2026, "quarter": 1, "conference_date": "2026-04-20"},
+        ]}),
+    )
+    record = provider.available_periods("AAPL")
+    assert [item["fiscal_quarter"] for item in record.payload["periods"]] == [1, 4]
+    assert "must not leak" not in str(record.payload)
+    assert record.provenance.endpoint_or_source_family == "EARNINGS_TRANSCRIPT_INDEX"

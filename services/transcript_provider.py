@@ -119,6 +119,57 @@ class ConfiguredTranscriptProvider:
             "raw_content": content, "raw_content_hash": content_hash,
         }, ("Raw transcript content is internal source evidence and is never included in customer projection.",))
 
+    def available_periods(self, symbol: str) -> GovernedRecord:
+        """Return governed period metadata without transcript bodies."""
+        ticker = str(symbol).upper().strip()
+        captured = _now()
+        if not self._key:
+            return self._unavailable(ticker, 0, 0, captured, "MISSING_API_KEY")
+        if not self._base or self._provider == "UNCONFIGURED_TRANSCRIPT_PROVIDER":
+            return self._unavailable(ticker, 0, 0, captured, "TRANSCRIPT_PROVIDER_NOT_CONFIGURED")
+        try:
+            response = self._get(
+                f"{self._base}/events", params={
+                    **({"apikey": self._key, "exchange": "nasdaq"} if self._provider == "EARNINGSCALL" else {}),
+                    "symbol": ticker.lower() if self._provider == "EARNINGSCALL" else ticker,
+                }, headers={} if self._provider == "EARNINGSCALL" else {"Authorization": f"Bearer {self._key}"},
+                timeout=20,
+            )
+            status = int(getattr(response, "status_code", 0) or 0)
+            payload = response.json() if status == 200 else {}
+        except Exception as exc:
+            return self._unavailable(ticker, 0, 0, captured, f"PROVIDER_ERROR:{type(exc).__name__}")
+        if status in {401, 403}:
+            return self._unavailable(
+                ticker, 0, 0, captured, "ENTITLEMENT_UNAVAILABLE", CertificationStatus.ENTITLEMENT_UNAVAILABLE,
+            )
+        events = payload.get("events") if isinstance(payload, Mapping) else None
+        periods: list[dict[str, Any]] = []
+        for event in events or ():
+            if not isinstance(event, Mapping) or not event.get("year") or not event.get("quarter"):
+                continue
+            periods.append({
+                "fiscal_year": int(event["year"]), "fiscal_quarter": int(event["quarter"]),
+                "call_date": event.get("call_date") or event.get("conference_date") or event.get("date"),
+                "provider_event_id": event.get("id") or event.get("event_id"),
+            })
+        periods.sort(key=lambda item: (item["fiscal_year"], item["fiscal_quarter"]), reverse=True)
+        if not periods:
+            return self._unavailable(ticker, 0, 0, captured, "TRANSCRIPT_DATA_UNAVAILABLE")
+        digest = _hash({"ticker": ticker, "periods": periods, "provider": self._provider})
+        return GovernedRecord(ProvenanceEnvelope(
+            provider=self._provider, dataset_family=DatasetFamily.OPTIONAL_QUALITATIVE_INTELLIGENCE,
+            endpoint_or_source_family="EARNINGS_TRANSCRIPT_INDEX", symbol=ticker,
+            canonical_security_id=ticker, capture_timestamp=captured,
+            raw_evidence_id=f"TRANSCRIPT_INDEX:{ticker}:{digest[:20]}", content_hash=digest,
+            freshness_status="CAPTURED", certification_status=CertificationStatus.UNVERIFIED_SHADOW,
+            license_class=self._license.value, display_permission=UsePermission.CONTEXT_ONLY,
+            derived_use_permission=UsePermission.CONTEXT_ONLY,
+            market_coverage_class=MarketCoverageClass.UNKNOWN, adapter_version=TRANSCRIPT_ADAPTER_VERSION,
+        ), {"periods": periods}, (
+            "The period index contains metadata only and grants no transcript publication permission.",
+        ))
+
     def _earningscall_transcript(self, ticker: str, year: int, quarter: int) -> Any:
         return self._get(
             f"{self._base}/transcript",

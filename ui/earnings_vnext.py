@@ -11,6 +11,10 @@ import streamlit as st
 
 from engines.earnings_decision_story import build_earnings_decision_story
 from services.session_stability import emit_page_interactive
+from services.transcript_intelligence_runtime import (
+    retrieve_and_summarize_transcript, transcript_period_index,
+)
+from services.transcript_provider import ConfiguredTranscriptProvider
 
 
 EARNINGS_VNEXT_VERSION: Final = "ATLAS_EARNINGS_VNEXT_V1"
@@ -249,16 +253,74 @@ def _render_transcript_intelligence(story: Mapping[str, Any], *, suffix: str) ->
     else:
         st.caption("Transcript commentary unavailable for this quarter.")
 
+    ticker = str(story.get("ticker") or "").upper()
     index = story.get("transcript_index") or {}
+    runtime_index_key = f"earnings-transcript-index-{ticker}"
+    runtime_result_key = f"earnings-transcript-result-{ticker}"
+    if isinstance(st.session_state.get(runtime_index_key), Mapping):
+        index = st.session_state[runtime_index_key]
     periods = ((index.get("data") or {}).get("periods") or []) if isinstance(index.get("data"), Mapping) else []
     periods = [item for item in periods if isinstance(item, Mapping) and item.get("fiscal_year") and item.get("fiscal_quarter")]
     if not periods:
         st.caption("Earnings-call transcript evidence is unavailable for this snapshot.")
+        if st.button("Check available earnings calls", key=f"load-transcript-index-{suffix}"):
+            with st.spinner("Checking verified earnings-call periods…"):
+                st.session_state[runtime_index_key] = transcript_period_index(ConfiguredTranscriptProvider(), ticker)
+            st.rerun()
     else:
         labels = [f"Q{int(item['fiscal_quarter'])} {int(item['fiscal_year'])}" for item in periods]
         selected = st.selectbox("Earnings-call period", labels, key=f"earnings-transcript-period-{suffix}")
         period = periods[labels.index(selected)]
-        st.caption("Earnings-call transcript retrieval is unavailable.")
+        if st.button("Load verified call insights", key=f"load-transcript-{suffix}"):
+            with st.spinner("Retrieving governed transcript evidence…"):
+                st.session_state[runtime_result_key] = retrieve_and_summarize_transcript(
+                    ticker, year=int(period["fiscal_year"]), quarter=int(period["fiscal_quarter"]),
+                )
+        result = st.session_state.get(runtime_result_key)
+        if result is not None:
+            operation = result.operation_metadata
+            requested, resolved = operation.get("requested_period"), operation.get("resolved_period")
+            st.caption(
+                f"Transcript period: {_display(resolved or requested)} · "
+                f"Call date: {_customer_date(operation.get('call_date'))} · Verified evidence captured"
+            )
+            if requested and resolved and requested != resolved:
+                st.warning(f"Requested {requested}; the latest available governed evidence resolved to {resolved}.")
+            projection = result.customer_projection
+            if projection.get("semantic_status") == "AVAILABLE":
+                st.info("AI summary of verified earnings-call evidence")
+                summary = projection.get("management_summary")
+                if isinstance(summary, Mapping) and summary.get("text"):
+                    st.write(summary["text"])
+                for label, key in (
+                    ("Key themes", "management_themes"), ("Guidance", "verified_guidance_statements"),
+                    ("Opportunities", "supported_opportunities"), ("Risks", "supported_risks"),
+                    ("Analyst Q&A themes", "analyst_question_themes"),
+                    ("What ATLAS is watching next", "monitoring_items"),
+                ):
+                    claims = projection.get(key) or []
+                    if claims:
+                        st.markdown(f"**{label}**")
+                        for claim in claims[:4]:
+                            st.markdown(f"- {_display(claim.get('text') if isinstance(claim, Mapping) else claim)}")
+            else:
+                license_state = str(operation.get("license_state") or "")
+                if license_state == "DEVELOPMENT_PRECOMMERCIAL":
+                    st.info("Transcript evidence is available for internal validation but is not licensed for customer display.")
+                else:
+                    st.caption(_display(projection.get("status_detail"), "AI summary unavailable."))
+            st.caption("Transcript insights are contextual and do not independently change ATLAS's rating.")
+            st.markdown(
+                '<span data-atlas-transcript-year="{year}" data-atlas-transcript-quarter="{quarter}" '
+                'data-atlas-transcript-cache-status="{status}" data-atlas-transcript-provider-calls="{calls}" '
+                'data-atlas-transcript-evidence-id="{evidence}" style="display:none"></span>'.format(
+                    year=escape(_display(period.get("fiscal_year"), "")),
+                    quarter=escape(_display(period.get("fiscal_quarter"), "")),
+                    status=escape(_display(operation.get("cache_status"), "UNAVAILABLE")),
+                    calls=escape(_display(operation.get("provider_call_count"), "0")),
+                    evidence=escape(_display(operation.get("transcript_evidence_id"), "")),
+                ), unsafe_allow_html=True,
+            )
     operation = transcript.get("operation_metadata") if isinstance(transcript, Mapping) else {}
     if isinstance(operation, Mapping) and operation:
         st.markdown(

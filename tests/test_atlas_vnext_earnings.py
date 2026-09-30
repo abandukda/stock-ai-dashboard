@@ -82,6 +82,14 @@ def test_guidance_transcript_revision_and_reaction_boundaries():
     assert story["transcript_intelligence"]["semantic_status"] == "AVAILABLE"
 
 
+def test_active_earnings_ui_uses_governed_transcript_runtime_not_placeholder():
+    source = (ROOT / "ui" / "earnings_vnext.py").read_text(encoding="utf-8")
+    assert "retrieve_and_summarize_transcript" in source
+    assert "transcript_period_index" in source
+    assert "Earnings-call transcript retrieval is unavailable." not in source
+    assert "Transcript insights are contextual and do not independently change ATLAS's rating." in source
+
+
 def test_etf_is_not_applicable_and_not_listed_as_corporate_event():
     row = _row()
     row["security_type"] = "ETF"
