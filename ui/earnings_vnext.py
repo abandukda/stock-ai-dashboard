@@ -290,8 +290,8 @@ def _render_transcript_intelligence(story: Mapping[str, Any], *, suffix: str) ->
             if projection.get("semantic_status") == "AVAILABLE":
                 st.info("AI summary of verified earnings-call evidence")
                 summary = projection.get("management_summary")
-                if isinstance(summary, Mapping) and summary.get("text"):
-                    st.write(summary["text"])
+                if isinstance(summary, Mapping) and summary.get("claim"):
+                    st.write(summary["claim"])
                 for label, key in (
                     ("Key themes", "management_themes"), ("Guidance", "verified_guidance_statements"),
                     ("Opportunities", "supported_opportunities"), ("Risks", "supported_risks"),
@@ -302,7 +302,7 @@ def _render_transcript_intelligence(story: Mapping[str, Any], *, suffix: str) ->
                     if claims:
                         st.markdown(f"**{label}**")
                         for claim in claims[:4]:
-                            st.markdown(f"- {_display(claim.get('text') if isinstance(claim, Mapping) else claim)}")
+                            st.markdown(f"- {_display(claim.get('claim') if isinstance(claim, Mapping) else claim)}")
             else:
                 license_state = str(operation.get("license_state") or "")
                 if license_state == "DEVELOPMENT_PRECOMMERCIAL":

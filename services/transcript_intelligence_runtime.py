@@ -14,8 +14,8 @@ from services.transcript_provider import (
 )
 
 
-TRANSCRIPT_SUMMARY_PROMPT_VERSION = "ATLAS_TRANSCRIPT_SUMMARY_PROMPT_V1"
-TRANSCRIPT_SUMMARY_SCHEMA_VERSION = "ATLAS_TRANSCRIPT_SUMMARY_SCHEMA_V1"
+TRANSCRIPT_SUMMARY_PROMPT_VERSION = "ATLAS_TRANSCRIPT_SUMMARY_PROMPT_V2"
+TRANSCRIPT_SUMMARY_SCHEMA_VERSION = "ATLAS_TRANSCRIPT_SUMMARY_SCHEMA_V2"
 SUMMARY_FIELDS = (
     "management_themes", "key_takeaways", "supported_opportunities", "supported_risks",
     "verified_guidance_statements", "capital_allocation_comments", "demand_comments",
@@ -53,28 +53,145 @@ def transcript_period_index(provider: ConfiguredTranscriptProvider, symbol: str)
     }
 
 
-def _claim_valid(claim: Any, source: str) -> bool:
-    if not isinstance(claim, Mapping):
-        return False
-    text, evidence = str(claim.get("text") or "").strip(), str(claim.get("evidence") or "").strip()
-    if not text or not evidence or len(evidence) > 500 or evidence not in source:
-        return False
-    source_numbers = set(re.findall(r"(?<!\w)[+-]?\d[\d,.]*%?", evidence))
-    claim_numbers = set(re.findall(r"(?<!\w)[+-]?\d[\d,.]*%?", text))
-    return claim_numbers.issubset(source_numbers)
+_FAILURE_TAXONOMY = frozenset({
+    "EXACT_MATCH_TOO_STRICT", "PARAPHRASE_NOT_TRACEABLE", "NUMERIC_MISMATCH",
+    "UNSUPPORTED_CLAIM", "MISSING_SOURCE_SPAN", "SCHEMA_FAILURE",
+})
+_MEANING_STOPWORDS = frozenset({
+    "a", "an", "and", "are", "as", "at", "be", "been", "being", "by", "for", "from",
+    "had", "has", "have", "in", "is", "it", "its", "of", "on", "or", "said", "says",
+    "that", "the", "their", "they", "this", "to", "was", "were", "with",
+})
+_CAUSAL_MARKERS = frozenset({"because", "caused", "driven", "due", "resulted"})
+_FORWARD_MARKERS = frozenset({"anticipate", "expect", "forecast", "guidance", "outlook", "project", "will"})
 
 
-def validate_grounded_summary(payload: Any, source: str) -> tuple[bool, tuple[str, ...]]:
+def _excerpt_hash(excerpt: str) -> str:
+    return hashlib.sha256(excerpt.encode("utf-8")).hexdigest()
+
+
+def _bind_source_excerpt_hashes(payload: Any) -> Any:
+    """Attach cryptographic identities deterministically; models do not calculate hashes."""
     if not isinstance(payload, Mapping):
-        return False, ("SUMMARY_NOT_OBJECT",)
+        return payload
+
+    def bound(value: Any) -> Any:
+        if not isinstance(value, Mapping):
+            return value
+        item = dict(value)
+        excerpt = str(item.get("source_excerpt") or "").strip()
+        item["source_excerpt_hash"] = _excerpt_hash(excerpt) if excerpt else ""
+        return item
+
+    result = dict(payload)
+    result["management_summary"] = bound(payload.get("management_summary"))
+    for field in SUMMARY_FIELDS:
+        values = payload.get(field, [])
+        result[field] = [bound(item) for item in values] if isinstance(values, list) else values
+    return result
+
+
+def _number_tokens(text: str) -> tuple[str, ...]:
+    """Keep numeric units attached so percent/basis-point claims cannot cross-match."""
+    pattern = r"(?<!\w)(?:[$€£])?[+-]?\d[\d,]*(?:\.\d+)?(?:\s?(?:%|percent|percentage points?|bps?|basis points?|million|billion|thousand))?"
+    return tuple(re.sub(r"\s+", " ", item.strip().lower()) for item in re.findall(pattern, text, re.I))
+
+
+def _words(text: str) -> set[str]:
+    return {
+        word for word in re.findall(r"[a-z][a-z'-]+", text.lower())
+        if word not in _MEANING_STOPWORDS and len(word) > 2
+    }
+
+
+def _claim_diagnostic(claim: Any, source: str, *, field: str, index: int) -> dict[str, Any]:
+    diagnostic: dict[str, Any] = {
+        "field": field, "claim_index": index, "claim_type": None, "claim_text": None,
+        "numeric_tokens": [], "candidate_supporting_excerpt_hash": None,
+        "match_reason": None, "failure_reason": None,
+    }
+    if not isinstance(claim, Mapping):
+        diagnostic.update(match_reason="CLAIM_NOT_OBJECT", failure_reason="SCHEMA_FAILURE")
+        return diagnostic
+    text = str(claim.get("claim") or "").strip()
+    excerpt = str(claim.get("source_excerpt") or "").strip()
+    supplied_hash = str(claim.get("source_excerpt_hash") or "").strip().lower()
+    claim_type = str(claim.get("claim_type") or "").strip().upper()
+    diagnostic.update(
+        claim_type=claim_type or None, claim_text=text or None,
+        numeric_tokens=list(_number_tokens(text)),
+        candidate_supporting_excerpt_hash=_excerpt_hash(excerpt) if excerpt else None,
+    )
+    if not text or not excerpt or not claim_type or not supplied_hash:
+        diagnostic.update(match_reason="REQUIRED_CLAIM_FIELD_MISSING", failure_reason="SCHEMA_FAILURE")
+        return diagnostic
+    if len(excerpt) > 700:
+        diagnostic.update(match_reason="SOURCE_EXCERPT_TOO_LONG", failure_reason="SCHEMA_FAILURE")
+        return diagnostic
+    expected_hash = _excerpt_hash(excerpt)
+    if supplied_hash != expected_hash:
+        diagnostic.update(match_reason="SOURCE_EXCERPT_HASH_MISMATCH", failure_reason="SCHEMA_FAILURE")
+        return diagnostic
+    if excerpt not in source:
+        compact = lambda value: re.sub(r"\s+", " ", value).strip().casefold()
+        failure = "EXACT_MATCH_TOO_STRICT" if compact(excerpt) in compact(source) else "MISSING_SOURCE_SPAN"
+        diagnostic.update(match_reason="SOURCE_EXCERPT_NOT_VERBATIM", failure_reason=failure)
+        return diagnostic
+    claim_numbers, excerpt_numbers = set(_number_tokens(text)), set(_number_tokens(excerpt))
+    if not claim_numbers.issubset(excerpt_numbers):
+        diagnostic.update(match_reason="NUMERIC_TOKEN_OR_UNIT_NOT_IN_EXCERPT", failure_reason="NUMERIC_MISMATCH")
+        return diagnostic
+    claim_words, excerpt_words = _words(text), _words(excerpt)
+    missing = claim_words - excerpt_words
+    if missing:
+        diagnostic.update(
+            match_reason="CLAIM_MATERIAL_TERMS_NOT_TRACEABLE:" + ",".join(sorted(missing)[:8]),
+            failure_reason="PARAPHRASE_NOT_TRACEABLE",
+        )
+        return diagnostic
+    for markers, reason in ((_CAUSAL_MARKERS, "UNSUPPORTED_CAUSAL_STATEMENT"),
+                            (_FORWARD_MARKERS, "UNSUPPORTED_FORWARD_STATEMENT")):
+        if claim_words & markers and not excerpt_words & markers:
+            diagnostic.update(match_reason=reason, failure_reason="UNSUPPORTED_CLAIM")
+            return diagnostic
+    diagnostic.update(match_reason="VERBATIM_SPAN_HASH_NUMBERS_AND_MEANING_PASS", failure_reason=None)
+    return diagnostic
+
+
+def validate_grounded_summary(
+    payload: Any, source: str,
+) -> tuple[bool, tuple[str, ...], tuple[Mapping[str, Any], ...]]:
+    if not isinstance(payload, Mapping):
+        return False, ("SUMMARY_NOT_OBJECT",), ({
+            "field": "summary", "claim_index": 0, "claim_type": None, "claim_text": None,
+            "numeric_tokens": [], "candidate_supporting_excerpt_hash": None,
+            "match_reason": "SUMMARY_NOT_OBJECT", "failure_reason": "SCHEMA_FAILURE",
+        },)
     violations: list[str] = []
-    if not _claim_valid(payload.get("management_summary"), source):
+    diagnostics: list[Mapping[str, Any]] = []
+    management = _claim_diagnostic(payload.get("management_summary"), source, field="management_summary", index=0)
+    diagnostics.append(management)
+    if management["failure_reason"]:
         violations.append("MANAGEMENT_SUMMARY_UNGROUNDED")
     for field in SUMMARY_FIELDS:
         values = payload.get(field, [])
-        if not isinstance(values, list) or any(not _claim_valid(item, source) for item in values):
+        if not isinstance(values, list):
             violations.append(f"{field.upper()}_UNGROUNDED")
-    return not violations, tuple(violations)
+            diagnostics.append({
+                "field": field, "claim_index": 0, "claim_type": None, "claim_text": None,
+                "numeric_tokens": [], "candidate_supporting_excerpt_hash": None,
+                "match_reason": "CLAIM_LIST_NOT_ARRAY", "failure_reason": "SCHEMA_FAILURE",
+            })
+            continue
+        field_failed = False
+        for index, item in enumerate(values):
+            diagnostic = _claim_diagnostic(item, source, field=field, index=index)
+            diagnostics.append(diagnostic)
+            field_failed = field_failed or bool(diagnostic["failure_reason"])
+        if field_failed:
+            violations.append(f"{field.upper()}_UNGROUNDED")
+    assert all(not item.get("failure_reason") or item["failure_reason"] in _FAILURE_TAXONOMY for item in diagnostics)
+    return not violations, tuple(violations), tuple(diagnostics)
 
 
 def _redact_grounding_excerpts(payload: Mapping[str, Any]) -> dict[str, Any]:
@@ -82,12 +199,15 @@ def _redact_grounding_excerpts(payload: Mapping[str, Any]) -> dict[str, Any]:
     def cleaned(claim: Any) -> dict[str, Any] | None:
         if not isinstance(claim, Mapping):
             return None
-        text, evidence = str(claim.get("text") or "").strip(), str(claim.get("evidence") or "").strip()
+        text = str(claim.get("claim") or "").strip()
+        evidence = str(claim.get("source_excerpt") or "").strip()
         if not text:
             return None
         return {
-            "text": text,
-            "grounding_evidence_hash": hashlib.sha256(evidence.encode()).hexdigest() if evidence else None,
+            "claim": text,
+            "claim_type": str(claim.get("claim_type") or "").strip().upper(),
+            "source_section": str(claim.get("source_section") or "").strip() or None,
+            "source_excerpt_hash": _excerpt_hash(evidence) if evidence else None,
         }
     result: dict[str, Any] = {"management_summary": cleaned(payload.get("management_summary"))}
     for field in SUMMARY_FIELDS:
@@ -109,25 +229,35 @@ def _openai_summarizer(payload: Mapping[str, Any]) -> tuple[Mapping[str, Any] | 
             messages=[
                 {"role": "system", "content": (
                     "Summarize only the supplied earnings-call transcript. Do not use model memory, web facts, "
-                    "investment ratings, or unsupported numbers. Return one JSON object. management_summary must "
-                    "be {text,evidence}; every item in every list must be {text,evidence}. evidence must be a short "
-                    "exact excerpt copied from the supplied transcript. Use empty lists when evidence is absent. "
-                    "Never output the complete transcript."
+                    "investment ratings, calculations, or unsupported numbers. Return one JSON object. Every "
+                    "material claim must be an object with claim, source_excerpt, source_excerpt_hash, claim_type, "
+                    "and source_section. source_excerpt must be a short exact verbatim excerpt copied from the "
+                    "supplied transcript and must contain every number and unit stated in claim. "
+                    "source_excerpt_hash must be present as an empty string; ATLAS computes it deterministically. "
+                    "Use only material words found in the excerpt when writing a concise paraphrase. Keep each claim "
+                    "no broader than its excerpt; omit unsupported claims and use empty lists when "
+                    "evidence is absent. Never output the complete transcript."
                 )},
                 {"role": "user", "content": json.dumps({
                     "ticker": payload.get("ticker"),
                     "requested_period": payload.get("requested_period"),
                     "resolved_period": payload.get("resolved_period"),
                     "output_schema": {
-                        "management_summary": {"text": "string", "evidence": "exact source excerpt"},
-                        **{field: [{"text": "string", "evidence": "exact source excerpt"}] for field in SUMMARY_FIELDS},
+                        "management_summary": {
+                            "claim": "string", "source_excerpt": "exact source excerpt",
+                            "source_excerpt_hash": "", "claim_type": "string", "source_section": "string",
+                        },
+                        **{field: [{
+                            "claim": "string", "source_excerpt": "exact source excerpt",
+                            "source_excerpt_hash": "", "claim_type": "string", "source_section": "string",
+                        }] for field in SUMMARY_FIELDS},
                     },
                     "transcript": payload.get("transcript"),
                 }, sort_keys=True, default=str)},
             ],
         )
         parsed = json.loads(response.choices[0].message.content or "{}")
-        return parsed if isinstance(parsed, Mapping) else None, "OPENAI", model
+        return _bind_source_excerpt_hashes(parsed) if isinstance(parsed, Mapping) else None, "OPENAI", model
     except Exception:
         return None, "OPENAI_ERROR", model
 
@@ -170,7 +300,7 @@ def retrieve_and_summarize_transcript(
             "schema_version": TRANSCRIPT_SUMMARY_SCHEMA_VERSION,
             "transcript": raw,
         })
-        valid, violations = validate_grounded_summary(generated, raw)
+        valid, violations, claim_diagnostics = validate_grounded_summary(generated, raw)
         grounding = "PASS" if valid else "NOT_RUN" if generated is None else "FAIL"
         ai_status = (
             "PASS" if valid else "AI_PROVIDER_NOT_CONFIGURED" if model_provider == "OPENAI_NOT_CONFIGURED"
@@ -198,6 +328,8 @@ def retrieve_and_summarize_transcript(
         "capture_timestamp": evidence.provenance.capture_timestamp,
         "license_state": evidence.provenance.license_class,
         "grounding_status": grounding, "ai_summary_status": ai_status,
+        "grounding_violations": list(violations) if isinstance(raw, str) and raw.strip() else [],
+        "claim_diagnostics": list(claim_diagnostics) if isinstance(raw, str) and raw.strip() else [],
         "model_provider_status": model_provider if isinstance(raw, str) and raw.strip() else None,
         "non_scoring": True,
     })

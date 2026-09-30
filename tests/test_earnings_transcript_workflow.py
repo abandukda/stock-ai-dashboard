@@ -18,5 +18,6 @@ def test_transcript_qa_workflow_wires_secrets_without_values_or_release_jobs():
 def test_live_qa_artifact_never_serializes_raw_transcript():
     source = (ROOT / "scripts/earnings_transcript_live_qa.py").read_text()
     assert '"raw_transcript_serialized": False' in source
+    assert '"raw_source_excerpts_serialized": False' in source
     assert 'payload.get("raw_content")' not in source
     assert "canonical_decision_fields_mutated" in source

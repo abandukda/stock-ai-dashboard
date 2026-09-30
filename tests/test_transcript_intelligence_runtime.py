@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+
 from services.transcript_intelligence_runtime import (
     clear_transcript_runtime_cache, retrieve_and_summarize_transcript,
     transcript_period_index, validate_grounded_summary,
@@ -29,11 +31,23 @@ def _provider(calls, *, license_state="COMMERCIAL_LICENSE_CONFIRMED"):
 
 
 def _summary(_payload):
+    def claim(text, excerpt, claim_type):
+        return {
+            "claim": text, "source_excerpt": excerpt,
+            "source_excerpt_hash": hashlib.sha256(excerpt.encode("utf-8")).hexdigest(),
+            "claim_type": claim_type, "source_section": "PREPARED_REMARKS",
+        }
     return ({
-        "management_summary": {"text": "Revenue grew 10%.", "evidence": "Revenue grew 10% because customer demand improved."},
-        "management_themes": [{"text": "Customer demand improved.", "evidence": "Revenue grew 10% because customer demand improved."}],
+        "management_summary": claim(
+            "Revenue grew 10%.", "Revenue grew 10% because customer demand improved.", "PERFORMANCE"
+        ),
+        "management_themes": [claim(
+            "Customer demand improved.", "Revenue grew 10% because customer demand improved.", "DEMAND"
+        )],
         "key_takeaways": [], "supported_opportunities": [],
-        "supported_risks": [{"text": "Margin pressure remains a risk.", "evidence": "Margin pressure remains a risk."}],
+        "supported_risks": [claim(
+            "Margin pressure remains a risk.", "Margin pressure remains a risk.", "RISK"
+        )],
         "verified_guidance_statements": [], "capital_allocation_comments": [], "demand_comments": [],
         "margin_comments": [], "analyst_question_themes": [], "monitoring_items": [],
         "material_changes_vs_prior_call": [],
@@ -54,8 +68,9 @@ def test_period_index_and_exact_period_retrieval_cache():
     assert second.operation_metadata["provider_call_count"] == 0
     assert "raw_content" not in second.customer_projection
     assert "Revenue grew 10% because customer demand improved." not in str(second.insight.payload)
-    assert all("evidence" not in item for item in second.insight.payload["management_themes"])
-    assert second.insight.payload["management_summary"]["grounding_evidence_hash"]
+    assert all("source_excerpt" not in item for item in second.insight.payload["management_themes"])
+    assert second.insight.payload["management_summary"]["source_excerpt_hash"]
+    assert second.insight.payload["management_summary"]["claim"] == "Revenue grew 10%."
 
 
 def test_no_approved_summarizer_fails_closed_and_remains_non_scoring(monkeypatch):
@@ -83,7 +98,53 @@ def test_precommercial_summary_never_reaches_customer_projection():
 def test_unsupported_numeric_claim_is_rejected():
     source = "Revenue grew 10% because customer demand improved."
     payload, _, _ = _summary({})
-    payload["management_summary"] = {"text": "Revenue grew 25%.", "evidence": source}
-    valid, violations = validate_grounded_summary(payload, source + " Margin pressure remains a risk.")
+    payload["management_summary"]["claim"] = "Revenue grew 25%."
+    valid, violations, diagnostics = validate_grounded_summary(payload, source + " Margin pressure remains a risk.")
     assert valid is False
     assert "MANAGEMENT_SUMMARY_UNGROUNDED" in violations
+    assert diagnostics[0]["failure_reason"] == "NUMERIC_MISMATCH"
+    assert diagnostics[0]["numeric_tokens"] == ["25%"]
+    assert "source_excerpt" not in diagnostics[0]
+
+
+def test_excerpt_hash_and_verbatim_span_are_required():
+    source = "Revenue grew 10% because customer demand improved. Margin pressure remains a risk."
+    payload, _, _ = _summary({})
+    payload["management_summary"]["source_excerpt_hash"] = "0" * 64
+    valid, _, diagnostics = validate_grounded_summary(payload, source)
+    assert valid is False
+    assert diagnostics[0]["failure_reason"] == "SCHEMA_FAILURE"
+    assert diagnostics[0]["match_reason"] == "SOURCE_EXCERPT_HASH_MISMATCH"
+
+
+def test_concise_paraphrase_is_allowed_only_when_traceable_to_exact_excerpt():
+    source = (
+        "Revenue grew 10% because customer demand improved. "
+        "Enterprise demand remained strong during the quarter. Margin pressure remains a risk."
+    )
+    excerpt = "Enterprise demand remained strong during the quarter."
+    payload, _, _ = _summary({})
+    payload["management_summary"] = {
+        "claim": "Enterprise demand remained strong.",
+        "source_excerpt": excerpt,
+        "source_excerpt_hash": hashlib.sha256(excerpt.encode("utf-8")).hexdigest(),
+        "claim_type": "DEMAND", "source_section": "PREPARED_REMARKS",
+    }
+    valid, violations, diagnostics = validate_grounded_summary(payload, source)
+    assert valid is True, violations
+    assert all(item["failure_reason"] is None for item in diagnostics)
+
+
+def test_unsupported_causal_and_forward_claims_fail_closed():
+    source = "Demand improved during the quarter. Margin pressure remains a risk."
+    excerpt = "Demand improved during the quarter."
+    payload, _, _ = _summary({})
+    payload["management_summary"] = {
+        "claim": "Demand improved because pricing will increase.",
+        "source_excerpt": excerpt,
+        "source_excerpt_hash": hashlib.sha256(excerpt.encode("utf-8")).hexdigest(),
+        "claim_type": "DEMAND", "source_section": "PREPARED_REMARKS",
+    }
+    valid, _, diagnostics = validate_grounded_summary(payload, source)
+    assert valid is False
+    assert diagnostics[0]["failure_reason"] in {"PARAPHRASE_NOT_TRACEABLE", "UNSUPPORTED_CLAIM"}

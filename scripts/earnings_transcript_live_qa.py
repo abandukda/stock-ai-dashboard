@@ -51,6 +51,10 @@ def run(symbols: list[str]) -> dict[str, Any]:
             "provider_call_count": int(op.get("provider_call_count") or 0),
             "ai_summary_result": op.get("ai_summary_status"),
             "grounding_result": op.get("grounding_status"),
+            "grounding_violations": list(op.get("grounding_violations") or ()),
+            "failed_claim_diagnostics": [
+                item for item in (op.get("claim_diagnostics") or ()) if item.get("failure_reason")
+            ],
             "derived_evidence_id": first.insight.provenance.raw_evidence_id if first.insight else None,
             "model_provider": first.insight.payload.get("model_provider") if first.insight else None,
             "model_version": first.insight.payload.get("model_version") if first.insight else None,
@@ -67,6 +71,7 @@ def run(symbols: list[str]) -> dict[str, Any]:
         "results": results,
         "raw_transcript_serialized": False,
         "canonical_decision_fields_mutated": False,
+        "raw_source_excerpts_serialized": False,
     }
 
 
