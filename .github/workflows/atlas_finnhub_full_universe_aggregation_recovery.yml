@@ -131,6 +131,10 @@ jobs:
 
   build-immutable-candidate-checkpoint:
     needs: certify-canonical-orders
+    strategy:
+      fail-fast: false
+      matrix:
+        order: [forward, reverse]
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -168,17 +172,47 @@ jobs:
           --canonical-checkpoint audit_results/recovery/canonical/canonical_evaluation_forward_checkpoint.json
           --replay-checkpoint audit_results/recovery/canonical/canonical_evaluation_reverse_checkpoint.json
           --chunks audit_results/recovery/chunks
+          --order ${{ matrix.order }}
           --output audit_results/recovery/candidate
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: atlas-immutable-candidate-checkpoint-${{ github.run_id }}
-          path: audit_results/recovery/candidate/immutable_candidate_checkpoint.json
+          name: atlas-immutable-candidate-${{ matrix.order }}-checkpoint-${{ github.run_id }}
+          path: audit_results/recovery/candidate/immutable_candidate_${{ matrix.order }}_checkpoint.json
+          if-no-files-found: error
+          retention-days: 7
+
+  certify-candidate-determinism:
+    needs: build-immutable-candidate-checkpoint
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: atlas-immutable-candidate-*-checkpoint-${{ github.run_id }}
+          path: audit_results/recovery/candidate
+          merge-multiple: true
+      - name: Certify deterministic candidate replay
+        run: >-
+          python scripts/run_finnhub_full_universe.py certify-candidate-determinism
+          --canonical-candidate-checkpoint audit_results/recovery/candidate/immutable_candidate_forward_checkpoint.json
+          --replay-candidate-checkpoint audit_results/recovery/candidate/immutable_candidate_reverse_checkpoint.json
+          --output audit_results/recovery/determinism
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-candidate-determinism-checkpoint-${{ github.run_id }}
+          path: audit_results/recovery/determinism/candidate_determinism_checkpoint.json
           if-no-files-found: error
           retention-days: 7
 
   build-publication-candidate:
-    needs: build-immutable-candidate-checkpoint
+    needs: certify-candidate-determinism
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -203,8 +237,13 @@ jobs:
           merge-multiple: true
       - uses: actions/download-artifact@v4
         with:
-          name: atlas-immutable-candidate-checkpoint-${{ github.run_id }}
+          pattern: atlas-immutable-candidate-*-checkpoint-${{ github.run_id }}
           path: audit_results/recovery/candidate
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: atlas-candidate-determinism-checkpoint-${{ github.run_id }}
+          path: audit_results/recovery/determinism
       - name: Download immutable source shards without provider acquisition
         env:
           GH_TOKEN: ${{ github.token }}
@@ -219,7 +258,9 @@ jobs:
           --merged-checkpoint audit_results/recovery/merged/merged_shard_checkpoint.json
           --canonical-checkpoint audit_results/recovery/canonical/canonical_evaluation_forward_checkpoint.json
           --replay-checkpoint audit_results/recovery/canonical/canonical_evaluation_reverse_checkpoint.json
-          --candidate-checkpoint audit_results/recovery/candidate/immutable_candidate_checkpoint.json
+          --canonical-candidate-checkpoint audit_results/recovery/candidate/immutable_candidate_forward_checkpoint.json
+          --replay-candidate-checkpoint audit_results/recovery/candidate/immutable_candidate_reverse_checkpoint.json
+          --determinism-checkpoint audit_results/recovery/determinism/candidate_determinism_checkpoint.json
           --chunks audit_results/recovery/chunks
           --output audit_results/recovery/final
       - name: Confirm zero provider calls and production artifacts unchanged

@@ -724,6 +724,21 @@ def build_candidate_determinism_checkpoint(*, universe: Mapping[str, Any], ident
     }
 
 
+def build_single_immutable_candidate(*, universe: Mapping[str, Any], identity: Mapping[str, Any],
+                                     evaluation: Mapping[str, Any],
+                                     completeness: Mapping[str, Any]) -> dict[str, Any]:
+    """Build one order-specific candidate without changing candidate semantics."""
+    if completeness.get("state") != "FULL_UNIVERSE_CERTIFIED":
+        raise ValueError("canonical evaluation is not eligible for candidate construction")
+    return build_immutable_candidate(
+        universe=universe, identity=identity, records=evaluation["terminal_records"],
+        completeness=completeness, methodology_version=REGISTRY_VERSION,
+        provider_evidence_version=PROVIDER_EVIDENCE_VERSION,
+        valuation_version=VALUATION_VERSION, pillar_version=PILLAR_VERSION,
+        action_engine_version=ACTION_VERSION,
+    )
+
+
 def aggregate_complete_run(*, universe: Mapping[str, Any], identity: Mapping[str, Any],
                            shard_payloads: Sequence[Mapping[str, Any]],
                            candidate_eligible: bool = True,
@@ -883,7 +898,8 @@ def _canary_coverage(acquired: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
 __all__ = [
     "ACTION_VERSION", "AUTHORIZED_ACQUISITION_FAMILIES", "NORMALIZATION_VERSION",
     "PROVIDER_EVIDENCE_VERSION", "SHARD_SIZE", "VERSION", "acquire_shard",
-    "aggregate_complete_run", "build_candidate_determinism_checkpoint", "build_run_identity", "deserialize_bars",
+    "aggregate_complete_run", "build_candidate_determinism_checkpoint", "build_single_immutable_candidate",
+    "build_run_identity", "deserialize_bars",
     "deterministic_canary", "deterministic_shards", "evaluate_records",
     "serialize_bars", "validate_executor_checkpoint", "validate_shards",
 ]

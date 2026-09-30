@@ -21,11 +21,13 @@ from scripts.finnhub_p_fcf_peer_certification import load_governed_classificatio
 from services.finnhub_canonical_authority import FinnhubCanonicalAdapter
 from services.finnhub_shadow_provider import FINNHUB_PAID_CORE_CERTIFICATION_LICENSE, FinnhubShadowAdapter
 from services.finnhub_full_universe_executor import (
-    SHARD_SIZE, acquire_shard, aggregate_complete_run, build_candidate_determinism_checkpoint, build_run_identity,
+    SHARD_SIZE, acquire_shard, aggregate_complete_run, build_run_identity, build_single_immutable_candidate,
     combine_evaluation_results, deterministic_canary, deterministic_shards,
-    evaluate_records, validate_shards,
+    evaluate_records, validate_shards, compare_replay_candidates,
 )
-from services.full_universe_brain_certification import certify_complete_run, load_frozen_universe
+from services.full_universe_brain_certification import (
+    certify_complete_run, compare_deterministic_candidates, load_frozen_universe,
+)
 
 
 DEFAULT_UNIVERSE = Path("total_market_universe.json")
@@ -448,7 +450,7 @@ def _write_report_artifacts(output: Path, report: dict[str, Any]) -> None:
         _write(output / "publication_bundle" / "publication_manifest.json", publication_bundle["manifest"])
 
 
-def _load_canonical_recovery(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]], dict[str, Any], dict[str, Any], dict[str, Any]]:
+def _load_canonical_recovery(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]], dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
     frozen = load_frozen_universe(args.universe)
     merged = _load_checkpoint(args.merged_checkpoint, "MERGED_SHARD_CHECKPOINT")
     first_checkpoint = _load_checkpoint(args.canonical_checkpoint, "CANONICAL_EVALUATION_ORDER_CHECKPOINT")
@@ -487,32 +489,77 @@ def _load_canonical_recovery(args: argparse.Namespace) -> tuple[dict[str, Any], 
         "second_evaluation": second_evaluation,
         "second_completeness": second_checkpoint["payload"]["completeness"],
     }
-    return frozen, identity, shards, merged, canonical_payload, first_checkpoint
+    return frozen, identity, shards, merged, canonical_payload, first_checkpoint, second_checkpoint
 
 
 def build_candidate_checkpoint(args: argparse.Namespace) -> int:
-    frozen, identity, _, merged, canonical_payload, first_checkpoint = _load_canonical_recovery(args)
-    candidate_state, metric = _profiled(
-        "F_IMMUTABLE_CANDIDATE_AND_DETERMINISM",
-        lambda: build_candidate_determinism_checkpoint(
-            universe=frozen, identity=identity,
-            first=canonical_payload["first_evaluation"],
-            completeness=canonical_payload["first_completeness"],
-            second=canonical_payload["second_evaluation"],
-            second_completeness=canonical_payload["second_completeness"],
+    frozen, identity, _, merged, canonical_payload, first_checkpoint, second_checkpoint = _load_canonical_recovery(args)
+    evaluation_key = "first_evaluation" if args.order == "forward" else "second_evaluation"
+    completeness_key = "first_completeness" if args.order == "forward" else "second_completeness"
+    candidate, metric = _profiled(
+        f"F_IMMUTABLE_CANDIDATE_{args.order.upper()}",
+        lambda: build_single_immutable_candidate(
+            universe=frozen, identity=identity, evaluation=canonical_payload[evaluation_key],
+            completeness=canonical_payload[completeness_key],
         ),
     )
+    order_checkpoint = first_checkpoint if args.order == "forward" else second_checkpoint
+    candidate_state = {"run_identity_sha256": identity["run_identity_sha256"],
+                       "order": args.order, "canonical_checkpoint_digest": order_checkpoint["content_digest"],
+                       "methodology_version": candidate.get("methodology_version"),
+                       "provider_authority_version": candidate.get("provider_authority_version"),
+                       "candidate": candidate}
     checkpoint = _checkpoint(
-        checkpoint_type="IMMUTABLE_CANDIDATE_CHECKPOINT", identity=identity, universe=frozen,
+        checkpoint_type="IMMUTABLE_CANDIDATE_ORDER_CHECKPOINT", identity=identity, universe=frozen,
         shard_digests=merged["shard_artifact_digests"], payload=candidate_state,
-        phase_metrics=[*first_checkpoint["phase_metrics"], metric],
+        phase_metrics=[*order_checkpoint["phase_metrics"], metric],
     )
     _assert_checkpoint_safe(checkpoint)
-    _write(args.output / "immutable_candidate_checkpoint.json", checkpoint)
+    _write(args.output / f"immutable_candidate_{args.order}_checkpoint.json", checkpoint)
     print(json.dumps({"checkpoint": checkpoint["checkpoint_type"],
-                      "candidate_digest": candidate_state["candidate"].get("candidate_digest"),
-                      "determinism": candidate_state["determinism"].get("status"), "provider_calls": 0}))
-    return 0 if candidate_state["determinism"].get("status") == "PASS" else 1
+                      "order": args.order, "candidate_digest": candidate.get("candidate_digest"),
+                      "provider_calls": 0}))
+    return 0
+
+
+def certify_candidate_determinism(args: argparse.Namespace) -> int:
+    first = _load_checkpoint(args.canonical_candidate_checkpoint, "IMMUTABLE_CANDIDATE_ORDER_CHECKPOINT")
+    second = _load_checkpoint(args.replay_candidate_checkpoint, "IMMUTABLE_CANDIDATE_ORDER_CHECKPOINT")
+    if first["payload"].get("order") != "forward" or second["payload"].get("order") != "reverse":
+        raise ValueError("immutable candidate checkpoint roles are invalid")
+    identity_keys = ("source_sha", "universe_sha", "evidence_snapshot_timestamp", "run_identity_sha256")
+    if any(first.get(key) != second.get(key) for key in identity_keys):
+        raise ValueError("immutable candidate checkpoint identity mismatch")
+    if first["shard_artifact_digests"] != second["shard_artifact_digests"]:
+        raise ValueError("immutable candidate shard identity mismatch")
+    first_candidate, second_candidate = first["payload"]["candidate"], second["payload"]["candidate"]
+    determinism = compare_deterministic_candidates(first_candidate, second_candidate)
+    determinism["structural_diff"] = compare_replay_candidates(first_candidate, second_candidate)
+    structural = determinism["structural_diff"]
+    determinism["required_equalities"] = {
+        "analytical": structural.get("analytical_mismatch_count") == 0,
+        "action": structural.get("classifications", {}).get("ACTION_DIFFERENCE") == 0,
+        "method_set_fair_value_opportunity_confidence": structural.get("analytical_mismatch_count") == 0,
+        "deterministic_serialization_digest": determinism.get("status") == "PASS",
+    }
+    if not all(determinism["required_equalities"].values()):
+        determinism["status"] = "FAIL"
+    identity = {"source_sha": first["source_sha"], "evidence_snapshot_at": first["evidence_snapshot_timestamp"],
+                "run_identity_sha256": first["run_identity_sha256"]}
+    universe = {"source_sha256": first["universe_sha"]}
+    payload = {"run_identity_sha256": first["run_identity_sha256"], "determinism": determinism,
+               "forward_candidate_digest": first_candidate.get("candidate_digest"),
+               "reverse_candidate_digest": second_candidate.get("candidate_digest")}
+    checkpoint = _checkpoint(
+        checkpoint_type="CANDIDATE_DETERMINISM_CHECKPOINT", identity=identity, universe=universe,
+        shard_digests=first["shard_artifact_digests"], payload=payload,
+        phase_metrics=[*first["phase_metrics"], *second["phase_metrics"]],
+    )
+    _assert_checkpoint_safe(checkpoint)
+    _write(args.output / "candidate_determinism_checkpoint.json", checkpoint)
+    print(json.dumps({"checkpoint": checkpoint["checkpoint_type"],
+                      "determinism": determinism.get("status"), "provider_calls": 0}))
+    return 0 if determinism.get("status") == "PASS" else 1
 
 
 def publish_checkpoint(args: argparse.Namespace) -> int:
@@ -520,22 +567,35 @@ def publish_checkpoint(args: argparse.Namespace) -> int:
         "A_SHARD_ARTIFACT_INVENTORY_VALIDATION",
         lambda: _load_canonical_recovery(args),
     )
-    frozen, identity, shards, merged, canonical_payload, first_checkpoint = recovery
-    candidate_checkpoint = _load_checkpoint(args.candidate_checkpoint, "IMMUTABLE_CANDIDATE_CHECKPOINT")
-    _validate_checkpoint_identity(candidate_checkpoint, identity=identity, universe=frozen)
-    if candidate_checkpoint["shard_artifact_digests"] != merged["shard_artifact_digests"]:
-        raise ValueError("candidate checkpoint shard identity mismatch")
+    frozen, identity, shards, merged, canonical_payload, first_checkpoint, _ = recovery
+    forward_candidate = _load_checkpoint(args.canonical_candidate_checkpoint, "IMMUTABLE_CANDIDATE_ORDER_CHECKPOINT")
+    reverse_candidate = _load_checkpoint(args.replay_candidate_checkpoint, "IMMUTABLE_CANDIDATE_ORDER_CHECKPOINT")
+    determinism_checkpoint = _load_checkpoint(args.determinism_checkpoint, "CANDIDATE_DETERMINISM_CHECKPOINT")
+    for checkpoint in (forward_candidate, reverse_candidate, determinism_checkpoint):
+        _validate_checkpoint_identity(checkpoint, identity=identity, universe=frozen)
+        if checkpoint["shard_artifact_digests"] != merged["shard_artifact_digests"]:
+            raise ValueError("candidate checkpoint shard identity mismatch")
+    candidate_payload = {
+        "run_identity_sha256": identity["run_identity_sha256"],
+        "candidate": forward_candidate["payload"]["candidate"],
+        "second_candidate": reverse_candidate["payload"]["candidate"],
+        "determinism": determinism_checkpoint["payload"]["determinism"],
+    }
+    if candidate_payload["candidate"].get("candidate_digest") != determinism_checkpoint["payload"]["forward_candidate_digest"]:
+        raise ValueError("forward candidate digest mismatch")
+    if candidate_payload["second_candidate"].get("candidate_digest") != determinism_checkpoint["payload"]["reverse_candidate_digest"]:
+        raise ValueError("reverse candidate digest mismatch")
     report, certification_metric = _profiled(
         "F_EVIDENCE_INSPECTOR_CHECKS",
         lambda: aggregate_complete_run(
             universe=frozen, identity=identity, shard_payloads=shards,
             candidate_eligible=True, evaluation_checkpoint=canonical_payload,
-            candidate_checkpoint=candidate_checkpoint["payload"],
+            candidate_checkpoint=candidate_payload,
         ),
     )
     _, serialization_metric = _profiled("G_DETERMINISTIC_SERIALIZATION", lambda: _digest(report))
     report["aggregation_phase_metrics"] = [
-        *merged["phase_metrics"], *first_checkpoint["phase_metrics"], *candidate_checkpoint["phase_metrics"],
+        *merged["phase_metrics"], *first_checkpoint["phase_metrics"], *determinism_checkpoint["phase_metrics"],
         inventory_metric, certification_metric, serialization_metric,
     ]
     report["provider_calls_during_aggregation"] = 0
@@ -563,7 +623,7 @@ def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser()
     result.add_argument("command", choices=(
         "plan", "run-shard", "aggregate", "merge-checkpoints", "evaluate-checkpoint-chunk",
-        "certify-checkpoint", "build-candidate-checkpoint", "publish-checkpoint",
+        "certify-checkpoint", "build-candidate-checkpoint", "certify-candidate-determinism", "publish-checkpoint",
     ))
     result.add_argument("--universe", type=Path, default=DEFAULT_UNIVERSE)
     result.add_argument("--output", type=Path, required=True)
@@ -578,7 +638,9 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--merged-checkpoint", type=Path)
     result.add_argument("--canonical-checkpoint", type=Path)
     result.add_argument("--replay-checkpoint", type=Path)
-    result.add_argument("--candidate-checkpoint", type=Path)
+    result.add_argument("--canonical-candidate-checkpoint", type=Path)
+    result.add_argument("--replay-candidate-checkpoint", type=Path)
+    result.add_argument("--determinism-checkpoint", type=Path)
     result.add_argument("--prepared-checkpoint", type=Path)
     result.add_argument("--chunks", type=Path)
     result.add_argument("--chunk-index", type=int, default=0)
@@ -610,10 +672,16 @@ def main() -> int:
                 or args.replay_checkpoint is None or args.chunks is None):
             raise ValueError("candidate checkpoint construction requires shards, merge, both order checkpoints, and chunks")
         return build_candidate_checkpoint(args)
+    if args.command == "certify-candidate-determinism":
+        if args.canonical_candidate_checkpoint is None or args.replay_candidate_checkpoint is None:
+            raise ValueError("both immutable candidate order checkpoints are required")
+        return certify_candidate_determinism(args)
     if args.command == "publish-checkpoint":
         if (args.merged_checkpoint is None or args.canonical_checkpoint is None
-                or args.replay_checkpoint is None or args.candidate_checkpoint is None or args.chunks is None):
-            raise ValueError("publication requires merge, both order checkpoints, candidate checkpoint, and chunks")
+                or args.replay_checkpoint is None or args.canonical_candidate_checkpoint is None
+                or args.replay_candidate_checkpoint is None or args.determinism_checkpoint is None
+                or args.chunks is None):
+            raise ValueError("publication requires merge, order, candidate, determinism, and chunk checkpoints")
         return publish_checkpoint(args)
     return aggregate(args)
 

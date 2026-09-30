@@ -97,8 +97,8 @@ def test_recovery_workflow_is_split_private_bounded_and_has_no_provider_secret()
     assert "evaluate-canonical-chunks:" in workflow
     assert "certify-canonical-orders:" in workflow
     assert "build-immutable-candidate-checkpoint:" in workflow
-    assert "IMMUTABLE_CANDIDATE_CHECKPOINT" not in workflow
-    assert "--candidate-checkpoint" in workflow
+    assert "certify-candidate-determinism:" in workflow
+    assert "--determinism-checkpoint" in workflow
     assert "order: [forward, reverse]" in workflow
     assert "--replay-checkpoint" in workflow
     assert "build-publication-candidate:" in workflow
