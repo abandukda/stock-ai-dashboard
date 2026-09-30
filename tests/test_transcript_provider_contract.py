@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from services.provider_domain_contracts import DatasetFamily, UsePermission, CertificationStatus
 from services.transcript_provider import (
-    ConfiguredTranscriptProvider, TranscriptLicenseState,
+    COMMERCIAL_LAUNCH_REQUIRES_TRANSCRIPT_ENTERPRISE_LICENSE, ConfiguredTranscriptProvider,
+    TranscriptLicenseState,
     build_transcript_derived_insight, transcript_customer_projection,
+    enforce_transcript_commercial_launch_license, transcript_license_permissions,
 )
 
 
@@ -59,6 +61,79 @@ def test_commercial_transcript_projection_is_bounded_and_traceable():
     assert projected["source_evidence_ids"] == [evidence.provenance.raw_evidence_id]
     assert "raw_content" not in projected
     assert projected["model_version"] == "v1"
+    assert evidence.provenance.display_permission == UsePermission.PROHIBITED
+
+
+def test_development_derived_display_is_allowed_but_raw_material_is_removed():
+    evidence = ConfiguredTranscriptProvider(
+        api_key="secret", base_url="https://transcripts.invalid", provider_name="VENDOR",
+        license_state=TranscriptLicenseState.DEVELOPMENT_DERIVED_DISPLAY_ALLOWED.value, get=_get,
+    ).transcript("AAPL", year=2026, quarter=2)
+    assert evidence.provenance.display_permission == UsePermission.PROHIBITED
+    insight = build_transcript_derived_insight(
+        evidence, {
+            "management_summary": {
+                "claim": "Management discussed revenue growth.",
+                "source_excerpt": "Management discussed revenue growth.",
+                "source_excerpt_hash": "hash-only-customer-evidence",
+            },
+            "raw_content": "must never project",
+            "prepared_remarks": ["must never project"],
+        }, model_provider="TEST_MODEL", model_version="v1", prompt_version="prompt-v1",
+    )
+    projected = transcript_customer_projection(insight)
+    assert projected["semantic_status"] == "AVAILABLE"
+    assert projected["management_summary"] == {
+        "claim": "Management discussed revenue growth.",
+        "source_excerpt_hash": "hash-only-customer-evidence",
+    }
+    assert "raw_content" not in str(projected)
+    assert "source_excerpt" not in projected["management_summary"]
+    assert "prepared_remarks" not in str(projected)
+    assert insight.provenance.certification_status == CertificationStatus.UNVERIFIED_SHADOW
+
+
+def test_transcript_permission_matrix_and_commercial_launch_guard(monkeypatch):
+    assert COMMERCIAL_LAUNCH_REQUIRES_TRANSCRIPT_ENTERPRISE_LICENSE is True
+    for state in TranscriptLicenseState:
+        permissions = transcript_license_permissions(state)
+        assert permissions["raw_transcript_display"] == UsePermission.PROHIBITED
+        assert permissions["internal_use"] is True
+        assert permissions["scoring_authority"] == "NONE"
+    assert transcript_license_permissions(
+        TranscriptLicenseState.DEVELOPMENT_PRECOMMERCIAL
+    )["derived_summary_display"] == UsePermission.PROHIBITED
+    assert transcript_license_permissions(
+        TranscriptLicenseState.DEVELOPMENT_DERIVED_DISPLAY_ALLOWED
+    )["derived_summary_display"] == UsePermission.CONTEXT_ONLY
+    assert transcript_license_permissions(
+        TranscriptLicenseState.COMMERCIAL_LICENSE_CONFIRMED
+    )["derived_summary_display"] == UsePermission.CONTEXT_ONLY
+
+    for state in (
+        TranscriptLicenseState.DEVELOPMENT_PRECOMMERCIAL,
+        TranscriptLicenseState.DEVELOPMENT_DERIVED_DISPLAY_ALLOWED,
+    ):
+        try:
+            enforce_transcript_commercial_launch_license(state, commercial_launch=True)
+        except RuntimeError as exc:
+            assert str(exc) == "COMMERCIAL_LAUNCH_REQUIRES_TRANSCRIPT_ENTERPRISE_LICENSE"
+        else:
+            raise AssertionError("development license must fail a commercial launch")
+    enforce_transcript_commercial_launch_license(
+        TranscriptLicenseState.COMMERCIAL_LICENSE_CONFIRMED, commercial_launch=True,
+    )
+
+    monkeypatch.setenv("ATLAS_COMMERCIAL_LAUNCH", "true")
+    try:
+        ConfiguredTranscriptProvider(
+            api_key="secret", base_url="https://transcripts.invalid", provider_name="VENDOR",
+            license_state=TranscriptLicenseState.DEVELOPMENT_DERIVED_DISPLAY_ALLOWED.value, get=_get,
+        )
+    except RuntimeError as exc:
+        assert str(exc) == "COMMERCIAL_LAUNCH_REQUIRES_TRANSCRIPT_ENTERPRISE_LICENSE"
+    else:
+        raise AssertionError("provider construction must enforce the commercial deployment guard")
 
 
 def test_known_earningscall_provider_missing_key_preserves_provider_identity():

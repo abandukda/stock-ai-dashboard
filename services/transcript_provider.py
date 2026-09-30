@@ -18,11 +18,46 @@ from services.provider_domain_contracts import (
 
 TRANSCRIPT_ADAPTER_VERSION = "ATLAS_TRANSCRIPT_ADAPTER_V2"
 TRANSCRIPT_DERIVATION_VERSION = "ATLAS_TRANSCRIPT_DERIVATION_V1"
+COMMERCIAL_LAUNCH_REQUIRES_TRANSCRIPT_ENTERPRISE_LICENSE = True
 
 
 class TranscriptLicenseState(str, Enum):
     DEVELOPMENT_PRECOMMERCIAL = "DEVELOPMENT_PRECOMMERCIAL"
+    DEVELOPMENT_DERIVED_DISPLAY_ALLOWED = "DEVELOPMENT_DERIVED_DISPLAY_ALLOWED"
     COMMERCIAL_LICENSE_CONFIRMED = "COMMERCIAL_LICENSE_CONFIRMED"
+
+
+TRANSCRIPT_LICENSE_PERMISSIONS: Mapping[TranscriptLicenseState, Mapping[str, Any]] = {
+    TranscriptLicenseState.DEVELOPMENT_PRECOMMERCIAL: {
+        "raw_transcript_display": UsePermission.PROHIBITED,
+        "derived_summary_display": UsePermission.PROHIBITED,
+        "internal_use": True, "scoring_authority": "NONE",
+    },
+    TranscriptLicenseState.DEVELOPMENT_DERIVED_DISPLAY_ALLOWED: {
+        "raw_transcript_display": UsePermission.PROHIBITED,
+        "derived_summary_display": UsePermission.CONTEXT_ONLY,
+        "internal_use": True, "scoring_authority": "NONE",
+    },
+    TranscriptLicenseState.COMMERCIAL_LICENSE_CONFIRMED: {
+        "raw_transcript_display": UsePermission.PROHIBITED,
+        "derived_summary_display": UsePermission.CONTEXT_ONLY,
+        "internal_use": True, "scoring_authority": "NONE",
+    },
+}
+
+
+def transcript_license_permissions(state: TranscriptLicenseState | str) -> Mapping[str, Any]:
+    return TRANSCRIPT_LICENSE_PERMISSIONS[TranscriptLicenseState(str(getattr(state, "value", state)).upper())]
+
+
+def enforce_transcript_commercial_launch_license(
+    state: TranscriptLicenseState | str, *, commercial_launch: bool,
+) -> None:
+    """Fail closed when a paid commercial deployment lacks the enterprise license state."""
+    normalized = TranscriptLicenseState(str(getattr(state, "value", state)).upper())
+    if (commercial_launch and COMMERCIAL_LAUNCH_REQUIRES_TRANSCRIPT_ENTERPRISE_LICENSE
+            and normalized != TranscriptLicenseState.COMMERCIAL_LICENSE_CONFIRMED):
+        raise RuntimeError("COMMERCIAL_LAUNCH_REQUIRES_TRANSCRIPT_ENTERPRISE_LICENSE")
 
 
 def _now() -> str:
@@ -53,6 +88,11 @@ class ConfiguredTranscriptProvider:
             "ATLAS_TRANSCRIPT_LICENSE_STATE", TranscriptLicenseState.DEVELOPMENT_PRECOMMERCIAL.value,
         )).strip().upper()
         self._license = TranscriptLicenseState(configured_state)
+        enforce_transcript_commercial_launch_license(
+            self._license,
+            commercial_launch=str(os.getenv("ATLAS_COMMERCIAL_LAUNCH", "false")).strip().lower()
+            in {"1", "true", "yes", "on"},
+        )
         self._get = get
 
     def transcript(self, symbol: str, *, year: int, quarter: int) -> GovernedRecord:
@@ -98,7 +138,7 @@ class ConfiguredTranscriptProvider:
                 }
         content_hash = hashlib.sha256(content.encode()).hexdigest()
         transcript_id = str(payload.get("id") or payload.get("event_id") or f"{ticker}-{resolved_year}-Q{resolved_quarter}-{content_hash[:12]}")
-        public = self._license == TranscriptLicenseState.COMMERCIAL_LICENSE_CONFIRMED
+        permissions = transcript_license_permissions(self._license)
         provenance = ProvenanceEnvelope(
             provider=self._provider, dataset_family=DatasetFamily.OPTIONAL_QUALITATIVE_INTELLIGENCE,
             endpoint_or_source_family="EARNINGS_TRANSCRIPT", symbol=ticker,
@@ -107,8 +147,8 @@ class ConfiguredTranscriptProvider:
             raw_evidence_id=f"TRANSCRIPT:{transcript_id}:{content_hash[:20]}", content_hash=content_hash,
             freshness_status="CAPTURED", certification_status=CertificationStatus.UNVERIFIED_SHADOW,
             license_class=self._license.value,
-            display_permission=UsePermission.CONTEXT_ONLY if public else UsePermission.PROHIBITED,
-            derived_use_permission=UsePermission.CONTEXT_ONLY if public else UsePermission.SHADOW_ONLY,
+            display_permission=UsePermission.PROHIBITED,
+            derived_use_permission=permissions["derived_summary_display"],
             market_coverage_class=MarketCoverageClass.UNKNOWN,
             adapter_version=TRANSCRIPT_ADAPTER_VERSION,
             source_record_version=str(payload.get("version") or "") or None,
@@ -232,7 +272,7 @@ def build_transcript_derived_insight(
     source_id = evidence.provenance.raw_evidence_id
     captured = _now()
     digest = _hash({"source": source_id, "output": derived_payload, "model": model_version, "prompt": prompt_version})
-    public = evidence.provenance.license_class == TranscriptLicenseState.COMMERCIAL_LICENSE_CONFIRMED.value
+    permissions = transcript_license_permissions(evidence.provenance.license_class)
     return GovernedRecord(ProvenanceEnvelope(
         provider="ATLAS_AI", dataset_family=DatasetFamily.OPTIONAL_QUALITATIVE_INTELLIGENCE,
         endpoint_or_source_family="TRANSCRIPT_DERIVED_INSIGHT", symbol=evidence.provenance.symbol,
@@ -241,8 +281,8 @@ def build_transcript_derived_insight(
         fiscal_period=evidence.provenance.fiscal_period, raw_evidence_id=f"TRANSCRIPT_DERIVED:{digest[:24]}",
         content_hash=digest, freshness_status="DERIVED", certification_status=CertificationStatus.UNVERIFIED_SHADOW,
         license_class=evidence.provenance.license_class,
-        display_permission=UsePermission.CONTEXT_ONLY if public else UsePermission.PROHIBITED,
-        derived_use_permission=UsePermission.CONTEXT_ONLY if public else UsePermission.SHADOW_ONLY,
+        display_permission=permissions["derived_summary_display"],
+        derived_use_permission=permissions["derived_summary_display"],
         market_coverage_class=MarketCoverageClass.UNKNOWN, adapter_version=TRANSCRIPT_DERIVATION_VERSION,
     ), {
         **dict(derived_payload), "source_transcript_evidence_id": source_id,
@@ -255,8 +295,16 @@ def build_transcript_derived_insight(
 def transcript_customer_projection(insight: GovernedRecord) -> dict[str, Any]:
     if insight.provenance.display_permission != UsePermission.CONTEXT_ONLY:
         return {"semantic_status": "DATA_UNAVAILABLE", "status_detail": "Transcript intelligence unavailable."}
-    payload = dict(insight.payload)
-    payload.pop("raw_content", None)
+    prohibited = {"raw_content", "source_excerpt", "transcript", "prepared_remarks", "qa_segments"}
+    def sanitized(value: Any) -> Any:
+        if isinstance(value, Mapping):
+            return {key: sanitized(item) for key, item in value.items() if key not in prohibited}
+        if isinstance(value, list):
+            return [sanitized(item) for item in value]
+        if isinstance(value, tuple):
+            return [sanitized(item) for item in value]
+        return value
+    payload = sanitized(dict(insight.payload))
     payload["semantic_status"] = "AVAILABLE"
     payload["source_evidence_ids"] = [payload.get("source_transcript_evidence_id")]
     return payload
@@ -293,5 +341,9 @@ def _transcript_text(payload: Any) -> str | None:
     return value if isinstance(value, str) and value.strip() else None
 
 
-__all__ = ["ConfiguredTranscriptProvider", "TranscriptLicenseState", "build_internal_transcript_research_package",
-           "build_transcript_derived_insight", "transcript_customer_projection"]
+__all__ = [
+    "COMMERCIAL_LAUNCH_REQUIRES_TRANSCRIPT_ENTERPRISE_LICENSE", "ConfiguredTranscriptProvider",
+    "TRANSCRIPT_LICENSE_PERMISSIONS", "TranscriptLicenseState", "build_internal_transcript_research_package",
+    "build_transcript_derived_insight", "enforce_transcript_commercial_launch_license",
+    "transcript_customer_projection", "transcript_license_permissions",
+]

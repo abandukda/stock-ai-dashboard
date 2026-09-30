@@ -96,6 +96,20 @@ def test_precommercial_summary_never_reaches_customer_projection():
     }
 
 
+def test_development_derived_display_reaches_projection_without_raw_evidence():
+    clear_transcript_runtime_cache()
+    result = retrieve_and_summarize_transcript(
+        "NVDA", year=2026, quarter=2,
+        provider=_provider([], license_state="DEVELOPMENT_DERIVED_DISPLAY_ALLOWED"), summarizer=_summary,
+    )
+    assert result.operation_metadata["grounding_status"] == "PASS"
+    assert result.operation_metadata["non_scoring"] is True
+    assert result.customer_projection["semantic_status"] == "AVAILABLE"
+    assert result.customer_projection["management_summary"]["claim"] == "Revenue grew 10%."
+    assert "raw_content" not in str(result.customer_projection)
+    assert "source_excerpt" not in result.customer_projection["management_summary"]
+
+
 def test_unsupported_numeric_claim_is_rejected():
     source = "Revenue grew 10% because customer demand improved."
     payload, _, _ = _summary({})
