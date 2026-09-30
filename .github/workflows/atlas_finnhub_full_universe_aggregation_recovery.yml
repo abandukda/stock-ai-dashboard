@@ -148,6 +148,11 @@ jobs:
           pattern: atlas-canonical-evaluation-*-checkpoint-${{ github.run_id }}
           path: audit_results/recovery/canonical
           merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: atlas-canonical-evaluation-chunk-*-${{ github.run_id }}
+          path: audit_results/recovery/chunks
+          merge-multiple: true
       - name: Download immutable source shards without provider acquisition
         env:
           GH_TOKEN: ${{ github.token }}
@@ -162,6 +167,7 @@ jobs:
           --merged-checkpoint audit_results/recovery/merged/merged_shard_checkpoint.json
           --canonical-checkpoint audit_results/recovery/canonical/canonical_evaluation_forward_checkpoint.json
           --replay-checkpoint audit_results/recovery/canonical/canonical_evaluation_reverse_checkpoint.json
+          --chunks audit_results/recovery/chunks
           --output audit_results/recovery/final
       - name: Confirm zero provider calls and production artifacts unchanged
         run: |

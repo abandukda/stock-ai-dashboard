@@ -369,11 +369,22 @@ def certify_checkpoint(args: argparse.Namespace) -> int:
             acquisition_complete=True, decision_processing_complete=True,
         ),
     )
+    record_projection = [
+        {
+            "ticker": record.get("ticker"),
+            "terminal_data_state": record.get("terminal_data_state"),
+            "canonical_action": record.get("canonical_action"),
+            "evaluation_digest": record.get("evaluation_digest"),
+        }
+        for record in evaluation["terminal_records"]
+    ]
     payload = {
         "run_identity_sha256": identity["run_identity_sha256"],
         "order": args.order,
-        "evaluation": evaluation,
         "completeness": completeness,
+        "record_projection_sha256": _digest(record_projection),
+        "record_count": len(record_projection),
+        "inspector": evaluation["inspector"],
     }
     _assert_checkpoint_safe(payload)
     checkpoint = _checkpoint(
@@ -454,10 +465,29 @@ def publish_checkpoint(args: argparse.Namespace) -> int:
     _validate_checkpoint_identity(merged, identity=identity, universe=frozen)
     _validate_checkpoint_identity(first_checkpoint, identity=identity, universe=frozen)
     _validate_checkpoint_identity(second_checkpoint, identity=identity, universe=frozen)
+    chunk_paths = sorted(args.chunks.glob("canonical_evaluation_chunk_*.json"))
+    chunks = [_load_checkpoint(path, "CANONICAL_EVALUATION_CHUNK_CHECKPOINT") for path in chunk_paths]
+    if len(chunks) != int(chunks[0]["payload"]["chunk_count"] if chunks else 0):
+        raise ValueError("canonical evaluation chunk set is incomplete during publication")
+    for chunk in chunks:
+        _validate_checkpoint_identity(chunk, identity=identity, universe=frozen)
+        if chunk["shard_artifact_digests"] != merged["shard_artifact_digests"]:
+            raise ValueError("publication chunk shard identity mismatch")
+    chunk_results = [chunk["payload"]["evaluation"] for chunk in chunks]
+    first_evaluation = combine_evaluation_results(chunk_results)
+    second_evaluation = combine_evaluation_results(chunk_results, reverse=True)
+    for order_checkpoint, evaluation in ((first_checkpoint, first_evaluation), (second_checkpoint, second_evaluation)):
+        projection = [
+            {"ticker": record.get("ticker"), "terminal_data_state": record.get("terminal_data_state"),
+             "canonical_action": record.get("canonical_action"), "evaluation_digest": record.get("evaluation_digest")}
+            for record in evaluation["terminal_records"]
+        ]
+        if _digest(projection) != order_checkpoint["payload"]["record_projection_sha256"]:
+            raise ValueError("canonical order projection digest mismatch")
     canonical_payload = {
-        "first_evaluation": first_checkpoint["payload"]["evaluation"],
+        "first_evaluation": first_evaluation,
         "first_completeness": first_checkpoint["payload"]["completeness"],
-        "second_evaluation": second_checkpoint["payload"]["evaluation"],
+        "second_evaluation": second_evaluation,
         "second_completeness": second_checkpoint["payload"]["completeness"],
     }
     report, certification_metric = _profiled(
@@ -539,8 +569,9 @@ def main() -> int:
             raise ValueError("--merged-checkpoint and --chunks are required")
         return certify_checkpoint(args)
     if args.command == "publish-checkpoint":
-        if args.merged_checkpoint is None or args.canonical_checkpoint is None or args.replay_checkpoint is None:
-            raise ValueError("--merged-checkpoint, --canonical-checkpoint, and --replay-checkpoint are required")
+        if (args.merged_checkpoint is None or args.canonical_checkpoint is None
+                or args.replay_checkpoint is None or args.chunks is None):
+            raise ValueError("--merged-checkpoint, --canonical-checkpoint, --replay-checkpoint, and --chunks are required")
         return publish_checkpoint(args)
     return aggregate(args)
 
