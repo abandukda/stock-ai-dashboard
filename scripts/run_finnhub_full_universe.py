@@ -485,6 +485,7 @@ def publish_checkpoint(args: argparse.Namespace) -> int:
         if _digest(projection) != order_checkpoint["payload"]["record_projection_sha256"]:
             raise ValueError("canonical order projection digest mismatch")
     canonical_payload = {
+        "run_identity_sha256": identity["run_identity_sha256"],
         "first_evaluation": first_evaluation,
         "first_completeness": first_checkpoint["payload"]["completeness"],
         "second_evaluation": second_evaluation,
