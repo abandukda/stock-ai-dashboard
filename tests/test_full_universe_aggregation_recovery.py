@@ -95,7 +95,9 @@ def test_recovery_workflow_is_split_private_bounded_and_has_no_provider_secret()
     workflow = Path(".github/workflows/atlas_finnhub_full_universe_aggregation_recovery.yml").read_text()
     assert "merge-full-shards:" in workflow
     assert "evaluate-canonical-chunks:" in workflow
-    assert "certify-full-universe:" in workflow
+    assert "certify-canonical-orders:" in workflow
+    assert "order: [forward, reverse]" in workflow
+    assert "--replay-checkpoint" in workflow
     assert "build-publication-candidate:" in workflow
     assert 'SOURCE_RUN_ID: "36628044821"' in workflow
     assert "retention-days: 7" in workflow

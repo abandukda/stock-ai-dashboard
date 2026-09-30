@@ -91,8 +91,12 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  certify-full-universe:
+  certify-canonical-orders:
     needs: [merge-full-shards, evaluate-canonical-chunks]
+    strategy:
+      fail-fast: false
+      matrix:
+        order: [forward, reverse]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -115,17 +119,18 @@ jobs:
           python scripts/run_finnhub_full_universe.py certify-checkpoint
           --chunks audit_results/recovery/chunks
           --merged-checkpoint audit_results/recovery/merged/merged_shard_checkpoint.json
+          --order ${{ matrix.order }}
           --output audit_results/recovery/canonical
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: atlas-canonical-evaluation-checkpoint-${{ github.run_id }}
-          path: audit_results/recovery/canonical/canonical_evaluation_checkpoint.json
+          name: atlas-canonical-evaluation-${{ matrix.order }}-checkpoint-${{ github.run_id }}
+          path: audit_results/recovery/canonical/canonical_evaluation_${{ matrix.order }}_checkpoint.json
           if-no-files-found: error
           retention-days: 7
 
   build-publication-candidate:
-    needs: certify-full-universe
+    needs: certify-canonical-orders
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -140,8 +145,9 @@ jobs:
           path: audit_results/recovery/merged
       - uses: actions/download-artifact@v4
         with:
-          name: atlas-canonical-evaluation-checkpoint-${{ github.run_id }}
+          pattern: atlas-canonical-evaluation-*-checkpoint-${{ github.run_id }}
           path: audit_results/recovery/canonical
+          merge-multiple: true
       - name: Download immutable source shards without provider acquisition
         env:
           GH_TOKEN: ${{ github.token }}
@@ -154,7 +160,8 @@ jobs:
           python scripts/run_finnhub_full_universe.py publish-checkpoint
           --shards audit_results/recovery/shards
           --merged-checkpoint audit_results/recovery/merged/merged_shard_checkpoint.json
-          --canonical-checkpoint audit_results/recovery/canonical/canonical_evaluation_checkpoint.json
+          --canonical-checkpoint audit_results/recovery/canonical/canonical_evaluation_forward_checkpoint.json
+          --replay-checkpoint audit_results/recovery/canonical/canonical_evaluation_reverse_checkpoint.json
           --output audit_results/recovery/final
       - name: Confirm zero provider calls and production artifacts unchanged
         run: |
