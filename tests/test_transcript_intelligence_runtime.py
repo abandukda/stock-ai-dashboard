@@ -64,6 +64,7 @@ def test_no_approved_summarizer_fails_closed_and_remains_non_scoring(monkeypatch
     result = retrieve_and_summarize_transcript("MSFT", year=2026, quarter=2, provider=_provider([]))
     assert result.customer_projection["semantic_status"] == "DATA_UNAVAILABLE"
     assert result.operation_metadata["grounding_status"] == "NOT_RUN"
+    assert result.operation_metadata["ai_summary_status"] == "AI_PROVIDER_NOT_CONFIGURED"
     assert result.operation_metadata["non_scoring"] is True
 
 

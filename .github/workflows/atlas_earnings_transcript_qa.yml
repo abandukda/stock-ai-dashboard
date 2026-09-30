@@ -43,7 +43,9 @@ jobs:
           tests/test_atlas_vnext_earnings.py
           tests/test_provider_family_boundary_adversarial.py
       - name: Run bounded live EarningsCall and AI QA
-        run: python scripts/earnings_transcript_live_qa.py --symbols AAPL,MSFT,NVDA
+        run: |
+          test -n "$OPENAI_API_KEY"
+          python scripts/earnings_transcript_live_qa.py --symbols AAPL,MSFT,NVDA --require-ai
       - name: Assert analytical and production artifacts unchanged
         run: |
           if ! git diff --quiet -- market_full_scan.json market_prescreen.json market_scan_state.json publication_manifest.json; then

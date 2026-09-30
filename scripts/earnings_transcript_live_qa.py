@@ -49,7 +49,7 @@ def run(symbols: list[str]) -> dict[str, Any]:
             "first_cache_result": op.get("cache_status"),
             "second_cache_result": second.operation_metadata.get("cache_status"),
             "provider_call_count": int(op.get("provider_call_count") or 0),
-            "ai_summary_result": "PASS" if first.insight is not None else "AI_SUMMARY_UNAVAILABLE",
+            "ai_summary_result": op.get("ai_summary_status"),
             "grounding_result": op.get("grounding_status"),
             "derived_evidence_id": first.insight.provenance.raw_evidence_id if first.insight else None,
             "model_provider": first.insight.payload.get("model_provider") if first.insight else None,
@@ -74,6 +74,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--symbols", default="AAPL,MSFT,NVDA")
     parser.add_argument("--output", default="audit_results/earnings_transcript_live_qa/report.json")
+    parser.add_argument("--require-ai", action="store_true")
     args = parser.parse_args()
     report = run([item.strip().upper() for item in args.symbols.split(",") if item.strip()])
     output = Path(args.output)
@@ -86,7 +87,9 @@ def main() -> int:
         )
     } for item in report["results"]}
     print(json.dumps(compact, sort_keys=True))
-    return 0 if all(item.get("transcript_retrieval") == "PASS" for item in report["results"]) else 1
+    transcript_pass = all(item.get("transcript_retrieval") == "PASS" for item in report["results"])
+    ai_pass = all(item.get("ai_summary_result") == "PASS" for item in report["results"])
+    return 0 if transcript_pass and (ai_pass or not args.require_ai) else 1
 
 
 if __name__ == "__main__":

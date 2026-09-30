@@ -100,7 +100,7 @@ def _openai_summarizer(payload: Mapping[str, Any]) -> tuple[Mapping[str, Any] | 
     api_key = str(os.getenv("OPENAI_API_KEY", "")).strip()
     model = str(os.getenv("ATLAS_TRANSCRIPT_AI_MODEL", os.getenv("ATLAS_LLM_MODEL", "gpt-4o-mini"))).strip()
     if not api_key:
-        return None, "OPENAI", model
+        return None, "OPENAI_NOT_CONFIGURED", model
     try:
         from openai import OpenAI
         response = OpenAI(api_key=api_key).chat.completions.create(
@@ -129,7 +129,7 @@ def _openai_summarizer(payload: Mapping[str, Any]) -> tuple[Mapping[str, Any] | 
         parsed = json.loads(response.choices[0].message.content or "{}")
         return parsed if isinstance(parsed, Mapping) else None, "OPENAI", model
     except Exception:
-        return None, "OPENAI", model
+        return None, "OPENAI_ERROR", model
 
 
 def retrieve_and_summarize_transcript(
@@ -162,6 +162,7 @@ def retrieve_and_summarize_transcript(
         "semantic_status": "DATA_UNAVAILABLE", "status_detail": "AI summary unavailable."
     }
     grounding = "NOT_RUN"
+    ai_status = "AI_SUMMARY_UNAVAILABLE"
     if isinstance(raw, str) and raw.strip():
         generated, model_provider, model_version = (summarizer or _openai_summarizer)({
             "ticker": key[0], "requested_period": f"{year}-Q{quarter}",
@@ -171,6 +172,10 @@ def retrieve_and_summarize_transcript(
         })
         valid, violations = validate_grounded_summary(generated, raw)
         grounding = "PASS" if valid else "NOT_RUN" if generated is None else "FAIL"
+        ai_status = (
+            "PASS" if valid else "AI_PROVIDER_NOT_CONFIGURED" if model_provider == "OPENAI_NOT_CONFIGURED"
+            else "AI_SUMMARY_FAILED" if generated is None else "AI_SUMMARY_GROUNDING_FAILED"
+        )
         if valid and generated is not None:
             derived_payload = _redact_grounding_excerpts(generated)
             insight = build_transcript_derived_insight(
@@ -192,7 +197,9 @@ def retrieve_and_summarize_transcript(
         "provider": evidence.provenance.provider,
         "capture_timestamp": evidence.provenance.capture_timestamp,
         "license_state": evidence.provenance.license_class,
-        "grounding_status": grounding, "non_scoring": True,
+        "grounding_status": grounding, "ai_summary_status": ai_status,
+        "model_provider_status": model_provider if isinstance(raw, str) and raw.strip() else None,
+        "non_scoring": True,
     })
 
 

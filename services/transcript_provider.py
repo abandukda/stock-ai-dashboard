@@ -89,6 +89,13 @@ class ConfiguredTranscriptProvider:
         content = _transcript_text(payload)
         if not isinstance(content, str) or not content.strip():
             return self._unavailable(ticker, year, quarter, captured, "TRANSCRIPT_DATA_UNAVAILABLE")
+        if self._provider == "EARNINGSCALL" and not (payload.get("call_date") or payload.get("conference_date")):
+            event = self._earningscall_event(ticker, resolved_year, resolved_quarter)
+            if event:
+                payload = {
+                    **dict(payload),
+                    "conference_date": event.get("call_date") or event.get("conference_date") or event.get("date"),
+                }
         content_hash = hashlib.sha256(content.encode()).hexdigest()
         transcript_id = str(payload.get("id") or payload.get("event_id") or f"{ticker}-{resolved_year}-Q{resolved_quarter}-{content_hash[:12]}")
         public = self._license == TranscriptLicenseState.COMMERCIAL_LICENSE_CONFIRMED
@@ -188,6 +195,19 @@ class ConfiguredTranscriptProvider:
         events = payload.get("events") if isinstance(payload, Mapping) else None
         valid = [event for event in (events or []) if isinstance(event, Mapping) and event.get("year") and event.get("quarter")]
         return max(valid, key=lambda event: (int(event["year"]), int(event["quarter"]))) if valid else None
+
+    def _earningscall_event(self, ticker: str, year: int, quarter: int) -> Mapping[str, Any] | None:
+        response = self._get(
+            f"{self._base}/events",
+            params={"apikey": self._key, "exchange": "nasdaq", "symbol": ticker.lower()}, timeout=20,
+        )
+        if int(getattr(response, "status_code", 0) or 0) != 200:
+            return None
+        payload = response.json()
+        events = payload.get("events") if isinstance(payload, Mapping) else None
+        return next((event for event in (events or ()) if isinstance(event, Mapping)
+                     and int(event.get("year") or 0) == int(year)
+                     and int(event.get("quarter") or 0) == int(quarter)), None)
 
     def _unavailable(self, ticker: str, year: int, quarter: int, captured: str, reason: str,
                      status: CertificationStatus = CertificationStatus.DATA_UNAVAILABLE) -> GovernedRecord:

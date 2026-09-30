@@ -9,7 +9,8 @@ def test_transcript_qa_workflow_wires_secrets_without_values_or_release_jobs():
     assert "ATLAS_TRANSCRIPT_API_KEY: ${{ secrets.EARNINGSCALL_API_KEY }}" in source
     assert "OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}" in source
     assert "ATLAS_TRANSCRIPT_LICENSE_STATE: DEVELOPMENT_PRECOMMERCIAL" in source
-    assert "scripts/earnings_transcript_live_qa.py --symbols AAPL,MSFT,NVDA" in source
+    assert 'test -n "$OPENAI_API_KEY"' in source
+    assert "scripts/earnings_transcript_live_qa.py --symbols AAPL,MSFT,NVDA --require-ai" in source
     assert "RELEASE_SMOKE" not in source
     assert "promotion" not in source.lower()
 
