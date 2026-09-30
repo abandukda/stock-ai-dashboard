@@ -51,14 +51,21 @@ jobs:
         if: always()
         with:
           name: atlas-merged-shard-checkpoint-${{ github.run_id }}
-          path: audit_results/recovery/merged/merged_shard_checkpoint.json
+          path: |
+            audit_results/recovery/merged/merged_shard_checkpoint.json
+            audit_results/recovery/merged/prepared_evaluation_input_checkpoint.json
           if-no-files-found: error
           retention-days: 7
 
-  certify-full-universe:
+  evaluate-canonical-chunks:
     needs: merge-full-shards
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        chunk_index: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -69,19 +76,45 @@ jobs:
         with:
           name: atlas-merged-shard-checkpoint-${{ github.run_id }}
           path: audit_results/recovery/merged
-      - name: Download immutable source shards without provider acquisition
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh run download "$SOURCE_RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern "atlas-finnhub-full-shard-*-$SOURCE_RUN_ID" --dir audit_results/recovery/downloaded
-          mkdir -p audit_results/recovery/shards
-          find audit_results/recovery/downloaded -name 'shard-*.json' -exec cp '{}' audit_results/recovery/shards/ \;
-      - name: Reconstruct canonical evaluations and create governed checkpoint
+      - name: Reconstruct bounded canonical evaluation chunk
+        run: >-
+          python scripts/run_finnhub_full_universe.py evaluate-checkpoint-chunk
+          --prepared-checkpoint audit_results/recovery/merged/prepared_evaluation_input_checkpoint.json
+          --chunk-index ${{ matrix.chunk_index }}
+          --chunk-count 16
+          --output audit_results/recovery/chunk
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-canonical-evaluation-chunk-${{ matrix.chunk_index }}-${{ github.run_id }}
+          path: audit_results/recovery/chunk/canonical_evaluation_chunk_*.json
+          if-no-files-found: error
+          retention-days: 7
+
+  certify-full-universe:
+    needs: [merge-full-shards, evaluate-canonical-chunks]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - uses: actions/download-artifact@v4
+        with:
+          name: atlas-merged-shard-checkpoint-${{ github.run_id }}
+          path: audit_results/recovery/merged
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: atlas-canonical-evaluation-chunk-*-${{ github.run_id }}
+          path: audit_results/recovery/chunks
+          merge-multiple: true
+      - name: Merge canonical chunks and certify completeness
         run: >-
           python scripts/run_finnhub_full_universe.py certify-checkpoint
-          --shards audit_results/recovery/shards
+          --chunks audit_results/recovery/chunks
           --merged-checkpoint audit_results/recovery/merged/merged_shard_checkpoint.json
-          --checkpoint-dir audit_results/recovery/local-evaluation-cache
           --output audit_results/recovery/canonical
       - uses: actions/upload-artifact@v4
         if: always()

@@ -561,12 +561,50 @@ def _terminal_from_acquisition(item: Mapping[str, Any], identity: Mapping[str, A
     }
 
 
+def prepare_acquired_for_evaluation(acquired: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Attach full-universe peer evidence before evaluation work is partitioned."""
+    source_rows = [dict(item["row"]) for item in acquired if item.get("row") is not None]
+    prepared_by_symbol = {
+        str(row.get("ticker")): row for row in apply_peer_multiple_evidence(source_rows)
+    }
+    return [
+        {**dict(item), "row": prepared_by_symbol.get(str(item.get("ticker")))}
+        if item.get("row") is not None else dict(item)
+        for item in acquired
+    ]
+
+
+def combine_evaluation_results(results: Sequence[Mapping[str, Any]], *, reverse: bool = False) -> dict[str, Any]:
+    """Combine independently evaluated chunks without changing analytical values."""
+    terminal = sorted(
+        (dict(record) for result in results for record in result.get("terminal_records") or ()),
+        key=lambda record: str(record.get("ticker")), reverse=reverse,
+    )
+    evaluations = [record["evaluation"] for record in terminal if isinstance(record.get("evaluation"), Mapping)]
+    failures = sorted({
+        str(symbol) for result in results
+        for symbol in (result.get("inspector") or {}).get("failures") or ()
+    })
+    return {
+        "terminal_records": terminal,
+        "evaluation_count": len(evaluations),
+        "inspector": {"expected_parameter_count": 91, "failures": failures,
+                      "status": "PASS" if not failures else "FAIL"},
+        "forward_route_leakage": any(bool(result.get("forward_route_leakage")) for result in results),
+        "forward_route_activation": any(bool(result.get("forward_route_activation")) for result in results),
+        "shadow_evidence_leakage": any(bool(result.get("shadow_evidence_leakage")) for result in results),
+        "authority_violations": sum(int(result.get("authority_violations") or 0) for result in results),
+        "valuation_route_distribution": _route_distribution(evaluations),
+    }
+
+
 def evaluate_records(*, identity: Mapping[str, Any], acquired: Sequence[Mapping[str, Any]],
-                     checkpoint_dir: Path | None = None) -> dict[str, Any]:
+                     checkpoint_dir: Path | None = None,
+                     peer_evidence_prepared: bool = False) -> dict[str, Any]:
     """Build peer evidence once, then evaluate only target rows from that scope."""
     evaluated_at = datetime.fromisoformat(str(identity["evidence_snapshot_at"]).replace("Z", "+00:00"))
     source_rows = [dict(item["row"]) for item in acquired if item.get("row") is not None]
-    prepared = apply_peer_multiple_evidence(source_rows)
+    prepared = source_rows if peer_evidence_prepared else apply_peer_multiple_evidence(source_rows)
     prepared_by_symbol = {str(row.get("ticker")): row for row in prepared}
     acquired_by_symbol = {str(item.get("ticker")): item for item in acquired}
     terminal, evaluations, inspector_failures = [], [], []

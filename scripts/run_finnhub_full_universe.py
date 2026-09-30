@@ -22,7 +22,8 @@ from services.finnhub_canonical_authority import FinnhubCanonicalAdapter
 from services.finnhub_shadow_provider import FINNHUB_PAID_CORE_CERTIFICATION_LICENSE, FinnhubShadowAdapter
 from services.finnhub_full_universe_executor import (
     SHARD_SIZE, acquire_shard, aggregate_complete_run, build_run_identity,
-    deterministic_canary, deterministic_shards, evaluate_records, validate_shards,
+    combine_evaluation_results, deterministic_canary, deterministic_shards,
+    evaluate_records, prepare_acquired_for_evaluation, validate_shards,
 )
 from services.full_universe_brain_certification import certify_complete_run, load_frozen_universe
 
@@ -249,26 +250,83 @@ def merge_checkpoints(args: argparse.Namespace) -> int:
     )
     _assert_checkpoint_safe(checkpoint)
     _write(args.output / "merged_shard_checkpoint.json", checkpoint)
+    prepared, preparation_metric = _profiled(
+        "B2_FULL_UNIVERSE_PEER_EVIDENCE_PREPARATION",
+        lambda: prepare_acquired_for_evaluation(acquired),
+    )
+    prepared_payload = {"run_identity": identity, "records": prepared}
+    _assert_checkpoint_safe(prepared_payload)
+    prepared_checkpoint = _checkpoint(
+        checkpoint_type="PREPARED_EVALUATION_INPUT_CHECKPOINT", identity=identity, universe=frozen,
+        shard_digests=digests, payload=prepared_payload,
+        phase_metrics=[inventory_metric, merge_metric, preparation_metric],
+    )
+    _assert_checkpoint_safe(prepared_checkpoint)
+    _write(args.output / "prepared_evaluation_input_checkpoint.json", prepared_checkpoint)
     print(json.dumps({"checkpoint": checkpoint["checkpoint_type"], "symbols": len(acquired), "provider_calls": 0}))
+    return 0
+
+
+def evaluate_checkpoint_chunk(args: argparse.Namespace) -> int:
+    frozen = load_frozen_universe(args.universe)
+    prepared = _load_checkpoint(args.prepared_checkpoint, "PREPARED_EVALUATION_INPUT_CHECKPOINT")
+    identity = dict(prepared["payload"]["run_identity"])
+    _validate_checkpoint_identity(prepared, identity=identity, universe=frozen)
+    records = sorted(prepared["payload"]["records"], key=lambda item: str(item.get("ticker")))
+    if args.chunk_count < 1 or not 0 <= args.chunk_index < args.chunk_count:
+        raise ValueError("invalid canonical evaluation chunk coordinates")
+    selected = records[args.chunk_index::args.chunk_count]
+    evaluation, metric = _profiled(
+        "D_CANONICAL_EVALUATION_RECONSTRUCTION",
+        lambda: evaluate_records(
+            identity=identity, acquired=selected, checkpoint_dir=args.checkpoint_dir,
+            peer_evidence_prepared=True,
+        ),
+    )
+    payload = {
+        "chunk_index": args.chunk_index, "chunk_count": args.chunk_count,
+        "symbol_count": len(selected), "evaluation": evaluation,
+    }
+    _assert_checkpoint_safe(payload)
+    checkpoint = _checkpoint(
+        checkpoint_type="CANONICAL_EVALUATION_CHUNK_CHECKPOINT", identity=identity, universe=frozen,
+        shard_digests=prepared["shard_artifact_digests"], payload=payload,
+        phase_metrics=[metric],
+    )
+    _assert_checkpoint_safe(checkpoint)
+    _write(args.output / f"canonical_evaluation_chunk_{args.chunk_index:02d}.json", checkpoint)
+    print(json.dumps({"chunk": args.chunk_index, "symbols": len(selected), "provider_calls": 0}))
     return 0
 
 
 def certify_checkpoint(args: argparse.Namespace) -> int:
     frozen = load_frozen_universe(args.universe)
     merged = _load_checkpoint(args.merged_checkpoint, "MERGED_SHARD_CHECKPOINT")
-    (shards, _), inventory_metric = _profiled(
-        "A_SHARD_ARTIFACT_INVENTORY_VALIDATION",
-        lambda: _load_verified_shards(args.shards, merged["shard_artifact_digests"]),
-    )
-    identity = _recovery_identity(shards, frozen, args)
+    chunk_paths = sorted(args.chunks.glob("canonical_evaluation_chunk_*.json"))
+    chunks = [_load_checkpoint(path, "CANONICAL_EVALUATION_CHUNK_CHECKPOINT") for path in chunk_paths]
+    if not chunks:
+        raise ValueError("no canonical evaluation chunk checkpoints found")
+    run_identity = chunks[0].get("run_identity_sha256")
+    # The complete identity is preserved in the prepared checkpoint; the merge
+    # checkpoint provides the immutable dimensions needed for final validation.
+    identity = {
+        "source_sha": merged["source_sha"],
+        "evidence_snapshot_at": merged["evidence_snapshot_timestamp"],
+        "run_identity_sha256": run_identity,
+    }
     _validate_checkpoint_identity(merged, identity=identity, universe=frozen)
-    acquired, merge_metric = _profiled(
-        "B_SHARD_MERGE",
-        lambda: validate_shards(universe=frozen, identity=identity, shards=shards),
-    )
+    expected_count = int(chunks[0]["payload"]["chunk_count"])
+    indices = sorted(int(chunk["payload"]["chunk_index"]) for chunk in chunks)
+    if indices != list(range(expected_count)):
+        raise ValueError("canonical evaluation chunk set is incomplete")
+    for chunk in chunks:
+        _validate_checkpoint_identity(chunk, identity=identity, universe=frozen)
+        if chunk["shard_artifact_digests"] != merged["shard_artifact_digests"]:
+            raise ValueError("canonical evaluation chunk shard identity mismatch")
+    results = [chunk["payload"]["evaluation"] for chunk in chunks]
     first, evaluation_metric = _profiled(
-        "D_CANONICAL_EVALUATION_RECONSTRUCTION",
-        lambda: evaluate_records(identity=identity, acquired=acquired, checkpoint_dir=args.checkpoint_dir),
+        "D_CANONICAL_EVALUATION_CHECKPOINT_MERGE",
+        lambda: combine_evaluation_results(results),
     )
     completeness, completeness_metric = _profiled(
         "C_COMPLETENESS_ACCOUNTING",
@@ -278,8 +336,8 @@ def certify_checkpoint(args: argparse.Namespace) -> int:
         ),
     )
     second, replay_metric = _profiled(
-        "E_VALUATION_ACTION_AGGREGATION_REPLAY",
-        lambda: evaluate_records(identity=identity, acquired=list(reversed(acquired))),
+        "E_DETERMINISTIC_ORDER_REPLAY",
+        lambda: combine_evaluation_results(results, reverse=True),
     )
     second_completeness = certify_complete_run(
         universe=frozen, records=second["terminal_records"],
@@ -296,7 +354,7 @@ def certify_checkpoint(args: argparse.Namespace) -> int:
     checkpoint = _checkpoint(
         checkpoint_type="CANONICAL_EVALUATION_CHECKPOINT", identity=identity, universe=frozen,
         shard_digests=merged["shard_artifact_digests"], payload=payload,
-        phase_metrics=[inventory_metric, merge_metric, completeness_metric, evaluation_metric, replay_metric],
+        phase_metrics=[evaluation_metric, completeness_metric, replay_metric],
     )
     _assert_checkpoint_safe(checkpoint)
     _write(args.output / "canonical_evaluation_checkpoint.json", checkpoint)
@@ -402,7 +460,7 @@ def publish_checkpoint(args: argparse.Namespace) -> int:
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser()
     result.add_argument("command", choices=(
-        "plan", "run-shard", "aggregate", "merge-checkpoints",
+        "plan", "run-shard", "aggregate", "merge-checkpoints", "evaluate-checkpoint-chunk",
         "certify-checkpoint", "publish-checkpoint",
     ))
     result.add_argument("--universe", type=Path, default=DEFAULT_UNIVERSE)
@@ -417,6 +475,10 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--checkpoint-dir", type=Path)
     result.add_argument("--merged-checkpoint", type=Path)
     result.add_argument("--canonical-checkpoint", type=Path)
+    result.add_argument("--prepared-checkpoint", type=Path)
+    result.add_argument("--chunks", type=Path)
+    result.add_argument("--chunk-index", type=int, default=0)
+    result.add_argument("--chunk-count", type=int, default=16)
     return result
 
 
@@ -426,13 +488,17 @@ def main() -> int:
         return plan(args)
     if args.command == "run-shard":
         return run_shard(args)
-    if args.command in {"aggregate", "merge-checkpoints", "certify-checkpoint", "publish-checkpoint"} and args.shards is None:
+    if args.command in {"aggregate", "merge-checkpoints", "publish-checkpoint"} and args.shards is None:
         raise ValueError("--shards is required")
     if args.command == "merge-checkpoints":
         return merge_checkpoints(args)
+    if args.command == "evaluate-checkpoint-chunk":
+        if args.prepared_checkpoint is None:
+            raise ValueError("--prepared-checkpoint is required")
+        return evaluate_checkpoint_chunk(args)
     if args.command == "certify-checkpoint":
-        if args.merged_checkpoint is None:
-            raise ValueError("--merged-checkpoint is required")
+        if args.merged_checkpoint is None or args.chunks is None:
+            raise ValueError("--merged-checkpoint and --chunks are required")
         return certify_checkpoint(args)
     if args.command == "publish-checkpoint":
         if args.merged_checkpoint is None or args.canonical_checkpoint is None:

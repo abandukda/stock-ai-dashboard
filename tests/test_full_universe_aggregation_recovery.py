@@ -81,6 +81,7 @@ def test_recovery_uses_source_shard_identity_and_rejects_wrong_source():
 def test_recovery_workflow_is_split_private_bounded_and_has_no_provider_secret():
     workflow = Path(".github/workflows/atlas_finnhub_full_universe_aggregation_recovery.yml").read_text()
     assert "merge-full-shards:" in workflow
+    assert "evaluate-canonical-chunks:" in workflow
     assert "certify-full-universe:" in workflow
     assert "build-publication-candidate:" in workflow
     assert 'SOURCE_RUN_ID: "36628044821"' in workflow
@@ -88,6 +89,7 @@ def test_recovery_workflow_is_split_private_bounded_and_has_no_provider_secret()
     assert "FINNHUB_API_KEY" not in workflow
     assert "run-shard" not in workflow
     assert "provider_calls_during_aggregation" in workflow
+    assert "chunk_index: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]" in workflow
 
 
 def test_acquisition_workflow_no_longer_runs_on_feature_branch_push():
