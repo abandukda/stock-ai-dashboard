@@ -671,13 +671,24 @@ def evaluate_records(*, identity: Mapping[str, Any], acquired: Sequence[Mapping[
 def aggregate_complete_run(*, universe: Mapping[str, Any], identity: Mapping[str, Any],
                            shard_payloads: Sequence[Mapping[str, Any]],
                            candidate_eligible: bool = True,
-                           checkpoint_dir: Path | None = None) -> dict[str, Any]:
+                           checkpoint_dir: Path | None = None,
+                           evaluation_checkpoint: Mapping[str, Any] | None = None) -> dict[str, Any]:
     acquired = validate_shards(universe=universe, identity=identity, shards=shard_payloads)
-    first = evaluate_records(identity=identity, acquired=acquired, checkpoint_dir=checkpoint_dir)
-    completeness = certify_complete_run(
-        universe=universe, records=first["terminal_records"],
-        acquisition_complete=True, decision_processing_complete=True,
-    )
+    if evaluation_checkpoint is None:
+        first = evaluate_records(identity=identity, acquired=acquired, checkpoint_dir=checkpoint_dir)
+        completeness = certify_complete_run(
+            universe=universe, records=first["terminal_records"],
+            acquisition_complete=True, decision_processing_complete=True,
+        )
+        second = None
+        second_completeness = None
+    else:
+        if evaluation_checkpoint.get("run_identity_sha256") != identity["run_identity_sha256"]:
+            raise ValueError("canonical evaluation checkpoint belongs to a different immutable run")
+        first = dict(evaluation_checkpoint["first_evaluation"])
+        completeness = dict(evaluation_checkpoint["first_completeness"])
+        second = dict(evaluation_checkpoint["second_evaluation"])
+        second_completeness = dict(evaluation_checkpoint["second_completeness"])
     candidate = None
     determinism = {"status": "NOT_ELIGIBLE_INCOMPLETE_RUN"}
     second_candidate = None
@@ -689,11 +700,12 @@ def aggregate_complete_run(*, universe: Mapping[str, Any], identity: Mapping[str
             valuation_version=VALUATION_VERSION, pillar_version=PILLAR_VERSION,
             action_engine_version=ACTION_VERSION,
         )
-        second = evaluate_records(identity=identity, acquired=list(reversed(acquired)))
-        second_completeness = certify_complete_run(
-            universe=universe, records=second["terminal_records"],
-            acquisition_complete=True, decision_processing_complete=True,
-        )
+        if second is None:
+            second = evaluate_records(identity=identity, acquired=list(reversed(acquired)))
+            second_completeness = certify_complete_run(
+                universe=universe, records=second["terminal_records"],
+                acquisition_complete=True, decision_processing_complete=True,
+            )
         second_candidate = build_immutable_candidate(
             universe=universe, identity=identity, records=second["terminal_records"],
             completeness=second_completeness, methodology_version=REGISTRY_VERSION,

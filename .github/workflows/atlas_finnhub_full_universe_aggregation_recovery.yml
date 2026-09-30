@@ -1,0 +1,137 @@
+name: ATLAS Finnhub Full-Universe Aggregation Recovery
+
+on:
+  push:
+    branches:
+      - codex/full-universe-closure-temp
+    paths:
+      - .github/workflows/atlas_finnhub_full_universe_aggregation_recovery.yml
+      - .github/workflows/atlas_finnhub_full_universe_certification.yml
+      - services/finnhub_full_universe_executor.py
+      - scripts/run_finnhub_full_universe.py
+      - tests/test_full_universe_aggregation_recovery.py
+
+permissions:
+  actions: read
+  contents: read
+
+env:
+  PYTHONPATH: "."
+  SOURCE_RUN_ID: "36628044821"
+  ATLAS_SOURCE_SHA: d5526664b1b4450e67b63a67b01d936f6da5a2a4
+  ATLAS_EVIDENCE_SNAPSHOT_AT: "2026-09-29T20:40:43Z"
+
+jobs:
+  merge-full-shards:
+    if: ${{ github.ref == 'refs/heads/codex/full-universe-closure-temp' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: Download immutable shard artifacts from the certified source run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download "$SOURCE_RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern "atlas-finnhub-full-shard-*-$SOURCE_RUN_ID" --dir audit_results/recovery/downloaded
+          mkdir -p audit_results/recovery/shards
+          find audit_results/recovery/downloaded -name 'shard-*.json' -exec cp '{}' audit_results/recovery/shards/ \;
+          test "$(find audit_results/recovery/shards -name 'shard-*.json' | wc -l | tr -d ' ')" = "41"
+      - name: Inventory, validate, and checkpoint shard merge
+        run: >-
+          python scripts/run_finnhub_full_universe.py merge-checkpoints
+          --shards audit_results/recovery/shards
+          --output audit_results/recovery/merged
+      - name: Assert zero provider calls
+        run: >-
+          python -c "import json; p=json.load(open('audit_results/recovery/merged/merged_shard_checkpoint.json')); assert p['provider_calls_during_aggregation'] == 0"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-merged-shard-checkpoint-${{ github.run_id }}
+          path: audit_results/recovery/merged/merged_shard_checkpoint.json
+          if-no-files-found: error
+          retention-days: 7
+
+  certify-full-universe:
+    needs: merge-full-shards
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - uses: actions/download-artifact@v4
+        with:
+          name: atlas-merged-shard-checkpoint-${{ github.run_id }}
+          path: audit_results/recovery/merged
+      - name: Download immutable source shards without provider acquisition
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download "$SOURCE_RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern "atlas-finnhub-full-shard-*-$SOURCE_RUN_ID" --dir audit_results/recovery/downloaded
+          mkdir -p audit_results/recovery/shards
+          find audit_results/recovery/downloaded -name 'shard-*.json' -exec cp '{}' audit_results/recovery/shards/ \;
+      - name: Reconstruct canonical evaluations and create governed checkpoint
+        run: >-
+          python scripts/run_finnhub_full_universe.py certify-checkpoint
+          --shards audit_results/recovery/shards
+          --merged-checkpoint audit_results/recovery/merged/merged_shard_checkpoint.json
+          --checkpoint-dir audit_results/recovery/local-evaluation-cache
+          --output audit_results/recovery/canonical
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-canonical-evaluation-checkpoint-${{ github.run_id }}
+          path: audit_results/recovery/canonical/canonical_evaluation_checkpoint.json
+          if-no-files-found: error
+          retention-days: 7
+
+  build-publication-candidate:
+    needs: certify-full-universe
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - uses: actions/download-artifact@v4
+        with:
+          name: atlas-merged-shard-checkpoint-${{ github.run_id }}
+          path: audit_results/recovery/merged
+      - uses: actions/download-artifact@v4
+        with:
+          name: atlas-canonical-evaluation-checkpoint-${{ github.run_id }}
+          path: audit_results/recovery/canonical
+      - name: Download immutable source shards without provider acquisition
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download "$SOURCE_RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern "atlas-finnhub-full-shard-*-$SOURCE_RUN_ID" --dir audit_results/recovery/downloaded
+          mkdir -p audit_results/recovery/shards
+          find audit_results/recovery/downloaded -name 'shard-*.json' -exec cp '{}' audit_results/recovery/shards/ \;
+      - name: Resume from canonical checkpoint and build publication candidate
+        run: >-
+          python scripts/run_finnhub_full_universe.py publish-checkpoint
+          --shards audit_results/recovery/shards
+          --merged-checkpoint audit_results/recovery/merged/merged_shard_checkpoint.json
+          --canonical-checkpoint audit_results/recovery/canonical/canonical_evaluation_checkpoint.json
+          --output audit_results/recovery/final
+      - name: Confirm zero provider calls and production artifacts unchanged
+        run: |
+          python -c "import json; p=json.load(open('audit_results/recovery/final/final_candidate_checkpoint.json')); assert p['provider_calls_during_aggregation'] == 0"
+          git diff --exit-code -- market_full_scan.json market_prescreen.json market_scan_state.json publication_manifest.json discovery_candidate_pool.json full_evaluation_pool.json total_market_universe.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-finnhub-full-universe-recovered-${{ github.run_id }}
+          path: audit_results/recovery/final
+          if-no-files-found: error
+          retention-days: 7

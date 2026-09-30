@@ -1,18 +1,7 @@
 name: ATLAS Finnhub Full-Universe Certification
 
 on:
-  push:
-    branches:
-      - codex/full-universe-closure-temp
-    paths:
-      - .github/workflows/atlas_finnhub_full_universe_certification.yml
-      - services/finnhub_full_universe_executor.py
-      - services/executor_publication_bridge.py
-      - services/positive_action_revalidation.py
-      - services/finnhub_forward_valuation_bridge.py
-      - scripts/run_finnhub_full_universe.py
-      - scripts/finnhub_canonical_proving_set.py
-      - tests/test_finnhub_full_universe_executor.py
+  workflow_dispatch:
 
 permissions:
   contents: read
