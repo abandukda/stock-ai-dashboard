@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -64,6 +65,17 @@ def test_shard_inventory_detects_any_artifact_change(tmp_path):
     shard.write_text('{"value":2}\n')
     with pytest.raises(ValueError, match="inventory or digest mismatch"):
         recovery._load_verified_shards(tmp_path, inventory)
+
+
+def test_recovery_uses_source_shard_identity_and_rejects_wrong_source():
+    ident = _identity()
+    args = SimpleNamespace(
+        source_sha=ident["source_sha"], evidence_snapshot=ident["evidence_snapshot_at"],
+    )
+    assert recovery._recovery_identity([{"run_identity": ident}], _universe(), args) == ident
+    args.source_sha = "wrong"
+    with pytest.raises(ValueError, match="authorized recovery source"):
+        recovery._recovery_identity([{"run_identity": ident}], _universe(), args)
 
 
 def test_recovery_workflow_is_split_private_bounded_and_has_no_provider_secret():

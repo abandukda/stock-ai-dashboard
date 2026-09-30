@@ -121,6 +121,24 @@ def _identity(universe: dict[str, Any], args: argparse.Namespace) -> dict[str, A
     )
 
 
+def _recovery_identity(shards: list[Mapping[str, Any]], universe: Mapping[str, Any],
+                       args: argparse.Namespace) -> dict[str, Any]:
+    if not shards or not isinstance(shards[0].get("run_identity"), Mapping):
+        raise ValueError("source shards do not contain an immutable run identity")
+    identity = dict(shards[0]["run_identity"])
+    expected_snapshot = args.evidence_snapshot or os.getenv("ATLAS_EVIDENCE_SNAPSHOT_AT")
+    expected_source_sha = args.source_sha or os.getenv("ATLAS_SOURCE_SHA")
+    if identity.get("source_sha") != expected_source_sha:
+        raise ValueError("source shard SHA does not match authorized recovery source")
+    if identity.get("evidence_snapshot_at") != expected_snapshot:
+        raise ValueError("source shard snapshot does not match authorized recovery snapshot")
+    if identity.get("universe_sha256") != universe["source_sha256"]:
+        raise ValueError("source shard universe does not match frozen universe")
+    if identity.get("supported_equity_count") != universe["supported_equity_count"]:
+        raise ValueError("source shard governed count does not match frozen universe")
+    return identity
+
+
 def _scope(universe: dict[str, Any], canary_size: int) -> dict[str, Any]:
     if not canary_size:
         return universe
@@ -214,12 +232,12 @@ def aggregate(args: argparse.Namespace) -> int:
 
 def merge_checkpoints(args: argparse.Namespace) -> int:
     frozen = load_frozen_universe(args.universe)
-    identity = _identity(frozen, args)
     payloads, shard_digests = _profiled(
         "A_SHARD_ARTIFACT_INVENTORY_VALIDATION",
         lambda: _load_verified_shards(args.shards),
     )
     (shards, digests), inventory_metric = payloads, shard_digests
+    identity = _recovery_identity(shards, frozen, args)
     acquired, merge_metric = _profiled(
         "B_SHARD_MERGE",
         lambda: validate_shards(universe=frozen, identity=identity, shards=shards),
@@ -238,13 +256,13 @@ def merge_checkpoints(args: argparse.Namespace) -> int:
 
 def certify_checkpoint(args: argparse.Namespace) -> int:
     frozen = load_frozen_universe(args.universe)
-    identity = _identity(frozen, args)
     merged = _load_checkpoint(args.merged_checkpoint, "MERGED_SHARD_CHECKPOINT")
-    _validate_checkpoint_identity(merged, identity=identity, universe=frozen)
     (shards, _), inventory_metric = _profiled(
         "A_SHARD_ARTIFACT_INVENTORY_VALIDATION",
         lambda: _load_verified_shards(args.shards, merged["shard_artifact_digests"]),
     )
+    identity = _recovery_identity(shards, frozen, args)
+    _validate_checkpoint_identity(merged, identity=identity, universe=frozen)
     acquired, merge_metric = _profiled(
         "B_SHARD_MERGE",
         lambda: validate_shards(universe=frozen, identity=identity, shards=shards),
@@ -338,17 +356,17 @@ def _write_report_artifacts(output: Path, report: dict[str, Any]) -> None:
 
 def publish_checkpoint(args: argparse.Namespace) -> int:
     frozen = load_frozen_universe(args.universe)
-    identity = _identity(frozen, args)
     merged = _load_checkpoint(args.merged_checkpoint, "MERGED_SHARD_CHECKPOINT")
     canonical = _load_checkpoint(args.canonical_checkpoint, "CANONICAL_EVALUATION_CHECKPOINT")
-    _validate_checkpoint_identity(merged, identity=identity, universe=frozen)
-    _validate_checkpoint_identity(canonical, identity=identity, universe=frozen)
     if merged["shard_artifact_digests"] != canonical["shard_artifact_digests"]:
         raise ValueError("merge and canonical checkpoint shard identities differ")
     (shards, _), inventory_metric = _profiled(
         "A_SHARD_ARTIFACT_INVENTORY_VALIDATION",
         lambda: _load_verified_shards(args.shards, merged["shard_artifact_digests"]),
     )
+    identity = _recovery_identity(shards, frozen, args)
+    _validate_checkpoint_identity(merged, identity=identity, universe=frozen)
+    _validate_checkpoint_identity(canonical, identity=identity, universe=frozen)
     report, certification_metric = _profiled(
         "F_EVIDENCE_INSPECTOR_CHECKS",
         lambda: aggregate_complete_run(
