@@ -49,6 +49,15 @@ def _canonical_json(value: Any) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
 
 
+def _canonical_digest(value: Any) -> str:
+    """Hash canonical JSON incrementally so full-universe payloads are not copied."""
+    digest = hashlib.sha256()
+    encoder = json.JSONEncoder(sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    for chunk in encoder.iterencode(value):
+        digest.update(chunk.encode("utf-8"))
+    return digest.hexdigest()
+
+
 def sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -246,7 +255,7 @@ def build_immutable_candidate(*, universe: Mapping[str, Any], identity: Mapping[
         "buy_now_inventory": list(completeness.get("buy_now_tickers") or ()),
         "report_card_prospective_active": REPORT_CARD_PROSPECTIVE_ACTIVE,
     }
-    return {**payload, "candidate_digest": hashlib.sha256(_canonical_json(payload)).hexdigest()}
+    return {**payload, "candidate_digest": _canonical_digest(payload)}
 
 
 def compare_deterministic_candidates(first: Mapping[str, Any], second: Mapping[str, Any]) -> dict[str, Any]:

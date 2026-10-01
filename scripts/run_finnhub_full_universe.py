@@ -41,12 +41,19 @@ PROHIBITED_CHECKPOINT_KEYS = {
 
 def _write(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n", encoding="utf-8")
+    encoder = json.JSONEncoder(indent=2, sort_keys=True, default=str)
+    with path.open("w", encoding="utf-8") as handle:
+        for chunk in encoder.iterencode(payload):
+            handle.write(chunk)
+        handle.write("\n")
 
 
 def _digest(payload: Any) -> str:
-    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    digest = hashlib.sha256()
+    encoder = json.JSONEncoder(sort_keys=True, separators=(",", ":"), default=str)
+    for chunk in encoder.iterencode(payload):
+        digest.update(chunk.encode("utf-8"))
+    return digest.hexdigest()
 
 
 def _profiled(phase: str, operation: Any) -> tuple[Any, dict[str, Any]]:
