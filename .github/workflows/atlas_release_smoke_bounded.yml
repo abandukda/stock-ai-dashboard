@@ -85,7 +85,7 @@ jobs:
       - run: |
           pip install -r requirements.txt
           pip install playwright==1.52.0
-          python -m playwright install --with-deps chromium
+          python -m playwright install chromium
       - uses: actions/download-artifact@v4
         with:
           name: atlas-bounded-release-smoke-verification-${{ github.run_id }}
