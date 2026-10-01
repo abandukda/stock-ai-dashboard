@@ -83,6 +83,7 @@ def test_publication_file_contract_is_exact():
 
 def test_browser_startup_is_explicit_and_fails_with_streamlit_diagnostics():
     workflow = Path(".github/workflows/atlas_release_smoke_bounded.yml").read_text()
+    assert "python -m playwright install --with-deps chromium" in workflow
     assert "--server.address 127.0.0.1" in workflow
     assert 'kill -0 "$app_pid"' in workflow
     assert "Streamlit exited before readiness" in workflow
