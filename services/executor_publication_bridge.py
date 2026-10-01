@@ -173,12 +173,29 @@ def bridge_evaluation(terminal: Mapping[str, Any], source_row: Mapping[str, Any]
     return output
 
 
-def build_publication_bundle(*, candidate: Mapping[str, Any], source_rows: Mapping[str, Mapping[str, Any]],
+def _candidate_embedded_source_row(item: Mapping[str, Any]) -> dict[str, Any]:
+    """Recover the already-certified source projection embedded in a candidate.
+
+    Candidate construction preserves the frozen acquisition row under
+    ``trial_presentation_fields``.  Publication therefore does not need to
+    reload the source shards after the candidate digest and determinism proof
+    have been certified.
+    """
+    evaluation = item.get("evaluation") if isinstance(item.get("evaluation"), Mapping) else {}
+    row = deepcopy(dict(evaluation.get("trial_presentation_fields") or {}))
+    ticker = str(item.get("ticker") or "").upper()
+    row["ticker"] = ticker
+    row.setdefault("symbol", ticker)
+    if item.get("company") is not None:
+        row.setdefault("company", item.get("company"))
+    return row
+
+
+def build_publication_bundle(*, candidate: Mapping[str, Any],
+                             source_rows: Mapping[str, Mapping[str, Any]] | None = None,
                              generated_at: str | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
     generated = generated_at or str(candidate["evidence_snapshot_at"])
     observed = datetime.fromisoformat(generated.replace("Z", "+00:00"))
-    bridged = [bridge_evaluation(item, source_rows.get(str(item.get("ticker") or "")))
-               for item in candidate.get("evaluations") or ()]
     frozen_identity = {
         "candidate_digest": candidate.get("candidate_digest"),
         "universe_sha256": candidate.get("universe_sha256"),
@@ -190,12 +207,22 @@ def build_publication_bundle(*, candidate: Mapping[str, Any], source_rows: Mappi
         "six_pillar_version": candidate.get("six_pillar_version"),
         "action_engine_version": candidate.get("action_engine_version"),
     }
-    for row in bridged:
-        # Candidate-level identity is authoritative for this immutable bundle.
-        # Copying it onto every row makes the existing publication contract
-        # independently auditable without changing any analytical value.
-        row.update(frozen_identity)
-    certified = certify_rows(bridged, now=observed)
+    def bridged_rows():
+        # Feed certification one bridged record at a time. Keeping both a full
+        # bridged list and a full certified list doubled publication memory.
+        for item in candidate.get("evaluations") or ():
+            row = bridge_evaluation(
+                item,
+                source_rows.get(str(item.get("ticker") or ""))
+                if source_rows is not None
+                else _candidate_embedded_source_row(item),
+            )
+            # Candidate-level identity is authoritative for this immutable
+            # bundle and remains independently auditable on every row.
+            row.update(frozen_identity)
+            yield row
+
+    certified = certify_rows(bridged_rows(), now=observed)
     publishable = [row for row in certified if (row.get("publication_certification") or {}).get("customer_publication_allowed") is True]
     # The release QA contract blocks inverted filing share bases.  Keep those
     # records in the complete audit pool, but do not consume customer capacity.

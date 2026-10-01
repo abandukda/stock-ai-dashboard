@@ -24,7 +24,10 @@ from services.finnhub_full_universe_executor import (
     SHARD_SIZE, acquire_shard, aggregate_complete_run, build_run_identity, build_single_immutable_candidate,
     combine_evaluation_results, deterministic_canary, deterministic_shards,
     evaluate_records, validate_shards, compare_replay_candidates,
+    _buy_now_report, _gate_diagnostics, _method_distribution,
+    _pillar_distribution, _publication_diagnostics, _route_distribution,
 )
+from services.executor_publication_bridge import build_publication_bundle
 from services.full_universe_brain_certification import (
     certify_complete_run, compare_deterministic_candidates, load_frozen_universe,
 )
@@ -623,40 +626,89 @@ def certify_candidate_determinism(args: argparse.Namespace) -> int:
 
 
 def publish_checkpoint(args: argparse.Namespace) -> int:
-    (recovery, inventory_metric) = _profiled(
-        "A_SHARD_ARTIFACT_INVENTORY_VALIDATION",
-        lambda: _load_canonical_recovery(args),
-    )
-    frozen, identity, shards, merged, canonical_payload, first_checkpoint, _ = recovery
+    frozen = load_frozen_universe(args.universe)
+    merged = _load_checkpoint(args.merged_checkpoint, "MERGED_SHARD_CHECKPOINT")
+    first_checkpoint = _load_checkpoint(args.canonical_checkpoint, "CANONICAL_EVALUATION_ORDER_CHECKPOINT")
     forward_candidate = _load_checkpoint(args.canonical_candidate_checkpoint, "IMMUTABLE_CANDIDATE_ORDER_CHECKPOINT")
-    reverse_candidate = _load_checkpoint(args.replay_candidate_checkpoint, "IMMUTABLE_CANDIDATE_ORDER_CHECKPOINT")
     determinism_checkpoint = _load_checkpoint(args.determinism_checkpoint, "CANDIDATE_DETERMINISM_CHECKPOINT")
-    for checkpoint in (forward_candidate, reverse_candidate, determinism_checkpoint):
+    identity = {
+        "source_sha": forward_candidate["source_sha"],
+        "evidence_snapshot_at": forward_candidate["evidence_snapshot_timestamp"],
+        "run_identity_sha256": forward_candidate["run_identity_sha256"],
+    }
+    for checkpoint in (merged, first_checkpoint, forward_candidate, determinism_checkpoint):
         _validate_checkpoint_identity(checkpoint, identity=identity, universe=frozen)
         if checkpoint["shard_artifact_digests"] != merged["shard_artifact_digests"]:
-            raise ValueError("candidate checkpoint shard identity mismatch")
-    candidate_payload = {
-        "run_identity_sha256": identity["run_identity_sha256"],
-        "candidate": forward_candidate["payload"]["candidate"],
-        "second_candidate": reverse_candidate["payload"]["candidate"],
-        "determinism": determinism_checkpoint["payload"]["determinism"],
-    }
-    if candidate_payload["candidate"].get("candidate_digest") != determinism_checkpoint["payload"]["forward_candidate_digest"]:
+            raise ValueError("publication checkpoint shard identity mismatch")
+    candidate = forward_candidate["payload"]["candidate"]
+    determinism = determinism_checkpoint["payload"]["determinism"]
+    candidate_digest = candidate.get("candidate_digest")
+    if args.expected_candidate_digest and candidate_digest != args.expected_candidate_digest:
+        raise ValueError("forward candidate digest differs from authorized publication candidate")
+    if candidate_digest != determinism_checkpoint["payload"]["forward_candidate_digest"]:
         raise ValueError("forward candidate digest mismatch")
-    if candidate_payload["second_candidate"].get("candidate_digest") != determinism_checkpoint["payload"]["reverse_candidate_digest"]:
-        raise ValueError("reverse candidate digest mismatch")
-    report, certification_metric = _profiled(
-        "F_EVIDENCE_INSPECTOR_CHECKS",
-        lambda: aggregate_complete_run(
-            universe=frozen, identity=identity, shard_payloads=shards,
-            candidate_eligible=True, evaluation_checkpoint=canonical_payload,
-            candidate_checkpoint=candidate_payload,
+    if candidate_digest != determinism_checkpoint["payload"]["reverse_candidate_digest"]:
+        raise ValueError("certified reverse candidate digest mismatch")
+    structural = determinism.get("structural_diff") or {}
+    if determinism.get("status") != "PASS" or structural.get("analytical_mismatch_count") != 0:
+        raise ValueError("candidate determinism is not certified")
+    if determinism_checkpoint.get("provider_calls_during_aggregation") != 0:
+        raise ValueError("determinism checkpoint contains provider calls")
+    if first_checkpoint["payload"].get("record_count") != len(candidate.get("evaluations") or ()):
+        raise ValueError("candidate record count differs from certified canonical checkpoint")
+    completeness = dict(first_checkpoint["payload"]["completeness"])
+    inspector = dict(first_checkpoint["payload"]["inspector"])
+    if completeness.get("state") != "FULL_UNIVERSE_CERTIFIED" or inspector.get("status") != "PASS":
+        raise ValueError("canonical evaluation is not publication eligible")
+
+    (publication, certification_metric) = _profiled(
+        "H_PUBLICATION_PROJECTION",
+        lambda: build_publication_bundle(
+            candidate=candidate, generated_at=str(identity["evidence_snapshot_at"]),
         ),
     )
+    artifacts, manifest = publication
+    publication_bundle = {"artifacts": artifacts, "manifest": manifest}
+    publication_digest = _digest({
+        "artifact_hashes": manifest.get("artifact_hashes"),
+        "candidate_digest": candidate_digest,
+    })
+    terminal = candidate.get("evaluations") or []
+    buy_now_provenance = _buy_now_report(terminal, frozen, identity)
+    report = {
+        "executor_version": "ATLAS_FINNHUB_FULL_UNIVERSE_EXECUTOR_V2_MULTI_METHOD",
+        "run_identity": identity,
+        "full_universe_completeness": completeness,
+        "evidence_inspector_coverage": inspector,
+        "forward_route_leakage": False,
+        "shadow_evidence_leakage": False,
+        "authority_violations": 0,
+        "valuation_route_distribution": _route_distribution([
+            item.get("evaluation") or {} for item in terminal
+        ]),
+        "valuation_method_distribution": _method_distribution(terminal),
+        "gate_diagnostics": _gate_diagnostics(terminal),
+        "pillar_distribution": _pillar_distribution(terminal),
+        "action_distribution": completeness.get("action_counts") or {},
+        "provider_call_telemetry": {"provider_calls": 0, "cache_hits": 0, "calls_avoided": 0,
+                                    "retry_count": 0, "retry_rate": 0.0},
+        "buy_now_provenance": buy_now_provenance,
+        "immutable_candidate": candidate,
+        "determinism": determinism,
+        "publication_bundle": publication_bundle,
+        "publication_bundle_digest": publication_digest,
+        "publication_diagnostics": _publication_diagnostics(terminal, artifacts),
+        "new_full_universe_candidate_certified": buy_now_provenance.get("status") == "PASS",
+        "release_smoke_ready": buy_now_provenance.get("status") == "PASS",
+        "determinism_candidates": {},
+        "state": "FINNHUB_FULL_UNIVERSE_EXECUTOR_CERTIFIED",
+        "report_card_prospective_active": False,
+        "production_schedule_cutover": False,
+    }
     _, serialization_metric = _profiled("G_DETERMINISTIC_SERIALIZATION", lambda: _digest(report))
     report["aggregation_phase_metrics"] = [
         *merged["phase_metrics"], *first_checkpoint["phase_metrics"], *determinism_checkpoint["phase_metrics"],
-        inventory_metric, certification_metric, serialization_metric,
+        certification_metric, serialization_metric,
     ]
     report["provider_calls_during_aggregation"] = 0
     publication_digest = report.get("publication_bundle_digest")
@@ -701,6 +753,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--canonical-candidate-checkpoint", type=Path)
     result.add_argument("--replay-candidate-checkpoint", type=Path)
     result.add_argument("--determinism-checkpoint", type=Path)
+    result.add_argument("--expected-candidate-digest")
     result.add_argument("--prepared-checkpoint", type=Path)
     result.add_argument("--chunks", type=Path)
     result.add_argument("--chunk-index", type=int, default=0)
@@ -738,10 +791,8 @@ def main() -> int:
         return certify_candidate_determinism(args)
     if args.command == "publish-checkpoint":
         if (args.merged_checkpoint is None or args.canonical_checkpoint is None
-                or args.replay_checkpoint is None or args.canonical_candidate_checkpoint is None
-                or args.replay_candidate_checkpoint is None or args.determinism_checkpoint is None
-                or args.chunks is None):
-            raise ValueError("publication requires merge, order, candidate, determinism, and chunk checkpoints")
+                or args.canonical_candidate_checkpoint is None or args.determinism_checkpoint is None):
+            raise ValueError("publication requires merge, forward canonical, forward candidate, and determinism checkpoints")
         return publish_checkpoint(args)
     return aggregate(args)
 

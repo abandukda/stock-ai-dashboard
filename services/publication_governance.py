@@ -278,7 +278,11 @@ def certify_rows(rows: Sequence[Mapping[str, Any]], *, now: datetime | None = No
 
 
 def _hash_payload(payload: Any) -> str:
-    return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode()).hexdigest()
+    digest = hashlib.sha256()
+    encoder = json.JSONEncoder(sort_keys=True, separators=(",", ":"), default=str)
+    for chunk in encoder.iterencode(payload):
+        digest.update(chunk.encode("utf-8"))
+    return digest.hexdigest()
 
 
 def run_over_run_anomalies(rows: Sequence[Mapping[str, Any]],

@@ -1,15 +1,7 @@
 name: ATLAS Finnhub Full-Universe Aggregation Recovery
 
 on:
-  push:
-    branches:
-      - codex/full-universe-closure-temp
-    paths:
-      - .github/workflows/atlas_finnhub_full_universe_aggregation_recovery.yml
-      - .github/workflows/atlas_finnhub_full_universe_certification.yml
-      - services/finnhub_full_universe_executor.py
-      - scripts/run_finnhub_full_universe.py
-      - tests/test_full_universe_aggregation_recovery.py
+  workflow_dispatch:
 
 permissions:
   actions: read

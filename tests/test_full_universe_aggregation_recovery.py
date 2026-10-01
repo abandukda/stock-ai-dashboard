@@ -125,6 +125,32 @@ def test_recovery_workflow_is_split_private_bounded_and_has_no_provider_secret()
     assert "chunk_index: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]" in workflow
 
 
+def test_publication_only_recovery_consumes_certified_run_without_acquisition():
+    workflow = Path(".github/workflows/atlas_finnhub_publication_only_recovery.yml").read_text()
+    assert 'CERTIFIED_RUN_ID: "36817772978"' in workflow
+    assert 'EXPECTED_CANDIDATE_DIGEST: "96936e2b03af129c586ef2043a517068156449a8d1b8dc3d83618451ec90e77f"' in workflow
+    assert "atlas-immutable-candidate-forward-checkpoint-${{ env.CERTIFIED_RUN_ID }}" in workflow
+    assert "atlas-candidate-determinism-checkpoint-${{ env.CERTIFIED_RUN_ID }}" in workflow
+    assert "--expected-candidate-digest" in workflow
+    assert "replay-candidate-checkpoint" not in workflow
+    assert "canonical_evaluation_chunk" not in workflow
+    assert "run-shard" not in workflow
+    assert "FINNHUB_API_KEY" not in workflow
+    assert "report_card_prospective_active'] is False" in workflow
+
+
+def test_publication_bridge_can_reuse_candidate_embedded_source_projection():
+    from services.executor_publication_bridge import _candidate_embedded_source_row
+
+    item = {
+        "ticker": "A",
+        "evaluation": {"trial_presentation_fields": {"market_cap": 123, "normalized_fcf": 10}},
+    }
+    assert _candidate_embedded_source_row(item) == {
+        "ticker": "A", "symbol": "A", "market_cap": 123, "normalized_fcf": 10,
+    }
+
+
 def test_acquisition_workflow_no_longer_runs_on_feature_branch_push():
     workflow = Path(".github/workflows/atlas_finnhub_full_universe_certification.yml").read_text()
     assert "workflow_dispatch:" in workflow
