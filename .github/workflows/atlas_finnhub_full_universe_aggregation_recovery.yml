@@ -135,7 +135,7 @@ jobs:
       fail-fast: false
       matrix:
         order: [forward, reverse]
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
@@ -164,16 +164,23 @@ jobs:
           gh run download "$SOURCE_RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern "atlas-finnhub-full-shard-*-$SOURCE_RUN_ID" --dir audit_results/recovery/downloaded
           mkdir -p audit_results/recovery/shards
           find audit_results/recovery/downloaded -name 'shard-*.json' -exec cp '{}' audit_results/recovery/shards/ \;
+      - name: Bounded self-hosted runner diagnostics before candidate construction
+        run: |
+          uname -a
+          nproc
+          free -h
+          df -h
       - name: Build immutable candidates and certify deterministic replay
-        run: >-
-          python scripts/run_finnhub_full_universe.py build-candidate-checkpoint
-          --shards audit_results/recovery/shards
-          --merged-checkpoint audit_results/recovery/merged/merged_shard_checkpoint.json
-          --canonical-checkpoint audit_results/recovery/canonical/canonical_evaluation_forward_checkpoint.json
-          --replay-checkpoint audit_results/recovery/canonical/canonical_evaluation_reverse_checkpoint.json
-          --chunks audit_results/recovery/chunks
-          --order ${{ matrix.order }}
-          --output audit_results/recovery/candidate
+        run: |
+          /usr/bin/time -v python scripts/run_finnhub_full_universe.py build-candidate-checkpoint \
+            --shards audit_results/recovery/shards \
+            --merged-checkpoint audit_results/recovery/merged/merged_shard_checkpoint.json \
+            --canonical-checkpoint audit_results/recovery/canonical/canonical_evaluation_forward_checkpoint.json \
+            --replay-checkpoint audit_results/recovery/canonical/canonical_evaluation_reverse_checkpoint.json \
+            --chunks audit_results/recovery/chunks \
+            --order ${{ matrix.order }} \
+            --output audit_results/recovery/candidate
+          df -h
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -213,7 +220,7 @@ jobs:
 
   build-publication-candidate:
     needs: certify-candidate-determinism
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
@@ -251,18 +258,25 @@ jobs:
           gh run download "$SOURCE_RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern "atlas-finnhub-full-shard-*-$SOURCE_RUN_ID" --dir audit_results/recovery/downloaded
           mkdir -p audit_results/recovery/shards
           find audit_results/recovery/downloaded -name 'shard-*.json' -exec cp '{}' audit_results/recovery/shards/ \;
+      - name: Bounded self-hosted runner diagnostics before publication
+        run: |
+          uname -a
+          nproc
+          free -h
+          df -h
       - name: Resume from immutable candidate checkpoint and build publication bundle
-        run: >-
-          python scripts/run_finnhub_full_universe.py publish-checkpoint
-          --shards audit_results/recovery/shards
-          --merged-checkpoint audit_results/recovery/merged/merged_shard_checkpoint.json
-          --canonical-checkpoint audit_results/recovery/canonical/canonical_evaluation_forward_checkpoint.json
-          --replay-checkpoint audit_results/recovery/canonical/canonical_evaluation_reverse_checkpoint.json
-          --canonical-candidate-checkpoint audit_results/recovery/candidate/immutable_candidate_forward_checkpoint.json
-          --replay-candidate-checkpoint audit_results/recovery/candidate/immutable_candidate_reverse_checkpoint.json
-          --determinism-checkpoint audit_results/recovery/determinism/candidate_determinism_checkpoint.json
-          --chunks audit_results/recovery/chunks
-          --output audit_results/recovery/final
+        run: |
+          /usr/bin/time -v python scripts/run_finnhub_full_universe.py publish-checkpoint \
+            --shards audit_results/recovery/shards \
+            --merged-checkpoint audit_results/recovery/merged/merged_shard_checkpoint.json \
+            --canonical-checkpoint audit_results/recovery/canonical/canonical_evaluation_forward_checkpoint.json \
+            --replay-checkpoint audit_results/recovery/canonical/canonical_evaluation_reverse_checkpoint.json \
+            --canonical-candidate-checkpoint audit_results/recovery/candidate/immutable_candidate_forward_checkpoint.json \
+            --replay-candidate-checkpoint audit_results/recovery/candidate/immutable_candidate_reverse_checkpoint.json \
+            --determinism-checkpoint audit_results/recovery/determinism/candidate_determinism_checkpoint.json \
+            --chunks audit_results/recovery/chunks \
+            --output audit_results/recovery/final
+          df -h
       - name: Confirm zero provider calls and production artifacts unchanged
         run: |
           python -c "import json; p=json.load(open('audit_results/recovery/final/final_candidate_checkpoint.json')); assert p['provider_calls_during_aggregation'] == 0"
