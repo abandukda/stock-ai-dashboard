@@ -157,13 +157,18 @@ jobs:
           pattern: atlas-canonical-evaluation-chunk-*-${{ github.run_id }}
           path: audit_results/recovery/chunks
           merge-multiple: true
-      - name: Download immutable source shards without provider acquisition
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Download immutable source shard artifacts from the pinned source run
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ env.SOURCE_RUN_ID }}
+          pattern: atlas-finnhub-full-shard-*-${{ env.SOURCE_RUN_ID }}
+          path: audit_results/recovery/downloaded
+      - name: Assemble immutable source shards without provider acquisition
         run: |
-          gh run download "$SOURCE_RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern "atlas-finnhub-full-shard-*-$SOURCE_RUN_ID" --dir audit_results/recovery/downloaded
           mkdir -p audit_results/recovery/shards
           find audit_results/recovery/downloaded -name 'shard-*.json' -exec cp '{}' audit_results/recovery/shards/ \;
+          test "$(find audit_results/recovery/shards -name 'shard-*.json' | wc -l | tr -d ' ')" = "41"
       - name: Bounded self-hosted runner diagnostics before candidate construction
         run: |
           uname -a
@@ -251,13 +256,18 @@ jobs:
         with:
           name: atlas-candidate-determinism-checkpoint-${{ github.run_id }}
           path: audit_results/recovery/determinism
-      - name: Download immutable source shards without provider acquisition
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Download immutable source shard artifacts from the pinned source run
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ env.SOURCE_RUN_ID }}
+          pattern: atlas-finnhub-full-shard-*-${{ env.SOURCE_RUN_ID }}
+          path: audit_results/recovery/downloaded
+      - name: Assemble immutable source shards without provider acquisition
         run: |
-          gh run download "$SOURCE_RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern "atlas-finnhub-full-shard-*-$SOURCE_RUN_ID" --dir audit_results/recovery/downloaded
           mkdir -p audit_results/recovery/shards
           find audit_results/recovery/downloaded -name 'shard-*.json' -exec cp '{}' audit_results/recovery/shards/ \;
+          test "$(find audit_results/recovery/shards -name 'shard-*.json' | wc -l | tr -d ' ')" = "41"
       - name: Bounded self-hosted runner diagnostics before publication
         run: |
           uname -a
