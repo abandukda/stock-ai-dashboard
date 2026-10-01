@@ -704,6 +704,29 @@ def publish_checkpoint(args: argparse.Namespace) -> int:
                    "buy_now_revalidation": row.get("buy_now_revalidation"),
                    "run_identity_sha256": identity["run_identity_sha256"]}
     buy_now_provenance = _buy_now_report(terminal_views(), frozen, identity)
+    buy_now_terminal, buy_now_rows = [], []
+    for row in disk_rows:
+        evaluation = row.get("canonical_investment_evaluation") or {}
+        action = (evaluation.get("guidance") or {}).get("state") or "RATING_NOT_PUBLISHED"
+        if action != "BUY_NOW":
+            continue
+        buy_now_rows.append(row)
+        buy_now_terminal.append({
+            "ticker": row.get("ticker"),
+            "terminal_data_state": row.get("terminal_data_state"),
+            "canonical_action": action,
+            "evaluation": evaluation,
+            "evaluation_digest": row.get("executor_evaluation_digest"),
+            "buy_now_revalidation": row.get("buy_now_revalidation"),
+            "run_identity_sha256": identity["run_identity_sha256"],
+        })
+    publication_diagnostics = _publication_diagnostics(
+        buy_now_terminal, {"full_evaluation_pool.json": buy_now_rows})
+    publication_ready = (
+        buy_now_provenance.get("status") == "PASS"
+        and manifest.get("publication_gate_status") == "PASS"
+        and manifest.get("artifact_lineage_status") == "COHERENT"
+    )
     report = {
         "executor_version": "ATLAS_FINNHUB_FULL_UNIVERSE_EXECUTOR_V2_MULTI_METHOD",
         "run_identity": identity,
@@ -722,11 +745,12 @@ def publish_checkpoint(args: argparse.Namespace) -> int:
         "buy_now_provenance": buy_now_provenance,
         "determinism": determinism,
         "publication_bundle_digest": publication_digest,
-        "publication_diagnostics": _publication_diagnostics(
-            terminal_views(), {"full_evaluation_pool.json": disk_rows}),
-        "new_full_universe_candidate_certified": buy_now_provenance.get("status") == "PASS",
-        "release_smoke_ready": buy_now_provenance.get("status") == "PASS",
-        "state": "FINNHUB_FULL_UNIVERSE_EXECUTOR_CERTIFIED",
+        "publication_diagnostics": publication_diagnostics,
+        "same_snapshot_parity": "PASS" if publication_ready else "FAIL",
+        "new_full_universe_candidate_certified": publication_ready,
+        "release_smoke_ready": publication_ready,
+        "state": ("FINNHUB_FULL_UNIVERSE_EXECUTOR_CERTIFIED" if publication_ready
+                  else "PUBLICATION_CERTIFICATION_FAILED"),
         "report_card_prospective_active": False,
         "production_schedule_cutover": False,
     }
@@ -740,7 +764,7 @@ def publish_checkpoint(args: argparse.Namespace) -> int:
     final_payload = {
         "state": report["state"],
         "terminal_record_count": report["full_universe_completeness"]["terminal_record_count"],
-        "candidate_digest": (report.get("immutable_candidate") or {}).get("candidate_digest"),
+        "candidate_digest": candidate_digest,
         "publication_bundle_digest": publication_digest,
         "evidence_inspector_status": report["evidence_inspector_coverage"].get("status"),
     }
@@ -807,7 +831,7 @@ def main() -> int:
         return plan(args)
     if args.command == "run-shard":
         return run_shard(args)
-    if args.command in {"aggregate", "merge-checkpoints", "publish-checkpoint"} and args.shards is None:
+    if args.command in {"aggregate", "merge-checkpoints"} and args.shards is None:
         raise ValueError("--shards is required")
     if args.command == "merge-checkpoints":
         return merge_checkpoints(args)
