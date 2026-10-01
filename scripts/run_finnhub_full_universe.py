@@ -41,10 +41,12 @@ PROHIBITED_CHECKPOINT_KEYS = {
 
 def _write(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    encoder = json.JSONEncoder(indent=2, sort_keys=True, default=str)
+    # Checkpoints are machine-readable recovery artifacts; compact encoding avoids
+    # millions of indentation fragments for the 6,033-record candidate while
+    # preserving the exact logical payload and its separately governed digest.
+    encoder = json.JSONEncoder(sort_keys=True, separators=(",", ":"), default=str)
     with path.open("w", encoding="utf-8") as handle:
-        for chunk in encoder.iterencode(payload):
-            handle.write(chunk)
+        handle.writelines(encoder.iterencode(payload))
         handle.write("\n")
 
 
