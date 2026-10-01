@@ -189,6 +189,12 @@ def test_modes_budgets_and_timing_report_contract():
     assert OPERATION_TIMEOUTS["navigation"] == 90.0
 
 
+def test_exact_candidate_runtime_readiness_uses_candidate_source_sha():
+    source = Path("agents/full_qa_visual_certification.py").read_text()
+    assert 'if exact_mode:' in source
+    assert 'crawler.source_sha = str(identity["candidate_source_sha"])' in source
+
+
 def test_release_smoke_separates_interaction_roundtrip_from_terminal_visual_capture():
     source = Path("agents/full_qa_visual_certification.py").read_text()
     smoke = source[source.index('if qa_mode == "RELEASE_SMOKE":'):source.index('# Repeated card disclosures')]

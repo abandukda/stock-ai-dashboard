@@ -5,8 +5,10 @@ on:
     branches: [codex/full-universe-closure-temp]
     paths:
       - .github/workflows/atlas_release_smoke_bounded.yml
+      - agents/full_qa_visual_certification.py
       - scripts/run_bounded_release_smoke.py
       - tests/test_bounded_release_smoke.py
+      - tests/test_full_qa_visual_certification.py
 
 permissions:
   actions: read

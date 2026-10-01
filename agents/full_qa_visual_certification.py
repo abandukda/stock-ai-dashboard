@@ -1080,6 +1080,11 @@ async def run(args: argparse.Namespace) -> int:
     if not identity["valid"]:
         raise RuntimeError("EXACT_CANDIDATE_BINDING_FAILED:" + ",".join(identity["failure_reasons"]))
     crawler = AtlasVisualCrawler(url=args.url, output_dir=output, root=root)
+    # Exact-candidate QA intentionally runs newer harness code against an
+    # immutable candidate. Runtime readiness binds to that candidate's source
+    # SHA while the harness commit remains separately visible in CI lineage.
+    if exact_mode:
+        crawler.source_sha = str(identity["candidate_source_sha"])
     original_shot = crawler._shot
     async def budgeted_shot(page, *, page_name: str, interaction: str, state: str,
                             viewport: str = "desktop", ticker: str = "", complete_surface: bool = False):
