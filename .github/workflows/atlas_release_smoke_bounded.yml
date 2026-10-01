@@ -1,0 +1,130 @@
+name: ATLAS Bounded RELEASE_SMOKE
+
+on:
+  push:
+    branches: [codex/full-universe-closure-temp]
+    paths:
+      - .github/workflows/atlas_release_smoke_bounded.yml
+      - scripts/run_bounded_release_smoke.py
+      - tests/test_bounded_release_smoke.py
+
+permissions:
+  actions: read
+  contents: read
+
+env:
+  PYTHONPATH: "."
+  CERTIFIED_PUBLICATION_RUN_ID: "36877840162"
+  EXPECTED_CANDIDATE_DIGEST: "96936e2b03af129c586ef2043a517068156449a8d1b8dc3d83618451ec90e77f"
+  EXPECTED_PUBLICATION_DIGEST: "b4b3f66959e497c957472da2626c6e0c3e63dc29cef175c195aca48a9f1126c6"
+
+jobs:
+  verify-publication:
+    if: github.ref == 'refs/heads/codex/full-universe-closure-temp'
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: pip install -r requirements.txt
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ env.CERTIFIED_PUBLICATION_RUN_ID }}
+          name: atlas-finnhub-publication-only-recovered-${{ env.CERTIFIED_PUBLICATION_RUN_ID }}
+          path: audit_results/release_smoke/certified
+      - name: Verify exact publication in bounded memory
+        run: |
+          /usr/bin/time -v python scripts/run_bounded_release_smoke.py \
+            --bundle audit_results/release_smoke/certified/publication_bundle \
+            --report-root audit_results/release_smoke/certified \
+            --runtime-dir audit_results/release_smoke/runtime \
+            --output audit_results/release_smoke/bounded_verification.json \
+            --expected-candidate-digest "$EXPECTED_CANDIDATE_DIGEST" \
+            --expected-publication-digest "$EXPECTED_PUBLICATION_DIGEST" \
+            2> audit_results/release_smoke/bounded_memory.txt
+      - name: Provider boundary gates
+        run: |
+          python scripts/audit_production_yahoo_dependencies.py > audit_results/release_smoke/yahoo_dependency_audit.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          audit = json.loads(Path('audit_results/release_smoke/yahoo_dependency_audit.json').read_text())
+          assert audit['PRODUCTION_ACTIVE_YAHOO_DEPENDENCY_COUNT'] == 0
+          verification = json.loads(Path('audit_results/release_smoke/bounded_verification.json').read_text())
+          assert verification['provider_calls'] == 0
+          assert verification['reacquisition'] == 'none'
+          assert verification['report_card_prospective_active'] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-bounded-release-smoke-verification-${{ github.run_id }}
+          path: |
+            audit_results/release_smoke/bounded_verification.json
+            audit_results/release_smoke/bounded_memory.txt
+            audit_results/release_smoke/yahoo_dependency_audit.json
+            audit_results/release_smoke/runtime
+          retention-days: 14
+
+  browser-smoke:
+    needs: verify-publication
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 45
+    env:
+      ATLAS_EXACT_CANDIDATE_QA: "true"
+      DATA_DIR: audit_results/release_smoke/runtime
+      ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: |
+          pip install -r requirements.txt
+          pip install playwright==1.52.0
+          python -m playwright install chromium
+      - uses: actions/download-artifact@v4
+        with:
+          name: atlas-bounded-release-smoke-verification-${{ github.run_id }}
+          path: audit_results/release_smoke
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ env.CERTIFIED_PUBLICATION_RUN_ID }}
+          name: atlas-finnhub-publication-only-recovered-${{ env.CERTIFIED_PUBLICATION_RUN_ID }}
+          path: audit_results/release_smoke/certified
+      - name: Launch bounded exact-snapshot runtime
+        run: |
+          python -m streamlit run app.py --server.headless true --server.port 8501 > audit_results/release_smoke/streamlit.log 2>&1 &
+          for attempt in $(seq 1 90); do curl -fsS http://127.0.0.1:8501/_stcore/health && break; sleep 1; done
+          curl -fsS http://127.0.0.1:8501/_stcore/health
+      - name: Home and Research exact-snapshot smoke
+        run: |
+          /usr/bin/time -v python -m agents.full_qa_visual_certification \
+            --url http://127.0.0.1:8501 \
+            --root audit_results/release_smoke/runtime \
+            --candidate-dir audit_results/release_smoke/certified/publication_bundle \
+            --candidate-run-id "$CERTIFIED_PUBLICATION_RUN_ID" \
+            --mode RELEASE_SMOKE \
+            --runtime-ceiling-seconds 2700 \
+            --output audit_results/release_smoke/visual \
+            2> audit_results/release_smoke/browser_memory.txt
+      - name: Enforce visual and snapshot result
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          verification = json.loads(Path('audit_results/release_smoke/bounded_verification.json').read_text())
+          visual = json.loads(Path('audit_results/release_smoke/visual/atlas_full_qa_visual_summary.json').read_text())
+          assert verification['same_snapshot_parity'] == 'PASS'
+          assert verification['customer_publishable_buy_now_count'] == 22
+          assert not verification['withheld_publication_leaks']
+          assert visual.get('status') == 'PASS', visual
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-bounded-release-smoke-${{ github.run_id }}
+          path: audit_results/release_smoke
+          retention-days: 30
