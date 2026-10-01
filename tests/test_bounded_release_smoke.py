@@ -79,3 +79,13 @@ def test_publication_file_contract_is_exact():
         "total_market_universe.json", "market_scan_state.json", "discovery_candidate_pool.json",
         "full_evaluation_pool.json",
     }
+
+
+def test_browser_startup_is_explicit_and_fails_with_streamlit_diagnostics():
+    workflow = Path(".github/workflows/atlas_release_smoke_bounded.yml").read_text()
+    assert "--server.address 127.0.0.1" in workflow
+    assert 'kill -0 "$app_pid"' in workflow
+    assert "Streamlit exited before readiness" in workflow
+    assert 'cat "$log"' in workflow
+    assert "app_memory.txt" in workflow
+    assert "browser_memory.txt" in workflow

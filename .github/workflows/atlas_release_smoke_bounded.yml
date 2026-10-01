@@ -97,21 +97,71 @@ jobs:
           name: atlas-finnhub-publication-only-recovered-${{ env.CERTIFIED_PUBLICATION_RUN_ID }}
           path: audit_results/release_smoke/certified
       - name: Launch bounded exact-snapshot runtime
+        shell: bash
         run: |
-          python -m streamlit run app.py --server.headless true --server.port 8501 > audit_results/release_smoke/streamlit.log 2>&1 &
-          for attempt in $(seq 1 90); do curl -fsS http://127.0.0.1:8501/_stcore/health && break; sleep 1; done
-          curl -fsS http://127.0.0.1:8501/_stcore/health
+          log=audit_results/release_smoke/streamlit.log
+          memory=audit_results/release_smoke/app_memory.txt
+          pidfile=audit_results/release_smoke/streamlit.pid
+          : > "$log"
+          /usr/bin/time -v -o "$memory" \
+            python -m streamlit run app.py \
+              --server.headless true \
+              --server.address 127.0.0.1 \
+              --server.port 8501 > "$log" 2>&1 &
+          app_pid=$!
+          echo "$app_pid" > "$pidfile"
+          for attempt in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:8501/_stcore/health; then
+              echo "Streamlit ready on 127.0.0.1:8501 (pid=$app_pid attempt=$attempt)"
+              exit 0
+            fi
+            if ! kill -0 "$app_pid" 2>/dev/null; then
+              set +e
+              wait "$app_pid"
+              status=$?
+              set -e
+              echo "::error::Streamlit exited before readiness (status=$status)"
+              cat "$log"
+              cat "$memory" || true
+              exit "$status"
+            fi
+            sleep 1
+          done
+          echo "::error::Streamlit did not become ready on 127.0.0.1:8501 within 90 seconds"
+          cat "$log"
+          cat "$memory" || true
+          kill "$app_pid" 2>/dev/null || true
+          wait "$app_pid" || true
+          exit 1
       - name: Home and Research exact-snapshot smoke
+        shell: bash
         run: |
-          /usr/bin/time -v python -m agents.full_qa_visual_certification \
+          set +e
+          /usr/bin/time -v -o audit_results/release_smoke/browser_memory.txt \
+            python -m agents.full_qa_visual_certification \
             --url http://127.0.0.1:8501 \
             --root audit_results/release_smoke/runtime \
             --candidate-dir audit_results/release_smoke/certified/publication_bundle \
             --candidate-run-id "$CERTIFIED_PUBLICATION_RUN_ID" \
             --mode RELEASE_SMOKE \
             --runtime-ceiling-seconds 2700 \
-            --output audit_results/release_smoke/visual \
-            2> audit_results/release_smoke/browser_memory.txt
+            --output audit_results/release_smoke/visual
+          status=$?
+          app_pid=$(cat audit_results/release_smoke/streamlit.pid)
+          kill "$app_pid" 2>/dev/null || true
+          wait "$app_pid" || true
+          set -e
+          echo "Streamlit memory telemetry:"
+          cat audit_results/release_smoke/app_memory.txt || true
+          echo "Browser memory telemetry:"
+          cat audit_results/release_smoke/browser_memory.txt || true
+          if [ "$status" -ne 0 ]; then
+            echo "::error::Browser smoke failed; Streamlit diagnostics follow"
+            cat audit_results/release_smoke/streamlit.log
+            cat audit_results/release_smoke/app_memory.txt || true
+            cat audit_results/release_smoke/browser_memory.txt || true
+          fi
+          exit "$status"
       - name: Enforce visual and snapshot result
         run: |
           python - <<'PY'
@@ -128,5 +178,13 @@ jobs:
         if: always()
         with:
           name: atlas-bounded-release-smoke-${{ github.run_id }}
-          path: audit_results/release_smoke
+          path: |
+            audit_results/release_smoke/bounded_verification.json
+            audit_results/release_smoke/bounded_memory.txt
+            audit_results/release_smoke/yahoo_dependency_audit.json
+            audit_results/release_smoke/runtime
+            audit_results/release_smoke/streamlit.log
+            audit_results/release_smoke/app_memory.txt
+            audit_results/release_smoke/browser_memory.txt
+            audit_results/release_smoke/visual
           retention-days: 30
