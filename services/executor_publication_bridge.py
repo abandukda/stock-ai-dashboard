@@ -13,7 +13,11 @@ from datetime import datetime
 import hashlib
 import json
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+import shutil
+from collections.abc import Sequence as SequenceABC
+from typing import Any, Iterable, Iterator, Mapping, Sequence
+
+import ijson
 
 from services.canonical_data_validation import validate_valuation
 from services.discovery_engine_v2 import curate_customer_150
@@ -316,3 +320,135 @@ def load_source_rows(shard_paths: Sequence[Path]) -> dict[str, dict[str, Any]]:
 
 
 __all__ = ["ARTIFACT_NAMES", "VERSION", "bridge_evaluation", "build_publication_bundle", "load_source_rows"]
+
+
+class CanonicalJsonArrayFile(SequenceABC):
+    """A repeatable, constant-memory view over a canonical JSON array file."""
+    def __init__(self, path: Path, count: int):
+        self.canonical_json_path = Path(path)
+        self._count = count
+
+    def __len__(self) -> int:
+        return self._count
+
+    def __iter__(self) -> Iterator[dict[str, Any]]:
+        with self.canonical_json_path.open("rb") as handle:
+            yield from ijson.items(handle, "item", use_float=True)
+
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            return list(self)[index]
+        if index < 0:
+            index += self._count
+        for offset, row in enumerate(self):
+            if offset == index:
+                return row
+        raise IndexError(index)
+
+
+def _rank_key(row: Mapping[str, Any]) -> tuple[float, float, float, float, float]:
+    from services.discovery_engine_v2 import ACTION_PRIORITY, canonical_action
+    evaluation = row.get("canonical_investment_evaluation") or {}
+    def metric(key: str) -> float:
+        value = evaluation.get(key)
+        if isinstance(value, Mapping):
+            value = value.get("score")
+        return float(value) if isinstance(value, (int, float)) else 0.0
+    rank = row.get("relative_rank_score")
+    return (float(ACTION_PRIORITY.get(canonical_action(row), 0)), metric("opportunity"),
+            metric("decision_confidence"), metric("component_coverage"),
+            float(rank) if isinstance(rank, (int, float)) else 0.0)
+
+
+def build_publication_bundle_streaming(*, candidate_records: Iterable[Mapping[str, Any]],
+                                       candidate: Mapping[str, Any], output: Path,
+                                       generated_at: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Write the governed bundle without materializing the 6,033-row pool."""
+    from services.publication_governance import build_manifest, certify_rows
+    output.mkdir(parents=True, exist_ok=True)
+    observed = datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
+    pool_path = output / "full_evaluation_pool.json"
+    symbols: list[str] = []
+    top_rows: list[dict[str, Any]] = []
+    count = 0
+    with pool_path.open("w", encoding="utf-8") as handle:
+        handle.write("[")
+        for item in candidate_records:
+            row = bridge_evaluation(item, _candidate_embedded_source_row(item))
+            row.update({key: candidate.get(key) for key in (
+                "candidate_digest", "universe_sha256", "source_sha", "evidence_snapshot_at",
+                "provider_authority_version", "methodology_version", "valuation_version",
+                "six_pillar_version", "action_engine_version",
+            )})
+            certified = certify_rows((row,), now=observed)[0]
+            if count:
+                handle.write(",")
+            handle.write(json.dumps(certified, sort_keys=True, separators=(",", ":"), default=str))
+            count += 1
+            symbols.append(str(certified.get("ticker") or ""))
+            allowed = (certified.get("publication_certification") or {}).get("customer_publication_allowed") is True
+            inverted = (certified.get("basic_shares") is not None and certified.get("diluted_shares") is not None
+                        and float(certified["diluted_shares"]) < float(certified["basic_shares"]))
+            if allowed and not inverted:
+                top_rows.append(certified)
+                top_rows.sort(key=_rank_key, reverse=True)
+                del top_rows[150:]
+        handle.write("]")
+    if count != int(candidate.get("supported_symbol_count") or -1):
+        raise ValueError("streamed publication count differs from immutable candidate")
+    for rank, row in enumerate(top_rows, 1):
+        row["production_rank"] = rank; row["discovery_rank"] = rank; row["full_evaluation_complete"] = True
+
+    identity = {
+        "run_id": f"finnhub-executor-{candidate['candidate_digest'][:16]}",
+        "candidate_id": candidate["candidate_digest"], "candidate_digest": candidate["candidate_digest"],
+        "source_sha": candidate.get("source_sha"), "generated_at": generated_at,
+        "universe_sha256": candidate.get("universe_sha256"),
+        "provider_authority_version": candidate.get("provider_authority_version"),
+        "methodology_version": candidate.get("methodology_version"),
+        "valuation_version": candidate.get("valuation_version"),
+        "six_pillar_version": candidate.get("six_pillar_version"),
+        "action_engine_version": candidate.get("action_engine_version"),
+    }
+    state = {**identity, "status": "COMPLETE", "version": VERSION, "universe_count": count,
+             "prescreen_count": count, "full_scan_count": len(top_rows), "discovery_candidate_count": count,
+             "full_evaluation_count": count, "full_evaluation_pool_limit": count, "recovery_count": 0,
+             "etf_count": 0, "fallback_rows_allowed": False, "report_card_prospective_active": False,
+             "provider_calls": 0, "decision_metrics_publication": {"status": "PUBLISHED", "provider_calls": 0,
+             "calls_avoided": count}, "discovery_v2": {"status": "COMPLETE", "market_universe_count": count,
+             "eligible_count": count, "candidate_pool_count": count, "full_evaluation_pool_count": count,
+             "customer_discovery_count": len(top_rows), "candidate_pool_limit": count,
+             "full_evaluation_pool_limit": count, "recall": {"version": "ATLAS_FULL_UNIVERSE_NO_ATTRITION_RECALL_V1",
+             "validation_control_size": 0, "metrics": {"buy_now_recall": None, "build_or_better_recall": 1.0,
+             "high_opportunity_recall": 1.0, "technical_opportunity_recall": 1.0}, "misses": [],
+             "severity_counts": {f"D{i}": 0 for i in range(5)}, "discovery_gate": "PASS",
+             "rationale": "ALL_6033_SECURITIES_RECEIVED_TERMINAL_EVALUATION"}}}
+    universe = {**identity, "count": count, "symbols": symbols,
+                "eligibility": {"source": "FROZEN_FINNHUB_FULL_UNIVERSE_EXECUTOR", "provider_calls": 0}}
+    for name, payload in (("market_full_scan.json", top_rows), ("market_scan_state.json", state),
+                          ("total_market_universe.json", universe), ("recovery_scan.json", []), ("etf_scan.json", [])):
+        (output / name).write_text(json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str), encoding="utf-8")
+    for name in ("market_prescreen.json", "discovery_candidate_pool.json"):
+        shutil.copyfile(pool_path, output / name)
+    disk_rows = CanonicalJsonArrayFile(pool_path, count)
+    artifact_payloads = {"market_full_scan.json": top_rows, "market_prescreen.json": disk_rows,
+                         "recovery_scan.json": [], "etf_scan.json": [], "total_market_universe.json": universe,
+                         "market_scan_state.json": state, "discovery_candidate_pool.json": disk_rows,
+                         "full_evaluation_pool.json": disk_rows}
+    manifest = build_manifest(disk_rows, run_id=identity["run_id"], generated_at=generated_at,
+                              artifact_payloads=artifact_payloads,
+                              provider_status={"status": "AVAILABLE", "provider_calls": 0})
+    manifest.update({"executor_candidate_identity": identity, "methodology_versions": [candidate.get("methodology_version")],
+                     "methodology_version": candidate.get("methodology_version"), "valuation_version": candidate.get("valuation_version"),
+                     "six_pillar_version": candidate.get("six_pillar_version"), "action_engine_version": candidate.get("action_engine_version"),
+                     "provider_authority_version": candidate.get("provider_authority_version"),
+                     "executor_candidate_digest_verified": True, "report_card_prospective_active": False,
+                     "source_commit_sha": candidate.get("source_sha"), "source_ref": "FROZEN_FINNHUB_FULL_UNIVERSE_EXECUTOR",
+                     "source_branch": "codex/home-promotion-market-today-release"})
+    for item in (manifest.get("artifact_lineage") or {}).values():
+        if isinstance(item, dict): item["source_commit_sha"] = candidate.get("source_sha")
+    (output / "publication_manifest.json").write_text(json.dumps(manifest, sort_keys=True, separators=(",", ":"), default=str), encoding="utf-8")
+    return {"record_count": count, "customer_rows": top_rows, "disk_rows": disk_rows, "state": state}, manifest
+
+
+__all__.extend(["CanonicalJsonArrayFile", "build_publication_bundle_streaming"])

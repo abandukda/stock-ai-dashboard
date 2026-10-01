@@ -13,6 +13,8 @@ import sys
 import time
 from typing import Any, Mapping
 
+import ijson
+
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -27,7 +29,7 @@ from services.finnhub_full_universe_executor import (
     _buy_now_report, _gate_diagnostics, _method_distribution,
     _pillar_distribution, _publication_diagnostics, _route_distribution,
 )
-from services.executor_publication_bridge import build_publication_bundle
+from services.executor_publication_bridge import build_publication_bundle, build_publication_bundle_streaming
 from services.full_universe_brain_certification import (
     certify_complete_run, compare_deterministic_candidates, load_frozen_universe,
 )
@@ -629,18 +631,33 @@ def publish_checkpoint(args: argparse.Namespace) -> int:
     frozen = load_frozen_universe(args.universe)
     merged = _load_checkpoint(args.merged_checkpoint, "MERGED_SHARD_CHECKPOINT")
     first_checkpoint = _load_checkpoint(args.canonical_checkpoint, "CANONICAL_EVALUATION_ORDER_CHECKPOINT")
-    forward_candidate = _load_checkpoint(args.canonical_candidate_checkpoint, "IMMUTABLE_CANDIDATE_ORDER_CHECKPOINT")
     determinism_checkpoint = _load_checkpoint(args.determinism_checkpoint, "CANDIDATE_DETERMINISM_CHECKPOINT")
-    identity = {
-        "source_sha": forward_candidate["source_sha"],
-        "evidence_snapshot_at": forward_candidate["evidence_snapshot_timestamp"],
-        "run_identity_sha256": forward_candidate["run_identity_sha256"],
+    candidate_fields = {
+        "candidate_digest", "evidence_snapshot_at", "source_sha", "universe_sha256",
+        "supported_symbol_count", "provider_authority_version", "methodology_version",
+        "valuation_version", "six_pillar_version", "action_engine_version",
     }
-    for checkpoint in (merged, first_checkpoint, forward_candidate, determinism_checkpoint):
+    candidate: dict[str, Any] = {}
+    outer: dict[str, Any] = {}
+    with args.canonical_candidate_checkpoint.open("rb") as handle:
+        for prefix, event, value in ijson.parse(handle, use_float=True):
+            if prefix in candidate_fields and event in {"string", "number", "boolean", "null"}:
+                candidate[prefix] = value
+            elif prefix.startswith("payload.candidate."):
+                key = prefix.removeprefix("payload.candidate.")
+                if key in candidate_fields and event in {"string", "number", "boolean", "null"}:
+                    candidate[key] = value
+            elif prefix in {"source_sha", "universe_sha", "evidence_snapshot_timestamp", "run_identity_sha256"}:
+                outer[prefix] = value
+    identity = {
+        "source_sha": outer["source_sha"],
+        "evidence_snapshot_at": outer["evidence_snapshot_timestamp"],
+        "run_identity_sha256": outer["run_identity_sha256"],
+    }
+    for checkpoint in (merged, first_checkpoint, determinism_checkpoint):
         _validate_checkpoint_identity(checkpoint, identity=identity, universe=frozen)
         if checkpoint["shard_artifact_digests"] != merged["shard_artifact_digests"]:
             raise ValueError("publication checkpoint shard identity mismatch")
-    candidate = forward_candidate["payload"]["candidate"]
     determinism = determinism_checkpoint["payload"]["determinism"]
     candidate_digest = candidate.get("candidate_digest")
     if args.expected_candidate_digest and candidate_digest != args.expected_candidate_digest:
@@ -654,27 +671,39 @@ def publish_checkpoint(args: argparse.Namespace) -> int:
         raise ValueError("candidate determinism is not certified")
     if determinism_checkpoint.get("provider_calls_during_aggregation") != 0:
         raise ValueError("determinism checkpoint contains provider calls")
-    if first_checkpoint["payload"].get("record_count") != len(candidate.get("evaluations") or ()):
+    if first_checkpoint["payload"].get("record_count") != int(candidate.get("supported_symbol_count") or -1):
         raise ValueError("candidate record count differs from certified canonical checkpoint")
     completeness = dict(first_checkpoint["payload"]["completeness"])
     inspector = dict(first_checkpoint["payload"]["inspector"])
     if completeness.get("state") != "FULL_UNIVERSE_CERTIFIED" or inspector.get("status") != "PASS":
         raise ValueError("canonical evaluation is not publication eligible")
 
+    def candidate_records():
+        with args.canonical_candidate_checkpoint.open("rb") as handle:
+            yield from ijson.items(handle, "payload.candidate.evaluations.item", use_float=True)
+
     (publication, certification_metric) = _profiled(
         "H_PUBLICATION_PROJECTION",
-        lambda: build_publication_bundle(
-            candidate=candidate, generated_at=str(identity["evidence_snapshot_at"]),
+        lambda: build_publication_bundle_streaming(
+            candidate_records=candidate_records(), candidate=candidate,
+            output=args.output / "publication_bundle", generated_at=str(identity["evidence_snapshot_at"]),
         ),
     )
-    artifacts, manifest = publication
-    publication_bundle = {"artifacts": artifacts, "manifest": manifest}
+    publication_summary, manifest = publication
     publication_digest = _digest({
         "artifact_hashes": manifest.get("artifact_hashes"),
         "candidate_digest": candidate_digest,
     })
-    terminal = candidate.get("evaluations") or []
-    buy_now_provenance = _buy_now_report(terminal, frozen, identity)
+    disk_rows = publication_summary["disk_rows"]
+    def terminal_views():
+        for row in disk_rows:
+            evaluation = row.get("canonical_investment_evaluation") or {}
+            yield {"ticker": row.get("ticker"), "terminal_data_state": row.get("terminal_data_state"),
+                   "canonical_action": (evaluation.get("guidance") or {}).get("state") or "RATING_NOT_PUBLISHED",
+                   "evaluation": evaluation, "evaluation_digest": row.get("executor_evaluation_digest"),
+                   "buy_now_revalidation": row.get("buy_now_revalidation"),
+                   "run_identity_sha256": identity["run_identity_sha256"]}
+    buy_now_provenance = _buy_now_report(terminal_views(), frozen, identity)
     report = {
         "executor_version": "ATLAS_FINNHUB_FULL_UNIVERSE_EXECUTOR_V2_MULTI_METHOD",
         "run_identity": identity,
@@ -683,24 +712,20 @@ def publish_checkpoint(args: argparse.Namespace) -> int:
         "forward_route_leakage": False,
         "shadow_evidence_leakage": False,
         "authority_violations": 0,
-        "valuation_route_distribution": _route_distribution([
-            item.get("evaluation") or {} for item in terminal
-        ]),
-        "valuation_method_distribution": _method_distribution(terminal),
-        "gate_diagnostics": _gate_diagnostics(terminal),
-        "pillar_distribution": _pillar_distribution(terminal),
+        "valuation_route_distribution": _route_distribution((item["evaluation"] for item in terminal_views())),
+        "valuation_method_distribution": _method_distribution(terminal_views()),
+        "gate_diagnostics": _gate_diagnostics(terminal_views()),
+        "pillar_distribution": _pillar_distribution(terminal_views()),
         "action_distribution": completeness.get("action_counts") or {},
         "provider_call_telemetry": {"provider_calls": 0, "cache_hits": 0, "calls_avoided": 0,
                                     "retry_count": 0, "retry_rate": 0.0},
         "buy_now_provenance": buy_now_provenance,
-        "immutable_candidate": candidate,
         "determinism": determinism,
-        "publication_bundle": publication_bundle,
         "publication_bundle_digest": publication_digest,
-        "publication_diagnostics": _publication_diagnostics(terminal, artifacts),
+        "publication_diagnostics": _publication_diagnostics(
+            terminal_views(), {"full_evaluation_pool.json": disk_rows}),
         "new_full_universe_candidate_certified": buy_now_provenance.get("status") == "PASS",
         "release_smoke_ready": buy_now_provenance.get("status") == "PASS",
-        "determinism_candidates": {},
         "state": "FINNHUB_FULL_UNIVERSE_EXECUTOR_CERTIFIED",
         "report_card_prospective_active": False,
         "production_schedule_cutover": False,
@@ -726,7 +751,21 @@ def publish_checkpoint(args: argparse.Namespace) -> int:
     )
     _assert_checkpoint_safe(final_checkpoint)
     _write(args.output / "final_candidate_checkpoint.json", final_checkpoint)
-    _write_report_artifacts(args.output, report)
+    for filename, key in (
+        ("checkpoint_summary.json", "full_universe_completeness"),
+        ("provider_call_telemetry.json", "provider_call_telemetry"),
+        ("evidence_inspector_coverage.json", "evidence_inspector_coverage"),
+        ("valuation_route_distribution.json", "valuation_route_distribution"),
+        ("valuation_method_distribution.json", "valuation_method_distribution"),
+        ("gate_diagnostics.json", "gate_diagnostics"),
+        ("publication_diagnostics.json", "publication_diagnostics"),
+        ("pillar_distribution.json", "pillar_distribution"),
+        ("action_distribution.json", "action_distribution"),
+        ("buy_now_provenance.json", "buy_now_provenance"),
+        ("determinism_report.json", "determinism"),
+    ):
+        _write(args.output / filename, report[key])
+    _write(args.output / "full_universe_gate_report.json", report)
     print(json.dumps({"state": report["state"], "symbols": final_payload["terminal_record_count"], "provider_calls": 0}))
     return 0 if report["state"] == "FINNHUB_FULL_UNIVERSE_EXECUTOR_CERTIFIED" else 1
 

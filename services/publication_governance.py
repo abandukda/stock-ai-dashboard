@@ -278,6 +278,13 @@ def certify_rows(rows: Sequence[Mapping[str, Any]], *, now: datetime | None = No
 
 
 def _hash_payload(payload: Any) -> str:
+    canonical_path = getattr(payload, "canonical_json_path", None)
+    if canonical_path is not None:
+        digest = hashlib.sha256()
+        with open(canonical_path, "rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
     digest = hashlib.sha256()
     encoder = json.JSONEncoder(sort_keys=True, separators=(",", ":"), default=str)
     for chunk in encoder.iterencode(payload):

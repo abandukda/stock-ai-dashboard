@@ -9,6 +9,7 @@ on:
       - scripts/run_finnhub_full_universe.py
       - services/executor_publication_bridge.py
       - services/publication_governance.py
+      - requirements.txt
       - tests/test_full_universe_aggregation_recovery.py
 
 permissions:
@@ -59,10 +60,8 @@ jobs:
         run: |
           python - <<'PY'
           import json, os
-          candidate = json.load(open('audit_results/recovery/candidate/immutable_candidate_forward_checkpoint.json'))
           determinism = json.load(open('audit_results/recovery/determinism/candidate_determinism_checkpoint.json'))
           expected = os.environ['EXPECTED_CANDIDATE_DIGEST']
-          assert candidate['payload']['candidate']['candidate_digest'] == expected
           assert determinism['payload']['forward_candidate_digest'] == expected
           assert determinism['payload']['reverse_candidate_digest'] == expected
           assert determinism['payload']['determinism']['status'] == 'PASS'
