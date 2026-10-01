@@ -67,6 +67,21 @@ def test_shard_inventory_detects_any_artifact_change(tmp_path):
         recovery._load_verified_shards(tmp_path, inventory)
 
 
+def test_memory_bounded_shard_verification_retains_only_identity_shard(tmp_path):
+    first = tmp_path / "shard-000.json"
+    second = tmp_path / "shard-001.json"
+    first.write_text(json.dumps({"run_identity": _identity(), "large_payload": [1]}))
+    second.write_text(json.dumps({"run_identity": _identity(), "large_payload": [2]}))
+    _, inventory = recovery._load_verified_shards(tmp_path)
+    identity_shard, verified = recovery._verify_shards_without_loading_payloads(tmp_path, inventory)
+    assert identity_shard["run_identity"] == _identity()
+    assert identity_shard["large_payload"] == [1]
+    assert verified == inventory
+    second.write_text(json.dumps({"run_identity": _identity(), "large_payload": [3]}))
+    with pytest.raises(ValueError, match="inventory or digest mismatch"):
+        recovery._verify_shards_without_loading_payloads(tmp_path, inventory)
+
+
 def test_recovery_uses_source_shard_identity_and_rejects_wrong_source():
     ident = _identity()
     args = SimpleNamespace(

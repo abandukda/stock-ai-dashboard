@@ -102,6 +102,19 @@ def _load_verified_shards(directory: Path, inventory: list[Mapping[str, str]] | 
     return [json.loads(path.read_text(encoding="utf-8")) for path in paths], digests
 
 
+def _verify_shards_without_loading_payloads(
+    directory: Path, inventory: list[Mapping[str, str]],
+) -> tuple[dict[str, Any], list[dict[str, str]]]:
+    """Verify every immutable shard while retaining only the first shard identity."""
+    paths = _shard_files(directory)
+    digests = [{"name": path.name, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()} for path in paths]
+    if digests != [dict(item) for item in inventory]:
+        raise ValueError("shard artifact inventory or digest mismatch")
+    if not paths:
+        raise ValueError("immutable source shard set is empty")
+    return json.loads(paths[0].read_text(encoding="utf-8")), digests
+
+
 def _assert_checkpoint_safe(value: Any, path: str = "checkpoint") -> None:
     if isinstance(value, Mapping):
         for key, item in value.items():
@@ -492,18 +505,56 @@ def _load_canonical_recovery(args: argparse.Namespace) -> tuple[dict[str, Any], 
     return frozen, identity, shards, merged, canonical_payload, first_checkpoint, second_checkpoint
 
 
+def _load_candidate_recovery(
+    args: argparse.Namespace,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Load only the requested canonical order for memory-bounded candidate assembly."""
+    frozen = load_frozen_universe(args.universe)
+    merged = _load_checkpoint(args.merged_checkpoint, "MERGED_SHARD_CHECKPOINT")
+    first_checkpoint = _load_checkpoint(args.canonical_checkpoint, "CANONICAL_EVALUATION_ORDER_CHECKPOINT")
+    second_checkpoint = _load_checkpoint(args.replay_checkpoint, "CANONICAL_EVALUATION_ORDER_CHECKPOINT")
+    if first_checkpoint["payload"].get("order") != "forward" or second_checkpoint["payload"].get("order") != "reverse":
+        raise ValueError("canonical order checkpoint roles are invalid")
+    if not (merged["shard_artifact_digests"] == first_checkpoint["shard_artifact_digests"] == second_checkpoint["shard_artifact_digests"]):
+        raise ValueError("merge and canonical checkpoint shard identities differ")
+    first_shard, _ = _verify_shards_without_loading_payloads(
+        args.shards, merged["shard_artifact_digests"],
+    )
+    identity = _recovery_identity([first_shard], frozen, args)
+    for checkpoint in (merged, first_checkpoint, second_checkpoint):
+        _validate_checkpoint_identity(checkpoint, identity=identity, universe=frozen)
+    chunk_paths = sorted(args.chunks.glob("canonical_evaluation_chunk_*.json"))
+    chunks = [_load_checkpoint(path, "CANONICAL_EVALUATION_CHUNK_CHECKPOINT") for path in chunk_paths]
+    if len(chunks) != int(chunks[0]["payload"]["chunk_count"] if chunks else 0):
+        raise ValueError("canonical evaluation chunk set is incomplete during candidate assembly")
+    for chunk in chunks:
+        _validate_checkpoint_identity(chunk, identity=identity, universe=frozen)
+        if chunk["shard_artifact_digests"] != merged["shard_artifact_digests"]:
+            raise ValueError("candidate chunk shard identity mismatch")
+    selected_checkpoint = first_checkpoint if args.order == "forward" else second_checkpoint
+    evaluation = combine_evaluation_results(
+        [chunk["payload"]["evaluation"] for chunk in chunks],
+        reverse=args.order == "reverse",
+    )
+    projection = [
+        {"ticker": record.get("ticker"), "terminal_data_state": record.get("terminal_data_state"),
+         "canonical_action": record.get("canonical_action"), "evaluation_digest": record.get("evaluation_digest")}
+        for record in evaluation["terminal_records"]
+    ]
+    if _digest(projection) != selected_checkpoint["payload"]["record_projection_sha256"]:
+        raise ValueError("canonical order projection digest mismatch")
+    return frozen, identity, merged, evaluation, selected_checkpoint
+
+
 def build_candidate_checkpoint(args: argparse.Namespace) -> int:
-    frozen, identity, _, merged, canonical_payload, first_checkpoint, second_checkpoint = _load_canonical_recovery(args)
-    evaluation_key = "first_evaluation" if args.order == "forward" else "second_evaluation"
-    completeness_key = "first_completeness" if args.order == "forward" else "second_completeness"
+    frozen, identity, merged, evaluation, order_checkpoint = _load_candidate_recovery(args)
     candidate, metric = _profiled(
         f"F_IMMUTABLE_CANDIDATE_{args.order.upper()}",
         lambda: build_single_immutable_candidate(
-            universe=frozen, identity=identity, evaluation=canonical_payload[evaluation_key],
-            completeness=canonical_payload[completeness_key],
+            universe=frozen, identity=identity, evaluation=evaluation,
+            completeness=order_checkpoint["payload"]["completeness"],
         ),
     )
-    order_checkpoint = first_checkpoint if args.order == "forward" else second_checkpoint
     candidate_state = {"run_identity_sha256": identity["run_identity_sha256"],
                        "order": args.order, "canonical_checkpoint_digest": order_checkpoint["content_digest"],
                        "methodology_version": candidate.get("methodology_version"),
