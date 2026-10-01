@@ -151,6 +151,34 @@ def test_publication_bridge_can_reuse_candidate_embedded_source_projection():
     }
 
 
+def test_streaming_candidate_metadata_keeps_checkpoint_and_candidate_source_identity_separate(tmp_path):
+    path = tmp_path / "candidate.json"
+    path.write_text(json.dumps({
+        "source_sha": "checkpoint-source",
+        "universe_sha": "universe-sha",
+        "evidence_snapshot_timestamp": "2026-09-29T20:40:43Z",
+        "run_identity_sha256": "run-id",
+        "payload": {"candidate": {
+            "source_sha": "candidate-source",
+            "candidate_digest": "candidate-digest",
+            "supported_symbol_count": 6033,
+            "evaluations": [{"large": "record"}],
+        }},
+    }))
+    candidate, outer = recovery._stream_candidate_metadata(path)
+    assert outer == {
+        "source_sha": "checkpoint-source",
+        "universe_sha": "universe-sha",
+        "evidence_snapshot_timestamp": "2026-09-29T20:40:43Z",
+        "run_identity_sha256": "run-id",
+    }
+    assert candidate == {
+        "source_sha": "candidate-source",
+        "candidate_digest": "candidate-digest",
+        "supported_symbol_count": 6033,
+    }
+
+
 def test_acquisition_workflow_no_longer_runs_on_feature_branch_push():
     workflow = Path(".github/workflows/atlas_finnhub_full_universe_certification.yml").read_text()
     assert "workflow_dispatch:" in workflow

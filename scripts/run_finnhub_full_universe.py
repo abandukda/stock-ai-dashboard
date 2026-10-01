@@ -627,28 +627,40 @@ def certify_candidate_determinism(args: argparse.Namespace) -> int:
     return 0 if determinism.get("status") == "PASS" else 1
 
 
-def publish_checkpoint(args: argparse.Namespace) -> int:
-    frozen = load_frozen_universe(args.universe)
-    merged = _load_checkpoint(args.merged_checkpoint, "MERGED_SHARD_CHECKPOINT")
-    first_checkpoint = _load_checkpoint(args.canonical_checkpoint, "CANONICAL_EVALUATION_ORDER_CHECKPOINT")
-    determinism_checkpoint = _load_checkpoint(args.determinism_checkpoint, "CANDIDATE_DETERMINISM_CHECKPOINT")
+def _stream_candidate_metadata(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Read only governed candidate/checkpoint metadata without loading evaluations."""
     candidate_fields = {
         "candidate_digest", "evidence_snapshot_at", "source_sha", "universe_sha256",
         "supported_symbol_count", "provider_authority_version", "methodology_version",
         "valuation_version", "six_pillar_version", "action_engine_version",
     }
+    outer_fields = {"source_sha", "universe_sha", "evidence_snapshot_timestamp", "run_identity_sha256"}
     candidate: dict[str, Any] = {}
     outer: dict[str, Any] = {}
-    with args.canonical_candidate_checkpoint.open("rb") as handle:
+    with path.open("rb") as handle:
         for prefix, event, value in ijson.parse(handle, use_float=True):
-            if prefix in candidate_fields and event in {"string", "number", "boolean", "null"}:
-                candidate[prefix] = value
+            if event not in {"string", "number", "boolean", "null"}:
+                continue
+            if prefix in outer_fields:
+                outer[prefix] = value
             elif prefix.startswith("payload.candidate."):
                 key = prefix.removeprefix("payload.candidate.")
-                if key in candidate_fields and event in {"string", "number", "boolean", "null"}:
+                if key in candidate_fields:
                     candidate[key] = value
-            elif prefix in {"source_sha", "universe_sha", "evidence_snapshot_timestamp", "run_identity_sha256"}:
-                outer[prefix] = value
+    missing_outer = sorted(outer_fields - outer.keys())
+    missing_candidate = sorted({"candidate_digest", "supported_symbol_count"} - candidate.keys())
+    if missing_outer or missing_candidate:
+        raise ValueError(
+            f"immutable candidate checkpoint metadata incomplete: outer={missing_outer}, candidate={missing_candidate}")
+    return candidate, outer
+
+
+def publish_checkpoint(args: argparse.Namespace) -> int:
+    frozen = load_frozen_universe(args.universe)
+    merged = _load_checkpoint(args.merged_checkpoint, "MERGED_SHARD_CHECKPOINT")
+    first_checkpoint = _load_checkpoint(args.canonical_checkpoint, "CANONICAL_EVALUATION_ORDER_CHECKPOINT")
+    determinism_checkpoint = _load_checkpoint(args.determinism_checkpoint, "CANDIDATE_DETERMINISM_CHECKPOINT")
+    candidate, outer = _stream_candidate_metadata(args.canonical_candidate_checkpoint)
     identity = {
         "source_sha": outer["source_sha"],
         "evidence_snapshot_at": outer["evidence_snapshot_timestamp"],
