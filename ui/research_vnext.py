@@ -64,6 +64,23 @@ def _certified_field(report: Mapping[str, Any], name: str) -> Any:
     return None
 
 
+def _certified_decision_authority(report: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Return the customer-publishable certified decision, or no authority."""
+    certified = safe_mapping(report.get("certified_customer_evaluation"))
+    if certified.get("customer_publication_allowed") is not True:
+        return {}
+    return safe_mapping(certified.get("decision"))
+
+
+def _score_display(value: Any) -> str:
+    if is_missing_scalar(value):
+        return "Unavailable"
+    try:
+        return f"{float(value):.2f}"
+    except (TypeError, ValueError):
+        return str(value)
+
+
 def _customer_fair_value(report: Mapping[str, Any]) -> Any:
     certified = _certified_field(report, "atlas_fair_value")
     if safe_mapping(report.get("certified_customer_evaluation")):
@@ -375,9 +392,15 @@ def build_research_decision_view(report: Mapping[str, Any]) -> dict[str, Any]:
     completeness = report.get("research_completeness_pct")
     current = _current_evaluation(report)
     current_guidance = safe_mapping(current.get("guidance"))
-    canonical_recommendation = current_guidance.get("state") or _decision_value(report, "recommendation", "committee_verdict")
-    canonical_opportunity = current.get("opportunity") if current else _decision_value(report, "opportunity", "opportunity_score")
-    canonical_confidence = current.get("decision_confidence") if current else _decision_value(report, "confidence", "confidence_pct")
+    certified_decision = _certified_decision_authority(report)
+    if certified_decision:
+        canonical_recommendation = certified_decision.get("action")
+        canonical_opportunity = certified_decision.get("opportunity")
+        canonical_confidence = certified_decision.get("decision_confidence")
+    else:
+        canonical_recommendation = current_guidance.get("state") or _decision_value(report, "recommendation", "committee_verdict")
+        canonical_opportunity = current.get("opportunity") if current else _decision_value(report, "opportunity", "opportunity_score")
+        canonical_confidence = current.get("decision_confidence") if current else _decision_value(report, "confidence", "confidence_pct")
     verdict = _scalar_text(canonical_recommendation, "Unavailable")
     try:
         materially_incomplete = completeness is None or float(completeness) < 70.0
@@ -458,8 +481,8 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
     current = safe_mapping(view.get("current_evaluation"))
     current_guidance = safe_mapping(current.get("guidance"))
     certified_customer = safe_mapping(report.get("certified_customer_evaluation"))
-    certified_decision = safe_mapping(certified_customer.get("decision"))
-    if certified_customer:
+    certified_decision = _certified_decision_authority(report)
+    if certified_decision:
         certified_action = certified_decision.get("action")
         current_guidance = {**current_guidance, "state": certified_action} if certified_action else {}
     context = _canonical_context(report)
@@ -486,10 +509,12 @@ def _render_decision(report: Mapping[str, Any], view: Mapping[str, Any]) -> None
     market = safe_mapping(report.get("canonical_market_snapshot"))
     fair_value = _customer_fair_value(report)
     potential = _customer_potential(report)
-    setup = st.columns(3)
+    setup = st.columns(5)
     setup[0].metric(_scalar_text(market.get("customer_label"), "Current Price"), CanonicalNumberFormatter.price(market.get("price")).display)
     setup[1].metric("ATLAS Fair Value", CanonicalNumberFormatter.price(fair_value).display)
     setup[2].metric("Potential", CanonicalNumberFormatter.percent(potential, signed=True).display if fair_value is not None else "Unavailable")
+    setup[3].metric("Opportunity", _score_display(header.opportunity))
+    setup[4].metric("Decision Confidence", CanonicalNumberFormatter.percent(header.confidence, decimals=2).display)
     if market:
         st.caption(
             f"{_scalar_text(market.get('market_session'), 'Unavailable').replace('_', ' ').title()} · "

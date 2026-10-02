@@ -68,6 +68,15 @@ render_research_vnext(report, legacy={{}})
     return AppTest.from_string(source, default_timeout=20).run()
 
 
+def _render_certified_decision_app(report: dict) -> AppTest:
+    source = f'''
+from ui.research_vnext import render_research_vnext
+report = {report!r}
+render_research_vnext(report, legacy={{}})
+'''
+    return AppTest.from_string(source, default_timeout=20).run()
+
+
 def report_fixture(*, ticker: str = "NVDA", verdict: str = "BUY_NOW", completeness: float = 92.0) -> dict:
     return {
         "ticker": ticker, "company": f"{ticker} Example",
@@ -162,6 +171,68 @@ def test_high_evidence_decision_view_preserves_canonical_values_and_risk_symmetr
     assert view["evidence"].support.startswith("Revenue growth")
     assert view["evidence"].contradiction_or_risk.startswith("Valuation")
     assert report == before
+
+
+def test_customer_publishable_certified_decision_is_complete_field_authority(monkeypatch):
+    monkeypatch.setenv("ATLAS_FOUNDER_GUIDANCE_V1_ENABLED", "true")
+    report = report_fixture()
+    report["research_context"]["current_evaluation"] = {
+        "guidance": {"state": "WAIT_FOR_CONFIRMATION"},
+        "opportunity": None,
+        "decision_confidence": None,
+    }
+    report["certified_customer_evaluation"] = {
+        "customer_publication_allowed": True,
+        "decision": {
+            "action": "BUY_NOW",
+            "opportunity": 86.68,
+            "decision_confidence": 88.54,
+        },
+        "fields": {
+            "atlas_fair_value": {"value": 338.82, "certification_status": "CERTIFIED"},
+            "atlas_upside_pct": {"value": 49.1, "certification_status": "CERTIFIED"},
+        },
+    }
+    view = build_research_decision_view(report)
+    assert view["header"].recommendation == "BUY_NOW"
+    assert view["header"].opportunity == 86.68
+    assert view["header"].confidence == 88.54
+
+
+def test_certified_fair_value_and_upside_remain_distinct_from_opportunity():
+    report = report_fixture()
+    report["certified_customer_evaluation"] = {
+        "customer_publication_allowed": True,
+        "decision": {
+            "action": "BUY_NOW",
+            "opportunity": 86.68,
+            "decision_confidence": 88.54,
+        },
+        "fields": {
+            "atlas_fair_value": {"value": 338.82, "certification_status": "CERTIFIED"},
+            "atlas_upside_pct": {"value": 49.1, "certification_status": "CERTIFIED"},
+        },
+    }
+    app = _render_certified_decision_app(report)
+    metrics = {metric.label: metric.value for metric in app.metric}
+    assert metrics["ATLAS Fair Value"] == "$338.82"
+    assert metrics["Potential"] == "+49.1%"
+    assert metrics["Opportunity"] == "86.68"
+    assert metrics["Decision Confidence"] == "88.54%"
+
+
+def test_absent_certified_customer_evaluation_preserves_current_fallback(monkeypatch):
+    monkeypatch.setenv("ATLAS_FOUNDER_GUIDANCE_V1_ENABLED", "true")
+    report = report_fixture(verdict="BUY_NOW")
+    report["research_context"]["current_evaluation"] = {
+        "guidance": {"state": "WAIT_FOR_CONFIRMATION"},
+        "opportunity": 72.98,
+        "decision_confidence": 80.63,
+    }
+    view = build_research_decision_view(report)
+    assert view["header"].recommendation == "WAIT_FOR_CONFIRMATION"
+    assert view["header"].opportunity == 72.98
+    assert view["header"].confidence == 80.63
 
 
 def test_monitor_incomplete_state_is_non_actionable_and_preserves_scenario_levels():
