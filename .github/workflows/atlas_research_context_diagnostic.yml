@@ -1,0 +1,68 @@
+name: ATLAS Research Context A-B Diagnostic
+
+on:
+  push:
+    branches: [codex/full-universe-closure-temp]
+    paths:
+      - .github/workflows/atlas_research_context_diagnostic.yml
+      - scripts/diagnose_research_smoke_context.py
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  research-context-ab:
+    if: github.ref == 'refs/heads/codex/full-universe-closure-temp'
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 30
+    env:
+      ATLAS_EXACT_CANDIDATE_QA: "true"
+      DATA_DIR: audit_results/research_context_ab/runtime
+      ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: |
+          pip install -r requirements.txt
+          pip install playwright==1.52.0
+          python -m playwright install chromium
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: "37065157717"
+          name: atlas-bounded-release-smoke-verification-37065157717
+          path: audit_results/research_context_ab
+      - name: Launch bounded exact-snapshot runtime
+        shell: bash
+        run: |
+          mkdir -p audit_results/research_context_ab/diagnostic
+          python -m streamlit run app.py \
+            --server.headless true \
+            --server.address 127.0.0.1 \
+            --server.port 8501 \
+            > audit_results/research_context_ab/diagnostic/streamlit.log 2>&1 &
+          echo "$!" > audit_results/research_context_ab/diagnostic/streamlit.pid
+          for attempt in $(seq 1 90); do
+            curl -fsS http://127.0.0.1:8501/_stcore/health && exit 0
+            sleep 1
+          done
+          cat audit_results/research_context_ab/diagnostic/streamlit.log
+          exit 1
+      - name: Run one NVDA A-B context experiment
+        run: |
+          python scripts/diagnose_research_smoke_context.py \
+            --root . \
+            --output audit_results/research_context_ab/diagnostic
+      - name: Stop runtime
+        if: always()
+        run: |
+          test -f audit_results/research_context_ab/diagnostic/streamlit.pid || exit 0
+          kill "$(cat audit_results/research_context_ab/diagnostic/streamlit.pid)" 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-research-context-ab-${{ github.run_id }}
+          path: audit_results/research_context_ab/diagnostic
+          retention-days: 14
