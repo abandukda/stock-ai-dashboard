@@ -581,7 +581,12 @@ class AtlasVisualCrawler:
         try:
             settled, _, detail = await _navigate(page, page_name, self.output_dir)
             if page_name == "Research Any Ticker":
-                owner_deadline = time.monotonic() + 20
+                # The first exact-candidate Research route performs a bounded
+                # persisted-evidence load after navigation. Keep that route
+                # generation alive instead of re-clicking the selected radio,
+                # which restarts Streamlit's rerun. Reserve five seconds for
+                # diagnostics inside the existing 90-second outer boundary.
+                owner_deadline = started + RESEARCH_COMPLETION_TIMEOUT_SECONDS - 5
                 while time.monotonic() < owner_deadline:
                     if await self._research_route_owned(page):
                         settled = True
@@ -1334,7 +1339,9 @@ class AtlasVisualCrawler:
             )
     async def _submit_research(self, page: Page, ticker: str, *, tabs: bool, viewport: str = "desktop") -> bool:
         started = time.monotonic()
-        await self._page_visit(page, "Research Any Ticker", viewport=viewport)
+        route_ready = await self._page_visit(page, "Research Any Ticker", viewport=viewport)
+        if not route_ready:
+            raise RuntimeError("RESEARCH_ROUTE_NOT_READY")
         before = await self._shot(page, page_name="Research Any Ticker", interaction=f"submit-{ticker}", state="before", viewport=viewport, ticker=ticker)
         try:
             input_node = None

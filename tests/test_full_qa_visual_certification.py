@@ -501,3 +501,11 @@ def test_authentication_uses_run_budget_longer_than_inner_readiness_lifecycle():
     source = Path("agents/full_qa_visual_certification.py").read_text()
     assert 'timeout=timing.remaining_seconds(), timing=timing' in source
     assert 'timeout=OPERATION_TIMEOUTS["authentication"]' not in source
+
+
+def test_research_navigation_waits_for_owned_route_before_ticker_submission():
+    source = Path("agents/atlas_visual_crawler_v1.py").read_text(encoding="utf-8")
+    assert "owner_deadline = started + RESEARCH_COMPLETION_TIMEOUT_SECONDS - 5" in source
+    assert 'raise RuntimeError("RESEARCH_ROUTE_NOT_READY")' in source
+    submit = source.split("async def _submit_research", 1)[1].split("async def ", 1)[0]
+    assert submit.index("route_ready = await self._page_visit") < submit.index("input_node = None")
