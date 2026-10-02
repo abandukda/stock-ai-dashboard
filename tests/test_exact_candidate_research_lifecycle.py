@@ -10,6 +10,7 @@ from services.exact_candidate_research import (
     persisted_certified_research,
     research_submission_plan,
 )
+from ui.research_vnext import build_research_decision_view
 
 
 NVDA = {
@@ -50,6 +51,33 @@ def test_exact_candidate_nvda_and_regn_bind_certified_values_without_provider_ca
     assert regn["certified_customer_evaluation"]["decision"] == {
         "action": "WAIT_FOR_CONFIRMATION", "opportunity": 72.98, "decision_confidence": 80.63,
     }
+
+
+def test_exact_candidate_certified_decision_fields_override_incomplete_current_evaluation(monkeypatch):
+    monkeypatch.setenv("ATLAS_FOUNDER_GUIDANCE_V1_ENABLED", "true")
+    report = {
+        "ticker": "NVDA",
+        "research_completeness_pct": 100,
+        "research_context": {
+            "current_evaluation": {
+                "guidance": {"state": "WAIT_FOR_CONFIRMATION"},
+                "opportunity": None,
+                "decision_confidence": None,
+            },
+        },
+        "certified_customer_evaluation": {
+            "customer_publication_allowed": True,
+            "decision": {
+                "action": "BUY_NOW",
+                "opportunity": 86.68,
+                "decision_confidence": 88.54,
+            },
+        },
+    }
+    header = build_research_decision_view(report)["header"]
+    assert (header.recommendation, header.opportunity, header.confidence) == (
+        "BUY_NOW", 86.68, 88.54,
+    )
 
 
 def test_exact_candidate_plan_is_independent_of_slow_or_failed_enrichment():
