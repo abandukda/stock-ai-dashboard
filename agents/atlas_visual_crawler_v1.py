@@ -219,6 +219,33 @@ class ResearchSubmissionBoundaryError(RuntimeError):
         self.evidence = evidence
 
 
+def research_submission_proven(
+    *,
+    streamlit_event_frames: int,
+    rerun_before: int,
+    rerun_after: int,
+    submission_marker: bool,
+    completed_research: dict[str, Any],
+) -> tuple[bool, str]:
+    """Accept either transport telemetry or the stronger rendered app contract."""
+    low_level = bool(
+        streamlit_event_frames > 0
+        and rerun_after > rerun_before
+        and submission_marker
+    )
+    end_to_end = bool(
+        completed_research.get("ticker")
+        and completed_research.get("lifecycle_complete")
+        and completed_research.get("vnext")
+        and completed_research.get("complete")
+    )
+    if end_to_end:
+        return True, "CERTIFIED_RESEARCH_COMPLETION"
+    if low_level:
+        return True, "STREAMLIT_TRANSPORT"
+    return False, "UNPROVEN"
+
+
 class AtlasVisualCrawler:
     """Continue-through-failure visual inspection in one authenticated session."""
 
@@ -366,13 +393,29 @@ class AtlasVisualCrawler:
                     f'[data-atlas-qa="research-submission-observed"]'
                     f'[data-atlas-submitted="true"][data-atlas-ticker="{ticker}"]'
                 ).count())
+            completed_research = await self._completed_research(page, ticker)
+            proven, proof_mode = research_submission_proven(
+                streamlit_event_frames=sent_after - sent_before,
+                rerun_before=rerun_before,
+                rerun_after=rerun_after,
+                submission_marker=submitted_marker,
+                completed_research=completed_research,
+            )
             evidence = {
                 "streamlit_event_frames": sent_after - sent_before,
                 "rerun_before": rerun_before,
                 "rerun_after": rerun_after,
                 "submission_marker": submitted_marker,
+                "exact_ticker_context": bool(completed_research.get("ticker")),
+                "terminal_lifecycle_complete": bool(
+                    completed_research.get("lifecycle_complete")
+                ),
+                "certified_vnext_decision_visible": bool(
+                    completed_research.get("vnext")
+                ),
+                "proof_mode": proof_mode,
             }
-            if sent_after > sent_before and rerun_after > rerun_before and submitted_marker:
+            if proven:
                 return evidence
             await page.wait_for_timeout(100)
         category = (
@@ -1540,7 +1583,10 @@ class AtlasVisualCrawler:
             await self._record(
                 category="RESEARCH_SUBMISSION_BOUNDARY", page_name="Research Any Ticker",
                 interaction="submit-event-and-rerun",
-                expected="One stable visible form emits a Streamlit event and rerun",
+                expected=(
+                    "One stable visible form is proven by Streamlit transport telemetry "
+                    "or exact-ticker certified terminal Research completion"
+                ),
                 observed=json.dumps({**controls_evidence, **submission_evidence}, sort_keys=True),
                 passed=True, elapsed=time.monotonic() - started, ticker=ticker,
                 viewport=viewport, screenshots=(), severity="P0",

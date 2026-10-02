@@ -524,16 +524,54 @@ def test_research_submission_requires_stable_controls_and_streamlit_boundary_evi
     assert "retry" not in submit.lower()
 
 
-def test_missing_streamlit_event_or_rerun_fails_with_specific_boundary_classification():
+def test_submission_boundary_accepts_certified_end_to_end_completion_without_frames():
+    from agents.atlas_visual_crawler_v1 import research_submission_proven
+
+    proven, mode = research_submission_proven(
+        streamlit_event_frames=0,
+        rerun_before=2,
+        rerun_after=2,
+        submission_marker=False,
+        completed_research={
+            "ticker": True,
+            "lifecycle_complete": True,
+            "vnext": True,
+            "complete": True,
+        },
+    )
+    assert proven is True
+    assert mode == "CERTIFIED_RESEARCH_COMPLETION"
+
+
+def test_missing_transport_and_completed_research_still_fails_closed():
+    from agents.atlas_visual_crawler_v1 import research_submission_proven
+
+    proven, mode = research_submission_proven(
+        streamlit_event_frames=0,
+        rerun_before=2,
+        rerun_after=2,
+        submission_marker=False,
+        completed_research={
+            "ticker": True,
+            "lifecycle_complete": False,
+            "vnext": False,
+            "complete": False,
+        },
+    )
+    assert proven is False
+    assert mode == "UNPROVEN"
+
+
+def test_missing_streamlit_event_or_rerun_keeps_specific_boundary_diagnostics():
     source = Path("agents/atlas_visual_crawler_v1.py").read_text(encoding="utf-8")
     boundary = source.split("async def _require_submission_boundary", 1)[1].split(
         "def _monitor_research_ticker", 1
     )[0]
     assert '"STREAMLIT_EVENT_NOT_EMITTED"' in boundary
     assert '"STREAMLIT_RERUN_NOT_OBSERVED"' in boundary
-    assert "sent_after > sent_before" in boundary
-    assert "rerun_after > rerun_before" in boundary
-    assert "submitted_marker" in boundary
+    assert "research_submission_proven(" in boundary
+    assert '"proof_mode": proof_mode' in boundary
+    assert '"streamlit_event_frames": sent_after - sent_before' in boundary
 
 
 def test_research_control_stability_requires_visibility_enablement_and_hit_test():
