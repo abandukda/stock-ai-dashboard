@@ -66,6 +66,30 @@ def strict_env_detected(name):
     return bool(strict_env(name, ""))
 
 
+def _research_widget_trace(event, **fields):
+    """Emit bounded, secret-free Research widget diagnostics when explicitly enabled."""
+    if os.getenv("ATLAS_RESEARCH_WIDGET_TRACE", "").strip().lower() not in {"1", "true", "yes", "on"}:
+        return
+    def safe(value):
+        if value is None or isinstance(value, (bool, int, float)):
+            return value
+        if isinstance(value, str):
+            return value[:120]
+        return f"<{type(value).__name__}>"
+    state_keys = (
+        "v784_single_nav", "v73_page", "typed_ticker", "active_research_ticker",
+        "research_status", "research_error", "atlas_research_route_rerun_count",
+    )
+    payload = {
+        "event": str(event),
+        "run_sequence": int(st.session_state.get("atlas_widget_trace_run_sequence") or 0),
+        "exact_candidate_qa": os.getenv("ATLAS_EXACT_CANDIDATE_QA", "").strip().lower() in {"1", "true", "yes", "on"},
+        "state": {key: safe(st.session_state.get(key)) for key in state_keys if key in st.session_state},
+        **{key: safe(value) for key, value in fields.items()},
+    }
+    print("ATLAS_RESEARCH_WIDGET_TRACE " + json.dumps(payload, sort_keys=True), flush=True)
+
+
 st.set_page_config(
     page_title="AI Trading Dashboard",
     page_icon="📈",
@@ -27663,6 +27687,7 @@ def v793_decision_rows(df):
 
 
 def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=None):
+    _research_widget_trace("before_research_form_creation", active_route=st.session_state.get("v784_single_nav"))
     _emit_research_entry_stage("RESEARCH_ROUTE_ENTERED")
     v8055_inject_research_css()
     st.markdown("<div class='v65-section-title'>🔎 Live Atlas Research</div>",unsafe_allow_html=True)
@@ -27680,6 +27705,7 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
     st.session_state.setdefault("active_research_ticker", pending_ticker)
     st.session_state.setdefault("research_status", "idle")
     st.session_state.setdefault("research_error", "")
+    _research_widget_trace("after_research_state_initializers", pending_ticker=pending_ticker)
     _emit_research_entry_stage("FORM_STARTED", ticker=pending_ticker)
     with st.form("research_ticker_form", clear_on_submit=False):
         typed=st.text_input("Ticker",placeholder="Example: NVDA, MSFT, OPRA",key="typed_ticker").strip().upper()
@@ -27687,6 +27713,11 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
         # Static form label cannot become stale while the browser edits a batched form field.
         submitted=st.form_submit_button("Research ticker",type="primary")
         _emit_research_entry_stage("SUBMIT_CONTROL_EMITTED", ticker=typed or pending_ticker)
+    _research_widget_trace(
+        "after_research_form", submitted=bool(submitted), typed=typed,
+        session_typed_ticker=st.session_state.get("typed_ticker"),
+        active_route=st.session_state.get("v784_single_nav"),
+    )
     from services.session_stability import emit_page_interactive
     emit_page_interactive(st, "Research Any Ticker")
     _emit_research_entry_stage("PAGE_INTERACTIVE", ticker=typed or pending_ticker)
@@ -27699,14 +27730,18 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
             'aria-hidden="true" style="display:none">research-submission-observed</span>',
             unsafe_allow_html=True,
         )
+    _research_widget_trace("before_submitted_conditional", submitted=bool(submitted), typed=typed)
     if submitted:
+        _research_widget_trace("submitted_branch_entered", submitted=True, typed=typed)
         # A new request owns a new render lifecycle.  Never carry a prior
         # ticker's error/exception state into this request.
         from engines.research_engine import begin_research_entry
+        _research_widget_trace("before_begin_research_entry", typed=typed)
         _entry = begin_research_entry(
             st.session_state, typed, source="DIRECT_TICKER_SUBMISSION",
             pending_navigation=False,
         )
+        _research_widget_trace("after_begin_research_entry", typed=typed, entry=bool(_entry))
         if not _entry:
             # Preserve the submitted identity long enough to render the
             # existing fail-closed validation state; no acquisition begins.
@@ -27719,6 +27754,7 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
         persisted_certified_research,
     )
     if submitted and exact_candidate_qa_enabled():
+        _research_widget_trace("exact_candidate_submission_branch", submitted=True, ticker=ticker)
         _prior_exact_state = persisted_certified_research(st.session_state)
         if _prior_exact_state and _prior_exact_state["ticker"] != ticker:
             clear_persisted_certified_research(st.session_state)
@@ -27756,6 +27792,7 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
     _exact_candidate_bound = _submission_plan.mode == CERTIFIED_IMMEDIATE
     state_key=f"v8054_live_row_{ticker}"; auto_live=str(st.session_state.pop("v805_force_live_on_open","") or "").upper()==ticker
     if (submitted or auto_live) and _exact_candidate_bound:
+        _research_widget_trace("certified_immediate_branch_entered", submitted=bool(submitted), ticker=ticker)
         # Exact-candidate QA renders the already-certified immutable row first.
         # Optional live/context enrichment is intentionally outside this path.
         st.session_state.pop(state_key, None)
@@ -27772,6 +27809,7 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
         _persisted_exact_state = persist_certified_research(
             st.session_state, ticker, _submission_plan.certified_record or saved
         )
+        _research_widget_trace("certified_research_persisted", ticker=ticker)
         # The certified record is terminal independently of optional detail
         # rendering.  Persist and expose that terminal state before any later
         # Streamlit rerun can discard the form-submit boolean.
@@ -28290,10 +28328,14 @@ def _emit_page_identity_marker(page_name):
 
 def main():
     if not dashboard_login_gate(): return
+    if os.getenv("ATLAS_RESEARCH_WIDGET_TRACE", "").strip().lower() in {"1", "true", "yes", "on"}:
+        st.session_state["atlas_widget_trace_run_sequence"] = int(st.session_state.get("atlas_widget_trace_run_sequence") or 0) + 1
+    _research_widget_trace("script_run_entry", active_route=st.session_state.get("v784_single_nav"))
     render_v59_design_system(); render_v65_design_system(); render_v70_design_system(); render_v72_design_system(); render_v73_design_system(); render_v74_design_system(); v775_design_system(); v793_design_system(); v8055_inject_research_css()
     full_df=load_full_scan(); top_df=latest_top_ideas(); recovery_df=latest_recovery(); watch_df=latest_watchlist_scan(); prescreen_df=load_file(PRESCREEN_FILE); etf_df=load_file(ETF_SCAN_FILE)
     pages=["Home","Today's Opportunities","Volume Intelligence","Atlas Core Holdings","Research Any Ticker","Earnings Intelligence","Full Ranked Scan","Portfolio Intelligence","Watchlist Intelligence","Recovery","ETFs","Political Intelligence","Ask AI","Developer Center"]
     selected_page=render_v73_top_nav(pages)
+    _research_widget_trace("route_selected", selected_page=selected_page)
     source_df=top_df if top_df is not None and not top_df.empty else full_df.head(25)
     _emit_page_identity_marker(selected_page)
     # Reserve the tape's established visual position, but do not let its

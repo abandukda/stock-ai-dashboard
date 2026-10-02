@@ -41,9 +41,17 @@ def _decode(raw: bytes, direction: str) -> dict[str, Any]:
         if kind or decoded:
             family = "backmsg" if direction == "outgoing" else "forwardmsg"
             result = {"format": f"streamlit_{family}_protobuf", "message_type": kind}
-            # Outgoing widget state is the evidence under test. Incoming UI payloads
-            # can be large, so retain only their type/digest metadata.
-            if direction == "outgoing": result["structure"] = decoded
+            # Outgoing widget state is the evidence under test. For incoming
+            # new_session messages retain only correlation identities.
+            if direction == "outgoing":
+                result["structure"] = decoded
+            elif kind == "new_session":
+                session = decoded.get("new_session") or {}
+                result["run_identity"] = {
+                    "script_run_id": session.get("script_run_id"),
+                    "page_script_hash": session.get("page_script_hash"),
+                    "main_script_hash": session.get("main_script_hash"),
+                }
             return result
     except Exception: pass
     try:
@@ -117,7 +125,15 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         certified_visible={"action_buy_now":"BUY NOW" in body,"fair_value_338_82":"338.82" in body,"opportunity_86_68":"86.68" in body,"confidence_88_54":"88.54" in body}
         pages=[{"url":p.url,"visibility":await p.evaluate("document.visibilityState")} for p in context.pages]
         await context.close(); await browser.close()
-    payload={"source_sha":source_sha,"provider_calls":0,"ticker":"NVDA","old_context":{"page_count_before_close":len(old_pages),"pages":old_pages,"closed":old_context_closed},"storage_state":{"playwright_supported_export":True,**storage_summary,"authentication_persisted":auth_persisted},"new_context":{"page_count_before_navigation":new_pages_before_navigation,"pages_after_test":pages},"listener_registered_before_navigation":True,"sockets":sockets,"socket_events":socket_events,"controls":controls,"actions":{"fill_seconds":fill_at,"blur_seconds":blur_at,"click_seconds":click_at,"control_value_before_click":value},"button_form_dom":dom,"outgoing_frame_counts":{"before_fill":before_fill,"caused_by_fill":after_fill-before_fill,"caused_by_blur":after_blur-after_fill,"caused_by_click":after_click-after_blur,"total":after_click},"frames_before_fill":outgoing[:before_fill],"frames_caused_by_fill":outgoing[before_fill:after_fill],"frames_caused_by_blur":outgoing[after_fill:after_blur],"frames_caused_by_click":outgoing[after_blur:after_click],"incoming_after_submit":{"count":incoming_after_click-incoming_before_click,"frames":incoming[incoming_before_click:incoming_after_click]},"markers_before":markers_before,"markers_immediately_before_click":before_click_markers,"markers_after":markers_after,"completed_research":completed,"certified_values_visible":certified_visible}
+    trace=[]
+    log_path=output/"streamlit.log"
+    if log_path.exists():
+        for line in log_path.read_text(encoding="utf-8",errors="replace").splitlines():
+            marker="ATLAS_RESEARCH_WIDGET_TRACE "
+            if marker in line:
+                try: trace.append(json.loads(line.split(marker,1)[1]))
+                except Exception: trace.append({"event":"TRACE_PARSE_FAILURE"})
+    payload={"source_sha":source_sha,"provider_calls":0,"ticker":"NVDA","old_context":{"page_count_before_close":len(old_pages),"pages":old_pages,"closed":old_context_closed},"storage_state":{"playwright_supported_export":True,**storage_summary,"authentication_persisted":auth_persisted},"new_context":{"page_count_before_navigation":new_pages_before_navigation,"pages_after_test":pages},"listener_registered_before_navigation":True,"sockets":sockets,"socket_events":socket_events,"controls":controls,"actions":{"fill_seconds":fill_at,"blur_seconds":blur_at,"click_seconds":click_at,"control_value_before_click":value},"button_form_dom":dom,"outgoing_frame_counts":{"before_fill":before_fill,"caused_by_fill":after_fill-before_fill,"caused_by_blur":after_blur-after_fill,"caused_by_click":after_click-after_blur,"total":after_click},"frames_before_fill":outgoing[:before_fill],"frames_caused_by_fill":outgoing[before_fill:after_fill],"frames_caused_by_blur":outgoing[after_fill:after_blur],"frames_caused_by_click":outgoing[after_blur:after_click],"incoming_after_submit":{"count":incoming_after_click-incoming_before_click,"frames":incoming[incoming_before_click:incoming_after_click]},"app_run_trace":trace,"markers_before":markers_before,"markers_immediately_before_click":before_click_markers,"markers_after":markers_after,"completed_research":completed,"certified_values_visible":certified_visible}
     (output/"research_isolated_context.json").write_text(json.dumps(payload,indent=2)+"\n",encoding="utf-8")
     return payload
 

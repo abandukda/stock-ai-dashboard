@@ -19,6 +19,7 @@ jobs:
     env:
       PYTHONPATH: "."
       ATLAS_EXACT_CANDIDATE_QA: "true"
+      ATLAS_RESEARCH_WIDGET_TRACE: "true"
       DATA_DIR: audit_results/research_context_ab/runtime
       ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
     steps:
