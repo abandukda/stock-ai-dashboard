@@ -93,6 +93,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     report_root = args.report_root.resolve()
     manifest = _load(bundle / "publication_manifest.json")
     identity = manifest.get("executor_candidate_identity") or {}
+    source_sha = manifest.get("source_commit_sha")
+    identity_source_sha = identity.get("source_sha")
+    if not source_sha or not identity_source_sha:
+        raise ValueError("CERTIFIED_CANDIDATE_SOURCE_SHA_MISSING")
+    if source_sha != identity_source_sha or source_sha != args.expected_source_sha:
+        raise ValueError("CERTIFIED_CANDIDATE_SOURCE_SHA_MISMATCH")
     candidate_digest = identity.get("candidate_digest")
     if candidate_digest != args.expected_candidate_digest:
         raise ValueError("CERTIFIED_CANDIDATE_DIGEST_MISMATCH")
@@ -142,6 +148,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     result = {
         "status": "PASS",
         "candidate_digest": candidate_digest,
+        "candidate_source_sha": source_sha,
         "publication_bundle_digest": publication_digest,
         "artifact_hashes_verified": verified_hashes,
         "record_count": record_count,
@@ -175,6 +182,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--output", type=Path, required=True)
     result.add_argument("--expected-candidate-digest", required=True)
     result.add_argument("--expected-publication-digest", required=True)
+    result.add_argument("--expected-source-sha", required=True)
     return result
 
 

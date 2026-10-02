@@ -19,6 +19,7 @@ env:
   CERTIFIED_PUBLICATION_RUN_ID: "36877840162"
   EXPECTED_CANDIDATE_DIGEST: "96936e2b03af129c586ef2043a517068156449a8d1b8dc3d83618451ec90e77f"
   EXPECTED_PUBLICATION_DIGEST: "b4b3f66959e497c957472da2626c6e0c3e63dc29cef175c195aca48a9f1126c6"
+  EXPECTED_ANALYTICAL_SOURCE_SHA: "d5526664b1b4450e67b63a67b01d936f6da5a2a4"
 
 jobs:
   verify-publication:
@@ -45,6 +46,7 @@ jobs:
             --output audit_results/release_smoke/bounded_verification.json \
             --expected-candidate-digest "$EXPECTED_CANDIDATE_DIGEST" \
             --expected-publication-digest "$EXPECTED_PUBLICATION_DIGEST" \
+            --expected-source-sha "$EXPECTED_ANALYTICAL_SOURCE_SHA" \
             2> audit_results/release_smoke/bounded_memory.txt
       - name: Provider boundary gates
         run: |
@@ -141,7 +143,7 @@ jobs:
             python -m agents.full_qa_visual_certification \
             --url http://127.0.0.1:8501 \
             --root audit_results/release_smoke/runtime \
-            --candidate-dir audit_results/release_smoke/certified/publication_bundle \
+            --candidate-dir audit_results/release_smoke/runtime \
             --candidate-run-id "$CERTIFIED_PUBLICATION_RUN_ID" \
             --mode RELEASE_SMOKE \
             --runtime-ceiling-seconds 2700 \
