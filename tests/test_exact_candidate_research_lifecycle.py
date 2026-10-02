@@ -4,6 +4,10 @@ from services.exact_candidate_research import (
     CERTIFIED_IMMEDIATE,
     CERTIFIED_RECORD_MISSING,
     LIVE_RESEARCH,
+    PUBLISHED_RESEARCH_COMPLETE,
+    clear_persisted_certified_research,
+    persist_certified_research,
+    persisted_certified_research,
     research_submission_plan,
 )
 
@@ -79,3 +83,42 @@ def test_app_guards_both_optional_enrichment_paths_in_exact_candidate_mode():
     assert "if (submitted or auto_live) and not _exact_candidate_bound:" in source
     assert '_research_twelve = {} if _exact_candidate_bound else' in source
     assert '"provider_calls": 0' in source
+
+
+def test_nvda_and_regn_survive_rerun_with_terminal_action_state():
+    for record in (NVDA, REGN):
+        session = {}
+        ticker = record["ticker"]
+        bound = persist_certified_research(session, ticker, record)
+        rerun = persisted_certified_research(session, ticker)
+        assert bound["lifecycle"] == PUBLISHED_RESEARCH_COMPLETE
+        assert rerun["lifecycle"] == PUBLISHED_RESEARCH_COMPLETE
+        assert rerun["provider_calls"] == 0
+        assert rerun["certified_record"]["canonical_investment_evaluation"]["guidance"]["state"] == (
+            record["canonical_investment_evaluation"]["guidance"]["state"]
+        )
+        assert session["research_status"] == "complete"
+
+
+def test_switching_exact_candidate_ticker_replaces_persisted_state():
+    session = {}
+    persist_certified_research(session, "NVDA", NVDA)
+    clear_persisted_certified_research(session)
+    persist_certified_research(session, "REGN", REGN)
+    assert persisted_certified_research(session, "NVDA") is None
+    regn = persisted_certified_research(session, "REGN")
+    assert regn["ticker"] == "REGN"
+    assert regn["certified_record"]["canonical_investment_evaluation"]["guidance"]["state"] == "WAIT_FOR_CONFIRMATION"
+
+
+def test_missing_or_nonterminal_persisted_state_fails_closed():
+    assert persisted_certified_research({}, "NVDA") is None
+    session = {"atlas_exact_candidate_research": {"ticker": "NVDA", "certified_record": NVDA, "lifecycle": "loading"}}
+    assert persisted_certified_research(session, "NVDA") is None
+
+
+def test_app_restores_persisted_exact_candidate_before_render():
+    source = Path("app.py").read_text(encoding="utf-8")
+    assert 'persisted_certified_research(st.session_state, ticker)' in source
+    assert 'persist_certified_research(' in source
+    assert 'data-atlas-lifecycle="PUBLISHED_RESEARCH_COMPLETE"' in source

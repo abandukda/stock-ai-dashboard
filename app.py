@@ -27701,6 +27701,21 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
             st.session_state["active_research_ticker"] = typed
             st.session_state["research_error"] = ""
     ticker=str(st.session_state.get("active_research_ticker","") or "").upper()
+    from services.exact_candidate_research import (
+        clear_persisted_certified_research,
+        exact_candidate_qa_enabled,
+        persisted_certified_research,
+    )
+    if submitted and exact_candidate_qa_enabled():
+        _prior_exact_state = persisted_certified_research(st.session_state)
+        if _prior_exact_state and _prior_exact_state["ticker"] != ticker:
+            clear_persisted_certified_research(st.session_state)
+    _persisted_exact_state = (
+        persisted_certified_research(st.session_state, ticker)
+        if exact_candidate_qa_enabled() else None
+    )
+    if _persisted_exact_state:
+        st.session_state["research_status"] = "complete"
     status=str(st.session_state.get("research_status","idle"))
     marker_ticker=ticker or typed
     if submitted and not re.fullmatch(r"[A-Z]{1,10}(?:[.-][A-Z]{1,3})?", ticker):
@@ -27714,10 +27729,15 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
     if not ticker:
         st.info("Enter a ticker to open current Atlas research.")
         return
-    saved=v8055_saved_ticker_record(ticker,full_df,recovery_df,watch_df,prescreen_df,etf_df)
+    saved=(
+        dict(_persisted_exact_state["certified_record"])
+        if _persisted_exact_state
+        else v8055_saved_ticker_record(ticker,full_df,recovery_df,watch_df,prescreen_df,etf_df)
+    )
     from services.exact_candidate_research import (
         CERTIFIED_IMMEDIATE,
         CERTIFIED_RECORD_MISSING,
+        persist_certified_research,
         research_submission_plan,
     )
     _submission_plan = research_submission_plan(saved)
@@ -27737,6 +27757,18 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
             "current_stage": "canonical_render",
             "last_completed_stage": "certified_record_bound",
         }
+        _persisted_exact_state = persist_certified_research(
+            st.session_state, ticker, _submission_plan.certified_record or saved
+        )
+        # The certified record is terminal independently of optional detail
+        # rendering.  Persist and expose that terminal state before any later
+        # Streamlit rerun can discard the form-submit boolean.
+        st.markdown(
+            f'<span data-atlas-qa="research-container" data-atlas-status="complete" '
+            f'data-atlas-ticker="{html.escape(ticker)}" data-atlas-lifecycle="PUBLISHED_RESEARCH_COMPLETE" '
+            f'aria-hidden="true" style="display:none">research-complete</span>',
+            unsafe_allow_html=True,
+        )
     elif (submitted or auto_live) and _submission_plan.mode == CERTIFIED_RECORD_MISSING:
         st.session_state[state_key] = {"error": "CERTIFIED_RECORD_NOT_AVAILABLE"}
     elif submitted or auto_live:
