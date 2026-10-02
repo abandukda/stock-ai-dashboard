@@ -509,3 +509,29 @@ def test_research_navigation_waits_for_owned_route_before_ticker_submission():
     assert 'raise RuntimeError("RESEARCH_ROUTE_NOT_READY")' in source
     submit = source.split("async def _submit_research", 1)[1].split("async def ", 1)[0]
     assert submit.index("route_ready = await self._page_visit") < submit.index("input_node = None")
+
+
+def test_research_route_ownership_requires_selected_route_and_complete_visible_form():
+    from agents.atlas_visual_crawler_v1 import research_route_ownership_satisfied
+
+    complete = {
+        "route_selected": True,
+        "heading_visible": True,
+        "ticker_input_visible": True,
+        "submit_control_visible": True,
+    }
+    assert research_route_ownership_satisfied(**complete)  # desktop and mobile share this contract
+    assert not research_route_ownership_satisfied(**(complete | {"route_selected": False}))
+    assert not research_route_ownership_satisfied(**(complete | {"heading_visible": False}))
+    assert not research_route_ownership_satisfied(**(complete | {"ticker_input_visible": False}))
+    assert not research_route_ownership_satisfied(**(complete | {"submit_control_visible": False}))
+
+
+def test_research_route_ownership_uses_research_specific_visible_controls_not_hidden_marker():
+    source = Path("agents/atlas_visual_crawler_v1.py").read_text(encoding="utf-8")
+    ownership = source.split("async def _research_route_owned", 1)[1].split("async def ", 1)[0]
+    assert 'get_by_text("Live Atlas Research", exact=True)' in ownership
+    assert 'get_by_label("Ticker", exact=True)' in ownership
+    assert 'get_by_role("button", name="Research ticker", exact=True)' in ownership
+    assert 'data-atlas-qa="page-ready"' not in ownership
+    assert 'raise RuntimeError("RESEARCH_SUBMISSION_CONTROL_NOT_READY")' in source

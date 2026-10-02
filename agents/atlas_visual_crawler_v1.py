@@ -52,6 +52,17 @@ RESEARCH_VNEXT_SECTION_LABELS = (
 )
 
 
+def research_route_ownership_satisfied(
+    *, route_selected: bool, heading_visible: bool,
+    ticker_input_visible: bool, submit_control_visible: bool,
+) -> bool:
+    """Require the selected route and its complete visible ticker form."""
+    return bool(
+        route_selected and heading_visible
+        and ticker_input_visible and submit_control_visible
+    )
+
+
 def _research_declared_architecture(section_count: int, tab_labels: set[str]) -> bool:
     """Validate the renderer-owned Research architecture without tab bodies.
 
@@ -1048,18 +1059,25 @@ class AtlasVisualCrawler:
 
     async def _research_route_owned(self, page: Page) -> bool:
         """Prove the live primary DOM belongs to the selected Research route."""
-        if not await self._current_route_visible(page, "Research Any Ticker"):
+        route_selected = await self._current_route_visible(page, "Research Any Ticker")
+        if not route_selected:
             return False
         for scope in _scopes(page):
             try:
-                ready = scope.locator(
-                    '[data-atlas-qa="page-ready"][data-atlas-page="research-any-ticker"]'
-                )
+                heading = scope.get_by_text("Live Atlas Research", exact=True)
                 inputs = scope.get_by_label("Ticker", exact=True)
+                if not await inputs.count():
+                    inputs = scope.locator('input[placeholder*="NVDA"]')
                 buttons = scope.get_by_role("button", name="Research ticker", exact=True)
-                if await ready.count() and await inputs.count() and await buttons.count():
-                    if await inputs.first.is_visible() and await buttons.first.is_visible():
-                        return True
+                if not (await heading.count() and await inputs.count() and await buttons.count()):
+                    continue
+                if research_route_ownership_satisfied(
+                    route_selected=route_selected,
+                    heading_visible=await heading.first.is_visible(),
+                    ticker_input_visible=await inputs.first.is_visible(),
+                    submit_control_visible=await buttons.first.is_visible(),
+                ):
+                    return True
             except Exception:
                 continue
         return False
@@ -1355,7 +1373,7 @@ class AtlasVisualCrawler:
                     input_node, button = inputs.first, buttons.first
                     break
             if input_node is None or button is None:
-                raise RuntimeError("VISIBLE_RESEARCH_CONTROLS_MISSING")
+                raise RuntimeError("RESEARCH_SUBMISSION_CONTROL_NOT_READY")
             await input_node.fill(ticker)
             await button.click()
             # The first exact-candidate Research request warms Streamlit's
