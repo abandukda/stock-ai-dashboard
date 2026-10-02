@@ -27715,8 +27715,31 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
         st.info("Enter a ticker to open current Atlas research.")
         return
     saved=v8055_saved_ticker_record(ticker,full_df,recovery_df,watch_df,prescreen_df,etf_df)
+    from services.exact_candidate_research import (
+        CERTIFIED_IMMEDIATE,
+        CERTIFIED_RECORD_MISSING,
+        research_submission_plan,
+    )
+    _submission_plan = research_submission_plan(saved)
+    _exact_candidate_bound = _submission_plan.mode == CERTIFIED_IMMEDIATE
     state_key=f"v8054_live_row_{ticker}"; auto_live=str(st.session_state.pop("v805_force_live_on_open","") or "").upper()==ticker
-    if submitted or auto_live:
+    if (submitted or auto_live) and _exact_candidate_bound:
+        # Exact-candidate QA renders the already-certified immutable row first.
+        # Optional live/context enrichment is intentionally outside this path.
+        st.session_state.pop(state_key, None)
+        st.session_state[f"atlas_research_performance_{ticker}"] = {
+            "ticker": ticker,
+            "context_build_count": 0,
+            "fmp_acquisition_invocation_count": 0,
+            "provider_calls": 0,
+            "cache_hits": 0,
+            "enrichment_status": "CERTIFIED_SNAPSHOT_ONLY",
+            "current_stage": "canonical_render",
+            "last_completed_stage": "certified_record_bound",
+        }
+    elif (submitted or auto_live) and _submission_plan.mode == CERTIFIED_RECORD_MISSING:
+        st.session_state[state_key] = {"error": "CERTIFIED_RECORD_NOT_AVAILABLE"}
+    elif submitted or auto_live:
         _research_started = time.monotonic()
         _request_id = str(st.session_state.get(f"atlas_research_request_id_{ticker}") or hashlib.sha256(f"{ticker}:auto".encode("utf-8")).hexdigest()[:20])
         st.session_state[f"atlas_research_request_id_{ticker}"] = _request_id
@@ -27807,10 +27830,10 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
             merged.setdefault("canonical_recovery_row", {})
         # The Research shell is already interactive above. Twelve enrichment is
         # optional and fail-closed, and never replaces the persisted fallback.
-        if submitted or auto_live:
+        if (submitted or auto_live) and not _exact_candidate_bound:
             from services.research_market_phase1 import acquire_research_phase1
             st.session_state[f"research_twelve_phase1_{ticker}"] = acquire_research_phase1(ticker)
-        _research_twelve = st.session_state.get(f"research_twelve_phase1_{ticker}") or {}
+        _research_twelve = {} if _exact_candidate_bound else (st.session_state.get(f"research_twelve_phase1_{ticker}") or {})
         _research_bundle = _research_twelve.get("bundle") if isinstance(_research_twelve, dict) else {}
         if isinstance(_research_bundle, dict) and _research_bundle:
             from services.research_market_phase1 import apply_research_phase1
