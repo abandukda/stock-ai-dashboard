@@ -544,7 +544,39 @@ def test_research_control_stability_requires_visibility_enablement_and_hit_test(
     assert "is_visible()" in stable
     assert "is_enabled()" in stable
     assert "document.elementFromPoint" in stable
+    assert "scroll_into_view_if_needed" in stable
+    assert "node.closest('button')" in stable
     assert "stable_observations >= 2" in stable
+
+
+def test_same_physical_research_controls_from_overlapping_scopes_deduplicate():
+    from agents.atlas_visual_crawler_v1 import deduplicate_research_control_pairs
+
+    input_control, submit_control = object(), object()
+    pair = ("main:research-form-1", input_control, submit_control, (1, 2, 3, 4))
+    assert deduplicate_research_control_pairs([pair, pair]) == [pair]
+
+
+def test_distinct_research_forms_remain_distinct_and_fail_closed_as_ambiguity():
+    from agents.atlas_visual_crawler_v1 import deduplicate_research_control_pairs
+
+    first = ("main:research-form-1", object(), object(), (1, 2, 3, 4))
+    second = ("main:research-form-2", object(), object(), (5, 6, 7, 8))
+    assert len(deduplicate_research_control_pairs([first, second])) == 2
+    source = Path("agents/atlas_visual_crawler_v1.py").read_text(encoding="utf-8")
+    assert 'ResearchSubmissionBoundaryError("RESEARCH_CONTROL_AMBIGUITY"' in source
+
+
+def test_research_controls_are_owned_by_one_streamlit_form_on_desktop_and_mobile():
+    source = Path("agents/atlas_visual_crawler_v1.py").read_text(encoding="utf-8")
+    stable = source.split("async def _stable_research_controls", 1)[1].split(
+        "async def _require_submission_boundary", 1
+    )[0]
+    assert "forms = scope.locator('[data-testid=\"stForm\"]')" in stable
+    assert 'inputs = form.get_by_label("Ticker", exact=True)' in stable
+    assert 'buttons = form.get_by_role("button", name="Research ticker", exact=True)' in stable
+    assert 'scope_identity = "main" if is_main' in stable
+    assert '"RESEARCH_SUBMISSION_CONTROL_NOT_READY"' in stable
 
 
 def test_research_route_ownership_requires_selected_route_and_complete_visible_form():
@@ -571,4 +603,4 @@ def test_research_route_ownership_uses_research_specific_visible_controls_not_hi
     assert 'get_by_label("Ticker", exact=True)' in ownership
     assert 'get_by_role("button", name="Research ticker", exact=True)' in ownership
     assert 'data-atlas-qa="page-ready"' not in ownership
-    assert 'ResearchSubmissionBoundaryError("RESEARCH_CONTROLS_NOT_STABLE"' in source
+    assert 'ResearchSubmissionBoundaryError("RESEARCH_SUBMISSION_CONTROL_NOT_READY"' in source

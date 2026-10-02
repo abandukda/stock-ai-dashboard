@@ -63,6 +63,16 @@ def research_route_ownership_satisfied(
     )
 
 
+def deduplicate_research_control_pairs(
+    pairs: Iterable[tuple[str, Any, Any, tuple[Any, ...]]],
+) -> list[tuple[str, Any, Any, tuple[Any, ...]]]:
+    """Collapse overlapping-scope discoveries of the same physical form."""
+    unique: dict[str, tuple[str, Any, Any, tuple[Any, ...]]] = {}
+    for pair in pairs:
+        unique.setdefault(pair[0], pair)
+    return list(unique.values())
+
+
 def _research_declared_architecture(section_count: int, tab_labels: set[str]) -> bool:
     """Validate the renderer-owned Research architecture without tab bodies.
 
@@ -248,56 +258,93 @@ class AtlasVisualCrawler:
         stable_observations = 0
         last_evidence: dict[str, Any] = {}
         while time.monotonic() < deadline:
-            visible_pairs: list[tuple[Any, Any, tuple[Any, ...]]] = []
-            for scope in _scopes(page):
-                inputs = scope.get_by_label("Ticker", exact=True)
-                if not await inputs.count():
-                    inputs = scope.locator('input[placeholder*="NVDA"]')
-                buttons = scope.get_by_role("button", name="Research ticker", exact=True)
-                for input_index in range(await inputs.count()):
-                    input_node = inputs.nth(input_index)
+            discovered_pairs: list[tuple[str, Any, Any, tuple[Any, ...]]] = []
+            for scope_index, scope in enumerate(_scopes(page)):
+                forms = scope.locator('[data-testid="stForm"]')
+                for form_index in range(await forms.count()):
+                    form = forms.nth(form_index)
+                    if not await form.is_visible():
+                        continue
+                    inputs = form.get_by_label("Ticker", exact=True)
+                    if not await inputs.count():
+                        inputs = form.locator('input[placeholder*="NVDA"]')
+                    buttons = form.get_by_role("button", name="Research ticker", exact=True)
+                    if await inputs.count() != 1 or await buttons.count() != 1:
+                        continue
+                    input_node, button = inputs.first, buttons.first
                     if not await input_node.is_visible() or not await input_node.is_enabled():
                         continue
-                    for button_index in range(await buttons.count()):
-                        button = buttons.nth(button_index)
-                        if not await button.is_visible() or not await button.is_enabled():
-                            continue
-                        input_box = await input_node.bounding_box()
-                        button_box = await button.bounding_box()
-                        hit = bool(await button.evaluate("""
-                            (button) => {
-                              const box = button.getBoundingClientRect();
-                              const node = document.elementFromPoint(
-                                box.left + box.width / 2, box.top + box.height / 2
-                              );
-                              return Boolean(node && (node === button || button.contains(node)));
-                            }
-                        """))
-                        if input_box and button_box and hit:
-                            signature = (
-                                round(input_box["x"]), round(input_box["y"]),
-                                round(button_box["x"]), round(button_box["y"]),
-                            )
-                            visible_pairs.append((input_node, button, signature))
+                    if not await button.is_visible() or not await button.is_enabled():
+                        continue
+                    # Playwright visibility does not imply the element is in
+                    # the current viewport. Normalize scroll position before
+                    # the center-point actionability check, especially on mobile.
+                    await input_node.scroll_into_view_if_needed()
+                    await button.scroll_into_view_if_needed()
+                    input_box = await input_node.bounding_box()
+                    button_box = await button.bounding_box()
+                    hit = bool(await button.evaluate("""
+                        (button) => {
+                          const box = button.getBoundingClientRect();
+                          const node = document.elementFromPoint(
+                            box.left + box.width / 2, box.top + box.height / 2
+                          );
+                          const actionable = node && node.closest ? node.closest('button') : null;
+                          return Boolean(node && (
+                            node === button || button.contains(node) || actionable === button
+                          ));
+                        }
+                    """))
+                    if not (input_box and button_box and hit):
+                        continue
+                    form_dom_id = str(await form.evaluate("""
+                        (form) => {
+                          globalThis.__atlasQaFormIds ||= new WeakMap();
+                          globalThis.__atlasQaFormIdCounter ||= 0;
+                          if (!globalThis.__atlasQaFormIds.has(form)) {
+                            globalThis.__atlasQaFormIds.set(
+                              form, `research-form-${++globalThis.__atlasQaFormIdCounter}`
+                            );
+                          }
+                          return globalThis.__atlasQaFormIds.get(form);
+                        }
+                    """))
+                    # Page and page.main_frame share one DOM/global and must
+                    # therefore share an identity namespace. Child frames are
+                    # distinct actionable surfaces even when URLs coincide.
+                    is_main = scope is page or scope is page.main_frame
+                    scope_identity = "main" if is_main else f"frame-{scope_index}"
+                    pair_identity = f"{scope_identity}:{form_dom_id}"
+                    signature = (
+                        pair_identity,
+                        round(input_box["x"]), round(input_box["y"]),
+                        round(button_box["x"]), round(button_box["y"]),
+                    )
+                    discovered_pairs.append((pair_identity, input_node, button, signature))
+            visible_pairs = deduplicate_research_control_pairs(discovered_pairs)
             last_evidence = {
                 "visible_control_pairs": len(visible_pairs),
+                "discovered_control_pairs": len(discovered_pairs),
                 "stable_observations": stable_observations,
             }
             if len(visible_pairs) == 1:
-                input_node, button, signature = visible_pairs[0]
+                _, input_node, button, signature = visible_pairs[0]
                 stable_observations = stable_observations + 1 if signature == prior_signature else 1
                 prior_signature = signature
                 if stable_observations >= 2:
                     return input_node, button, {
                         "visible_control_pairs": 1,
+                        "discovered_control_pairs": len(discovered_pairs),
                         "stable_observations": stable_observations,
                         "hit_test": "PASS",
                     }
+            elif len(visible_pairs) > 1:
+                raise ResearchSubmissionBoundaryError("RESEARCH_CONTROL_AMBIGUITY", last_evidence)
             else:
                 prior_signature = None
                 stable_observations = 0
             await page.wait_for_timeout(125)
-        raise ResearchSubmissionBoundaryError("RESEARCH_CONTROLS_NOT_STABLE", last_evidence)
+        raise ResearchSubmissionBoundaryError("RESEARCH_SUBMISSION_CONTROL_NOT_READY", last_evidence)
 
     async def _require_submission_boundary(
         self, page: Page, ticker: str, *, sent_before: int, rerun_before: int,
