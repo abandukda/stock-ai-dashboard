@@ -237,7 +237,23 @@ def test_mobile_paid_detail_uses_the_selected_release_mode():
     mobile = source.split("if visual_tickers:", 1)[1].split("finally:", 1)[0]
     assert 'viewport="mobile"' in mobile
     assert 'qa_mode=mode' in mobile
-    assert '_fresh_visible_tab(page, "ATLAS View")' in source
+    assert '_fresh_visible_tab(research_page, "ATLAS View")' in source
+
+
+def test_release_research_uses_fresh_authenticated_pages_with_early_socket_tracking():
+    source = Path("agents/full_qa_visual_certification.py").read_text()
+    helper = source.split("async def open_authenticated_research_page", 1)[1].split(
+        "async def ", 1
+    )[0]
+    assert "context.new_page()" in helper
+    assert 'page.on("websocket", crawler._track_streamlit_websocket)' in helper
+    assert helper.index('page.on("websocket"') < helper.index("_open_streamlit_origin(")
+    assert "_deployed_readiness_gate(" in helper
+    assert "_open_and_authenticate(" not in helper
+    assert "research_page = await open_authenticated_research_page(" in source
+    assert "mobile_research_page = await open_authenticated_research_page(" in source
+    assert "await research_page.close()" in source
+    assert "await mobile_research_page.close()" in source
 
 
 def test_release_smoke_waits_for_explicit_bounded_disclosure_settlement():

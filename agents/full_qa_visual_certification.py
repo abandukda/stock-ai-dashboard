@@ -12,9 +12,13 @@ import shutil
 import time
 from typing import Any
 
-from playwright.async_api import async_playwright
+from playwright.async_api import BrowserContext, Page, async_playwright
 
-from agents.atlas_runtime_qa_v3 import _open_and_authenticate
+from agents.atlas_runtime_qa_v3 import (
+    _deployed_readiness_gate,
+    _open_and_authenticate,
+    _open_streamlit_origin,
+)
 from agents.atlas_visual_crawler_v1 import AtlasVisualCrawler, DESKTOP, MOBILE, _has_rendered_exception
 from agents.runtime_qa_user_journeys_v40 import _visible_text
 from agents.visual_qa_certification_v2 import (
@@ -32,6 +36,28 @@ SCREENSHOT_BUDGETS = {
     "Paid Detail": {"desktop": 12, "mobile": 12}, "Full Ranked Scan": {"desktop": 12, "mobile": 12},
     "Volume Intelligence": {"desktop": 6, "mobile": 4}, "Developer Center": {"desktop": 4, "mobile": 4},
 }
+
+
+async def open_authenticated_research_page(
+    context: BrowserContext,
+    crawler: AtlasVisualCrawler,
+    *,
+    url: str,
+    output: Path,
+    expected_sha: str,
+    viewport: dict[str, int],
+) -> Page:
+    """Open a clean Research surface while retaining context authentication."""
+    page = await context.new_page()
+    await page.set_viewport_size(viewport)
+    page.on("websocket", crawler._track_streamlit_websocket)
+    await _open_streamlit_origin(
+        page, url, output, allow_local_exact_candidate=True,
+    )
+    await _deployed_readiness_gate(
+        page, expected_sha=expected_sha, output_dir=output,
+    )
+    return page
 REQUIRED_PAGES = ("Home", "Research Any Ticker", "Full Ranked Scan", "Volume Intelligence", "Developer Center")
 CUSTOMER_ACTION_LABELS = {
     "BUY_NOW": "BUY NOW",
@@ -1122,6 +1148,7 @@ async def run(args: argparse.Namespace) -> int:
         browser = await pw.chromium.launch(headless=not args.headed)
         context = await browser.new_context(viewport=DESKTOP)
         page = await context.new_page()
+        page.on("websocket", crawler._track_streamlit_websocket)
         try:
             crawler.authentication = await bounded_operation(
                 "auth", lambda: _open_and_authenticate(
@@ -1164,75 +1191,89 @@ async def run(args: argparse.Namespace) -> int:
                         "page": name, "viewport": viewport, "text": await _visible_text(page),
                         "qa_attributes": await page.evaluate("""() => [...document.querySelectorAll('[data-atlas-qa]')].map(e => Object.fromEntries([...e.attributes].filter(a => a.name.startsWith('data-atlas-')).map(a => [a.name,a.value])))"""),
                     }, indent=2), encoding="utf-8")
-            await page.set_viewport_size(DESKTOP)
             visual_tickers = certification_tickers(root)
             if mode in {"FAST_PREVIEW", "RELEASE_SMOKE"}:
                 visual_tickers = visual_tickers[:2]
-            for index, ticker in enumerate(visual_tickers):
-                # One key ticker receives the complete paid evidence-drawer/tab
-                # journey; the remaining archetypes certify exact ticker/action
-                # reconciliation without multiplying provider/runtime work.
-                timing.enforce(f"research:{ticker}")
-                ticker_started = time.monotonic()
-                passed = await bounded_operation(
-                    "research", lambda t=ticker, i=index: crawler._submit_research(page, t, tabs=i == 0, viewport="desktop"),
-                    timeout=OPERATION_TIMEOUTS["research"], timing=timing, retries=1,
+            research_page = await open_authenticated_research_page(
+                context, crawler, url=args.url, output=output,
+                expected_sha=runtime_source_sha, viewport=DESKTOP,
+            )
+            try:
+                for index, ticker in enumerate(visual_tickers):
+                    # One key ticker receives the complete paid evidence-drawer/tab
+                    # journey; the remaining archetypes certify exact ticker/action
+                    # reconciliation without multiplying provider/runtime work.
+                    timing.enforce(f"research:{ticker}")
+                    ticker_started = time.monotonic()
+                    passed = await bounded_operation(
+                        "research", lambda t=ticker, i=index: crawler._submit_research(research_page, t, tabs=i == 0, viewport="desktop"),
+                        timeout=OPERATION_TIMEOUTS["research"], timing=timing, retries=1,
+                    )
+                    timing.record("research-ticker", time.monotonic() - ticker_started, stage="interaction",
+                                  page="Research Any Ticker", ticker=ticker, viewport="desktop", interaction_type="research")
+                    decision_tab = await crawler._fresh_visible_tab(research_page, "ATLAS View")
+                    if decision_tab is not None:
+                        await decision_tab.click(timeout=6000)
+                        await research_page.wait_for_timeout(500)
+                    if index == 0:
+                        interaction_checks, interaction_defects = await certify_expandable_interactions(
+                            research_page, crawler, page_name="Paid Detail", viewport="desktop", ticker=ticker,
+                            certified_facts=expected_facts(by_ticker[ticker]), qa_mode=mode,
+                        )
+                        checks.extend(interaction_checks)
+                        defects.extend(interaction_defects)
+                    layout = await _layout(research_page)
+                    text = (await _visible_text(research_page)).upper().replace("_", " ")
+                    ticker_facts = expected_facts(by_ticker[ticker])
+                    expected_action, publication_allowed = expected_customer_action(by_ticker[ticker])
+                    # Outside-Top-150 research is a fresh governed evaluation, not
+                    # a promise that the earlier discovery snapshot Action persists.
+                    safe_incomplete = "CANNOT CERTIFY A COMPLETE INVESTMENT RATING" in text
+                    action_match = (safe_incomplete or customer_action_matches(text, expected_action, publication_allowed)) if ticker in {str(row.get("ticker") or "").upper() for row in source_rows} else passed
+                    checks.append({"page": "Research Any Ticker", "viewport": "desktop", "ticker": ticker,
+                                   "status": "PASS" if passed and action_match and not layout["horizontal_overflow"] else "FAIL",
+                                   "canonical_action": expected_action, "publication_allowed": publication_allowed,
+                                   "surface_action_match": action_match, "layout": layout})
+                    # A fresh Research reassessment may correctly fail closed when
+                    # current evidence cannot certify a complete rating.  Preserve
+                    # the existing safe-incomplete contract instead of comparing
+                    # that state to the earlier immutable discovery Action.
+                    required_facts = () if safe_incomplete else ("expected_action",)
+                    defects.extend(dom_fact_findings(
+                        text, ticker_facts, surface="RESEARCH", ticker=ticker,
+                        required=required_facts,
+                    ))
+                    (dom_dir / f"research_{ticker}.json").write_text(json.dumps({
+                        "page": "Research Any Ticker", "ticker": ticker, "text": await _visible_text(research_page),
+                        "expected_action": expected_action, "publication_allowed": publication_allowed,
+                    }, indent=2), encoding="utf-8")
+                    if not passed or not action_match or layout["horizontal_overflow"]:
+                        defects.append({"severity": "P1", "page": "Research Any Ticker", "viewport": "desktop",
+                                        "observed": f"ticker={ticker}; action_match={action_match}; layout={json.dumps(layout, sort_keys=True)}", "ticker_context": ticker})
+            finally:
+                await research_page.close()
+            if visual_tickers:
+                mobile_ticker = visual_tickers[0]
+                mobile_research_page = await open_authenticated_research_page(
+                    context, crawler, url=args.url, output=output,
+                    expected_sha=runtime_source_sha, viewport=MOBILE,
                 )
-                timing.record("research-ticker", time.monotonic() - ticker_started, stage="interaction",
-                              page="Research Any Ticker", ticker=ticker, viewport="desktop", interaction_type="research")
-                decision_tab = await crawler._fresh_visible_tab(page, "ATLAS View")
-                if decision_tab is not None:
-                    await decision_tab.click(timeout=6000)
-                    await page.wait_for_timeout(500)
-                if index == 0:
+                try:
+                    mobile_passed = await crawler._submit_research(
+                        mobile_research_page, mobile_ticker, tabs=True, viewport="mobile",
+                    )
                     interaction_checks, interaction_defects = await certify_expandable_interactions(
-                        page, crawler, page_name="Paid Detail", viewport="desktop", ticker=ticker,
-                        certified_facts=expected_facts(by_ticker[ticker]), qa_mode=mode,
+                        mobile_research_page, crawler, page_name="Paid Detail", viewport="mobile", ticker=mobile_ticker,
+                        certified_facts=expected_facts(by_ticker[mobile_ticker]),
+                        qa_mode=mode,
                     )
                     checks.extend(interaction_checks)
                     defects.extend(interaction_defects)
-                layout = await _layout(page)
-                text = (await _visible_text(page)).upper().replace("_", " ")
-                ticker_facts = expected_facts(by_ticker[ticker])
-                expected_action, publication_allowed = expected_customer_action(by_ticker[ticker])
-                # Outside-Top-150 research is a fresh governed evaluation, not
-                # a promise that the earlier discovery snapshot Action persists.
-                safe_incomplete = "CANNOT CERTIFY A COMPLETE INVESTMENT RATING" in text
-                action_match = (safe_incomplete or customer_action_matches(text, expected_action, publication_allowed)) if ticker in {str(row.get("ticker") or "").upper() for row in source_rows} else passed
-                checks.append({"page": "Research Any Ticker", "viewport": "desktop", "ticker": ticker,
-                               "status": "PASS" if passed and action_match and not layout["horizontal_overflow"] else "FAIL",
-                               "canonical_action": expected_action, "publication_allowed": publication_allowed,
-                               "surface_action_match": action_match, "layout": layout})
-                # A fresh Research reassessment may correctly fail closed when
-                # current evidence cannot certify a complete rating.  Preserve
-                # the existing safe-incomplete contract instead of comparing
-                # that state to the earlier immutable discovery Action.
-                required_facts = () if safe_incomplete else ("expected_action",)
-                defects.extend(dom_fact_findings(
-                    text, ticker_facts, surface="RESEARCH", ticker=ticker,
-                    required=required_facts,
-                ))
-                (dom_dir / f"research_{ticker}.json").write_text(json.dumps({
-                    "page": "Research Any Ticker", "ticker": ticker, "text": await _visible_text(page),
-                    "expected_action": expected_action, "publication_allowed": publication_allowed,
-                }, indent=2), encoding="utf-8")
-                if not passed or not action_match or layout["horizontal_overflow"]:
-                    defects.append({"severity": "P1", "page": "Research Any Ticker", "viewport": "desktop",
-                                    "observed": f"ticker={ticker}; action_match={action_match}; layout={json.dumps(layout, sort_keys=True)}", "ticker_context": ticker})
-            if visual_tickers:
-                mobile_ticker = visual_tickers[0]
-                await page.set_viewport_size(MOBILE)
-                mobile_passed = await crawler._submit_research(page, mobile_ticker, tabs=True, viewport="mobile")
-                interaction_checks, interaction_defects = await certify_expandable_interactions(
-                    page, crawler, page_name="Paid Detail", viewport="mobile", ticker=mobile_ticker,
-                    certified_facts=expected_facts(by_ticker[mobile_ticker]),
-                    qa_mode=mode,
-                )
-                checks.extend(interaction_checks)
-                defects.extend(interaction_defects)
-                if not mobile_passed:
-                    defects.append({"severity": "P1", "page": "Paid Detail", "viewport": "mobile",
-                                    "observed": "PAID_DETAIL_MOBILE_RENDER_FAILED", "ticker_context": mobile_ticker})
+                    if not mobile_passed:
+                        defects.append({"severity": "P1", "page": "Paid Detail", "viewport": "mobile",
+                                        "observed": "PAID_DETAIL_MOBILE_RENDER_FAILED", "ticker_context": mobile_ticker})
+                finally:
+                    await mobile_research_page.close()
         finally:
             await context.close()
             await browser.close()
