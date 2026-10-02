@@ -1,4 +1,4 @@
-name: ATLAS Research Context A-B Diagnostic
+name: ATLAS Research Submit Transport Diagnostic
 
 on:
   push:
@@ -51,7 +51,7 @@ jobs:
           done
           cat audit_results/research_context_ab/diagnostic/streamlit.log
           exit 1
-      - name: Run one NVDA A-B context experiment
+      - name: Run one NVDA submit transport inspection
         run: |
           python scripts/diagnose_research_smoke_context.py \
             --root . \
