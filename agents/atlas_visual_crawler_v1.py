@@ -1064,7 +1064,9 @@ class AtlasVisualCrawler:
             return False
         for scope in _scopes(page):
             try:
-                heading = scope.get_by_text("Live Atlas Research", exact=True)
+                heading = scope.locator(".v65-section-title").filter(
+                    has_text="Live Atlas Research"
+                )
                 inputs = scope.get_by_label("Ticker", exact=True)
                 if not await inputs.count():
                     inputs = scope.locator('input[placeholder*="NVDA"]')
