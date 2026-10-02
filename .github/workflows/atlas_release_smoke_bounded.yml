@@ -146,7 +146,7 @@ jobs:
             python -m agents.full_qa_visual_certification \
             --url http://127.0.0.1:8501 \
             --root audit_results/release_smoke/runtime \
-            --candidate-dir audit_results/release_smoke/runtime \
+            --candidate-dir audit_results/release_smoke/certified/publication_bundle \
             --candidate-run-id "$CERTIFIED_PUBLICATION_RUN_ID" \
             --mode RELEASE_SMOKE \
             --runtime-ceiling-seconds 2700 \

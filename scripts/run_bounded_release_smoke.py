@@ -76,15 +76,54 @@ def _stream_pool(path: Path) -> tuple[dict[str, int], list[dict[str, Any]], list
     return actions, selected, sorted(withheld), count
 
 
-def _copy_small_bundle(bundle: Path, runtime: Path, selected: Iterable[dict[str, Any]]) -> None:
+RESEARCH_SMOKE_TICKERS = ("NVDA", "REGN")
+
+
+def _write_canonical(path: Path, value: Any) -> None:
+    path.write_text(
+        json.dumps(value, sort_keys=True, separators=(",", ":"), default=str),
+        encoding="utf-8",
+    )
+
+
+def _copy_small_bundle(
+    bundle: Path, runtime: Path, selected: Iterable[dict[str, Any]],
+    customer_rows: Iterable[dict[str, Any]],
+) -> None:
     runtime.mkdir(parents=True, exist_ok=True)
-    rows = list(selected)
-    for name in ("market_full_scan.json", "market_scan_state.json", "total_market_universe.json",
-                 "recovery_scan.json", "etf_scan.json", "publication_manifest.json"):
+    rows_by_ticker = {
+        str(row.get("ticker") or row.get("symbol") or "").upper(): row
+        for row in selected if isinstance(row, dict)
+    }
+    for row in customer_rows:
+        ticker = str(row.get("ticker") or row.get("symbol") or "").upper()
+        if ticker in RESEARCH_SMOKE_TICKERS:
+            rows_by_ticker[ticker] = row
+    rows = list(rows_by_ticker.values())
+    missing = sorted(set(RESEARCH_SMOKE_TICKERS) - set(rows_by_ticker))
+    if missing:
+        raise ValueError(f"BOUNDED_RESEARCH_RECORD_MISSING:{','.join(missing)}")
+    for name in ("market_scan_state.json", "total_market_universe.json",
+                 "recovery_scan.json", "etf_scan.json"):
         shutil.copyfile(bundle / name, runtime / name)
-    compact = json.dumps(rows, sort_keys=True, separators=(",", ":"), default=str)
-    for name in ("market_prescreen.json", "discovery_candidate_pool.json", "full_evaluation_pool.json"):
-        (runtime / name).write_text(compact, encoding="utf-8")
+    _write_canonical(runtime / "market_full_scan.json", rows)
+    _write_canonical(runtime / "full_evaluation_pool.json", rows)
+    _write_canonical(runtime / "market_prescreen.json", [])
+    _write_canonical(runtime / "discovery_candidate_pool.json", [])
+    manifest = _load(bundle / "publication_manifest.json")
+    source_hashes = dict(manifest.get("artifact_hashes") or {})
+    manifest["runtime_projection"] = {
+        "mode": "RELEASE_SMOKE_BOUNDED_UI",
+        "source_artifact_hashes": source_hashes,
+        "research_tickers": list(RESEARCH_SMOKE_TICKERS),
+        "record_count": len(rows),
+        "provider_calls": 0,
+        "analytical_recomputation": False,
+    }
+    manifest["artifact_hashes"] = {
+        name: _sha256(runtime / name) for name in PUBLICATION_FILES
+    }
+    _write_canonical(runtime / "publication_manifest.json", manifest)
 
 
 def run(args: argparse.Namespace) -> dict[str, Any]:
@@ -142,7 +181,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     if manifest.get("provider_status", {}).get("provider_calls") != 0:
         raise ValueError("PUBLICATION_PROVIDER_CALL_COUNT_NONZERO")
 
-    _copy_small_bundle(bundle, args.runtime_dir.resolve(), selected)
+    _copy_small_bundle(bundle, args.runtime_dir.resolve(), selected, customer_rows)
     peak_rss_raw = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     peak_rss_mib = peak_rss_raw / 1024.0 if peak_rss_raw > 1024 * 1024 else peak_rss_raw
     result = {

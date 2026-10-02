@@ -22,7 +22,8 @@ def test_bounded_smoke_verifies_exact_identity_and_materializes_only_slice(tmp_p
     rows = []
     for index in range(6033):
         action = "BUY_NOW" if index < 28 else "WAIT_FOR_CONFIRMATION"
-        row = {"ticker": f"T{index}", "canonical_investment_evaluation": {"guidance": {"state": action}}}
+        ticker = {0: "NVDA", 1: "REGN"}.get(index, f"T{index}")
+        row = {"ticker": ticker, "canonical_investment_evaluation": {"guidance": {"state": action}}}
         row.update(allowed if index < 22 else denied)
         rows.append(row)
     customer = rows[:22]
@@ -71,6 +72,15 @@ def test_bounded_smoke_verifies_exact_identity_and_materializes_only_slice(tmp_p
     assert runtime_identity["candidate_source_sha"] == SOURCE_SHA
     assert runtime_identity["code_sha"] != runtime_identity["candidate_source_sha"]
     assert (tmp_path / "runtime" / "full_evaluation_pool.json").stat().st_size < (bundle / "full_evaluation_pool.json").stat().st_size
+    runtime_rows = json.loads((tmp_path / "runtime" / "market_full_scan.json").read_text())
+    assert len(runtime_rows) < len(rows)
+    assert {row["ticker"] for row in runtime_rows} >= {"NVDA", "REGN"}
+    assert json.loads((tmp_path / "runtime" / "market_prescreen.json").read_text()) == []
+    assert json.loads((tmp_path / "runtime" / "discovery_candidate_pool.json").read_text()) == []
+    projection = runtime_manifest["runtime_projection"]
+    assert projection["mode"] == "RELEASE_SMOKE_BOUNDED_UI"
+    assert projection["provider_calls"] == 0
+    assert projection["analytical_recomputation"] is False
 
 
 def test_bounded_smoke_fails_closed_on_candidate_identity_mismatch(tmp_path):
