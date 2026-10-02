@@ -200,6 +200,15 @@ class GlobalCrawlFailure(RuntimeError):
         self.category = category
 
 
+class ResearchSubmissionBoundaryError(RuntimeError):
+    """Fail fast when the browser submission never crosses into Streamlit."""
+
+    def __init__(self, category: str, evidence: dict[str, Any]) -> None:
+        super().__init__(category)
+        self.category = category
+        self.evidence = evidence
+
+
 class AtlasVisualCrawler:
     """Continue-through-failure visual inspection in one authenticated session."""
 
@@ -222,7 +231,109 @@ class AtlasVisualCrawler:
         self.screenshot_timeouts = 0
         self.screenshot_retries = 0
         self.research_contexts: dict[str, dict[str, str]] = {}
+        self._streamlit_frames_sent: list[dict[str, Any]] = []
         self.monitor_ticker = self._monitor_research_ticker()
+
+    def _track_streamlit_websocket(self, websocket: Any) -> None:
+        def record_frame(payload: Any) -> None:
+            size = len(payload) if isinstance(payload, (bytes, str)) else 0
+            self._streamlit_frames_sent.append({"at": time.monotonic(), "size": size})
+
+        websocket.on("framesent", record_frame)
+
+    async def _stable_research_controls(self, page: Page) -> tuple[Any, Any, dict[str, Any]]:
+        """Resolve one visible, enabled, hit-testable form pair twice in succession."""
+        deadline = time.monotonic() + 6.0
+        prior_signature: tuple[Any, ...] | None = None
+        stable_observations = 0
+        last_evidence: dict[str, Any] = {}
+        while time.monotonic() < deadline:
+            visible_pairs: list[tuple[Any, Any, tuple[Any, ...]]] = []
+            for scope in _scopes(page):
+                inputs = scope.get_by_label("Ticker", exact=True)
+                if not await inputs.count():
+                    inputs = scope.locator('input[placeholder*="NVDA"]')
+                buttons = scope.get_by_role("button", name="Research ticker", exact=True)
+                for input_index in range(await inputs.count()):
+                    input_node = inputs.nth(input_index)
+                    if not await input_node.is_visible() or not await input_node.is_enabled():
+                        continue
+                    for button_index in range(await buttons.count()):
+                        button = buttons.nth(button_index)
+                        if not await button.is_visible() or not await button.is_enabled():
+                            continue
+                        input_box = await input_node.bounding_box()
+                        button_box = await button.bounding_box()
+                        hit = bool(await button.evaluate("""
+                            (button) => {
+                              const box = button.getBoundingClientRect();
+                              const node = document.elementFromPoint(
+                                box.left + box.width / 2, box.top + box.height / 2
+                              );
+                              return Boolean(node && (node === button || button.contains(node)));
+                            }
+                        """))
+                        if input_box and button_box and hit:
+                            signature = (
+                                round(input_box["x"]), round(input_box["y"]),
+                                round(button_box["x"]), round(button_box["y"]),
+                            )
+                            visible_pairs.append((input_node, button, signature))
+            last_evidence = {
+                "visible_control_pairs": len(visible_pairs),
+                "stable_observations": stable_observations,
+            }
+            if len(visible_pairs) == 1:
+                input_node, button, signature = visible_pairs[0]
+                stable_observations = stable_observations + 1 if signature == prior_signature else 1
+                prior_signature = signature
+                if stable_observations >= 2:
+                    return input_node, button, {
+                        "visible_control_pairs": 1,
+                        "stable_observations": stable_observations,
+                        "hit_test": "PASS",
+                    }
+            else:
+                prior_signature = None
+                stable_observations = 0
+            await page.wait_for_timeout(125)
+        raise ResearchSubmissionBoundaryError("RESEARCH_CONTROLS_NOT_STABLE", last_evidence)
+
+    async def _require_submission_boundary(
+        self, page: Page, ticker: str, *, sent_before: int, rerun_before: int,
+    ) -> dict[str, Any]:
+        deadline = time.monotonic() + 8.0
+        evidence: dict[str, Any] = {}
+        while time.monotonic() < deadline:
+            sent_after = len(self._streamlit_frames_sent)
+            rerun_after = 0
+            submitted_marker = False
+            for scope in _scopes(page):
+                markers = scope.locator('[data-atlas-qa="research-entry-stage"][data-atlas-stage="RESEARCH_ROUTE_ENTERED"]')
+                for index in range(await markers.count()):
+                    rerun_after = max(
+                        rerun_after,
+                        int(await markers.nth(index).get_attribute("data-atlas-rerun-count") or 0),
+                    )
+                submitted_marker = submitted_marker or bool(await scope.locator(
+                    f'[data-atlas-qa="research-submission-observed"]'
+                    f'[data-atlas-submitted="true"][data-atlas-ticker="{ticker}"]'
+                ).count())
+            evidence = {
+                "streamlit_event_frames": sent_after - sent_before,
+                "rerun_before": rerun_before,
+                "rerun_after": rerun_after,
+                "submission_marker": submitted_marker,
+            }
+            if sent_after > sent_before and rerun_after > rerun_before and submitted_marker:
+                return evidence
+            await page.wait_for_timeout(100)
+        category = (
+            "STREAMLIT_EVENT_NOT_EMITTED"
+            if evidence.get("streamlit_event_frames", 0) <= 0
+            else "STREAMLIT_RERUN_NOT_OBSERVED"
+        )
+        raise ResearchSubmissionBoundaryError(category, evidence)
 
     def _monitor_research_ticker(self) -> str:
         """Choose a current incomplete/Monitor archetype without provider work."""
@@ -1364,20 +1475,29 @@ class AtlasVisualCrawler:
             raise RuntimeError("RESEARCH_ROUTE_NOT_READY")
         before = await self._shot(page, page_name="Research Any Ticker", interaction=f"submit-{ticker}", state="before", viewport=viewport, ticker=ticker)
         try:
-            input_node = None
-            button = None
+            rerun_before = 0
             for scope in _scopes(page):
-                inputs = scope.get_by_label("Ticker", exact=True)
-                if not await inputs.count():
-                    inputs = scope.locator('input[placeholder*="NVDA"]')
-                buttons = scope.get_by_role("button", name="Research ticker", exact=True)
-                if await inputs.count() and await buttons.count():
-                    input_node, button = inputs.first, buttons.first
-                    break
-            if input_node is None or button is None:
-                raise RuntimeError("RESEARCH_SUBMISSION_CONTROL_NOT_READY")
+                markers = scope.locator('[data-atlas-qa="research-entry-stage"][data-atlas-stage="RESEARCH_ROUTE_ENTERED"]')
+                for index in range(await markers.count()):
+                    rerun_before = max(
+                        rerun_before,
+                        int(await markers.nth(index).get_attribute("data-atlas-rerun-count") or 0),
+                    )
+            input_node, button, controls_evidence = await self._stable_research_controls(page)
             await input_node.fill(ticker)
+            sent_before = len(self._streamlit_frames_sent)
             await button.click()
+            submission_evidence = await self._require_submission_boundary(
+                page, ticker, sent_before=sent_before, rerun_before=rerun_before,
+            )
+            await self._record(
+                category="RESEARCH_SUBMISSION_BOUNDARY", page_name="Research Any Ticker",
+                interaction="submit-event-and-rerun",
+                expected="One stable visible form emits a Streamlit event and rerun",
+                observed=json.dumps({**controls_evidence, **submission_evidence}, sort_keys=True),
+                passed=True, elapsed=time.monotonic() - started, ticker=ticker,
+                viewport=viewport, screenshots=(), severity="P0",
+            )
             # The first exact-candidate Research request warms Streamlit's
             # persisted-evidence builders and can legitimately take longer
             # than subsequent tickers. Keep the check bounded while avoiding
@@ -1452,6 +1572,15 @@ class AtlasVisualCrawler:
                 )
             return passed
         except Exception as exc:
+            if isinstance(exc, ResearchSubmissionBoundaryError):
+                await self._record(
+                    category="RESEARCH_SUBMISSION_BOUNDARY", page_name="Research Any Ticker",
+                    interaction="submit-event-and-rerun",
+                    expected="One stable visible form emits a Streamlit event and rerun",
+                    observed=f"{exc.category}; evidence={json.dumps(exc.evidence, sort_keys=True)}",
+                    passed=False, elapsed=time.monotonic() - started, ticker=ticker,
+                    viewport=viewport, screenshots=(), severity="P0",
+                )
             after = await self._shot(page, page_name="Research Any Ticker", interaction=f"submit-{ticker}", state="failure", viewport=viewport, ticker=ticker)
             await self._record(
                 category="RESEARCH", page_name="Research Any Ticker", interaction="submit",
@@ -1824,6 +1953,7 @@ class AtlasVisualCrawler:
             browser: Browser = await pw.chromium.launch(headless=self.headless)
             context: BrowserContext = await browser.new_context(viewport=DESKTOP)
             page = await context.new_page()
+            page.on("websocket", self._track_streamlit_websocket)
             try:
                 try:
                     self.authentication = await _open_and_authenticate(

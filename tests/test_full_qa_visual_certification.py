@@ -508,7 +508,43 @@ def test_research_navigation_waits_for_owned_route_before_ticker_submission():
     assert "owner_deadline = started + RESEARCH_COMPLETION_TIMEOUT_SECONDS - 5" in source
     assert 'raise RuntimeError("RESEARCH_ROUTE_NOT_READY")' in source
     submit = source.split("async def _submit_research", 1)[1].split("async def ", 1)[0]
-    assert submit.index("route_ready = await self._page_visit") < submit.index("input_node = None")
+    assert submit.index("route_ready = await self._page_visit") < submit.index(
+        "await self._stable_research_controls(page)"
+    )
+
+
+def test_research_submission_requires_stable_controls_and_streamlit_boundary_evidence():
+    source = Path("agents/atlas_visual_crawler_v1.py").read_text(encoding="utf-8")
+    submit = source.split("async def _submit_research", 1)[1].split("async def ", 1)[0]
+    assert "await self._stable_research_controls(page)" in submit
+    assert "sent_before = len(self._streamlit_frames_sent)" in submit
+    assert "await self._require_submission_boundary(" in submit
+    assert "RESEARCH_SUBMISSION_BOUNDARY" in submit
+    assert "button.click()" in submit
+    assert "retry" not in submit.lower()
+
+
+def test_missing_streamlit_event_or_rerun_fails_with_specific_boundary_classification():
+    source = Path("agents/atlas_visual_crawler_v1.py").read_text(encoding="utf-8")
+    boundary = source.split("async def _require_submission_boundary", 1)[1].split(
+        "def _monitor_research_ticker", 1
+    )[0]
+    assert '"STREAMLIT_EVENT_NOT_EMITTED"' in boundary
+    assert '"STREAMLIT_RERUN_NOT_OBSERVED"' in boundary
+    assert "sent_after > sent_before" in boundary
+    assert "rerun_after > rerun_before" in boundary
+    assert "submitted_marker" in boundary
+
+
+def test_research_control_stability_requires_visibility_enablement_and_hit_test():
+    source = Path("agents/atlas_visual_crawler_v1.py").read_text(encoding="utf-8")
+    stable = source.split("async def _stable_research_controls", 1)[1].split(
+        "async def _require_submission_boundary", 1
+    )[0]
+    assert "is_visible()" in stable
+    assert "is_enabled()" in stable
+    assert "document.elementFromPoint" in stable
+    assert "stable_observations >= 2" in stable
 
 
 def test_research_route_ownership_requires_selected_route_and_complete_visible_form():
@@ -535,4 +571,4 @@ def test_research_route_ownership_uses_research_specific_visible_controls_not_hi
     assert 'get_by_label("Ticker", exact=True)' in ownership
     assert 'get_by_role("button", name="Research ticker", exact=True)' in ownership
     assert 'data-atlas-qa="page-ready"' not in ownership
-    assert 'raise RuntimeError("RESEARCH_SUBMISSION_CONTROL_NOT_READY")' in source
+    assert 'ResearchSubmissionBoundaryError("RESEARCH_CONTROLS_NOT_STABLE"' in source

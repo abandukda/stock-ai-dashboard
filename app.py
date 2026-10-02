@@ -27602,6 +27602,8 @@ def _emit_research_entry_stage(stage, *, ticker=""):
     timer_key = "atlas_research_route_entry_monotonic"
     if stage == "RESEARCH_ROUTE_ENTERED":
         st.session_state[timer_key] = time.monotonic()
+        rerun_key = "atlas_research_route_rerun_count"
+        st.session_state[rerun_key] = int(st.session_state.get(rerun_key) or 0) + 1
     started = float(st.session_state.get(timer_key) or time.monotonic())
     elapsed = max(0.0, time.monotonic() - started)
     normalized_ticker = str(ticker or "").upper().strip()
@@ -27611,6 +27613,7 @@ def _emit_research_entry_stage(stage, *, ticker=""):
         f'data-atlas-elapsed-seconds="{elapsed:.6f}" '
         f'data-atlas-source-sha="{html.escape(deployment_source_sha())}" '
         f'data-atlas-ticker="{html.escape(normalized_ticker)}" '
+        f'data-atlas-rerun-count="{int(st.session_state.get("atlas_research_route_rerun_count") or 0)}" '
         'aria-hidden="true" style="display:none">research-entry-stage</span>',
         unsafe_allow_html=True,
     )
@@ -27687,6 +27690,15 @@ def render_research_any_ticker(full_df,recovery_df,watch_df,prescreen_df,etf_df=
     from services.session_stability import emit_page_interactive
     emit_page_interactive(st, "Research Any Ticker")
     _emit_research_entry_stage("PAGE_INTERACTIVE", ticker=typed or pending_ticker)
+    if os.getenv("ATLAS_EXACT_CANDIDATE_QA", "").strip().lower() in {"1", "true", "yes", "on"}:
+        st.markdown(
+            '<span data-atlas-qa="research-submission-observed" '
+            f'data-atlas-submitted="{str(bool(submitted)).lower()}" '
+            f'data-atlas-ticker="{html.escape(typed or pending_ticker)}" '
+            f'data-atlas-rerun-count="{int(st.session_state.get("atlas_research_route_rerun_count") or 0)}" '
+            'aria-hidden="true" style="display:none">research-submission-observed</span>',
+            unsafe_allow_html=True,
+        )
     if submitted:
         # A new request owns a new render lifecycle.  Never carry a prior
         # ticker's error/exception state into this request.
