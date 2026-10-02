@@ -25,7 +25,7 @@ from agents.visual_qa_certification_v2 import (
 
 VERSION = "ATLAS_FULL_QA_VISUAL_V2"
 QA_MODES = ("RELEASE_FULL", "RELEASE_SMOKE", "FAST_PREVIEW")
-OPERATION_TIMEOUTS = {"authentication": 60.0, "navigation": 90.0, "page_render": 90.0,
+OPERATION_TIMEOUTS = {"navigation": 90.0, "page_render": 90.0,
                       "research": 120.0, "interaction": 10.0, "screenshot": 20.0, "dom": 5.0}
 SCREENSHOT_BUDGETS = {
     "Home": {"desktop": 6, "mobile": 6}, "Research Any Ticker": {"desktop": 8, "mobile": 7},
@@ -151,6 +151,10 @@ class TimingReport:
         elapsed = time.monotonic() - self.started
         if elapsed > self.ceiling_seconds:
             raise QARuntimeBudgetExceeded(f"QA_RUNTIME_BUDGET_EXCEEDED:{stage}:{elapsed:.1f}s")
+
+    def remaining_seconds(self) -> float:
+        """Return the authoritative time left for the complete QA run."""
+        return max(0.001, self.ceiling_seconds - (time.monotonic() - self.started))
 
     def checkpoint(self) -> None:
         if self.checkpoint_path:
@@ -1123,7 +1127,7 @@ async def run(args: argparse.Namespace) -> int:
                 "auth", lambda: _open_and_authenticate(
                     page, args.url, output, expected_sha=runtime_source_sha,
                     allow_local_exact_candidate=True,
-                ), timeout=OPERATION_TIMEOUTS["authentication"], timing=timing, retries=1,
+                ), timeout=timing.remaining_seconds(), timing=timing,
             )
             for viewport, size in (("desktop", DESKTOP), ("mobile", MOBILE)):
                 await page.set_viewport_size(size)

@@ -8,6 +8,9 @@ from agents.full_qa_visual_certification import (
     interaction_manifest_fields, required_expandable, visual_completion_contract, _inventory_for_surface,
     validate_disclosure_content,
 )
+from agents.atlas_runtime_qa_v3 import (
+    DEPLOYED_READINESS_TIMEOUT_SECONDS, LOGIN_TIMEOUT_SECONDS,
+)
 
 
 def test_visual_ticker_matrix_keeps_permanent_fixtures_and_dynamic_categories(tmp_path: Path):
@@ -488,3 +491,13 @@ def test_bounded_operation_caps_retry_and_records_timeout():
     assert attempts == 2
     assert report.retry_counts == {"navigation": 1}
     assert len(report.timeouts) == 2
+
+
+def test_authentication_uses_run_budget_longer_than_inner_readiness_lifecycle():
+    report = TimingReport(mode="RELEASE_SMOKE", ceiling_seconds=2700)
+    assert report.remaining_seconds() > (
+        DEPLOYED_READINESS_TIMEOUT_SECONDS + LOGIN_TIMEOUT_SECONDS
+    )
+    source = Path("agents/full_qa_visual_certification.py").read_text()
+    assert 'timeout=timing.remaining_seconds(), timing=timing' in source
+    assert 'timeout=OPERATION_TIMEOUTS["authentication"]' not in source
