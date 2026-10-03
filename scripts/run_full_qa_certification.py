@@ -32,9 +32,65 @@ QA_PAYLOAD_NAMES = (
     "discovery_candidate_pool.json", "full_evaluation_pool.json",
 )
 
+POOL_COMMON_FIELDS = (
+    "ticker", "symbol", "sector", "current_price", "price",
+    "revenue_growth", "earnings_growth", "free_cash_flow", "market_cap",
+    "forward_eps",
+)
+FULL_EVALUATION_FIELDS = (
+    "prescreen_score", "prescreen_channels", "medium_stage_score",
+)
+
 
 def _read(path: Path):
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _project_qa_pool_row(source: dict[str, object], *, full_evaluation: bool = False) -> dict[str, object]:
+    row = {key: source.get(key) for key in POOL_COMMON_FIELDS}
+    if not str(row.get("ticker") or row.get("symbol") or "").strip():
+        raise RuntimeError("QA_POOL_TICKER_MISSING")
+    if full_evaluation:
+        row.update({key: source.get(key) for key in FULL_EVALUATION_FIELDS})
+        evaluation = dict(source.get("canonical_investment_evaluation") or {})
+        row["canonical_investment_evaluation"] = {
+            key: evaluation.get(key)
+            for key in ("action", "opportunity", "decision_confidence", "component_coverage")
+        }
+        certification = dict(source.get("publication_certification") or {})
+        row["publication_certification"] = {
+            key: certification.get(key)
+            for key in ("customer_publication_allowed", "certification_state")
+        }
+    return row
+
+
+def _stream_qa_pool(path: Path, *, full_evaluation: bool = False) -> list[dict[str, object]]:
+    """Retain only fields consumed by full-universe QA from a large pool."""
+    started = time.monotonic()
+    print(json.dumps({"event": "qa_pool_projection_start", "artifact": path.name,
+                      "bytes": path.stat().st_size, "rss_mib": round(_rss_mib(), 3)}), flush=True)
+    projected: list[dict[str, object]] = []
+    with path.open("rb") as handle:
+        first = b""
+        while not first:
+            first = handle.read(1)
+            if not first:
+                raise RuntimeError(f"QA_POOL_JSON_EMPTY:{path.name}")
+            if first.isspace():
+                first = b""
+        if first != b"[":
+            raise RuntimeError(f"QA_POOL_ROOT_NOT_ARRAY:{path.name}")
+        handle.seek(0)
+        for source in ijson.items(handle, "item", use_float=True):
+            if not isinstance(source, dict):
+                raise RuntimeError(f"QA_POOL_ROW_NOT_OBJECT:{path.name}")
+            projected.append(_project_qa_pool_row(source, full_evaluation=full_evaluation))
+    print(json.dumps({"event": "qa_pool_projection_complete", "artifact": path.name,
+                      "records": len(projected), "runtime_seconds": round(time.monotonic() - started, 3),
+                      "rss_mib": round(_rss_mib(), 3), "peak_rss_mib": round(_rss_mib(peak=True), 3)}),
+          flush=True)
+    return projected
 
 
 def _flatten(value):
@@ -241,6 +297,7 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     timing = TimingReport(started=process_started)
+    print(json.dumps({"event": "dataset_qa_start", "rss_mib": round(_rss_mib(), 3)}), flush=True)
 
     identity_started = time.monotonic()
     candidate_manifest = _read(args.candidate_dir / "publication_manifest.json")
@@ -256,7 +313,23 @@ def main(argv=None) -> int:
         chained_candidate_run_id=args.chained_candidate_run_id,
     )
     verify_candidate_bounded(args.candidate_dir, candidate_manifest)
-    payloads = {args.production_dir / name: _read(args.candidate_dir / name) for name in QA_PAYLOAD_NAMES}
+    customer_started = time.monotonic()
+    print(json.dumps({"event": "customer_dataset_start", "rss_mib": round(_rss_mib(), 3)}), flush=True)
+    customer_rows = _read(args.candidate_dir / "market_full_scan.json")
+    state = _read(args.candidate_dir / "market_scan_state.json")
+    print(json.dumps({"event": "customer_dataset_complete", "records": len(customer_rows),
+                      "runtime_seconds": round(time.monotonic() - customer_started, 3),
+                      "rss_mib": round(_rss_mib(), 3)}), flush=True)
+    payloads = {
+        args.production_dir / "market_full_scan.json": customer_rows,
+        args.production_dir / "market_scan_state.json": state,
+        args.production_dir / "discovery_candidate_pool.json": _stream_qa_pool(
+            args.candidate_dir / "discovery_candidate_pool.json"
+        ),
+        args.production_dir / "full_evaluation_pool.json": _stream_qa_pool(
+            args.candidate_dir / "full_evaluation_pool.json", full_evaluation=True
+        ),
+    }
     timing.record_stage("identity", time.monotonic() - identity_started)
     candidate_rows = payloads[args.production_dir / "market_full_scan.json"]
     prior_path = args.production_dir / "market_full_scan.json"
@@ -272,6 +345,7 @@ def main(argv=None) -> int:
     discovery_state["runtime_profile"] = state.get("run_timings") or {}
     discovery_state["total_runtime_seconds"] = state.get("duration_seconds")
     deterministic_started = time.monotonic()
+    print(json.dumps({"event": "deterministic_crawl_start", "rss_mib": round(_rss_mib(), 3)}), flush=True)
     report = crawl_universe(
         candidate_rows,
         prior_rows=((prior_report or {}).get("sheets") or {}).get("Master_150") or (),
@@ -283,6 +357,9 @@ def main(argv=None) -> int:
         candidate_rows=payloads[args.production_dir / "discovery_candidate_pool.json"],
     )
     timing.record_stage("deterministic_qa", time.monotonic() - deterministic_started)
+    print(json.dumps({"event": "deterministic_crawl_complete",
+                      "runtime_seconds": round(time.monotonic() - deterministic_started, 3),
+                      "rss_mib": round(_rss_mib(), 3), "peak_rss_mib": round(_rss_mib(peak=True), 3)}), flush=True)
     if candidate_manifest.get("publication_gate_status") != "PASS":
         report["sheets"]["Validation_Failures"].append({
             "ticker": "UNIVERSE", "severity": "P1", "category": "UPSTREAM_PUBLICATION_GATE",
@@ -378,6 +455,7 @@ def main(argv=None) -> int:
         report["summary"]["dataset_certification_status"] = "FAIL"
         report["gate"] = "FAIL"
     packaging_started = time.monotonic()
+    print(json.dumps({"event": "packaging_start", "rss_mib": round(_rss_mib(), 3)}), flush=True)
     date = report["summary"]["generated_at"][:10].replace("-", "")
     safe_run_id = "".join(character if character.isalnum() or character in "-_" else "_" for character in str(report["summary"]["run_id"]))
     stem = f"ATLAS_MASTER_QA_{date}_{safe_run_id}"
@@ -394,6 +472,9 @@ def main(argv=None) -> int:
     _html(report, html_path)
     subprocess.run([sys.executable, str(args.xlsx_exporter), str(json_path), str(xlsx_path)], check=True)
     timing.record_stage("packaging", time.monotonic() - packaging_started)
+    print(json.dumps({"event": "packaging_complete",
+                      "runtime_seconds": round(time.monotonic() - packaging_started, 3),
+                      "rss_mib": round(_rss_mib(), 3), "peak_rss_mib": round(_rss_mib(peak=True), 3)}), flush=True)
 
     certified_manifest = dict(candidate_manifest)
     certified_manifest["qa_certification"] = {**report["summary"], "report_digest": report_digest(report)}
@@ -433,7 +514,9 @@ def main(argv=None) -> int:
     print(json.dumps({"gate": report["gate"], "run_id": report["summary"]["run_id"],
                       "output_dir": str(args.output_dir), "promoted": promoted,
                       "qa_mode": args.qa_mode, "relationship": preview["relationship"],
-                      "promotion_reason": preview["reason"]}, sort_keys=True))
+                      "promotion_reason": preview["reason"],
+                      "runtime_seconds": round(time.monotonic() - process_started, 3),
+                      "peak_rss_mib": round(_rss_mib(peak=True), 3)}, sort_keys=True))
     if requested_promotion and not promoted:
         return 3
     return 0 if report["gate"] == "PASS" else 2
