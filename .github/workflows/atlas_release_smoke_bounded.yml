@@ -35,17 +35,37 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: "3.11"}
       - run: pip install -r requirements.txt
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           github-token: ${{ github.token }}
           run-id: ${{ env.CERTIFIED_PUBLICATION_RUN_ID }}
           name: atlas-finnhub-publication-only-recovered-${{ env.CERTIFIED_PUBLICATION_RUN_ID }}
-          path: audit_results/release_smoke/certified
+          path: audit_results/release_smoke/certified-${{ github.run_id }}
+      - name: Resolve certified publication bundle
+        id: certified-bundle
+        shell: bash
+        run: |
+          root="audit_results/release_smoke/certified-${GITHUB_RUN_ID}"
+          mapfile -t manifests < <(find "$root" -type f -name publication_manifest.json -print)
+          if [ "${#manifests[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one publication_manifest.json under $root; found ${#manifests[@]}"
+            printf '%s\n' "${manifests[@]}"
+            exit 1
+          fi
+          bundle=$(dirname "${manifests[0]}")
+          report_root=$(dirname "$bundle")
+          test -r "$bundle/publication_manifest.json"
+          echo "Resolved certified artifact root: $root"
+          echo "Resolved publication manifest: ${manifests[0]}"
+          echo "Resolved publication bundle: $bundle"
+          echo "manifest=${manifests[0]}" >> "$GITHUB_OUTPUT"
+          echo "bundle=$bundle" >> "$GITHUB_OUTPUT"
+          echo "report-root=$report_root" >> "$GITHUB_OUTPUT"
       - name: Verify exact publication in bounded memory
         run: |
           /usr/bin/time -v python scripts/run_bounded_release_smoke.py \
-            --bundle audit_results/release_smoke/certified/publication_bundle \
-            --report-root audit_results/release_smoke/certified \
+            --bundle "${{ steps.certified-bundle.outputs.bundle }}" \
+            --report-root "${{ steps.certified-bundle.outputs.report-root }}" \
             --runtime-dir audit_results/release_smoke/runtime \
             --output audit_results/release_smoke/bounded_verification.json \
             --expected-candidate-digest "$EXPECTED_CANDIDATE_DIGEST" \
@@ -96,12 +116,29 @@ jobs:
         with:
           name: atlas-bounded-release-smoke-verification-${{ github.run_id }}
           path: audit_results/release_smoke
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           github-token: ${{ github.token }}
           run-id: ${{ env.CERTIFIED_PUBLICATION_RUN_ID }}
           name: atlas-finnhub-publication-only-recovered-${{ env.CERTIFIED_PUBLICATION_RUN_ID }}
-          path: audit_results/release_smoke/certified
+          path: audit_results/release_smoke/certified-${{ github.run_id }}
+      - name: Resolve certified publication bundle
+        id: certified-bundle
+        shell: bash
+        run: |
+          root="audit_results/release_smoke/certified-${GITHUB_RUN_ID}"
+          mapfile -t manifests < <(find "$root" -type f -name publication_manifest.json -print)
+          if [ "${#manifests[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one publication_manifest.json under $root; found ${#manifests[@]}"
+            printf '%s\n' "${manifests[@]}"
+            exit 1
+          fi
+          bundle=$(dirname "${manifests[0]}")
+          test -r "$bundle/publication_manifest.json"
+          echo "Resolved certified artifact root: $root"
+          echo "Resolved publication manifest: ${manifests[0]}"
+          echo "Resolved publication bundle: $bundle"
+          echo "bundle=$bundle" >> "$GITHUB_OUTPUT"
       - name: Launch bounded exact-snapshot runtime
         shell: bash
         run: |
@@ -147,7 +184,7 @@ jobs:
             python -m agents.full_qa_visual_certification \
             --url http://127.0.0.1:8501 \
             --root audit_results/release_smoke/runtime \
-            --candidate-dir audit_results/release_smoke/certified/publication_bundle \
+            --candidate-dir "${{ steps.certified-bundle.outputs.bundle }}" \
             --candidate-run-id "$CERTIFIED_PUBLICATION_RUN_ID" \
             --mode RELEASE_SMOKE \
             --runtime-ceiling-seconds 2700 \
