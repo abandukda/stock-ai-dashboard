@@ -11,11 +11,12 @@ from pathlib import Path
 from playwright.async_api import async_playwright
 
 from agents.atlas_runtime_qa_v3 import _deployed_readiness_gate, _open_and_authenticate
+from agents.atlas_visual_crawler_v1 import AtlasVisualCrawler, DESKTOP, _has_rendered_exception, _scopes
 from agents.full_qa_visual_certification import _open_streamlit_origin
 
 
 REQUIRED_SECTIONS = (
-    "Market Context",
+    "Market context",
     "ATLAS Market Read",
     "Action Summary",
     "Strongest Opportunities",
@@ -36,6 +37,23 @@ async def run(args: argparse.Namespace) -> dict:
     source_sha = _source_sha(args.root.resolve())
     started = time.monotonic()
     observations = []
+    crawler = AtlasVisualCrawler(
+        url=args.url, output_dir=output, root=args.root.resolve(), headless=True
+    )
+
+    async def provider_calls(page) -> int:
+        highest = 0
+        for scope in _scopes(page):
+            nodes = scope.locator("[data-atlas-provider-calls]")
+            for index in range(await nodes.count()):
+                try:
+                    highest = max(
+                        highest,
+                        int(await nodes.nth(index).get_attribute("data-atlas-provider-calls") or 0),
+                    )
+                except (TypeError, ValueError):
+                    pass
+        return highest
 
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=True)
@@ -78,23 +96,81 @@ async def run(args: argparse.Namespace) -> dict:
                     "page_ready": page_ready,
                 }
             )
-            completed = interactive and page_ready and all(sections.values())
+            # Governed lifecycle markers are authoritative. Section assertions
+            # are evaluated only after the completed Home state is observable.
+            completed = interactive and page_ready
             if completed:
                 break
             await page.wait_for_timeout(1000)
 
         await page.screenshot(path=output / "home_boundary.png", full_page=True)
         final_body = await page.locator("body").inner_text()
+        home_passed = bool(
+            completed
+            and all(name in final_body for name in REQUIRED_SECTIONS)
+            and "Exception" not in final_body
+            and "Traceback" not in final_body
+            and await provider_calls(page) == 0
+        )
         payload = {
             "source_sha": source_sha,
             "completed": completed,
+            "passed": home_passed,
             "elapsed_seconds": round(time.monotonic() - started, 3),
             "required_sections": {
                 name: name in final_body for name in REQUIRED_SECTIONS
             },
             "rendered_exception": "Exception" in final_body or "Traceback" in final_body,
+            "provider_calls": await provider_calls(page),
             "observations": observations,
         }
+        if home_passed:
+            paid_started = time.monotonic()
+            research = await context.new_page()
+            await research.set_viewport_size(DESKTOP)
+            await _open_streamlit_origin(
+                research, args.url, output, allow_local_exact_candidate=True
+            )
+            await _deployed_readiness_gate(
+                research, expected_sha=source_sha, output_dir=output
+            )
+            submitted = await crawler._submit_research(
+                research, "REGN", tabs=False, viewport="desktop"
+            )
+            contract = await crawler._research_vnext_contract(research, "REGN")
+            completion = await crawler._completed_research(research, "REGN")
+            research_body = await research.locator("body").inner_text()
+            authority = {
+                "action": "WAIT FOR CONFIRMATION" in research_body,
+                "fair_value": "1,514.36" in research_body,
+                "opportunity": "72.98" in research_body,
+                "confidence": "80.63" in research_body,
+            }
+            paid_exception = await _has_rendered_exception(research)
+            paid_provider_calls = await provider_calls(research)
+            payload["paid_detail"] = {
+                "route": "Research Any Ticker",
+                "record": "REGN",
+                "submitted": submitted,
+                "readiness": completion,
+                "authority": authority,
+                "contract": contract,
+                "rendered_exception": paid_exception,
+                "provider_calls": paid_provider_calls,
+                "seconds": round(time.monotonic() - paid_started, 3),
+                "passed": bool(
+                    submitted
+                    and completion.get("complete")
+                    and contract.get("all_sections")
+                    and all(authority.values())
+                    and not paid_exception
+                    and paid_provider_calls == 0
+                ),
+            }
+            await research.screenshot(
+                path=output / "paid_detail_regn.png", full_page=True
+            )
+            await research.close()
         await context.close()
         await browser.close()
 
@@ -123,7 +199,7 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--timeout", type=float, default=90.0)
     result = asyncio.run(run(parser.parse_args()))
-    return 0 if result["completed"] else 1
+    return 0 if result.get("passed") and result.get("paid_detail", {}).get("passed") else 1
 
 
 if __name__ == "__main__":

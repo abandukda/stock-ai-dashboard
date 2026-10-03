@@ -792,6 +792,19 @@ class AtlasVisualCrawler:
         started = time.monotonic()
         try:
             settled, _, detail = await _navigate(page, page_name, self.output_dir)
+            if page_name == "Home":
+                # A cold exact-candidate Home run can finish after the generic
+                # navigation settlement budget. Its existing lifecycle markers,
+                # not an arbitrary sleep or partial visible shell, govern when
+                # content assertions may begin.
+                home_deadline = started + RESEARCH_COMPLETION_TIMEOUT_SECONDS - 5
+                while time.monotonic() < home_deadline:
+                    if await _page_render_complete(page, page_name):
+                        settled = True
+                        break
+                    await page.wait_for_timeout(100)
+                if not await _page_render_complete(page, page_name):
+                    settled = False
             if page_name == "Research Any Ticker":
                 # The first exact-candidate Research route performs a bounded
                 # persisted-evidence load after navigation. Keep that route
