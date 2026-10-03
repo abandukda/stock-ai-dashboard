@@ -54,7 +54,7 @@ jobs:
           exit 1
       - name: Run one isolated-context NVDA submission
         run: |
-          python scripts/diagnose_research_smoke_context.py \
+          /usr/bin/time -v -o audit_results/research_context_ab/diagnostic/focused_memory.txt python scripts/diagnose_research_smoke_context.py \
             --root . \
             --output audit_results/research_context_ab/diagnostic
       - name: Stop runtime

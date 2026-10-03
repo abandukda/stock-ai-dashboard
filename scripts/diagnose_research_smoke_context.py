@@ -8,7 +8,7 @@ from playwright.async_api import Page, WebSocket, async_playwright
 from streamlit.proto.BackMsg_pb2 import BackMsg
 from streamlit.proto.ForwardMsg_pb2 import ForwardMsg
 from agents.atlas_runtime_qa_v3 import _deployed_readiness_gate, _open_and_authenticate
-from agents.atlas_visual_crawler_v1 import AtlasVisualCrawler, DESKTOP, _scopes
+from agents.atlas_visual_crawler_v1 import AtlasVisualCrawler, DESKTOP, MOBILE, _has_rendered_exception, _scopes
 from agents.full_qa_visual_certification import _open_streamlit_origin
 
 SECRET_KEY = re.compile(r"password|secret|token|cookie|authorization|credential", re.I)
@@ -83,6 +83,20 @@ async def _markers(page: Page, ticker: str) -> dict[str, Any]:
         exact = exact or bool(await scope.locator(f'[data-atlas-qa="research-context-v1"][data-atlas-ticker="{ticker}"]').count())
     return {"rerun":rerun,"submission_marker":submitted,"terminal_lifecycle":terminal,"exact_ticker_context":exact}
 
+async def _provider_calls(page: Page) -> int:
+    highest=0
+    for scope in _scopes(page):
+        nodes=scope.locator("[data-atlas-provider-calls]")
+        for index in range(await nodes.count()):
+            try: highest=max(highest,int(await nodes.nth(index).get_attribute("data-atlas-provider-calls") or 0))
+            except Exception: pass
+    return highest
+
+async def _research_result(crawler: AtlasVisualCrawler, page: Page, ticker: str, expected: dict[str,str]) -> dict[str,Any]:
+    body=await page.locator("body").inner_text(); complete=await crawler._completed_research(page,ticker)
+    checks={name:value in body for name,value in expected.items()}
+    return {"ticker":ticker,"complete":complete,"values":checks,"provider_calls":await _provider_calls(page),"rendered_exception":await _has_rendered_exception(page),"passed":bool(complete.get("complete") and all(checks.values()) and not await _has_rendered_exception(page))}
+
 async def run(args: argparse.Namespace) -> dict[str, Any]:
     root=args.root.resolve(); output=args.output.resolve(); output.mkdir(parents=True,exist_ok=True)
     crawler=AtlasVisualCrawler(url=args.url,output_dir=output,root=root,headless=True); source_sha=_sha(root)
@@ -119,10 +133,42 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         phase["value"]="blur"; blur_at=round(time.monotonic()-started,6); await input_node.press("Tab"); await page.wait_for_timeout(350); after_blur=len(outgoing)
         value=await input_node.input_value(); before_click_markers=await _markers(page,"NVDA")
         incoming_before_click=len(incoming)
-        phase["value"]="click"; click_at=round(time.monotonic()-started,6); await button.click(); await page.wait_for_timeout(8000); after_click=len(outgoing); incoming_after_click=len(incoming)
+        phase["value"]="click"; click_at=round(time.monotonic()-started,6); click_clock=time.monotonic(); await button.click()
+        terminal_clock=None
+        for _ in range(50):
+            if (await crawler._completed_research(page,"NVDA")).get("complete"):
+                terminal_clock=time.monotonic(); break
+            await page.wait_for_timeout(200)
+        after_click=len(outgoing); incoming_after_click=len(incoming)
         markers_after=await _markers(page,"NVDA"); completed=await crawler._completed_research(page,"NVDA")
         body=await page.locator("body").inner_text()
         certified_visible={"action_buy_now":"BUY NOW" in body,"fair_value_338_82":"338.82" in body,"opportunity_86_68":"86.68" in body,"confidence_88_54":"88.54" in body}
+        nvda={"passed":bool(completed.get("complete") and all(certified_visible.values())),"terminal_seconds":None if terminal_clock is None else round(terminal_clock-click_clock,6),"completed":completed,"values":certified_visible,"provider_calls":await _provider_calls(page),"rendered_exception":await _has_rendered_exception(page)}
+        gates={"nvda_desktop":nvda}
+        if nvda["passed"]:
+            regn_started=time.monotonic(); regn_submit=await crawler._submit_research(page,"REGN",tabs=False,viewport="desktop")
+            regn=await _research_result(crawler,page,"REGN",{"action":"WAIT FOR CONFIRMATION","fair_value":"1,514.36","opportunity":"72.98","confidence":"80.63"})
+            regn_body=await page.locator("body").inner_text(); regn["submit_passed"]=regn_submit; regn["seconds"]=round(time.monotonic()-regn_started,6)
+            regn["no_stale_nvda"]=all(value not in regn_body for value in ("338.82","86.68","88.54")); regn["passed"]=bool(regn["passed"] and regn_submit and regn["no_stale_nvda"])
+            gates["regn_after_nvda"]=regn
+        if gates.get("regn_after_nvda",{}).get("passed"):
+            mobile=await context.new_page(); await mobile.set_viewport_size(MOBILE); mobile.on("websocket",crawler._track_streamlit_websocket)
+            await _open_streamlit_origin(mobile,args.url,output,allow_local_exact_candidate=True); await _deployed_readiness_gate(mobile,expected_sha=source_sha,output_dir=output)
+            mobile_started=time.monotonic(); mobile_submit=await crawler._submit_research(mobile,"NVDA",tabs=False,viewport="mobile")
+            mobile_result=await _research_result(crawler,mobile,"NVDA",{"action":"BUY NOW","fair_value":"338.82","opportunity":"86.68","confidence":"88.54"})
+            mobile_result["submit_passed"]=mobile_submit; mobile_result["seconds"]=round(time.monotonic()-mobile_started,6); mobile_result["passed"]=bool(mobile_result["passed"] and mobile_submit)
+            gates["nvda_mobile"]=mobile_result; await mobile.close()
+        if gates.get("nvda_mobile",{}).get("passed"):
+            home=await context.new_page(); await home.set_viewport_size(DESKTOP); home.on("websocket",crawler._track_streamlit_websocket)
+            await _open_streamlit_origin(home,args.url,output,allow_local_exact_candidate=True); await _deployed_readiness_gate(home,expected_sha=source_sha,output_dir=output)
+            home_started=time.monotonic(); home_route=await crawler._page_visit(home,"Home",viewport="desktop"); home_body=await home.locator("body").inner_text()
+            sections={name:name in home_body for name in ("Market Context","ATLAS Market Read","Action Summary","Strongest Opportunities","Worth Watching","Research")}
+            home_result={"route":home_route,"sections":sections,"rendered_exception":await _has_rendered_exception(home),"provider_calls":await _provider_calls(home),"seconds":round(time.monotonic()-home_started,6)}
+            home_result["passed"]=bool(home_route and all(sections.values()) and not home_result["rendered_exception"] and home_result["provider_calls"]==0); gates["home"]=home_result; await home.close()
+        if gates.get("home",{}).get("passed"):
+            paid_contract=await crawler._research_vnext_contract(page,"REGN")
+            paid={"route":"Research Any Ticker","record_ticker":"REGN","contract":paid_contract,"rendered_exception":await _has_rendered_exception(page),"provider_calls":await _provider_calls(page)}
+            paid["passed"]=bool(paid_contract.get("all_sections") and not paid["rendered_exception"] and paid["provider_calls"]==0); gates["paid_detail"]=paid
         pages=[{"url":p.url,"visibility":await p.evaluate("document.visibilityState")} for p in context.pages]
         await context.close(); await browser.close()
     trace=[]
@@ -133,11 +179,12 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             if marker in line:
                 try: trace.append(json.loads(line.split(marker,1)[1]))
                 except Exception: trace.append({"event":"TRACE_PARSE_FAILURE"})
-    payload={"source_sha":source_sha,"provider_calls":0,"ticker":"NVDA","old_context":{"page_count_before_close":len(old_pages),"pages":old_pages,"closed":old_context_closed},"storage_state":{"playwright_supported_export":True,**storage_summary,"authentication_persisted":auth_persisted},"new_context":{"page_count_before_navigation":new_pages_before_navigation,"pages_after_test":pages},"listener_registered_before_navigation":True,"sockets":sockets,"socket_events":socket_events,"controls":controls,"actions":{"fill_seconds":fill_at,"blur_seconds":blur_at,"click_seconds":click_at,"control_value_before_click":value},"button_form_dom":dom,"outgoing_frame_counts":{"before_fill":before_fill,"caused_by_fill":after_fill-before_fill,"caused_by_blur":after_blur-after_fill,"caused_by_click":after_click-after_blur,"total":after_click},"frames_before_fill":outgoing[:before_fill],"frames_caused_by_fill":outgoing[before_fill:after_fill],"frames_caused_by_blur":outgoing[after_fill:after_blur],"frames_caused_by_click":outgoing[after_blur:after_click],"incoming_after_submit":{"count":incoming_after_click-incoming_before_click,"frames":incoming[incoming_before_click:incoming_after_click]},"app_run_trace":trace,"markers_before":markers_before,"markers_immediately_before_click":before_click_markers,"markers_after":markers_after,"completed_research":completed,"certified_values_visible":certified_visible}
+    all_passed=all(gates.get(name,{}).get("passed") for name in ("nvda_desktop","regn_after_nvda","nvda_mobile","home","paid_detail"))
+    payload={"source_sha":source_sha,"provider_calls":max([gate.get("provider_calls",0) for gate in gates.values()] or [0]),"all_focused_gates_passed":all_passed,"gates":gates,"ticker":"NVDA","old_context":{"page_count_before_close":len(old_pages),"pages":old_pages,"closed":old_context_closed},"storage_state":{"playwright_supported_export":True,**storage_summary,"authentication_persisted":auth_persisted},"new_context":{"page_count_before_navigation":new_pages_before_navigation,"pages_after_test":pages},"listener_registered_before_navigation":True,"sockets":sockets,"socket_events":socket_events,"controls":controls,"actions":{"fill_seconds":fill_at,"blur_seconds":blur_at,"click_seconds":click_at,"control_value_before_click":value},"button_form_dom":dom,"outgoing_frame_counts":{"before_fill":before_fill,"caused_by_fill":after_fill-before_fill,"caused_by_blur":after_blur-after_fill,"caused_by_click":after_click-after_blur,"total":after_click},"frames_before_fill":outgoing[:before_fill],"frames_caused_by_fill":outgoing[before_fill:after_fill],"frames_caused_by_blur":outgoing[after_fill:after_blur],"frames_caused_by_click":outgoing[after_blur:after_click],"incoming_after_submit":{"count":incoming_after_click-incoming_before_click,"frames":incoming[incoming_before_click:incoming_after_click]},"app_run_trace":trace,"markers_before":markers_before,"markers_immediately_before_click":before_click_markers,"markers_after":markers_after,"completed_research":completed,"certified_values_visible":certified_visible}
     (output/"research_isolated_context.json").write_text(json.dumps(payload,indent=2)+"\n",encoding="utf-8")
     return payload
 
 def main() -> int:
     parser=argparse.ArgumentParser(); parser.add_argument("--url",default="http://127.0.0.1:8501"); parser.add_argument("--root",type=Path,default=Path(".")); parser.add_argument("--output",type=Path,required=True)
-    print(json.dumps(asyncio.run(run(parser.parse_args())),indent=2)); return 0
+    result=asyncio.run(run(parser.parse_args())); print(json.dumps(result,indent=2)); return 0 if result.get("all_focused_gates_passed") else 1
 if __name__=="__main__": raise SystemExit(main())
