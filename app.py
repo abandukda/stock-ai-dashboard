@@ -27384,6 +27384,22 @@ def v8055_merge_best(base, candidate):
 def v8055_saved_ticker_record(ticker, *dfs):
     """Merge the richest saved evidence across Top Ideas, full scan, watchlist, recovery, prescreen and ETF files."""
     ticker = str(ticker or "").upper().strip()
+    from services.exact_candidate_research import exact_candidate_qa_enabled
+    if exact_candidate_qa_enabled():
+        # RELEASE_SMOKE packages a bounded, certified Research projection in
+        # market_full_scan.json. Preserve that immutable row directly: do not
+        # normalize it into duplicate Raw/DataFrame structures or open any
+        # unrelated discovery, recovery, watchlist, prescreen, or ETF pool.
+        try:
+            for row in normalize_rows(read_json_file(FULL_SCAN_FILE)):
+                if not isinstance(row, dict):
+                    continue
+                identity = str(row.get("ticker") or row.get("symbol") or row.get("Ticker") or "").upper().strip()
+                if identity == ticker:
+                    return dict(row)
+        except Exception:
+            return {}
+        return {}
     merged = {}
     sources = list(dfs)
     for path in [TOP_IDEAS_FILE, FULL_SCAN_FILE, WATCHLIST_SCAN_FILE, RECOVERY_SCAN_FILE, PRESCREEN_FILE, ETF_SCAN_FILE]:
@@ -28332,10 +28348,18 @@ def main():
         st.session_state["atlas_widget_trace_run_sequence"] = int(st.session_state.get("atlas_widget_trace_run_sequence") or 0) + 1
     _research_widget_trace("script_run_entry", active_route=st.session_state.get("v784_single_nav"))
     render_v59_design_system(); render_v65_design_system(); render_v70_design_system(); render_v72_design_system(); render_v73_design_system(); render_v74_design_system(); v775_design_system(); v793_design_system(); v8055_inject_research_css()
-    full_df=load_full_scan(); top_df=latest_top_ideas(); recovery_df=latest_recovery(); watch_df=latest_watchlist_scan(); prescreen_df=load_file(PRESCREEN_FILE); etf_df=load_file(ETF_SCAN_FILE)
     pages=["Home","Today's Opportunities","Volume Intelligence","Atlas Core Holdings","Research Any Ticker","Earnings Intelligence","Full Ranked Scan","Portfolio Intelligence","Watchlist Intelligence","Recovery","ETFs","Political Intelligence","Ask AI","Developer Center"]
     selected_page=render_v73_top_nav(pages)
     _research_widget_trace("route_selected", selected_page=selected_page)
+    if selected_page == "Research Any Ticker":
+        # Research owns its form lifecycle before any cross-surface bootstrap.
+        # Its saved-record resolver loads only the submitted ticker after the
+        # form trigger has been consumed; exact-candidate mode uses the bounded
+        # certified projection exclusively.
+        full_df=pd.DataFrame(); top_df=pd.DataFrame(); recovery_df=pd.DataFrame()
+        watch_df=pd.DataFrame(); prescreen_df=pd.DataFrame(); etf_df=pd.DataFrame()
+    else:
+        full_df=load_full_scan(); top_df=latest_top_ideas(); recovery_df=latest_recovery(); watch_df=latest_watchlist_scan(); prescreen_df=load_file(PRESCREEN_FILE); etf_df=load_file(ETF_SCAN_FILE)
     source_df=top_df if top_df is not None and not top_df.empty else full_df.head(25)
     _emit_page_identity_marker(selected_page)
     # Reserve the tape's established visual position, but do not let its

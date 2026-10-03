@@ -113,6 +113,17 @@ def test_app_guards_both_optional_enrichment_paths_in_exact_candidate_mode():
     assert '"provider_calls": 0' in source
 
 
+def test_research_route_resolves_before_cross_surface_bootstrap():
+    source = Path("app.py").read_text(encoding="utf-8")
+    main = source[source.rindex("def main():"):]
+    assert main.index("selected_page=render_v73_top_nav(pages)") < main.index("full_df=load_full_scan()")
+    assert 'if selected_page == "Research Any Ticker":' in main
+    assert "full_df=pd.DataFrame(); top_df=pd.DataFrame(); recovery_df=pd.DataFrame()" in main
+    resolver = source[source.index("def v8055_saved_ticker_record"):source.index("def v8055_research_hero")]
+    assert "if exact_candidate_qa_enabled():" in resolver
+    assert "read_json_file(FULL_SCAN_FILE)" in resolver
+
+
 def test_nvda_and_regn_survive_rerun_with_terminal_action_state():
     for record in (NVDA, REGN):
         session = {}
