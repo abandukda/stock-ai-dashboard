@@ -300,6 +300,11 @@ def test_workflow_candidate_gate_contract_and_syntax():
     assert "workflow_run" in source and "workflow_dispatch" in source and "workflow_call" in source
     assert "schedule:" in source
     assert "atlas-scan-candidate-${{ steps.candidate.outputs.run_id }}" in source
+    assert "publication:<run ID>" in source
+    assert 'candidate_kind=publication' in source
+    assert "atlas-finnhub-publication-only-recovered-${{ steps.candidate.outputs.run_id }}" in source
+    assert "Expected exactly one recovered publication manifest" in source
+    assert 'mv "$bundle" audit_results/candidate_artifacts' in source
     assert "--qa-mode \"$QA_MODE\"" in source and "atlas-full-qa-${{ github.run_id }}" in source
     assert source.index("Preview candidate relationship and promotion eligibility") < source.index("Capture and validate desktop/mobile customer surfaces")
     assert "agents.full_qa_visual_certification" in source

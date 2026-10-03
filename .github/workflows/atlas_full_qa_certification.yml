@@ -21,7 +21,7 @@ on:
         type: choice
         options: [RELEASE_SMOKE, RELEASE_FULL, FAST_PREVIEW]
       candidate_run_id:
-        description: "Overnight run ID, or qa:<run ID> to reuse a QA candidate; blank generates"
+        description: "Overnight run ID, publication:<run ID>, or qa:<run ID>; blank generates"
         required: false
         type: string
       allow_rollback:
@@ -56,7 +56,7 @@ on:
         default: RELEASE_FULL
         type: string
       candidate_run_id:
-        description: "Overnight run ID, or qa:<run ID> to reuse a QA candidate; blank generates"
+        description: "Overnight run ID, publication:<run ID>, or qa:<run ID>; blank generates"
         required: false
         type: string
       allow_rollback:
@@ -166,6 +166,13 @@ jobs:
           if [[ "$candidate_run_id" == qa:* ]]; then
             echo "candidate_kind=qa" >> "$GITHUB_OUTPUT"
             candidate_run_id="${candidate_run_id#qa:}"
+          elif [[ "$candidate_run_id" == publication:* ]]; then
+            echo "candidate_kind=publication" >> "$GITHUB_OUTPUT"
+            candidate_run_id="${candidate_run_id#publication:}"
+            if ! [[ "$candidate_run_id" =~ ^[0-9]+$ ]]; then
+              echo "::error::Publication recovery run ID must be numeric"
+              exit 1
+            fi
           else
             echo "candidate_kind=overnight" >> "$GITHUB_OUTPUT"
           fi
@@ -223,6 +230,31 @@ jobs:
           path: .
           run-id: ${{ steps.candidate.outputs.run_id }}
           github-token: ${{ github.token }}
+
+      - name: Download certified publication-recovery artifact
+        if: steps.candidate.outputs.run_id != '' && steps.candidate.outputs.candidate_kind == 'publication'
+        uses: actions/download-artifact@v7
+        with:
+          name: atlas-finnhub-publication-only-recovered-${{ steps.candidate.outputs.run_id }}
+          path: audit_results/publication_recovery_input
+          run-id: ${{ steps.candidate.outputs.run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Materialize certified publication bundle for full certification
+        if: steps.candidate.outputs.run_id != '' && steps.candidate.outputs.candidate_kind == 'publication'
+        shell: bash
+        run: |
+          mapfile -t manifests < <(find audit_results/publication_recovery_input -type f -name publication_manifest.json -print)
+          if [ "${#manifests[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one recovered publication manifest; found ${#manifests[@]}"
+            printf '%s\n' "${manifests[@]}"
+            exit 1
+          fi
+          bundle=$(dirname "${manifests[0]}")
+          test -r "$bundle/publication_manifest.json"
+          test ! -e audit_results/candidate_artifacts
+          mv "$bundle" audit_results/candidate_artifacts
+          echo "Materialized immutable recovered publication bundle from run ${{ steps.candidate.outputs.run_id }}"
 
       - name: Verify candidate-generation credential contract
         if: steps.candidate.outputs.run_id == ''
