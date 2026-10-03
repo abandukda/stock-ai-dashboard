@@ -90,6 +90,23 @@ def _research_widget_trace(event, **fields):
     print("ATLAS_RESEARCH_WIDGET_TRACE " + json.dumps(payload, sort_keys=True), flush=True)
 
 
+def _home_runtime_trace(event, **fields):
+    """Emit bounded, secret-free Home phase timings only for focused QA."""
+    if os.getenv("ATLAS_HOME_RUNTIME_TRACE", "").strip().lower() not in {"1", "true", "yes", "on"}:
+        return
+    started = float(st.session_state.get("atlas_home_trace_started_at") or time.monotonic())
+    st.session_state.setdefault("atlas_home_trace_started_at", started)
+    payload = {
+        "event": str(event),
+        "elapsed_seconds": round(time.monotonic() - started, 6),
+        **{
+            key: value if value is None or isinstance(value, (bool, int, float)) else str(value)[:120]
+            for key, value in fields.items()
+        },
+    }
+    print("ATLAS_HOME_RUNTIME_TRACE " + json.dumps(payload, sort_keys=True), flush=True)
+
+
 st.set_page_config(
     page_title="AI Trading Dashboard",
     page_icon="📈",
@@ -28359,7 +28376,24 @@ def main():
         full_df=pd.DataFrame(); top_df=pd.DataFrame(); recovery_df=pd.DataFrame()
         watch_df=pd.DataFrame(); prescreen_df=pd.DataFrame(); etf_df=pd.DataFrame()
     else:
-        full_df=load_full_scan(); top_df=latest_top_ideas(); recovery_df=latest_recovery(); watch_df=latest_watchlist_scan(); prescreen_df=load_file(PRESCREEN_FILE); etf_df=load_file(ETF_SCAN_FILE)
+        _home_runtime_trace("load_full_scan_started", selected_page=selected_page)
+        full_df=load_full_scan()
+        _home_runtime_trace("load_full_scan_completed", rows=len(full_df))
+        _home_runtime_trace("latest_top_ideas_started")
+        top_df=latest_top_ideas()
+        _home_runtime_trace("latest_top_ideas_completed", rows=len(top_df))
+        _home_runtime_trace("latest_recovery_started")
+        recovery_df=latest_recovery()
+        _home_runtime_trace("latest_recovery_completed", rows=len(recovery_df))
+        _home_runtime_trace("latest_watchlist_started")
+        watch_df=latest_watchlist_scan()
+        _home_runtime_trace("latest_watchlist_completed", rows=len(watch_df))
+        _home_runtime_trace("prescreen_load_started")
+        prescreen_df=load_file(PRESCREEN_FILE)
+        _home_runtime_trace("prescreen_load_completed", rows=len(prescreen_df))
+        _home_runtime_trace("etf_load_started")
+        etf_df=load_file(ETF_SCAN_FILE)
+        _home_runtime_trace("etf_load_completed", rows=len(etf_df))
     source_df=top_df if top_df is not None and not top_df.empty else full_df.head(25)
     _emit_page_identity_marker(selected_page)
     # Reserve the tape's established visual position, but do not let its
@@ -28368,7 +28402,10 @@ def main():
     # container after the route renderer preserves the layout while allowing
     # navigation and customer interaction to settle first.
     _market_tape_slot = st.container() if selected_page != "Home" else None
-    if selected_page=="Home": v810_render_dynamic_home(full_df,source_df,recovery_df)
+    if selected_page=="Home":
+        _home_runtime_trace("home_route_dispatch_started")
+        v810_render_dynamic_home(full_df,source_df,recovery_df)
+        _home_runtime_trace("home_route_dispatch_completed")
     elif selected_page=="Today's Opportunities":
         v810_render_today_page(full_df)
         from services.session_stability import emit_page_interactive
@@ -33111,15 +33148,24 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
     # but is not ranking or decision authority for the active Home route.
     from engines.home_guidance_story_v1 import build_home_guidance_story
     from ui.home_guidance_vnext import render_home_guidance_vnext
+    _home_runtime_trace("home_renderer_entered")
     try:
+        _home_runtime_trace("market_full_scan_read_started")
         full_payload = read_json_file(DATA_DIR / "market_full_scan.json")
+        _home_runtime_trace("market_full_scan_read_completed")
     except Exception:
         full_payload = []
+        _home_runtime_trace("market_full_scan_read_failed")
     try:
+        _home_runtime_trace("recovery_scan_read_started")
         recovery_payload = read_json_file(DATA_DIR / "recovery_scan.json")
+        _home_runtime_trace("recovery_scan_read_completed")
     except Exception:
         recovery_payload = []
+        _home_runtime_trace("recovery_scan_read_failed")
+    _home_runtime_trace("watchlist_read_started")
     watchlist_tickers = read_watchlist_symbols()
+    _home_runtime_trace("watchlist_read_completed")
     live_state = st.session_state.get("home_twelve_phase1") or {}
     captured_at = live_state.get("captured_at") if isinstance(live_state, dict) else None
     try:
@@ -33148,7 +33194,9 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
         st.session_state["home_market_today_attempted_at"] = dt.datetime.now(dt.timezone.utc).timestamp()
         from engines.home_market_data import fetch_home_market_tape
         from engines.market_today import build_market_today
+        _home_runtime_trace("market_tape_fetch_started")
         tape = fetch_home_market_tape()
+        _home_runtime_trace("market_tape_fetch_completed")
         st.session_state["home_market_runtime_health"] = dict(tape.get("home_market_runtime_health") or {})
         news_records = []
         try:
@@ -33161,10 +33209,14 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
             pass
         if not news_records:
             from services.home_market_news import fetch_major_market_news
+            _home_runtime_trace("market_news_fetch_started")
             news_result = fetch_major_market_news()
+            _home_runtime_trace("market_news_fetch_completed")
             news_records = list(news_result.get("records") or ())
             st.session_state["home_market_news_runtime_health"] = dict(news_result.get("runtime_health") or {})
+        _home_runtime_trace("market_today_build_started")
         st.session_state["home_market_today"] = build_market_today(tape, news=news_records)
+        _home_runtime_trace("market_today_build_completed")
 
     try:
         production_manifest = read_json_file(DATA_DIR / "publication_manifest.json")
@@ -33180,9 +33232,12 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
     # full-evaluation artifact certified by this manifest.  A stale or mixed
     # pool fails closed to the analytical Top-150 artifact.
     from engines.home_guidance_story_v1 import load_exact_customer_inventory
+    _home_runtime_trace("customer_inventory_read_started")
     customer_inventory_payload, customer_inventory_binding_valid = load_exact_customer_inventory(
         DATA_DIR / "full_evaluation_pool.json", production_manifest,
     )
+    _home_runtime_trace("customer_inventory_read_completed", binding_valid=customer_inventory_binding_valid)
+    _home_runtime_trace("home_story_build_started")
     story = build_home_guidance_story(
         full_payload, recovery_payload,
         watchlist_tickers=watchlist_tickers,
@@ -33194,6 +33249,7 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
         customer_inventory_payload=customer_inventory_payload,
         customer_inventory_binding_valid=customer_inventory_binding_valid,
     )
+    _home_runtime_trace("home_story_build_completed")
     st.session_state["home_action_runtime_health"] = dict(story.get("home_action_count_contract") or {})
     from services.home_runtime_contract import build_home_runtime_contract
     story["home_runtime_contract"] = build_home_runtime_contract(
@@ -33204,7 +33260,10 @@ def v810_render_dynamic_home(full_df=None, top_df=None, recovery_df=None):
     from services.session_stability import emit_page_interactive
     def _home_guidance_interactive():
         emit_page_interactive(st, "Home")
+        _home_runtime_trace("home_interactive_emitted")
+    _home_runtime_trace("home_render_started")
     render_home_guidance_vnext(story, emit_interactive=_home_guidance_interactive)
+    _home_runtime_trace("home_render_completed")
     # Optional Twelve Data work is intentionally after PAGE_INTERACTIVE. A
     # completed result is consumed on the next rerun; the first shell never
     # waits for live acquisition before becoming usable.

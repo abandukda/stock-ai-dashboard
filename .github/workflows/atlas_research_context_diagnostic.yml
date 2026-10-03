@@ -1,4 +1,4 @@
-name: ATLAS Research Route-First Focused Gate
+name: ATLAS Home Render Boundary Diagnostic
 
 on:
   push:
@@ -6,6 +6,8 @@ on:
     paths:
       - .github/workflows/atlas_research_context_diagnostic.yml
       - scripts/diagnose_research_smoke_context.py
+      - scripts/diagnose_home_render_boundary.py
+      - app.py
 
 permissions:
   actions: read
@@ -20,6 +22,7 @@ jobs:
       PYTHONPATH: "."
       ATLAS_EXACT_CANDIDATE_QA: "true"
       ATLAS_RESEARCH_WIDGET_TRACE: "true"
+      ATLAS_HOME_RUNTIME_TRACE: "true"
       DATA_DIR: audit_results/research_context_ab/runtime
       ATLAS_AUDIT_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}
     steps:
@@ -52,9 +55,9 @@ jobs:
           done
           cat audit_results/research_context_ab/diagnostic/streamlit.log
           exit 1
-      - name: Run one isolated-context NVDA submission
+      - name: Trace one bounded Home render
         run: |
-          /usr/bin/time -v -o audit_results/research_context_ab/diagnostic/focused_memory.txt python scripts/diagnose_research_smoke_context.py \
+          /usr/bin/time -v -o audit_results/research_context_ab/diagnostic/focused_memory.txt python scripts/diagnose_home_render_boundary.py \
             --root . \
             --output audit_results/research_context_ab/diagnostic
       - name: Stop runtime
