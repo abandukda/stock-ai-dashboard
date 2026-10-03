@@ -6,6 +6,7 @@ on:
     paths:
       - .github/workflows/atlas_release_smoke_bounded.yml
       - agents/full_qa_visual_certification.py
+      - agents/atlas_visual_crawler_v1.py
       - app.py
       - scripts/run_bounded_release_smoke.py
       - services/exact_candidate_research.py
