@@ -58,10 +58,12 @@ def test_workflow_stops_before_browser_on_deterministic_failure():
     workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/atlas_full_qa_certification.yml").read_text()
     assert "timeout-minutes: 90" in workflow
     assert "FULL QA BLOCKED BEFORE VISUAL CRAWL" in workflow
-    for step in ("Materialize exact candidate", "Verify production Python grammar",
-                 "Launch exact-candidate Streamlit runtime", "Capture and validate desktop/mobile"):
-        block = workflow.split(f"- name: {step}", 1)[1].split("\n      - name:", 1)[0]
-        assert "if: steps.data_qa.outcome == 'success'" in block
+    backend = workflow.split("  backend-certification:", 1)[1].split("  visual-certification:", 1)[0]
+    visual = workflow.split("  visual-certification:", 1)[1].split("  finalization:", 1)[0]
+    assert "Build governed backend certification handoff" in backend
+    assert "if: steps.data_qa.outcome == 'success'" in backend
+    assert "needs: backend-certification" in visual
+    assert "Capture and validate RELEASE_FULL desktop/mobile customer surfaces" in visual
 
 
 def test_workflow_release_tier_is_mandatory_for_automatic_promotion():

@@ -90,7 +90,8 @@ def test_workflow_default_is_certify_only_and_commits_only_if_promoted():
     source = Path(".github/workflows/atlas_full_qa_certification.yml").read_text()
     assert "default: CERTIFY_ONLY" in source
     assert "Preview candidate relationship and promotion eligibility" in source
-    assert "if: steps.qa.outputs.promoted == 'true'" in source
+    assert "RELEASE_FULL_PASS_READY_FOR_CONTROLLED_PROMOTION" in Path("scripts/full_qa_split_handoff.py").read_text()
+    assert "git push origin HEAD:main" not in source
     assert "--qa-mode \"$QA_MODE\"" in source
     assert "--promote" not in source
 

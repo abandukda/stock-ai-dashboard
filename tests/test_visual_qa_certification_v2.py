@@ -127,12 +127,12 @@ def test_workflow_binds_visual_run_before_promotion_and_packages_v2_artifacts():
     source = Path(".github/workflows/atlas_full_qa_certification.yml").read_text()
     assert "--candidate-dir audit_results/candidate_artifacts" in source
     assert "--candidate-run-id" in source
-    assert "visual/visual_manifest.json" in source
-    assert source.index("Capture and validate desktop/mobile customer surfaces") < source.index("Finalize certification and promote atomically")
+    assert "visual/results/visual_manifest.json" in source
+    assert source.index("Capture and validate RELEASE_FULL desktop/mobile customer surfaces") < source.index("Combine fail-closed RELEASE_FULL certification")
     agent = Path("agents/full_qa_visual_certification.py").read_text()
     for name in ("visual_manifest.json", "visual_findings.json", "visual_summary.json", "repair_attempts.json", "build_provenance.json", "dom_snapshots"):
         assert name in agent
-    assert "atlas-visual-qa-${{ github.run_id }}" in source
+    assert "atlas-release-full-visual-${{ github.run_id }}" in source
     assert 'output / "screenshots" / "final"' in agent
 
 
