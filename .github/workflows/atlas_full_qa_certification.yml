@@ -298,18 +298,30 @@ jobs:
         run: |
           python - <<'PY'
           import json
+          import os
           from pathlib import Path
-          from scripts.run_full_qa_certification import _read, _verify_candidate, ARTIFACT_NAMES
+          from scripts.run_full_qa_certification import _read, verify_candidate_bounded
           candidate = Path("audit_results/candidate_artifacts")
           manifest = _read(candidate / "publication_manifest.json")
-          payloads = {Path(name): _read(candidate / name) for name in ARTIFACT_NAMES}
-          _verify_candidate(candidate, manifest, payloads)
+          publication_recovery = os.environ.get("CANDIDATE_KIND") == "publication"
+          result = verify_candidate_bounded(
+              candidate,
+              manifest,
+              expected_candidate_digest=("96936e2b03af129c586ef2043a517068156449a8d1b8dc3d83618451ec90e77f" if publication_recovery else None),
+              expected_publication_digest=("b4b3f66959e497c957472da2626c6e0c3e63dc29cef175c195aca48a9f1126c6" if publication_recovery else None),
+              expected_source_sha=("d5526664b1b4450e67b63a67b01d936f6da5a2a4" if publication_recovery else None),
+          )
           required = manifest.get("source_commit_sha") or manifest.get("source_sha")
           if not required:
               raise SystemExit("CANDIDATE_SOURCE_SHA_MISSING")
           print(json.dumps({"candidate_run_id": manifest.get("run_id"), "candidate_source_sha": required,
-                            "candidate_generated_at": manifest.get("generated_at")}, sort_keys=True))
+                            "candidate_generated_at": manifest.get("generated_at"),
+                            "candidate_digest": result["candidate_digest"],
+                            "publication_digest": result["publication_digest"],
+                            "peak_rss_mib": result["peak_rss_mib"]}, sort_keys=True))
           PY
+        env:
+          CANDIDATE_KIND: ${{ steps.candidate.outputs.candidate_kind }}
 
       - name: Run dataset and numerical certification
         id: data_qa

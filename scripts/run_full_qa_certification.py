@@ -5,11 +5,15 @@ from __future__ import annotations
 import argparse
 import csv
 from datetime import datetime, timezone
+import hashlib
 import json
 from pathlib import Path
+import resource
 import subprocess
 import sys
 import time
+
+import ijson
 
 from services.full_universe_qa import crawl_universe, report_digest, write_json_report
 from services.publication_governance import promote_atomically
@@ -21,6 +25,10 @@ from services.full_qa_pipeline import TimingReport, blocking_findings
 ARTIFACT_NAMES = (
     "market_full_scan.json", "market_prescreen.json", "recovery_scan.json",
     "etf_scan.json", "total_market_universe.json", "market_scan_state.json",
+    "discovery_candidate_pool.json", "full_evaluation_pool.json",
+)
+QA_PAYLOAD_NAMES = (
+    "market_full_scan.json", "market_scan_state.json",
     "discovery_candidate_pool.json", "full_evaluation_pool.json",
 )
 
@@ -88,12 +96,128 @@ def _html(report, path: Path) -> None:
 
 
 def _verify_candidate(candidate_dir: Path, manifest: dict, payloads: dict[Path, object]) -> None:
+    """Legacy semantic-hash verifier retained for equivalence tests."""
     expected = dict(manifest.get("artifact_hashes") or {})
-    import hashlib
     for path, payload in payloads.items():
         actual = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode()).hexdigest()
         if expected.get(path.name) != actual:
             raise RuntimeError(f"CANDIDATE_HASH_MISMATCH:{path.name}")
+
+
+def _rss_mib(*, peak: bool = False) -> float:
+    if not peak:
+        try:
+            for line in Path("/proc/self/status").read_text(encoding="utf-8").splitlines():
+                if line.startswith("VmRSS:"):
+                    return int(line.split()[1]) / 1024.0
+        except (OSError, ValueError, IndexError):
+            pass
+    value = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    return value / (1024.0 if sys.platform != "darwin" else 1024.0 * 1024.0)
+
+
+def _update_canonical_hash(digest: "hashlib._Hash", value: object) -> None:
+    encoder = json.JSONEncoder(sort_keys=True, separators=(",", ":"), default=str)
+    for chunk in encoder.iterencode(value):
+        digest.update(chunk.encode("utf-8"))
+
+
+def _bounded_semantic_hash(path: Path) -> str:
+    """Hash parsed JSON with the existing canonical semantics in bounded memory."""
+    with path.open("rb") as handle:
+        first = b""
+        while not first:
+            first = handle.read(1)
+            if not first:
+                raise RuntimeError(f"CANDIDATE_JSON_EMPTY:{path.name}")
+            if first.isspace():
+                first = b""
+        handle.seek(0)
+        if first != b"[":
+            payload = json.load(handle)
+            digest = hashlib.sha256()
+            _update_canonical_hash(digest, payload)
+            return digest.hexdigest()
+
+        digest = hashlib.sha256(b"[")
+        separator = b""
+        for item in ijson.items(handle, "item", use_float=True):
+            digest.update(separator)
+            _update_canonical_hash(digest, item)
+            separator = b","
+        digest.update(b"]")
+        return digest.hexdigest()
+
+
+def _publication_digest(artifact_hashes: dict[str, str], candidate_digest: str) -> str:
+    digest = hashlib.sha256()
+    _update_canonical_hash(digest, {
+        "artifact_hashes": artifact_hashes,
+        "candidate_digest": candidate_digest,
+    })
+    return digest.hexdigest()
+
+
+def verify_candidate_bounded(
+    candidate_dir: Path,
+    manifest: dict,
+    *,
+    artifact_names: tuple[str, ...] = ARTIFACT_NAMES,
+    expected_candidate_digest: str | None = None,
+    expected_publication_digest: str | None = None,
+    expected_source_sha: str | None = None,
+) -> dict[str, object]:
+    """Verify every governed artifact sequentially without retaining payload bodies."""
+    started = time.monotonic()
+    expected_hashes = dict(manifest.get("artifact_hashes") or {})
+    if not expected_hashes:
+        raise RuntimeError("CANDIDATE_ARTIFACT_HASHES_MISSING")
+    identity = dict(manifest.get("executor_candidate_identity") or {})
+    candidate_digest = str(identity.get("candidate_digest") or manifest.get("candidate_digest") or "")
+    source_sha = str(manifest.get("source_commit_sha") or manifest.get("source_sha") or "")
+    identity_source_sha = str(identity.get("source_sha") or source_sha)
+    if not candidate_digest:
+        raise RuntimeError("CANDIDATE_DIGEST_MISSING")
+    if not source_sha or source_sha != identity_source_sha:
+        raise RuntimeError("CANDIDATE_SOURCE_SHA_MISMATCH")
+    if expected_candidate_digest and candidate_digest != expected_candidate_digest:
+        raise RuntimeError("CERTIFIED_CANDIDATE_DIGEST_MISMATCH")
+    if expected_source_sha and source_sha != expected_source_sha:
+        raise RuntimeError("CERTIFIED_CANDIDATE_SOURCE_SHA_MISMATCH")
+
+    telemetry: list[dict[str, object]] = []
+    print(json.dumps({"event": "candidate_verifier_start", "rss_mib": round(_rss_mib(), 3)}), flush=True)
+    verified_hashes: dict[str, str] = {}
+    for name in artifact_names:
+        path = candidate_dir / name
+        if not path.is_file():
+            raise RuntimeError(f"CANDIDATE_ARTIFACT_MISSING:{name}")
+        size = path.stat().st_size
+        print(json.dumps({"event": "candidate_artifact_start", "artifact": name, "bytes": size}), flush=True)
+        actual = _bounded_semantic_hash(path)
+        if expected_hashes.get(name) != actual:
+            raise RuntimeError(f"CANDIDATE_HASH_MISMATCH:{name}")
+        verified_hashes[name] = actual
+        item = {"artifact": name, "bytes": size, "rss_mib": round(_rss_mib(), 3)}
+        telemetry.append(item)
+        print(json.dumps({"event": "candidate_artifact_complete", **item}), flush=True)
+
+    publication_digest = _publication_digest(expected_hashes, candidate_digest)
+    if expected_publication_digest and publication_digest != expected_publication_digest:
+        raise RuntimeError("CERTIFIED_PUBLICATION_DIGEST_MISMATCH")
+    result = {
+        "candidate_digest": candidate_digest,
+        "publication_digest": publication_digest,
+        "source_sha": source_sha,
+        "artifact_hashes": verified_hashes,
+        "artifact_count": len(verified_hashes),
+        "runtime_seconds": round(time.monotonic() - started, 3),
+        "final_rss_mib": round(_rss_mib(), 3),
+        "peak_rss_mib": round(_rss_mib(peak=True), 3),
+        "artifacts": telemetry,
+    }
+    print(json.dumps({"event": "candidate_verifier_complete", **result}, sort_keys=True), flush=True)
+    return result
 
 
 def main(argv=None) -> int:
@@ -131,8 +255,8 @@ def main(argv=None) -> int:
         idempotent_reason=args.idempotent_reason,
         chained_candidate_run_id=args.chained_candidate_run_id,
     )
-    payloads = {args.production_dir / name: _read(args.candidate_dir / name) for name in ARTIFACT_NAMES}
-    _verify_candidate(args.candidate_dir, candidate_manifest, payloads)
+    verify_candidate_bounded(args.candidate_dir, candidate_manifest)
+    payloads = {args.production_dir / name: _read(args.candidate_dir / name) for name in QA_PAYLOAD_NAMES}
     timing.record_stage("identity", time.monotonic() - identity_started)
     candidate_rows = payloads[args.production_dir / "market_full_scan.json"]
     prior_path = args.production_dir / "market_full_scan.json"
@@ -285,6 +409,10 @@ def main(argv=None) -> int:
     manifest_path.write_text(json.dumps(certified_manifest, indent=2, default=str) + "\n", encoding="utf-8")
     promoted = bool(requested_promotion and preview["promotion_eligible"] and report["gate"] == "PASS")
     if promoted:
+        for name in ARTIFACT_NAMES:
+            path = args.production_dir / name
+            if path not in payloads:
+                payloads[path] = _read(args.candidate_dir / name)
         promote_atomically(payloads, manifest=certified_manifest,
                            manifest_path=args.production_dir / "publication_manifest.json",
                            audit_path=args.production_dir / "publication_audit.jsonl")
