@@ -15,9 +15,7 @@ from typing import Any
 from playwright.async_api import BrowserContext, Page, async_playwright
 
 from agents.atlas_runtime_qa_v3 import (
-    _deployed_readiness_gate,
     _open_and_authenticate,
-    _open_streamlit_origin,
 )
 from agents.atlas_visual_crawler_v1 import AtlasVisualCrawler, DESKTOP, MOBILE, _has_rendered_exception
 from agents.runtime_qa_user_journeys_v40 import _visible_text
@@ -47,15 +45,19 @@ async def open_authenticated_research_page(
     expected_sha: str,
     viewport: dict[str, int],
 ) -> Page:
-    """Open a clean Research surface while retaining context authentication."""
+    """Open and authenticate a clean Research Streamlit session.
+
+    BrowserContext storage preserves browser credentials, but Streamlit's app
+    authentication is bound to each page's WebSocket/session state.  A fresh
+    page must therefore cross the normal login/readiness gate itself before
+    Research route ownership can be certified.
+    """
     page = await context.new_page()
     await page.set_viewport_size(viewport)
     page.on("websocket", crawler._track_streamlit_websocket)
-    await _open_streamlit_origin(
-        page, url, output, allow_local_exact_candidate=True,
-    )
-    await _deployed_readiness_gate(
-        page, expected_sha=expected_sha, output_dir=output,
+    await _open_and_authenticate(
+        page, url, output, expected_sha=expected_sha,
+        allow_local_exact_candidate=True,
     )
     return page
 REQUIRED_PAGES = ("Home", "Research Any Ticker", "Full Ranked Scan", "Volume Intelligence", "Developer Center")

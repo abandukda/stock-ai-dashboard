@@ -1,4 +1,4 @@
-name: ATLAS Home Render Boundary Diagnostic
+name: ATLAS Focused Research Readiness Diagnostic
 
 on:
   push:
@@ -6,8 +6,8 @@ on:
     paths:
       - .github/workflows/atlas_research_context_diagnostic.yml
       - scripts/diagnose_research_smoke_context.py
-      - scripts/diagnose_home_render_boundary.py
-      - app.py
+      - agents/full_qa_visual_certification.py
+      - tests/test_full_qa_visual_certification.py
 
 permissions:
   actions: read
@@ -55,9 +55,9 @@ jobs:
           done
           cat audit_results/research_context_ab/diagnostic/streamlit.log
           exit 1
-      - name: Trace one bounded Home render
+      - name: Certify focused Research readiness and submission
         run: |
-          /usr/bin/time -v -o audit_results/research_context_ab/diagnostic/focused_memory.txt python scripts/diagnose_home_render_boundary.py \
+          /usr/bin/time -v -o audit_results/research_context_ab/diagnostic/focused_memory.txt python scripts/diagnose_research_smoke_context.py \
             --root . \
             --output audit_results/research_context_ab/diagnostic
       - name: Stop runtime

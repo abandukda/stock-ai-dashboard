@@ -35,7 +35,7 @@ def test_master_visual_workflow_captures_required_surfaces_before_promotion():
     assert 'ATLAS_FOUNDER_GUIDANCE_V1_ENABLED: "true"' in source
     assert 'GUEST_PASSWORD: ${{ secrets.ATLAS_AUDIT_PASSWORD }}' in source
     assert "atlas-full-qa-${{ steps.candidate.outputs.run_id }}" in source
-    assert source.index("Capture and validate desktop/mobile customer surfaces") < source.index("Finalize certification and promote atomically")
+    assert source.index("Capture and validate RELEASE_FULL desktop/mobile customer surfaces") < source.index("Combine fail-closed RELEASE_FULL certification")
 
 
 def test_live_research_merge_cannot_replace_persisted_canonical_decision():
@@ -158,7 +158,7 @@ def test_full_qa_source_requires_individual_all_open_nested_and_recollapse_trave
     assert '"collapse_success"' in source
     assert 'pages = REQUIRED_PAGES' in source
     workflow = Path(".github/workflows/atlas_full_qa_certification.yml").read_text()
-    assert workflow.index("Capture and validate desktop/mobile customer surfaces") < workflow.index("Finalize certification and promote atomically")
+    assert workflow.index("Capture and validate RELEASE_FULL desktop/mobile customer surfaces") < workflow.index("Combine fail-closed RELEASE_FULL certification")
 
 
 def test_completion_contract_blocks_auth_finished_interaction_and_mobile_failures():
@@ -247,9 +247,12 @@ def test_release_research_uses_fresh_authenticated_pages_with_early_socket_track
     )[0]
     assert "context.new_page()" in helper
     assert 'page.on("websocket", crawler._track_streamlit_websocket)' in helper
-    assert helper.index('page.on("websocket"') < helper.index("_open_streamlit_origin(")
-    assert "_deployed_readiness_gate(" in helper
-    assert "_open_and_authenticate(" not in helper
+    assert helper.index('page.on("websocket"') < helper.index("_open_and_authenticate(")
+    assert "_open_and_authenticate(" in helper
+    assert "expected_sha=expected_sha" in helper
+    assert "allow_local_exact_candidate=True" in helper
+    assert "_open_streamlit_origin(" not in helper
+    assert "_deployed_readiness_gate(" not in helper
     assert "research_page = await open_authenticated_research_page(" in source
     assert "mobile_research_page = await open_authenticated_research_page(" in source
     assert "await research_page.close()" in source

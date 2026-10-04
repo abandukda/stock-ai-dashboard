@@ -7,9 +7,8 @@ from google.protobuf.json_format import MessageToDict
 from playwright.async_api import Page, WebSocket, async_playwright
 from streamlit.proto.BackMsg_pb2 import BackMsg
 from streamlit.proto.ForwardMsg_pb2 import ForwardMsg
-from agents.atlas_runtime_qa_v3 import _deployed_readiness_gate, _open_and_authenticate
+from agents.atlas_runtime_qa_v3 import _open_and_authenticate
 from agents.atlas_visual_crawler_v1 import AtlasVisualCrawler, DESKTOP, MOBILE, _has_rendered_exception, _scopes
-from agents.full_qa_visual_certification import _open_streamlit_origin
 
 SECRET_KEY = re.compile(r"password|secret|token|cookie|authorization|credential", re.I)
 
@@ -121,8 +120,10 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             ws.on("socketerror",lambda error:socket_events.append({"socket":socket_index,"event":"error","error_type":type(error).__name__,"seconds":round(time.monotonic()-started,6)}))
         page.on("websocket",socket_created)
         phase["value"]="navigation"
-        await _open_streamlit_origin(page,args.url,output,allow_local_exact_candidate=True)
-        await _deployed_readiness_gate(page,expected_sha=source_sha,output_dir=output)
+        await _open_and_authenticate(
+            page, args.url, output, expected_sha=source_sha,
+            allow_local_exact_candidate=True,
+        )
         readiness=await page.locator("body").inner_text()
         auth_persisted=("Research Any Ticker" in readiness and not bool(await page.locator('input[type="password"]').count()))
         phase["value"]="research_route"; await crawler._page_visit(page,"Research Any Ticker",viewport="desktop")
@@ -153,14 +154,14 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             gates["regn_after_nvda"]=regn
         if gates.get("regn_after_nvda",{}).get("passed"):
             mobile=await context.new_page(); await mobile.set_viewport_size(MOBILE); mobile.on("websocket",crawler._track_streamlit_websocket)
-            await _open_streamlit_origin(mobile,args.url,output,allow_local_exact_candidate=True); await _deployed_readiness_gate(mobile,expected_sha=source_sha,output_dir=output)
+            await _open_and_authenticate(mobile,args.url,output,expected_sha=source_sha,allow_local_exact_candidate=True)
             mobile_started=time.monotonic(); mobile_submit=await crawler._submit_research(mobile,"NVDA",tabs=False,viewport="mobile")
             mobile_result=await _research_result(crawler,mobile,"NVDA",{"action":"BUY NOW","fair_value":"338.82","opportunity":"86.68","confidence":"88.54"})
             mobile_result["submit_passed"]=mobile_submit; mobile_result["seconds"]=round(time.monotonic()-mobile_started,6); mobile_result["passed"]=bool(mobile_result["passed"] and mobile_submit)
             gates["nvda_mobile"]=mobile_result; await mobile.close()
         if gates.get("nvda_mobile",{}).get("passed"):
             home=await context.new_page(); await home.set_viewport_size(DESKTOP); home.on("websocket",crawler._track_streamlit_websocket)
-            await _open_streamlit_origin(home,args.url,output,allow_local_exact_candidate=True); await _deployed_readiness_gate(home,expected_sha=source_sha,output_dir=output)
+            await _open_and_authenticate(home,args.url,output,expected_sha=source_sha,allow_local_exact_candidate=True)
             home_started=time.monotonic(); home_route=await crawler._page_visit(home,"Home",viewport="desktop"); home_body=await home.locator("body").inner_text()
             sections={name:name in home_body for name in ("Market Context","ATLAS Market Read","Action Summary","Strongest Opportunities","Worth Watching","Research")}
             home_result={"route":home_route,"sections":sections,"rendered_exception":await _has_rendered_exception(home),"provider_calls":await _provider_calls(home),"seconds":round(time.monotonic()-home_started,6)}
