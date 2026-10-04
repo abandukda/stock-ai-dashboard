@@ -12,6 +12,9 @@ from agents.atlas_visual_crawler_v1 import AtlasVisualCrawler, DESKTOP, MOBILE, 
 
 SECRET_KEY = re.compile(r"password|secret|token|cookie|authorization|credential", re.I)
 
+def _contains_semantic_label(body: str, label: str) -> bool:
+    return label.casefold() in body.casefold()
+
 def _sha(root: Path) -> str:
     return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
 
@@ -163,7 +166,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             home=await context.new_page(); await home.set_viewport_size(DESKTOP); home.on("websocket",crawler._track_streamlit_websocket)
             await _open_and_authenticate(home,args.url,output,expected_sha=source_sha,allow_local_exact_candidate=True)
             home_started=time.monotonic(); home_route=await crawler._page_visit(home,"Home",viewport="desktop"); home_body=await home.locator("body").inner_text()
-            sections={name:name in home_body for name in ("Market Context","ATLAS Market Read","Action Summary","Strongest Opportunities","Worth Watching","Research")}
+            sections={name:_contains_semantic_label(home_body,name) for name in ("Market context","ATLAS Market Read","Action Summary","Strongest Opportunities","Worth Watching","Research")}
             home_result={"route":home_route,"sections":sections,"rendered_exception":await _has_rendered_exception(home),"provider_calls":await _provider_calls(home),"seconds":round(time.monotonic()-home_started,6)}
             home_result["passed"]=bool(home_route and all(sections.values()) and not home_result["rendered_exception"] and home_result["provider_calls"]==0); gates["home"]=home_result; await home.close()
         if gates.get("home",{}).get("passed"):

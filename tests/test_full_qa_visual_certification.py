@@ -11,6 +11,13 @@ from agents.full_qa_visual_certification import (
 from agents.atlas_runtime_qa_v3 import (
     DEPLOYED_READINESS_TIMEOUT_SECONDS, LOGIN_TIMEOUT_SECONDS,
 )
+from scripts.diagnose_research_smoke_context import _contains_semantic_label
+
+
+def test_focused_home_gate_matches_governed_market_context_copy_semantically():
+    body = "Market context · for reference only"
+    assert _contains_semantic_label(body, "Market context")
+    assert _contains_semantic_label(body, "Market Context")
 
 
 def test_visual_ticker_matrix_keeps_permanent_fixtures_and_dynamic_categories(tmp_path: Path):
